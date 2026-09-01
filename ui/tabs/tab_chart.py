@@ -4555,6 +4555,12 @@ class TabChart(QWidget):
         # Let the panel's "Use instrument margins" checkbox read the user's
         # Instrument-Margins thresholds for the current combo (#93, Knut).
         self._manual_layout_panel.set_threshold_lookup(self._combo_thresholds)
+        # Preferences → Chart Layout is the SEED for a chart with no label style
+        # of its own; the panel shows those values so the controls never lie.
+        # `getattr` because a test double may be a settings stand-in without it;
+        # the panel treats a missing lookup as "no seed" and shows the recipe.
+        self._manual_layout_panel.set_label_style_defaults(
+            getattr(self._settings, "indicator_style", None))
         # THE ENGINE'S PANEL BELONGS TO THE LAYOUT LOCK. It is what lays the
         # sheet out when the engine is on, so leaving it outside meant a preset
         # greyed printtarg's controls and left the engine's fully editable —
@@ -5328,14 +5334,42 @@ class TabChart(QWidget):
             self._syncing_manual_sel = False
 
     def _current_layout_recipe(self):
-        """The LayoutRecipe from the engine layout panel, with the strip-
-        indicator styling overlaid from Preferences → Chart Layout. That styling
-        is global — the single source of truth for every engine chart; loaded
-        presets / saved defaults carry the styling fields only as inert
-        history. Overlaying at read time means a style change in Preferences
-        reaches the next build/preview immediately, on any recipe (#93)."""
+        """The LayoutRecipe from the engine layout panel, with the label style
+        overlaid from Preferences → Chart Layout **only when the recipe carries
+        none of its own**.
+
+        This overlay used to be unconditional, and that is the fault Knut
+        reported in 4.1.5-beta.6: his Scanner-A4 preset printed 12 pt row
+        numbers because a size set once for another instrument was pushed onto
+        every recipe here, on every build. `AppSettings.apply_indicator_style`
+        now checks `LayoutRecipe.label_style_explicit`, so Preferences is the
+        default for a NEW chart and nothing more. A recipe written before that
+        field existed carries no style, so it still follows Preferences and
+        renders exactly as it does today (#93, beta-6).
+        """
         return self._settings.apply_indicator_style(
             self._manual_layout_panel.get_recipe())
+
+    def _pinned_layout_recipe(self):
+        """:meth:`_current_layout_recipe`, pinned — the label style resolved and
+        marked as this recipe's own.
+
+        Used wherever a recipe is SAVED (a named preset, the per-combo layout
+        preset, the chart itself), which is Knut's rule: *"The label properties
+        and size should be saved together with the chart, per chart, and for
+        presets, … otherwise all labels on all presets may be affected when
+        user changes the 'Strip indicator style' in preferences."*
+        """
+        from dataclasses import replace
+        return replace(self._current_layout_recipe(), label_style_explicit=True)
+
+    def refresh_label_style_defaults(self) -> None:
+        """Preferences closed — re-show its label style in the panel, for a
+        chart that has none of its own. Preferences pushes at the tabs here
+        rather than the tabs polling (see MainWindow._open_settings)."""
+        p = getattr(self, "_manual_layout_panel", None)
+        if p is not None and hasattr(p, "refresh_label_style_defaults"):
+            p.refresh_label_style_defaults()
 
     def _pin_restored_recipe(self, params) -> bool:
         """Rebuild a restored chart from the recipe it was BUILT with.
@@ -5383,15 +5417,22 @@ class TabChart(QWidget):
         params.chart_date = getattr(self, "_restored_chart_date", "") or ""
         return True
 
-    @staticmethod
-    def _layout_recipe_values(r) -> dict:
-        """The comparable value fields of a recipe (ignores seed / chart text /
-        strip-indicator styling — the styling is app-global, so it never counts
-        as a preset modification)."""
-        from core.settings import INDICATOR_STYLE_KEYS
-        d = r.to_dict()
-        for k in INDICATOR_STYLE_KEYS:
-            d.pop(k, None)
+    def _layout_recipe_values(self, r) -> dict:
+        """The recipe's comparable values — used to light the preset bar's
+        "modified" state.
+
+        THE LABEL STYLE IS PART OF THE COMPARISON NOW. It used to be stripped
+        out, because the style was app-wide and could never differ from the
+        preset's. Now that a preset owns its style, a user who only changes the
+        label size must be able to see that it differs and press Update — so
+        both sides are resolved through the Preferences overlay first (an old
+        preset that owns no style is compared as what it actually prints) and
+        the flag itself is dropped, so "same style, differently recorded" is
+        not reported as a change.
+        """
+        overlay = getattr(self._settings, "apply_indicator_style", None)
+        d = (overlay(r) if overlay is not None else r).to_dict()
+        d.pop("label_style_explicit", None)
         d.pop("seed", None)
         d.pop("chart_text", None)
         return d
@@ -5438,7 +5479,7 @@ class TabChart(QWidget):
         from core.preset_store import save_presets
         try:
             store = self._layout_store()
-            store.set(self._current_layout_recipe())
+            store.set(self._pinned_layout_recipe())
             save_presets("chart_layout", store.as_named_dict())
         except Exception as exc:
             log.warning("update-preset failed: %s", exc)
@@ -9473,8 +9514,10 @@ class TabChart(QWidget):
         if (getattr(self, "_manual_layout_panel", None) is not None
                 and bool(self._settings.get("use_chromiq_layout_engine", False))):
             from dataclasses import replace
+            # PINNED: a saved preset carries its own label style, so a later
+            # Preferences change can't resize the labels on it (Knut, beta-6).
             capture["layout_recipe"] = replace(
-                self._manual_layout_panel.get_recipe(), seed=None).to_dict()
+                self._pinned_layout_recipe(), seed=None).to_dict()
         # Chart notes + stamp choice round-trip with the preset (mavtop,
         # forum). Presets saved before these keys existed simply lack them,
         # and loading such a preset leaves both fields untouched.
@@ -10217,8 +10260,22 @@ class TabChart(QWidget):
             # presets derive theirs from their printtarg fields, reproducing
             # printtarg exactly (verified) but on the native engine path (#63).
             if getattr(self, "_manual_layout_panel", None) is not None:
+                from dataclasses import replace as _replace
                 from workflow.layout_engine.presets import LayoutRecipe
-                recipe = (LayoutRecipe.from_dict(p.layout_recipe)
+                # A BUILT-IN PRESET OWNS ITS LABEL STYLE. These recipes were
+                # authored against a printed sheet — Knut's Scanner charts, the
+                # ColorMunki / i1Pro / i1Pro3 families, the Red River sets — so
+                # Preferences must not resize their labels. This is exactly the
+                # beta-6 report: loading "Scanner-A4-3430p-1page-Landscape-
+                # w4.0mm" printed 12 pt row numbers because a size set once for
+                # another instrument was overlaid onto it. The values pinned are
+                # the ones the dict carries (the Scanner recipe names no size,
+                # so it pins "auto" — which is the size Knut had to set by hand).
+                # The Full-layout-setup presets derive their recipe from their
+                # printtarg fields rather than authoring one, so they are left
+                # unpinned and keep following Preferences as before.
+                recipe = (_replace(LayoutRecipe.from_dict(p.layout_recipe),
+                                   label_style_explicit=True)
                           if p.layout_recipe is not None
                           else self._fls_engine_recipe(p))
                 self._set_engine_recipe(recipe)

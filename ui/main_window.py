@@ -2240,6 +2240,11 @@ class MainWindow(QMainWindow):
         # Margin-inspector visibility / thresholds / guide toggle may have changed.
         if hasattr(self._tab_chart, "refresh_margin_inspector_settings"):
             self._tab_chart.refresh_margin_inspector_settings()
+        # The label-style boxes in Create Chart → Manual show Preferences'
+        # values for a chart that carries none of its own, so a change here has
+        # to reach them or the visible controls would go stale (Knut, beta-6).
+        if hasattr(self._tab_chart, "refresh_label_style_defaults"):
+            self._tab_chart.refresh_label_style_defaults()
         # "Show measurement progress bar" takes effect at once (#153, Knut:
         # *"the checkbox did not remove progress bar when disabled and pressing
         # OK … Changing tabs did also not update"*). Preferences pushes changes

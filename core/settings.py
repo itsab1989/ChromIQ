@@ -397,10 +397,11 @@ DEFAULTS: dict[str, Any] = {
     "profile_install_dir":       "",
     # Strip-indicator styling (Knut #93): the per-chart detail controls moved to
     # Settings → Chart Layout. These are the app-wide styling for EVERY engine
-    # chart — overlaid at read time in TabChart._current_layout_recipe, so the
-    # styling fields a preset/saved-defaults recipe carries are inert history.
-    # Keys mirror the LayoutRecipe.indicator_*/underline_*/strip_label_offset
-    # fields.
+    # chart — but only for a recipe that carries no style of its own
+    # (`LayoutRecipe.label_style_explicit`); a preset or chart that names its
+    # own label style keeps it, and these are then just the seed a NEW chart
+    # starts from (Knut, 4.1.5-beta.6). Keys mirror the
+    # LayoutRecipe.indicator_*/underline_*/strip_label_offset fields.
     "strip_indicator_font":          "JetBrains Mono",
     "strip_indicator_size_mm":       0.0,   # 0 = auto (instrument text height)
     "strip_indicator_bold":          False,
@@ -1254,9 +1255,24 @@ class AppSettings:
         return {field: self.get(key) for field, key in INDICATOR_STYLE_KEYS.items()}
 
     def apply_indicator_style(self, recipe):
-        """Return *recipe* with its strip-indicator styling fields overlaid from
-        the app-wide Settings values. The Settings styling applies to every
-        engine chart — recipes from presets or saved defaults carry the fields
-        only as inert history (TabChart._current_layout_recipe overlays them)."""
+        """Return *recipe* with its label-style fields overlaid from Preferences
+        — but ONLY when the recipe expresses no opinion of its own.
+
+        A CHART'S OWN LABEL STYLE WINS. Knut, 4.1.5-beta.6: *"the Preferences
+        'Strip indicator style' should only be regarded as a default, but every
+        saved chart should have the same label settings in the Create Chart
+        Manual tab (expert options) in order for a chart to be rendered
+        correctly."* His Scanner-A4 preset came back with 12 pt row numbers
+        because a size he had once set for a different instrument was overlaid
+        onto it here, on every build.
+
+        So the overlay now runs only while ``recipe.label_style_explicit`` is
+        False, which is the state of every recipe written before that field
+        existed — those keep following Preferences and render exactly as they
+        do today. See :class:`LayoutRecipe` for why the question is a separate
+        flag and not "is the size still 0?".
+        """
         from dataclasses import replace
+        if getattr(recipe, "label_style_explicit", False):
+            return recipe
         return replace(recipe, **self.indicator_style())

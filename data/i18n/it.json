@@ -4724,5 +4724,7 @@
   "ChromIQ could not file the measurement": "ChromIQ non è riuscito ad archiviare la misurazione",
   "Nothing has been changed, and your own file is untouched where it is.\n\nThe reason: {reason}.\n\nThis usually means the folder is read-only, the disk is full, it lives on a drive or share that is no longer connected, or the project's own {manifest} file has been damaged. Check the project and try again, or choose another one.": "Non è stato modificato nulla e il tuo file resta intatto dov'è.\n\nIl motivo: {reason}.\n\nDi solito significa che la cartella è di sola lettura, che il disco è pieno, che si trova su un'unità o una condivisione non più collegata, oppure che il file {manifest} del progetto è danneggiato. Controlla il progetto e riprova, oppure scegline un altro.",
   "“{name}” could not be opened": "Non è stato possibile aprire «{name}»",
-  "You have no projects yet. Make one, or check the file where it is.": "Non hai ancora nessun progetto. Creane uno oppure controlla il file dov'è."
+  "You have no projects yet. Make one, or check the file where it is.": "Non hai ancora nessun progetto. Creane uno oppure controlla il file dov'è.",
+  "Strip && row labels": "Etichette di striscia && di riga",
+  "Saved with this chart and its presets. Preferences → Chart Layout only sets the starting values for a new chart.": "Salvato con questo grafico e i suoi preset. Preferenze → Layout grafico imposta solo i valori iniziali di un nuovo grafico."
 }

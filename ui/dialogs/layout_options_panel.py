@@ -32,6 +32,15 @@ from workflow.layout_engine.presets import LayoutRecipe
 
 log = get_logger(__name__)
 
+#: The ten label-text properties a chart can own (Knut, 4.1.5-beta.6). Same set
+#: as ``core.settings.INDICATOR_STYLE_KEYS``, named here in recipe-field terms;
+#: `tests/test_label_style_per_chart.py` proves the two never drift apart.
+_LABEL_STYLE_FIELDS = (
+    "indicator_font", "indicator_size_mm", "indicator_bold", "indicator_italic",
+    "indicator_rotation", "indicator_align", "strip_label_offset_mm",
+    "underline_mode", "underline_thickness_mm", "underline_gap_mm",
+)
+
 # Sheet-text placeholders, filled in at build time by chart.build_chart with
 # human-readable values (e.g. {instrument} → "i1Pro3+", {paper} → "A4 landscape",
 # {patchcount} → "576 patches", {seed} → "seed 1234", {dpi} → "300 dpi").
@@ -200,6 +209,21 @@ class LayoutOptionsPanel(QWidget):
         # `_refresh_clip_preview` for why that is safe.
         self._suspend_clip_preview = bool(defer_clip_preview)
         self._loading = False
+        #: True once a PERSON has set one of the ten label-style controls, or a
+        #: recipe that already owned its style was loaded. Mirrors
+        #: `LayoutRecipe.label_style_explicit` in both directions.
+        self._label_style_touched = False
+        #: ``fn() -> {recipe_field: value}`` — the Preferences → Chart Layout
+        #: label style, injected by the host tab (`set_label_style_defaults`).
+        #: Used to SHOW the values a chart with no style of its own will
+        #: actually print with, so the visible controls never lie.
+        self._label_style_defaults = None
+        #: The ten label-style values of the last recipe loaded that owned NONE
+        #: of its own, or None. NOTHING IS THROWN AWAY: the controls show
+        #: Preferences (what will print) while `apply_to_recipe` hands these
+        #: back, so loading and re-reading a recipe is lossless and backing out
+        #: of a preset really does change nothing.
+        self._label_style_inert = None
         #: Millimetre spin boxes whose width is settled in `_fit_spin_widths()`
         #: once the style has been polished — see `small_mm`.
         self._fitted_spins: list = []
@@ -938,13 +962,24 @@ class LayoutOptionsPanel(QWidget):
         _basic_v.addWidget(rg)
         self._on_randomize_toggled(True)
 
-        # ---- Strip indicators (detail widgets) ----
-        # The styling controls moved to Preferences → Chart Layout (Knut #93); only
-        # the "Show strip indicators" checkbox stays in the panel (in the Layout
-        # frame, above Clip border). These widgets are still built so a loaded
-        # preset's styling round-trips through from_recipe / to_recipe, but the
-        # group is never shown — it's a hidden carrier (see si.setVisible(False)).
-        si = QGroupBox(tr("Strip indicators"), self)
+        # ---- Strip & row label text ----
+        # THESE WERE A HIDDEN CARRIER AND ARE NOW REAL CONTROLS. They moved to
+        # Preferences → Chart Layout in #93 and the group was built but never
+        # shown, purely so a loaded preset's styling round-tripped through
+        # from_recipe / to_recipe. Knut, 4.1.5-beta.6: *"The label properties
+        # and size should be saved together with the chart, per chart, and for
+        # presets, so that a user can adapt to the chart's need."* So the group
+        # is visible again, in Expert Options, and what it holds is the chart's
+        # own — Preferences only seeds it (see `label_style_explicit`).
+        #
+        # It is NOT titled "Strip indicators": the same font/size/style also
+        # draws the ROW numbers down the left of the patch block, which is the
+        # half Knut measured as too big. It is placed directly under "Sheet
+        # text" (his ask) rather than inside it, because by his own observation
+        # that frame "only applies to text added in a margin, not any text on
+        # the sheet, which the frame name would suggest" — folding the labels
+        # into it would make an already-misleading name wronger.
+        si = QGroupBox(tr("Strip && row labels"), self)
         sig2 = QGridLayout(si)
         self.indicator_font = ElidingComboBox(self)
         self._populate_font_combo(self.indicator_font)
@@ -1052,9 +1087,32 @@ class LayoutOptionsPanel(QWidget):
                        "patches, a negative value raises them into the margin. The "
                        "patch area doesn't change, so this doesn't affect how many "
                        "patches fit."), self))
-        # Hidden carrier: the styling now lives in Preferences → Chart Layout, but
-        # these widgets still back from_recipe / to_recipe so presets round-trip.
-        si.setVisible(False)
+        # A person touching ANY of these ten answers "this chart owns its label
+        # style" — the same shape as `_row_indicators_touched` above. Wired
+        # after construction so the widget wiring above stays readable, and
+        # guarded by `_loading` so `set_recipe` writing the widgets is not
+        # mistaken for a person answering (the app must never answer its own
+        # question).
+        self._label_style_grp = si
+        self._label_style_note = QLabel(
+            tr("Saved with this chart and its presets. Preferences → Chart "
+               "Layout only sets the starting values for a new chart."), self)
+        self._label_style_note.setWordWrap(True)
+        self._label_style_note.setStyleSheet("color: palette(mid);")
+        sig2.addWidget(self._label_style_note, 0, 0, 1, 3)
+        for _w, _sig in ((self.indicator_font, "currentIndexChanged"),
+                         (self.indicator_size, "valueChanged"),
+                         (self.ind_bold, "toggled"),
+                         (self.ind_italic, "toggled"),
+                         (self.underline_mode, "currentIndexChanged"),
+                         (self.underline_thickness, "valueChanged"),
+                         (self.underline_gap, "valueChanged"),
+                         (self.indicator_rotation, "currentIndexChanged"),
+                         (self.ind_align_left, "toggled"),
+                         (self.ind_align_center, "toggled"),
+                         (self.ind_align_right, "toggled"),
+                         (self.strip_label_offset, "valueChanged")):
+            getattr(_w, _sig).connect(self._on_label_style_touched)
         self._on_rotation_changed()
 
         # ---- Page geometry ----
@@ -1640,6 +1698,9 @@ class LayoutOptionsPanel(QWidget):
             5, 2)
         _expert_v.addWidget(st)
         self._update_text_preview()
+
+        # Directly under "Sheet text", where Knut asked for it (#93 / beta-6).
+        _expert_v.addWidget(si)
 
         # ---- Clip-border content (i1/p3 clip mode) ----
         self._clip_content_grp = QGroupBox(tr("Clip-border content"), self)
@@ -2390,6 +2451,79 @@ class LayoutOptionsPanel(QWidget):
             sb.setMaximumWidth(need)
             if sb.minimumWidth() < need:
                 sb.setMinimumWidth(need)
+
+    # ------------------------------------------------------------------
+    # Label text properties (strip letters + row numbers)
+    # ------------------------------------------------------------------
+    def set_label_style_defaults(self, fn) -> None:
+        """Wire ``fn() -> {recipe_field: value}`` returning Preferences → Chart
+        Layout's label style, so a recipe that carries none of its own can be
+        SHOWN with the values it will actually print with (Knut, beta-6).
+
+        Without it the controls fall back to whatever the recipe holds, which is
+        the pre-#93 behaviour and still correct — just less informative.
+        """
+        self._label_style_defaults = fn
+
+    def _on_label_style_touched(self, *_a) -> None:
+        """A person answered the label-style question; this chart now owns it.
+
+        Guarded by `_loading` for the reason the row-indicator checkbox is: the
+        app writing the widgets during `set_recipe` must not be read back as a
+        user's answer.
+        """
+        if not self._loading:
+            self._label_style_touched = True
+            self._label_style_inert = None
+
+    def _seed_label_style_from_defaults(self) -> None:
+        """Show Preferences' label style in the controls, without claiming the
+        chart owns it. No-op once the chart has a style of its own."""
+        if self._label_style_touched or self._label_style_defaults is None:
+            return
+        try:
+            style = self._label_style_defaults() or {}
+        except Exception as exc:      # noqa: BLE001 — never break the panel
+            log.warning("label-style defaults lookup failed: %s", exc)
+            return
+        if not style:
+            return
+        from dataclasses import fields as _fields
+        known = {f.name for f in _fields(LayoutRecipe)}
+        was_loading = self._loading
+        self._loading = True
+        try:
+            self._write_label_style(LayoutRecipe(
+                **{k: v for k, v in style.items() if k in known}))
+        finally:
+            self._loading = was_loading
+
+    def refresh_label_style_defaults(self) -> None:
+        """Re-read Preferences into the controls (called when the Preferences
+        dialog closes). Silent for a chart that owns its style."""
+        self._seed_label_style_from_defaults()
+
+    def _write_label_style(self, r) -> None:
+        """Push the ten label-style fields of *r* into the controls. Callers set
+        `_loading` — this writes widgets and must not be taken for an answer."""
+        _fi = self.indicator_font.findData(r.indicator_font)
+        self.indicator_font.setCurrentIndex(_fi if _fi >= 0 else 0)
+        self.indicator_size.setValue(mm_to_pt(r.indicator_size_mm))
+        self.ind_bold.setChecked(r.indicator_bold)
+        self.ind_italic.setChecked(r.indicator_italic)
+        _rot = self.indicator_rotation.findData(int(r.indicator_rotation))
+        self.indicator_rotation.setCurrentIndex(_rot if _rot >= 0 else 0)
+        {"left": self.ind_align_left, "center": self.ind_align_center,
+         "right": self.ind_align_right}.get(
+            r.indicator_align, self.ind_align_left).setChecked(True)
+        self.strip_label_offset.setValue(r.strip_label_offset_mm)
+        self._on_rotation_changed()      # grey out align unless 90°/270°
+        _umkey = "segments" if r.underline_mode == "colored" else r.underline_mode
+        _um = self.underline_mode.findData(_umkey)
+        self.underline_mode.setCurrentIndex(_um if _um >= 0 else 0)
+        self.underline_thickness.setValue(r.underline_thickness_mm)
+        self.underline_gap.setValue(r.underline_gap_mm)
+        self._sync_underline_enabled()
 
     def set_threshold_lookup(self, fn) -> None:
         """Wire a callable ``fn(instrument, paper_code) -> {L,R,T,B}|None`` that
@@ -3588,25 +3722,16 @@ class LayoutOptionsPanel(QWidget):
         self.show_row_indicators.setChecked(
             self._row_indicators_default(r) if r.show_row_indicators is None
             else bool(r.show_row_indicators))
-        _fi = self.indicator_font.findData(r.indicator_font)
-        self.indicator_font.setCurrentIndex(_fi if _fi >= 0 else 0)
-        self.indicator_size.setValue(mm_to_pt(r.indicator_size_mm))
-        self.ind_bold.setChecked(r.indicator_bold)
-        self.ind_italic.setChecked(r.indicator_italic)
-        _rot = self.indicator_rotation.findData(int(r.indicator_rotation))
-        self.indicator_rotation.setCurrentIndex(_rot if _rot >= 0 else 0)
-        _align = {"left": self.ind_align_left, "center": self.ind_align_center,
-                  "right": self.ind_align_right}.get(r.indicator_align,
-                                                     self.ind_align_left)
-        _align.setChecked(True)
-        self.strip_label_offset.setValue(r.strip_label_offset_mm)
-        self._on_rotation_changed()      # grey out align unless 90°/270°
-        _umkey = "segments" if r.underline_mode == "colored" else r.underline_mode
-        _um = self.underline_mode.findData(_umkey)
-        self.underline_mode.setCurrentIndex(_um if _um >= 0 else 0)
-        self.underline_thickness.setValue(r.underline_thickness_mm)
-        self.underline_gap.setValue(r.underline_gap_mm)
-        self._sync_underline_enabled()
+        # SHOW WHAT WILL PRINT. A recipe that owns its label style is written
+        # straight in; one that owns none is drawn with Preferences' values, so
+        # those are what the controls show — otherwise the newly visible boxes
+        # would read "auto / JetBrains Mono" for a chart about to print at 12 pt.
+        self._label_style_touched = bool(getattr(r, "label_style_explicit", False))
+        self._label_style_inert = (
+            None if self._label_style_touched else
+            {f: getattr(r, f) for f in _LABEL_STYLE_FIELDS})
+        self._write_label_style(r)
+        self._seed_label_style_from_defaults()
         self.chart_text.setText(r.chart_text)
         _ctf = self.chart_text_font.findData(r.chart_text_font)
         self.chart_text_font.setCurrentIndex(_ctf if _ctf >= 0 else 0)
@@ -3733,6 +3858,9 @@ class LayoutOptionsPanel(QWidget):
         r.show_strip_indicators = self.show_indicators.isChecked()
         r.show_row_indicators = (self.show_row_indicators.isChecked()
                                  if self._row_indicators_touched else None)
+        # WHOSE STYLE IS THIS? False until a person answers (or a recipe that
+        # already owned its style was loaded) — see LayoutRecipe.
+        r.label_style_explicit = self._label_style_touched
         r.indicator_font = self.indicator_font.currentData() or "JetBrains Mono"
         r.indicator_size_mm = pt_to_mm(self.indicator_size.value())
         r.indicator_bold = self.ind_bold.isChecked()
@@ -3745,6 +3873,16 @@ class LayoutOptionsPanel(QWidget):
         r.underline_mode = self.underline_mode.currentData() or "off"
         r.underline_thickness_mm = self.underline_thickness.value()
         r.underline_gap_mm = self.underline_gap.value()
+        if self._label_style_inert is not None:
+            # NOTHING IS THROWN AWAY. A recipe that owns no label style is
+            # SHOWN with Preferences' values, so the newly visible controls say
+            # what will actually print — but it keeps its own values on the way
+            # out. Reading the widgets here instead would rewrite every such
+            # recipe with Preferences the first time it passed through the
+            # panel: a silent edit of a preset nobody opened, and a "back out of
+            # this preset" that quietly changed something.
+            for _f, _v in self._label_style_inert.items():
+                setattr(r, _f, _v)
         r.chart_text = self.chart_text.text()
         r.chart_text_font = self.chart_text_font.currentData() or "Inter"
         r.chart_text_size_mm = pt_to_mm(self.chart_text_size.value())

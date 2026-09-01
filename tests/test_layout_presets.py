@@ -58,6 +58,7 @@ def test_all_fields_persist_through_named_dict():
         inter_patch_mm=1.0, max_strip_mm=200.0, strip_indicator_gap_mm=3.0,
         offset_x_mm=4.0, offset_y_mm=5.0, bit16=True, compression="zlib",
         show_strip_indicators=True, show_row_indicators=False,
+        label_style_explicit=True,
         indicator_font="Inter", indicator_size_mm=4.0,
         indicator_bold=True, indicator_italic=True, underline_mode="cycle",
         underline_thickness_mm=0.8, underline_gap_mm=1.2, chart_text="{project}",

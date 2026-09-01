@@ -1388,7 +1388,18 @@ class ChartCreator:
             # Persist the FULL recipe so loading / preset-creation / built-in
             # presets can reconstruct the exact engine layout (round-trip).
             if params.layout_recipe is not None and hasattr(params.layout_recipe, "to_dict"):
-                layout["recipe"] = params.layout_recipe.to_dict()
+                # PINNED. The recipe stored with a chart is the record of the
+                # sheet that came off the printer, so its label style is that
+                # sheet's, not "whatever Preferences says next week" (Knut,
+                # 4.1.5-beta.6: *"every saved chart should have the same label
+                # settings in the Create Chart Manual tab (expert options) in
+                # order for a chart to be rendered correctly"*). The values are
+                # already resolved — `TabChart._current_layout_recipe` has
+                # applied Preferences to a recipe that carried no style of its
+                # own — so this changes what a REBUILD does, never this build.
+                from dataclasses import replace as _replace
+                layout["recipe"] = _replace(
+                    params.layout_recipe, label_style_explicit=True).to_dict()
             else:
                 # Store a real recipe (not raw build kwargs) so reloading doesn't
                 # lose fields like clip_border (which kwargs spell as nolpcbord)
