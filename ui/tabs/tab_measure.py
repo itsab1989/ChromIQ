@@ -9126,7 +9126,8 @@ class TabMeasure(QWidget):
             self._deferred_calibration = (cond, message, optional)
             return
         self._cue_window("INSTRUMENT_ERROR")
-        from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout
+        from PyQt6.QtWidgets import (QDialog, QDialogButtonBox, QHBoxLayout,
+                                     QLabel, QVBoxLayout)
 
         QApplication.instance().removeEventFilter(self)
 
@@ -9137,16 +9138,42 @@ class TabMeasure(QWidget):
         layout = QVBoxLayout(dlg)
         layout.setSpacing(16)
         layout.setContentsMargins(24, 20, 24, 20)
+        _outer = layout             # the buttons stay on the dialog, not in a column
 
         from ui.ti2_loader import (calibration_instructions_html,
                                     instrument_family)
+        _fam_cal = instrument_family(self._detected_instrument)
         msg = QLabel(
-            calibration_instructions_html(
-                instrument_family(self._detected_instrument)),
+            calibration_instructions_html(_fam_cal),
             dlg,
         )
         msg.setTextFormat(Qt.TextFormat.RichText)
         msg.setWordWrap(True)
+
+        # THE DIAL, DRAWN, for the one instrument whose calibration is a
+        # position on a wheel. "Turn it to the gear" is a sentence somebody has
+        # to map onto a device in their hand; the picture shows which mark and
+        # which way (Basti, 2026-09-01). Every other instrument keeps the words
+        # alone, because for them there is no wheel to point at.
+        #
+        # NOTHING SITS UNDER THE PICTURE. The picture is a column of its own and
+        # every line of text is a column of its own, so the instrument's own
+        # words start on the same left edge as the paragraph above them rather
+        # than stepping back under the wheel (Basti, 2026-09-01).
+        if _fam_cal == "colormunki":
+            from ui.dial_pictogram import dial
+            dlg.setMinimumWidth(620)
+            _pic = QLabel(dlg)
+            _pic.setPixmap(dial("calibrate", dlg, 150))
+            _pic.setAlignment(Qt.AlignmentFlag.AlignTop)
+            _row = QHBoxLayout()
+            _row.setSpacing(18)
+            _row.addWidget(_pic, 0, Qt.AlignmentFlag.AlignTop)
+            _text_col = QVBoxLayout()
+            _text_col.setSpacing(16)
+            _row.addLayout(_text_col, 1)
+            layout.addLayout(_row)
+            layout = _text_col          # every text widget below joins the column
         layout.addWidget(msg)
 
         # The instrument's own words for this particular step. Stock chartread
@@ -9187,7 +9214,7 @@ class TabMeasure(QWidget):
             "measured has been saved as you went, so nothing is lost."))
         btn_box.rejected.connect(dlg.reject)
         btn_box.accepted.connect(dlg.accept)
-        layout.addWidget(btn_box)
+        _outer.addWidget(btn_box)
 
         tint_dialog_primary(dlg, _TAB_COLOR)
         result = dlg.exec()
@@ -9213,7 +9240,8 @@ class TabMeasure(QWidget):
 
     def _on_calibration_done(self) -> None:
         from PyQt6.QtWidgets import (
-            QDialog, QDialogButtonBox, QFrame, QGridLayout, QLabel, QVBoxLayout,
+            QDialog, QDialogButtonBox, QFrame, QGridLayout, QHBoxLayout, QLabel,
+            QVBoxLayout,
         )
 
         QApplication.instance().removeEventFilter(self)
@@ -9224,6 +9252,7 @@ class TabMeasure(QWidget):
         layout = QVBoxLayout(dlg)
         layout.setSpacing(14)
         layout.setContentsMargins(24, 20, 24, 20)
+        _outer = layout             # the buttons stay on the dialog, not in a column
 
         from ui.theme import resolve_mode
         _mode = resolve_mode(self._settings.get("appearance", "auto"))
@@ -9253,6 +9282,29 @@ class TabMeasure(QWidget):
         # ones for the same instrument (Knut, #131 2026-07-28).
         _how = (patch_measurement_instructions_html(_fam) if self._spot_session
                 else measurement_instructions_html(_fam))
+
+        # THE DIAL AGAIN, IN ITS MEASURING POSITION. The calibration window
+        # showed the wheel turned to the gear; this one shows the same wheel
+        # turned to the target mark, so the two windows read as one movement of
+        # one physical thing rather than two unrelated instructions (Basti,
+        # 2026-09-01). It sits at the top for every variant of this window,
+        # because every variant then goes on to say "turn the dial".
+        #
+        # Nothing sits under the picture here either: it takes a column of its
+        # own and every variant's text goes into the column beside it.
+        if _fam == "colormunki":
+            from ui.dial_pictogram import dial
+            dlg.setMinimumWidth(660)
+            _pic = QLabel(dlg)
+            _pic.setPixmap(dial("measure", dlg, 150))
+            _dial_row = QHBoxLayout()
+            _dial_row.setSpacing(18)
+            _dial_row.addWidget(_pic, 0, Qt.AlignmentFlag.AlignTop)
+            _text_col = QVBoxLayout()
+            _text_col.setSpacing(14)
+            _dial_row.addLayout(_text_col, 1)
+            layout.addLayout(_dial_row)
+            layout = _text_col
 
         if self._spot_session:
             dlg.setWindowTitle(tr("Calibration Complete — How to Measure"))
@@ -9453,7 +9505,7 @@ class TabMeasure(QWidget):
         ok_btn = btn_box.button(QDialogButtonBox.StandardButton.Ok)
         ok_btn.setObjectName("primary")
         btn_box.accepted.connect(dlg.accept)
-        layout.addWidget(btn_box)
+        _outer.addWidget(btn_box)
 
         tint_dialog_primary(dlg, _TAB_COLOR)
         self._exec_measurement_window(dlg)
