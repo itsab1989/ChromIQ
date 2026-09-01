@@ -725,7 +725,15 @@ class ScanGridMarquee(QWidget):
         p.setBrush(Qt.BrushStyle.NoBrush)
 
     def _is_dark(self) -> bool:
-        return self.palette().color(self.backgroundRole()).lightness() < 128
+        """Which appearance the scan well is being painted for.
+
+        The two backdrops this picks between (``#111`` / ``#e8e8e8``, in
+        :meth:`paintEvent`) are theme values for the viewer well, not a
+        response to the ground — this widget IS the ground. So it asks the
+        theme module, from its own palette, rather than measuring itself.
+        """
+        from ui.theme import is_dark
+        return is_dark(self.palette())
 
     # ---------------------------------------------------------------- mouse
     def mousePressEvent(self, e) -> None:  # noqa: N802

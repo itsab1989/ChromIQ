@@ -50,11 +50,22 @@ ACCENT_LIGHT = "#0f7a5a"
 
 
 def _accent(widget: QWidget | None) -> QColor:
-    """The Measure tab's green, picked for the ground it will be drawn on."""
-    ink = _ink(widget)
-    # A light ink means a dark ground: the theme's own foreground is the only
-    # reliable signal here, and it is the one _ink already trusts.
-    return QColor(ACCENT_DARK if ink.lightness() > 127 else ACCENT_LIGHT)
+    """The Measure tab's green, in the variant the active theme uses.
+
+    ACCENT_DARK and ACCENT_LIGHT are not two shades of one green chosen for a
+    ground — they are the DARK THEME'S green and the LIGHT THEME'S green, the
+    two values ``ui.styles`` and ``ui.light_styles`` already use for the Measure
+    tab's own information boxes. So the question is which theme is on, and it
+    goes to the theme module rather than being read off the ink's lightness.
+
+    (:func:`_ink` above is left alone on purpose. It does not decide anything —
+    it takes the foreground it is given and paints with it, which is genuinely a
+    per-widget question and stays correct under any appearance.)
+    """
+    from ui.theme import active_mode, APPEARANCE_DARK
+    pal = widget.palette() if widget is not None else None
+    return QColor(ACCENT_DARK if active_mode(pal) == APPEARANCE_DARK
+                  else ACCENT_LIGHT)
 
 
 def _draw_instrument(p: QPainter, r: QRectF, ink: QColor, nose_down: bool):

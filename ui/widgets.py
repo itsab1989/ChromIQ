@@ -2237,9 +2237,12 @@ def _apply_groupbox_surface(gb: QGroupBox) -> None:
     bodies render the same surface colour as the section. Setting only
     palette.Window via setPalette() does not contaminate descendants'
     Base role, so inputs stay white per their own QSS rule."""
-    app_pal = QApplication.palette()
-    is_light = app_pal.window().color().lightness() > 150
-    if is_light:
+    # WHICH THEME, not how light the window happens to be: the branch below
+    # reaches into ui.light_styles for that theme's own surface colour, so only
+    # the light theme can want it. Asked app-wide — a group box wears whatever
+    # the application is set to.
+    from ui.theme import is_light as _theme_is_light
+    if _theme_is_light():
         from ui.light_styles import LM_BG_SURFACE
         gb.setAutoFillBackground(True)
         pal = gb.palette()
@@ -2906,10 +2909,16 @@ def load_folder_icon(name: str) -> QIcon:
 
 
 def _is_light_palette() -> bool:
-    """True when the active app palette is a light theme."""
-    from PyQt6.QtGui import QGuiApplication
-    pal = QGuiApplication.palette()
-    return pal.window().color().lightness() > 150
+    """True when the LIGHT appearance is the one on screen.
+
+    Both callers use this to choose between two shipped assets — the folder
+    glyph recoloured for a pale ground, and the ``*_dark`` sibling of a preset
+    icon. Which asset set applies is a property of the appearance, not of a
+    lightness reading, so the theme module answers it; a third appearance then
+    needs a third answer here rather than silently inheriting Light's files.
+    """
+    from ui.theme import is_light
+    return is_light()
 
 
 def load_preset_icon(name: str) -> QIcon:

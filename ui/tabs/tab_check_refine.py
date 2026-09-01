@@ -49,6 +49,7 @@ from ui.ti2_loader import (has_spectral_data, instrument_label, is_colormunki,
                           read_target_instrument, spectral_options_unavailable)
 
 _TAB_COLOR = "#9f82ff"  # Check & Refine tab accent
+
 from ui.styles import SPEC_VIOLET, TAB_COLORS
 from workflow.profile_builder import _profile_dir as _get_profile_dir
 from workflow.scanin_target import has_scanner_geometry
@@ -69,6 +70,18 @@ from workflow.profcheck_runner import (
     write_refine_strips,
 )
 from core.i18n import tr
+
+
+def _scanner_tip_on_dark() -> bool:
+    """True when the scanner-target tip under the assessment dialog must be
+    drawn for a dark ground.
+
+    The two greys it picks between (``#b8b8b8`` / ``#4a4a4a``) are per-theme
+    readable helper colours, so this asks the theme module which appearance is
+    on rather than measuring the window's lightness.
+    """
+    from ui.theme import is_dark
+    return is_dark()
 
 if TYPE_CHECKING:
     from core.argyll_runner import ArgyllRunner
@@ -1681,9 +1694,7 @@ class TabCheckRefine(QWidget):
             # Weigh up the two ways to make a scanner target, so that right after
             # a printer profiling the user knows reuse is fine but a colour-managed
             # reprint is more accurate for scanning their own prints (Knut, #97).
-            from PyQt6.QtGui import QPalette
-            _dark = QApplication.palette().color(
-                QPalette.ColorRole.Window).lightness() < 128
+            _dark = _scanner_tip_on_dark()
             scanner_tip = QLabel(
                 tr("This saves recognition files from the chart you just measured "
                    "— great for general use, and they work for profiling a scanner "
