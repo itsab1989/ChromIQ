@@ -17070,14 +17070,41 @@ class TabChart(QWidget):
                     and bool(self._settings.get("use_chromiq_layout_engine", False))):
                 return warns
             r = self._current_layout_recipe()
+            from workflow.layout_engine import instruments
+            geom = instruments.geom_from_build_kwargs(r.build_kwargs())
+            # THE MARGIN WE MOVED, SAID OUT LOUD — and it is said in BOTH
+            # layout modes, because the raise happens in both.
+            #
+            # `raster.apply_row_label_geometry` raises the left margin to
+            # `floor + band + 1 mm` so the row labels have somewhere to live
+            # (§R1.5). Measured on beta 6: a typed 26 mm resolved to 33.03, a
+            # typed 10 mm to 33.64, 6 to 14.38, 4 to 8.95 — and NOTHING on
+            # screen said so. The design document even claimed "the panel says
+            # so", which was simply untrue. A silently moved margin is the
+            # user's own setting being overruled, so it is reported here, with
+            # the two numbers the raise is made of, next to the margins it
+            # changed.
+            _asked_l = float(getattr(r, "margin_left", 0.0) or 0.0)
+            _got_l = float(getattr(geom, "margin_l", 0.0) or 0.0)
+            _floor_l = float(getattr(geom, "row_label_floor", 0.0) or 0.0)
+            _raised_l = bool(geom.rlwi > 0 and _got_l > _asked_l + 0.05)
+            if _raised_l:
+                warns.append(tr(
+                    "⚠ The left margin was widened from {asked:.1f} mm to "
+                    "{got:.1f} mm to fit the row indicators. The labels start "
+                    "{floor:.1f} mm in from the page edge (the larger of "
+                    "“Clip” under “Text distance from edge” and the width of "
+                    "the clip border) and their text needs {band:.1f} mm. To "
+                    "get that paper back, switch “Show row indicators” off, "
+                    "use a smaller label size, or reduce “Clip”.").format(
+                        asked=_asked_l, got=_got_l, floor=_floor_l,
+                        band=geom.rlwi))
             # The text-overflow warning only applies in "margins are law" mode,
             # which is now AREA-FIRST (Knut #93): there the label/text lives inside
             # the margin, so a too-small margin overflows toward the page edge. In
             # patch-first the band is reserved above/below the patches — no overflow.
             if r.layout_mode != "area_first":
                 return warns
-            from workflow.layout_engine import instruments
-            geom = instruments.geom_from_build_kwargs(r.build_kwargs())
             lab = geom.label_band_mm if geom.label_band_mm >= 0 else geom.txhisl
             if r.show_strip_indicators and lab > 0 and \
                     r.margin_top + 0.05 < r.text_edge_top_mm + lab:
@@ -17097,12 +17124,21 @@ class TabChart(QWidget):
             # where nothing is wrong teaches the user to ignore it, and one
             # that says "may sit under the patches" at 0 mm understates a
             # number that is not there at all.
-            if geom.rlwi > 0 and r.margin_left < 0.5:
+            # …AND NOT WHEN THE MARGIN WAS RAISED, which is every chart that
+            # asked for less than the labels need. Measured on beta 6: with a
+            # typed left margin of 1 mm the geometry resolves to 8.95 / 14.38 /
+            # 33.03 mm on Knut's three presets and the labels print perfectly
+            # — while this warning said "the patches will cover part of each
+            # one" on a page where nothing of the sort happens. A warning that
+            # fires while the user is looking at the thing working is how
+            # people learn to ignore warnings. The raise itself is reported
+            # above; these two describe what happens when there is no raise.
+            if geom.rlwi > 0 and not _raised_l and r.margin_left < 0.5:
                 warns.append(tr(
                     "⚠ There is no room for the row indicators down the left, "
                     "so they will not be printed. Give the left margin about "
                     "2 mm to get them back."))
-            elif geom.rlwi > 0 and r.margin_left + 0.05 < 2.0:
+            elif geom.rlwi > 0 and not _raised_l and r.margin_left + 0.05 < 2.0:
                 warns.append(tr(
                     "⚠ The left margin is tight for the row indicators, so the "
                     "patches will cover part of each one. About 2 mm prints "
@@ -17124,7 +17160,20 @@ class TabChart(QWidget):
             # tells the user a feature is broken while they are looking at it
             # working, which is the fastest way to teach them to ignore
             # warnings.
+            # …AND ONLY WHEN THE LABELS REALLY ARE UNDER THE BORDER. The band's
+            # floor is now the WIDTH of the clip border on this edge, and the
+            # left margin is raised to hold the band beside it, so on these
+            # charts the numbers print clear of the border and this warning is
+            # simply untrue. Measured on Knut's own
+            # `i1Pro-A4-162p-1page-Portrait-w7.5mm` (fill-the-page, a 26 mm
+            # left border, notes on): the labels print at 27.3 to 32.8 mm, and
+            # the panel said they would not appear at all. Asking whether the
+            # floor actually clears the border keeps the message for the day it
+            # is true again instead of deleting a guard.
+            _border_w = (float(getattr(r, "clip_border_width_mm", 0.0) or 0.0)
+                         if getattr(r, "clip_border", False) else 0.0)
             if geom.rlwi > 0 and geom.fill_beyond_ruler and geom.lbord > 0 \
+                    and _floor_l + 0.05 < _border_w \
                     and r.clip_content_mode != "off" \
                     and (getattr(geom, "clip_side", "left") or "left") == "left":
                 warns.append(tr(
