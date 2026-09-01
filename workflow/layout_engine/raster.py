@@ -363,6 +363,12 @@ def apply_furniture_reserves(geom, kw: dict):
         replace(geom, label_band_mm=lb, bottom_reserve_mm=br), kw)
 
 
+#: What `LayoutRecipe.text_edge_clip_mm` defaults to. Kept here as well because
+#: the row-label floor is read from build kwargs that are sometimes assembled
+#: by hand, where a missing key would otherwise mean "zero".
+_DEFAULT_TEXT_EDGE_CLIP_MM = 4.0
+
+
 def apply_row_label_geometry(geom, kw: dict):
     """Size the row-label band to its labels, and raise the left margin to hold
     it — `docs/design/row_label_geometry.md` §R2.
@@ -415,8 +421,15 @@ def apply_row_label_geometry(geom, kw: dict):
     # with row indicators — the margin is raised to make room — which is the
     # trade §R1.4 asks for: the labels stay on the paper and the patches stay
     # inside the margins, so the paper pays rather than the data.
+    # THE RECIPE'S DEFAULT WHEN THE KEY IS ABSENT, not zero. Several callers
+    # build these kwargs by hand — the Guided capacity estimate among them —
+    # and a missing key must not quietly produce a different geometry from the
+    # one the build uses. It did: the estimate came out with a 10.43 mm left
+    # margin against the build's 14.43 mm and promised 368 patches on a CR30
+    # A4 sheet that holds 345 (Basti, 2026-09-01).
+    _edge = kw.get("text_edge_clip")
     floor = max(float(getattr(geom, "lbord", 0.0) or 0.0),
-                float(kw.get("text_edge_clip") or 0.0),
+                float(_DEFAULT_TEXT_EDGE_CLIP_MM if _edge is None else (_edge or 0.0)),
                 float(kw.get("clip_border_width") or 0.0) if has_border else 0.0)
     needed = floor + measured + 1.0
     margin_l = max(float(getattr(geom, "margin_l", 0.0) or 0.0), needed)
