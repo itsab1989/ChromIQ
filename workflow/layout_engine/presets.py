@@ -101,6 +101,34 @@ class LayoutRecipe:
     # 121 built-in presets, render exactly as they did. Only a person touching
     # the checkbox writes an explicit True/False. (Knut, 2026-08-30.)
     show_row_indicators: "bool | None" = None
+    # ---- label text properties (the ten fields below) -------------------
+    # WHO OWNS THE LABEL STYLE: this recipe, or Preferences > Chart Layout?
+    #
+    # Knut, 4.1.5-beta.6: *"The label text properties are global, and some
+    # presets require a smaller label, especially the scanner presets. The label
+    # properties and size should be saved together with the chart, per chart,
+    # and for presets"* -- and, from his beta-5 run on the Scanner A4 preset,
+    # *"the Preferences 'Strip indicator style' should only be regarded as a
+    # default, but every saved chart should have the same label settings in the
+    # Create Chart Manual tab (expert options) in order for a chart to be
+    # rendered correctly."*
+    #
+    # False means "this recipe expresses no opinion" -- AppSettings.apply_
+    # indicator_style then overlays the ten fields from Preferences, which is
+    # what every build did before this flag existed. True means the ten fields
+    # below are the chart's own and Preferences is not consulted.
+    #
+    # IT IS A SEPARATE FLAG AND NOT A SENTINEL VALUE, and that is the whole
+    # point. `indicator_size_mm == 0.0` means *auto* -- and "auto" is exactly
+    # the answer Knut set by hand to fix his scanner chart. Reading 0.0 as
+    # "unset" would make the one value he wants pinned the one value that can
+    # never be pinned. Every field below has some legitimate value that also
+    # looks like "nothing" (0.0, False, 0, "off"), so the question "did anybody
+    # answer?" cannot be asked of the answers themselves.
+    #
+    # Absent from every dict written before this change, so `from_dict` leaves
+    # it False and those recipes keep following Preferences exactly as today.
+    label_style_explicit: bool = False
     indicator_font: str = "JetBrains Mono"
     indicator_size_mm: float = 0.0       # 0 = auto (instrument text height)
     indicator_bold: bool = False
@@ -242,6 +270,10 @@ class LayoutRecipe:
             show_strip_indicators=bool(d.get("draw_indicators", True)),
             show_row_indicators=(None if d.get("row_indicators") is None
                                  else bool(d.get("row_indicators"))),
+            # Not in build_kwargs (the engine never needed it), so a chart that
+            # stored raw kwargs rather than a recipe reconstructs as "no
+            # opinion" -- i.e. exactly the rendering it has today.
+            label_style_explicit=bool(d.get("label_style_explicit", False)),
             indicator_font=d.get("indicator_font", "JetBrains Mono"),
             indicator_size_mm=float(d.get("indicator_size_mm") or 0.0),
             indicator_bold=bool(d.get("indicator_bold", False)),

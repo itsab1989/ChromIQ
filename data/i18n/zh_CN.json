@@ -4724,5 +4724,7 @@
   "ChromIQ could not file the measurement": "ChromIQ 无法归档该测量数据",
   "Nothing has been changed, and your own file is untouched where it is.\n\nThe reason: {reason}.\n\nThis usually means the folder is read-only, the disk is full, it lives on a drive or share that is no longer connected, or the project's own {manifest} file has been damaged. Check the project and try again, or choose another one.": "没有任何内容被更改，你自己的文件仍原封不动地留在原处。\n\n原因：{reason}。\n\n这通常意味着该文件夹是只读的、磁盘已满、它位于一个已断开连接的驱动器或共享位置上，或者项目自身的 {manifest} 文件已损坏。请检查该项目后重试，或者选择另一个项目。",
   "“{name}” could not be opened": "无法打开“{name}”",
-  "You have no projects yet. Make one, or check the file where it is.": "你还没有任何项目。可以新建一个，或者就在文件所在的位置检查它。"
+  "You have no projects yet. Make one, or check the file where it is.": "你还没有任何项目。可以新建一个，或者就在文件所在的位置检查它。",
+  "Strip && row labels": "色条与行标签",
+  "Saved with this chart and its presets. Preferences → Chart Layout only sets the starting values for a new chart.": "与此色卡及其预设一同保存。偏好设置 → 色卡布局仅决定新色卡的初始值。"
 }

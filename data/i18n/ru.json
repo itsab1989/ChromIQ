@@ -4724,5 +4724,7 @@
   "ChromIQ could not file the measurement": "ChromIQ не смог сохранить измерение",
   "Nothing has been changed, and your own file is untouched where it is.\n\nThe reason: {reason}.\n\nThis usually means the folder is read-only, the disk is full, it lives on a drive or share that is no longer connected, or the project's own {manifest} file has been damaged. Check the project and try again, or choose another one.": "Ничего не изменено, и ваш собственный файл остался нетронутым там, где он есть.\n\nПричина: {reason}.\n\nОбычно это означает, что папка доступна только для чтения, диск заполнен, папка находится на диске или сетевом ресурсе, который больше не подключён, либо повреждён файл проекта {manifest}. Проверьте проект и повторите попытку или выберите другой.",
   "“{name}” could not be opened": "Не удалось открыть «{name}»",
-  "You have no projects yet. Make one, or check the file where it is.": "У вас пока нет проектов. Создайте проект или проверьте файл там, где он лежит."
+  "You have no projects yet. Make one, or check the file where it is.": "У вас пока нет проектов. Создайте проект или проверьте файл там, где он лежит.",
+  "Strip && row labels": "Подписи полос и строк",
+  "Saved with this chart and its presets. Preferences → Chart Layout only sets the starting values for a new chart.": "Сохраняется вместе с этой мишенью и её пресетами. Настройки → Раскладка мишени задают только начальные значения для новой мишени."
 }

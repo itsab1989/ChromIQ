@@ -4724,5 +4724,7 @@
   "ChromIQ could not file the measurement": "ChromIQ kunde inte arkivera mätningen",
   "Nothing has been changed, and your own file is untouched where it is.\n\nThe reason: {reason}.\n\nThis usually means the folder is read-only, the disk is full, it lives on a drive or share that is no longer connected, or the project's own {manifest} file has been damaged. Check the project and try again, or choose another one.": "Ingenting har ändrats och din egen fil ligger orörd där den är.\n\nOrsaken: {reason}.\n\nDet betyder oftast att mappen är skrivskyddad, att disken är full, att den ligger på en enhet eller utdelning som inte längre är ansluten, eller att projektets egen {manifest}-fil är skadad. Kontrollera projektet och försök igen, eller välj ett annat.",
   "“{name}” could not be opened": "”{name}” kunde inte öppnas",
-  "You have no projects yet. Make one, or check the file where it is.": "Du har inga projekt ännu. Skapa ett, eller kontrollera filen där den ligger."
+  "You have no projects yet. Make one, or check the file where it is.": "Du har inga projekt ännu. Skapa ett, eller kontrollera filen där den ligger.",
+  "Strip && row labels": "Rems- && radetiketter",
+  "Saved with this chart and its presets. Preferences → Chart Layout only sets the starting values for a new chart.": "Sparas med detta diagram och dess förval. Inställningar → Diagramlayout anger bara startvärdena för ett nytt diagram."
 }

@@ -4724,5 +4724,7 @@
   "ChromIQ could not file the measurement": "ChromIQ は測定値を保存できませんでした",
   "Nothing has been changed, and your own file is untouched where it is.\n\nThe reason: {reason}.\n\nThis usually means the folder is read-only, the disk is full, it lives on a drive or share that is no longer connected, or the project's own {manifest} file has been damaged. Check the project and try again, or choose another one.": "何も変更されておらず、お客様のファイルは元の場所にそのまま残っています。\n\n理由: {reason}。\n\n多くの場合、フォルダーが読み取り専用である、ディスクの空き容量がない、接続されていないドライブや共有フォルダー上にある、またはプロジェクトの {manifest} ファイルが壊れていることが原因です。プロジェクトを確認してもう一度お試しになるか、別のプロジェクトを選んでください。",
   "“{name}” could not be opened": "「{name}」を開けませんでした",
-  "You have no projects yet. Make one, or check the file where it is.": "プロジェクトはまだありません。新しく作るか、ファイルを今ある場所のまま確認してください。"
+  "You have no projects yet. Make one, or check the file where it is.": "プロジェクトはまだありません。新しく作るか、ファイルを今ある場所のまま確認してください。",
+  "Strip && row labels": "ストリップ・行ラベル",
+  "Saved with this chart and its presets. Preferences → Chart Layout only sets the starting values for a new chart.": "このチャートとそのプリセットとともに保存されます。環境設定 → チャートレイアウトは、新しいチャートの初期値を決めるだけです。"
 }
