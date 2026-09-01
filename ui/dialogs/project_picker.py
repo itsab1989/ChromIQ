@@ -123,6 +123,12 @@ def _centre_on_parent(dlg) -> None:
         pass
 
 
+#: The narrowest the space between the doing buttons and Cancel may become.
+#: Cancel ends a journey and the others continue it, so they must never read as
+#: one group of three.
+_CANCEL_GAP = 24
+
+
 def _width_the_buttons_need(row, dlg, floor: int = 560) -> int:
     """The narrowest the dialog may be before its buttons collide.
 
@@ -140,6 +146,7 @@ def _width_the_buttons_need(row, dlg, floor: int = 560) -> int:
                    for w in (row.itemAt(i).widget() for i in range(row.count()))
                    if w is not None)
         need += row.spacing() * max(0, row.count() - 1)
+        need += _CANCEL_GAP                 # the floor added above
         m = dlg.layout().contentsMargins()
         return max(floor, need + m.left() + m.right() + 24)
     except Exception:          # noqa: BLE001 — never fail to open a window
@@ -308,6 +315,15 @@ def choose_project(parent: "QWidget | None", working_dir: "Path | str", *,
     row.addWidget(new_btn)
     if place_btn is not None:
         row.addWidget(place_btn)
+    # A FLOOR UNDER THE GAP, not only a stretch. `addStretch(1)` collapses to
+    # nothing when the row is tighter than its buttons want, and Cancel then
+    # sits flush against "Make a new project instead" — reported from a real
+    # window (Basti, 2026-09-02) which I could not reproduce at any width down
+    # to 570 px, so the trigger is something about that session rather than the
+    # arithmetic. A fixed minimum makes it impossible to reach whatever the
+    # cause was: the two groups can never be closer than this, and the stretch
+    # still pushes Cancel hard right whenever there is room.
+    row.addSpacing(_CANCEL_GAP)
     row.addStretch(1)
     row.addWidget(cancel_btn)
     lay.addLayout(row)
