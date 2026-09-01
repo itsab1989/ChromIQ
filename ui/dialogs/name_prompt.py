@@ -152,6 +152,34 @@ def _centre_on_parent(dlg) -> None:
     except Exception:          # noqa: BLE001 — never fail to open a window
         pass
 
+
+def _wear_the_tab_accent(dlg, accent: str) -> None:
+    """Focus ring and list selection in the accent of the tab that asked.
+
+    The application stylesheet paints both from one global blue
+    (`ui/light_styles.ACCENT_BLUE`), which is right for the main window's own
+    inputs and wrong here: these dialogs are handed the accent of the tab that
+    opened them, tint their primary button with it, and then drew a blue ring
+    around the name field and a blue bar across the chosen project (Basti,
+    screenshots, 2026-09-01). Stamped on the DIALOG so nothing outside it is
+    touched, and only when an accent was actually given.
+    """
+    if not accent:
+        return
+    try:
+        r, g, b = (int(accent[1:3], 16), int(accent[3:5], 16), int(accent[5:7], 16))
+    except (ValueError, IndexError):
+        return
+    # Dark text on the accent, the same rule `tint_dialog_primary` uses: these
+    # accents are all light enough that white on them fails to read.
+    on_accent = "#0a0a0a" if (r * 299 + g * 587 + b * 114) / 1000 > 140 else "#ffffff"
+    dlg.setStyleSheet((dlg.styleSheet() or "") + f"""
+        QLineEdit:focus, QComboBox:focus {{ border-color: {accent}; }}
+        QListWidget {{ selection-background-color: {accent};
+                       selection-color: {on_accent}; }}
+        QListWidget::item:selected {{ background: {accent}; color: {on_accent}; }}
+    """)
+
 def ask_for_project_name(parent: QWidget | None, *, prefill: str = "",
                          body: str | None = None,
                          exists=None, accent: str = "") -> str | None:
@@ -293,6 +321,7 @@ def ask_for_project_name(parent: QWidget | None, *, prefill: str = "",
     if accent:
         from ui.widgets import tint_dialog_primary
         tint_dialog_primary(dlg, accent)
+        _wear_the_tab_accent(dlg, accent)
     edit.textChanged.connect(_revalidate)
     ok.clicked.connect(dlg.accept)
     cancel_btn.clicked.connect(dlg.reject)

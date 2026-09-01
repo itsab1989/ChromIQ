@@ -158,3 +158,44 @@ def test_the_given_order_is_what_the_row_ends_up_in(qapp):
     assert got == [w.text() for w in wanted], (
         f"the buttons were laid out {got}, not in the order given "
         f"{[w.text() for w in wanted]} — the order argument is being ignored")
+
+
+def test_the_list_selection_wears_the_accent_it_was_given(qapp, tmp_path):
+    """The highlighted row must match the button beside it.
+
+    `tint_dialog_primary` restyles the primary button only; the list's
+    highlight comes from the app-wide sheet, which is the Build Profile cyan.
+    So a picker opened from another tab arrived with a violet button above a
+    cyan-highlighted row. It went unnoticed because the first check used the
+    cyan accent, where the wrong colour and the right one are the same colour
+    (Basti, screenshot, 2026-09-01).
+    """
+    from PyQt6.QtGui import QPalette
+    from PyQt6.QtWidgets import QDialog, QListWidget, QWidget
+    from core.file_manager import Project
+    from ui.dialogs.project_picker import choose_project
+
+    VIOLET = "#9f82ff"
+    seen = {}
+
+    def spy(self):
+        lst = self.findChild(QListWidget)
+        if lst is not None and lst.count():
+            lst.setCurrentRow(0)
+            seen["highlight"] = lst.palette().color(
+                QPalette.ColorRole.Highlight).name().lower()
+        return QDialog.DialogCode.Rejected.value
+
+    real, QDialog.exec = QDialog.exec, spy
+    try:
+        for n in ("Alpha", "Beta"):
+            Project.create(tmp_path / n, n).current_run().ensure_dir()
+        host = QWidget()
+        qapp.processEvents()
+        choose_project(host, tmp_path, title="t", body="b", accent=VIOLET)
+    finally:
+        QDialog.exec = real
+
+    assert seen.get("highlight") == VIOLET, (
+        f"the picker was handed {VIOLET} and highlighted its rows in "
+        f"{seen.get('highlight')}")
