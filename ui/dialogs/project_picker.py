@@ -238,10 +238,23 @@ def choose_project(parent: "QWidget | None", working_dir: "Path | str", *,
     # seventeen rows rather than the twelve it claimed, and on a bigger UI font
     # (or another language, or a HiDPI setting) it would have meant six. Ask
     # the list how tall its own row is.
-    _row_h = max(1, lst.sizeHintForRow(0))
+    # AN EMPTY LIST HAS NO ROW TO MEASURE. `sizeHintForRow(0)` returns -1 with
+    # nothing in it, so `max(1, …)` gave a one-pixel row and the whole box came
+    # out 18 px tall: a sliver that reads as a broken text field, under a
+    # sentence telling you to choose from it. Fall back to the font's own line
+    # height, and say in the box itself that there is nothing to choose yet.
+    _row_h = lst.sizeHintForRow(0)
+    if _row_h <= 0:
+        _row_h = lst.fontMetrics().height() + 8
     _frame = 2 * lst.frameWidth() + 4
-    _rows = min(len(projects), _VISIBLE_ROWS)
+    _rows = min(len(projects), _VISIBLE_ROWS) if projects else 3
     lst.setMinimumHeight(_rows * _row_h + _frame)
+    if not projects:
+        _none = QListWidgetItem(
+            tr("You have no projects yet. Make one, or check the file where "
+               "it is."))
+        _none.setFlags(Qt.ItemFlag.NoItemFlags)
+        lst.addItem(_none)
     # …AND A CEILING, so a long list cannot push the buttons off the bottom of
     # the screen where they cannot be clicked.
     lst.setMaximumHeight(_VISIBLE_ROWS * _row_h + _frame)
@@ -262,9 +275,16 @@ def choose_project(parent: "QWidget | None", working_dir: "Path | str", *,
     # on it by `tint_dialog_primary`; a new dialog that skips both arrives in
     # bare macOS grey and looks like it belongs to a different program.
     ok.setObjectName("primary")
-    ok.setDefault(True)
+    # NOT THE DEFAULT WHEN THERE IS NOTHING TO CHOOSE. With an empty folder
+    # "Choose this project" has no row behind it: pressing Return dismissed the
+    # window and returned None, which the caller reads as Cancel. The first
+    # answer that can actually do something takes the default instead.
+    ok.setEnabled(bool(projects))
+    ok.setDefault(bool(projects))
+    ok.setAutoDefault(bool(projects))
     new_btn = QPushButton(tr("Make a new project instead"), dlg)
-    new_btn.setAutoDefault(False)
+    new_btn.setAutoDefault(not projects)
+    new_btn.setDefault(not projects)
     # THE IN-PLACE ANSWER SITS AFTER THE FILING ANSWERS, never first and never
     # the default (§2.4 of the amendment): filing is what keeps the work
     # together, and the easy path must not be the one that loses the history.

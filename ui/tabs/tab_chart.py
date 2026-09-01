@@ -14323,10 +14323,18 @@ class TabChart(QWidget):
             # a run that never asked for one.
             guided = {"instrument": self._settings.get("chart_instrument", "i1"),
                       "paper": self._settings.get("chart_paper", "A4"),
-                      "pages": 1,
-                      "double_density": False,
+                      # …from the saved defaults where there IS one, the same
+                      # as instrument and paper above. Hard-coding these gave
+                      # somebody with 3 pages saved a 1-page chart.
+                      "pages": int(self._settings.get("chart_pages", 1) or 1),
+                      "double_density": bool(
+                          self._settings.get("chart_double_density", False)),
+                      # No saved default exists for triple density (it is a
+                      # ColorMunki-only layout, chosen per chart), so its
+                      # neutral is off.
                       "triple_density": False,
-                      "left_border": False,
+                      "left_border": bool(
+                          self._settings.get("chart_left_clip_info", False)),
                       "no_strip_limit": False,
                       "precond": ""}
             for fld, val in guided.items():
