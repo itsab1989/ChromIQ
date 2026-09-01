@@ -252,6 +252,7 @@ never the last run's.
 | S7 | New run, Verification | **seeded from the loaded run** — see §4a |
 | S8 | Calibration, nothing stored | saved defaults, else factory |
 | S9 | a run made before this feature | saved defaults, else factory, and it records its own the first time it is used |
+| S10 | a target a **preset** has just created | **the preset** — see §4b |
 
 S2–S5 are the rows Knut added: *"Missing cases (some cases can occur if user
 deletes a file)."* His parenthesis is the important part — **a target with a
@@ -348,6 +349,66 @@ file on screen. `isinstance(store, Calibration)` is the reliable question —
 the same lesson as beta.165 and the three per-target-settings faults before it.
 
 ---
+
+### 4b. A preset creating a target
+
+For a fraction of a second, "nothing stored" is literally true of a target a
+preset has just made: building the preset creates the run and lands the
+Profile-run bar on it, and that is a target change, so the settings are loaded
+back while the new run's `meta.json` is still empty. Read as S4, the app then
+throws the preset's own recipe away and opens the target on the saved defaults
+— paper, margins, minimum patch size and layout mode — while the chart on disk
+stays the preset's. The disagreement is invisible until the *second* Generate,
+which lays the same patches out differently.
+
+Basti's ruling, 2026-09-02:
+
+> *"When a preset creates a target, the preset is that target's stored settings
+> from the moment it lands — the 'nothing stored' rule does not apply to it."*
+
+This is §3 W2 (*"a preset is loaded → writes Create Chart's settings for that
+target"*) read forwards: the write W2 describes has already happened, in intent
+if not yet on disk, so the target is an S1 and never an S4. S4 still governs
+every target whose settings really are nobody's.
+
+#### ✅ Confirmed behaviour — a preset creating a target
+
+**Confirmed by:** Basti, 2026-09-02
+
+| # | Rule | Why |
+|---|---|---|
+| **P-1** | A target created by a preset opens on **the preset**, not on saved defaults or factory | The preset is the person's answer; it was chosen by name |
+| **P-2** | It is an **S1** (settings stored), never an S4 | The store is empty only because the write has not landed yet, not because nobody has decided |
+| **P-3** | The preset's answer survives a later change of **instrument** | An instrument default may set a value nobody has chosen and may not overwrite one they have — see §4c |
+
+### 4c. An instrument default is not an override
+
+Basti, 2026-09-02, on Knut's 4.1.5-beta.5 report (*"Loaded a colormunki preset,
+84 patches. Then changed instrument to CR30. The Create Layout parameter then
+changed … Generate Chart then changed appearance (much smaller patches)"*):
+
+> *"The default exists to help somebody BUILDING a CR30 chart from scratch,
+> where a sensible starting point saves work. Somebody who has just loaded a
+> preset has already said what they want, by name, two clicks ago — overriding
+> that is the app arguing with a decision the person made deliberately."*
+
+Create Chart applies several defaults when the instrument changes: a CR30 gets
+"prioritise patch size" and no spacers (a hand-aimed patch size must not float),
+a SpectroScan gets "prioritise patch size" by columns/rows (a flatbed reads a
+fixed grid), every strip reader gets its spacers back (it finds each patch edge
+BY the spacer), an i1Pro gets a notes band rather than an empty clip border, and
+the row-number box follows the instrument.
+
+#### ✅ Confirmed behaviour — an instrument default is not an override
+
+**Confirmed by:** Basti, 2026-09-02
+
+| # | Rule | Why |
+|---|---|---|
+| **D-1** | An instrument default **may** set a value the person has not chosen | It is what makes a chart built from scratch sensible without work |
+| **D-2** | It **may not** overwrite a value they have chosen — by hand, or by loading a preset | The app must not argue with a decision somebody made deliberately |
+| **D-3** | A default's **own** write is not an answer | Otherwise the spacers a CR30 turned off could never be turned back on for the strip reader that follows |
+| **D-4** | The app's own starting point — factory settings, `default_recipe`, saved defaults — is **not** an answer | Or D-2 would silence every default in the app |
 
 ## 5. Scope
 
