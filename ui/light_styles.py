@@ -261,6 +261,17 @@ QComboBox QAbstractItemView {{
     selection-color: #ffffff;
     outline: none;
 }}
+/* The row inside a combo POPUP — see styles.py for the full reasoning. macOS
+   draws the popup as a menu, which puts a tick on the current entry and (once
+   the accent gives the row a background) shifts the highlighted row's text
+   right. Any box property on ::item:selected makes QStyleSheetStyle draw every
+   row itself: no tick, one inset. It must carry a background too, or the
+   highlight vanishes. DELETE THIS RULE TO REVERT. */
+QComboBox::item:selected {{
+    background: {ACCENT_BLUE};
+    color: #ffffff;
+    padding-left: 0px;
+}}
 /* Buttons mirror the QComboBox drop-down: subcontrol-origin PADDING keeps them
    INSIDE the 1px border, so the focus ring stays a clean continuous rounded
    rectangle (origin: border made the buttons sit on the frame, leaving messy
