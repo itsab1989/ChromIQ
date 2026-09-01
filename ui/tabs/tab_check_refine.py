@@ -76,12 +76,12 @@ def _scanner_tip_on_dark() -> bool:
     """True when the scanner-target tip under the assessment dialog must be
     drawn for a dark ground.
 
-    Extracted verbatim from the dialog body so the decision has a name and can
-    be asked a question by a test; the expression is unchanged by this move.
+    The two greys it picks between (``#b8b8b8`` / ``#4a4a4a``) are per-theme
+    readable helper colours, so this asks the theme module which appearance is
+    on rather than measuring the window's lightness.
     """
-    from PyQt6.QtGui import QPalette
-    return QApplication.palette().color(
-        QPalette.ColorRole.Window).lightness() < 128
+    from ui.theme import is_dark
+    return is_dark()
 
 if TYPE_CHECKING:
     from core.argyll_runner import ArgyllRunner

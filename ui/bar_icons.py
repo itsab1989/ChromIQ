@@ -37,7 +37,7 @@ from __future__ import annotations
 import math
 
 from PyQt6.QtCore import QEvent, QPointF, QRectF, QSize, Qt
-from PyQt6.QtGui import (QColor, QIcon, QPainter, QPainterPath, QPalette, QPen,
+from PyQt6.QtGui import (QColor, QIcon, QPainter, QPainterPath, QPen,
                          QPixmap)
 from PyQt6.QtWidgets import QToolButton, QWidget  # noqa: F401 (QWidget: typing)
 
@@ -336,12 +336,18 @@ class BarIconButton(QToolButton):
         Deliberately NOT ``palette(Disabled, ButtonText)``: the light theme sets
         that role, but the dark theme leaves it at near-white — so a mark drawn in
         it came out *brighter* than the enabled mark beside it, which is the
-        opposite of greyed. The theme is read from the live palette's text colour
-        rather than from the settings, because that is what has just changed when
-        this is asked during a theme switch.
+        opposite of greyed.
+
+        The two greys above are each theme's OWN disabled grey, so the question
+        is "which theme", and it is put to the theme module. It is still
+        answered from the live palette rather than the settings — that is what
+        has just changed when this is asked during a theme switch — but by
+        identifying the palette instead of measuring how light its text is. The
+        widget's own palette is passed because a theme switch reaches this
+        button through its ``PaletteChange``.
         """
-        fg = self.palette().color(QPalette.ColorRole.WindowText)
-        on_dark = fg.lightness() > 127        # light text ⇒ dark background
+        from ui.theme import active_mode, APPEARANCE_DARK
+        on_dark = active_mode(self.palette()) == APPEARANCE_DARK
         return self.GREY_ON_DARK if on_dark else self.GREY_ON_LIGHT
 
     def _apply_icon(self) -> None:

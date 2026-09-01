@@ -75,13 +75,15 @@ def make_scanner_target_row(parent, checked: bool, *, accent: str = "#56d6a5",
     the Check & Refine assessment dialog overrides them with its violet accent so
     the card matches the dialog it lives in."""
     from PyQt6.QtCore import Qt
-    from PyQt6.QtGui import QPalette
     from PyQt6.QtWidgets import (
-        QApplication, QCheckBox, QFrame, QHBoxLayout, QLabel, QVBoxLayout)
+        QCheckBox, QFrame, QHBoxLayout, QLabel, QVBoxLayout)
 
-    app = QApplication.instance()
-    dark = (app is not None
-            and app.palette().color(QPalette.ColorRole.Window).lightness() < 128)
+    # ``hint_light``/``hint_dark`` and the two tint alphas are per-theme
+    # values, so this is a theme question and the theme module answers it.
+    # A third appearance needs a third hint colour here — the keyword pair
+    # above is the thing that would have to grow.
+    from ui.theme import is_dark
+    dark = is_dark()
     # Readable secondary text on the tinted card — a muted accent that keeps
     # clear contrast in both themes (palette(mid) washed out on the tint).
     hint_color = hint_dark if dark else hint_light
