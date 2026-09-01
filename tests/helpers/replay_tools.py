@@ -76,7 +76,21 @@ _LIVE: "list[ReplaySession]" = []
 
 
 def reap_live_sessions() -> int:
-    """Kill any helper still running and return how many there were."""
+    """Kill any helper still running and return how many there were.
+
+    AND CLOSE ITS PIPES, IN THE RIGHT ORDER. Killing the process alone leaves
+    the pipes for the garbage collector, which raises BrokenPipeError while
+    finalising a file object — pytest reports that as an ERROR on an otherwise
+    passing test. Twelve of them appeared on a full parallel gate while every
+    one of those files passed alone, which is exactly the noise that trains
+    people to stop reading the gate.
+
+    ORDER MATTERS, and `test_cr30_external_values.kill` had already worked it
+    out for its own helper: kill, reap, JOIN the reader thread, and only then
+    close. Closing while the reader is still inside its iterator turns the
+    BrokenPipeError into a ValueError and pytest still reports an unraisable
+    warning.
+    """
     killed = 0
     for session in list(_LIVE):
         try:
@@ -85,11 +99,28 @@ def reap_live_sessions() -> int:
                 killed += 1
         except Exception:      # noqa: BLE001 — cleanup must not raise
             pass
-        finally:
+        try:
+            session.proc.wait(timeout=5)
+        except Exception:      # noqa: BLE001 — teardown only
+            pass
+        reader = getattr(session, "_reader", None)
+        if reader is not None and reader.is_alive():
             try:
-                _LIVE.remove(session)
-            except ValueError:
+                reader.join(timeout=5)
+            except Exception:  # noqa: BLE001
                 pass
+        for pipe in (getattr(session.proc, "stdin", None),
+                     getattr(session.proc, "stdout", None),
+                     getattr(session.proc, "stderr", None)):
+            try:
+                if pipe is not None and not pipe.closed:
+                    pipe.close()
+            except (BrokenPipeError, OSError, ValueError):
+                pass
+        try:
+            _LIVE.remove(session)
+        except ValueError:
+            pass
     return killed
 
 

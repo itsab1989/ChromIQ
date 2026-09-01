@@ -86,9 +86,17 @@ def test_row_labels_are_printed_with_the_strip_letters_off(instrument):
 
 def test_an_untouched_box_still_follows_the_strip_letters():
     """`None` means the instrument's own behaviour, and that must not change:
-    every built-in and every saved recipe depends on it."""
+    every built-in and every saved recipe depends on it.
+
+    Asserted on the GEOMETRY, not on the recipe's kwargs: the derivation moved
+    from `build_kwargs` into the geometry build so that a save-and-reload
+    cannot turn "untouched" into an explicit "no" (see
+    `test_an_untouched_box_survives_a_save_and_reload`). The recipe therefore
+    still says None here — what must stay true is that no band is reserved.
+    """
     off = _render(_recipe(strips=False, rows=None))
-    assert off[2]["row_indicators"] is False
+    assert off[2]["row_indicators"] is None, (
+        "the recipe answered for the user instead of carrying their non-answer")
     assert off[1].rlwi == 0.0, "an untouched box reserved paper it never used"
 
 
@@ -130,3 +138,37 @@ def test_the_checkbox_is_no_longer_greyed(qapp):
     assert box.isEnabled(), (
         "the row-indicator box is still greyed out when the strip letters are "
         "off, so the setting cannot be reached")
+
+
+def test_an_untouched_box_survives_a_save_and_reload():
+    """"This instrument's own behaviour" must not become an explicit "no".
+
+    `build_kwargs` used to write False whenever the strip letters were off,
+    even for an untouched box, and reading that back made it explicit — so a
+    SpectroScan never got its row numbers back when the letters were switched
+    on again. The derivation moved to the geometry build, where it cannot be
+    saved by accident.
+    """
+    r = LayoutRecipe()
+    r.show_strip_indicators = False           # nobody touched the row box
+    assert r.show_row_indicators is None
+
+    back = LayoutRecipe.from_dict(r.to_dict())
+    assert back.show_row_indicators is None, (
+        "an untouched row-indicator box came back as an explicit answer after "
+        "a save and reload")
+
+    # …and switching the letters back on restores the instrument's behaviour.
+    back.show_strip_indicators = True
+    assert back.build_kwargs()["row_indicators"] is None
+
+
+def test_the_build_still_derives_the_same_answer():
+    """Moving the derivation must not change what the engine receives."""
+    r = LayoutRecipe()
+    r.instrument = "SS"                        # an instrument that prints them
+    r.show_strip_indicators = False
+    g = instruments.geom_from_build_kwargs(r.build_kwargs())
+    assert g.rlwi == 0.0, (
+        "an untouched box with the strip letters off reserved a band the "
+        "renderer will not draw into")

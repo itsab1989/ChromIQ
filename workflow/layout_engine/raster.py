@@ -428,7 +428,13 @@ def apply_row_label_geometry(geom, kw: dict):
     # margin against the build's 14.43 mm and promised 368 patches on a CR30
     # A4 sheet that holds 345 (Basti, 2026-09-01).
     _edge = kw.get("text_edge_clip")
-    floor = max(float(getattr(geom, "lbord", 0.0) or 0.0),
+    # ONLY WHAT IS ACTUALLY ON THE LEFT. `lbord` is the furniture band's width
+    # wherever that band sits, so counting it unconditionally raised the LEFT
+    # margin by 20 mm for a clip border on the RIGHT — 81 patches off an A4
+    # sheet, for something the labels never had to clear.
+    _left_furniture = (float(getattr(geom, "lbord", 0.0) or 0.0)
+                       if on_left else 0.0)
+    floor = max(_left_furniture,
                 float(_DEFAULT_TEXT_EDGE_CLIP_MM if _edge is None else (_edge or 0.0)),
                 float(kw.get("clip_border_width") or 0.0) if has_border else 0.0)
     needed = floor + measured + 1.0

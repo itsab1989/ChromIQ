@@ -437,6 +437,13 @@ def geom_from_build_kwargs(kw: dict, thresholds: dict | None = None) -> Geom:
     # patches down while pinning labels at the margin (Knut). The ruler cap, though,
     # must still bind in patch-first even under margins_are_law — only area-first
     # fills past the ruler (and warns), so that stays keyed on the layout mode.
+    # AN UNTOUCHED BOX FOLLOWS THE STRIP LETTERS, and the derivation lives
+    # HERE rather than in the recipe so that saving and reloading cannot turn
+    # "this instrument's own behaviour" into an explicit "no". Only the
+    # untouched state is derived; an explicit True still prints row labels
+    # with the letters off, which is what that combination is for.
+    if kw.get("row_indicators") is None and not kw.get("draw_indicators", True):
+        kw = {**kw, "row_indicators": False}
     area_first = (kw.get("layout_mode") == "area_first")
     law = area_first or bool(kw.get("use_instrument_margins"))
     geom = build(kw["instrument"], margins_are_law=law, fill_beyond_ruler=area_first,

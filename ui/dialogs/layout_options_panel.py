@@ -3212,8 +3212,23 @@ class LayoutOptionsPanel(QWidget):
         combo.setMinimumContentsLength(12)
 
     def _mark_row_indicators_touched(self, *_a) -> None:
-        """A person chose the row-number state; stop tracking the instrument."""
+        """A person chose the row-indicator state; stop tracking the instrument.
+
+        AND SAY SO AGAIN, because Qt emits `toggled` BEFORE `clicked`. The
+        first `changed` of a click therefore ran while this flag was still
+        False, `apply_to_recipe` returned `None` ("the instrument's own
+        behaviour"), the layout signature was unchanged and the auto-preview
+        timer was never armed — so the FIRST click on this box did nothing on
+        screen and every click after it worked. Meanwhile the build reads the
+        recipe live, so one click and Generate printed row labels the preview
+        had never shown (Basti, 2026-09-01; cause proved on screen by a
+        challenge round, `preview-timer-armed=False` on click 1).
+
+        Re-emitting here costs one extra signature comparison per click and
+        makes the first click behave like every other one.
+        """
         self._row_indicators_touched = True
+        self._emit()
 
     def _row_indicators_default(self, r) -> bool:
         """Whether *r*'s instrument prints row numbers when nobody has said.

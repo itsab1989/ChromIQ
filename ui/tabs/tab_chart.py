@@ -15184,6 +15184,27 @@ class TabChart(QWidget):
             parts.append(sheets)
         self._gamut_count_lbl.setText(" ".join(parts))
 
+    def _recipe_capacity(self) -> "int | None":
+        """Patches per sheet under the LIVE Manual layout recipe.
+
+        The recipe panel is the source of truth for the engine's layout, so
+        anything that quotes a capacity in Manual mode has to read it rather
+        than the printtarg widgets beside it.
+        """
+        panel = getattr(self, "_manual_layout_panel", None)
+        if panel is None or not hasattr(panel, "get_recipe"):
+            return None
+        try:
+            from workflow.layout_engine import geometry, instruments, papers
+            rec = panel.get_recipe()
+            geom = instruments.geom_from_build_kwargs(rec.build_kwargs())
+            w_mm, h_mm = papers.dimensions_mm(rec.paper)
+            n = int(geometry.patches_per_sheet(geom, w_mm, h_mm))
+            return n if n > 0 else None
+        except Exception:      # noqa: BLE001 — a hint may never block
+            log.debug("recipe capacity unavailable", exc_info=True)
+            return None
+
     def _gamut_per_sheet(self) -> "int | None":
         """Patches per sheet under the CURRENT Manual layout — engine-exact
         when the engine is on, the capacity database for printtarg, None when
@@ -15192,12 +15213,22 @@ class TabChart(QWidget):
             p = self._collect_manual()
             per = None
             if bool(self._settings.get("use_chromiq_layout_engine", False)):
-                per = self._engine_capacity(
-                    p.instrument, p.paper, dd=p.double_density,
-                    td=getattr(p, "triple_density", False),
-                    eff_lb=p.disable_left_border,
-                    nsl=p.no_strip_limit, pscale=float(p.patch_scale),
-                    margin=float(p.margin_mm))
+                # FROM THE LIVE RECIPE, because in Manual mode that is what
+                # lays the sheet out. Asking `_engine_capacity` with the
+                # PRINTTARG fields ignored the recipe panel entirely — the
+                # patch size, the margins, the clip border — and answered 550
+                # for every layout, against a real 88 to 540. On a 20 mm-patch
+                # chart it was out by 6.25x while its own docstring said
+                # "engine-exact". Same family as the Guided estimate that
+                # promised 368 patches on a 345-patch sheet.
+                per = self._recipe_capacity()
+                if not per:
+                    per = self._engine_capacity(
+                        p.instrument, p.paper, dd=p.double_density,
+                        td=getattr(p, "triple_density", False),
+                        eff_lb=p.disable_left_border,
+                        nsl=p.no_strip_limit, pscale=float(p.patch_scale),
+                        margin=float(p.margin_mm))
             if not per:
                 from data.patch_db import query_patches
                 per = query_patches(p.instrument, p.paper, p.double_density,

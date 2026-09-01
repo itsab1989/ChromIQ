@@ -129,3 +129,23 @@ def test_patch_first_still_reserves_the_band():
     assert _rightmost_ink_mm(on, w) != pytest.approx(_rightmost_ink_mm(off, w),
                                                      abs=0.2), (
         "patch-first stopped reserving the row-label band, which it must")
+
+
+@pytest.mark.parametrize("side,expect_raised", [("left", True), ("right", False)])
+def test_only_left_hand_furniture_charges_the_left_margin(side, expect_raised):
+    """A clip border on the RIGHT must not raise the LEFT margin.
+
+    `lbord` is the furniture band's width wherever the band sits, so counting
+    it unconditionally cost 20 mm of left margin — 81 patches off an A4 sheet
+    — for something the row labels never had to clear (found by a challenge
+    round, 2026-09-01).
+    """
+    r = LayoutRecipe()
+    r.instrument, r.paper, r.layout_mode = "i1", "A4", "patch_first"
+    r.show_row_indicators, r.show_strip_indicators = True, True
+    r.clip_border, r.clip_side, r.clip_border_width_mm = True, side, 26.0
+    r.margin_top = r.margin_right = r.margin_bottom = r.margin_left = _MARGIN
+    g = instruments.geom_from_build_kwargs(r.build_kwargs())
+    raised_past_the_border = g.margin_l > 26.0
+    assert raised_past_the_border is expect_raised, (
+        f"clip border on the {side}: left margin came out {g.margin_l:.2f} mm")

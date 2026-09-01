@@ -60,8 +60,13 @@ def user_i18n_dir() -> Path:
     """
     root: Path | None = None
     try:
-        from PyQt6.QtCore import QSettings
-        custom = QSettings("ChromIQ", "ChromIQ").value("custom_output_path", "")
+        # THROUGH THE APP'S OWN STORE, so `CHROMIQ_SETTINGS_FILE` is honoured.
+        # Reading `QSettings("ChromIQ", "ChromIQ")` directly walks straight
+        # past the sandbox every driver and test sets, and lands on the real
+        # preferences — the one thing that env var exists to make impossible
+        # (found by a challenge round, 2026-09-01).
+        from core.settings import AppSettings
+        custom = AppSettings().get("custom_output_path", "")
         if custom:
             root = Path(str(custom))
     except Exception:

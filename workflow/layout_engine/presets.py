@@ -378,10 +378,16 @@ class LayoutRecipe:
             # 130 built-ins render unchanged. Measured 2026-09-01: none of the
             # built-ins turns the strip letters off, and none names the row
             # indicators explicitly.
-            "row_indicators": (self.show_row_indicators
-                               if self.show_row_indicators is not None
-                               else (None if self.show_strip_indicators
-                                     else False)),
+            # THE RAW TRI-STATE, so a round trip cannot invent an answer.
+            # This used to write False whenever the strip letters were off,
+            # even for an UNTOUCHED box — and `from_build_kwargs` then read
+            # that False back as an explicit "no", so "this instrument's own
+            # behaviour" was lost for good and a SpectroScan never got its row
+            # numbers back when the letters were switched on again. The
+            # derivation still happens, one step later, where the geometry is
+            # built (`instruments.geom_from_build_kwargs`), so what the engine
+            # receives is unchanged.
+            "row_indicators": self.show_row_indicators,
             "indicator_font": self.indicator_font,
             "indicator_size_mm": self.indicator_size_mm,
             "indicator_bold": self.indicator_bold,
