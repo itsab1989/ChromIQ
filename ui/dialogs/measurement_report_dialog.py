@@ -854,7 +854,7 @@ class MeasurementReportDialog(QDialog):
         # background so it isn't darker than the chrome.
         mode = resolve_mode(self._settings.get("appearance", "auto"))
         from ui.dialogs.tools_dialogs import neutral_controls_qss
-        qss = neutral_controls_qss(SPEC_GREEN)
+        qss = neutral_controls_qss(SPEC_GREEN, popup=SPEC_GREEN)
         if mode == "dark":
             qss += (f"QTextBrowser {{ background: {BG_INPUT}; color: {TEXT_MAIN};"
                     f" border: 1px solid {BORDER}; border-radius: 3px; }}")

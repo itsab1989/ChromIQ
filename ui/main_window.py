@@ -680,7 +680,7 @@ class MainWindow(QMainWindow):
         user switches away and back. Pre-styling every tab up front makes the
         first show correct. See issue #35.
         """
-        from ui.styles import TAB_COLORS
+        from ui.styles import TAB_COLORS, combo_popup_qss
         from ui.tooltip_button import TooltipButton
 
         tab_w = self._tabs.widget(index)
@@ -825,6 +825,13 @@ class MainWindow(QMainWindow):
                     color: {primary_text};
                 }}
             """
+
+        # ---- combobox popup hover highlight, in this tab's accent ---------
+        # One shared definition, `ui.styles.combo_popup_qss` — the tool dialogs
+        # use the same two rules with their own accent, so a dropdown looks and
+        # behaves the same wherever it is opened. See that function for why BOTH
+        # rules are needed and why `padding-left: 0px` is not cosmetic.
+        _sheet += combo_popup_qss(color)
 
         # The stylesheet is a pure function of (index, theme); a set stylesheet
         # stays applied and cascades to children added later, so on a revisit for

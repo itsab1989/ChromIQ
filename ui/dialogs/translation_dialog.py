@@ -37,6 +37,7 @@ from core.i18n import SOURCE_LANGUAGE, available_languages, tr
 from core.logger import get_logger
 from core.preset_store import reveal_in_file_manager
 from ui.dialogs.tools_dialogs import _indicator_color, neutral_controls_qss
+from ui.styles import SPEC_MAGENTA
 from ui.tab_header import dialog_masthead
 from ui.theme import resolve_mode
 from ui.widgets import confirm, NoScrollComboBox, open_file_dialog, save_file_dialog
@@ -174,7 +175,10 @@ class TranslationDialog(QDialog):
         close_btn.clicked.connect(self.reject)
         outer.addWidget(bb)
 
-        self.setStyleSheet(neutral_controls_qss(_indicator_color(settings)))
+        # Neutral indicators, but the dropdown wears this window's own accent —
+        # dialog_masthead's default magenta, which is the stroke drawn above.
+        self.setStyleSheet(
+            neutral_controls_qss(_indicator_color(settings), popup=SPEC_MAGENTA))
 
     # ------------------------------------------------------------------
     def _hline(self) -> QFrame:

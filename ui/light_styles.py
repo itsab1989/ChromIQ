@@ -584,4 +584,20 @@ QLineEdit#compact_path {{
     max-height: 22px;
     padding: 1px 6px;
 }}
+
+/* Preferences dialog — the combo popup's hover highlight. The tabs get theirs
+   from MainWindow._apply_tab_widget_styling; this dialog is not inside a tab,
+   so its accent lives here. DELETE THESE TWO RULES TO REVERT. */
+SettingsDialog QComboBox::item:selected {{
+    background: #3a3a3a;
+    color: #ffffff;
+    /* Not cosmetic — see ui.styles.combo_popup_qss. Without it the highlighted
+       row alone is laid out through the stylesheet's menu-item path and its
+       text jumps 26 px right as the mouse passes over. */
+    padding-left: 0px;
+}}
+SettingsDialog QComboBox QAbstractItemView {{
+    selection-background-color: #3a3a3a;
+    selection-color: #ffffff;
+}}
 """

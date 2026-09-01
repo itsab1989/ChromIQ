@@ -210,7 +210,7 @@ class SoftproofDialog(QDialog):
         else:
             t_bg, t_fg, t_bd = "#2a2a28", "#d0d0d0", "#454340"
         self.setStyleSheet(
-            neutral_controls_qss(_ACCENT)
+            neutral_controls_qss(_ACCENT, popup=_ACCENT)
             + (f"QPushButton#view_toggle {{ background: {t_bg}; color: {t_fg};"
                f" border: 1px solid {t_bd}; border-radius: 4px; padding: 6px 10px; }}"
                f"QPushButton#view_toggle:checked {{ background: {_ACCENT};"

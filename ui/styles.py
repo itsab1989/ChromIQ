@@ -44,6 +44,50 @@ NEUTRAL_BTN       = "#3a3a3a"
 NEUTRAL_BTN_HOVER = "#484848"
 
 
+# ---------------------------------------------------------------------------
+# A combobox POPUP's hover highlight, in a given accent.
+#
+# The popup is its own top-level window and Qt draws its rows down one of TWO
+# paths, neither of which covers the other — measured on screen, both themes:
+#
+#   * the MENU path (macOS's native combo popup, CE_MenuItem). Neither the
+#     application palette nor `selection-background-color` reaches this one:
+#     with only that property set, the view's palette REPORTS the new colour
+#     while the popup renders exactly as before. Only `QComboBox::item:selected`
+#     moves it.
+#   * the VIEW path — a combo carrying `combobox-popup: 0` (`#compact_input`) or
+#     a custom item delegate is drawn as a view item (CE_ItemViewItem), and only
+#     `selection-background-color` reaches THAT one.
+#
+# So both rules go on together, always.
+#
+# `padding-left: 0px` is not cosmetic. Giving `::item:selected` a background
+# without it routes the highlighted row — and only that row — through the
+# stylesheet's menu-item layout, which reserves a checkmark gutter: the
+# highlighted row's text jumps 26 px right as the mouse passes over it, and the
+# rest of the list does not. With it, every row is laid out the same way and the
+# text does not move (measured 26.5 px -> 0.0 px).
+#
+# The text is DARK, not white: white measures 1.78:1 on amber and 1.82:1 on
+# green, both far below AA. #101010 gives 5.75 to 10.71 across the accents.
+POPUP_HL_TEXT = "#101010"
+
+
+def combo_popup_qss(color: str, text: str = POPUP_HL_TEXT) -> str:
+    """The two rules that put ``color`` under a combobox popup's hovered row.
+
+    Scope it by setting it on the window/tab whose accent it is — the tabs get
+    theirs from ``MainWindow._apply_tab_widget_styling``, a tool dialog from
+    ``ui.dialogs.tools_dialogs.neutral_controls_qss(..., popup=...)``.
+    """
+    return (
+        f"QComboBox::item:selected {{"
+        f" background: {color}; color: {text}; padding-left: 0px; }}"
+        f"QComboBox QAbstractItemView {{"
+        f" selection-background-color: {color}; selection-color: {text}; }}"
+    )
+
+
 def make_dark_palette() -> QPalette:
     pal = QPalette()
     pal.setColor(QPalette.ColorRole.Window,          QColor(BG_PANEL))
@@ -426,4 +470,20 @@ QProgressBar {{
     background: {BG_INPUT}; text-align: center; color: {TEXT_MAIN}; height: 18px;
 }}
 QProgressBar::chunk {{ background: {ACCENT}; border-radius: 2px; }}
+
+/* Preferences dialog — the combo popup's hover highlight. The tabs get theirs
+   from MainWindow._apply_tab_widget_styling; this dialog is not inside a tab,
+   so its accent lives here. DELETE THESE TWO RULES TO REVERT. */
+SettingsDialog QComboBox::item:selected {{
+    background: #c9c9c9;
+    color: #101010;
+    /* Not cosmetic — see ui.styles.combo_popup_qss. Without it the highlighted
+       row alone is laid out through the stylesheet's menu-item path and its
+       text jumps 26 px right as the mouse passes over. */
+    padding-left: 0px;
+}}
+SettingsDialog QComboBox QAbstractItemView {{
+    selection-background-color: #c9c9c9;
+    selection-color: #101010;
+}}
 """
