@@ -13916,7 +13916,33 @@ class TabChart(QWidget):
             # `_init_manual_layout_panel` IS that rule: the "Save as Defaults"
             # recipe if there is one, otherwise the active preset for the
             # selection. It is what a first-ever chart opens on.
-            if getattr(self, "_manual_layout_panel", None) is not None:
+            #
+            # NOT WHEN A BUILD ON SCREEN OWNS THE LAYOUT — §3 W2, NOT §4 S4.
+            #
+            # Applying a built-in preset seeds the layout panel with the
+            # preset's own recipe and then builds it, which creates the run and
+            # lands the bar on it — a target change, so this method runs while
+            # that run's store is still empty. The parameter rows above already
+            # skip for the flag, and `_apply_ui_state` raises the same shield
+            # for the engine recipe and the Guided row; these two lines were the
+            # one place that escaped it, and they re-seeded the panel from the
+            # saved defaults. Measured on the ColorMunki 84-patch built-in:
+            # paper A4R -> A4, margins 8/4 -> 6/11.1, minimum patch size
+            # 4.0 -> 0.0, layout mode area_first -> patch_first. The chart on
+            # disk was still the preset's; the panel was not, so W1's write at
+            # the end of the build filed the RESET values as the run's own and
+            # a second Generate laid the same patches out differently.
+            #
+            # §4 S4 is not what governs a preset-made target: §3 W2 says a
+            # preset load writes that target's Create Chart settings, and §6.5
+            # says a preset "still loads into the panels; W2 then records it for
+            # the target". A target the preset just made has its settings — they
+            # are on screen, on their way to the store. "Nothing stored" is true
+            # of the file for a few hundred milliseconds and false of the
+            # target. With the flag clear (every genuine fresh run) this is
+            # unchanged, and `_on_target_changed` clears it right after the load.
+            if (getattr(self, "_manual_layout_panel", None) is not None
+                    and not getattr(self, "_layout_owned_by_build", False)):
                 try:
                     # The panel's own instrument/paper/mode are the LAST run's
                     # too, and `_init_manual_layout_panel` reads them to pick
