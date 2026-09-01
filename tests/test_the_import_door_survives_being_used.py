@@ -79,6 +79,11 @@ def test_browsing_for_an_outside_measurement_does_not_kill_the_app(
     # which opens its own "Copy Chart Files" question. Not what these two are
     # about, and it must not be left standing at teardown.
     monkeypatch.setattr("ui.ti2_loader.resolve_ti3", lambda *a, **kw: None)
+    # An empty working folder still draws the picker now — it is the only place
+    # "Just check it where it is" is offered, and a new user has no projects by
+    # definition. Answer it the way somebody heading for the name box would.
+    monkeypatch.setattr(project_picker, "choose_project",
+                        lambda *a, **kw: project_picker.NEW_PROJECT)
 
     _browse(tab)                      # must not raise
 
@@ -142,6 +147,8 @@ def test_cancel_means_nothing_happens(door, monkeypatch):
     tab, outside, _work = door
     monkeypatch.setattr(name_prompt, "ask_for_project_name",
                         lambda *a, **kw: "")          # the person cancels
+    monkeypatch.setattr(project_picker, "choose_project",
+                        lambda *a, **kw: project_picker.NEW_PROJECT)
 
     fell_through = []
     monkeypatch.setattr("ui.ti2_loader.resolve_ti3",
@@ -214,6 +221,19 @@ def _driving_the_windows(app, clicks=("choose", "file", "ok", "continue")):
         yield
     finally:
         state["stop"] = True
+        # …and nothing is left standing. A window this driver did not have a
+        # word for would otherwise sit there and fail the NEXT test at
+        # teardown, which is the same class of fault as leaving the timer
+        # running: the damage lands on somebody else's file.
+        from PyQt6.QtWidgets import QDialog as _QD
+        for _ in range(20):
+            left = [w for w in QApplication.topLevelWidgets()
+                    if isinstance(w, _QD) and w.isVisible()]
+            if not left:
+                break
+            for w in left:
+                w.reject()
+            app.processEvents()
 
 
 @pytest.fixture
@@ -380,3 +400,191 @@ def test_the_bar_is_not_pointed_at_a_run_that_may_be_undone():
         "\n    _point_the_bar_at_the_run()"), (
         "the bar is pointed at the run before the file has been judged, so a "
         "refusal leaves it naming a run that no longer exists")
+
+
+# ---------------------------------------------------------------------------
+# ROUND 3 — three more ways the door could end the process, and a wrong project
+# ---------------------------------------------------------------------------
+
+def _project_copy(tmp_path, into: Path, *, keep_measurement=False) -> Path:
+    import shutil
+    repo = Path(__file__).resolve().parents[1]
+    shutil.copytree(repo / "demo-projects" / "Demo-Report-Matrix", into)
+    if not keep_measurement:
+        (into / "runs" / "run1" / "Demo-Report-Matrix.ti3").unlink()
+    return into
+
+
+def test_a_project_whose_manifest_will_not_parse_does_not_kill_the_app(
+        house, qapp, monkeypatch):
+    """`Project.load` parses `project.json`, and `json.JSONDecodeError` is a
+    `ValueError`, which `except OSError` does not catch — so a truncated
+    manifest took the whole app down from inside a Qt slot. `save_manifest`
+    writes non-atomically, so truncation is an ordinary accident, and every
+    other reader in ChromIQ already survives it."""
+    import ui.dialogs.project_picker as pp
+
+    win, measurement, work = house
+    (work / "Demo-Report-Matrix" / "project.json").write_text('{"cur')
+    monkeypatch.setattr(tcr, "open_file_dialog", lambda *a, **k: str(measurement))
+    monkeypatch.setattr(pp, "choose_project", lambda *a, **k: "Demo-Report-Matrix")
+
+    with _driving_the_windows(qapp):
+        win._tab_check._on_browse_ti3()          # must not raise
+        for _ in range(40):
+            qapp.processEvents()
+
+    assert win._tab_check.ti3_path is None, (
+        "a measurement was filed into a project whose manifest cannot be read")
+
+
+def test_every_write_in_the_filing_path_is_guarded():
+    """Making the run is a write too, and `duplicate_run` re-raises.
+
+    The copy was guarded and this was not, so a read-only folder, a full disk
+    or a disconnected share ended the process one line earlier than the fault
+    that guard was written for — the same journey, a different line. In a Qt
+    slot that is not a log entry: PyQt6 calls `qFatal()`.
+
+    A SOURCE ASSERTION, and deliberately so. Driving it needs a genuinely
+    unwritable destination, and the window chain that follows one is not
+    deterministic enough to leave in the suite — two attempts left a dialog
+    standing that failed the next test at teardown. The behaviour itself is
+    proven by the challenge round's own probe, which fails on the parent
+    commit and passes here (`~/Desktop/beta6-round3/A3-evidence/`), and by the
+    two `_cannot_file` tests above; this guards the guard from being removed.
+    """
+    import inspect
+    import re
+
+    from ui.measurement_filing import file_into_project
+    src = inspect.getsource(file_into_project)
+
+    for call in ("proj.duplicate_run(", "proj.duplicate_run_plan(",
+                 "shutil.copy2("):
+        assert call in src, f"{call} is no longer in this function"
+        # the line before the one holding it must open a `try:` block
+        lines = src.splitlines()
+        at = next(n for n, ln in enumerate(lines) if call in ln)
+        before = next(ln.strip() for ln in reversed(lines[:at]) if ln.strip())
+        assert before == "try:", (
+            f"{call} is not inside a try — a destination that cannot be "
+            f"written to takes the whole app down. It is preceded by "
+            f"{before!r}")
+
+    # …and every one of those handlers must take ValueError as well as
+    # OSError: `json.JSONDecodeError` is a ValueError, and a damaged manifest
+    # is how the first of these was found.
+    # EVERY `except … as exc:` in the function, not only the parenthesised
+    # ones — narrowing a guard back to a bare `except OSError as exc:` is
+    # exactly the mutation this has to see, and a regex that only matched
+    # `except (…)` skipped straight over it.
+    handlers = re.findall(r"except (.+?) as exc:", src)
+    assert len(handlers) >= 4, (
+        f"only {len(handlers)} guarded writes; the filing path has more")
+    for h in handlers:
+        assert "OSError" in h and "ValueError" in h, (
+            f"a guard catches only {h} — a damaged project.json raises "
+            "ValueError, and in a Qt slot that ends the process")
+
+
+def test_a_project_that_did_not_open_is_never_filed_into(qapp, tmp_path,
+                                                         monkeypatch):
+    """`open_project_manifest` returns None whether it opened the project or
+    gave up, and nothing looked. With a symlinked project — an external drive,
+    a NAS, a Dropbox folder — the measurement was filed into WHATEVER PROJECT
+    WAS OPEN while every window named the one that had been picked."""
+    import shutil
+
+    import ui.dialogs.project_picker as pp
+    from ui.main_window import MainWindow
+
+    work = tmp_path / "work"
+    work.mkdir()
+    _project_copy(tmp_path, work / "Kept-Here")
+    away = _project_copy(tmp_path, tmp_path / "away" / "Linked-Project")
+    (work / "Linked-Project").symlink_to(away, target_is_directory=True)
+
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    repo = Path(__file__).resolve().parents[1]
+    src = repo / "demo-projects" / "Demo-Report-Matrix" / "runs" / "run1"
+    for suffix in (".ti3", ".ti2", ".ti1", ".icc"):
+        shutil.copy2(src / f"Demo-Report-Matrix{suffix}",
+                     outside / f"from-elsewhere{suffix}")
+
+    s = AppSettings()
+    s.set("custom_output_path", str(work))
+    win = MainWindow(s)
+    win._tab_chart.open_project_manifest(work / "Kept-Here" / "project.json")
+    for _ in range(20):
+        qapp.processEvents()
+
+    monkeypatch.setattr(tcr, "open_file_dialog",
+                        lambda *a, **k: str(outside / "from-elsewhere.ti3"))
+    monkeypatch.setattr(pp, "choose_project", lambda *a, **k: "Linked-Project")
+
+    with _driving_the_windows(qapp):
+        win._tab_check._on_browse_ti3()
+        for _ in range(40):
+            qapp.processEvents()
+
+    kept = work / "Kept-Here" / "runs" / "run1" / "Demo-Report-Matrix.ti3"
+    assert not kept.is_file(), (
+        "the measurement was filed into the project that happened to be OPEN, "
+        "not the one the person picked")
+
+    # HONEST NOTE ON WHAT THIS COVERS. It fails on the parent commit and passes
+    # here, but removing only the post-open re-check still leaves it green:
+    # what saves this journey is the picker's own folder being carried through
+    # as `root=`, and the re-check is the belt to that pair of braces. It is
+    # kept because `open_project_manifest` returns None whether or not it
+    # opened anything, so the next person to touch this path has no way to
+    # tell — and a test proving the OUTCOME is worth more than one proving
+    # which of two guards produced it.
+
+
+def test_an_empty_working_folder_still_offers_to_check_it_where_it_is(
+        qapp, tmp_path, monkeypatch):
+    """A new user has no projects by definition, and "Just check it where it
+    is" exists so that they do not have to make one first — but the picker
+    returned before drawing anything when the list was empty, so the answer
+    was unreachable for exactly the person it is for.
+    """
+    from PyQt6.QtCore import QTimer
+    from PyQt6.QtWidgets import QAbstractButton, QApplication, QDialog
+
+    import ui.dialogs.project_picker as pp
+
+    work = tmp_path / "empty"
+    work.mkdir()
+    seen: list[list[str]] = []
+
+    def look():
+        dlg = QApplication.activeModalWidget()
+        if not isinstance(dlg, QDialog) or not dlg.isVisible():
+            QTimer.singleShot(5, look)
+            return
+        seen.append([b.text().replace("&", "")
+                     for b in dlg.findChildren(QAbstractButton)])
+        dlg.reject()
+
+    QTimer.singleShot(0, look)
+    pp.choose_project(None, work, title="t", body="b", accent="#9f82ff",
+                      offer_in_place=True)
+
+    assert seen, "no window was drawn at all, so no answer could be given"
+    assert any("where it is" in b.lower() for b in seen[0]), (
+        f"the in-place answer is not on the window: {seen[0]}")
+
+
+def test_an_empty_working_folder_asks_nothing_when_there_is_no_third_answer(
+        qapp, tmp_path):
+    """…and Build Profile, which has no in-place answer, still goes straight
+    to the name box rather than showing an empty list."""
+    import ui.dialogs.project_picker as pp
+
+    work = tmp_path / "empty2"
+    work.mkdir()
+    assert pp.choose_project(None, work, title="t", body="b",
+                             accent="#9f82ff") is None

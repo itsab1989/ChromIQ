@@ -185,8 +185,14 @@ def choose_project(parent: "QWidget | None", working_dir: "Path | str", *,
     still exactly one window for that question.
     """
     projects = list_projects(working_dir)
-    if not projects:
+    if not projects and not offer_in_place:
         return None
+    # …BUT AN EMPTY FOLDER STILL HAS TO OFFER THE THIRD ANSWER. With no
+    # projects yet this returned before drawing anything, so a new user could
+    # never reach "Just check it where it is" — the whole point of which is
+    # that you do not have to make a project first (challenge round,
+    # 2026-09-01). The list is simply empty and the two answers that do not
+    # need it still stand.
 
     dlg = QDialog(parent)
     dlg.setWindowTitle(title or tr("Which project?"))
