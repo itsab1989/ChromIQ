@@ -221,3 +221,63 @@ def test_the_catalogue_is_actually_translated_into_german():
             assert tr(msg.title) != msg.title, f"{mid}: headline still English"
     finally:
         set_language("en")
+
+
+# ---------------------------------------------------------------------------
+# A value that is identical to its key is INVISIBLE to every other check here
+# ---------------------------------------------------------------------------
+#
+# `test_catalog_is_complete` only asks whether the KEY exists, and the
+# untranslated-budget test in `test_help_cards_untranslated_are_tracked.py`
+# only counts strings of 25 characters or more. So a SHORT string whose value
+# is still the English source is seen by nothing at all — which is how renaming
+# the import button from "File it here" to "File it in Run 2" silently threw
+# away twelve working translations and was reported as fixed after German alone
+# had been restored (found by a challenge round, 2026-09-01).
+#
+# A value equal to its key is NOT always untranslated: "Adobe RGB (1998)",
+# "Alt", " Hz" and "-{flag}" are the same word in German, and forbidding that
+# outright would be wrong. So the NUMBER is tracked instead, and any rise has
+# to be looked at.
+#
+# RAISE THESE DELIBERATELY, never to make a red run green. A rise means either
+# a genuinely identical new string (fine, say so here) or a translation that
+# has just been lost (not fine). Measured 2026-09-01, 4716 keys.
+_IDENTICAL_TO_KEY = {
+    "de": 150,
+    "es": 258, "fr": 278, "it": 270, "ja": 247, "nl": 287,
+    "no": 271, "pl": 262, "pt": 262, "ru": 234, "sv": 275, "zh_CN": 240,
+}
+
+
+@pytest.mark.parametrize("code", _catalog_codes())
+def test_untranslated_values_do_not_creep_in_unseen(code):
+    cat = _load_catalog(code)
+    same = sorted(k for k, v in cat.items()
+                  if v == k and not k.startswith("@"))
+    allowed = _IDENTICAL_TO_KEY.get(code)
+    if allowed is None:
+        pytest.skip(f"no recorded count for {code}")
+    assert len(same) <= allowed, (
+        f"[{code}] {len(same)} values are identical to their key, and "
+        f"{allowed} were recorded. Something was renamed and lost its "
+        f"translation, or a new string arrived untranslated. Newest few: "
+        f"{same[-3:]}"
+    )
+
+
+def test_the_import_button_is_translated_everywhere(_=None):
+    """The specific loss, pinned: it is short enough to hide from every count.
+
+    Renaming a button is the easiest way to lose twelve translations at once,
+    because the new key simply is not in any catalogue and the old one goes
+    stale unnoticed.
+    """
+    keys = ("File it in {run}", "File it in a new run",
+            "File it in the selected run")
+    for code in _catalog_codes():
+        cat = _load_catalog(code)
+        for k in keys:
+            assert k in cat, f"[{code}] the import button lost its key {k!r}"
+            assert cat[k] != k, (
+                f"[{code}] the import button is still English: {k!r}")

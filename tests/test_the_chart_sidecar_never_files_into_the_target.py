@@ -263,3 +263,52 @@ def test_an_ordinary_panel_edit_does_not_hand_the_run_back_to_the_chart(
     assert stored_strip() is False, (
         "an unrelated edit on the layout panel handed the run's own setting "
         "back to the chart's sidecar — this is K4")
+
+
+def test_a_scalar_ui_value_is_never_shielded(tmp_path, qapp, monkeypatch):
+    """The regression a verification round caught, pinned.
+
+    The shield was extended to UI state per FIELD, but a non-dict value —
+    `ui:mode`, `ui:stamp`, `ui:engine_on` — is released only when it differs
+    from what the chart imposed, and `mode` never differs, because the
+    run-type rules are what set it. So it stayed shielded for ever: opening a
+    VERIFICATION target, where the app itself selects the Gamut module, wrote
+    `manual` back over that choice, and since `manual` is a legal module
+    nothing overruled it on the next load. The target reopened in the wrong
+    one.
+
+    Those values are simply not shielded now. The shield is for the chart's
+    RECIPE, which is a dict and is released field by field.
+    """
+    tab, ctl, proj = _tab_on_a_project(tmp_path)
+    ctl.set_profile_run("run1")
+    if tab._target_settings_store() is None:
+        pytest.skip("the bar could not resolve run1 in this environment")
+
+    def stored_ui():
+        return proj.run("run1").load_meta().create_chart_ui or {}
+
+    # The app puts the tab in a module and files it.
+    tab._manual_stamp_cmd_check.setChecked(True)
+    ctl.set_profile_run("run2")
+    assert stored_ui().get("stamp") is True, "the value was never filed"
+
+    # Coming back, the chart's sidecar moves a SCALAR ui value.
+    monkeypatch.setattr(tab, "_resolve_target_chart", lambda: ("ti2", [], "ti1"))
+    monkeypatch.setattr(tab, "_chart_stamp", lambda _t: None)
+    monkeypatch.setattr(
+        tab, "_display_run_chart",
+        lambda *a, **k: tab._manual_stamp_cmd_check.setChecked(False))
+    ctl.set_profile_run("run1")
+    assert tab._manual_stamp_cmd_check.isChecked() is False, "nothing imposed"
+
+    imposed_ui = (tab._chart_imposed or {}).get("ui", {})
+    assert "stamp" not in imposed_ui, (
+        "a scalar UI value is being shielded again — this is what wrote the "
+        "wrong module back over a verification target")
+
+    # …and what is on screen is what gets written, as for any other value.
+    tab.save_target_settings()
+    assert stored_ui().get("stamp") is False, (
+        "the shield put a scalar UI value back, overruling what the app itself "
+        "had selected")
