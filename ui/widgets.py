@@ -1126,11 +1126,38 @@ def spread_message_box_buttons(box, order=None) -> None:
 
 
 class _ExtensionFilterProxy(QSortFilterProxyModel):
-    """Hides files whose extension is not in the allowed set; directories always shown."""
+    """Hides files whose extension is not in the allowed set; directories always
+    shown. Also sorts the way Finder does, which Qt's own dialog does not."""
 
     def __init__(self, extensions: list[str], parent=None) -> None:
         super().__init__(parent)
         self._exts = {e.lower() for e in extensions}
+        # FINDER'S ORDER, NOT ASCII'S. Qt's file dialog compares names byte by
+        # byte, so every capital sorts before every lowercase letter: a folder
+        # list read "CR30-Test, Canon…, ChromIQ…, Demo…, Knut…, Printer…" and
+        # then, far below, "chart, cmyk, knut, printer-test, test". Everything
+        # was alphabetical; it was two alphabets, one after the other. macOS
+        # sorts case-insensitively everywhere else the person looks, so this
+        # dialog was the odd one out (Basti, 2026-09-02).
+        self.setSortCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self.setSortLocaleAware(True)
+
+    def lessThan(self, left: QModelIndex, right: QModelIndex) -> bool:
+        # FOLDERS FIRST, whatever they are called. `QFileSystemModel` groups
+        # them itself, but that grouping is its own and is lost the moment a
+        # proxy does the sorting — without this, a folder called "zzz" sorts
+        # below a file called "aaa.ti3" and the list stops being scannable.
+        src = self.sourceModel()
+        try:
+            l_dir, r_dir = src.isDir(left), src.isDir(right)
+            if l_dir != r_dir:
+                return l_dir
+            l_name, r_name = src.fileName(left), src.fileName(right)
+        except Exception:      # noqa: BLE001 — never break a file dialog
+            return super().lessThan(left, right)
+        if self.sortColumn() != 0:
+            return super().lessThan(left, right)
+        return l_name.casefold() < r_name.casefold()
 
     def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:
         if not self._exts:
