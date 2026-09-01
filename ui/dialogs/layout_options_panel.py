@@ -1765,8 +1765,35 @@ class LayoutOptionsPanel(QWidget):
                "the text more room here, or shift the dashes with their own "
                "“Distance from page edge”."), self),
             5, 2)
+        # WHEN THE NUMBER IN THE BOX IS NOT THE NUMBER THAT APPLIES.
+        #
+        # "Clip" is a request, not a result: the row-label band's floor is
+        # `max(Clip, the clip border's width, the furniture on that edge)`
+        # (raster.apply_row_label_geometry) and the clip-border text's run-up is
+        # `min(Clip, a fifth of the clip band)` (geometry.clip_area_mm). So the
+        # box can read 4 mm while the labels are held at 26 and the notes text
+        # starts at 5.2, with nothing on screen saying so — the same fault as
+        # the silently raised left margin, which the inspector now reports
+        # (tab_chart._engine_text_overflow_warnings). Basti, 2026-09-02:
+        # *"That gap between what the field says and what the page does is the
+        # actual problem."* The default is NOT changed (it is shared with the
+        # clip-border notes text and would need a settings migration); the box
+        # simply stops being silent about it.
+        #
+        # Sits directly under the three spin boxes, spanning the grid, and is
+        # HIDDEN whenever the typed value is the one in force — a line that is
+        # always there is a line nobody reads.
+        self.text_edge_clip_note = QLabel("", self)
+        self.text_edge_clip_note.setWordWrap(True)
+        self.text_edge_clip_note.setObjectName("param_label")
+        self.text_edge_clip_note.setVisible(False)
+        # The same 16 px indent `_te` carries, so the note lines up under the
+        # boxes it is about rather than under the group's label column.
+        self.text_edge_clip_note.setContentsMargins(16, 4, 0, 0)
+        stg.addWidget(self.text_edge_clip_note, 7, 0, 1, 3)
         _expert_v.addWidget(st)
         self._update_text_preview()
+        self._update_text_edge_clip_note()
 
         # Directly under "Sheet text", where Knut asked for it (#93 / beta-6).
         _expert_v.addWidget(si)
@@ -3012,6 +3039,167 @@ class LayoutOptionsPanel(QWidget):
             self._clip_img_cache_key, self._clip_img_cache = key, None
             return None
 
+    # ---- "Clip" says when it is overridden -----------------------------
+    @staticmethod
+    def _clip_zero_resolves_to() -> float:
+        """What an empty (0 mm) "Clip" box actually resolves to.
+
+        ASKED, never copied. `LayoutRecipe.build_kwargs()` writes
+        `text_edge_clip = self.text_edge_clip_mm or 4.0`, so a typed 0 is a
+        third way the box can read one number while the page uses another —
+        and the number it becomes is that expression's answer, not a 4.0
+        written down here a second time to drift from it later.
+        """
+        return float(LayoutRecipe(text_edge_clip_mm=0.0)
+                     .build_kwargs().get("text_edge_clip") or 0.0)
+
+    def _text_edge_clip_note_lines(self) -> "list[str]":
+        """Every way the typed "Clip" is not the distance the page uses.
+
+        One entry per element that is placed somewhere other than where the box
+        says, or an empty list when the typed value is in force everywhere —
+        which is the common case, and the reason this returns a list rather
+        than a bool: a note that is always on screen is a note nobody reads.
+
+        The three overrides, all of them real and all measured:
+
+        * **The row indicator labels are held further in.**
+          `raster.apply_row_label_geometry` floors the band at
+          `max(Clip, the clip border's width, the furniture on that edge)`, so
+          Knut's `i1Pro-A4-162p-1page-Portrait-w7.5mm` (a 26 mm clip border)
+          holds them at 26.0 mm while the box reads 4.0.
+        * **The clip-border text is capped nearer the edge.**
+          `geometry.clip_area_mm` insets the content by
+          `min(Clip, a fifth of the clip band)`, so on that same 26 mm band
+          the text stops at 5.2 mm however high "Clip" goes.
+        * **A typed 0 mm is read as 4 mm** (`LayoutRecipe.build_kwargs`).
+
+        Numbers come from the geometry the renderer itself builds, never from a
+        second copy of the rule here: the floor is read off
+        `Geom.row_label_floor` and the run-up is `clip_zone - clip_area_mm()'s
+        width`, which is the subtraction that produced it.
+        """
+        note = getattr(self, "text_edge_clip_note", None)
+        if note is None or not hasattr(self, "text_edge_clip"):
+            return []
+        typed = float(self.text_edge_clip.value())
+        lines: list[str] = []
+        # A geometry only exists where a clip / notes band does, and both the
+        # floor and the cap need one. Without a band the floor IS the typed
+        # value, so there is nothing to report but the 0 mm substitution.
+        gh = self._clip_geom_and_height()
+        geom = gh[0] if gh else None
+
+        # 1. The row indicators are held clear of the clip border.
+        if geom is not None:
+            floor = float(getattr(geom, "row_label_floor", 0.0) or 0.0)
+            band = float(getattr(geom, "rlwi", 0.0) or 0.0)
+            # The border's WIDTH, which `Geom` splits in two: `instruments`
+            # stores `lbord = clip_border_width - border`, so the width the
+            # user typed into "Clip border width" is the pair added back up.
+            border_w = float(getattr(geom, "lbord", 0.0) or 0.0) + \
+                float(getattr(geom, "border", 0.0) or 0.0)
+            on_left = (str(getattr(geom, "clip_side", "left") or "left") == "left")
+            # ONLY WHEN THE CLIP BORDER IS WHAT DID IT. The floor's other term
+            # is the furniture on that edge (`lbord`), which is the same border
+            # minus the patch border and so can never be the larger of the two
+            # — `tests/test_clip_says_when_it_is_overridden.py` pins that, so
+            # if it ever can, the message goes quiet rather than naming the
+            # wrong setting.
+            if (band > 0 and on_left and floor > typed + 0.05
+                    and border_w >= floor - 0.05):
+                lines.append(tr(
+                    "The row indicator labels down the left are held at least "
+                    "{floor:.1f} mm in from the paper edge, not the "
+                    "{typed:.1f} mm you asked for. The clip border on that "
+                    "edge is {border:.1f} mm wide and nothing is printed "
+                    "underneath it, so the labels start on the far side of "
+                    "it. “Clip” starts moving them again once you set it "
+                    "above {border:.1f} mm.").format(
+                        floor=floor, typed=typed, border=border_w))
+
+        # 2. The clip-border content is capped at a fifth of the band.
+        if geom is not None and self._clip_content_printed():
+            zone = float(getattr(geom, "lbord", 0.0) or 0.0) + \
+                float(getattr(geom, "border", 0.0) or 0.0)
+            area = None
+            try:
+                from workflow.layout_engine import geometry as _geometry
+                area = _geometry.clip_area_mm(geom, gh[1], gh[2])
+            except Exception:      # noqa: BLE001 — a note is never fatal
+                area = None
+            if area is not None and zone > 0:
+                run_up = zone - float(area[2])
+                if run_up + 0.05 < typed:
+                    lines.append(tr(
+                        "The clip border's text is kept clear of the paper "
+                        "edge by {run_up:.1f} mm, not by the {typed:.1f} mm "
+                        "you asked for. The text has to stay inside the clip "
+                        "band, which is {zone:.1f} mm wide on this chart, and "
+                        "at most a fifth of that width may be given over to "
+                        "that clearance. Widen “Clip border width” if you "
+                        "want the text further in.").format(
+                            run_up=run_up, typed=typed, zone=zone))
+
+        # 3. An empty box is read as 4 mm.
+        if typed <= 0.001 and (geom is not None or self._row_indicators_wanted()):
+            lines.append(tr(
+                "A distance of 0.0 mm is not used. ChromIQ prints at "
+                "{fallback:.1f} mm instead, so no text is set hard against the "
+                "paper edge. Type any distance above 0.0 mm to choose it "
+                "yourself.").format(fallback=self._clip_zero_resolves_to()))
+        return lines
+
+    def _clip_content_printed(self) -> bool:
+        """Whether anything is actually printed IN the clip border.
+
+        An i1Pro clip border exists with the content set to Off — the band is
+        reserved, nothing is written in it — and then there is no text for the
+        run-up to be measured against.
+        """
+        cm = getattr(self, "clip_content_mode", None)
+        return cm is not None and cm.currentData() not in (None, "off")
+
+    def _row_indicators_wanted(self) -> bool:
+        cb = getattr(self, "show_row_indicators", None)
+        return cb is not None and cb.isChecked()
+
+    def _update_text_edge_clip_note(self, *_a) -> None:
+        """Show the note under "Text distance from edge", or hide it.
+
+        Guarded exactly as `_refresh_clip_preview` is, and for the same reason:
+        it builds a geometry, `set_recipe()` sets thirty fields in turn, and
+        every loading window is closed by an unguarded `_emit()` with
+        `_loading` back to False. If you add a fourth window, it MUST end the
+        same way.
+        """
+        note = getattr(self, "text_edge_clip_note", None)
+        if note is None:
+            return
+        if getattr(self, "_loading", False) or \
+                getattr(self, "_suspend_clip_preview", False):
+            return
+        try:
+            lines = self._text_edge_clip_note_lines()
+        except Exception:          # noqa: BLE001 — a note is never fatal
+            lines = []
+        if not lines:
+            note.setText("")
+            note.setVisible(False)
+            return
+        typed = float(self.text_edge_clip.value())
+        # COUNT-AWARE, because two of these can be true at once and the reader
+        # has to know there is a second line below the first.
+        if len(lines) == 1:
+            head = tr("“Clip” is set to {typed:.1f} mm, and one thing on this "
+                      "chart is not placed at that distance:").format(typed=typed)
+        else:
+            head = tr("“Clip” is set to {typed:.1f} mm, and {n} things on this "
+                      "chart are not placed at that distance:").format(
+                          typed=typed, n=len(lines))
+        note.setText(head + "\n" + "\n".join("•  " + ln for ln in lines))
+        note.setVisible(True)
+
     # Undoing setFixedHeight() needs the real ceiling back, not a guess.
     _PREVIEW_MAX_H = 16777215        # Qt's QWIDGETSIZE_MAX
 
@@ -3631,6 +3819,11 @@ class LayoutOptionsPanel(QWidget):
     def _emit(self, *_a) -> None:
         self._update_text_preview()
         self._refresh_clip_preview()
+        # HERE, not on the Clip box's own signal. Whether the typed "Clip" is
+        # the one in force depends on the clip border's width, which side it
+        # sits on, whether it carries content, the instrument, the paper and
+        # the row indicators — every one of which already lands here.
+        self._update_text_edge_clip_note()
         if not self._loading:
             self.changed.emit()
 
