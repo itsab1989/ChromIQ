@@ -4316,6 +4316,7 @@ class TabProfile(QWidget):
         from core.file_manager import peek_project as _peek
         from workflow.measurement_import import assess
 
+        made_here = None       # a run this call created, to undo if it refuses
         root = fm.resolved_root_for_name(name)
         # THE WHOLE OPEN, not a cut-down one — see `open_project_manifest`.
         try:
@@ -4444,6 +4445,27 @@ class TabProfile(QWidget):
                        ).format(name=name), self, min_width=560).exec()
                 return True
             run = proj.duplicate_run(source, ("chart",))
+            made_here = run
+
+        # …AND SO DOES A RUN THE PERSON PICKED. The guard above sat inside
+        # `if run is None:`, so it protected one branch of two: choosing an
+        # EXISTING run that happens to hold no chart accepted anything at all,
+        # in silence. That is the same "a six-patch file bearing no relation to
+        # anything went into a real project" fault §I.9 says was fixed, still
+        # live on the other road into this function (found by a challenge
+        # round, 2026-09-01).
+        if run is not None and not run.chart_ti2.is_file():
+            _run_name = tr("Run {n}").format(
+                n=getattr(run, "number", None) or run.id.replace("run", ""))
+            InfoDialog(
+                tr("There is no chart to check this measurement against"),
+                tr("A measurement is filed against the chart it was made "
+                   "from, and {run} has no chart in it yet.\n\nMake or load "
+                   "the chart in that run first, or choose a run that already "
+                   "has one, and ChromIQ can then tell you whether the two "
+                   "match.").format(run=_run_name),
+                self, min_width=560).exec()
+            return True
 
         # §I.9: A RUN THAT ALREADY HOLDS A MEASUREMENT IS NOT DISPLACED.
         #
@@ -4488,6 +4510,7 @@ class TabProfile(QWidget):
             if box.clickedButton() is not _go:
                 return True                      # cancelled; nothing touched
             run = proj.duplicate_run(run, ("chart",))
+            made_here = run
 
         # THE RUN TYPE IS PART OF THE ANSWER, AND IT WAS NEVER SET.
         #
@@ -4513,6 +4536,20 @@ class TabProfile(QWidget):
 
         verdict = assess(measurement, run.chart_ti2)
         if not verdict.ok:
+            # AND THE PROMISE HAS TO BE TRUE. This window says "nothing has
+            # been changed" while a run made moments earlier was still on disk
+            # and counted in `project.json` — driven, Run 4 created by an
+            # import that was then refused (found by a challenge round,
+            # 2026-09-01). A run that existed for a fraction of a second and
+            # never held anything is undone, which is exactly what
+            # `_discard_run(just_created=True)` is for; it refuses to remove a
+            # folder that turns out to hold work.
+            if made_here is not None:
+                try:
+                    proj._discard_run(made_here, just_created=True)
+                except Exception:      # noqa: BLE001 — never lose the message
+                    log.warning("import: could not undo the run it made",
+                                exc_info=True)
             InfoDialog(
                 tr("This measurement does not belong to that chart"),
                 tr("ChromIQ did not file it, and nothing has been changed.\n\n"

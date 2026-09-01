@@ -457,8 +457,24 @@ def write_refine_strips(
     stem: str,
     strips: list[tuple[str, float]],
 ) -> Path:
-    """Write Refine_Strips_<stem>.txt with machine-readable strip list."""
-    target = folder / f"Refine_Strips_{stem}.txt"
+    """Write Refine_Strips_<n>_<stem>.txt, incrementing n until the name is free.
+
+    NUMBERED, LIKE THE QUALITY REPORT BESIDE IT. This wrote one fixed name and
+    overwrote it in place, so a second check destroyed the first one's strip
+    list without a word — against the project's own absolute rule that nothing
+    the user created is deleted, only archived. A challenge round proved it by
+    hand-editing the file and watching the next check take it away
+    (2026-09-01). `write_named_report` already solves this for
+    `Quality_Check`, and the two belong together: they describe the same run.
+
+    An existing UNNUMBERED file from an older version is left exactly where it
+    is. It is the user's, and renaming it would be the same fault wearing a
+    politer face.
+    """
+    n = 1
+    while (folder / f"Refine_Strips_{n}_{stem}.txt").exists():
+        n += 1
+    target = folder / f"Refine_Strips_{n}_{stem}.txt"
     lines = [
         "# CHROMIQ_REFINE_STRIPS_V1",
         "# Strip\tMaxDE",

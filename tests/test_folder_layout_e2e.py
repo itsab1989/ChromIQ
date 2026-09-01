@@ -131,7 +131,7 @@ def test_full_workflow_manifest(fm) -> None:
         f"runs/run1/exports/{name}-i1profiler.txt",
         "runs/run1/reads/read1.ti3",
         f"runs/run1/reports/Quality_Check_1_{name}.txt",
-        f"runs/run1/reports/Refine_Strips_{name}.txt",
+        f"runs/run1/reports/Refine_Strips_1_{name}.txt",
         f"runs/run1/reports/{rp.name}",
     ])
     assert got == expected

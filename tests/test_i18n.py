@@ -243,10 +243,16 @@ def test_the_catalogue_is_actually_translated_into_german():
 # RAISE THESE DELIBERATELY, never to make a red run green. A rise means either
 # a genuinely identical new string (fine, say so here) or a translation that
 # has just been lost (not fine). Measured 2026-09-01, 4716 keys.
+# 2026-09-01, +1 for the eleven: the guided-refinement window's "there is no
+# chart to check this against" message is new (the no-chart guard used to
+# protect one of the two roads into the import and now protects both). German
+# carries it; the rest hold the English source under the beta rule. The two
+# renamed file-name strings were CARRIED, not re-Englished, so they cost
+# nothing here.
 _IDENTICAL_TO_KEY = {
     "de": 150,
-    "es": 258, "fr": 278, "it": 270, "ja": 247, "nl": 287,
-    "no": 271, "pl": 262, "pt": 262, "ru": 234, "sv": 275, "zh_CN": 240,
+    "es": 259, "fr": 279, "it": 271, "ja": 248, "nl": 288,
+    "no": 272, "pl": 263, "pt": 263, "ru": 235, "sv": 276, "zh_CN": 241,
 }
 
 

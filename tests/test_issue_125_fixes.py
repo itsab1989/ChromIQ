@@ -259,6 +259,6 @@ def test_project_readme_mentions_new_sidecars(qapp, tmp_path):
     proj = Project.create(tmp_path / "P", "P")
     s = proj.readme_path.read_text(encoding="utf-8")
     for needle in ("P.pdf", "P.ps", "P-colours.txt", "P-i1profiler.txt",
-                   "P.cht", "Quality_Check_1_P.txt", "Refine_Strips_P.txt",
+                   "P.cht", "Quality_Check_1_P.txt", "Refine_Strips_N_P.txt",
                    "Safe to tidy"):
         assert needle in s

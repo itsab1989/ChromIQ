@@ -2283,7 +2283,7 @@ class TabMeasure(QWidget):
         refine_rl.addWidget(self._refine_cb, stretch=1)
         refine_rl.addWidget(TooltipButton(
             tr("Refinement Strips File"),
-            tr("Available when a Refine_Strips_<name>.txt file exists in\n"
+            tr("Available when a Refine_Strips_N_<name>.txt file exists in\n"
             "the reports folder next to your chart.\n\n"
             "That file is created automatically by the Check & Refine\n"
             "tab after a quality check. It lists the strips with the\n"
@@ -2813,7 +2813,7 @@ class TabMeasure(QWidget):
         m_refine_rl.addWidget(self._m_refine_cb, stretch=1)
         m_refine_rl.addWidget(TooltipButton(
             tr("Refinement Strips File"),
-            tr("Available when a Refine_Strips_<name>.txt file exists in\n"
+            tr("Available when a Refine_Strips_N_<name>.txt file exists in\n"
             "the reports folder next to your chart.\n\n"
             "That file is created automatically by the Check & Refine\n"
             "tab after a quality check. It lists the strips with the\n"
@@ -4378,12 +4378,24 @@ class TabMeasure(QWidget):
         # Auto-detect Refine_Strips file — reports/ since #127, with a
         # fallback to the flat pre-v2 location (an external chart folder that
         # never went through project migration may still hold one there).
+        # THE NEWEST ONE, and the old unnumbered name still counts. The strip
+        # list is numbered now (`Refine_Strips_2_<stem>.txt`) so a second check
+        # cannot destroy the first one's list, and a file written by an older
+        # version has no number at all — both are looked for, newest first.
         from core.file_manager import reports_subdir
-        _name = f"Refine_Strips_{self._ti1_path.stem}.txt"
-        refine_file = reports_subdir(self._ti1_path.parent) / _name
-        if not refine_file.exists():
-            refine_file = self._ti1_path.parent / _name
-        if refine_file.exists():
+        _stem = self._ti1_path.stem
+
+        def _newest_refine(folder):
+            found = sorted(folder.glob(f"Refine_Strips_*_{_stem}.txt"),
+                           key=lambda q: q.stat().st_mtime)
+            plain = folder / f"Refine_Strips_{_stem}.txt"
+            if plain.exists():
+                found.append(plain) if not found else found.insert(0, plain)
+            return found[-1] if found else None
+
+        refine_file = (_newest_refine(reports_subdir(self._ti1_path.parent))
+                       or _newest_refine(self._ti1_path.parent))
+        if refine_file is not None and refine_file.exists():
             self._refine_strips_path = refine_file
             self._load_refine_strips(refine_file)
             for rcb in (self._refine_cb, self._m_refine_cb):

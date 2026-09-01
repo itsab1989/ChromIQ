@@ -412,7 +412,7 @@ def _features():
             "refinement / calibration are used")),
         (tr("Check & Refine"),
          tr("{name}.ti3 and {name}.icc"),
-         tr("reports/Quality_Check_N_{name}.txt, reports/Refine_Strips_{name}.txt")),
+         tr("reports/Quality_Check_N_{name}.txt, reports/Refine_Strips_N_{name}.txt")),
         (tr("Create scanner or camera target"),
          tr("A measurement of the chart ({name}.ti3 or a reference .cie/i1Profiler file)"),
          tr("{name}.cht (recognition template) + {name}.cie (reference values)")),
@@ -454,7 +454,7 @@ def _rows():
         ]),
         (tr("reports/ — things ChromIQ tells you"), [
             ("Quality_Check_1_{name}.txt", "runs/runN/reports", tr("A readable quality report — grade, explanation, worst strips, full output. Numbered so checks don't overwrite each other."), tr("Check & Refine")),
-            ("Refine_Strips_{name}.txt", "runs/runN/reports", tr("The list of strips to re-measure after a check; the guided refinement reads it back."), tr("Check & Refine")),
+            ("Refine_Strips_N_{name}.txt", "runs/runN/reports", tr("The list of strips to re-measure after a check; the guided refinement reads it back."), tr("Check & Refine")),
             ("Verify_Profile_1_{name}.txt", "runs/runN/reports", tr("A readable report from “Verify a profile” — verdict, scores, full output. Numbered so repeated checks keep a history."), tr("Verify a profile (Tools)")),
             ("Verify_Reference_1_{name}.txt", "runs/runN/reports", tr("A readable report from “Verify against reference” — result summary and full output."), tr("Verify against reference (Tools)")),
             ("report_*.json", "runs/runN/reports", tr("Dated PROFILING measurement reports (accuracy & drift), saved automatically after each measurement (Preferences → Reports). The Measurement Report tool reads these back — it builds its figures from the run's .ti3, needs the chart's .ti2 beside it for the ΔE, and reads the instrument name from the .ti3 — and plots how the printer drifts over time. Verification checks keep their own report points under verifications/<date>/reports/, gathered separately."), tr("Measure tab")),

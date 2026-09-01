@@ -2026,9 +2026,15 @@ class Project:
     #: that describes the work — plus the reports and export sidecars that
     #: describe *those*. ``{stem}`` is filled in with the run's own stem.
     DUPLICATE_GROUPS: tuple = (
+        # `.print.json` travels WITH the chart, like `.channels.json` beside
+        # it. It was in no group at all, so every duplication dropped it — and
+        # the guard that asks "was this sheet converted when it was printed?"
+        # then stops firing on the copy, silently, because its record is the
+        # thing that went missing (found by a challenge round, 2026-09-01).
         ("chart", ("{stem}.ti1", "{stem}.ti2", "{stem}.cht", "{stem}.cie",
                    "{stem}.ps", "{stem}.pdf", "{stem}.channels.json",
-                   "{stem}.strips.json", "{stem}_*.tif", "{stem}.tif",
+                   "{stem}.strips.json", "{stem}.print.json",
+                   "{stem}_*.tif", "{stem}.tif",
                    "chart/**/*")),
         ("measurement", ("{stem}.ti3", "reads/**/*")),
         ("profile", ("{stem}.icc", "{stem}.icm", "merged.ti3", "merged.icc",
