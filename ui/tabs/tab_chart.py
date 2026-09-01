@@ -2399,9 +2399,23 @@ class _ComboSeparatorDelegate(QStyledItemDelegate):
         super().paint(painter, option, index)
 
     def sizeHint(self, option, index) -> QSize:
+        # THE SAME HEIGHT AS EVERY OTHER ROW, and that is the point.
+        #
+        # A separator used to be 11 px against the 16 px of a real row, so
+        # scrolling the preset list moved the highlight in an uneven rhythm —
+        # 16, 16, 11, 16 — and the band appeared to shudder as it crossed each
+        # group. Basti reported the list as tiring to scroll, and this is one
+        # of the two measured causes (the other is that 130 of its 141 rows are
+        # bold, which he has decided to keep).
+        #
+        # The line itself is still drawn hairline-thin and centred in the row;
+        # only the space it occupies changes, so the divider looks the same and
+        # the scroll rhythm becomes constant. The five separators cost about
+        # 25 px of popup height in total.
+        hint = super().sizeHint(option, index)
         if self._is_separator(index):
-            return QSize(0, 11)
-        return super().sizeHint(option, index)
+            return QSize(0, hint.height())
+        return hint
 
 
 def ti1_sidecar(src: Path) -> "Path | None":

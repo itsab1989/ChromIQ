@@ -289,6 +289,32 @@ QComboBox QAbstractItemView {{
     selection-color: #0a0a0a;
     outline: none;
 }}
+/* The row inside a combo POPUP.
+
+   macOS draws a combo popup as a MENU (SH_ComboBox_Popup = 1), and a menu row
+   reserves a column for a tick on the current entry. Two things follow, and a
+   user reported both: the current entry wears a check mark, and — once QSS
+   gives the row a background, which the per-tab accent does — the HIGHLIGHTED
+   row's text is drawn by QStyleSheetStyle at a different left inset from its
+   natively-drawn neighbours, so it jumps 7 px to the right on hover.
+
+   Giving ::item:selected any box property hands the whole popup to
+   QStyleSheetStyle: it then draws every row itself, at one inset, and paints no
+   tick. `padding-left: 0px` is the value at which the highlighted row's text
+   lands exactly where its neighbours' does (measured: 8px puts it 8px further
+   right, so the property really is what positions it). The rule also has to
+   carry a background — without one, QStyleSheetStyle draws the selected row
+   with no highlight at all — so this mirrors the view-path highlight set by
+   `selection-background-color` just above, and the per-tab sheets override the
+   colour with their accent.
+
+   The compact combos (`combobox-popup: 0`) already take the view path and are
+   unaffected; measured, both themes. DELETE THIS RULE TO REVERT. */
+QComboBox::item:selected {{
+    background: {ACCENT};
+    color: #0a0a0a;
+    padding-left: 0px;
+}}
 /* Buttons mirror the QComboBox drop-down exactly: subcontrol-origin PADDING
    keeps them INSIDE the 1px border, so the focus ring is never overlapped and
    stays a clean continuous rounded rectangle (origin: border made the buttons
