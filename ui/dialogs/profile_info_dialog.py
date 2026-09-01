@@ -165,7 +165,9 @@ class ProfileInfoDialog(QDialog):
         btn_row.addWidget(close_btn)
         self._inner.addLayout(btn_row)
 
-        self.setStyleSheet(neutral_controls_qss(_indicator_color(settings)))
+        # Neutral indicators, but the dropdown wears this tool's own violet.
+        self.setStyleSheet(
+            neutral_controls_qss(_indicator_color(settings), popup=_ACCENT))
 
     # ------------------------------------------------------------------
     def _resolve_text_colors(self) -> tuple[str, str]:

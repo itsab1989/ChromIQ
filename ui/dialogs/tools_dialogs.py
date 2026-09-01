@@ -48,7 +48,10 @@ from core.i18n import tr
 from core.logger import get_logger
 from ui.fade_scroll import FadeScrollArea
 from ui.spectrum_progress import SpectrumSegmentsBar
-from ui.styles import BG_INPUT, BORDER, SPEC_GREEN, SPEC_MAGENTA, SPEC_VIOLET, TEXT_MAIN
+from ui.styles import (
+    BG_INPUT, BORDER, SPEC_GREEN, SPEC_MAGENTA, SPEC_VIOLET, TEXT_MAIN,
+    combo_popup_qss,
+)
 from ui.theme import resolve_mode
 from ui.tab_header import dialog_masthead
 from ui.tooltip_button import TooltipButton
@@ -64,7 +67,7 @@ def _indicator_color(settings: "AppSettings") -> str:
     return "#1c1b18" if resolve_mode(settings.get("appearance", "auto")) == "light" else "#d0d0d0"
 
 
-def neutral_controls_qss(color: str) -> str:
+def neutral_controls_qss(color: str, popup: str | None = None) -> str:
     """Dialog-scoped QSS that swaps the global cyan/blue ACCENT on interactive
     controls for the neutral light/dark *indicator* colour.
 
@@ -73,8 +76,17 @@ def neutral_controls_qss(color: str) -> str:
     no meaning inside a dialog body. Tool dialogs share that look via this helper
     (checkbox/radio when checked, and the focus ring on every text/number/combo
     input), so every dialog in the app highlights its controls the same way.
+
+    ``popup`` is the accent a combobox POPUP's hovered row wears — a tool's own,
+    normally the accent on its masthead. It is separate from ``color`` because a
+    tool dialog keeps NEUTRAL checkbox indicators while still wanting its own
+    colour under the dropdown (the owner: the rule, the ⓘ circles, the focus
+    ring and the checkboxes were green while the dropdown stayed the global
+    cyan). Left at ``None`` no popup rule is emitted at all, so Preferences —
+    which must stay neutral — is unaffected by this helper.
     """
-    return (
+    popup_qss = combo_popup_qss(popup) if popup else ""
+    return (popup_qss +
         f"QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {{"
         f" border-color: {color}; }}"
         f"QCheckBox::indicator:checked {{ background: {color}; border-color: {color}; }}"
@@ -333,7 +345,10 @@ class _ToolDialogBase(QDialog):
         # indicator the Settings window uses, instead of the global tab-accent
         # cyan/blue. (The TI2 layout editor is a plain QDialog, not a subclass of
         # this base, so it deliberately keeps its own accent.)
-        qss = neutral_controls_qss(_indicator_color(settings))
+        # The indicators stay neutral; the DROPDOWN wears this tool's own accent
+        # — the same colour as the masthead stroke right above it.
+        qss = neutral_controls_qss(_indicator_color(settings),
+                                   popup=self.ACCENT)
         if resolve_mode(settings.get("appearance", "auto")) == "dark":
             # Generic QPlainTextEdit (the status field, paste boxes) has no
             # explicit background rule, so it falls back to the dark panel

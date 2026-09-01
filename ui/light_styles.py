@@ -591,6 +591,10 @@ QLineEdit#compact_path {{
 SettingsDialog QComboBox::item:selected {{
     background: #3a3a3a;
     color: #ffffff;
+    /* Not cosmetic — see ui.styles.combo_popup_qss. Without it the highlighted
+       row alone is laid out through the stylesheet's menu-item path and its
+       text jumps 26 px right as the mouse passes over. */
+    padding-left: 0px;
 }}
 SettingsDialog QComboBox QAbstractItemView {{
     selection-background-color: #3a3a3a;

@@ -680,7 +680,7 @@ class MainWindow(QMainWindow):
         user switches away and back. Pre-styling every tab up front makes the
         first show correct. See issue #35.
         """
-        from ui.styles import TAB_COLORS
+        from ui.styles import TAB_COLORS, combo_popup_qss
         from ui.tooltip_button import TooltipButton
 
         tab_w = self._tabs.widget(index)
@@ -827,25 +827,11 @@ class MainWindow(QMainWindow):
             """
 
         # ---- combobox popup hover highlight, in this tab's accent ---------
-        # macOS draws a combo-popup row through CE_MenuItem, where NEITHER the
-        # application/view palette NOR `selection-background-color` reaches the
-        # highlight — only `QComboBox::item:selected` does. A combo that carries
-        # a custom item delegate (or `combobox-popup: 0`, i.e. #compact_input) is
-        # drawn as a view item instead, and only `selection-background-color`
-        # reaches THAT one. Both rules are needed; measured on screen, both
-        # themes, all five tabs. DELETE THIS BLOCK TO REVERT — nothing else
-        # refers to it, and the popup falls back to today's near-black band.
-        _hl_text = "#101010"    # dark text: white gives 1.8:1 on amber/green
-        _sheet += f"""
-                QComboBox::item:selected {{
-                    background: {color};
-                    color: {_hl_text};
-                }}
-                QComboBox QAbstractItemView {{
-                    selection-background-color: {color};
-                    selection-color: {_hl_text};
-                }}
-            """
+        # One shared definition, `ui.styles.combo_popup_qss` — the tool dialogs
+        # use the same two rules with their own accent, so a dropdown looks and
+        # behaves the same wherever it is opened. See that function for why BOTH
+        # rules are needed and why `padding-left: 0px` is not cosmetic.
+        _sheet += combo_popup_qss(color)
 
         # The stylesheet is a pure function of (index, theme); a set stylesheet
         # stays applied and cascades to children added later, so on a revisit for

@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import (
 from core.logger import get_logger
 from core.i18n import tr
 from ui.patch_cube_panel import PatchCubePanel
+from ui.styles import SPEC_MAGENTA, combo_popup_qss
 from ui.tab_header import dialog_masthead
 
 log = get_logger(__name__)
@@ -104,6 +105,13 @@ class PatchCubeDialog(QDialog):
             # row.
             self._compare_combo.setMaxVisibleItems(15)
             self._compare_combo.setStyleSheet("QComboBox { combobox-popup: 0; }")
+            # This window declares no accent of its own, so its dropdown wears
+            # the one the user is already looking at: dialog_masthead's default
+            # magenta, the stroke drawn above — and the colour the patch-set
+            # editor that opens the other cube uses. Without this the popup
+            # falls through to the global cyan, which belongs to Build Profile
+            # and means nothing here.
+            self.setStyleSheet(self.styleSheet() + combo_popup_qss(SPEC_MAGENTA))
             self._compare_combo.addItem(tr("None"), None)
             for group, items in self._compare_presets:
                 self._compare_combo.insertSeparator(self._compare_combo.count())

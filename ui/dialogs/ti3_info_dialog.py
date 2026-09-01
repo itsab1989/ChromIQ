@@ -333,7 +333,7 @@ class Ti3InfoDialog(QDialog):
 
         # Use the cyan masthead accent (not the neutral indicator) for the
         # focus ring, so a highlighted field matches the rest of the dialog.
-        self.setStyleSheet(neutral_controls_qss(_ACCENT))
+        self.setStyleSheet(neutral_controls_qss(_ACCENT, popup=_ACCENT))
 
     # ------------------------------------------------------------------
     def _resolve_text_colors(self) -> tuple[str, str]:

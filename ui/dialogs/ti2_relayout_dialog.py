@@ -37,7 +37,7 @@ from PyQt6.QtWidgets import (
 
 from core.logger import get_logger
 from core.strip_utils import parse_passes_per_page
-from ui.styles import SPEC_AMBER, SPEC_MAGENTA, TAB_COLORS
+from ui.styles import SPEC_AMBER, SPEC_MAGENTA, TAB_COLORS, combo_popup_qss
 from ui.fade_scroll import FadeScrollArea
 from ui.gradient_overlay import GradientOverlay
 from ui.tab_header import SpectrumStripe as _SpectrumStripe, TabHeader
@@ -2947,16 +2947,12 @@ class _NewChartDialog(QDialog):
             QSpinBox:focus, QDoubleSpinBox:focus {{
                 border-color: {SPEC_MAGENTA};
             }}
-            /* The dropdown's hovered/selected row defaulted to the app-wide
-               cyan; tint it magenta to match the rest of the dialog. */
-            QComboBox QAbstractItemView {{
-                selection-background-color: {SPEC_MAGENTA};
-                selection-color: white;
-            }}
-            QComboBox QAbstractItemView::item:hover {{
-                background: {SPEC_MAGENTA}; color: white;
-            }}
-        """)
+        """ + combo_popup_qss(SPEC_MAGENTA))
+        # The dropdown's hovered row defaulted to the app-wide cyan. It needs
+        # BOTH of combo_popup_qss's rules: a `selection-background-color` alone
+        # (all this used to set) leaves the native menu-drawn popup rendering
+        # exactly as before while the view's palette reports the new colour —
+        # measured on screen, in both themes.
 
     def _gen_sets_active(self) -> bool:
         """Whether the generate-colour-sets panel is the active source.
@@ -4744,16 +4740,12 @@ class Ti2RelayoutDialog(QDialog):
             QSpinBox:focus, QDoubleSpinBox:focus {{
                 border-color: {SPEC_MAGENTA};
             }}
-            /* The dropdown's hovered/selected row defaulted to the app-wide
-               cyan; tint it magenta to match the rest of the dialog. */
-            QComboBox QAbstractItemView {{
-                selection-background-color: {SPEC_MAGENTA};
-                selection-color: white;
-            }}
-            QComboBox QAbstractItemView::item:hover {{
-                background: {SPEC_MAGENTA}; color: white;
-            }}
-        """)
+        """ + combo_popup_qss(SPEC_MAGENTA))
+        # The dropdown's hovered row defaulted to the app-wide cyan. It needs
+        # BOTH of combo_popup_qss's rules: a `selection-background-color` alone
+        # (all this used to set) leaves the native menu-drawn popup rendering
+        # exactly as before while the view's palette reports the new colour —
+        # measured on screen, in both themes.
         v = QVBoxLayout(panel)
         v.setContentsMargins(4, 0, 0, 0)
         v.setSpacing(8)

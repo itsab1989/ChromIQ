@@ -254,7 +254,9 @@ class SpotReadDialog(QDialog):
 
         outer.addLayout(bottom)
 
-        self.setStyleSheet(neutral_controls_qss(_indicator_color(settings)))
+        # Neutral indicators, but the dropdown wears this tool's own green.
+        self.setStyleSheet(
+            neutral_controls_qss(_indicator_color(settings), popup=_ACCENT))
         # Tint the Start button with the Measure tab's green accent — this tool
         # is measurement work and reads as part of that family.
         tint_dialog_primary(self, _ACCENT)
