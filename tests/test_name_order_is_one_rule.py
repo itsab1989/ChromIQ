@@ -138,3 +138,65 @@ def test_no_static_file_dialog_call_in_app_code():
     assert not offenders, (
         "static QFileDialog calls cannot be given NameOrderProxy: "
         + ", ".join(offenders))
+
+
+# ------------------------------------------- the lists that are NOT dialogs
+def test_the_preset_combos_order_by_the_name_on_screen(tmp_path, monkeypatch):
+    """Create Chart / Measure / Build Profile / Check & Refine preset combos.
+
+    `load_presets` walked the folder in `sorted(glob(...))` order — the
+    SANITISED FILE name, byte by byte. So the combos showed capitals first and
+    ordered them by a name that is not the one the person reads.
+    """
+    import json
+    import core.preset_store as ps
+
+    d = tmp_path / "Create Chart"
+    d.mkdir(parents=True)
+    for fname, shown in [("Wide-gamut.json", "Wide gamut"),
+                         ("boost.json", "boost"),
+                         ("check.json", "check"),
+                         ("Alpha.json", "Alpha")]:
+        (d / fname).write_text(json.dumps({"name": shown, "data": {"x": 1}}),
+                               encoding="utf-8")
+    monkeypatch.setattr(ps, "tab_dir", lambda tab: d)
+
+    assert list(ps.load_presets("create_chart")) == \
+        ["Alpha", "boost", "check", "Wide gamut"]
+
+
+def test_the_printer_combo_is_not_two_alphabets(monkeypatch):
+    """Print tab → Printer. `detect_printers` used a plain `result.sort()`, so
+    a queue called "brother_HL5450" landed below every printer whose name
+    starts with a capital. Drives the real function against a fake CUPS."""
+    import workflow.print_manager as pm
+
+    queues = {
+        "Zebra":          {"printer-make-and-model": "Zebra"},
+        "brother_HL5450": {"printer-make-and-model": "Brother"},
+        "Canon-PRO-300":  {"printer-make-and-model": "Canon"},
+        "epson_p700":     {"printer-make-and-model": "Epson"},
+    }
+
+    class _Conn:
+        def getPrinters(self):
+            return queues
+
+    monkeypatch.setattr(pm, "CUPS_AVAILABLE", True)
+    monkeypatch.setattr(pm, "_cups_mod",
+                        type("m", (), {"Connection": staticmethod(_Conn)}),
+                        raising=False)
+
+    got = pm.PrintModule().detect_printers()
+    assert got == ["brother_HL5450", "Canon-PRO-300", "epson_p700", "Zebra"]
+    assert got != sorted(queues), "this is the ASCII order the fault produced"
+
+
+def test_the_standard_target_tail_uses_the_rule():
+    """Scan-in dialog → Standard target. The curated head keeps its order; the
+    tail (anything the user drops in) follows the one rule."""
+    import inspect
+    import workflow.standard_targets as st
+    src = inspect.getsource(st)
+    assert "sort_names(by_stem)" in src
+    assert "sorted(by_stem)" not in src

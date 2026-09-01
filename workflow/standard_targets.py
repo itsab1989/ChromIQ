@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from core.logger import get_logger
+from core.name_order import sort_names
 from core.resource_path import resource_path
 
 log = get_logger(__name__)
@@ -291,7 +292,9 @@ def list_standard_targets(settings) -> list[tuple[str, Path]]:
         if p is not None:
             ordered.append((display_name(p), p))
             seen.add(stem)
-    for stem in sorted(by_stem):
+    # The curated `_ORDER` comes first; everything else — including any .cht
+    # the user drops in — follows in ChromIQ's one name order, not ASCII's.
+    for stem in sort_names(by_stem):
         if stem not in seen:
             ordered.append((display_name(by_stem[stem]), by_stem[stem]))
     return ordered

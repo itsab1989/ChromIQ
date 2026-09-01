@@ -8,6 +8,7 @@ import sys
 from typing import Optional
 
 from core.logger import get_logger
+from core.name_order import sort_names
 from workflow.cups_printer import CUPS_AVAILABLE, PrintConfig
 
 if CUPS_AVAILABLE:
@@ -54,7 +55,11 @@ class PrintModule:
                 if "airprint" in model.lower() or "airprint" in name.lower():
                     continue
                 result.append(name)
-            result.sort()
+            # ONE rule for name order (core.name_order): a plain sort() is
+            # byte-by-byte, so a queue called "brother_HL5450" landed below
+            # every printer whose name starts with a capital instead of beside
+            # the other b's.
+            result = sort_names(result)
             log.debug("Detected printers: %s", result)
             return result
         except Exception as exc:
