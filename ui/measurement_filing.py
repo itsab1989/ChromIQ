@@ -135,7 +135,11 @@ def offer_import_into_a_project(parent, measurement: Path, *,
         body=_body, accent=accent, offer_in_place=_in_place)
     if picked == IN_PLACE:
         return IN_PLACE                      # the caller works where it lies
-    if picked is None and list_projects(fm.root_dir()):
+    if picked is None:
+        # CANCEL IS CANCEL, whether the list had anything in it or not. The
+        # `and list_projects(...)` was only ever right while an empty folder
+        # drew no window at all; now that it does, a new user's very first
+        # import answered Cancel and was met by the name box instead.
         return True                          # cancelled at the list
     if picked and picked != NEW_PROJECT:
         # The folder the picker listed, not a name to be re-derived.
@@ -166,6 +170,22 @@ def offer_import_into_a_project(parent, measurement: Path, *,
                              accent=accent, on_filed=on_filed,
                              root=_literal_root(name))
 
+def run_the_project_is_on(root) -> "str | None":
+    """Which run a project's manifest names, read without opening it.
+
+    A named function because the first version of the restore asked
+    `ProjectPeek` for `.current_run` — a field that does not exist; the field
+    is `run_id` — so it silently answered None every time and the whole restore
+    was dead code that read as a fix (challenge round 4, 2026-09-01). One
+    expression, used by the code and by the test that guards it.
+    """
+    from core.file_manager import peek_project
+    try:
+        return getattr(peek_project(Path(root)), "run_id", None) or None
+    except (OSError, ValueError):
+        return None
+
+
 def _undo_the_run(proj, made_here, was_current) -> None:
     """Undo a run this import made, and put `current_run` back where it was.
 
@@ -184,7 +204,10 @@ def _undo_the_run(proj, made_here, was_current) -> None:
     if not was_current:
         return
     try:
-        if proj.current_run.id != was_current:
+        # `current_run` is a METHOD on Project, and the same file calls it with
+        # parentheses eighty lines earlier. Without them this raised
+        # AttributeError the moment the line above started working.
+        if proj.current_run().id != was_current:
             proj.set_current_run(was_current)
     except Exception:      # noqa: BLE001 — the run is gone either way
         log.warning("import: could not put current_run back to %s",
@@ -271,12 +294,22 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
             tab_chart = getattr(parent.window(), "_tab_chart", None)
             if tab_chart is None:
                 return False
+            _before = Path(fm.working_dir()) if fm.is_named() else None
             tab_chart.open_project_manifest(root / "project.json")
-            if not (fm.is_named() and Path(fm.working_dir()) == root):
+            _after = Path(fm.working_dir()) if fm.is_named() else None
+            # NOT "did it open AT `root`" — "did it open". A project reached
+            # through a symlink (an external drive, a NAS, a Dropbox folder)
+            # goes through the copy-in flow and legitimately ends up open at a
+            # DIFFERENT root, and comparing against the path we asked for then
+            # refused a project that had opened perfectly well — after
+            # duplicating it onto the disk — with a window blaming a read-only
+            # folder or a damaged project.json. All of it false.
+            if _after is None or _after == _before:
                 return _cannot_file(
                     parent,
                     tr("“{name}” could not be opened").format(name=name),
                     project=str(root))
+            root = _after           # …and file into the one that is open
     except (OSError, ValueError) as exc:
         return _cannot_file(parent, str(exc) or type(exc).__name__,
                             project=str(root))
@@ -288,7 +321,7 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
         # not necessarily the one the person was looking at: import into a
         # two-run project, be refused, and the project had quietly moved from
         # run 1 to run 2 under a window saying nothing had been changed.
-        was_current = getattr(_peek(proj_probe.root), "current_run", None)
+        was_current = run_the_project_is_on(proj_probe.root)
     except (OSError, ValueError) as exc:
         return _cannot_file(parent, str(exc) or type(exc).__name__,
                             project=str(root))
@@ -413,6 +446,11 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
         try:
             run = proj.duplicate_run(source, ("chart",))
         except (OSError, ValueError) as exc:
+            # `duplicate_run`'s own rollback sets `current_run = runs[-1]`, so
+            # a failure here MOVES the person to another run — under a window
+            # whose first sentence is "Nothing has been changed". Every one of
+            # these handlers has to put it back.
+            _undo_the_run(proj, made_here, was_current)
             # MAKING THE RUN IS A WRITE, AND IT RE-RAISES. The copy below is
             # guarded and this was not, so a read-only folder, a full disk or a
             # disconnected share killed the app one step earlier than the fault
@@ -454,6 +492,7 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
         try:
             plan = proj.duplicate_run_plan(run, ("chart",))
         except (OSError, ValueError) as exc:
+            _undo_the_run(proj, made_here, was_current)
             return _cannot_file(parent, str(exc) or type(exc).__name__,
                                 project=name)
         n_files = sum(len(files) for _g, files, _s in plan)
@@ -490,6 +529,7 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
         try:
             run = proj.duplicate_run(run, ("chart",))
         except (OSError, ValueError) as exc:
+            _undo_the_run(proj, made_here, was_current)
             return _cannot_file(parent, str(exc) or type(exc).__name__,
                                 project=name)
         made_here = run

@@ -588,3 +588,113 @@ def test_an_empty_working_folder_asks_nothing_when_there_is_no_third_answer(
     work.mkdir()
     assert pp.choose_project(None, work, title="t", body="b",
                              accent="#9f82ff") is None
+
+
+# ---------------------------------------------------------------------------
+# ROUND 4 — the round-3 fixes, which nobody had attacked
+# ---------------------------------------------------------------------------
+
+def test_a_refusal_puts_the_project_back_on_the_run_it_was_on(qapp, tmp_path):
+    """`duplicate_run`'s rollback sets `current_run` to the LAST run, so being
+    refused moved the person to another run under a window whose first sentence
+    is "Nothing has been changed."
+
+    This had no test at all, which is how the first version of the restore
+    shipped ENTIRELY INERT: it read `ProjectPeek.current_run`, a field that does
+    not exist, so it returned early every time — and the line after it called
+    `Project.current_run` without parentheses, which would have raised the
+    moment the first line started working.
+    """
+    import shutil
+
+    from core.file_manager import Project
+    from ui.measurement_filing import _undo_the_run, run_the_project_is_on
+
+    repo = Path(__file__).resolve().parents[1]
+    root = tmp_path / "P"
+    shutil.copytree(repo / "demo-projects" / "Demo-Report-Matrix", root)
+    proj = Project.load(root)
+
+    # THE PERSON IS ON THE FIRST RUN, not the last. `_discard_run` restores to
+    # `runs[-1]`, so with them standing on the last run it accidentally does
+    # the right thing and this test proves nothing — the trap a previous
+    # version of it fell into.
+    proj.set_current_run("run1")
+    was = run_the_project_is_on(root)
+    assert was == "run1", f"the premise failed: the project is on {was}"
+
+    made = proj.duplicate_run(proj.current_run(), ("chart",))
+    assert run_the_project_is_on(root) != was, (
+        "the premise failed: making a run did not move the current run")
+
+    _undo_the_run(proj, made, was)
+
+    assert run_the_project_is_on(root) == was, (
+        f"the project was left on {run_the_project_is_on(root)}, not on {was} "
+        "where the person was")
+
+
+def test_cancel_on_an_empty_folder_is_still_cancel(door, monkeypatch):
+    """`if picked is None and list_projects(...)` was right only while an empty
+    folder drew no window. Now that it draws one, a new user's very first
+    import answered Cancel and was met by the name box instead."""
+    tab, _outside, _work = door
+    asked = []
+    monkeypatch.setattr(project_picker, "choose_project", lambda *a, **kw: None)
+    monkeypatch.setattr(name_prompt, "ask_for_project_name",
+                        lambda *a, **kw: asked.append(1) or "")
+    monkeypatch.setattr("ui.ti2_loader.resolve_ti3", lambda *a, **kw: None)
+
+    _browse(tab)
+
+    assert not asked, (
+        "Cancel was followed by the name box, which is a different question")
+    assert tab.ti3_path is None
+
+
+def test_the_empty_picker_is_not_a_sliver_with_a_dead_button(qapp, tmp_path):
+    """`sizeHintForRow(0)` is -1 with nothing in the list, so `max(1, …)` gave
+    a one-pixel row and an 18-px box that reads as a broken text field — under
+    a sentence telling you to choose from it. And "Choose this project" was the
+    default with no row behind it, so Return dismissed the window and returned
+    None, which the caller reads as Cancel."""
+    from PyQt6.QtCore import QTimer
+    from PyQt6.QtWidgets import (QApplication, QDialog, QListWidget,
+                                 QPushButton)
+
+    import ui.dialogs.project_picker as pp
+
+    work = tmp_path / "empty"
+    work.mkdir()
+    seen: dict = {}
+
+    def look():
+        dlg = QApplication.activeModalWidget()
+        if not isinstance(dlg, QDialog) or not dlg.isVisible():
+            QTimer.singleShot(5, look)
+            return
+        lst = dlg.findChild(QListWidget)
+        seen["height"] = lst.height() if lst is not None else 0
+        seen["says"] = (lst.item(0).text() if lst is not None and lst.count()
+                        else "")
+        seen["default"] = next(
+            (b.text().replace("&", "") for b in dlg.findChildren(QPushButton)
+             if b.isDefault()), "")
+        seen["enabled"] = {b.text().replace("&", ""): b.isEnabled()
+                           for b in dlg.findChildren(QPushButton)}
+        dlg.reject()
+
+    QTimer.singleShot(0, look)
+    pp.choose_project(None, work, title="t", body="b", accent="#9f82ff",
+                      offer_in_place=True)
+
+    assert seen, "the window never appeared"
+    assert seen["height"] > 40, (
+        f"the list is {seen['height']} px tall; it reads as a broken field")
+    assert seen["says"], "the empty list says nothing about being empty"
+    assert seen["default"] != "Choose this project", (
+        "the button that cannot do anything is still the default, so Return "
+        "dismisses the window and the caller reads it as Cancel")
+    assert seen["enabled"].get("Choose this project") is False, (
+        "'Choose this project' is enabled with nothing to choose")
+    assert seen["enabled"].get("Just check it where it is") is True
