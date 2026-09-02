@@ -20,14 +20,68 @@ python main.py
 
 ```bash
 source .venv/bin/activate
-QT_QPA_PLATFORM=offscreen pytest -n auto            # everyday tier, ~6860 tests, ~2:10
-QT_QPA_PLATFORM=offscreen pytest --runslow -n auto  # THE RELEASE GATE, ~7060 tests, ~3 min
+QT_QPA_PLATFORM=offscreen pytest -n auto            # everyday tier, ~9,380 tests, ~1:45
+QT_QPA_PLATFORM=offscreen pytest --runslow -n auto  # THE RELEASE GATE, ~9,480 tests, ~3:20
 ```
 
 The suite is two-tiered: ~20 heavy end-to-end profile-build tests carry
 `@pytest.mark.slow` and are skipped by a plain `pytest` run; `--runslow`
 includes them. **Any merge/release decision requires a green `--runslow`
 run** — the everyday tier alone is not a gate.
+
+**A RED GATE MEANS SOMETHING AGAIN, AND SO DOES A GREEN ONE.** Measured
+2026-09-02, on ten gate runs: **four of them crashed a worker**, and what
+happened next was decided by nothing anybody controls.
+
+* A worker that died **while running a test** made pytest-xdist mark whatever
+  item it was holding as `FAILED` — a bystander that passes on its own — with
+  the real cause two quiet lines back in a wall of dots. An hour went into
+  deciding whose change it was. It was nobody's.
+* A worker that died **after reporting its tests** was recorded as nothing at
+  all: `LoadScopeScheduling.remove_node` returns None when the node has no
+  pending item, so the run printed `N passed` and **exited 0 with a dead
+  process in it**. Reproduced on the real suite (`215 passed`, exit 0) and now
+  caught (`215 passed`, exit 1).
+
+`tests/conftest.py` implements xdist's `pytest_testnodedown`: any worker that
+goes down with an error is named in a red banner in the summary and **forces a
+non-zero exit**. Nothing is retried, skipped or hidden — a crash still crashes;
+it simply cannot be read as a test failure, and cannot be a pass.
+
+**TWO DUMPS LOOK ALIKE AND MEAN OPPOSITE THINGS. READ THE FIRST LINE.**
+
+| what you see | what it is |
+|---|---|
+| `Fatal Python error: …` and `[gwN] node down` | a worker DIED. The banner fires, the run exits non-zero, and any test in the FAILED list is a bystander — re-run it alone before believing it |
+| `Timeout (0:0X:XX)!` then a thread dump | `faulthandler_timeout` on a test that was merely slow. Harmless. No banner, no failure |
+
+A reviewer read the second as the first, in a GREEN run, and reported that "the
+segfault trace appears in green runs too". It does not. `faulthandler_timeout`
+is now **300**, not 90: measured with `--durations=40`, the slowest single test
+in the suite is `test_engine_v2_options.py::test_spectral_physics_flag_runs_challenge`
+at **83 s**, so 90 left it seven seconds of headroom and the dump fired on any
+loaded run — 7 of the 20 gate logs on disk. 300 is 3.6x the slowest test and
+still names a genuine hang inside five minutes.
+
+**AND THE CRASH WAS OURS, IN SHIPPED CODE.** `ui/fade_scroll.py` connected a
+scroll bar's `rangeChanged` to a lambda capturing `self`. PyQt6 6.11 faults
+invoking that closure when the signal is emitted re-entrantly — SIGSEGV,
+`EXC_BAD_ACCESS ... address=0x20`, a `Py_INCREF` on a pointer read from
+NULL+0x20 inside `_PyEval_EvalFrameDefault`. The re-entrancy comes from
+`ButtonFontFilter.relayout_around`, which runs `layout.activate()` inside an
+application event filter and makes `QScrollAreaPrivate::updateScrollBars` call
+`setRange` inside itself — and `main.py` installs that filter, so **the app runs
+this path too**. Bisected on a standalone reproduction that faults on the eighth
+widget build: an empty slot body still crashes (so it is not the work), a lambda
+capturing nothing does not (so it is the capture), a bound method does not. The
+fix is a bound method: 208 builds clean, twice, where the lambda died on build 8.
+`tests/test_a_scrollbar_signal_never_takes_a_lambda.py` keeps it that way.
+
+**Do not reach for a self-capturing lambda as a slot on a signal a widget's own
+child emits.** Give the class a named method and connect that: PyQt keeps a weak
+reference to a bound receiver and lets Qt sever the connection when it dies,
+instead of parking a Python closure inside a C++ object on the far side of the
+cycle.
 
 `pytest.ini` scopes collection to `tests/` (via `testpaths`). Without it a
 bare `pytest` recurses into `.venv/` and — with `pytest-qt` active —
@@ -51,6 +105,19 @@ same command is right on every host. Measured on the full gate, 2026-08-24,
 | **auto** | **7085 passed ×3** | **~2:58** |
 
 Measured 2026-08-25 on 7,085 tests, three consecutive runs, zero failures.
+
+Re-measured 2026-09-02 at `-n auto` on 9,713 collected items:
+
+| when | runs | wall | worker crashes |
+|---|---|---|---|
+| before the fade-scroll fix | 10 | 3:21 – 9:18 | **4** |
+| after it | 4 | 3:17 – 3:59 | 0 |
+| after the whole change set | **6** | **3:15 – 3:30** | **0** |
+
+Ten post-fix `--runslow` runs in total, every one green and exit 0, and no
+`Timeout (0:0X:XX)!` dump in any of the last six either — that is the
+`faulthandler_timeout` change. The everyday tier on the same day:
+**9,384 passed, 325 skipped, 1:42**.
 
 
 **THE INTERMITTENT FAILURES ARE FIXED, AND IT WAS NOT THE WORKER COUNT.**
@@ -142,6 +209,16 @@ not. It cost one full run to learn.
 suite once sat on that single call for two and a half hours with no output.
 When a run does appear stuck, `pytest --timeout=300 --timeout-method=thread`
 (pytest-timeout) makes the stack name the test instead of guessing.
+
+**…and a timeout that is too TIGHT is a phantom red.** The other half of the
+same rule, learned 2026-09-02. `test_webengine_shutdown` spawned a subprocess
+that builds a real `QWebEngineView` and waited `timeout=60`. Measured idle, that
+subprocess costs **1.2 s** — a fifty-fold margin — and the gate still blew
+through 60 s, because the gate saturates every core. The run came out red with
+`subprocess.TimeoutExpired` and the thing the test actually guards (that the
+process exits cleanly) was never evaluated at all. Budget a subprocess for the
+loaded machine, not the idle one, and make a timeout say *"did not finish"*
+rather than letting a bare `TimeoutExpired` read like a crash.
 
 **Real Argyll builds are expensive individually** (though only 5.6% of a
 whole gate — see above). The demo projects in

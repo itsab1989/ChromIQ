@@ -90,10 +90,56 @@ class FadeScrollArea(QScrollArea):
         self._top_fade = _ScrollFade("top", self)
         self._bot_fade = _ScrollFade("bottom", self)
         self.verticalScrollBar().valueChanged.connect(self._refresh_fade)
-        self.verticalScrollBar().rangeChanged.connect(
-            lambda _mn, _mx: self._refresh_fade()
-        )
+        # A BOUND METHOD, NEVER A LAMBDA THAT CAPTURES `self`. See
+        # `_on_range_changed` — this line used to segfault the process.
+        self.verticalScrollBar().rangeChanged.connect(self._on_range_changed)
         self._refresh_color()
+
+    def _on_range_changed(self, _minimum: int, _maximum: int) -> None:
+        """`rangeChanged(int, int)` -> the no-argument refresh.
+
+        THIS EXISTS ONLY SO THAT THE SLOT IS A BOUND METHOD. It was
+
+            self.verticalScrollBar().rangeChanged.connect(
+                lambda _mn, _mx: self._refresh_fade())
+
+        and that line crashed the process — SIGSEGV, `EXC_BAD_ACCESS ...
+        address=0x20`, a `Py_INCREF` of a pointer read from NULL+0x20 inside
+        `_PyEval_EvalFrameDefault` while PyQt6 was setting up the lambda's own
+        frame (`PyQtSlotProxy::unislot` -> `PyQtSlot::invoke` ->
+        `PyQtSlot::call` -> `_PyEval_Vector`).
+
+        HOW IT WAS PINNED DOWN, because the shape of the evidence is the point.
+        The crash needs `rangeChanged` to be emitted RE-ENTRANTLY: `main.py`
+        installs `CompositeAppFilter`, whose `ButtonFontFilter` calls
+        `relayout_around()` -> `layout.invalidate(); layout.activate()`
+        synchronously from inside an application event filter, so
+        `QScrollAreaPrivate::updateScrollBars()` runs inside itself and calls
+        `QAbstractSlider::setRange` a second time. Four variants of this one
+        line were then run against a standalone reproduction that faults on the
+        eighth widget build, every time:
+
+            connected as a self-capturing lambda   -> crash on build 8
+            slot body emptied to `return None`     -> crash on build 8
+            connected as a bound method            -> 52 builds, clean
+            lambda capturing nothing               -> 52 builds, clean
+
+        So it is not what the slot does (an empty body still crashes) and not
+        the re-entrancy on its own (a bound method survives it). It is PyQt6
+        6.11 calling a Python closure that captures the very widget whose child
+        scroll bar owns the proxy holding that closure. A bound method is the
+        pattern PyQt is built for: it keeps a WEAK reference to the receiver and
+        lets Qt sever the connection with the receiver, instead of parking a
+        Python closure in a C++ object on the other side of the cycle.
+
+        The same crash reached the release gate as a phantom red in FOUR OF TEN
+        measured runs — always in
+        `tests/test_the_manual_panel_does_not_scroll_sideways.py`, because that
+        is the only test file that installs the application event filter — and
+        each time it took an unrelated test down with it, so the run came out
+        red naming something that passes on its own.
+        """
+        self._refresh_fade()
 
     def set_appearance(self, mode: str) -> None:
         """Picked up automatically by MainWindow.apply_theme()'s broadcast."""
@@ -156,9 +202,18 @@ class EdgeFades(QObject):
         self._bot = _ScrollFade("bottom", vp)
         sb = area.verticalScrollBar()
         sb.valueChanged.connect(self._refresh)
-        sb.rangeChanged.connect(lambda _mn, _mx: self._refresh())
+        # A bound method, for the reason spelt out in
+        # `FadeScrollArea._on_range_changed`: a lambda here that captures `self`
+        # is what segfaulted the process.
+        sb.rangeChanged.connect(self._on_range_changed)
         vp.installEventFilter(self)
         self._refresh_color()
+        self._refresh()
+
+    def _on_range_changed(self, _minimum: int, _maximum: int) -> None:
+        """`rangeChanged(int, int)` -> the no-argument refresh, as a BOUND
+        METHOD. See `FadeScrollArea._on_range_changed` for what a lambda here
+        cost."""
         self._refresh()
 
     def set_appearance(self, mode: str) -> None:

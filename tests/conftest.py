@@ -418,6 +418,93 @@ def _sweep_stale_temp_dirs() -> "tuple[int, int]":
     return folders, freed
 
 
+# ---------------------------------------------------------------------------
+# A WORKER THAT DIES CAN NEVER BE A GREEN RUN
+# ---------------------------------------------------------------------------
+# When an xdist worker segfaults, pytest-xdist prints two quiet lines in the
+# middle of nine thousand dots —
+#
+#     [gw4] node down: Not properly terminated
+#     replacing crashed worker gw4
+#
+# — and then carries on. What happens after that is decided by nothing anybody
+# controls:
+#
+#   * if the worker was RUNNING a test, `DSession.worker_errordown` asks the
+#     scheduler for the first item it had not finished and reports THAT test as
+#     FAILED, with "worker 'gwN' crashed while running <nodeid>". That reads
+#     exactly like a test failure and is not one. Somebody then spends an hour
+#     deciding whether it was their change; that is what happened here on
+#     2026-09-02, four times over.
+#   * if the worker had nothing left to finish,
+#     `LoadScopeScheduling.remove_node` returns None
+#     (`if not self._pending_of(workload): return None`), nothing at all is
+#     recorded, and the run prints `N passed` and **exits 0 with a dead worker
+#     in it**.
+#
+# The second is the one that matters, because the gate's whole job is to be
+# believed when it is green.
+#
+# So every node-down carrying an error is recorded, said out loud in the summary
+# where a human actually looks, and made to cost the run its exit code. Nothing
+# here hides or retries anything — a crash still crashes. It can simply no
+# longer be mistaken for a test failure, and can no longer be a pass.
+_CRASHED_WORKERS: list = []
+
+
+@pytest.hookimpl(optionalhook=True)
+def pytest_testnodedown(node, error):
+    """xdist hook, master process only. `optionalhook` so a run without xdist
+    (a single file, `pytest tests/test_x.py`) does not fail on an unknown hook.
+
+    `error` is None for a worker that finished cleanly and a message
+    ("Not properly terminated") for one whose process DIED.
+    """
+    if error is None:
+        return
+    gw = getattr(getattr(node, "gateway", None), "id", "?")
+    _CRASHED_WORKERS.append((str(gw), str(error)))
+
+
+def pytest_terminal_summary(terminalreporter, exitstatus, config):
+    """Say it where a human looks: in the summary, in red, in full sentences.
+
+    The two lines xdist prints scroll past mid-run under thousands of dots. And
+    a reader who does find a traceback in the log has no way to tell this apart
+    from the OTHER multi-thread dump this suite produces — the one
+    `faulthandler_timeout` writes when a test is merely slow, which begins
+    `Timeout (0:0X:XX)!` and means nothing is wrong. A reviewer read one of
+    those, in a green run, as evidence of a crash. So the difference is spelt
+    out here instead of being left to be re-derived.
+    """
+    if not _CRASHED_WORKERS:
+        return
+    w = terminalreporter
+    w.write_sep("=", "A WORKER PROCESS DIED — THIS RUN PROVES NOTHING",
+                red=True, bold=True)
+    for gw, error in _CRASHED_WORKERS:
+        w.write_line(f"  {gw}: {error}", red=True)
+    w.write_line("")
+    w.write_line("  This is NOT an assertion failure. One of the processes "
+                 "running the suite crashed")
+    w.write_line("  (search the log above for 'Fatal Python error'), and "
+                 "pytest-xdist then blamed")
+    w.write_line("  whichever test that worker happened to be holding — or "
+                 "nothing at all. Any test")
+    w.write_line("  in the FAILED list because of this is a bystander: re-run "
+                 "it on its own before")
+    w.write_line("  you believe it.")
+    w.write_line("")
+    w.write_line("  It is NOT the same thing as a 'Timeout (0:0X:XX)!' dump. "
+                 "That one is pytest.ini's")
+    w.write_line("  faulthandler_timeout firing on a slow test, it is "
+                 "harmless, and it never reaches")
+    w.write_line("  this banner.")
+    w.write_line("")
+    w.write_line("  The run is reported as FAILED whatever the test counts "
+                 "say.", red=True, bold=True)
+
+
 def pytest_sessionfinish(session, exitstatus):
     """Delete THIS run's temp tree the moment it is over — if it passed.
 
@@ -437,6 +524,16 @@ def pytest_sessionfinish(session, exitstatus):
     """
     if hasattr(session.config, "workerinput"):
         return
+
+    # THE EXIT CODE. `wrap_session` returns `session.exitstatus` AFTER every
+    # `pytest_sessionfinish` hook has run (_pytest/main.py), so setting it here
+    # is what actually reaches the shell — and the shell is what a release
+    # decision is made on. A dead worker means the run did not do what it
+    # claims to have done, whatever the counts say.
+    if _CRASHED_WORKERS:
+        session.exitstatus = 1
+        exitstatus = 1
+
     factory = getattr(session.config, "_tmp_path_factory", None)
     if factory is None:
         return
