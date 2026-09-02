@@ -44,7 +44,11 @@ _PALETTE_NEUTRAL = {
     "panel_border":  neutral_styles.NM_BORDER,
     "text":          neutral_styles.NM_TEXT_MAIN,
     "text_hover":    neutral_styles.NM_TEXT_MAIN,
-    "hover_bg":      neutral_styles.NM_BG_WINDOW,
+    # THE THEME'S HOVER TOKEN, not the window value it used to name. Those
+    # were the same colour until the grounds were collapsed onto one; after
+    # that, a hover row painted in the window value IS the card it sits on and
+    # the row stops lighting up at all. NM_BG_HOVER steps down instead.
+    "hover_bg":      neutral_styles.NM_BG_HOVER,
     "shadow":        QColor(0, 0, 0, 30),
 }
 

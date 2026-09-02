@@ -47,7 +47,7 @@ _PALETTE_LIGHT = {
     "shadow":        QColor(0, 0, 0, 30),
 }
 #: Neutral — kept in step with ui.tools_popup, as the two dark/light pairs
-#: already are. ``header_text`` is TERTIARY, not faint: at 8.83:1 it still
+#: already are. ``header_text`` is TERTIARY, not faint: at 8.13:1 it still
 #: reads, because an instrument label that works may not be faint.
 _PALETTE_NEUTRAL = {
     "panel_bg":      neutral_styles.NM_BG_SURFACE,
@@ -55,7 +55,11 @@ _PALETTE_NEUTRAL = {
     "text":          neutral_styles.NM_TEXT_MAIN,
     "text_hover":    neutral_styles.NM_TEXT_MAIN,
     "header_text":   neutral_styles.NM_TEXT_FAINT,
-    "hover_bg":      neutral_styles.NM_BG_WINDOW,
+    # THE THEME'S HOVER TOKEN, not the window value it used to name. Those
+    # were the same colour until the grounds were collapsed onto one; after
+    # that, a hover row painted in the window value IS the card it sits on and
+    # the row stops lighting up at all. NM_BG_HOVER steps down instead.
+    "hover_bg":      neutral_styles.NM_BG_HOVER,
     "shadow":        QColor(0, 0, 0, 30),
 }
 

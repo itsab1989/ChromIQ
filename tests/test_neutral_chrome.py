@@ -174,7 +174,18 @@ def _spectrum_hues_in(image) -> set:
     return found
 
 
-def test_the_masthead_stripe_is_the_rule_in_neutral_and_five_hues_otherwise(app, appearance):
+def test_the_masthead_wears_five_hues_and_neutral_wears_a_hairline(app, appearance):
+    """THE INDEX RULE IS GONE FROM THE MASTHEAD, on the owner's instruction.
+
+    2026-09-02: *"for neutral mode i want this indexing lines over every tab
+    gone"*. The masthead stripe spans the whole window width, so it sat over
+    all five tab columns and is the one he was pointing at.
+
+    What is left is a 1px BORDER hairline across the very top. Not decoration:
+    the masthead is BG_WINDOW and the system title bar above it is another
+    light grey, so with the stripe gone the two met with no edge and the window
+    had no top. Light and Dark keep all five spectrum hues, unchanged.
+    """
     from ui.masthead_header import MastheadHeader
     head = MastheadHeader(version="9.9.9")
     head.resize(900, head.height())
@@ -188,23 +199,33 @@ def test_the_masthead_stripe_is_the_rule_in_neutral_and_five_hues_otherwise(app,
 
     appearance("neutral")
     head.set_appearance("neutral")
-    head.set_step(3)
+    stripe_rows = []
+    for step in (1, 3, 5):
+        head.set_step(step)
+        img = head.grab().toImage()
+        stripe = img.copy(0, 0, head.width(), MastheadHeader.STRIPE_H)
+        assert hues(stripe) == 0, "the masthead stripe still carries a hue"
+        # NO CELLS. The rule painted ACTION cells; there must be none left, at
+        # any step — the mid-band row is where they were.
+        ink = sum(1 for x in range(head.width())
+                  if stripe.pixelColor(x, MastheadHeader.STRIPE_H // 2).name()
+                  == neutral_styles.NM_ACTION)
+        assert ink == 0, (
+            f"step {step}: {ink} px of the Index rule are still in the masthead")
+        stripe_rows.append([stripe.pixelColor(x, 0).name()
+                            for x in range(0, head.width(), 7)])
+    # The hairline: row 0 is BORDER all the way across, and it does not move
+    # with the step (it is an edge, not a readout).
+    assert set(stripe_rows[0]) == {neutral_styles.NM_BORDER}, (
+        "the masthead has no top edge in Neutral")
+    assert stripe_rows[0] == stripe_rows[1] == stripe_rows[2], (
+        "the top edge changes with the step — it is a rule again")
+    # …and the band below it is the masthead ground, not a second line.
     img = head.grab().toImage()
-    stripe = img.copy(0, 0, head.width(), MastheadHeader.STRIPE_H)
-    assert hues(stripe) == 0, "the masthead stripe still carries a hue"
-    # Three cells of ink, two of the unreached value: the step, not a shade.
-    ink = sum(1 for x in range(head.width())
-              if stripe.pixelColor(x, MastheadHeader.STRIPE_H // 2).name()
-              == neutral_styles.NM_ACTION)
-    head.set_step(5)
-    full = head.grab().toImage().copy(0, 0, head.width(), MastheadHeader.STRIPE_H)
-    ink5 = sum(1 for x in range(head.width())
-               if full.pixelColor(x, MastheadHeader.STRIPE_H // 2).name()
-               == neutral_styles.NM_ACTION)
-    assert 0 < ink < ink5, "the stripe must fill further as the run advances"
+    assert img.pixelColor(head.width() // 2, 3).name() == neutral_styles.NM_BG_WINDOW
 
 
-def test_the_tab_bar_has_no_hue_and_marks_only_the_active_tab(app, appearance):
+def test_the_tab_bar_has_no_hue_no_rule_and_outlines_the_active_tab(app, appearance):
     from ui.spectrum_tab_bar import SpectrumTabBar
     tabs = QTabWidget()
     bar = SpectrumTabBar(tabs)
@@ -227,17 +248,45 @@ def test_the_tab_bar_has_no_hue_and_marks_only_the_active_tab(app, appearance):
         "the tab bar still carries a hue — the per-tab strips, or the active "
         "tab's tint, which measured 17.5% of this bar")
 
-    # Only the active tab has ink along its top edge.
-    def ink_on(i: int) -> int:
+    # NO RULE ON ANY TAB. The five-cell strip is gone from the tab bar too —
+    # the owner's 2026-09-02 instruction covers "every tab". The row it was
+    # drawn on carries no ACTION anywhere along the bar.
+    def rule_ink_on(i: int) -> int:
         r = bar.tabRect(i)
         hi = min(r.x() + r.width() - 2, img.width())
         return sum(1 for x in range(r.x() + 2, hi)
                    if img.pixelColor(x, r.y() + 1).name() == neutral_styles.NM_ACTION)
 
-    assert ink_on(2) > 0, "the active tab must carry the rule"
+    for i in range(5):
+        assert rule_ink_on(i) == 0, (
+            f"tab {i} still carries the Index rule along its top edge")
+
+    # …AND THE ACTIVE TAB IS STILL FINDABLE. It lost the rule and, with the
+    # grounds collapsed onto one, its lighter fill as well, so it is marked by
+    # an EDGE: BORDER_HI along the top and down both sides, open at the bottom
+    # into the pane. Only the active tab has it.
+    def outline_on(i: int) -> int:
+        r = bar.tabRect(i)
+        hi = min(r.x() + r.width() - 2, img.width())
+        top = sum(1 for x in range(r.x() + 2, hi)
+                  if img.pixelColor(x, r.y()).name() == neutral_styles.NM_BORDER_HI)
+        return top
+
+    assert outline_on(2) > 50, "the active tab has no mark at all"
     for i in (0, 1, 3, 4):
-        assert ink_on(i) == 0, (
-            f"tab {i} is not active and must carry no accent at all")
+        assert outline_on(i) == 0, (
+            f"tab {i} is not active and must carry no outline")
+    # The sides, on the active tab only.
+    r = bar.tabRect(2)
+    y_mid = r.y() + r.height() // 2
+    assert img.pixelColor(r.x(), y_mid).name() == neutral_styles.NM_BORDER_HI
+    # The active tab's FILL is the trough's own value — the mark is the edge,
+    # never a brighter ground (rule 1). Sampled beside the label, not through
+    # it: the centre of a tab is where its text is.
+    assert (img.pixelColor(r.x() + 5, y_mid).name()
+            == neutral_styles.NM_BG_WINDOW)
+    assert (img.pixelColor(bar.tabRect(0).x() + 5, y_mid).name()
+            == neutral_styles.NM_BG_WINDOW), "an inactive tab moved"
 
     # Light and Dark keep the per-tab strips. The inactive hints are drawn at
     # alpha 60 over the trough, so only the active tab's 3px strip is the pure

@@ -3692,15 +3692,19 @@ def disabled_primary_qss(accent: str, mode: "str | None" = None) -> str:
     light-grey window: the darkest thing in the dialog was the button you
     cannot press.
 
-    Neutral's answer is the handoff's shape, not a value: **no fill and a
-    dashed edge**. Light and Dark get exactly the rule they have always had.
+    Neutral's answer is the handoff's shape, not a value: **no fill, and the
+    edge and label drop to DISABLED**. The edge was DASHED — the handoff's own
+    shape — until the owner saw it on screen and ruled it out (2026-09-02:
+    *"deactivated options have dotted lines in neutral mode - should be
+    continuous"*). Do not put it back. Light and Dark get exactly the rule they
+    have always had.
     """
     from ui.theme import APPEARANCE_NEUTRAL, active_mode, is_light
     mode = mode or active_mode()
     if mode == APPEARANCE_NEUTRAL:
         from ui import neutral_styles
         return (f"QPushButton:disabled {{ background: transparent;"
-                f" border: 1px dashed {neutral_styles.NM_DISABLED};"
+                f" border: 1px solid {neutral_styles.NM_DISABLED};"
                 f" color: {neutral_styles.NM_DISABLED}; }}")
     light = mode == "light" if mode else is_light()
     dis_bg = "#e8e6e1" if light else "#1e1e1e"
@@ -3782,7 +3786,7 @@ def set_ink(widget, colour: str, extra: str = "", level: str = "main") -> None:
     Neutral it becomes dark ink at ``level`` (``"main"`` / ``"dim"`` /
     ``"faint"``), because in a colourless theme those meanings are carried by
     the WORDS. None of the three levels is faint enough to read as disabled —
-    the tertiary value is 8.83:1 on the panel.
+    the tertiary value is 8.13:1 on the panel.
 
     ``extra`` is appended to the stylesheet verbatim, so a size or weight the
     label already had survives (``" font-size: 11px;"``).

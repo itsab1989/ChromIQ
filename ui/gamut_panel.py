@@ -75,7 +75,7 @@ _PALETTE_NEUTRAL = {
     "hdr":          neutral_styles.NM_TEXT_DIM,
     "profile":      neutral_styles.NM_TEXT_MAIN,
     # Nothing that works is allowed to be faint: the "run gamut analysis" line
-    # is tertiary ink at 8.83:1, not a pale grey.
+    # is tertiary ink at 8.13:1, not a pale grey.
     "placeholder":  neutral_styles.NM_TEXT_FAINT,
     # Rule 1 — nothing is lighter than its ground. The unfilled groove is a
     # step DOWN from the panel; the filled part and the handle are ACTION.

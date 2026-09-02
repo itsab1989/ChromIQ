@@ -2131,10 +2131,21 @@ class WorkflowCard(QFrame):
             ("#ffffff", "#d0ccc6", "#22211f", "#7a7570"),
             ("#1a1a1a", "#333333", "#e6e6e6", "#8a8a8a"),
             # A card is a raised SURFACE; its subtitle is tertiary ink at
-            # 8.83:1, not a pale grey — nothing that works may be faint.
+            # 8.13:1, not a pale grey — nothing that works may be faint.
             (_n.NM_BG_SURFACE, _n.NM_BORDER, _n.NM_TEXT_MAIN, _n.NM_TEXT_FAINT),
             self._mode)
-        hover_border = SPEC_MAGENTA if self._hover else border
+        # THE HOVER EDGE GOES THROUGH `accent_for` LIKE EVERY OTHER ACCENT.
+        # It was raw SPEC_MAGENTA, so a card in Neutral grew a magenta outline
+        # the moment the pointer touched it — the owner's report, 2026-09-02:
+        # *"in neutral help cards still get a magenta outline when hovered"*.
+        # The resting card is themed correctly a few lines up and the dialog's
+        # own checkbox accents a few hundred lines down are routed properly
+        # too, which is what makes this a missed site rather than a decision.
+        # A hue in an INTERACTION STATE is painted at a different moment from
+        # the resting widget, which is why every pixel census so far walked
+        # straight past it.
+        hover_border = (accent_for(SPEC_MAGENTA, self._mode)
+                        if self._hover else border)
         self.setStyleSheet(
             f"""
             WorkflowCard {{

@@ -228,17 +228,37 @@ class SpectrumTabBar(QTabBar):
                     p.fillRect(overlay_x, rect.y(), overlay_w, rect.height(),
                                tint)
 
-            # Top accent strip (3px). In Neutral this is the Index rule — five
-            # cells filled up to this tab's number — and it is drawn on the
-            # ACTIVE tab only: the handoff gives an inactive tab a label and a
-            # trough and nothing else, and five rules across one bar is the
-            # same fact read out five times.
+            # Top accent strip (3px) — Light and Dark only.
+            #
+            # NEUTRAL HAS NO STRIP. This was the Index rule, five cells filled
+            # up to this tab's number, and the owner asked for it to go
+            # (2026-09-02): *"for neutral mode i want this indexing lines over
+            # every tab gone"*.
+            #
+            # `strip_h` still stands: the label is inset by it in every
+            # appearance, and dropping it in one of them would move Neutral's
+            # five labels 3 px up for no reason.
+            #
+            # THE ACTIVE TAB STILL HAS TO BE FINDABLE, and it lost both of its
+            # marks at once — the strip here, and the lighter `active_bg`,
+            # which is now the same value as the trough (one ground, the
+            # owner's other instruction the same day). So it is marked by an
+            # EDGE: BORDER_HI down the left, along the top and down the right,
+            # open at the bottom into the pane it belongs to. A border and a
+            # weight, never a brighter fill — that is what this theme has left
+            # when brightening is not allowed, and it is a tab outline rather
+            # than a rule across the top.
             strip_h = 3
             if index:
                 if is_active:
-                    index_rule.paint_index_rule(
-                        p, overlay_x + 10, rect.y(), overlay_w - 20, strip_h,
-                        i + 1)
+                    p.setPen(QPen(QColor(neutral_styles.NM_BORDER_HI), 1))
+                    x0 = overlay_x
+                    x1 = overlay_x + overlay_w - 1
+                    y0 = rect.y()
+                    y1 = rect.y() + rect.height() - 1
+                    p.drawLine(x0, y0, x1, y0)
+                    p.drawLine(x0, y0, x0, y1)
+                    p.drawLine(x1, y0, x1, y1)
             elif is_active:
                 p.fillRect(overlay_x, rect.y(),
                            overlay_w, strip_h, color)

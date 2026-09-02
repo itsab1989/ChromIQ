@@ -3092,13 +3092,16 @@ class SettingsDialog(QDialog):
         # higher-specificity :checked:disabled rule so it greys out like the rest
         # of the app (matching the global QCheckBox::indicator:disabled greys).
         if mode == APPEARANCE_NEUTRAL:
-            # No fill, dashed edge — the handoff's shape for "disabled", and the
-            # only thing in this theme allowed to be faint. A fill of any value
-            # here is a disabled control shouting over the enabled ones.
+            # No fill — the handoff's shape for "disabled", and the only
+            # thing in this theme allowed to be faint. A fill of any value here
+            # is a disabled control shouting over the enabled ones. The edge is
+            # SOLID: the handoff made it dashed and the owner removed the dash
+            # on 2026-09-02 (*"deactivated options have dotted lines in neutral
+            # mode - should be continuous"*). Do not restore it.
             disabled_qss = (
                 f"QCheckBox::indicator:checked:disabled {{"
                 f" background: transparent;"
-                f" border: 1px dashed {neutral_styles.NM_DISABLED}; }}"
+                f" border: 1px solid {neutral_styles.NM_DISABLED}; }}"
             )
         else:
             dis_bg, dis_border = (
