@@ -11,6 +11,34 @@
 > where behaviour was in question, run. File and line references are to the tree
 > at `v3.14.8-beta.129`; ArgyllCMS references are to the 3.5.0 sources.
 
+## Amendment, 2026-09-02 — an unmeasured calibration chart is not kept
+
+The owner was asked, in writing, what should happen to a calibration chart that
+is replaced, and answered **option 3** of
+`RULING-calibration-old-charts.txt`:
+
+> *"Keep it only if it was measured; experiments leave nothing. This matches
+> what profile runs already do. A chart you never measured is treated as an
+> experiment and disappears when you replace it; a chart that was measured is
+> always kept."*
+
+He left the "anything you want different" box empty. Every sentence below that
+says a replaced calibration chart moves to `cal/old/` is therefore true **only
+when something was measured** — a `.ti3`, a `.ti3.engine-partial`, a `.cal` or a
+profile built from them. With none of those, the chart is set aside while the
+build runs (so a build that fails, is stopped or is killed still puts it back)
+and dropped once a replacement exists.
+
+This also settles a contradiction that was already in the specifications: K6 in
+`per_run_description.md:400` says *"The chart is replaced, as a run's is"*,
+which the archive-everything behaviour did not do.
+
+**The window that appears before this happens still promises otherwise, and has
+NOT been rewritten** — new user-facing text is the owner's to approve. The
+proposed replacement wording is in the hand-back report, and a strict `xfail` in
+`tests/test_calibration_keeps_only_measured.py` keeps the disagreement visible
+in every gate run until it is settled.
+
 ## Verdict in one paragraph
 
 **Doable, and worth doing — but "Calibration" is not a third *run* type; it is a
@@ -316,7 +344,11 @@ calibration wording: *"There is no calibration chart in this project yet."*
 
 - `Calibration` gains `old_dir` and `archive_to_old`, mirroring
   `Run` (`core/file_manager.py:716-748`).
-- `Calibration.reset()` **archives** to `cal/old/<date>/` instead of deleting.
+- `Calibration.reset()` **archives** to `cal/old/<date>/` instead of deleting —
+  **when something was measured.** Amended by the owner's ruling of 2026-09-02
+  (option 3): with nothing measured, the chart is an experiment, it is set aside
+  only for as long as the build runs and it is then dropped, and no `cal/old/`
+  folder is made. See the amendment note at the top of this document.
 - Before regenerating a calibration chart, a §4-style window (draft text in
   §4.7) names what moves: the calibration chart, the calibration measurement,
   and — the part that matters — the `.cal` curves themselves, with what their
@@ -602,9 +634,11 @@ new persistence.
 3. `assess_calibration_chart`: empty `cal/` → no warning; chart only → none;
    chart + `.ti3` → warn; + `.cal` → warn naming the curves; corrupt `.ti3` →
    the corrupt message.
-4. `Calibration.reset()` **archives**: files land in `cal/old/<date>/`, the
-   folder is re-created empty, and a second reset does not overwrite the first
-   archive.
+4. `Calibration.reset()` **archives when something was measured**: files land
+   in `cal/old/<date>/`, the folder is re-created empty, and a second reset does
+   not overwrite the first archive. With nothing measured it keeps nothing —
+   the owner's ruling of 2026-09-02 — and a failed build still puts the chart
+   back, which is what the stash is for.
 5. The §4 guard does **not** report the run's measurement for a calibration
    build, and does report the calibration's.
 

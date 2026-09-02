@@ -137,9 +137,32 @@ Read at the run-type change handler (**T6**, the code moving out of `_on_cal_tar
 | Profiling, run has a measurement/profile | `runs/runN/` | → `runs/runN/old/<ts>/` | M-CHART-PROFILING | same | existing |
 | Verification, run has verifications | `runs/runN/verifications/` | per §4 | M-CHART-W4 etc. | same | existing |
 | **Calibration, `cal/` empty** | **`cal/`** | — | **none** | **T9** — `_confirm_displacing_results` (`:8832`) calibration branch | **T9** |
-| **Calibration, `cal/` has a chart but no `.ti3`** | **`cal/`** | **→ `cal/old/<ts>/`** | **M-CAL-REPLACE-CHART** | **T9** | **T2** archive + **T9** window |
+| **Calibration, `cal/` has a chart but no `.ti3`** | **`cal/`** | **set aside, then DROPPED once the new chart is built** | **M-CAL-REPLACE-CHART** (wording awaiting approval) | **T9** | `Calibration.reset(stash=True)` + `settle_chart_stash` |
 | **Calibration, `cal/` has a measured `.ti3` and/or `.cal`** | **`cal/`** | **→ `cal/old/<ts>/`** | **M-CAL-REPLACE-MEASURED** (names what moves) | **T9** | **T2** + **T9** |
 | **Calibration, runs exist that were built on that `.cal`** | **`cal/`** | **→ `cal/old/<ts>/`; runs untouched** | **M-CAL-REPLACE-MEASURED** + the affected-runs line | `RunMeta.calibration_used` (**T11**) | **T9** |
+
+**SUPERSEDED FOR THE UNMEASURED ROW, 2026-09-02 — the owner's ruling.**
+The row above used to read *"→ `cal/old/<ts>/`"* for a chart with no `.ti3`. The
+owner was given three options in writing and answered **option 3**:
+
+> *"Keep it only if it was measured; experiments leave nothing. This matches
+> what profile runs already do. A chart you never measured is treated as an
+> experiment and disappears when you replace it; a chart that was measured is
+> always kept."*
+
+He left the "anything you want different" box empty, and chose this against a
+recommendation to keep the last replaced chart instead. So an unmeasured
+calibration chart is now set aside in a hidden stash while the build runs and
+dropped once a replacement really exists — the mechanism a profile run has used
+since `93ba45ee` — and no `cal/old/` folder is made for it at all. **The
+measured row is unchanged.** This also brings the row into line with K6
+(`per_run_description.md:400`, *"The chart is replaced, as a run's is"*), which
+it had contradicted.
+
+**M-CAL-REPLACE-CHART below is therefore no longer true and has NOT been
+rewritten here** — the wording is the owner's to approve. Guarded by a strict
+`xfail` in `tests/test_calibration_keeps_only_measured.py` so the pair cannot
+be released while it disagrees.
 
 **Today this is `Calibration.reset()` → `shutil.rmtree(cal/)`** (`core/file_manager.py:380-384`, called from `workflow/chart_creator.py:594-595`) — **no warning, no archive, unrecoverable.** That is D1 and it is the single most valuable fix in this issue. **Never delete: archive.**
 

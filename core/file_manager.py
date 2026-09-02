@@ -46,11 +46,13 @@ import unicodedata
 from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 from core.logger import get_logger
 
 if TYPE_CHECKING:
+    from collections.abc import Callable, Iterable
+
     from core.settings import AppSettings
 
 log = get_logger(__name__)
@@ -606,8 +608,189 @@ class RunMeta:
 
 
 # ---------------------------------------------------------------------------
+# The chart stash — ONE mechanism, used by a run and by the calibration
+# ---------------------------------------------------------------------------
+
+#: Where a chart waits while its replacement is being built. Dot-prefixed so
+#: `live_files()` skips it, so it is never mistaken for the chart itself, and so
+#: Finder keeps it out of the way.
+CHART_STASH_PREFIX = ".chart-stash-"
+
+#: Written into a stash that has been SUPERSEDED by a chart that really was
+#: built, on the rare path where the stash could not be removed afterwards. Its
+#: presence is the only thing that stops :meth:`Project.load` putting the old
+#: chart back over the new one.
+STASH_SUPERSEDED = "SUPERSEDED-by-a-finished-build"
+
+
+def chart_stash_dirs(folder: Path) -> "list[Path]":
+    """Every chart stash left in *folder*, oldest first."""
+    if not folder.is_dir():
+        return []
+    return sorted(p for p in folder.iterdir()
+                  if p.is_dir() and p.name.startswith(CHART_STASH_PREFIX))
+
+
+def make_chart_stash(folder: Path) -> "Path | None":
+    """A fresh, empty stash inside *folder*, or None when one cannot be made.
+
+    UNIQUE PER BUILD, NOT PER PROCESS. The name used to be the pid alone, so a
+    second build in the same session reused the folder a previous one had left
+    behind and merged into it — measured: the two charts' files in one stash,
+    and the SUPERSEDED marker of the earlier build restored into the run as a
+    file. ``exist_ok=False`` makes the collision impossible rather than
+    unlikely.
+    """
+    for _n in range(1000):
+        cand = folder / f"{CHART_STASH_PREFIX}{os.getpid()}-{_n}"
+        if cand.exists():
+            continue
+        try:
+            cand.mkdir(parents=True, exist_ok=False)
+            return cand
+        except FileExistsError:
+            continue                      # lost the race; take the next name
+        except OSError as exc:
+            log.warning("Could not make a chart stash in %s: %s", folder, exc)
+            return None
+    log.warning("Could not find a free chart stash name in %s", folder)
+    return None
+
+
+def settle_chart_stash(folder: Path, stash: "Path | None", *, built: bool,
+                       leftovers: "Callable[[], Iterable[Path]]") -> None:
+    """Finish what a stashing reset started, for a run or for ``cal/`` alike.
+
+    *built* True means a new chart was written, so the one that was set aside is
+    no longer wanted and the stash goes. False means the build did not happen —
+    it failed, it was stopped, or the app was closed while it ran — and every
+    file is put back exactly where it was.
+
+    *leftovers* names what a build that produced nothing may have written into
+    *folder*. It is a callable, and it is the ONLY part of this that differs
+    between a run and a calibration: a run enumerates the chart names it can
+    hold, a calibration subtracts its results from what is live. Everything
+    else — the empty-stash guard, the restore, the removal, the SUPERSEDED
+    marking — is one implementation on purpose, because two would drift and the
+    drift would be somebody's chart.
+
+    WHAT "PUT BACK" HAS TO MEAN, and the first version got this wrong: a build
+    that produced no chart still leaves rubbish behind, half-written page images
+    and a `.ti1` with no `.ti2`. Skipping a stashed file because something of
+    that name exists let those leftovers WIN, and the original was then
+    destroyed with the stash. Measured on screen twice — Stop pressed during
+    printtarg, and the app killed mid-build then reopened: the `.ti2` came back
+    and the page image did not, which is round 11's data loss reached through
+    the very fix written to prevent it. So on a build that did not finish, the
+    leftovers go and every stashed file is restored, with no exceptions.
+
+    Never raises: a stash that cannot be settled is left on disk, where
+    :meth:`Project.load` deals with it on the next launch, and that is far
+    better than a half-restored run.
+    """
+    if stash is None or not Path(stash).is_dir():
+        return
+    stash = Path(stash)
+    # AN EMPTY STASH REPRESENTS NOTHING, AND MUST THEREFORE TAKE NOTHING.
+    #
+    # The sweep below removes every chart file that is not in the stash, on the
+    # grounds that it belongs to a build which produced no chart. With an empty
+    # stash that is EVERY chart file, and there is nothing to put back
+    # afterwards. Measured on screen with a real Stop: the chart was restored
+    # byte-for-byte, the log said "nothing is lost", and the next time the
+    # project was opened the run held `meta.json` and nothing else — the `.ti2`
+    # a printed sheet is read against among the casualties.
+    #
+    # An empty stash is reachable: this function catches a failed `rmtree`, logs
+    # it and carries on, so a successful restore can leave the emptied folder
+    # behind for the next open to find. Before the sweep existed that leftover
+    # was harmless.
+    try:
+        if not any(q for q in stash.iterdir() if q.name != STASH_SUPERSEDED):
+            log.info("An empty chart stash was left in %s; removing it and "
+                     "leaving the folder alone", folder)
+            shutil.rmtree(stash, ignore_errors=True)
+            return
+    except OSError as exc:
+        log.warning("Could not read the chart stash %s: %s", stash, exc)
+        return
+    if not built:
+        # SWEEP WHAT THE FAILED BUILD LEFT, not just the names we are about to
+        # restore. Putting a chart back used to walk only the stash, so anything
+        # the dead build wrote under a name the OLD chart never had simply
+        # stayed — raise the page count, press Generate, press Stop, and the run
+        # kept two extra page images for a one-page chart.
+        try:
+            dead = list(leftovers())
+        except Exception as exc:      # noqa: BLE001 — a restore must not fail
+            log.warning("Could not list what the unfinished build left in "
+                        "%s: %s", folder, exc)
+            dead = []
+        for p in dead:
+            if p.exists() and not (stash / p.name).exists():
+                try:
+                    if p.is_dir():
+                        shutil.rmtree(p)
+                    else:
+                        p.unlink()
+                except OSError as exc:
+                    log.warning("Could not clear %s: %s", p.name, exc)
+        for p in sorted(stash.iterdir()):
+            if p.name == STASH_SUPERSEDED:
+                continue          # bookkeeping, not one of the person's files
+            dest = folder / p.name
+            try:
+                if dest.exists():
+                    # A leftover of a build that produced nothing. It has no
+                    # claim on this name; the file it replaced does.
+                    log.debug("preset undo: discarding %s left by the "
+                              "unfinished build", dest.name)
+                    if dest.is_dir():
+                        shutil.rmtree(dest, ignore_errors=True)
+                    else:
+                        dest.unlink()
+                shutil.move(str(p), str(dest))
+            except OSError as exc:
+                log.warning("Could not put %s back: %s", p.name, exc)
+        log.info("Chart build did not finish — the previous chart was put "
+                 "back in %s", folder)
+    try:
+        shutil.rmtree(stash)
+    except OSError as exc:
+        log.warning("Could not remove the chart stash %s: %s", stash, exc)
+        if built:
+            # The new chart is in place and this copy is stale. Say so inside
+            # it, or the next open would put it back over the chart that really
+            # was built.
+            try:
+                (stash / STASH_SUPERSEDED).write_text("", encoding="utf-8")
+            except OSError:
+                log.warning("…and could not mark it superseded either")
+
+
+# ---------------------------------------------------------------------------
 # Calibration — shared across all runs in a project
 # ---------------------------------------------------------------------------
+
+class CalibrationReset(NamedTuple):
+    """What :meth:`Calibration.reset` did with the calibration that was there.
+
+    Two fields rather than one path, because there are two outcomes and reading
+    one for the other is exactly the confusion this whole thread was about: an
+    ARCHIVE is a folder in ``cal/old/`` the user is meant to find and open, a
+    STASH is a hidden folder that exists only until the build finishes and is
+    then dropped.
+
+    ``__bool__`` is defined on purpose. A tuple of two Nones is truthy, and a
+    caller writing ``if cal.reset():`` would be told "yes, something was kept"
+    over an empty ``cal/``.
+    """
+    archive: "Path | None" = None
+    stash: "Path | None" = None
+
+    def __bool__(self) -> bool:
+        return self.archive is not None or self.stash is not None
+
 
 @dataclass
 class CalibrationMeta:
@@ -895,7 +1078,30 @@ class Calibration:
                 while target.exists():
                     target = folder / f"{p.stem}_{k}{p.suffix}"
                     k += 1
-                shutil.move(str(p), str(target))
+                try:
+                    shutil.move(str(p), str(target))
+                except OSError as exc:
+                    # ONE PLACE OR THE OTHER, NEVER BOTH. `shutil.move` falls
+                    # back to copy-then-unlink when the rename fails, so a file
+                    # the OS will not let go of (a `uchg` flag, a lock) ends up
+                    # copied into the archive AND still live — and the archive
+                    # is then a chart with a hole in it while the window said it
+                    # was whole. Measured by the adversarial round, 2026-09-02.
+                    # The live file is the user's; the half-made copy is ours,
+                    # so the copy goes.
+                    log.warning("Could not archive calibration %s: %s — it is "
+                                "left where it is", p.name, exc)
+                    if target.exists() and p.exists():
+                        try:
+                            if target.is_dir():
+                                shutil.rmtree(target, ignore_errors=True)
+                            else:
+                                target.unlink()
+                        except OSError as exc2:
+                            log.warning("…and the half-made copy at %s could "
+                                        "not be removed either: %s",
+                                        target, exc2)
+                    continue
                 log.info("archived calibration %s -> cal/old/%s/%s",
                          p.name, dest.name,
                          "" if folder == dest else f"{folder.name}/")
@@ -913,79 +1119,166 @@ class Calibration:
                      "stays)", p.name, dest.name)
         return dest
 
-    def reset(self) -> "Path | None":
-        """Make room for a new calibration chart — and keep what was there.
+    def chart_stash_dirs(self) -> "list[Path]":
+        """Every chart stash left in ``cal/``, oldest first.
 
-        **Nothing in ``cal/`` is deleted.** The measurement, the ``.cal`` and
-        any profile built from them go to the top of ``cal/old/<date_time>/``;
-        the chart that was there — the ``.ti1``, the ``.ti2``, the
-        ``.channels.json``, every page image and any sidecar beside them — goes
-        to ``cal/old/<date_time>/chart/``, and ``cal/exports/`` goes with it.
-        Returns the archive folder, or None when ``cal/`` held nothing.
+        Same folder-naming convention as a run's, from the same module-level
+        helper — so :meth:`Project.load` settles a calibration stash left by a
+        process that died exactly as it settles a run's.
+        """
+        return chart_stash_dirs(self.dir)
 
-        **THE CHART USED TO BE DELETED WHILE THE WINDOW SAID IT WAS KEPT.**
-        `TabChart._confirm_replacing_calibration` shows one of two windows
-        immediately before this runs, and both of them promise otherwise:
+    def settle_chart_stash(self, stash: "Path | None", *, built: bool) -> None:
+        """Finish what :meth:`reset` started when it set a chart aside.
 
-        > *"Nothing is deleted: the chart you have now moves to the project's
-        > 'cal/old' folder, in a folder named with today's date, and you can go
-        > back to it at any time."*  (M-CAL-REPLACE-CHART)
+        *built* True: the replacement chart was really written, so the one that
+        was set aside goes — that is the owner's ruling (option 3, 2026-09-02),
+        an unmeasured chart is an experiment and leaves nothing. False: the
+        build failed, was stopped, or the app was closed while it ran, and every
+        file goes back exactly where it was.
 
-        and M-CAL-REPLACE-MEASURED names *"the calibration chart"* as the first
-        of the three things that move. Measured on an unmeasured calibration:
-        five files in, ``meta.json`` out, and no ``cal/old/`` at all — because
-        with no measurement there were no results, so no archive was made and
-        the whole chart was unlinked. The user reads the reassurance and presses
-        the button BECAUSE of it, which makes this the worst shape a fault can
-        have here.
+        THE DIFFERENCE FROM A RUN IS ONE CALLBACK, and it is the subtraction
+        this class is built on: what a dead build may have left in ``cal/`` is
+        "everything live that is not a result", not a list of names that could
+        go stale. :func:`settle_chart_stash` is the rest.
+        """
+        def _leftovers():
+            out = list(self.chart_files())
+            if self.exports_dir.is_dir():
+                out.append(self.exports_dir)
+            return out
+        settle_chart_stash(self.dir, stash, built=built, leftovers=_leftovers)
 
-        **Why ``chart/`` and not the top level.** Knut narrowed the archive at
-        beta.148 — *"Only measurement ti3 files shall be copied to
-        cal/old/<date_time>/ folder, similar to how it is done for a run"* — and
-        the reason he gave holds: a dated folder holding a bare ``.ti1``/
-        ``.ti2`` reads like a kept calibration and is not one. One level down,
-        in a folder that says ``chart``, satisfies both him and the window: the
-        dated folder's own listing still shows only what cannot be regenerated,
-        and the chart is still in ``cal/old/`` and still openable. It is also
-        where the whole-calibration archive already puts a chart
-        (:meth:`archive_to_old`), so there is one place to look, not two.
+    def _archive_without_raising(self, results: "list[Path]",
+                                 chart: "list[Path]") -> "Path | None":
+        """:meth:`archive_to_old`, with the one thing a Qt slot cannot take.
 
-        **A chart is not "regenerated" the way a run's is, either.** The layout
-        seed lives only in the ``.ti2``, so building again from identical
-        settings gives a chart that no longer matches sheets already printed,
-        and ``chartread`` reads a printed sheet against that very ``.ti2``. The
-        run path answers this with a stash it drops on success
-        (:meth:`Run.reset_chart_artefacts`); the calibration path cannot, because
-        the window has already told the user the chart is in ``cal/old/``.
+        `reset()` is called from `ChartCreator.generate`, which runs inside a Qt
+        slot with no `except` above it. A `cal/` the user cannot write to — a
+        read-only volume, a locked folder, a permission the OS revoked — made
+        `mkdir(cal/old)` raise `PermissionError` straight out of that slot, with
+        the slow-chart watchdog already armed two lines earlier. Found by the
+        adversarial round, 2026-09-02.
+
+        Failing here leaves ``cal/`` exactly as it was, which is the safe end
+        state: nothing archived, nothing removed, and the build that follows
+        cannot write to that folder either, so it reports its own failure in the
+        log the user is watching.
+
+        **The user is not told which of the two happened, and that is an open
+        item, not a decision** — a window saying so would be new text and is the
+        owner's to approve. It is named in the hand-back report.
+        """
+        try:
+            return self.archive_to_old(only=results, chart=chart)
+        except OSError as exc:
+            log.error("Could not archive the calibration in %s: %s — nothing "
+                      "has been moved and cal/ is untouched", self.dir, exc)
+            return None
+
+    def reset(self, *, stash: bool = False) -> "CalibrationReset":
+        """Make room for a new calibration chart.
+
+        Two branches, and which one runs is decided by :meth:`result_files`.
+
+        **Something was measured** — the calibration is KEPT, whole. The
+        measurement, the ``.cal`` and any profile built from them go to the top
+        of ``cal/old/<date_time>/``; the chart that made them — the ``.ti1``,
+        the ``.ti2``, the ``.channels.json``, every page image and any sidecar
+        beside them — goes to ``cal/old/<date_time>/chart/``, and
+        ``cal/exports/`` goes with it. Nothing is deleted. This branch is
+        unchanged.
+
+        **Nothing was measured** — the chart is an EXPERIMENT and leaves
+        nothing, which is what the owner ruled on 2026-09-02 (option 3 of
+        `RULING-calibration-old-charts.txt`, chosen against the recommendation
+        of keeping the last one) and what K6 had already asked for:
+        `docs/design/per_run_description.md:400`, *"The chart is replaced, as a
+        run's is."* A profile run has answered this question that way since
+        `93ba45ee`: iterating on a layout ten times must not leave ten dated
+        folders holding charts their owner had already decided against.
+
+        **``stash`` IS NOT ABOUT KEEPING THE CHART. It is about the build.**
+        The chart is set aside rather than unlinked, and dropped only once a
+        replacement really exists — because nothing here is "regenerated"
+        unless the build finishes, and a build can fail, be stopped, or be
+        killed with the app. Without it, pressing Generate and then Stop would
+        leave ``cal/`` with no chart at all: the ``.ti2`` is the file a printed
+        sheet is read against, and the layout seed lives only inside it, so
+        pages already on the desk would become waste paper. The caller settles
+        the stash through :meth:`settle_chart_stash` with whether a chart was
+        written; :meth:`Project.load` settles one left behind by a process that
+        died. Without ``stash`` the chart is unlinked outright, which is what a
+        caller that is not running a build should get.
+
+        **``cal/exports/`` goes wherever the chart goes.** The hand-off
+        sidecars (``-colours.txt``, ``-i1profiler.txt/.pxf``) describe one
+        particular chart and are rebuilt from it. On the measured branch they
+        travel into the archive beside it; on the unmeasured branch they go into
+        the stash with it, and are dropped or restored with it. They must not
+        outlive the chart they describe — a ``-colours.txt`` for a chart nobody
+        can produce again is exactly the "reads like something usable and is
+        not" fault Knut objected to at beta.148 — and they must not die BEFORE
+        it either, which is what the run path's outright ``rmtree`` would do to
+        a build that then failed.
 
         ``meta.json`` stays (it describes the calibration, not the chart) and is
-        copied into the archive, and ``cal/chart/`` stays where it is — it is the
+        copied into an archive, and ``cal/chart/`` stays where it is — it is the
         copy Restore Used Chart reads. Anything already in ``cal/old/`` is left
         alone: an archive of archives helps nobody.
+
+        Returns what happened: the archive folder, the stash folder, or neither.
         """
-        # THE ENGINE PARTIAL IS SOMEBODY'S MEASUREMENT TOO.
+        # THE ENGINE PARTIAL IS SOMEBODY'S MEASUREMENT TOO, and it is why
+        # "measured" is `result_files()` and not `ti3.exists()`.
         # `<stem>.ti3.engine-partial` is what a measurement that stopped part
-        # way through leaves behind, and its suffix is not in RESULT_SUFFIXES —
-        # so it was unlinked below, unarchived, while `Run.reset_chart_artefacts`
-        # names it explicitly as something to preserve (`:1378`). A calibration
-        # had no such mercy. Measured: it survived nowhere.
+        # way through leaves behind — an abandoned reading is still an
+        # afternoon — and `Run.reset_chart_artefacts` names it explicitly as
+        # something to preserve. A calibration had no such mercy: measured, it
+        # survived nowhere. `result_files()` counts it, so a calibration holding
+        # one takes the KEEP branch.
         results = self.result_files()
         chart = self.chart_files()
-        # exports/ TRAVELS WITH THE CHART IT WAS MADE FROM. These are the
-        # hand-off sidecars (`-colours.txt`, `-i1profiler.txt/.pxf`) the user may
-        # already have sent somewhere; `rmtree` on them made "Nothing is deleted"
-        # false a second time, in a line nobody was reading.
+        # AN EMPTY `cal/exports/` IS NOT WORK, AND `cal/exports/` ON ITS OWN IS
+        # NOT THE USER'S TO MOVE. `exports/` used to be appended whenever the
+        # folder merely existed, so a `cal/` holding nothing but the empty
+        # directory the app itself creates produced a whole dated archive of
+        # nothing — and `reset()`'s "None when cal/ held nothing" was false.
+        # Found by the adversarial round, 2026-09-02, with a one-line mutation.
+        # The sidecars describe a chart: if there is no chart and no result,
+        # there is nothing being replaced, so they are left exactly where they
+        # are rather than moved or dropped.
+        if not results and not chart:
+            return CalibrationReset()
         if self.exports_dir.is_dir():
             chart.append(self.exports_dir)
-        dest = self.archive_to_old(only=results, chart=chart)
-        # Whatever the move could not take (a permission error, a file that
-        # appeared in between) is left where it is rather than unlinked. An
-        # unarchivable file is still the user's; the build that follows will
-        # overwrite what it needs to and no more.
-        for p in self.live_files():
-            log.warning("calibration file %s could not be archived and has been "
-                        "left in cal/", p.name)
-        return dest
+        if results:
+            dest = self._archive_without_raising(results, chart)
+            # Whatever the move could not take (a permission error, a file that
+            # appeared in between) is left where it is rather than unlinked. An
+            # unarchivable file is still the user's; the build that follows will
+            # overwrite what it needs to and no more.
+            for p in self.live_files():
+                log.warning("calibration file %s could not be archived and has "
+                            "been left in cal/", p.name)
+            return CalibrationReset(archive=dest, stash=None)
+        stash_dir = make_chart_stash(self.dir) if stash else None
+        for p in chart:
+            if stash_dir is not None:
+                try:
+                    shutil.move(str(p), str(stash_dir / p.name))
+                    continue
+                except OSError as exc:
+                    log.warning("Could not set the calibration chart's %s "
+                                "aside: %s", p.name, exc)
+            try:
+                if p.is_dir():
+                    shutil.rmtree(p)
+                else:
+                    p.unlink()
+            except OSError as exc:
+                log.warning("Could not remove %s: %s", p.name, exc)
+        return CalibrationReset(archive=None, stash=stash_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -1447,23 +1740,15 @@ class Run:
         self.dir.mkdir(parents=True, exist_ok=True)
         return self.dir
 
-    #: Where a chart waits while its replacement is being built. Dot-prefixed
-    #: so `live_files()` skips it, so it is never mistaken for the run's chart,
-    #: and so Finder keeps it out of the way.
-    CHART_STASH_PREFIX = ".chart-stash-"
+    #: The module-level names, kept as attributes because callers and tests use
+    #: them through the class. ONE prefix and ONE marker for a run and for the
+    #: calibration alike — see :func:`settle_chart_stash`.
+    CHART_STASH_PREFIX = CHART_STASH_PREFIX
+    STASH_SUPERSEDED = STASH_SUPERSEDED
 
     def chart_stash_dirs(self) -> list[Path]:
         """Every chart stash left in this run, oldest first."""
-        if not self.dir.is_dir():
-            return []
-        return sorted(p for p in self.dir.iterdir()
-                      if p.is_dir() and p.name.startswith(self.CHART_STASH_PREFIX))
-
-    #: Written into a stash that has been SUPERSEDED by a chart that really was
-    #: built, on the rare path where the stash could not be removed afterwards.
-    #: Its presence is the only thing that stops :meth:`Project.load` putting the
-    #: old chart back over the new one.
-    STASH_SUPERSEDED = "SUPERSEDED-by-a-finished-build"
+        return chart_stash_dirs(self.dir)
 
     def chart_artefact_names(self) -> list:
         """Every chart file name this run can hold, page images aside.
@@ -1481,103 +1766,19 @@ class Run:
     def settle_chart_stash(self, stash: "Path | None", *, built: bool) -> None:
         """Finish what :meth:`reset_chart_artefacts` started.
 
-        *built* True means a new chart was written, so the one that was set
-        aside is no longer wanted and the stash goes. False means the build did
-        not happen — it failed, it was stopped, or the app was closed while it
-        ran — and every file is put back exactly where it was.
-
-        WHAT "PUT BACK" HAS TO MEAN, and the first version got this wrong: a
-        build that produced no chart still leaves rubbish behind, half-written
-        page images and a `.ti1` with no `.ti2`. Skipping a stashed file because
-        something of that name exists let those leftovers WIN, and the original
-        was then destroyed with the stash. Measured on screen twice — Stop
-        pressed during printtarg, and the app killed mid-build then reopened:
-        the `.ti2` came back and the page image did not, which is round 11's
-        data loss reached through the very fix written to prevent it. So on a
-        build that did not finish, the leftovers go and every stashed file is
-        restored, with no exceptions.
-
-        Never raises: a stash that cannot be settled is left on disk, where
-        :meth:`Project.load` deals with it on the next launch, and that is far
-        better than a half-restored run.
+        The whole of it lives in :func:`settle_chart_stash`, which the
+        calibration slot uses too. All this adds is the run's own answer to the
+        one question that differs: what a build which produced no chart may have
+        left behind in the folder. For a run that is every name a chart can have
+        plus every page image, because putting a chart back used to walk only
+        the STASH — so a build stopped after the page count had been raised left
+        `_02.tif` and `_03.tif` behind, and the run showed three pages for a
+        one-page `.ti2`.
         """
-        if stash is None or not Path(stash).is_dir():
-            return
-        stash = Path(stash)
-        # AN EMPTY STASH REPRESENTS NOTHING, AND MUST THEREFORE TAKE NOTHING.
-        #
-        # The sweep below removes every chart file that is not in the stash, on
-        # the grounds that it belongs to a build which produced no chart. With
-        # an empty stash that is EVERY chart file, and there is nothing to put
-        # back afterwards. Measured on screen with a real Stop: the chart was
-        # restored byte-for-byte, the log said "nothing is lost", and the next
-        # time the project was opened the run held `meta.json` and nothing else
-        # — the `.ti2` a printed sheet is read against among the casualties.
-        #
-        # An empty stash is reachable: `settle_chart_stash` catches a failed
-        # `rmtree`, logs it and carries on, so a successful restore can leave
-        # the emptied folder behind for the next open to find. Before the sweep
-        # existed that leftover was harmless.
-        try:
-            if not any(q for q in stash.iterdir()
-                       if q.name != self.STASH_SUPERSEDED):
-                log.info("An empty chart stash was left in %s; removing it and "
-                         "leaving the run alone", self.dir)
-                shutil.rmtree(stash, ignore_errors=True)
-                return
-        except OSError as exc:
-            log.warning("Could not read the chart stash %s: %s", stash, exc)
-            return
-        if not built:
-            # SWEEP WHAT THE FAILED BUILD LEFT, not just the names we are about
-            # to restore. Putting a chart back used to walk only the stash, so
-            # anything the dead build wrote under a name the OLD chart never had
-            # simply stayed — raise the page count, press Generate, press Stop,
-            # and the run kept two extra page images for a one-page chart.
-            for name in self.chart_artefact_names():
-                leftover = self.dir / name
-                if leftover.exists() and not (stash / name).exists():
-                    try:
-                        leftover.unlink()
-                    except OSError as exc:
-                        log.warning("Could not clear %s: %s", name, exc)
-            for tiff in self.chart_tiffs():
-                if not (stash / tiff.name).exists():
-                    try:
-                        tiff.unlink()
-                    except OSError as exc:
-                        log.warning("Could not clear %s: %s", tiff.name, exc)
-            for p in sorted(stash.iterdir()):
-                if p.name == self.STASH_SUPERSEDED:
-                    continue      # bookkeeping, not one of the person's files
-                dest = self.dir / p.name
-                try:
-                    if dest.exists():
-                        # A leftover of a build that produced nothing. It has no
-                        # claim on this name; the file it replaced does.
-                        log.debug("preset undo: discarding %s left by the "
-                                  "unfinished build", dest.name)
-                        if dest.is_dir():
-                            shutil.rmtree(dest, ignore_errors=True)
-                        else:
-                            dest.unlink()
-                    shutil.move(str(p), str(dest))
-                except OSError as exc:
-                    log.warning("Could not put %s back: %s", p.name, exc)
-            log.info("Chart build did not finish — the previous chart was put "
-                     "back in %s", self.dir)
-        try:
-            shutil.rmtree(stash)
-        except OSError as exc:
-            log.warning("Could not remove the chart stash %s: %s", stash, exc)
-            if built:
-                # The new chart is in place and this copy is stale. Say so
-                # inside it, or the next open would put it back over the chart
-                # that really was built.
-                try:
-                    (stash / self.STASH_SUPERSEDED).write_text("", encoding="utf-8")
-                except OSError:
-                    log.warning("…and could not mark it superseded either")
+        def _leftovers():
+            return ([self.dir / n for n in self.chart_artefact_names()]
+                    + list(self.chart_tiffs()))
+        settle_chart_stash(self.dir, stash, built=built, leftovers=_leftovers)
 
     def reset_chart_artefacts(self, *, keep_results: bool = False,
                               stash: bool = False) -> "Path | None":
@@ -1658,31 +1859,7 @@ class Run:
             """Delete, or set aside in the stash when the caller asked for one."""
             nonlocal stash_dir
             if stash and stash_dir is None:
-                # UNIQUE PER BUILD, NOT PER PROCESS. The name used to be the
-                # pid alone, so a second build in the same session reused the
-                # folder a previous one had left behind and merged into it —
-                # measured: the two charts' files in one stash, and the
-                # SUPERSEDED marker of the earlier build restored into the run
-                # as a file. `exist_ok=False` makes the collision impossible
-                # rather than unlikely.
-                cand = None
-                for _n in range(1000):
-                    _try = (self.dir /
-                            f"{self.CHART_STASH_PREFIX}{os.getpid()}-{_n}")
-                    if not _try.exists():
-                        cand = _try
-                        break
-                if cand is None:
-                    log.warning("Could not find a free chart stash name in %s",
-                                self.dir)
-                try:
-                    if cand is None:
-                        raise OSError("no free stash name")
-                    cand.mkdir(parents=True, exist_ok=False)
-                    stash_dir = cand
-                except OSError as exc:
-                    log.warning("Could not make a chart stash in %s: %s",
-                                self.dir, exc)
+                stash_dir = make_chart_stash(self.dir)
             if stash and stash_dir is not None:
                 try:
                     shutil.move(str(p), str(stash_dir / p.name))
@@ -1989,6 +2166,20 @@ class Project:
                              "it was superseded, so the copy is dropped"
                              if _built else "putting it back")
                     _run.settle_chart_stash(_stash, built=_built)
+            # …AND THE CALIBRATION'S, which is set aside the same way and by the
+            # same code since the owner ruled that an unmeasured calibration
+            # chart is an experiment (2026-09-02). A stash left in `cal/` by a
+            # process that died is the one case where the user would otherwise
+            # be left with neither chart: the old one hidden in a dot-folder and
+            # no new one built.
+            _cal = proj.calibration
+            for _stash in _cal.chart_stash_dirs():
+                _built = (_stash / STASH_SUPERSEDED).exists()
+                log.info("Found a calibration chart set aside in %s by a build "
+                         "that never finished — %s", _cal.dir,
+                         "it was superseded, so the copy is dropped"
+                         if _built else "putting it back")
+                _cal.settle_chart_stash(_stash, built=_built)
         except Exception as exc:      # noqa: BLE001 — opening must never fail
             log.warning("Could not settle a leftover chart stash: %s", exc)
         # Repair file stems truncated by the pre-4.1.3-beta.16 layout-engine

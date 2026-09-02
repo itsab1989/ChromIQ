@@ -406,6 +406,14 @@ shape: **something the user typed or chose was thrown away.**
 
 **T5.13 (U)** After a calibration rebuild, `cal/old/<date>/` holds the `.ti3`
 and the `.cal` and **not** the `.ti1`/`.ti2`; `cal/chart/` is untouched.
+*(K6's second sentence — "The chart is replaced, as a run's is" — is now true of
+an UNMEASURED calibration chart as well, following the owner's ruling of
+2026-09-02: it is set aside for the length of the build and then dropped,
+exactly as a run's is, and no dated folder is made for it. A MEASURED
+calibration still keeps its chart, one level down in
+`cal/old/<date>/chart/`, which is the compromise `fe92ed1f` reached so that the
+dated folder's own listing stays as K6 asked. T5.13 is unchanged and still
+passes.)*
 **T5.14 (I)** Starting a calibration measurement writes `cal/chart/`.
 **T4.7 (I)** Restore writes the notes into the run/verification/calibration meta
 as well as into the field, so the refresh that follows cannot undo it.
