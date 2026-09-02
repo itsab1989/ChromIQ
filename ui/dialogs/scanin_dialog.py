@@ -1630,6 +1630,11 @@ class ScannerProfileDialog(_ToolDialogBase):
     # Breathing room either side of the splitter handle — the same 16 px the
     # inner layout already leaves under the log (owner's ask).
     _PANE_GAP = 16
+    # Clear air between the last thing in a column and its own scrollbar. Both
+    # panes scroll, and without this the bar lands hard against the ⓘ buttons
+    # on the left and against the ⓘ column on the right — they read as one
+    # smudged edge, and the top ⓘ looks like part of the bar (owner).
+    _BAR_GAP = 12
     _TWO_PANEL_CUTS = {
         # name: (first index that moves right, last index that moves right)
         "1": (6, 13),   # owner's cut: marquee … options grid (incl. fiducials)
@@ -1689,7 +1694,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         def column(idxs):
             lay = QVBoxLayout()
             lay.setSpacing(10)
-            lay.setContentsMargins(0, 0, 0, 0)
+            lay.setContentsMargins(0, 0, self._BAR_GAP, 0)
             for i in idxs:
                 it = items[i]
                 if it.widget() is not None:
@@ -1725,7 +1730,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         # column's rows are still homeless crashes PyQt6 inside FadeScrollArea
         # (the re-entrant scroll-range path CLAUDE.md documents).
         right_w = QWidget(self)
-        right_lay.setContentsMargins(self._PANE_GAP, 0, 0, 0)
+        right_lay.setContentsMargins(self._PANE_GAP, 0, self._BAR_GAP, 0)
         right_w.setLayout(right_lay)
         self._scroll_right = QScrollArea(self)
         self._scroll_right.setWidgetResizable(True)
@@ -1767,11 +1772,27 @@ class ScannerProfileDialog(_ToolDialogBase):
         # Polish, against 501 for the widest settings row. It only became a
         # width driver because these buttons now sit under the LEFT pane alone
         # (the owner's own follow-up); across the whole window they were free.
+        #
+        # Two rows of two, filling the pane (owner, 2026-09-02):
+        #   Save as Defaults | Restore defaults
+        #   Build profile    | Close
+        # A GRID rather than two independent rows, so the divider sits at the
+        # same x on both lines. With two stretched rows it would not: half the
+        # pane is 298 px in German and "Profil mit Scanner oder Kamera
+        # erstellen" alone is 356, so the lower row's split would sit further
+        # right than the upper one and the block would read as crooked.
+        self._btn_grid = None
         self._btn_row2 = None
         if "bottombtns" in getattr(self, "_wrap", ()):
-            self._btn_row2 = QHBoxLayout()
-            self._btn_row2.setContentsMargins(0, 0, 0, 0)
-            self._btn_col.addLayout(self._btn_row2)
+            from PyQt6.QtWidgets import QGridLayout
+            self._btn_grid = QGridLayout()
+            self._btn_grid.setContentsMargins(0, 0, 0, 0)
+            self._btn_grid.setHorizontalSpacing(8)
+            self._btn_grid.setVerticalSpacing(8)
+            self._btn_grid.setColumnStretch(0, 1)
+            self._btn_grid.setColumnStretch(1, 1)
+            self._btn_col.removeItem(self._btn_row)
+            self._btn_col.addLayout(self._btn_grid)
         left_pane.addWidget(self._btn_row_w)
         # The tabs' own log treatment: nine lines of the font it really gets,
         # plus the drag-the-top-edge grip whose height the app remembers.
@@ -1839,24 +1860,31 @@ class ScannerProfileDialog(_ToolDialogBase):
             return
         # Build profile, Save as Defaults, Restore defaults, Close — left to
         # right (owner). `removeButton` first, or the box takes them back.
-        # On two lines (PROPOSAL) the primary action keeps the first line to
-        # itself and the three secondary buttons share the second, in the same
-        # left-to-right order. 1 + 3 is the narrowest of the splits that keeps
-        # that order in every language: worst line 549 px (German) against 965
-        # for one line (Russian).
+        # PROPOSAL, on two lines: the two "defaults" buttons above, the two
+        # that end the job below, each pair filling the pane's width (owner).
+        #   Save as Defaults | Restore defaults
+        #   Build profile    | Close
         for b in (self._run_btn, self._save_defaults_btn,
                   self._restore_defaults_btn, self._close_btn):
             self._button_box.removeButton(b)
             b.setParent(None)
-            row = self._btn_row if (self._btn_row2 is None
-                                    or b is self._run_btn) else self._btn_row2
-            row.addWidget(b)
             b.setVisible(True)      # setParent(None) hides a widget for good
-        self._btn_row.addStretch(1)
-        if self._btn_row2 is not None:
-            # Close sits away from the two "defaults" buttons, so it is never
-            # hit by accident while reaching for them.
-            self._btn_row2.insertStretch(2, 1)
+        if self._btn_grid is None:
+            for b in (self._run_btn, self._save_defaults_btn,
+                      self._restore_defaults_btn, self._close_btn):
+                self._btn_row.addWidget(b)
+            self._btn_row.addStretch(1)
+        else:
+            from PyQt6.QtWidgets import QSizePolicy
+            for b, (r, c) in ((self._save_defaults_btn, (0, 0)),
+                              (self._restore_defaults_btn, (0, 1)),
+                              (self._run_btn, (1, 0)),
+                              (self._close_btn, (1, 1))):
+                # …filling its cell. Without this the buttons keep their own
+                # width and sit left in a half-empty column.
+                b.setSizePolicy(QSizePolicy.Policy.Expanding,
+                                b.sizePolicy().verticalPolicy())
+                self._btn_grid.addWidget(b, r, c)
         self._button_box.setVisible(False)
 
         lay = self.layout()
@@ -1874,7 +1902,8 @@ class ScannerProfileDialog(_ToolDialogBase):
         # target's own controls, with no scrollbar to recover them.
         for _hidden in (self._chromiq_box, self._standard_box,
                         self._printer_box):
-            content_w = max(content_w, _hidden.sizeHint().width())
+            content_w = max(content_w,
+                            _hidden.sizeHint().width() + self._BAR_GAP)
         bar = self._scroll.verticalScrollBar().sizeHint().width() + 4
         want = max(content_w + bar,
                    self._btn_row_w.sizeHint().width(),
@@ -1898,7 +1927,8 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._pane_w_open = max(
             self._pane_w_closed,
             self._adv_inline_body.minimumSizeHint().width() + bar
-            + _adv_m.left() + _adv_m.right() + 16 + self._PANE_GAP)
+            + _adv_m.left() + _adv_m.right() + self._BAR_GAP + 4
+            + self._PANE_GAP)
         self._left_pane_w.setFixedWidth(self._pane_w_closed)
         # The SAME trap on the right: a QScrollArea does not pass its widget's
         # minimum width up either, and the horizontal bar is pinned off, so a
