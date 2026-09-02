@@ -165,7 +165,20 @@ def offer_import_into_a_project(parent, measurement: Path, *,
         return True
 
     if not _exists(name):
-        return False                      # a new project: the old path
+        # A NEW PROJECT, MADE WITH THE NAME THAT WAS JUST TYPED.
+        #
+        # This was `return False  # a new project: the old path`, and the old
+        # path asked for the name a SECOND time — in a box that arrived empty,
+        # called the project a "profile", and showed a literal `<name>` in the
+        # folder it promised to use. The person's first answer was thrown away,
+        # and the project that was eventually made was never opened, so ChromIQ
+        # finished by telling them to go and load it (R3 review F1 + F2, driven
+        # again here 2026-09-02).
+        #
+        # One question, asked once, and the same ending as the other answer to
+        # it — see `finish_the_import`, which both branches now end on.
+        return make_new_project_and_file(parent, name, measurement, fm, ctl,
+                                         accent=accent, on_filed=on_filed)
     return file_into_project(parent, name, measurement, fm, ctl,
                              accent=accent, on_filed=on_filed,
                              root=_literal_root(name))
@@ -237,6 +250,203 @@ def _cannot_file(parent, reason: str, *, project: str = "") -> bool:
     return True
 
 
+#: `open_the_project` was not able to even try, and has said nothing — there is
+#: no Create Chart tab to perform the open. Distinct from `None`, which means it
+#: tried, failed, and has already put a window on screen. Two outcomes that a
+#: bare `None` cannot tell apart, and the caller has to: one is "run your own
+#: fallback", the other is "stop, the person has been told".
+NO_MACHINERY = object()
+
+
+def open_the_project(parent, fm, name: str, root: Path):
+    """Open the project at *root* — the WHOLE open — and say where it landed.
+
+    Returns the root the project is actually open at, ``None`` when the open
+    was attempted and failed (a window has already said so), or
+    :data:`NO_MACHINERY` when there is no Create Chart tab to perform it with.
+
+    LIFTED OUT SO THE TWO DOORS CANNOT DRIFT APART, which is the whole shape of
+    the fault this was written for. Answering "Where should this measurement
+    go?" with the name of a project that EXISTS ran this and ended up inside
+    that project; answering with a name that does not exist made the project
+    and never opened it, so ChromIQ told the person to go and load the project
+    it had just made for them, with `working_dir()` naming a folder that had
+    never been created (driven, 2026-09-02, `shots/before-new-bar.png`).
+    """
+    root = Path(root)
+    # THE WHOLE OPEN, not a cut-down one — see `open_project_manifest`.
+    #
+    # AND IT HAS TO BE CHECKED AFTERWARDS. `open_project_manifest` returns None
+    # whether it opened the project or gave up, and nothing looked: with a
+    # symlinked project — an external drive, a NAS, a Dropbox folder — the
+    # person was asked an unrelated question, and answering it left the
+    # measurement filed into WHATEVER PROJECT WAS OPEN while every window named
+    # the one they picked. With nothing open at all, ChromIQ invented a
+    # `Printer_Paper_Type_Instr_<timestamp>` project to put it in.
+    #
+    # `except OSError` was also too narrow. `Project.load` parses the manifest,
+    # and `json.JSONDecodeError` is a ValueError — so a truncated `project.json`
+    # (and `save_manifest` writes non-atomically, so truncation is an ordinary
+    # accident) took the whole app down from inside a Qt slot. Every other
+    # reader in ChromIQ already catches it; only the importer did not.
+    try:
+        if fm.is_named() and Path(fm.working_dir()) == root:
+            return root                      # already open, nothing to do
+        tab_chart = getattr(parent.window(), "_tab_chart", None)
+        if tab_chart is None:
+            return NO_MACHINERY
+        _before = Path(fm.working_dir()) if fm.is_named() else None
+        tab_chart.open_project_manifest(root / "project.json")
+        _after = Path(fm.working_dir()) if fm.is_named() else None
+        # NOT "did it open AT `root`" — "did it open". A project reached
+        # through a symlink (an external drive, a NAS, a Dropbox folder)
+        # goes through the copy-in flow and legitimately ends up open at a
+        # DIFFERENT root, and comparing against the path we asked for then
+        # refused a project that had opened perfectly well — after
+        # duplicating it onto the disk — with a window blaming a read-only
+        # folder or a damaged project.json. All of it false.
+        if _after is None or _after == _before:
+            _cannot_file(parent,
+                         tr("“{name}” could not be opened").format(name=name),
+                         project=str(root))
+            return None
+        return _after                        # …and file into the one that is open
+    except (OSError, ValueError) as exc:
+        _cannot_file(parent, str(exc) or type(exc).__name__, project=str(root))
+        return None
+
+
+def finish_the_import(ctl, run_id: str, filed: Path, on_filed) -> None:
+    """The tail EVERY successful import ends on, whichever door it came in by.
+
+    Point the bar at the run the measurement went into, refresh it, and hand
+    the filed copy back to the tab that asked. One function rather than two
+    copies of three calls, because the two doors having their own endings is
+    precisely how one of them ended with the app saying "load a profile
+    project" about the project it had just made.
+
+    THE RUN TYPE IS PART OF THE ANSWER, AND IT WAS NEVER SET.
+
+    It was inherited from whatever the project was last left on. Open a
+    project whose bar was on Verification and the measurement was filed
+    while the app still called this a verification run — with Build
+    Profile disabled (`ui/main_window.py:1590`), so the person could not
+    even reach the tab they had just imported from.
+
+    An import from Build Profile is a PROFILING import by construction:
+    that tab is disabled for verification runs, so the tab somebody is
+    standing on has already said which act this is. Say it out loud
+    rather than inheriting it, and point the bar at the run that was
+    chosen so "Location being edited" names the folder the file went to.
+    """
+    if ctl is not None:
+        try:
+            ctl.set_run_type("profiling")
+            ctl.set_verification_id("")
+            ctl.set_profile_run(run_id)
+        except Exception:      # noqa: BLE001 — never block the import
+            log.warning("import: could not point the bar at %s", run_id,
+                        exc_info=True)
+    if ctl is not None and hasattr(ctl, "project_replaced_on_disk"):
+        # WRAPPED, like the controller call above. It sat bare one line before
+        # the hand-back, so a controller that raised left the copy filed on
+        # disk with nothing pointing at it — the import happened and the tab
+        # showed the old file. Refreshing the bar is a courtesy; it may not
+        # cost the person the thing they just filed.
+        try:
+            ctl.project_replaced_on_disk()
+        except Exception:      # noqa: BLE001 — never block the import
+            log.warning("import: could not refresh the target bar",
+                        exc_info=True)
+    # THE FILED COPY IS HANDED BACK, NOT POKED INTO A TAB. This used to call
+    # `parent.set_ti3_path(...)` and `parent.ti3_manually_loaded.emit()`, which
+    # only Build Profile has. When Check & Refine became the third import door
+    # it inherited those two lines and aborted on the SUCCESS path — after the
+    # copy was made, the run created and the manifest written, so the user
+    # restarted into a run they never asked for. Every caller now says what it
+    # wants done with the copy, and nothing here knows a tab's private API.
+    on_filed(filed)
+
+
+def make_new_project_and_file(parent, name: str, measurement: Path, fm, ctl,
+                              *, accent: str = "", on_filed=None) -> bool:
+    """Make the project the person just named, put the measurement in it, and
+    open it — the other half of `file_into_project`, and its equal.
+
+    THE NAME THEY TYPED IS THE NAME THAT IS USED. This branch used to
+    `return False  # a new project: the old path`, throwing the answer away and
+    letting the caller's `resolve_ti3` fallback ask for it a SECOND time — in a
+    box that arrived empty, called the project a "profile", and showed a literal
+    `<name>` in the path it promised to use. One question had two answers and
+    two different end states (R3 review, F1 and F2, 2026-09-02).
+
+    The disk work is still `resolve_ti3`'s, handed the name instead of asking
+    for it: that keeps `_copy_ti3_only`'s archive-never-delete rule, the sibling
+    `.icc` carry, and the sibling `.ti2` chart import, none of which would
+    survive being written a second time here. What is new is the ENDING, and it
+    is the same object `file_into_project` ends on.
+    """
+    from ui.ti2_loader import _project_root_for, resolve_ti3
+
+    if on_filed is None:
+        raise TypeError(
+            "make_new_project_and_file needs on_filed: the caller must say "
+            "what to do with the copy it files")
+
+    root_dir = Path(fm.root_dir())
+    # THE TAB'S OWN SETTINGS, which is the object every other `resolve_ti3`
+    # caller hands it. `resolve_ti3` reads exactly one key from it,
+    # `custom_output_path`, and the FileManager reads the same key from the same
+    # object for `root_dir()` — so the two cannot disagree. The FileManager is
+    # the fallback for a caller that has no settings of its own.
+    settings = getattr(parent, "_settings", None) or fm._settings
+    try:
+        filed = resolve_ti3(parent, measurement, settings, name=name)
+    except (OSError, ValueError) as exc:
+        return _cannot_file(parent, str(exc) or type(exc).__name__, project=name)
+    if filed is None:
+        # The one question this route can still raise — a folder of that name
+        # that is not a project, and whether to archive it — was answered
+        # Cancel. Nothing was created, and nothing more is asked.
+        return True
+
+    filed = Path(filed)
+    root = _project_root_for(filed, root_dir)
+    if root is None:
+        # The copy landed somewhere with no manifest above it. Nothing to open
+        # and nothing to point the bar at, but the file IS on disk, so it is
+        # handed back rather than lost.
+        log.warning("import: filed %s but found no project above it", filed)
+        finish_the_import(ctl, "", filed, on_filed)
+        return True
+
+    opened = open_the_project(parent, fm, name, root)
+    if opened is None:
+        return True                      # it said so on screen
+    if opened is NO_MACHINERY:
+        # No Create Chart tab to open with. The measurement is filed and the
+        # project is on disk; hand the copy back rather than pretend nothing
+        # happened, and leave the bar alone because there is nothing to point.
+        finish_the_import(ctl, "", filed, on_filed)
+        return True
+
+    # WHICH RUN IT WENT INTO, taken from the project that is now open rather
+    # than assumed to be run 1. `Project.create` makes one run and files there,
+    # but reading it back is what makes this true if that ever changes.
+    run_id = ""
+    try:
+        proj = fm.project()
+        run_id = next((r.id for r in proj.all_runs()
+                       if r.measurement_ti3 == filed), "")
+        if not run_id:
+            run_id = proj.current_run().id
+    except Exception:      # noqa: BLE001 — the file is filed either way
+        log.warning("import: could not name the run %s went into", filed,
+                    exc_info=True)
+    finish_the_import(ctl, run_id, filed, on_filed)
+    return True
+
+
 def file_into_project(parent, name: str, measurement: Path, fm, ctl,
                       *, accent: str = "", on_filed=None, root=None) -> bool:
     """Open *name* (if it is not already open) and file the measurement in
@@ -274,45 +484,15 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
     # So the picker passes the folder it listed and it is used as it stands;
     # only a typed name is resolved, where sanitising is exactly right.
     root = Path(root) if root is not None else fm.resolved_root_for_name(name)
-    # THE WHOLE OPEN, not a cut-down one — see `open_project_manifest`.
-    #
-    # AND IT HAS TO BE CHECKED AFTERWARDS. `open_project_manifest` returns None
-    # whether it opened the project or gave up, and nothing looked: with a
-    # symlinked project — an external drive, a NAS, a Dropbox folder — the
-    # person was asked an unrelated question, and answering it left the
-    # measurement filed into WHATEVER PROJECT WAS OPEN while every window named
-    # the one they picked. With nothing open at all, ChromIQ invented a
-    # `Printer_Paper_Type_Instr_<timestamp>` project to put it in.
-    #
-    # `except OSError` was also too narrow. `Project.load` parses the manifest,
-    # and `json.JSONDecodeError` is a ValueError — so a truncated `project.json`
-    # (and `save_manifest` writes non-atomically, so truncation is an ordinary
-    # accident) took the whole app down from inside a Qt slot. Every other
-    # reader in ChromIQ already catches it; only the importer did not.
-    try:
-        if not (fm.is_named() and Path(fm.working_dir()) == root):
-            tab_chart = getattr(parent.window(), "_tab_chart", None)
-            if tab_chart is None:
-                return False
-            _before = Path(fm.working_dir()) if fm.is_named() else None
-            tab_chart.open_project_manifest(root / "project.json")
-            _after = Path(fm.working_dir()) if fm.is_named() else None
-            # NOT "did it open AT `root`" — "did it open". A project reached
-            # through a symlink (an external drive, a NAS, a Dropbox folder)
-            # goes through the copy-in flow and legitimately ends up open at a
-            # DIFFERENT root, and comparing against the path we asked for then
-            # refused a project that had opened perfectly well — after
-            # duplicating it onto the disk — with a window blaming a read-only
-            # folder or a damaged project.json. All of it false.
-            if _after is None or _after == _before:
-                return _cannot_file(
-                    parent,
-                    tr("“{name}” could not be opened").format(name=name),
-                    project=str(root))
-            root = _after           # …and file into the one that is open
-    except (OSError, ValueError) as exc:
-        return _cannot_file(parent, str(exc) or type(exc).__name__,
-                            project=str(root))
+    # THE WHOLE OPEN, and the SAME one the new-project door performs — see
+    # `open_the_project`, which this used to hold inline while the other door
+    # had no open at all.
+    _opened = open_the_project(parent, fm, name, root)
+    if _opened is None:
+        return True                      # it said so on screen
+    if _opened is NO_MACHINERY:
+        return False                     # no Create Chart tab: the old path
+    root = _opened
 
     try:
         proj_probe = fm.project()
@@ -534,34 +714,6 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
                                 project=name)
         made_here = run
 
-    # THE RUN TYPE IS PART OF THE ANSWER, AND IT WAS NEVER SET.
-    #
-    # It was inherited from whatever the project was last left on. Open a
-    # project whose bar was on Verification and the measurement was filed
-    # while the app still called this a verification run — with Build
-    # Profile disabled (`ui/main_window.py:1590`), so the person could not
-    # even reach the tab they had just imported from.
-    #
-    # An import from Build Profile is a PROFILING import by construction:
-    # that tab is disabled for verification runs, so the tab somebody is
-    # standing on has already said which act this is. Say it out loud
-    # rather than inheriting it, and point the bar at the run that was
-    # chosen so "Location being edited" names the folder the file went to.
-    # …BUT NOT BEFORE THE FILE HAS BEEN JUDGED. This ran first, so a refusal
-    # left the bar reading "Run 3 (overwrite)" for a run that had just been
-    # created and deleted again, under a window promising "nothing has been
-    # changed". The bar is pointed at the run only once the file is going in.
-    def _point_the_bar_at_the_run() -> None:
-        if ctl is None:
-            return
-        try:
-            ctl.set_run_type("profiling")
-            ctl.set_verification_id("")
-            ctl.set_profile_run(run.id)
-        except Exception:      # noqa: BLE001 — never block the import
-            log.warning("import: could not point the bar at %s", run.id,
-                        exc_info=True)
-
     verdict = assess(measurement, run.chart_ti2)
     if not verdict.ok:
         # AND THE PROMISE HAS TO BE TRUE. This window says "nothing has
@@ -601,7 +753,6 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
                ).format(reason=exc.strerror or exc),
             parent, min_width=580).exec()
         return True
-    _point_the_bar_at_the_run()
     if verdict.partial:
         InfoDialog(
             tr("Filed \u2014 and it is a partial measurement"),
@@ -613,25 +764,11 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
                "measurement report states both counts."
                ).format(chart=verdict.n_chart, got=verdict.n_measured),
             parent, min_width=580).exec()
-    if ctl is not None and hasattr(ctl, "project_replaced_on_disk"):
-        # WRAPPED, like the other controller call in this function. It sat bare
-        # one line before the hand-back, so a controller that raised left the
-        # copy filed on disk with nothing pointing at it — the import happened
-        # and the tab showed the old file. Refreshing the bar is a courtesy;
-        # it may not cost the person the thing they just filed.
-        try:
-            ctl.project_replaced_on_disk()
-        except Exception:      # noqa: BLE001 — never block the import
-            log.warning("import: could not refresh the target bar",
-                        exc_info=True)
-
-    # THE FILED COPY IS HANDED BACK, NOT POKED INTO A TAB. This used to call
-    # `parent.set_ti3_path(...)` and `parent.ti3_manually_loaded.emit()`, which
-    # only Build Profile has. When Check & Refine became the third import door
-    # it inherited those two lines and aborted on the SUCCESS path — after the
-    # copy was made, the run created and the manifest written, so the user
-    # restarted into a run they never asked for. Every caller now says what it
-    # wants done with the copy, and nothing here knows a tab's private API.
-    on_filed(run.measurement_ti3)
+    # THE SAME ENDING THE NEW-PROJECT DOOR USES, and the reason the bar is
+    # pointed HERE rather than earlier: this runs only once the file has been
+    # judged and copied. It ran before the judgement once, so a refusal left
+    # the bar reading "Run 3 (overwrite)" for a run that had just been created
+    # and deleted again, under a window promising "nothing has been changed".
+    finish_the_import(ctl, run.id, run.measurement_ti3, on_filed)
     return True
 
