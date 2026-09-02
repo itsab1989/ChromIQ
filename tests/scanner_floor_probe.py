@@ -150,9 +150,40 @@ def dress_the_app(app, mode="light"):
     app.processEvents()
 
 
+def require_language(lang):
+    """Fail LOUDLY if the catalogue did not actually load.
+
+    A process per language fixes the cause of the old sweep's lie; it does not
+    make the sweep NOTICE the next one. `set_language()` falls back to English
+    silently on three paths (a missing file, a broken file, an unknown code),
+    and this probe reports the language it was ASKED for — so a fallback is
+    byte-for-byte indistinguishable from a real measurement, and the sweep goes
+    straight back to measuring English thirteen times with nothing red.
+    Measured: `set_language("es_ES")` returns quietly and the probe then prints
+    1048, which is English to the digit and passes every assertion above it.
+    """
+    from core.i18n import current_language, tr
+    got = current_language()
+    if got != lang:
+        raise SystemExit(
+            f"the catalogue for {lang!r} did not load — core.i18n is in "
+            f"{got!r}. Every number this probe printed would be {got!r}'s, "
+            f"under {lang!r}'s name.")
+    if lang != "en":
+        # …and it holds strings, not just the code. This one is on the window
+        # under measurement, in every catalogue.
+        probe = "Build profile with scanner or camera"
+        if tr(probe) == probe:
+            raise SystemExit(
+                f"the catalogue for {lang!r} loaded but translates nothing — "
+                f"{probe!r} came back in English.")
+    return got
+
+
 def measure(app, lang, out_dir):
     from core.i18n import set_language
     set_language(lang)
+    require_language(lang)
     from ui.dialogs.scanin_dialog import ScannerProfileDialog
     dlg = ScannerProfileDialog(object(), FakeSettings(out_dir))
     dlg.show()
@@ -224,8 +255,12 @@ def measure(app, lang, out_dir):
         settle(app, dlg, 4)
         handles[tag] = handle_reach(dlg)
 
+    from core.i18n import current_language
     return {
         "lang": lang,
+        # The language the process is ACTUALLY in, not the one it was asked
+        # for — see require_language above.
+        "language_applied": current_language(),
         "worst": worst,
         "worst_state": worst_state,
         "floors": {s[0]: s[3] for s in states},

@@ -105,6 +105,15 @@ def _floor(lang, out_dir):
 
 def _assert_fits(res):
     lang = res["lang"]
+    # FIRST: that the numbers below are this language's at all. A process per
+    # language removed the cause of the old sweep's lie, not the class of it —
+    # `set_language` falls back to English silently, and a probe that fell back
+    # prints English's floor under this language's name and passes everything
+    # else here. `scanner_floor_probe.require_language` is the loud version;
+    # this is the belt to its braces.
+    assert res.get("language_applied") == lang, (
+        f"{lang}: the probe measured {res.get('language_applied')!r}, not "
+        f"{lang!r} — these numbers are the wrong language's")
     assert not res["clipped"], (
         f"{lang}: controls cut off at the floor the window reports: "
         + "; ".join(res["clipped"][:4]))

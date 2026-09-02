@@ -603,8 +603,12 @@ class ScanGridMarquee(QWidget):
         return bool(self._corners) and self._pix is not None
 
     # ---------------------------------------------------------------- view
-    #: PROPOSAL, off by default — reserve this much of the widget for the drag
-    #: handles when fitting the image.
+    #: Reserve this much of the widget for the drag handles when fitting the
+    #: image. It defaults to 0 — the widget on its own still fills edge to edge
+    #: — but THE SCANNER WINDOW TURNS IT ON (`scanin_dialog._build_two_panel_
+    #: layout` sets `_HANDLE_OFFSET + _HANDLE_R`), so the shipped preview draws
+    #: its image slightly smaller than the panel it sits in. That is the trade:
+    #: placing the four corners is the whole job this preview exists for.
     #:
     #: The fit below fills the widget edge to edge, but the eight handles are
     #: drawn ``_HANDLE_OFFSET`` px OUTSIDE the grid corners. So whenever the
