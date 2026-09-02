@@ -3098,7 +3098,59 @@ def defer_clear_button_focus(_root=None) -> None:
         QTimer.singleShot(_delay, _clear)
 
 
-class PatchGridButton(QToolButton):
+class GlyphAccentButton:
+    """A flat icon-only button whose glyph is PAINTED, in an accent colour.
+
+    Six buttons in this module draw their own mark rather than loading an
+    image: the patch grid, the stacked pages, the strip read, the measured
+    chart, the reveal-folder tray and the image file. They are handed a
+    spectrum accent at construction — the tab's own hue — and every one of them
+    used to paint it raw:
+
+        color = QColor(self._color)          # whatever the tab handed us
+        def set_appearance(self, mode): pass # "theme-independent"
+
+    That comment was true while the app had two appearances that both wanted
+    the hue. **Neutral has one accent**, so a mark that keeps its own is the
+    theme's rule broken six times over — and the six are exactly the marks the
+    owner was looking at when he said *"in general some icons still have
+    colors"*: the grid, the list and the upload glyphs on the Create Chart row.
+
+    So the colour is no longer resolved at construction. It is resolved at
+    PAINT time, through :func:`ui.theme.accent_for`, which returns its argument
+    unchanged in Light and Dark — the two shipped appearances do not move a
+    pixel — and the single ACTION value in Neutral. This is the shape
+    :meth:`ui.tooltip_button.TooltipButton._set_icon` already uses for the ~600
+    ⓘ rings, and it is here for the same reason: a colour resolved once at
+    construction keeps the appearance it was born in, and Preferences can
+    switch appearance without a restart.
+
+    ``set_appearance`` therefore records the mode it was handed and asks for a
+    repaint. Recording it matters: a dialog that resolved its own setting can
+    be showing an appearance the application palette does not, and a mark
+    inside it must follow the window it is in, not the app.
+    """
+
+    #: The appearance this button was last told about; ``None`` means "ask the
+    #: live application palette", which is right until somebody says otherwise.
+    _mode: "str | None" = None
+
+    def set_appearance(self, mode: str) -> None:
+        """Keep the appearance and repaint the mark in it."""
+        from ui.theme import CONCRETE_APPEARANCES
+        # An appearance this component does not recognise is not folded into
+        # one it does: it becomes None, which means "ask the live application
+        # palette" and is the answer that was right before anybody spoke.
+        self._mode = mode if mode in CONCRETE_APPEARANCES else None
+        self.update()
+
+    def _glyph_colour(self) -> QColor:
+        """The colour to draw this mark in, for the appearance it is in."""
+        from ui.theme import accent_for
+        return QColor(accent_for(self._color, self._mode))
+
+
+class PatchGridButton(GlyphAccentButton, QToolButton):
     """A small grid-of-patches glyph button, painted in a given accent colour.
 
     Mirrors ``BuiltinPresetButton``'s painted-glyph approach (crisp on Retina,
@@ -3125,9 +3177,6 @@ class PatchGridButton(QToolButton):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._hover = False
 
-    def set_appearance(self, mode: str) -> None:
-        pass  # accent colour is theme-independent — nothing to repaint
-
     def enterEvent(self, event) -> None:  # noqa: N802
         self._hover = True
         self.update()
@@ -3143,7 +3192,7 @@ class PatchGridButton(QToolButton):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         s = float(min(self.width(), self.height()))
-        color = QColor(self._color)
+        color = self._glyph_colour()
         if not self.isEnabled():
             color.setAlpha(70)      # parked (e.g. FROM PROFILE GAMUT active)
         elif not self._hover:
@@ -3193,7 +3242,7 @@ class PatchGridButton(QToolButton):
                     rad, rad)
 
 
-class StackedPagesButton(QToolButton):
+class StackedPagesButton(GlyphAccentButton, QToolButton):
     """Two stacked document pages, the front one carrying a small patch grid,
     painted in a given accent colour — "reopen a profiling project you started
     earlier". The front page **fully occludes** the one behind it (rendered on a
@@ -3214,9 +3263,6 @@ class StackedPagesButton(QToolButton):
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._hover = False
-
-    def set_appearance(self, mode: str) -> None:
-        pass
 
     def enterEvent(self, event) -> None:  # noqa: N802
         self._hover = True
@@ -3281,7 +3327,7 @@ class StackedPagesButton(QToolButton):
         box = min(self.width(), self.height()) * self.FRAC
         cx = self.width() / 2.0
         cy = self.height() / 2.0
-        color = QColor(self._color)
+        color = self._glyph_colour()
         if not self._hover:
             color.setAlpha(230)
         sw = 1.7
@@ -3314,7 +3360,7 @@ class StackedPagesButton(QToolButton):
         p.end()
 
 
-class StripReadButton(QToolButton):
+class StripReadButton(GlyphAccentButton, QToolButton):
     """A single strip (column) of patches with a scan arrow above it, painted in
     a given accent colour — "read a strip". The Measure-tab sibling of
     :class:`PatchGridButton`: same flat 40×40 / ``#tooltip_btn`` styling (just
@@ -3336,9 +3382,6 @@ class StripReadButton(QToolButton):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._hover = False
 
-    def set_appearance(self, mode: str) -> None:
-        pass  # accent colour is theme-independent
-
     def enterEvent(self, event) -> None:  # noqa: N802
         self._hover = True
         self.update()
@@ -3356,7 +3399,7 @@ class StripReadButton(QToolButton):
         side = min(self.width(), self.height()) * self.FRAC
         cx = self.width() / 2.0
         y0 = (self.height() - side) / 2.0
-        color = QColor(self._color)
+        color = self._glyph_colour()
         if not self._hover:
             color.setAlpha(230)
         # Column of patches (lower ~70%).
@@ -3385,7 +3428,7 @@ class StripReadButton(QToolButton):
         p.end()
 
 
-class MeasuredChartButton(QToolButton):
+class MeasuredChartButton(GlyphAccentButton, QToolButton):
     """A grid-of-patches glyph with a checkmark, painted in a given accent
     colour — the "measured chart" sibling of :class:`PatchGridButton`.
 
@@ -3410,9 +3453,6 @@ class MeasuredChartButton(QToolButton):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._hover = False
 
-    def set_appearance(self, mode: str) -> None:
-        pass  # accent colour is theme-independent
-
     def enterEvent(self, event) -> None:  # noqa: N802
         self._hover = True
         self.update()
@@ -3433,7 +3473,7 @@ class MeasuredChartButton(QToolButton):
         # Nudge the grid up-left so the tick sits in the freed bottom-right.
         x0 = (self.width() - side) / 2.0 - self.width() * 0.05
         y0 = (self.height() - side) / 2.0 - self.height() * 0.05
-        color = QColor(self._color)
+        color = self._glyph_colour()
         if not self._hover:
             color.setAlpha(230)
         p.setPen(Qt.PenStyle.NoPen)
@@ -3493,6 +3533,85 @@ def apply_themed_icons(root: QWidget) -> None:
         reveal_color = btn.property("themed_reveal_icon")
         if reveal_color:
             btn.setIcon(load_reveal_folder_icon(str(reveal_color)))
+    # The five-cell rule under each tab's headline card, and the coloured mark
+    # its headline ends in. Both resolve an accent, and both are built in the
+    # tab files rather than here, so this walker is where a live appearance
+    # switch reaches them -- there is no per-tab set_appearance to rely on.
+    from PyQt6.QtWidgets import QFrame, QLabel
+    from ui.theme import accent_for
+    for seg in root.findChildren(QFrame):
+        hue = seg.property(SPECTRUM_HUE)
+        if hue:
+            seg.setStyleSheet(
+                f"background-color: {accent_for(str(hue))}; border: none;")
+    for lbl in root.findChildren(QLabel):
+        if lbl.property(_ACCENT_HTML_TPL):
+            reapply_accent_html(lbl)
+
+
+#: Property key: the spectrum hue a five-cell card rule was built from.
+SPECTRUM_HUE = "spectrum_hue"
+#: Property keys: the rich-text template a headline was built from, and the
+#: accent values its placeholders were filled with.
+_ACCENT_HTML_TPL  = "_chromiq_accent_html_tpl"
+_ACCENT_HTML_ARGS = "_chromiq_accent_html_args"
+
+
+def spectrum_cell(parent: "QWidget", colour: str) -> "QWidget":
+    """One 22x2 cell of the five-cell rule under a tab's headline card.
+
+    "Feed the beast!", "Keep calm!", "Ready to build?", "Are you nervous?" and
+    the patch count all sit above the same five-cell rule, built five times in
+    five files from ``TAB_COLORS``. It is DECORATION -- the same five cells on
+    every tab, saying nothing about which tab you are on -- so in Neutral it
+    takes the theme's single accent and stops being five hues, exactly as the
+    Create Chart card already does.
+
+    The hue is kept on the widget rather than in a local, so
+    :func:`apply_themed_icons` can repaint the cell when the appearance changes
+    under it. Preferences switches appearance without a restart, and a colour
+    resolved once at construction keeps the appearance it was born in.
+
+    Light and Dark get ``colour`` itself: :func:`ui.theme.accent_for` returns
+    its argument unchanged there.
+    """
+    from PyQt6.QtWidgets import QFrame
+    from ui.theme import accent_for
+    seg = QFrame(parent)
+    seg.setFixedSize(22, 2)
+    seg.setProperty(SPECTRUM_HUE, colour)
+    seg.setStyleSheet(f"background-color: {accent_for(colour)}; border: none;")
+    return seg
+
+
+def set_accent_html(label: "QWidget", template: str, **accents: str) -> None:
+    """Rich-text whose accent colours follow the appearance on screen.
+
+    Four tab headlines end in a coloured mark -- ``Feed the beast!`` in amber,
+    ``Keep calm!`` in green -- written as an inline ``<span style="color: ...">``
+    inside the translated string. An inline colour beats the stylesheet, so
+    those marks kept their hue in a theme that has none, and they are what the
+    owner was looking at along with the icons.
+
+    ``template`` is the TRANSLATED string, placeholders still in it;
+    ``accents`` are the values to fill them with. Both are kept on the label so
+    a live appearance switch can re-run the substitution -- the translation is
+    not re-fetched, so this cannot go stale against the catalogue.
+    """
+    label.setProperty(_ACCENT_HTML_TPL, template)
+    label.setProperty(_ACCENT_HTML_ARGS, dict(accents))
+    reapply_accent_html(label)
+
+
+def reapply_accent_html(label: "QWidget") -> None:
+    """Re-fill a :func:`set_accent_html` label for the current appearance."""
+    tpl = label.property(_ACCENT_HTML_TPL)
+    if not tpl:
+        return
+    from ui.theme import accent_for
+    args = label.property(_ACCENT_HTML_ARGS) or {}
+    label.setText(str(tpl).format(
+        **{k: accent_for(v) for k, v in dict(args).items()}))
 
 
 def tint_dialog_primary(dlg: "QWidget", color: str) -> None:
@@ -3761,7 +3880,7 @@ def replace_log_line(
 
 @dataclass
 
-class RevealFolderButton(QToolButton):
+class RevealFolderButton(GlyphAccentButton, QToolButton):
     """A small painted "reveal in the file manager" glyph — an up-arrow rising
     out of an open-top tray — in a given accent colour. Same flat style as
     :class:`ImageFileButton` / :class:`PatchGridButton` so a row of icon
@@ -3780,9 +3899,6 @@ class RevealFolderButton(QToolButton):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._hover = False
 
-    def set_appearance(self, mode: str) -> None:
-        pass
-
     def enterEvent(self, event) -> None:  # noqa: N802
         self._hover = True
         self.update()
@@ -3800,7 +3916,7 @@ class RevealFolderButton(QToolButton):
         side = min(self.width(), self.height()) * self.FRAC
         cx = self.width() / 2.0
         y0 = (self.height() - side) / 2.0
-        color = QColor(self._color)
+        color = self._glyph_colour()
         if not self._hover:
             color.setAlpha(230)
         pen = QPen(color)
@@ -3833,7 +3949,7 @@ class RevealFolderButton(QToolButton):
         p.end()
 
 
-class ImageFileButton(QToolButton):
+class ImageFileButton(GlyphAccentButton, QToolButton):
     """A small painted image-file glyph (frame + mountains + sun) in a given
     accent colour — sibling of :class:`PatchGridButton`, used for "load a
     TIFF image to print raw" on the Print Chart tab (#117, Knut)."""
@@ -3850,9 +3966,6 @@ class ImageFileButton(QToolButton):
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._hover = False
-
-    def set_appearance(self, mode: str) -> None:
-        pass
 
     def enterEvent(self, event) -> None:  # noqa: N802
         self._hover = True
@@ -3871,7 +3984,7 @@ class ImageFileButton(QToolButton):
         side = min(self.width(), self.height()) * self.FRAC
         x0 = (self.width() - side) / 2.0
         y0 = (self.height() - side) / 2.0
-        color = QColor(self._color)
+        color = self._glyph_colour()
         if not self._hover:
             color.setAlpha(230)
         pen = QPen(color)

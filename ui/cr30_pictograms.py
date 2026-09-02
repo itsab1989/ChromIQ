@@ -58,14 +58,21 @@ def _accent(widget: QWidget | None) -> QColor:
     tab's own information boxes. So the question is which theme is on, and it
     goes to the theme module rather than being read off the ink's lightness.
 
+    Neutral has a green for neither: it has ONE accent, and a pictogram is an
+    icon like any other. This was a two-answer fold — dark, or else light —
+    which gave the CR30 windows the light theme's `#0f7a5a` on a theme that
+    paints no hue at all, and it is the shape :func:`ui.theme.by_mode` exists
+    to replace.
+
     (:func:`_ink` above is left alone on purpose. It does not decide anything —
     it takes the foreground it is given and paints with it, which is genuinely a
     per-widget question and stays correct under any appearance.)
     """
-    from ui.theme import active_mode, APPEARANCE_DARK
+    from ui import neutral_styles
+    from ui.theme import active_mode, by_mode
     pal = widget.palette() if widget is not None else None
-    return QColor(ACCENT_DARK if active_mode(pal) == APPEARANCE_DARK
-                  else ACCENT_LIGHT)
+    return QColor(by_mode(ACCENT_LIGHT, ACCENT_DARK,
+                          neutral_styles.NM_ACTION, active_mode(pal)))
 
 
 def _draw_instrument(p: QPainter, r: QRectF, ink: QColor, nose_down: bool):

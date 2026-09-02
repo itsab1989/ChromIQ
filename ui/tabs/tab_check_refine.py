@@ -44,7 +44,7 @@ from ui.fade_scroll import FadeScrollArea
 from ui.gamut_panel import GamutPanel
 from ui.tab_header import TabHeader
 from ui.tooltip_button import InfoDialog, TooltipButton
-from ui.widgets import add_log_row, fit_log_height, GatedOption, NoScrollComboBox, NoScrollDoubleSpinBox, make_browse_button, open_file_dialog, replace_log_line, set_folder_icon, set_preset_icon, tint_dialog_primary
+from ui.widgets import add_log_row, fit_log_height, GatedOption, NoScrollComboBox, NoScrollDoubleSpinBox, make_browse_button, open_file_dialog, replace_log_line, set_accent_html, set_folder_icon, set_preset_icon, spectrum_cell, tint_dialog_primary
 from ui.ti2_loader import (has_spectral_data, instrument_label, is_colormunki,
                           read_target_instrument, spectral_options_unavailable)
 
@@ -406,10 +406,12 @@ class TabCheckRefine(QWidget):
         nervous_layout = QVBoxLayout(nervous_box)
         nervous_layout.setContentsMargins(0, 0, 0, 0)
         nervous_layout.setSpacing(4)
-        headline = QLabel(
-            tr("Are you nervous<span style=\"color: {SPEC_VIOLET}; font-style: italic;\">?</span>").format(SPEC_VIOLET=SPEC_VIOLET),
-            nervous_box,
-        )
+        headline = QLabel(nervous_box)
+        # An inline colour beats the stylesheet -- see ui.widgets.set_accent_html.
+        set_accent_html(
+            headline,
+            tr("Are you nervous<span style=\"color: {SPEC_VIOLET}; font-style: italic;\">?</span>"),
+            SPEC_VIOLET=SPEC_VIOLET)
         headline.setTextFormat(Qt.TextFormat.RichText)
         headline.setAlignment(Qt.AlignmentFlag.AlignCenter)
         headline.setStyleSheet(
@@ -428,11 +430,11 @@ class TabCheckRefine(QWidget):
         bar_row.setContentsMargins(0, 6, 0, 0)
         bar_row.setSpacing(0)
         bar_row.addStretch()
+        # Decoration, not a readout: the same five cells on every tab. One
+        # ACTION value under Neutral, and the hue kept on each cell so a live
+        # appearance switch repaints it -- see ui.widgets.spectrum_cell.
         for _color in TAB_COLORS:
-            _seg = QFrame(nervous_box)
-            _seg.setFixedSize(22, 2)
-            _seg.setStyleSheet(f"background-color: {_color}; border: none;")
-            bar_row.addWidget(_seg)
+            bar_row.addWidget(spectrum_cell(nervous_box, _color))
         bar_row.addStretch()
         nervous_layout.addLayout(bar_row)
         self._nervous_box = nervous_box

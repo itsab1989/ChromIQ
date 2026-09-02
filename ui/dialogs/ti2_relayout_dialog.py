@@ -48,7 +48,7 @@ from ui.widgets import (
     NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox,
     PrefixLockedLineEdit, disabled_primary_qss, load_magenta_folder_icon,
     open_dir_dialog, open_file_dialog, primary_hover, primary_label,
-    save_file_dialog, set_ink,
+    save_file_dialog, set_ink, spectrum_cell,
 )
 
 
@@ -5175,11 +5175,7 @@ class Ti2RelayoutDialog(QDialog):
         # Five segments, one per tab colour — and one ACTION value under
         # Neutral, which keeps the five-cell geometry and drops the hue.
         for _color in TAB_COLORS:
-            seg = QFrame(mess_box)
-            seg.setFixedSize(22, 2)
-            seg.setStyleSheet(
-                f"background-color: {accent_for(_color)}; border: none;")
-            mess_bar.addWidget(seg)
+            mess_bar.addWidget(spectrum_cell(mess_box, _color))
         mess_bar.addStretch()
         ml.addLayout(mess_bar)
         v.addWidget(mess_box)

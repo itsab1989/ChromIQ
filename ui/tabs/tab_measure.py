@@ -51,7 +51,7 @@ from core.strip_utils import letter_to_idx, parse_passes_per_page
 from ui.fade_scroll import FadeScrollArea
 from ui.tab_header import TabHeader
 from ui.tooltip_button import TooltipButton
-from ui.widgets import ElidingComboBox, ElidingLabel, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, make_browse_button, open_file_dialog, set_folder_icon, set_preset_icon, tint_dialog_primary
+from ui.widgets import ElidingComboBox, ElidingLabel, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, make_browse_button, open_file_dialog, set_accent_html, set_folder_icon, set_preset_icon, spectrum_cell, tint_dialog_primary
 
 _TAB_COLOR = "#56d6a5"  # Measure tab accent
 from ui.styles import SPEC_GREEN, TAB_COLORS
@@ -1886,7 +1886,12 @@ class TabMeasure(QWidget):
         calm_layout = QVBoxLayout(calm_box)
         calm_layout.setContentsMargins(0, 0, 0, 0)
         calm_layout.setSpacing(4)
-        headline = QLabel(tr("Keep calm<span style=\"color: {SPEC_GREEN}; font-style: italic;\">!</span>").format(SPEC_GREEN=SPEC_GREEN), calm_box)
+        headline = QLabel(calm_box)
+        # An inline colour beats the stylesheet -- see ui.widgets.set_accent_html.
+        set_accent_html(
+            headline,
+            tr("Keep calm<span style=\"color: {SPEC_GREEN}; font-style: italic;\">!</span>"),
+            SPEC_GREEN=SPEC_GREEN)
         headline.setTextFormat(Qt.TextFormat.RichText)
         headline.setAlignment(Qt.AlignmentFlag.AlignCenter)
         headline.setStyleSheet(
@@ -1908,11 +1913,11 @@ class TabMeasure(QWidget):
         bar_row.setContentsMargins(0, 6, 0, 0)
         bar_row.setSpacing(0)
         bar_row.addStretch()
+        # Decoration, not a readout: the same five cells on every tab. One
+        # ACTION value under Neutral, and the hue kept on each cell so a live
+        # appearance switch repaints it -- see ui.widgets.spectrum_cell.
         for _color in TAB_COLORS:
-            _seg = QFrame(calm_outer)
-            _seg.setFixedSize(22, 2)
-            _seg.setStyleSheet(f"background-color: {_color}; border: none;")
-            bar_row.addWidget(_seg)
+            bar_row.addWidget(spectrum_cell(calm_outer, _color))
         bar_row.addStretch()
         calm_layout.addLayout(bar_row)
         co_layout.addWidget(calm_box)
