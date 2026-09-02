@@ -19,6 +19,7 @@ field (``Müller-Prüfdruck``, what macOS ColorSync prefers).
 """
 from __future__ import annotations
 
+import logging
 import struct
 from pathlib import Path
 
@@ -173,7 +174,23 @@ def test_a_tag_that_is_not_the_one_we_asked_for_is_left_alone():
 
 
 def test_a_desc_that_already_has_a_unicode_name_is_left_alone():
-    src = _fake_profile([(b"desc", text_description("Müller-Prüfdruck"))])
+    """A tag that already carries the accents is not rewritten.
+
+    THE FIXTURE HAS TO REACH THAT GUARD. The first version used
+    `text_description`, whose ASCII field is the transliteration
+    "Mueller-Pruefdruck" - rejected one line earlier by the "is this
+    Argyll's ? spelling" comparison, so the guard under test never ran and
+    the test passed with it deleted. This tag has Argyll's exact ASCII
+    spelling AND a Unicode name, which is the only shape that gets that far.
+    """
+    tag = _argyll_style_desc("Müller-Prüfdruck")          # ASCII "M?ller-Pr?fdruck"
+    n = struct.unpack(">I", tag[8:12])[0]
+    uni = "Müller-Prüfdruck\0".encode("utf-16-be")
+    tag = (tag[:12 + n]
+           + struct.pack(">II", 0, len(uni) // 2) + uni
+           + struct.pack(">HB", 0, 0) + b"\0" * 67)
+    assert parse_text_description(tag) == ("M?ller-Pr?fdruck", "Müller-Prüfdruck")
+    src = _fake_profile([(b"desc", tag)])
     assert repair_descriptions(src, {b"desc": "Müller-Prüfdruck"}) is src
 
 
@@ -184,7 +201,16 @@ def test_repair_is_idempotent():
 
 
 def test_a_non_icc_file_is_returned_unchanged():
-    for junk in (b"", b"not an icc file at all", b"\0" * 300):
+    """Including one that only the 'acsp' check can reject.
+
+    The three original cases were all stopped earlier - by the length check
+    or by a tag count of zero - so the signature check never decided
+    anything and the test passed with it deleted. The last case here is a
+    plausible-looking file with a real tag table and the wrong signature.
+    """
+    not_icc = bytearray(_fake_profile([(b"desc", _argyll_style_desc("Müller"))]))
+    not_icc[36:40] = b"junk"
+    for junk in (b"", b"not an icc file at all", b"\0" * 300, bytes(not_icc)):
         assert repair_descriptions(junk, {b"desc": "Müller"}) is junk
 
 
@@ -192,6 +218,13 @@ def test_a_profile_id_is_recomputed_when_the_file_carries_one():
     import hashlib
     src = bytearray(_fake_profile([(b"desc", _argyll_style_desc("Müller"))]))
     src[84:100] = b"\x11" * 16
+    # THE FIXTURE MUST HAVE SOMETHING IN THE ZEROED FIELDS. `_fake_profile`
+    # starts from `bytearray(128)`, so flags and rendering intent were
+    # already zero and blanking them changed nothing: the test passed with
+    # two of the three ranges deleted. A real Argyll profile carries a
+    # non-zero intent, so this one does too.
+    src[44:48] = b"\x00\x00\x00\x02"          # flags
+    src[64:68] = b"\x00\x00\x00\x01"          # rendering intent
     out = repair_descriptions(bytes(src), {b"desc": "Müller"})
     assert out[84:100] not in (b"\x11" * 16, b"\0" * 16)
     check = bytearray(out)
@@ -234,16 +267,26 @@ def _params(tmp_path: Path, description: str):
     return ProfileParams(ti3_path=ti3, description=description)
 
 
-def test_a_plain_ascii_build_never_even_opens_the_profile(tmp_path, monkeypatch):
+def test_a_plain_ascii_build_never_even_opens_the_profile(tmp_path, monkeypatch,
+                                                        caplog):
     """The strongest form of "nothing that works may change": for an ASCII
     name the finished file is not read, not written and not touched."""
     from workflow.profile_builder import ProfileBuilder
 
+    # NOT AN AssertionError. `_restore_accents` ends in `except Exception`,
+    # and AssertionError IS an Exception - so the old trap was caught,
+    # logged, and this test passed with the ASCII early-out deleted. Proven
+    # by a challenge agent. BaseException walks straight out.
+    class _Opened(BaseException):
+        pass
+
     def _boom(self, *a, **k):                    # pragma: no cover - must not run
-        raise AssertionError("the profile was opened for an ASCII name")
+        raise _Opened("the profile was opened for an ASCII name")
 
     monkeypatch.setattr(Path, "read_bytes", _boom)
     ProfileBuilder(runner=None)._restore_accents(_params(tmp_path, "Plain-Name"))
+    # ...and belt and braces: nothing was even attempted, so nothing complained.
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
 
 
 def test_the_shared_path_repairs_a_real_colprof_style_profile(tmp_path):
@@ -293,17 +336,39 @@ def test_the_repair_runs_only_after_a_successful_colprof(tmp_path):
     assert calls == [params]
 
 
-def test_a_failed_name_fix_never_costs_the_profile(tmp_path, monkeypatch):
+def _builder_over(icc_path, name="Müller-Prüfdruck"):
+    """A real ProfileBuilder pointed at one file, and the params for it."""
+    from workflow import profile_builder
+
+    class _Params:
+        description = name
+        model = None
+        manufacturer = None
+        ti3_path = icc_path.with_suffix(".ti3")
+
+    b = profile_builder.ProfileBuilder.__new__(profile_builder.ProfileBuilder)
+    b.expected_icc_path = lambda params: icc_path
+    return b, _Params()
+
+
+@pytest.mark.parametrize("dies_at", ["writing", "fsync", "copystat"])
+def test_a_failed_name_fix_never_costs_the_profile(tmp_path, dies_at):
     """The rewrite is atomic, because the thing being rewritten is the
     deliverable.
 
-    `write_bytes` truncates and then fills, so a crash, a power cut or a full
-    disk between those two moments left a truncated ICC — somebody's finished
-    profile destroyed by a change that only fixes how its name is spelled.
-    Nothing the user made is ever destroyed (principle 4), and a cosmetic fix
-    is the last thing allowed to break that.
+    The old code called `write_bytes` on the profile itself, which truncates
+    and then fills: a crash, a power cut or a full disk between those two
+    moments left a truncated ICC — somebody's finished profile destroyed by a
+    change that only fixes how its name is spelled.
+
+    Failure is injected at each of the three moments that can now fail. In
+    every one the profile must be exactly as Argyll left it and no sibling
+    may be left behind. An earlier version of this test raised before
+    anything was written, so it passed just as happily with the non-atomic
+    version put back — it could not fail.
     """
-    from pathlib import Path
+    import os
+    import shutil
     from unittest import mock
 
     from workflow import profile_builder
@@ -311,32 +376,169 @@ def test_a_failed_name_fix_never_costs_the_profile(tmp_path, monkeypatch):
     icc = tmp_path / "Müller-Prüfdruck.icc"
     original = b"ORIGINAL-PROFILE-BYTES" * 40
     icc.write_bytes(original)
+    b, params = _builder_over(icc)
 
-    class _Params:
-        description = "Müller-Prüfdruck"
-        model = None
-        manufacturer = None
-        ti3_path = tmp_path / "x.ti3"
+    boom = OSError("disk full")
+    if dies_at == "writing":
+        real_open = open
 
-    b = profile_builder.ProfileBuilder.__new__(profile_builder.ProfileBuilder)
-    b.expected_icc_path = lambda params: icc
-
-    # A REAL INTERRUPTED WRITE, not a call that fails before it starts. The
-    # first version of this test raised from `write_bytes` immediately, so the
-    # file was never touched and it passed just as happily with the
-    # non-atomic version put back — a test that could not fail. This one
-    # truncates first, exactly as `write_bytes` does, and then dies.
-    real_write = Path.write_bytes
-
-    def _dies_half_way(self, data):
-        real_write(self, b"")                  # truncate, as write_bytes does
-        raise OSError("disk full")
+        def _die(path, *a, **k):
+            fh = real_open(path, *a, **k)
+            if str(path).endswith(".name-fix"):
+                fh.write(b"HALF")          # some of it lands, then the disk dies
+                raise boom
+            return fh
+        patch = mock.patch("builtins.open", _die)
+    elif dies_at == "fsync":
+        patch = mock.patch.object(os, "fsync", side_effect=boom)
+    else:
+        patch = mock.patch.object(shutil, "copystat", side_effect=boom)
 
     with mock.patch.object(profile_builder.icc_text, "repair_descriptions",
-                           return_value=b"NEW"), \
-            mock.patch.object(Path, "write_bytes", _dies_half_way):
-        b._restore_accents(_Params())          # must not raise
+                           return_value=b"NEW"), patch:
+        b._restore_accents(params)         # must not raise
 
     assert icc.read_bytes() == original, "the profile was damaged by a failed fix"
     assert sorted(p.name for p in tmp_path.iterdir()) == ["Müller-Prüfdruck.icc"], \
         "a temp file was left beside the profile"
+
+
+def test_the_fix_goes_through_a_symlink_instead_of_replacing_it(tmp_path):
+    """A profile the user linked somewhere keeps being that link.
+
+    `os.replace` swaps the NAME it is given. Pointed at a symlink it deletes
+    the link and drops a regular file in its place: the real profile keeps
+    `M?ller`, everything else that reads it silently sees the old spelling,
+    and the link the user made into ~/Library/ColorSync/Profiles or a shared
+    job folder is gone with no message. This was a regression the atomic
+    write introduced, found by a challenge agent - the previous, unsafe
+    version wrote through the link correctly.
+    """
+    real = tmp_path / "real" / "Müller-Prüfdruck.icc"
+    real.parent.mkdir()
+    real.write_bytes(b"ORIGINAL" * 20)
+    link = tmp_path / "linked.icc"
+    link.symlink_to(real)
+
+    b, params = _builder_over(link)
+    from workflow import profile_builder
+    from unittest import mock
+    with mock.patch.object(profile_builder.icc_text, "repair_descriptions",
+                           return_value=b"REPAIRED"):
+        b._restore_accents(params)
+
+    assert link.is_symlink(), "the symlink was replaced by a regular file"
+    assert real.read_bytes() == b"REPAIRED", "the real profile was not repaired"
+
+
+def test_the_profile_keeps_its_permissions_and_finder_metadata(tmp_path):
+    """Mode, times and extended attributes belong to the user's file.
+
+    A profile they made read-only must not come back writable, and a Finder
+    comment or tag must survive a change to how the name is spelled.
+    `install_profile` uses `shutil.copy2`, which preserves all of it, so
+    without this the app was inconsistent with itself.
+    """
+    import os
+    from unittest import mock
+
+    from workflow import profile_builder
+
+    icc = tmp_path / "Müller-Prüfdruck.icc"
+    icc.write_bytes(b"ORIGINAL" * 20)
+    os.chmod(icc, 0o444)
+    try:
+        os.setxattr(icc, "user.chromiq.test", b"keep me")
+        had_xattr = True
+    except (AttributeError, OSError):
+        had_xattr = False                  # not every filesystem carries them
+
+    b, params = _builder_over(icc)
+    with mock.patch.object(profile_builder.icc_text, "repair_descriptions",
+                           return_value=b"REPAIRED"):
+        b._restore_accents(params)
+
+    assert icc.read_bytes() == b"REPAIRED"
+    assert oct(icc.stat().st_mode)[-3:] == "444", "a read-only profile came back writable"
+    if had_xattr:
+        assert os.getxattr(icc, "user.chromiq.test") == b"keep me"
+
+
+def test_a_truncated_tag_table_is_refused_rather_than_crashing():
+    """The bounds check on the tag table is load-bearing and had no test.
+
+    A challenge agent removed it and got an UNCAUGHT `struct.error` - the
+    unpack that reads each entry sits outside the try - while the whole file
+    still passed. In the app that lands in `_restore_accents`'s catch-all and
+    costs only the name, but `repair_descriptions` is a library function and
+    must not raise at its own callers.
+    """
+    src = _fake_profile([(b"desc", _argyll_style_desc("Müller"))])
+    # Claim twenty tags, then cut the file off inside the table.
+    lying = bytearray(src)
+    lying[128:132] = struct.pack(">I", 20)
+    truncated = bytes(lying[:132 + 12 * 3])
+    assert repair_descriptions(truncated, {b"desc": "Müller"}) is truncated
+
+
+def test_a_tag_pointing_past_the_end_of_the_file_is_refused():
+    """The other bounds check, also untested until a challenge agent asked."""
+    src = bytearray(_fake_profile([(b"desc", _argyll_style_desc("Müller"))]))
+    sig, off, size = struct.unpack(">4sII", src[132:144])
+    src[132:144] = struct.pack(">4sII", sig, off, size + len(src))
+    blob = bytes(src)
+    assert repair_descriptions(blob, {b"desc": "Müller"}) is blob
+
+
+# --------------------------------------------------------------------------
+# The name has to be right in ChromIQ's OWN windows too (challenge finding F2)
+# --------------------------------------------------------------------------
+
+def test_chromiqs_own_profile_reader_shows_the_accents():
+    """Our own Profile Info window read the ASCII field, so it showed the
+    name the user never typed.
+
+    A challenge agent measured it: with the build path fixed, macOS showed
+    `Müller-Prüfdruck` and ChromIQ showed `Mueller-Pruefdruck`; a Russian or
+    Japanese name still read as nothing but question marks in the one place
+    we control. The Unicode field is exactly what the tag has one for.
+    """
+    from workflow.icc_info import _read_desc
+    for name in ("Müller-Prüfdruck", "Профиль", "日本語プロファイル", "Profil 😀"):
+        src = _fake_profile([(b"desc", text_description(name))])
+        assert _read_desc(src, len(src)) == name, f"{name!r} came back wrong"
+
+
+def test_a_profile_with_no_unicode_name_still_reads_its_ascii_one():
+    """A profile from another application, or one of ours from before the
+    repair existed, has an empty Unicode field and must still show its name."""
+    from workflow.icc_info import _read_desc
+    src = _fake_profile([(b"desc", _argyll_style_desc("Canon-Pro300"))])
+    assert _read_desc(src, len(src)) == "Canon-Pro300"
+
+
+def test_the_convert_tool_no_longer_re_loses_the_accents():
+    """The fourth writer of this tag (challenge finding F6)."""
+    from workflow.icc_convert import _text_desc_tag, _text_tag
+    assert parse_text_description(_text_desc_tag("Müller-Prüfdruck")) == (
+        "Mueller-Pruefdruck", "Müller-Prüfdruck")
+    # A v2 `text` tag is ASCII by definition and has no Unicode field, so the
+    # best it can do is say what the line means.
+    assert _text_tag("© 2026 Müller")[8:].rstrip(b"\0") == b"(c) 2026 Mueller"
+
+
+def test_the_copyright_reaches_colprof_transliterated(tmp_path):
+    """`? 2026 M?ller Druckerei` was what colprof wrote (challenge finding F5).
+
+    The engine path already transliterated; the two build paths disagreed.
+    """
+    from workflow.profile_builder import ProfileBuilder, ProfileParams
+    b = ProfileBuilder(runner=None)
+    ti3 = tmp_path / "x.ti3"
+    ti3.write_text("dummy", encoding="utf-8")
+    p = ProfileParams(ti3_path=ti3, description="Test",
+                      copyright="© 2026 Müller Druckerei")
+    args = b._build_args(p)
+    assert "(c) 2026 Mueller Druckerei" in args
+    assert "©" not in " ".join(args)
+    assert "?" not in " ".join(args)

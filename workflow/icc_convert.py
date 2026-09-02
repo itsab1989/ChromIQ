@@ -21,6 +21,7 @@ import struct
 import tempfile
 from pathlib import Path
 
+from core import icc_text
 from core.logger import get_logger
 from workflow.icc_info import read_icc
 
@@ -109,18 +110,27 @@ def _curv_tag_bytes(data: bytes, offset: int, size: int) -> bytes:
 
 
 def _text_desc_tag(text: str) -> bytes:
-    """Build a v2 textDescriptionType tag for ``text`` (ASCII portion only)."""
-    ascii_bytes = text.encode("ascii", errors="replace") + b"\x00"
-    return (struct.pack(">4sII", b"desc", 0, len(ascii_bytes))
-            + ascii_bytes
-            + struct.pack(">II", 0, 0)        # unicode language code + count
-            + struct.pack(">HB", 0, 0)        # scriptcode code + count
-            + b"\x00" * 67)                   # 67-byte Macintosh description
+    """Build a v2 textDescriptionType tag for ``text``.
+
+    THE FOURTH WRITER OF THIS TAG, and it used to be the one that still threw
+    the accents away: `encode("ascii", "replace")` with an empty Unicode
+    field, so converting a v4 profile called Müller-Prüfdruck down to v2
+    produced M?ller-Pr?fdruck — the same blemish the build path had just been
+    taught not to make, re-made by our own Convert tool.
+    """
+    return icc_text.text_description(text)
 
 
 def _text_tag(text: str) -> bytes:
-    """Build a v2 textType tag (used for 'cprt')."""
-    return struct.pack(">4sI", b"text", 0) + text.encode("ascii", "replace") + b"\x00"
+    """Build a v2 textType tag (used for 'cprt').
+
+    A v2 `text` tag is ASCII by definition and has no Unicode field to fall
+    back on, so an accent cannot be stored here at all. It is transliterated
+    rather than replaced: `(c) 2026 Mueller` says what the line means and
+    `? 2026 M?ller` does not.
+    """
+    return (struct.pack(">4sI", b"text", 0)
+            + icc_text.ascii_fallback(text).encode("ascii", "replace") + b"\x00")
 
 
 def to_v2(src: str | Path) -> Path:

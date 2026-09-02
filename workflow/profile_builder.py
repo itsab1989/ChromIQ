@@ -240,7 +240,14 @@ class ProfileBuilder:
         if all(name.isascii() for name in names.values()):
             return
         try:
-            path = self.expected_icc_path(params)
+            # THROUGH THE SYMLINK, NOT OVER IT. `os.replace` swaps the NAME it
+            # is given, so pointed at a symlink it deletes the link and leaves
+            # a regular file in its place: the real profile keeps `M?ller`,
+            # every other consumer of it silently sees the old spelling, and
+            # the user's link into ~/Library/ColorSync/Profiles or a shared
+            # job folder is gone with no message. `write_bytes` wrote through
+            # the link, so this was a regression the atomic fix introduced.
+            path = Path(os.path.realpath(self.expected_icc_path(params)))
             data = path.read_bytes()
             repaired = icc_text.repair_descriptions(data, names)
             if repaired != data:
@@ -253,9 +260,26 @@ class ProfileBuilder:
                 # new one is there, never half of either. The temp file is a
                 # sibling so the replace cannot cross a filesystem boundary,
                 # and it is removed if anything goes wrong.
+                #
+                # A stale sibling from an earlier hard kill is overwritten
+                # rather than tripping us up: nothing reads it, and its only
+                # other outcome is to litter the run folder for ever.
                 tmp = path.with_name(path.name + ".name-fix")
                 try:
-                    tmp.write_bytes(repaired)
+                    with open(tmp, "wb") as fh:
+                        fh.write(repaired)
+                        fh.flush()
+                        # THE RENAME IS ATOMIC, THE DATA IS NOT YET THERE.
+                        # `os.replace` orders the directory entry, not the
+                        # blocks behind it; without this a power cut can land
+                        # the new name on top of unwritten content, which is
+                        # the exact scenario the swap exists to prevent.
+                        os.fsync(fh.fileno())
+                    # Mode, times, Finder flags and extended attributes belong
+                    # to the user's file, not to our temp copy. A profile they
+                    # made read-only must not come back writable, and a Finder
+                    # comment or tag must survive a change to its name.
+                    shutil.copystat(path, tmp)
                     os.replace(tmp, path)
                 finally:
                     try:
@@ -397,7 +421,14 @@ class ProfileBuilder:
         args += ["-A", p.manufacturer or "ChromIQ"]
         args += ["-M", p.model or desc]
         if p.copyright:
-            args += ["-C", p.copyright]
+            # TRANSLITERATED, NOT LEFT TO COLPROF. The copyright goes into a
+            # v2 `text` tag, which is ASCII by definition and has no Unicode
+            # field to repair afterwards the way `desc` has — so this is the
+            # only moment the accents can survive in any readable form.
+            # "© 2026 Müller Druckerei" reaches the profile as
+            # "(c) 2026 Mueller Druckerei" instead of "? 2026 M?ller Druckerei".
+            # The engine path already did this; the two disagreed.
+            args += ["-C", icc_text.ascii_fallback(p.copyright)]
         if p.illuminant:
             args += ["-i", p.illuminant]
         if p.observer:

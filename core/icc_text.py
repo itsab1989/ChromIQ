@@ -46,6 +46,16 @@ _DIGRAPHS = {
     "ø": "o", "Ø": "O", "đ": "d", "Đ": "D", "ð": "d", "Ð": "D",
     "þ": "th", "Þ": "Th", "ł": "l", "Ł": "L", "ı": "i", "İ": "I",
     "ŋ": "n", "Ŋ": "N", "ħ": "h", "Ħ": "H",
+    # Punctuation and symbols a copyright line is actually made of. These
+    # have no combining mark to strip, so without an entry here they become
+    # "?" — and "? 2026 Mueller Druckerei" is the blemish this whole change
+    # set out to remove, one line further down the profile.
+    "©": "(c)", "®": "(r)", "™": "(tm)", "€": "EUR", "£": "GBP", "¥": "JPY",
+    "«": '"', "»": '"', "“": '"', "”": '"', "„": '"',
+    "‘": "'", "’": "'", "‚": "'",
+    "–": "-", "—": "-", "‑": "-", "…": "...", "·": ".", "•": "*",
+    "\u00a0": " ", "\u202f": " ", "\u2009": " ",   # the no-break spaces
+    "°": "deg", "±": "+/-", "×": "x", "÷": "/", "µ": "u", "½": "1/2",
 }
 
 

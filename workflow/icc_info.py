@@ -196,11 +196,29 @@ def _read_desc(data: bytes, header_size: int) -> str:
                 return ""
             ttype = data[offset:offset + 4]
             if ttype == b"desc":
-                # v2 textDescriptionType: type(4) reserved(4) count(4) ASCII…
-                n = struct.unpack_from(">I", data, offset + 8)[0]
-                start = offset + 12
-                raw = data[start:start + max(0, n - 1)]
-                return raw.decode("latin-1", errors="replace").strip()
+                # v2 textDescriptionType. THE UNICODE FIELD FIRST, and this is
+                # the whole point of the tag having one: the ASCII field
+                # cannot hold an accent, so Argyll fills it with `?` — a
+                # profile called Müller-Prüfdruck reads back as
+                # `M?ller-Pr?fdruck`, and a Russian or Japanese name reads
+                # back as nothing but question marks. ChromIQ repairs the
+                # Unicode field when it writes a profile, and then showed the
+                # broken ASCII one in its own windows, so the user saw a name
+                # they never typed in the one place we control.
+                #
+                # Falls back to the ASCII field when there is no Unicode one:
+                # a profile from another application, or one of ours from
+                # before the repair existed.
+                from core.icc_text import parse_text_description
+                try:
+                    end = offset + size if offset + size <= len(data) else len(data)
+                    ascii_field, uni = parse_text_description(data[offset:end])
+                except Exception:              # noqa: BLE001 — display only
+                    n = struct.unpack_from(">I", data, offset + 8)[0]
+                    start = offset + 12
+                    raw = data[start:start + max(0, n - 1)]
+                    return raw.decode("latin-1", errors="replace").strip()
+                return (uni or ascii_field).strip()
             if ttype == b"mluc":
                 # v4 multiLocalizedUnicode: type(4) reserved(4) num(4) recsize(4)
                 num, recsize = struct.unpack_from(">II", data, offset + 8)
