@@ -2937,7 +2937,16 @@ class TabChart(QWidget):
         _ht.addWidget(self._reveal_folder_btn)
         left_layout.addWidget(TabHeader(
             tr("STEP 01 · GENERATE CHART"), tr("Create test chart"),
-            accent_for("#ff4573"), left,
+            # THE RAW HUE, like the other four tabs. `TabHeader._paint_accent`
+            # asks `index_rule.use_index_rule()` for itself every time it
+            # repaints, so it already paints ACTION under Neutral. Collapsing
+            # the hue HERE instead destroys it: the header stores what it was
+            # handed, so a window built under Neutral kept #101010 for ever and
+            # the Create Chart step stroke stayed black after the user switched
+            # back to Light or Dark. The other four tabs pass their hue
+            # unwrapped (tab_print.py, tab_measure.py, tab_profile.py,
+            # tab_check_refine.py) and were never affected.
+            "#ff4573", left,
             tooltip_title=tr("Step 1 — Make a test chart"),
             tooltip_body=tr(
                 "This is where you design the sheet of colour patches your printer "

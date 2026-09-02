@@ -287,8 +287,12 @@ QTabBar::scroller {{
 }}
 
 /* -- Buttons ------------------------------------------------------- */
-/* Enabled: a fill and a SOLID 1px edge. Disabled: no fill, a DASHED edge.
- * That pairing is rule 3 — low contrast means disabled and nothing else. */
+/* Enabled: a fill and a SOLID 1px edge. Disabled: no fill, and the label and
+ * the edge drop to DISABLED — the edge stays SOLID. That pairing is rule 3:
+ * low contrast means disabled and nothing else. (This note used to say the
+ * disabled edge was DASHED. It shipped that way and the owner removed the dash
+ * on 2026-09-02; the module docstring above carries his words. The code below
+ * was already right — only this comment still described the reverted design.) */
 QPushButton {{
     background: {NM_BG_WIDGET};
     color: {NM_TEXT_MAIN};
@@ -698,6 +702,22 @@ QPushButton#browse_compact {{
 }}
 QPushButton#browse_compact:hover {{
     background: {NM_BG_HOVER};
+}}
+/* AN ID SELECTOR OUTRANKS `:disabled`, SO THESE TWO HAVE TO SAY IT AGAIN.
+   `QPushButton#browse` is 0-1-0-1 and `QPushButton:disabled` is 0-0-1-1, so
+   the generic disabled rule further up never reaches a browse button: it kept
+   the enabled fill, the enabled `BORDER` edge and TEXT_MAIN while dead. The
+   only thing that changed was the icon, which Qt greys by itself to `#696969`
+   — 4.61:1 on the ground, a perfectly readable ink, not a disabled one. That
+   breaks rule 3 (low contrast means "disabled" and nothing else) on the one
+   control in a locked parameter row that still looked alive:
+   `ParameterWidget.set_enabled` greys the label and the field and this button
+   sat beside them unchanged. Same shape as the generic rule, and AFTER the
+   `:hover` rules above so a hover cannot outrank it on equal specificity. */
+QPushButton#browse:disabled, QPushButton#browse_compact:disabled {{
+    background: transparent;
+    color: {NM_DISABLED};
+    border: 1px solid {NM_DISABLED};
 }}
 
 /* -- Settings dialog: Restore Factory Defaults -------------------- */

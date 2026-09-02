@@ -67,6 +67,9 @@ class MarginInspectorPanel(QGroupBox):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(tr("Measured from Preview"), parent)
         self._mode = "dark"
+        #: The last verdict `_update_status` was given, so `set_appearance`
+        #: can repaint it in a new appearance. None until one arrives.
+        self._last_status: "tuple[list, dict] | None" = None
         self._value_labels: dict[str, tuple[QLabel, QLabel]] = {}
         self._build_ui()
         self.show_placeholder()
@@ -302,6 +305,10 @@ class MarginInspectorPanel(QGroupBox):
     def set_appearance(self, mode: str) -> None:
         from ui.theme import accept_mode
         self._mode = accept_mode(mode)
+        # The verdict's ink is set with a per-widget stylesheet, so nothing
+        # else would refresh it: without this a "Margins: OK" already on
+        # screen keeps the green it was painted in after a switch to Neutral.
+        self._repaint_status()
 
     def guides_enabled(self) -> bool:
         return self._guide_check.isChecked()
@@ -396,11 +403,27 @@ class MarginInspectorPanel(QGroupBox):
                             notify=notify, text_warnings=text_warnings)
 
     # ------------------------------------------------------------------
+    def _repaint_status(self) -> None:
+        """Redraw the verdict in the appearance now on screen.
+
+        `_update_status` only runs when new numbers arrive, so without this a
+        verdict already on screen keeps the ink of the appearance it was
+        painted in until the next chart is generated.
+        """
+        if self._last_status is None:
+            return
+        violations, kw = self._last_status
+        self._update_status(violations, **kw)
+
     def _update_status(
         self, violations: list[Violation], *,
         thresholds_defined: bool, notify: bool,
         text_warnings: "list[str] | None" = None,
     ) -> None:
+        self._last_status = (list(violations),
+                             {"thresholds_defined": thresholds_defined,
+                              "notify": notify,
+                              "text_warnings": list(text_warnings or [])})
         if not notify:
             self._status.setVisible(False)
             return
@@ -421,18 +444,26 @@ class MarginInspectorPanel(QGroupBox):
                            threshold=v.threshold_mm)
             for v in violations
         ] if thresholds_defined else []
-        lines = margin_lines + text_warnings
-        # THE STATUS LINE THROUGH `set_ink`. It was three raw literals - a red
-        # for a violation, a green for "Margins: OK", a grey for "no
-        # thresholds" - so it kept its hues in a theme that has none. The
-        # owner saw the green one, and only after generating a preview: this
-        # panel is empty until a chart exists, which is why every pixel census
-        # walked past it.
+        # THE VERDICT IS INK, NOT A HUE, IN THE NEUTRAL APPEARANCE.
         #
-        # Nothing is lost by taking the hue out here, because the colour was
-        # never the message: the warning names the edge, the measurement and
-        # the threshold in words, and "Margins: OK" says so. `set_ink` returns
-        # the Light and Dark values unchanged.
+        # These two values were written straight into the stylesheet and never
+        # asked which appearance was on screen, so a colourless theme showed a
+        # #4fc27a pass at **1.74:1** on its own ground and a #e0564b warning at
+        # 2.89:1 — both far under the theme's own floor (its tertiary ink is
+        # 8.13:1), and rule 3 of ui/neutral_styles.py says low contrast means
+        # "disabled" and nothing else. `ui.theme.ink_for` returns its argument
+        # UNCHANGED in Light and Dark, so those two keep the green and the red
+        # exactly as they were; only Neutral gets dark ink.
+        #
+        # Nothing is lost by dropping the hue here: the pass and the failure
+        # already differ in their WORDS, in weight and in the leading ⚠, which
+        # is the escalation ui/neutral_styles.py describes for this theme.
+        # `set_ink` stores the value it was asked for on the widget, so an
+        # appearance switch under an already-open window re-resolves it rather
+        # than leaving the last one baked in. The owner found the green one by
+        # generating a chart: this panel is empty until one exists, which is
+        # why every pixel census before this walked straight past it.
+        lines = margin_lines + text_warnings
         if lines:                                       # something to warn about
             self._status.setText("\n".join(lines))
             set_ink(self._status, "#e0564b",
@@ -441,6 +472,17 @@ class MarginInspectorPanel(QGroupBox):
         if not thresholds_defined:
             self._status.setText(tr(
                 "No instrument margins set for this instrument and paper size."))
+            # MEASURED, by the reviewer who found this independently:
+            # `#909090` is 3.05:1 on the Neutral ground, which in this theme
+            # reads as "disabled", and the tertiary ink at 8.13:1 is the right
+            # level for a note that is telling the user something true. The
+            # green was worse still - "Margins: OK" measured 1.74:1, fainter
+            # than the theme allows anything that WORKS to be, on a message
+            # shown after every successful chart generation.
+            #
+            # `set_ink` rather than a resolved literal, because it stores the
+            # value on the widget: an appearance switch under an open window
+            # re-resolves it instead of leaving the last one baked in.
             set_ink(self._status, "#909090", " font-size: 11px;", level="faint")
             return
         self._status.setText(tr("Margins: OK"))
