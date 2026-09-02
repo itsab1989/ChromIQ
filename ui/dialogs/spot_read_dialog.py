@@ -86,21 +86,37 @@ def cr30_is_probably_attached() -> bool:
     """Is a CR30 plugged in over USB, on the evidence already on this machine?
 
     **Nothing is opened and nothing is written.** It lists the serial ports
-    (`serial.tools.list_ports`, an IORegistry read) and asks whether the port
-    ChromIQ has previously reached a CR30 at is among them.
+    (`serial.tools.list_ports`, an IORegistry read) and asks two questions of
+    them: is a CH340 bridge plugged in *now*, and has this machine ever
+    confirmed a CR30 over USB before.
 
-    THE REMEMBERED PORT IS THE WHOLE TEST, and the alternative was worse.
-    `0x1A86:0x7523` is the generic CH340 bridge: an Arduino, a 3D printer or a
-    CNC controller answers that description, and treating any of them as a CR30
-    would hand a ColorMunki owner a broken spot tool by default — the exact
-    thing this feature must not do. Confirming a candidate means WRITING an
-    identify frame to it, which is not something to do to somebody's devices on
-    the strength of a guess.
+    BOTH HALVES ARE NEEDED, and neither is enough on its own.
 
-    So automatic detection recognises an instrument this machine has already
-    used, and everybody else picks the CR30 from the list once. It can only
-    ever be wrong in the safe direction: a missed CR30 costs one choice from a
-    dropdown, and a false positive is not possible.
+    * `0x1A86:0x7523` is the generic CH340 bridge: an Arduino, a 3D printer or
+      a CNC controller answers to it. On its own it is not evidence of an
+      instrument, and treating it as one would hand a ColorMunki owner a broken
+      spot tool by default — the exact thing this feature must not do.
+      Confirming a candidate means WRITING an identify frame to it, which is
+      not something to do to somebody's devices on the strength of a guess.
+    * The remembered port on its own is not evidence either, and this is the
+      part that used to be missing. It was the WHOLE test until 2026-09-03,
+      when the owner's own Mac disproved it: `cr30_usb_port` remembered
+      `/dev/cu.usbserial-10` while his CR30 was sitting on
+      `/dev/cu.usbserial-110`. A `cu.usbserial-*` node number is not stable
+      across replugs — `workflow/cr30/discovery.py` says so in its own
+      docstring — so the strict comparison quietly stopped recognising the
+      instrument it was written for, and only the remembered Bluetooth address
+      was still finding it.
+
+    Together they say: *this machine has confirmed a CR30 over USB before, and
+    something that could be it is plugged in now.* That is live evidence with a
+    history behind it, and it is what makes the port node irrelevant.
+
+    It can still only ever be wrong in the safe direction. A missed CR30 costs
+    one choice from a dropdown. A CH340 gadget mistaken for one costs nothing
+    to anybody who has never used a CR30 here (no remembered port, so this is
+    False), and for anybody who has, an ArgyllCMS instrument that is actually
+    attached outranks this answer anyway — see :meth:`SpotReadDialog._automatic_reader`.
     """
     try:
         from workflow.cr30.discovery import candidates
@@ -108,10 +124,39 @@ def cr30_is_probably_attached() -> bool:
         remembered = DeviceReader._remembered(DeviceReader.REMEMBERED_PORT_KEY)
         if not remembered:
             return False
-        return any(c.device == remembered for c in candidates())
+        return bool(candidates())
     except Exception:      # noqa: BLE001 — a guess, never worth an error
         log.debug("could not look for a CR30 on USB", exc_info=True)
         return False
+
+
+def argyll_is_attached() -> "bool | None":
+    """Is an instrument ArgyllCMS can drive plugged in over USB right now?
+
+    THE MISSING HALF OF THE COMPARISON. Until this existed, automatic could see
+    a CR30 and it could see a *remembered* CR30, but it could not see a
+    ColorMunki at all — so the weakest evidence there is, an address stored at
+    some point in the past, outranked an instrument sitting on the desk. The
+    owner hit it the day it shipped: *"had my colormunki connected via usb and
+    set to detect automatically. it defaulted to the cr30 via blutooth and did
+    not leave me a choice."*
+
+    `core.argyll_instruments` answers it from the operating system's own device
+    list, against ArgyllCMS's own `inst_usb_match()` table. Nothing is opened,
+    nothing is claimed, and `spotread` is NOT launched to find out — launching
+    it is slow, it takes the instrument, and its usage text is what filled his
+    log.
+
+    **Three answers, not two.** None means this host could not be enumerated,
+    which is not the same as "nothing is attached" and must never be read as
+    it: an unknown may not contradict anything.
+    """
+    try:
+        from core.argyll_instruments import any_attached
+        return any_attached()
+    except Exception:      # noqa: BLE001 — a guess, never worth an error
+        log.debug("could not look for an ArgyllCMS instrument", exc_info=True)
+        return None
 
 
 def cr30_is_remembered_over_bluetooth() -> bool:
@@ -198,6 +243,15 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         #: on the instrument (`core.instrument_lease`).
         self._cr30_reader = None
         self._sound = None
+        #: The last automatic answer and the evidence behind it, so the label's
+        #: refresh can log a CHANGE and not repeat itself once a second.
+        self._auto_evidence: "tuple | None" = None
+        #: Keeps the "→ <reader>" label honest while a cable is plugged in or
+        #: pulled out under an open window. A bound method, never a lambda —
+        #: see CLAUDE.md on `ui/fade_scroll.py`.
+        self._auto_timer = QTimer(self)
+        self._auto_timer.setInterval(2000)
+        self._auto_timer.timeout.connect(self._refresh_auto_choice)
         self._readings: list[SpotReading] = []
         #: True between a misread and the next ready prompt. While set, Take
         #: reading clears the error before it reads (see _on_take_reading).
@@ -262,6 +316,22 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
             "Leave this on automatic unless you want to insist on one reader."))
         self._instrument.currentIndexChanged.connect(self._on_instrument_changed)
         controls.addWidget(self._instrument)
+
+        # WHAT AUTOMATIC SETTLED ON, SAID OUT LOUD. Half of the owner's report
+        # was *"did not leave me a choice"* — and there WAS a choice, one
+        # control to the left of this label, but nothing on screen said which
+        # reader "Detect automatically" had landed on or that it had landed on
+        # anything at all. A window that decides silently has not left anybody
+        # a choice, whatever its dropdown offers.
+        #
+        # No new sentence is invented here: the arrow points at one of this
+        # combo's OWN entries, already written and already translated. The
+        # decision is shown in the row that changes it, so changing it is one
+        # click and no hunting.
+        self._auto_choice = QLabel("", self)
+        self._auto_choice.setObjectName("spotAutoChoice")
+        set_ink(self._auto_choice, "#909090", level="dim")
+        controls.addWidget(self._auto_choice)
 
         controls.addWidget(QLabel(tr("Mode"), self))
         self._mode = NoScrollComboBox(self)
@@ -438,6 +508,19 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         m.inst_init_failed.connect(lambda s: self._on_init_failed(s))
         m.session_ended.connect(self._on_session_ended)
 
+        # Name the settled reader before the window is ever shown, so it is
+        # right in the first frame and in a `.grab()` that never shows it.
+        #
+        # …AND GREY WHAT THE REMEMBERED READER CANNOT DO. Found while
+        # photographing this row, 2026-09-03: `setCurrentIndex` above runs
+        # BEFORE `currentIndexChanged` is connected, so a window reopened with
+        # "CR30 (ChnSpec)" remembered came up offering Mode and Skip initial
+        # calibration — both ArgyllCMS's, both dead for a CR30, and both
+        # already refused for a CR30 chosen during the session. Same call, at
+        # the one moment nothing had made it.
+        self._apply_reader_capabilities()
+        self._refresh_auto_choice()
+
     # ------------------------------------------------------------------
     # Session lifecycle
     # ------------------------------------------------------------------
@@ -451,13 +534,64 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         """
         return self._cr30 if self._cr30 is not None else self._manager
 
+    def _automatic_reader(self) -> "tuple[str, bool | None, bool, bool]":
+        """What "Detect automatically" settles on, and the evidence it used.
+
+        **WHAT IS CONNECTED NOW BEATS WHAT WAS CONNECTED ONCE.** That is the
+        whole rule, and getting it wrong is what the owner reported on
+        2026-09-03: a `cr30_ble_address` stored at some point in the past made
+        automatic choose the CR30 for ever, on a Mac with a ColorMunki plugged
+        into it. A remembered address is the weakest evidence there is — it
+        says a CR30 answered here once, not that one is here now, and nothing
+        ever clears it.
+
+        The precedence, strongest first:
+
+        1. **A choice made by hand.** Not decided here at all; see
+           :meth:`_chosen_reader`. It always wins and it is remembered.
+        2. **An ArgyllCMS instrument attached now** (`argyll_is_attached`).
+        3. **A CR30 attached now** (`cr30_is_probably_attached`), or one this
+           machine has reached over Bluetooth before
+           (`cr30_is_remembered_over_bluetooth`).
+        4. Nothing at all: ArgyllCMS, which is what this window has always
+           done and what its "no instrument detected" ending is written for.
+
+        **WHY 2 BEATS 3 WHEN BOTH ARE LIVE**, which is a real decision and not
+        a fallout of the order:
+
+        * It is his stated requirement for the entire feature: *"supporting the
+          cr30 should not affect the other supported instruments so i should be
+          able to still use my colormunki for example."* A CR30 left plugged in
+          from yesterday must not take his ColorMunki away from him.
+        * ArgyllCMS was this window's only reader until the CR30 was added, so
+          this keeps automatic meaning what it has always meant for everybody
+          who is not deliberately reaching for the CR30.
+        * The evidence is not quite equal either. An ArgyllCMS match is a
+          vendor/product id that names an instrument. The CR30's is a CH340
+          bridge plus a history — true of an Arduino on a machine that has used
+          a CR30 before.
+        * It is cheap to be wrong in this direction and dear in the other: the
+          Instrument row NAMES the reader automatic settled on and changing it
+          is one click in that same row, and the choice is then remembered.
+
+        Neither 2 nor 3 opens a device, claims one, or starts a Bluetooth scan.
+
+        Returns ``(reader, argyll_attached, cr30_on_usb, cr30_over_bluetooth)``
+        so that the window can show its reasoning without asking twice.
+        """
+        argyll = argyll_is_attached()
+        on_usb = cr30_is_probably_attached()
+        over_bt = cr30_is_remembered_over_bluetooth()
+        if argyll is True:
+            chosen = "argyll"
+        elif on_usb or over_bt:
+            chosen = "cr30"
+        else:
+            chosen = "argyll"
+        return chosen, argyll, on_usb, over_bt
+
     def _chosen_reader(self) -> str:
         """"argyll" or "cr30" — which reader a Start would use, right now.
-
-        AUTOMATIC LOOKS AT BOTH TRANSPORTS. It used to look only for a CR30 on
-        USB, so a CR30 that lives on Bluetooth was invisible to it and the tool
-        silently ran spotread instead — see
-        :func:`cr30_is_remembered_over_bluetooth`.
 
         The decision is logged, because it was not. His log of the failed
         session (2026-09-02 23:29) records the spotread launch and nothing at
@@ -468,12 +602,10 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         if key != "auto":
             log.info("spot read: reader chosen by hand: %s", key)
             return key
-        on_usb = cr30_is_probably_attached()
-        over_bt = cr30_is_remembered_over_bluetooth()
-        chosen = "cr30" if (on_usb or over_bt) else "argyll"
-        log.info("spot read: Detect automatically -> %s "
-                 "(CR30 on USB now: %s; CR30 reached over Bluetooth before: %s)",
-                 chosen, on_usb, over_bt)
+        chosen, argyll, on_usb, over_bt = self._automatic_reader()
+        log.info("spot read: Detect automatically -> %s (ArgyllCMS instrument "
+                 "attached now: %s; CR30 on USB now: %s; CR30 reached over "
+                 "Bluetooth before: %s)", chosen, argyll, on_usb, over_bt)
         return chosen
 
     def _on_instrument_changed(self, _index: int) -> None:
@@ -492,11 +624,59 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         except Exception:      # noqa: BLE001 — remembering is never worth a crash
             log.debug("could not store the spot-read instrument", exc_info=True)
         self._apply_reader_capabilities()
+        self._refresh_auto_choice()
 
     def _apply_reader_capabilities(self) -> None:
         cr30 = _INSTRUMENT_KEYS[self._instrument.currentIndex()] == "cr30"
         self._mode.setEnabled(not cr30)
         self._skip_cal.setEnabled(not cr30)
+
+    # ------------------------------------------------------------------
+    # Saying which reader automatic settled on
+    # ------------------------------------------------------------------
+    def _refresh_auto_choice(self) -> None:
+        """Put the settled reader's own name beside the Instrument combo.
+
+        Only while the combo says "Detect automatically" — with a reader chosen
+        by hand the combo already names it, and an arrow repeating it would
+        read as a second, different answer.
+
+        Recomputed rather than remembered, because the answer changes when a
+        cable does. Both probes are OS device lists: 17 ms together on the
+        owner's Mac, nothing opened and nothing claimed.
+        """
+        if _INSTRUMENT_KEYS[self._instrument.currentIndex()] != "auto":
+            self._auto_choice.setText("")
+            self._auto_choice.setVisible(False)
+            return
+        if not self._instrument.isEnabled():
+            # A session owns the instrument. The reader is settled, the combo
+            # is greyed, and nothing may be asked of the device list under a
+            # running measurement.
+            return
+        chosen, argyll, on_usb, over_bt = self._automatic_reader()
+        label = _instrument_labels()[_INSTRUMENT_KEYS.index(chosen)]
+        self._auto_choice.setText(f"→ {label}")
+        self._auto_choice.setVisible(True)
+        if (chosen, argyll, on_usb, over_bt) != self._auto_evidence:
+            self._auto_evidence = (chosen, argyll, on_usb, over_bt)
+            log.info("spot read: automatic now points at %s (ArgyllCMS "
+                     "instrument attached now: %s; CR30 on USB now: %s; CR30 "
+                     "reached over Bluetooth before: %s)",
+                     chosen, argyll, on_usb, over_bt)
+
+    def showEvent(self, event) -> None:  # noqa: N802, D102
+        super().showEvent(event)
+        self._refresh_auto_choice()
+        # A window that names the reader has to keep naming the right one: he
+        # can plug the ColorMunki in while this is open, and a label that went
+        # stale would be worse than no label. Idle only — nothing is asked of
+        # the operating system while a session owns the instrument.
+        self._auto_timer.start()
+
+    def hideEvent(self, event) -> None:  # noqa: N802, D102
+        self._auto_timer.stop()
+        super().hideEvent(event)
 
     def _on_start_stop(self) -> None:
         active = self._active_manager()
@@ -714,6 +894,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         if not running:
             self._read_btn.setEnabled(False)
             self._apply_reader_capabilities()
+            self._refresh_auto_choice()
 
     def _on_session_ended(self, code: int) -> None:
         self._set_session_running(False)

@@ -216,6 +216,29 @@ def _repair_a_leaked_qmessagebox_exec():
 
 
 @pytest.fixture(autouse=True)
+def _no_real_usb_device_list(monkeypatch):
+    """NO TEST MAY DEPEND ON WHAT IS PLUGGED INTO THE MACHINE RUNNING IT.
+
+    `core.argyll_instruments.usb_devices()` reads the operating system's live
+    USB list, and the spot tool decides which reader to use from it. Left
+    unstubbed, "is an ArgyllCMS instrument attached?" would be answered by
+    whatever happens to be on the developer's desk: the same test would pass on
+    CI, fail on the owner's Mac with his ColorMunki plugged in, and nobody
+    would be able to tell which answer was the real one.
+
+    Same principle, and the same reason, as the sandboxed `QSettings` in
+    `pytest_configure`. A test that wants a device attached says so by
+    patching this itself.
+    """
+    try:
+        from core import argyll_instruments
+    except Exception:      # noqa: BLE001 — nothing to stub
+        return
+    monkeypatch.setattr(argyll_instruments, "usb_devices", lambda: (),
+                        raising=False)
+
+
+@pytest.fixture(autouse=True)
 def _no_real_editor_render(monkeypatch):
     try:
         from ui.dialogs.ti2_relayout_dialog import Ti2RelayoutDialog
