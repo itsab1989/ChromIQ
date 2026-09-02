@@ -313,14 +313,17 @@ class MastheadHeader(QWidget):
         btn_y = body_top + (body_bot - body_top - bh) // 2
         help_x = self.width() - self._help_btn.width() - 12
         # THE OWNER, 2026-09-02: *"in all colorschemes the tools and
-        # preferences button in the masthead should move 2px to the right."*
+        # preferences button in the masthead should move 2px to the right"*,
+        # then, having looked at that on screen, *"move them 2px more"*. So
+        # the value is 4, arrived at by eye in two steps - his eye is the
+        # instrument here, and it overrules any measurement of the gaps.
         # An optical correction, not a geometric one: the "?" is a drawn glyph
         # that sits inside its button with its own side bearing, while Tools
         # and Preferences are artwork that fills theirs, so a mathematically
         # equal 8 px gap does not look equal. It applies to those two buttons
         # only - the "?" keeps its 12 px from the window edge - and to every
         # appearance, because it is about the shapes and not the colours.
-        _OPTICAL_NUDGE = 2
+        _OPTICAL_NUDGE = 4
         self._help_btn.move(help_x, btn_y)
         self._btn.move(help_x - bw - 8 + _OPTICAL_NUDGE, btn_y)
         self._tools_btn.move(

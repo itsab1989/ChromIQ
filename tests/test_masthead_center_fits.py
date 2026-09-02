@@ -288,7 +288,9 @@ def test_the_comfortable_width_comes_back_when_there_is_room(qapp, tmp_path):
 
 def test_the_tools_and_preferences_buttons_carry_their_optical_nudge(qapp):
     """The owner, 2026-09-02: *"in all colorschemes the tools and preferences
-    button in the masthead should move 2px to the right."*
+    button in the masthead should move 2px to the right"*, then *"move them
+    2px more"* after seeing it - so the total is 4 px, judged by eye in two
+    steps.
 
     An optical correction: the "?" is a drawn glyph with its own side bearing
     inside its button, while Tools and Preferences are artwork that fills
@@ -311,12 +313,12 @@ def test_the_tools_and_preferences_buttons_carry_their_optical_nudge(qapp):
         bw = m._btn.width()
         # Preferences sits one button-width plus the 8 px gap left of "?",
         # then 2 px back to the right.
-        assert m._btn.x() == help_x - bw - 8 + 2, (
-            f"{mode}: Preferences is not carrying the 2 px nudge")
+        assert m._btn.x() == help_x - bw - 8 + 4, (
+            f"{mode}: Preferences is not carrying the 4 px nudge")
         # Tools keeps its own 8 px gap from Preferences, and the same nudge.
         assert m._tools_btn.x() == (
-            help_x - bw - 8 - m._tools_btn.width() - 8 + 2), (
-            f"{mode}: Tools is not carrying the 2 px nudge")
+            help_x - bw - 8 - m._tools_btn.width() - 8 + 4), (
+            f"{mode}: Tools is not carrying the 4 px nudge")
         # The "?" itself did NOT move: it keeps its 12 px from the edge.
         assert help_x == m.width() - m._help_btn.width() - 12, (
             f"{mode}: the help glyph moved, and it was not asked to")
