@@ -337,6 +337,14 @@ class MeasureManager(QObject):
         # True never navigates — it retries. skip_current_strip() branches on
         # it; see that docstring for Knut's log (#131, 2026-07-28).
         self._at_retry_prompt: bool = False
+        # True while the reader is blocked on its OWN "Done ? - At least one
+        # unread patch (…), Are you sure [y/n]" prompt, raised because the USER
+        # pressed 'd'. It is not a retry prompt and it is not the menu: the only
+        # key that saves from here is 'y', and every other key returns to the
+        # read loop having saved nothing. `send_save_partial_and_quit` has to
+        # know, because the sequence it would otherwise send waits for a prompt
+        # that has already been printed and will never be printed again.
+        self._at_unread_prompt: bool = False
         # Two-step state for "Save Partial & Quit" from the misread dialog:
         #   None             — idle
         self._save_partial_state: str | None = None
@@ -424,6 +432,7 @@ class MeasureManager(QObject):
         def _on_finish(code: int) -> None:
             self._pending_post_retry_key = None
             self._at_retry_prompt = False
+            self._at_unread_prompt = False
             self._save_partial_state = None
             was_engine = self._engine_active
             self._engine_active = False
@@ -786,11 +795,20 @@ class MeasureManager(QObject):
                 return
             log.warning("engine: no command mapping for key %r", key)
             return
+        self._at_unread_prompt = False       # see send_command
         self._runner.write_stdin(key)
 
     def send_command(self, cmd: dict) -> None:
         """Send a raw JSON command to the engine (engine mode only)."""
         import json as _json
+        # ONE CHARACTER ENDS THE UNREAD PROMPT, WHATEVER IT IS.
+        #
+        # The reader is blocked in a single `cq_wait_char` / `next_con_char`
+        # there, so the first thing sent — a navigation key the user typed, a
+        # goto, our own 'y' — is consumed by the prompt and the reader moves
+        # on. Clearing here (and in send_key, which routes through this on the
+        # engine) means the flag can never outlive the prompt it describes.
+        self._at_unread_prompt = False
         self._runner.write_stdin(_json.dumps(cmd) + "\n")
 
     def goto_strip(self, strip: str) -> None:
@@ -944,6 +962,38 @@ class MeasureManager(QObject):
         question: retry back to the menu, 'd', then 'y' to the "Are you sure"
         prompt. That is what is sent there instead, one prompt at a time.
         """
+        # ⚠ ANSWER THE PROMPT THAT IS OPEN, NOT THE ONE THIS CHAIN EXPECTS.
+        #
+        # Everything below assumes the reader is at a menu or a retry prompt,
+        # and works by sending a key that MAKES it ask the saving question. But
+        # one route arrives here with that question already on screen: the user
+        # pressed 'd' themselves, chartread printed "Done ? - At least one
+        # unread patch (…), Are you sure [y/n]" and is blocked on it, and the
+        # window that offers "Save and stop" is the one raised BY that prompt
+        # (`unread_confirm` → `TabMeasure._on_unread_confirm`). It exists only
+        # because the prompt is already open.
+        #
+        # From there the chains below are not merely wrong, they are silent:
+        # the reader takes one character, sees it is not 'y', and drops back
+        # into the read loop having saved nothing — no second prompt is ever
+        # printed, so the state waiting for one waits for ever. Measured on the
+        # real manager, review2/R6-workflow F7: 'd' left it in
+        # `wait_are_you_sure`, `{"cmd":"quit"}` in `wait_give_up_prompt`, and
+        # the 'y' that writes the file was never sent on either reader. The
+        # user met the same window twice and the first answer did nothing.
+        #
+        # 'y' is what writes the file here, on BOTH readers: stock chartread
+        # breaks out of the loop and exits 0 (chartread.c), and the helper does
+        # the same at chromiq_chartread.c:2153 (strip) and :3116 (patch), where
+        # {"cmd":"yes"} is the mapped command. Nothing further is waited for,
+        # because nothing further is printed.
+        if self._at_unread_prompt:
+            self._at_unread_prompt = False
+            self._save_partial_state = None
+            log.info("save-and-stop: the reader is at its own unread prompt; "
+                     "sending 'y', which is what writes the .ti3 there")
+            self.send_key("y")
+            return
         # ⚠ THE TWO-'q' PROTOCOL DOES NOT WORK UNDER -x.
         #
         # It waits for the give-up prompt, and that prompt lives inside the
@@ -1407,6 +1457,10 @@ class MeasureManager(QObject):
                 self.send_key("y")
                 return
             info = f"{ev.get('id', '?')}, {ev.get('loc', '?')}"
+            # The reader is now blocked on its own y/n and nothing else will be
+            # printed until it is answered. Whatever ends this session has to
+            # answer THIS prompt — see send_save_partial_and_quit.
+            self._at_unread_prompt = True
             self.unread_confirm.emit(info)
 
         elif kind == "strip_warning":
@@ -1706,6 +1760,9 @@ class MeasureManager(QObject):
                 self._save_partial_state = None
                 self.send_key("y")
             else:
+                # Blocked on the user's own y/n — see the engine branch and
+                # send_save_partial_and_quit.
+                self._at_unread_prompt = True
                 self.unread_confirm.emit(m.group(1).strip())
         elif (self._save_partial_state == "wait_are_you_sure"
                 and _ARE_YOU_SURE_RE.search(line)):

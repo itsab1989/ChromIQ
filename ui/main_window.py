@@ -2900,7 +2900,49 @@ class MainWindow(QMainWindow):
             log.debug("could not mark the quit", exc_info=True)
             return False
 
+    def _ask_before_quitting_on_a_measurement(self) -> bool:
+        """The quit goes through the one ending window. True = it may proceed.
+
+        `docs/design/measurement_exit_strategy.md`: *"Every way out of a
+        session goes through `_confirm_end_of_session` … A window that ends a
+        session any other way is a second exit, and that is the thing this
+        document exists to catch."* Quitting was a second exit and was in
+        neither of that document's tables — closing the window went straight to
+        `ArgyllRunner.cleanup()`, which kills the reader, and stock chartread
+        writes its `.ti3` only on a clean exit. An ordinary Cmd-Q four strips
+        into a chart destroyed all four, silently.
+
+        The tab owns the question, because it owns the session and the manager
+        that knows what has been read. Never raises: a fault in the guard must
+        not be able to trap the user in an app that will not close.
+        """
+        ask = getattr(getattr(self, "_tab_measure", None),
+                      "confirm_quit_during_measurement", None)
+        if not callable(ask):
+            return True
+        try:
+            return bool(ask())
+        except Exception:              # noqa: BLE001 — never trap the user
+            log.warning("the quit guard failed; closing anyway", exc_info=True)
+            return True
+
     def closeEvent(self, event) -> None:
+        # ASK FIRST, BEFORE ANYTHING HERE IS DONE OR UNDONE.
+        #
+        # Above hide(), above the settings writes, above cleanup(): the answer
+        # may be "keep measuring", and then nothing at all should have
+        # happened. `_closing` guards the re-entry that the nested event loops
+        # below make possible — the ending window runs an exec(), and the wait
+        # for the reader pumps events, so a second close can arrive while the
+        # first is still deciding.
+        if getattr(self, "_closing", False):
+            event.ignore()
+            return
+        self._closing = True
+        if not self._ask_before_quitting_on_a_measurement():
+            self._closing = False      # the user is still working
+            event.ignore()
+            return
         # §3 W6 — QUITTING COUNTS AS LEAVING THE VISIBLE TAB.
         #
         # Qt raises no tab-change for it, so without this the one tab the user
