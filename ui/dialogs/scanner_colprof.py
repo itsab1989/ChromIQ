@@ -19,9 +19,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from PyQt6.QtWidgets import (QCheckBox, QDialog, QDialogButtonBox, QGridLayout,
-                             QGroupBox, QHBoxLayout, QLabel, QLineEdit,
-                             QScrollArea, QVBoxLayout, QWidget)
+from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox,
+                             QGridLayout, QGroupBox, QHBoxLayout, QLabel,
+                             QLineEdit, QScrollArea, QVBoxLayout, QWidget)
 
 from core.i18n import tr
 from ui.styles import SPEC_GREEN
@@ -354,6 +354,23 @@ def make_profile_params(ti3, description: str, main_vals: dict[str, Any],
         verbose=True)
 
 
+def _cap_combo(combo: QComboBox, chars: int = 18) -> QComboBox:
+    """Stop an option combo asking for the width of its LONGEST entry.
+
+    These combos all take the stretch slot in their row, so at any real window
+    width they look exactly as they did; only the width the panel asks for
+    moves. The drop-down list still shows every name in full. It matters
+    because this panel lives inside the scanner window's fixed-width left
+    pane: "Map chart white to perfect white" is 410 px in Russian and 398 in
+    German, and that one entry made the pane grow by that much the moment
+    Advanced was opened.
+    """
+    combo.setSizeAdjustPolicy(
+        QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+    combo.setMinimumContentsLength(chars)
+    return combo
+
+
 def _green_tip(title: str, body: str, parent: QWidget, min_width: int = 460) -> TooltipButton:
     """A ⓘ button in the scanner window's green accent (Parameter/TooltipButton
     default to the app's magenta accent)."""
@@ -423,7 +440,7 @@ class ScannerAdvancedDialog(QDialog):
         bb.addButton(QDialogButtonBox.StandardButton.Cancel)
         bb.accepted.connect(self.accept)
         bb.rejected.connect(self.reject)
-        self._restore_btn.clicked.connect(self._restore_defaults)
+        self._restore_btn.clicked.connect(self.restore_defaults)
         outer.addWidget(bb)
 
     # ------------------------------------------------------------------ groups
@@ -466,6 +483,7 @@ class ScannerAdvancedDialog(QDialog):
             self._b2a_combo = NoScrollComboBox(grp)
             for data, lbl in B2A_CHOICES:
                 self._b2a_combo.addItem(lbl, data)
+            _cap_combo(self._b2a_combo)
             self._b2a_combo.setCurrentIndex(1)          # Medium
             self._b2a_combo.setEnabled(False)
             self._b2a_check.toggled.connect(self._b2a_combo.setEnabled)
@@ -484,7 +502,7 @@ class ScannerAdvancedDialog(QDialog):
 
         row = QHBoxLayout()
         row.addWidget(QLabel(tr("White point handling:"), grp))
-        self._wp_mode = NoScrollComboBox(grp)
+        self._wp_mode = _cap_combo(NoScrollComboBox(grp))
         for data, lbl in WP_MODE_CHOICES:
             self._wp_mode.addItem(lbl, data)
         row.addWidget(self._wp_mode, stretch=1)
@@ -520,7 +538,7 @@ class ScannerAdvancedDialog(QDialog):
 
         mode_row = QHBoxLayout()
         mode_row.addWidget(QLabel(tr("Gamut Source:"), grp))
-        self._gam_mode = NoScrollComboBox(grp)
+        self._gam_mode = _cap_combo(NoScrollComboBox(grp))
         for data, lbl in GAMUT_SOURCE_CHOICES:
             self._gam_mode.addItem(lbl, data)
         mode_row.addWidget(self._gam_mode, stretch=1)
@@ -561,7 +579,7 @@ class ScannerAdvancedDialog(QDialog):
                     tip_title: str, tip_body: str):
         row = QHBoxLayout()
         check = QCheckBox(label, grp)
-        combo = NoScrollComboBox(grp)
+        combo = _cap_combo(NoScrollComboBox(grp))
         for val, lbl in INTENT_CHOICES:
             combo.addItem(lbl, val)
         combo.setEnabled(False)
@@ -618,14 +636,20 @@ class ScannerAdvancedDialog(QDialog):
             ("-R", tr("Restrict white, black && primaries (-R)"),
              "Restrict White, Black & Primaries (-R)", _TIP_R),
         ]
+        # ONE COLUMN, not two across. Side by side this is the widest row in
+        # the whole panel in all twelve languages — 689 px in Russian, 688 in
+        # Italian, 673 in Polish, against 321 for the widest measurement row —
+        # and this panel sits inside the fixed-width left pane, so that row and
+        # nothing else set what the pane had to grow to when Advanced was
+        # opened. Stacked it is the width of one switch: 360 px at its worst.
+        # Five related switches as a list also read better than a 2 + 2 + 1
+        # block whose second column starts at a different place on every row.
         for i, (flag, label, tip_title, tip_body) in enumerate(specs):
             cb = QCheckBox(label, grp)
-            r, c = divmod(i, 2)
-            g.addWidget(cb, r, c * 3)
-            g.addWidget(_green_tip(tip_title, tip_body, grp), r, c * 3 + 1)
+            g.addWidget(cb, i, 0)
+            g.addWidget(_green_tip(tip_title, tip_body, grp), i, 1)
             self._flags[flag] = cb
         g.setColumnStretch(2, 1)
-        g.setColumnStretch(5, 1)
         layout.addWidget(grp)
 
     # -------------------------------------------------------------- behaviour
@@ -708,7 +732,8 @@ class ScannerAdvancedDialog(QDialog):
             combo.setCurrentIndex(i if i >= 0 else 0)
             check.setChecked(True)
 
-    def _restore_defaults(self) -> None:
+    def restore_defaults(self) -> None:
+        """Put every control back to its built-in default."""
         self._smooth.setValue(0.5)
         self._dark.setValue(1.0)
         if self._printer:
