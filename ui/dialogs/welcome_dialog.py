@@ -1492,7 +1492,8 @@ class WorkflowIcon(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
 
     def set_appearance(self, mode: str) -> None:
-        self._mode = "light" if mode == "light" else "dark"
+        from ui.theme import accept_mode
+        self._mode = accept_mode(mode)
         self.update()
 
     def _fg(self) -> QColor:
@@ -2111,7 +2112,8 @@ class WorkflowCard(QFrame):
                 + spacing + _wrapped_h(self._subtitle) + m.bottom() + 12)
 
     def set_appearance(self, mode: str) -> None:
-        self._mode = "light" if mode == "light" else "dark"
+        from ui.theme import accept_mode
+        self._mode = accept_mode(mode)
         self._icon.set_appearance(self._mode)
         self._apply_style()
 
@@ -2216,7 +2218,8 @@ class WelcomeDialog(QDialog):
     ) -> None:
         super().__init__(parent)
         self._settings = settings
-        self._mode = "light" if initial_mode == "light" else "dark"
+        from ui.theme import accept_mode
+        self._mode = accept_mode(initial_mode)
         self.setWindowTitle(tr("Welcome to ChromIQ"))
         self.setWindowFlags(
             self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint
@@ -2855,7 +2858,8 @@ class WelcomeDialog(QDialog):
     # ------------------------------------------------------------------
     def set_appearance(self, mode: str) -> None:
         """Re-tint dialog chrome + propagate to children."""
-        self._mode = "light" if mode == "light" else "dark"
+        from ui.theme import accept_mode
+        self._mode = accept_mode(mode)
         if self._mode == "light":
             dialog_bg = "#eeece8"     # match LM_BG_WINDOW
             sub_fg    = "#7a7570"

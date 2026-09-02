@@ -300,7 +300,8 @@ class MarginInspectorPanel(QGroupBox):
     # Public API
     # ------------------------------------------------------------------
     def set_appearance(self, mode: str) -> None:
-        self._mode = "light" if mode == "light" else "dark"
+        from ui.theme import accept_mode
+        self._mode = accept_mode(mode)
 
     def guides_enabled(self) -> bool:
         return self._guide_check.isChecked()

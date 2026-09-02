@@ -145,7 +145,8 @@ class ToolsPopup(QWidget):
 
     # ------------------------------------------------------------------
     def set_appearance(self, mode: str) -> None:
-        self._mode = "light" if mode == "light" else "dark"
+        from ui.theme import accept_mode
+        self._mode = accept_mode(mode)
         self._palette = _PALETTE_LIGHT if self._mode == "light" else _PALETTE_DARK
         self.update()
 

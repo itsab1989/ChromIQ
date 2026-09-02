@@ -387,7 +387,8 @@ class TabPrint(QWidget):
     # ------------------------------------------------------------------
     def set_appearance(self, mode: str) -> None:
         """Restyle the AirPrint info box when the theme changes."""
-        new_mode = "light" if mode == "light" else "dark"
+        from ui.theme import accept_mode
+        new_mode = accept_mode(mode)
         if new_mode == self._mode:
             return
         self._mode = new_mode

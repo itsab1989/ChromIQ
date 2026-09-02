@@ -48,7 +48,16 @@ class PatchCubePanel(QWidget):
     def __init__(self, *, mode: str = "dark", numbered: bool = False,
                  parent=None) -> None:
         super().__init__(parent)
-        self._theme = _THEME.get(mode, _THEME["dark"])
+        # THE APPEARANCE IS KEPT, AND THE COLOURS LOOKED UP FROM IT.
+        # `_THEME.get(mode, _THEME["dark"])` filed every unrecognised
+        # appearance under Dark and kept no record of what was asked for, so a
+        # third one arrived as a dark cube inside a light-grey dialog with
+        # nothing left to tell it apart from a genuine Dark. `_THEME` is one of
+        # the app's two-entry palette tables: a third appearance needs a third
+        # entry there, and nothing else in this file.
+        from ui.theme import APPEARANCE_DARK, accept_mode
+        self._mode = accept_mode(mode)
+        self._theme = _THEME.get(self._mode, _THEME[APPEARANCE_DARK])
         # Show each patch's number in the hover label (layout editor only, #67).
         self._numbered = numbered
         self._tmp = tempfile.TemporaryDirectory()
