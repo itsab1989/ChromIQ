@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import QApplication, QToolButton, QWidget
 
 from ui.styles import SPEC_MAGENTA
 from core.i18n import tr
+from ui import neutral_styles
 
 
 # Per-mode visual tokens — kept in step with ui.tools_popup so the two popups
@@ -44,6 +45,29 @@ _PALETTE_LIGHT = {
     "header_text":   "#9b958c",
     "hover_bg":      "#f0ece6",
     "shadow":        QColor(0, 0, 0, 30),
+}
+#: Neutral — kept in step with ui.tools_popup, as the two dark/light pairs
+#: already are. ``header_text`` is TERTIARY, not faint: at 8.83:1 it still
+#: reads, because an instrument label that works may not be faint.
+_PALETTE_NEUTRAL = {
+    "panel_bg":      neutral_styles.NM_BG_SURFACE,
+    "panel_border":  neutral_styles.NM_BORDER,
+    "text":          neutral_styles.NM_TEXT_MAIN,
+    "text_hover":    neutral_styles.NM_TEXT_MAIN,
+    "header_text":   neutral_styles.NM_TEXT_FAINT,
+    "hover_bg":      neutral_styles.NM_BG_WINDOW,
+    "shadow":        QColor(0, 0, 0, 30),
+}
+
+#: ``{appearance: palette}`` — a TABLE, not a ternary. ``_PALETTE_LIGHT if
+#: mode == "light" else _PALETTE_DARK`` had room for two answers and gave the
+#: dark one to everything else: the appearance name arrived intact (that was
+#: ``accept_mode``'s job, one layer up) and the COLOURS were still folded.
+#: Adding an appearance is adding a row.
+_PALETTES = {
+    "light":   _PALETTE_LIGHT,
+    "dark":    _PALETTE_DARK,
+    "neutral": _PALETTE_NEUTRAL,
 }
 
 
@@ -195,7 +219,7 @@ class BuiltinPresetPopup(QWidget):
     def set_appearance(self, mode: str) -> None:
         from ui.theme import accept_mode
         self._mode = accept_mode(mode)
-        self._palette = _PALETTE_LIGHT if self._mode == "light" else _PALETTE_DARK
+        self._palette = _PALETTES.get(self._mode, _PALETTE_DARK)
         self.update()
 
     # ------------------------------------------------------------------

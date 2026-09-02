@@ -25,12 +25,14 @@ from PyQt6.QtWidgets import QApplication, QGroupBox, QWidget
 
 import ui.theme as theme
 from ui.light_styles import make_light_palette
+from ui.neutral_styles import make_neutral_palette
 from ui.styles import make_dark_palette
-from ui.theme import (APPEARANCE_DARK, APPEARANCE_LIGHT, CONCRETE_APPEARANCES,
-                      active_mode)
+from ui.theme import (APPEARANCE_DARK, APPEARANCE_LIGHT, APPEARANCE_NEUTRAL,
+                      CONCRETE_APPEARANCES, active_mode)
 
 PALETTES = {APPEARANCE_LIGHT: make_light_palette,
-            APPEARANCE_DARK: make_dark_palette}
+            APPEARANCE_DARK: make_dark_palette,
+            APPEARANCE_NEUTRAL: make_neutral_palette}
 
 
 @pytest.fixture
@@ -53,7 +55,8 @@ def wear(app, mode: str) -> None:
     app.setPalette(PALETTES[mode]())
 
 
-@pytest.fixture(params=[APPEARANCE_LIGHT, APPEARANCE_DARK])
+@pytest.fixture(params=[APPEARANCE_LIGHT, APPEARANCE_DARK,
+                        APPEARANCE_NEUTRAL])
 def mode(request, app):
     wear(app, request.param)
     return request.param
@@ -104,30 +107,37 @@ NEUTRAL_TEXT_MAIN = "#101010"
 NEUTRAL_BG_PANEL = "#EBEBEB"    # L* 93 — the value that started this
 
 
-def test_a_third_appearance_is_one_row_and_it_is_not_read_as_light(app):
-    """Register Neutral's fingerprint and nothing else. ``active_mode`` must
-    return it — while every threshold the seven sites used says "light"."""
-    pal = QPalette()
-    pal.setColor(QPalette.ColorRole.Window, QColor(NEUTRAL_BG_WINDOW))
-    pal.setColor(QPalette.ColorRole.WindowText, QColor(NEUTRAL_TEXT_MAIN))
+def test_the_third_appearance_is_one_row_and_it_is_not_read_as_light(app):
+    """Neutral SHIPS now, and its row is what keeps it out of Light's answer.
+
+    This test used to register the fingerprint itself, because the theme did
+    not exist. It now takes the real palette and proves the same thing twice
+    over: every lightness threshold the seven sites ever used calls this
+    palette "light", and ``active_mode`` does not.
+    """
+    pal = make_neutral_palette()
+    window = pal.color(QPalette.ColorRole.Window)
+    text = pal.color(QPalette.ColorRole.WindowText)
+    assert window.name() == NEUTRAL_BG_WINDOW.lower()
+    assert text.name() == NEUTRAL_TEXT_MAIN.lower()
 
     # What the old code would have said, at all three thresholds:
-    assert QColor(NEUTRAL_BG_WINDOW).lightness() > 150
+    assert window.lightness() > 150
     assert not QColor(NEUTRAL_BG_PANEL).lightness() < 128
-    assert not QColor(NEUTRAL_TEXT_MAIN).lightness() > 127
-    assert active_mode(pal) == APPEARANCE_LIGHT      # before registering it
+    assert not text.lightness() > 127
 
-    theme._FINGERPRINTS["neutral"] = {
-        QPalette.ColorRole.Window:     NEUTRAL_BG_WINDOW,
-        QPalette.ColorRole.WindowText: NEUTRAL_TEXT_MAIN,
-    }
+    assert active_mode(pal) == APPEARANCE_NEUTRAL
+
+    # …and it is the ROW that does it. Take the row away and the app is back to
+    # calling a light-grey theme "light".
+    row = theme._FINGERPRINTS.pop(APPEARANCE_NEUTRAL)
     theme._rebuild_fingerprint_index()
     try:
-        assert active_mode(pal) == "neutral"
+        assert active_mode(pal) == APPEARANCE_LIGHT
     finally:
-        del theme._FINGERPRINTS["neutral"]
+        theme._FINGERPRINTS[APPEARANCE_NEUTRAL] = row
         theme._rebuild_fingerprint_index()
-    assert active_mode(pal) == APPEARANCE_LIGHT      # and cleanly undone
+    assert active_mode(pal) == APPEARANCE_NEUTRAL
 
 
 # ------------------------------------------- the seven, proven to go through

@@ -17,18 +17,30 @@ from PyQt6.QtCore import QEvent, QObject, Qt
 from PyQt6.QtGui import QColor, QLinearGradient, QPainter, QPaintEvent
 from PyQt6.QtWidgets import QAbstractScrollArea, QScrollArea, QWidget
 
+from ui import neutral_styles
 
-# Per-surface (dark, light) backdrop colours.
-_SURFACES: dict[str, tuple[str, str]] = {
+
+# Per-surface backdrop colours, keyed by appearance.
+#
+# THIS WAS A (dark, light) PAIR unpacked as `dark, light = _SURFACES[...]` and
+# picked with `light if self._mode == "light" else dark`. A tuple of two has
+# room for two answers, so a third appearance faded a light-grey panel to
+# #181818 — a black band across the top and bottom of every scroll area in the
+# app. A mapping per appearance has no such ceiling.
+_SURFACES: dict[str, dict[str, str]] = {
     # Tab pane / generic content area. Light mode targets the window tint
     # (#eeece8) — the same colour as the welcome dialog's fade, which reads
     # seamless. Fading to a brighter surface tint left a faint band at the
-    # fade edge in tabs that wrap group-box content.
-    "panel":   ("#181818", "#eeece8"),
+    # fade edge in tabs that wrap group-box content. Neutral fades to its own
+    # panel value, which IS the pane colour, so there is no band to avoid.
+    "panel":   {"dark": "#181818", "light": "#eeece8",
+                "neutral": neutral_styles.NM_BG_PANEL},
     # QDialog body — matches WelcomeDialog / SettingsDialog backgrounds
-    "dialog":  ("#181818", "#eeece8"),
+    "dialog":  {"dark": "#181818", "light": "#eeece8",
+                "neutral": neutral_styles.NM_BG_WINDOW},
     # GroupBox / surface tint
-    "surface": ("#181818", "#f7f4ef"),
+    "surface": {"dark": "#181818", "light": "#f7f4ef",
+                "neutral": neutral_styles.NM_BG_SURFACE},
 }
 
 
@@ -98,8 +110,8 @@ class FadeScrollArea(QScrollArea):
     def _refresh_color(self) -> None:
         if self._surface is None:
             return  # explicit colour pinned via set_fade_color
-        dark, light = _SURFACES[self._surface]
-        color = light if self._mode == "light" else dark
+        surfaces = _SURFACES[self._surface]
+        color = surfaces.get(self._mode, surfaces["dark"])
         self._top_fade.set_color(color)
         self._bot_fade.set_color(color)
 
@@ -155,8 +167,8 @@ class EdgeFades(QObject):
         self._refresh_color()
 
     def _refresh_color(self) -> None:
-        dark, light = _SURFACES[self._surface]
-        color = light if self._mode == "light" else dark
+        surfaces = _SURFACES[self._surface]
+        color = surfaces.get(self._mode, surfaces["dark"])
         self._top.set_color(color)
         self._bot.set_color(color)
 

@@ -1360,15 +1360,22 @@ class SettingsDialog(QDialog):
         self._appearance_combo.addItem(tr("System (Auto)"), "auto")
         self._appearance_combo.addItem(tr("Light"),        "light")
         self._appearance_combo.addItem(tr("Dark"),         "dark")
+        # APPENDED, not inserted. The combo stores its setting as item DATA, so
+        # the order is free — but the three that shipped keep their positions,
+        # because a user reaching for the second entry should still find Light.
+        self._appearance_combo.addItem(tr("Neutral"),      "neutral")
         self._appearance_combo.setMinimumWidth(180)
         self._appearance_combo.currentIndexChanged.connect(self._on_appearance_preview)
         appearance_tip = TooltipButton(
             tr("Appearance"),
-            tr("Switches the entire app between light and dark visuals.\n\n"
+            tr("Switches the entire app between its visual themes.\n\n"
             "  • System (Auto) — follow your macOS Appearance setting and "
             "react if you change it while ChromIQ is running.\n"
             "  • Light — force the light theme even if your system is dark.\n"
-            "  • Dark  — force the dark theme even if your system is light.\n\n"
+            "  • Dark  — force the dark theme even if your system is light.\n"
+            "  • Neutral — a light grey workspace with no colour in it, so "
+            "nothing around a preview or a gamut view tints your judgement of "
+            "it. System (Auto) never chooses this one; ask for it here.\n\n"
             "Changes preview instantly. Click OK to keep them, or Cancel to revert."),
             self,
             min_width=520,

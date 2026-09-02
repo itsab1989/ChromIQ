@@ -17,7 +17,7 @@ from PyQt6.QtGui import QPainter
 from PyQt6.QtWidgets import QApplication, QSplashScreen, QWidget
 
 # Reuse the masthead's single source of truth for colours + wordmark styling.
-from ui.masthead_header import _ACCENT, _PALETTE_DARK, _PALETTE_LIGHT, _STOPS
+from ui.masthead_header import _ACCENT, _PALETTE_DARK, _PALETTES, _STOPS
 
 _W, _H = 640, 400          # logical size (points); rendered at device pixel ratio
 _WORDMARK_PX = 118
@@ -36,8 +36,20 @@ def _wordmark_fonts() -> tuple[QFont, QFont]:
 
 
 def make_splash_pixmap(mode: str, version: str = "") -> QPixmap:
-    """Render the splash for *mode* ('light' | 'dark') at the screen's DPR."""
-    pal = _PALETTE_LIGHT if mode == "light" else _PALETTE_DARK
+    """Render the splash for *mode* at the screen's DPR.
+
+    *mode* is a concrete appearance — 'light', 'dark' or 'neutral'. It used to
+    be folded, ``_PALETTE_LIGHT if mode == "light" else _PALETTE_DARK``, which
+    would have opened a light-grey session on a near-black splash.
+
+    THE WORDMARK'S ACCENT COMES FROM THE PALETTE, not from a module constant.
+    ``_ACCENT`` (magenta) painted "IQ" in every appearance; on a light ground
+    it measures 2.55:1, so it was not carrying the mark there at all. Neutral
+    sets "Chrom" in TEXT_FAINT and "IQ" in TEXT_MAIN — the italic already
+    separates them, and that is a larger contrast step than the magenta was
+    providing. Light and Dark still name the magenta, so they are unchanged.
+    """
+    pal = _PALETTES.get(mode, _PALETTE_DARK)
     screen = QApplication.primaryScreen()
     dpr = float(screen.devicePixelRatio()) if screen is not None else 1.0
 
@@ -59,7 +71,7 @@ def make_splash_pixmap(mode: str, version: str = "") -> QPixmap:
     x0 = (_W - total_w) / 2.0
     p.setFont(reg); p.setPen(QColor(pal["wordmark"]))
     p.drawText(int(x0), int(baseline), "Chrom")
-    p.setFont(ital); p.setPen(QColor(_ACCENT))
+    p.setFont(ital); p.setPen(QColor(pal.get("wordmark_accent", _ACCENT)))
     p.drawText(int(x0 + chrom_w - 1), int(baseline), "IQ")
 
     # Full-width spectrum bar (5 solid segments, no gaps) clearing the Q tail.
@@ -259,7 +271,7 @@ class ClassicSplash(_YieldsToModals, QSplashScreen):
 
 
 def make_splash(mode: str, version: str = "", plain: bool = True):
-    """A ready-to-show splash for *mode*.
+    """A ready-to-show splash for *mode* — 'light', 'dark' or 'neutral'.
 
     *plain* uses :class:`PlainSplash` (default); False returns
     :class:`ClassicSplash` — Qt's ``QSplashScreen`` — kept as the escape hatch

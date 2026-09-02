@@ -30,6 +30,7 @@ from PyQt6.QtWidgets import QLabel, QVBoxLayout, QWidget
 from core.logger import get_logger
 from core.resource_path import resource_path
 from core.webengine_shutdown import drain_web_view
+from ui import neutral_styles
 from workflow import patch_cube
 from core.i18n import tr
 
@@ -39,6 +40,13 @@ log = get_logger(__name__)
 _THEME = {
     "dark":  {"bg": "#111111", "fg": "#cccccc", "grid": "#444444"},
     "light": {"bg": "#efebe6", "fg": "#3a352f", "grid": "#c7c2bb"},
+    # Neutral. The CUBE'S OWN COLOURS ARE UNTOUCHED — the patches are the data
+    # and this theme has no jurisdiction over them (the handoff's "what must
+    # not change" list). Only the page's chrome moves: the well it sits in,
+    # its labels and its grid.
+    "neutral": {"bg": neutral_styles.NM_BG_VIEWER,
+                "fg": neutral_styles.NM_TEXT_MAIN,
+                "grid": neutral_styles.NM_BORDER},
 }
 
 
