@@ -345,3 +345,70 @@ def test_sanitise_still_cannot_produce_a_metacharacter():
     for ch in "*?[]":
         assert ch not in FileManager._sanitise(f"a{ch}b"), ch
     assert FileManager._sanitise("Chart [v2]") == "Chart-_v2"
+
+
+# ---------------------------------------------------------------------------
+# The two lookups the behavioural half missed
+#
+# A challenge agent re-broke `Run.verify_chart_tiffs` SEVEN ways that the ast
+# guard cannot see - a pattern in a local variable, `.format`, `%`, `+`,
+# `"".join`, and `Path.glob`, which the guard does not look at - and all 29
+# tests stayed green while the method adopted a stranger's page. The static
+# guard only sees f-strings, so the behavioural tests are what actually
+# protect these; `verify_chart_tiffs` and `Calibration.chart_tiffs` had none.
+# ---------------------------------------------------------------------------
+
+def _verify_chart(root: Path, stem: str, pages: int = 2) -> Run:
+    """A run holding a VERIFICATION chart under *stem*."""
+    run_dir = root / "runs" / "run1"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    run = Run.for_dir(run_dir)
+    vdir = run.verifications_dir
+    vdir.mkdir(parents=True, exist_ok=True)
+    for i in range(1, pages + 1):
+        (vdir / f"{run.verify_stem}_{i:02d}.tif").write_text("x", encoding="utf-8")
+    return run
+
+
+@pytest.mark.parametrize("stem", METACHAR_NAMES)
+def test_a_metacharacter_name_still_finds_its_verification_pages(tmp_path, stem):
+    run = _verify_chart(tmp_path / stem, stem)
+    found = [p.name for p in run.verify_chart_tiffs()]
+    assert len(found) == 2, found
+
+
+def test_a_verification_chart_does_not_adopt_a_strangers_page(tmp_path):
+    """The destructive half: whatever prints or ARCHIVES that list then
+    handles a page belonging to a project with a different name."""
+    run = _verify_chart(tmp_path / "Chart*A", "Chart*A")
+    stranger = run.verifications_dir / run.verify_stem.replace("*", "X")
+    (Path(str(stranger) + "_01.tif")).write_text("x", encoding="utf-8")
+    found = [p.name for p in run.verify_chart_tiffs()]
+    assert len(found) == 2, found
+    assert not any("ChartXA" in n for n in found), found
+
+
+@pytest.mark.parametrize("stem", METACHAR_NAMES)
+def test_a_metacharacter_name_still_finds_its_calibration_pages(tmp_path, stem):
+    from core.file_manager import Calibration
+    root = tmp_path / stem
+    (root / "cal").mkdir(parents=True)
+    cal = Calibration(root)               # the project root, as the app does
+    cal_dir = cal.dir
+    for i in range(1, 3):
+        (cal_dir / f"{cal.stem}_{i:02d}.tif").write_text("x", encoding="utf-8")
+    found = [p.name for p in cal.chart_tiffs()]
+    assert len(found) == 2, found
+
+
+def test_a_calibration_does_not_adopt_a_strangers_page(tmp_path):
+    from core.file_manager import Calibration
+    root = tmp_path / "Chart*A"
+    (root / "cal").mkdir(parents=True)
+    cal = Calibration(root)
+    cal_dir = cal.dir
+    for i in range(1, 3):
+        (cal_dir / f"{cal.stem}_{i:02d}.tif").write_text("x", encoding="utf-8")
+    (cal_dir / f"{cal.stem.replace('*', 'X')}_01.tif").write_text("x", encoding="utf-8")
+    found = [p.name for p in cal.chart_tiffs()]
+    assert len(found) == 2, found
