@@ -85,7 +85,8 @@ class FadeScrollArea(QScrollArea):
 
     def set_appearance(self, mode: str) -> None:
         """Picked up automatically by MainWindow.apply_theme()'s broadcast."""
-        self._mode = "light" if mode == "light" else "dark"
+        from ui.theme import accept_mode
+        self._mode = accept_mode(mode)
         self._refresh_color()
 
     def set_fade_color(self, color: str) -> None:
@@ -149,7 +150,8 @@ class EdgeFades(QObject):
         self._refresh()
 
     def set_appearance(self, mode: str) -> None:
-        self._mode = "light" if mode == "light" else "dark"
+        from ui.theme import accept_mode
+        self._mode = accept_mode(mode)
         self._refresh_color()
 
     def _refresh_color(self) -> None:

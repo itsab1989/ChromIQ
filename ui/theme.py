@@ -66,6 +66,22 @@ _FINGERPRINTS: "dict[str, dict[QPalette.ColorRole, str]]" = {
 _FINGERPRINT_ROLES = (QPalette.ColorRole.Window, QPalette.ColorRole.WindowText)
 
 
+#: Whether each concrete appearance paints a DARK ground. DECLARED, not
+#: measured — the same principle as :data:`_FINGERPRINTS`, and it needs the
+#: same one-line edit per appearance.
+#:
+#: A handful of sites genuinely have only two answers to give, because
+#: something outside ChromIQ offers only two: macOS's native title bar has
+#: ``NSAppearanceNameAqua`` and ``NSAppearanceNameDarkAqua`` and no third.
+#: Those sites ask :func:`has_dark_ground` — which KIND of appearance is this —
+#: instead of testing the name against ``"light"``, which a light-grey third
+#: appearance would fail while needing the light answer.
+_DARK_GROUND: "dict[str, bool]" = {
+    APPEARANCE_LIGHT: False,
+    APPEARANCE_DARK:  True,
+}
+
+
 #: ``{role: {rgb: mode}}`` — :data:`_FINGERPRINTS` inverted for lookup. Built
 #: once at import because the table is static; call
 #: :func:`_rebuild_fingerprint_index` after adding a row to it.
@@ -146,6 +162,56 @@ def is_dark(palette: "QPalette | None" = None) -> bool:
 def is_light(palette: "QPalette | None" = None) -> bool:
     """``active_mode(...) == 'light'``. See :func:`is_dark`."""
     return active_mode(palette) == APPEARANCE_LIGHT
+
+
+def accept_mode(mode: str, default: str = APPEARANCE_DARK) -> str:
+    """Keep the appearance a component was handed — whole.
+
+    THE ONE PLACE A BROADCAST APPEARANCE IS ADMITTED. Sixteen components used
+    to open with ``self._mode = "light" if mode == "light" else "dark"``. That
+    reads like validation and is not: it is a *fold*. It has room for two
+    answers and quietly files everything else under Dark, so an appearance
+    :func:`apply_appearance` broadcast correctly to all twenty-one
+    ``set_appearance`` implementations would have been thrown away by sixteen
+    of them — a light-grey window with a dark masthead, a dark tab bar, a dark
+    tool popup and a dark TIFF preview.
+
+    The defensive purpose is kept and the ceiling is not: any appearance listed
+    in :data:`CONCRETE_APPEARANCES` survives, anything else becomes ``default``.
+    **Adding a third appearance is adding it to that tuple** — the same shape
+    as adding a row to :data:`_FINGERPRINTS`, and nothing downstream of the
+    door needs to learn its name to carry it.
+
+    With today's two appearances this is exactly what the fold did:
+    ``'light'`` → ``'light'``, ``'dark'`` → ``'dark'``, and anything else
+    (``'auto'``, ``''``, ``None``, a typo) → ``'dark'``.
+
+    This says nothing about what a component should then PAINT. A component
+    that still picks its colours with ``X if self._mode == "light" else Y``
+    will paint a third appearance in Y — but it now knows which appearance it
+    is in, which is the difference between a value that can be added and one
+    that was destroyed on arrival.
+    """
+    return mode if mode in CONCRETE_APPEARANCES else default
+
+
+def has_dark_ground(mode: str) -> bool:
+    """Does this named appearance paint a dark ground?
+
+    For the few sites whose answer really is binary because something outside
+    ChromIQ offers only two — see :data:`_DARK_GROUND`. Such a site must not
+    ask ``mode == "light"``: a light-grey third appearance is not called
+    "light", would take the dark branch, and would put a black native title bar
+    over a light-grey window.
+
+    Takes a mode NAME, not a palette: the caller already has the appearance it
+    was handed, and may be acting on it before it is on screen.
+    :func:`is_dark` is the palette-side sibling.
+
+    An appearance not in the table is treated as dark — the historical default,
+    and what every caller did with an unrecognised value before.
+    """
+    return _DARK_GROUND.get(mode, True)
 
 
 def resolve_mode(setting: str) -> str:

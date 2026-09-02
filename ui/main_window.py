@@ -839,7 +839,13 @@ class MainWindow(QMainWindow):
         # heavy Create Chart tree) without any visual change. ACCENT + the tooltip
         # re-tint below still run every call: ACCENT is a class-global new dialogs
         # read, and the loop covers any tooltip button added since (Knut/perf).
-        _mode = "light" if is_light else "dark"
+        # KEYED ON THE APPEARANCE, NOT ON `is_light`. The boolean has two
+        # values and the app is growing a third appearance: two appearances
+        # that both answer `is_light == False` would share one cache entry, and
+        # switching between them would be a HIT — skipping the very re-style a
+        # theme switch exists to perform.
+        from ui.theme import APPEARANCE_DARK, accept_mode
+        _mode = accept_mode(getattr(self, "_title_bar_mode", APPEARANCE_DARK))
         if self._styled_tab_theme.get(index) != _mode:
             tab_w.setStyleSheet(_sheet)
             self._styled_tab_theme[index] = _mode
@@ -2544,7 +2550,15 @@ class MainWindow(QMainWindow):
         from PyQt6.QtWidgets import QApplication
         if QApplication.platformName() != "cocoa":
             return
-        ns_name = b"NSAppearanceNameAqua" if mode == "light" else b"NSAppearanceNameDarkAqua"
+        # ONE OF THE FEW GENUINELY TWO-ANSWER SITES: macOS ships
+        # NSAppearanceNameAqua and NSAppearanceNameDarkAqua and no third, so
+        # this cannot carry an appearance the way a repaint can. It must still
+        # not ask `mode == "light"` — an appearance that is light-grey is not
+        # named "light", would take the else branch, and would hang a black
+        # title bar over a light window. Ask which KIND of ground it paints.
+        from ui.theme import has_dark_ground
+        ns_name = (b"NSAppearanceNameDarkAqua" if has_dark_ground(mode)
+                   else b"NSAppearanceNameAqua")
         try:
             import ctypes, ctypes.util
             objc = ctypes.cdll.LoadLibrary(ctypes.util.find_library("objc"))
