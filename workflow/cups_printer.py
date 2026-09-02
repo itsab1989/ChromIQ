@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Callable
 
 from core.logger import get_logger
+from core.proc_text import decode_output
 from workflow.postscript_generator import PdfGenerator, PostScriptGenerator
 from workflow.ppd_color import vendor_no_cm_settings_for_queue
 
@@ -284,12 +285,12 @@ class CupsRawPrinter:
         """Run lp, return (returncode, stderr_text)."""
         try:
             result = subprocess.run(cmd, capture_output=True, timeout=30, stdin=subprocess.DEVNULL)
-            stderr = result.stderr.decode("utf-8", errors="replace")
+            stderr = decode_output(result.stderr, what="lp")
             if result.returncode != 0:
                 log.error("lp failed (code %d): %s", result.returncode, stderr)
             else:
                 log.info("lp submitted (stdout: %s)",
-                         result.stdout.decode("utf-8", errors="replace").strip())
+                         decode_output(result.stdout, what="lp").strip())
             return result.returncode, stderr
         except subprocess.TimeoutExpired:
             log.error("lp timed out")

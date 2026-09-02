@@ -37,6 +37,8 @@ import numpy as np
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from core.proc_text import run_text
 Image.MAX_IMAGE_PIXELS = None
 
 from workflow.cht_parser import parse_cht                       # noqa: E402
@@ -53,9 +55,9 @@ SAMPLE_FRAC = 0.5
 
 def _scanin_transform(tif: Path, cht: Path, ref: Path):
     """(irot, xoff, yoff, xscale, yscale) for the rotation scanin chose."""
-    r = subprocess.run([str(ARGYLL / "scanin"), "-v", "-dipn",
-                        tif.name, str(cht), str(ref)],
-                       capture_output=True, text=True, cwd=tif.parent)
+    r = run_text([str(ARGYLL / "scanin"), "-v", "-dipn",
+                  tif.name, str(cht), str(ref)],
+                 capture_output=True, cwd=tif.parent)
     txt = r.stdout + r.stderr
     m = re.search(r"Chosen rotation ([-\d.]+) deg", txt)
     if not m:

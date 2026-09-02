@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from core.logger import get_logger
+from core.proc_text import run_text
 from core.resource_path import argyll_binary
 from core.text_io import read_text
 
@@ -143,7 +144,7 @@ def merge_preconditioning(
     average = _resolve_average(bin_dir)
     cmd = [average, "-m", str(fresh_ti3), str(pre_data), str(out_ti3)]
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, stdin=subprocess.DEVNULL)
+        proc = run_text(cmd, capture_output=True, stdin=subprocess.DEVNULL)
     except OSError as exc:
         raise Ti3MergeError(
             f"Could not run ArgyllCMS 'average' to merge the data: {exc}\n\n"
@@ -208,7 +209,7 @@ def merge_measurements(
     average = _resolve_average(bin_dir)
     cmd = [average, "-m", *(str(p) for p in inputs), str(out_ti3)]
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, stdin=subprocess.DEVNULL)
+        proc = run_text(cmd, capture_output=True, stdin=subprocess.DEVNULL)
     except OSError as exc:
         raise Ti3MergeError(
             f"Could not run ArgyllCMS 'average' to merge the data: {exc}"

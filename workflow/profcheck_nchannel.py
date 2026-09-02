@@ -24,6 +24,7 @@ from pathlib import Path
 import numpy as np
 
 from core.logger import get_logger
+from core.proc_text import run_text
 from core.text_io import read_text
 
 log = get_logger(__name__)
@@ -117,8 +118,8 @@ def _icclu_forward(icc: Path, bin_dir: Path, device01: np.ndarray,
         raise NChannelCheckError("icclu not found")
     ic = {"a": "-ia", "r": "-ir", "p": "-ip", "s": "-is"}.get(intent, "-ir")
     inp = "\n".join(" ".join(f"{v:.8f}" for v in row) for row in device01)
-    r = subprocess.run([str(icclu), "-ff", ic, "-pl", str(icc)],
-                       input=inp + "\n", capture_output=True, text=True)
+    r = run_text([str(icclu), "-ff", ic, "-pl", str(icc)],
+                 input=inp + "\n", capture_output=True)
     num = re.compile(r"-?\d+\.\d+")
     out = []
     for ln in r.stdout.splitlines():
@@ -258,7 +259,7 @@ def _recompute_spectral_xyz(ti3_path: Path, bin_dir: Path, *, illum: str,
         if observer and observer != "1931_2":
             args += ["-o", observer]
         args += [str(rel), str(out)]
-        r = subprocess.run(args, capture_output=True, text=True)
+        r = run_text(args, capture_output=True)
         if r.returncode != 0 or not out.exists():
             raise NChannelCheckError(
                 f"spec2cie failed: {(r.stderr or r.stdout).strip()[:160]}")

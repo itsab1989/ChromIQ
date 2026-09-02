@@ -54,6 +54,7 @@ from PyQt6.QtGui import QFontDatabase
 from PyQt6.QtWidgets import QApplication
 import PyQt6.QtWebEngineWidgets  # noqa: F401  (must precede QApplication)
 
+from core.proc_text import run_text
 from core.resource_path import resource_path
 from core.settings import AppSettings
 from ui.styles import WinButtonLayoutStyle
@@ -317,9 +318,8 @@ def _make_a_matching_measurement(stem) -> bool:
         return False
     fakeread = shutil.which("fakeread") or "/Applications/Argyll/bin/fakeread"
     try:
-        r = subprocess.run([fakeread, str(icc), str(stem)],
-                           cwd=str(stem.parent), capture_output=True,
-                           text=True, timeout=300)
+        r = run_text([fakeread, str(icc), str(stem)],
+                     cwd=str(stem.parent), capture_output=True, timeout=300)
     except Exception as e:      # noqa: BLE001 — a shot is not worth a crash
         log(f"  fakeread failed: {e}")
         return False

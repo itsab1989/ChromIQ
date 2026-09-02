@@ -35,6 +35,7 @@ from pathlib import Path
 import numpy as np
 
 from core.logger import get_logger
+from core.proc_text import run_text
 from core.strip_utils import letter_to_idx, parse_passes_per_page
 from core.text_io import read_text
 
@@ -709,9 +710,9 @@ def seed_from_targen(
     args += (extra_args or [])
     with tempfile.TemporaryDirectory() as tmp:
         work = Path(tmp)
-        r = subprocess.run([str(targen), *args, "seed"], cwd=str(work),
-                           capture_output=True, text=True, timeout=120,
-                           stdin=subprocess.DEVNULL)
+        r = run_text([str(targen), *args, "seed"], cwd=str(work),
+                     capture_output=True, timeout=120,
+                     stdin=subprocess.DEVNULL)
         if r.returncode != 0:
             raise RuntimeError(f"targen failed ({r.returncode}): {r.stderr.strip()}")
         from workflow.layout_engine.ti1_reader import read_ti1 as _read_ti1
@@ -1001,8 +1002,8 @@ def regenerate(
                   spacer_palette=_BW_TWIN_PALETTE if bw else spacer_palette)
         flags = (geometry_args + ["-b"]) if bw else deliverable_args
         args = [str(printtarg), *base_args, *flags, basename]
-        r = subprocess.run(args, cwd=str(work), capture_output=True,
-                           text=True, timeout=300, stdin=subprocess.DEVNULL)
+        r = run_text(args, cwd=str(work), capture_output=True,
+                     timeout=300, stdin=subprocess.DEVNULL)
         if r.returncode != 0:
             raise RuntimeError(f"printtarg failed ({r.returncode}): {r.stderr.strip()}")
         return sorted({*work.glob(f"{basename}*.tif"), *work.glob(f"{basename}*.tiff")})

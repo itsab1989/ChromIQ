@@ -39,6 +39,7 @@ from pathlib import Path
 from typing import Callable, Sequence
 
 from core.logger import get_logger
+from core.proc_text import run_text
 from core.resource_path import argyll_binary
 
 log = get_logger(__name__)
@@ -74,8 +75,8 @@ def _run_xicclu(
         raise XiccluError(f"xicclu not found in {bin_dir}")
     cmd = [str(exe), *args, str(profile)]
     try:
-        r = runner(cmd, input="\n".join(input_lines) + "\n",
-                   capture_output=True, text=True, timeout=_TIMEOUT_S)
+        r = run_text(cmd, runner=runner, input="\n".join(input_lines) + "\n",
+                     capture_output=True, timeout=_TIMEOUT_S)
     except subprocess.TimeoutExpired as exc:
         raise XiccluError(f"xicclu timed out after {_TIMEOUT_S}s") from exc
     if r.returncode != 0 and "can't handle di" in (r.stderr or r.stdout):
@@ -130,8 +131,8 @@ def _run_icclu_fallback(
     log.info("xicclu can't invert >4-channel profile — using icclu fallback")
     cmd = [str(exe), *keep, str(profile)]
     try:
-        r = runner(cmd, input="\n".join(input_lines) + "\n",
-                   capture_output=True, text=True, timeout=_TIMEOUT_S)
+        r = run_text(cmd, runner=runner, input="\n".join(input_lines) + "\n",
+                     capture_output=True, timeout=_TIMEOUT_S)
     except subprocess.TimeoutExpired as exc:
         raise XiccluError(f"icclu timed out after {_TIMEOUT_S}s") from exc
     if r.returncode != 0:

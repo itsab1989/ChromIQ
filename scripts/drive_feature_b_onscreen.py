@@ -39,6 +39,7 @@ from PyQt6.QtCore import QSettings                          # noqa: E402
 from PyQt6.QtGui import QFontDatabase                       # noqa: E402
 from PyQt6.QtWidgets import QApplication                    # noqa: E402
 
+from core.proc_text import run_text
 from core.resource_path import resource_path                # noqa: E402
 
 FAILURES: list[str] = []
@@ -181,10 +182,10 @@ def main() -> int:
     v = run.new_verification()
     v.ensure_dir()
     ti3 = v.measurement_ti3
-    r = subprocess.run(
+    r = run_text(
         [str(ARGYLL / "fakeread"), str(run.built_profile_icc()),
          str(ti2.with_suffix(""))],
-        cwd=str(ti2.parent), capture_output=True, text=True, timeout=120)
+        cwd=str(ti2.parent), capture_output=True, timeout=120)
     made = ti2.with_suffix(".ti3")
     check("fakeread produced a measurement",
           r.returncode == 0 and made.exists(),

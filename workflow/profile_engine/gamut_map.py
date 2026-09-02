@@ -41,6 +41,7 @@ from workflow.profile_engine import b2a as b2a_mod
 from workflow.profile_engine import icc_writer as icw
 from workflow.profile_engine.forward_model import ForwardModel
 from workflow.profile_engine.ti3_data import Ti3Measurement, xyz_to_lab
+from core.proc_text import run_text
 
 # Bradford D65→D50 adaptation (both analytic sources are D65-white).
 _MB = np.array([[0.8951, 0.2664, -0.1614],
@@ -572,7 +573,7 @@ def fit_colprof_mappers(meas: Ti3Measurement, source_gamut: Path | str,
             args.append(f"-f{settings.fwa_illum}" if settings.fwa_illum
                         else "-f")
         args += _k_args(settings)
-        r = subprocess.run(args + [str(base)], capture_output=True, text=True)
+        r = run_text(args + [str(base)], capture_output=True)
         icc = base.with_suffix(".icc")
         if r.returncode != 0 or not icc.exists():
             raise OracleUnavailable(
@@ -590,14 +591,12 @@ def fit_colprof_mappers(meas: Ti3Measurement, source_gamut: Path | str,
 
         def realized(intent: str) -> np.ndarray:
             inp = "\n".join(f"{a:.4f} {b:.4f} {c:.4f}" for a, b, c in train)
-            r1 = subprocess.run([str(xicclu), "-fb", f"-i{intent}", "-pl",
-                                 str(icc)], input=inp, capture_output=True,
-                                text=True)
+            r1 = run_text([str(xicclu), "-fb", f"-i{intent}", "-pl",
+                           str(icc)], input=inp, capture_output=True)
             dev = [" ".join(ln.rsplit("->", 1)[1].split()[:meas.n_channels])
                    for ln in r1.stdout.splitlines() if "->" in ln]
-            r2 = subprocess.run([str(xicclu), "-ff", "-ir", "-pl", str(icc)],
-                                input="\n".join(dev), capture_output=True,
-                                text=True)
+            r2 = run_text([str(xicclu), "-ff", "-ir", "-pl", str(icc)],
+                          input="\n".join(dev), capture_output=True)
             out = np.array([[float(v) for v in
                              ln.rsplit("->", 1)[1].split()[:3]]
                             for ln in r2.stdout.splitlines() if "->" in ln])
@@ -629,12 +628,12 @@ def _realized_at(xicclu: Path, icc: Path, lab: np.ndarray, intent: str,
                  n_channels: int) -> np.ndarray:
     import subprocess
     inp = "\n".join(f"{a:.4f} {b:.4f} {c:.4f}" for a, b, c in lab)
-    r1 = subprocess.run([str(xicclu), "-fb", f"-i{intent}", "-pl", str(icc)],
-                        input=inp, capture_output=True, text=True)
+    r1 = run_text([str(xicclu), "-fb", f"-i{intent}", "-pl", str(icc)],
+                  input=inp, capture_output=True)
     dev = [" ".join(ln.rsplit("->", 1)[1].split()[:n_channels])
            for ln in r1.stdout.splitlines() if "->" in ln]
-    r2 = subprocess.run([str(xicclu), "-ff", "-ir", "-pl", str(icc)],
-                        input="\n".join(dev), capture_output=True, text=True)
+    r2 = run_text([str(xicclu), "-ff", "-ir", "-pl", str(icc)],
+                  input="\n".join(dev), capture_output=True)
     out = np.array([[float(v) for v in ln.rsplit("->", 1)[1].split()[:3]]
                     for ln in r2.stdout.splitlines() if "->" in ln])
     if len(out) != len(lab):
@@ -754,9 +753,9 @@ def fit_multiink_anchor(model: ForwardModel, meas: Ti3Measurement,
                          + " ".join(f"{v:.4f}" for v in x))
         lines.append("END_DATA")
         base.with_suffix(".ti3").write_text("\n".join(lines), encoding="utf-8")
-        r = subprocess.run([str(colprof), "-qm", "-S", str(source_gamut),
-                            *_k_args(settings), str(base)],
-                           capture_output=True, text=True)
+        r = run_text([str(colprof), "-qm", "-S", str(source_gamut),
+                      *_k_args(settings), str(base)],
+                     capture_output=True)
         icc = base.with_suffix(".icc")
         if r.returncode != 0 or not icc.exists():
             raise OracleUnavailable(
@@ -765,13 +764,13 @@ def fit_multiink_anchor(model: ForwardModel, meas: Ti3Measurement,
         # Neutral rendering table: realized perceptual along the L axis.
         ls = np.linspace(0.0, 100.0, 41)
         inp = "\n".join(f"{v:.3f} 0 0" for v in ls)
-        r1 = subprocess.run([str(xicclu), "-fb", "-ip", "-pl", str(icc)],
-                            input=inp, capture_output=True, text=True)
+        r1 = run_text([str(xicclu), "-fb", "-ip", "-pl", str(icc)],
+                      input=inp, capture_output=True)
         dev4 = [ln.rsplit("->", 1)[1].split()[:4]
                 for ln in r1.stdout.splitlines() if "->" in ln]
-        r2 = subprocess.run([str(xicclu), "-ff", "-ir", "-pl", str(icc)],
-                            input="\n".join(" ".join(d) for d in dev4),
-                            capture_output=True, text=True)
+        r2 = run_text([str(xicclu), "-ff", "-ir", "-pl", str(icc)],
+                      input="\n".join(" ".join(d) for d in dev4),
+                      capture_output=True)
         neutral = np.array([[float(v) for v in ln.rsplit("->", 1)[1]
                              .split()[:3]]
                             for ln in r2.stdout.splitlines() if "->" in ln])

@@ -33,6 +33,7 @@ from workflow.profile_engine.gammap_port.cusps import cusps_from_cloud
 from workflow.profile_engine.gammap_port.gamio import read_gam
 from workflow.profile_engine.gammap_port.gammap import GammapMapper
 from workflow.profile_engine.gammap_port.gamutsurf import CENT
+from core.proc_text import run_text
 
 
 class PortUnavailable(RuntimeError):
@@ -64,9 +65,9 @@ def source_gam_jab(source_profile: Path | str, bin_dir: Path,
     with tempfile.TemporaryDirectory() as td:
         work = Path(td) / ("src" + src.suffix)
         shutil.copy(src, work)
-        r = subprocess.run([str(iccgamut), "-ff", "-ir", "-pj",
-                            f"-d{detail:g}", work.name],
-                           capture_output=True, text=True, cwd=td)
+        r = run_text([str(iccgamut), "-ff", "-ir", "-pj",
+                      f"-d{detail:g}", work.name],
+                     capture_output=True, cwd=td)
         gam = work.with_suffix(".gam")
         if r.returncode != 0 or not gam.exists():
             raise PortUnavailable(
@@ -98,9 +99,9 @@ def dest_gam_jab(model, paper_xyz: np.ndarray, bin_dir: Path,
         work = Path(td) / "dest.icc"
         icw.write_profile(work, spec, {"A2B0": a2b, "A2B1": "A2B0",
                                        "A2B2": "A2B0"})
-        r = subprocess.run([str(iccgamut), "-ff", "-ir", "-pj",
-                            f"-d{detail:g}", work.name],
-                           capture_output=True, text=True, cwd=td)
+        r = run_text([str(iccgamut), "-ff", "-ir", "-pj",
+                      f"-d{detail:g}", work.name],
+                     capture_output=True, cwd=td)
         gam = work.with_suffix(".gam")
         if r.returncode != 0 or not gam.exists():
             raise PortUnavailable(
@@ -219,9 +220,9 @@ def _iccgamut_to(path: Path, work_icc: Path, bin_dir: Path,
     iccgamut = bin_dir / "iccgamut"
     if not iccgamut.exists():
         raise PortUnavailable("iccgamut not found")
-    r = subprocess.run([str(iccgamut), "-ff", "-ir", "-pj",
-                        f"-d{detail:g}", work_icc.name],
-                       capture_output=True, text=True, cwd=work_icc.parent)
+    r = run_text([str(iccgamut), "-ff", "-ir", "-pj",
+                  f"-d{detail:g}", work_icc.name],
+                 capture_output=True, cwd=work_icc.parent)
     gam = work_icc.with_suffix(".gam")
     if r.returncode != 0 or not gam.exists():
         raise PortUnavailable(

@@ -35,6 +35,7 @@ from pathlib import Path
 from typing import Callable, Sequence
 
 from core.logger import get_logger
+from core.proc_text import run_text
 from core.resource_path import argyll_binary
 
 log = get_logger(__name__)
@@ -156,8 +157,8 @@ def convert_pages_through_profile(
                                        out_path, intent=letter)]
         log.info("verification print conversion: %s", " ".join(cmd))
         try:
-            r = runner(cmd, capture_output=True, text=True,
-                       timeout=_TIMEOUT_S)
+            r = run_text(cmd, runner=runner, capture_output=True,
+                         timeout=_TIMEOUT_S)
         except subprocess.TimeoutExpired as exc:
             raise VerificationPrintError(
                 "M-CM-CONVERT-FAILED",

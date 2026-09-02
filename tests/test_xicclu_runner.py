@@ -57,7 +57,9 @@ def test_backward_parses_device_and_scales(tmp_path):
     # Flags: backward, relative intent, Lab in, default -kr; device 0..1 on stdin.
     cmd = fake.calls[0]["cmd"]
     assert {"-fb", "-ir", "-pl", "-kr"} <= set(cmd)
-    assert fake.calls[0]["input"].startswith("50.000000 40.000000 30.000000")
+    # bytes on the wire, encoded as UTF-8 by `core.proc_text.run_text` —
+    # named, rather than whatever the platform would have picked (#178).
+    assert fake.calls[0]["input"].startswith(b"50.000000 40.000000 30.000000")
 
 
 def test_backward_strips_tac_token_and_passes_limit(tmp_path):
@@ -97,7 +99,7 @@ def test_forward_xyz_keeps_pX_scale_and_sends_unit_device(tmp_path):
     out = X.forward_xyz([(50.0, 40.0, 30.0, 10.0)], profile, tmp_path, runner=fake)
     assert out == [pytest.approx((19.3315, 20.2141, 19.0836), abs=1e-3)]
     # 0..100 input was scaled to 0..1 on the wire.
-    assert fake.calls[0]["input"].startswith("0.500000 0.400000 0.300000 0.100000")
+    assert fake.calls[0]["input"].startswith(b"0.500000 0.400000 0.300000 0.100000")
     assert {"-ff", "-ir", "-pX"} <= set(fake.calls[0]["cmd"])
 
 

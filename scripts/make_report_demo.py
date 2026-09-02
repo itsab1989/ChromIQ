@@ -37,6 +37,8 @@ from pathlib import Path
 _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE.parent))
 
+from core.proc_text import run_text
+
 ARGYLL = Path("/Applications/Argyll/bin")
 SRGB = Path("/Applications/Argyll/ref/sRGB.icm")
 NAME = "Demo-Report-Matrix"
@@ -62,8 +64,8 @@ V12 2026-08-10_110000  profile rebuilt after printing         record: through/ch
 
 
 def run(cmd, cwd, timeout=300):
-    r = subprocess.run([str(c) for c in cmd], cwd=str(cwd),
-                       capture_output=True, text=True, timeout=timeout)
+    r = run_text([str(c) for c in cmd], cwd=str(cwd),
+                 capture_output=True, timeout=timeout)
     if r.returncode != 0:
         raise SystemExit(f"{cmd[0]} failed:\n{r.stdout}\n{r.stderr}")
     return r
@@ -160,9 +162,8 @@ def main(argv=None) -> int:
     print("== run1: profiling chart, measurement, profile (all real Argyll)")
     make_chart(run1.dir, stem, 210)
     fakeread(run1.dir, stem, SRGB, noise=0.3)
-    r = subprocess.run([str(ARGYLL / "colprof"), "-v", "-ql", "-aG", stem],
-                       cwd=str(run1.dir), capture_output=True, text=True,
-                       timeout=600)
+    r = run_text([str(ARGYLL / "colprof"), "-v", "-ql", "-aG", stem],
+                 cwd=str(run1.dir), capture_output=True, timeout=600)
     if r.returncode != 0:
         raise SystemExit(f"colprof failed:\n{r.stdout}\n{r.stderr}")
     icc = run1.built_profile_icc()
