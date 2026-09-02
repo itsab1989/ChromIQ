@@ -291,3 +291,52 @@ def test_the_repair_runs_only_after_a_successful_colprof(tmp_path):
     assert calls == [], "a failed build must not be post-processed"
     builder._runner.on_finish(0)
     assert calls == [params]
+
+
+def test_a_failed_name_fix_never_costs_the_profile(tmp_path, monkeypatch):
+    """The rewrite is atomic, because the thing being rewritten is the
+    deliverable.
+
+    `write_bytes` truncates and then fills, so a crash, a power cut or a full
+    disk between those two moments left a truncated ICC — somebody's finished
+    profile destroyed by a change that only fixes how its name is spelled.
+    Nothing the user made is ever destroyed (principle 4), and a cosmetic fix
+    is the last thing allowed to break that.
+    """
+    from pathlib import Path
+    from unittest import mock
+
+    from workflow import profile_builder
+
+    icc = tmp_path / "Müller-Prüfdruck.icc"
+    original = b"ORIGINAL-PROFILE-BYTES" * 40
+    icc.write_bytes(original)
+
+    class _Params:
+        description = "Müller-Prüfdruck"
+        model = None
+        manufacturer = None
+        ti3_path = tmp_path / "x.ti3"
+
+    b = profile_builder.ProfileBuilder.__new__(profile_builder.ProfileBuilder)
+    b.expected_icc_path = lambda params: icc
+
+    # A REAL INTERRUPTED WRITE, not a call that fails before it starts. The
+    # first version of this test raised from `write_bytes` immediately, so the
+    # file was never touched and it passed just as happily with the
+    # non-atomic version put back — a test that could not fail. This one
+    # truncates first, exactly as `write_bytes` does, and then dies.
+    real_write = Path.write_bytes
+
+    def _dies_half_way(self, data):
+        real_write(self, b"")                  # truncate, as write_bytes does
+        raise OSError("disk full")
+
+    with mock.patch.object(profile_builder.icc_text, "repair_descriptions",
+                           return_value=b"NEW"), \
+            mock.patch.object(Path, "write_bytes", _dies_half_way):
+        b._restore_accents(_Params())          # must not raise
+
+    assert icc.read_bytes() == original, "the profile was damaged by a failed fix"
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["Müller-Prüfdruck.icc"], \
+        "a temp file was left beside the profile"

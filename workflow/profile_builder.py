@@ -1,6 +1,8 @@
 """Orchestrates colprof for ICC profile creation and installation."""
 from __future__ import annotations
 
+import os
+
 import re
 import shlex
 import shutil
@@ -242,7 +244,24 @@ class ProfileBuilder:
             data = path.read_bytes()
             repaired = icc_text.repair_descriptions(data, names)
             if repaired != data:
-                path.write_bytes(repaired)
+                # WRITTEN BESIDE IT, THEN SWAPPED IN. `write_bytes` truncates
+                # the file and then fills it, so a crash, a power cut or a full
+                # disk between those two moments leaves the person with a
+                # truncated ICC — their finished profile, destroyed by a change
+                # that only fixes how its NAME is spelled. `os.replace` is
+                # atomic on POSIX and on Windows: either the old file or the
+                # new one is there, never half of either. The temp file is a
+                # sibling so the replace cannot cross a filesystem boundary,
+                # and it is removed if anything goes wrong.
+                tmp = path.with_name(path.name + ".name-fix")
+                try:
+                    tmp.write_bytes(repaired)
+                    os.replace(tmp, path)
+                finally:
+                    try:
+                        tmp.unlink()
+                    except OSError:
+                        pass          # already replaced, which is the good case
                 log.info("Restored non-ASCII profile name in %s", path.name)
         except Exception:                     # noqa: BLE001 — cosmetic only
             log.warning("Could not restore the profile's accented name",
