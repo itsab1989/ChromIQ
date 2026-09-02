@@ -1914,36 +1914,49 @@ class Project:
         # even when the project NAME happens to end in a pattern tail (a
         # project called "X-sample" owns a chart "X-sample.cht" that would
         # otherwise match the cache pattern).
+        #
+        # NFC ON BOTH SIDES, for the same reason `rename` and `files_matching`
+        # compare that way: `stem` is the FOLDER's spelling and `f.name` is the
+        # FILE's, and a project whose chart came off a Mac OS Extended volume
+        # has them spelled differently. Compared raw, `_protected` did not
+        # recognise its own chart — so a project called "Müller-diag" had its
+        # single page bitmap "Müller-diag.tif" swept into `cache/`, the one
+        # folder the guide tells the user is always safe to delete. Measured;
+        # tests/test_migration_protects_an_accented_chart.py.
         def _protected(name: str, chain_stem: str) -> bool:
             return re.fullmatch(
-                rf"{re.escape(chain_stem)}(_\d+)?\.[\w.]+", name) is not None
+                rf"{re.escape(nfc(chain_stem))}(_\d+)?\.[\w.]+",
+                nfc(name)) is not None
 
+        stem_nfc = nfc(stem)
         for rd in sorted(run_dirs):
             if not rd.is_dir():
                 continue
             for f in sorted(rd.iterdir()):
                 if not f.is_file() or _protected(f.name, stem):
                     continue
-                if any(rx.match(f.name) for rx in self._MIG_REPORTS):
+                name_nfc = nfc(f.name)
+                if any(rx.match(name_nfc) for rx in self._MIG_REPORTS):
                     self._migrate_move(f, rd / REPORTS_DIRNAME)
-                elif f.name in (f"{stem}-colours.txt",
-                                f"{stem}-i1profiler.txt",
-                                f"{stem}-i1profiler.pxf"):
+                elif name_nfc in (f"{stem_nfc}-colours.txt",
+                                  f"{stem_nfc}-i1profiler.txt",
+                                  f"{stem_nfc}-i1profiler.pxf"):
                     self._migrate_move(f, rd / EXPORTS_DIRNAME)
-                elif any(rx.match(f.name) for rx in self._MIG_CACHE):
+                elif any(rx.match(name_nfc) for rx in self._MIG_CACHE):
                     self._migrate_move(f, rd / CACHE_DIRNAME)
 
         cal_dir = self.calibration.dir
-        cal_stem = self.calibration.stem
+        cal_stem = nfc(self.calibration.stem)
         if cal_dir.is_dir():
             for f in sorted(cal_dir.iterdir()):
                 if not f.is_file() or _protected(f.name, cal_stem):
                     continue
-                if f.name in (f"{cal_stem}-colours.txt",
-                              f"{cal_stem}-i1profiler.txt",
-                              f"{cal_stem}-i1profiler.pxf"):
+                name_nfc = nfc(f.name)
+                if name_nfc in (f"{cal_stem}-colours.txt",
+                                f"{cal_stem}-i1profiler.txt",
+                                f"{cal_stem}-i1profiler.pxf"):
                     self._migrate_move(f, cal_dir / EXPORTS_DIRNAME)
-                elif any(rx.match(f.name) for rx in self._MIG_CACHE):
+                elif any(rx.match(name_nfc) for rx in self._MIG_CACHE):
                     self._migrate_move(f, cal_dir / CACHE_DIRNAME)
 
         self._manifest.schema_version = SCHEMA_VERSION
