@@ -260,10 +260,27 @@ def test_the_catalogue_is_actually_translated_into_german():
 # round. Every other language names it differently (Neutro, Neutre, Nøytral,
 # ニュートラル, 中性色, …), so no other count moves. The tooltip that lists the
 # four appearances is translated in all twelve and is not identical anywhere.
+# 2026-09-02, +8 for the eleven and +1 for German: the calibration-replacement
+# wording Basti approved that day, after his option-3 ruling made the old
+# sentence false. Eight keys, and only ONE of them moves German — "{folder}",
+# which is a bare placeholder and is the same in every language. German carries
+# a real translation of the other seven, which is why its SUBSTANTIAL count
+# (the other budget, in test_help_cards_untranslated_are_tracked.py) does not
+# move at all.
+#
+# THE ELEVEN DELIBERATELY DID NOT CARRY THEIR OLD TRANSLATIONS ACROSS, and that
+# is the whole reason this rises by eight rather than by two. Five of the eight
+# keys are rewordings of keys that already had translations — but they were
+# reworded because the ruling made what they said UNTRUE ("moves the one you
+# have" became "moves the calibration you have measured"). Carrying the old
+# text across would have left eleven languages quietly asserting the thing the
+# whole exercise existed to stop asserting, which is worse than English. The
+# two keys that changed by PUNCTUATION only (an em dash became a comma) were
+# carried, and cost nothing here.
 _IDENTICAL_TO_KEY = {
-    "de": 150,
-    "es": 262, "fr": 282, "it": 274, "ja": 251, "nl": 291,
-    "no": 275, "pl": 266, "pt": 266, "ru": 238, "sv": 279, "zh_CN": 244,
+    "de": 151,
+    "es": 270, "fr": 290, "it": 282, "ja": 259, "nl": 299,
+    "no": 283, "pl": 274, "pt": 274, "ru": 246, "sv": 287, "zh_CN": 252,
 }
 
 

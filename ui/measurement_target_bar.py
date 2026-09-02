@@ -485,9 +485,9 @@ class MeasurementTargetController(QObject):
             return False, tr(
                 "A project has exactly one calibration, and it is replaced "
                 "rather than deleted: making a new calibration chart moves the "
-                "one you have into the project's “cal/old” folder, named with "
-                "the date, so you can always go back to it. Switch “Run type” "
-                "to Profiling to delete a run.")
+                "calibration you have measured into the project's "
+                "“cal/old” folder, named with the date, so you can always go "
+                "back to it. Switch “Run type” to Profiling to delete a run.")
         from core.run_delete import block_tooltip, tooltip_for
         plan = self.delete_plan()
         if isinstance(plan, str):

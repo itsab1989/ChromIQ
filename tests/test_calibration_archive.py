@@ -13,11 +13,17 @@ one runs have always followed:
 > similar to how it is done for a run."*
 
 So the measurement, the ``.cal`` and any profile built from them are archived —
-they cannot be regenerated — while the chart files are simply replaced by the
-generation that is about to run, exactly as
-:meth:`Run.reset_chart_artefacts` treats a run's chart. Sweeping the chart in
-too left a dated folder holding a ``.ti1``/``.ti2`` that reads like a kept
-calibration and is not one.
+they cannot be regenerated. What happens to the CHART depends on whether
+anything was measured (the owner's ruling, 2026-09-02, option 3):
+
+* nothing measured — the chart is an experiment. It is set aside for the length
+  of the build and dropped when a replacement exists, exactly as
+  :meth:`Run.reset_chart_artefacts` treats a run's chart, and no dated folder is
+  made at all.
+* measured — the chart travels into ``<archive>/chart/``, one level below the
+  results, so the dated folder's own listing still holds only what cannot be
+  regenerated. Sweeping it into the top level left a dated folder holding a bare
+  ``.ti1``/``.ti2`` that reads like a kept calibration and is not one.
 """
 from __future__ import annotations
 
@@ -51,14 +57,49 @@ def test_what_cannot_be_regenerated_is_archived(cal):
     )
 
 
-def test_the_chart_is_replaced_rather_than_archived(cal):
-    """Knut's beta.148 rule. A chart is about to be rebuilt, so keeping the old
-    one in a dated folder invites it to be mistaken for a kept calibration."""
+def test_the_chart_is_not_loose_in_the_dated_folder(cal):
+    """Knut's beta.148 listing rule, and NOTHING MORE THAN THAT.
+
+    THIS TEST USED TO BE CALLED `test_the_chart_is_replaced_rather_than_archived`
+    AND ITS NAME WAS A LIE. Its assertion was scoped to the archive's top level;
+    `fe92ed1f` moved the chart to `<archive>/chart/`, so it went on passing while
+    the chart was kept in the dated folder — the exact thing its docstring said
+    must not happen. Found by the adversarial round, 2026-09-02.
+
+    What it can honestly guard is the listing clause: the dated folder's own
+    contents are what cannot be regenerated. Whether keeping the chart one level
+    down still answers K6's second clause ("The chart is replaced, as a run's
+    is") is an open question for the owner, and a test must not pretend to have
+    settled it. The unmeasured half of that question IS settled — see
+    `test_an_unmeasured_chart_really_is_replaced_as_a_runs_is` below."""
     cal.reset()
     archive = next(iter(cal.old_dir.iterdir()))
     for name in (f"{cal.stem}.ti1", f"{cal.stem}.ti2"):
-        assert not (archive / name).exists(), f"{name} should not be archived"
+        assert not (archive / name).exists(), f"{name} should not be loose"
         assert not (cal.dir / name).exists(), f"{name} should be cleared"
+    assert (archive / "chart" / f"{cal.stem}.ti2").is_file(), (
+        "the chart is somewhere this test does not look — say where, or the "
+        "assertions above guard nothing")
+
+
+def test_an_unmeasured_chart_really_is_replaced_as_a_runs_is(tmp_path):
+    """K6's second clause, made true for the case the owner ruled on
+    (2026-09-02, option 3). A chart with nothing measured is set aside for the
+    length of the build and dropped when it finishes — no dated folder at all,
+    which is exactly what `Run.reset_chart_artefacts(stash=True)` does."""
+    root = tmp_path / "Unmeasured"
+    root.mkdir()
+    c = Calibration(root)
+    c.ensure_dir()
+    for name in (f"{c.stem}.ti1", f"{c.stem}.ti2"):
+        (c.dir / name).write_text(name, encoding="utf-8")
+
+    got = c.reset(stash=True)
+    assert got.archive is None and got.stash is not None
+    c.settle_chart_stash(got.stash, built=True)
+
+    assert not c.old_dir.exists(), "an experiment left a dated folder behind"
+    assert c.live_files() == []
 
 
 def test_the_folder_is_cleared_for_the_new_chart(cal):
@@ -122,4 +163,12 @@ def test_the_chart_creator_no_longer_wipes_the_folder():
     assert "rmtree" not in src or "calibration" not in src.split("rmtree")[0][-200:]
     cal_src = inspect.getsource(Calibration.reset)
     assert "rmtree(self.dir" not in cal_src, "cal/ is being deleted wholesale"
-    assert "archive_to_old" in cal_src
+    # `archive_to_old` moved one level down into `_archive_without_raising`,
+    # which is the ONLY thing reset() may reach it through — a bare call would
+    # put a PermissionError back into a Qt slot.
+    assert "_archive_without_raising" in cal_src
+    assert "archive_to_old" in inspect.getsource(
+        Calibration._archive_without_raising)
+    assert "archive_to_old" not in cal_src, (
+        "reset() calls archive_to_old directly again, so a read-only cal/ "
+        "raises out of the Qt slot that generates the chart")

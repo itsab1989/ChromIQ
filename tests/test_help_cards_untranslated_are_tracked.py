@@ -125,10 +125,24 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # (docs/design/import_doors_amendment.md), which adds the two window
 # bodies that explain filing versus checking in place. German carries
 # both; the other eleven hold the English under the beta rule.
+# 2026-09-02, raised 128 -> 135 for the eleven; German does not move.
+# Basti's option-3 ruling made the calibration-replacement window's promise
+# false, and he approved its replacement wording the same day. Seven
+# substantial strings: the two window bodies, the log line that finally names
+# where an archive went, the file guide's "cal/old" entry, the Delete tooltip,
+# the welcome card's calibration paragraph, and one that is NOT from this work
+# at all -- `M_CHART_CORRUPT_WITH_PROFILE`, which is handed to tr() at two call
+# sites and had no key in any language, because `scripts/i18n_extract.py`
+# resolved module constants from a hand-kept list of names and nobody had added
+# it. That list is now a sweep of the module, so the next one cannot be missed.
+#
+# German carries all seven and its own count is 31 against a budget of 35.
+# 135 is the highest ACTUAL count across the eleven (fr), not a round ceiling,
+# following the note above about uniform ceilings hiding real figures.
 _BUDGET = {
     "de": 35,
-    "es": 128, "fr": 128, "it": 128, "ja": 128, "nl": 128,
-    "no": 128, "pl": 128, "pt": 128, "ru": 128, "sv": 128, "zh_CN": 128,
+    "es": 135, "fr": 135, "it": 135, "ja": 135, "nl": 135,
+    "no": 135, "pl": 135, "pt": 135, "ru": 135, "sv": 135, "zh_CN": 135,
 }
 
 

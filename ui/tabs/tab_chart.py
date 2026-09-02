@@ -15949,14 +15949,61 @@ class TabChart(QWidget):
                         exc_info=True)
             self._preview.clear()
 
+    def _calibration_replace_message(self, proj, measured: bool):
+        """M-CAL-REPLACE-CHART / M-CAL-REPLACE-MEASURED, from the catalogue.
+
+        Returns ``(window title, bold first line, body)``. Three strings rather
+        than the usual two because these two windows carry a window title AND a
+        bold opening line, which is one more than :class:`Message` holds; the
+        opening line is a module constant beside its message, so every sentence
+        either window can show is still written down in one reviewable place.
+
+        WHICH WINDOW IS DECIDED BY ``Calibration.exists()`` — a ``.ti3`` or a
+        ``.cal`` — and that is narrower than what the CODE keeps
+        (``Calibration.result_files()``, which also counts an ``.icc`` and a
+        ``.ti3.engine-partial``). The direction is deliberate and is the only
+        safe one: this window can say "not kept" over a calibration that is in
+        fact kept, and can never say "kept" over one that is dropped. Proved
+        exhaustively in
+        ``tests/test_calibration_keeps_only_measured.py::test_the_window_can_only_ever_promise_less_than_the_code_keeps``.
+        """
+        from workflow import measurement_messages as M
+
+        if measured:
+            runs = [self._pretty_run_name(r)
+                    for r in self._runs_built_on_calibration(proj)]
+            title, body = M.M_CAL_REPLACE_MEASURED.render(
+                runs_line=M.calibration_runs_phrase(runs))
+            return title, tr(M.M_CAL_MEASURED_HEADLINE), body
+        title, body = M.M_CAL_REPLACE_CHART.render()
+        return title, tr(M.M_CAL_CHART_HEADLINE), body
+
     def _confirm_replacing_calibration(self) -> bool:
         """Ask before a new calibration chart replaces the one in ``cal/``.
 
-        A calibration is a whole printed and measured sheet's worth of work, and
-        it is what ``printcal``'s Re-calibrate and Verify modes read back — so
-        losing it silently costs the user the round trip AND those two modes.
-        Nothing is deleted: everything moves to ``cal/old/<date>/`` and can be
-        gone back to at any time. This only makes the move visible.
+        Two windows, and which one appears decides what the app is about to do
+        with the chart.
+
+        **A finished calibration is kept, whole.** It is a printed and measured
+        sheet's worth of work and it is what ``printcal``'s Re-calibrate and
+        Verify modes read back, so losing it silently costs the user the round
+        trip AND those two modes. Everything moves to ``cal/old/<date>/``.
+
+        **A chart nobody measured is an experiment and is not kept.** The owner
+        ruled that on 2026-09-02 (option 3 of
+        ``RULING-calibration-old-charts.txt``), and it is what a profile run has
+        done since ``93ba45ee``: iterating on a layout ten times must not leave
+        ten dated folders holding charts their owner had already decided
+        against. It is set aside for the length of the build, so a build that
+        fails, is stopped or is killed still puts it back, and dropped once a
+        replacement really exists.
+
+        **THIS WINDOW SAID THE OPPOSITE FOR ONE COMMIT AND THAT WAS THE POINT
+        OF THE WHOLE EXERCISE.** The wording moved through §M and was approved
+        by Basti on 2026-09-02; until it was, two strict xfails in
+        ``tests/test_calibration_keeps_only_measured.py`` held the branch shut
+        rather than let a false promise reach anybody. The pair is still checked
+        against each other there, which is what stops it drifting again.
         """
         from PyQt6.QtWidgets import QMessageBox
         from ui.widgets import fit_message_box_buttons
@@ -15970,49 +16017,13 @@ class TabChart(QWidget):
             return True                     # nothing there to replace
 
         measured = cal.ti3.exists() or cal.cal_path.exists()
+        title, headline, body = self._calibration_replace_message(proj, measured)
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.NoIcon)
-        if measured:
-            box.setWindowTitle(tr("Replace this project's calibration?"))
-            box.setText(tr(
-                "This project already has a finished calibration, and "
-                "generating a new chart starts that work again from the "
-                "beginning."))
-            body = [tr(
-                "You would need to print the new chart and measure it before "
-                "this project has a calibration once more."), "",
-                tr("These move to the project's \u201ccal/old\u201d folder, in a "
-                   "folder named with today's date — nothing is deleted, and "
-                   "you can go back to them at any time:"),
-                tr("  •  the calibration chart"),
-                tr("  •  its measurement"),
-                tr("  •  the calibration file (.cal) made from it")]
-            runs = self._runs_built_on_calibration(proj)
-            if len(runs) == 1:
-                body += ["", tr(
-                    "{run} was built using this calibration. It is not changed, "
-                    "and its profile keeps working — but it was made with the "
-                    "calibration you are about to replace.").format(
-                        run=self._pretty_run_name(runs[0]))]
-            elif len(runs) > 1:
-                body += ["", tr(
-                    "{runs} were built using this calibration. They are not "
-                    "changed, and their profiles keep working — but they were "
-                    "made with the calibration you are about to replace."
-                ).format(runs=self._join_run_names(runs))]
-            go = tr("Replace the calibration")
-        else:
-            box.setWindowTitle(tr("Replace this project's calibration chart?"))
-            box.setText(tr(
-                "You already made a calibration chart for this project, but it "
-                "has not been measured yet."))
-            body = [tr(
-                "Generating a new one replaces it. Nothing is deleted: the "
-                "chart you have now moves to the project's \u201ccal/old\u201d "
-                "folder, in a folder named with today's date, and you can go "
-                "back to it at any time.")]
-            go = tr("Replace the chart")
-        box.setInformativeText("\n".join(body))
+        box.setWindowTitle(title)
+        box.setText(headline)
+        box.setInformativeText(body)
+        go = tr("Replace the calibration") if measured else tr("Replace the chart")
         ok = box.addButton(go, QMessageBox.ButtonRole.AcceptRole)
         box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(ok)
@@ -16024,12 +16035,6 @@ class TabChart(QWidget):
     def _pretty_run_name(run_id: str) -> str:
         n = run_id[3:] if run_id.startswith("run") else run_id
         return tr("Run {n}").format(n=n)
-
-    def _join_run_names(self, run_ids: "list[str]") -> str:
-        """"Runs 3, 5 and 6" — a real list, never "Run(s)"."""
-        names = [self._pretty_run_name(r) for r in run_ids]
-        head = ", ".join(names[:-1])
-        return tr("{head} and {last}").format(head=head, last=names[-1])
 
     def _runs_built_on_calibration(self, proj) -> "list[str]":
         """Runs whose profile was built with the calibration now in ``cal/``.

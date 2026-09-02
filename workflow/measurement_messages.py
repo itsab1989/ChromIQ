@@ -1337,6 +1337,100 @@ M_IMPORT_REPLACED_KEPT = _m(
     "It has been moved into its own \u201cold\u201d folder:\n\n{folder}\n\nNothing was deleted. You can open that folder at any time and take anything back out of it.",
     approved=False)
 
+# --- APPROVED: replacing the calibration chart, both branches -------------
+# Basti, 2026-09-02, approving the wording that had to follow his option-3
+# ruling on `RULING-calibration-old-charts.txt`. The BEHAVIOUR changed first —
+# an unmeasured calibration chart is an experiment and is not kept — and until
+# these words landed the window went on promising the opposite, which is the
+# fault the whole thread came out of. Two strict xfails held the branch shut
+# until this commit.
+#
+# The two windows have a window TITLE and a bold first line, which is one more
+# string than `Message` carries, so the bold line is its own module constant
+# beside the message it belongs to. It is not prose in the tab: the tab passes
+# the NAME, so every sentence either window can show is written down here.
+M_CAL_CHART_HEADLINE = (
+    "You already made a calibration chart for this project, but it has not "
+    "been measured yet.")
+
+M_CAL_REPLACE_CHART = _m(
+    "M-CAL-REPLACE-CHART",
+    "Replace this project's calibration chart?",
+    "Generating a new one replaces it, and the chart you have now is not kept. "
+    "Nothing has been measured from it, so ChromIQ treats it as an attempt "
+    "rather than as work to go back to. This is what a profile run does with a "
+    "chart you have not measured.\n\n"
+    "Once a calibration has been measured it is never replaced this way: the "
+    "measurement, the calibration file made from it and the chart that "
+    "produced them all move to the project's “cal/old” folder, "
+    "and nothing is deleted.\n\n"
+    "If you want to keep this chart, press Cancel and copy the “cal” "
+    "folder somewhere else first.")
+
+#: The bold first line of M-CAL-REPLACE-MEASURED. UNCHANGED wording — this
+#: message was drafted at `docs/design/calibration_run_type_plan.md:240` and
+#: the ruling did not touch the measured branch. It moves into the catalogue
+#: with the other one so the whole window is governed in one place rather than
+#: half of it.
+M_CAL_MEASURED_HEADLINE = (
+    "This project already has a finished calibration, and generating a new "
+    "chart starts that work again from the beginning.")
+
+M_CAL_REPLACE_MEASURED = _m(
+    "M-CAL-REPLACE-MEASURED",
+    "Replace this project's calibration?",
+    "You would need to print the new chart and measure it before this project "
+    "has a calibration once more.\n\n"
+    "These move to the project's “cal/old” folder, in a folder "
+    "named with today's date — nothing is deleted, and you can go "
+    "back to them at any time:\n"
+    "  •  the calibration chart\n"
+    "  •  its measurement\n"
+    "  •  the calibration file (.cal) made from it{runs_line}")
+
+#: The {runs_line} fragment of M-CAL-REPLACE-MEASURED: the runs whose profiles
+#: were built on the calibration about to be replaced. Real singular and
+#: plural, never "(s)" — the house rule.
+_CAL_RUNS_ONE = ("{run} was built using this calibration. It is not changed, "
+                 "and its profile keeps working, but it was made with the "
+                 "calibration you are about to replace.")
+_CAL_RUNS_MANY = ("{runs} were built using this calibration. They are not "
+                  "changed, and their profiles keep working, but they were "
+                  "made with the calibration you are about to replace.")
+
+
+def calibration_runs_phrase(names: "list[str]") -> str:
+    """The ``{runs_line}`` fragment, already joined and already a paragraph.
+
+    Empty when no run recorded this calibration — *absent means unknown*, and
+    a run built before ChromIQ recorded it simply does not say, so guessing
+    would be worse than staying quiet. *names* are display labels the caller
+    has already translated ("Run 3"), so they are not wrapped again.
+    """
+    if not names:
+        return ""
+    if len(names) == 1:
+        return "\n\n" + tr(_CAL_RUNS_ONE).format(run=names[0])
+    head = ", ".join(names[:-1])
+    joined = tr("{head} and {last}").format(head=head, last=names[-1])
+    return "\n\n" + tr(_CAL_RUNS_MANY).format(runs=joined)
+
+
+# --- APPROVED: where a replaced calibration went --------------------------
+# Basti, 2026-09-02. `Calibration.reset()` returned the archive folder and
+# every caller discarded it, so the window promised "a folder named with
+# today's date" and the app then named it nowhere — true and unfindable, which
+# fails "the user must always be able to answer where are my files". Found by
+# the adversarial round. It is written into the log the build is already
+# streaming into, beside the tool output, because that is where a person is
+# looking when it happens.
+M_CAL_ARCHIVED_HERE = _m(
+    "M-CAL-ARCHIVED-HERE",
+    "The calibration that was here has moved to this folder, and nothing in "
+    "it was deleted:",
+    "{folder}")
+
+
 CATALOGUE = {m.id: m for m in (
     M_REPLACE_PARTIAL, M_REPLACE_COMPLETE, M_TI3_MISMATCH,
     M_REPLACE_UNCOUNTABLE,
@@ -1362,6 +1456,7 @@ CATALOGUE = {m.id: m for m in (
     M_CR30_CALIBRATE, M_CR30_CALIBRATE_BLACK, M_CR30_MAGNET,
     M_CR30_HOW_TO_MEASURE, M_CR30_READ_FAILED,
     M_CR30_LEARN_TILE, M_CR30_TRIGGER_NOT_ARMED,
+    M_CAL_REPLACE_CHART, M_CAL_REPLACE_MEASURED, M_CAL_ARCHIVED_HERE,
 )}
 
 #: Paragraphs appended to another message rather than shown on their own.

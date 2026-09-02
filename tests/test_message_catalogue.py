@@ -334,6 +334,7 @@ WINDOW_SOURCES = [
     ("ui.tabs.tab_chart", "TabChart", "_patchset_missing_message"),
     ("ui.tabs.tab_chart", "TabChart", "_project_exists_message"),
     ("ui.tabs.tab_measure", "TabMeasure", "_cr30_stock_reader_window"),
+    ("ui.tabs.tab_chart", "TabChart", "_calibration_replace_message"),
 ]
 
 #: Measurement windows that are NOT yet in §M, listed so the gap is visible.
@@ -411,6 +412,13 @@ def test_no_message_reaches_the_screen_with_a_placeholder_left():
         M.M_PROFILE_VERIFY.render(n=4, date="2026-03-14", blocked=""),
         M.M_CM_NO_CCTIFF.render(),
         M.M_CM_CONVERT_FAILED.render(n=2, total=3, reason="…"),
+        M.M_CAL_REPLACE_CHART.render(),
+        M.M_CAL_REPLACE_MEASURED.render(runs_line=""),
+        M.M_CAL_REPLACE_MEASURED.render(
+            runs_line=M.calibration_runs_phrase(["Run 3"])),
+        M.M_CAL_REPLACE_MEASURED.render(
+            runs_line=M.calibration_runs_phrase(["Run 3", "Run 5", "Run 6"])),
+        M.M_CAL_ARCHIVED_HERE.render(folder="/x/cal/old/2026-09-02_120000"),
     ]
     for title, body in rendered:
         for text in (title, body):

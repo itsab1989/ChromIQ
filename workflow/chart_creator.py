@@ -574,7 +574,10 @@ class ChartCreator:
         #: The chart that was set aside for the build now running, and the run
         #: it belongs to. Settled on every way out — see :meth:`_finish`.
         self._chart_stash: "Path | None" = None
-        self._chart_stash_run = None
+        #: Whoever owns the set-aside chart — a ``Run`` or the project's
+        #: ``Calibration``. Both answer ``settle_chart_stash``, so `_finish`
+        #: needs no branch: one mechanism, two slots.
+        self._chart_stash_owner = None
         self._pending_params: ChartParams | None = None
         # State for the slow-chart watchdog escape hatch (see generate /
         # restart_with_fast_sampler / cancel). The on_line callback, work dir
@@ -624,15 +627,27 @@ class ChartCreator:
 
         proj = self._file_mgr.project()
         if params.cal_target:
-            proj.calibration.reset()
-            work_dir = proj.calibration.ensure_dir()
+            cal = proj.calibration
+            # SET THE OLD CHART ASIDE RATHER THAN DELETING IT — for the same
+            # reason the run below does, and it is NOT about keeping it. An
+            # unmeasured calibration chart is dropped once the new one exists
+            # (the owner's ruling, 2026-09-02), but it must not be dropped
+            # before that: a build can fail, be stopped, or be killed with the
+            # app, and `cal/` would then hold no chart at all. A measured
+            # calibration takes the archive branch inside `reset()` and no
+            # stash is made.
+            self._chart_stash_owner = cal
+            done = cal.reset(stash=True)
+            self._chart_stash = done.stash
+            self._announce_calibration_archive(done.archive, on_line)
+            work_dir = cal.ensure_dir()
         else:
             run = proj.current_run()
             self._announce_result_archive(run, on_line, False)
             # SET THE OLD CHART ASIDE RATHER THAN DELETING IT. Nothing here is
             # "regenerated" unless the build finishes, and every way it can fail
             # now puts the chart back — see `_finish`.
-            self._chart_stash_run = run
+            self._chart_stash_owner = run
             self._chart_stash = run.reset_chart_artefacts(stash=True)
             work_dir = run.ensure_dir()
             # External -c preconditioning: copy ICC (and sibling .ti3 if
@@ -723,11 +738,11 @@ class ChartCreator:
         if self._cancelling:
             self._cancelling = False
             tiffs = []
-        run, stash = self._chart_stash_run, self._chart_stash
-        self._chart_stash_run = self._chart_stash = None
-        if run is not None and stash is not None:
+        owner, stash = self._chart_stash_owner, self._chart_stash
+        self._chart_stash_owner = self._chart_stash = None
+        if owner is not None and stash is not None:
             try:
-                run.settle_chart_stash(stash, built=bool(tiffs))
+                owner.settle_chart_stash(stash, built=bool(tiffs))
             except Exception:      # noqa: BLE001 — never lose the callback
                 log.warning("Could not settle the chart stash", exc_info=True)
         if self._pending_on_finish:
@@ -804,6 +819,38 @@ class ChartCreator:
         per_sheet = self._binary_search(params, progress_cb)
         return per_sheet * params.pages
 
+    def _announce_calibration_archive(self, dest, on_line) -> None:
+        """Put the archive's folder into the log the user is watching.
+
+        THE RETURN VALUE OF `Calibration.reset()` USED TO BE DISCARDED, so the
+        window promised "a folder named with today's date" and the app then
+        never named it anywhere — true and unfindable, which fails "the user
+        must always be able to answer where are my files". The run branch has
+        said so since #130 (`_announce_result_archive` above); the calibration
+        branch said nothing, before or after. Found by the adversarial round,
+        2026-09-02.
+
+        M-CAL-ARCHIVED-HERE, approved by Basti on 2026-09-02 and rendered from
+        the catalogue like every other message. It shipped for one commit as the
+        bare folder path, with no sentence, because the sentence was not yet
+        approved and a path beside the tool output invents no wording; the
+        sentence is here now.
+
+        Only the ARCHIVE is announced. An unmeasured chart is dropped rather
+        than kept (the same ruling), so there is no folder to name and this says
+        nothing at all — announcing one would be the old fault upside down.
+        """
+        if dest is None or on_line is None:
+            return
+        from workflow import measurement_messages as M
+        try:
+            title, body = M.M_CAL_ARCHIVED_HERE.render(folder=str(dest))
+            on_line(title)
+            on_line(body)
+        except Exception:      # noqa: BLE001 — never fail a build over a log line
+            log.debug("could not announce the calibration archive",
+                      exc_info=True)
+
     def _announce_result_archive(self, run, on_line, keep_results: bool) -> None:
         """Say — in the log the user is watching — that a run's finished work is
         being set aside before a new chart replaces it (Knut, #130 2026-07-27:
@@ -862,7 +909,7 @@ class ChartCreator:
         run = self._file_mgr.project().current_run()
         self._announce_result_archive(run, on_line, keep_results)
         # Set aside, not deleted — see the note at the other call site.
-        self._chart_stash_run = run
+        self._chart_stash_owner = run
         self._chart_stash = run.reset_chart_artefacts(
             keep_results=keep_results, stash=True)
         work_dir = run.ensure_dir()

@@ -165,7 +165,7 @@ def test_a_cancelled_build_puts_the_chart_back_even_if_it_produced_pages(tab,
     before = {p.name: p.read_text(encoding="utf-8") for p in run.dir.iterdir() if p.is_file()}
 
     creator = tab._creator
-    creator._chart_stash_run = run
+    creator._chart_stash_owner = run
     creator._chart_stash = run.reset_chart_artefacts(stash=True)
     (run.dir / f"{run.stem}.ti2").write_text("what the engine got to", encoding="utf-8")
     (run.dir / f"{run.stem}_01.tif").write_text("a page from the stopped build", encoding="utf-8")

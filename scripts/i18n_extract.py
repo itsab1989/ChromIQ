@@ -73,33 +73,39 @@ def _message_catalogue_keys() -> set[str]:
     """
     sys.path.insert(0, str(ROOT))
     try:
-        from workflow.measurement_messages import (CATALOGUE, FRAGMENTS,
-                                                   M_CHART_ITEM_MEASUREMENT,
-                                                   M_CHART_ITEM_MEASUREMENT_ONE,
-                                                   M_CHART_ITEM_MEASUREMENT_UNCOUNTABLE,
-                                                   M_CHART_ITEM_PROFILE,
-                                                   M_CHART_NOPAGES_NONE,
-                                                   M_CHART_NOPAGES_ONE,
-                                                   M_CHART_NOPAGES_SOME,
-                                                   M_SILENCE_LABEL,
-                                                   M_SILENCE_TOOLTIP,
-                                                   M_TI3_MISMATCH_EXTRA)
+        from workflow import measurement_messages as mm
     except Exception as exc:      # noqa: BLE001 — never break the extractor
         print(f"# WARNING: message catalogue not readable: {exc}",
               file=sys.stderr)
         return set()
 
     out: set[str] = set()
-    for msg in CATALOGUE.values():
+    for msg in mm.CATALOGUE.values():
         out.add(msg.title)
         out.add(msg.body)
         if msg.body_one:
             out.add(msg.body_one)
-    out |= set(FRAGMENTS.values())
-    out |= {M_CHART_ITEM_MEASUREMENT, M_CHART_ITEM_MEASUREMENT_ONE,
-            M_CHART_ITEM_MEASUREMENT_UNCOUNTABLE, M_CHART_ITEM_PROFILE,
-            M_CHART_NOPAGES_NONE, M_CHART_NOPAGES_ONE, M_CHART_NOPAGES_SOME,
-            M_SILENCE_LABEL, M_SILENCE_TOOLTIP, M_TI3_MISMATCH_EXTRA}
+    out |= set(mm.FRAGMENTS.values())
+    # EVERY STRING CONSTANT IN THE MODULE, not a hand-kept list of names.
+    #
+    # The list this replaces named ten of them, and the module now holds
+    # twenty-eight. Three were missing when it was swept programmatically on
+    # 2026-09-02: `M_CHART_CORRUPT_WITH_PROFILE`, which is handed to `tr()` at
+    # two call sites in the Create Chart tab and had therefore been showing
+    # English in all twelve translated languages since it was written, and the
+    # two `{runs_line}` sentences of M-CAL-REPLACE-MEASURED, added that day.
+    #
+    # This is the blind spot the module's own comments already warn about:
+    # `tr(NAME)` passes an attribute, not a literal, so the AST walk cannot see
+    # it and the only protection was somebody remembering to edit this file.
+    # Nobody did, twice. A sweep cannot forget.
+    #
+    # Fragments are message text by construction here: this module holds
+    # nothing else. Anything added to it that is NOT for the screen would need
+    # a leading double underscore, which is excluded below.
+    out |= {v for k, v in vars(mm).items()
+            if isinstance(v, str) and not k.startswith("__")
+            and (k.startswith("M_") or k.startswith("_"))}
     return out
 
 

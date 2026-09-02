@@ -925,6 +925,87 @@ all cases."
 
 ---
 
+### M-CAL-REPLACE-CHART · replacing a calibration chart nobody measured — Create Chart, Run type = Calibration
+
+**Approved by:** Basti, 2026-09-02, together with M-CAL-REPLACE-MEASURED and
+M-CAL-ARCHIVED-HERE, as one approval.
+
+**Why it was rewritten.** It used to say *"Nothing is deleted: the chart you
+have now moves to the project's “cal/old” folder … and you can go back to it at
+any time."* On 2026-09-02 Basti was given three options for what should happen
+to a replaced calibration chart and chose **option 3** — *"Keep it only if it
+was measured; experiments leave nothing"* — against a recommendation to keep the
+last one. That made the old sentence false, so the behaviour and this text
+landed together. Two strict `xfail`s held the branch shut in between, rather
+than let the window promise something the code no longer did.
+
+Shown when `cal/` holds a chart and `Calibration.exists()` is false — no `.ti3`
+and no `.cal`. That is narrower than what the code keeps
+(`Calibration.result_files()`, which also counts an `.icc` and a
+`.ti3.engine-partial`), and the direction is deliberate: this window can say
+"not kept" over a calibration that is in fact kept, and can never say "kept"
+over one that is dropped.
+
+> **Replace this project's calibration chart?**
+>
+> *(bold first line)* You already made a calibration chart for this project, but it has not been measured yet.
+>
+> Generating a new one replaces it, and the chart you have now is not kept. Nothing has been measured from it, so ChromIQ treats it as an attempt rather than as work to go back to. This is what a profile run does with a chart you have not measured.
+>
+> Once a calibration has been measured it is never replaced this way: the measurement, the calibration file made from it and the chart that produced them all move to the project's “cal/old” folder, and nothing is deleted.
+>
+> If you want to keep this chart, press Cancel and copy the “cal” folder somewhere else first.
+>
+> **Buttons:** *Replace the chart* · *Cancel*
+
+### M-CAL-REPLACE-MEASURED · replacing a finished calibration — Create Chart, Run type = Calibration
+
+**Approved by:** Basti, 2026-09-02. **The wording is unchanged** — it was
+drafted at `docs/design/calibration_run_type_plan.md:240` and option 3 did not
+touch the measured branch. What changed is where it lives: the window is
+governed in one place now instead of half of it, so a future edit to one branch
+cannot quietly leave the other saying something else.
+
+Shown when `Calibration.exists()` — a `.ti3` or a `.cal` is there.
+
+> **Replace this project's calibration?**
+>
+> *(bold first line)* This project already has a finished calibration, and generating a new chart starts that work again from the beginning.
+>
+> You would need to print the new chart and measure it before this project has a calibration once more.
+>
+> These move to the project's “cal/old” folder, in a folder named with today's date — nothing is deleted, and you can go back to them at any time:
+>   •  the calibration chart
+>   •  its measurement
+>   •  the calibration file (.cal) made from it
+> {runs_line}
+>
+> **Buttons:** *Replace the calibration* · *Cancel*
+
+`{runs_line}` — real singular and plural, never "(s)"; omitted entirely when no
+run recorded this calibration, because absent means unknown:
+
+> • one run → "Run 3 was built using this calibration. It is not changed, and its profile keeps working, but it was made with the calibration you are about to replace."
+> • more → "Runs 3, 5 and 6 were built using this calibration. They are not changed, and their profiles keep working, but they were made with the calibration you are about to replace."
+
+### M-CAL-ARCHIVED-HERE · where a replaced calibration went — the Create Chart log
+
+**Approved by:** Basti, 2026-09-02.
+
+Not a window: two lines written into the log the build is already streaming
+into, because that is where a person is looking when it happens.
+`Calibration.reset()` returned the archive folder and every caller discarded it,
+so M-CAL-REPLACE-MEASURED promised "a folder named with today's date" and the
+app then named it nowhere — true and unfindable. Found by the adversarial round
+of 2026-09-02.
+
+Shown only when an archive was really made. An unmeasured chart is dropped, so
+there is no folder to name and nothing is said.
+
+> **The calibration that was here has moved to this folder, and nothing in it was deleted:**
+>
+> {folder}
+
 ## M-PROPOSED. Messages awaiting review
 
 *This section is where a new or revised message goes: add it to
@@ -2056,6 +2137,19 @@ original text is unchanged.*
 > Nothing has been lost. The measurement you already had is put back exactly as it was if this session ends without reading anything, and you can keep waiting instead if you would rather.
 
 ### M-x. Which table uses which message
+
+**Calibration replacement** (`docs/design/calibration_run_type_plan.md` Table C,
+and `docs/design/calibration_run_type.md` §4.4). Which of the two appears is
+`Calibration.exists()`; what the code then does is `Calibration.result_files()`,
+which is wider — see M-CAL-REPLACE-CHART.
+
+| condition | message |
+|---|---|
+| `cal/` empty | none |
+| `cal/` has a chart, nothing measured | **M-CAL-REPLACE-CHART** — and the chart is NOT kept |
+| `cal/` has a `.ti3` and/or a `.cal` | **M-CAL-REPLACE-MEASURED** — everything moves to `cal/old/<date>/` |
+| …and runs were built on that `.cal` | **M-CAL-REPLACE-MEASURED** + its `{runs_line}` |
+| an archive was really made | **M-CAL-ARCHIVED-HERE**, in the log |
 
 | Table | Rows | Message |
 |---|---|---|
