@@ -248,7 +248,8 @@ def main() -> int:
         report[mode] = rec
         print(f"{mode}: {len(rec)} grabs hashed")
 
-    (OUT / "chrome.json").write_text(json.dumps(report, indent=2, sort_keys=True))
+    (OUT / "chrome.json").write_text(json.dumps(report, indent=2, sort_keys=True),
+                                     encoding="utf-8")
     print(f"\nwrote {OUT / 'chrome.json'}")
     print(f"NEUTRAL NON-NEUTRAL PIXELS, TOTAL: {report['neutral_total_px']}")
 
