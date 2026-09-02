@@ -624,11 +624,34 @@ STASH_SUPERSEDED = "SUPERSEDED-by-a-finished-build"
 
 
 def chart_stash_dirs(folder: Path) -> "list[Path]":
-    """Every chart stash left in *folder*, oldest first."""
+    """Every chart stash left in *folder*, oldest first.
+
+    BY AGE, NOT BY NAME, and the difference is somebody's chart. The name is
+    ``.chart-stash-<pid>-<n>``, so a plain `sorted()` orders by the pid AS A
+    STRING: ``.chart-stash-10000-0`` comes before ``.chart-stash-9999-0``
+    whatever their ages, and the counter is not zero-padded either. That order
+    is not cosmetic — :meth:`Project.load` restores them in it, and each restore
+    overwrites what the one before put back (:func:`settle_chart_stash` clears a
+    name a leftover has taken), so the LAST one processed is the chart the user
+    ends up with and the other is dropped, not archived. Ordering by name meant
+    which chart survived two orphaned builds depended on two process ids.
+
+    The modification time is the moment the last file was moved in, which is the
+    order the stashes were made in; the name is the tie-break so the result is
+    still stable when two stashes share a timestamp.
+    """
     if not folder.is_dir():
         return []
-    return sorted(p for p in folder.iterdir()
-                  if p.is_dir() and p.name.startswith(CHART_STASH_PREFIX))
+
+    def _age(p: Path) -> "tuple[float, str]":
+        try:
+            return (p.stat().st_mtime, p.name)
+        except OSError:            # vanished, or unreadable — sort it first
+            return (0.0, p.name)
+
+    return sorted((p for p in folder.iterdir()
+                   if p.is_dir() and p.name.startswith(CHART_STASH_PREFIX)),
+                  key=_age)
 
 
 def make_chart_stash(folder: Path) -> "Path | None":
