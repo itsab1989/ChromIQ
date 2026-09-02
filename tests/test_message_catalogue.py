@@ -233,7 +233,15 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  "M-IMPORT-REPLACE-PROJECT-CONFIRM",
                                  # …and where the replaced project went, which
                                  # nothing anywhere recorded.
-                                 "M-IMPORT-REPLACED-KEPT"}
+                                 "M-IMPORT-REPLACED-KEPT",
+                                 # #159, 2026-09-02: Tools ▸ Read single
+                                 # patches now reads a CR30 with ChromIQ's own
+                                 # driver, so two windows can reach for one
+                                 # instrument for the first time. No existing
+                                 # guard could see it — they all answer from
+                                 # process state, and this reader is not a
+                                 # process.
+                                 "M-INSTRUMENT-BUSY"}
 # Round 2 of the import-door review added four and Basti approved all four on
 # 2026-09-02, so they never sat in this set for longer than one branch:
 # M-IMPORT-NOT-OPENED, M-IMPORT-FOLDER-EXISTS, M-IMPORT-REPLACE-FOLDER-CONFIRM

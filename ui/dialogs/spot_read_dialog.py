@@ -29,6 +29,7 @@ from PyQt6.QtWidgets import (
     QHeaderView,
     QLabel,
     QMessageBox,
+    QPlainTextEdit,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -37,6 +38,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.i18n import tr
+from ui.cr30_calibration import Cr30CalibrationMixin
 from ui.dialogs.tools_dialogs import _indicator_color, neutral_controls_qss
 from ui.styles import SPEC_GREEN
 from ui.tab_header import dialog_masthead
@@ -56,6 +58,60 @@ if TYPE_CHECKING:
     from core.settings import AppSettings
 
 _ACCENT = "#56d6a5"   # share the Measure tab's accent — this is measurement work
+
+
+#: The instruments this window can read with, in the app's own vocabulary.
+#:
+#: ChromIQ NAMES its instruments in a list — `data/parameters.yaml`'s printtarg
+#: `-i` row offers i1Pro, i1Pro 3 Plus, ColorMunki, SpectroScan, CR30 and i1iSis
+#: — and `ui.ti2_loader.KNOWN_INSTRUMENTS` names the four ChromIQ can act on,
+#: the CR30 among them. So the CR30 belongs in a list here too, not behind a
+#: button of its own.
+#:
+#: What this list names is the READER, not the model, and that is the honest
+#: distinction: `spotread` cannot be told which instrument to use (`-c` picks a
+#: communication port, never a device), so naming individual ArgyllCMS models
+#: here would be offering a choice ChromIQ cannot act on. There are exactly two
+#: readers, and the CR30 is the one ArgyllCMS has never heard of.
+_INSTRUMENT_KEYS = ("auto", "argyll", "cr30")
+
+
+def _instrument_labels() -> "list[str]":
+    return [tr("Detect automatically"),
+            tr("Any ArgyllCMS instrument"),
+            tr("CR30 (ChnSpec)")]
+
+
+def cr30_is_probably_attached() -> bool:
+    """Is a CR30 plugged in over USB, on the evidence already on this machine?
+
+    **Nothing is opened and nothing is written.** It lists the serial ports
+    (`serial.tools.list_ports`, an IORegistry read) and asks whether the port
+    ChromIQ has previously reached a CR30 at is among them.
+
+    THE REMEMBERED PORT IS THE WHOLE TEST, and the alternative was worse.
+    `0x1A86:0x7523` is the generic CH340 bridge: an Arduino, a 3D printer or a
+    CNC controller answers that description, and treating any of them as a CR30
+    would hand a ColorMunki owner a broken spot tool by default — the exact
+    thing this feature must not do. Confirming a candidate means WRITING an
+    identify frame to it, which is not something to do to somebody's devices on
+    the strength of a guess.
+
+    So automatic detection recognises an instrument this machine has already
+    used, and everybody else picks the CR30 from the list once. It can only
+    ever be wrong in the safe direction: a missed CR30 costs one choice from a
+    dropdown, and a false positive is not possible.
+    """
+    try:
+        from workflow.cr30.discovery import candidates
+        from workflow.cr30.measure_bridge import DeviceReader
+        remembered = DeviceReader._remembered(DeviceReader.REMEMBERED_PORT_KEY)
+        if not remembered:
+            return False
+        return any(c.device == remembered for c in candidates())
+    except Exception:      # noqa: BLE001 — a guess, never worth an error
+        log.debug("could not look for a CR30 on USB", exc_info=True)
+        return False
 
 _HELP = tr(
     "Read individual colour patches with your measuring instrument, off any "
@@ -84,7 +140,7 @@ def _without_call_to_action(html: str) -> str:
     return re.sub(r"\.\.", ".", out)
 
 
-class SpotReadDialog(QDialog):
+class SpotReadDialog(Cr30CalibrationMixin, QDialog):
     _MODE_KEYS = ("reflective", "emissive", "ambient")
 
     def __init__(
@@ -96,6 +152,15 @@ class SpotReadDialog(QDialog):
         super().__init__(parent)
         self._settings = settings
         self._manager = SpotReadManager(runner, self)
+        #: ChromIQ's own reader, built only when a CR30 session actually
+        #: starts. A user who has no CR30 never reaches any of it, and while
+        #: this is None every route through this window is the one that has
+        #: always run.
+        self._cr30 = None
+        #: The open :class:`DeviceReader`, which is also what holds the claim
+        #: on the instrument (`core.instrument_lease`).
+        self._cr30_reader = None
+        self._sound = None
         self._readings: list[SpotReading] = []
         #: True between a misread and the next ready prompt. While set, Take
         #: reading clears the error before it reads (see _on_take_reading).
@@ -143,12 +208,48 @@ class SpotReadDialog(QDialog):
         controls = QHBoxLayout()
         controls.setSpacing(10)
 
+        # THE INSTRUMENT IS NAMED, LIKE EVERYWHERE ELSE IN CHROMIQ. Create
+        # Chart names its instruments in a list and the CR30 is already a peer
+        # in it; this window used to name none, because ArgyllCMS `spotread`
+        # cannot be told which device to open. Now there are two readers to
+        # choose between, so the choice is a row, in the same place a chart's
+        # instrument row is — not a button off to one side.
+        controls.addWidget(QLabel(tr("Instrument"), self))
+        self._instrument = NoScrollComboBox(self)
+        for _label in _instrument_labels():
+            self._instrument.addItem(_label)
+        _stored = str(settings.get("spot_read_instrument", "auto") or "auto")
+        self._instrument.setCurrentIndex(
+            _INSTRUMENT_KEYS.index(_stored) if _stored in _INSTRUMENT_KEYS else 0)
+        self._instrument.setToolTip(tr(
+            "Leave this on automatic unless you want to insist on one reader."))
+        self._instrument.currentIndexChanged.connect(self._on_instrument_changed)
+        controls.addWidget(self._instrument)
+
         controls.addWidget(QLabel(tr("Mode"), self))
         self._mode = NoScrollComboBox(self)
         self._mode.addItem(tr("Reflective (material)"))
         self._mode.addItem(tr("Emissive (display)"))
         self._mode.addItem(tr("Ambient (light)"))
         controls.addWidget(self._mode)
+
+        # NEITHER COMBO MAY SHRINK BELOW ITS OWN WIDEST ENTRY.
+        #
+        # The row grew by one control, and a QHBoxLayout answers that by taking
+        # the space out of whatever will give it. What gave was Mode: it
+        # rendered "Reflective (materia" — clipped, with no ellipsis to say so —
+        # and only while DISABLED, which is exactly when a session is running
+        # and nobody can widen it. Seen on screen; the before/after pictures are
+        # beside this branch's report.
+        #
+        # Pinned to the content rather than to a number, so a longer
+        # translation moves the floor with it (a fixed width turns cramped into
+        # overlapping, which is worse).
+        for _combo in (self._instrument, self._mode):
+            _fm = _combo.fontMetrics()
+            _widest = max((_fm.horizontalAdvance(_combo.itemText(i))
+                           for i in range(_combo.count())), default=0)
+            _combo.setMinimumWidth(_widest + 44)   # frame + the drop indicator
 
         self._skip_cal = QCheckBox(tr("Skip initial calibration"), self)
         controls.addWidget(self._skip_cal)
@@ -212,6 +313,22 @@ class SpotReadDialog(QDialog):
         self._table.itemSelectionChanged.connect(self._update_average_btn)
         outer.addWidget(self._table, 1)
 
+        # --- Session notes -------------------------------------------------
+        # The same status pane every other tool window carries
+        # (`_ToolDialogBase`), down to its placeholder. HIDDEN UNTIL THERE IS
+        # SOMETHING IN IT: the ArgyllCMS session has never written here and
+        # must not start to, so for everybody else this window is exactly the
+        # window it was. The CR30's calibration writes the notes that matter —
+        # which way it connected, what the dark reference read back at — and
+        # they have to be readable somewhere.
+        self._log = QPlainTextEdit(self)
+        self._log.setReadOnly(True)
+        self._log.setMaximumBlockCount(2000)
+        self._log.setFixedHeight(120)
+        self._log.setPlaceholderText(tr("Status messages will appear here."))
+        self._log.setVisible(False)
+        outer.addWidget(self._log)
+
         # --- Bottom buttons ------------------------------------------------
         # Session controls (Start / Take reading) live on the far left next to
         # Clear; Save / Close sit on the right — one unified action row.
@@ -227,6 +344,12 @@ class SpotReadDialog(QDialog):
         self._read_btn.setEnabled(False)
         self._read_btn.clicked.connect(self._on_take_reading)
         bottom.addWidget(self._read_btn)
+        # The shared CR30 calibration windows hold "the controls that could
+        # start or stop a read" across a nested event loop, and on the Measure
+        # tab those are Start and Stop. Here they are Start and Take reading —
+        # this window's Start button is its own Stop. Named rather than special
+        # cased, so the shared code needs no branch.
+        self._stop_btn = self._read_btn
 
         self._avg_btn = QPushButton(tr("Average selected"), self)
         self._avg_btn.setEnabled(False)
@@ -281,10 +404,53 @@ class SpotReadDialog(QDialog):
     # ------------------------------------------------------------------
     # Session lifecycle
     # ------------------------------------------------------------------
+    def _active_manager(self):
+        """Whichever reader this session is running on.
+
+        Nothing below asks WHICH: both managers present the same signals and
+        the same five methods, which is the whole point of the second one. This
+        exists only so that "is a session running?" and "stop it" have one
+        answer.
+        """
+        return self._cr30 if self._cr30 is not None else self._manager
+
+    def _chosen_reader(self) -> str:
+        """"argyll" or "cr30" — which reader a Start would use, right now."""
+        key = _INSTRUMENT_KEYS[self._instrument.currentIndex()]
+        if key != "auto":
+            return key
+        return "cr30" if cr30_is_probably_attached() else "argyll"
+
+    def _on_instrument_changed(self, _index: int) -> None:
+        """Remember the choice, and grey out what the chosen reader cannot do.
+
+        Mode and "Skip initial calibration" are ArgyllCMS's, both of them: a
+        CR30 is reflective only, and its calibration is its own two-step affair
+        with a magnetic cap, driven by ChromIQ rather than requested through a
+        command-line flag. Leaving them live would offer settings that go
+        nowhere, which is how somebody comes to believe they measured a display.
+        """
+        try:
+            self._settings.set(
+                "spot_read_instrument",
+                _INSTRUMENT_KEYS[self._instrument.currentIndex()])
+        except Exception:      # noqa: BLE001 — remembering is never worth a crash
+            log.debug("could not store the spot-read instrument", exc_info=True)
+        self._apply_reader_capabilities()
+
+    def _apply_reader_capabilities(self) -> None:
+        cr30 = _INSTRUMENT_KEYS[self._instrument.currentIndex()] == "cr30"
+        self._mode.setEnabled(not cr30)
+        self._skip_cal.setEnabled(not cr30)
+
     def _on_start_stop(self) -> None:
-        if self._manager.is_running:
-            self._manager.quit()
-            self._manager.abort()
+        active = self._active_manager()
+        if active.is_running:
+            active.quit()
+            active.abort()
+            return
+        if self._chosen_reader() == "cr30":
+            self._start_cr30_session()
             return
         params = SpotReadParams(
             mode=self._MODE_KEYS[self._mode.currentIndex()],
@@ -294,12 +460,205 @@ class SpotReadDialog(QDialog):
         self._set_status(tr("Starting instrument…"))
         self._manager.start(params, lambda _line: None)
 
+    # ------------------------------------------------------------------
+    # The CR30 — ChromIQ's own reader, for the one instrument ArgyllCMS
+    # cannot open at all
+    # ------------------------------------------------------------------
+    def _start_cr30_session(self) -> None:
+        """Claim the instrument, calibrate it, then read until Stop.
+
+        The order is the Measure tab's order and for its reasons: the claim
+        first, because refusing costs nothing before anything is opened, then
+        the calibration, which is what actually opens the device.
+        """
+        from core import instrument_lease
+
+        elsewhere = instrument_lease.held_by_other(self._cr30_reader)
+        if elsewhere is not None:
+            self._show_instrument_busy(elsewhere)
+            return
+        self._set_session_running(True)
+        self._log.setVisible(True)
+        self._log.clear()
+        self._set_status(tr("Starting instrument…"))
+        # The shared calibration windows (ui/cr30_calibration.py) — the same
+        # ones the Measure tab shows, not a second set that could drift from
+        # them. They open the reader through _open_cr30_bridge below.
+        if not self._run_cr30_calibration():
+            self._close_cr30_bridge()
+            self._set_session_running(False)
+            self._set_status(tr("Session ended."))
+            return
+        from workflow.cr30_spot_manager import Cr30SpotManager
+        mgr = self._cr30 = Cr30SpotManager(self)
+        mgr.reader = self._cr30_reader
+        mgr.reading_ready.connect(self._on_reading)
+        mgr.ready_to_read.connect(self._on_ready)
+        mgr.instrument_detected.connect(self._on_instrument_detected)
+        mgr.instrument_disconnected.connect(self._on_disconnected)
+        mgr.read_refused.connect(self._on_cr30_refused)
+        mgr.magnet_gated.connect(self._on_cr30_magnet)
+        mgr.trigger_not_armed.connect(self._on_cr30_trigger_not_armed)
+        mgr.session_ended.connect(self._on_session_ended)
+        mgr.start(None, self._note)
+
+    def _note(self, text: str) -> None:
+        if not text:
+            return
+        self._log.setVisible(True)
+        self._log.appendPlainText(text)
+        self._log.ensureCursorVisible()
+
+    def _show_instrument_busy(self, where: str) -> None:
+        """M-INSTRUMENT-BUSY. The other half of it lives in the Measure tab."""
+        from workflow import measurement_messages as M
+        from core import instrument_lease
+        title, body = M.M_INSTRUMENT_BUSY.render(
+            where=instrument_lease.where_label(where))
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        box.exec()
+
+    def _on_cr30_refused(self, reason: str) -> None:
+        """One reading was refused by a guard. The press is lost; the session
+        is not — the reader is already waiting for the next one.
+
+        The instrument's own words, unwrapped. They are technical and they stay
+        technical: this is the same detail the Measure tab shows in
+        M-CR30-READ-FAILED's "{reason}" slot, and wrapping a sentence of my own
+        around it here would be new wording in a window, which §M forbids until
+        it is approved.
+        """
+        self._set_status(reason)
+        self._note(reason)
+
+    def _on_cr30_magnet(self, reason: str) -> None:
+        """M-CR30-MAGNET. A magnet at the aperture is not a refused reading.
+
+        The instrument has ALREADY performed a white calibration against
+        whatever it was resting on, so every reading after it would be wrong by
+        a factor nothing downstream could see. The session stops, and the only
+        two real ways on are to recalibrate or to end it.
+        """
+        from workflow import measurement_messages as M
+        from ui.widgets import (fit_message_box_buttons,
+                                order_message_box_buttons)
+        title, body = M.M_CR30_MAGNET.render(reason=reason)
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(tr("The instrument has recalibrated itself"))
+        box.setText(title)
+        box.setInformativeText(body)
+        again = box.addButton(tr("Recalibrate now"),
+                              QMessageBox.ButtonRole.AcceptRole)
+        stop = box.addButton(tr("Stop session"),
+                             QMessageBox.ButtonRole.DestructiveRole)
+        box.setDefaultButton(again)
+        fit_message_box_buttons(box)
+        order_message_box_buttons(box, [again, stop])
+        box.exec()
+        if box.clickedButton() is again and self._run_cr30_calibration(
+                keep_bridge=True):
+            mgr = self._cr30
+            if mgr is not None:
+                mgr.start(None, self._note)
+                return
+        self._end_cr30_session()
+
+    def _on_cr30_trigger_not_armed(self) -> None:
+        """M-CR30-TRIGGER-NOT-ARMED, the Measure tab's case reached the other
+        way round.
+
+        A reading ChromIQ asks for cannot report the magnet gate, so this
+        instrument's learned tile signature is what replaces it — and without
+        one there is nothing to replace it with. The instrument's own button
+        still works, and still refuses a capped reading on the flag.
+        """
+        from workflow import measurement_messages as M
+        title, body = M.M_CR30_TRIGGER_NOT_ARMED.render()
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        box.exec()
+
+    def _end_cr30_session(self) -> None:
+        mgr, self._cr30 = self._cr30, None
+        if mgr is not None:
+            mgr.quit()
+            mgr.detach()
+        self._close_cr30_bridge()
+        self._set_session_running(False)
+        self._set_status(tr("Session ended."))
+
+    # --- what the shared calibration windows need from their host --------
+    def _start_button_name(self) -> str:
+        return tr("Start session")
+
+    def _flash_status(self, text: str, duration_ms: int = 6000) -> None:
+        self._set_status(text)
+
+    def _open_cr30_bridge(self) -> None:
+        """Stand up the reader, and claim the instrument with it.
+
+        There is no bridge here in the Measure tab's sense — a bridge pairs
+        readings with a chart's patch ids, and this window has no chart. The
+        name is the shared code's; the reader is the half that matters.
+        """
+        if self._cr30_reader is not None:
+            return
+        from core import instrument_lease
+        from workflow.cr30.measure_bridge import DeviceReader
+        reader = DeviceReader()
+        if not instrument_lease.acquire(reader,
+                                        instrument_lease.SPOT_TOOL):
+            log.warning("the instrument is claimed elsewhere; "
+                        "not opening it for the spot window")
+            return
+        self._cr30_reader = reader
+        if self._sound is None:
+            from core import sound as _snd
+            self._sound = _snd.SoundManager(self._settings)
+        self._sound.arm(reading_engine=True)
+
+    def _close_cr30_bridge(self) -> None:
+        from core import instrument_lease
+        reader, self._cr30_reader = self._cr30_reader, None
+        if reader is not None:
+            try:
+                reader.close()
+            except Exception:      # noqa: BLE001 — teardown only
+                log.debug("CR30 reader close failed", exc_info=True)
+            instrument_lease.release(reader)
+        if self._sound is not None:
+            self._sound.disarm()
+
+    def _show_cr30_measuring_window(self) -> None:
+        """How to measure, once the instrument is calibrated.
+
+        The one window the two hosts do NOT share, and deliberately: the
+        Measure tab's version describes a highlighted patch on a chart and
+        promises to move to the next one. There is no chart here. This window's
+        own Calibration Complete already says what to do, in wording Knut
+        settled for exactly this tool, so it is shown instead of a second one
+        being invented.
+        """
+        self._on_calibration_finished()
+
     def _set_session_running(self, running: bool) -> None:
+        self._instrument.setEnabled(not running)
         self._mode.setEnabled(not running)
         self._skip_cal.setEnabled(not running)
         self._start_btn.setText(tr("Stop session") if running else tr("Start session"))
         if not running:
             self._read_btn.setEnabled(False)
+            self._apply_reader_capabilities()
 
     def _on_session_ended(self, code: int) -> None:
         self._set_session_running(False)
@@ -351,6 +710,15 @@ class SpotReadDialog(QDialog):
 
     def _on_take_reading(self) -> None:
         """Take a reading — clearing a misread first, when there is one."""
+        if self._cr30 is not None:
+            # ChromIQ asks the instrument itself, which is measurably steadier
+            # than pressing its button: the press shifts the reading by about
+            # 0.5 %R, ten times the instrument's own repeat noise. There is no
+            # misread state to clear — the CR30 refuses a bad reading outright
+            # rather than leaving a prompt behind — so none of the two-step
+            # recovery below applies.
+            self._cr30.take_reading()
+            return
         if not getattr(self, "_misread", False):
             self._manager.take_reading()
             return
@@ -808,6 +1176,15 @@ class SpotReadDialog(QDialog):
             self._manager.quit()
             self._manager.abort()
         self._manager.detach()
+        # …and the same for ChromIQ's own reader, which has no process to kill
+        # and would otherwise be left holding the instrument — over Bluetooth,
+        # a CR30 that accepts one connection at a time and has stopped
+        # advertising to everybody else.
+        cr30, self._cr30 = self._cr30, None
+        if cr30 is not None:
+            cr30.quit()
+            cr30.detach()
+        self._close_cr30_bridge()
 
     def reject(self) -> None:  # noqa: D102
         self._release_instrument()

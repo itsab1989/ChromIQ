@@ -296,6 +296,23 @@ def spot_measurement_instructions_html(family: "str | None") -> str:
             "Turn the dial to the <b>measurement position</b> (the target / "
             "aperture icon). Rest the device flat on the colour you want to "
             "read, with the aperture fully inside it.")
+    if family == "cr30":
+        # ASSEMBLED FROM SENTENCES THIS APP ALREADY SHOWS FOR THIS INSTRUMENT,
+        # not written fresh: the cap warning is `measurement_instructions_html`'s
+        # opening, word for word, and the placing sentence is the generic one
+        # below it. Everything else in the chart versions describes a
+        # highlighted patch, which this window does not have.
+        #
+        # The cap sentence has to be here. With the cap on, a CR30 does not
+        # measure at all — it performs a white calibration against whatever is
+        # under the aperture — and the magnet guard can only refuse the reading
+        # afterwards, by which time the instrument has already recalibrated
+        # itself.
+        return tr(
+            "<b>Take the magnetic cap off first.</b> With the cap (or any "
+            "magnet) near the instrument, the CR30 does not measure at all."
+            "<br><br>Place your instrument flat on the colour you want to "
+            "read, with its aperture fully inside the area.")
     if family == "i1pro":
         return tr(
             "Take the i1Pro <b>off its base</b>. Place it flat on the colour you "
