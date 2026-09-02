@@ -125,35 +125,58 @@ class TooltipButton(QToolButton):
         self._color_override = color
         self._set_icon()
 
-    def set_appearance(self, _mode: str) -> None:
-        """Re-draw the ring for a new appearance.
+    def set_appearance(self, mode: str) -> None:
+        """Redraw the ⓘ for a new appearance.
 
-        `MainWindow.apply_theme` broadcasts this to every descendant that has
-        it. The per-tab styling pass already re-draws the buttons inside a tab;
-        this reaches the ones that are NOT in a tab — the masthead's four, the
-        Profile-run bar's three — which otherwise kept the accent they were
-        built with until the app was restarted.
+        The colour is resolved in :meth:`_set_icon`, at draw time — so a button
+        built while Dark was on screen keeps Dark's value until something asks
+        it to draw again. `MainWindow.apply_theme` broadcasts this to every
+        descendant that has it, which is what makes a live switch reach the
+        ~600 ⓘ icons in the app and not only the ones whose tab is restyled
+        afterwards — the masthead's four and the Profile-run bar's three are
+        in no tab at all and used to keep their built-in accent until restart.
+
+        The redraw is a dict lookup after the first icon of each colour
+        (`_ICON_CACHE`), so this is cheap even at that count.
         """
+        from ui.theme import accept_mode
+        self._mode = accept_mode(mode)
         self._set_icon()
 
     def _set_icon(self) -> None:
+        # ONE ACCENT UNDER NEUTRAL, whatever set this one. The ⓘ ring is the
+        # most repeated accent surface in the app — every parameter row, every
+        # dialog masthead — and it arrives here from three directions: the
+        # per-tab class ACCENT, a per-instance `color=`, and Preferences'
+        # indicator override. Collapsing it at the one place all three pass
+        # through means no caller has to know about a third appearance.
+        # `accent_for` returns its argument unchanged in Light and Dark.
+        from ui.theme import accent_for
         color = getattr(self, "_color_override", None) or self.__class__.ACCENT
-        # ONE ACCENT VALUE IN NEUTRAL — resolved HERE, at the last possible
-        # moment, because there are two ways a colour reaches this button and
-        # neither can be caught upstream. The tab accent arrives through the
-        # class global, which MainWindow already sets to ACTION; but every tool
-        # dialog and the editor pass their own `color=SPEC_GREEN` /
-        # `SPEC_MAGENTA` at construction, and those never go past MainWindow at
-        # all. Every ⓘ ring in the app was coloured, in dialogs and in tabs
-        # alike, and this is the single place both paths meet.
+        # RESOLVED HERE, at the last possible moment, because there are two
+        # ways a colour reaches this button and neither can be caught
+        # upstream. The tab accent arrives through the class global, which
+        # MainWindow already sets; but every tool dialog and the editor pass
+        # their own `color=SPEC_GREEN` / `SPEC_MAGENTA` at construction, and
+        # those never go past MainWindow at all. This is the single place both
+        # paths meet. `accent_for` returns its argument unchanged in Light and
+        # Dark, so putting it here moves no pixel of either.
+        color = accent_for(color, getattr(self, "_mode", None))
+        # THE OWNER, ON THE SHIPPED BUILD: *"in preferences neutral mode the
+        # tooltip icons are too light. the color they currently have would be
+        # good for a disabled state or something."* He was looking at
+        # `#d0d0d0` — the DARK theme's indicator, handed to every ⓘ in
+        # Preferences. Measured on this theme's window it is **1.19:1**, which
+        # is fainter than DISABLED itself (**1.35:1**): not merely a poor
+        # enabled value, a value *below* the one the theme reserves for
+        # controls that do not work. Rule 3 says low contrast means "disabled"
+        # and nothing else, so an ⓘ that works is ACTION, at **14.69:1**.
         #
-        # Asked per icon rather than cached: an appearance switch re-draws
-        # these anyway, and the icon cache is keyed on the resolved colour, so
-        # a switch is a cache miss and not a stale ring.
-        from ui import index_rule
-        if index_rule.use_index_rule():
-            from ui import neutral_styles
-            color = neutral_styles.NM_ACTION
+        # And the two do NOT want swapping. A ⓘ is a ring and a glyph — it has
+        # no fill to drop and no edge to dash, so the handoff's disabled SHAPE
+        # does not apply to it; its disabled state is Qt fading this same icon
+        # (QIcon.Mode.Disabled), which is one mechanism in all three
+        # appearances and needs no value of its own.
         self.setIcon(self._draw_icon(QColor(color)))
         # The icon is as wide/tall as the nudge made it; Qt centres it in the
         # button, so the extra room on one side is what produces the shift.

@@ -21,6 +21,13 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 from core.i18n import tr
+from ui.widgets import banner_qss
+
+
+def _neutral() -> bool:
+    """Is the colourless appearance the one on screen?"""
+    from ui.theme import APPEARANCE_NEUTRAL, active_mode
+    return active_mode() == APPEARANCE_NEUTRAL
 
 
 class PreflightDialog(QDialog):
@@ -81,11 +88,18 @@ class PreflightDialog(QDialog):
         for w in warnings:
             warn = QLabel(tr("⚠  {w}").format(w=w), self)
             warn.setWordWrap(True)
-            warn.setStyleSheet(
-                "QLabel { color: #fdd835; background: #2a2000;"
-                " border: 1px solid #f9a825; border-radius: 4px;"
-                " padding: 8px; }"
-            )
+            # Light and Dark keep the amber-on-brown box they have always had
+            # (it is the same in both — this one never grew a light branch).
+            # Neutral gets dark ink on the raised surface with the handoff's
+            # warning underline: no hue, and nothing faint.
+            if _neutral():
+                warn.setStyleSheet(banner_qss("#fdd835", "#2a2000", kind="warn"))
+            else:
+                warn.setStyleSheet(
+                    "QLabel { color: #fdd835; background: #2a2000;"
+                    " border: 1px solid #f9a825; border-radius: 4px;"
+                    " padding: 8px; }"
+                )
             outer.addWidget(warn)
 
         self._dont_ask_cb = QCheckBox(tr("Don't ask again"), self)

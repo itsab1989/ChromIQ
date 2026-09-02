@@ -32,6 +32,7 @@ from PyQt6.QtWidgets import (
 
 from ui.fade_scroll import FadeScrollArea
 from ui.styles import SPEC_MAGENTA, TAB_COLORS
+from ui.theme import accent_for
 from core.i18n import tr
 from ui.keyboard_help import keys_for
 from core.logger import get_logger
@@ -1497,13 +1498,19 @@ class WorkflowIcon(QWidget):
         self.update()
 
     def _fg(self) -> QColor:
-        return QColor("#22211f" if self._mode == "light" else "#e6e6e6")
+        """The line art. In Neutral it steps back to TEXT_DIM so the one
+        accented element — which stays at full ACTION — is the thing the eye
+        lands on. That is the handoff's pictogram rule: the distinction was
+        never really hue, it was solid against outline."""
+        from ui import neutral_styles as _n
+        from ui.theme import by_mode
+        return QColor(by_mode("#22211f", "#e6e6e6", _n.NM_TEXT_DIM, self._mode))
 
     def paintEvent(self, _ev: QPaintEvent) -> None:  # noqa: N802
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         fg = self._fg()
-        accent = QColor(SPEC_MAGENTA)
+        accent = QColor(accent_for(SPEC_MAGENTA, self._mode))
         stroke = 2.4
 
         s = self.SIZE
@@ -2118,16 +2125,15 @@ class WorkflowCard(QFrame):
         self._apply_style()
 
     def _apply_style(self) -> None:
-        if self._mode == "light":
-            bg = "#ffffff"
-            border = "#d0ccc6"
-            text = "#22211f"
-            sub = "#7a7570"
-        else:
-            bg = "#1a1a1a"
-            border = "#333333"
-            text = "#e6e6e6"
-            sub = "#8a8a8a"
+        from ui import neutral_styles as _n
+        from ui.theme import by_mode
+        bg, border, text, sub = by_mode(
+            ("#ffffff", "#d0ccc6", "#22211f", "#7a7570"),
+            ("#1a1a1a", "#333333", "#e6e6e6", "#8a8a8a"),
+            # A card is a raised SURFACE; its subtitle is tertiary ink at
+            # 8.83:1, not a pale grey — nothing that works may be faint.
+            (_n.NM_BG_SURFACE, _n.NM_BORDER, _n.NM_TEXT_MAIN, _n.NM_TEXT_FAINT),
+            self._mode)
         hover_border = SPEC_MAGENTA if self._hover else border
         self.setStyleSheet(
             f"""
@@ -2546,12 +2552,23 @@ class WelcomeDialog(QDialog):
                 x_start = (self.width() - total) / 2
                 baseline = (self.height() + fm_r.ascent() - fm_r.descent()) / 2
 
-                fg = "#22211f" if self._dialog._mode == "light" else "#ffffff"
+                # THE WORDMARK. On screen the magenta goes: "Chrom" in
+                # TEXT_FAINT and "IQ" in TEXT_MAIN, which the italic already
+                # separates by more than the magenta was — measured at 2.55:1
+                # on this frame. `ui/splash.py` made the same change; this is
+                # the sixth brand site, and it is a SCREEN one, so the PDF
+                # wordmark is untouched.
+                from ui import neutral_styles as _n
+                from ui.theme import by_mode
+                fg = by_mode("#22211f", "#ffffff", _n.NM_TEXT_FAINT,
+                             self._dialog._mode)
                 p.setFont(font_r)
                 p.setPen(QColor(fg))
                 p.drawText(int(x_start), int(baseline), text_pre)
                 p.setFont(font_i)
-                p.setPen(QColor(SPEC_MAGENTA))
+                p.setPen(QColor(by_mode(SPEC_MAGENTA, SPEC_MAGENTA,
+                                        _n.NM_TEXT_MAIN,
+                                        self._dialog._mode)))
                 p.drawText(int(x_start + wpre - 1), int(baseline), text_iq)
                 p.end()
 
@@ -2860,12 +2877,13 @@ class WelcomeDialog(QDialog):
         """Re-tint dialog chrome + propagate to children."""
         from ui.theme import accept_mode
         self._mode = accept_mode(mode)
-        if self._mode == "light":
-            dialog_bg = "#eeece8"     # match LM_BG_WINDOW
-            sub_fg    = "#7a7570"
-        else:
-            dialog_bg = "#181818"     # match BG_PANEL — dark grey, not pure black
-            sub_fg    = "#a8a4a0"
+        from ui import neutral_styles as _n
+        from ui.theme import by_mode
+        dialog_bg, sub_fg = by_mode(
+            ("#eeece8", "#7a7570"),      # match LM_BG_WINDOW
+            ("#181818", "#a8a4a0"),      # match BG_PANEL — dark grey, not black
+            (_n.NM_BG_WINDOW, _n.NM_TEXT_FAINT),
+            self._mode)
         # Dialog body. Override the global ACCENT (cyan/blue) for the checkbox
         # indicator so it picks up the spectrum-magenta accent of the welcome
         # dialog rather than the app-wide cyan/blue.
@@ -2874,16 +2892,18 @@ class WelcomeDialog(QDialog):
             QDialog {{ background: {dialog_bg}; }}
             QDialog QLabel {{ background: transparent; }}
             QDialog QCheckBox::indicator:checked {{
-                background: {SPEC_MAGENTA};
-                border-color: {SPEC_MAGENTA};
+                background: {accent_for(SPEC_MAGENTA, self._mode)};
+                border-color: {accent_for(SPEC_MAGENTA, self._mode)};
             }}
             QDialog QCheckBox::indicator:hover {{
-                border-color: {SPEC_MAGENTA};
+                border-color: {accent_for(SPEC_MAGENTA, self._mode)};
             }}
             """
         )
         if hasattr(self, "_support_btn"):
-            _heart = "#c62b52" if self._mode == "light" else "#ff7aa2"
+            # The heart is the one place a hue was doing decorative work; in a
+            # colourless theme it is body ink, and the glyph still says "heart".
+            _heart = by_mode("#c62b52", "#ff7aa2", _n.NM_TEXT_MAIN, self._mode)
             self._support_btn.setStyleSheet(
                 "QPushButton {"
                 f"  color: {_heart}; background: transparent; border: none;"
@@ -2909,8 +2929,10 @@ class WelcomeDialog(QDialog):
     def _apply_detail_text_colors(self) -> None:
         if not hasattr(self, "_steps_host"):
             return
-        body_fg     = "#22211f" if self._mode == "light" else "#e6e6e6"
-        optional_fg = "#7a7570" if self._mode == "light" else "#9a9a9a"
+        from ui import neutral_styles as _n
+        from ui.theme import by_mode
+        body_fg = by_mode("#22211f", "#e6e6e6", _n.NM_TEXT_MAIN, self._mode)
+        optional_fg = by_mode("#7a7570", "#9a9a9a", _n.NM_TEXT_FAINT, self._mode)
         title_fg = body_fg
         for lbl in self._steps_host.findChildren(QLabel, "welcome_step_body"):
             fg = optional_fg if bool(lbl.property("welcome_optional")) else body_fg

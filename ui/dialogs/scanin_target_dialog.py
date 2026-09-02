@@ -41,9 +41,11 @@ from ui.dialogs.tools_dialogs import (
     neutral_controls_qss,
 )
 from ui.styles import SPEC_GREEN
-from ui.theme import resolve_mode
+from ui.theme import accent_for, resolve_mode
 from ui.tooltip_button import TooltipButton
-from ui.widgets import make_browse_button, open_file_dialog, open_files_dialog
+from ui.widgets import (disabled_primary_qss, make_browse_button,
+                        open_file_dialog, open_files_dialog, primary_hover,
+                        primary_label)
 from workflow.scanin_target import (
     ScaninTargetError,
     build_scanin_target_from_paths,
@@ -191,18 +193,15 @@ class ScaninTargetDialog(_ToolDialogBase):
 
     # ------------------------------------------------------------------ style
     def _style_primary_button(self) -> None:
-        light = resolve_mode(self._settings.get("appearance", "auto")) == "light"
-        c = SPEC_GREEN
-        r, g, b = int(c[1:3], 16), int(c[3:5], 16), int(c[5:7], 16)
-        hover = "#{:02x}{:02x}{:02x}".format(int(r * 0.86), int(g * 0.86), int(b * 0.86))
-        dis_bg = "#e8e6e1" if light else "#1e1e1e"
-        dis_fg = "#a8a4a0" if light else "#484848"
+        mode = resolve_mode(self._settings.get("appearance", "auto"))
+        c = accent_for(SPEC_GREEN, mode)
+        hover = primary_hover(c, mode, 0.86)
         self._run_btn.setStyleSheet(
-            f"QPushButton {{ background: {c}; border: 1px solid {c}; color: #0a0a0a;"
+            f"QPushButton {{ background: {c}; border: 1px solid {c};"
+            f" color: {primary_label(mode)};"
             f" font-weight: 700; }}"
             f"QPushButton:hover {{ background: {hover}; border-color: {hover}; }}"
-            f"QPushButton:disabled {{ background: {dis_bg}; border: 1px solid {c};"
-            f" color: {dis_fg}; }}")
+            + disabled_primary_qss(c, mode))
 
     # ------------------------------------------------------------------ UI
     def _tip(self, title: str, body: str) -> TooltipButton:

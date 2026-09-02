@@ -232,6 +232,12 @@ def dialog_masthead(
     behind their headline (it's parented to the dialog, so it lives as long as
     the dialog and refits/raises itself).
     """
+    # ONE ACCENT UNDER NEUTRAL, for every dialog masthead in the app — the
+    # header stroke, the ⓘ ring and the GradientOverlay wash installed below
+    # all take their colour from here. Light and Dark are handed back exactly
+    # what the caller asked for.
+    from ui.theme import accent_for
+    accent = accent_for(accent)
     head = QHBoxLayout()
     head.setContentsMargins(side, top, side, bottom)
     header = TabHeader(

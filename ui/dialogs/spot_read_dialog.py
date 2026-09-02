@@ -40,7 +40,7 @@ from core.i18n import tr
 from ui.dialogs.tools_dialogs import _indicator_color, neutral_controls_qss
 from ui.styles import SPEC_GREEN
 from ui.tab_header import dialog_masthead
-from ui.widgets import NoScrollComboBox, tint_dialog_primary
+from ui.widgets import NoScrollComboBox, set_ink, tint_dialog_primary
 from workflow.spot_read_io import SpotReading, average_readings, write_csv, write_ti3
 from workflow.spot_read_manager import SpotReadManager, SpotReadParams
 
@@ -183,7 +183,7 @@ class SpotReadDialog(QDialog):
 
         self._status = QLabel(tr("Idle — click Start session to begin."), self)
         self._status.setWordWrap(True)
-        self._status.setStyleSheet("color: #909090;")
+        set_ink(self._status, "#909090", level="faint")
         outer.addWidget(self._status)
 
         # --- Results table -------------------------------------------------

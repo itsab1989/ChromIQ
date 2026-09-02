@@ -41,6 +41,7 @@ from ui.styles import SPEC_CYAN, TEXT_DIM, TEXT_MAIN
 from ui.tab_header import dialog_masthead
 from ui.tooltip_button import TooltipButton
 from ui.widgets import (
+    banner_qss,
     NoScrollComboBox,
     make_browse_button,
     open_file_dialog,
@@ -523,8 +524,7 @@ class Ti3InfoDialog(QDialog):
         self._clear_grid()
         self._banner.setText(tr("Could not read this measurement: {msg}").format(msg=msg))
         self._banner.setStyleSheet(
-            "QLabel { background: rgba(255,69,115,0.12); color: #ff4573;"
-            " border: 1px solid #ff4573; border-radius: 4px; padding: 8px 10px; }")
+            banner_qss("#ff4573", "rgba(255,69,115,0.12)", kind="error"))
         self._banner.setVisible(True)
 
     # ------------------------------------------------------------------

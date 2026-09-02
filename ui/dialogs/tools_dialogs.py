@@ -49,10 +49,13 @@ from core.logger import get_logger
 from ui.fade_scroll import FadeScrollArea
 from ui.spectrum_progress import SpectrumSegmentsBar
 from ui.styles import (
-    BG_INPUT, BORDER, SPEC_GREEN, SPEC_MAGENTA, SPEC_VIOLET, TEXT_MAIN,
-    combo_popup_qss,
+    BG_INPUT, BORDER, POPUP_HL_TEXT, SPEC_GREEN, SPEC_MAGENTA, SPEC_VIOLET,
+    TEXT_MAIN, combo_popup_qss,
 )
-from ui.theme import resolve_mode
+from ui import neutral_styles
+from ui.theme import (
+    APPEARANCE_NEUTRAL, accent_for, active_mode, resolve_mode,
+)
 from ui.tab_header import dialog_masthead
 from ui.tooltip_button import TooltipButton
 from ui.widgets import (
@@ -62,12 +65,37 @@ from ui.widgets import (
 
 
 def _indicator_color(settings: "AppSettings") -> str:
-    """The Tools-dialog ⓘ accent — the same light/dark indicator the Settings
-    window uses (near-black on light, light-grey on dark)."""
-    return "#1c1b18" if resolve_mode(settings.get("appearance", "auto")) == "light" else "#d0d0d0"
+    """The Tools-dialog ⓘ accent — the indicator the Settings window uses.
+
+    Near-black on light, light-grey on dark, and **near-black again on
+    Neutral**: the light-grey is a DARK-theme value, and on a light-grey ground
+    it made a ticked box read as switched off. That is the fault the owner
+    reported by eye — "activated checkboxes are light grey, disabled ones a
+    much darker grey, should be vice versa" — and it is here, not in the
+    stylesheet: ``ui/neutral_styles.py`` already paints a checked box in
+    ``NM_ACTION``, and this dialog-scoped rule was overriding it.
+    """
+    mode = resolve_mode(settings.get("appearance", "auto"))
+    if mode == APPEARANCE_NEUTRAL:
+        return neutral_styles.NM_ACTION
+    return "#1c1b18" if mode == "light" else "#d0d0d0"
 
 
-def neutral_controls_qss(color: str, popup: str | None = None) -> str:
+def _popup_pair(popup: str, mode: "str | None" = None) -> tuple:
+    """``(background, label)`` for a combobox popup's hovered row.
+
+    Neutral's highlight is an ACTION fill with ON_ACTION on it — the one
+    sanctioned light-on-dark pairing in this theme (15.53:1), and it is a
+    FILL, not inverted page text. Light and Dark hand back the tool's own
+    accent with the shipped label colour, untouched.
+    """
+    if (mode or active_mode()) == APPEARANCE_NEUTRAL:
+        return neutral_styles.NM_ACTION, neutral_styles.NM_ON_ACTION
+    return popup, POPUP_HL_TEXT
+
+
+def neutral_controls_qss(color: str, popup: str | None = None,
+                         mode: "str | None" = None) -> str:
     """Dialog-scoped QSS that swaps the global cyan/blue ACCENT on interactive
     controls for the neutral light/dark *indicator* colour.
 
@@ -85,7 +113,15 @@ def neutral_controls_qss(color: str, popup: str | None = None) -> str:
     cyan). Left at ``None`` no popup rule is emitted at all, so Preferences —
     which must stay neutral — is unaffected by this helper.
     """
-    popup_qss = combo_popup_qss(popup) if popup else ""
+    # ONE ACCENT UNDER NEUTRAL. A tool's own hue under its dropdown is the
+    # right answer in the two coloured appearances and has no meaning in a
+    # colourless one, where every accent surface is ACTION.
+    # ONE ACCENT UNDER NEUTRAL, including the INDICATOR. Six dialogs pass
+    # their own hue here rather than `_indicator_color`, which is right in the
+    # two coloured appearances and paints coloured ticks, coloured radio dots
+    # and a coloured focus ring in the third.
+    color = accent_for(color, mode)
+    popup_qss = combo_popup_qss(*_popup_pair(popup, mode)) if popup else ""
     return (popup_qss +
         f"QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {{"
         f" border-color: {color}; }}"
@@ -97,10 +133,30 @@ def neutral_controls_qss(color: str, popup: str | None = None) -> str:
         # this the accent :checked fill wins over Qt's disabled greying, so a
         # greyed-out option (e.g. "Highlight out-of-gamut" while soft-proof is
         # off) kept its bright tick. The two-state selector outranks :checked.
-        f"QCheckBox::indicator:checked:disabled,"
-        f" QRadioButton::indicator:checked:disabled {{"
-        f" background: #4a4a4a; border-color: #4a4a4a; }}"
+        + _disabled_indicator_qss(mode)
     )
+
+
+def _disabled_indicator_qss(mode: "str | None" = None) -> str:
+    """How a DISABLED checkbox or radio reads, per appearance.
+
+    Light and Dark keep the mid-grey block they have always had — a fill that
+    is neither the accent nor the ground.
+
+    Neutral cannot use a fill at all. Its rule is the handoff's, and it is a
+    shape rather than a value: **enabled controls carry a fill and a solid 1px
+    edge; disabled ones have no fill and a dashed edge.** The mid-grey block
+    was the darkest thing on a light-grey dialog, which is how a disabled box
+    ended up shouting louder than a ticked one.
+    """
+    if (mode or active_mode()) == APPEARANCE_NEUTRAL:
+        return (f"QCheckBox::indicator:checked:disabled,"
+                f" QRadioButton::indicator:checked:disabled {{"
+                f" background: transparent;"
+                f" border: 1px dashed {neutral_styles.NM_DISABLED}; }}")
+    return ("QCheckBox::indicator:checked:disabled,"
+            " QRadioButton::indicator:checked:disabled {"
+            " background: #4a4a4a; border-color: #4a4a4a; }")
 from workflow.average_runner import AverageParams, AverageRunner
 from workflow.colverify_runner import (
     ColverifyParams,
@@ -261,10 +317,16 @@ class _ToolDialogBase(QDialog):
 
         # Tab-style masthead (uppercase eyebrow + large serif title + ⓘ) over a
         # full-width spectrum stripe — the same look as the chart-design windows.
+        # ONE ACCENT UNDER NEUTRAL. `accent_for` returns SPEC_GREEN / SPEC_VIOLET
+        # / SPEC_MAGENTA unchanged in the two shipped appearances, so the
+        # masthead stroke, the ⓘ ring and the gradient wash this installs are
+        # untouched there; in Neutral all three become ACTION.
+        self._accent = accent_for(
+            self.ACCENT, resolve_mode(settings.get("appearance", "auto")))
         head, self._header, stripe = dialog_masthead(
             self, self.EYEBROW, self.TITLE,
             tooltip_title=self.TITLE, tooltip_body=self.HELP or self.DESCRIPTION,
-            accent=self.ACCENT)
+            accent=self._accent)
         outer.addLayout(head)
         outer.addWidget(stripe)
 
@@ -347,8 +409,9 @@ class _ToolDialogBase(QDialog):
         # this base, so it deliberately keeps its own accent.)
         # The indicators stay neutral; the DROPDOWN wears this tool's own accent
         # — the same colour as the masthead stroke right above it.
-        qss = neutral_controls_qss(_indicator_color(settings),
-                                   popup=self.ACCENT)
+        qss = neutral_controls_qss(
+            _indicator_color(settings), popup=self.ACCENT,
+            mode=resolve_mode(settings.get("appearance", "auto")))
         if resolve_mode(settings.get("appearance", "auto")) == "dark":
             # Generic QPlainTextEdit (the status field, paste boxes) has no
             # explicit background rule, so it falls back to the dark panel
@@ -1011,7 +1074,7 @@ class Ti1ToI1ProfilerDialog(_ToolDialogBase):
         # This dialog uses its masthead magenta as the live accent for checkboxes
         # and focused inputs (not the neutral indicator the other tool dialogs
         # keep). Appended after the base QSS so the magenta rules win.
-        self.setStyleSheet(self.styleSheet() + neutral_controls_qss(self.ACCENT))
+        self.setStyleSheet(self.styleSheet() + neutral_controls_qss(self._accent))
         self._build_inputs()
         self._refresh()
 
@@ -1023,7 +1086,7 @@ class Ti1ToI1ProfilerDialog(_ToolDialogBase):
         self._ti1_field.setPlaceholderText(tr("No file selected"))
         row.addWidget(self._ti1_field, 1)
         btn = make_browse_button(
-            self, tr("Browse for the chart definition"), color=self.ACCENT)
+            self, tr("Browse for the chart definition"), color=self._accent)
         btn.clicked.connect(self._pick_ti1)
         row.addWidget(btn)
         self._content.addLayout(row)
@@ -1035,7 +1098,7 @@ class Ti1ToI1ProfilerDialog(_ToolDialogBase):
             on_change=self._refresh,
             initial_dir=_initial_dir(self._settings, self.TOOL_KEY),
             initial_name="i1profiler",
-            browse_color=self.ACCENT,
+            browse_color=self._accent,
         )
         self._content.addWidget(self._output)
 
@@ -1067,7 +1130,7 @@ class Ti1ToI1ProfilerDialog(_ToolDialogBase):
                 "Both copies are always written, so you can pick whichever you "
                 "prefer. If you are unsure, the shuffled copy is the safer one "
                 "to print and measure."),
-                self, min_width=460, color=self.ACCENT),
+                self, min_width=460, color=self._accent),
             0, Qt.AlignmentFlag.AlignVCenter)
         self._content.addLayout(shuf_row)
 
@@ -1095,7 +1158,7 @@ class Ti1ToI1ProfilerDialog(_ToolDialogBase):
                 "This is only offered for RGB charts. Leave it off if you just "
                 "want the plain patch set (.pxf / .txt) and prefer to choose "
                 "the instrument and layout inside i1Profiler yourself."),
-                self, min_width=460, color=self.ACCENT),
+                self, min_width=460, color=self._accent),
             0, Qt.AlignmentFlag.AlignVCenter)
         self._content.addLayout(wf_row)
 

@@ -44,9 +44,12 @@ from ui.dialogs.tools_dialogs import (
 )
 from ui.fade_scroll import FadeScrollArea
 from ui.styles import SPEC_CYAN
-from ui.theme import resolve_mode
+from ui.theme import accent_for, resolve_mode
 from ui.tooltip_button import TooltipButton
 from ui.widgets import (
+    disabled_primary_qss,
+    primary_hover,
+    primary_label,
     CollapsibleGroupBox,
     NoScrollComboBox,
     NoScrollSpinBox,
@@ -185,19 +188,17 @@ class DeviceLinkDialog(_ToolDialogBase):
         """Cyan primary button that mirrors the Build Profile button: filled when
         enabled, and — when the required fields aren't filled — a muted fill with
         a cyan accent border so it reads as inactive but on-brand."""
-        light = resolve_mode(self._settings.get("appearance", "auto")) == "light"
-        c = SPEC_CYAN
-        r, g, b = int(c[1:3], 16), int(c[3:5], 16), int(c[5:7], 16)
-        hover = "#{:02x}{:02x}{:02x}".format(int(r * 0.82), int(g * 0.82), int(b * 0.82))
-        text   = "#ffffff" if light else "#0a0a0a"
-        dis_bg = "#e8e6e1" if light else "#1e1e1e"
-        dis_fg = "#a8a4a0" if light else "#484848"
+        mode = resolve_mode(self._settings.get("appearance", "auto"))
+        light = mode == "light"
+        c = accent_for(SPEC_CYAN, mode)
+        hover = primary_hover(c, mode)
+        # White on cyan in Light, near-black in Dark, ON_ACTION in Neutral.
+        text = "#ffffff" if light else primary_label(mode)
         self._run_btn.setStyleSheet(
             f"QPushButton {{ background: {c}; border: 1px solid {c}; color: {text};"
             f" font-weight: 700; }}"
             f"QPushButton:hover {{ background: {hover}; border-color: {hover}; }}"
-            f"QPushButton:disabled {{ background: {dis_bg}; border: 1px solid {c};"
-            f" color: {dis_fg}; }}")
+            + disabled_primary_qss(c, mode))
 
     # ------------------------------------------------------------------ UI
     def _file_row(self, layout: QVBoxLayout, placeholder: str, on_pick):

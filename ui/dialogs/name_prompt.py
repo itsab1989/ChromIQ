@@ -29,6 +29,7 @@ from PyQt6.QtWidgets import (
 from core.i18n import tr
 from ui.styles import SPEC_MAGENTA
 from ui.tooltip_button import TooltipButton
+from ui.widgets import set_ink
 
 #: Characters a folder name cannot hold on the platforms ChromIQ ships for.
 #: Kept as data so the message and the check can never disagree.
@@ -274,7 +275,7 @@ def ask_for_project_name(parent: QWidget | None, *, prefill: str = "",
 
     err = QLabel("", dlg)
     err.setWordWrap(True)
-    err.setStyleSheet("color: #e05555;")
+    set_ink(err, "#e05555")
     lay.addWidget(err)
 
     # A PLAIN ROW, NOT A QDialogButtonBox. A button box lays out BY ROLE, and

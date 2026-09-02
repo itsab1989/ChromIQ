@@ -77,12 +77,15 @@ class BuiltinPresetButton(QToolButton):
     Sits next to the GUIDED / MANUAL switch. The glyph is a small **list** (three
     rows, each a bullet + line) — a menu of presets to pick from, which reads as
     "presets" rather than "favourites" (the old star did). It's the app's spectrum
-    magenta in both themes, painted directly in ``paintEvent`` like the welcome
-    "?" button — building a QIcon from a DPR-scaled pixmap clips on Retina,
-    painting in logical coords doesn't. The QSS ``#tooltip_btn`` rule still paints
-    the hover background (we chain to ``super().paintEvent``). ``set_appearance``
-    is a no-op (magenta is theme-independent), kept only so the apply_theme
-    broadcast can call it.
+    magenta in the two COLOURED themes, painted directly in ``paintEvent`` like
+    the welcome "?" button — building a QIcon from a DPR-scaled pixmap clips on
+    Retina, painting in logical coords doesn't. The QSS ``#tooltip_btn`` rule
+    still paints the hover background (we chain to ``super().paintEvent``).
+
+    ``set_appearance`` used to be a no-op on the grounds that "magenta is
+    theme-independent". That stopped being true the moment a third appearance
+    had ONE accent: it now remembers the mode and the glyph is painted in
+    whatever that appearance's accent is.
     """
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -95,9 +98,12 @@ class BuiltinPresetButton(QToolButton):
         self.setFixedSize(QSize(40, 40))
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._hover = False
+        self._mode = "dark"
 
     def set_appearance(self, mode: str) -> None:
-        pass  # magenta is theme-independent — nothing to repaint
+        from ui.theme import accept_mode
+        self._mode = accept_mode(mode)
+        self.update()
 
     def enterEvent(self, event) -> None:  # noqa: N802
         self._hover = True
@@ -115,7 +121,8 @@ class BuiltinPresetButton(QToolButton):
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         w, h = self.width(), self.height()
         s = min(w, h)
-        color = QColor(SPEC_MAGENTA)
+        from ui.theme import accent_for
+        color = QColor(accent_for(SPEC_MAGENTA, self._mode))
         if not self.isEnabled():
             color.setAlpha(70)      # parked (e.g. FROM PROFILE GAMUT active)
         elif not self._hover:

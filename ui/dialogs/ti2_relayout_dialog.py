@@ -42,17 +42,46 @@ from ui.fade_scroll import FadeScrollArea
 from ui.gradient_overlay import GradientOverlay
 from ui.tab_header import SpectrumStripe as _SpectrumStripe, TabHeader
 from ui.tooltip_button import TooltipButton
+from ui.dialogs.tools_dialogs import _popup_pair
+from ui.theme import accent_for
 from ui.widgets import (
     NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox,
-    PrefixLockedLineEdit, load_magenta_folder_icon, open_dir_dialog,
-    open_file_dialog, save_file_dialog,
+    PrefixLockedLineEdit, disabled_primary_qss, load_magenta_folder_icon,
+    open_dir_dialog, open_file_dialog, primary_hover, primary_label,
+    save_file_dialog, set_ink,
 )
+
+
+def _acc() -> str:
+    """The editor's accent for the appearance on screen.
+
+    The chart editor is scoped to the app's magenta so its checked controls do
+    not fall back to the app-wide cyan. Neutral has ONE accent, so every one of
+    those sites resolves to ACTION here rather than each learning about a third
+    appearance. Light and Dark get the magenta back, unchanged.
+    """
+    return accent_for(SPEC_MAGENTA)
+
+
+def _dis_ind() -> str:
+    """``background``/``border-color`` for a ticked-but-DISABLED indicator.
+
+    Mid-grey in the two coloured appearances. Neutral drops the fill and takes
+    a dashed edge instead — a disabled control may not be the darkest thing on
+    the panel.
+    """
+    from ui.theme import APPEARANCE_NEUTRAL, active_mode
+    if active_mode() == APPEARANCE_NEUTRAL:
+        from ui import neutral_styles as _n
+        return f"background: transparent; border: 1px dashed {_n.NM_DISABLED};"
+    return "background: #4a4a4a; border-color: #4a4a4a;"
 
 
 def _magenta_tip(title: str, body: str, parent: QWidget | None = None,
                  min_width: int = 480) -> TooltipButton:
     """A TooltipButton drawn in the editor's magenta accent."""
-    return TooltipButton(title, body, parent, min_width=min_width, color=SPEC_MAGENTA)
+    return TooltipButton(title, body, parent, min_width=min_width,
+                         color=accent_for(SPEC_MAGENTA))
 
 
 def _toggle_locked_prefix(edit: "PrefixLockedLineEdit", on: bool, prefix: str) -> None:
@@ -493,8 +522,14 @@ def _unchecked_indicator_css(settings) -> str:
     from ui.theme import resolve_mode
     light = resolve_mode(
         settings.get("appearance", "auto") if settings else "auto") == "light"
-    return ("border: 1px solid #b0aba4; background: #ffffff;" if light
-            else "border: 1px solid #4a4a4a; background: #1f1f1f;")
+    from ui.theme import APPEARANCE_NEUTRAL, by_mode
+    from ui import neutral_styles as _n
+    mode = resolve_mode(settings.get("appearance", "auto") if settings else "auto")
+    return by_mode(
+        "border: 1px solid #b0aba4; background: #ffffff;",
+        "border: 1px solid #4a4a4a; background: #1f1f1f;",
+        f"border: 1px solid {_n.NM_BORDER_HI}; background: {_n.NM_BG_INPUT};",
+        mode)
 
 
 def _qcolor(rgb: tuple[float, float, float]) -> QColor:
@@ -909,8 +944,9 @@ class _NewChartDialog(QDialog):
         head.setContentsMargins(16, 12, 16, 0)
         head.addWidget(TabHeader(
             tr("NEW PATCH SET · SETUP"), tr("Set up your patch set"),
-            SPEC_MAGENTA, self), 0, Qt.AlignmentFlag.AlignVCenter)
-        GradientOverlay(SPEC_MAGENTA, parent=self, alpha=15, height=95, on_top=False)
+            _acc(), self), 0, Qt.AlignmentFlag.AlignVCenter)
+        GradientOverlay(accent_for(SPEC_MAGENTA), parent=self, alpha=15,
+                        height=95, on_top=False)
         head.addStretch(1)
         head.addWidget(_magenta_tip(
             tr("New patch set"),
@@ -1620,7 +1656,7 @@ class _NewChartDialog(QDialog):
             if not quiet:
                 self._nch_prof_status.setText(
                     tr("✗ Not a readable ICC profile: {err}").format(err=exc))
-                self._nch_prof_status.setStyleSheet("color: #d9534f;")
+                set_ink(self._nch_prof_status, "#d9534f")
             return False
         n_prof = self._icc_channel_count(info.color_space)
         rep, _ = R.color_rep_for_inks(self._nch_ink_codes())
@@ -1632,14 +1668,14 @@ class _NewChartDialog(QDialog):
                        "exact printer and ink set.").format(
                         cs=info.color_space.strip(), np=n_prof or "?",
                         rep=rep, nc=n_chart))
-                self._nch_prof_status.setStyleSheet("color: #d9534f;")
+                set_ink(self._nch_prof_status, "#d9534f")
             return False
         if not quiet:
             desc = info.description or Path(self._precond_path).name
             self._nch_prof_status.setText(
                 tr("✓ {desc} — {cs}, {n} channels — matches").format(
                     desc=desc, cs=info.color_space.strip(), n=n_chart))
-            self._nch_prof_status.setStyleSheet("color: #5cb85c;")
+            set_ink(self._nch_prof_status, "#5cb85c")
         return True
 
     def _refresh_nch_state(self) -> None:
@@ -2918,9 +2954,9 @@ class _NewChartDialog(QDialog):
         so they don't fall back to the app-wide cyan."""
         self.setStyleSheet(f"""
             QCheckBox::indicator:checked {{
-                background: {SPEC_MAGENTA}; border-color: {SPEC_MAGENTA};
+                background: {_acc()}; border-color: {_acc()};
             }}
-            QCheckBox::indicator:hover {{ border-color: {SPEC_MAGENTA}; }}
+            QCheckBox::indicator:hover {{ border-color: {_acc()}; }}
             /* This dialog sets its own stylesheet, which drops the app-wide
                round radio geometry — so re-declare the base indicator round
                (border-radius = half ⇒ circle), else a checked radio draws as a
@@ -2932,23 +2968,23 @@ class _NewChartDialog(QDialog):
                 border-radius: 8px;
             }}
             QRadioButton::indicator:checked {{
-                background: {SPEC_MAGENTA}; border-color: {SPEC_MAGENTA};
+                background: {_acc()}; border-color: {_acc()};
             }}
             /* A ticked-but-disabled box must read as off — without this the
                magenta :checked fill wins over Qt's disabled greying, so an
                unselected panel (e.g. "Generate colour sets") still showed bright
                ticks. The two-state selector outranks the single :checked rule. */
             QCheckBox::indicator:checked:disabled {{
-                background: #4a4a4a; border-color: #4a4a4a;
+                {_dis_ind()}
             }}
             QRadioButton::indicator:checked:disabled {{
-                background: #4a4a4a; border-color: #4a4a4a; border-radius: 8px;
+                {_dis_ind()} border-radius: 8px;
             }}
             QLineEdit:focus, QComboBox:focus,
             QSpinBox:focus, QDoubleSpinBox:focus {{
-                border-color: {SPEC_MAGENTA};
+                border-color: {_acc()};
             }}
-        """ + combo_popup_qss(SPEC_MAGENTA))
+        """ + combo_popup_qss(*_popup_pair(SPEC_MAGENTA)))
         # The dropdown's hovered row defaulted to the app-wide cyan. It needs
         # BOTH of combo_popup_qss's rules: a `selection-background-color` alone
         # (all this used to set) leaves the native menu-drawn popup rendering
@@ -4011,9 +4047,10 @@ class _AddPatchesDialog(_NewChartDialog):
         head = QHBoxLayout()
         head.setContentsMargins(16, 12, 16, 0)
         head.addWidget(TabHeader(
-            tr("EXTEND THE CHART"), tr("Add patches"), SPEC_MAGENTA, self),
+            tr("EXTEND THE CHART"), tr("Add patches"), _acc(), self),
             0, Qt.AlignmentFlag.AlignVCenter)
-        GradientOverlay(SPEC_MAGENTA, parent=self, alpha=15, height=95, on_top=False)
+        GradientOverlay(accent_for(SPEC_MAGENTA), parent=self, alpha=15,
+                        height=95, on_top=False)
         head.addStretch(1)
         # ⓘ with the same generator-sets help the New-chart dialog carries, so
         # the Add window explains the colour sets too (#66 follow-up).
@@ -4311,8 +4348,9 @@ class Ti2RelayoutDialog(QDialog):
         # magenta accent.
         src.addWidget(TabHeader(
             tr("CHART PATCH SET · EDITOR"), tr("Arrange and recolour your patches"),
-            SPEC_MAGENTA, self), 0, Qt.AlignmentFlag.AlignVCenter)
-        GradientOverlay(SPEC_MAGENTA, parent=self, alpha=15, height=95, on_top=False)
+            _acc(), self), 0, Qt.AlignmentFlag.AlignVCenter)
+        GradientOverlay(accent_for(SPEC_MAGENTA), parent=self, alpha=15,
+                        height=95, on_top=False)
         src.addSpacing(16)
         load_btn = QPushButton(tr("Load patch set…"), self)
         load_btn.setToolTip(tr("Load a patch set from a .ti2 / .ti1 file."))
@@ -4422,10 +4460,10 @@ class Ti2RelayoutDialog(QDialog):
         self._size_slider.setStyleSheet(
             f"QSlider::groove:horizontal {{ height: 4px; background: {_groove};"
             " border-radius: 2px; }"
-            f"QSlider::handle:horizontal {{ background: {SPEC_MAGENTA};"
+            f"QSlider::handle:horizontal {{ background: {accent_for(SPEC_MAGENTA)};"
             " border: none; width: 12px; height: 12px; margin: -4px 0;"
             " border-radius: 6px; }"
-            f"QSlider::sub-page:horizontal {{ background: {SPEC_MAGENTA};"
+            f"QSlider::sub-page:horizontal {{ background: {accent_for(SPEC_MAGENTA)};"
             " border-radius: 2px; }"
         )
         _crow1.addWidget(self._size_slider, 1)
@@ -4461,9 +4499,9 @@ class Ti2RelayoutDialog(QDialog):
         # controls panel, so they'd fall back to the app-wide cyan indicator —
         # give them the editor's magenta accent to match the rest of the dialog.
         _cb_magenta = (
-            f"QCheckBox::indicator:checked {{ background: {SPEC_MAGENTA};"
-            f" border-color: {SPEC_MAGENTA}; }}"
-            f"QCheckBox::indicator:hover {{ border-color: {SPEC_MAGENTA}; }}")
+            f"QCheckBox::indicator:checked {{ background: {_acc()};"
+            f" border-color: {_acc()}; }}"
+            f"QCheckBox::indicator:hover {{ border-color: {_acc()}; }}")
         self._show_numbers_check = QCheckBox(tr("Show patch number"), self)
         self._show_numbers_check.setChecked(True)
         self._show_numbers_check.setStyleSheet(_cb_magenta)
@@ -4711,9 +4749,9 @@ class Ti2RelayoutDialog(QDialog):
             QRadioButton {{ font-size: 12px; }}
             QCheckBox  {{ font-size: 11px; }}
             QCheckBox::indicator:checked {{
-                background: {SPEC_MAGENTA}; border-color: {SPEC_MAGENTA};
+                background: {_acc()}; border-color: {_acc()};
             }}
-            QCheckBox::indicator:hover {{ border-color: {SPEC_MAGENTA}; }}
+            QCheckBox::indicator:hover {{ border-color: {_acc()}; }}
             /* This dialog sets its own stylesheet, which drops the app-wide
                round radio geometry — so re-declare the base indicator round
                (border-radius = half ⇒ circle), else a checked radio draws as a
@@ -4725,23 +4763,23 @@ class Ti2RelayoutDialog(QDialog):
                 border-radius: 8px;
             }}
             QRadioButton::indicator:checked {{
-                background: {SPEC_MAGENTA}; border-color: {SPEC_MAGENTA};
+                background: {_acc()}; border-color: {_acc()};
             }}
             /* A ticked-but-disabled box must read as off — without this the
                magenta :checked fill wins over Qt's disabled greying, so an
                unselected panel (e.g. "Generate colour sets") still showed bright
                ticks. The two-state selector outranks the single :checked rule. */
             QCheckBox::indicator:checked:disabled {{
-                background: #4a4a4a; border-color: #4a4a4a;
+                {_dis_ind()}
             }}
             QRadioButton::indicator:checked:disabled {{
-                background: #4a4a4a; border-color: #4a4a4a; border-radius: 8px;
+                {_dis_ind()} border-radius: 8px;
             }}
             QLineEdit:focus, QComboBox:focus,
             QSpinBox:focus, QDoubleSpinBox:focus {{
-                border-color: {SPEC_MAGENTA};
+                border-color: {_acc()};
             }}
-        """ + combo_popup_qss(SPEC_MAGENTA))
+        """ + combo_popup_qss(*_popup_pair(SPEC_MAGENTA)))
         # The dropdown's hovered row defaulted to the app-wide cyan. It needs
         # BOTH of combo_popup_qss's rules: a `selection-background-color` alone
         # (all this used to set) leaves the native menu-drawn popup rendering
@@ -5110,7 +5148,10 @@ class Ti2RelayoutDialog(QDialog):
         ml.setContentsMargins(0, 0, 0, 0)
         ml.setSpacing(4)
         mess_head = QLabel(
-            tr("What a mess<span style=\"color: {SPEC_MAGENTA}; font-style: italic;\">!</span>").format(SPEC_MAGENTA=SPEC_MAGENTA),
+            tr("What a mess<span style=\"color: {SPEC_MAGENTA}; font-style: italic;\">!</span>")
+            # THE KEY KEEPS ITS NAME — it is in thirteen catalogues. Only the
+            # VALUE handed to it follows the appearance.
+            .format(SPEC_MAGENTA=_acc()),
             mess_box,
         )
         mess_head.setTextFormat(Qt.TextFormat.RichText)
@@ -5131,10 +5172,13 @@ class Ti2RelayoutDialog(QDialog):
         mess_bar.setContentsMargins(0, 6, 0, 0)
         mess_bar.setSpacing(0)
         mess_bar.addStretch()
+        # Five segments, one per tab colour — and one ACTION value under
+        # Neutral, which keeps the five-cell geometry and drops the hue.
         for _color in TAB_COLORS:
             seg = QFrame(mess_box)
             seg.setFixedSize(22, 2)
-            seg.setStyleSheet(f"background-color: {_color}; border: none;")
+            seg.setStyleSheet(
+                f"background-color: {accent_for(_color)}; border: none;")
             mess_bar.addWidget(seg)
         mess_bar.addStretch()
         ml.addLayout(mess_bar)
@@ -5184,12 +5228,17 @@ class Ti2RelayoutDialog(QDialog):
         # eating it as a mnemonic; the tr() key stays plain (translations carry a
         # single "&"). Styled in the scheme's magenta to mark it the lead action.
         self._apply_btn = QPushButton(tr("Apply / Save…").replace("&", "&&"), bar)
+        _apply_bg = accent_for(SPEC_MAGENTA)
+        # "white" on the magenta in the two coloured appearances, ON_ACTION on
+        # ACTION in the third — a label on a FILL, the only light-on-dark
+        # pairing this theme allows.
+        _apply_fg = "white" if _apply_bg == SPEC_MAGENTA else primary_label()
         self._apply_btn.setStyleSheet(
-            f"QPushButton {{ background: {SPEC_MAGENTA}; color: white; "
+            f"QPushButton {{ background: {_apply_bg}; color: {_apply_fg}; "
             f"border: none; border-radius: 4px; padding: 4px 10px; "
             f"min-height: 26px; font-size: 11px; font-weight: 600; }}"
-            f"QPushButton:hover {{ background: #ff6690; }}"
-            f"QPushButton:disabled {{ background: #4a4a4a; color: #9a9a9a; }}"
+            f"QPushButton:hover {{ background: {primary_hover(_apply_bg, None, 0.86)}; }}"
+            + disabled_primary_qss(_apply_bg)
         )
         self._apply_btn.setToolTip(
             tr("Overwrite sends this patch set to the Create Chart tab, which "
@@ -7806,9 +7855,9 @@ class Ti2RelayoutDialog(QDialog):
         shuffle_check.setChecked(
             bool(self._settings and self._settings.get("export_shuffled_pxf", False)))
         shuffle_check.setStyleSheet(
-            f"QCheckBox::indicator:checked {{ background: {SPEC_MAGENTA};"
-            f" border-color: {SPEC_MAGENTA}; }}"
-            f"QCheckBox::indicator:hover {{ border-color: {SPEC_MAGENTA}; }}")
+            f"QCheckBox::indicator:checked {{ background: {_acc()};"
+            f" border-color: {_acc()}; }}"
+            f"QCheckBox::indicator:hover {{ border-color: {_acc()}; }}")
         if self._settings is not None:
             shuffle_check.toggled.connect(
                 lambda on: self._settings.set("export_shuffled_pxf", bool(on)))

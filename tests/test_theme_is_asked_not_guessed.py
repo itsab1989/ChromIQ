@@ -213,11 +213,20 @@ def test_4_groupbox_surface_follows_the_answer(app, lying_theme):
 
 
 def test_5_icon_set_follows_the_answer(app, lying_theme):
+    """The question this asks was renamed, and the rename is the point.
+
+    It used to be `_is_light_palette()` — literally "is this the Light
+    appearance". Both callers choose between two shipped ASSETS by whether the
+    ground is pale, and a light-grey third appearance answers *no* to "are you
+    Light" while needing every one of Light's files: light line art on a
+    light-grey panel is an invisible folder button. It now asks
+    `has_dark_ground`, which has a row per appearance.
+    """
     stop_lying = lying_theme
-    from ui.widgets import _is_light_palette
-    assert _is_light_palette() is True                  # the lie
+    from ui.widgets import _has_light_ground
+    assert _has_light_ground() is True                  # the lie
     stop_lying()      # the app is really on DARK
-    assert _is_light_palette() is False
+    assert _has_light_ground() is False
 
 
 def test_6_check_refine_scanner_tip_follows_the_answer(app, lying_theme):

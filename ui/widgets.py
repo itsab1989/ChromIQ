@@ -873,15 +873,25 @@ def accent_message_box_button(btn) -> None:
     top-level dialog that never sees it.
     """
     from core.settings import AppSettings
+    from ui import neutral_styles
     from ui.styles import TAB_COLORS
-    from ui.theme import APPEARANCE_LIGHT, resolve_mode
+    from ui.theme import (
+        APPEARANCE_LIGHT, APPEARANCE_NEUTRAL, accent_for, resolve_mode,
+    )
 
-    accent = TAB_COLORS[0]                      # Create Chart's magenta
+    mode = resolve_mode(AppSettings().get("appearance", "auto"))
+    accent = accent_for(TAB_COLORS[0], mode)    # Create Chart's magenta
     r, g, b = (int(accent[i:i + 2], 16) for i in (1, 3, 5))
-    hover = "#{:02x}{:02x}{:02x}".format(int(r * 0.82), int(g * 0.82),
-                                         int(b * 0.82))
-    light = resolve_mode(AppSettings().get("appearance", "auto")) == APPEARANCE_LIGHT
-    label = "#ffffff" if light else "#0a0a0a"
+    if mode == APPEARANCE_NEUTRAL:
+        # THE ONE SANCTIONED LIGHT-ON-DARK PAIRING, and it is a FILL: an
+        # ON_ACTION label on an ACTION button, 15.53:1. Hover steps sideways
+        # rather than 0.82x darker — ACTION has almost no room left below it.
+        label = neutral_styles.NM_ON_ACTION
+        hover = neutral_styles.NM_TEXT_DIM
+    else:
+        hover = "#{:02x}{:02x}{:02x}".format(int(r * 0.82), int(g * 0.82),
+                                             int(b * 0.82))
+        label = "#ffffff" if mode == APPEARANCE_LIGHT else "#0a0a0a"
     btn.setStyleSheet(
         f"QPushButton {{ background: {accent}; color: {label};"
         f" border: 1px solid {accent}; border-radius: 4px;"
@@ -2886,6 +2896,12 @@ def load_folder_icon(name: str) -> QIcon:
     (folder_build, folder_print, …) are kept as-is since their hues
     already read on either background.
 
+    **Under Neutral every variant is recoloured to ACTION**, by the same
+    SourceIn trick. The five tab-coded PNGs are one hue of line art each, so
+    repainting the alpha mask gives exactly what the handoff asks for — the ten
+    baked-hue files collapsing to one set — without shipping a sixth file or
+    waiting for the assets job. Light and Dark still get the PNG as drawn.
+
     Falls back to the OS system folder icon if no asset is found.
     """
     from core.resource_path import resource_path
@@ -2904,7 +2920,9 @@ def load_folder_icon(name: str) -> QIcon:
         # the new colour using SourceIn so the icon's existing alpha mask
         # (the line work) is preserved exactly — every line that was
         # rendered in the dark PNG is repainted in the new colour.
-        if name == "folder" and _is_light_palette():
+        from ui.theme import APPEARANCE_NEUTRAL, active_mode
+        if (name == "folder" and _has_light_ground()) \
+                or active_mode() == APPEARANCE_NEUTRAL:
             from PyQt6.QtGui import QImage, QPainter
             img = scaled.toImage().convertToFormat(
                 QImage.Format.Format_ARGB32_Premultiplied
@@ -2913,7 +2931,7 @@ def load_folder_icon(name: str) -> QIcon:
             painter.setCompositionMode(
                 QPainter.CompositionMode.CompositionMode_SourceIn
             )
-            painter.fillRect(img.rect(), QColor("#22211f"))
+            painter.fillRect(img.rect(), QColor(_dark_glyph_ink()))
             painter.end()
             recoloured = QPixmap.fromImage(img)
             recoloured.setDevicePixelRatio(dpr)
@@ -2923,17 +2941,28 @@ def load_folder_icon(name: str) -> QIcon:
     return QApplication.style().standardIcon(QStyle.StandardPixmap.SP_DirOpenIcon)
 
 
-def _is_light_palette() -> bool:
-    """True when the LIGHT appearance is the one on screen.
+def _has_light_ground() -> bool:
+    """True when the appearance on screen paints a PALE ground.
 
     Both callers use this to choose between two shipped assets — the folder
     glyph recoloured for a pale ground, and the ``*_dark`` sibling of a preset
-    icon. Which asset set applies is a property of the appearance, not of a
-    lightness reading, so the theme module answers it; a third appearance then
-    needs a third answer here rather than silently inheriting Light's files.
+    icon. The question they are really asking is about the GROUND, not about
+    Light: it was written as ``is_light()``, which answered *no* for Neutral
+    and put light line art on a light-grey panel — an invisible folder button,
+    the icon form of the theme's most-repeated trap. ``has_dark_ground`` is the
+    one place that knows, and a fourth appearance is a row in its table.
     """
-    from ui.theme import is_light
-    return is_light()
+    from ui.theme import active_mode, has_dark_ground
+    return not has_dark_ground(active_mode())
+
+
+def _dark_glyph_ink() -> str:
+    """The ink a glyph is recoloured to on a pale ground, per appearance."""
+    from ui.theme import APPEARANCE_NEUTRAL, active_mode
+    from ui import neutral_styles
+    if active_mode() == APPEARANCE_NEUTRAL:
+        return neutral_styles.NM_TEXT_MAIN
+    return "#22211f"        # the light theme's wordmark ink, unchanged
 
 
 def load_preset_icon(name: str) -> QIcon:
@@ -2944,7 +2973,7 @@ def load_preset_icon(name: str) -> QIcon:
     Presets row.
     """
     from core.resource_path import resource_path
-    stem = f"{name}_dark" if _is_light_palette() else name
+    stem = f"{name}_dark" if _has_light_ground() else name
     return QIcon(str(resource_path(f"assets/{stem}.svg")))
 
 
@@ -2953,10 +2982,16 @@ def load_tinted_folder_icon(color: str, size: int = 22) -> QIcon:
 
     Repaints every opaque pixel of ``folder.png`` via SourceIn, preserving the
     icon's alpha mask (same trick :func:`load_folder_icon` uses for the
-    light-theme recolour). Spectrum accents read on both themes, so no
+    light-theme recolour). Spectrum accents read on both COLOURED themes, so no
     light/dark variant is needed. Used where a browse button should match its
-    dialog's masthead accent rather than a tab-coded variant."""
+    dialog's masthead accent rather than a tab-coded variant.
+
+    Under Neutral there is one accent, so every tinted glyph in the app —
+    browse buttons, reveal buttons, the preset star's folder twin — comes out
+    of here in ACTION. Light and Dark get exactly the colour they asked for."""
     from core.resource_path import resource_path
+    from ui.theme import accent_for
+    color = accent_for(color)
     from PyQt6.QtGui import QGuiApplication, QImage, QPainter
 
     dpr = QGuiApplication.primaryScreen().devicePixelRatio()
@@ -2981,8 +3016,11 @@ def load_reveal_folder_icon(color: str, size: int = 22) -> QIcon:
     """A distinct “reveal in the file manager” glyph — a folder with a small
     arrow springing out of it — painted in an accent ``color`` (Knut). Kept
     visually different from the plain folder glyph used to *load* a file, so
-    the two buttons don't read as the same action."""
+    the two buttons don't read as the same action. One accent under Neutral,
+    see :func:`load_tinted_folder_icon`."""
     from PyQt6.QtGui import QGuiApplication, QImage, QPainter, QPainterPath, QPen
+    from ui.theme import accent_for
+    color = accent_for(color)
 
     dpr = QGuiApplication.primaryScreen().devicePixelRatio()
     phys = round(size * dpr)
@@ -3461,9 +3499,19 @@ def tint_dialog_primary(dlg: "QWidget", color: str) -> None:
     """Stamp tab accent color onto every QPushButton#primary inside a dialog (v2 only).
 
     Safe to call on any dialog — no-op if no primary buttons are present.
+
+    **One accent under Neutral, and the label flips with it.** This is the
+    single busiest accent site in the app — sixty-odd call sites across every
+    tab — so it is also the one place where getting the pair wrong is loudest:
+    ``#0a0a0a`` on an ACTION fill is black on black. Neutral gets ON_ACTION
+    (15.53:1), the theme's one sanctioned light-on-dark pairing, and it is a
+    fill rather than inverted page text. Light and Dark are untouched.
     """
-    r, g, b = int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
-    hover = "#{:02x}{:02x}{:02x}".format(int(r * 0.82), int(g * 0.82), int(b * 0.82))
+    from ui.theme import accent_for, active_mode
+    mode = active_mode()
+    color = accent_for(color, mode)
+    label = primary_label(mode)
+    hover = primary_hover(color, mode)
     for btn in dlg.findChildren(QPushButton):
         if btn.objectName() == "primary":
             # APPEND, never replace. fit_button_width writes a min-width rule
@@ -3475,7 +3523,7 @@ def tint_dialog_primary(dlg: "QWidget", color: str) -> None:
             btn.setStyleSheet(
                 existing
                 + f"\nQPushButton {{ background: {color}; border: 1px solid {color};"
-                f" color: #0a0a0a; font-weight: 700; }}"
+                f" color: {label}; font-weight: 700; }}"
                 f"QPushButton:hover {{ background: {hover}; border-color: {hover}; }}"
             )
             # …and re-assert the width afterwards, so the order of the two never
@@ -3483,13 +3531,102 @@ def tint_dialog_primary(dlg: "QWidget", color: str) -> None:
             fit_button_width(btn)
 
 
+def primary_label(mode: "str | None" = None) -> str:
+    """The label colour on an accent-FILLED primary button.
+
+    Near-black on the coloured accents, which are all light enough to carry it.
+    ACTION is not: Neutral's label is ON_ACTION at 15.53:1 — the one
+    light-on-dark pairing the theme allows, and it is a fill, not inverted
+    page text.
+    """
+    from ui.theme import APPEARANCE_NEUTRAL, active_mode
+    if (mode or active_mode()) == APPEARANCE_NEUTRAL:
+        from ui import neutral_styles
+        return neutral_styles.NM_ON_ACTION
+    return "#0a0a0a"
+
+
+def primary_hover(accent: str, mode: "str | None" = None,
+                  factor: float = 0.82) -> str:
+    """The hover fill for an accent-filled primary button.
+
+    The coloured appearances darken the accent by ``factor``. ACTION has almost
+    no room left below it — 0.82 x #101010 is #0d0d0d, a change nobody can see —
+    so Neutral steps to TEXT_DIM instead, which is a visible move in the only
+    direction this theme has (rule 1: never lighter than its ground).
+    """
+    from ui.theme import APPEARANCE_NEUTRAL, active_mode
+    if (mode or active_mode()) == APPEARANCE_NEUTRAL:
+        from ui import neutral_styles
+        return neutral_styles.NM_TEXT_DIM
+    r, g, b = int(accent[1:3], 16), int(accent[3:5], 16), int(accent[5:7], 16)
+    return "#{:02x}{:02x}{:02x}".format(int(r * factor), int(g * factor),
+                                        int(b * factor))
+
+
+def disabled_primary_qss(accent: str, mode: "str | None" = None) -> str:
+    """The ``QPushButton:disabled`` rule for an accent-filled primary button.
+
+    Four tool dialogs wrote the same three literals for this — a pale fill and
+    a pale label on light, a near-black fill and a mid-grey label on dark. A
+    third appearance took the dark branch and put a near-black block on a
+    light-grey window: the darkest thing in the dialog was the button you
+    cannot press.
+
+    Neutral's answer is the handoff's shape, not a value: **no fill and a
+    dashed edge**. Light and Dark get exactly the rule they have always had.
+    """
+    from ui.theme import APPEARANCE_NEUTRAL, active_mode, is_light
+    mode = mode or active_mode()
+    if mode == APPEARANCE_NEUTRAL:
+        from ui import neutral_styles
+        return (f"QPushButton:disabled {{ background: transparent;"
+                f" border: 1px dashed {neutral_styles.NM_DISABLED};"
+                f" color: {neutral_styles.NM_DISABLED}; }}")
+    light = mode == "light" if mode else is_light()
+    dis_bg = "#e8e6e1" if light else "#1e1e1e"
+    dis_fg = "#a8a4a0" if light else "#484848"
+    return (f"QPushButton:disabled {{ background: {dis_bg};"
+            f" border: 1px solid {accent}; color: {dis_fg}; }}")
+
+
+def banner_qss(accent: str, wash: str, mode: "str | None" = None,
+               kind: str = "warn") -> str:
+    """A one-line info / warning / error banner, as a full ``QLabel`` rule.
+
+    ``accent`` is the hue the two coloured appearances use for the text and the
+    edge; ``wash`` the ``rgba(...)`` fill behind it. Both are handed back
+    unchanged there.
+
+    Neutral has no hue to spend, so the banner is told apart by SHAPE — the
+    handoff's escalation: a warning gains a 1px underline, a failure a 3px left
+    bar. The text is dark ink on the raised surface either way; nothing here is
+    allowed to be faint, because faint means disabled.
+    """
+    from ui.theme import APPEARANCE_NEUTRAL, active_mode
+    if (mode or active_mode()) != APPEARANCE_NEUTRAL:
+        return (f"QLabel {{ background: {wash}; color: {accent};"
+                f" border: 1px solid {accent}; border-radius: 4px;"
+                f" padding: 8px 10px; }}")
+    from ui import neutral_styles as _n
+    mark = (f" border-left: 3px solid {_n.NM_ACTION};" if kind == "error"
+            else f" border-bottom: 2px solid {_n.NM_ACTION};")
+    return (f"QLabel {{ background: {_n.NM_BG_SURFACE}; color: {_n.NM_TEXT_MAIN};"
+            f" border: 1px solid {_n.NM_BORDER};{mark}"
+            f" border-radius: 4px; padding: 8px 10px; }}")
+
+
 def load_refresh_icon(name: str) -> QIcon:
     """Load a colored refresh icon from assets/refresh/<name>.png.
+
+    The five tab-coded variants are recoloured to ACTION under Neutral, the
+    same way :func:`load_folder_icon` handles the folder set.
 
     Falls back to the OS browser-reload icon if the file is not found.
     """
     from core.resource_path import resource_path
     from PyQt6.QtGui import QGuiApplication
+    from ui.theme import APPEARANCE_NEUTRAL, active_mode
     px = QPixmap(str(resource_path(f"assets/refresh/{name}.png")))
     if not px.isNull():
         dpr  = QGuiApplication.primaryScreen().devicePixelRatio()
@@ -3497,9 +3634,62 @@ def load_refresh_icon(name: str) -> QIcon:
         scaled = px.scaled(phys, phys,
                            Qt.AspectRatioMode.KeepAspectRatio,
                            Qt.TransformationMode.SmoothTransformation)
+        if active_mode() == APPEARANCE_NEUTRAL:
+            from PyQt6.QtGui import QImage, QPainter
+            img = scaled.toImage().convertToFormat(
+                QImage.Format.Format_ARGB32_Premultiplied)
+            painter = QPainter(img)
+            painter.setCompositionMode(
+                QPainter.CompositionMode.CompositionMode_SourceIn)
+            painter.fillRect(img.rect(), QColor(_dark_glyph_ink()))
+            painter.end()
+            scaled = QPixmap.fromImage(img)
         scaled.setDevicePixelRatio(dpr)
         return QIcon(scaled)
     return QApplication.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload)
+
+
+#: Property keys used by :func:`set_ink` to remember what a label asked for.
+_INK_SRC   = "_chromiq_ink_src"
+_INK_LEVEL = "_chromiq_ink_level"
+_INK_EXTRA = "_chromiq_ink_extra"
+
+
+def set_ink(widget, colour: str, extra: str = "", level: str = "main") -> None:
+    """Colour ``widget``'s text, remembering the value it asked for.
+
+    ``colour`` is the Light/Dark value — a status green, a warning amber, a
+    magenta link, a ``#909090`` note. Light and Dark get it back unchanged; in
+    Neutral it becomes dark ink at ``level`` (``"main"`` / ``"dim"`` /
+    ``"faint"``), because in a colourless theme those meanings are carried by
+    the WORDS. None of the three levels is faint enough to read as disabled —
+    the tertiary value is 8.83:1 on the panel.
+
+    ``extra`` is appended to the stylesheet verbatim, so a size or weight the
+    label already had survives (``" font-size: 11px;"``).
+
+    The value asked for is stored on the widget, so :func:`reapply_ink` can
+    re-resolve it when the appearance changes under a window that is already
+    open — a theme previewed from inside Preferences, or the apply_theme
+    broadcast reaching a long-lived tab.
+    """
+    from ui.theme import ink_for
+    widget.setProperty(_INK_SRC, colour)
+    widget.setProperty(_INK_LEVEL, level)
+    widget.setProperty(_INK_EXTRA, extra)
+    widget.setStyleSheet(f"color: {ink_for(colour, level=level)};{extra}")
+
+
+def reapply_ink(root, mode: str | None = None) -> None:
+    """Re-resolve every :func:`set_ink` colour under ``root`` for ``mode``."""
+    from ui.theme import ink_for
+    for wgt in root.findChildren(QWidget):
+        src = wgt.property(_INK_SRC)
+        if not src:
+            continue
+        level = wgt.property(_INK_LEVEL) or "main"
+        extra = wgt.property(_INK_EXTRA) or ""
+        wgt.setStyleSheet(f"color: {ink_for(src, mode, level=level)};{extra}")
 
 
 def make_browse_button(
