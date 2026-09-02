@@ -35,7 +35,7 @@ from ui.fade_scroll import FadeScrollArea
 from ui.tab_header import TabHeader
 from ui.tiff_preview import TiffPreview, _find_sidecar_channels
 from ui.tooltip_button import TooltipButton
-from ui.widgets import NoScrollComboBox, PatchGridButton, load_refresh_icon, open_file_dialog
+from ui.widgets import NoScrollComboBox, PatchGridButton, load_refresh_icon, open_file_dialog, set_accent_html, spectrum_cell
 from workflow.cups_printer import CupsRawPrinter
 from workflow.page_geometry import (
     ORIENTATION_LANDSCAPE,
@@ -549,10 +549,14 @@ class TabPrint(QWidget):
         beast_layout = QVBoxLayout(beast_box)
         beast_layout.setContentsMargins(0, 0, 0, 0)
         beast_layout.setSpacing(4)
-        beast_headline = QLabel(
-            tr("Feed the beast<span style=\"color: {SPEC_AMBER}; font-style: italic;\">!</span>").format(SPEC_AMBER=SPEC_AMBER),
-            beast_box,
-        )
+        beast_headline = QLabel(beast_box)
+        # The mark the headline ends in is an inline colour, which beats the
+        # stylesheet -- so it kept its hue in a theme that has none. Resolved
+        # through the appearance, and re-resolved on a live switch.
+        set_accent_html(
+            beast_headline,
+            tr("Feed the beast<span style=\"color: {SPEC_AMBER}; font-style: italic;\">!</span>"),
+            SPEC_AMBER=SPEC_AMBER)
         beast_headline.setTextFormat(Qt.TextFormat.RichText)
         beast_headline.setAlignment(Qt.AlignmentFlag.AlignCenter)
         beast_headline.setStyleSheet(
@@ -571,11 +575,11 @@ class TabPrint(QWidget):
         beast_bar.setContentsMargins(0, 6, 0, 0)
         beast_bar.setSpacing(0)
         beast_bar.addStretch()
+        # Decoration, not a readout: the same five cells on every tab. One
+        # ACTION value under Neutral, and the hue kept on each cell so a live
+        # appearance switch repaints it -- see ui.widgets.spectrum_cell.
         for _color in TAB_COLORS:
-            _seg = QFrame(beast_box)
-            _seg.setFixedSize(22, 2)
-            _seg.setStyleSheet(f"background-color: {_color}; border: none;")
-            beast_bar.addWidget(_seg)
+            beast_bar.addWidget(spectrum_cell(beast_box, _color))
         beast_bar.addStretch()
         beast_layout.addLayout(beast_bar)
         ll.addWidget(beast_box)

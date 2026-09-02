@@ -44,7 +44,7 @@ from core.resource_path import resource_path
 from ui.fade_scroll import FadeScrollArea
 from ui.tab_header import TabHeader
 from ui.tooltip_button import InfoDialog, TooltipButton
-from ui.widgets import add_log_row, fit_button_width, fit_log_height, fit_message_box_buttons, spread_message_box_buttons, GatedOption, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, make_browse_button, open_file_dialog, replace_log_line, set_folder_icon, set_preset_icon, tint_dialog_primary
+from ui.widgets import add_log_row, fit_button_width, fit_log_height, fit_message_box_buttons, spread_message_box_buttons, GatedOption, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, make_browse_button, open_file_dialog, replace_log_line, set_accent_html, set_folder_icon, set_preset_icon, spectrum_cell, tint_dialog_primary
 from ui.ti2_loader import (has_spectral_data, instrument_label, is_colormunki,
                           read_target_instrument, spectral_options_unavailable)
 from ui.spectrum_progress import SpectrumSegmentsBar
@@ -487,10 +487,12 @@ class TabProfile(QWidget):
         build_layout = QVBoxLayout(build_box)
         build_layout.setContentsMargins(0, 0, 0, 0)
         build_layout.setSpacing(4)
-        self._build_headline = QLabel(
-            tr("Ready to build<span style=\"color: {SPEC_CYAN}; font-style: italic;\">?</span>").format(SPEC_CYAN=SPEC_CYAN),
-            build_box,
-        )
+        self._build_headline = QLabel(build_box)
+        # An inline colour beats the stylesheet -- see ui.widgets.set_accent_html.
+        set_accent_html(
+            self._build_headline,
+            tr("Ready to build<span style=\"color: {SPEC_CYAN}; font-style: italic;\">?</span>"),
+            SPEC_CYAN=SPEC_CYAN)
         self._build_headline.setTextFormat(Qt.TextFormat.RichText)
         self._build_headline.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._build_headline.setStyleSheet(
@@ -509,11 +511,11 @@ class TabProfile(QWidget):
         bar_row.setContentsMargins(0, 6, 0, 0)
         bar_row.setSpacing(0)
         bar_row.addStretch()
+        # Decoration, not a readout: the same five cells on every tab. One
+        # ACTION value under Neutral, and the hue kept on each cell so a live
+        # appearance switch repaints it -- see ui.widgets.spectrum_cell.
         for _color in TAB_COLORS:
-            _seg = QFrame(build_box)
-            _seg.setFixedSize(22, 2)
-            _seg.setStyleSheet(f"background-color: {_color}; border: none;")
-            bar_row.addWidget(_seg)
+            bar_row.addWidget(spectrum_cell(build_box, _color))
         bar_row.addStretch()
         build_layout.addLayout(bar_row)
         self._build_state_box = build_box
@@ -5067,9 +5069,12 @@ class TabProfile(QWidget):
     def _reset_build_ui(self) -> None:
         """Restore the Build box after any build (colprof or engine)."""
         self.profile_active.emit(False)
-        self._build_headline.setText(
-            tr("Ready to build<span style=\"color: {SPEC_CYAN}; font-style: italic;\">?</span>").format(SPEC_CYAN=SPEC_CYAN)
-        )
+        # setText would drop the template this label was built with, and the
+        # mark would come back in cyan on the next appearance switch.
+        set_accent_html(
+            self._build_headline,
+            tr("Ready to build<span style=\"color: {SPEC_CYAN}; font-style: italic;\">?</span>"),
+            SPEC_CYAN=SPEC_CYAN)
         self._build_subtext.setText(tr("Awaiting your command."))
         self._build_btn.setText(tr("Build Profile"))
         self._build_btn.setEnabled(True)

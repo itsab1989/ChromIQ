@@ -41,6 +41,8 @@ from PyQt6.QtGui import (QColor, QIcon, QPainter, QPainterPath, QPen,
                          QPixmap)
 from PyQt6.QtWidgets import QToolButton, QWidget  # noqa: F401 (QWidget: typing)
 
+from ui import neutral_styles
+
 #: Everything is laid out in this box and scaled to whatever the button asks for.
 _BOX = 24.0
 
@@ -323,12 +325,29 @@ class BarIconButton(QToolButton):
         self._colour = colour
         self._apply_icon()
 
-    #: The greys the app already uses for disabled button text — dark theme, then
-    #: light. Taken from ``QPushButton:disabled`` in ``ui/styles.py`` and
-    #: ``LM_TEXT_FAINT`` in ``ui/light_styles.py``, so a greyed mark greys exactly
-    #: like a greyed label; a test fails if either stylesheet moves away from them.
+    #: The greys the app already uses for disabled button text — dark theme,
+    #: then light, then Neutral. Taken from ``QPushButton:disabled`` in
+    #: ``ui/styles.py``, ``LM_TEXT_FAINT`` in ``ui/light_styles.py`` and
+    #: ``NM_DISABLED`` in ``ui/neutral_styles.py``, so a greyed mark greys
+    #: exactly like a greyed label; a test fails if a stylesheet moves away
+    #: from one of them.
     GREY_ON_DARK = "#505050"
     GREY_ON_LIGHT = "#a8a4a0"
+    #: Neutral's own disabled value. The light theme's grey is a WARM one —
+    #: `#a8a4a0` is 8 points of red over blue — so a bar of greyed marks was
+    #: the last visible tint on a theme whose whole point is that there is
+    #: none. This one is a true grey and is what that theme greys text with.
+    GREY_ON_NEUTRAL = neutral_styles.NM_DISABLED
+
+    def _mode(self) -> str:
+        """Which appearance this button is painting into.
+
+        Answered from the widget's OWN palette rather than the settings: that
+        palette is what has just changed when this is asked, which happens
+        inside the ``PaletteChange`` a theme switch delivers.
+        """
+        from ui.theme import active_mode
+        return active_mode(self.palette())
 
     def _disabled_colour(self) -> str:
         """The app's own disabled grey for whichever theme is on screen.
@@ -338,20 +357,26 @@ class BarIconButton(QToolButton):
         it came out *brighter* than the enabled mark beside it, which is the
         opposite of greyed.
 
-        The two greys above are each theme's OWN disabled grey, so the question
-        is "which theme", and it is put to the theme module. It is still
-        answered from the live palette rather than the settings — that is what
-        has just changed when this is asked during a theme switch — but by
-        identifying the palette instead of measuring how light its text is. The
-        widget's own palette is passed because a theme switch reaches this
-        button through its ``PaletteChange``.
+        The three greys above are each theme's OWN disabled grey, so the
+        question is "which theme", and it is put to the theme module. It used
+        to be a two-answer fold — dark, or else light — which handed Neutral
+        the light theme's WARM grey and left the Profile-run bar carrying a
+        tint in a theme that has none.
         """
-        from ui.theme import active_mode, APPEARANCE_DARK
-        on_dark = active_mode(self.palette()) == APPEARANCE_DARK
-        return self.GREY_ON_DARK if on_dark else self.GREY_ON_LIGHT
+        from ui.theme import by_mode
+        return by_mode(self.GREY_ON_LIGHT, self.GREY_ON_DARK,
+                       self.GREY_ON_NEUTRAL, self._mode())
 
     def _apply_icon(self) -> None:
-        icon = QIcon(_pixmap(self._draw, self._colour, self.ICON, self.NUDGE,
+        # ONE ACCENT UNDER NEUTRAL. The mark takes the active tab's hue in
+        # Light and Dark exactly as it always has — `accent_for` returns its
+        # argument unchanged there — and the theme's single ACTION value in
+        # Neutral, where a per-tab hue would say "which tab you are in", which
+        # is the one thing that theme's accent must never mean.
+        from ui.theme import accent_for
+        mode = self._mode()
+        icon = QIcon(_pixmap(self._draw, accent_for(self._colour, mode),
+                             self.ICON, self.NUDGE,
                              self.HEIGHT, self.STRETCH_Y, self.INK_TOP))
         icon.addPixmap(_pixmap(self._draw, self._disabled_colour(), self.ICON,
                                self.NUDGE, self.HEIGHT, self.STRETCH_Y,

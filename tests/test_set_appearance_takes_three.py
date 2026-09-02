@@ -254,6 +254,25 @@ def _tab_print():
     return TabPrint(AppSettings(), None), "set_appearance"
 
 
+def _glyph_accent_button():
+    """The mixin the six painted glyph buttons take `set_appearance` FROM.
+
+    It has no constructor of its own -- it is the shared half of six widgets --
+    so it is exercised through the smallest concrete widget that uses it, which
+    runs exactly the code path all six share.
+    """
+    from PyQt6.QtWidgets import QToolButton
+
+    from ui.widgets import GlyphAccentButton
+
+    class _Probe(GlyphAccentButton, QToolButton):
+        def __init__(self):
+            super().__init__()
+            self._color = "#56d6a5"
+
+    return _Probe(), "set_appearance"
+
+
 def _patch_grid_button():
     from ui.widgets import PatchGridButton
     return PatchGridButton("#56d6a5"), "set_appearance"
@@ -335,12 +354,18 @@ COMPONENTS = [
     ("WelcomeDialog",        _welcome_dialog,        "_mode"),
     ("TabMeasure",           _tab_measure,           "_mode"),
     ("TabPrint",             _tab_print,             "_mode"),
-    ("PatchGridButton",      _patch_grid_button,     None),
-    ("StackedPagesButton",   _stacked_pages_button,  None),
-    ("StripReadButton",      _strip_read_button,     None),
-    ("MeasuredChartButton",  _measured_chart_button, None),
-    ("RevealFolderButton",   _reveal_folder_button,  None),
-    ("ImageFileButton",      _image_file_button,     None),
+    ("GlyphAccentButton",    _glyph_accent_button,   "_mode"),
+    # These six were `None` — their `set_appearance` was a documented no-op,
+    # "accent colour is theme-independent". That was true while both
+    # appearances wanted the tab's hue; with a third that has ONE accent the
+    # mark has to know which appearance it is in, so they now keep the name
+    # like everybody else. See `tests/test_neutral_icons.py`.
+    ("PatchGridButton",      _patch_grid_button,     "_mode"),
+    ("StackedPagesButton",   _stacked_pages_button,  "_mode"),
+    ("StripReadButton",      _strip_read_button,     "_mode"),
+    ("MeasuredChartButton",  _measured_chart_button, "_mode"),
+    ("RevealFolderButton",   _reveal_folder_button,  "_mode"),
+    ("ImageFileButton",      _image_file_button,     "_mode"),
     ("TabHeader",            _tab_header,            None),
     ("SpectrumStripe",       _spectrum_stripe,       None),
     ("GradientOverlay",      _gradient_overlay,      None),

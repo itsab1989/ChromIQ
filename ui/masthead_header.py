@@ -11,11 +11,10 @@ from PyQt6.QtGui import (
     QColor, QFont, QFontMetricsF, QGuiApplication, QIcon,
     QPainter, QPen, QPaintEvent, QPixmap,
 )
-from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import QToolButton, QWidget
 
 from core.resource_path import resource_path
-from ui import index_rule, neutral_styles
+from ui import icon_ink, index_rule, neutral_styles
 from ui.welcome_button import WelcomeButton
 from core.i18n import tr
 from ui.keyboard_help import with_shortcut
@@ -635,7 +634,12 @@ class MastheadHeader(QWidget):
             path = resource_path(f"assets/{name}{suffix}.svg")
             if not path.exists():
                 continue
-            renderer = QSvgRenderer(str(path))
+            # ONE ACCENT IN NEUTRAL. These four marks are the only icons in
+            # the app whose colour is baked into a file, so a theme cannot
+            # reach them the way it reaches every drawn glyph; `icon_ink`
+            # substitutes the palette in the SVG source before Qt rasterises
+            # it, and hands back a plain QSvgRenderer(path) in Light and Dark.
+            renderer = icon_ink.svg_renderer(path, self._mode)
             if not renderer.isValid():
                 continue
             size = 40
@@ -762,7 +766,7 @@ class MastheadHeader(QWidget):
         path = resource_path(rel)
         if not path.exists():
             return
-        renderer = QSvgRenderer(str(path))
+        renderer = icon_ink.svg_renderer(path, self._mode)   # see the left icons
         if not renderer.isValid():
             return
         # The toolbox graphic is visually bottom-heavy (handle + lid above a
