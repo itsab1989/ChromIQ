@@ -1812,8 +1812,8 @@ class ScannerProfileDialog(_ToolDialogBase):
         # instead of showing a grid that can never match the scan (#108).
         if self._layout.get("engine") == "printtarg":
             stored = len(self._layout.get("cht_pages") or [])
-            from core.file_manager import files_matching
-            tifs = files_matching(base.parent, f"{base.name}_*.tif")
+            from core.file_manager import stem_files
+            tifs = stem_files(base.parent, base.name, "_*.tif")
             printed = len(tifs) or (1 if artefact(base, ".tif").is_file() else 0)
             if stored and printed and stored != printed:
                 self._layout = None

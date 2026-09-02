@@ -37,7 +37,13 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from core.file_manager import FileManager, Run, files_matching
+from core.file_manager import (
+    FileManager,
+    Run,
+    files_matching,
+    glob_escape,
+    stem_files,
+)
 from core.platform_paths import file_manager_name
 from core.logger import get_logger
 from core.preset_store import (
@@ -4452,8 +4458,14 @@ class TabMeasure(QWidget):
         _stem = self._ti1_path.stem
 
         def _newest_refine(folder):
-            found = sorted(files_matching(folder,
-                                         f"Refine_Strips_*_{_stem}.txt"),
+            # The stem sits in the MIDDLE here, so this is the one place
+            # `stem_files` does not fit and the literal is escaped by hand: a
+            # project called `Chart [v2]` would otherwise find no re-measure
+            # list at all, and one called `Chart*A` would offer another
+            # project's.
+            found = sorted(files_matching(
+                folder,
+                "Refine_Strips_*_" + glob_escape(_stem) + ".txt"),
                            key=lambda q: q.stat().st_mtime)
             plain = folder / f"Refine_Strips_{_stem}.txt"
             if plain.exists():
@@ -4641,7 +4653,7 @@ class TabMeasure(QWidget):
         # chart sharing that prefix (core/stem_paths.py).
         stem   = without_ext(without_ext(base_path, ".ti2"), ".ti1").name
         folder = base_path.parent
-        tiffs  = files_matching(folder, f"{stem}*.tif")
+        tiffs  = stem_files(folder, stem, "*.tif")
         if tiffs:
             self._tiff_pages = tiffs
             self._preview.load_tiff(tiffs)

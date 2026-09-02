@@ -308,11 +308,22 @@ def _ask_profile_name(
         return FileManager._sanitise(cleaned) if cleaned.strip() else ""
 
     def _validate(name: str) -> str | None:
-        if not name:
-            return "Please enter a name."
-        if any(c in name for c in r'/\:*?"<>|'):
-            return "Name contains invalid characters."
-        return None
+        """The shape of a name — asked at THE one door, not at this one.
+
+        This used to be a private four-line check that knew about the forbidden
+        characters and nothing else, and it was handed the ALREADY SANITISED
+        name, which no longer has any: so it passed everything. A 250-character
+        name and `CON` both came through, and `ui/dialogs/name_prompt` is the
+        module whose own docstring names these loaders as the two copies of this
+        question that had drifted. Driven, before and after:
+        `review/FIX-NAMES/evidence/*-f2-doors.txt`.
+
+        The TYPED text goes in, not the sanitised name — `validate` judges both,
+        and a leading dot or a device name is a fact about what the person
+        typed.
+        """
+        from ui.dialogs.name_prompt import validate as _one_door
+        return _one_door(name)
 
     def _on_name_changed(_text: str = "") -> None:
         name = _normalise(name_edit.text())
@@ -333,7 +344,7 @@ def _ask_profile_name(
 
     def _on_accept() -> None:
         name = _normalise(name_edit.text())
-        err = _validate(name)
+        err = _validate(name_edit.text())
         if err:
             error_lbl.setText(err)
             return
@@ -351,7 +362,7 @@ def _ask_profile_name(
 
     def _on_overwrite() -> None:
         name = _normalise(name_edit.text())
-        err = _validate(name)
+        err = _validate(name_edit.text())
         if err:
             error_lbl.setText(err)
             return
