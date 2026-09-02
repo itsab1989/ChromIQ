@@ -47,6 +47,7 @@ import builtins
 import io
 import json
 import locale
+import re
 import sys
 import unicodedata as ud
 from pathlib import Path
@@ -71,16 +72,92 @@ NOTES = "Müller-Prüfdruck, 90 g/m²"
 
 _TEXT_CALLS = {"open", "read_text", "write_text"}
 
+#: Modules whose `open` is a *file* open, so the receiver is not a reason to
+#: skip it. `codecs.open` and `io.open` are plain aliases; the compression
+#: three take an `encoding=` only in text mode, which is the mode being checked.
+_OPEN_MODULES = {"io", "codecs", "gzip", "bz2", "lzma"}
+
+#: These take a `mode` and an `encoding`, and default to a BINARY mode — so
+#: only an explicit text mode is a finding.
+_TEMPFILE_CALLS = {"NamedTemporaryFile", "TemporaryFile", "SpooledTemporaryFile"}
+
+#: These write a text log file and take an `encoding=`; without one the handler
+#: uses the platform default, which is how a German path gets mangled into the
+#: log that was supposed to explain it.
+_FILE_HANDLERS = {"FileHandler", "RotatingFileHandler",
+                  "TimedRotatingFileHandler", "WatchedFileHandler"}
+
+#: `os.popen` has no `encoding` parameter at all. There is no right way to call
+#: it, so the finding is the call.
+_UNFIXABLE = {"popen"}
+
+
+def _mode_of(node: ast.Call, pos: int) -> str | None:
+    """The `mode` argument of a call, positional at *pos* or by keyword."""
+    mode = None
+    if len(node.args) > pos and isinstance(node.args[pos], ast.Constant):
+        mode = node.args[pos].value
+    for k in node.keywords:
+        if k.arg == "mode" and isinstance(k.value, ast.Constant):
+            mode = k.value.value
+    return mode if isinstance(mode, str) else None
+
 
 def _unencoded_calls(src: str, label: str) -> list[str]:
-    """Every text-IO call in ``src`` that names no encoding.
+    """Every text-IO call in ``src`` that lets something else pick the encoding.
 
     Deliberately structural rather than a grep: a grep for ``read_text()``
     cannot tell ``Path(p).read_text()`` from ``core.text_io.read_text(p)``, and
     the fix turns the first into the second everywhere.
+
+    Six shapes, all of which reached the tree at some point and four of which a
+    penetration test found the first version of this sweep walking straight
+    past:
+
+    1. ``open`` / ``Path.read_text`` / ``Path.write_text`` with no ``encoding``
+       — the original finding.
+    2. ``subprocess(..., text=True)`` and ``universal_newlines=True`` with no
+       ``encoding``, which decode with ``locale.getpreferredencoding(False)``.
+       Under an ASCII locale that is a crash; on a German Windows it is a
+       silent cp1252 decode. See `core/proc_text.py`.
+    3. ``io.open`` / ``codecs.open`` / ``gzip.open(p, "rt")`` — the same
+       function under another name.
+    4. ``tempfile.NamedTemporaryFile("w")`` and friends, in an explicit text
+       mode.
+    5. ``logging.FileHandler`` and the rotating handlers.
+    6. ``os.popen``, which cannot name an encoding and so must not be used.
+
+    Plus two accuracy fixes the same penetration test asked for: ``(dir /
+    name).open()`` is a path open and was invisible, and ``open(p, "r", -1,
+    "utf-8")`` passes the encoding *positionally* and was being reported as an
+    offender.
     """
     out: list[str] = []
     tree = ast.parse(src)
+    # A module that defines its own `read_text` shadows the helper, so a bare
+    # `read_text(p)` in it is NOT the encoding-naming one.
+    shadowed = {n.name for n in ast.walk(tree)
+                if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and n.name in ("read_text", "write_text")}
+    # Names bound to a ConfigParser, so `c.read(p)` can be recognised as the
+    # `.read()` that takes an `encoding=` rather than one of the hundreds that
+    # do not.
+    parsers: set[str] = set()
+    for n in ast.walk(tree):
+        if not (isinstance(n, ast.Assign) and isinstance(n.value, ast.Call)):
+            continue
+        f = n.value.func
+        made = f.attr if isinstance(f, ast.Attribute) else getattr(f, "id", "")
+        if made.endswith("ConfigParser"):
+            parsers |= {t.id for t in n.targets if isinstance(t, ast.Name)}
+
+    def record(node: ast.Call, name: str) -> None:
+        try:
+            shown = ast.unparse(node)
+        except Exception:                      # noqa: BLE001 - display only
+            shown = name
+        out.append(f"{label}:{node.lineno}  {shown[:70]}")
+
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
@@ -91,36 +168,78 @@ def _unencoded_calls(src: str, label: str) -> list[str]:
             name = fn.id
         else:
             continue
+        named_encoding = any(k.arg == "encoding" for k in node.keywords)
+        # `ast.unparse` and not `ast.get_source_segment`: the latter re-splits
+        # the whole file per call, and this now runs on EVERY call node in the
+        # tree rather than on a handful. It took the sweep from seconds to two
+        # and a quarter minutes.
+        recv = ast.unparse(fn.value) if isinstance(fn, ast.Attribute) else ""
+
+        # (2) The pipes. `text=True` takes no codec name, so ANY call passing it
+        #     without `encoding=` has handed the choice to the platform — the
+        #     injected `runner(...)` forms included, which is where two of
+        #     ChromIQ's were.
+        if any(k.arg in ("text", "universal_newlines")
+               and isinstance(k.value, ast.Constant) and k.value.value is True
+               for k in node.keywords):
+            if not named_encoding:
+                record(node, name)
+            continue
+
+        # (6) os.popen
+        if name in _UNFIXABLE and recv.split(".")[-1] == "os":
+            record(node, name)
+            continue
+
+        # (4) tempfile, (5) logging handlers
+        if name in _TEMPFILE_CALLS:
+            mode = _mode_of(node, 0)
+            if mode is not None and "b" not in mode and not named_encoding:
+                record(node, name)
+            continue
+        if name in _FILE_HANDLERS and not named_encoding:
+            record(node, name)
+            continue
+
+        # `configparser.read` takes an `encoding=` and defaults to the platform.
+        # Narrow on purpose: `.read()` is far too common a spelling to flag on
+        # its own, so only a receiver that says what it is counts.
+        if name == "read" and not named_encoding and node.args and (
+                recv in parsers or re.search(r"(?i)config|parser", recv)):
+            record(node, name)
+            continue
+
         if name not in _TEXT_CALLS:
             continue
-        if any(k.arg == "encoding" for k in node.keywords):
+        if named_encoding:
             continue
         # `read_text(p)` / `write_text(p, s)` as a BARE NAME is the helper in
-        # core.text_io, which names the encoding for us. Only the bound-method
-        # forms (`Path(...).read_text()`) are the bug.
-        if isinstance(fn, ast.Name) and name in ("read_text", "write_text"):
+        # core.text_io, which names the encoding for us — unless this module
+        # defines its own, in which case the name says nothing.
+        if isinstance(fn, ast.Name) and name in ("read_text", "write_text") \
+                and name not in shadowed:
             continue
         if name == "open":
             # Binary modes have no encoding to name.
-            mode = None
-            if len(node.args) >= 2 and isinstance(node.args[1], ast.Constant):
-                mode = node.args[1].value
-            for k in node.keywords:
-                if k.arg == "mode" and isinstance(k.value, ast.Constant):
-                    mode = k.value.value
-            if isinstance(mode, str) and "b" in mode:
+            mode = _mode_of(node, 1)
+            if mode is not None and "b" in mode:
+                continue
+            # `open(p, "r", -1, "utf-8")` — the encoding IS named, positionally.
+            if len(node.args) >= 4:
                 continue
             # `Image.open`, `wave.open`, `webbrowser.open`, a transport's own
             # `.open()` — same spelling, nothing to do with text files.
             if isinstance(fn, ast.Attribute):
-                recv = ast.get_source_segment(src, fn.value) or ""
-                looks_like_a_path = recv.split(".")[-1] in ("Path", "p", "path")
+                looks_like_a_path = (
+                    recv.split(".")[-1] in ("Path", "p", "path")
+                    or isinstance(fn.value, ast.BinOp)      # (dir / name).open()
+                    or recv.split(".")[-1] in _OPEN_MODULES)
                 opens_a_named_file = bool(
                     node.args and isinstance(node.args[0], ast.Constant)
                     and isinstance(node.args[0].value, str))
                 if not (looks_like_a_path or opens_a_named_file):
                     continue
-        out.append(f"{label}:{node.lineno}  {(ast.get_source_segment(src, node) or name)[:70]}")
+        record(node, name)
     return out
 
 
@@ -170,6 +289,79 @@ def test_the_sweep_would_notice_a_violation():
     )
     found = _unencoded_calls(planted, "planted")
     assert len(found) == 6, found
+
+
+def test_the_sweep_would_notice_the_shapes_the_pentest_walked_past():
+    """The first version of this sweep let four whole classes through.
+
+    A penetration test fed it the forms it does not model and reported which
+    ones were invisible. Each is planted here, one line apiece, so that
+    re-narrowing the sweep breaks this test rather than quietly shrinking the
+    thing it guards.
+    """
+    planted = (
+        "import codecs, configparser, gzip, io, logging, os, subprocess, tempfile\n"
+        "def f(p, d, n, c):\n"
+        "    subprocess.run(c, capture_output=True, text=True)\n"
+        "    subprocess.check_output(c, universal_newlines=True)\n"
+        "    runner(c, capture_output=True, text=True)\n"
+        "    (d / n).open()\n"
+        "    io.open(p).read()\n"
+        "    codecs.open(p).read()\n"
+        "    gzip.open(p, 'rt').read()\n"
+        "    tempfile.NamedTemporaryFile('w', suffix='.ps')\n"
+        "    logging.FileHandler(p)\n"
+        "    logging.handlers.RotatingFileHandler(p)\n"
+        "    os.popen(c).read()\n"
+        "    cp = configparser.ConfigParser()\n"
+        "    cp.read(p)\n"
+    )
+    found = _unencoded_calls(planted, "planted")
+    assert len(found) == 12, found       # every line but the ConfigParser()
+
+    # And the same calls, done right, are silent — a sweep that flagged these
+    # would be uninstalled within a week.
+    clean = (
+        "import codecs, configparser, gzip, io, logging, os, subprocess, tempfile\n"
+        "from core.proc_text import run_text\n"
+        "def f(p, d, n, c):\n"
+        "    run_text(c, capture_output=True)\n"
+        "    subprocess.run(c, capture_output=True, text=True, encoding='utf-8')\n"
+        "    subprocess.run(c, capture_output=True)\n"
+        "    (d / n).open(encoding='utf-8')\n"
+        "    io.open(p, encoding='utf-8').read()\n"
+        "    gzip.open(p, 'rb').read()\n"
+        "    tempfile.NamedTemporaryFile('w+b', suffix='.tif')\n"
+        "    tempfile.NamedTemporaryFile('w', encoding='utf-8')\n"
+        "    tempfile.TemporaryDirectory()\n"
+        "    logging.FileHandler(p, encoding='utf-8')\n"
+        "    cp = configparser.ConfigParser()\n"
+        "    cp.read(p, encoding='utf-8')\n"
+    )
+    assert _unencoded_calls(clean, "clean") == []
+
+
+def test_the_sweep_does_not_flag_an_encoding_passed_POSITIONALLY():
+    """`open(p, "r", -1, "utf-8")` names the encoding. It is the fourth
+    positional argument of `open`, and the sweep used to report it as an
+    offender — a false positive the penetration test found, and the kind that
+    gets a guard switched off."""
+    assert _unencoded_calls("def f(p):\n    return open(p, 'r', -1, 'utf-8').read()\n",
+                            "positional") == []
+    # …but three positionals is still the platform's choice.
+    assert len(_unencoded_calls("def f(p):\n    return open(p, 'r', -1).read()\n",
+                                "three")) == 1
+
+
+def test_a_module_that_defines_its_own_read_text_does_not_get_a_free_pass():
+    """A bare `read_text(p)` is exempt because it is the helper in
+    `core.text_io`. A module that defines its own function of that name breaks
+    that assumption, and the exemption has to break with it."""
+    shadow = ("def read_text(p):\n"
+              "    return p.read_bytes().decode('cp1252')\n"
+              "def g(p):\n"
+              "    return read_text(p)\n")
+    assert len(_unencoded_calls(shadow, "shadow")) == 1
 
     # …and does NOT flag the things that are already right.
     clean = (

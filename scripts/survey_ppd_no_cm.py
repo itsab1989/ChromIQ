@@ -87,7 +87,8 @@ def survey(roots: list[pathlib.Path]) -> None:
 def _detect(text: str):
     """vendor_no_cm_settings, but on already-decompressed text."""
     import tempfile
-    with tempfile.NamedTemporaryFile("w", suffix=".ppd", delete=False) as f:
+    with tempfile.NamedTemporaryFile("w", suffix=".ppd", delete=False,
+                                     encoding="utf-8") as f:
         f.write(text)
         tmp = f.name
     try:
