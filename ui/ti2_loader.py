@@ -942,7 +942,13 @@ def _ask_project_name(parent, default_name, working_dir):
     edit.selectAll()
     lay.addWidget(edit)
     err = QLabel("", dlg)
-    err.setStyleSheet("color:#e05555;")
+    # A VALIDATION LINE IS EMPTY UNTIL IT HAS SOMETHING TO SAY, which is why no
+    # pixel census has drawn this one: it only fills in when the name you typed
+    # is one this dialog cannot accept. Its appearing IS the alarm, and the text
+    # says what is wrong — so the red was decoration and `set_ink` takes it out
+    # in Neutral, handing Light and Dark the same `#e05555` they had.
+    from ui.widgets import set_ink
+    set_ink(err, "#e05555")
     err.setWordWrap(True)
     lay.addWidget(err)
     out = {"val": None}
@@ -1311,7 +1317,10 @@ def _ask_profile_name(
     layout.addWidget(name_edit)
 
     error_lbl = QLabel("", dlg)
-    error_lbl.setStyleSheet("color: #e05555;")
+    # Hidden until the name is refused — see the note on the other validation
+    # line in this module.
+    from ui.widgets import set_ink
+    set_ink(error_lbl, "#e05555")
     error_lbl.setWordWrap(True)
     layout.addWidget(error_lbl)
 

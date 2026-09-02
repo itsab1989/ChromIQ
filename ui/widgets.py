@@ -3739,6 +3739,52 @@ def banner_qss(accent: str, wash: str, mode: "str | None" = None,
             f" border-radius: 4px; padding: 8px 10px; }}")
 
 
+def info_box_qss(prefix: str, *, bg: str, border: str, title: str, body: str,
+                 mode: "str | None" = None, kind: str = "note") -> str:
+    """:func:`banner_qss`, for a titled box with a heading and a paragraph.
+
+    THE SAME BOX, TWICE, AND BOTH WERE FOLDED. ``#airprintInfoBox`` (Print
+    Chart) and ``#importInfoBox`` (the Measure tab's IMPORT module) are one
+    shape: a rounded frame, a bold title, a body paragraph. Each picked its
+    values with ``mode == "light"``, which has room for two answers — so the
+    light-grey appearance took the DARK branch and got a near-black slab with a
+    coloured title in the middle of a colourless window. Neither had ever been
+    drawn by a census, because each needs a configuration to exist at all: the
+    ``lp`` pipeline with a driverless printer, and a Verification run.
+
+    Light and Dark are handed **exactly** the four values they asked for, so
+    nothing moves there. Neutral answers the way :func:`banner_qss` already
+    does: the raised surface, dark ink, and the escalation carried by SHAPE —
+    a 2 px underline for a warning, a 3 px left bar for a failure, no mark for a
+    plain note. ``kind`` is that escalation, and it is the only thing that says
+    "this is a warning" once the amber is gone, so pass it honestly.
+
+    ``prefix`` names the three object names together, which is how both existing
+    boxes are already built: ``<prefix>InfoBox`` / ``<prefix>InfoTitle`` /
+    ``<prefix>InfoBody``.
+    """
+    box, ttl, bdy = f"{prefix}InfoBox", f"{prefix}InfoTitle", f"{prefix}InfoBody"
+    from ui.theme import APPEARANCE_NEUTRAL, active_mode
+    if (mode or active_mode()) != APPEARANCE_NEUTRAL:
+        return (f"#{box} {{ background-color: {bg}; border: 1px solid {border};"
+                " border-radius: 6px; }"
+                f"#{box} QLabel {{ background: transparent; }}"
+                f"#{box} QLabel#{ttl} {{ font-weight: bold; color: {title}; }}"
+                f"#{box} QLabel#{bdy} {{ color: {body}; }}")
+    from ui import neutral_styles as _n
+    mark = ""
+    if kind == "error":
+        mark = f" border-left: 3px solid {_n.NM_ACTION};"
+    elif kind == "warn":
+        mark = f" border-bottom: 2px solid {_n.NM_ACTION};"
+    return (f"#{box} {{ background-color: {_n.NM_BG_SURFACE};"
+            f" border: 1px solid {_n.NM_BORDER};{mark} border-radius: 6px; }}"
+            f"#{box} QLabel {{ background: transparent; }}"
+            f"#{box} QLabel#{ttl} {{ font-weight: bold;"
+            f" color: {_n.NM_TEXT_MAIN}; }}"
+            f"#{box} QLabel#{bdy} {{ color: {_n.NM_TEXT_DIM}; }}")
+
+
 def load_refresh_icon(name: str) -> QIcon:
     """Load a colored refresh icon from assets/refresh/<name>.png.
 

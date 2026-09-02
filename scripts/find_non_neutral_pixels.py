@@ -69,26 +69,73 @@ def scan_widget(root, tolerance: int = 6, min_pixels: int = 12,
     the user's own colours and are excluded by the design, not by oversight.
     Pass them by class name so the exclusion is visible in the call rather than
     hidden in here.
+
+    **THE SKIP LIST USED TO DO NOTHING, and it took a loaded chart to notice.**
+    The exclusion was applied inside the loop below — but the loop runs
+    INNERMOST FIRST, and a `TiffPreview` paints its chart into a plain `QLabel`
+    child. That label was reached, measured and reported several iterations
+    before its skipped parent's turn came round to claim it. Every sweep that
+    passed `skip=("TiffPreview", …)` against an app with no project open saw
+    nothing, because the preview was empty; open a chart and the census reports
+    the user's own patches as a theme defect. The exclusion is resolved by
+    ANCESTRY, and up front, so a skipped widget's children are out of the sample
+    before the first measurement is taken.
+
+    **AND OUT OF THEIR ANCESTORS' GRABS TOO.** Skipping the preview does not
+    help if the window that CONTAINS it is grabbed whole a moment later — the
+    same patches come back attributed to `MainWindow`. So a skipped widget's
+    rectangle is painted out of every ancestor's grab before it is counted. The
+    exclusion is then worth something with a project open, which is the only
+    configuration where it matters; with an empty app the two behave alike, and
+    an empty app is what every sweep so far measured.
     """
+    from PyQt6.QtCore import QPoint
+    from PyQt6.QtGui import QColor, QPainter
     from PyQt6.QtWidgets import QWidget
 
     hits: list = []
     widgets = [w for w in root.findChildren(QWidget)
                if w.isVisible() and w.width() > 0 and w.height() > 0]
     widgets.append(root)
+
+    claimed: set = set()
+    skipped: list = []
+    if skip:
+        for w in widgets:
+            if type(w).__name__ in skip:
+                claimed.add(id(w))
+                claimed.update(id(c) for c in w.findChildren(QWidget))
+                skipped.append(w)
+
+    def _grab(w):
+        """*w*'s pixels, with any skipped subtree inside it painted out."""
+        pm = w.grab()
+        blanks = [s for s in skipped if s is not w and _is_inside(s, w)]
+        if blanks:
+            p = QPainter(pm)
+            for s in blanks:
+                tl = w.mapFromGlobal(s.mapToGlobal(QPoint(0, 0)))
+                p.fillRect(tl.x(), tl.y(), s.width(), s.height(),
+                           QColor(128, 128, 128))
+            p.end()
+        return pm.toImage()
+
+    def _is_inside(child, ancestor) -> bool:
+        node = child.parentWidget()
+        while node is not None:
+            if node is ancestor:
+                return True
+            node = node.parentWidget()
+        return False
+
     # Innermost first, so the widget that actually painted a pixel is named
     # before the panel it sits inside.
     widgets.sort(key=lambda w: w.width() * w.height())
 
-    claimed: set = set()
     for w in widgets:
-        if type(w).__name__ in skip:
-            claimed.update(id(c) for c in w.findChildren(QWidget))
-            claimed.add(id(w))
-            continue
         if id(w) in claimed:
             continue
-        img = w.grab().toImage()
+        img = _grab(w)
         n, colours = _worst(img, tolerance)
         if n < min_pixels:
             continue

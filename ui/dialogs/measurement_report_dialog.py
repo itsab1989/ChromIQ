@@ -1286,9 +1286,17 @@ class MeasurementReportDialog(QDialog):
 
     def _refresh_trend(self) -> None:
         """Repaint the trend charts from the report's current run set."""
-        from ui.theme import resolve_mode
+        from ui.theme import has_dark_ground, resolve_mode
         from workflow.measurement_report import report_trend
-        dark = resolve_mode(self._settings.get("appearance", "auto")) != "light"
+        # WHICH KIND OF GROUND, not "is it not light". `!= "light"` had room for
+        # two answers, so the light-grey appearance was told the charts sit on a
+        # dark ground and got pale axes, pale labels and a white grid — on a
+        # light panel. The trend tabs only appear once a report with more than
+        # one run is open, so nothing had drawn them. (The five metric LINE
+        # colours are untouched: they are what tells one series from another,
+        # and the same chart is drawn into the PDF.)
+        dark = has_dark_ground(
+            resolve_mode(self._settings.get("appearance", "auto")))
         self._trend_series = report_trend(self._runs_for_report())
         self._update_trends(self._trend_series, dark)
 

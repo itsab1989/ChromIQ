@@ -578,12 +578,37 @@ class _ProgressHeader(QWidget):
         self._accent = QColor(colour)
         self.update()
 
+    def _fill_colour(self) -> QColor:
+        """The bar's fill for the appearance ON SCREEN NOW.
+
+        THE OWNER GUESSED THIS ONE WITHOUT SEEING IT, and he was right: *"in
+        this case maybe the progress bar in measure tab is missed as well"*. It
+        was. The fill is the Measure tab's green and it only ever has a fraction
+        while a chart is being measured, so no census had rendered it — and the
+        one that reported zero hued pixels app-wide had a mint-green bar sitting
+        four widgets away from where it was looking, waiting for an instrument.
+
+        Nothing is lost taking the hue out. What the bar says is said by its
+        LENGTH, and the label on top of it spells the same number out in words
+        ("Progress: 42.5%"), so the green was decoration — :func:`accent_for` is
+        the door for that, and it hands Light and Dark their green back
+        unchanged.
+
+        Resolved HERE, at paint time, rather than stored: the header outlives an
+        appearance switch made from inside Preferences while a measurement is
+        running, and a colour resolved once at construction keeps the appearance
+        it was born in. ``set_accent`` still sets what the two coloured
+        appearances paint.
+        """
+        from ui.theme import accent_for
+        return QColor(accent_for(self._accent.name()))
+
     def paintEvent(self, _ev) -> None:  # noqa: N802
         if self._fraction is None and not self._show_label():
             return
         p = QPainter(self)
         if self._fraction:
-            fill = QColor(self._accent)
+            fill = self._fill_colour()
             fill.setAlpha(self.FILL_ALPHA)
             w = int(round(self.width() * self._fraction / 100.0))
             if w > 0:

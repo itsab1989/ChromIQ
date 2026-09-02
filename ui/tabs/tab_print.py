@@ -35,7 +35,7 @@ from ui.fade_scroll import FadeScrollArea
 from ui.tab_header import TabHeader
 from ui.tiff_preview import TiffPreview, _find_sidecar_channels
 from ui.tooltip_button import TooltipButton
-from ui.widgets import NoScrollComboBox, PatchGridButton, load_refresh_icon, open_file_dialog, set_accent_html, spectrum_cell
+from ui.widgets import NoScrollComboBox, PatchGridButton, info_box_qss, load_refresh_icon, open_file_dialog, set_accent_html, spectrum_cell
 from workflow.cups_printer import CupsRawPrinter
 from workflow.page_geometry import (
     ORIENTATION_LANDSCAPE,
@@ -1164,6 +1164,15 @@ class TabPrint(QWidget):
         Dark mode keeps the original dark-olive / amber treatment; light mode
         reuses the same chrome as QLabel#warning so the box and the
         'Verify that all print settings…' warning above match.
+
+        NOTHING HAD EVER DRAWN THIS BOX IN NEUTRAL. It needs two conditions at
+        once: ChromIQ's own ``lp`` pipeline (Preferences turns the OS print
+        dialog off) AND a printer whose driver exposes no options at all. The
+        fold above had room for two answers, so the third appearance took the
+        dark branch and painted a dark-olive slab with amber text across the
+        middle of the Print tab - 523,776 hued pixels in a theme that is meant
+        to have none. It is a warning, so ``kind="warn"`` keeps it one: in
+        Neutral the amber goes and the 2 px underline says it instead.
         """
         if self._mode == "light":
             from ui.light_styles import LM_WARN_BG, LM_WARN_TEXT
@@ -1177,22 +1186,9 @@ class TabPrint(QWidget):
             bg, border    = "#2a2000", "#f9a825"
             body_color    = "#e0d5b0"
             title_color   = "#fdd835"
-        box.setStyleSheet(
-            f"#airprintInfoBox {{"
-            f"  background-color: {bg};"
-            f"  border: 1px solid {border};"
-            "  border-radius: 6px;"
-            "}"
-            "#airprintInfoBox QLabel {"
-            "  background: transparent;"
-            "}"
-            f"#airprintInfoBox QLabel#airprintInfoTitle {{"
-            f"  font-weight: bold; color: {title_color};"
-            "}"
-            f"#airprintInfoBox QLabel#airprintInfoBody {{"
-            f"  color: {body_color};"
-            "}"
-        )
+        box.setStyleSheet(info_box_qss(
+            "airprint", bg=bg, border=border, title=title_color,
+            body=body_color, mode=self._mode, kind="warn"))
 
     def _rebuild_option_rows(self, printer: str) -> None:
         self._clear_layout(self._opts_layout)

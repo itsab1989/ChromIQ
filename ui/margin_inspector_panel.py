@@ -22,6 +22,8 @@ from PyQt6.QtWidgets import (
 )
 
 from core.i18n import tr
+from ui import neutral_styles
+from ui.theme import by_mode
 from ui.tooltip_button import TooltipButton
 from ui.widgets import NoScrollDoubleSpinBox, WrappingCheckBox, set_ink
 from workflow.margin_inspector import MarginReport, Violation
@@ -71,6 +73,10 @@ class MarginInspectorPanel(QGroupBox):
         #: can repaint it in a new appearance. None until one arrives.
         self._last_status: "tuple[list, dict] | None" = None
         self._value_labels: dict[str, tuple[QLabel, QLabel]] = {}
+        #: The last :meth:`update_report` call, replayed by
+        #: :meth:`set_appearance` so a theme switched under a panel that is
+        #: already showing numbers reaches them.
+        self._last_report: "tuple[tuple, dict] | None" = None
         self._build_ui()
         self.show_placeholder()
 
@@ -303,12 +309,31 @@ class MarginInspectorPanel(QGroupBox):
     # Public API
     # ------------------------------------------------------------------
     def set_appearance(self, mode: str) -> None:
+        """Take the new appearance AND REPAINT WHAT IS ALREADY ON SCREEN.
+
+        This used to store the mode and stop. Everything the panel inks — the
+        measured values, the status line, the threshold column — is written by
+        :meth:`update_report`, which runs when a preview is measured and not
+        again; so a panel showing numbers when the theme changed kept the old
+        theme's ink until the next chart was generated. Replaying the last
+        report is the whole repair: it is the same call the tab makes, with the
+        same arguments, so there is no second code path to keep in step.
+        """
         from ui.theme import accept_mode
-        self._mode = accept_mode(mode)
-        # The verdict's ink is set with a per-widget stylesheet, so nothing
-        # else would refresh it: without this a "Margins: OK" already on
-        # screen keeps the green it was painted in after a switch to Neutral.
-        self._repaint_status()
+        new_mode = accept_mode(mode)
+        if new_mode == self._mode:
+            return
+        self._mode = new_mode
+        # THE WHOLE REPORT, not just the verdict. Replaying `update_report` is
+        # the same call the tab makes, with the same arguments, so there is no
+        # second code path to keep in step — and it reaches the MEASURED VALUES
+        # as well, whose plain ink is per-appearance too. `_repaint_status` on
+        # its own left those in the ink of the theme they were written in.
+        if self._last_report is not None:
+            args, kwargs = self._last_report
+            self.update_report(*args, **kwargs)
+        else:
+            self._repaint_status()
 
     def guides_enabled(self) -> bool:
         return self._guide_check.isChecked()
@@ -352,6 +377,10 @@ class MarginInspectorPanel(QGroupBox):
         (margins still shown). ``text_warnings`` are extra messages (e.g. a margin
         too small for its label/text band) shown with the margin status (#93).
         """
+        self._last_report = ((report, list(violations)),
+                             {"thresholds_defined": thresholds_defined,
+                              "notify": notify, "thresholds": thresholds,
+                              "text_warnings": text_warnings})
         if report is None:
             self.show_placeholder()
             return
@@ -367,11 +396,28 @@ class MarginInspectorPanel(QGroupBox):
             mm_lbl.setText(f"{mm:.1f}")
             in_lbl.setText(f"{mm / _MM_PER_INCH:.3f}")
             bad = edge_name[key] in violated_edges
-            colour = "#e0564b" if bad else ("#1c1b18" if self._mode == "light" else "#d8d8d8")
+            # THE MEASURED VALUES WERE INVISIBLE IN NEUTRAL, and not because of
+            # a hue. The fold had room for two answers, so a light-grey
+            # appearance took the DARK branch and painted `#d8d8d8` on `#e2e2e2`
+            # — 1.10:1, a number you cannot read at all. No pixel census could
+            # ever have caught it: `#d8d8d8` is a perfect grey with chroma 0,
+            # and the census only flags a channel spread. This table is also
+            # empty until a chart preview exists, so nothing had rendered it in
+            # the first place.
+            #
+            # The red for a violated edge is decoration, not information: the
+            # WEIGHT beside it already flags the same edge, and the status line
+            # under the table names the edge, the measurement and the threshold
+            # in words. `set_ink` hands Light and Dark both of their values back
+            # unchanged.
             weight = "600" if bad else "400"
+            plain = by_mode("#1c1b18", "#d8d8d8", neutral_styles.NM_TEXT_MAIN,
+                            self._mode)
             for lbl in (mm_lbl, in_lbl):
-                lbl.setStyleSheet(
-                    f"font-family: Menlo; font-size: 11px; color: {colour}; font-weight: {weight};")
+                set_ink(lbl, "#e0564b" if bad else plain,
+                        f" font-family: Menlo; font-size: 11px;"
+                        f" font-weight: {weight};",
+                        level="main")
             # Threshold (minimum) for this edge — the "Margin Thresholds Set"
             # readout, shown beside the measured value for easy comparison (#86).
             # `source` is a structural marker, never translated. Sniffing the

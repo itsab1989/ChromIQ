@@ -183,8 +183,14 @@ class ScaninTargetDialog(_ToolDialogBase):
         self._meas_path: Path | None = None
         # Readable secondary-text colour (palette(mid) is too faint on the dialog
         # background in both themes).
-        light = resolve_mode(settings.get("appearance", "auto")) == "light"
-        self._hint_color = "#4a4a4a" if light else "#b8b8b8"
+        # Same fold, same result, as ``ScaninDialog``: the third appearance took
+        # the dark branch and every hint line landed at 1.53:1 on the Neutral
+        # dialog. See the note there.
+        from ui.theme import by_mode
+        from ui import neutral_styles as _n
+        self._hint_color = by_mode(
+            "#4a4a4a", "#b8b8b8", _n.NM_TEXT_FAINT,
+            resolve_mode(settings.get("appearance", "auto")))
         self._build_inputs()
         self._run_btn.setObjectName("primary")
         self.setStyleSheet(self.styleSheet() + neutral_controls_qss(SPEC_GREEN))
