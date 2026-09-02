@@ -48,6 +48,11 @@ def _manager(*, engine: bool = False):
     m._pending_post_retry_key = None
     m._guided_state = "disabled"
     m._at_retry_prompt = False
+    # This fixture builds the manager with __new__ and sets its state by hand,
+    # so every field `send_save_partial_and_quit` reads has to be listed here.
+    # False = the reader is not sitting on its own "Are you sure [y/n]", which
+    # is the state these tests are about (beta 7, F7).
+    m._at_unread_prompt = False
     m.sent_commands = []
     m.send_command = lambda cmd: m.sent_commands.append(cmd)     # type: ignore
     m.interrupted = []

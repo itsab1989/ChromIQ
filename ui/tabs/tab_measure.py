@@ -6424,6 +6424,9 @@ class TabMeasure(QWidget):
     END_DONE_KEY = "done"
     END_ABORT_KEY = "abort"
     END_FAILURE_WINDOW = "failure"
+    #: Closing the application. It ends a session like any other route, so it
+    #: asks the same question — see confirm_quit_during_measurement.
+    END_QUIT = "quit"
 
     def _confirm_end_of_session(self, how: str = END_STOP) -> "str | None":
         """M-END / M-END-EMPTY — the one window every ending route goes through.
@@ -6538,6 +6541,78 @@ class TabMeasure(QWidget):
         """
         self._key_watchdog.stop()
         self._end_session(self._confirm_end_of_session(self.END_STOP))
+
+    # ------------------------------------------------------------------
+    # Quitting the application, which is an ending like any other
+    # ------------------------------------------------------------------
+
+    def a_measurement_is_running(self) -> bool:
+        """True while a reader is live and waiting for this tab's keys."""
+        return bool(getattr(self, "_session_live", False)) and \
+            bool(self._runner.is_running)
+
+    def confirm_quit_during_measurement(self) -> bool:
+        """The quit door. Returns True when the application may close.
+
+        `measurement_exit_strategy.md`: *"Every way out of a session goes
+        through `_confirm_end_of_session` … A window that ends a session any
+        other way is a second exit, and that is the thing this document exists
+        to catch."* Quitting was that second exit, and the worst one: closing
+        the window went straight to `ArgyllRunner.cleanup()`, which kills the
+        reader, and stock chartread writes its `.ti3` only on a clean exit
+        (§0). Measured on the real binary with one strip read: ended by 'd'
+        then 'y' the file holds 16 readings, killed there is no file at all.
+        No question was asked, and the window had already been hidden, so
+        nothing said afterwards could be seen either.
+
+        So it asks the one question every other ending asks, and each answer
+        means here what it means everywhere else:
+
+        * **Save and stop** — the save chain runs, and the quit waits for it.
+        * **Discard and stop** — the session ends with nothing kept, and the
+          app closes.
+        * **Keep measuring** — the session continues, so the quit is cancelled.
+
+        Nothing is asked when nothing has been read: `_confirm_end_of_session`
+        answers that case itself (M-END-EMPTY) and the app closes.
+        """
+        if not self.a_measurement_is_running():
+            return True
+        self._key_watchdog.stop()
+        choice = self._confirm_end_of_session(self.END_QUIT)
+        if choice is None:
+            log.info("quit cancelled: the user chose to keep measuring")
+            return False
+        self._end_session(choice)
+        self.wait_for_the_reader_to_finish()
+        return True
+
+    def wait_for_the_reader_to_finish(self, timeout_s: float = 20.0) -> bool:
+        """Let a chosen ending complete before the caller tears the app down.
+
+        **The save chain is a conversation, not a keystroke.** It sends one key
+        and then waits for what the reader prints or reports back before
+        sending the one that actually writes the file — the give-up prompt on
+        the engine, "Are you sure" on stock (§1b). Returning to `closeEvent`
+        before that round trip has happened puts the process straight into
+        `ArgyllRunner.cleanup()`, which kills it. That would answer "Save and
+        stop" by destroying exactly what the user asked to keep, which is the
+        fault this whole door exists to remove.
+
+        Bounded, because a quit must never hang: if the reader has not finished
+        in `timeout_s` the app closes anyway and says so in the log.
+        """
+        deadline = time.monotonic() + float(timeout_s)
+        app = QApplication.instance()
+        while self._runner.is_running and time.monotonic() < deadline:
+            if app is not None:
+                app.processEvents()
+            time.sleep(0.01)
+        if self._runner.is_running:
+            log.warning("the reader had not finished %.0fs after the ending "
+                        "was chosen; closing anyway", timeout_s)
+            return False
+        return True
 
     def _arm_key_watchdog(self) -> None:
         """Start the no-response watchdog after sending a keystroke from a dialog.
@@ -7042,8 +7117,30 @@ class TabMeasure(QWidget):
         choice = self._confirm_end_of_session(self.END_DONE_KEY)
         if choice is not None:
             self._end_session(choice)
-            return "y" if choice == "save" else "n"
-        return "n"
+            self._arm_key_watchdog()
+            return
+        # KEEP MEASURING HAS TO SEND THE 'n' ITSELF.
+        #
+        # This is a SLOT (`self._manager.unread_confirm.connect(...)`), and Qt
+        # throws a slot's return value away — so the 'n' this used to return
+        # went nowhere and chartread stayed blocked on its own "Are you sure
+        # [y/n]" for the rest of the session. Nothing the user did afterwards
+        # reached the reader: measured on screen, a further swipe of the
+        # instrument changed nothing at all.
+        #
+        # And the event filter removed at the top of this method was never put
+        # back, so the keyboard was disconnected as well — every other window
+        # handler in this tab re-installs it (:6853, :6925, :7030, :7099,
+        # :7178, :8786), and the handler this one replaced did both of these
+        # things. It is the only one that did neither.
+        #
+        # 'n' is right on both readers: chartread accepts only 'y' at that
+        # prompt and treats anything else as "no, carry on", and on the engine
+        # 'n' is mapped in KEY_TO_COMMAND, so it is not one of the silently
+        # dropped keys.
+        self._send_failure_choice("n")
+        self._arm_key_watchdog()
+        QApplication.instance().installEventFilter(self)
 
     def _legacy_patches_still_unread(self, patch_info: str) -> str:
         dlg = QDialog(self)
