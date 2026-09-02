@@ -126,7 +126,7 @@ class Reader:
         self.p = subprocess.Popen(
             [str(BIN), "-xx", "--json", "n"], cwd=tmp,
             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE, text=True, bufsize=1, start_new_session=True)
+            stderr=subprocess.PIPE, text=True, bufsize=1, start_new_session=True, encoding="utf-8")
         self._pump_thread = threading.Thread(target=self._pump, daemon=True)
         self._pump_thread.start()
 
@@ -234,7 +234,7 @@ def test_a_refused_chart_says_why_on_the_event_stream(tmpchart):
     import subprocess
     tmp = tmpchart().tmp                      # reuse the fixture's chart
     r = subprocess.run([str(BIN), "--json", "n"], cwd=tmp,
-                       capture_output=True, text=True, timeout=60)
+                       capture_output=True, text=True, timeout=60, encoding="utf-8")
     assert r.returncode != 0
     events = [json.loads(l) for l in (r.stdout or "").splitlines()
               if l.strip().startswith("{")]

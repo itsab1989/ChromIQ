@@ -158,7 +158,7 @@ def test_the_importer_refuses_a_batch_from_another_family(tmp_path):
     out = subprocess.run(
         [sys.executable, "scripts/import_knut_presets.py", "i1", str(src)],
         capture_output=True, text=True, cwd=pathlib.Path(__file__).parent.parent,
-        env={**__import__("os").environ, "QT_QPA_PLATFORM": "offscreen"})
+        env={**__import__("os").environ, "QT_QPA_PLATFORM": "offscreen"}, encoding="utf-8")
     assert out.returncode != 0, (
         "the importer accepted a batch that belongs to another family:\n"
         + out.stdout[-800:])

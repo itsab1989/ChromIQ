@@ -260,7 +260,7 @@ def test_colverify_zero_error_self_compare(tmp_path: Path):
     ref = write_reference_ti3(tmp_path / "ref.ti3", rows, space="LAB")
     out = subprocess.run(
         [binp, "-k", str(ref), str(ref)],
-        capture_output=True, text=True, cwd=tmp_path,
+        capture_output=True, text=True, cwd=tmp_path, encoding="utf-8",
     )
     res = ColverifyRunner(None).parse_results(out.stdout)
     assert res.avg_de == pytest.approx(0.0, abs=1e-4)

@@ -85,7 +85,7 @@ def _render(lang: str, *, disable_rule: bool = False) -> dict:
                      "lang": lang, "disable_rule": disable_rule}
     env = dict(os.environ, QT_QPA_PLATFORM="offscreen")
     out = subprocess.run([sys.executable, "-c", code], capture_output=True,
-                         text=True, timeout=300, env=env, cwd=str(_ROOT))
+                         text=True, timeout=300, env=env, cwd=str(_ROOT), encoding="utf-8")
     line = next((l for l in out.stdout.splitlines() if l.startswith("@@")), None)
     assert line, f"{lang}: child produced no result\n{out.stdout[-2000:]}\n{out.stderr[-2000:]}"
     return json.loads(line[2:])

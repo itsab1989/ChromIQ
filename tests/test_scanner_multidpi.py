@@ -70,7 +70,7 @@ def _worst(cht_text, scale, tmp_path):
     (tmp_path / "ref.cie").write_text("\n".join(cie))
     r = subprocess.run([_SCANIN, "-v", "-p", "-F", fstr,
                         "s.tif", "r.cht", "ref.cie"], cwd=tmp_path,
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, encoding="utf-8")
     assert (tmp_path / "s.ti3").is_file(), f"scanin failed:\n{r.stderr[-300:]}"
     lines = (tmp_path / "s.ti3").read_text().splitlines()
     fb = next(i for i, l in enumerate(lines) if l.strip() == "BEGIN_DATA_FORMAT")
@@ -123,7 +123,7 @@ def test_make_test_scan_reads_back(name, tmp_path):
     (tmp_path / "r.cht").write_text(_patchbox_cht(cht_path.read_text(errors="ignore")))
     subprocess.run([_SCANIN, "-v", "-p", "-F", fstr,
                     tif.name, "r.cht", cie.name], cwd=tmp_path,
-                   capture_output=True, text=True)
+                   capture_output=True, text=True, encoding="utf-8")
     ti3 = tif.with_suffix(".ti3")
     assert ti3.is_file(), "scanin produced no .ti3 for the demo scan"
     lines = ti3.read_text().splitlines()
@@ -164,7 +164,7 @@ def test_sanitized_ti3_builds_a_profile(tmp_path):
     (tmp_path / "r.cht").write_text(cht.read_text())
     subprocess.run([_SCANIN, "-p", "-dipn", "-F", fstr,
                     tif.name, "r.cht", cie.name], cwd=tmp_path,
-                   capture_output=True, text=True)
+                   capture_output=True, text=True, encoding="utf-8")
     ti3 = tif.with_suffix(".ti3")
     assert ti3.is_file(), "scanin produced no .ti3"
     lines = ti3.read_text().splitlines()
@@ -173,7 +173,7 @@ def test_sanitized_ti3_builds_a_profile(tmp_path):
     r = lines[db + 6].split(); r[-1] = "nan"; lines[db + 6] = " ".join(r)       # STDEV_B
     (tmp_path / "bad.ti3").write_text("\n".join(lines) + "\n")
     subprocess.run([str(colprof), "-as", "bad"], cwd=tmp_path,
-                   capture_output=True, text=True)
+                   capture_output=True, text=True, encoding="utf-8")
     # colprof writes .icc, or .icm on Windows — check both so the assertion is
     # real on every platform (the app resolves it the same robust way).
     def _profile(stem: str):
@@ -184,7 +184,7 @@ def test_sanitized_ti3_builds_a_profile(tmp_path):
     assert dropped == 1 and zeroed == 1
     (tmp_path / "clean.ti3").write_text(clean)
     subprocess.run([str(colprof), "-as", "clean"], cwd=tmp_path,
-                   capture_output=True, text=True)
+                   capture_output=True, text=True, encoding="utf-8")
     icc = _profile("clean")
     assert icc is not None and icc.stat().st_size > 1000, \
         "sanitized .ti3 should build a profile"

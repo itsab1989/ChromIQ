@@ -121,7 +121,7 @@ def test_average_is_true_mean_and_leaves_rgb(tmp_path: Path) -> None:
     binary = str(binary) if binary.exists() else "average"
     res = subprocess.run(
         [binary, "-v", "chart_read1.ti3", "chart_read2.ti3", "chart_average.ti3"],
-        cwd=tmp_path, capture_output=True, text=True,
+        cwd=tmp_path, capture_output=True, text=True, encoding="utf-8",
     )
     assert res.returncode == 0, res.stderr
     assert out.exists()

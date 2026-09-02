@@ -88,7 +88,7 @@ def _worst_read_error(patches, tmp_path):
     (tmp_path / "ref.cie").write_text(_cie(patches))
     r = subprocess.run([_SCANIN, "-v", "-p", "-F", fstr,
                         "s.tif", "r.cht", "ref.cie"],
-                       cwd=tmp_path, capture_output=True, text=True)
+                       cwd=tmp_path, capture_output=True, text=True, encoding="utf-8")
     ti3 = tmp_path / "s.ti3"
     assert ti3.is_file(), f"scanin produced no .ti3:\n{r.stderr[-400:]}"
     lines = ti3.read_text().splitlines()
@@ -141,7 +141,7 @@ def _worst_from_cht(cht_text, tmp_path):
     (tmp_path / "ref.cie").write_text("\n".join(cie))
     r = subprocess.run([_SCANIN, "-v", "-p", "-F", fstr,
                         "s.tif", "r.cht", "ref.cie"], cwd=tmp_path,
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, encoding="utf-8")
     assert (tmp_path / "s.ti3").is_file(), \
         f"scanin -F produced no .ti3:\n{r.stderr[-400:]}"
     lines = (tmp_path / "s.ti3").read_text().splitlines()
@@ -219,7 +219,7 @@ def test_engine_cht_reads_correct_labels_through_rewrite(tmp_path):
     fstr = f"{x0},{y0},{x1},{y0},{x1},{y1},{x0},{y1}"
     r = subprocess.run([_SCANIN, "-v", "-p", "-F", fstr,
                         "s.tif", "r.cht", "ref.cie"], cwd=tmp_path,
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, encoding="utf-8")
     assert (tmp_path / "s.ti3").is_file(), \
         f"scanin -F produced no .ti3:\n{r.stderr[-400:]}"
     lines = (tmp_path / "s.ti3").read_text().splitlines()

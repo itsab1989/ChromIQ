@@ -139,7 +139,7 @@ class ReplaySession:
         self.proc = subprocess.Popen(
             cmd, cwd=chart_base.parent,
             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT, text=True, bufsize=1)
+            stderr=subprocess.STDOUT, text=True, bufsize=1, encoding="utf-8")
         self.events: list[dict] = []
         self.raw_lines: list[str] = []
         self._lock = threading.Lock()

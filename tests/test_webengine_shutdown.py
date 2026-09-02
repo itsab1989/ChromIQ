@@ -135,7 +135,7 @@ def test_real_view_drained_then_exit_is_clean():
     env = dict(os.environ, QT_QPA_PLATFORM="offscreen", PYTHONPATH=REPO_ROOT)
     proc = subprocess.run(
         [sys.executable, "-c", script],
-        capture_output=True, text=True, env=env, timeout=60,
+        capture_output=True, text=True, env=env, timeout=60, encoding="utf-8",
     )
     assert proc.returncode == 0, (
         f"process crashed at exit (rc={proc.returncode}):\n"
@@ -185,7 +185,7 @@ def test_undrained_view_exits_clean_via_hard_exit():
     env = dict(os.environ, QT_QPA_PLATFORM="offscreen", PYTHONPATH=REPO_ROOT)
     proc = subprocess.run(
         [sys.executable, "-c", script],
-        capture_output=True, text=True, env=env, timeout=60,
+        capture_output=True, text=True, env=env, timeout=60, encoding="utf-8",
     )
     assert proc.returncode == 0, (
         f"process crashed at exit (rc={proc.returncode}):\n"

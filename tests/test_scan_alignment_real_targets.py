@@ -101,7 +101,7 @@ def _scanin_placement(tif: Path, cht: Path, ref: Path):
         r = subprocess.run([str(ARGYLL), "-v", "-dipn", local.name,
                             str(cht), str(ref)],
                            capture_output=True, text=True, cwd=work,
-                           timeout=300)
+                           timeout=300, encoding="utf-8")
     finally:
         shutil.rmtree(work, ignore_errors=True)
     txt = r.stdout + r.stderr

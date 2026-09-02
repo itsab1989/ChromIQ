@@ -269,7 +269,7 @@ def argyll_profiles(tmp_path_factory):
 def test_iccdump_parses_both(argyll_profiles):
     for icc in argyll_profiles.values():
         r = subprocess.run([str(ARGYLL / argyll_binary("iccdump")), str(icc)],
-                           capture_output=True, text=True)
+                           capture_output=True, text=True, encoding="utf-8")
         assert r.returncode == 0
         assert "Lut16" in r.stdout
 
@@ -282,7 +282,7 @@ def test_xicclu_matches_model_rgb(argyll_profiles):
     inp = "\n".join(" ".join(f"{v:.6f}" for v in row) for row in dev)
     r = subprocess.run([str(ARGYLL / argyll_binary("xicclu")), "-ff", "-ir", "-pl",
                         str(argyll_profiles["iRGB"])],
-                       input=inp, capture_output=True, text=True)
+                       input=inp, capture_output=True, text=True, encoding="utf-8")
     assert r.returncode == 0
     got = np.array([[float(v) for v in l.rsplit("->", 1)[1].split()[:3]]
                     for l in r.stdout.splitlines() if "->" in l])
@@ -304,7 +304,7 @@ def test_icclu_6clr_forward(argyll_profiles):
     r = subprocess.run([str(ARGYLL / argyll_binary("icclu")), "-ff", "-ir",
                         str(argyll_profiles["CMYKOG"])],
                        input="0.2 0.1 0.4 0.0 0.3 0.0",
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, encoding="utf-8")
     assert r.returncode == 0 and "->" in r.stdout
 
 
@@ -313,7 +313,7 @@ def test_gamut_tag_lookup(argyll_profiles):
     """xicclu -fg works even on the 6CLR profile (gamt is 3-input)."""
     r = subprocess.run([str(ARGYLL / argyll_binary("xicclu")), "-fg", "-pl",
                         str(argyll_profiles["CMYKOG"])],
-                       input="50 0 0", capture_output=True, text=True)
+                       input="50 0 0", capture_output=True, text=True, encoding="utf-8")
     assert r.returncode == 0 and "->" in r.stdout
 
 
@@ -321,7 +321,7 @@ def test_gamut_tag_lookup(argyll_profiles):
 def test_colorsync_accepts_profile(argyll_profiles):
     for icc in argyll_profiles.values():
         r = subprocess.run(["sips", "--verify", str(icc)],
-                           capture_output=True, text=True)
+                           capture_output=True, text=True, encoding="utf-8")
         out = r.stdout + r.stderr
         assert "Required tag is not present" not in out
         assert r.returncode == 0

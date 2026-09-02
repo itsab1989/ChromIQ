@@ -132,8 +132,28 @@ def _unencoded_calls(src: str, label: str) -> list[str]:
     "utf-8")`` passes the encoding *positionally* and was being reported as an
     offender.
     """
-    out: list[str] = []
     tree = ast.parse(src)
+    out: list[str] = []
+    for node in offending_calls(tree):
+        try:
+            shown = ast.unparse(node)
+        except Exception:                      # noqa: BLE001 - display only
+            shown = getattr(node.func, "attr", None) or getattr(node.func, "id", "?")
+        out.append(f"{label}:{node.lineno}  {shown[:70]}")
+    return out
+
+
+def offending_calls(tree: ast.AST) -> list[ast.Call]:
+    """The same finding as :func:`_unencoded_calls`, as nodes.
+
+    Split out so a codemod can edit the exact call the sweep objects to, rather
+    than re-deriving it from a line number and getting a different answer. The
+    tests/ sweep for #178 does exactly that, and the two disagreed on 72 sites
+    the first time — every one of them a `core.text_io.read_text(p)`, which
+    takes no `encoding=` and would have raised `TypeError` if a codemod had
+    "fixed" it.
+    """
+    out: list[ast.Call] = []
     # A module that defines its own `read_text` shadows the helper, so a bare
     # `read_text(p)` in it is NOT the encoding-naming one.
     shadowed = {n.name for n in ast.walk(tree)
@@ -152,11 +172,7 @@ def _unencoded_calls(src: str, label: str) -> list[str]:
             parsers |= {t.id for t in n.targets if isinstance(t, ast.Name)}
 
     def record(node: ast.Call, name: str) -> None:
-        try:
-            shown = ast.unparse(node)
-        except Exception:                      # noqa: BLE001 - display only
-            shown = name
-        out.append(f"{label}:{node.lineno}  {shown[:70]}")
+        out.append(node)
 
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
@@ -219,6 +235,15 @@ def _unencoded_calls(src: str, label: str) -> list[str]:
         if isinstance(fn, ast.Name) and name in ("read_text", "write_text") \
                 and name not in shadowed:
             continue
+        # `Path.read_text(encoding, errors)` and
+        # `Path.write_text(data, encoding, errors)` — the encoding is named,
+        # positionally. `tests/test_knut_issues_45_59_60_62.py` passes
+        # `read_text("latin-1", "ignore")` on purpose, and reporting it as an
+        # offender is the same false positive the positional `open` had.
+        if isinstance(fn, ast.Attribute):
+            positional_encoding = {"read_text": 1, "write_text": 2}.get(name)
+            if positional_encoding and len(node.args) >= positional_encoding:
+                continue
         if name == "open":
             # Binary modes have no encoding to name.
             mode = _mode_of(node, 1)
@@ -351,6 +376,16 @@ def test_the_sweep_does_not_flag_an_encoding_passed_POSITIONALLY():
     # …but three positionals is still the platform's choice.
     assert len(_unencoded_calls("def f(p):\n    return open(p, 'r', -1).read()\n",
                                 "three")) == 1
+
+    # `Path.read_text(encoding, errors)` and `Path.write_text(data, encoding)`
+    # take it positionally too, and one test in the suite passes
+    # `read_text("latin-1", "ignore")` on a bundled .ti1 on purpose.
+    assert _unencoded_calls("def f(p, s):\n"
+                            "    p.read_text('latin-1', 'ignore')\n"
+                            "    p.write_text(s, 'utf-8')\n", "posenc") == []
+    assert len(_unencoded_calls("def f(p, s):\n"
+                                "    p.read_text()\n"
+                                "    p.write_text(s)\n", "noenc")) == 2
 
 
 def test_a_module_that_defines_its_own_read_text_does_not_get_a_free_pass():

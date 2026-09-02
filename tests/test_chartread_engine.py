@@ -290,6 +290,6 @@ def test_final_ti3_identical_single_shot_vs_autosave_path(tmp_path):
 
 def test_passthrough_usage_is_stock_chartread():
     """No flags → stock chartread, verified by the usage text."""
-    out = subprocess.run([str(HELPER)], capture_output=True, text=True)
+    out = subprocess.run([str(HELPER)], capture_output=True, text=True, encoding="utf-8")
     assert "usage: chartread [-options] outfile" in out.stderr + out.stdout
     assert "--json" not in out.stderr + out.stdout   # extensions stay hidden
