@@ -258,12 +258,51 @@ def _cannot_file(parent, reason: str, *, project: str = "") -> bool:
 NO_MACHINERY = object()
 
 
-def open_the_project(parent, fm, name: str, root: Path):
+def say_filed_but_not_opened(parent, filed: Path, reason: str, *,
+                             folder: "Path | None" = None) -> None:
+    """M-IMPORT-NOT-OPENED — the copy is on disk and the app is NOT in there.
+
+    THE THREE WAYS THAT HAPPENS ALL SAID NOTHING (round 2, T1-A/T1-B/T1-C).
+    The copy was made, the project was not opened, and the whole of what the
+    person got was a `log.warning` — so the bar went on saying "Load a profile
+    project" about a project ChromIQ had just made for them, which is the exact
+    sentence this door was rewritten to remove. Driven with a truncated
+    `project.json`: the bar said "Load a profile project…" and "Location being
+    edited: out/Broken-One/runs/run1/" AT THE SAME TIME, with no window at all
+    (`ROUND2/shots/repro-broken-bar.png`).
+
+    The one thing the person cannot work out for themselves is WHERE THE FILE
+    IS, so that is what this says. The bar is deliberately left exactly as it
+    was: there is no run to point it at, and clearing somebody's run selection
+    because an unrelated import failed is a second wrong answer.
+    """
+    from workflow import measurement_messages as M
+    log.warning("import: filed %s but did not end up in its project: %s",
+                filed, reason)
+    # THE PROJECT FOLDER WHERE THERE IS ONE, because that is what "Open
+    # Project" wants and what a person opens to find everything; the run folder
+    # holding the copy only when there is no project above it at all, which is
+    # exactly the case where the run folder IS the whole answer.
+    title, body = M.M_IMPORT_NOT_OPENED.render(
+        folder=str(folder if folder is not None else Path(filed).parent),
+        reason=reason)
+    InfoDialog(title, body, parent, min_width=580).exec()
+
+
+def open_the_project(parent, fm, name: str, root: Path, *,
+                     already_filed: "Path | None" = None):
     """Open the project at *root* — the WHOLE open — and say where it landed.
 
     Returns the root the project is actually open at, ``None`` when the open
     was attempted and failed (a window has already said so), or
     :data:`NO_MACHINERY` when there is no Create Chart tab to perform it with.
+
+    *already_filed* is the copy this import has ALREADY written, when there is
+    one. It changes nothing about the open and everything about what a failure
+    is allowed to say: `_cannot_file`'s first sentence is "Nothing has been
+    changed", which is true on the door that opens before it copies and a lie
+    on the door that copies first. So the caller states the one fact only it
+    knows, and one function still owns the window.
 
     LIFTED OUT SO THE TWO DOORS CANNOT DRIFT APART, which is the whole shape of
     the fault this was written for. Answering "Where should this measurement
@@ -291,10 +330,20 @@ def open_the_project(parent, fm, name: str, root: Path):
     # reader in ChromIQ already catches it; only the importer did not.
     try:
         if fm.is_named() and Path(fm.working_dir()) == root:
+            _the_project_really_reads(fm)     # a half-open is not an open
             return root                      # already open, nothing to do
         tab_chart = getattr(parent.window(), "_tab_chart", None)
         if tab_chart is None:
             return NO_MACHINERY
+        # READ THE MANIFEST BEFORE ASKING ANYONE TO OPEN IT (round 2, T1-A).
+        #
+        # Detecting the failure afterwards was not enough. `open_project_manifest`
+        # takes the target name from the PATH and swallows the parse error, so a
+        # truncated `project.json` left the app half in: `is_named()` True,
+        # "Location being edited: …/runs/run1/" filled in, AND the hint
+        # "Load a profile project…" still showing, both at once. A window that
+        # explains a half-open state is worth less than not entering it.
+        _the_manifest_parses(root)
         _before = Path(fm.working_dir()) if fm.is_named() else None
         tab_chart.open_project_manifest(root / "project.json")
         _after = Path(fm.working_dir()) if fm.is_named() else None
@@ -306,24 +355,175 @@ def open_the_project(parent, fm, name: str, root: Path):
         # duplicating it onto the disk — with a window blaming a read-only
         # folder or a damaged project.json. All of it false.
         if _after is None or _after == _before:
-            _cannot_file(parent,
-                         tr("“{name}” could not be opened").format(name=name),
-                         project=str(root))
+            _say_the_open_failed(
+                parent, root, already_filed,
+                tr("“{name}” could not be opened").format(name=name))
             return None
+        # …AND "DID IT OPEN" IS NOT "IS IT READABLE" EITHER (round 2, T1-A).
+        #
+        # `open_project_manifest` swallows the `json.JSONDecodeError` a
+        # truncated manifest raises, and `is_named()`/`working_dir()` are set
+        # from the PATH, not from the contents. So a short write — which
+        # `save_manifest` makes an ordinary accident, as the comment above
+        # already says — passed every test here, reported success, and left
+        # the bar saying "Load a profile project" and "Location being edited:
+        # …/runs/run1/" at the same moment, with no window anywhere. The
+        # project either loads or it did not open; there is no third state.
+        _the_project_really_reads(fm)
         return _after                        # …and file into the one that is open
     except (OSError, ValueError) as exc:
-        _cannot_file(parent, str(exc) or type(exc).__name__, project=str(root))
+        _say_the_open_failed(parent, root, already_filed,
+                             str(exc) or type(exc).__name__)
         return None
 
 
-def finish_the_import(ctl, run_id: str, filed: Path, on_filed) -> None:
+def _the_manifest_parses(root: Path) -> None:
+    """Raise unless `<root>/project.json` is a manifest that can be read.
+
+    `json.loads` rather than `Project.load`, deliberately: `load` MIGRATES a v1
+    project in place, and a check is not allowed to write. This asks only the
+    question that was failing — `save_manifest` writes non-atomically, so a
+    short write is an ordinary accident — and `_the_project_really_reads`
+    afterwards is the backstop for everything this cannot see.
+    """
+    import json
+    manifest = Path(root) / "project.json"
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"{manifest} is not a project manifest")
+
+
+def _the_project_really_reads(fm) -> None:
+    """Load the manifest of the project that is open, or raise.
+
+    `fm.project()` is the very object every step after the open uses, so this
+    asks the question in the form the answer will be needed in rather than a
+    cheaper approximation of it.
+
+    AND EVERY FAILURE COMES BACK AS A ValueError, because `Project.load` does
+    not confine itself to `OSError` and `ValueError`. A manifest that is valid
+    JSON and a dict — so `_the_manifest_parses` passes it — but whose
+    `schema_version` is a string raises `TypeError` out of a version
+    comparison, and one that is a list raises `AttributeError`. Those are
+    exactly the shape of the fault the comment above records: an exception the
+    importer's handler was too narrow for, taken out of a Qt slot, which ends
+    the process. A check added to stop the app lying must not become a new way
+    for it to die.
+    """
+    try:
+        fm.project()
+    except (OSError, ValueError):
+        raise
+    except Exception as exc:      # noqa: BLE001 — re-raised as one it catches
+        raise ValueError(f"{type(exc).__name__}: {exc}") from exc
+
+
+def _say_the_open_failed(parent, root, already_filed, reason: str) -> None:
+    """One window for a failed open, telling the truth about both doors."""
+    from workflow import measurement_messages as M
+    if already_filed is not None:
+        say_filed_but_not_opened(parent, Path(already_filed),
+                                 M.not_opened_unreadable(reason),
+                                 folder=Path(root))
+        return
+    _cannot_file(parent, reason, project=str(root))
+
+
+def chart_the_copy_will_be_judged_against(filed: Path) -> "Path | None":
+    """The chart in the run *filed* has just landed in, or None.
+
+    `Run.chart_ti2` is `<dir>/<stem>.ti2` and `Run.measurement_ti3` is
+    `<dir>/<stem>.ti3` — ArgyllCMS's own coupling, which #127 kept on purpose —
+    so the chart of the run a copy is in is the copy's own path with the
+    suffix changed. Written down once, here, so `finish_the_import` needs no
+    `Project` handle to say something true about what it has just filed.
+    """
+    chart = Path(filed).with_suffix(".ti2")
+    return chart if chart.is_file() else None
+
+
+def say_what_was_filed(parent, filed: Path) -> None:
+    """Judge the copy against the run's own chart and SAY SO. One place.
+
+    ROUND 2, T1-G, AND IT IS THE HEADLINE. `file_into_project` ran `assess()`
+    and could say "Filed — and it is a partial measurement";
+    `make_new_project_and_file` ran none of it. Driven with one loose chart and
+    a 40-of-240-patch measurement of it: the existing-project door said the
+    file was partial and the new-project door said NOTHING, while the very
+    `.ti2` it would have been judged against sat in the run it had just made
+    (`ROUND2/shots/repro-doors-new.json`, `repro-doors-existing.json`).
+
+    The commit that lifted `finish_the_import` out said the doors must not be
+    able to drift; the row that would have caught this — WHAT DID THE APP SAY
+    ABOUT THE FILE — was the one row its side-by-side table did not have. So
+    the sentence is not written at either door. It is written here, after the
+    fork, where both of them end.
+
+    Only the REPORT belongs here. A refusal has to happen before anything is
+    written, where a rollback is still possible, and it does — see
+    `refuse_it_does_not_belong`, which both doors call before they copy.
+    """
+    from workflow.measurement_import import assess
+    chart = chart_the_copy_will_be_judged_against(filed)
+    if chart is None:
+        return                       # a bare measurement: nothing to judge it by
+    verdict = assess(Path(filed), chart)
+    if verdict.ok and verdict.partial:
+        InfoDialog(
+            tr("Filed — and it is a partial measurement"),
+            tr("The chart has {chart} patches and this file holds {got} "
+               "readings, so part of the chart was not measured. ChromIQ "
+               "has filed it anyway: a measurement you stopped part way "
+               "through is a normal thing to come back to.\n\nA profile "
+               "built from fewer readings is a rougher profile — the "
+               "measurement report states both counts."
+               ).format(chart=verdict.n_chart, got=verdict.n_measured),
+            parent, min_width=580).exec()
+
+
+def refuse_it_does_not_belong(parent, reason: str) -> None:
+    """The one window BOTH doors show for a measurement of a different chart.
+
+    §I.9: *"a measurement whose patches do not line up with the chart is
+    refused with an explanation"*. It said so before the code was written, and
+    the new-project door never asked the question at all. Its promise —
+    "nothing has been changed" — is kept by WHERE it is called from: both doors
+    judge before they write, so on the new-project door no project is created
+    and no byte is copied, and on the existing-project door the run made a
+    moment earlier is undone first.
+    """
+    InfoDialog(
+        tr("This measurement does not belong to that chart"),
+        tr("ChromIQ did not file it, and nothing has been changed.\n\n"
+           "The reason: {reason}.").format(reason=reason),
+        parent, min_width=560).exec()
+
+
+def finish_the_import(parent, ctl, run_id: str, filed: Path, on_filed) -> None:
     """The tail EVERY successful import ends on, whichever door it came in by.
 
-    Point the bar at the run the measurement went into, refresh it, and hand
-    the filed copy back to the tab that asked. One function rather than two
-    copies of three calls, because the two doors having their own endings is
-    precisely how one of them ended with the app saying "load a profile
-    project" about the project it had just made.
+    Point the bar at the run the measurement went into, refresh it, SAY WHAT
+    WAS FILED, and hand the filed copy back to the tab that asked. One function
+    rather than two copies of four steps, because the two doors having their
+    own endings is precisely how one of them ended with the app saying "load a
+    profile project" about the project it had just made — and how the other one
+    went on saying nothing at all about a measurement that was 40 patches of
+    240.
+
+    THE BAR MOVES BEFORE THE WINDOW OPENS, AND THAT ORDER IS NOT COSMETIC.
+
+    The first version of this pointed the bar after the notice, and the
+    previous author recorded that as "a cosmetic reorder … the bar updates when
+    the notice is dismissed instead of behind it". Driven, it was worse than
+    stale: filing into a project whose run 1 was taken duplicated it into run
+    5, and while "Filed — and it is a partial measurement" was on screen the
+    bar behind it read **Run 4** and named `runs/run4/` — a different run from
+    the one the file had gone into. The attacker proved it both ways by
+    patching the order back and re-running (round 2, T1-H).
+
+    The guarantee the old order existed for — never point the bar before the
+    file has been judged — is untouched: every refusal returns above this call,
+    so by the time this runs the judging is done and the copy is on disk.
 
     THE RUN TYPE IS PART OF THE ANSWER, AND IT WAS NEVER SET.
 
@@ -358,6 +558,10 @@ def finish_the_import(ctl, run_id: str, filed: Path, on_filed) -> None:
         except Exception:      # noqa: BLE001 — never block the import
             log.warning("import: could not refresh the target bar",
                         exc_info=True)
+    # …AND ONLY NOW IS ANYTHING SAID. The bar behind the window names the run
+    # the file went into, because it was pointed one line above (T1-H), and
+    # BOTH doors reach this line, because there is only one of it (T1-G).
+    say_what_was_filed(parent, Path(filed))
     # THE FILED COPY IS HANDED BACK, NOT POKED INTO A TAB. This used to call
     # `parent.set_ti3_path(...)` and `parent.ti3_manually_loaded.emit()`, which
     # only Build Profile has. When Check & Refine became the third import door
@@ -386,7 +590,7 @@ def make_new_project_and_file(parent, name: str, measurement: Path, fm, ctl,
     survive being written a second time here. What is new is the ENDING, and it
     is the same object `file_into_project` ends on.
     """
-    from ui.ti2_loader import _project_root_for, resolve_ti3
+    from ui.ti2_loader import _project_root_for, chart_beside, resolve_ti3
 
     if on_filed is None:
         raise TypeError(
@@ -400,6 +604,23 @@ def make_new_project_and_file(parent, name: str, measurement: Path, fm, ctl,
     # object for `root_dir()` — so the two cannot disagree. The FileManager is
     # the fallback for a caller that has no settings of its own.
     settings = getattr(parent, "_settings", None) or fm._settings
+    # JUDGED BEFORE A BYTE MOVES — the same question the other door asks, and
+    # asked here at the only moment where "nothing has been changed" is still
+    # true. §I.9 has said since before either door was written that a
+    # measurement whose patches do not line up with its chart is refused with
+    # an explanation; this door asked nothing at all and filed everything
+    # (round 2, T1-G).
+    #
+    # The chart is the `.ti2` sitting beside the file, because that is exactly
+    # the one `resolve_ti3` is about to import as the new run's chart — the
+    # same expression, taken from the same function, so the two cannot come to
+    # different answers. No sibling means no chart, `assess` says so itself,
+    # and a bare measurement is imported as it always was.
+    from workflow.measurement_import import assess
+    _verdict = assess(measurement, chart_beside(measurement))
+    if not _verdict.ok:
+        refuse_it_does_not_belong(parent, _verdict.reason)
+        return True
     try:
         filed = resolve_ti3(parent, measurement, settings, name=name)
     except (OSError, ValueError) as exc:
@@ -413,21 +634,27 @@ def make_new_project_and_file(parent, name: str, measurement: Path, fm, ctl,
     filed = Path(filed)
     root = _project_root_for(filed, root_dir)
     if root is None:
-        # The copy landed somewhere with no manifest above it. Nothing to open
-        # and nothing to point the bar at, but the file IS on disk, so it is
-        # handed back rather than lost.
-        log.warning("import: filed %s but found no project above it", filed)
-        finish_the_import(ctl, "", filed, on_filed)
+        # The copy landed somewhere with no manifest above it — the project
+        # folder went away between being made and being opened. The file IS on
+        # disk, so it is handed back rather than lost, and the person is told
+        # WHERE, because there is no `project.json` for Open Project to find it
+        # by ever again (round 2, T1-B).
+        from workflow import measurement_messages as M
+        say_filed_but_not_opened(parent, filed, M.not_opened_no_project())
+        on_filed(filed)
         return True
 
-    opened = open_the_project(parent, fm, name, root)
+    opened = open_the_project(parent, fm, name, root, already_filed=filed)
     if opened is None:
-        return True                      # it said so on screen
+        on_filed(filed)                  # it said so on screen; the copy is real
+        return True
     if opened is NO_MACHINERY:
         # No Create Chart tab to open with. The measurement is filed and the
-        # project is on disk; hand the copy back rather than pretend nothing
-        # happened, and leave the bar alone because there is nothing to point.
-        finish_the_import(ctl, "", filed, on_filed)
+        # project is on disk; say where it is and hand the copy back.
+        from workflow import measurement_messages as M
+        say_filed_but_not_opened(parent, filed, M.not_opened_no_tab(),
+                                 folder=Path(root))
+        on_filed(filed)
         return True
 
     # WHICH RUN IT WENT INTO, taken from the project that is now open rather
@@ -443,7 +670,7 @@ def make_new_project_and_file(parent, name: str, measurement: Path, fm, ctl,
     except Exception:      # noqa: BLE001 — the file is filed either way
         log.warning("import: could not name the run %s went into", filed,
                     exc_info=True)
-    finish_the_import(ctl, run_id, filed, on_filed)
+    finish_the_import(parent, ctl, run_id, filed, on_filed)
     return True
 
 
@@ -725,11 +952,11 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
         # `_discard_run(just_created=True)` is for; it refuses to remove a
         # folder that turns out to hold work.
         _undo_the_run(proj, made_here, was_current)
-        InfoDialog(
-            tr("This measurement does not belong to that chart"),
-            tr("ChromIQ did not file it, and nothing has been changed.\n\n"
-               "The reason: {reason}.").format(reason=verdict.reason),
-            parent, min_width=560).exec()
+        # THE SAME WINDOW THE OTHER DOOR SHOWS, and the reason it is a function:
+        # the new-project door had no refusal at all, and giving it one of its
+        # own is how the two would say different things about the same file
+        # again (round 2, T1-G).
+        refuse_it_does_not_belong(parent, verdict.reason)
         return True
     import shutil
     try:
@@ -753,22 +980,19 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
                ).format(reason=exc.strerror or exc),
             parent, min_width=580).exec()
         return True
-    if verdict.partial:
-        InfoDialog(
-            tr("Filed \u2014 and it is a partial measurement"),
-            tr("The chart has {chart} patches and this file holds {got} "
-               "readings, so part of the chart was not measured. ChromIQ "
-               "has filed it anyway: a measurement you stopped part way "
-               "through is a normal thing to come back to.\n\nA profile "
-               "built from fewer readings is a rougher profile \u2014 the "
-               "measurement report states both counts."
-               ).format(chart=verdict.n_chart, got=verdict.n_measured),
-            parent, min_width=580).exec()
     # THE SAME ENDING THE NEW-PROJECT DOOR USES, and the reason the bar is
-    # pointed HERE rather than earlier: this runs only once the file has been
+    # pointed there rather than earlier: it runs only once the file has been
     # judged and copied. It ran before the judgement once, so a refusal left
     # the bar reading "Run 3 (overwrite)" for a run that had just been created
     # and deleted again, under a window promising "nothing has been changed".
-    finish_the_import(ctl, run.id, run.measurement_ti3, on_filed)
+    #
+    # THE PARTIAL NOTICE USED TO BE HERE and is now inside that ending, which
+    # is what makes the two doors say the same thing about the same file
+    # (round 2, T1-G) and what puts the run the file went into on the bar
+    # BEHIND the window rather than one run short of it (T1-H). It is the same
+    # judgement of the same two files: `run.measurement_ti3` is the copy and
+    # `run.chart_ti2` is its `.ti2` twin, which is what
+    # `chart_the_copy_will_be_judged_against` computes.
+    finish_the_import(parent, ctl, run.id, run.measurement_ti3, on_filed)
     return True
 

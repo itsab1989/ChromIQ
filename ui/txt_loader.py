@@ -61,9 +61,16 @@ def _say_the_replace_failed(parent, folder, reason) -> None:
     the layer that has one.
     """
     from PyQt6.QtWidgets import QMessageBox
+    from core.file_manager import is_a_project
     from workflow import measurement_messages as M
-    title, body = M.M_PROJECT_REPLACE_FAILED.render(folder=str(folder),
-                                                    reason=str(reason))
+    # A PLAIN FOLDER IS NOT A PROJECT, and this window's headline said it was:
+    # "The existing project could not be moved aside", about a read-only folder
+    # holding one text file (round 2, T1-D). Same act, same promise, and the
+    # only difference is the one sentence that describes what is there.
+    # M-IMPORT-REPLACE-FOLDER-FAILED, awaiting approval.
+    _msg = (M.M_PROJECT_REPLACE_FAILED if is_a_project(folder)
+            else M.M_IMPORT_REPLACE_FOLDER_FAILED)
+    title, body = _msg.render(folder=str(folder), reason=str(reason))
     box = QMessageBox(parent)
     box.setIcon(QMessageBox.Icon.Warning)
     box.setWindowTitle(title)
@@ -329,10 +336,20 @@ def _ask_profile_name(
         name = _normalise(name_edit.text())
         collision = bool(name) and (working_dir / name).exists() and not _is_self_collision(name)
         if collision:
-            error_lbl.setText(
-                tr("“{name}” is already a project. Choose a different name, "
-                   "or click “Replace it”.").format(name=name)
-            )
+            # WHICH OF THE TWO IT IS, because they are not the same thing and
+            # this line asserts one of them. `.exists()` alone said "already a
+            # project" about any folder at all - including the plain folder
+            # whose NOT being a project is the only reason this window opens
+            # (round 2, T1-D). M-IMPORT-FOLDER-EXISTS, awaiting approval.
+            from core.file_manager import is_a_project
+            from workflow import measurement_messages as M
+            if is_a_project(working_dir / name):
+                error_lbl.setText(
+                    tr("“{name}” is already a project. Choose a different name, "
+                       "or click “Replace it”.").format(name=name)
+                )
+            else:
+                error_lbl.setText(M.folder_taken_line(name))
             ok_btn.setVisible(False)
             overwrite_btn.setVisible(True)
         else:
@@ -390,8 +407,17 @@ def _ask_profile_name(
         # Built with QMessageBox() rather than the `.warning` STATIC: the static
         # runs its own C++ event loop, so a test that patches `QMessageBox.exec`
         # never reaches it and hangs on a real modal.
+        from core.file_manager import is_a_project
         from workflow import measurement_messages as M
-        _title, _body = M.M_IMPORT_REPLACE_CONFIRM.render(
+        # …AND THE SECOND LOOK SAYS WHICH OF THE TWO IT IS MOVING ASIDE.
+        # M-IMPORT-REPLACE-CONFIRM opens "Everything this project holds", which
+        # is false of a folder that is not one - and a folder that is not one
+        # is the ONLY thing this branch can be reached for once the collision
+        # line above tells them apart (round 2, T1-D).
+        # M-IMPORT-REPLACE-FOLDER-CONFIRM, awaiting approval.
+        _confirm = (M.M_IMPORT_REPLACE_CONFIRM if is_a_project(dest)
+                    else M.M_IMPORT_REPLACE_FOLDER_CONFIRM)
+        _title, _body = _confirm.render(
             name=name, folder=str(dest), subject=tr("the measurement"))
         _box = QMessageBox(dlg)
         _box.setIcon(QMessageBox.Icon.NoIcon)

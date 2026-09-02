@@ -1430,12 +1430,151 @@ M_CAL_ARCHIVED_HERE = _m(
     "it was deleted:",
     "{folder}")
 
+# --- the copy is filed and ChromIQ is NOT in the project --------------------
+# APPROVED by Basti, 2026-09-02.
+# Round 2 of the import-door review (2026-09-02), findings T1-A, T1-B and T1-C.
+#
+# `make_new_project_and_file` has three ways to end with the measurement copied
+# to disk and the app still standing outside the project it was copied into: no
+# manifest above the copy, an open that was attempted and failed, and no Create
+# Chart tab to perform the open with. All three ended in a `log.warning` and a
+# bar that said "Load a profile project" about a project ChromIQ had just made,
+# which is the exact fault the door was rewritten to remove.
+#
+# The person is told the one thing they cannot work out for themselves: WHERE
+# THE FILE IS. Driven: a truncated project.json left the bar saying "Load a
+# profile project" and "Location being edited: out/Broken-One/runs/run1/" at the
+# same time, with no window at all.
+M_IMPORT_NOT_OPENED = _m(
+    "M-IMPORT-NOT-OPENED",
+    "The measurement is filed, but the project could not be opened",
+    "Nothing has been lost. Your own file is untouched where it is, and the "
+    "copy ChromIQ made is here:\n\n{folder}\n\nChromIQ could not open that "
+    "project afterwards, so it is not the project you are working in, and the "
+    "bar at the top still shows the one you were on.\n\nThe reason: "
+    "{reason}.\n\nThat folder is an ordinary folder. Everything ChromIQ put "
+    "in it, including the measurement you have just imported, is there and can "
+    "be opened like any other folder on your computer. Once the reason "
+    "above is dealt with, use "
+    "\u201cOpen Project\u201d at the top left of the window to go there.",
+    approved=True)
+
+#: The three ``{reason}`` fragments of M-IMPORT-NOT-OPENED. They live here, in
+#: the catalogue, so the door holds no prose of its own, and each is its own
+#: module constant because the extractor resolves ``tr(NAME)`` only for those.
+_NOT_OPENED_NO_PROJECT = ("there is no project.json in that folder or above "
+                          "it, so ChromIQ has nothing to open")
+_NOT_OPENED_UNREADABLE = "the project could not be read ({error})"
+_NOT_OPENED_NO_TAB = ("the Create Chart tab, which performs the Open Project "
+                      "step, is not open")
+
+
+#: THE FRAGMENTS ARE READ THROUGH FUNCTIONS, NOT REACHED ACROSS THE IMPORT.
+#: `scripts/i18n_extract.py` resolves ``tr(NAME)`` only for a constant in the
+#: module the call is written in, so ``tr(M._NOT_OPENED_NO_TAB)`` written in a
+#: tab is invisible to it and would ship untranslated in silence — the blind
+#: spot that has cost this project before. Same shape as `runs_phrase` below.
+def not_opened_no_project() -> str:
+    """{reason}: there is no manifest anywhere above the copy."""
+    return tr(_NOT_OPENED_NO_PROJECT)
+
+
+def not_opened_unreadable(error: str) -> str:
+    """{reason}: the manifest is there and will not read."""
+    return tr(_NOT_OPENED_UNREADABLE).format(error=error)
+
+
+def not_opened_no_tab() -> str:
+    """{reason}: there is no Create Chart tab to perform the open with."""
+    return tr(_NOT_OPENED_NO_TAB)
+
+
+# --- the typed name is a FOLDER, and not a project -------------------------
+# APPROVED by Basti, 2026-09-02.
+# Round 2, finding T1-D. `_ask_profile_name` decided "already a project" from
+# `(working_dir / name).exists()`, which is true of any folder. So the one
+# window the import door still opens for a plain folder arrived asserting, in
+# red, that the folder is a project - about the folder whose NOT being one is
+# the only reason that window opened at all. Driven, 2026-09-02:
+# `shots/repro-folder-win03.png`.
+#
+# The consequence and the vocabulary follow M-IMPORT-REPLACE-CONFIRM, which
+# Basti ruled on for the project case (2026-08-31); only the claim about what
+# is there is different, because what is there is different.
+M_IMPORT_FOLDER_EXISTS = _m(
+    "M-IMPORT-FOLDER-EXISTS",
+    "There is already a folder called \u201c{name}\u201d",
+    "ChromIQ found it here:\n\n{folder}\n\nIt is not a ChromIQ project: "
+    "there is no project.json in it. Nothing has been changed yet.\n\n"
+    "\u2022  Type a different name, and ChromIQ starts a new project under "
+    "that name instead. Nothing in the folder above is touched.\n\n"
+    "\u2022  Replace it: everything in that folder is moved into its own "
+    "\u201cold\u201d folder, with today\u2019s date on it, and a new and "
+    "empty project of the same name is started in its place, with what you "
+    "are importing in its first run. Nothing is deleted, and ChromIQ asks you "
+    "to confirm before it does it.\n\n"
+    "\u2022  Cancel: stops here and changes nothing.",
+    approved=True)
+
+#: The live line under the name box, which is the form this message actually
+#: takes today: the window is the loader's own, with a name box and a line that
+#: follows what is typed. It is a fragment of M-IMPORT-FOLDER-EXISTS above, and
+#: the twin of the sentence used when the name really is a project.
+_FOLDER_TAKEN_LINE = ("\u201c{name}\u201d is a folder you already have, and "
+                      "it is not a ChromIQ project. Choose a different name, "
+                      "or click \u201cReplace it\u201d.")
+
+#: The line the same window shows when the name points at the folder the file
+#: being imported is IN. Its twin, for a real project, says "That project";
+#: this one exists because the twin was shown for a plain folder too.
+_SELF_COLLISION_FOLDER = ("That folder holds the file you are importing, so "
+                          "replacing it would take the file with it. Please "
+                          "pick a different name.")
+
+def folder_taken_line(name: str) -> str:
+    """The live line under the name box for a folder that is not a project."""
+    return tr(_FOLDER_TAKEN_LINE).format(name=name)
+
+
+def self_collision_folder_line() -> str:
+    """…and the line for when that folder holds the file being imported."""
+    return tr(_SELF_COLLISION_FOLDER)
+
+
+M_IMPORT_REPLACE_FOLDER_CONFIRM = _m(
+    "M-IMPORT-REPLACE-FOLDER-CONFIRM",
+    "Move everything in \u201c{name}\u201d aside?",
+    "That folder is not a ChromIQ project, and everything in it is about to "
+    "be moved into its own \u201cold\u201d folder, with today\u2019s date "
+    "on it:\n\n{folder}\n\nNothing is deleted. That \u201cold\u201d "
+    "folder stays where the files were, so you can open it at any time and "
+    "take anything back out of it.\n\nAfter that, a new and completely "
+    "empty ChromIQ project of the same name is started in the same place, and "
+    "{subject} you are importing is put into its first run.",
+    approved=True)
+
+M_IMPORT_REPLACE_FOLDER_FAILED = _m(
+    "M-IMPORT-REPLACE-FOLDER-FAILED",
+    "That folder could not be moved aside",
+    "ChromIQ was going to move everything in this folder into its own "
+    "\u201cold\u201d folder before starting a project of the same name in "
+    "its place, and it could not:\n\n{folder}\n\nNothing has been changed. "
+    "Anything that had already been moved has been put back, and nothing has "
+    "been imported.\n\nThe reason given was:\n{reason}\n\nThis usually "
+    "means the folder is read-only, is on a disk or a share that is no longer "
+    "available, or holds a file another program still has open. Close "
+    "anything that might be using it and try again, or type a different name "
+    "and leave that folder alone.",
+    approved=True)
+
 
 CATALOGUE = {m.id: m for m in (
     M_REPLACE_PARTIAL, M_REPLACE_COMPLETE, M_TI3_MISMATCH,
     M_REPLACE_UNCOUNTABLE,
     M_IMPORT_REPLACE_CONFIRM, M_IMPORT_REPLACE_PROJECT_CONFIRM,
     M_IMPORT_REPLACED_KEPT,
+    M_IMPORT_NOT_OPENED, M_IMPORT_FOLDER_EXISTS,
+    M_IMPORT_REPLACE_FOLDER_CONFIRM, M_IMPORT_REPLACE_FOLDER_FAILED,
     M_CHART_PROFILING, M_CHART_W4, M_CHART_VERIFY, M_CHART_NOPAGES,
     M_CHART_CORRUPT,
     M_PREVIEW_PAUSED, M_PROFILE_VERIFY,

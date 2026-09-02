@@ -3288,6 +3288,28 @@ class FileManager:
 # Looking at a project WITHOUT opening it (#: the typed-name gate, 2026-08-27)
 # ---------------------------------------------------------------------------
 
+def is_a_project(folder: "Path | None") -> bool:
+    """True when *folder* is a ChromIQ project, and not merely a folder.
+
+    ONE PLACE, BECAUSE BOTH LOADERS ANSWERED IT WITH `.exists()`. That is true
+    of any folder at all, so the import door's collision line told a person, in
+    red, that their plain folder of notes was "already a project" — about the
+    folder whose NOT being one is the only reason that window opens (round 2,
+    T1-D, driven 2026-09-02: `ROUND2/shots/repro-folder-win03.png`). The
+    difference matters twice over: what is safe to say, and what "Replace it"
+    is about to move aside.
+
+    `is_file()` rather than `exists()`, because a `project.json` that is a
+    directory is not a manifest either.
+    """
+    if folder is None:
+        return False
+    try:
+        return (Path(folder) / Project.MANIFEST).is_file()
+    except OSError:
+        return False
+
+
 def dir_holds(folder: "Path | None", path: "Path | None") -> bool:
     """True when *folder* is *path* or contains it, at any depth.
 

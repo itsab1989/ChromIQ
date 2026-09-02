@@ -1006,6 +1006,103 @@ there is no folder to name and nothing is said.
 >
 > {folder}
 
+### M-IMPORT-NOT-OPENED · the copy is filed and ChromIQ is not in the project — the import door
+
+*Approved by Basti, 2026-09-02. New for 4.1.5, round 2 of the import-door review (2026-09-02, findings T1-A,
+T1-B and T1-C). The new-project door has three ways to end with the measurement
+copied to disk and the app still standing outside the project it was copied
+into: no `project.json` above the copy, an open that was attempted and failed
+(a truncated manifest, which `save_manifest` writes non-atomically, so it is an
+ordinary accident), and no Create Chart tab to perform the open with. All three
+ended in a `log.warning`, no window, and a bar that said "Load a profile
+project" about a project ChromIQ had just made — the exact fault the door was
+rewritten to remove. The person is told the one thing they cannot work out for
+themselves: where the file is.*
+
+> **The measurement is filed, but the project could not be opened**
+>
+> Nothing has been lost. Your own file is untouched where it is, and the copy ChromIQ made is here:
+>
+> {folder}
+>
+> ChromIQ could not open that project afterwards, so it is not the project you are working in, and the bar at the top still shows the one you were on.
+>
+> The reason: {reason}.
+>
+> That folder is an ordinary folder. Everything ChromIQ put in it, including the measurement you have just imported, is there and can be opened like any other folder on your computer. Once the reason above is dealt with, use “Open Project” at the top left of the window to go there.
+
+`{reason}` is one of three, and each is written out here because the reviewer
+sees the sentence, not the code:
+
+* *there is no project.json in that folder or above it, so ChromIQ has nothing to open*
+* *the project could not be read ({error})*
+* *the Create Chart tab, which performs the Open Project step, is not open*
+
+### M-IMPORT-FOLDER-EXISTS · the typed name is a folder and not a project — the import door
+
+*Approved by Basti, 2026-09-02. New for 4.1.5, round 2 (finding T1-D). The window decided "already a project"
+from the folder merely existing, so the one window the door still opens for a
+plain folder arrived asserting, in red, that the folder is a project — about
+the folder whose NOT being one is the only reason that window opens at all.
+The consequence and the vocabulary follow M-IMPORT-REPLACE-CONFIRM, which Basti
+ruled on for the project case on 2026-08-31; only the claim about what is there
+differs, because what is there is different.*
+
+> **There is already a folder called “{name}”**
+>
+> ChromIQ found it here:
+>
+> {folder}
+>
+> It is not a ChromIQ project: there is no project.json in it. Nothing has been changed yet.
+>
+> •  Type a different name, and ChromIQ starts a new project under that name instead. Nothing in the folder above is touched.
+>
+> •  Replace it: everything in that folder is moved into its own “old” folder, with today’s date on it, and a new and empty project of the same name is started in its place, with what you are importing in its first run. Nothing is deleted, and ChromIQ asks you to confirm before it does it.
+>
+> •  Cancel: stops here and changes nothing.
+
+The form this takes on screen today is the live line under the name box, which
+is a fragment of the message above and the twin of the sentence shown when the
+name really is a project:
+
+* *“{name}” is a folder you already have, and it is not a ChromIQ project. Choose a different name, or click “Replace it”.*
+
+### M-IMPORT-REPLACE-FOLDER-CONFIRM · the second look before a plain folder is moved aside — the import door
+
+*Approved by Basti, 2026-09-02. New for 4.1.5, round 2 (finding T1-D). The twin of M-IMPORT-REPLACE-CONFIRM
+for a folder that is not a project: the same act, the same promise, and no
+claim that what is being moved aside is a project.*
+
+> **Move everything in “{name}” aside?**
+>
+> That folder is not a ChromIQ project, and everything in it is about to be moved into its own “old” folder, with today’s date on it:
+>
+> {folder}
+>
+> Nothing is deleted. That “old” folder stays where the files were, so you can open it at any time and take anything back out of it.
+>
+> After that, a new and completely empty ChromIQ project of the same name is started in the same place, and {subject} you are importing is put into its first run.
+
+### M-IMPORT-REPLACE-FOLDER-FAILED · that move could not be made — the import door
+
+*Approved by Basti, 2026-09-02. New for 4.1.5, round 2 (finding T1-D). The twin of M-PROJECT-REPLACE-FAILED,
+which said “The existing project could not be moved aside” about a plain
+folder — driven against a read-only folder that held one text file.*
+
+> **That folder could not be moved aside**
+>
+> ChromIQ was going to move everything in this folder into its own “old” folder before starting a project of the same name in its place, and it could not:
+>
+> {folder}
+>
+> Nothing has been changed. Anything that had already been moved has been put back, and nothing has been imported.
+>
+> The reason given was:
+> {reason}
+>
+> This usually means the folder is read-only, is on a disk or a share that is no longer available, or holds a file another program still has open. Close anything that might be using it and try again, or type a different name and leave that folder alone.
+
 ## M-PROPOSED. Messages awaiting review
 
 *This section is where a new or revised message goes: add it to
