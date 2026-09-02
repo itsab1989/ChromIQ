@@ -10,9 +10,9 @@ from __future__ import annotations
 import pathlib
 
 SETTINGS = (pathlib.Path(__file__).resolve().parents[1]
-            / "ui" / "dialogs" / "settings_dialog.py").read_text()
+            / "ui" / "dialogs" / "settings_dialog.py").read_text(encoding="utf-8")
 TAB_CHART = (pathlib.Path(__file__).resolve().parents[1]
-             / "ui" / "tabs" / "tab_chart.py").read_text()
+             / "ui" / "tabs" / "tab_chart.py").read_text(encoding="utf-8")
 
 
 def test_the_reading_engine_help_compares_it_with_chartread():

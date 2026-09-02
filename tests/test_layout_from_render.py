@@ -69,7 +69,7 @@ def test_derive_refuses_wrong_reference(engine_chart, tmp_path):
     """A .ti2 whose colours don't match the render (two patches swapped) is
     refused — never a silently wrong geometry."""
     d, _res = engine_chart
-    text = (d / "t.ti2").read_text().splitlines()
+    text = (d / "t.ti2").read_text(encoding="utf-8").splitlines()
     # swap the RGB fields of the two most DIFFERENT data rows (swapping two
     # similar colours would legitimately still validate)
     data_at = next(i for i, ln in enumerate(text) if ln.strip() == "BEGIN_DATA")
@@ -84,7 +84,7 @@ def test_derive_refuses_wrong_reference(engine_chart, tmp_path):
     a[2:5], b[2:5] = b[2:5], a[2:5]
     text[i0], text[i1] = " ".join(a), " ".join(b)
     bad = tmp_path / "bad.ti2"
-    bad.write_text("\n".join(text))
+    bad.write_text("\n".join(text), encoding="utf-8")
     with pytest.raises(RenderGeometryError):
         derive_layout_from_render(
             sorted(d.glob("t_*.tif")) or [d / "t.tif"], bad)
@@ -102,7 +102,7 @@ def test_prebuilt_bundles_carry_verified_geometry(leaf):
     assert sidecar.is_file(), "run scripts/derive_prebuilt_geometry.py"
     from workflow.scanin_target import has_scanner_geometry
     assert has_scanner_geometry(sidecar)
-    lay = json.loads(sidecar.read_text())["layout"]
+    lay = json.loads(sidecar.read_text(encoding="utf-8"))["layout"]
     from workflow.ti3_analysis import parse_ti3
     assert {p["loc"] for p in lay["patches"]} == \
         set(parse_ti3(d / f"{stem}.ti2").sample_locs)
@@ -134,7 +134,7 @@ def test_capture_fallback_derives_from_render(engine_chart, tmp_path):
     from workflow.chart_creator import ChartCreator
     creator = ChartCreator.__new__(ChartCreator)   # fallback needs no deps
     creator._derive_geometry_from_render(work, "t")
-    doc = json.loads((work / "t.channels.json").read_text())
+    doc = json.loads((work / "t.channels.json").read_text(encoding="utf-8"))
     assert doc["layout"]["engine"] == "derived"
     from workflow.scanin_target import has_scanner_geometry
     assert has_scanner_geometry(work / "t.channels.json")

@@ -76,7 +76,7 @@ def test_grid_is_derived_from_cht_boxes_for_every_bundled_target(qapp):
     chts = sorted(Path(cht_dir).glob("*.cht"))
     assert len(chts) >= 8, f"expected the bundled targets, found {len(chts)}"
     for f in chts:
-        text = f.read_text(errors="ignore")
+        text = f.read_text(errors="ignore", encoding="utf-8")
         geom = parse_cht(text)
         g = GridSpec.from_cht(text)
         assert len(g.rects) == len(geom.patches), f.name

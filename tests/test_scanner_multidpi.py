@@ -62,17 +62,17 @@ def _worst(cht_text, scale, tmp_path):
                (maxx*scale+off[0], maxy*scale+off[1]), (minx*scale+off[0], maxy*scale+off[1])]
     fstr = ",".join(f"{v:.1f}" for xy in corners for v in xy)
     img.save(tmp_path / "s.tif")
-    (tmp_path / "r.cht").write_text(_patchbox_cht(cht_text))
+    (tmp_path / "r.cht").write_text(_patchbox_cht(cht_text), encoding="utf-8")
     cie = (["CGATS.17", "NUMBER_OF_FIELDS 4", "BEGIN_DATA_FORMAT",
             "SAMPLE_ID XYZ_X XYZ_Y XYZ_Z", "END_DATA_FORMAT",
             f"NUMBER_OF_SETS {len(boxes)}", "BEGIN_DATA"]
            + [f"{b[0]} 40 40 40" for b in boxes] + ["END_DATA", ""])
-    (tmp_path / "ref.cie").write_text("\n".join(cie))
+    (tmp_path / "ref.cie").write_text("\n".join(cie), encoding="utf-8")
     r = subprocess.run([_SCANIN, "-v", "-p", "-F", fstr,
                         "s.tif", "r.cht", "ref.cie"], cwd=tmp_path,
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, encoding="utf-8")
     assert (tmp_path / "s.ti3").is_file(), f"scanin failed:\n{r.stderr[-300:]}"
-    lines = (tmp_path / "s.ti3").read_text().splitlines()
+    lines = (tmp_path / "s.ti3").read_text(encoding="utf-8").splitlines()
     fb = next(i for i, l in enumerate(lines) if l.strip() == "BEGIN_DATA_FORMAT")
     fields = lines[fb + 1].split(); ri = [fields.index(f"RGB_{c}") for c in "RGB"]
     db = next(i for i, l in enumerate(lines) if l.strip() == "BEGIN_DATA")
@@ -91,7 +91,7 @@ def _worst(cht_text, scale, tmp_path):
 @pytest.mark.parametrize("name", _TARGETS)
 @pytest.mark.parametrize("scale", [1.0, 2.0, 3.0])   # ≈100 / 200 / 300 dpi
 def test_bundled_target_registers_at_scale(name, scale, tmp_path):
-    cht = (bundled_targets_dir() / name).read_text(errors="ignore")
+    cht = (bundled_targets_dir() / name).read_text(errors="ignore", encoding="utf-8")
     worst = _worst(cht, scale, tmp_path)
     assert worst < 6.0, f"{name} @ {scale}×: misregistered (worst {worst:.1f}/100)"
 
@@ -108,7 +108,7 @@ def test_make_test_scan_reads_back(name, tmp_path):
 
     cht_path = bundled_targets_dir() / name
     tif, cie = make_test_scan(cht_path, tmp_path)
-    g = parse_cht(cht_path.read_text(errors="ignore"))
+    g = parse_cht(cht_path.read_text(errors="ignore", encoding="utf-8"))
     n = len(g.patches)
     expected = {b.name: [c / 2.55 for c in demo_patch_color(i, n)]  # 0..255 → 0..100
                 for i, b in enumerate(g.patches)}
@@ -120,13 +120,13 @@ def test_make_test_scan_reads_back(name, tmp_path):
     fstr = ",".join(f"{v:.1f}" for xy in corners for v in xy)
     # make_test_scan draws patches at their true (gapped) positions, so read with
     # the same cht — contiguous re-placement would MISread a gapped demo.
-    (tmp_path / "r.cht").write_text(_patchbox_cht(cht_path.read_text(errors="ignore")))
+    (tmp_path / "r.cht").write_text(_patchbox_cht(cht_path.read_text(errors="ignore", encoding="utf-8")), encoding="utf-8")
     subprocess.run([_SCANIN, "-v", "-p", "-F", fstr,
                     tif.name, "r.cht", cie.name], cwd=tmp_path,
-                   capture_output=True, text=True)
+                   capture_output=True, text=True, encoding="utf-8")
     ti3 = tif.with_suffix(".ti3")
     assert ti3.is_file(), "scanin produced no .ti3 for the demo scan"
-    lines = ti3.read_text().splitlines()
+    lines = ti3.read_text(encoding="utf-8").splitlines()
     fb = next(i for i, l in enumerate(lines) if l.strip() == "BEGIN_DATA_FORMAT")
     fields = lines[fb + 1].split()
     ri = [fields.index(f"RGB_{c}") for c in "RGB"]; ni = fields.index("SAMPLE_ID")
@@ -153,7 +153,7 @@ def test_sanitized_ti3_builds_a_profile(tmp_path):
         pytest.skip("colprof not present")
     cht = bundled_targets_dir() / "it8Wolf.cht"
     tif, cie = make_test_scan(cht, tmp_path)
-    g = parse_cht(cht.read_text())
+    g = parse_cht(cht.read_text(encoding="utf-8"))
     xs = [b.x1 for b in g.patches] + [b.x2 for b in g.patches]
     ys = [b.y1 for b in g.patches] + [b.y2 for b in g.patches]
     minx, maxx, miny, maxy = min(xs), max(xs), min(ys), max(ys)
@@ -161,19 +161,19 @@ def test_sanitized_ti3_builds_a_profile(tmp_path):
     W, H = (maxx - minx) * sc, (maxy - miny) * sc
     fstr = ",".join(f"{v:.1f}" for xy in
                     [(m, m), (m + W, m), (m + W, m + H), (m, m + H)] for v in xy)
-    (tmp_path / "r.cht").write_text(cht.read_text())
+    (tmp_path / "r.cht").write_text(cht.read_text(encoding="utf-8"), encoding="utf-8")
     subprocess.run([_SCANIN, "-p", "-dipn", "-F", fstr,
                     tif.name, "r.cht", cie.name], cwd=tmp_path,
-                   capture_output=True, text=True)
+                   capture_output=True, text=True, encoding="utf-8")
     ti3 = tif.with_suffix(".ti3")
     assert ti3.is_file(), "scanin produced no .ti3"
-    lines = ti3.read_text().splitlines()
+    lines = ti3.read_text(encoding="utf-8").splitlines()
     db = next(i for i, ln in enumerate(lines) if ln.strip() == "BEGIN_DATA")
     r = lines[db + 3].split(); r[4] = "1.#IND00"; lines[db + 3] = " ".join(r)   # RGB_R
     r = lines[db + 6].split(); r[-1] = "nan"; lines[db + 6] = " ".join(r)       # STDEV_B
-    (tmp_path / "bad.ti3").write_text("\n".join(lines) + "\n")
+    (tmp_path / "bad.ti3").write_text("\n".join(lines) + "\n", encoding="utf-8")
     subprocess.run([str(colprof), "-as", "bad"], cwd=tmp_path,
-                   capture_output=True, text=True)
+                   capture_output=True, text=True, encoding="utf-8")
     # colprof writes .icc, or .icm on Windows — check both so the assertion is
     # real on every platform (the app resolves it the same robust way).
     def _profile(stem: str):
@@ -182,9 +182,9 @@ def test_sanitized_ti3_builds_a_profile(tmp_path):
     assert _profile("bad") is None, "colprof should reject the raw nan .ti3"
     clean, zeroed, dropped = sanitize_ti3("\n".join(lines) + "\n")
     assert dropped == 1 and zeroed == 1
-    (tmp_path / "clean.ti3").write_text(clean)
+    (tmp_path / "clean.ti3").write_text(clean, encoding="utf-8")
     subprocess.run([str(colprof), "-as", "clean"], cwd=tmp_path,
-                   capture_output=True, text=True)
+                   capture_output=True, text=True, encoding="utf-8")
     icc = _profile("clean")
     assert icc is not None and icc.stat().st_size > 1000, \
         "sanitized .ti3 should build a profile"

@@ -73,9 +73,9 @@ class _Tab:
 
 def _chart(tmp_path, ti3_body=None):
     ti1 = tmp_path / "chart.ti1"
-    ti1.write_text("CTI1\n")
+    ti1.write_text("CTI1\n", encoding="utf-8")
     if ti3_body is not None:
-        (tmp_path / "chart.ti3").write_text(ti3_body)
+        (tmp_path / "chart.ti3").write_text(ti3_body, encoding="utf-8")
     return _Tab(ti1)
 
 

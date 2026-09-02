@@ -269,13 +269,13 @@ def test_copy_files_builds_project_layout(tmp_path: Path) -> None:
     """
     src = tmp_path / "external"
     src.mkdir()
-    (src / "MyOldChart.ti2").write_text("CTI2\n")
-    (src / "MyOldChart.ti1").write_text("CTI1\n")
+    (src / "MyOldChart.ti2").write_text("CTI2\n", encoding="utf-8")
+    (src / "MyOldChart.ti1").write_text("CTI1\n", encoding="utf-8")
     (src / "MyOldChart_01.tif").write_bytes(b"II*\x00")
     (src / "MyOldChart_02.tif").write_bytes(b"II*\x00")
-    (src / "MyOldChart.ti3").write_text("CTI3\n")
-    (src / "MyOldChart.cht").write_text("cht\n")
-    (src / "MyOldChart.channels.json").write_text('{"ink_channels": ["r","g","b"]}')
+    (src / "MyOldChart.ti3").write_text("CTI3\n", encoding="utf-8")
+    (src / "MyOldChart.cht").write_text("cht\n", encoding="utf-8")
+    (src / "MyOldChart.channels.json").write_text('{"ink_channels": ["r","g","b"]}', encoding="utf-8")
 
     _, tiffs = _related_files(src / "MyOldChart.ti2")
     working_dir = tmp_path / "ChromIQ"
@@ -302,13 +302,13 @@ def test_copy_files_builds_project_layout(tmp_path: Path) -> None:
 def test_copy_files_imports_icc_under_project_stem(tmp_path: Path) -> None:
     src = tmp_path / "external"
     src.mkdir()
-    (src / "old.ti2").write_text("CTI2\n")
-    (src / "old.icc").write_text("ICC\n")
+    (src / "old.ti2").write_text("CTI2\n", encoding="utf-8")
+    (src / "old.icc").write_text("ICC\n", encoding="utf-8")
 
     working_dir = tmp_path / "ChromIQ"
     _copy_files(src / "old.ti2", None, [], working_dir, "Imported")
 
-    assert (working_dir / "Imported" / "runs" / "run1" / "Imported.icc").read_text() == "ICC\n"
+    assert (working_dir / "Imported" / "runs" / "run1" / "Imported.icc").read_text(encoding="utf-8") == "ICC\n"
 
 
 def test_copy_files_sanitises_spaces_in_project_name(tmp_path: Path) -> None:
@@ -316,7 +316,7 @@ def test_copy_files_sanitises_spaces_in_project_name(tmp_path: Path) -> None:
     chart stem, matching what the Generate-Chart path does."""
     src = tmp_path / "external"
     src.mkdir()
-    (src / "old.ti2").write_text("CTI2\n")
+    (src / "old.ti2").write_text("CTI2\n", encoding="utf-8")
 
     working_dir = tmp_path / "ChromIQ"
     new_ti2, _ = _copy_files(src / "old.ti2", None, [], working_dir, "printer test file")
@@ -333,7 +333,7 @@ def test_project_root_for_recognises_structured_chart(tmp_path: Path) -> None:
     proj = Project.create(working_dir / "Existing", "Existing")
     chart_ti2 = proj.current_run().chart_ti2
     chart_ti2.parent.mkdir(parents=True, exist_ok=True)
-    chart_ti2.write_text("CTI2\n")
+    chart_ti2.write_text("CTI2\n", encoding="utf-8")
 
     assert _project_root_for(chart_ti2, working_dir) == working_dir / "Existing"
 
@@ -343,7 +343,7 @@ def test_project_root_for_rejects_external_file(tmp_path: Path) -> None:
     working_dir.mkdir()
     external = tmp_path / "somewhere" / "chart.ti2"
     external.parent.mkdir(parents=True)
-    external.write_text("CTI2\n")
+    external.write_text("CTI2\n", encoding="utf-8")
 
     assert _project_root_for(external, working_dir) is None
 
@@ -354,7 +354,7 @@ def test_project_root_for_rejects_folder_without_manifest(tmp_path: Path) -> Non
     working_dir = tmp_path / "ChromIQ"
     legacy = working_dir / "LegacyFlat"
     legacy.mkdir(parents=True)
-    (legacy / "LegacyFlat.ti2").write_text("CTI2\n")
+    (legacy / "LegacyFlat.ti2").write_text("CTI2\n", encoding="utf-8")
 
     assert _project_root_for(legacy / "LegacyFlat.ti2", working_dir) is None
 
@@ -369,8 +369,8 @@ def test_copy_ti3_only_builds_project_layout(tmp_path: Path) -> None:
     src = tmp_path / "external"
     src.mkdir()
     ti3 = src / "stray.ti3"
-    ti3.write_text("CTI3\n")
-    (src / "stray.icc").write_text("ICC\n")        # sibling profile carries over
+    ti3.write_text("CTI3\n", encoding="utf-8")
+    (src / "stray.icc").write_text("ICC\n", encoding="utf-8")        # sibling profile carries over
 
     working_dir = tmp_path / "ChromIQ"
     new_ti3 = _copy_ti3_only(ti3, working_dir, "Imported")
@@ -380,14 +380,14 @@ def test_copy_ti3_only_builds_project_layout(tmp_path: Path) -> None:
     assert (proj / "project.json").is_file()
     assert (proj / "Where are my files.txt").is_file()
     assert new_ti3 == run1 / "Imported.ti3"
-    assert new_ti3.read_text() == "CTI3\n"
-    assert (run1 / "Imported.icc").read_text() == "ICC\n"
+    assert new_ti3.read_text(encoding="utf-8") == "CTI3\n"
+    assert (run1 / "Imported.icc").read_text(encoding="utf-8") == "ICC\n"
 
 
 def test_copy_ti3_only_sanitises_project_name(tmp_path: Path) -> None:
     src = tmp_path / "external"
     src.mkdir()
-    (src / "x.ti3").write_text("CTI3\n")
+    (src / "x.ti3").write_text("CTI3\n", encoding="utf-8")
 
     working_dir = tmp_path / "ChromIQ"
     new_ti3 = _copy_ti3_only(src / "x.ti3", working_dir, "printer test file")

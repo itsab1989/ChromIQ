@@ -83,7 +83,7 @@ def test_a_new_run_never_warns_about_another_run_s_results(qapp, tmp_path, monke
     """His report: the previously selected run had a measurement, and building
     a chart for a BRAND NEW run warned about it. The new run displaces
     nothing."""
-    (tmp_path / "P.ti3").write_text("x")
+    (tmp_path / "P.ti3").write_text("x", encoding="utf-8")
     (tmp_path / "P.icc").write_bytes(b"x")
 
     tab = _Tab(tmp_path, profile_run="")        # "New run"
@@ -106,7 +106,7 @@ def test_a_new_run_never_warns_about_another_run_s_results(qapp, tmp_path, monke
 
 def test_an_existing_run_with_results_still_warns(qapp, tmp_path, monkeypatch):
     """The guard must not be lost — only narrowed."""
-    (tmp_path / "P.ti3").write_text("x")
+    (tmp_path / "P.ti3").write_text("x", encoding="utf-8")
     tab = _Tab(tmp_path, profile_run="run2")
 
     seen = {}
@@ -334,7 +334,7 @@ def test_the_real_page_files_decide(qapp, tmp_path):
 def test_the_geometry_decides_when_no_pages_are_rendered_yet(qapp, tmp_path):
     import json
     (tmp_path / "P.channels.json").write_text(json.dumps(
-        {"layout": {"patches": [{"page": 0}, {"page": 1}, {"page": 2}]}}))
+        {"layout": {"patches": [{"page": 0}, {"page": 1}, {"page": 2}]}}), encoding="utf-8")
     tab = _PagesTab()
 
     tab._show_loaded_page_count([], tmp_path / "P.ti2")

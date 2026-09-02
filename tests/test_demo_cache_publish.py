@@ -29,9 +29,9 @@ def _tree(root: Path, *, marker: bool) -> Path:
     """A stand-in for a built demo tree, with or without its completion marker."""
     root.mkdir(parents=True, exist_ok=True)
     (root / "Demo-Full-RGB").mkdir(exist_ok=True)
-    (root / "Demo-Full-RGB" / "project.json").write_text("{}")
+    (root / "Demo-Full-RGB" / "project.json").write_text("{}", encoding="utf-8")
     if marker:
-        (root / MARKER).write_text("key")
+        (root / MARKER).write_text("key", encoding="utf-8")
     return root
 
 
@@ -50,7 +50,7 @@ def test_a_complete_tree_already_there_wins(tmp_path):
     """Two workers finish at once: the published one stands, ours is dropped."""
     staging = _tree(tmp_path / "staging", marker=True)
     cached = _tree(tmp_path / "key", marker=True)
-    (cached / "theirs.txt").write_text("built by the other worker")
+    (cached / "theirs.txt").write_text("built by the other worker", encoding="utf-8")
 
     assert _publish_demo_cache(staging, cached, cached / MARKER) is True
 
@@ -67,7 +67,7 @@ def test_a_marker_less_tree_does_not_poison_the_cache_for_ever(tmp_path):
     """
     staging = _tree(tmp_path / "staging", marker=True)
     cached = _tree(tmp_path / "key", marker=False)
-    (cached / "stale.txt").write_text("left by an interrupted run")
+    (cached / "stale.txt").write_text("left by an interrupted run", encoding="utf-8")
 
     assert _publish_demo_cache(staging, cached, cached / MARKER) is True
 
@@ -80,7 +80,7 @@ def test_the_healed_cache_is_then_a_hit(tmp_path):
     """After healing, a second publish takes the cheap path and keeps the tree."""
     cached = _tree(tmp_path / "key", marker=False)
     _publish_demo_cache(_tree(tmp_path / "s1", marker=True), cached, cached / MARKER)
-    (cached / "ours.txt").write_text("the healed tree")
+    (cached / "ours.txt").write_text("the healed tree", encoding="utf-8")
 
     assert _publish_demo_cache(
         _tree(tmp_path / "s2", marker=True), cached, cached / MARKER) is True

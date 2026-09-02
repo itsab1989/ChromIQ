@@ -65,12 +65,12 @@ def _make_ti2(vals, steps, kw):
     text = (_HEAD.format(kw=kw) + f"NUMBER_OF_SETS {sid}\nBEGIN_DATA\n"
             + "\n".join(rows) + "\nEND_DATA\n")
     p = Path(tempfile.mkstemp(suffix=".ti2")[1])
-    p.write_text(text)
+    p.write_text(text, encoding="utf-8")
     return p
 
 
 def _tag(p: Path) -> str:
-    t = p.read_text()
+    t = p.read_text(encoding="utf-8")
     return "RANDOM_START" if "RANDOM_START" in t else (
         "CHART_ID" if "CHART_ID" in t else "?")
 
@@ -100,9 +100,9 @@ def test_structured_chart_id_is_left_fixed(tab, ramp):
 
 def test_already_randomised_is_untouched(tab, shuffled):
     p = _make_ti2(shuffled, 20, "RANDOM_START")
-    before = p.read_text()
+    before = p.read_text(encoding="utf-8")
     tab._maybe_autotag_randomised(p)
-    assert p.read_text() == before          # byte-for-byte no-op
+    assert p.read_text(encoding="utf-8") == before          # byte-for-byte no-op
 
 
 def test_missing_file_is_noop(tab):

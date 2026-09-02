@@ -847,7 +847,7 @@ def demo_projects_root(tmp_path_factory):
     staging = Path(tempfile.mkdtemp(prefix="demo-build-", dir=str(cached.parent)))
     try:
         _build_demo_projects(staging)
-        (staging / ".complete").write_text(_demo_cache_key())
+        (staging / ".complete").write_text(_demo_cache_key(), encoding="utf-8")
         _publish_demo_cache(staging, cached, ready)
     except Exception:
         shutil.rmtree(staging, ignore_errors=True)

@@ -90,8 +90,8 @@ def test_verification_replace_archives_the_chart_but_keeps_the_settings(tmp_path
     run = proj.run("run1")
     vdir = run.verifications_dir
     vdir.mkdir(parents=True, exist_ok=True)
-    (vdir / f"{run.verify_stem}.ti2").write_text("ti2")
-    (vdir / "meta.json").write_text('{"measure_settings": {}}')
+    (vdir / f"{run.verify_stem}.ti2").write_text("ti2", encoding="utf-8")
+    (vdir / "meta.json").write_text('{"measure_settings": {}}', encoding="utf-8")
     arch = archive_run_for_replace(run, verification=True)
     assert arch is not None
     assert (arch / f"{run.verify_stem}.ti2").is_file()
@@ -106,8 +106,8 @@ def test_snapshot_backs_the_settings_up_with_the_chart(tmp_path):
     run = proj.run("run1")
     vdir = run.verifications_dir
     vdir.mkdir(parents=True, exist_ok=True)
-    (vdir / f"{run.verify_stem}.ti2").write_text("ti2")
-    (vdir / "meta.json").write_text('{"measure_settings": {}}')
+    (vdir / f"{run.verify_stem}.ti2").write_text("ti2", encoding="utf-8")
+    (vdir / "meta.json").write_text('{"measure_settings": {}}', encoding="utf-8")
     ver = run.new_verification()
     ver.ensure_dir()
     dest = snapshot_chart(ver)
@@ -125,17 +125,17 @@ def test_restore_without_a_settings_backup_leaves_the_live_settings(tmp_path):
     run = proj.run("run1")
     vdir = run.verifications_dir
     vdir.mkdir(parents=True, exist_ok=True)
-    (vdir / f"{run.verify_stem}.ti2").write_text("old-chart")
+    (vdir / f"{run.verify_stem}.ti2").write_text("old-chart", encoding="utf-8")
     ver = run.new_verification()
     ver.ensure_dir()
     snapshot_chart(ver)                       # snapshot WITHOUT settings
-    (vdir / "meta.json").write_text('{"measure_settings": {"x": 1}}')
-    (vdir / f"{run.verify_stem}.ti2").write_text("newer-chart")
+    (vdir / "meta.json").write_text('{"measure_settings": {"x": 1}}', encoding="utf-8")
+    (vdir / f"{run.verify_stem}.ti2").write_text("newer-chart", encoding="utf-8")
     result = restore_chart(ver)
     assert result.ok, result.error
     assert (vdir / "meta.json").is_file(), \
         "the live settings were destroyed by a restore"
-    assert json.loads((vdir / "meta.json").read_text()) == \
+    assert json.loads((vdir / "meta.json").read_text(encoding="utf-8")) == \
         {"measure_settings": {"x": 1}}
 
 
@@ -147,20 +147,20 @@ def test_restore_with_a_settings_backup_archives_then_replaces(tmp_path):
     run = proj.run("run1")
     vdir = run.verifications_dir
     vdir.mkdir(parents=True, exist_ok=True)
-    (vdir / f"{run.verify_stem}.ti2").write_text("chart-a")
-    (vdir / "meta.json").write_text('{"measure_settings": {"gen": 1}}')
+    (vdir / f"{run.verify_stem}.ti2").write_text("chart-a", encoding="utf-8")
+    (vdir / "meta.json").write_text('{"measure_settings": {"gen": 1}}', encoding="utf-8")
     ver = run.new_verification()
     ver.ensure_dir()
     snapshot_chart(ver)                       # snapshot WITH settings
-    (vdir / "meta.json").write_text('{"measure_settings": {"gen": 2}}')
+    (vdir / "meta.json").write_text('{"measure_settings": {"gen": 2}}', encoding="utf-8")
     result = restore_chart(ver)
     assert result.ok, result.error
-    assert json.loads((vdir / "meta.json").read_text()) == \
+    assert json.loads((vdir / "meta.json").read_text(encoding="utf-8")) == \
         {"measure_settings": {"gen": 1}}, "the backup was not restored"
     old = vdir / "old"
     archived = list(old.rglob("meta.json"))
     assert archived, "the replaced settings file was not archived"
-    assert json.loads(archived[0].read_text()) == \
+    assert json.loads(archived[0].read_text(encoding="utf-8")) == \
         {"measure_settings": {"gen": 2}}
 
 
@@ -173,13 +173,13 @@ def test_settings_edits_do_not_make_the_chart_look_different(tmp_path):
     run = proj.run("run1")
     vdir = run.verifications_dir
     vdir.mkdir(parents=True, exist_ok=True)
-    (vdir / f"{run.verify_stem}.ti2").write_text("chart")
-    (vdir / "meta.json").write_text('{"measure_settings": {"gen": 1}}')
+    (vdir / f"{run.verify_stem}.ti2").write_text("chart", encoding="utf-8")
+    (vdir / "meta.json").write_text('{"measure_settings": {"gen": 1}}', encoding="utf-8")
     ver = run.new_verification()
     ver.ensure_dir()
     snapshot_chart(ver)
     assert not live_differs_from_snapshot(ver)
-    (vdir / "meta.json").write_text('{"measure_settings": {"gen": 2}}')
+    (vdir / "meta.json").write_text('{"measure_settings": {"gen": 2}}', encoding="utf-8")
     assert not live_differs_from_snapshot(ver), \
         "a settings edit made the chart look different"
 

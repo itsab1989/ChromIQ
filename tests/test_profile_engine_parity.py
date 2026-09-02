@@ -33,7 +33,7 @@ pytestmark = pytest.mark.skipif(
 
 def _xicclu(args: list[str], icc: Path, text: str) -> np.ndarray:
     r = subprocess.run([argyll_tool("xicclu"), *args, "-pl", str(icc)],
-                       input=text, capture_output=True, text=True)
+                       input=text, capture_output=True, text=True, encoding="utf-8")
     assert r.returncode == 0, r.stderr[:300]
     return np.array([[float(v) for v in ln.rsplit("->", 1)[1].split()[:3]]
                      for ln in r.stdout.splitlines() if "->" in ln])
@@ -48,7 +48,7 @@ def engine_icc(tmp_path_factory) -> Path:
 
 def test_profcheck_within_colprof_band(engine_icc):
     r = subprocess.run([argyll_tool("profcheck"), "-k", str(FIXTURE),
-                        str(engine_icc)], capture_output=True, text=True)
+                        str(engine_icc)], capture_output=True, text=True, encoding="utf-8")
     assert r.returncode == 0
     avg = float(r.stdout.split("avg. = ")[1].split(",")[0])
     assert avg <= 0.30, f"self-fit degraded: avg {avg}"
@@ -71,5 +71,5 @@ def test_b2a_round_trip_parity(engine_icc):
 
 def test_colorsync_verify(engine_icc):
     r = subprocess.run(["sips", "--verify", str(engine_icc)],
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, encoding="utf-8")
     assert "Required tag is not present" not in (r.stdout + r.stderr)

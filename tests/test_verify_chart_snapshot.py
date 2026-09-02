@@ -22,12 +22,12 @@ def _run_with_verify_chart(tmp_path, *, recipe=True, name="P"):
     proj = Project.create(tmp_path / name, name)
     run = proj.current_run(); run.ensure_dir()
     run.verifications_dir.mkdir(parents=True, exist_ok=True)
-    run.verify_chart_ti1.write_text("TI1-v1")
-    run.verify_chart_ti2.write_text("TI2-v1")
+    run.verify_chart_ti1.write_text("TI1-v1", encoding="utf-8")
+    run.verify_chart_ti2.write_text("TI2-v1", encoding="utf-8")
     if recipe:
-        (run.verifications_dir / f"{run.verify_stem}.channels.json").write_text("{}")
-    (run.verifications_dir / f"{run.verify_stem}_01.tif").write_text("PAGE1")
-    (run.verifications_dir / f"{run.verify_stem}_02.tif").write_text("PAGE2")
+        (run.verifications_dir / f"{run.verify_stem}.channels.json").write_text("{}", encoding="utf-8")
+    (run.verifications_dir / f"{run.verify_stem}_01.tif").write_text("PAGE1", encoding="utf-8")
+    (run.verifications_dir / f"{run.verify_stem}_02.tif").write_text("PAGE2", encoding="utf-8")
     return proj, run
 
 
@@ -47,7 +47,7 @@ def test_snapshot_takes_chart_files_but_not_the_pages(tmp_path):
     assert names == [f"{run.verify_stem}.channels.json",
                      f"{run.verify_stem}.ti1", f"{run.verify_stem}.ti2"]
     # the live chart is untouched — a snapshot copies, never moves
-    assert run.verify_chart_ti2.read_text() == "TI2-v1"
+    assert run.verify_chart_ti2.read_text(encoding="utf-8") == "TI2-v1"
     assert len(run.verify_chart_tiffs()) == 2
 
 
@@ -67,7 +67,7 @@ def test_pages_are_snapshotted_when_there_is_no_recipe_to_rebuild_them(tmp_path)
 def test_folders_inside_verifications_are_never_snapshotted(tmp_path):
     proj, run = _run_with_verify_chart(tmp_path)
     (run.verifications_dir / "old").mkdir()
-    (run.verifications_dir / "old" / "stale.ti2").write_text("x")
+    (run.verifications_dir / "old" / "stale.ti2").write_text("x", encoding="utf-8")
     (run.verifications_dir / "reports").mkdir()
     v = _dated(run)
 
@@ -100,7 +100,7 @@ def test_a_changed_chart_is_detected_by_content_not_timestamp(tmp_path):
     import os, time
     proj, run = _run_with_verify_chart(tmp_path)
     v = _dated(run); snapshot_chart(v)
-    run.verify_chart_ti2.write_text("TI2-REPLACED")
+    run.verify_chart_ti2.write_text("TI2-REPLACED", encoding="utf-8")
     # Force the mtime BACKWARDS: a "newer than" test would call this unchanged.
     old = time.time() - 10_000
     os.utime(run.verify_chart_ti2, (old, old))
@@ -120,15 +120,15 @@ def test_a_missing_live_file_counts_as_different(tmp_path):
 def test_restore_puts_the_snapshot_back_and_keeps_folders(tmp_path):
     proj, run = _run_with_verify_chart(tmp_path)
     v = _dated(run); snapshot_chart(v)
-    v.measurement_ti3.write_text("MEASURED")
-    run.verify_chart_ti2.write_text("TI2-REPLACED")
+    v.measurement_ti3.write_text("MEASURED", encoding="utf-8")
+    run.verify_chart_ti2.write_text("TI2-REPLACED", encoding="utf-8")
     (run.verifications_dir / "old").mkdir()
 
     res = restore_chart(v)
 
     assert res.ok and not res.rolled_back
-    assert run.verify_chart_ti2.read_text() == "TI2-v1"
-    assert v.measurement_ti3.read_text() == "MEASURED"   # results untouched
+    assert run.verify_chart_ti2.read_text(encoding="utf-8") == "TI2-v1"
+    assert v.measurement_ti3.read_text(encoding="utf-8") == "MEASURED"   # results untouched
     assert (run.verifications_dir / "old").exists()      # folders untouched
     assert snapshot_files(v), "the snapshot itself survives a restore"
 
@@ -174,14 +174,14 @@ def test_restore_renames_to_the_runs_current_verify_stem(tmp_path):
 
     assert res.ok
     assert run2.verify_chart_ti2.exists(), "restored under the CURRENT stem"
-    assert run2.verify_chart_ti2.read_text() == "TI2-v1"
+    assert run2.verify_chart_ti2.read_text(encoding="utf-8") == "TI2-v1"
     assert not (run2.verifications_dir / f"{old_stem}.ti2").exists()
 
 
 def test_restore_rolls_back_and_changes_nothing_on_failure(tmp_path, monkeypatch):
     proj, run = _run_with_verify_chart(tmp_path)
     v = _dated(run); snapshot_chart(v)
-    run.verify_chart_ti2.write_text("TI2-LIVE")
+    run.verify_chart_ti2.write_text("TI2-LIVE", encoding="utf-8")
     before = {p.name: p.read_bytes() for p in live_chart_files(run)}
 
     import workflow.verify_chart_snapshot as M
@@ -209,7 +209,7 @@ def test_restore_without_a_snapshot_is_a_no_op(tmp_path):
     res = restore_chart(v)
 
     assert not res.ok and res.error == "no snapshot"
-    assert run.verify_chart_ti2.read_text() == "TI2-v1"
+    assert run.verify_chart_ti2.read_text(encoding="utf-8") == "TI2-v1"
 
 
 def test_restore_into_an_empty_verifications_root_needs_no_stash(tmp_path):
@@ -221,4 +221,4 @@ def test_restore_into_an_empty_verifications_root_needs_no_stash(tmp_path):
     res = restore_chart(v)
 
     assert res.ok
-    assert run.verify_chart_ti2.read_text() == "TI2-v1"
+    assert run.verify_chart_ti2.read_text(encoding="utf-8") == "TI2-v1"

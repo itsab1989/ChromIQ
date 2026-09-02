@@ -57,7 +57,7 @@ def editor_cmyk(qapp, monkeypatch, tmp_path):
     ed = M.Ti2RelayoutDialog(ArgyllRunner(_settings()), _settings())
     monkeypatch.setattr(ed, "_regenerate", lambda **k: None)
     ti2 = tmp_path / "chart.ti2"
-    ti2.write_text(_TI2_CMYK)
+    ti2.write_text(_TI2_CMYK, encoding="utf-8")
     assert ed._load_chart_from(ti2) is not False
     yield ed
     ed.deleteLater()
@@ -125,7 +125,7 @@ def test_regenerate_routes_cmyk_to_engine_preview(qapp, monkeypatch, tmp_path):
     calls = []
     monkeypatch.setattr(ed, "_do_engine_preview", lambda: calls.append(1))
     ti2 = tmp_path / "chart.ti2"
-    ti2.write_text(_TI2_CMYK)
+    ti2.write_text(_TI2_CMYK, encoding="utf-8")
     assert ed._load_chart_from(ti2)
     assert ed._spec is not None and ed._spec.color_rep == "CMYK"
     assert ed._grid.count() == 3
@@ -154,7 +154,7 @@ def test_save_as_writes_engine_cmyk_deliverable(editor_cmyk, tmp_path):
     ti2 = target / "cmyktest.ti2"
     assert 'COLOR_REP "CMYK"' in ti2.read_text(encoding="utf-8")
     import json
-    sidecar = json.loads((target / "cmyktest.channels.json").read_text())
+    sidecar = json.loads((target / "cmyktest.channels.json").read_text(encoding="utf-8"))
     assert sidecar["layout"]["engine"] == "chromiq"
     assert sidecar["layout"]["color_rep"] == "CMYK"
     tiffs = sorted(target.glob("cmyktest*.tif"))

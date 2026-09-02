@@ -44,7 +44,7 @@ def test_the_reference_chart_is_always_the_ti2(tab, tmp_path, monkeypatch, given
     """Whichever chart file the tab was handed, the overlay is built from the
     .ti2 — the only file that knows where a patch sits on the sheet."""
     ti3 = tmp_path / "chart.ti3"
-    ti3.write_text("stub")
+    ti3.write_text("stub", encoding="utf-8")
     tab._ti1_path = tmp_path / given
     tab._patch_boxes = [{"A1": QRect(0, 0, 10, 10)}]
     monkeypatch.setattr(tab, "_existing_ti3_for_chart", lambda: ti3)
@@ -72,7 +72,7 @@ def test_it_does_not_claim_success_when_nothing_was_painted(tab, tmp_path,
     """The silent half of the bug: True with an empty overlay meant the caller
     never fell back to pointing the user at Tools ▸ Inspect a measurement."""
     ti3 = tmp_path / "chart.ti3"
-    ti3.write_text("stub")
+    ti3.write_text("stub", encoding="utf-8")
     tab._ti1_path = tmp_path / "chart.ti2"
     tab._patch_boxes = [{"A1": QRect(0, 0, 10, 10)}]
     monkeypatch.setattr(tab, "_existing_ti3_for_chart", lambda: ti3)

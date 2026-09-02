@@ -37,14 +37,14 @@ def test_bundle_listed_even_without_argyll_ref(tmp_path):
 def test_bundled_cht_preferred_over_argyll_ref(tmp_path):
     # A fake Argyll ref/ with a same-named .cht must be overridden by the bundle.
     ref = tmp_path / "ref"; ref.mkdir()
-    (ref / "Hutchcolor.cht").write_text("stale argyll copy")
+    (ref / "Hutchcolor.cht").write_text("stale argyll copy", encoding="utf-8")
     (tmp_path / "bin").mkdir()
     targets = dict((p.stem, p) for _, p in
                    list_standard_targets(_S(argyll_bin_path=str(tmp_path / "bin"),
                                             custom_output_path=str(tmp_path))))
     hutch = targets["Hutchcolor"]
     assert hutch == bundled_targets_dir() / "Hutchcolor.cht"   # bundle wins
-    assert "stale argyll copy" not in hutch.read_text()
+    assert "stale argyll copy" not in hutch.read_text(encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -64,10 +64,10 @@ def test_ensure_user_targets_dir_provisions_and_never_overwrites(tmp_path):
     assert (d / "README.md").is_file()
 
     # A user edit survives re-provisioning; a deleted file comes back.
-    (d / "it8Wolf.cht").write_text("MY TWEAKED VERSION")
+    (d / "it8Wolf.cht").write_text("MY TWEAKED VERSION", encoding="utf-8")
     (d / "Hutchcolor.cht").unlink()
     ensure_user_targets_dir(s)
-    assert (d / "it8Wolf.cht").read_text() == "MY TWEAKED VERSION"
+    assert (d / "it8Wolf.cht").read_text(encoding="utf-8") == "MY TWEAKED VERSION"
     assert (d / "Hutchcolor.cht").is_file()
 
 
@@ -76,12 +76,12 @@ def test_user_copy_overrides_bundled(tmp_path):
     s = _S(argyll_bin_path=str(tmp_path / "bin"),
            custom_output_path=str(tmp_path))
     d = ensure_user_targets_dir(s)
-    (d / "it8Wolf.cht").write_text("USER OVERRIDE")
+    (d / "it8Wolf.cht").write_text("USER OVERRIDE", encoding="utf-8")
     targets = dict((p.stem, p) for _, p in list_standard_targets(s))
     assert targets["it8Wolf"] == d / "it8Wolf.cht"
-    assert targets["it8Wolf"].read_text() == "USER OVERRIDE"
+    assert targets["it8Wolf"].read_text(encoding="utf-8") == "USER OVERRIDE"
     # A stray .cht that matches no known target must NOT invent a new entry.
-    (d / "my-own-notes.cht").write_text("not a target")
+    (d / "my-own-notes.cht").write_text("not a target", encoding="utf-8")
     targets = dict((p.stem, p) for _, p in list_standard_targets(s))
     assert "my-own-notes" not in targets
 
@@ -91,7 +91,7 @@ def test_bundled_cht_parses_and_registers():
     from workflow.cht_parser import parse_cht
     d = bundled_targets_dir()
     for cht in d.glob("*.cht"):
-        g = parse_cht(cht.read_text(errors="ignore"))
+        g = parse_cht(cht.read_text(errors="ignore", encoding="utf-8"))
         assert g.patches and len(g.fiducials) == 4, f"{cht.name} parse looks wrong"
 
 
@@ -134,10 +134,10 @@ def test_merge_demo_references_concatenates(tmp_path):
                 "SAMPLE_ID XYZ_X XYZ_Y XYZ_Z\nEND_DATA_FORMAT\n"
                 f"NUMBER_OF_SETS {len(names)}\nBEGIN_DATA\n{rows}\nEND_DATA\n")
 
-    a = tmp_path / "a.cie"; a.write_text(_cie(["A1", "A2"]))
-    b = tmp_path / "b.cie"; b.write_text(_cie(["B1", "B2", "B3"]))
+    a = tmp_path / "a.cie"; a.write_text(_cie(["A1", "A2"]), encoding="utf-8")
+    b = tmp_path / "b.cie"; b.write_text(_cie(["B1", "B2", "B3"]), encoding="utf-8")
     out = merge_demo_references([a, b], tmp_path / "m.cie")
-    txt = out.read_text()
+    txt = out.read_text(encoding="utf-8")
     assert int(re.search(r"NUMBER_OF_SETS (\d+)", txt).group(1)) == 5
     for name in ("A1", "A2", "B1", "B2", "B3"):
         assert re.search(rf"(?m)^{name} ", txt)
@@ -150,17 +150,17 @@ def test_unmodified_copy_refreshes_on_bundle_update(tmp_path, monkeypatch):
     never does (the manifest records what ChromIQ copied)."""
     import workflow.standard_targets as st
     bundle = tmp_path / "bundle"; bundle.mkdir()
-    (bundle / "it8Wolf.cht").write_text("v1 content")
-    (bundle / "Hutchcolor.cht").write_text("v1 content")
+    (bundle / "it8Wolf.cht").write_text("v1 content", encoding="utf-8")
+    (bundle / "Hutchcolor.cht").write_text("v1 content", encoding="utf-8")
     monkeypatch.setattr(st, "bundled_targets_dir", lambda: bundle)
     s = _S(custom_output_path=str(tmp_path))
 
     d = st.ensure_user_targets_dir(s)
-    assert (d / "it8Wolf.cht").read_text() == "v1 content"
+    assert (d / "it8Wolf.cht").read_text(encoding="utf-8") == "v1 content"
 
-    (d / "Hutchcolor.cht").write_text("USER EDIT")     # user tweaks one file
-    (bundle / "it8Wolf.cht").write_text("v2 corrected")  # update ships fixes
-    (bundle / "Hutchcolor.cht").write_text("v2 corrected")
+    (d / "Hutchcolor.cht").write_text("USER EDIT", encoding="utf-8")     # user tweaks one file
+    (bundle / "it8Wolf.cht").write_text("v2 corrected", encoding="utf-8")  # update ships fixes
+    (bundle / "Hutchcolor.cht").write_text("v2 corrected", encoding="utf-8")
     st.ensure_user_targets_dir(s)
-    assert (d / "it8Wolf.cht").read_text() == "v2 corrected"   # refreshed
-    assert (d / "Hutchcolor.cht").read_text() == "USER EDIT"   # preserved
+    assert (d / "it8Wolf.cht").read_text(encoding="utf-8") == "v2 corrected"   # refreshed
+    assert (d / "Hutchcolor.cht").read_text(encoding="utf-8") == "USER EDIT"   # preserved

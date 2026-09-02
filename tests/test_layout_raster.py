@@ -416,7 +416,7 @@ def _write_cmyk_ti1(path, fields, rows):
     for i, dev in enumerate(rows, 1):
         hdr.append(f"{i} " + " ".join(f"{v:.4f}" for v in dev) + " 40.0 45.0 50.0")
     hdr.append("END_DATA")
-    path.write_text("\n".join(hdr) + "\n")
+    path.write_text("\n".join(hdr) + "\n", encoding="utf-8")
 
 
 def test_contrast_spacer_choice():

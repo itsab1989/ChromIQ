@@ -36,6 +36,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from core.proc_text import run_text
+
 from workflow.gamut_target import MASTER_SET_ASSET, MASTER_SET_VERSION  # noqa: E402
 
 RECIPE = ["-d2", "-e4", "-B4", "-g32", "-t", "-f5960"]
@@ -52,7 +54,7 @@ def main() -> int:
     stem = out.with_suffix("")
     cmd = [str(bin_dir / "targen"), *RECIPE, "-c", str(srgb), str(stem)]
     print(" ".join(cmd))
-    r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+    r = run_text(cmd, capture_output=True, timeout=600)
     if r.returncode != 0 or not out.exists():
         print(r.stdout, r.stderr)
         return 1

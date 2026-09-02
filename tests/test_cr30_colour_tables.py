@@ -22,7 +22,7 @@ ARGYLL_SRC = pathlib.Path(
 
 
 def _argyll(name):
-    src = ARGYLL_SRC.read_text(errors="replace")
+    src = ARGYLL_SRC.read_text(errors="replace", encoding="utf-8")
     i = src.index(f"static xspect {name} = {{")
     blk = src[i:i + 3200]
     body = blk[blk.index("{", blk.index("100.0")) + 1:]
@@ -57,7 +57,7 @@ def test_uv_variants_are_not_the_colorimetric_illuminant():
     sp = pathlib.Path("/Applications/Argyll/ref/D50_0.0.sp")
     if not sp.is_file():
         pytest.skip("Argyll ref data not installed")
-    text = sp.read_text(errors="replace")
+    text = sp.read_text(errors="replace", encoding="utf-8")
     lines = text.splitlines()
     b = next(i for i, l in enumerate(lines) if l.strip() == "BEGIN_DATA")
     e = next(i for i, l in enumerate(lines) if l.strip() == "END_DATA")

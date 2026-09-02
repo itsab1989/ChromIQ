@@ -62,7 +62,7 @@ def test_build_chart_emits_cht(tmp_path):
                                instrument="i1", paper="A4", dpi=120,
                                randomize=False, emit_cht=True)
     assert res.cht_paths and res.cht_paths[0].is_file()
-    txt = res.cht_paths[0].read_text()
+    txt = res.cht_paths[0].read_text(encoding="utf-8")
     # one X box and one EXPECTED row per printed patch slot (incl. grid padding)
     n_slots = res.layout.total_patches
     assert n_slots >= 90

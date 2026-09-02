@@ -25,6 +25,8 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
+from core.proc_text import decode_output
+
 from workflow.ppd_color import parse_ppd_options, vendor_no_cm_settings  # noqa: E402
 
 # Anything whose option key or UI label matches this is worth showing when the
@@ -37,7 +39,7 @@ def _read_ppd(path: pathlib.Path) -> str:
     raw = path.read_bytes()
     if path.suffix == ".gz" or raw[:2] == b"\x1f\x8b":
         raw = gzip.decompress(raw)
-    return raw.decode(errors="replace")
+    return decode_output(raw, what="the PPD")
 
 
 def _interesting_options(text: str):
@@ -85,7 +87,8 @@ def survey(roots: list[pathlib.Path]) -> None:
 def _detect(text: str):
     """vendor_no_cm_settings, but on already-decompressed text."""
     import tempfile
-    with tempfile.NamedTemporaryFile("w", suffix=".ppd", delete=False) as f:
+    with tempfile.NamedTemporaryFile("w", suffix=".ppd", delete=False,
+                                     encoding="utf-8") as f:
         f.write(text)
         tmp = f.name
     try:

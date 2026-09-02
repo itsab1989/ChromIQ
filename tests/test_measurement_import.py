@@ -21,7 +21,7 @@ def _ti3(path, rows):
     body = "".join(f"{i} \"A{i}\" {r} {g} {b} {r*0.9:.4f} {g*1.0:.4f} "
                    f"{b*1.1:.4f}\n" for i, (r, g, b) in enumerate(rows, 1))
     path.write_text(_HDR + f"NUMBER_OF_SETS {len(rows)}\nBEGIN_DATA\n"
-                    + body + "END_DATA\n")
+                    + body + "END_DATA\n", encoding="utf-8")
     return path
 
 
@@ -35,7 +35,7 @@ def _ti2(path, rows):
                     "BEGIN_DATA_FORMAT\nSAMPLE_ID SAMPLE_LOC RGB_R RGB_G "
                     "RGB_B XYZ_X XYZ_Y XYZ_Z\nEND_DATA_FORMAT\n"
                     f"NUMBER_OF_SETS {len(rows)}\nBEGIN_DATA\n" + body
-                    + "END_DATA\n")
+                    + "END_DATA\n", encoding="utf-8")
     return path
 
 

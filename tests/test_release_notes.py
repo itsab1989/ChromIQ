@@ -112,7 +112,7 @@ def test_the_workflow_uses_the_generator():
     from pathlib import Path
 
     wf = Path(__file__).resolve().parents[1] / ".github/workflows/build-release.yml"
-    text = wf.read_text()
+    text = wf.read_text(encoding="utf-8")
     assert "scripts/release_notes.py --tag" in text
     # …and still falls back, so a note is never empty.
     assert "awk" in text

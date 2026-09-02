@@ -49,10 +49,10 @@ def _slot(tmp_path, *, recipe, snap_img, live_img, img_bytes=b"page"):
     live.mkdir(parents=True, exist_ok=True)
     snap.mkdir(parents=True, exist_ok=True)
     for d in (live, snap):
-        (d / f"{STEM}.ti1").write_text("CTI1\n")
-        (d / f"{STEM}.ti2").write_text("CTI2\n")
+        (d / f"{STEM}.ti1").write_text("CTI1\n", encoding="utf-8")
+        (d / f"{STEM}.ti2").write_text("CTI2\n", encoding="utf-8")
         if recipe:
-            (d / f"{STEM}.channels.json").write_text(RECIPE)
+            (d / f"{STEM}.channels.json").write_text(RECIPE, encoding="utf-8")
     if live_img:
         (live / f"{STEM}_01.tif").write_bytes(b"page")
     if snap_img:

@@ -119,7 +119,7 @@ class Tab(QWidget):
         self._root = tmp_path
         self._chart_ti3 = tmp_path / "chart.ti3"
         if ti3:
-            self._chart_ti3.write_text("x")
+            self._chart_ti3.write_text("x", encoding="utf-8")
         self._m_resume_cb = self._resume_cb = _Box()
         self._m_refine_cb = self._refine_cb = _Box()
         self._target_ctl = _Ctl(_Project(tmp_path), target or _Target())
@@ -230,7 +230,7 @@ def test_repl_a_silence_does_not_travel_to_a_verification(qapp, tmp_path, monkey
     vid = "2026-07-28_131500"
     vdir = tmp_path / "runs" / "run1" / "verifications" / vid
     vdir.mkdir(parents=True)
-    (vdir / "P-verify.ti3").write_text("v")
+    (vdir / "P-verify.ti3").write_text("v", encoding="utf-8")
 
     tab = Tab(tmp_path)
     _answer(monkeypatch, accept=True, tick=True)
@@ -307,7 +307,7 @@ def test_the_tick_names_the_run_it_applies_to(qapp, tmp_path, run_type, vid, wor
     if vid:
         vdir = tmp_path / "runs" / "run1" / "verifications" / vid
         vdir.mkdir(parents=True)
-        (vdir / "P-verify.ti3").write_text("v")
+        (vdir / "P-verify.ti3").write_text("v", encoding="utf-8")
     tab = Tab(tmp_path)
     tab.select(run_type, "run1", vid)
     for label in (tab._replace_warning_silence_label(),

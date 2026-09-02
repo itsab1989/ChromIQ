@@ -52,7 +52,7 @@ def _ti2(tmp_path):
     rows = "\n".join(f"{i+1} 0 0 0" for i in range(A))
     p.write_text('CTI2\n\nNUMBER_OF_FIELDS 4\nBEGIN_DATA_FORMAT\n'
                  'SAMPLE_ID RGB_R RGB_G RGB_B\nEND_DATA_FORMAT\n'
-                 f'NUMBER_OF_SETS {A}\nBEGIN_DATA\n{rows}\nEND_DATA\n')
+                 f'NUMBER_OF_SETS {A}\nBEGIN_DATA\n{rows}\nEND_DATA\n', encoding="utf-8")
     return p
 
 
@@ -64,7 +64,7 @@ def _ti3(tmp_path, held, claimed=None):
                  'SAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z\n'
                  'END_DATA_FORMAT\n'
                  f'NUMBER_OF_SETS {claimed if claimed is not None else held}\n'
-                 f'BEGIN_DATA\n{rows}\nEND_DATA\n')
+                 f'BEGIN_DATA\n{rows}\nEND_DATA\n', encoding="utf-8")
     return p
 
 
@@ -81,7 +81,7 @@ def test_a_header_only_file_cannot_be_resumed(tmp_path):
     p = tmp_path / "c.ti3"
     p.write_text('CTI3\n\nNUMBER_OF_FIELDS 7\nBEGIN_DATA_FORMAT\n'
                  'SAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z\n'
-                 'END_DATA_FORMAT\n')
+                 'END_DATA_FORMAT\n', encoding="utf-8")
     assert p.stat().st_size > 0, "the point of this test is a non-empty file"
     assert can_resume(p, _ti2(tmp_path)) is False
 

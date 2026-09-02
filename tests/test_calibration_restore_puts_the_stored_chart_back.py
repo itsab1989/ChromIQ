@@ -31,7 +31,7 @@ def _sidecar(path, notes, patches):
         "run_description": "",
         "stamp_commands": False,
         "layout": {"patches": [{"loc": f"A{i}"} for i in range(patches)]},
-    }))
+    }), encoding="utf-8")
 
 
 @pytest.fixture
@@ -46,35 +46,35 @@ def test_the_stored_chart_and_its_notes_both_come_back(calibration):
     """Knut's exact sequence, in files."""
     cal, stem = calibration, calibration.stem
     # The chart he measured: 224 patches, noted "calibration test".
-    (cal.dir / f"{stem}.ti1").write_text("TI1 original")
-    (cal.dir / f"{stem}.ti2").write_text("TI2 original")
+    (cal.dir / f"{stem}.ti1").write_text("TI1 original", encoding="utf-8")
+    (cal.dir / f"{stem}.ti2").write_text("TI2 original", encoding="utf-8")
     _sidecar(cal.dir / f"{stem}.channels.json", "calibration test", 224)
     m = cal.load_meta(); m.chart_notes = "calibration test"; cal.save_meta(m)
     snapshot_slot(slot_for_calibration(cal))
 
     # …then he made a different chart: 120 patches, a different note.
-    (cal.dir / f"{stem}.ti2").write_text("TI2 replacement")
+    (cal.dir / f"{stem}.ti2").write_text("TI2 replacement", encoding="utf-8")
     _sidecar(cal.dir / f"{stem}.channels.json", "new calib note", 120)
     m = cal.load_meta(); m.chart_notes = "new calib note"; cal.save_meta(m)
 
     result = restore_slot(slot_for_calibration(cal))
     assert result.ok, result.error
 
-    doc = json.loads((cal.dir / f"{stem}.channels.json").read_text())
+    doc = json.loads((cal.dir / f"{stem}.channels.json").read_text(encoding="utf-8"))
     assert doc["chart_notes"] == "calibration test", (
         "the restored sidecar carries the replacement chart's notes"
     )
     assert len(doc["layout"]["patches"]) == 224, (
         "the restored chart is not the one that was measured"
     )
-    assert (cal.dir / f"{stem}.ti2").read_text() == "TI2 original"
+    assert (cal.dir / f"{stem}.ti2").read_text(encoding="utf-8") == "TI2 original"
 
 
 def test_the_snapshot_carries_the_sidecar_at_all(calibration):
     """If the sidecar does not travel, no restore can bring the notes back."""
     cal, stem = calibration, calibration.stem
-    (cal.dir / f"{stem}.ti1").write_text("TI1")
-    (cal.dir / f"{stem}.ti2").write_text("TI2")
+    (cal.dir / f"{stem}.ti1").write_text("TI1", encoding="utf-8")
+    (cal.dir / f"{stem}.ti2").write_text("TI2", encoding="utf-8")
     _sidecar(cal.dir / f"{stem}.channels.json", "notes that must travel", 60)
     # meta.json is a *side* file: it travels only once it exists, which in the
     # app it always does by this point. Knut's real cal/chart/ has it.
@@ -87,14 +87,14 @@ def test_the_snapshot_carries_the_sidecar_at_all(calibration):
 def test_restoring_twice_is_harmless(calibration):
     """The button can be pressed again; it must not degrade what it restored."""
     cal, stem = calibration, calibration.stem
-    (cal.dir / f"{stem}.ti1").write_text("TI1")
-    (cal.dir / f"{stem}.ti2").write_text("TI2 original")
+    (cal.dir / f"{stem}.ti1").write_text("TI1", encoding="utf-8")
+    (cal.dir / f"{stem}.ti2").write_text("TI2 original", encoding="utf-8")
     _sidecar(cal.dir / f"{stem}.channels.json", "keep me", 90)
     snapshot_slot(slot_for_calibration(cal))
-    (cal.dir / f"{stem}.ti2").write_text("TI2 replacement")
+    (cal.dir / f"{stem}.ti2").write_text("TI2 replacement", encoding="utf-8")
 
     for _ in range(2):
         assert restore_slot(slot_for_calibration(cal)).ok
-    doc = json.loads((cal.dir / f"{stem}.channels.json").read_text())
+    doc = json.loads((cal.dir / f"{stem}.channels.json").read_text(encoding="utf-8"))
     assert doc["chart_notes"] == "keep me"
-    assert (cal.dir / f"{stem}.ti2").read_text() == "TI2 original"
+    assert (cal.dir / f"{stem}.ti2").read_text(encoding="utf-8") == "TI2 original"

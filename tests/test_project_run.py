@@ -108,7 +108,7 @@ def test_project_load_rewrites_blank_readme(tmp_path: Path) -> None:
     """A 0-byte README — the artefact a pre-fix Windows build left when
     write_readme crashed mid-write — is repopulated on next load."""
     proj = Project.create(tmp_path / "P", "P")
-    proj.readme_path.write_text("")          # simulate the crash artefact
+    proj.readme_path.write_text("", encoding="utf-8")          # simulate the crash artefact
     assert proj.readme_path.stat().st_size == 0
 
     Project.load(tmp_path / "P")
@@ -145,7 +145,7 @@ def test_project_create_or_load_loads_if_present(tmp_path: Path) -> None:
     (root / "project.json").write_text(json.dumps({
         "schema_version": 1, "created_at": "x",
         "target_name": "P", "current_run": "run1", "runs": ["run1"],
-    }))
+    }), encoding="utf-8")
     proj = Project.create_or_load(root, "DIFFERENT")
     assert proj.target_name == "P", "should have loaded existing, not created fresh"
 
@@ -189,12 +189,12 @@ def test_run_path_properties(tmp_path: Path) -> None:
 def test_run_chart_tiffs_sorted_and_case_insensitive(tmp_path: Path) -> None:
     proj = Project.create(tmp_path / "P", "P")
     r = proj.current_run()
-    (r.dir / "P_02.tif").write_text("p2")
-    (r.dir / "P_01.tif").write_text("p1")
-    (r.dir / "P_03.TIF").write_text("p3")
-    (r.dir / "P_04.tiff").write_text("p4")
+    (r.dir / "P_02.tif").write_text("p2", encoding="utf-8")
+    (r.dir / "P_01.tif").write_text("p1", encoding="utf-8")
+    (r.dir / "P_03.TIF").write_text("p3", encoding="utf-8")
+    (r.dir / "P_04.tiff").write_text("p4", encoding="utf-8")
     # A non-chart tiff must not be picked up.
-    (r.dir / "other.tif").write_text("nope")
+    (r.dir / "other.tif").write_text("nope", encoding="utf-8")
     tiffs = r.chart_tiffs()
     assert [p.name for p in tiffs] == ["P_01.tif", "P_02.tif", "P_03.TIF", "P_04.tiff"]
 
@@ -204,7 +204,7 @@ def test_run_chart_tiffs_finds_single_page_no_suffix(tmp_path: Path) -> None:
     found, not silently skipped by a `<stem>_*.tif` (underscore) glob."""
     proj = Project.create(tmp_path / "P", "P")
     r = proj.current_run()
-    (r.dir / "P.tif").write_text("single page")
+    (r.dir / "P.tif").write_text("single page", encoding="utf-8")
     assert [p.name for p in r.chart_tiffs()] == ["P.tif"]
 
 
@@ -234,13 +234,13 @@ def test_run_promote_measurement_to_read_increments(tmp_path: Path) -> None:
     proj = Project.create(tmp_path / "P", "P")
     r = proj.current_run()
 
-    r.measurement_ti3.write_text("M1")
+    r.measurement_ti3.write_text("M1", encoding="utf-8")
     p1 = r.promote_measurement_to_read()
     assert p1.name == "read1.ti3"
-    assert p1.read_text() == "M1"
+    assert p1.read_text(encoding="utf-8") == "M1"
     assert not r.measurement_ti3.exists(), "measurement.ti3 must be moved, not copied"
 
-    r.measurement_ti3.write_text("M2")
+    r.measurement_ti3.write_text("M2", encoding="utf-8")
     p2 = r.promote_measurement_to_read()
     assert p2.name == "read2.ti3"
 
@@ -258,10 +258,10 @@ def test_run_reads_ignores_non_matching_files(tmp_path: Path) -> None:
     proj = Project.create(tmp_path / "P", "P")
     r = proj.current_run()
     r.reads_dir.mkdir()
-    (r.reads_dir / "read1.ti3").write_text("R1")
-    (r.reads_dir / "read2.ti3").write_text("R2")
-    (r.reads_dir / "garbage.ti3").write_text("nope")
-    (r.reads_dir / "readN.ti3").write_text("nope")  # not a number
+    (r.reads_dir / "read1.ti3").write_text("R1", encoding="utf-8")
+    (r.reads_dir / "read2.ti3").write_text("R2", encoding="utf-8")
+    (r.reads_dir / "garbage.ti3").write_text("nope", encoding="utf-8")
+    (r.reads_dir / "readN.ti3").write_text("nope", encoding="utf-8")  # not a number
     assert [p.name for p in r.reads()] == ["read1.ti3", "read2.ti3"]
 
 
@@ -277,7 +277,7 @@ def test_run_clear_reads_archives_them(tmp_path: Path) -> None:
     proj = Project.create(tmp_path / "P", "P")
     r = proj.current_run()
     r.reads_dir.mkdir()
-    (r.reads_dir / "read1.ti3").write_text("R1")
+    (r.reads_dir / "read1.ti3").write_text("R1", encoding="utf-8")
 
     r.clear_reads()
 
@@ -286,7 +286,7 @@ def test_run_clear_reads_archives_them(tmp_path: Path) -> None:
     kept = [p for p in r.reads_dir.rglob("*") if p.is_file()]
     assert [p.name for p in kept] == ["read1.ti3"], (
         f"the read was destroyed rather than archived: {kept}")
-    assert kept[0].read_text() == "R1"
+    assert kept[0].read_text(encoding="utf-8") == "R1"
 
 
 def test_run_clear_reads_removes_an_empty_reads_folder(tmp_path: Path) -> None:
@@ -305,8 +305,8 @@ def test_run_clear_reads_removes_an_empty_reads_folder(tmp_path: Path) -> None:
 def test_new_run_seeds_preconditioning_from_parent(tmp_path: Path) -> None:
     proj = Project.create(tmp_path / "P", "P")
     parent = proj.current_run()
-    parent.measurement_ti3.write_text("PARENT MEASUREMENT")
-    parent.profile_icc.write_text("PARENT PROFILE")
+    parent.measurement_ti3.write_text("PARENT MEASUREMENT", encoding="utf-8")
+    parent.profile_icc.write_text("PARENT PROFILE", encoding="utf-8")
 
     child = proj.new_run(preconditioning_from=parent)
 
@@ -315,15 +315,15 @@ def test_new_run_seeds_preconditioning_from_parent(tmp_path: Path) -> None:
     assert proj.all_runs() == [proj.run("run1"), proj.run("run2")] or \
            [r.id for r in proj.all_runs()] == ["run1", "run2"]
 
-    assert child.preconditioning_ti3.read_text() == "PARENT MEASUREMENT"
-    assert child.preconditioning_icc.read_text() == "PARENT PROFILE"
+    assert child.preconditioning_ti3.read_text(encoding="utf-8") == "PARENT MEASUREMENT"
+    assert child.preconditioning_icc.read_text(encoding="utf-8") == "PARENT PROFILE"
     assert child.has_preconditioning()
     assert child.load_meta().parent_run == "run1"
     assert child.load_meta().preconditioning_source_run == "run1"
 
     # Parent is untouched.
-    assert parent.measurement_ti3.read_text() == "PARENT MEASUREMENT"
-    assert parent.profile_icc.read_text() == "PARENT PROFILE"
+    assert parent.measurement_ti3.read_text(encoding="utf-8") == "PARENT MEASUREMENT"
+    assert parent.profile_icc.read_text(encoding="utf-8") == "PARENT PROFILE"
 
 
 def test_new_run_without_parent_has_no_preconditioning(tmp_path: Path) -> None:
@@ -347,10 +347,10 @@ def test_run_2_reads_dir_isolated_from_run_1(tmp_path: Path) -> None:
     proj = Project.create(tmp_path / "P", "P")
     r1 = proj.current_run()
     r1.reads_dir.mkdir()
-    (r1.reads_dir / "read1.ti3").write_text("V1 R1")
-    (r1.reads_dir / "read2.ti3").write_text("V1 R2")
-    r1.measurement_ti3.write_text("V1 AVG")
-    r1.profile_icc.write_text("V1 ICC")
+    (r1.reads_dir / "read1.ti3").write_text("V1 R1", encoding="utf-8")
+    (r1.reads_dir / "read2.ti3").write_text("V1 R2", encoding="utf-8")
+    r1.measurement_ti3.write_text("V1 AVG", encoding="utf-8")
+    r1.profile_icc.write_text("V1 ICC", encoding="utf-8")
 
     r2 = proj.new_run(preconditioning_from=r1)
 
@@ -359,7 +359,7 @@ def test_run_2_reads_dir_isolated_from_run_1(tmp_path: Path) -> None:
     assert r2.next_read_index() == 1
 
     # Run 1 reads still exist where they were (preserved for diagnostics).
-    assert (r1.reads_dir / "read1.ti3").read_text() == "V1 R1"
+    assert (r1.reads_dir / "read1.ti3").read_text(encoding="utf-8") == "V1 R1"
 
 
 def test_averaged_run1_to_refined_run2_no_double_count(tmp_path: Path) -> None:
@@ -376,22 +376,22 @@ def test_averaged_run1_to_refined_run2_no_double_count(tmp_path: Path) -> None:
     # --- Run 1: averaged ---
     r1 = proj.current_run()
     r1.reads_dir.mkdir()
-    (r1.reads_dir / "read1.ti3").write_text("V1 R1")
-    (r1.reads_dir / "read2.ti3").write_text("V1 R2")
-    r1.measurement_ti3.write_text("V1 AVERAGED")       # chart.ti3 = mean of reads
-    r1.profile_icc.write_text("V1 PROFILE")
+    (r1.reads_dir / "read1.ti3").write_text("V1 R1", encoding="utf-8")
+    (r1.reads_dir / "read2.ti3").write_text("V1 R2", encoding="utf-8")
+    r1.measurement_ti3.write_text("V1 AVERAGED", encoding="utf-8")       # chart.ti3 = mean of reads
+    r1.profile_icc.write_text("V1 PROFILE", encoding="utf-8")
 
     # --- Promote to run 2 (refinement) ---
     r2 = proj.new_run(preconditioning_from=r1)
     # Pre-conditioning seed is run 1's AVERAGED measurement, not its raw reads.
-    assert r2.preconditioning_ti3.read_text() == "V1 AVERAGED"
+    assert r2.preconditioning_ti3.read_text(encoding="utf-8") == "V1 AVERAGED"
 
     # --- Run 2: its own averaging set ---
     r2.reads_dir.mkdir()
-    (r2.reads_dir / "read1.ti3").write_text("V2 R1")
-    (r2.reads_dir / "read2.ti3").write_text("V2 R2")
+    (r2.reads_dir / "read1.ti3").write_text("V2 R1", encoding="utf-8")
+    (r2.reads_dir / "read2.ti3").write_text("V2 R2", encoding="utf-8")
     # Run 2 only ever sees its own reads.
-    assert [p.read_text() for p in r2.reads()] == ["V2 R1", "V2 R2"]
+    assert [p.read_text(encoding="utf-8") for p in r2.reads()] == ["V2 R1", "V2 R2"]
     # The merge inputs would be r2.measurement_ti3 + r2.preconditioning_ti3 —
     # exactly one copy of run 1's data (the average), never the raw reads.
     assert r1.reads_dir != r2.reads_dir
@@ -404,25 +404,25 @@ def test_averaged_run1_to_refined_run2_no_double_count(tmp_path: Path) -> None:
 def test_reset_chart_artefacts_preserves_preconditioning_and_meta(tmp_path: Path) -> None:
     proj = Project.create(tmp_path / "P", "P")
     r1 = proj.current_run()
-    r1.measurement_ti3.write_text("M")
-    r1.profile_icc.write_text("ICC")
+    r1.measurement_ti3.write_text("M", encoding="utf-8")
+    r1.profile_icc.write_text("ICC", encoding="utf-8")
     r2 = proj.new_run(preconditioning_from=r1)
     # Now run 2 has preconditioning.* and meta.json. Add some chart artefacts
     # under the project-name stem ("P" here).
-    r2.chart_ti1.write_text("TI1")
-    r2.chart_ti2.write_text("TI2")
-    (r2.dir / "P_01.tif").write_text("TIFF")
-    r2.chart_channels_json.write_text("{}")
+    r2.chart_ti1.write_text("TI1", encoding="utf-8")
+    r2.chart_ti2.write_text("TI2", encoding="utf-8")
+    (r2.dir / "P_01.tif").write_text("TIFF", encoding="utf-8")
+    r2.chart_channels_json.write_text("{}", encoding="utf-8")
     # The vector-PDF export, .cie and .strips.json used to survive a re-gen
     # (Basti: a stale PDF lingered in the working folder).
-    (r2.dir / "P.pdf").write_text("PDF")
-    (r2.dir / "P.cie").write_text("CIE")
-    (r2.dir / "P.strips.json").write_text("{}")
-    r2.measurement_ti3.write_text("MEASURED")
-    r2.merged_ti3.write_text("MERGED")
-    r2.profile_icc.write_text("ICC2")
+    (r2.dir / "P.pdf").write_text("PDF", encoding="utf-8")
+    (r2.dir / "P.cie").write_text("CIE", encoding="utf-8")
+    (r2.dir / "P.strips.json").write_text("{}", encoding="utf-8")
+    r2.measurement_ti3.write_text("MEASURED", encoding="utf-8")
+    r2.merged_ti3.write_text("MERGED", encoding="utf-8")
+    r2.profile_icc.write_text("ICC2", encoding="utf-8")
     r2.reads_dir.mkdir()
-    (r2.reads_dir / "read1.ti3").write_text("R1")
+    (r2.reads_dir / "read1.ti3").write_text("R1", encoding="utf-8")
 
     r2.reset_chart_artefacts()
 
@@ -463,7 +463,7 @@ def test_calibration_exists_true_after_cal_written(tmp_path: Path) -> None:
     proj = Project.create(tmp_path / "P", "P")
     cal = proj.calibration
     cal.ensure_dir()
-    cal.cal_path.write_text("CAL")
+    cal.cal_path.write_text("CAL", encoding="utf-8")
     assert cal.exists()
 
 
@@ -478,8 +478,8 @@ def test_calibration_reset_archives_instead_of_deleting(tmp_path: Path) -> None:
     proj = Project.create(tmp_path / "P", "P")
     cal = proj.calibration
     cal.ensure_dir()
-    cal.cal_path.write_text("CAL")
-    cal.ti3.write_text("TI3")
+    cal.cal_path.write_text("CAL", encoding="utf-8")
+    cal.ti3.write_text("TI3", encoding="utf-8")
     cal.reset()
 
     # Cleared, so the new chart has somewhere to land…
@@ -488,7 +488,7 @@ def test_calibration_reset_archives_instead_of_deleting(tmp_path: Path) -> None:
     # …and every byte of it is still there, in a dated folder.
     archives = list(cal.old_dir.iterdir())
     assert len(archives) == 1
-    kept = {p.name: p.read_text() for p in archives[0].iterdir() if p.is_file()}
+    kept = {p.name: p.read_text(encoding="utf-8") for p in archives[0].iterdir() if p.is_file()}
     assert kept == {f"{cal.stem}.cal": "CAL", f"{cal.stem}.ti3": "TI3"}
 
 
@@ -540,23 +540,23 @@ def test_project_rename_fixes_stems_manifest_and_readme(tmp_path: Path) -> None:
     # no longer exist.
     proj = Project.create(tmp_path / "Old", "Old")
     run = proj.current_run()
-    run.chart_ti1.write_text("TI1")
-    run.chart_ti2.write_text("TI2")
-    (run.dir / "Old_01.tif").write_text("PAGE")
-    run.chart_channels_json.write_text("{}")
+    run.chart_ti1.write_text("TI1", encoding="utf-8")
+    run.chart_ti2.write_text("TI2", encoding="utf-8")
+    (run.dir / "Old_01.tif").write_text("PAGE", encoding="utf-8")
+    run.chart_channels_json.write_text("{}", encoding="utf-8")
     cal = proj.calibration
     cal.ensure_dir()
-    cal.cal_path.write_text("CAL")
-    cal.ti3.write_text("CALTI3")
+    cal.cal_path.write_text("CAL", encoding="utf-8")
+    cal.ti3.write_text("CALTI3", encoding="utf-8")
     proj.ensure_exports_dir()
-    (proj.exports_dir / "Old-i1profiler.pxf").write_text("PXF")
+    (proj.exports_dir / "Old-i1profiler.pxf").write_text("PXF", encoding="utf-8")
     # Chart hand-off sidecars carry the stem too and must follow the rename.
-    run.chart_cht.write_text("CHT")
-    (run.dir / "Old.cie").write_text("CIE")
-    (run.dir / "Old-colours.txt").write_text("#ffffff")
-    (run.dir / "Old-i1profiler.txt").write_text("TXT")
+    run.chart_cht.write_text("CHT", encoding="utf-8")
+    (run.dir / "Old.cie").write_text("CIE", encoding="utf-8")
+    (run.dir / "Old-colours.txt").write_text("#ffffff", encoding="utf-8")
+    (run.dir / "Old-i1profiler.txt").write_text("TXT", encoding="utf-8")
     # A user's own file that merely starts with the stem must NOT be renamed.
-    (proj.root / "Old-notes.txt").write_text("keep me")
+    (proj.root / "Old-notes.txt").write_text("keep me", encoding="utf-8")
 
     # Simulate the caller having moved the folder, then rename contents.
     moved = tmp_path / "New"
@@ -581,16 +581,16 @@ def test_project_rename_fixes_stems_manifest_and_readme(tmp_path: Path) -> None:
     # Old-stem files are gone; the user's note is untouched.
     assert not (run.dir / "Old.ti1").exists()
     assert not (run.dir / "Old-colours.txt").exists()
-    assert (moved / "Old-notes.txt").read_text() == "keep me"
+    assert (moved / "Old-notes.txt").read_text(encoding="utf-8") == "keep me"
     # Manifest + README reflect the new name.
-    manifest = json.loads(proj.manifest_path.read_text())
+    manifest = json.loads(proj.manifest_path.read_text(encoding="utf-8"))
     assert manifest["target_name"] == "New"
     assert "New" in proj.readme_path.read_text(encoding="utf-8")
 
 
 def test_project_rename_noop_when_same_name(tmp_path: Path) -> None:
     proj = Project.create(tmp_path / "Same", "Same")
-    proj.current_run().chart_ti1.write_text("TI1")
+    proj.current_run().chart_ti1.write_text("TI1", encoding="utf-8")
     proj.rename("Same")
     assert proj.current_run().chart_ti1.exists()
 
@@ -604,7 +604,7 @@ def test_file_manager_rename_existing_project(tmp_path: Path) -> None:
     fm = FileManager(_FakeSettings(tmp_path))
     fm.set_target_name("Alpha")
     proj = fm.project()  # creates ~/Alpha
-    proj.current_run().chart_ti2.write_text("TI2")
+    proj.current_run().chart_ti2.write_text("TI2", encoding="utf-8")
 
     new_root = fm.rename_existing_project("Alpha", "Beta")
 
@@ -666,16 +666,16 @@ def test_project_rename_covers_cal_sidecars_and_subfolders(tmp_path: Path) -> No
     import shutil as _sh
     proj = Project.create(tmp_path / "Old", "Old")
     run = proj.current_run()
-    run.ensure_exports_dir().joinpath("Old-colours.txt").write_text("x")
-    run.ensure_exports_dir().joinpath("Old-i1profiler.pxf").write_text("x")
-    run.ensure_reports_dir().joinpath("Refine_Strips_Old.txt").write_text("x")
+    run.ensure_exports_dir().joinpath("Old-colours.txt").write_text("x", encoding="utf-8")
+    run.ensure_exports_dir().joinpath("Old-i1profiler.pxf").write_text("x", encoding="utf-8")
+    run.ensure_reports_dir().joinpath("Refine_Strips_Old.txt").write_text("x", encoding="utf-8")
     cal = proj.calibration
     cal.ensure_dir()
-    (cal.dir / "Old-cal.ti3").write_text("x")
+    (cal.dir / "Old-cal.ti3").write_text("x", encoding="utf-8")
     from core.file_manager import ensure_subdir
-    ensure_subdir(cal.exports_dir).joinpath("Old-cal-colours.txt").write_text("x")
-    ensure_subdir(cal.exports_dir).joinpath("Old-cal-i1profiler.txt").write_text("x")
-    (run.dir / "Old-notes.txt").write_text("user file")     # must NOT rename
+    ensure_subdir(cal.exports_dir).joinpath("Old-cal-colours.txt").write_text("x", encoding="utf-8")
+    ensure_subdir(cal.exports_dir).joinpath("Old-cal-i1profiler.txt").write_text("x", encoding="utf-8")
+    (run.dir / "Old-notes.txt").write_text("user file", encoding="utf-8")     # must NOT rename
 
     _sh.move(str(tmp_path / "Old"), str(tmp_path / "New"))
     proj2 = Project.load(tmp_path / "New")
@@ -701,13 +701,13 @@ def test_project_rename_covers_verification_stems(tmp_path: Path) -> None:
     proj = Project.create(tmp_path / "Old", "Old")
     run = proj.current_run(); run.ensure_dir()
     run.verifications_dir.mkdir(parents=True, exist_ok=True)
-    run.verify_chart_ti2.write_text("v")                        # Old-verify.ti2
-    (run.verifications_dir / f"{run.verify_stem}_01.tif").write_text("t")
+    run.verify_chart_ti2.write_text("v", encoding="utf-8")                        # Old-verify.ti2
+    (run.verifications_dir / f"{run.verify_stem}_01.tif").write_text("t", encoding="utf-8")
     from core.file_manager import ensure_subdir
     ensure_subdir(run.verifications_dir / "exports").joinpath(
-        f"{run.verify_stem}-colours.txt").write_text("x")
+        f"{run.verify_stem}-colours.txt").write_text("x", encoding="utf-8")
     v = run.new_verification(_dt.datetime(2026, 6, 1, 9, 0, 0)); v.ensure_dir()
-    v.measurement_ti3.write_text("vm")                          # Old-verify.ti3
+    v.measurement_ti3.write_text("vm", encoding="utf-8")                          # Old-verify.ti3
 
     _sh.move(str(tmp_path / "Old"), str(tmp_path / "New"))
     proj2 = Project.load(tmp_path / "New"); proj2.rename("New")
@@ -742,7 +742,7 @@ def test_verification_paths_and_new_verification(tmp_path: Path) -> None:
     assert v.exists() is False
     # Materialise it → it shows up in the sorted history.
     v.ensure_dir()
-    v.measurement_ti3.write_text("CTI3\n")
+    v.measurement_ti3.write_text("CTI3\n", encoding="utf-8")
     assert v.exists() is True
     ids = [x.id for x in run.verifications()]
     assert ids == [v.id]
@@ -769,7 +769,7 @@ def test_v2_to_v3_migration_folds_legacy_verify_ti3(tmp_path: Path) -> None:
     # Simulate a pre-#130 project: a flat <stem>-verify.ti3 in the run root,
     # schema 2 on disk.
     legacy = run.dir / "P-verify.ti3"
-    legacy.write_text("CTI3\n")
+    legacy.write_text("CTI3\n", encoding="utf-8")
     proj._manifest.schema_version = 2
     proj.save_manifest()
 
@@ -779,19 +779,19 @@ def test_v2_to_v3_migration_folds_legacy_verify_ti3(tmp_path: Path) -> None:
     vs = reloaded.current_run().verifications()
     assert len(vs) == 1
     assert vs[0].measurement_ti3.is_file()
-    assert vs[0].measurement_ti3.read_text().startswith("CTI3")
+    assert vs[0].measurement_ti3.read_text(encoding="utf-8").startswith("CTI3")
 
 
 def test_archive_to_old_moves_existing_and_dedups(tmp_path: Path) -> None:
     proj = Project.create(tmp_path / "P", "P")
     run = proj.current_run(); run.ensure_dir()
-    (run.dir / "P.ti3").write_text("meas")
-    reads = run.reads_dir; reads.mkdir(); (reads / "read1.ti3").write_text("r1")
+    (run.dir / "P.ti3").write_text("meas", encoding="utf-8")
+    reads = run.reads_dir; reads.mkdir(); (reads / "read1.ti3").write_text("r1", encoding="utf-8")
     missing = run.dir / "nope.icc"                 # doesn't exist → skipped
 
     dest = run.archive_to_old([run.dir / "P.ti3", reads, missing])
     assert dest is not None and dest.parent == run.old_dir
-    assert (dest / "P.ti3").read_text() == "meas"  # file moved
+    assert (dest / "P.ti3").read_text(encoding="utf-8") == "meas"  # file moved
     assert (dest / "reads" / "read1.ti3").is_file() # folder moved whole
     assert not (run.dir / "P.ti3").exists()         # gone from the run root
     assert not reads.exists()
@@ -800,10 +800,10 @@ def test_archive_to_old_moves_existing_and_dedups(tmp_path: Path) -> None:
     assert run.archive_to_old([run.dir / "ghost.ti3"]) is None
 
     # A second archive of a same-named file de-dups within its own dated folder.
-    (run.dir / "P.ti3").write_text("meas2")
+    (run.dir / "P.ti3").write_text("meas2", encoding="utf-8")
     import datetime as _dt
     d2 = run.archive_to_old([run.dir / "P.ti3"], when=_dt.datetime(2026, 7, 15, 10, 30, 0))
-    (run.dir / "P.ti3").write_text("meas3")
+    (run.dir / "P.ti3").write_text("meas3", encoding="utf-8")
     d3 = run.archive_to_old([run.dir / "P.ti3"], when=_dt.datetime(2026, 7, 15, 10, 30, 0))
     assert d2 == d3                                 # same timestamped folder
     names = sorted(p.name for p in d2.iterdir())
@@ -817,13 +817,13 @@ def test_adopt_run_chart_as_verify(tmp_path: Path) -> None:
     # A freshly generated chart at the run root (chart files + two pages) +
     # a measurement/profile that must NOT move, and an exports sidecar.
     for ext in (".ti1", ".ti2", ".cht", ".channels.json"):
-        (run.dir / f"{stem}{ext}").write_text("x")
-    (run.dir / f"{stem}_01.tif").write_text("p1")
-    (run.dir / f"{stem}_02.tif").write_text("p2")
-    (run.dir / f"{stem}.ti3").write_text("meas")     # must stay
-    (run.dir / f"{stem}.icc").write_text("prof")     # must stay
+        (run.dir / f"{stem}{ext}").write_text("x", encoding="utf-8")
+    (run.dir / f"{stem}_01.tif").write_text("p1", encoding="utf-8")
+    (run.dir / f"{stem}_02.tif").write_text("p2", encoding="utf-8")
+    (run.dir / f"{stem}.ti3").write_text("meas", encoding="utf-8")     # must stay
+    (run.dir / f"{stem}.icc").write_text("prof", encoding="utf-8")     # must stay
     run.ensure_exports_dir()
-    (run.exports_dir / f"{stem}-colours.txt").write_text("c")
+    (run.exports_dir / f"{stem}-colours.txt").write_text("c", encoding="utf-8")
 
     ti2 = run.adopt_run_chart_as_verify()
     assert ti2 == run.verify_chart_ti2 and ti2.is_file()
@@ -854,8 +854,8 @@ def test_adopt_single_page_verify_chart_moves_its_tiff(tmp_path: Path) -> None:
     run = proj.current_run(); run.ensure_dir()
     stem = run.stem
     for ext in (".ti1", ".ti2", ".channels.json"):
-        (run.dir / f"{stem}{ext}").write_text("x")
-    (run.dir / f"{stem}.tif").write_text("single page")     # NO _NN suffix
+        (run.dir / f"{stem}{ext}").write_text("x", encoding="utf-8")
+    (run.dir / f"{stem}.tif").write_text("single page", encoding="utf-8")     # NO _NN suffix
 
     run.adopt_run_chart_as_verify()
     assert (run.verifications_dir / f"{stem}-verify.tif").is_file()
@@ -877,16 +877,16 @@ def test_readopt_smaller_verify_chart_leaves_no_stale_pages(tmp_path: Path) -> N
         for p in list(run.dir.glob(f"{stem}_*.tif")):
             p.unlink()
         for ext in (".ti1", ".ti2", ".cht", ".channels.json"):
-            (run.dir / f"{stem}{ext}").write_text("x")
+            (run.dir / f"{stem}{ext}").write_text("x", encoding="utf-8")
         for i in range(1, pages + 1):
-            (run.dir / f"{stem}_{i:02d}.tif").write_text("p")
+            (run.dir / f"{stem}_{i:02d}.tif").write_text("p", encoding="utf-8")
 
     _generate(2); run.adopt_run_chart_as_verify()
     assert len(run.verify_chart_tiffs()) == 2
 
     # A real verification measurement in a dated folder — must be preserved.
     v = run.new_verification(dt.datetime(2026, 6, 1, 9, 0, 0)); v.ensure_dir()
-    v.measurement_ti3.write_text("meas")
+    v.measurement_ti3.write_text("meas", encoding="utf-8")
 
     _generate(1); run.adopt_run_chart_as_verify()
     assert len(run.verify_chart_tiffs()) == 1                 # no stale _02.tif
@@ -902,10 +902,10 @@ def test_reset_chart_artefacts_archives_results_not_delete(tmp_path: Path) -> No
     proj = Project.create(tmp_path / "P", "P")
     run = proj.current_run(); run.ensure_dir()
     s = run.stem
-    (run.dir / f"{s}.ti2").write_text("old-chart")       # chart (regenerated → ok to drop)
-    (run.dir / f"{s}_01.tif").write_text("page")
-    run.measurement_ti3.write_text("MEAS")               # result → must survive
-    run.profile_icc.write_text("PROF")                   # result → must survive
+    (run.dir / f"{s}.ti2").write_text("old-chart", encoding="utf-8")       # chart (regenerated → ok to drop)
+    (run.dir / f"{s}_01.tif").write_text("page", encoding="utf-8")
+    run.measurement_ti3.write_text("MEAS", encoding="utf-8")               # result → must survive
+    run.profile_icc.write_text("PROF", encoding="utf-8")                   # result → must survive
 
     run.reset_chart_artefacts()
 
@@ -919,7 +919,7 @@ def test_reset_chart_artefacts_archives_results_not_delete(tmp_path: Path) -> No
     assert f"{s}.ti3" in names and f"{s}.icc" in names
     # And their contents are intact.
     ti3 = next(p for p in archived if p.name == f"{s}.ti3")
-    assert ti3.read_text() == "MEAS"
+    assert ti3.read_text(encoding="utf-8") == "MEAS"
 
 
 def test_reset_chart_artefacts_no_archive_without_results(tmp_path: Path) -> None:
@@ -928,6 +928,6 @@ def test_reset_chart_artefacts_no_archive_without_results(tmp_path: Path) -> Non
     from core.file_manager import Project
     proj = Project.create(tmp_path / "Q", "Q")
     run = proj.current_run(); run.ensure_dir()
-    (run.dir / f"{run.stem}.ti2").write_text("chart")
+    (run.dir / f"{run.stem}.ti2").write_text("chart", encoding="utf-8")
     run.reset_chart_artefacts()
     assert not run.old_dir.exists()

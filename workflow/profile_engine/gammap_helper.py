@@ -23,6 +23,7 @@ from pathlib import Path
 import numpy as np
 
 from core.logger import get_logger
+from core.proc_text import run_text
 from core.resource_path import argyll_binary, resource_path
 
 log = get_logger(__name__)
@@ -126,7 +127,7 @@ def run_gammap(query_jab: np.ndarray, *, src_gam: Path | str, intent: str,
             args += ["--wp", *[f"{v:.9f}" for v in np.ravel(wp_jab)[:3]],
                      "--bp", *[f"{v:.9f}" for v in np.ravel(bp_jab)[:3]]]
         try:
-            r = subprocess.run(args, capture_output=True, text=True)
+            r = run_text(args, capture_output=True)
         except OSError as exc:
             raise HelperUnavailable(f"could not run helper: {exc}") from exc
         if r.returncode != 0 or not of.exists():

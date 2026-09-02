@@ -41,7 +41,7 @@ def _plan_text() -> str:
     assert PLAN.is_file(), (
         f"{PLAN.relative_to(ROOT)} is missing — it is the committed copy of the "
         "plan posted on #137 and this test's input")
-    return PLAN.read_text()
+    return PLAN.read_text(encoding="utf-8")
 
 
 def _repo_text() -> str:
@@ -49,7 +49,7 @@ def _repo_text() -> str:
     for d in _SEARCH_DIRS:
         for p in sorted((ROOT / d).rglob("*")):
             if p.suffix in (".py", ".yaml", ".yml") and p.is_file():
-                out.append(p.read_text(errors="ignore"))
+                out.append(p.read_text(errors="ignore", encoding="utf-8"))
     return "\n".join(out)
 
 

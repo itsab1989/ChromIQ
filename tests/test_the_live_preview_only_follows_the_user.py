@@ -54,7 +54,7 @@ def tab(qapp, tmp_path):
     from ui.tabs.tab_chart import TabChart
     t = TabChart(ArgyllRunner(s), FileManager(s), s)
     ti1 = tmp_path / "chart.ti1"
-    ti1.write_text("TI1\n")
+    ti1.write_text("TI1\n", encoding="utf-8")
     t._current_ti1_path = ti1
     return t
 
@@ -313,7 +313,7 @@ def test_mirroring_a_loaded_chart_arms_nothing(tab, monkeypatch, tmp_path):
     it must never re-lay it out — that would rewrite a file in someone else's
     folder."""
     ti2 = tmp_path / "elsewhere.ti2"
-    ti2.write_text("CTI2\n")
+    ti2.write_text("CTI2\n", encoding="utf-8")
     # The one-time "loaded from elsewhere" note is a real modal; a test that
     # leaves one open hangs the suite (tests/conftest.py catches it). Suppress
     # it with the app's own switch rather than patching QMessageBox, which
@@ -366,7 +366,7 @@ def test_mirroring_a_loaded_chart_settles_on_the_HAPPY_path_too(tab, tmp_path):
     ti2.write_text(
         "CTI2\n\nBEGIN_DATA_FORMAT\nSAMPLE_ID RGB_R RGB_G RGB_B\n"
         "END_DATA_FORMAT\n\nNUMBER_OF_SETS 1\nBEGIN_DATA\n"
-        "1 100.0 100.0 100.0\nEND_DATA\n")
+        "1 100.0 100.0 100.0\nEND_DATA\n", encoding="utf-8")
     tab._settings.set("reflect_backfill_hide_warning", True)
     _arm(tab)
     try:

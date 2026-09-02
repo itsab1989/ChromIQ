@@ -29,6 +29,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from core.proc_text import run_text
+
 import capture_screens as C          # noqa: E402  (a sibling in scripts/)
 from PyQt6.QtCore import QTimer      # noqa: E402
 from PyQt6.QtWidgets import QApplication  # noqa: E402
@@ -97,10 +99,10 @@ def _seed_verification_history(settings) -> "Path | None":
         base = d / run.verify_stem
         shutil.copy2(ti2, base.with_suffix(".ti2"))
         try:
-            r = subprocess.run(
+            r = run_text(
                 [fakeread, "-2", "-R", str(dev), "-S", str(1000 + idx),
                  str(icc), str(base)],
-                cwd=str(d), capture_output=True, text=True, timeout=300)
+                cwd=str(d), capture_output=True, timeout=300)
         except Exception as e:                   # noqa: BLE001
             C.log(f"  fakeread for {folder} failed: {e}")
             return None

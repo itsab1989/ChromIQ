@@ -10,10 +10,10 @@ from __future__ import annotations
 
 import platform as _pf
 import re
-import subprocess
 from pathlib import Path
 from urllib.parse import urlencode
 
+from core.proc_text import run_text
 from core.version import APP_VERSION
 
 _ISSUES_NEW = "https://github.com/itsab1989/ChromIQ/issues/new"
@@ -54,12 +54,12 @@ def detect_hardware() -> str:
     system = _pf.system()
     try:
         if system == "Darwin":
-            model = subprocess.run(
-                ["sysctl", "-n", "hw.model"], capture_output=True, text=True,
+            model = run_text(
+                ["sysctl", "-n", "hw.model"], capture_output=True,
                 timeout=3).stdout.strip()
-            chip = subprocess.run(
+            chip = run_text(
                 ["sysctl", "-n", "machdep.cpu.brand_string"],
-                capture_output=True, text=True, timeout=3).stdout.strip()
+                capture_output=True, timeout=3).stdout.strip()
             return ", ".join(p for p in (model, chip) if p)
         if system == "Windows":
             return ", ".join(p for p in (_pf.machine(), _pf.processor()) if p)
@@ -83,8 +83,7 @@ def detect_argyll_version(argyll_bin: str | Path | None) -> str:
     tool = bin_dir / exe
     if tool.is_file():
         try:
-            out = subprocess.run([str(tool)], capture_output=True, text=True,
-                                 timeout=5)
+            out = run_text([str(tool)], capture_output=True, timeout=5)
             m = re.search(r"[Vv]ersion\s+(\d+\.\d+(?:\.\d+)?)",
                           (out.stderr or "") + (out.stdout or ""))
             if m:

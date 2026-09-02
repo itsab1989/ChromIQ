@@ -9,6 +9,7 @@ from typing import Optional
 
 from core.logger import get_logger
 from core.name_order import sort_names
+from core.proc_text import run_text
 from core.text_io import read_text
 from workflow.cups_printer import CUPS_AVAILABLE, PrintConfig
 
@@ -208,9 +209,9 @@ class PrintModule:
         if not CUPS_AVAILABLE:
             return result
         try:
-            r = subprocess.run(
+            r = run_text(
                 ["lpoptions", "-p", printer, "-l"],
-                capture_output=True, text=True, timeout=15,
+                capture_output=True, timeout=15,
                 stdin=subprocess.DEVNULL,
             )
             # Parse all options: opt_name → (label, [raw_value, ...])

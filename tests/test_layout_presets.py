@@ -132,7 +132,7 @@ def test_from_channels_json(tmp_path):
                        indicator_bold=True)
     ch = tmp_path / "c.channels.json"
     ch.write_text(json.dumps({"layout": {"engine": "chromiq", "seed": 42,
-                                         "recipe": rec.to_dict()}}))
+                                         "recipe": rec.to_dict()}}), encoding="utf-8")
     got = LayoutRecipe.from_channels_json(ch)
     assert got is not None
     assert got.clip_content_mode == "branding"
@@ -141,7 +141,7 @@ def test_from_channels_json(tmp_path):
     assert got.seed == 42                    # build seed carried for reproduction
     # not an engine chart → None
     nb = tmp_path / "nb.channels.json"
-    nb.write_text(json.dumps({"layout": {"strips": []}}))
+    nb.write_text(json.dumps({"layout": {"strips": []}}), encoding="utf-8")
     assert LayoutRecipe.from_channels_json(nb) is None
     assert LayoutRecipe.from_channels_json(tmp_path / "missing.json") is None
 

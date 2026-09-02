@@ -148,7 +148,7 @@ def test_a_forged_fingerprint_in_a_healthy_run_changes_nothing(tmp_path):
     p = _build(tmp_path, DOTTED, broken=False)
     run = p / "runs" / "run1"
     (run / f"{TRUNC}.ti2").write_bytes(b"USER FILE - DO NOT TOUCH")
-    (run / f"{TRUNC}.strips.json").write_text("{}")
+    (run / f"{TRUNC}.strips.json").write_text("{}", encoding="utf-8")
     before = _tree(p)
     Project.load(p)
     assert _tree(p) == before
@@ -190,11 +190,11 @@ def test_a_folder_renamed_to_add_a_dot_is_not_repaired(tmp_path):
 
 def test_files_outside_the_whitelist_are_never_touched(broken_dotted):
     run = broken_dotted / "runs" / "run1"
-    (run / "notes.txt").write_text("my notes")
-    (run / f"{TRUNC}.cie").write_text("USER CIE")     # NOT on the whitelist
+    (run / "notes.txt").write_text("my notes", encoding="utf-8")
+    (run / f"{TRUNC}.cie").write_text("USER CIE", encoding="utf-8")     # NOT on the whitelist
     Project.load(broken_dotted)
-    assert (run / "notes.txt").read_text() == "my notes"
-    assert (run / f"{TRUNC}.cie").read_text() == "USER CIE"
+    assert (run / "notes.txt").read_text(encoding="utf-8") == "my notes"
+    assert (run / f"{TRUNC}.cie").read_text(encoding="utf-8") == "USER CIE"
 
 
 def test_a_nested_project_is_never_entered(tmp_path):
@@ -228,7 +228,7 @@ def test_an_interrupted_repair_completes_on_the_next_open(broken_dotted):
         "moves": [{"from": str(s.relative_to(broken_dotted)),
                    "to": str(d.relative_to(broken_dotted)),
                    "state": "done" if i == 0 else "planned"}
-                  for i, (s, d) in enumerate(moves)]}]}))
+                  for i, (s, d) in enumerate(moves)]}]}), encoding="utf-8")
     moves[0][0].rename(moves[0][1])            # the crash: one move applied
     r = Project.load(broken_dotted).current_run()
     assert r.chart_ti2.is_file() and len(r.chart_tiffs()) == 2
@@ -236,7 +236,7 @@ def test_an_interrupted_repair_completes_on_the_next_open(broken_dotted):
 
 def test_every_rename_is_recorded(broken_dotted):
     Project.load(broken_dotted)
-    doc = json.loads((broken_dotted / "name-repair.json").read_text())
+    doc = json.loads((broken_dotted / "name-repair.json").read_text(encoding="utf-8"))
     session = doc["repairs"][-1]
     assert session["state"] == "complete"
     assert len(session["moves"]) == 4
@@ -248,7 +248,7 @@ def test_a_second_repair_does_not_erase_the_first_record(broken_dotted, tmp_path
     """RED against one-session-per-file journals — an undo record a later run
     can overwrite is not an undo record."""
     Project.load(broken_dotted)
-    first = json.loads((broken_dotted / "name-repair.json").read_text())["repairs"]
+    first = json.loads((broken_dotted / "name-repair.json").read_text(encoding="utf-8"))["repairs"]
     # a second broken build lands in the same project (restored backup, run2)
     run2 = broken_dotted / "runs" / "run2"
     shutil.copytree(broken_dotted / "runs" / "run1", run2)
@@ -256,7 +256,7 @@ def test_a_second_repair_does_not_erase_the_first_record(broken_dotted, tmp_path
         if f.name.startswith(DOTTED) and f.suffix != ".ti1":
             f.rename(run2 / (TRUNC + f.name[len(DOTTED):]))
     Project.load(broken_dotted)
-    doc = json.loads((broken_dotted / "name-repair.json").read_text())["repairs"]
+    doc = json.loads((broken_dotted / "name-repair.json").read_text(encoding="utf-8"))["repairs"]
     assert len(doc) == len(first) + 1
     assert doc[0] == first[0], "the first session's record was modified"
 

@@ -49,7 +49,7 @@ def _settings():
 
 def _stage(tmp_path, opts):
     ti2 = tmp_path / "chart.ti2"
-    ti2.write_text(_TI2)
+    ti2.write_text(_TI2, encoding="utf-8")
     R.save_editor_meta(ti2, R.ChartSpec.from_ti2(ti2), opts, "chart")
     return ti2
 

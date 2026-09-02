@@ -25,7 +25,7 @@ def _channels_with_layout(path: Path, *, dpi=300, **extra) -> None:
         "patches": [], "seed": 42,
     }
     layout.update(extra)
-    path.write_text(json.dumps({"ink_channels": ["r", "g", "b"], "layout": layout}))
+    path.write_text(json.dumps({"ink_channels": ["r", "g", "b"], "layout": layout}), encoding="utf-8")
 
 
 def test_reads_engine_geometry(tmp_path: Path):
@@ -82,7 +82,7 @@ def test_band_below_strip_top_is_ignored(tmp_path: Path):
 
 def test_none_without_layout(tmp_path: Path):
     sc = tmp_path / "chart.channels.json"
-    sc.write_text(json.dumps({"ink_channels": ["r", "g", "b"]}))  # legacy chart
+    sc.write_text(json.dumps({"ink_channels": ["r", "g", "b"]}), encoding="utf-8")  # legacy chart
     assert engine_strip_rects_from_sidecar(sc, 1) is None
 
 
@@ -113,8 +113,8 @@ def test_real_engine_chart_roundtrip(tmp_path: Path, draw_indicators: bool):
     sc = base.with_suffix(".channels.json")
     # channels.json doesn't exist yet (build_chart writes .strips.json); emulate
     # the chart_creator embed step for this headless path:
-    strips = json.loads((base.with_suffix(".strips.json")).read_text())
-    sc.write_text(json.dumps({"ink_channels": ["r", "g", "b"], "layout": strips}))
+    strips = json.loads((base.with_suffix(".strips.json")).read_text(encoding="utf-8"))
+    sc.write_text(json.dumps({"ink_channels": ["r", "g", "b"], "layout": strips}), encoding="utf-8")
 
     out = engine_strip_rects_from_sidecar(sc, res.layout.pages)
     assert out is not None

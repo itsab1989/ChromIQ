@@ -18,17 +18,17 @@ def _external_chart(folder: Path, stem: str, *, pages=2, ti3=False, icc=False):
     """A loose external chart: <stem>.ti1/.ti2/.cht/.channels.json + pages,
     optionally a sibling .ti3 / .icc."""
     folder.mkdir(parents=True, exist_ok=True)
-    (folder / f"{stem}.ti1").write_text("ti1")
-    ti2 = folder / f"{stem}.ti2"; ti2.write_text("ti2")
-    (folder / f"{stem}.cht").write_text("cht")
-    (folder / f"{stem}.channels.json").write_text("{}")
+    (folder / f"{stem}.ti1").write_text("ti1", encoding="utf-8")
+    ti2 = folder / f"{stem}.ti2"; ti2.write_text("ti2", encoding="utf-8")
+    (folder / f"{stem}.cht").write_text("cht", encoding="utf-8")
+    (folder / f"{stem}.channels.json").write_text("{}", encoding="utf-8")
     tiffs = []
     for i in range(1, pages + 1):
-        t = folder / f"{stem}_{i:02d}.tif"; t.write_text("tif"); tiffs.append(t)
+        t = folder / f"{stem}_{i:02d}.tif"; t.write_text("tif", encoding="utf-8"); tiffs.append(t)
     if ti3:
-        (folder / f"{stem}.ti3").write_text("meas")
+        (folder / f"{stem}.ti3").write_text("meas", encoding="utf-8")
     if icc:
-        (folder / f"{stem}.icc").write_text("prof")
+        (folder / f"{stem}.icc").write_text("prof", encoding="utf-8")
     return ti2, (folder / f"{stem}.ti1"), tiffs
 
 
@@ -69,11 +69,11 @@ def test_overwrite_profiling_replace_archives_incl_verifications(tmp_path):
     proj = Project.create(tmp_path / "P", "P")
     run = proj.current_run(); run.ensure_dir()
     # existing run1 content: chart + measurement + profile + a verification
-    (run.chart_ti2).write_text("old"); (run.measurement_ti3).write_text("m")
-    (run.profile_icc).write_text("icc")
+    (run.chart_ti2).write_text("old", encoding="utf-8"); (run.measurement_ti3).write_text("m", encoding="utf-8")
+    (run.profile_icc).write_text("icc", encoding="utf-8")
     import datetime as dt
     v = run.new_verification(dt.datetime(2026, 6, 1, 9, 0, 0)); v.ensure_dir()
-    v.measurement_ti3.write_text("verif")
+    v.measurement_ti3.write_text("verif", encoding="utf-8")
 
     ti2, ti1, tiffs = _external_chart(tmp_path / "ext", "src", ti3=True, icc=True)
     import_external_chart(ti2, ti1, tiffs, proj, _target(True, "run1"), replace=True)
@@ -86,7 +86,7 @@ def test_overwrite_profiling_replace_archives_incl_verifications(tmp_path):
     assert (arch / f"{r.stem}.icc").exists() or (arch / f"{r.stem}.ti3").exists()
     assert (arch / "verifications").exists()
     # the new chart is in the run root; measurement/profile from the source too
-    assert r.chart_ti2.read_text() == "ti2"
+    assert r.chart_ti2.read_text(encoding="utf-8") == "ti2"
     # the live verifications/ no longer holds the old dated check
     assert not r.verification("2026-06-01_090000").measurement_ti3.exists()
 
@@ -94,13 +94,13 @@ def test_overwrite_profiling_replace_archives_incl_verifications(tmp_path):
 def test_overwrite_verification_replace_moves_verifications_keeps_profile(tmp_path):
     proj = Project.create(tmp_path / "P", "P")
     run = proj.current_run(); run.ensure_dir()
-    run.measurement_ti3.write_text("m"); run.profile_icc.write_text("icc")
+    run.measurement_ti3.write_text("m", encoding="utf-8"); run.profile_icc.write_text("icc", encoding="utf-8")
     # a verify chart + a dated verification already present
     run.verifications_dir.mkdir(parents=True, exist_ok=True)
-    run.verify_chart_ti2.write_text("oldverify")
+    run.verify_chart_ti2.write_text("oldverify", encoding="utf-8")
     import datetime as dt
     v = run.new_verification(dt.datetime(2026, 6, 1, 9, 0, 0)); v.ensure_dir()
-    v.measurement_ti3.write_text("verif")
+    v.measurement_ti3.write_text("verif", encoding="utf-8")
 
     ti2, ti1, tiffs = _external_chart(tmp_path / "ext", "src", pages=1)
     import_external_chart(ti2, ti1, tiffs, proj, _target(False, "run1"), replace=True)
@@ -114,7 +114,7 @@ def test_overwrite_verification_replace_moves_verifications_keeps_profile(tmp_pa
     assert not r.old_dir.exists()                            # run root untouched
     assert r.verification("2026-06-01_090000").measurement_ti3.exists(), \
         "dated verification results are kept, not archived"
-    assert r.verify_chart_ti2.read_text() == "ti2"           # new verify chart installed
+    assert r.verify_chart_ti2.read_text(encoding="utf-8") == "ti2"           # new verify chart installed
     assert r.measurement_ti3.exists() and r.profile_icc.exists()  # profile untouched
 
 
@@ -130,7 +130,7 @@ def test_resolve_import_run(tmp_path):
 # ---- whole-project copy (A1b) ---------------------------------------------
 def test_copy_whole_project(tmp_path):
     src = Project.create(tmp_path / "src" / "Q", "Q")
-    r = src.current_run(); r.ensure_dir(); r.chart_ti2.write_text("c")
+    r = src.current_run(); r.ensure_dir(); r.chart_ti2.write_text("c", encoding="utf-8")
     wd = tmp_path / "work"; wd.mkdir()
     dest = copy_whole_project(src.root, wd, "Q")
     assert (dest / "project.json").is_file()
@@ -145,7 +145,7 @@ def test_copy_whole_project(tmp_path):
 
 def test_is_full_project(tmp_path):
     src = Project.create(tmp_path / "Q", "Q"); r = src.current_run(); r.ensure_dir()
-    r.chart_ti2.write_text("c")
+    r.chart_ti2.write_text("c", encoding="utf-8")
     assert is_full_project(r.chart_ti2) == src.root
-    loose = tmp_path / "loose" / "x.ti2"; loose.parent.mkdir(); loose.write_text("x")
+    loose = tmp_path / "loose" / "x.ti2"; loose.parent.mkdir(); loose.write_text("x", encoding="utf-8")
     assert is_full_project(loose) is None

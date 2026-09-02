@@ -49,7 +49,7 @@ def _chart(tmp_path, *, flag):
     """A chart sidecar carrying a real engine recipe; `flag` is what the
     provenance field says, or None to leave it out entirely."""
     ti2 = tmp_path / "P.ti2"
-    ti2.write_text("NUMBER_OF_SETS 484\n")
+    ti2.write_text("NUMBER_OF_SETS 484\n", encoding="utf-8")
     layout = {
         "engine": "chromiq",
         "recipe": {"instrument": "i1", "paper": "A4",
@@ -59,7 +59,7 @@ def _chart(tmp_path, *, flag):
     }
     if flag is not None:
         layout["margins_chosen_by_user"] = flag
-    (tmp_path / "P.channels.json").write_text(json.dumps({"layout": layout}))
+    (tmp_path / "P.channels.json").write_text(json.dumps({"layout": layout}), encoding="utf-8")
     return ti2
 
 
@@ -79,12 +79,12 @@ def test_a_chart_built_before_the_flag_existed_is_trusted_as_before(tab, tmp_pat
 
 def test_an_unreadable_sidecar_does_not_change_the_old_behaviour(tab, tmp_path):
     ti2 = tmp_path / "Q.ti2"
-    ti2.write_text("NUMBER_OF_SETS 484\n")
-    (tmp_path / "Q.channels.json").write_text("{ not json")
+    ti2.write_text("NUMBER_OF_SETS 484\n", encoding="utf-8")
+    (tmp_path / "Q.channels.json").write_text("{ not json", encoding="utf-8")
     assert tab._recipe_rebuilds_its_own_sheet(ti2) is True
 
     missing = tmp_path / "R.ti2"
-    missing.write_text("NUMBER_OF_SETS 484\n")
+    missing.write_text("NUMBER_OF_SETS 484\n", encoding="utf-8")
     assert tab._recipe_rebuilds_its_own_sheet(missing) is True
 
 

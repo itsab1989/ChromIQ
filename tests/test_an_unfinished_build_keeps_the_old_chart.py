@@ -41,7 +41,7 @@ def run_with_a_chart(tmp_path):
     for name in (f"{run.stem}.ti1", f"{run.stem}.ti2",
                  f"{run.stem}.channels.json",
                  f"{run.stem}_01.tif", f"{run.stem}_02.tif"):
-        (run.dir / name).write_text(f"the chart's {name}")
+        (run.dir / name).write_text(f"the chart's {name}", encoding="utf-8")
     return proj, run
 
 
@@ -57,7 +57,7 @@ def test_a_build_that_fails_puts_the_whole_chart_back(run_with_a_chart):
     assert _files(run) == ["meta.json"], "the run should be clear during a build"
     run.settle_chart_stash(stash, built=False)
     assert _files(run) == before
-    assert (run.dir / f"{run.stem}.ti2").read_text().endswith(".ti2"), \
+    assert (run.dir / f"{run.stem}.ti2").read_text(encoding="utf-8").endswith(".ti2"), \
         "the .ti2 came back as something else"
     assert not run.chart_stash_dirs()
 
@@ -85,10 +85,10 @@ def test_a_build_that_SUCCEEDS_does_not_resurrect_the_old_chart(run_with_a_chart
     _proj, run = run_with_a_chart
     stash = run.reset_chart_artefacts(stash=True)
     for name in (f"{run.stem}.ti1", f"{run.stem}.ti2", f"{run.stem}_01.tif"):
-        (run.dir / name).write_text("the NEW chart")
+        (run.dir / name).write_text("the NEW chart", encoding="utf-8")
     run.settle_chart_stash(stash, built=True)
 
-    assert (run.dir / f"{run.stem}.ti2").read_text() == "the NEW chart"
+    assert (run.dir / f"{run.stem}.ti2").read_text(encoding="utf-8") == "the NEW chart"
     assert not (run.dir / f"{run.stem}_02.tif").exists(), \
         "a page of the old chart survived beside the new one"
     assert not run.chart_stash_dirs()
@@ -108,14 +108,14 @@ def test_a_surviving_stash_always_means_the_build_never_finished(run_with_a_char
     there belongs to a process that died, whatever the run happens to contain.
     """
     proj, run = run_with_a_chart
-    before = {p.name: p.read_text() for p in run.dir.iterdir() if p.is_file()}
+    before = {p.name: p.read_text(encoding="utf-8") for p in run.dir.iterdir() if p.is_file()}
     run.reset_chart_artefacts(stash=True)
     # what a half-done printtarg looks like: the page and the .ti2 are there…
-    (run.dir / f"{run.stem}.ti2").write_text("half of the new chart")
-    (run.dir / f"{run.stem}_01.tif").write_text("half of the new page")
+    (run.dir / f"{run.stem}.ti2").write_text("half of the new chart", encoding="utf-8")
+    (run.dir / f"{run.stem}_01.tif").write_text("half of the new page", encoding="utf-8")
 
     again = Project.load(proj.root).all_runs()[0]
-    after = {p.name: p.read_text() for p in again.dir.iterdir() if p.is_file()}
+    after = {p.name: p.read_text(encoding="utf-8") for p in again.dir.iterdir() if p.is_file()}
     assert after == before, "an interrupted build was mistaken for a finished one"
     assert not again.chart_stash_dirs()
 
@@ -125,12 +125,12 @@ def test_a_superseded_stash_is_dropped_not_restored(run_with_a_chart):
     a build that really did finish but whose stash could not be removed."""
     proj, run = run_with_a_chart
     stash = run.reset_chart_artefacts(stash=True)
-    (run.dir / f"{run.stem}.ti2").write_text("the NEW chart")
-    (run.dir / f"{run.stem}_01.tif").write_text("the NEW page")
-    (stash / run.STASH_SUPERSEDED).write_text("")
+    (run.dir / f"{run.stem}.ti2").write_text("the NEW chart", encoding="utf-8")
+    (run.dir / f"{run.stem}_01.tif").write_text("the NEW page", encoding="utf-8")
+    (stash / run.STASH_SUPERSEDED).write_text("", encoding="utf-8")
 
     again = Project.load(proj.root).all_runs()[0]
-    assert (again.dir / f"{run.stem}.ti2").read_text() == "the NEW chart"
+    assert (again.dir / f"{run.stem}.ti2").read_text(encoding="utf-8") == "the NEW chart"
     assert not again.chart_stash_dirs()
 
 
@@ -144,9 +144,9 @@ def test_a_stopped_build_leaves_no_orphan_pages(run_with_a_chart):
     before = {p.name for p in run.dir.iterdir() if p.is_file()}
     stash = run.reset_chart_artefacts(stash=True)
     # the taller build gets further than the old one ever was
-    (run.dir / f"{run.stem}.ti2").write_text("three pages")
+    (run.dir / f"{run.stem}.ti2").write_text("three pages", encoding="utf-8")
     for n in ("_01", "_02", "_03"):
-        (run.dir / f"{run.stem}{n}.tif").write_text("a page of the new chart")
+        (run.dir / f"{run.stem}{n}.tif").write_text("a page of the new chart", encoding="utf-8")
 
     run.settle_chart_stash(stash, built=False)
 
@@ -168,15 +168,15 @@ def test_the_leftovers_of_an_unfinished_build_never_beat_the_original(
     the fix written to prevent it.
     """
     proj, run = run_with_a_chart
-    before = {p.name: p.read_text() for p in run.dir.iterdir() if p.is_file()}
+    before = {p.name: p.read_text(encoding="utf-8") for p in run.dir.iterdir() if p.is_file()}
     stash = run.reset_chart_artefacts(stash=True)
     # what a stopped build leaves: a patch set and one page, and no .ti2
-    (run.dir / f"{run.stem}.ti1").write_text("half-written by the dead build")
-    (run.dir / f"{run.stem}_01.tif").write_text("a page nobody asked for")
+    (run.dir / f"{run.stem}.ti1").write_text("half-written by the dead build", encoding="utf-8")
+    (run.dir / f"{run.stem}_01.tif").write_text("a page nobody asked for", encoding="utf-8")
 
     run.settle_chart_stash(stash, built=False)
 
-    after = {p.name: p.read_text() for p in run.dir.iterdir() if p.is_file()}
+    after = {p.name: p.read_text(encoding="utf-8") for p in run.dir.iterdir() if p.is_file()}
     assert after == before, "the unfinished build's leftovers survived"
 
 
@@ -184,14 +184,14 @@ def test_the_same_holds_when_the_app_was_killed_and_reopened(run_with_a_chart):
     """The crash path, which is the one a person actually reaches: closing the
     window is how you escape a build."""
     proj, run = run_with_a_chart
-    before = {p.name: p.read_text() for p in run.dir.iterdir() if p.is_file()}
+    before = {p.name: p.read_text(encoding="utf-8") for p in run.dir.iterdir() if p.is_file()}
     run.reset_chart_artefacts(stash=True)
-    (run.dir / f"{run.stem}.ti1").write_text("half-written by the dead build")
-    (run.dir / f"{run.stem}_01.tif").write_text("a page nobody asked for")
+    (run.dir / f"{run.stem}.ti1").write_text("half-written by the dead build", encoding="utf-8")
+    (run.dir / f"{run.stem}_01.tif").write_text("a page nobody asked for", encoding="utf-8")
     # …and then the process dies, so nothing settles the stash.
 
     again = Project.load(proj.root).all_runs()[0]
-    after = {p.name: p.read_text() for p in again.dir.iterdir() if p.is_file()}
+    after = {p.name: p.read_text(encoding="utf-8") for p in again.dir.iterdir() if p.is_file()}
     assert after == before, "the killed build's leftovers survived the reopen"
     assert not again.chart_stash_dirs()
 
@@ -228,13 +228,13 @@ def test_an_empty_stash_takes_nothing_with_it(run_with_a_chart):
     a printed sheet is read against among the casualties.
     """
     proj, run = run_with_a_chart
-    before = {p.name: p.read_text() for p in run.dir.iterdir() if p.is_file()}
+    before = {p.name: p.read_text(encoding="utf-8") for p in run.dir.iterdir() if p.is_file()}
     empty = run.dir / f"{run.CHART_STASH_PREFIX}99999"
     empty.mkdir()
 
     run.settle_chart_stash(empty, built=False)
 
-    after = {p.name: p.read_text() for p in run.dir.iterdir() if p.is_file()}
+    after = {p.name: p.read_text(encoding="utf-8") for p in run.dir.iterdir() if p.is_file()}
     assert after == before, "an empty stash destroyed the run's chart"
     assert not empty.exists(), "the empty stash was left behind to do it again"
 
@@ -243,12 +243,12 @@ def test_an_empty_stash_found_on_reopen_is_equally_harmless(run_with_a_chart):
     """The path it was actually measured on: the leftover is found by
     `Project.load`, not by the build that made it."""
     proj, run = run_with_a_chart
-    before = {p.name: p.read_text() for p in run.dir.iterdir() if p.is_file()}
+    before = {p.name: p.read_text(encoding="utf-8") for p in run.dir.iterdir() if p.is_file()}
     (run.dir / f"{run.CHART_STASH_PREFIX}12345").mkdir()
 
     again = Project.load(proj.root).all_runs()[0]
 
-    after = {p.name: p.read_text() for p in again.dir.iterdir() if p.is_file()}
+    after = {p.name: p.read_text(encoding="utf-8") for p in again.dir.iterdir() if p.is_file()}
     assert after == before
     assert not again.chart_stash_dirs()
 
@@ -260,7 +260,7 @@ def test_two_builds_in_one_session_do_not_share_a_stash(run_with_a_chart):
     restored into the run as a file."""
     _proj, run = run_with_a_chart
     first = run.reset_chart_artefacts(stash=True)
-    (run.dir / f"{run.stem}.ti2").write_text("chart B")
+    (run.dir / f"{run.stem}.ti2").write_text("chart B", encoding="utf-8")
     second = run.reset_chart_artefacts(stash=True)
     assert first != second, "the second build reused the first build's stash"
     assert first.is_dir() and second.is_dir()
@@ -271,7 +271,7 @@ def test_the_bookkeeping_marker_is_never_restored_into_the_run(run_with_a_chart)
     never turn up in the person's run folder beside their chart."""
     _proj, run = run_with_a_chart
     stash = run.reset_chart_artefacts(stash=True)
-    (stash / run.STASH_SUPERSEDED).write_text("")
+    (stash / run.STASH_SUPERSEDED).write_text("", encoding="utf-8")
     run.settle_chart_stash(stash, built=False)
     assert not (run.dir / run.STASH_SUPERSEDED).exists(), \
         "ChromIQ's own bookkeeping file was put in the run folder"
@@ -282,12 +282,12 @@ def test_a_stash_holding_only_the_marker_counts_as_empty(run_with_a_chart):
     """Otherwise the sweep would run with nothing to restore afterwards, which
     is the release-blocker above wearing a hat."""
     _proj, run = run_with_a_chart
-    before = {p.name: p.read_text() for p in run.dir.iterdir() if p.is_file()}
+    before = {p.name: p.read_text(encoding="utf-8") for p in run.dir.iterdir() if p.is_file()}
     stash = run.dir / f"{run.CHART_STASH_PREFIX}77777"
     stash.mkdir()
-    (stash / run.STASH_SUPERSEDED).write_text("")
+    (stash / run.STASH_SUPERSEDED).write_text("", encoding="utf-8")
     run.settle_chart_stash(stash, built=False)
-    after = {p.name: p.read_text() for p in run.dir.iterdir() if p.is_file()}
+    after = {p.name: p.read_text(encoding="utf-8") for p in run.dir.iterdir() if p.is_file()}
     assert after == before
     assert not stash.exists()
 
@@ -316,7 +316,7 @@ def test_a_restore_interrupted_half_way_keeps_what_it_already_put_back(
     back" from "rubbish the dead build left".
     """
     proj, run = run_with_a_chart
-    before = {p.name: p.read_text() for p in run.dir.iterdir() if p.is_file()}
+    before = {p.name: p.read_text(encoding="utf-8") for p in run.dir.iterdir() if p.is_file()}
     stash = run.reset_chart_artefacts(stash=True)
 
     # …the restore gets two files back and then the app dies.
@@ -325,6 +325,6 @@ def test_a_restore_interrupted_half_way_keeps_what_it_already_put_back(
 
     again = Project.load(proj.root).all_runs()[0]
 
-    after = {p.name: p.read_text() for p in again.dir.iterdir() if p.is_file()}
+    after = {p.name: p.read_text(encoding="utf-8") for p in again.dir.iterdir() if p.is_file()}
     assert after == before, (
         "the files the interrupted restore had already put back were deleted")

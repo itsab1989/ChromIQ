@@ -92,7 +92,7 @@ def test_guided_skip_calibration_is_never_remembered():
 def test_next_unread_starts_after_the_current_patch():
     """In patch-by-patch mode you always sit on a patch you have not read, so a
     scan starting on the current one matched where you already were."""
-    src = C_SRC.read_text()
+    src = C_SRC.read_text(encoding="utf-8")
     block = src[src.index("} else if (incflag == 3)"):]
     block = block[:block.index("} else if (incflag == 4)")]
     assert "#156" in block, "the reason must stay with the code"
@@ -103,7 +103,7 @@ def test_next_unread_starts_after_the_current_patch():
 
 def test_the_wrap_and_termination_survive():
     """It must still stop when the current patch is the only unread one left."""
-    src = C_SRC.read_text()
+    src = C_SRC.read_text(encoding="utf-8")
     block = src[src.index("} else if (incflag == 3)"):]
     block = block[:block.index("} else if (incflag == 4)")]
     assert "if (pix == opix)" in block

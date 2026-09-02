@@ -33,7 +33,7 @@ def test_box_count_matches_argyll_declared(cht: Path):
     """Every expanded box (colour patches + diagnostics) must equal the file's
     own ``BOXES n`` header — proves our F/X/Y/D expansion matches Argyll for
     all target types."""
-    geom = parse_cht(cht.read_text(errors="ignore"))
+    geom = parse_cht(cht.read_text(errors="ignore", encoding="utf-8"))
     assert n_expanded(geom) == geom.n_declared, (
         f"{cht.name}: expanded {n_expanded(geom)} != declared {geom.n_declared}")
 
@@ -41,7 +41,7 @@ def test_box_count_matches_argyll_declared(cht: Path):
 @pytest.mark.skipif(not _CHT_FILES, reason="Argyll ref/ .cht files not present")
 @pytest.mark.parametrize("cht", _CHT_FILES, ids=lambda p: p.name)
 def test_every_cht_has_four_fiducials(cht: Path):
-    geom = parse_cht(cht.read_text(errors="ignore"))
+    geom = parse_cht(cht.read_text(errors="ignore", encoding="utf-8"))
     assert len(geom.fiducials) == 4
 
 
@@ -53,7 +53,7 @@ def test_wolf_faust_it8_two_patch_areas():
     cht = _ARGYLL_REF / "it8.cht"
     if not cht.is_file():
         pytest.skip("it8.cht not present")
-    geom = parse_cht(cht.read_text(errors="ignore"))
+    geom = parse_cht(cht.read_text(errors="ignore", encoding="utf-8"))
     names = {b.name for b in geom.patches}
     assert "A01" in names and "L22" in names          # main grid corners
     assert "GS00" in names and "GS23" in names          # greyscale strip

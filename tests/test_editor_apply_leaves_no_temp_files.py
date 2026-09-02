@@ -60,7 +60,7 @@ def _run(d, *, write_raises=False, apply_result=True, apply_raises=False,
     def _write(staging, name):
         if write_raises:
             raise RuntimeError("boom")
-        (pathlib.Path(staging) / f"{name}.ti1").write_text("x")
+        (pathlib.Path(staging) / f"{name}.ti1").write_text("x", encoding="utf-8")
 
     def _apply(staging, name):
         if apply_raises:
@@ -94,12 +94,12 @@ def test_the_host_still_receives_a_usable_chart(dlg, monkeypatch):
     seen = {}
 
     def _write(staging, name):
-        (pathlib.Path(staging) / f"{name}.ti1").write_text("patches")
+        (pathlib.Path(staging) / f"{name}.ti1").write_text("patches", encoding="utf-8")
 
     def _apply(staging, name):
         ti1 = pathlib.Path(staging) / f"{name}.ti1"
         seen["existed"] = ti1.is_file()
-        seen["content"] = ti1.read_text() if ti1.is_file() else None
+        seen["content"] = ti1.read_text(encoding="utf-8") if ti1.is_file() else None
         return True
 
     dlg._write_chart_into = _write

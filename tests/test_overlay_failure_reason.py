@@ -103,9 +103,9 @@ _FOREIGN = (_MEASURED.replace('1 "A1"', '501 "Z9"')
 
 def _make(tmp_path, ti3_body):
     ti2 = tmp_path / "chart.ti2"
-    ti2.write_text(_CHART)
+    ti2.write_text(_CHART, encoding="utf-8")
     ti3 = tmp_path / "chart.ti3"
-    ti3.write_text(ti3_body)
+    ti3.write_text(ti3_body, encoding="utf-8")
     return _Stub(ti2, ti3)
 
 
@@ -144,7 +144,7 @@ def test_no_measurement_at_all_is_not_a_geometry_claim(tmp_path):
     settled on was wrong.
     """
     ti2 = tmp_path / "chart.ti2"
-    ti2.write_text(_CHART)
+    ti2.write_text(_CHART, encoding="utf-8")
     assert _Stub(ti2, None)._overlay_failure_reason() == "absent"
 
 

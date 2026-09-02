@@ -35,11 +35,11 @@ def _engine_chart(dir_: Path, n_patches: int) -> Path:
     carrying a ChromIQ recipe (i1 / A4, fixed 8x10 patches)."""
     dir_.mkdir(parents=True, exist_ok=True)
     ti2 = dir_ / "chart.ti2"
-    ti2.write_text(f'NUMBER_OF_SETS {n_patches}\n')
+    ti2.write_text(f'NUMBER_OF_SETS {n_patches}\n', encoding="utf-8")
     rec = LayoutRecipe(instrument="i1", paper="A4", layout_mode="patch_first",
                        patch_w_mm=8.0, patch_h_mm=10.0, clip_border=True)
     (dir_ / "chart.channels.json").write_text(json.dumps(
-        {"layout": {"engine": "chromiq", "recipe": rec.to_dict()}}))
+        {"layout": {"engine": "chromiq", "recipe": rec.to_dict()}}), encoding="utf-8")
     return ti2
 
 
@@ -72,7 +72,7 @@ def test_no_warning_for_a_full_page(tab, tmp_path):
 def test_none_for_printtarg_chart(tab, tmp_path):
     # No channels.json / not an engine chart → None (no hint).
     d = tmp_path / "pt"; d.mkdir()
-    ti2 = d / "chart.ti2"; ti2.write_text("NUMBER_OF_SETS 100\n")
+    ti2 = d / "chart.ti2"; ti2.write_text("NUMBER_OF_SETS 100\n", encoding="utf-8")
     assert tab._partial_last_page_blank(ti2) is None
 
 

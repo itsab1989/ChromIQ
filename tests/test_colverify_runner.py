@@ -64,7 +64,7 @@ def test_write_reference_lab(tmp_path: Path):
     out = write_reference_ti3(
         tmp_path / "ref.ti3", [(100.0, 0.0, 0.0), (50.0, 1.0, -2.0)], space="LAB"
     )
-    text = out.read_text()
+    text = out.read_text(encoding="utf-8")
     assert "SAMPLE_ID LAB_L LAB_A LAB_B" in text
     assert "NUMBER_OF_SETS 2" in text
     assert 'DEVICE_CLASS "OUTPUT"' in text
@@ -81,7 +81,7 @@ def test_write_reference_xyz_with_rgb(tmp_path: Path):
         space="XYZ",
         rgb=[(100.0, 100.0, 100.0)],
     )
-    text = out.read_text()
+    text = out.read_text(encoding="utf-8")
     assert "SAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z" in text
     assert 'COLOR_REP "RGB_XYZ"' in text
 
@@ -101,7 +101,7 @@ def test_chart_patch_count_first_table_only(tmp_path: Path):
     chart.write_text(
         "BEGIN_DATA\n1 a\n2 b\n3 c\nEND_DATA\n"
         "BEGIN_DATA\nx\ny\nEND_DATA\n"
-        "BEGIN_DATA\np\nq\nr\ns\nEND_DATA\n"
+        "BEGIN_DATA\np\nq\nr\ns\nEND_DATA\n", encoding="utf-8"
     )
     assert chart_patch_count(chart) == 3
 
@@ -260,7 +260,7 @@ def test_colverify_zero_error_self_compare(tmp_path: Path):
     ref = write_reference_ti3(tmp_path / "ref.ti3", rows, space="LAB")
     out = subprocess.run(
         [binp, "-k", str(ref), str(ref)],
-        capture_output=True, text=True, cwd=tmp_path,
+        capture_output=True, text=True, cwd=tmp_path, encoding="utf-8",
     )
     res = ColverifyRunner(None).parse_results(out.stdout)
     assert res.avg_de == pytest.approx(0.0, abs=1e-4)

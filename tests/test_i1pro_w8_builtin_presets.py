@@ -225,7 +225,7 @@ def test_sidecar_recipe_matches_its_chart(preset):
     """
     sidecar = resource_path(preset.ti1_asset).parent / "recipe.json"
     assert sidecar.is_file(), f"missing {sidecar}"
-    rec = json.loads(sidecar.read_text())
+    rec = json.loads(sidecar.read_text(encoding="utf-8"))
     assert rec["instr"] == "i1"
     assert rec["paper"] == preset.layout_recipe["paper"]
     assert rec["sp"]["fill_to"] == preset.patches
@@ -356,7 +356,7 @@ def test_the_2288_chart_can_be_rebuilt_from_its_own_recipe(qapp):
 
     preset = next(p for p in W8 if p.patches == 2288)
     sidecar = resource_path(preset.ti1_asset).parent / "recipe.json"
-    rec = json.loads(sidecar.read_text())
+    rec = json.loads(sidecar.read_text(encoding="utf-8"))
     assert rec["sp"]["fill_to"] == preset.patches, (
         f"the recipe rebuilds {rec['sp']['fill_to']} patches, the chart has "
         f"{preset.patches}")

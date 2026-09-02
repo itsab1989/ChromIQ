@@ -41,14 +41,14 @@ def _params(ti3: Path, **kw) -> ProfileParams:
 
 def test_multi_ink_detection(tmp_path):
     rgb = tmp_path / "rgb.ti3"
-    rgb.write_text(_TI3_RGB)
+    rgb.write_text(_TI3_RGB, encoding="utf-8")
     assert ti3_device_rep(rgb) == "iRGB"
     assert not is_multi_ink(rgb)
     og = tmp_path / "og.ti3"
-    og.write_text(_TI3_RGB.replace('"iRGB_XYZ"', '"CMYKOG_XYZ"'))
+    og.write_text(_TI3_RGB.replace('"iRGB_XYZ"', '"CMYKOG_XYZ"'), encoding="utf-8")
     assert is_multi_ink(og)
     cmyk = tmp_path / "c.ti3"
-    cmyk.write_text(_TI3_RGB.replace('"iRGB_XYZ"', '"CMYK_XYZ"'))
+    cmyk.write_text(_TI3_RGB.replace('"iRGB_XYZ"', '"CMYK_XYZ"'), encoding="utf-8")
     assert not is_multi_ink(cmyk)          # colprof covers CMYK
     assert not is_multi_ink(tmp_path / "missing.ti3")
 
@@ -172,7 +172,7 @@ def test_engine_builder_builds_profile(tmp_path, qtbot):
 
 def test_engine_builder_reports_failure(tmp_path, qtbot):
     bad = tmp_path / "bad.ti3"
-    bad.write_text("not a measurement")
+    bad.write_text("not a measurement", encoding="utf-8")
     builder = EngineProfileBuilder()
     finished: list[int] = []
     lines: list[str] = []

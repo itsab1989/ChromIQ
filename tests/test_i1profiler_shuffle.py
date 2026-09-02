@@ -26,7 +26,7 @@ def _write_rgb_ti1(path, n=12):
 
 
 def _sids(txt_path):
-    return [ln.split()[0] for ln in txt_path.read_text().splitlines()
+    return [ln.split()[0] for ln in txt_path.read_text(encoding="utf-8").splitlines()
             if ln[:1].isdigit()]
 
 
@@ -66,7 +66,7 @@ def test_also_shuffled_writes_second_copy_with_suffix(tmp_path):
     assert prim == [str(i) for i in range(1, 13)]
     assert sorted(shuf) == sorted(prim) and shuf != prim
     # i1Profiler must keep our order, not re-scramble on import.
-    assert 'ScramblePatches="False"' in (tmp_path / "out-shuffled.pxf").read_text()
+    assert 'ScramblePatches="False"' in (tmp_path / "out-shuffled.pxf").read_text(encoding="utf-8")
 
 
 def test_shuffle_works_for_cmyk_plus_n_pxf_only(tmp_path):

@@ -23,24 +23,24 @@ def test_replacing_the_verify_chart_archives_it(tmp_path):
     vdir = run.verifications_dir
     vdir.mkdir(parents=True)
     # The previous (gamut) chart, its reference, a page, and a sidecar.
-    (vdir / f"{run.verify_stem}.ti2").write_text("CTI2 old\n")
-    (vdir / f"{run.verify_stem}-reference.ti3").write_text("CTI3 ref\n")
+    (vdir / f"{run.verify_stem}.ti2").write_text("CTI2 old\n", encoding="utf-8")
+    (vdir / f"{run.verify_stem}-reference.ti3").write_text("CTI3 ref\n", encoding="utf-8")
     (vdir / f"{run.verify_stem}.tif").write_bytes(b"II*\x00old")
     exp = vdir / "exports"
     exp.mkdir()
-    (exp / f"{run.verify_stem}-colours.txt").write_text("colours\n")
+    (exp / f"{run.verify_stem}-colours.txt").write_text("colours\n", encoding="utf-8")
     # A measured dated verification must never be touched.
     dated = vdir / "2026-08-10_113503"
     dated.mkdir()
-    (dated / f"{run.verify_stem}.ti3").write_text("CTI3 measured\n")
+    (dated / f"{run.verify_stem}.ti3").write_text("CTI3 measured\n", encoding="utf-8")
 
     # The new chart at the run root, about to be adopted.
-    run.chart_ti2.write_text("CTI2 new\n")
-    (run.dir / f"{run.stem}.ti1").write_text("CTI1 new\n")
+    run.chart_ti2.write_text("CTI2 new\n", encoding="utf-8")
+    (run.dir / f"{run.stem}.ti1").write_text("CTI1 new\n", encoding="utf-8")
 
     moved = run.adopt_run_chart_as_verify()
     assert moved == run.verify_chart_ti2
-    assert run.verify_chart_ti2.read_text() == "CTI2 new\n"
+    assert run.verify_chart_ti2.read_text(encoding="utf-8") == "CTI2 new\n"
 
     # The displaced chart is in verifications/old/<date>/ — complete.
     archives = [d for d in run.verifications_old_dir.iterdir() if d.is_dir()]
@@ -50,16 +50,16 @@ def test_replacing_the_verify_chart_archives_it(tmp_path):
     assert f"{run.verify_stem}-reference.ti3" in names
     assert f"{run.verify_stem}.tif" in names
     assert f"{run.verify_stem}-colours.txt" in names
-    assert (archives[0] / f"{run.verify_stem}.ti2").read_text() == "CTI2 old\n"
+    assert (archives[0] / f"{run.verify_stem}.ti2").read_text(encoding="utf-8") == "CTI2 old\n"
 
     # The dated measurement folder is untouched.
-    assert (dated / f"{run.verify_stem}.ti3").read_text() == "CTI3 measured\n"
+    assert (dated / f"{run.verify_stem}.ti3").read_text(encoding="utf-8") == "CTI3 measured\n"
 
 
 def test_adopting_over_nothing_archives_nothing(tmp_path):
     run = _run(tmp_path)
     run.verifications_dir.mkdir(parents=True)
-    run.chart_ti2.write_text("CTI2 new\n")
+    run.chart_ti2.write_text("CTI2 new\n", encoding="utf-8")
     run.adopt_run_chart_as_verify()
     old = run.verifications_old_dir
     assert not old.exists() or not any(old.iterdir())

@@ -146,7 +146,7 @@ def test_export_uses_explicit_base_name(tmp_path):
 def test_rgb_export_scales_to_255_and_stays_minimal(tmp_path):
     txt, pxf = export_from_ti1(_write(tmp_path, "rgb.ti1", RGB_TI1), tmp_path)
     assert txt is not None and txt.suffix == ".txt"
-    pxf_text = pxf.read_text()
+    pxf_text = pxf.read_text(encoding="utf-8")
     parseString(pxf_text)  # well-formed
     assert "<cc:ColorRGB" in pxf_text
     assert "<cc:R>255</cc:R>" in pxf_text  # 100 * 2.55 -> 255
@@ -155,7 +155,7 @@ def test_rgb_export_scales_to_255_and_stays_minimal(tmp_path):
     assert "<ProfileSettings" not in pxf_text
     assert "ColorSpecificationCollection" not in pxf_text
     # .txt is CGATS.5 on the 0..255 scale
-    txt_text = txt.read_text()
+    txt_text = txt.read_text(encoding="utf-8")
     assert txt_text.startswith("CGATS.5")
     assert "RGB_R RGB_G RGB_B" in txt_text
     assert "255.0000" in txt_text
@@ -171,13 +171,13 @@ def test_pxf_is_write_protected(tmp_path):
     against X-Rite's shipped reference charts, which all set this to True.
     """
     _, rgb_pxf = export_from_ti1(_write(tmp_path, "rgb.ti1", RGB_TI1), tmp_path)
-    assert 'WriteProtected="True"' in rgb_pxf.read_text()
-    assert 'WriteProtected="False"' not in rgb_pxf.read_text()
+    assert 'WriteProtected="True"' in rgb_pxf.read_text(encoding="utf-8")
+    assert 'WriteProtected="False"' not in rgb_pxf.read_text(encoding="utf-8")
     _, cmyk_pxf = export_from_ti1(
         _write(tmp_path, "cmyk.ti1", CMYK_TI1), tmp_path, base_name="cmyk_out"
     )
-    assert 'WriteProtected="True"' in cmyk_pxf.read_text()
-    assert 'WriteProtected="False"' not in cmyk_pxf.read_text()
+    assert 'WriteProtected="True"' in cmyk_pxf.read_text(encoding="utf-8")
+    assert 'WriteProtected="False"' not in cmyk_pxf.read_text(encoding="utf-8")
 
 
 # --- CMYK export -----------------------------------------------------------
@@ -186,7 +186,7 @@ def test_pxf_is_write_protected(tmp_path):
 def test_cmyk_export(tmp_path):
     txt, pxf = export_from_ti1(_write(tmp_path, "cmyk.ti1", CMYK_TI1), tmp_path)
     assert txt is not None
-    pxf_text = pxf.read_text()
+    pxf_text = pxf.read_text(encoding="utf-8")
     parseString(pxf_text)
     assert "<cc:ColorCMYK " in pxf_text
     assert "ColorCMYKPlusN" not in pxf_text
@@ -196,7 +196,7 @@ def test_cmyk_export(tmp_path):
     assert "<InkLimit>400</InkLimit>" in pxf_text
     assert "ColorSpecificationCollection" in pxf_text
     # CMYK .txt is on the 0..100 scale
-    assert "CMYK_C CMYK_M CMYK_Y CMYK_K" in txt.read_text()
+    assert "CMYK_C CMYK_M CMYK_Y CMYK_K" in txt.read_text(encoding="utf-8")
 
 
 # --- CMYK+N export ---------------------------------------------------------
@@ -205,7 +205,7 @@ def test_cmyk_export(tmp_path):
 def test_cmykogv_export(tmp_path):
     txt, pxf = export_from_ti1(_write(tmp_path, "ogv.ti1", CMYKOGV_TI1), tmp_path)
     assert txt is None  # extended gamut is .pxf only
-    pxf_text = pxf.read_text()
+    pxf_text = pxf.read_text(encoding="utf-8")
     parseString(pxf_text)
     assert "<cc:ColorCMYKPlusN" in pxf_text
     for ink in ("Orange", "Green", "Violet"):
@@ -222,7 +222,7 @@ def test_cmykogv_export(tmp_path):
 
 def test_cmykogv_spotcolor_percentages(tmp_path):
     _txt, pxf = export_from_ti1(_write(tmp_path, "ogv.ti1", CMYKOGV_TI1), tmp_path)
-    dom = parseString(pxf.read_text())
+    dom = parseString(pxf.read_text(encoding="utf-8"))
     first = dom.getElementsByTagName("cc:ColorCMYKPlusN")[0]
     spots = first.getElementsByTagName("cc:SpotColor")
     by_name = {

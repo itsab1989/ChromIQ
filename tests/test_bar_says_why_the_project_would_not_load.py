@@ -28,7 +28,7 @@ def broken_project(qapp, tmp_path):
     # A manifest the loader will choke on: run entries as dicts, not ids.
     (proj_dir / "project.json").write_text(json.dumps({
         "schema_version": 2, "target_name": "Broken-Demo",
-        "current_run": "run1", "runs": [{"id": "run1"}]}))
+        "current_run": "run1", "runs": [{"id": "run1"}]}), encoding="utf-8")
     fm.set_target_name("Broken-Demo")
     return MeasurementTargetController(fm)
 

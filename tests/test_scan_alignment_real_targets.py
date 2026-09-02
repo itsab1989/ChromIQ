@@ -101,7 +101,7 @@ def _scanin_placement(tif: Path, cht: Path, ref: Path):
         r = subprocess.run([str(ARGYLL), "-v", "-dipn", local.name,
                             str(cht), str(ref)],
                            capture_output=True, text=True, cwd=work,
-                           timeout=300)
+                           timeout=300, encoding="utf-8")
     finally:
         shutil.rmtree(work, ignore_errors=True)
     txt = r.stdout + r.stderr
@@ -125,7 +125,7 @@ def _scanin_placement(tif: Path, cht: Path, ref: Path):
         x, y = cx * xsc, cy * ysc
         return xoff + x * ca - y * sa, yoff + x * sa + y * ca
 
-    geom = parse_cht(cht.read_text(errors="ignore"))
+    geom = parse_cht(cht.read_text(errors="ignore", encoding="utf-8"))
     boxes = [_Box(b) for b in geom.patches]
     quad = list(geom.fiducials) if len(geom.fiducials) == 4 else None
     if quad is None:
@@ -136,7 +136,7 @@ def _scanin_placement(tif: Path, cht: Path, ref: Path):
     corners = [to_img(x, y) for x, y in quad]
 
     ti3 = tif.with_suffix(".ti3")
-    body = ti3.read_text(errors="ignore")
+    body = ti3.read_text(errors="ignore", encoding="utf-8")
     fmt = body.split("BEGIN_DATA_FORMAT", 1)[1].split("END_DATA_FORMAT", 1)[0].split()
     ix = [fmt.index(c) for c in ("XYZ_X", "XYZ_Y", "XYZ_Z")]
     rows = body.split("\nBEGIN_DATA\n", 1)[1].split("\nEND_DATA", 1)[0]

@@ -126,7 +126,7 @@ class Reader:
         self.p = subprocess.Popen(
             [str(BIN), "-xx", "--json", "n"], cwd=tmp,
             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE, text=True, bufsize=1, start_new_session=True)
+            stderr=subprocess.PIPE, text=True, bufsize=1, start_new_session=True, encoding="utf-8")
         self._pump_thread = threading.Thread(target=self._pump, daemon=True)
         self._pump_thread.start()
 
@@ -234,7 +234,7 @@ def test_a_refused_chart_says_why_on_the_event_stream(tmpchart):
     import subprocess
     tmp = tmpchart().tmp                      # reuse the fixture's chart
     r = subprocess.run([str(BIN), "--json", "n"], cwd=tmp,
-                       capture_output=True, text=True, timeout=60)
+                       capture_output=True, text=True, timeout=60, encoding="utf-8")
     assert r.returncode != 0
     events = [json.loads(l) for l in (r.stdout or "").splitlines()
               if l.strip().startswith("{")]
@@ -298,7 +298,7 @@ def test_full_read_writes_a_usable_ti3(tmpchart):
 
     ti3 = r.tmp / "n.ti3"
     assert ti3.is_file()
-    lines = ti3.read_text().splitlines()
+    lines = ti3.read_text(encoding="utf-8").splitlines()
     # NB anchor on whole lines: END_DATA_FORMAT precedes BEGIN_DATA, so a naive
     # index("END_DATA") slices backwards and silently finds nothing.
     b = next(i for i, l in enumerate(lines) if l.strip() == "BEGIN_DATA")
@@ -428,7 +428,7 @@ def test_save_and_stop_ends_a_partial_read_and_writes_the_ti3(tmpchart):
 
     ti3 = r.tmp / "n.ti3"
     assert ti3.is_file(), "nothing was saved"
-    lines = ti3.read_text().splitlines()
+    lines = ti3.read_text(encoding="utf-8").splitlines()
     b = next(i for i, l in enumerate(lines) if l.strip() == "BEGIN_DATA")
     e = next(i for i, l in enumerate(lines) if l.strip() == "END_DATA")
     rows = [x for x in lines[b + 1:e] if x.strip()]

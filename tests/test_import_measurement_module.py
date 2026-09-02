@@ -77,7 +77,7 @@ def _verify_env(tmp_path):
     run = fm.project().run("run1")
     run.profile_icc.write_bytes(b"icc")
     run.verifications_dir.mkdir(parents=True, exist_ok=True)
-    run.verify_chart_ti2.write_text(_cgats("CTI2", _PATCHES))
+    run.verify_chart_ti2.write_text(_cgats("CTI2", _PATCHES), encoding="utf-8")
     ctl.set_profile_run("run1")
     ctl.set_run_type(RUN_TYPE_VERIFICATION)
     return s, fm, ctl, run
@@ -85,7 +85,7 @@ def _verify_env(tmp_path):
 
 def _measurement(tmp_path, patches=None, name="i1p-measurement.ti3") -> Path:
     p = tmp_path / name
-    p.write_text(_cgats("CTI3", patches or _PATCHES))
+    p.write_text(_cgats("CTI3", patches or _PATCHES), encoding="utf-8")
     return p
 
 
@@ -144,7 +144,7 @@ def test_happy_path_files_a_copy_in_a_new_dated_folder(qapp, tmp_path,
     tab = _tab(s, fm, ctl)
     tab._switch_mode("import")
     src = _measurement(tmp_path)
-    before = src.read_text()
+    before = src.read_text(encoding="utf-8")
     tab._import_path = src
     refusals = _capture_refusals(tab, monkeypatch)
     done = _silence_done_dialog(tab, monkeypatch)
@@ -159,14 +159,14 @@ def test_happy_path_files_a_copy_in_a_new_dated_folder(qapp, tmp_path,
     assert dst.parent.parent == run.verifications_dir
     # The verification marker is stamped, so the report/inspector treat it
     # as a verification and Build Profile never sees it.
-    assert 'CHROMIQ_VERIFICATION "true"' in dst.read_text()
+    assert 'CHROMIQ_VERIFICATION "true"' in dst.read_text(encoding="utf-8")
     # The bar moved to the new dated folder (same as a native read).
     assert ctl.target.verification_id == verification.id
     # The chart snapshot came along, so the result stays interpretable.
     from workflow.verify_chart_snapshot import has_snapshot
     assert has_snapshot(verification)
     # The user's original is untouched — ChromIQ filed a copy.
-    assert src.read_text() == before
+    assert src.read_text(encoding="utf-8") == before
     assert "Measurement imported" in tab._log.toPlainText()
 
 
@@ -211,8 +211,8 @@ def test_a_date_that_already_holds_a_measurement_is_refused(
     s, fm, ctl, run = _verify_env(tmp_path)
     v = run.new_verification()
     v.ensure_dir()
-    v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES))
-    kept = v.measurement_ti3.read_text()
+    v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES), encoding="utf-8")
+    kept = v.measurement_ti3.read_text(encoding="utf-8")
     ctl.set_verification_id(v.id)
     tab = _tab(s, fm, ctl)
     tab._switch_mode("import")
@@ -222,7 +222,7 @@ def test_a_date_that_already_holds_a_measurement_is_refused(
     tab._on_import_measurement()
 
     assert [r[0] for r in refusals] == ["M-IMPORT-DATE-TAKEN"]
-    assert v.measurement_ti3.read_text() == kept    # nothing replaced
+    assert v.measurement_ti3.read_text(encoding="utf-8") == kept    # nothing replaced
 
 
 def test_the_no_profile_guard_speaks_before_anything_runs(qapp, tmp_path,
@@ -252,7 +252,7 @@ def test_the_info_box_names_chart_and_destination(qapp, tmp_path):
     # in advance, before the user even presses the button.
     v = run.new_verification()
     v.ensure_dir()
-    v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES))
+    v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES), encoding="utf-8")
     ctl.set_verification_id(v.id)
     body = tab._import_box_body.text()
     assert "already holds a measurement" in body
@@ -274,7 +274,7 @@ def test_report_dialog_gathers_all_dated_verifications(qapp, tmp_path):
     for i in range(3):
         v = run.new_verification()
         v.ensure_dir()
-        v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES))
+        v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES), encoding="utf-8")
         import os, time
         t = time.time() - 300 + i * 60
         os.utime(v.measurement_ti3, (t, t))
@@ -301,7 +301,7 @@ def test_measure_tab_report_opener_finds_dated_measurements(qapp, tmp_path,
     s, fm, ctl, run = _verify_env(tmp_path)
     v = run.new_verification()
     v.ensure_dir()
-    v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES))
+    v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES), encoding="utf-8")
     tab = _tab(s, fm, ctl)
     tab._ti1_path = run.verify_chart_ti2
     opened: list = []
@@ -330,7 +330,7 @@ def test_ask_how_printed_skips_when_a_record_exists(qapp, tmp_path, monkeypatch)
     v = run.new_verification()
     v.ensure_dir()
     (v.dir / "chart").mkdir()
-    v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES))
+    v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES), encoding="utf-8")
     vp.write_print_record(v.dir / "chart" / f"{run.verify_stem}.ti2",
                           colour=vp.COLOUR_RAW, intent="", profile=None,
                           route=vp.ROUTE_CHROMIQ)
@@ -348,7 +348,7 @@ def test_ask_how_printed_stores_the_answer(qapp, tmp_path, monkeypatch):
     s, fm, ctl, run = _verify_env(tmp_path)
     v = run.new_verification()
     v.ensure_dir()
-    v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES))
+    v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES), encoding="utf-8")
     tab = _tab(s, fm, ctl)
 
     import json
@@ -378,7 +378,7 @@ def test_ask_how_printed_stores_the_answer(qapp, tmp_path, monkeypatch):
     # "Not sure" on a fresh date stores nothing.
     v2 = run.new_verification()
     v2.ensure_dir()
-    v2.measurement_ti3.write_text(_cgats("CTI3", _PATCHES))
+    v2.measurement_ti3.write_text(_cgats("CTI3", _PATCHES), encoding="utf-8")
     monkeypatch.setattr(QMessageBox, "exec", _click("Not sure"))
     tab._ask_how_printed(v2.measurement_ti3)
     assert vp.read_print_record(v2.measurement_ti3) is None
@@ -392,7 +392,7 @@ def test_external_cm_answer_flips_the_report_yardstick(qapp, tmp_path,
     s, fm, ctl, run = _verify_env(tmp_path)
     v = run.new_verification()
     v.ensure_dir()
-    v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES))
+    v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES), encoding="utf-8")
     r = build_report(v.measurement_ti3)
     assert r["yardstick"] == "absolute"      # no record → judged as-is
     vp.write_print_record(v.measurement_ti3, colour=vp.COLOUR_THROUGH,
@@ -417,7 +417,7 @@ def test_yardstick_golden_pins(qapp, tmp_path):
     def _date_with(colour, intent, route=vp.ROUTE_CHROMIQ):
         v = run.new_verification()
         v.ensure_dir()
-        v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES))
+        v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES), encoding="utf-8")
         if colour is not None:
             vp.write_print_record(v.measurement_ti3, colour=colour,
                                   intent=intent, profile=None, route=route)

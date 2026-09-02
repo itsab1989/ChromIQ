@@ -277,7 +277,7 @@ def test_none_of_the_seven_modules_decides_a_theme_by_lightness():
     pattern = re.compile(r"lightness\(\)\s*[<>]")
     offenders = []
     for rel in SEVEN_FILES:
-        for n, line in enumerate(( root / rel).read_text().splitlines(), 1):
+        for n, line in enumerate(( root / rel).read_text(encoding="utf-8").splitlines(), 1):
             if pattern.search(line):
                 offenders.append(f"{rel}:{n}: {line.strip()}")
     assert not offenders, "theme decided by measuring a pixel:\n" + "\n".join(offenders)

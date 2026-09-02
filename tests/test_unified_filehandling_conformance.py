@@ -44,15 +44,15 @@ def test_X05_no_stale_printer_profile_name_label():
 # ---------------------------------------------------------------------------
 def _seed_full_run(run):
     run.ensure_dir()
-    run.chart_ti2.write_text("c"); run.measurement_ti3.write_text("m")
-    run.profile_icc.write_text("p")
+    run.chart_ti2.write_text("c", encoding="utf-8"); run.measurement_ti3.write_text("m", encoding="utf-8")
+    run.profile_icc.write_text("p", encoding="utf-8")
     run.reports_dir.mkdir(parents=True, exist_ok=True)
-    (run.reports_dir / "Quality_Check_1.txt").write_text("q")
+    (run.reports_dir / "Quality_Check_1.txt").write_text("q", encoding="utf-8")
     run.verifications_dir.mkdir(parents=True, exist_ok=True)
-    run.verify_chart_ti2.write_text("vc")
+    run.verify_chart_ti2.write_text("vc", encoding="utf-8")
     vd = run.verifications_dir / "2026-01-01_120000"
     vd.mkdir(parents=True, exist_ok=True)
-    (vd / "measured.ti3").write_text("v")
+    (vd / "measured.ti3").write_text("v", encoding="utf-8")
     return vd
 
 

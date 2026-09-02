@@ -38,7 +38,7 @@ def argyll_bin(tmp_path: Path) -> Path:
     """A bin dir holding a fake cctiff, so the tool-missing check passes."""
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
-    (bin_dir / argyll_binary("cctiff")).write_text("#!/bin/sh\n")
+    (bin_dir / argyll_binary("cctiff")).write_text("#!/bin/sh\n", encoding="utf-8")
     return bin_dir
 
 
@@ -207,46 +207,46 @@ def test_no_pages_is_a_no_op(tmp_path, argyll_bin, profile, srgb):
 # ------------------------------------------------- §3.1a chart-kind detection
 def test_a_regular_chart_reads_as_regular(tmp_path):
     ti2 = tmp_path / "proj-verify.ti2"
-    ti2.write_text("CTI2\n")
+    ti2.write_text("CTI2\n", encoding="utf-8")
     assert chart_conversion_state(ti2) == STATE_REGULAR
     assert chart_conversion_state(None) == STATE_REGULAR
 
 
 def test_a_stored_colorimetric_reference_marks_the_chart_converted(tmp_path):
     ti2 = tmp_path / "proj-verify.ti2"
-    ti2.write_text("CTI2\n")
-    colorimetric_reference_for(ti2).write_text("CTI3\n")
+    ti2.write_text("CTI2\n", encoding="utf-8")
+    colorimetric_reference_for(ti2).write_text("CTI3\n", encoding="utf-8")
     assert chart_conversion_state(ti2) == STATE_CONVERTED
 
 
 def test_a_claimed_but_missing_reference_still_forces_raw(tmp_path):
     """§3.1a A3c — refusing to convert is always the safe direction."""
     ti2 = tmp_path / "proj-verify.ti2"
-    ti2.write_text("CTI2\n")
+    ti2.write_text("CTI2\n", encoding="utf-8")
     (tmp_path / "proj-verify.channels.json").write_text(json.dumps(
         {"ink_channels": ["r", "g", "b"],
-         "colorimetric_reference": "proj-verify-reference.ti3"}))
+         "colorimetric_reference": "proj-verify-reference.ti3"}), encoding="utf-8")
     assert chart_conversion_state(ti2) == STATE_CONVERTED_REF_MISSING
 
 
 def test_a_corrupt_sidecar_does_not_break_detection(tmp_path):
     ti2 = tmp_path / "proj-verify.ti2"
-    ti2.write_text("CTI2\n")
-    (tmp_path / "proj-verify.channels.json").write_text("{not json")
+    ti2.write_text("CTI2\n", encoding="utf-8")
+    (tmp_path / "proj-verify.channels.json").write_text("{not json", encoding="utf-8")
     assert chart_conversion_state(ti2) == STATE_REGULAR
 
 
 # --------------------------------------------------- A15–A18 the print record
 def test_the_print_record_sits_beside_the_chart(tmp_path):
     ti2 = tmp_path / "proj-verify.ti2"
-    ti2.write_text("CTI2\n")
+    ti2.write_text("CTI2\n", encoding="utf-8")
     profile = tmp_path / "proj.icc"
     profile.write_bytes(b"icc")
     path = write_print_record(ti2, colour=COLOUR_THROUGH, intent="relative",
                               profile=profile, route=ROUTE_CHROMIQ,
                               source_profile="sRGB.icm")
     assert path == print_record_path(ti2)
-    rec = json.loads(path.read_text())
+    rec = json.loads(path.read_text(encoding="utf-8"))
     assert rec["colour"] == COLOUR_THROUGH
     assert rec["intent"] == "relative"
     assert rec["route"] == ROUTE_CHROMIQ
@@ -257,11 +257,11 @@ def test_the_print_record_sits_beside_the_chart(tmp_path):
 
 def test_a_raw_record_carries_no_intent_and_no_profile(tmp_path):
     ti2 = tmp_path / "proj-verify.ti2"
-    ti2.write_text("CTI2\n")
+    ti2.write_text("CTI2\n", encoding="utf-8")
     path = write_print_record(ti2, colour=COLOUR_RAW, intent="relative",
                               profile=tmp_path / "proj.icc",
                               route=ROUTE_EXTERNAL)
-    rec = json.loads(path.read_text())
+    rec = json.loads(path.read_text(encoding="utf-8"))
     assert rec["colour"] == COLOUR_RAW
     assert rec["intent"] == ""
     assert "profile" not in rec
@@ -276,18 +276,18 @@ def test_the_record_is_found_from_a_dated_verification_ti3(tmp_path):
     dated = vroot / "2026-08-09_120000"
     dated.mkdir(parents=True)
     ti2 = vroot / "proj-verify.ti2"
-    ti2.write_text("CTI2\n")
+    ti2.write_text("CTI2\n", encoding="utf-8")
     write_print_record(ti2, colour=COLOUR_THROUGH, intent="absolute",
                        profile=None, route=ROUTE_CHROMIQ)
     ti3 = dated / "proj-verify.ti3"
-    ti3.write_text("CTI3\n")
+    ti3.write_text("CTI3\n", encoding="utf-8")
     rec = read_print_record(ti3)
     assert rec is not None and rec["intent"] == "absolute"
 
 
 def test_no_record_reads_as_none(tmp_path):
     ti3 = tmp_path / "proj-verify.ti3"
-    ti3.write_text("CTI3\n")
+    ti3.write_text("CTI3\n", encoding="utf-8")
     assert read_print_record(ti3) is None
 
 
@@ -300,9 +300,9 @@ def test_the_dated_snapshot_record_outranks_the_shared_one(tmp_path):
     vdir = tmp_path / "verifications" / "2026-08-10_120247"
     (vdir / "chart").mkdir(parents=True)
     ti3 = vdir / "c-verify.ti3"
-    ti3.write_text("CTI3\n")
+    ti3.write_text("CTI3\n", encoding="utf-8")
     shared = tmp_path / "verifications" / "c-verify.ti2"
-    shared.write_text("CTI2\n")
+    shared.write_text("CTI2\n", encoding="utf-8")
     # The chart was printed raw for THIS date…
     vp.write_print_record(vdir / "chart" / "c-verify.ti2", colour=vp.COLOUR_RAW,
                           intent="", profile=None, route=vp.ROUTE_CHROMIQ)
@@ -327,11 +327,11 @@ def test_dated_report_resolves_the_chart_from_its_own_snapshot(tmp_path):
     dated = vdir / "2026-08-10_113503"
     (dated / "chart").mkdir(parents=True)
     ti3 = dated / "c-verify.ti3"
-    ti3.write_text("CTI3\n")
+    ti3.write_text("CTI3\n", encoding="utf-8")
     snap = dated / "chart" / "c-verify.ti2"
-    snap.write_text("CTI2 snapshot\n")
+    snap.write_text("CTI2 snapshot\n", encoding="utf-8")
     shared = vdir / "c-verify.ti2"
-    shared.write_text("CTI2 live\n")
+    shared.write_text("CTI2 live\n", encoding="utf-8")
     assert _find_reference_ti2(ti3) == snap
     # Without a snapshot the shared chart is still the fallback.
     snap.unlink()
@@ -348,7 +348,7 @@ def test_a_rebuilt_report_is_dated_by_the_measurement_file(tmp_path):
         "CTI3\n\nNUMBER_OF_FIELDS 8\nBEGIN_DATA_FORMAT\n"
         "SAMPLE_ID SAMPLE_LOC RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z\n"
         "END_DATA_FORMAT\n\nNUMBER_OF_SETS 2\nBEGIN_DATA\n"
-        '1 "1" 0 0 0 5 3 2\n2 "2" 100 100 100 65 73 52\nEND_DATA\n')
+        '1 "1" 0 0 0 5 3 2\n2 "2" 100 100 100 65 73 52\nEND_DATA\n', encoding="utf-8")
     t = 1750000000.0
     os.utime(ti3, (t, t))
     from datetime import datetime

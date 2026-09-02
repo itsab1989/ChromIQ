@@ -62,8 +62,8 @@ def test_the_seed_the_chart_was_built_with_is_what_comes_back(qapp, tmp_path):
     """Not the recipe's "no seed" — the number the build actually drew."""
     tab = _tab(tmp_path)
     ti2 = tmp_path / "c.ti2"
-    ti2.write_text("CTI2\nNUMBER_OF_SETS 240\nBEGIN_DATA\nEND_DATA\n")
-    ti2.with_suffix(".channels.json").write_text(_sidecar(987654))
+    ti2.write_text("CTI2\nNUMBER_OF_SETS 240\nBEGIN_DATA\nEND_DATA\n", encoding="utf-8")
+    ti2.with_suffix(".channels.json").write_text(_sidecar(987654), encoding="utf-8")
 
     assert tab._restore_chart_settings(ti2) is True
     assert tab._manual_layout_panel.get_recipe().seed == 987654
@@ -73,10 +73,10 @@ def test_a_chart_built_from_a_fixed_seed_keeps_that_seed(qapp, tmp_path):
     """The two agree in this case, and the answer must not change."""
     tab = _tab(tmp_path)
     ti2 = tmp_path / "c.ti2"
-    ti2.write_text("CTI2\nNUMBER_OF_SETS 240\nBEGIN_DATA\nEND_DATA\n")
+    ti2.write_text("CTI2\nNUMBER_OF_SETS 240\nBEGIN_DATA\nEND_DATA\n", encoding="utf-8")
     doc = json.loads(_sidecar(4242))
     doc["layout"]["recipe"]["seed"] = 4242
-    ti2.with_suffix(".channels.json").write_text(json.dumps(doc))
+    ti2.with_suffix(".channels.json").write_text(json.dumps(doc), encoding="utf-8")
 
     tab._restore_chart_settings(ti2)
     assert tab._manual_layout_panel.get_recipe().seed == 4242
@@ -87,10 +87,10 @@ def test_a_chart_that_recorded_no_seed_is_left_as_it_is(qapp, tmp_path):
     panel must not invent one."""
     tab = _tab(tmp_path)
     ti2 = tmp_path / "c.ti2"
-    ti2.write_text("CTI2\nNUMBER_OF_SETS 240\nBEGIN_DATA\nEND_DATA\n")
+    ti2.write_text("CTI2\nNUMBER_OF_SETS 240\nBEGIN_DATA\nEND_DATA\n", encoding="utf-8")
     doc = json.loads(_sidecar(1))
     doc["layout"].pop("seed")
-    ti2.with_suffix(".channels.json").write_text(json.dumps(doc))
+    ti2.with_suffix(".channels.json").write_text(json.dumps(doc), encoding="utf-8")
 
     tab._restore_chart_settings(ti2)
     assert tab._manual_layout_panel.get_recipe().seed is None
@@ -110,9 +110,9 @@ def _run_with_a_measurement(tmp_path):
     proj = Project.create(root / "P", "P")
     run = proj.current_run(); run.ensure_dir()
     s = run.stem
-    (run.dir / f"{s}.ti1").write_text("CTI1")
-    (run.dir / f"{s}.ti2").write_text("CTI2")
-    (run.dir / f"{s}.ti3").write_text("MEASUREMENT")
+    (run.dir / f"{s}.ti1").write_text("CTI1", encoding="utf-8")
+    (run.dir / f"{s}.ti2").write_text("CTI2", encoding="utf-8")
+    (run.dir / f"{s}.ti3").write_text("MEASUREMENT", encoding="utf-8")
     (run.dir / f"{s}.icc").write_bytes(b"PROFILE")
     return run
 
@@ -124,7 +124,7 @@ def test_redrawing_a_restored_chart_leaves_the_measurement_alone(tmp_path):
 
     run.reset_chart_artefacts(keep_results=True)
 
-    assert (run.dir / f"{run.stem}.ti3").read_text() == "MEASUREMENT"
+    assert (run.dir / f"{run.stem}.ti3").read_text(encoding="utf-8") == "MEASUREMENT"
     assert (run.dir / f"{run.stem}.icc").exists()
     assert not run.old_dir.exists(), "nothing should have been archived"
 
@@ -138,7 +138,7 @@ def test_a_normal_chart_regeneration_still_archives_the_results(tmp_path):
 
     assert not (run.dir / f"{run.stem}.ti3").exists()
     archived = list(run.old_dir.rglob("*.ti3"))
-    assert archived and archived[0].read_text() == "MEASUREMENT"
+    assert archived and archived[0].read_text(encoding="utf-8") == "MEASUREMENT"
 
 
 def test_the_chart_files_go_either_way(tmp_path):

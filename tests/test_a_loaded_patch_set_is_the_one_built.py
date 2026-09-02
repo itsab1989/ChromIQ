@@ -48,7 +48,7 @@ def tab(qapp, tmp_path):
 def _arm(tc, tmp_path, *, sig_drifted, opted_in):
     """Put the tab in the state a completed patch-set load leaves behind."""
     ti1 = tmp_path / "loaded.ti1"
-    ti1.write_text("PATCHES")
+    ti1.write_text("PATCHES", encoding="utf-8")
     tc._preset_ti1_path = ti1
     tc._preset_ti1_targen_sig = (("-e", 0, True),)
     if sig_drifted:

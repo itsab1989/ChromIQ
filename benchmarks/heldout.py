@@ -43,14 +43,14 @@ def split_ti3(ti3_path: Path, out_path: Path, holdout_frac: float = 0.1,
     nho = max(20, int(npts * holdout_frac))
     holdout = np.array(sorted(order[:nho]))
 
-    text = ti3_path.read_text(errors="replace")
+    text = ti3_path.read_text(errors="replace", encoding="utf-8")
     import re
     dm = re.search(r"BEGIN_DATA\s*\n(.*?)\nEND_DATA", text, re.S)
     rows = [ln for ln in dm.group(1).splitlines() if ln.strip()]
     keep = [rows[i] for i in range(npts) if i not in set(holdout)]
     new = (text[:dm.start(1)] + "\n".join(keep) + text[dm.end(1):])
     new = re.sub(r"NUMBER_OF_SETS\s+\d+", f"NUMBER_OF_SETS {len(keep)}", new)
-    out_path.write_text(new)
+    out_path.write_text(new, encoding="utf-8")
     return out_path, holdout
 
 

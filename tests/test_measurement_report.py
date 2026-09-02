@@ -41,8 +41,8 @@ END_DATA
 
 @pytest.fixture()
 def chart(tmp_path: Path) -> Path:
-    (tmp_path / "c.ti2").write_text(_TI2)
-    (tmp_path / "c.ti3").write_text(_TI3)
+    (tmp_path / "c.ti2").write_text(_TI2, encoding="utf-8")
+    (tmp_path / "c.ti3").write_text(_TI3, encoding="utf-8")
     return tmp_path / "c.ti3"
 
 
@@ -84,7 +84,7 @@ def test_report_with_design_reference_is_marked(chart):
 def test_report_without_reference_uses_device_values(tmp_path):
     # No .ti2 → the report is self-contained: it derives the expected colour
     # from the measurement's own device RGB, so ΔE is still available (Knut).
-    (tmp_path / "c.ti3").write_text(_TI3)
+    (tmp_path / "c.ti3").write_text(_TI3, encoding="utf-8")
     r = build_report(tmp_path / "c.ti3")
     assert r["reference_source"] == "device"
     assert r["de00"]["n"] == 3
@@ -99,7 +99,7 @@ def test_save_list_and_compare(chart, tmp_path):
     p1 = save_report(r1, tmp_path)
     assert p1.exists() and list_reports(tmp_path) == [p1]
     # A second, drifted measurement (red patch worse).
-    (tmp_path / "c.ti3").write_text(_TI3.replace("36.0 18.0 3.0", "30.0 15.0 4.0"))
+    (tmp_path / "c.ti3").write_text(_TI3.replace("36.0 18.0 3.0", "30.0 15.0 4.0"), encoding="utf-8")
     r2 = build_report(chart)
     cmp = compare_reports(r1, r2)
     assert "de00_mean_delta" in cmp
@@ -119,10 +119,10 @@ def test_list_project_reports_gathers_across_runs(tmp_path: Path) -> None:
         d = runs / run / REPORTS_DIRNAME
         d.mkdir(parents=True, exist_ok=True)
         (d / f"report_{created.replace(':', '-')}.json").write_text(
-            json.dumps({"created": created, "chart": "P"}))
+            json.dumps({"created": created, "chart": "P"}), encoding="utf-8")
     got = list_project_reports(runs / "run2")           # any run dir
     assert len(got) == 3
-    stamps = [json.loads(p.read_text())["created"] for p in got]
+    stamps = [json.loads(p.read_text(encoding="utf-8"))["created"] for p in got]
     assert stamps == sorted(stamps)                     # oldest-first, cross-run
 
 
@@ -285,8 +285,8 @@ def _ti2_d65(scale: float) -> str:
 @pytest.mark.parametrize("scale", [1.0, 0.01], ids=["xyz_0_100", "xyz_0_1"])
 def test_d65_design_reference_expects_a_neutral_white(tmp_path: Path, scale):
     """The chart's white is the ideal neutral, whichever scale the .ti2 used."""
-    (tmp_path / "c.ti2").write_text(_ti2_d65(scale))
-    (tmp_path / "c.ti3").write_text(_TI3)
+    (tmp_path / "c.ti2").write_text(_ti2_d65(scale), encoding="utf-8")
+    (tmp_path / "c.ti3").write_text(_TI3, encoding="utf-8")
     r = build_report(tmp_path / "c.ti3")
 
     assert r["reference_source"] == "design"
@@ -304,8 +304,8 @@ def test_normalised_and_full_scale_ti2_agree(tmp_path: Path):
     for scale in (1.0, 0.01):
         d = tmp_path / f"s{scale}"
         d.mkdir()
-        (d / "c.ti2").write_text(_ti2_d65(scale))
-        (d / "c.ti3").write_text(_TI3)
+        (d / "c.ti2").write_text(_ti2_d65(scale), encoding="utf-8")
+        (d / "c.ti3").write_text(_TI3, encoding="utf-8")
         out.append(build_report(d / "c.ti3"))
     a, b = out
     assert a["de00"]["avg_all"] == pytest.approx(b["de00"]["avg_all"], abs=0.01)
@@ -333,7 +333,7 @@ def test_build_report_flags_verification(tmp_path, chart):
     assert rep["is_verification"] is False
     # Marking it (adds CHROMIQ_VERIFICATION) flips the flag.
     verified = mark_verification_ti3(chart)
-    (verified.with_suffix(".ti2")).write_text((chart.with_suffix(".ti2")).read_text())
+    (verified.with_suffix(".ti2")).write_text((chart.with_suffix(".ti2")).read_text(encoding="utf-8"), encoding="utf-8")
     rep2 = build_report(verified)
     assert rep2["is_verification"] is True
 
@@ -388,10 +388,10 @@ def test_find_reference_ti2_up_the_verification_tree(tmp_path):
     proj = Project.create(tmp_path / "P", "P")
     run = proj.current_run(); run.ensure_dir()
     # Profiling chart at the run root provides the design reference.
-    (run.dir / "P.ti2").write_text(_TI2)
+    (run.dir / "P.ti2").write_text(_TI2, encoding="utf-8")
     v = run.new_verification(); v.ensure_dir()
     vti3 = v.measurement_ti3                       # verifications/<date>/P-verify.ti3
-    vti3.write_text(_TI3)
+    vti3.write_text(_TI3, encoding="utf-8")
     # No .ti2 next to it, none in verifications/ — falls back to run-root P.ti2.
     ref = _find_reference_ti2(vti3)
     assert ref == run.dir / "P.ti2"
@@ -403,7 +403,7 @@ def test_find_reference_ti2_up_the_verification_tree(tmp_path):
     assert rep.get("de00") is not None            # reference was found → ΔE present
 
     # A shared verify chart one level up is preferred when present.
-    (run.verifications_dir / "P-verify.ti2").write_text(_TI2)
+    (run.verifications_dir / "P-verify.ti2").write_text(_TI2, encoding="utf-8")
     assert _find_reference_ti2(vti3) == run.verifications_dir / "P-verify.ti2"
 
 

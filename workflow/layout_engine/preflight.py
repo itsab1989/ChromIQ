@@ -23,6 +23,7 @@ from pathlib import Path
 from .contrast import LOW_CONTRAST_THRESHOLD
 from .geometry import Layout
 from .instruments import Geom
+from core.proc_text import run_text
 
 # Smallest reliable patch edge (printtarg enforces 6 mm). A printer/ink-spread
 # allowance can raise this per the issue's reliability-floor requirement.
@@ -137,12 +138,12 @@ def validate_roundtrip(ti2_path: str | Path, profile_icc: str | Path,
     with tempfile.TemporaryDirectory() as td:
         stem = Path(td) / "preflight"
         shutil.copy(ti2_path, stem.with_suffix(".ti2"))
-        fr = subprocess.run([fakeread, str(profile_icc), str(stem)],
-                            capture_output=True, text=True)
+        fr = run_text([fakeread, str(profile_icc), str(stem)],
+                      capture_output=True)
         if not stem.with_suffix(".ti3").exists():
             return RoundTripResult(False, message=f"fakeread failed: {fr.stderr.strip()}")
-        cp = subprocess.run([colprof, "-v", "-qm", str(stem)],
-                            capture_output=True, text=True)
+        cp = run_text([colprof, "-v", "-qm", str(stem)],
+                      capture_output=True)
         out = cp.stdout + cp.stderr
         m = re.search(r"peak err\s*=\s*([\d.]+),\s*avg err\s*=\s*([\d.]+)", out)
         if not m:

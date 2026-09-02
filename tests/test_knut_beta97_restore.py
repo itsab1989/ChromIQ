@@ -85,7 +85,7 @@ def test_the_refresh_dedup_is_keyed_on_content_not_only_the_path():
 
 def test_the_stamp_includes_when_the_chart_was_written(tmp_path):
     ti2 = tmp_path / "c.ti2"
-    ti2.write_text("CTI2\n")
+    ti2.write_text("CTI2\n", encoding="utf-8")
     first = TabChart._chart_stamp(ti2)
     assert first[0] == str(ti2)
     assert first[1] is not None

@@ -47,7 +47,7 @@ def _numeric_ti3(path: Path, n: int) -> None:
         'CTI3\n\nKEYWORD "SAMPLE_LOC"\n\nNUMBER_OF_FIELDS 8\nBEGIN_DATA_FORMAT\n'
         "SAMPLE_ID SAMPLE_LOC RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z\n"
         "END_DATA_FORMAT\n\n" + f"NUMBER_OF_SETS {n}\nBEGIN_DATA\n"
-        + "\n".join(rows) + "\nEND_DATA\n")
+        + "\n".join(rows) + "\nEND_DATA\n", encoding="utf-8")
 
 
 def _dialog(qapp):
@@ -103,7 +103,7 @@ def test_chromiq_mode_still_builds(qapp, tmp_path):
     import numpy as np
     rgb = np.array([[c / 255 * 100 for c in encode(i)] for i in range(600)])
     layout = derive_grid_layout([RESULTS / "test1-autolayout.tif"], rgb)
-    (tmp_path / "chart.channels.json").write_text(json.dumps({"layout": layout}))
+    (tmp_path / "chart.channels.json").write_text(json.dumps({"layout": layout}), encoding="utf-8")
     _numeric_ti3(tmp_path / "chart.ti3", 600)
 
     dlg = _dialog(qapp)                    # default mode = chromiq

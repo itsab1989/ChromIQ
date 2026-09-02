@@ -91,14 +91,14 @@ END_DATA
 @pytest.fixture
 def three_table_ti1(tmp_path) -> Path:
     p = tmp_path / "chart.ti1"
-    p.write_text(HEADER + EXTRA_TABLES)
+    p.write_text(HEADER + EXTRA_TABLES, encoding="utf-8")
     return p
 
 
 @pytest.fixture
 def one_table_ti1(tmp_path) -> Path:
     p = tmp_path / "plain.ti1"
-    p.write_text(HEADER)
+    p.write_text(HEADER, encoding="utf-8")
     return p
 
 
@@ -132,7 +132,7 @@ def test_colours_sidecar_is_not_empty(three_table_ti1, tmp_path):
     empty for every ChromIQ-generated chart."""
     out = tmp_path / "chart-colours.txt"
     write_colours_txt(three_table_ti1, out)
-    lines = out.read_text().splitlines()
+    lines = out.read_text(encoding="utf-8").splitlines()
     assert lines, "the -colours.txt hand-off sidecar was written empty"
     assert len(lines) == 3
     assert lines == ["#000000", "#ff0000", "#ffffff"]
@@ -143,7 +143,7 @@ def test_colours_sidecar_ignores_the_reference_tables(three_table_ti1, tmp_path)
     would prove the reference values leaked into the hand-off file."""
     out = tmp_path / "c.txt"
     write_colours_txt(three_table_ti1, out)
-    assert "#808080" not in out.read_text()
+    assert "#808080" not in out.read_text(encoding="utf-8")
 
 
 # --- the structural hazard behind both --------------------------------------
@@ -177,7 +177,7 @@ BEGIN_DATA
 END_DATA
 """
     p = tmp_path / "odd.ti1"
-    p.write_text(odd)
+    p.write_text(odd, encoding="utf-8")
     got = [(round(x.r), round(x.g), round(x.b)) for x in parse_cgats(p)]
     assert got == [(0, 0, 0), (100, 0, 0), (100, 100, 100)]
 
@@ -185,6 +185,6 @@ END_DATA
 def test_an_empty_file_still_raises(tmp_path):
     """A file with no table at all must say so, not return nothing quietly."""
     p = tmp_path / "empty.ti1"
-    p.write_text("CTI1\n\nDESCRIPTOR \"nothing here\"\n")
+    p.write_text("CTI1\n\nDESCRIPTOR \"nothing here\"\n", encoding="utf-8")
     with pytest.raises(ValueError):
         parse_cgats(p)

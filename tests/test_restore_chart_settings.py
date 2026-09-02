@@ -36,7 +36,7 @@ def _tab(tmp_path, **prefs):
 
 def _fake_chart(tmp_path, with_recipe=True, sidecar_extra=None):
     ti2 = tmp_path / "c.ti2"
-    ti2.write_text("CTI2\nNUMBER_OF_SETS 546\nBEGIN_DATA\nEND_DATA\n")
+    ti2.write_text("CTI2\nNUMBER_OF_SETS 546\nBEGIN_DATA\nEND_DATA\n", encoding="utf-8")
     doc = {}
     if with_recipe:
         recipe = {
@@ -56,7 +56,7 @@ def _fake_chart(tmp_path, with_recipe=True, sidecar_extra=None):
     if sidecar_extra:
         doc.update(sidecar_extra)
     if doc:
-        (tmp_path / "c.channels.json").write_text(json.dumps(doc))
+        (tmp_path / "c.channels.json").write_text(json.dumps(doc), encoding="utf-8")
     return ti2
 
 
@@ -168,7 +168,7 @@ def test_channel_sidecar_records_notes_and_stamp(tmp_path):
     cc = ChartCreator(None, None, _S())
     p = ChartParams(chart_notes="Epson / Optijet", stamp_commands=False)
     cc._write_channel_sidecar(tmp_path, "c", p)
-    doc = json.loads((tmp_path / "c.channels.json").read_text())
+    doc = json.loads((tmp_path / "c.channels.json").read_text(encoding="utf-8"))
     assert doc["chart_notes"] == "Epson / Optijet"
     assert doc["stamp_commands"] is False
     assert "ink_channels" in doc                       # original payload kept

@@ -51,7 +51,7 @@ def test_cancelling_the_name_prompt_when_loading_a_patch_set(tab, tmp_path,
     import ui.ti2_loader as ti2_loader
 
     ti1 = tmp_path / "MyPatches.ti1"
-    ti1.write_text("CTI1\n")
+    ti1.write_text("CTI1\n", encoding="utf-8")
     monkeypatch.setattr(TC, "open_file_dialog", lambda *a, **k: str(ti1),
                         raising=False)
     monkeypatch.setattr(tab, "_ti1_load_destination", lambda *a, **k: "new",

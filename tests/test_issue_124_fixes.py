@@ -129,7 +129,7 @@ def test_padding_note_wording(qapp):
 def test_number_of_sets_reader(tmp_path):
     from ui.tabs.tab_chart import _number_of_sets
     p = tmp_path / "x.ti2"
-    p.write_text("CTI2\n\nDESCRIPTOR \"x\"\nNUMBER_OF_SETS 910\nBEGIN_DATA\n")
+    p.write_text("CTI2\n\nDESCRIPTOR \"x\"\nNUMBER_OF_SETS 910\nBEGIN_DATA\n", encoding="utf-8")
     assert _number_of_sets(p) == 910
     assert _number_of_sets(tmp_path / "missing.ti2") is None
 

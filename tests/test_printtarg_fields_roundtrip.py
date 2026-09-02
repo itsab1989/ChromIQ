@@ -51,21 +51,21 @@ def test_printtarg_fields_snapshot_and_restore(qapp, tmp_path):
 
     # Write A into a sidecar and restore from it after mutating the panel.
     sidecar = tmp_path / "chartA.channels.json"
-    sidecar.write_text(json.dumps({"printtarg_fields": a}))
+    sidecar.write_text(json.dumps({"printtarg_fields": a}), encoding="utf-8")
     tab._store_printtarg_fields_in_sidecar  # exists
     # Mutate the panel away from A, then restore A.
-    tab._restore_printtarg_fields(json.loads(sidecar.read_text())["printtarg_fields"])
+    tab._restore_printtarg_fields(json.loads(sidecar.read_text(encoding="utf-8"))["printtarg_fields"])
     after = {d["flag"]: d["value"] for d in tab._snapshot_printtarg_fields()}
     assert after[flag] == a_val
 
 
 def test_store_merges_into_existing_sidecar(qapp, tmp_path):
     tab = _tab(tmp_path)
-    ti2 = tmp_path / "chart.ti2"; ti2.write_text("CTI2\n")
+    ti2 = tmp_path / "chart.ti2"; ti2.write_text("CTI2\n", encoding="utf-8")
     side = tmp_path / "chart.channels.json"
-    side.write_text(json.dumps({"ink_channels": ["r", "g", "b"], "chart_notes": "hi"}))
+    side.write_text(json.dumps({"ink_channels": ["r", "g", "b"], "chart_notes": "hi"}), encoding="utf-8")
     tab._store_printtarg_fields_in_sidecar(ti2)
-    doc = json.loads(side.read_text())
+    doc = json.loads(side.read_text(encoding="utf-8"))
     assert doc["ink_channels"] == ["r", "g", "b"]     # preserved
     assert doc["chart_notes"] == "hi"                 # preserved
     assert "printtarg_fields" in doc                  # added

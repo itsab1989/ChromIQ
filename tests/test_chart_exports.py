@@ -32,7 +32,7 @@ def test_emit_cht_writes_recognition_template(tmp_path):
     _build(tmp_path)
     cht = tmp_path / "chart.cht"
     assert cht.is_file()
-    assert "BOXES" in cht.read_text() and "EXPECTED XYZ" in cht.read_text()
+    assert "BOXES" in cht.read_text(encoding="utf-8") and "EXPECTED XYZ" in cht.read_text(encoding="utf-8")
 
 
 def test_write_colours_txt_rgb_only(tmp_path):
@@ -40,7 +40,7 @@ def test_write_colours_txt_rgb_only(tmp_path):
     ti1.write_text(_TI1, encoding="utf-8")
     p = write_colours_txt(ti1, tmp_path / "c-colours.txt")
     assert p is not None
-    lines = p.read_text().split()
+    lines = p.read_text(encoding="utf-8").split()
     assert lines[:4] == ["#ffffff", "#ff0000", "#00ff00", "#0000ff"]
     # CMYK chart → no colour list
     cmyk = tmp_path / "k.ti1"

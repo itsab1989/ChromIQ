@@ -99,7 +99,7 @@ def test_run_emits_started_when_a_tool_actually_launches(qapp, tmp_path):
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     tool = fake_bin / "targen"
-    tool.write_text(f"#!/bin/sh\nexec {sys.executable} -c 'pass'\n")
+    tool.write_text(f"#!/bin/sh\nexec {sys.executable} -c 'pass'\n", encoding="utf-8")
     tool.chmod(0o755)
 
     s = AppSettings()

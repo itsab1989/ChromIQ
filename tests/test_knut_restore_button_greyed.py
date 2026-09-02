@@ -31,10 +31,10 @@ def _slot(tmp_path, live_names, stored):
     live = []
     for name, body in live_names.items():
         f = live_dir / name
-        f.write_text(body)
+        f.write_text(body, encoding="utf-8")
         live.append(f)
     for name, body in stored.items():
-        (snap / name).write_text(body)
+        (snap / name).write_text(body, encoding="utf-8")
     return types.SimpleNamespace(snapshot_dir=snap, files_to_copy=lambda: live,
                                  live_files=lambda: live)
 
@@ -64,7 +64,7 @@ def test_an_extra_stored_file_still_needs_one(tmp_path):
 
 def test_no_stored_chart_is_not_a_match(tmp_path):
     live_dir = tmp_path / "live"; live_dir.mkdir()
-    f = live_dir / "a.ti1"; f.write_text("one")
+    f = live_dir / "a.ti1"; f.write_text("one", encoding="utf-8")
     slot = types.SimpleNamespace(snapshot_dir=tmp_path / "chart",
                                  files_to_copy=lambda: [f], live_files=lambda: [f])
     assert snapshot_matches_live(slot) is False

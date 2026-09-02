@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Callable
 
 from core.logger import get_logger
+from core.proc_text import run_text
 from core.resource_path import argyll_binary
 
 log = get_logger(__name__)
@@ -103,7 +104,7 @@ def colorimetric_rgb_tiff(
     cmd = [str(exe), "-f", "T", "-i", "r", str(profile), "-i", "r", str(srgb),
            str(tiff_path), str(out)]
     try:
-        r = runner(cmd, capture_output=True, text=True, timeout=_TIMEOUT_S)
+        r = run_text(cmd, runner=runner, capture_output=True, timeout=_TIMEOUT_S)
     except (OSError, subprocess.TimeoutExpired) as exc:
         log.warning("cctiff colorimetric preview failed: %s", exc)
         return None

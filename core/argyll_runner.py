@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Callable
 from PyQt6.QtCore import QObject, QProcess, QProcessEnvironment, pyqtSignal
 
 from core.logger import get_logger
+from core.proc_text import decode_output
 from core.resource_path import argyll_binary
 
 if sys.platform != "win32":
@@ -735,13 +736,13 @@ class ArgyllRunner(QObject):
                 buf += data
                 while b"\n" in buf:
                     raw, buf = buf.split(b"\n", 1)
-                    line = _ANSI_RE.sub("", raw.decode("utf-8", errors="replace")).rstrip("\r")
+                    line = _ANSI_RE.sub("", decode_output(raw, what="argyll")).rstrip("\r")
                     if line:
                         _emit(line)
             else:
                 # Silence window — flush any partial prompt
                 if buf:
-                    line = _ANSI_RE.sub("", buf.decode("utf-8", errors="replace")).rstrip("\r")
+                    line = _ANSI_RE.sub("", decode_output(buf, what="argyll")).rstrip("\r")
                     buf = b""
                     if line:
                         _emit(line)
@@ -755,7 +756,7 @@ class ArgyllRunner(QObject):
 
         # Flush remainder
         if buf:
-            line = _ANSI_RE.sub("", buf.decode("utf-8", errors="replace")).rstrip("\r")
+            line = _ANSI_RE.sub("", decode_output(buf, what="argyll")).rstrip("\r")
             if line:
                 self.line_received.emit(line)
 
@@ -825,7 +826,7 @@ class ArgyllRunner(QObject):
             except queue.Empty:
                 if buf:
                     line = _ANSI_RE.sub(
-                        "", buf.decode("utf-8", errors="replace")
+                        "", decode_output(buf, what="argyll")
                     ).rstrip("\r")
                     buf = b""
                     if line:
@@ -839,13 +840,13 @@ class ArgyllRunner(QObject):
             if byte == b"\n":
                 raw = buf.rstrip(b"\r\n")
                 buf = b""
-                line = _ANSI_RE.sub("", raw.decode("utf-8", errors="replace"))
+                line = _ANSI_RE.sub("", decode_output(raw, what="argyll"))
                 if line:
                     _emit(line)
 
         if buf:
             line = _ANSI_RE.sub(
-                "", buf.decode("utf-8", errors="replace")
+                "", decode_output(buf, what="argyll")
             ).rstrip("\r")
             if line:
                 self.line_received.emit(line)
@@ -893,7 +894,7 @@ class ArgyllRunner(QObject):
         if not self._process:
             return
         raw = self._process.readAllStandardOutput().data()
-        text = raw.decode("utf-8", errors="replace")
+        text = decode_output(raw, what="argyll")
         for line in text.splitlines():
             log.debug("[argyll] %s", line)
             self.line_received.emit(line)
@@ -942,7 +943,7 @@ class ArgyllRunner(QObject):
         if self._process:
             remaining = self._process.readAllStandardOutput().data()
             if remaining:
-                text = remaining.decode("utf-8", errors="replace")
+                text = decode_output(remaining, what="argyll")
                 for line in text.splitlines():
                     log.debug("[argyll] %s", line)
                     self.line_received.emit(line)

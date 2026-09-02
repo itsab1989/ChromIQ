@@ -302,7 +302,7 @@ def _make_cmyk_ti2(tmp_path, strips: dict) -> Path:
             rows.append(f'{sid} "{letter}{i}" {vals} 0 0 0')
     p = tmp_path / "chart.ti2"
     p.write_text(_TI2_HEAD_CMYK + f"NUMBER_OF_SETS {sid}\nBEGIN_DATA\n"
-                 + "\n".join(rows) + "\nEND_DATA\n")
+                 + "\n".join(rows) + "\nEND_DATA\n", encoding="utf-8")
     return p
 
 
@@ -330,6 +330,6 @@ def test_gate_reports_unparseable_as_unsafe(tmp_path):
     assert missing.safe is False
     assert "could not be analysed" in missing.reason
     garbage = tmp_path / "garbage.ti2"
-    garbage.write_text("CTI2\nDESCRIPTOR \"t\"\n")   # no format/data blocks
+    garbage.write_text("CTI2\nDESCRIPTOR \"t\"\n", encoding="utf-8")   # no format/data blocks
     rep = R.analyze_randomisation(garbage)
     assert rep.safe is False

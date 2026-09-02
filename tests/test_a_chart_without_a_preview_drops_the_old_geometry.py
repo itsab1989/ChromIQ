@@ -37,7 +37,7 @@ def test_geometry_from_the_previous_chart_does_not_survive(tab, tmp_path):
     assert tab._locate_patch("A1")[1] is not None      # the premise
 
     lonely = tmp_path / "no-preview.ti2"
-    lonely.write_text("CTI2\n")                        # a chart with no .tif
+    lonely.write_text("CTI2\n", encoding="utf-8")                        # a chart with no .tif
     tab._try_load_tiffs(lonely)
 
     assert tab._tiff_pages == []

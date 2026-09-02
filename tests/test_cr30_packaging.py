@@ -12,8 +12,8 @@ import pathlib
 import re
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-SPEC = (ROOT / "ChromIQ.spec").read_text(errors="replace")
-REQS = (ROOT / "requirements.txt").read_text(errors="replace")
+SPEC = (ROOT / "ChromIQ.spec").read_text(errors="replace", encoding="utf-8")
+REQS = (ROOT / "requirements.txt").read_text(errors="replace", encoding="utf-8")
 
 
 def test_requirements_declare_the_driver_dependencies():
@@ -47,7 +47,7 @@ def test_the_app_asks_for_bluetooth_permission():
 
 def _expected_build_marker() -> bytes:
     """The marker the CURRENT sources define, read from the header."""
-    header = (ROOT / "native" / "chartread_helper" / "chromiq_ext.h").read_text()
+    header = (ROOT / "native" / "chartread_helper" / "chromiq_ext.h").read_text(encoding="utf-8")
     m = re.search(r'#define\s+CQ_HELPER_BUILD\s+"([^"]+)"', header)
     assert m, "CQ_HELPER_BUILD has gone from chromiq_ext.h"
     return m.group(1).encode()

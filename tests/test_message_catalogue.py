@@ -37,7 +37,7 @@ SPEC = Path(__file__).resolve().parent.parent / "docs" / "design" / \
 
 def _spec_messages() -> "dict[str, str]":
     """{ID: headline} for every message defined in §M of the document."""
-    text = SPEC.read_text()
+    text = SPEC.read_text(encoding="utf-8")
     body = text[text.index("## M. The message catalogue"):]
     body = body[:body.index("### M-x.")]
     out = {}
@@ -81,7 +81,7 @@ def test_every_headline_is_the_documents_headline():
 def test_proposed_messages_are_marked_as_such_in_the_document():
     """A message the reviewer has not seen must be visibly flagged, both in the
     code and in the document, so it cannot pass for approved."""
-    text = SPEC.read_text()
+    text = SPEC.read_text(encoding="utf-8")
     for mid in M.PROPOSED:
         # The heading that DEFINES it, not the first place it is mentioned —
         # a proposed message may well be referenced in the prose above.
@@ -263,7 +263,7 @@ def _defining_headings(section: str) -> "set[str]":
 def test_an_approved_message_is_not_still_headed_proposed():
     """The mirror of the test above: once Knut approves a message, its heading
     must stop saying PROPOSED, or he is asked to approve it again."""
-    text = SPEC.read_text()
+    text = SPEC.read_text(encoding="utf-8")
     for mid, msg in sorted(M.CATALOGUE.items()):
         if not msg.approved:
             continue
@@ -279,7 +279,7 @@ def test_an_approved_message_is_not_still_headed_proposed():
 def test_the_awaiting_review_section_holds_exactly_the_proposed_messages():
     """§M-PROPOSED is the review queue. A message that has been approved must
     move out of it into §M, and one that has not must be in it."""
-    section = _proposed_section(SPEC.read_text())
+    section = _proposed_section(SPEC.read_text(encoding="utf-8"))
     assert _defining_headings(section) == set(M.PROPOSED), (
         "§M-PROPOSED defines "
         f"{sorted(_defining_headings(section))}, the code proposes "
@@ -289,7 +289,7 @@ def test_the_awaiting_review_section_holds_exactly_the_proposed_messages():
 def test_the_map_names_no_message_the_code_does_not_have():
     """§M-x is the map from table to message. An ID in it that the code has
     never heard of is a row nobody can follow."""
-    text = SPEC.read_text()
+    text = SPEC.read_text(encoding="utf-8")
     mx = text[text.index("### M-x."):]
     mx = mx[:mx.index("## S.")]
     named = set(re.findall(r"\*\*(M-[A-Z0-9-]+)\*\*", mx))
@@ -302,7 +302,7 @@ def test_the_map_names_no_message_the_code_does_not_have():
 def test_the_revision_note_names_what_awaits_review():
     """The note at the top of the document is what Knut reads first, so it is
     checked too — it once said "four messages" when the code had one."""
-    text = SPEC.read_text()
+    text = SPEC.read_text(encoding="utf-8")
     note = re.search(r"^> \*\*Awaiting review:\*\* (.+?)\.?\s*$", text, re.M)
     assert note, ('the document must open with a line of the form '
                   '"> **Awaiting review:** M-…", so the review queue is stated '

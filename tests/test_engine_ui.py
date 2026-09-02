@@ -171,8 +171,8 @@ def test_patch_boxes_hex_stagger_tracks_drawn_hexagons(tmp_path):
     ]
     (tmp_path / "c.channels.json").write_text(json.dumps(
         {"layout": {"patches": patches,
-                    "recipe": {"instrument": "SS", "hflag": True}}}))
-    (tmp_path / "c.ti2").write_text("x")
+                    "recipe": {"instrument": "SS", "hflag": True}}}), encoding="utf-8")
+    (tmp_path / "c.ti2").write_text("x", encoding="utf-8")
     box = patch_boxes_from_sidecar(tmp_path / "c.ti2", 1)[0]
     assert box["A1"].x() == 100 - round(w / 4)         # row 0 → left
     assert box["A2"].x() == 100 + round(w / 4)         # row 1 → right
@@ -181,8 +181,8 @@ def test_patch_boxes_hex_stagger_tracks_drawn_hexagons(tmp_path):
     # A rectangular SpectroScan chart is NOT staggered.
     (tmp_path / "r.channels.json").write_text(json.dumps(
         {"layout": {"patches": patches,
-                    "recipe": {"instrument": "SS", "hflag": False}}}))
-    (tmp_path / "r.ti2").write_text("x")
+                    "recipe": {"instrument": "SS", "hflag": False}}}), encoding="utf-8")
+    (tmp_path / "r.ti2").write_text("x", encoding="utf-8")
     rbox = patch_boxes_from_sidecar(tmp_path / "r.ti2", 1)[0]
     assert rbox["A1"].x() == 100 and rbox["A2"].x() == 100
 
@@ -314,12 +314,12 @@ def test_edge_spacer_px_reads_geometry(tmp_path):
     only when the recipe says the chart HAS edge spacers."""
     import json
     from ui.tabs.tab_measure import edge_spacer_px_from_sidecar
-    (tmp_path / "c.ti2").write_text("x")
+    (tmp_path / "c.ti2").write_text("x", encoding="utf-8")
     (tmp_path / "c.channels.json").write_text(json.dumps(
-        {"layout": {"dpi": 200, "recipe": {"instrument": "i1", "edge_spacers": True}}}))
+        {"layout": {"dpi": 200, "recipe": {"instrument": "i1", "edge_spacers": True}}}), encoding="utf-8")
     assert edge_spacer_px_from_sidecar(tmp_path / "c.ti2") > 0
     (tmp_path / "c.channels.json").write_text(json.dumps(
-        {"layout": {"dpi": 200, "recipe": {"instrument": "i1", "edge_spacers": False}}}))
+        {"layout": {"dpi": 200, "recipe": {"instrument": "i1", "edge_spacers": False}}}), encoding="utf-8")
     assert edge_spacer_px_from_sidecar(tmp_path / "c.ti2") == 0
     assert edge_spacer_px_from_sidecar(None) == 0
 

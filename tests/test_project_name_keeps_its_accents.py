@@ -381,14 +381,14 @@ def test_a_project_already_called_Mu_ller_still_opens_and_builds(tmp_path):
     root = tmp_path / "Mu_ller"
     proj = Project.create(root, "Mu_ller")
     run = proj.current_run()
-    run.chart_ti1.write_text("fake ti1")
-    run.chart_ti2.write_text("fake ti2")
+    run.chart_ti1.write_text("fake ti1", encoding="utf-8")
+    run.chart_ti2.write_text("fake ti2", encoding="utf-8")
 
     reopened = Project.create_or_load(root, "Mu_ller")
     assert reopened.root == root
     assert reopened.target_name == "Mu_ller"
     assert reopened.current_run().dir == run.dir
-    assert reopened.current_run().chart_ti1.read_text() == "fake ti1"
+    assert reopened.current_run().chart_ti1.read_text(encoding="utf-8") == "fake ti1"
     assert reopened.current_run().stem == "Mu_ller"
 
 
@@ -462,8 +462,8 @@ def test_an_accented_name_reaches_every_chart_file_stem(tmp_path):
         assert path.parent == run.dir
 
     # and the files can actually be written and read back under that stem
-    run.chart_ti1.write_text("ti1")
-    assert (root / "runs" / "run1" / "Müller-Café.ti1").read_text() == "ti1"
+    run.chart_ti1.write_text("ti1", encoding="utf-8")
+    assert (root / "runs" / "run1" / "Müller-Café.ti1").read_text(encoding="utf-8") == "ti1"
     assert run.chart_ti1 in list(run.dir.glob("*.ti1"))
 
 

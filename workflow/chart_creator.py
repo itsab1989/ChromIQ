@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Optional
 
 from core.logger import get_logger
+from core.proc_text import run_text
 from core.text_io import read_text
 from data.patch_db import EXTERNAL_INSTRUMENTS, SUPPORTED_PATCH_SCALES, query_patches
 
@@ -1734,8 +1735,7 @@ class ChartCreator:
             with tempfile.TemporaryDirectory(prefix="chromiq_cht_") as td:
                 tdp = Path(td)
                 shutil.copy(ti1, tdp / "cap.ti1")
-                subprocess.run(cmd, cwd=td, capture_output=True, text=True,
-                               timeout=120)
+                run_text(cmd, cwd=td, capture_output=True, timeout=120)
                 pages = [c.read_text(encoding="utf-8")
                          for c in sorted(tdp.glob("cap*.cht"))]
             if not pages:

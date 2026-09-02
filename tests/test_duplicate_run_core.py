@@ -31,7 +31,7 @@ def project(tmp_path):
     def write(rel, data="x"):
         p = d / rel
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(data)
+        p.write_text(data, encoding="utf-8")
         return p
 
     # Chart
@@ -132,7 +132,7 @@ def test_the_new_run_does_not_claim_to_be_the_old_one(project):
     assert meta.run_id == new.id != src.id
     assert meta.duplicated_from == src.id
     assert "meta.json" not in {p.name for p in new.dir.glob("meta.json")
-                               if p.read_text() == (src.dir / "meta.json").read_text()}
+                               if p.read_text(encoding="utf-8") == (src.dir / "meta.json").read_text(encoding="utf-8")}
 
 
 def test_the_new_run_becomes_current(project):
@@ -164,7 +164,7 @@ def test_the_plan_lists_only_groups_that_exist(project, tmp_path):
     rather than simply absent."""
     proj2 = Project.create(tmp_path / "Bare", "Bare")
     run = proj2.current_run()
-    (run.dir / f"{run.stem}.ti1").write_text("x")
+    (run.dir / f"{run.stem}.ti1").write_text("x", encoding="utf-8")
     groups = [g for g, _f, _s in proj2.duplicate_run_plan(run)]
     assert groups == ["chart"]
 
@@ -191,6 +191,6 @@ def test_the_plan_matches_what_is_actually_copied(project):
 def test_a_file_listed_twice_is_copied_once(project):
     """`{stem}.tif` and `{stem}_*.tif` can both match on a one-page chart."""
     src = project.current_run()
-    (src.dir / f"{src.stem}.tif").write_text("single page")
+    (src.dir / f"{src.stem}.tif").write_text("single page", encoding="utf-8")
     files = [p for _g, fs, _s in project.duplicate_run_plan(src) for p in fs]
     assert len(files) == len(set(files))

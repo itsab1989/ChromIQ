@@ -84,14 +84,14 @@ def _worst_read_error(patches, tmp_path):
             (maxx + off[0], maxy + off[1]), (minx + off[0], maxy + off[1])]
     fstr = ",".join(f"{v:.1f}" for xy in fids for v in xy)
     img.save(tmp_path / "s.tif")
-    (tmp_path / "r.cht").write_text(cht)
-    (tmp_path / "ref.cie").write_text(_cie(patches))
+    (tmp_path / "r.cht").write_text(cht, encoding="utf-8")
+    (tmp_path / "ref.cie").write_text(_cie(patches), encoding="utf-8")
     r = subprocess.run([_SCANIN, "-v", "-p", "-F", fstr,
                         "s.tif", "r.cht", "ref.cie"],
-                       cwd=tmp_path, capture_output=True, text=True)
+                       cwd=tmp_path, capture_output=True, text=True, encoding="utf-8")
     ti3 = tmp_path / "s.ti3"
     assert ti3.is_file(), f"scanin produced no .ti3:\n{r.stderr[-400:]}"
-    lines = ti3.read_text().splitlines()
+    lines = ti3.read_text(encoding="utf-8").splitlines()
     fb = next(i for i, l in enumerate(lines) if l.strip() == "BEGIN_DATA_FORMAT")
     fields = lines[fb + 1].split()
     li = fields.index("SAMPLE_ID"); ri = [fields.index(f"RGB_{c}") for c in "RGB"]
@@ -133,18 +133,18 @@ def _worst_from_cht(cht_text, tmp_path):
     fids = [(f[0] + off[0], f[1] + off[1]) for f in g.fiducials]
     fstr = ",".join(f"{v:.1f}" for xy in fids for v in xy)
     img.save(tmp_path / "s.tif")
-    (tmp_path / "r.cht").write_text(cht_text)
+    (tmp_path / "r.cht").write_text(cht_text, encoding="utf-8")
     cie = (["CGATS.17", "NUMBER_OF_FIELDS 4", "BEGIN_DATA_FORMAT",
             "SAMPLE_ID XYZ_X XYZ_Y XYZ_Z", "END_DATA_FORMAT",
             f"NUMBER_OF_SETS {len(boxes)}", "BEGIN_DATA"]
            + [f"{b.name} 20 20 20" for b in boxes] + ["END_DATA", ""])
-    (tmp_path / "ref.cie").write_text("\n".join(cie))
+    (tmp_path / "ref.cie").write_text("\n".join(cie), encoding="utf-8")
     r = subprocess.run([_SCANIN, "-v", "-p", "-F", fstr,
                         "s.tif", "r.cht", "ref.cie"], cwd=tmp_path,
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, encoding="utf-8")
     assert (tmp_path / "s.ti3").is_file(), \
         f"scanin -F produced no .ti3:\n{r.stderr[-400:]}"
-    lines = (tmp_path / "s.ti3").read_text().splitlines()
+    lines = (tmp_path / "s.ti3").read_text(encoding="utf-8").splitlines()
     fb = next(i for i, l in enumerate(lines) if l.strip() == "BEGIN_DATA_FORMAT")
     fields = lines[fb + 1].split(); ri = [fields.index(f"RGB_{c}") for c in "RGB"]
     db = next(i for i, l in enumerate(lines) if l.strip() == "BEGIN_DATA")
@@ -173,7 +173,7 @@ def test_argyll_ref_target_is_self_consistent(name, tmp_path):
     cht = _REF / f"{name}.cht"
     if not cht.is_file():
         pytest.skip(f"{name} not in ref/")
-    worst = _worst_from_cht(cht.read_text(errors="ignore"), tmp_path)
+    worst = _worst_from_cht(cht.read_text(errors="ignore", encoding="utf-8"), tmp_path)
     assert worst < 6.0, f"{name}: Argyll ref/ geometry misregisters ({worst:.1f})"
 
 
@@ -207,22 +207,22 @@ def test_engine_cht_reads_correct_labels_through_rewrite(tmp_path):
     boxes = boxes_from_patch_rects(rects, paper_h_mm, dpi)
     cht = build_cht_text(boxes, [(b["loc"], 20.0, 20.0, 20.0) for b in boxes])
     rewritten = cht_with_patchbox_fiducials(cht)     # what scanin actually gets
-    (tmp_path / "r.cht").write_text(rewritten)
+    (tmp_path / "r.cht").write_text(rewritten, encoding="utf-8")
     (tmp_path / "ref.cie").write_text("\n".join(
         ["CGATS.17", "NUMBER_OF_FIELDS 4", "BEGIN_DATA_FORMAT",
          "SAMPLE_ID XYZ_X XYZ_Y XYZ_Z", "END_DATA_FORMAT",
          f"NUMBER_OF_SETS {len(boxes)}", "BEGIN_DATA"]
-        + [f"{b['loc']} 20 20 20" for b in boxes] + ["END_DATA", ""]))
+        + [f"{b['loc']} 20 20 20" for b in boxes] + ["END_DATA", ""]), encoding="utf-8")
     # Marquee corners: patch-area bbox, image px, TL TR BR BL.
     x0 = min(r["x"] for r in rects); x1 = max(r["x"] + r["w"] for r in rects)
     y0 = min(r["y"] for r in rects); y1 = max(r["y"] + r["h"] for r in rects)
     fstr = f"{x0},{y0},{x1},{y0},{x1},{y1},{x0},{y1}"
     r = subprocess.run([_SCANIN, "-v", "-p", "-F", fstr,
                         "s.tif", "r.cht", "ref.cie"], cwd=tmp_path,
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, encoding="utf-8")
     assert (tmp_path / "s.ti3").is_file(), \
         f"scanin -F produced no .ti3:\n{r.stderr[-400:]}"
-    lines = (tmp_path / "s.ti3").read_text().splitlines()
+    lines = (tmp_path / "s.ti3").read_text(encoding="utf-8").splitlines()
     fb = next(i for i, l in enumerate(lines) if l.strip() == "BEGIN_DATA_FORMAT")
     fields = lines[fb + 1].split()
     ri = [fields.index(f"RGB_{c}") for c in "RGB"]

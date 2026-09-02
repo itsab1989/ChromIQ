@@ -38,8 +38,8 @@ def _a_project_that_holds_something(out: pathlib.Path, name: str = "taken"):
     run = out / name / "runs" / "run1"
     run.mkdir(parents=True)
     (out / name / "project.json").write_text(
-        '{"schema_version": 2, "current_run": "run1", "runs": ["run1"]}')
-    (run / "chart.ti3").write_text("CTI3\n")
+        '{"schema_version": 2, "current_run": "run1", "runs": ["run1"]}', encoding="utf-8")
+    (run / "chart.ti3").write_text("CTI3\n", encoding="utf-8")
     return out / name
 
 

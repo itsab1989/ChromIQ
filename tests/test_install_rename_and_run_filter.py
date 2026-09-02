@@ -66,7 +66,7 @@ def test_report_run_deselection_filters_and_says_so(qapp, tmp_path):
     for i in range(3):
         v = run.new_verification()
         v.ensure_dir()
-        v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES))
+        v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES), encoding="utf-8")
         t = _time.time() - 300 + i * 60
         _os.utime(v.measurement_ti3, (t, t))
     first = run.verifications()[0].measurement_ti3
@@ -103,7 +103,7 @@ def test_report_list_shows_at_least_five_rows_and_fits_the_screen(qapp, tmp_path
     s, fm, ctl, run = _verify_env(tmp_path)
     v = run.new_verification()
     v.ensure_dir()
-    v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES))
+    v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES), encoding="utf-8")
 
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
     dlg = MeasurementReportDialog(s, None, initial_ti3=v.measurement_ti3)
@@ -137,7 +137,7 @@ def test_report_list_caps_and_scrolls_for_many_runs(qapp, tmp_path):
     for i in range(11):
         v = run.new_verification()
         v.ensure_dir()
-        v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES))
+        v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES), encoding="utf-8")
         t = _time.time() - 3600 + i * 60
         _os.utime(v.measurement_ti3, (t, t))
 
@@ -181,7 +181,7 @@ def test_pdf_default_location_follows_the_four_tier_design(qapp, tmp_path):
     for i in range(3):
         v = run.new_verification()
         v.ensure_dir()
-        v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES))
+        v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES), encoding="utf-8")
         t = _time.time() - 300 + i * 60
         _os.utime(v.measurement_ti3, (t, t))
     verifs = run.verifications()

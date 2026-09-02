@@ -63,7 +63,7 @@ def _make_hex_chart(tmp: Path, name: str = "hexchart") -> Path:
     # chart is positively identifiable as a SpectroScan hexagonal chart.
     import json
     base.with_suffix(".channels.json").write_text(
-        json.dumps({"layout": {"recipe": {"instrument": "SS", "hflag": True}}}))
+        json.dumps({"layout": {"recipe": {"instrument": "SS", "hflag": True}}}), encoding="utf-8")
     return base
 
 
@@ -105,7 +105,7 @@ def test_hex_full_xy_session_reads_every_column(hex_chart):
     assert s.finish() == 0
     ti3 = base.with_suffix(".ti3")
     assert ti3.exists()
-    text = ti3.read_text()
+    text = ti3.read_text(encoding="utf-8")
     assert text.startswith("CTI3")
     # Every hex patch across both columns is booked (2 × 45).
     assert "NUMBER_OF_SETS 90" in text

@@ -191,7 +191,7 @@ def test_sidecar_recipe_matches_its_chart(preset):
     of these 24 did. The importer re-points them; this pins the result."""
     sidecar = resource_path(preset.ti1_asset).parent / "recipe.json"
     assert sidecar.is_file(), f"missing {sidecar}"
-    rec = json.loads(sidecar.read_text())
+    rec = json.loads(sidecar.read_text(encoding="utf-8"))
     assert rec["instr"] == "p3"
     assert rec["paper"] == preset.layout_recipe["paper"]
     assert rec["sp"]["fill_to"] == preset.patches

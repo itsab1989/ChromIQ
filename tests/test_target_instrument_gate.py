@@ -71,7 +71,7 @@ PAST_THE_GATE = "STEPS_IN_PASS"
 def _chart(tmp_path: Path, instrument: str | None) -> Path:
     kw = "" if instrument is None else f'TARGET_INSTRUMENT "{instrument}"\n'
     base = tmp_path / "probe"
-    base.with_suffix(".ti2").write_text(_TI2.format(instrument=kw))
+    base.with_suffix(".ti2").write_text(_TI2.format(instrument=kw), encoding="utf-8")
     return base
 
 
@@ -79,7 +79,7 @@ def _run(binary: Path, base: Path) -> str:
     """First line of output. No instrument is connected, so every run stops
     early — which is the point: we are testing the file gate, not a read."""
     r = subprocess.run([str(binary), str(base)], capture_output=True,
-                       text=True, timeout=60)
+                       text=True, timeout=60, encoding="utf-8")
     return ((r.stdout or "") + (r.stderr or "")).strip().splitlines()[0]
 
 

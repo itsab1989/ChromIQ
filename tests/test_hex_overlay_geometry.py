@@ -115,17 +115,17 @@ def _build_hex_chart(tmp_path, w_mm=12.0, n=120, inst="SS"):
              f"NUMBER_OF_SETS {n}", "BEGIN_DATA"]
     lines += [f"{i+1} 78.0 78.0 78.0 40 45 50" for i in range(n)]
     lines += ["END_DATA", ""]
-    ti1.write_text("\n".join(lines))
+    ti1.write_text("\n".join(lines), encoding="utf-8")
     stem = tmp_path / "Chart"
     le_chart.build_chart(ti1, stem, instrument=inst, hflag=True,
                          pscale=w_mm / _base_width(inst), paper="A4",
                          border=6.0, dpi=200, randomize=False)
-    strips = json.loads(stem.with_suffix(".strips.json").read_text())
+    strips = json.loads(stem.with_suffix(".strips.json").read_text(encoding="utf-8"))
     (tmp_path / "Chart.channels.json").write_text(json.dumps({
         "ink_channels": ["r", "g", "b"],
         "layout": {"engine": "chromiq", "dpi": 200, "paper_mm": list(A4),
                    "patches": strips["patches"],
-                   "recipe": {"instrument": inst, "hflag": True}}}))
+                   "recipe": {"instrument": inst, "hflag": True}}}), encoding="utf-8")
     return stem, strips["patches"]
 
 
@@ -167,15 +167,15 @@ def test_a_non_hex_chart_is_not_shifted_either(qapp, tmp_path):
              "NUMBER_OF_SETS 60", "BEGIN_DATA"]
     lines += [f"{i+1} 78.0 78.0 78.0 40 45 50" for i in range(60)]
     lines += ["END_DATA", ""]
-    ti1.write_text("\n".join(lines))
+    ti1.write_text("\n".join(lines), encoding="utf-8")
     stem = tmp_path / "Flat"
     le_chart.build_chart(ti1, stem, instrument="i1", paper="A4", border=6.0,
                          dpi=200, randomize=False)
-    strips = json.loads(stem.with_suffix(".strips.json").read_text())
+    strips = json.loads(stem.with_suffix(".strips.json").read_text(encoding="utf-8"))
     (tmp_path / "Flat.channels.json").write_text(json.dumps({
         "ink_channels": ["r", "g", "b"],
         "layout": {"engine": "chromiq", "dpi": 200, "paper_mm": list(A4),
-                   "patches": strips["patches"], "recipe": {"instrument": "i1"}}}))
+                   "patches": strips["patches"], "recipe": {"instrument": "i1"}}}), encoding="utf-8")
     boxes = patch_boxes_from_sidecar(stem.with_suffix(".ti2"), 1)[0]
     rec = {r["loc"]: r for r in strips["patches"] if r["page"] == 0}
     assert all(boxes[loc].x() == rec[loc]["x"] for loc in rec)

@@ -85,7 +85,7 @@ def test_a_normal_first_measurement_is_unaffected(manager):
 def test_the_state_is_reset_for_each_measurement(manager, tmp_path):
     from workflow.measure_manager import MeasureParams
     manager._chart_was_complete = True
-    ti1 = tmp_path / "c.ti1"; ti1.write_text("CTI1")
+    ti1 = tmp_path / "c.ti1"; ti1.write_text("CTI1", encoding="utf-8")
     try:
         manager.start(MeasureParams(ti1_path=ti1, instrument="1"),
                       on_line=lambda _s: None, on_finish=lambda _c: None)

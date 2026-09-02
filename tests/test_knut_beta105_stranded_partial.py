@@ -98,10 +98,10 @@ def test_the_backup_matches_the_name_the_engine_writes():
 def test_a_regeneration_archives_the_partial_with_the_measurement(tmp_path):
     """This is what stranded it: the .ti3 went to old/ and the backup stayed."""
     _s, _fm, run = _run(tmp_path)
-    run.chart_ti1.write_text("CTI1")
-    run.chart_ti2.write_text("CTI2")
-    run.measurement_ti3.write_text("CTI3 measured")
-    run.partial_ti3.write_text(_partial_with_readings())
+    run.chart_ti1.write_text("CTI1", encoding="utf-8")
+    run.chart_ti2.write_text("CTI2", encoding="utf-8")
+    run.measurement_ti3.write_text("CTI3 measured", encoding="utf-8")
+    run.partial_ti3.write_text(_partial_with_readings(), encoding="utf-8")
 
     run.reset_chart_artefacts()
 
@@ -118,9 +118,9 @@ def test_keeping_results_keeps_the_partial_too(tmp_path):
     """Restore Used Chart redraws the pages and must not touch the measurement —
     nor the backup of it."""
     _s, _fm, run = _run(tmp_path)
-    run.chart_ti2.write_text("CTI2")
-    run.measurement_ti3.write_text("CTI3")
-    run.partial_ti3.write_text(_partial_with_readings())
+    run.chart_ti2.write_text("CTI2", encoding="utf-8")
+    run.measurement_ti3.write_text("CTI3", encoding="utf-8")
+    run.partial_ti3.write_text(_partial_with_readings(), encoding="utf-8")
 
     run.reset_chart_artefacts(keep_results=True)
 
@@ -133,22 +133,22 @@ def test_a_backup_beside_its_measurement_is_not_stranded(tmp_path):
     """The ordinary case after a successful resume: both files exist, the
     measurement is the real one, and nothing needs recovering."""
     _s, _fm, run = _run(tmp_path)
-    run.measurement_ti3.write_text("CTI3")
-    run.partial_ti3.write_text(_partial_with_readings())
+    run.measurement_ti3.write_text("CTI3", encoding="utf-8")
+    run.partial_ti3.write_text(_partial_with_readings(), encoding="utf-8")
     assert run.recoverable_partial_ti3() is None
 
 
 def test_a_backup_without_its_measurement_is_recoverable(tmp_path):
     """Knut's run."""
     _s, _fm, run = _run(tmp_path)
-    run.partial_ti3.write_text(_partial_with_readings())
+    run.partial_ti3.write_text(_partial_with_readings(), encoding="utf-8")
     assert run.recoverable_partial_ti3() == run.partial_ti3
 
 
 def test_no_backup_means_nothing_to_recover(tmp_path):
     _s, _fm, run = _run(tmp_path)
     assert run.recoverable_partial_ti3() is None
-    run.measurement_ti3.write_text("CTI3")
+    run.measurement_ti3.write_text("CTI3", encoding="utf-8")
     assert run.recoverable_partial_ti3() is None
 
 
@@ -164,8 +164,8 @@ def _tab(tmp_path, qapp):
 def test_recovering_makes_it_the_runs_measurement(qapp, tmp_path, monkeypatch):
     from PyQt6.QtWidgets import QMessageBox
     tab, run = _tab(tmp_path, qapp)
-    run.chart_ti2.write_text("CTI2")
-    run.partial_ti3.write_text(_partial_with_readings())
+    run.chart_ti2.write_text("CTI2", encoding="utf-8")
+    run.partial_ti3.write_text(_partial_with_readings(), encoding="utf-8")
     tab._ti1_path = run.chart_ti2
 
     chosen = {}
@@ -182,15 +182,15 @@ def test_recovering_makes_it_the_runs_measurement(qapp, tmp_path, monkeypatch):
                         lambda self: chosen.get("btn"))
 
     assert tab._recover_stranded_partial() is True
-    assert run.measurement_ti3.read_text() == _partial_with_readings()
+    assert run.measurement_ti3.read_text(encoding="utf-8") == _partial_with_readings()
     assert run.partial_ti3.exists(), "the backup must be kept either way"
 
 
 def test_declining_leaves_everything_and_stops_asking(qapp, tmp_path, monkeypatch):
     from PyQt6.QtWidgets import QMessageBox
     tab, run = _tab(tmp_path, qapp)
-    run.chart_ti2.write_text("CTI2")
-    run.partial_ti3.write_text(_partial_with_readings())
+    run.chart_ti2.write_text("CTI2", encoding="utf-8")
+    run.partial_ti3.write_text(_partial_with_readings(), encoding="utf-8")
     tab._ti1_path = run.chart_ti2
 
     seen = []
@@ -226,8 +226,8 @@ def test_it_is_offered_before_the_already_measured_window(qapp):
 
 def test_nothing_is_recovered_over_a_running_measurement(qapp, tmp_path):
     tab, run = _tab(tmp_path, qapp)
-    run.chart_ti2.write_text("CTI2")
-    run.partial_ti3.write_text(_partial_with_readings())
+    run.chart_ti2.write_text("CTI2", encoding="utf-8")
+    run.partial_ti3.write_text(_partial_with_readings(), encoding="utf-8")
     tab._ti1_path = run.chart_ti2
 
     class _Busy:

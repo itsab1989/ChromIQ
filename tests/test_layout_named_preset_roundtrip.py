@@ -64,7 +64,7 @@ def test_editor_carry_back_engine_recipe(qapp, tmp_path):
                        underline_mode="segments", clip_content_mode="branding")
     ch = tmp_path / "EditedChart.channels.json"
     ch.write_text(json.dumps({"layout": {"engine": "chromiq", "seed": 7,
-                                         "recipe": replace(rec, seed=None).to_dict()}}))
+                                         "recipe": replace(rec, seed=None).to_dict()}}), encoding="utf-8")
     t._carry_engine_recipe_from(ch)
     assert t._settings.get("use_chromiq_layout_engine", False) is True
     assert not t._manual_layout_grp.isHidden()

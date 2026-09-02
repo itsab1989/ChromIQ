@@ -114,7 +114,7 @@ def test_the_hover_tile_says_which_delta_e_it_is():
     several of each."""
     import pathlib
     src = (pathlib.Path(__file__).resolve().parents[1]
-           / "ui" / "tiff_preview.py").read_text()
+           / "ui" / "tiff_preview.py").read_text(encoding="utf-8")
     assert "ΔE*ab" in src
     assert "CIE76" in src and "D50" in src
 

@@ -54,7 +54,7 @@ def _blank_for(total, per, steps, monkeypatch, tmp_path):
         lambda *_a: _Lay(max(1, -(-total // per)) if per else 1, steps))
 
     ti2 = tmp_path / "c.ti2"
-    ti2.write_text(f"CTI2\n\nNUMBER_OF_SETS {total}\n")
+    ti2.write_text(f"CTI2\n\nNUMBER_OF_SETS {total}\n", encoding="utf-8")
     return TabChart._partial_last_page_blank(TabChart.__new__(TabChart), ti2)
 
 
@@ -128,7 +128,7 @@ def test_capacity_is_reported_for_an_engine_chart(monkeypatch, tmp_path):
     monkeypatch.setattr(papers, "dimensions_mm", lambda _p: (210.0, 297.0))
     monkeypatch.setattr(geometry, "patches_per_sheet", lambda *_a: 63)
     ti2 = tmp_path / "c.ti2"
-    ti2.write_text("CTI2\n")
+    ti2.write_text("CTI2\n", encoding="utf-8")
     assert TabChart._last_page_capacity(TabChart.__new__(TabChart), ti2) == 63
 
 
@@ -140,7 +140,7 @@ def test_capacity_is_zero_rather_than_an_error_for_a_printtarg_chart(
     monkeypatch.setattr(LayoutRecipe, "from_channels_json",
                         staticmethod(lambda _p: None))
     ti2 = tmp_path / "c.ti2"
-    ti2.write_text("CTI2\n")
+    ti2.write_text("CTI2\n", encoding="utf-8")
     assert TabChart._last_page_capacity(TabChart.__new__(TabChart), ti2) == 0
 
 
@@ -152,5 +152,5 @@ def test_capacity_survives_a_broken_sidecar(monkeypatch, tmp_path):
 
     monkeypatch.setattr(LayoutRecipe, "from_channels_json", staticmethod(_boom))
     ti2 = tmp_path / "c.ti2"
-    ti2.write_text("CTI2\n")
+    ti2.write_text("CTI2\n", encoding="utf-8")
     assert TabChart._last_page_capacity(TabChart.__new__(TabChart), ti2) == 0

@@ -31,7 +31,7 @@ def _real_ti1(path: Path, n: int = 60) -> None:
         lines.append(f'{i} {r:.4f} {g:.4f} {b:.4f} '
                      f'{r*0.95:.4f} {g:.4f} {b*1.08:.4f}')
     lines += ['END_DATA', '']
-    path.write_text("\n".join(lines))
+    path.write_text("\n".join(lines), encoding="utf-8")
 
 
 class _EngineRunner:
@@ -94,7 +94,7 @@ def test_generate_uses_engine(tmp_path: Path) -> None:
     run_dir = work_dir / "runs" / "run1"
     stem = "engine_proj"
     assert (run_dir / f"{stem}.ti2").exists(), "engine must write the .ti2"
-    sidecar = json.loads((run_dir / f"{stem}.channels.json").read_text())
+    sidecar = json.loads((run_dir / f"{stem}.channels.json").read_text(encoding="utf-8"))
     assert "layout" in sidecar, "channels.json must carry the layout geometry"
     layout = sidecar["layout"]
     assert layout["strips"] and layout["patches"], "strip + patch rects present"
@@ -262,7 +262,7 @@ def test_full_recipe_chart_builds(tmp_path: Path) -> None:
         on_line=lambda _l: None, on_finish=lambda t: finished.append(t))
     assert finished and finished[0] and finished[0][0].exists()
     sidecar = json.loads(
-        (work_dir / "runs" / "run1" / "rp.channels.json").read_text())
+        (work_dir / "runs" / "run1" / "rp.channels.json").read_text(encoding="utf-8"))
     assert sidecar["layout"]["engine"] == "chromiq"
     assert sidecar["layout"]["recipe"]["margin_top"] == 12
 
@@ -311,7 +311,7 @@ def test_load_ti1_uses_engine_when_enabled(tmp_path: Path) -> None:
     assert finished and finished[0] and all(p.exists() for p in finished[0])
     run_dir = work_dir / "runs" / "run1"
     stem = "preset_proj"
-    sidecar = json.loads((run_dir / f"{stem}.channels.json").read_text())
+    sidecar = json.loads((run_dir / f"{stem}.channels.json").read_text(encoding="utf-8"))
     assert sidecar.get("layout", {}).get("engine") == "chromiq", \
         "the engine must lay out the loaded .ti1, not printtarg"
 
@@ -325,7 +325,7 @@ def test_build_chart_accepts_area_default_kwargs(tmp_path: Path) -> None:
     ti1.write_text(
         'CTI1\nCOLOR_REP "RGB"\nNUMBER_OF_FIELDS 4\nBEGIN_DATA_FORMAT\n'
         'SAMPLE_ID RGB_R RGB_G RGB_B\nEND_DATA_FORMAT\nNUMBER_OF_SETS 3\n'
-        'BEGIN_DATA\n1 100 0 0\n2 0 100 0\n3 0 0 100\nEND_DATA\n')
+        'BEGIN_DATA\n1 100 0 0\n2 0 100 0\n3 0 0 100\nEND_DATA\n', encoding="utf-8")
     res = chart.build_chart(
         str(ti1), str(tmp_path / "out"), instrument="i1", paper="A4",
         layout_mode="area_first", area_method="by_grid",
@@ -343,12 +343,12 @@ def test_engine_randomize_scrambles_locations(tmp_path: Path) -> None:
     rows = "\n".join(f"{i} {i*4%101} {i*7%101} {i*11%101}" for i in range(1, 61))
     ti1.write_text('CTI1\nCOLOR_REP "RGB"\nNUMBER_OF_FIELDS 4\nBEGIN_DATA_FORMAT\n'
                    'SAMPLE_ID RGB_R RGB_G RGB_B\nEND_DATA_FORMAT\n'
-                   'NUMBER_OF_SETS 60\nBEGIN_DATA\n' + rows + '\nEND_DATA\n')
+                   'NUMBER_OF_SETS 60\nBEGIN_DATA\n' + rows + '\nEND_DATA\n', encoding="utf-8")
 
     def first_locs(rnd):
         chart.build_chart(str(ti1), str(tmp_path / f"o{rnd}"), instrument="i1",
                           paper="A4", seed=7, randomize=rnd, dpi=72)
-        t = (tmp_path / f"o{rnd}.ti2").read_text()
+        t = (tmp_path / f"o{rnd}.ti2").read_text(encoding="utf-8")
         return re.findall(r'^\d+ "([A-Z0-9]+)"', t, re.M)[:10]
 
     assert first_locs(False) != first_locs(True)   # randomise actually changes it
@@ -365,7 +365,7 @@ def test_engine_writes_per_page_strip_counts(tmp_path: Path) -> None:
     rows = "\n".join(f"{i} {i*4%101} {i*7%101} {i*11%101}" for i in range(1, 1220))
     ti1.write_text('CTI1\nCOLOR_REP "RGB"\nNUMBER_OF_FIELDS 4\nBEGIN_DATA_FORMAT\n'
                    'SAMPLE_ID RGB_R RGB_G RGB_B\nEND_DATA_FORMAT\n'
-                   'NUMBER_OF_SETS 1219\nBEGIN_DATA\n' + rows + '\nEND_DATA\n')
+                   'NUMBER_OF_SETS 1219\nBEGIN_DATA\n' + rows + '\nEND_DATA\n', encoding="utf-8")
     res = chart.build_chart(str(ti1), str(tmp_path / "out"), instrument="i1",
                             paper="A4", layout_mode="area_first",
                             area_method="by_grid", area_default_w=8.0,

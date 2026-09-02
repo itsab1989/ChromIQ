@@ -35,7 +35,7 @@ def _cgats(path, magic, rows):
                     "SAMPLE_ID SAMPLE_LOC RGB_R RGB_G RGB_B XYZ_X XYZ_Y "
                     "XYZ_Z\nEND_DATA_FORMAT\n"
                     f"NUMBER_OF_SETS {len(rows)}\nBEGIN_DATA\n" + body
-                    + "END_DATA\n")
+                    + "END_DATA\n", encoding="utf-8")
     return path
 
 
@@ -59,8 +59,8 @@ def test_a_new_run_for_an_import_carries_the_chart(work, qapp):
 
     proj = Project.create(work / "P", "P")
     src = proj.current_run()
-    src.chart_ti2.write_text("CTI2\n\nNUMBER_OF_SETS 6\n")
-    src.measurement_ti3.write_text("CTI3 someone's measurement\n")
+    src.chart_ti2.write_text("CTI2\n\nNUMBER_OF_SETS 6\n", encoding="utf-8")
+    src.measurement_ti3.write_text("CTI3 someone's measurement\n", encoding="utf-8")
 
     new = proj.duplicate_run(src, ("chart",))
 
@@ -80,7 +80,7 @@ def test_a_runs_own_measurement_counts_as_already_in_a_project(work, qapp):
     proj = Project.create(work / "P", "P")
     run = proj.current_run()
     own = run.dir / "P.ti3"
-    own.write_text("CTI3\n")
+    own.write_text("CTI3\n", encoding="utf-8")
 
     assert not peek_project(own.parent).exists, (
         "precondition: the run folder itself is not a project")
@@ -94,7 +94,7 @@ def test_an_outside_measurement_is_still_outside(work, qapp):
 
     stray = work / "Desktop-ish" / "measured.ti3"
     stray.parent.mkdir(parents=True)
-    stray.write_text("CTI3\n")
+    stray.write_text("CTI3\n", encoding="utf-8")
     assert _project_root_for(stray, work) is None
 
 

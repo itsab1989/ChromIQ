@@ -160,21 +160,21 @@ def test_a_cancelled_build_puts_the_chart_back_even_if_it_produced_pages(tab,
 
     proj = Project.create(tmp_path / "P", "P")
     run = proj.current_run()
-    (run.dir / f"{run.stem}.ti2").write_text("the chart that was here")
-    (run.dir / f"{run.stem}_01.tif").write_text("its page")
-    before = {p.name: p.read_text() for p in run.dir.iterdir() if p.is_file()}
+    (run.dir / f"{run.stem}.ti2").write_text("the chart that was here", encoding="utf-8")
+    (run.dir / f"{run.stem}_01.tif").write_text("its page", encoding="utf-8")
+    before = {p.name: p.read_text(encoding="utf-8") for p in run.dir.iterdir() if p.is_file()}
 
     creator = tab._creator
     creator._chart_stash_run = run
     creator._chart_stash = run.reset_chart_artefacts(stash=True)
-    (run.dir / f"{run.stem}.ti2").write_text("what the engine got to")
-    (run.dir / f"{run.stem}_01.tif").write_text("a page from the stopped build")
+    (run.dir / f"{run.stem}.ti2").write_text("what the engine got to", encoding="utf-8")
+    (run.dir / f"{run.stem}_01.tif").write_text("a page from the stopped build", encoding="utf-8")
     creator._cancelling = True
     creator._pending_on_finish = lambda tiffs: None
 
     creator._finish([run.dir / f"{run.stem}_01.tif"])   # a NON-empty result
 
-    after = {p.name: p.read_text() for p in run.dir.iterdir() if p.is_file()}
+    after = {p.name: p.read_text(encoding="utf-8") for p in run.dir.iterdir() if p.is_file()}
     assert after == before, (
         "a stopped build was treated as a finished one, so the chart it "
         "replaced was dropped")

@@ -221,7 +221,7 @@ def test_the_acknowledgement_would_read_the_patch_instead(spot_session):
     # …and the helper maps both "ok" and "read" to the same key.
     import pathlib as _p
     src = (_p.Path(__file__).resolve().parents[1] / "native" /
-           "chartread_helper" / "chromiq_json.c").read_text()
+           "chartread_helper" / "chromiq_json.c").read_text(encoding="utf-8")
     assert 'strcmp(cmd, "read") == 0' in src and "0x0d" in src
 
 

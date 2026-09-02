@@ -41,8 +41,8 @@ def _env(tmp_path):
     proj = Project.create(root / "P", "P")
     run = proj.current_run(); run.ensure_dir()
     run.verifications_dir.mkdir(parents=True, exist_ok=True)
-    run.verify_chart_ti1.write_text("TI1-v1")
-    run.verify_chart_ti2.write_text("TI2-v1")
+    run.verify_chart_ti1.write_text("TI1-v1", encoding="utf-8")
+    run.verify_chart_ti2.write_text("TI2-v1", encoding="utf-8")
     fm.set_target_name("P")
     ctl = MeasurementTargetController(fm)
     ctl.set_profile_run("run1"); ctl.set_run_type(RUN_TYPE_VERIFICATION)
@@ -75,7 +75,7 @@ def test_a_different_chart_is_questioned(qapp, tmp_path, monkeypatch):
     _s, run, _ctl, tab = _env(tmp_path)
     v = run.verification("2026-07-20_100000"); v.ensure_dir()
     snapshot_chart(v)
-    run.verify_chart_ti2.write_text("TI2-v2 — a different chart")
+    run.verify_chart_ti2.write_text("TI2-v2 — a different chart", encoding="utf-8")
 
     asked = {"n": 0}
     from PyQt6.QtWidgets import QMessageBox
@@ -89,7 +89,7 @@ def _arm(tmp_path):
     s, run, ctl, tab = _env(tmp_path)
     v = run.verification("2026-07-20_100000"); v.ensure_dir()
     snapshot_chart(v)
-    run.verify_chart_ti2.write_text("TI2-v2 — a different chart")
+    run.verify_chart_ti2.write_text("TI2-v2 — a different chart", encoding="utf-8")
     ctl.set_verification_id(v.id)
     return run, ctl, tab, v
 
@@ -103,7 +103,7 @@ def test_cancel_stops_the_measurement_and_changes_nothing(qapp, tmp_path,
 
     assert tab._snapshot_verification_chart() is False, "the start must abort"
     from workflow.verify_chart_snapshot import snapshot_files
-    kept = {p.name: p.read_text() for p in snapshot_files(v)}
+    kept = {p.name: p.read_text(encoding="utf-8") for p in snapshot_files(v)}
     assert kept[run.verify_chart_ti2.name] == "TI2-v1", \
         "the stored chart must survive a cancel untouched"
     assert sorted(p.name for p in run.verifications_dir.iterdir()) == before, \
@@ -118,7 +118,7 @@ def test_replace_overwrites_the_stored_chart(qapp, tmp_path, monkeypatch):
 
     assert tab._snapshot_verification_chart() is True
     from workflow.verify_chart_snapshot import snapshot_files
-    kept = {p.name: p.read_text() for p in snapshot_files(v)}
+    kept = {p.name: p.read_text(encoding="utf-8") for p in snapshot_files(v)}
     assert kept[run.verify_chart_ti2.name] == "TI2-v2 — a different chart"
     assert ctl.target.verification_id == v.id, "the date does not change"
 
@@ -140,10 +140,10 @@ def test_new_verification_takes_a_new_date_without_asking(qapp, tmp_path,
     assert new_id and new_id != v.id, "a new dated entry must be created"
 
     from workflow.verify_chart_snapshot import snapshot_files
-    old = {p.name: p.read_text() for p in snapshot_files(v)}
+    old = {p.name: p.read_text(encoding="utf-8") for p in snapshot_files(v)}
     assert old[run.verify_chart_ti2.name] == "TI2-v1", \
         "the earlier date keeps the chart it was measured with"
-    made = {p.name: p.read_text() for p in snapshot_files(run.verification(new_id))}
+    made = {p.name: p.read_text(encoding="utf-8") for p in snapshot_files(run.verification(new_id))}
     assert made[run.verify_chart_ti2.name] == "TI2-v2 — a different chart"
     assert has_snapshot(run.verification(new_id))
 

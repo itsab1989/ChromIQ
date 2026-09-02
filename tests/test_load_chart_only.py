@@ -35,13 +35,13 @@ def qapp():
 
 # ---- the sidecar ----------------------------------------------------------
 def test_a_patch_set_that_brought_its_settings_is_recognised(tmp_path):
-    ti1 = tmp_path / "chart.ti1"; ti1.write_text("CTI1")
-    side = tmp_path / "chart.channels.json"; side.write_text("{}")
+    ti1 = tmp_path / "chart.ti1"; ti1.write_text("CTI1", encoding="utf-8")
+    side = tmp_path / "chart.channels.json"; side.write_text("{}", encoding="utf-8")
     assert ti1_sidecar(ti1) == side
 
 
 def test_a_bare_patch_set_has_none(tmp_path):
-    ti1 = tmp_path / "chart.ti1"; ti1.write_text("CTI1")
+    ti1 = tmp_path / "chart.ti1"; ti1.write_text("CTI1", encoding="utf-8")
     assert ti1_sidecar(ti1) is None
 
 
@@ -76,7 +76,7 @@ def _project(tab, tmp_path, with_measurement=True, name="P"):
     proj = Project.create(root / name, name)
     run = proj.current_run(); run.ensure_dir()
     if with_measurement:
-        (run.dir / f"{run.stem}.ti3").write_text("MEASUREMENT")
+        (run.dir / f"{run.stem}.ti3").write_text("MEASUREMENT", encoding="utf-8")
     tab._file_mgr.set_target_name(name)
     ctl = MeasurementTargetController(tab._file_mgr)
     ctl.set_profile_run(run.id)
@@ -88,7 +88,7 @@ def test_the_fourth_option_is_offered_when_a_run_would_be_displaced(
         qapp, tmp_path, monkeypatch):
     tab = _tab(tmp_path)
     _project(tab, tmp_path)
-    src = tmp_path / "chart.ti1"; src.write_text("CTI1")
+    src = tmp_path / "chart.ti1"; src.write_text("CTI1", encoding="utf-8")
 
     keys = [c[2] for c in _offered(tab, tmp_path, monkeypatch, src)]
 
@@ -102,7 +102,7 @@ def test_it_warns_that_the_match_cannot_be_checked(qapp, tmp_path, monkeypatch):
     judge whether the incoming patches match the measurement."""
     tab = _tab(tmp_path)
     _project(tab, tmp_path)
-    src = tmp_path / "chart.ti1"; src.write_text("CTI1")
+    src = tmp_path / "chart.ti1"; src.write_text("CTI1", encoding="utf-8")
 
     desc = dict((c[2], c[1]) for c in
                 _offered(tab, tmp_path, monkeypatch, src))["into_chart"]
@@ -119,13 +119,13 @@ def test_the_text_says_whether_the_settings_file_came_with_it(
     tab = _tab(tmp_path)
     _project(tab, tmp_path)
 
-    bare = tmp_path / "bare.ti1"; bare.write_text("CTI1")
+    bare = tmp_path / "bare.ti1"; bare.write_text("CTI1", encoding="utf-8")
     d1 = dict((c[2], c[1]) for c in
               _offered(tab, tmp_path, monkeypatch, bare))["into_chart"]
     assert "No chart settings file" in d1
 
-    full = tmp_path / "full.ti1"; full.write_text("CTI1")
-    (tmp_path / "full.channels.json").write_text("{}")
+    full = tmp_path / "full.ti1"; full.write_text("CTI1", encoding="utf-8")
+    (tmp_path / "full.channels.json").write_text("{}", encoding="utf-8")
     d2 = dict((c[2], c[1]) for c in
               _offered(tab, tmp_path, monkeypatch, full))["into_chart"]
     assert "found beside it" in d2
@@ -162,7 +162,7 @@ def test_applying_the_settings_restores_the_seed(qapp, tmp_path):
         "engine": "chromiq", "seed": 314159,
         "recipe": {"instrument": "CM", "paper": "A4", "randomize": True,
                    "seed": None, "patch_w_mm": 8.0, "patch_h_mm": 8.0},
-    }}))
+    }}), encoding="utf-8")
 
     assert tab._apply_loaded_chart_settings(side) is True
     assert tab._manual_layout_panel.get_recipe().seed == 314159
@@ -171,7 +171,7 @@ def test_applying_the_settings_restores_the_seed(qapp, tmp_path):
 def test_a_damaged_settings_file_does_not_block_the_load(qapp, tmp_path):
     tab = _tab(tmp_path)
     side = tmp_path / "c.channels.json"
-    side.write_text("{ not json")
+    side.write_text("{ not json", encoding="utf-8")
     assert tab._apply_loaded_chart_settings(side) is False
 
 
@@ -182,7 +182,7 @@ def test_a_run_with_nothing_in_it_is_not_offered_the_choice(
     tab = _tab(tmp_path)
     _project(tab, tmp_path, with_measurement=False, name="Q")
     tab._target_ctl.set_profile_run("")   # New run — nothing exists yet
-    src = tmp_path / "chart.ti1"; src.write_text("CTI1")
+    src = tmp_path / "chart.ti1"; src.write_text("CTI1", encoding="utf-8")
 
     keys = [c[2] for c in _offered(tab, tmp_path, monkeypatch, src)]
 

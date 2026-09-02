@@ -80,12 +80,12 @@ def test_verification_blocked_reason_hole1(tmp_path):
     assert verification_blocked_reason(proj, t) == BLOCK_NO_PROFILE
 
     # Profile exists but no verification chart → blocked on the chart.
-    run.profile_icc.write_text("icc")
+    run.profile_icc.write_text("icc", encoding="utf-8")
     assert verification_blocked_reason(proj, t) == BLOCK_NO_CHART
 
     # Profile + verify chart → good to go.
     run.verifications_dir.mkdir(parents=True, exist_ok=True)
-    run.verify_chart_ti2.write_text("ti2")
+    run.verify_chart_ti2.write_text("ti2", encoding="utf-8")
     assert verification_blocked_reason(proj, t) is None
 
 

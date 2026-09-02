@@ -44,16 +44,16 @@ def _write(slot, *, images_in_snapshot: bool, same: bool = True):
     """A chart WITH a layout recipe, in both places."""
     recipe = '{"layout": {"engine": "chromiq"}}'
     for d in (slot.live_dir, slot.snapshot_dir):
-        (d / f"{STEM}.ti1").write_text("CTI1\ndata\n")
-        (d / f"{STEM}.ti2").write_text("CTI2\ndata\n")
-        (d / f"{STEM}.channels.json").write_text(recipe)
+        (d / f"{STEM}.ti1").write_text("CTI1\ndata\n", encoding="utf-8")
+        (d / f"{STEM}.ti2").write_text("CTI2\ndata\n", encoding="utf-8")
+        (d / f"{STEM}.channels.json").write_text(recipe, encoding="utf-8")
     # The live side always has its pages; the snapshot only sometimes.
     for i in (1, 2, 3):
         (slot.live_dir / f"{STEM}_{i:02d}.tif").write_bytes(b"II*\0page")
         if images_in_snapshot:
             (slot.snapshot_dir / f"{STEM}_{i:02d}.tif").write_bytes(b"II*\0page")
     if not same:
-        (slot.snapshot_dir / f"{STEM}.ti2").write_text("CTI2\nDIFFERENT\n")
+        (slot.snapshot_dir / f"{STEM}.ti2").write_text("CTI2\nDIFFERENT\n", encoding="utf-8")
 
 
 # ---- his case ------------------------------------------------------------
@@ -102,7 +102,7 @@ def test_extra_non_image_files_still_count(tmp_path):
     stored side happens to hold."""
     slot = _slot(tmp_path)
     _write(slot, images_in_snapshot=True)
-    (slot.snapshot_dir / f"{STEM}.strips.json").write_text("{}")
+    (slot.snapshot_dir / f"{STEM}.strips.json").write_text("{}", encoding="utf-8")
     assert snapshot_matches_live(slot) is False
 
 
@@ -111,8 +111,8 @@ def test_a_chart_with_no_recipe_compares_its_images(tmp_path):
     compared on both sides — a changed page is a changed chart."""
     slot = _slot(tmp_path)
     for d in (slot.live_dir, slot.snapshot_dir):
-        (d / f"{STEM}.ti1").write_text("CTI1\ndata\n")
-        (d / f"{STEM}.ti2").write_text("CTI2\ndata\n")
+        (d / f"{STEM}.ti1").write_text("CTI1\ndata\n", encoding="utf-8")
+        (d / f"{STEM}.ti2").write_text("CTI2\ndata\n", encoding="utf-8")
     (slot.live_dir / f"{STEM}_01.tif").write_bytes(b"II*\0page")
     (slot.snapshot_dir / f"{STEM}_01.tif").write_bytes(b"II*\0OTHER")
     assert snapshot_matches_live(slot) is False

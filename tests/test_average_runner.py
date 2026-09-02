@@ -107,7 +107,7 @@ def _make_ti3(path: Path, xyz_x: float) -> None:
         "NUMBER_OF_FIELDS 8\nBEGIN_DATA_FORMAT\n" + _FMT + "\nEND_DATA_FORMAT\n"
         "NUMBER_OF_SETS 1\nBEGIN_DATA\n"
         f'1 "A1" 50.0 50.0 50.0 {xyz_x:.6f} 20.0 30.0 \n'
-        "END_DATA\n"
+        "END_DATA\n", encoding="utf-8"
     )
 
 
@@ -121,13 +121,13 @@ def test_average_is_true_mean_and_leaves_rgb(tmp_path: Path) -> None:
     binary = str(binary) if binary.exists() else "average"
     res = subprocess.run(
         [binary, "-v", "chart_read1.ti3", "chart_read2.ti3", "chart_average.ti3"],
-        cwd=tmp_path, capture_output=True, text=True,
+        cwd=tmp_path, capture_output=True, text=True, encoding="utf-8",
     )
     assert res.returncode == 0, res.stderr
     assert out.exists()
 
     row = next(
-        l for l in out.read_text().splitlines()
+        l for l in out.read_text(encoding="utf-8").splitlines()
         if l.strip().startswith("1 ")
     ).split()
     # XYZ_X is field index 5; mean(40, 42) == 41. RGB (idx 2-4) untouched.

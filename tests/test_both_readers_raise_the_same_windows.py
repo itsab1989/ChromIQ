@@ -120,7 +120,7 @@ def test_the_helper_really_prints_that_line(label, qapp):
     _line, stem, src_line = HELPER_LINES[label]
     if src_line is None or not HELPER_C.is_file():
         pytest.skip("no pinned helper source line for this one")
-    text = HELPER_C.read_text(errors="replace").splitlines()
+    text = HELPER_C.read_text(errors="replace", encoding="utf-8").splitlines()
     # Matched in a window around the pinned line, so a reflow of the C does not
     # fail the test for the wrong reason.
     window = "\n".join(text[max(0, src_line - 6):src_line + 5])
@@ -179,7 +179,7 @@ def test_the_helper_prints_each_note(label, qapp):
     """Our half of the contract must not be able to pass alone."""
     if not HELPER_C.is_file():                 # pragma: no cover
         pytest.skip("helper source not in this checkout")
-    text = HELPER_C.read_text(errors="replace")
+    text = HELPER_C.read_text(errors="replace", encoding="utf-8")
     stems = {
         "chart_mismatch": "chart is for",
         "no_spectral":    "isn't capable of spectral",

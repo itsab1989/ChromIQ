@@ -227,7 +227,7 @@ def test_declutter_folder_sorts_chromiq_files_only(tmp_path: Path) -> None:
     }
     stay = ("Foo.ti2", "Foo.icc", "Foo.cht", "Foo.cie", "my-notes.txt")
     for name in list(files) + list(stay):
-        (d / name).write_text("x")
+        (d / name).write_text("x", encoding="utf-8")
 
     moved = declutter_folder(d)
     assert moved == len(files)
@@ -242,7 +242,7 @@ def test_declutter_folder_sorts_chromiq_files_only(tmp_path: Path) -> None:
 
     # A folder with nothing to tidy gets no empty sub-folders.
     empty = tmp_path / "plain"; empty.mkdir()
-    (empty / "photo.jpg").write_text("x")
+    (empty / "photo.jpg").write_text("x", encoding="utf-8")
     assert declutter_folder(empty) == 0
     assert not (empty / REPORTS_DIRNAME).exists()
 
@@ -250,7 +250,7 @@ def test_declutter_folder_sorts_chromiq_files_only(tmp_path: Path) -> None:
 def test_declutter_name_clash_leaves_file(tmp_path: Path) -> None:
     from core.file_manager import declutter_folder
     d = tmp_path / "legacy2"; (d / REPORTS_DIRNAME).mkdir(parents=True)
-    (d / "Refine_Strips_Foo.txt").write_text("new")
-    (d / REPORTS_DIRNAME / "Refine_Strips_Foo.txt").write_text("existing")
+    (d / "Refine_Strips_Foo.txt").write_text("new", encoding="utf-8")
+    (d / REPORTS_DIRNAME / "Refine_Strips_Foo.txt").write_text("existing", encoding="utf-8")
     assert declutter_folder(d) == 0                 # clash → skipped
-    assert (d / "Refine_Strips_Foo.txt").read_text() == "new"
+    assert (d / "Refine_Strips_Foo.txt").read_text(encoding="utf-8") == "new"

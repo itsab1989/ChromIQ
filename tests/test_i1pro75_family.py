@@ -40,7 +40,7 @@ def test_every_chart_ships_its_patch_set():
         if not f.is_file():
             missing.append(p.slug)
             continue
-        m = re.search(r"NUMBER_OF_SETS\s+(\d+)", f.read_text(errors="replace"))
+        m = re.search(r"NUMBER_OF_SETS\s+(\d+)", f.read_text(errors="replace", encoding="utf-8"))
         got = int(m.group(1)) if m else -1
         if got != p.patches:
             wrong.append(f"{p.slug}: file has {got}, preset says {p.patches}")
@@ -133,7 +133,7 @@ def test_every_chart_carries_its_colour_set_recipe():
         if not rec.is_file():
             missing.append(p.slug)
             continue
-        json.loads(rec.read_text())          # must parse
+        json.loads(rec.read_text(encoding="utf-8"))          # must parse
     assert not missing, f"colour-set recipe missing: {missing}"
 
 
@@ -158,7 +158,7 @@ def test_the_importer_refuses_a_batch_from_another_family(tmp_path):
     out = subprocess.run(
         [sys.executable, "scripts/import_knut_presets.py", "i1", str(src)],
         capture_output=True, text=True, cwd=pathlib.Path(__file__).parent.parent,
-        env={**__import__("os").environ, "QT_QPA_PLATFORM": "offscreen"})
+        env={**__import__("os").environ, "QT_QPA_PLATFORM": "offscreen"}, encoding="utf-8")
     assert out.returncode != 0, (
         "the importer accepted a batch that belongs to another family:\n"
         + out.stdout[-800:])

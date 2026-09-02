@@ -54,6 +54,7 @@ import builtins
 import io
 import json
 import locale
+import re
 import sys
 import unicodedata as ud
 from pathlib import Path
@@ -78,16 +79,108 @@ NOTES = "Müller-Prüfdruck, 90 g/m²"
 
 _TEXT_CALLS = {"open", "read_text", "write_text"}
 
+#: Modules whose `open` is a *file* open, so the receiver is not a reason to
+#: skip it. `codecs.open` and `io.open` are plain aliases; the compression
+#: three take an `encoding=` only in text mode, which is the mode being checked.
+_OPEN_MODULES = {"io", "codecs", "gzip", "bz2", "lzma"}
+
+#: These take a `mode` and an `encoding`, and default to a BINARY mode — so
+#: only an explicit text mode is a finding.
+_TEMPFILE_CALLS = {"NamedTemporaryFile", "TemporaryFile", "SpooledTemporaryFile"}
+
+#: These write a text log file and take an `encoding=`; without one the handler
+#: uses the platform default, which is how a German path gets mangled into the
+#: log that was supposed to explain it.
+_FILE_HANDLERS = {"FileHandler", "RotatingFileHandler",
+                  "TimedRotatingFileHandler", "WatchedFileHandler"}
+
+#: `os.popen` has no `encoding` parameter at all. There is no right way to call
+#: it, so the finding is the call.
+_UNFIXABLE = {"popen"}
+
+
+def _mode_of(node: ast.Call, pos: int) -> str | None:
+    """The `mode` argument of a call, positional at *pos* or by keyword."""
+    mode = None
+    if len(node.args) > pos and isinstance(node.args[pos], ast.Constant):
+        mode = node.args[pos].value
+    for k in node.keywords:
+        if k.arg == "mode" and isinstance(k.value, ast.Constant):
+            mode = k.value.value
+    return mode if isinstance(mode, str) else None
+
 
 def _unencoded_calls(src: str, label: str) -> list[str]:
-    """Every text-IO call in ``src`` that names no encoding.
+    """Every text-IO call in ``src`` that lets something else pick the encoding.
 
     Deliberately structural rather than a grep: a grep for ``read_text()``
     cannot tell ``Path(p).read_text()`` from ``core.text_io.read_text(p)``, and
     the fix turns the first into the second everywhere.
+
+    Six shapes, all of which reached the tree at some point and four of which a
+    penetration test found the first version of this sweep walking straight
+    past:
+
+    1. ``open`` / ``Path.read_text`` / ``Path.write_text`` with no ``encoding``
+       — the original finding.
+    2. ``subprocess(..., text=True)`` and ``universal_newlines=True`` with no
+       ``encoding``, which decode with ``locale.getpreferredencoding(False)``.
+       Under an ASCII locale that is a crash; on a German Windows it is a
+       silent cp1252 decode. See `core/proc_text.py`.
+    3. ``io.open`` / ``codecs.open`` / ``gzip.open(p, "rt")`` — the same
+       function under another name.
+    4. ``tempfile.NamedTemporaryFile("w")`` and friends, in an explicit text
+       mode.
+    5. ``logging.FileHandler`` and the rotating handlers.
+    6. ``os.popen``, which cannot name an encoding and so must not be used.
+
+    Plus two accuracy fixes the same penetration test asked for: ``(dir /
+    name).open()`` is a path open and was invisible, and ``open(p, "r", -1,
+    "utf-8")`` passes the encoding *positionally* and was being reported as an
+    offender.
     """
-    out: list[str] = []
     tree = ast.parse(src)
+    out: list[str] = []
+    for node in offending_calls(tree):
+        try:
+            shown = ast.unparse(node)
+        except Exception:                      # noqa: BLE001 - display only
+            shown = getattr(node.func, "attr", None) or getattr(node.func, "id", "?")
+        out.append(f"{label}:{node.lineno}  {shown[:70]}")
+    return out
+
+
+def offending_calls(tree: ast.AST) -> list[ast.Call]:
+    """The same finding as :func:`_unencoded_calls`, as nodes.
+
+    Split out so a codemod can edit the exact call the sweep objects to, rather
+    than re-deriving it from a line number and getting a different answer. The
+    tests/ sweep for #178 does exactly that, and the two disagreed on 72 sites
+    the first time — every one of them a `core.text_io.read_text(p)`, which
+    takes no `encoding=` and would have raised `TypeError` if a codemod had
+    "fixed" it.
+    """
+    out: list[ast.Call] = []
+    # A module that defines its own `read_text` shadows the helper, so a bare
+    # `read_text(p)` in it is NOT the encoding-naming one.
+    shadowed = {n.name for n in ast.walk(tree)
+                if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and n.name in ("read_text", "write_text")}
+    # Names bound to a ConfigParser, so `c.read(p)` can be recognised as the
+    # `.read()` that takes an `encoding=` rather than one of the hundreds that
+    # do not.
+    parsers: set[str] = set()
+    for n in ast.walk(tree):
+        if not (isinstance(n, ast.Assign) and isinstance(n.value, ast.Call)):
+            continue
+        f = n.value.func
+        made = f.attr if isinstance(f, ast.Attribute) else getattr(f, "id", "")
+        if made.endswith("ConfigParser"):
+            parsers |= {t.id for t in n.targets if isinstance(t, ast.Name)}
+
+    def record(node: ast.Call, name: str) -> None:
+        out.append(node)
+
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
@@ -98,37 +191,94 @@ def _unencoded_calls(src: str, label: str) -> list[str]:
             name = fn.id
         else:
             continue
+        named_encoding = any(k.arg == "encoding" for k in node.keywords)
+        # `ast.unparse` and not `ast.get_source_segment`: the latter re-splits
+        # the whole file per call, and this now runs on EVERY call node in the
+        # tree rather than on a handful. It took the sweep from seconds to two
+        # and a quarter minutes.
+        recv = ast.unparse(fn.value) if isinstance(fn, ast.Attribute) else ""
+
+        # (2) The pipes. `text=True` takes no codec name, so ANY call passing it
+        #     without `encoding=` has handed the choice to the platform — the
+        #     injected `runner(...)` forms included, which is where two of
+        #     ChromIQ's were.
+        if any(k.arg in ("text", "universal_newlines")
+               and isinstance(k.value, ast.Constant) and k.value.value is True
+               for k in node.keywords):
+            if not named_encoding:
+                record(node, name)
+            continue
+
+        # (6) os.popen
+        if name in _UNFIXABLE and recv.split(".")[-1] == "os":
+            record(node, name)
+            continue
+
+        # (4) tempfile, (5) logging handlers
+        if name in _TEMPFILE_CALLS:
+            mode = _mode_of(node, 0)
+            if mode is not None and "b" not in mode and not named_encoding:
+                record(node, name)
+            continue
+        if name in _FILE_HANDLERS and not named_encoding:
+            record(node, name)
+            continue
+
+        # `configparser.read` takes an `encoding=` and defaults to the platform.
+        # Narrow on purpose: `.read()` is far too common a spelling to flag on
+        # its own, so only a receiver that says what it is counts.
+        if name == "read" and not named_encoding and node.args and (
+                recv in parsers or re.search(r"(?i)config|parser", recv)):
+            record(node, name)
+            continue
+
         if name not in _TEXT_CALLS:
             continue
-        if any(k.arg == "encoding" for k in node.keywords):
+        if named_encoding:
             continue
         # `read_text(p)` / `write_text(p, s)` as a BARE NAME is the helper in
-        # core.text_io, which names the encoding for us. Only the bound-method
-        # forms (`Path(...).read_text()`) are the bug.
-        if isinstance(fn, ast.Name) and name in ("read_text", "write_text"):
+        # core.text_io, which names the encoding for us — unless this module
+        # defines its own, in which case the name says nothing.
+        if isinstance(fn, ast.Name) and name in ("read_text", "write_text") \
+                and name not in shadowed:
             continue
+        # `Path.read_text(encoding, errors)` and
+        # `Path.write_text(data, encoding, errors)` — the encoding is named,
+        # positionally. `tests/test_knut_issues_45_59_60_62.py` passes
+        # `read_text("latin-1", "ignore")` on purpose, and reporting it as an
+        # offender is the same false positive the positional `open` had.
+        if isinstance(fn, ast.Attribute):
+            positional_encoding = {"read_text": 1, "write_text": 2}.get(name)
+            if positional_encoding and len(node.args) >= positional_encoding:
+                continue
         if name == "open":
             # Binary modes have no encoding to name.
-            mode = None
-            if len(node.args) >= 2 and isinstance(node.args[1], ast.Constant):
-                mode = node.args[1].value
-            for k in node.keywords:
-                if k.arg == "mode" and isinstance(k.value, ast.Constant):
-                    mode = k.value.value
-            if isinstance(mode, str) and "b" in mode:
+            mode = _mode_of(node, 1)
+            if mode is not None and "b" in mode:
+                continue
+            # `open(p, "r", -1, "utf-8")` — the encoding IS named, positionally.
+            if len(node.args) >= 4:
                 continue
             # `Image.open`, `wave.open`, `webbrowser.open`, a transport's own
             # `.open()` — same spelling, nothing to do with text files.
             if isinstance(fn, ast.Attribute):
-                recv = ast.get_source_segment(src, fn.value) or ""
-                looks_like_a_path = recv.split(".")[-1] in ("Path", "p", "path")
+                looks_like_a_path = (
+                    recv.split(".")[-1] in ("Path", "p", "path")
+                    or isinstance(fn.value, ast.BinOp)      # (dir / name).open()
+                    or recv.split(".")[-1] in _OPEN_MODULES)
                 opens_a_named_file = bool(
                     node.args and isinstance(node.args[0], ast.Constant)
                     and isinstance(node.args[0].value, str))
                 if not (looks_like_a_path or opens_a_named_file):
                     continue
-        out.append(f"{label}:{node.lineno}  {(ast.get_source_segment(src, node) or name)[:70]}")
+        record(node, name)
     return out
+
+
+#: A call that must be left inheriting the platform default carries this on its
+#: own line. There are exactly two, both in this file, and
+#: `test_the_deliberate_exemptions_are_only_the_two` pins that.
+DELIBERATE = "#178 the platform default on purpose"
 
 
 def _product_files() -> list[Path]:
@@ -137,6 +287,27 @@ def _product_files() -> list[Path]:
         files += sorted((REPO / d).rglob("*.py"))
     files.append(REPO / "main.py")
     return [f for f in files if f.is_file()]
+
+
+def _suite_files() -> list[Path]:
+    files: list[Path] = []
+    for d in ("tests", "benchmarks"):
+        files += sorted((REPO / d).rglob("*.py"))
+    return [f for f in files if f.is_file()]
+
+
+def _offenders_in(path: Path) -> list[str]:
+    """The sweep's findings for one file, minus the deliberately exempt lines."""
+    src = path.read_text(encoding="utf-8")
+    lines = src.splitlines()
+    rel = path.relative_to(REPO).as_posix()
+    out = []
+    for hit in _unencoded_calls(src, rel):
+        lineno = int(hit.split(":")[1].split("  ")[0])
+        if DELIBERATE in (lines[lineno - 1] if lineno <= len(lines) else ""):
+            continue
+        out.append(hit)
+    return out
 
 
 def test_no_product_call_site_relies_on_the_platform_default():
@@ -149,12 +320,60 @@ def test_no_product_call_site_relies_on_the_platform_default():
     offenders: list[str] = []
     for f in _product_files():
         rel = f.relative_to(REPO)
-        if rel.as_posix() == "core/text_io.py":
-            continue          # the one module allowed to talk about encodings
-        offenders += _unencoded_calls(f.read_text(encoding="utf-8"), rel.as_posix())
+        if rel.as_posix() in ("core/text_io.py", "core/proc_text.py"):
+            continue          # the two modules allowed to talk about encodings
+        offenders += _offenders_in(f)
     assert offenders == [], (
         f"{len(offenders)} text-IO call site(s) name no encoding:\n  "
         + "\n  ".join(offenders[:20]))
+
+
+def test_no_call_site_in_the_suite_relies_on_the_platform_default():
+    """THE SECOND HALF OF WHAT THE ISSUE ASKS FOR, IN ITS OWN WORDS:
+
+        "The same for the suite, so the gate can be run on Windows at all" —
+        "61 of its 133 failures are `read_text()` decoding as cp1252".
+
+    The first pass at #178 fixed the app and left the suite, and with nothing
+    guarding `tests/` the count then went UP, from the 307 in the issue to
+    1,449. Naming the encoding in the app while the tests that prove it still
+    inherit one is not half a fix; it is a fix nobody can run on the machine
+    the issue was filed from.
+
+    1,482 call sites were swept: 30 `subprocess(text=True)` and 1,452 file
+    reads and writes. Every edit was placed from the AST and every file was
+    then proved to differ from its original by nothing but added `encoding=`
+    keywords — the tree is re-parsed, its `encoding` keywords stripped, and
+    compared with the original's. A blanket substitution on this codebase once
+    rewrote a `tr()` key that lives in thirteen catalogues; this one could not,
+    because anything else it touched would have shown up as a tree difference.
+    """
+    offenders: list[str] = []
+    for f in _suite_files():
+        offenders += _offenders_in(f)
+    assert offenders == [], (
+        f"{len(offenders)} text-IO call site(s) in the suite name no "
+        f"encoding:\n  " + "\n  ".join(offenders[:20]))
+
+
+def test_the_deliberate_exemptions_are_only_the_two():
+    """Two calls in this file MUST keep inheriting the platform default,
+    because what they prove is what the platform default does. Both carry a
+    marker on their own line, and an exemption that can be granted silently is
+    not an exemption, it is a hole — so the count is pinned here.
+    """
+    marked = []
+    for f in _suite_files() + _product_files():
+        for i, line in enumerate(f.read_text(encoding="utf-8").splitlines(), 1):
+            if DELIBERATE in line and not line.lstrip().startswith("DELIBERATE"):
+                marked.append(f"{f.relative_to(REPO).as_posix()}:{i}  "
+                              f"{line.strip()[:60]}")
+    # Line numbers move whenever this file is edited, so they are not what is
+    # pinned. The FILE and the COUNT are.
+    assert len(marked) == 2, marked
+    assert all(m.startswith("tests/test_encoding_is_named.py:") for m in marked), marked
+    assert any("p.write_text(NOTES)" in m for m in marked), marked
+    assert any("read_text(errors=" in m for m in marked), marked
 
 
 def test_the_sweep_would_notice_a_violation():
@@ -177,6 +396,89 @@ def test_the_sweep_would_notice_a_violation():
     )
     found = _unencoded_calls(planted, "planted")
     assert len(found) == 6, found
+
+
+def test_the_sweep_would_notice_the_shapes_the_pentest_walked_past():
+    """The first version of this sweep let four whole classes through.
+
+    A penetration test fed it the forms it does not model and reported which
+    ones were invisible. Each is planted here, one line apiece, so that
+    re-narrowing the sweep breaks this test rather than quietly shrinking the
+    thing it guards.
+    """
+    planted = (
+        "import codecs, configparser, gzip, io, logging, os, subprocess, tempfile\n"
+        "def f(p, d, n, c):\n"
+        "    subprocess.run(c, capture_output=True, text=True)\n"
+        "    subprocess.check_output(c, universal_newlines=True)\n"
+        "    runner(c, capture_output=True, text=True)\n"
+        "    (d / n).open()\n"
+        "    io.open(p).read()\n"
+        "    codecs.open(p).read()\n"
+        "    gzip.open(p, 'rt').read()\n"
+        "    tempfile.NamedTemporaryFile('w', suffix='.ps')\n"
+        "    logging.FileHandler(p)\n"
+        "    logging.handlers.RotatingFileHandler(p)\n"
+        "    os.popen(c).read()\n"
+        "    cp = configparser.ConfigParser()\n"
+        "    cp.read(p)\n"
+    )
+    found = _unencoded_calls(planted, "planted")
+    assert len(found) == 12, found       # every line but the ConfigParser()
+
+    # And the same calls, done right, are silent — a sweep that flagged these
+    # would be uninstalled within a week.
+    clean = (
+        "import codecs, configparser, gzip, io, logging, os, subprocess, tempfile\n"
+        "from core.proc_text import run_text\n"
+        "def f(p, d, n, c):\n"
+        "    run_text(c, capture_output=True)\n"
+        "    subprocess.run(c, capture_output=True, text=True, encoding='utf-8')\n"
+        "    subprocess.run(c, capture_output=True)\n"
+        "    (d / n).open(encoding='utf-8')\n"
+        "    io.open(p, encoding='utf-8').read()\n"
+        "    gzip.open(p, 'rb').read()\n"
+        "    tempfile.NamedTemporaryFile('w+b', suffix='.tif')\n"
+        "    tempfile.NamedTemporaryFile('w', encoding='utf-8')\n"
+        "    tempfile.TemporaryDirectory()\n"
+        "    logging.FileHandler(p, encoding='utf-8')\n"
+        "    cp = configparser.ConfigParser()\n"
+        "    cp.read(p, encoding='utf-8')\n"
+    )
+    assert _unencoded_calls(clean, "clean") == []
+
+
+def test_the_sweep_does_not_flag_an_encoding_passed_POSITIONALLY():
+    """`open(p, "r", -1, "utf-8")` names the encoding. It is the fourth
+    positional argument of `open`, and the sweep used to report it as an
+    offender — a false positive the penetration test found, and the kind that
+    gets a guard switched off."""
+    assert _unencoded_calls("def f(p):\n    return open(p, 'r', -1, 'utf-8').read()\n",
+                            "positional") == []
+    # …but three positionals is still the platform's choice.
+    assert len(_unencoded_calls("def f(p):\n    return open(p, 'r', -1).read()\n",
+                                "three")) == 1
+
+    # `Path.read_text(encoding, errors)` and `Path.write_text(data, encoding)`
+    # take it positionally too, and one test in the suite passes
+    # `read_text("latin-1", "ignore")` on a bundled .ti1 on purpose.
+    assert _unencoded_calls("def f(p, s):\n"
+                            "    p.read_text('latin-1', 'ignore')\n"
+                            "    p.write_text(s, 'utf-8')\n", "posenc") == []
+    assert len(_unencoded_calls("def f(p, s):\n"
+                                "    p.read_text()\n"
+                                "    p.write_text(s)\n", "noenc")) == 2
+
+
+def test_a_module_that_defines_its_own_read_text_does_not_get_a_free_pass():
+    """A bare `read_text(p)` is exempt because it is the helper in
+    `core.text_io`. A module that defines its own function of that name breaks
+    that assumption, and the exemption has to break with it."""
+    shadow = ("def read_text(p):\n"
+              "    return p.read_bytes().decode('cp1252')\n"
+              "def g(p):\n"
+              "    return read_text(p)\n")
+    assert len(_unencoded_calls(shadow, "shadow")) == 1
 
     # …and does NOT flag the things that are already right.
     clean = (
@@ -364,7 +666,8 @@ def test_the_fixture_really_changes_the_platform_default(tmp_path, german_window
     because the fixture does nothing at all.
     """
     p = tmp_path / "probe.txt"
-    p.write_text(NOTES)                                  # no encoding named
+    p.write_text(NOTES)   # #178 the platform default on purpose: this write
+                          # IS the mutation, and naming a codec would erase it
     assert p.read_bytes() == NOTES.encode("cp1252"), p.read_bytes()
     assert p.read_bytes() != NOTES.encode("utf-8")
     # …and an explicit encoding still wins, so the fixture cannot mask the fix.
@@ -464,8 +767,10 @@ def test_that_last_test_would_have_failed_before_the_fix(tmp_path, german_window
     could be passing because the fixture never reached that module.
     """
     import workflow.reference_convert as rc
-    monkeypatch.setattr(rc, "read_text",
-                        lambda p, **kw: Path(p).read_text(errors="replace"))
+    # The pre-fix call, restored deliberately so its mojibake can be asserted.
+    monkeypatch.setattr(
+        rc, "read_text",
+        lambda p, **kw: Path(p).read_text(errors="replace"))  # #178 the platform default on purpose
     txt = tmp_path / "old.txt"
     write_text(txt, 'INSTRUMENTATION "i1Pro 2 — Müller"\n')
     got = rc.read_instrumentation(txt)

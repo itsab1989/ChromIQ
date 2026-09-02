@@ -80,7 +80,7 @@ def test_ti1_preset_creates_the_new_run(qapp, tmp_path, monkeypatch):
         tab._creator, "load_ti1_and_generate_preview",
         lambda *a, **k: captured.__setitem__(
             "run", Project.load(tmp_path / "P").current_run().id))
-    ti1 = tmp_path / "seed.ti1"; ti1.write_text("CTI1\n")
+    ti1 = tmp_path / "seed.ti1"; ti1.write_text("CTI1\n", encoding="utf-8")
 
     tab._generate_from_ti1(ti1)
 
@@ -91,7 +91,7 @@ def test_ti1_preset_creates_the_new_run(qapp, tmp_path, monkeypatch):
 
 def test_load_ti1_into_the_project_creates_the_new_run(qapp, tmp_path, monkeypatch):
     tab, fm, ctl = _tab_on_new_run(tmp_path)
-    src = tmp_path / "patchset.ti1"; src.write_text("CTI1\n")
+    src = tmp_path / "patchset.ti1"; src.write_text("CTI1\n", encoding="utf-8")
     monkeypatch.setattr(tc, "open_file_dialog", lambda *a, **k: str(src))
     monkeypatch.setattr(tab, "_ti1_load_destination", lambda _s: "into")
     captured = {}

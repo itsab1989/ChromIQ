@@ -103,7 +103,7 @@ def test_target_marquee_scanin_colprof_e2e(folder_name, max_avg_de, tmp_path):
     qi = QImage(str(img))
     dm = re.search(r"(\d+)dpi", img.name)
     dpi = int(dm.group(1)) if dm else 100
-    corners = _fiducial_corners(cht.read_text(errors="ignore"),
+    corners = _fiducial_corners(cht.read_text(errors="ignore", encoding="utf-8"),
                                 qi.width(), qi.height(), dpi)
 
     shutil.copy(img, tmp_path / "s.tif")
@@ -113,13 +113,13 @@ def test_target_marquee_scanin_colprof_e2e(folder_name, max_avg_de, tmp_path):
                        corners=corners, diag=Path("d.tif"))
     assert "-F" in argv and "-p" not in argv   # corners replace the search
     r = subprocess.run([_SCANIN, *argv],
-                       cwd=tmp_path, capture_output=True, text=True)
+                       cwd=tmp_path, capture_output=True, text=True, encoding="utf-8")
     assert (tmp_path / "s.ti3").is_file(), \
         f"{folder_name}: scanin -F produced no .ti3:\n{r.stderr[-400:]}"
 
     c = subprocess.run(
         [_COLPROF, "-v", "-D", "t", "-as", "s"],
-        cwd=tmp_path, capture_output=True, text=True)
+        cwd=tmp_path, capture_output=True, text=True, encoding="utf-8")
     assert (tmp_path / "s.icc").is_file(), \
         f"{folder_name}: colprof made no profile:\n{c.stderr[-400:]}"
     m = re.search(r"avg err = ([0-9.]+)", c.stdout + c.stderr)

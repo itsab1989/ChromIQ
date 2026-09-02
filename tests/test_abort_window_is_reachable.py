@@ -58,7 +58,7 @@ def test_the_helper_really_does_emit_that_event(manager):
            / "native" / "chartread_helper" / "chromiq_chartread.c")
     if not src.is_file():                      # pragma: no cover
         pytest.skip("helper source not in this checkout")
-    text = src.read_text(errors="replace")
+    text = src.read_text(errors="replace", encoding="utf-8")
     assert 'cq_emit_simple("abort_confirm")' in text, (
         "the helper no longer emits abort_confirm — the engine window is "
         "unreachable again")

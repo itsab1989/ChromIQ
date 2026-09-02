@@ -57,10 +57,10 @@ def _verification_project(tmp_path: Path) -> Path:
     run = proj.current_run(); run.ensure_dir()
     # Reference chart at the run root (a self-verification) so the report finds
     # its design reference one/two levels up from the dated folder.
-    (run.dir / "Canon-Pro300.ti2").write_text(_TI2)
+    (run.dir / "Canon-Pro300.ti2").write_text(_TI2, encoding="utf-8")
     v = run.new_verification(); v.ensure_dir()
     vti3 = v.measurement_ti3
-    vti3.write_text(_TI3)
+    vti3.write_text(_TI3, encoding="utf-8")
     mark_verification_ti3(vti3)
     return vti3
 
@@ -94,9 +94,9 @@ def test_dialog_profiling_report_stays_profiling(tmp_path):
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
     proj = Project.create(tmp_path / "P", "P")
     run = proj.current_run(); run.ensure_dir()
-    (run.dir / "P.ti2").write_text(_TI2)
+    (run.dir / "P.ti2").write_text(_TI2, encoding="utf-8")
     ti3 = run.measurement_ti3
-    ti3.write_text(_TI3)                          # NO verification marker
+    ti3.write_text(_TI3, encoding="utf-8")                          # NO verification marker
 
     dlg = MeasurementReportDialog(_Settings(), initial_ti3=ti3)
     runs = dlg._runs_for_report()
@@ -130,8 +130,8 @@ def test_report_dir_places_by_least_common_ancestor(tmp_path):
     # on as well, because this profile has only the one run to cover.
     proj = Project.create(tmp_path / "Q", "Q")
     run = proj.current_run(); run.ensure_dir()
-    (run.dir / "Q.ti2").write_text(_TI2)
-    ti3 = run.measurement_ti3; ti3.write_text(_TI3)
+    (run.dir / "Q.ti2").write_text(_TI2, encoding="utf-8")
+    ti3 = run.measurement_ti3; ti3.write_text(_TI3, encoding="utf-8")
     dlg2 = MeasurementReportDialog(_Settings(), initial_ti3=ti3)
     dlg2._all_runs_check.setChecked(False)
     assert dlg2._report_dir() == run.dir / "reports"     # run root

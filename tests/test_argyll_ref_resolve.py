@@ -27,7 +27,7 @@ def _make_cellar(tmp: Path) -> tuple[Path, Path, Path]:
     ref.mkdir()
     (ref / "ClayRGB1998.icm").write_bytes(b"icc")
     for t in _TOOLS:
-        (cellar_bin / argyll_binary(t)).write_text("#!/bin/sh\n")
+        (cellar_bin / argyll_binary(t)).write_text("#!/bin/sh\n", encoding="utf-8")
     brew_bin = tmp / "brew" / "bin"
     brew_bin.mkdir(parents=True)
     for t in _TOOLS:
@@ -52,7 +52,7 @@ def test_resolve_ref_direct_sibling(tmp_path):
     ref = tmp_path / "Argyll" / "ref"
     ref.mkdir()
     for t in _TOOLS:
-        (bind / argyll_binary(t)).write_text("x")
+        (bind / argyll_binary(t)).write_text("x", encoding="utf-8")
     assert resolve_ref_dir(bind) == ref
 
 

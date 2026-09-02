@@ -416,7 +416,7 @@ def test_the_component_table_covers_every_appearance_taking_method():
     import ast
     found = set()
     for path in sorted((ROOT / "ui").rglob("*.py")):
-        tree = ast.parse(path.read_text())
+        tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if not isinstance(node, ast.ClassDef):
                 continue
@@ -509,7 +509,7 @@ def test_no_module_folds_an_appearance_into_two_values_any_more():
     for path in sorted((ROOT / "ui").rglob("*.py")):
         if path.name == "theme.py":
             continue
-        for i, line in enumerate(path.read_text().splitlines(), 1):
+        for i, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             if _FOLD.search(line):
                 offenders.append(f"{path.relative_to(ROOT)}:{i}: {line.strip()}")
     assert offenders == [], "\n".join(offenders)

@@ -30,15 +30,15 @@ def test_recipe_is_hexagonal_dict_and_object():
 def test_chart_is_hexagonal_reads_channels_json(tmp_path):
     # A SpectroScan hex chart's sidecar.
     (tmp_path / "chart.channels.json").write_text(
-        json.dumps({"layout": {"recipe": {"instrument": "SS", "hflag": True}}}))
-    (tmp_path / "chart.ti2").write_text("x")
+        json.dumps({"layout": {"recipe": {"instrument": "SS", "hflag": True}}}), encoding="utf-8")
+    (tmp_path / "chart.ti2").write_text("x", encoding="utf-8")
     assert chart_is_hexagonal(tmp_path / "chart.ti2") is True
     assert chart_is_hexagonal(tmp_path / "chart.ti3") is True   # by stem
     assert chart_is_hexagonal(tmp_path / "chart.channels.json") is True
 
     # A rectangular SpectroScan chart is fine.
     (tmp_path / "flat.channels.json").write_text(
-        json.dumps({"layout": {"recipe": {"instrument": "SS", "hflag": False}}}))
+        json.dumps({"layout": {"recipe": {"instrument": "SS", "hflag": False}}}), encoding="utf-8")
     assert chart_is_hexagonal(tmp_path / "flat.ti2") is False
 
     # Fail open: no sidecar, unreadable, or None → not hex (never blocks blindly).

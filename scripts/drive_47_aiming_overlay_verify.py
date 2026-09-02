@@ -49,6 +49,7 @@ from PyQt6.QtGui import QColor, QFontDatabase           # noqa: E402
 from PyQt6.QtWidgets import (QApplication, QDialog,     # noqa: E402
                              QMessageBox)
 
+from core.proc_text import run_text
 from core.resource_path import resource_path            # noqa: E402
 
 REAL_PLIST = Path.home() / "Library/Preferences/com.chromiq.ChromIQ.plist"
@@ -767,10 +768,10 @@ def phase_F(app, win, charts, tabc=None):
     shutil.copy2(__file__, wt / "scripts" / Path(__file__).name)
     there = SANDBOX / "render_parent"
     env = dict(os.environ, CR30_47_SANDBOX=str(SANDBOX))
-    r = subprocess.run([sys.executable,
-                        str(wt / "scripts" / Path(__file__).name),
-                        "--render-only", str(there)],
-                       cwd=str(wt), env=env, capture_output=True, text=True)
+    r = run_text([sys.executable,
+                  str(wt / "scripts" / Path(__file__).name),
+                  "--render-only", str(there)],
+                 cwd=str(wt), env=env, capture_output=True)
     say("      " + (r.stdout or "").strip().replace("\n", "\n      "))
     if r.returncode != 0:
         say("      parent render FAILED:\n" + (r.stderr or "")[-2000:])

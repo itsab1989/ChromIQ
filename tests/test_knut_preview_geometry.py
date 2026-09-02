@@ -30,7 +30,7 @@ EXT1944_A4 = "assets/charts/pharmacist/rgb/i1pro/a4/extended1944/extended1944"
 
 
 def _layout(stem: str) -> dict:
-    return json.loads(resource_path(f"{stem}.channels.json").read_text())["layout"]
+    return json.loads(resource_path(f"{stem}.channels.json").read_text(encoding="utf-8"))["layout"]
 
 
 def _pages(stem: str) -> list[Path]:
@@ -81,11 +81,11 @@ def test_bugC_unknown_dpi_shows_a_dash_not_a_guess(tmp_path):
     """A sidecar with rects but no dpi anywhere must report "nothing", not 300."""
     from ui.tabs.tab_chart import TabChart
     ti2 = tmp_path / "chart.ti2"
-    ti2.write_text("NUMBER_OF_SETS 1\n")
+    ti2.write_text("NUMBER_OF_SETS 1\n", encoding="utf-8")
     (tmp_path / "chart.channels.json").write_text(json.dumps(
         {"layout": {"engine": "derived",
                     "patches": [{"loc": "A1", "page": 0,
-                                 "x": 0, "y": 0, "w": 100, "h": 100}]}}))
+                                 "x": 0, "y": 0, "w": 100, "h": 100}]}}), encoding="utf-8")
     assert TabChart._chart_patch_size_mm(ti2) == (0.0, 0.0)
 
 

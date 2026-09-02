@@ -56,7 +56,7 @@ def _set_spacers(panel, mode):
 def _build(panel, tmp_path: Path, tag: str):
     r = panel.get_recipe()
     ti1 = tmp_path / f"{tag}.ti1"
-    ti1.write_text(TI1)
+    ti1.write_text(TI1, encoding="utf-8")
     res = chart.build_chart(str(ti1), str(tmp_path / f"out-{tag}"),
                             **{**r.build_kwargs(), "dpi": 72})
     assert res.tiff_paths, "the chart was not actually rendered"

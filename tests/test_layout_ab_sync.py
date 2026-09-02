@@ -32,7 +32,7 @@ def test_recipe_layout_from_options_maps_every_field():
 def test_save_editor_meta_freezes_generators_syncs_layout(tmp_path):
     """The synced recipe keeps mode / cb / sp / count, replaces only layout."""
     ti2 = tmp_path / "chart.ti2"
-    ti2.write_text("")
+    ti2.write_text("", encoding="utf-8")
     spec = R.ChartSpec.new("CM", "A3")
     recipe = {
         "mode": "generate",
@@ -60,7 +60,7 @@ def test_save_editor_meta_freezes_generators_syncs_layout(tmp_path):
 
 def test_save_editor_meta_does_not_mutate_caller_recipe(tmp_path):
     ti2 = tmp_path / "chart.ti2"
-    ti2.write_text("")
+    ti2.write_text("", encoding="utf-8")
     spec = R.ChartSpec.new("i1", "A4")
     recipe = {"mode": "generate", "sp": {"cube_n": 5},
               "layout": {"margin": 6}}

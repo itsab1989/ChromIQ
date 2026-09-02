@@ -45,9 +45,9 @@ _I1 = 'TARGET_INSTRUMENT "GretagMacbeth i1 Pro"\n'
 def _chart(tmp_path, stem="chart", ti2_body=_CM, ti1_body=""):
     """A .ti1 the tab would load, with its .ti2 sibling beside it."""
     ti1 = tmp_path / f"{stem}.ti1"
-    ti1.write_text("CTI1\n" + ti1_body)
+    ti1.write_text("CTI1\n" + ti1_body, encoding="utf-8")
     if ti2_body is not None:
-        (tmp_path / f"{stem}.ti2").write_text("CTI2\n" + ti2_body)
+        (tmp_path / f"{stem}.ti2").write_text("CTI2\n" + ti2_body, encoding="utf-8")
     return ti1
 
 

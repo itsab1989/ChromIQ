@@ -19,7 +19,7 @@ SITE = ROOT / "docs" / "index.html"
 
 def _app_version() -> str:
     ns: dict = {}
-    exec((ROOT / "core" / "version.py").read_text(), ns)
+    exec((ROOT / "core" / "version.py").read_text(encoding="utf-8"), ns)
     return ns["APP_VERSION"]
 
 
@@ -27,7 +27,7 @@ def test_the_beta_link_points_at_this_version():
     version = _app_version()
     if "beta" not in version:
         return          # a stable release: the Download buttons cover it
-    links = re.findall(r"releases/tag/(v[0-9][^\"']*)", SITE.read_text())
+    links = re.findall(r"releases/tag/(v[0-9][^\"']*)", SITE.read_text(encoding="utf-8"))
     assert links, "the site names no release tag at all"
     for tag in links:
         assert tag == f"v{version}", (
@@ -37,6 +37,6 @@ def test_the_beta_link_points_at_this_version():
 
 def test_the_download_buttons_still_point_at_the_stable_release():
     """The opposite mistake: the main Download buttons must NOT chase a beta."""
-    text = SITE.read_text()
+    text = SITE.read_text(encoding="utf-8")
     assert text.count("releases/latest") >= 1, (
         "the Download buttons should offer the stable release, not a beta")

@@ -268,7 +268,7 @@ def test_measure_from_engine_exact_geometry(tmp_path):
     doc = {"layout": {"engine": "chromiq", "dpi": 300, "paper_mm": [210.0, 297.0],
                       "patches": rects, "recipe": {"instrument": "i1"}}}
     sc = tmp_path / "chart.channels.json"
-    sc.write_text(json.dumps(doc))
+    sc.write_text(json.dumps(doc), encoding="utf-8")
     out = measure_from_engine(sc, 0)
     assert out is not None
     report, ruler = out
@@ -315,7 +315,7 @@ def test_measure_from_engine_hex_expands_to_the_tips_only(tmp_path):
                       "patches": rects,
                       "recipe": {"instrument": "SS", "hflag": True}}}
     sc = tmp_path / "hex.channels.json"
-    sc.write_text(json.dumps(doc))
+    sc.write_text(json.dumps(doc), encoding="utf-8")
     rep, _ = measure_from_engine(sc, 0)
 
     px2mm = 25.4 / 200
@@ -349,7 +349,7 @@ def test_a_hex_chart_reports_the_margin_its_ink_really_has(tmp_path):
                       "patches": [dict(r, page=0) for r in rects if r["page"] == 0],
                       "recipe": {"instrument": "SS", "hflag": True}}}
     sc = tmp_path / "hexchart.channels.json"
-    sc.write_text(json.dumps(doc))
+    sc.write_text(json.dumps(doc), encoding="utf-8")
     rep, _ = measure_from_engine(sc, 0)
     left_px = min(r["x"] for r in rects if r["page"] == 0)
     assert abs(rep.left_mm - left_px * 25.4 / 200) < 0.05, (
@@ -363,5 +363,5 @@ def test_measure_from_engine_skips_printtarg_charts(tmp_path):
     import json
     from workflow.margin_inspector import measure_from_engine
     sc = tmp_path / "p.channels.json"
-    sc.write_text(json.dumps({"ink_channels": ["r", "g", "b"]}))
+    sc.write_text(json.dumps({"ink_channels": ["r", "g", "b"]}), encoding="utf-8")
     assert measure_from_engine(sc, 0) is None

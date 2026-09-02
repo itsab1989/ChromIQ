@@ -326,5 +326,5 @@ def write_ti3(path: Path, printer: SyntheticPrinter, device: np.ndarray,
         lines.append(" ".join(row))
     lines.append("END_DATA")
     path = Path(path)
-    path.write_text("\n".join(lines) + "\n")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return path

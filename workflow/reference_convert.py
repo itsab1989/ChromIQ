@@ -24,6 +24,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Callable
 
+from core.proc_text import run_text
 from core.stem_paths import artefact
 from core.text_io import read_text
 
@@ -394,7 +395,7 @@ def _run(argyll_bin: Path, tool: str, args: list[str],
         raise ReferenceConvertError(
             f"ChromIQ needs the ArgyllCMS tool “{tool}” to convert this file, but "
             f"couldn't find it. Check the ArgyllCMS folder in Settings.")
-    r = runner([str(exe), *args], capture_output=True, text=True)
+    r = run_text([str(exe), *args], runner=runner, capture_output=True)
     if r.returncode != 0:
         tail = (r.stderr or r.stdout or "").strip().splitlines()[-1:] or [""]
         raise ReferenceConvertError(f"{tool} couldn't convert the file: {tail[0]}")

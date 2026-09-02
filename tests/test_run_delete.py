@@ -62,7 +62,7 @@ class _Target:
 
 
 def _measure(run):
-    (run.dir / f"{run.stem}.ti3").write_text("MEAS")
+    (run.dir / f"{run.stem}.ti3").write_text("MEAS", encoding="utf-8")
 
 
 def _profile(run):
@@ -73,13 +73,13 @@ def _verification(run, vid, *, measured=True):
     v = run.verification(vid)
     v.ensure_dir()
     if measured:
-        v.measurement_ti3.write_text("V")
+        v.measurement_ti3.write_text("V", encoding="utf-8")
     return v
 
 
 def _verify_chart(run):
     run.verifications_dir.mkdir(parents=True, exist_ok=True)
-    run.verify_chart_ti2.write_text("TI2")
+    run.verify_chart_ti2.write_text("TI2", encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -423,7 +423,7 @@ def test_no_window_ever_writes_s_in_brackets(tmp_path):
 def test_deleting_a_run_removes_it_and_renumbers_the_rest(tmp_path):
     p = _project(tmp_path, runs=4)
     for rid in ("run1", "run2", "run3", "run4"):
-        (p.run(rid).dir / "marker.txt").write_text(rid)
+        (p.run(rid).dir / "marker.txt").write_text(rid, encoding="utf-8")
 
     plan = rd.plan_for(p, _Target("run2"))
     landed = rd.delete_run(p, plan)
@@ -432,9 +432,9 @@ def test_deleting_a_run_removes_it_and_renumbers_the_rest(tmp_path):
     assert sorted(d.name for d in root.iterdir() if d.is_dir()) == \
         ["run1", "run2", "run3"]
     # …and the folders kept their CONTENTS, only their names moved.
-    assert (root / "run1" / "marker.txt").read_text() == "run1"
-    assert (root / "run2" / "marker.txt").read_text() == "run3"
-    assert (root / "run3" / "marker.txt").read_text() == "run4"
+    assert (root / "run1" / "marker.txt").read_text(encoding="utf-8") == "run1"
+    assert (root / "run2" / "marker.txt").read_text(encoding="utf-8") == "run3"
+    assert (root / "run3" / "marker.txt").read_text(encoding="utf-8") == "run4"
     assert landed == "run3"
 
 
@@ -442,7 +442,7 @@ def test_the_manifest_follows_the_folders(tmp_path):
     p = _project(tmp_path, runs=4)
     rd.delete_run(p, rd.plan_for(p, _Target("run2")))
 
-    manifest = json.loads((p.root / Project.MANIFEST).read_text())
+    manifest = json.loads((p.root / Project.MANIFEST).read_text(encoding="utf-8"))
     assert manifest["runs"] == ["run1", "run2", "run3"]
     assert manifest["current_run"] == "run3", "D2: land on the last run"
 
@@ -452,7 +452,7 @@ def test_every_meta_json_is_rewritten(tmp_path):
     rd.delete_run(p, rd.plan_for(p, _Target("run2")))
 
     for rid in ("run1", "run2", "run3"):
-        meta = json.loads((p.runs_root / rid / "meta.json").read_text())
+        meta = json.loads((p.runs_root / rid / "meta.json").read_text(encoding="utf-8"))
         assert meta["run_id"] == rid, f"{rid} still claims to be {meta['run_id']}"
 
 
@@ -466,7 +466,7 @@ def test_a_reference_to_a_renamed_run_is_remapped(tmp_path):
 
     rd.delete_run(p, rd.plan_for(p, _Target("run2")))   # run3 → run2, run4 → run3
 
-    moved = json.loads((p.runs_root / "run3" / "meta.json").read_text())
+    moved = json.loads((p.runs_root / "run3" / "meta.json").read_text(encoding="utf-8"))
     assert moved["parent_run"] == "run2"
     assert moved["preconditioning_source_run"] == "run2"
 
@@ -481,7 +481,7 @@ def test_a_reference_to_the_deleted_run_is_cleared(tmp_path):
 
     rd.delete_run(p, rd.plan_for(p, _Target("run2")))
 
-    moved = json.loads((p.runs_root / "run2" / "meta.json").read_text())
+    moved = json.loads((p.runs_root / "run2" / "meta.json").read_text(encoding="utf-8"))
     assert moved["parent_run"] is None
     assert moved["preconditioning_source_run"] is None
 
@@ -544,7 +544,7 @@ def test_emptying_a_run_keeps_the_folder_and_a_fresh_meta(tmp_path):
     assert not run.measurement_ti3.exists()
     assert not run.profile_icc.exists()
     assert not run.verifications_dir.exists()
-    assert json.loads(run.meta_path.read_text())["run_id"] == "run1"
+    assert json.loads(run.meta_path.read_text(encoding="utf-8"))["run_id"] == "run1"
 
 
 def test_nothing_is_ever_moved_to_an_old_folder(tmp_path):
@@ -607,12 +607,12 @@ def _archive(run, when: str, *, measurement=True, profile=True):
     d = run.old_dir / when
     d.mkdir(parents=True, exist_ok=True)
     if measurement:
-        (d / f"{run.stem}.ti3").write_text("readings")
+        (d / f"{run.stem}.ti3").write_text("readings", encoding="utf-8")
         reads = d / "reads"
         reads.mkdir(exist_ok=True)
-        (reads / "read1.ti3").write_text("one")
+        (reads / "read1.ti3").write_text("one", encoding="utf-8")
     if profile:
-        (d / f"{run.stem}.icc").write_text("profile")
+        (d / f"{run.stem}.icc").write_text("profile", encoding="utf-8")
     return d
 
 
@@ -664,7 +664,7 @@ def test_the_chart_a_measurement_was_taken_with_is_named(tmp_path):
     p = _project(tmp_path, runs=3)
     run = p.run("run2")
     run.chart_snapshot_dir.mkdir(parents=True, exist_ok=True)
-    (run.chart_snapshot_dir / f"{run.stem}.ti2").write_text("the used chart")
+    (run.chart_snapshot_dir / f"{run.stem}.ti2").write_text("the used chart", encoding="utf-8")
     body = rd.message_for(rd.plan_for(p, _Target("run2")))
     assert "Restore Used Chart" in body
     assert "no other one" in body
@@ -675,7 +675,7 @@ def test_the_preconditioning_seed_is_named(tmp_path):
     then Delete removed it silently."""
     p = _project(tmp_path, runs=3)
     run = p.run("run2")
-    run.preconditioning_ti3.write_text("the seed")
+    run.preconditioning_ti3.write_text("the seed", encoding="utf-8")
     body = rd.message_for(rd.plan_for(p, _Target("run2")))
     assert "pre-conditioning" in body
 

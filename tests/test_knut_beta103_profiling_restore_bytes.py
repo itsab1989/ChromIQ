@@ -104,7 +104,7 @@ def test_the_auto_tag_really_would_alter_this_chart(qapp, tmp_path):
     nothing, so it is asserted on its own."""
     _s, _fm, run, tab = _env(tmp_path)
     ti2 = run.chart_ti2
-    ti2.write_text(_mixed_fixed_order_ti2())
+    ti2.write_text(_mixed_fixed_order_ti2(), encoding="utf-8")
     before = ti2.read_bytes()
 
     tab._maybe_autotag_randomised(ti2)
@@ -120,8 +120,8 @@ def test_a_restored_profiling_chart_survives_the_redraw(qapp, tmp_path):
     the chart must be exactly what was restored."""
     _s, _fm, run, tab = _env(tmp_path)
     ti2 = run.chart_ti2
-    ti2.write_text(_mixed_fixed_order_ti2())
-    ti2.with_suffix(".ti1").write_text("CTI1\n")
+    ti2.write_text(_mixed_fixed_order_ti2(), encoding="utf-8")
+    ti2.with_suffix(".ti1").write_text("CTI1\n", encoding="utf-8")
     restored = ti2.read_bytes()
     tif = _page(run)
 
@@ -143,8 +143,8 @@ def test_an_ordinary_profiling_build_is_still_auto_tagged(qapp, tmp_path):
     bidirectionally."""
     _s, _fm, run, tab = _env(tmp_path)
     ti2 = run.chart_ti2
-    ti2.write_text(_mixed_fixed_order_ti2())
-    ti2.with_suffix(".ti1").write_text("CTI1\n")
+    ti2.write_text(_mixed_fixed_order_ti2(), encoding="utf-8")
+    ti2.with_suffix(".ti1").write_text("CTI1\n", encoding="utf-8")
     tif = _page(run)
 
     assert getattr(tab, "_rebuild_guard", None) is None
@@ -159,7 +159,7 @@ def test_a_build_that_made_no_chart_still_lets_the_guard_go(qapp, tmp_path):
     cancelled — the success path never runs, so nothing else would free it."""
     _s, _fm, run, tab = _env(tmp_path)
     ti2 = run.chart_ti2
-    ti2.write_text(_mixed_fixed_order_ti2())
+    ti2.write_text(_mixed_fixed_order_ti2(), encoding="utf-8")
 
     tab._rebuild_guard = _ChartRebuildGuard(ti2)
     tab._on_generate_finished([])
@@ -205,12 +205,12 @@ def test_the_options_are_restored_when_the_copy_records_them(qapp, tmp_path):
     as_measured.patch_w_mm = 9.0
     as_measured.chart_text = "as measured"
     ti2 = run.chart_ti2
-    ti2.write_text(_mixed_fixed_order_ti2())
+    ti2.write_text(_mixed_fixed_order_ti2(), encoding="utf-8")
     ti2.with_suffix(".channels.json").write_text(json.dumps({
         "inks": ["R", "G", "B"],
         "layout": {"recipe": {k: v for k, v in vars(as_measured).items()},
                    "seed": 12345, "patches": [{"page": 0}]},
-        "engine": "chromiq", "engine_version": 2, "color_rep": "RGB"}))
+        "engine": "chromiq", "engine_version": 2, "color_rep": "RGB"}), encoding="utf-8")
 
     meddled = default_recipe("i1", "A4")
     meddled.clip_border = True
@@ -275,12 +275,12 @@ def test_restoring_a_printtarg_chart_turns_the_engine_toggle_off(qapp, tmp_path)
     # A stored chart with NO layout recipe — i.e. drawn by printtarg — but with
     # its printtarg fields saved beside it, which is what a build writes.
     ti2 = run.chart_ti2
-    ti2.write_text(_mixed_fixed_order_ti2())
+    ti2.write_text(_mixed_fixed_order_ti2(), encoding="utf-8")
     fields = [{"flag": pw.flag, "value": pw.get_raw_value(), "enabled": False}
               for pw in tab._manual_widgets.get("printtarg", [])]
     assert fields, "no printtarg fields to restore — check the panel built"
     ti2.with_suffix(".channels.json").write_text(json.dumps({
-        "inks": ["R", "G", "B"], "printtarg_fields": fields}))
+        "inks": ["R", "G", "B"], "printtarg_fields": fields}), encoding="utf-8")
 
     # The user has since moved to the ChromIQ engine.
     tab._manual_engine_check.setChecked(True)
@@ -305,12 +305,12 @@ def test_restoring_an_engine_chart_still_turns_the_engine_on(qapp, tmp_path):
         tab._init_manual_layout_panel()
     rec = default_recipe("i1", "A4")
     ti2 = run.chart_ti2
-    ti2.write_text(_mixed_fixed_order_ti2())
+    ti2.write_text(_mixed_fixed_order_ti2(), encoding="utf-8")
     ti2.with_suffix(".channels.json").write_text(json.dumps({
         "inks": ["R", "G", "B"],
         "layout": {"recipe": {k: v for k, v in vars(rec).items()},
                    "seed": 1, "patches": [{"page": 0}]},
-        "engine": "chromiq", "engine_version": 2}))
+        "engine": "chromiq", "engine_version": 2}), encoding="utf-8")
 
     tab._manual_engine_check.setChecked(False)
     assert tab._restore_chart_settings(ti2) is True
@@ -326,7 +326,7 @@ def test_a_chart_with_no_sidecar_at_all_leaves_the_toggle_alone(qapp, tmp_path):
     if not tab._manual_panel_inited:
         tab._init_manual_layout_panel()
     ti2 = run.chart_ti2
-    ti2.write_text(_mixed_fixed_order_ti2())      # no .channels.json beside it
+    ti2.write_text(_mixed_fixed_order_ti2(), encoding="utf-8")      # no .channels.json beside it
 
     tab._manual_engine_check.setChecked(True)
     assert tab._restore_chart_settings(ti2) is False

@@ -83,7 +83,7 @@ def test_expected_icc_path_finds_appended_output(tmp_path):
     # Contaminated case: the .ti3 still carries a ".icm" stem, so colprof
     # (which appends) writes "<name>.icm.icc", not "<name>.icc".
     ti3 = tmp_path / "chart.icm.ti3"
-    ti3.write_text("ti3")
+    ti3.write_text("ti3", encoding="utf-8")
     written = tmp_path / "chart.icm.icc"
     written.write_bytes(b"x" * 2000)
     got = _builder().expected_icc_path(ProfileParams(ti3_path=ti3))
@@ -92,7 +92,7 @@ def test_expected_icc_path_finds_appended_output(tmp_path):
 
 def test_expected_icc_path_plain_name(tmp_path):
     ti3 = tmp_path / "chart.ti3"
-    ti3.write_text("ti3")
+    ti3.write_text("ti3", encoding="utf-8")
     icc = tmp_path / "chart.icc"
     icc.write_bytes(b"x" * 2000)
     assert _builder().expected_icc_path(ProfileParams(ti3_path=ti3)) == icc
@@ -102,7 +102,7 @@ def test_expected_icc_path_icm_output(tmp_path):
     # ArgyllCMS colprof's default output extension is ".icm" on Windows; a clean
     # session must still be recognised as success when only ".icm" is written.
     ti3 = tmp_path / "chart.ti3"
-    ti3.write_text("ti3")
+    ti3.write_text("ti3", encoding="utf-8")
     icm = tmp_path / "chart.icm"
     icm.write_bytes(b"x" * 2000)
     assert _builder().expected_icc_path(ProfileParams(ti3_path=ti3)) == icm
@@ -111,7 +111,7 @@ def test_expected_icc_path_icm_output(tmp_path):
 def test_expected_icc_path_finds_appended_icm_output(tmp_path):
     # Contaminated name + Windows ".icm" default → colprof writes "<name>.icm.icm".
     ti3 = tmp_path / "chart.icm.ti3"
-    ti3.write_text("ti3")
+    ti3.write_text("ti3", encoding="utf-8")
     written = tmp_path / "chart.icm.icm"
     written.write_bytes(b"x" * 2000)
     assert _builder().expected_icc_path(ProfileParams(ti3_path=ti3)) == written
@@ -119,7 +119,7 @@ def test_expected_icc_path_finds_appended_icm_output(tmp_path):
 
 def test_expected_icc_path_fallback_when_missing(tmp_path):
     ti3 = tmp_path / "chart.icm.ti3"
-    ti3.write_text("ti3")
+    ti3.write_text("ti3", encoding="utf-8")
     # Nothing written yet → returns colprof's appended .icc name.
     got = _builder().expected_icc_path(ProfileParams(ti3_path=ti3))
     assert got == tmp_path / "chart.icm.icc"
