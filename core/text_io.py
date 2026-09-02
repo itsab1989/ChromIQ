@@ -210,8 +210,21 @@ def _decode_as_declared(raw: bytes) -> str:
     # the whole file. That is a structure, not a statistic, so it is checked
     # rather than guessed at, and only here — a strict read has already
     # refused the file, and this path may not raise.
+    #
+    # THE DENSITY AS WELL AS THE PARITY, and leaving the density out cost a
+    # measurement. `all(i % 2 for i in nuls)` is satisfied by ONE stray NUL at
+    # an odd offset — so a 344-byte ASCII `.ti3` with a single corrupt byte
+    # (a crash mid-write, a flaky USB stick, a bad restore) was decoded as
+    # UTF-16LE and came back as 83 characters of CJK. `mark_verification_ti3`
+    # then wrote that back and unlinked the original: the person's measurement,
+    # destroyed by one bad byte. Before this module existed the same file lost
+    # exactly one character. A real UTF-16 file has a NUL under about half its
+    # bytes; requiring a quarter admits even a file that is half CJK, and
+    # rejects any plausible stray-NUL count outright.
     if len(raw) >= 4 and not len(raw) % 2:
         nuls = [i for i, b in enumerate(raw) if b == 0]
+        if len(nuls) * 4 < len(raw):
+            nuls = []                    # too sparse to be UTF-16 at all
         if nuls and all(i % 2 for i in nuls):
             try:
                 return raw.decode("utf-16-le")
