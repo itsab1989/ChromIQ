@@ -32,7 +32,7 @@ from PyQt6.QtWidgets import (
 
 from ui.fade_scroll import FadeScrollArea
 from ui.styles import SPEC_MAGENTA, TAB_COLORS
-from ui.theme import accent_for
+from ui.theme import APPEARANCE_NEUTRAL, accent_for
 from core.i18n import tr
 from ui.keyboard_help import keys_for
 from core.logger import get_logger
@@ -1506,6 +1506,77 @@ class WorkflowIcon(QWidget):
         from ui.theme import by_mode
         return QColor(by_mode("#22211f", "#e6e6e6", _n.NM_TEXT_DIM, self._mode))
 
+    def _card_surface(self) -> QColor:
+        """The ground this pictogram is drawn ON — the WorkflowCard's fill.
+
+        Kept in step with :meth:`WorkflowCard._apply_style`, which is the only
+        place that colour is set, and pinned there by
+        ``tests/test_cmyk_n_pictogram.py`` so the two cannot drift apart in
+        silence. Needed because the Neutral drawing knocks a gap out around its
+        solid shape, and a gap has to be painted in the colour behind it.
+        """
+        from ui import neutral_styles as _n
+        from ui.theme import by_mode
+        return QColor(by_mode("#ffffff", "#1a1a1a", _n.NM_BG_SURFACE, self._mode))
+
+    def _draw_cmyk_n_neutral(self, p: QPainter, fg: QColor, accent: QColor,
+                             s: int, r: int, cx: int, cy: int,
+                             stroke: float) -> None:
+        """The CMYK+N mark with the hue taken out of it.
+
+        **WHY THIS ONE NEEDED A REDRAW AND NOT A RECOLOUR.** Every other
+        pictogram in this dialog is line art with ONE accented element, which
+        is the handoff's rule and the reason it survives a colourless theme
+        untouched. This one is five filled drops in five different colours, and
+        the handoff is explicit about that case:
+
+            "The rule only works when the solid shape is unique in the frame.
+            If any pictogram currently has two or more accented elements,
+            redraw it first."
+
+        Four of the five carry meaning in their hue — they are the process
+        inks, named by colour. Turning them grey would have made four
+        indistinguishable discs, so they become **four open rings**: the ring
+        keeps the drop's size, its position and its overlap with its
+        neighbours, and it is those positions that say which ink is which to
+        anyone who knows the motif. What is lost is the naming, which the
+        card's own title (*"Profiling a CMYK+N printer (extra inks)"*) carries
+        anyway.
+
+        **THE FIFTH SHAPE IS NOT ON THE SAME ORBIT, AND THAT IS THE WHOLE
+        POINT.** It means *the extra ink*, and in the approved sketch it sat
+        where the coloured artwork puts it: dead centre, at ring size. Rendered
+        at the size this is actually seen — 96 px, not enlarged — that covers
+        the middle and reduces the four rings to corner arcs, so the mark reads
+        as one dark blob and the solid reads as simply the darkest of five
+        inks. Moving it out of the pile is what fixes that: the four rings stay
+        whole and legible as four, and the fifth is visibly not one of them.
+        It still overlaps the group, because an extra ink is added TO the set
+        rather than kept beside it.
+
+        The gap knocked out around it is what makes it read as laid ON the
+        four rather than tangled in them; without it the solid merges with
+        every ring stroke it crosses.
+        """
+        gx = cx - int(s * 0.0625)          # the four-ring group, nudged left
+        ex = cx + int(s * 0.1875)          # the extra ink, out of the pile
+        o = r // 2                         # the drops' own offset, unchanged
+        solid_r = int(r * 0.79)            # smaller than a ring: not a peer
+        gap = stroke * 1.2
+
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        p.setPen(QPen(fg, stroke))
+        for dx, dy in ((-o, -o), (o, -o), (-o, o), (o, o)):
+            p.drawEllipse(QRectF(gx + dx - r, cy + dy - r, 2 * r, 2 * r))
+
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(self._card_surface())
+        p.drawEllipse(QRectF(ex - solid_r - gap, cy - solid_r - gap,
+                             2 * (solid_r + gap), 2 * (solid_r + gap)))
+        p.setBrush(accent)
+        p.drawEllipse(QRectF(ex - solid_r, cy - solid_r,
+                             2 * solid_r, 2 * solid_r))
+
     def paintEvent(self, _ev: QPaintEvent) -> None:  # noqa: N802
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -1923,19 +1994,22 @@ class WorkflowIcon(QWidget):
         elif self._key == "cmyk_n":
             # Extra-ink profiling: overlapping ink drops (C, M, Y, K + one
             # accent) — the many-ink idea at a glance.
-            p.setPen(Qt.PenStyle.NoPen)
             r = int(s * 0.20)
             cx, cy = s // 2, s // 2
-            drops = [
-                (QColor(0, 174, 239, 200), -r // 2, -r // 2),   # cyan
-                (QColor(236, 0, 140, 200), r // 2, -r // 2),    # magenta
-                (QColor(255, 222, 23, 200), -r // 2, r // 2),   # yellow
-                (QColor(35, 31, 32, 200), r // 2, r // 2),      # black
-                (accent, 0, 0),                                 # accent extra ink
-            ]
-            for col, dx, dy in drops:
-                p.setBrush(col)
-                p.drawEllipse(cx + dx - r, cy + dy - r, 2 * r, 2 * r)
+            if self._mode == APPEARANCE_NEUTRAL:
+                self._draw_cmyk_n_neutral(p, fg, accent, s, r, cx, cy, stroke)
+            else:
+                p.setPen(Qt.PenStyle.NoPen)
+                drops = [
+                    (QColor(0, 174, 239, 200), -r // 2, -r // 2),   # cyan
+                    (QColor(236, 0, 140, 200), r // 2, -r // 2),    # magenta
+                    (QColor(255, 222, 23, 200), -r // 2, r // 2),   # yellow
+                    (QColor(35, 31, 32, 200), r // 2, r // 2),      # black
+                    (accent, 0, 0),                                 # accent extra ink
+                ]
+                for col, dx, dy in drops:
+                    p.setBrush(col)
+                    p.drawEllipse(cx + dx - r, cy + dy - r, 2 * r, 2 * r)
 
         elif self._key == "keyboard_shortcuts":
             # A keyboard: outlined body with a grid of small keys and one accent
