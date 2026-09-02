@@ -22,49 +22,35 @@ What these guard:
 from __future__ import annotations
 
 import inspect
+import json
 import os
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtCore import QPoint, QRect, QSize  # noqa: E402
-from PyQt6.QtWidgets import (QAbstractButton, QApplication, QComboBox,  # noqa: E402
-                             QGroupBox, QLabel, QLineEdit, QSpinBox, QWidget)
+from PyQt6.QtWidgets import (QApplication, QComboBox, QGroupBox,  # noqa: E402
+                             QWidget)
 
-from core.settings import DEFAULTS  # noqa: E402
+from tests.scanner_floor_probe import (FakeSettings, HEADROOM,  # noqa: E402
+                                       LANGUAGES, SMALLEST_SCREEN,
+                                       handle_reach)
 
-# Every catalogue the Settings combobox offers, plus the English source.
-LANGUAGES = ["en", "de", "fr", "es", "it", "nl", "no", "pl", "pt", "ru", "sv",
-             "ja", "zh_CN"]
-# The narrowest screen the window has to fit, and the room we insist on having
-# left over. The measured worst is Spanish at 1186 — 94 px to spare.
-SMALLEST_SCREEN = 1280
-HEADROOM = 60
+REPO_ROOT = Path(__file__).resolve().parent.parent
+PROBE = REPO_ROOT / "tests" / "scanner_floor_probe.py"
+# Generous on purpose. One run costs about two seconds idle; the gate saturates
+# every core, and a timeout that is too tight is a phantom red that says nothing
+# about the thing under test.
+PROBE_TIMEOUT = 300
 
 
 @pytest.fixture(scope="module")
 def _app():
     return QApplication.instance() or QApplication([])
-
-
-class _FakeSettings:
-    """A settings double built from DEFAULTS, with its own output root.
-
-    `custom_output_path` defaults to "", and "" means `~/ChromIQ` — the real
-    projects folder. This dialog provisions standard scanner targets under the
-    output root when it opens, so the root is pinned per instance.
-    """
-
-    def __init__(self, out_dir, **overrides):
-        self._store = {**DEFAULTS, **overrides}
-        self._store["custom_output_path"] = str(out_dir)
-
-    def get(self, key, default=None):
-        return self._store.get(key, default)
-
-    def set(self, key, value):
-        self._store[key] = value
 
 
 @pytest.fixture(scope="module")
@@ -74,7 +60,7 @@ def _out_dir(tmp_path_factory):
 
 def _make(_app, out_dir, show=True):
     from ui.dialogs.scanin_dialog import ScannerProfileDialog
-    dlg = ScannerProfileDialog(object(), _FakeSettings(out_dir))
+    dlg = ScannerProfileDialog(object(), FakeSettings(out_dir))
     if show:
         dlg.show()
         _settle(_app, dlg)
@@ -88,80 +74,43 @@ def _settle(app, dlg, n=6):
     app.processEvents()
 
 
-def _clipped(dlg):
-    """Every leaf control whose right edge falls outside its scroll viewport.
+def _floor(lang, out_dir):
+    """The window's real floor in *lang*, measured in a process of its own.
 
-    A floor the window can be dragged to but at which a control is cut in half
-    is not a floor: both panes pin their horizontal scrollbar off, so there is
-    nothing to scroll the missing part back into view.
+    A language is chosen once, at start-up, and this window's width comes from
+    strings captured in module and class attributes — so switching language
+    inside a live process measures English with a few translated labels mixed
+    in, and under-reports the floor by up to 110 px. The app's own Fusion style
+    and appearance stylesheet matter too, and `setStyle` / `setStyleSheet` reach
+    every widget the process has alive, which no test may do to its neighbours.
+    Both reasons point the same way: one process per language.
+    See `tests/scanner_floor_probe.py`.
     """
-    bad = []
-    for scroll, side in ((dlg._scroll, "left"), (dlg._scroll_right, "right")):
-        vp = scroll.viewport()
-        for w in scroll.widget().findChildren(QWidget):
-            if not w.isVisible() or w.findChildren(QWidget):
-                continue
-            if not isinstance(w, (QAbstractButton, QLabel, QLineEdit,
-                                  QComboBox, QSpinBox)):
-                continue
-            left = w.mapTo(vp, w.rect().topLeft()).x()
-            if left + w.width() > vp.width() + 1:
-                bad.append(f"{side}: {type(w).__name__} "
-                           f"+{left + w.width() - vp.width()}px")
-    return bad
-
-
-def _states(dlg, app):
-    """Every state that changes how wide the window has to be: the three source
-    modes, each with the Advanced section closed and open."""
-    def chart():
-        dlg._mode_chromiq.setChecked(True)
-        dlg._printer_cb.setChecked(False)
-
-    def standard():
-        dlg._printer_cb.setChecked(False)
-        dlg._mode_standard.setChecked(True)
-
-    def printer():
-        dlg._mode_chromiq.setChecked(True)
-        dlg._printer_cb.setChecked(True)
-
-    for name, setup in (("a ChromIQ chart", chart),
-                        ("a standard target", standard),
-                        ("printer from a scan", printer)):
-        for advanced in (False, True):
-            setup()
-            _settle(app, dlg)
-            dlg._adv_inline_head.setChecked(advanced)
-            _settle(app, dlg)
-            yield (f"{name}, Advanced "
-                   + ("open" if advanced else "closed")), dlg.minimumWidth()
-    dlg._adv_inline_head.setChecked(False)
-    _settle(app, dlg)
-
-
-def _floor_check(app, out_dir, lang):
-    """The window's floor in *lang*, and whether it clips when sat on it."""
-    from core.i18n import set_language
-    set_language(lang)
     try:
-        dlg = _make(app, out_dir)
-        try:
-            worst = ("", 0)
-            for state, floor in _states(dlg, app):
-                if floor > worst[1]:
-                    worst = (state, floor)
-            # …and now sit the window on that floor and look for damage.
-            for state, floor in _states(dlg, app):
-                dlg.resize(floor, 900)
-                _settle(app, dlg, 8)
-                bad = _clipped(dlg)
-                assert not bad, f"{lang}, {state}, at {floor}px: {bad}"
-            return worst
-        finally:
-            dlg.deleteLater()
-    finally:
-        set_language("en")
+        done = subprocess.run(
+            [sys.executable, str(PROBE), lang, str(out_dir)],
+            cwd=str(REPO_ROOT), capture_output=True, text=True,
+            timeout=PROBE_TIMEOUT,
+            env={**os.environ, "QT_QPA_PLATFORM": "offscreen"})
+    except subprocess.TimeoutExpired:
+        pytest.fail(f"the floor probe for {lang!r} did not finish within "
+                    f"{PROBE_TIMEOUT}s — that is a hang, not a failed check")
+    assert done.returncode == 0, (
+        f"the floor probe for {lang!r} exited {done.returncode}\n"
+        f"{done.stderr[-2500:]}")
+    return json.loads(done.stdout.strip().splitlines()[-1])
+
+
+def _assert_fits(res):
+    lang = res["lang"]
+    assert not res["clipped"], (
+        f"{lang}: controls cut off at the floor the window reports: "
+        + "; ".join(res["clipped"][:4]))
+    assert res["worst"] <= SMALLEST_SCREEN - HEADROOM, (
+        f"{lang} needs {res['worst']}px ({res['worst_state']}) — under "
+        f"{HEADROOM}px of headroom on a {SMALLEST_SCREEN}px screen")
+    assert not res["handles_out_of_reach"], (
+        f"{lang}: " + "; ".join(res["handles_out_of_reach"]))
 
 
 # --------------------------------------------------------------- the panes
@@ -219,22 +168,20 @@ def test_the_pane_cut_is_recorded_not_counted(_app, _out_dir):
 
 # --------------------------------------------------------------- the width
 @pytest.mark.parametrize("lang", ["en", "es", "ru"])
-def test_the_worst_languages_fit_a_1280_screen(_app, _out_dir, lang):
-    """Spanish is the widest of the twelve and Russian the widest with the
-    Advanced section open; English is the floor of the whole set."""
-    state, floor = _floor_check(_app, _out_dir, lang)
-    assert floor <= SMALLEST_SCREEN - HEADROOM, \
-        f"{lang} needs {floor}px ({state}) — under {HEADROOM}px of headroom"
+def test_the_worst_languages_fit_a_1280_screen(_out_dir, lang):
+    """Spanish is the widest of the twelve, Russian the widest with the
+    Advanced section open, English the floor of the whole set."""
+    _assert_fits(_floor(lang, _out_dir))
 
 
 @pytest.mark.slow
 @pytest.mark.parametrize("lang", LANGUAGES)
-def test_every_language_fits_a_1280_screen(_app, _out_dir, lang):
+def test_every_language_fits_a_1280_screen(_out_dir, lang):
     """All twelve, in every source mode, with Advanced closed and open, with
-    nothing clipped when the window is sat on the floor it reports."""
-    state, floor = _floor_check(_app, _out_dir, lang)
-    assert floor <= SMALLEST_SCREEN - HEADROOM, \
-        f"{lang} needs {floor}px ({state}) — under {HEADROOM}px of headroom"
+    nothing clipped when the window sits on the floor it reports — and the
+    eight drag handles reachable in each of them, since the preview is a
+    different size in every language."""
+    _assert_fits(_floor(lang, _out_dir))
 
 
 def test_the_floor_is_the_layouts_own_not_the_opening_width(_app, _out_dir):
@@ -249,38 +196,6 @@ def test_the_floor_is_the_layouts_own_not_the_opening_width(_app, _out_dir):
 
 
 # ------------------------------------------------------------- the handles
-def _handles(dlg):
-    """Each of the eight drag handles, and how much of its grab area is inside
-    the preview pane's viewport and clear of that pane's scrollbar."""
-    from PyQt6.QtWidgets import QScrollArea
-    import ui.scan_grid_marquee as sgm
-    corner, side = int(sgm._HANDLE_R * 2.4), int(sgm._SIDE_R * 2.8)
-    mq = dlg._marquee
-    host = mq
-    while host is not None and not isinstance(host, QScrollArea):
-        host = host.parentWidget()
-    vp = host.viewport()
-    vp_rect = QRect(vp.mapTo(dlg, QPoint(0, 0)), vp.size())
-    vbar = host.verticalScrollBar()
-    bar = (QRect(vbar.mapTo(dlg, QPoint(0, 0)), vbar.size())
-           if vbar.isVisible() else QRect())
-
-    names = ["top-left", "top-right", "bottom-right", "bottom-left",
-             "top", "right", "bottom", "left"]
-    out = {}
-    for i, name in enumerate(names):
-        p = mq._handle_pos(i) if i < 4 else mq._side_handle_pos(i - 4)
-        r = corner if i < 4 else side
-        box = QRect(mq.mapTo(dlg, QPoint(int(p.x()) - r, int(p.y()) - r)),
-                    QSize(r * 2, r * 2))
-        area = box.width() * box.height()
-        seen = vp_rect.intersected(box)
-        hidden = bar.intersected(box)
-        out[name] = ((seen.width() * seen.height())
-                     - (hidden.width() * hidden.height())) / area
-    return out
-
-
 def test_the_preview_drag_handles_are_all_reachable(_app, _out_dir):
     """All eight, at the size the window opens AND at its floor.
 
@@ -289,6 +204,9 @@ def test_the_preview_drag_handles_are_all_reachable(_app, _out_dir):
     reserved for them the ones on the preview's own edge fall past the widget
     and cannot be grabbed with a mouse at all — 8 of 8 unreachable at the size
     the single-column window used to open at, and 3 of 8 here without it.
+
+    English only here; the other twelve are covered by the per-language sweep
+    above, which measures the handles in the same run as the floor.
     """
     dlg = _make(_app, _out_dir)
     try:
@@ -304,7 +222,7 @@ def test_the_preview_drag_handles_are_all_reachable(_app, _out_dir):
             _settle(_app, dlg, 4)
             dlg._marquee._recompute_fit()
             _settle(_app, dlg, 4)
-            for name, reach in _handles(dlg).items():
+            for name, reach in handle_reach(dlg).items():
                 assert reach > 0.6, (
                     f"{name} handle is {reach:.0%} reachable {tag} "
                     f"({size[0]}x{size[1]})")
