@@ -1015,20 +1015,84 @@ class Calibration:
     #: the whole-calibration archive already puts the stored chart copy.
     ARCHIVE_CHART_DIRNAME = "chart"
 
-    def chart_files(self) -> "list[Path]":
-        """The live files that ARE the chart: everything in ``cal/`` that is not
-        a result and not the calibration's own words.
+    def is_ours(self, name: str) -> bool:
+        """Whether *name* is a file ChromIQ made for THIS calibration.
 
-        Defined by subtraction on purpose. A list of stems and suffixes would go
-        stale the first time a new sidecar is added — ``.strips.json`` and
-        ``.print.json`` have both been forgotten by such a list already
-        (``Run.chart_artefact_names``) — whereas "whatever is live and is not a
-        measurement" cannot miss a file it has never heard of. So the ``.ti1``,
-        the ``.ti2``, the ``.channels.json``, every ``_NN.tif`` page and any
-        sidecar beside them are all covered by construction.
+        Every file ChromIQ writes flat into ``cal/`` is named after the
+        calibration — measured, not assumed: a real targen + printtarg build
+        produces ``<stem>.ti1``, ``<stem>.ti2`` and ``<stem>*.tif`` and nothing
+        else (``review2/R4-data/p8_what_lands_in_cal.py``), the layout engine
+        adds ``<stem>.channels.json`` / ``<stem>.strips.json``, chartread writes
+        ``<stem>.ti3``, printcal ``<stem>.cal`` and colprof ``<stem>.icc``.
+        Every other thing this class knows how to write is a FOLDER
+        (``exports/``, ``chart/``, ``old/``, ``cache/``), and the one flat file
+        that is not stem-named is ``meta.json``, which ``live_files`` already
+        keeps out.
+
+        NFC ON BOTH SIDES, the same rule :func:`files_matching`,
+        :meth:`Project.rename` and the v1 migration's ``_protected`` all follow:
+        the stem is the FOLDER's spelling and the name is the FILE's, and a
+        project restored from a Mac OS Extended volume has them spelled
+        differently. Compared raw, a calibration whose chart came off such a
+        volume would not recognise a single one of its own files — and would
+        then treat the whole chart as somebody else's and leave it behind.
+
+        A plain ``startswith`` and never a pattern. A project called
+        ``Canon-Pro300 [test]`` or ``Chart*A`` is a name, not syntax; this is
+        the comparison :func:`stem_files` exists to keep away from `fnmatch`.
+        """
+        return nfc(name).startswith(nfc(self.stem))
+
+    def _not_a_result(self) -> "list[Path]":
+        """Everything live that is not a result — ours and strangers together.
+
+        The measured branch of :meth:`reset` archives exactly this, which is
+        what it archived before strangers were told apart from the chart, so
+        that branch is unchanged by construction.
         """
         results = set(self.result_files())
         return [p for p in self.live_files() if p not in results]
+
+    def chart_files(self) -> "list[Path]":
+        """The live files that ARE the chart: what is not a result, not the
+        calibration's own words, and IS named after this calibration.
+
+        Still defined by subtraction, which is what makes it safe: a list of
+        stems and suffixes would go stale the first time a new sidecar is added
+        — ``.strips.json`` and ``.print.json`` have both been forgotten by such
+        a list already (``Run.chart_artefact_names``) — whereas "live, not a
+        measurement, and named after this calibration" covers a sidecar nobody
+        has invented yet, because ChromIQ names it after the calibration like
+        everything else it writes there.
+
+        WHAT THE STEM TEST ADDS, AND WHY IT HAD TO. Subtraction alone had no
+        third category, so a file that was neither chart nor result — a note
+        the person typed, a photograph of the printed sheet, a ``.bak`` of a
+        measurement — was classed as CHART, and the unmeasured branch drops the
+        chart. Pressing Generate Chart on a calibration you had not measured
+        therefore deleted it: not archived, not in the Trash, nowhere, with a
+        window on screen that spoke only about the chart. The owner's ruling of
+        2026-09-02 (option 3) is about THE CHART; the code was applying it to
+        everything it did not recognise. Found by the second critical review,
+        2026-09-02.
+
+        So the rule for this folder, in one sentence: **only the files ChromIQ
+        named after this calibration are the chart, and nothing else in ``cal/``
+        is ever moved or discarded.** That answer does not depend on the shape
+        of the thing — a stranger file, a stranger sub-folder and a
+        ``.DS_Store`` are all simply left where the person put them, where
+        before a stranger FILE was destroyed while a stranger FOLDER survived
+        merely because ``live_files`` lists files only.
+        """
+        return [p for p in self._not_a_result() if self.is_ours(p.name)]
+
+    def stranger_files(self) -> "list[Path]":
+        """The live files in ``cal/`` that are nobody's business but the
+        person's: not a result, and not named after this calibration.
+
+        Never dropped and never stashed. See :meth:`chart_files`.
+        """
+        return [p for p in self._not_a_result() if not self.is_ours(p.name)]
 
     def result_files(self) -> "list[Path]":
         """The live files that cannot be regenerated — the measurement, the
@@ -1212,7 +1276,7 @@ class Calibration:
         ``cal/exports/`` goes with it. Nothing is deleted. This branch is
         unchanged.
 
-        **Nothing was measured** — the chart is an EXPERIMENT and leaves
+        **Nothing was measured** — the CHART is an EXPERIMENT and leaves
         nothing, which is what the owner ruled on 2026-09-02 (option 3 of
         `RULING-calibration-old-charts.txt`, chosen against the recommendation
         of keeping the last one) and what K6 had already asked for:
@@ -1245,6 +1309,14 @@ class Calibration:
         it either, which is what the run path's outright ``rmtree`` would do to
         a build that then failed.
 
+        **ANYTHING IN ``cal/`` THAT IS NOT THIS CALIBRATION'S IS LEFT ALONE.**
+        A note the person typed, a photograph of the printed sheet, a folder of
+        their own — none of it is a chart, so none of it is dropped, stashed or
+        archived on this branch. It stays exactly where they put it. Before the
+        second critical review (2026-09-02) the subtraction had no third
+        category and every one of those files was destroyed by a rebuild; see
+        :meth:`chart_files` for the rule and why it is a stem test.
+
         ``meta.json`` stays (it describes the calibration, not the chart) and is
         copied into an archive, and ``cal/chart/`` stays where it is — it is the
         copy Restore Used Chart reads. Anything already in ``cal/old/`` is left
@@ -1262,6 +1334,14 @@ class Calibration:
         # one takes the KEEP branch.
         results = self.result_files()
         chart = self.chart_files()
+        # THE MEASURED BRANCH ARCHIVES WHAT IT ALWAYS ARCHIVED. `_not_a_result()`
+        # IS the expression `chart_files()` used to be, character for character,
+        # so telling the person's files apart from the chart changes nothing
+        # about that branch: the same files reach the same places in the same
+        # order, and the window the owner approved for it still describes it
+        # exactly. Only the UNMEASURED branch — the one that DROPS what it is
+        # given — is narrowed to the chart. See `chart_files`.
+        everything_but_results = self._not_a_result()
         # AN EMPTY `cal/exports/` IS NOT WORK, AND `cal/exports/` ON ITS OWN IS
         # NOT THE USER'S TO MOVE. `exports/` used to be appended whenever the
         # folder merely existed, so a `cal/` holding nothing but the empty
@@ -1271,12 +1351,19 @@ class Calibration:
         # The sidecars describe a chart: if there is no chart and no result,
         # there is nothing being replaced, so they are left exactly where they
         # are rather than moved or dropped.
+        #
+        # A `cal/` HOLDING ONLY THE PERSON'S OWN THINGS IS NOT A CALIBRATION.
+        # `chart` is now the chart alone, so a folder with a note in it and no
+        # chart and no measurement falls out here untouched, instead of the
+        # note being stashed and dropped as though it were a chart.
         if not results and not chart:
             return CalibrationReset()
         if self.exports_dir.is_dir():
             chart.append(self.exports_dir)
+            everything_but_results.append(self.exports_dir)
         if results:
-            dest = self._archive_without_raising(results, chart)
+            dest = self._archive_without_raising(results,
+                                                 everything_but_results)
             # Whatever the move could not take (a permission error, a file that
             # appeared in between) is left where it is rather than unlinked. An
             # unarchivable file is still the user's; the build that follows will
