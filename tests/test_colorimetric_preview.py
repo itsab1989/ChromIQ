@@ -27,7 +27,7 @@ def test_find_profile_prefers_preconditioning_icc(tmp_path):
     tif.touch()
     assert CP.find_device_profile(tif) is None
     (tmp_path / "meta.json").write_text(json.dumps(
-        {"editor_recipe": {"device": {"precond": str(GENERIC_CMYK)}}}))
+        {"editor_recipe": {"device": {"precond": str(GENERIC_CMYK)}}}), encoding="utf-8")
     if GENERIC_CMYK.exists():
         assert CP.find_device_profile(tif) == GENERIC_CMYK
     pre = tmp_path / "preconditioning.icc"

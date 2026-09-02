@@ -36,14 +36,14 @@ def _params(ti3: Path, extra: str = "") -> ProfileParams:
 
 def test_ink_limit_prefilled_from_ti3(tmp_path):
     ti3 = tmp_path / "c.ti3"
-    ti3.write_text(_TI3_CMYK)
+    ti3.write_text(_TI3_CMYK, encoding="utf-8")
     args = ProfileBuilder(None)._build_args(_params(ti3))
     assert "-l280" in args
 
 
 def test_user_l_flag_wins(tmp_path):
     ti3 = tmp_path / "c.ti3"
-    ti3.write_text(_TI3_CMYK)
+    ti3.write_text(_TI3_CMYK, encoding="utf-8")
     args = ProfileBuilder(None)._build_args(_params(ti3, extra="-l250"))
     assert "-l250" in args and "-l280" not in args
     # An explicit per-channel limit (-L) also suppresses the prefill.
@@ -54,7 +54,7 @@ def test_user_l_flag_wins(tmp_path):
 def test_rgb_ti3_stays_untouched(tmp_path):
     ti3 = tmp_path / "r.ti3"
     ti3.write_text(_TI3_CMYK.replace('COLOR_REP "CMYK_XYZ"\nTOTAL_INK_LIMIT "280.0"',
-                                     'COLOR_REP "iRGB_XYZ"'))
+                                     'COLOR_REP "iRGB_XYZ"'), encoding="utf-8")
     args = ProfileBuilder(None)._build_args(_params(ti3))
     assert not any(a.startswith("-l") for a in args)
 

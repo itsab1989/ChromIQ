@@ -316,7 +316,7 @@ def test_create_chart_suggest_includes_patches_and_orientation(qapp, settings, t
     # Manual: a loaded preset .ti1 supplies the count; paper A4 → Portrait.
     t._switch_mode("manual")
     ti1 = tmp_path / "set.ti1"
-    ti1.write_text("NUMBER_OF_SETS 484\n")
+    ti1.write_text("NUMBER_OF_SETS 484\n", encoding="utf-8")
     t._preset_ti1_path = ti1
     t._set_manual_value("printtarg", "-i", "i1")
     t._set_manual_value("printtarg", "-p", "A4")

@@ -161,11 +161,11 @@ def test_combined_gamut_html_exposes_both_controls(tmp_path: Path):
              "</Shape></Scene></X3D></body></html>")
     primary = tmp_path / "primary.html"
     compare = tmp_path / "compare.html"
-    primary.write_text(scene)
-    compare.write_text(scene)
+    primary.write_text(scene, encoding="utf-8")
+    compare.write_text(scene, encoding="utf-8")
     out = tmp_path / "combined.html"
     assert _build_compare_overlay_html(primary, compare, out)
-    html = out.read_text()
+    html = out.read_text(encoding="utf-8")
     assert "window._chromiqApplyPrimary" in html      # image-gamut hook
     assert "window._chromiqApplyCompare" in html       # printer-gamut hook
     assert 'id="chromiq-compare"' in html              # compare is identifiable
@@ -188,11 +188,11 @@ def test_gamut_wireframe_conversion(tmp_path: Path):
     assert "solid=" not in wire
     assert "0 1 2 0 -1" in wire        # polygon closed back to the first vertex
     # Through the merge: image (primary) wireframe, printer (compare) solid.
-    primary = tmp_path / "p.html"; primary.write_text(scene)
-    compare = tmp_path / "c.html"; compare.write_text(scene)
+    primary = tmp_path / "p.html"; primary.write_text(scene, encoding="utf-8")
+    compare = tmp_path / "c.html"; compare.write_text(scene, encoding="utf-8")
     out = tmp_path / "combined.html"
     assert _build_compare_overlay_html(primary, compare, out, primary_wire=True)
-    html = out.read_text()
+    html = out.read_text(encoding="utf-8")
     assert "IndexedLineSet" in html      # the image gamut is now a cage
 
 
@@ -256,12 +256,12 @@ def test_ti3_dialog_inspect_then_verify_reference(tmp_path: Path):
         "SAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z\nEND_DATA_FORMAT\n\n"
         "NUMBER_OF_SETS 3\nBEGIN_DATA\n"
         "1 100 100 100 86 90 75 \n2 50 50 50 18 19 16 \n3 0 0 0 0.9 1.0 1.1 \n"
-        "END_DATA\n")
+        "END_DATA\n", encoding="utf-8")
     ref = tmp_path / "ref.ti3"
     ref.write_text(
         "CTI3\n\nNUMBER_OF_FIELDS 4\nBEGIN_DATA_FORMAT\n"
         "SAMPLE_ID LAB_L LAB_A LAB_B\nEND_DATA_FORMAT\n\nNUMBER_OF_SETS 3\n"
-        "BEGIN_DATA\n1 96 0 0 \n2 51 1 -1 \n3 9 0 0 \nEND_DATA\n")
+        "BEGIN_DATA\n1 96 0 0 \n2 51 1 -1 \n3 9 0 0 \nEND_DATA\n", encoding="utf-8")
 
     dlg = Ti3InfoDialog(_runner(), _Settings())
     dlg.show()

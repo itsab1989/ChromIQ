@@ -69,7 +69,7 @@ def _project_run(tmp_path, name="Proj"):
 def _fresh(run_dir, stem):
     """Write the canonical measurement (chartread output) under the run."""
     p = run_dir / f"{stem}.ti3"
-    p.write_text("CTI3\nBEGIN_DATA\nEND_DATA\n")
+    p.write_text("CTI3\nBEGIN_DATA\nEND_DATA\n", encoding="utf-8")
     return p
 
 
@@ -107,7 +107,7 @@ def test_promote_while_active_accumulates_variants(tab, tmp_path):
     # Pretend read1 already exists in reads/ and a set is active.
     reads_dir = run_dir / "reads"
     reads_dir.mkdir()
-    (reads_dir / "read1.ti3").write_text("CTI3\nBEGIN_DATA\nEND_DATA\n")
+    (reads_dir / "read1.ti3").write_text("CTI3\nBEGIN_DATA\nEND_DATA\n", encoding="utf-8")
     tab._averaging_active = True
 
     ti3 = _fresh(run_dir, stem)       # the just-finished canonical read
@@ -120,7 +120,7 @@ def test_use_last_proceeds_with_latest_variant(tab, tmp_path):
     run_dir, stem = _project_run(tmp_path)
     reads_dir = run_dir / "reads"
     reads_dir.mkdir()
-    (reads_dir / "read1.ti3").write_text("CTI3\nBEGIN_DATA\nEND_DATA\n")
+    (reads_dir / "read1.ti3").write_text("CTI3\nBEGIN_DATA\nEND_DATA\n", encoding="utf-8")
     tab._averaging_active = True
     ti3 = _fresh(run_dir, stem)
     current, reads = tab._promote_completed_read(ti3)

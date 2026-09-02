@@ -107,7 +107,7 @@ def test_the_dialog_drops_its_gamut_html_folders(qapp):
     made = []
     for attr in ("_printer_html", "_image_html", "_combined_html"):
         folder = pathlib.Path(tempfile.mkdtemp(prefix="chromiq_gamuttest_"))
-        (folder / "page.html").write_text("<html>")
+        (folder / "page.html").write_text("<html>", encoding="utf-8")
         setattr(d, attr, str(folder / "page.html"))
         made.append(folder)
 

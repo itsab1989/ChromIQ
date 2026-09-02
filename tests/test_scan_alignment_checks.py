@@ -133,7 +133,7 @@ def _write_cgats(path, fields, rows):
         ["CGATS.17", f"NUMBER_OF_FIELDS {len(fields)}", "BEGIN_DATA_FORMAT",
          " ".join(fields), "END_DATA_FORMAT", f"NUMBER_OF_SETS {len(rows)}",
          "BEGIN_DATA"] + [" ".join(str(v) for v in r) for r in rows]
-        + ["END_DATA", ""]))
+        + ["END_DATA", ""]), encoding="utf-8")
 
 
 def test_page_reference_agreement_translates_page_locs(tmp_path, _app):
@@ -182,7 +182,7 @@ def test_scan_reference_correlation_separates(tmp_path, _app):
 def test_page_ids_from_cht_strips_padding(tmp_path, _app):
     from ui.dialogs.scanin_dialog import page_ids_from_cht
     p = tmp_path / "p.cht"
-    p.write_text(_engine_cht().replace("A1 A1", "A01 A01"))
+    p.write_text(_engine_cht().replace("A1 A1", "A01 A01"), encoding="utf-8")
     assert page_ids_from_cht(p) == {"A1", "A2", "A3"}
 
 
@@ -210,7 +210,7 @@ def test_check_page_alignment_flags_and_logs(tmp_path, _app):
     # prepare pipeline); the dialog's box grow-back assumes it. Mirror that.
     from workflow.scanin_runner import cht_with_sample_area
     (tmp_path / "x.cht").write_text(
-        cht_with_sample_area(_dense_cht_text(boxes), 0.6))
+        cht_with_sample_area(_dense_cht_text(boxes), 0.6), encoding="utf-8")
     f = ["SAMPLE_ID", "RGB_R", "RGB_G", "RGB_B", "XYZ_X", "XYZ_Y", "XYZ_Z"]
     rows = [[n, v, v, v, v, v, v] for n, v in exp.items()]
     _write_cgats(scan.parent / f"{scan.stem}-scanner.ti3", f, rows)

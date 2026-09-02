@@ -48,7 +48,7 @@ def test_missing_binary_reports_unavailable(monkeypatch, tmp_path):
 
 def test_env_override_locates_binary(monkeypatch, tmp_path):
     fake = tmp_path / "chromiq-gammap"
-    fake.write_text("#!/bin/sh\n")
+    fake.write_text("#!/bin/sh\n", encoding="utf-8")
     monkeypatch.setenv("CHROMIQ_GAMMAP", str(fake))
     assert gh.is_available() is True
     assert gh.helper_path() == fake
@@ -63,7 +63,7 @@ def test_run_gammap_missing_binary_raises(monkeypatch, tmp_path):
 
 def test_run_gammap_rejects_both_dst(monkeypatch, tmp_path):
     fake = tmp_path / "chromiq-gammap"
-    fake.write_text("#!/bin/sh\n")
+    fake.write_text("#!/bin/sh\n", encoding="utf-8")
     monkeypatch.setenv("CHROMIQ_GAMMAP", str(fake))
     with pytest.raises(gh.HelperUnavailable):
         gh.run_gammap(np.zeros((1, 3)), src_gam="s.gam", intent="p",
@@ -117,7 +117,7 @@ def test_argyll_cmyk_falls_back_to_cloud(monkeypatch, tmp_path):
     from workflow.profile_engine.forward_model import fit_forward_model
 
     fake = tmp_path / "chromiq-gammap"
-    fake.write_text("#!/bin/sh\n")
+    fake.write_text("#!/bin/sh\n", encoding="utf-8")
     monkeypatch.setenv("CHROMIQ_GAMMAP", str(fake))
 
     rng = np.random.default_rng(0)

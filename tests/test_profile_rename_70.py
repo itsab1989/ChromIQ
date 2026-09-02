@@ -114,7 +114,7 @@ def test_load_existing_profile_rejects_non_project(qapp, settings, monkeypatch, 
     t, fm = _make_tab(settings)
     fm.set_target_name("Keep")
     bogus = tmp_path / "notes.txt"
-    bogus.write_text("hi")
+    bogus.write_text("hi", encoding="utf-8")
     warned = {"v": False}
     monkeypatch.setattr(tc, "open_file_dialog", lambda *a, **k: str(bogus))
     monkeypatch.setattr(tc.InfoDialog, "exec", lambda self: warned.__setitem__("v", True))

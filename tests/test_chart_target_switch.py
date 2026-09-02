@@ -46,16 +46,16 @@ def _settings(tmp_path) -> AppSettings:
 
 def _make_profiling_chart(run):
     run.ensure_dir()
-    run.chart_ti1.write_text("ti1")
-    run.chart_ti2.write_text("ti2")
-    (run.dir / f"{run.stem}_01.tif").write_text("tif")
+    run.chart_ti1.write_text("ti1", encoding="utf-8")
+    run.chart_ti2.write_text("ti2", encoding="utf-8")
+    (run.dir / f"{run.stem}_01.tif").write_text("tif", encoding="utf-8")
 
 
 def _make_verify_chart(run):
     run.verifications_dir.mkdir(parents=True, exist_ok=True)
-    run.verify_chart_ti1.write_text("ti1")
-    run.verify_chart_ti2.write_text("ti2")
-    (run.verifications_dir / f"{run.verify_stem}_01.tif").write_text("tif")
+    run.verify_chart_ti1.write_text("ti1", encoding="utf-8")
+    run.verify_chart_ti2.write_text("ti2", encoding="utf-8")
+    (run.verifications_dir / f"{run.verify_stem}_01.tif").write_text("tif", encoding="utf-8")
 
 
 def _tab(settings):

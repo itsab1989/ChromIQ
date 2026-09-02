@@ -49,7 +49,7 @@ def _start_engine_run(tmp_path: Path):
     mgr = MeasureManager(runner)
     mgr._guided_state = "disabled"
     ti1 = tmp_path / "chart.ti1"
-    ti1.write_text("")
+    ti1.write_text("", encoding="utf-8")
     params = MeasureParams(ti1_path=ti1,
                            engine_helper=Path("/fake/chromiq-chartread"))
     lines: list[str] = []
@@ -128,14 +128,14 @@ def _partial_ti3(tmp_path: Path, readings: int = 1) -> Path:
     ti3.write_text(
         "CTI3\n\nNUMBER_OF_FIELDS 7\nBEGIN_DATA_FORMAT\n"
         "SAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z\nEND_DATA_FORMAT\n"
-        f"NUMBER_OF_SETS {readings}\nBEGIN_DATA\n{rows}\nEND_DATA\n")
+        f"NUMBER_OF_SETS {readings}\nBEGIN_DATA\n{rows}\nEND_DATA\n", encoding="utf-8")
     return ti3
 
 
 def _header_only_ti3(tmp_path: Path) -> Path:
     """A `.ti3` with a header and no readings — what the old stand-in was."""
     ti3 = tmp_path / "chart.ti3"
-    ti3.write_text("CTI3\nNUMBER_OF_SETS 1\n")
+    ti3.write_text("CTI3\nNUMBER_OF_SETS 1\n", encoding="utf-8")
     return ti3
 
 
@@ -176,7 +176,7 @@ def test_resume_fallback_does_not_double_add_r(tmp_path):
     runner = _RecordingRunner()
     mgr = MeasureManager(runner)
     mgr._guided_state = "disabled"
-    ti1 = tmp_path / "chart.ti1"; ti1.write_text("")
+    ti1 = tmp_path / "chart.ti1"; ti1.write_text("", encoding="utf-8")
     _partial_ti3(tmp_path)
     params = MeasureParams(ti1_path=ti1, resume=True,
                            engine_helper=Path("/fake/chromiq-chartread"))
@@ -439,7 +439,7 @@ def _start_engine_run_retries(tmp_path, retries):
     mgr = MeasureManager(runner)
     mgr._guided_state = "disabled"
     ti1 = tmp_path / "chart.ti1"
-    ti1.write_text("")
+    ti1.write_text("", encoding="utf-8")
     params = MeasureParams(ti1_path=ti1,
                            engine_helper=Path("/fake/chromiq-chartread"),
                            cal_auto_retries=retries)
@@ -529,7 +529,7 @@ def _start_cr30_run(tmp_path: Path, **kw):
     mgr = MeasureManager(runner)
     mgr._guided_state = "disabled"
     ti1 = tmp_path / "chart.ti1"
-    ti1.write_text("")
+    ti1.write_text("", encoding="utf-8")
     params = MeasureParams(ti1_path=ti1,
                            engine_helper=Path("/fake/chromiq-chartread"),
                            stock_reader_cannot_read=True, **kw)

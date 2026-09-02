@@ -268,12 +268,39 @@ def offending_calls(tree: ast.AST) -> list[ast.Call]:
     return out
 
 
+#: A call that must be left inheriting the platform default carries this on its
+#: own line. There are exactly two, both in this file, and
+#: `test_the_deliberate_exemptions_are_only_the_two` pins that.
+DELIBERATE = "#178 the platform default on purpose"
+
+
 def _product_files() -> list[Path]:
     files: list[Path] = []
     for d in ("core", "ui", "workflow", "scripts"):
         files += sorted((REPO / d).rglob("*.py"))
     files.append(REPO / "main.py")
     return [f for f in files if f.is_file()]
+
+
+def _suite_files() -> list[Path]:
+    files: list[Path] = []
+    for d in ("tests", "benchmarks"):
+        files += sorted((REPO / d).rglob("*.py"))
+    return [f for f in files if f.is_file()]
+
+
+def _offenders_in(path: Path) -> list[str]:
+    """The sweep's findings for one file, minus the deliberately exempt lines."""
+    src = path.read_text(encoding="utf-8")
+    lines = src.splitlines()
+    rel = path.relative_to(REPO).as_posix()
+    out = []
+    for hit in _unencoded_calls(src, rel):
+        lineno = int(hit.split(":")[1].split("  ")[0])
+        if DELIBERATE in (lines[lineno - 1] if lineno <= len(lines) else ""):
+            continue
+        out.append(hit)
+    return out
 
 
 def test_no_product_call_site_relies_on_the_platform_default():
@@ -286,12 +313,60 @@ def test_no_product_call_site_relies_on_the_platform_default():
     offenders: list[str] = []
     for f in _product_files():
         rel = f.relative_to(REPO)
-        if rel.as_posix() == "core/text_io.py":
-            continue          # the one module allowed to talk about encodings
-        offenders += _unencoded_calls(f.read_text(encoding="utf-8"), rel.as_posix())
+        if rel.as_posix() in ("core/text_io.py", "core/proc_text.py"):
+            continue          # the two modules allowed to talk about encodings
+        offenders += _offenders_in(f)
     assert offenders == [], (
         f"{len(offenders)} text-IO call site(s) name no encoding:\n  "
         + "\n  ".join(offenders[:20]))
+
+
+def test_no_call_site_in_the_suite_relies_on_the_platform_default():
+    """THE SECOND HALF OF WHAT THE ISSUE ASKS FOR, IN ITS OWN WORDS:
+
+        "The same for the suite, so the gate can be run on Windows at all" —
+        "61 of its 133 failures are `read_text()` decoding as cp1252".
+
+    The first pass at #178 fixed the app and left the suite, and with nothing
+    guarding `tests/` the count then went UP, from the 307 in the issue to
+    1,449. Naming the encoding in the app while the tests that prove it still
+    inherit one is not half a fix; it is a fix nobody can run on the machine
+    the issue was filed from.
+
+    1,482 call sites were swept: 30 `subprocess(text=True)` and 1,452 file
+    reads and writes. Every edit was placed from the AST and every file was
+    then proved to differ from its original by nothing but added `encoding=`
+    keywords — the tree is re-parsed, its `encoding` keywords stripped, and
+    compared with the original's. A blanket substitution on this codebase once
+    rewrote a `tr()` key that lives in thirteen catalogues; this one could not,
+    because anything else it touched would have shown up as a tree difference.
+    """
+    offenders: list[str] = []
+    for f in _suite_files():
+        offenders += _offenders_in(f)
+    assert offenders == [], (
+        f"{len(offenders)} text-IO call site(s) in the suite name no "
+        f"encoding:\n  " + "\n  ".join(offenders[:20]))
+
+
+def test_the_deliberate_exemptions_are_only_the_two():
+    """Two calls in this file MUST keep inheriting the platform default,
+    because what they prove is what the platform default does. Both carry a
+    marker on their own line, and an exemption that can be granted silently is
+    not an exemption, it is a hole — so the count is pinned here.
+    """
+    marked = []
+    for f in _suite_files() + _product_files():
+        for i, line in enumerate(f.read_text(encoding="utf-8").splitlines(), 1):
+            if DELIBERATE in line and not line.lstrip().startswith("DELIBERATE"):
+                marked.append(f"{f.relative_to(REPO).as_posix()}:{i}  "
+                              f"{line.strip()[:60]}")
+    # Line numbers move whenever this file is edited, so they are not what is
+    # pinned. The FILE and the COUNT are.
+    assert len(marked) == 2, marked
+    assert all(m.startswith("tests/test_encoding_is_named.py:") for m in marked), marked
+    assert any("p.write_text(NOTES)" in m for m in marked), marked
+    assert any("read_text(errors=" in m for m in marked), marked
 
 
 def test_the_sweep_would_notice_a_violation():
@@ -578,7 +653,8 @@ def test_the_fixture_really_changes_the_platform_default(tmp_path, german_window
     because the fixture does nothing at all.
     """
     p = tmp_path / "probe.txt"
-    p.write_text(NOTES)                                  # no encoding named
+    p.write_text(NOTES)   # #178 the platform default on purpose: this write
+                          # IS the mutation, and naming a codec would erase it
     assert p.read_bytes() == NOTES.encode("cp1252"), p.read_bytes()
     assert p.read_bytes() != NOTES.encode("utf-8")
     # …and an explicit encoding still wins, so the fixture cannot mask the fix.
@@ -678,8 +754,10 @@ def test_that_last_test_would_have_failed_before_the_fix(tmp_path, german_window
     could be passing because the fixture never reached that module.
     """
     import workflow.reference_convert as rc
-    monkeypatch.setattr(rc, "read_text",
-                        lambda p, **kw: Path(p).read_text(errors="replace"))
+    # The pre-fix call, restored deliberately so its mojibake can be asserted.
+    monkeypatch.setattr(
+        rc, "read_text",
+        lambda p, **kw: Path(p).read_text(errors="replace"))  # #178 the platform default on purpose
     txt = tmp_path / "old.txt"
     write_text(txt, 'INSTRUMENTATION "i1Pro 2 — Müller"\n')
     got = rc.read_instrumentation(txt)

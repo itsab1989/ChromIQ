@@ -39,7 +39,7 @@ def _project_with_runs(tmp_path: Path) -> Path:
     proj.new_run()                           # run2 (becomes current)
     # run1 gets a profile + two dated verifications for the dropdown.
     r1 = proj.run("run1")
-    r1.profile_icc.write_text("icc")
+    r1.profile_icc.write_text("icc", encoding="utf-8")
     import datetime as _dt
     r1.new_verification(_dt.datetime(2026, 6, 1, 9, 0, 0)).ensure_dir()
     r1.new_verification(_dt.datetime(2026, 7, 1, 9, 0, 0)).ensure_dir()

@@ -34,7 +34,7 @@ END_DATA
 
 
 def test_report_self_contained_from_255_device_rgb(tmp_path: Path):
-    (tmp_path / "chart.ti3").write_text(_TI3_255)
+    (tmp_path / "chart.ti3").write_text(_TI3_255, encoding="utf-8")
     r = build_report(tmp_path / "chart.ti3")
     # No .ti2 → device-derived reference, full ΔE available.
     assert r["reference_source"] == "device"
@@ -51,7 +51,7 @@ def _measurement_txt(tmp_path: Path, instr: str) -> Path:
     p = tmp_path / "m.txt"
     p.write_text(f'CGATS.5\n\nINSTRUMENTATION "{instr}"\n\n'
                  "BEGIN_DATA_FORMAT\nSampleID RGB_R RGB_G RGB_B\n"
-                 "END_DATA_FORMAT\nBEGIN_DATA\n1 255 255 255\nEND_DATA\n")
+                 "END_DATA_FORMAT\nBEGIN_DATA\n1 255 255 255\nEND_DATA\n", encoding="utf-8")
     return p
 
 
@@ -64,10 +64,10 @@ def test_read_instrumentation(tmp_path: Path):
 def test_stamp_instrument_from_source_uses_real_name(tmp_path: Path):
     src = _measurement_txt(tmp_path, "i1iSis")
     ti3 = tmp_path / "chart.ti3"
-    ti3.write_text(_TI3_255)
+    ti3.write_text(_TI3_255, encoding="utf-8")
     got = stamp_instrument_from_source(ti3, src)
     assert got == "i1iSis"
-    assert 'TARGET_INSTRUMENT "i1iSis"' in ti3.read_text()
+    assert 'TARGET_INSTRUMENT "i1iSis"' in ti3.read_text(encoding="utf-8")
     # The report now shows the real instrument.
     assert build_report(ti3)["instrument"] == "i1iSis"
 
@@ -75,7 +75,7 @@ def test_stamp_instrument_from_source_uses_real_name(tmp_path: Path):
 def test_stamp_instrument_falls_back_when_unspecified(tmp_path: Path):
     src = _measurement_txt(tmp_path, "Not specified")
     ti3 = tmp_path / "chart.ti3"
-    ti3.write_text(_TI3_255)
+    ti3.write_text(_TI3_255, encoding="utf-8")
     got = stamp_instrument_from_source(ti3, src)
     assert got == "i1Profiler (unspecified)"
     assert build_report(ti3)["instrument"] == "i1Profiler (unspecified)"
@@ -88,10 +88,10 @@ def test_stamp_instrument_no_op_when_already_present(tmp_path: Path):
     ti3.write_text(_TI3_255.replace(
         "NUMBER_OF_FIELDS 7",
         'KEYWORD "TARGET_INSTRUMENT"\nTARGET_INSTRUMENT "i1Pro 3"\n\n'
-        "NUMBER_OF_FIELDS 7"))
+        "NUMBER_OF_FIELDS 7"), encoding="utf-8")
     got = stamp_instrument_from_source(ti3, src)
     assert got == "i1Pro 3"
-    assert 'TARGET_INSTRUMENT "i1Pro 2"' not in ti3.read_text()
+    assert 'TARGET_INSTRUMENT "i1Pro 2"' not in ti3.read_text(encoding="utf-8")
 
 
 def test_stamp_instrument_overrides_txt2ti3_placeholder(tmp_path: Path):
@@ -103,10 +103,10 @@ def test_stamp_instrument_overrides_txt2ti3_placeholder(tmp_path: Path):
     ti3.write_text(_TI3_255.replace(
         "NUMBER_OF_FIELDS 7",
         'KEYWORD "TARGET_INSTRUMENT"\nTARGET_INSTRUMENT "GretagMacbeth Spectrolino"\n\n'
-        "NUMBER_OF_FIELDS 7"))
+        "NUMBER_OF_FIELDS 7"), encoding="utf-8")
     got = stamp_instrument_from_source(ti3, src)
     assert got == "i1iSis"
-    text = ti3.read_text()
+    text = ti3.read_text(encoding="utf-8")
     assert 'TARGET_INSTRUMENT "i1iSis"' in text
     assert "spectrolino" not in text.lower()
     assert build_report(ti3)["instrument"] == "i1iSis"
@@ -116,7 +116,7 @@ def _dated_txt(tmp_path: Path, created: str, instr: str = "i1iSis") -> Path:
     p = tmp_path / "m.txt"
     p.write_text(f'CGATS.17\n\nINSTRUMENTATION "{instr}"\nCREATED "{created}"\n\n'
                  "BEGIN_DATA_FORMAT\nSampleID RGB_R RGB_G RGB_B\n"
-                 "END_DATA_FORMAT\nBEGIN_DATA\n1 255 255 255\nEND_DATA\n")
+                 "END_DATA_FORMAT\nBEGIN_DATA\n1 255 255 255\nEND_DATA\n", encoding="utf-8")
     return p
 
 
@@ -144,16 +144,16 @@ def test_read_measurement_date_is_locale_safe(tmp_path: Path):
 
 def test_stamp_and_report_use_measurement_date(tmp_path: Path):
     src = _dated_txt(tmp_path, "January 06, 2026")
-    ti3 = tmp_path / "chart.ti3"; ti3.write_text(_TI3_255)
+    ti3 = tmp_path / "chart.ti3"; ti3.write_text(_TI3_255, encoding="utf-8")
     assert stamp_measurement_date_from_source(ti3, src) == "2026-01-06"
-    assert 'CHROMIQ_MEASURED "2026-01-06"' in ti3.read_text()
+    assert 'CHROMIQ_MEASURED "2026-01-06"' in ti3.read_text(encoding="utf-8")
     # the report dates the run by the measurement date, not "now"
     assert build_report(ti3)["created"].startswith("2026-01-06")
 
 
 def test_finalize_stamps_both_instrument_and_date(tmp_path: Path):
     src = _dated_txt(tmp_path, "March 15, 2026", instr="i1Pro 2")
-    ti3 = tmp_path / "chart.ti3"; ti3.write_text(_TI3_255)
+    ti3 = tmp_path / "chart.ti3"; ti3.write_text(_TI3_255, encoding="utf-8")
     instr, date = finalize_converted_ti3(ti3, src)
     assert instr == "i1Pro 2" and date == "2026-03-15"
     rep = build_report(ti3)
@@ -162,7 +162,7 @@ def test_finalize_stamps_both_instrument_and_date(tmp_path: Path):
 
 def test_report_without_measurement_date_uses_now(tmp_path: Path):
     # A native chartread .ti3 (no CHROMIQ_MEASURED) still dates by build time.
-    ti3 = tmp_path / "chart.ti3"; ti3.write_text(_TI3_255)
+    ti3 = tmp_path / "chart.ti3"; ti3.write_text(_TI3_255, encoding="utf-8")
     from datetime import date as _date
     assert build_report(ti3)["created"].startswith(_date.today().isoformat())
 
@@ -174,7 +174,7 @@ def test_stamp_instrument_placeholder_falls_back(tmp_path: Path):
     ti3.write_text(_TI3_255.replace(
         "NUMBER_OF_FIELDS 7",
         'KEYWORD "TARGET_INSTRUMENT"\nTARGET_INSTRUMENT "GretagMacbeth Spectrolino"\n\n'
-        "NUMBER_OF_FIELDS 7"))
+        "NUMBER_OF_FIELDS 7"), encoding="utf-8")
     got = stamp_instrument_from_source(ti3, src)
     assert got == "i1Profiler (unspecified)"
-    assert "spectrolino" not in ti3.read_text().lower()
+    assert "spectrolino" not in ti3.read_text(encoding="utf-8").lower()

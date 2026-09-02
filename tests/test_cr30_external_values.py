@@ -298,7 +298,7 @@ def test_full_read_writes_a_usable_ti3(tmpchart):
 
     ti3 = r.tmp / "n.ti3"
     assert ti3.is_file()
-    lines = ti3.read_text().splitlines()
+    lines = ti3.read_text(encoding="utf-8").splitlines()
     # NB anchor on whole lines: END_DATA_FORMAT precedes BEGIN_DATA, so a naive
     # index("END_DATA") slices backwards and silently finds nothing.
     b = next(i for i, l in enumerate(lines) if l.strip() == "BEGIN_DATA")
@@ -428,7 +428,7 @@ def test_save_and_stop_ends_a_partial_read_and_writes_the_ti3(tmpchart):
 
     ti3 = r.tmp / "n.ti3"
     assert ti3.is_file(), "nothing was saved"
-    lines = ti3.read_text().splitlines()
+    lines = ti3.read_text(encoding="utf-8").splitlines()
     b = next(i for i, l in enumerate(lines) if l.strip() == "BEGIN_DATA")
     e = next(i for i, l in enumerate(lines) if l.strip() == "END_DATA")
     rows = [x for x in lines[b + 1:e] if x.strip()]

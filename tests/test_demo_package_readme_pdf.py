@@ -32,7 +32,7 @@ def test_a_pdf_is_written_beside_the_markdown(tmp_path, qapp):
     from scripts.make_demo_package import write_readme_pdf
 
     md = tmp_path / "README.md"
-    md.write_text(SAMPLE)
+    md.write_text(SAMPLE, encoding="utf-8")
     pdf = write_readme_pdf(md)
 
     assert pdf is not None and pdf.exists()
@@ -48,11 +48,11 @@ def test_rebuilding_replaces_the_pdf(tmp_path, qapp):
     from scripts.make_demo_package import write_readme_pdf
 
     md = tmp_path / "README.md"
-    md.write_text(SAMPLE)
+    md.write_text(SAMPLE, encoding="utf-8")
     write_readme_pdf(md)
     first = (tmp_path / "README.pdf").read_bytes()
 
-    md.write_text(SAMPLE + "\n## Demo-02\n\nA whole extra section.\n" * 40)
+    md.write_text(SAMPLE + "\n## Demo-02\n\nA whole extra section.\n" * 40, encoding="utf-8")
     write_readme_pdf(md)
     second = (tmp_path / "README.pdf").read_bytes()
 

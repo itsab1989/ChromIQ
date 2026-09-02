@@ -122,7 +122,7 @@ def test_gridspec_from_cht_it8(_app, _out_dir):
     if cht is None or not cht.is_file():
         import pytest as _pt
         _pt.skip("it8.cht not present")
-    g = GridSpec.from_cht(cht.read_text(errors="ignore"))
+    g = GridSpec.from_cht(cht.read_text(errors="ignore", encoding="utf-8"))
     assert len(g.rects) == 288
     us = [r[0] for r in g.rects]
     assert min(us) >= -0.02 and max(u + w for u, _, w, _ in g.rects) <= 1.02
@@ -138,7 +138,7 @@ def test_gapped_grid_reports_structure_and_float_rects(_app, _out_dir):
     renders now paint the same float geometry instead)."""
     from pathlib import Path
     from ui.scan_grid_marquee import GridSpec
-    txt = Path("data/scanner_targets/Hutchcolor.cht").read_text()
+    txt = Path("data/scanner_targets/Hutchcolor.cht").read_text(encoding="utf-8")
     g = GridSpec.from_cht(txt)
     assert g.ncols == 29 and g.nrows == 22 and g.cells is not None
     assert len(g.cells) == len(g.rects)
@@ -150,7 +150,7 @@ def test_gridspec_carries_fiducial_frame(_app, _out_dir):
     patches) — driving the on-screen frame and the scanin -F from one source."""
     from pathlib import Path
     from ui.scan_grid_marquee import GridSpec
-    g = GridSpec.from_cht(Path("data/scanner_targets/CMP_Digital_Target-4.cht").read_text())
+    g = GridSpec.from_cht(Path("data/scanner_targets/CMP_Digital_Target-4.cht").read_text(encoding="utf-8"))
     assert g.fiducial_rect is not None
     u0, v0, u1, v1 = g.fiducial_rect
     assert u0 < 0 and v0 < 0 and u1 > 1 and v1 > 1
@@ -164,7 +164,7 @@ def test_extrapolate_to_fiducials_derives_marks_from_patch_quad(_app, _out_dir):
     from pathlib import Path
     from ui.scan_grid_marquee import extrapolate_to_fiducials, fiducial_frame
     from workflow.cht_parser import parse_cht
-    txt = Path("data/scanner_targets/ISO12641_2_1.cht").read_text()
+    txt = Path("data/scanner_targets/ISO12641_2_1.cht").read_text(encoding="utf-8")
     g = parse_cht(txt); fr = fiducial_frame(txt)              # left,right,top,bottom
     xs = [b.x1 for b in g.patches] + [b.x2 for b in g.patches]
     ys = [b.y1 for b in g.patches] + [b.y2 for b in g.patches]
@@ -275,7 +275,7 @@ def test_standard_multipage_set_is_one_entry_with_per_page_chts(_app, _out_dir, 
         stems = {dlg._files_for_page(pg, tmp_path / "b")[0].stem for pg in dlg._pages}
         assert stems == {"ISO12641_2_3_1", "ISO12641_2_3_2", "ISO12641_2_3_3"}
         # A reference alone isn't enough — every page needs a scan.
-        dlg._std_ref = tmp_path / "ref.txt"; dlg._std_ref.write_text("x")
+        dlg._std_ref = tmp_path / "ref.txt"; dlg._std_ref.write_text("x", encoding="utf-8")
         assert dlg._can_run() is False
         # The demo loads a scan into every page and one merged reference.
         dlg._reveal_target_files()
@@ -308,7 +308,7 @@ def test_standard_mode_execute_uses_chosen_cht_and_reference(_app, _out_dir, tmp
         scan = tmp_path / "myscan.tif"
         scan.write_bytes(b"II*\0")                       # placeholder file
         ref = tmp_path / "R123.txt"
-        ref.write_text("dummy reference")
+        ref.write_text("dummy reference", encoding="utf-8")
         cht = _it8()
         dlg._set_std_targets([cht])
         dlg._std_ref = ref
@@ -329,8 +329,8 @@ def test_standard_mode_execute_uses_chosen_cht_and_reference(_app, _out_dir, tmp
         from core.file_manager import cache_subdir
         assert (p.cht.parent == cache_subdir(scan.parent)
                 and p.cht.name.endswith("-sample.cht"))
-        assert p.cht.is_file() and "BOX_SHRINK" in p.cht.read_text()
-        assert re.search(r"(?m)^\s*F .*$", p.cht.read_text())   # patch-bbox F line
+        assert p.cht.is_file() and "BOX_SHRINK" in p.cht.read_text(encoding="utf-8")
+        assert re.search(r"(?m)^\s*F .*$", p.cht.read_text(encoding="utf-8"))   # patch-bbox F line
         assert p.cie == ref and p.scan_tif == scan
         assert jobs[-1]["kind"] == "colprof"
         # Profile base sits next to the scan (→ <scan>-scanner.ti3/.icc).
@@ -351,7 +351,7 @@ def test_multi_scan_averaging_pipeline(_app, _out_dir, tmp_path):
         dlg._mode_standard.setChecked(True)
         dlg._set_std_targets([_it8()])
         dlg._std_ref = tmp_path / "ref.txt"
-        dlg._std_ref.write_text("x")
+        dlg._std_ref.write_text("x", encoding="utf-8")
         s1 = tmp_path / "s1.tif"; s1.write_bytes(b"II*\0")
         s2 = tmp_path / "s2.tif"; s2.write_bytes(b"II*\0")
         dlg._cur_shot()["path"] = s1
@@ -519,7 +519,7 @@ def test_printer_mode_diag_on_every_page(_app, _out_dir, tmp_path):
     dlg = _dialog(_app, _out_dir)
     try:
         base = tmp_path / "mychart"
-        (tmp_path / "mychart.ti2").write_text("CTI2\n")
+        (tmp_path / "mychart.ti2").write_text("CTI2\n", encoding="utf-8")
         dlg._ti3 = tmp_path / "mychart.ti2"
         dlg._layout = {"patches": [{"page": 0}, {"page": 1}]}
         dlg._pages = [0, 1]
@@ -555,7 +555,7 @@ def _engine_channels(path, locs, dpi=300, paper=(210.0, 297.0), patch_px=118):
                for i, loc in enumerate(locs)]
     path.write_text(json.dumps({"layout": {
         "engine": "chromiq", "engine_version": 1, "dpi": dpi,
-        "paper_mm": list(paper), "patches": patches}}))
+        "paper_mm": list(paper), "patches": patches}}), encoding="utf-8")
 
 
 def _tiny_ti2(path, locs):
@@ -577,7 +577,7 @@ NUMBER_OF_SETS {len(locs)}
 BEGIN_DATA
 {rows}
 END_DATA
-""")
+""", encoding="utf-8")
 
 
 def test_chart_without_sidecar_is_rejected_loudly(_app, _out_dir, tmp_path):
@@ -588,7 +588,7 @@ def test_chart_without_sidecar_is_rejected_loudly(_app, _out_dir, tmp_path):
     scanner-profile mode, where it stays a hard reject.)"""
     locs = ["A1", "A2", "A3", "A4"]
     _tiny_ti2(tmp_path / "mychart.ti2", locs)
-    (tmp_path / "mychart.ti3").write_text("CTI3\n")   # "measured", no sidecar
+    (tmp_path / "mychart.ti3").write_text("CTI3\n", encoding="utf-8")   # "measured", no sidecar
     dlg = _dialog(_app, _out_dir)
     try:
         assert not dlg._printer_cb.isChecked()        # scanner-profile mode
@@ -647,7 +647,7 @@ def test_profile_name_renames_ti3_and_description(_app, _out_dir, tmp_path):
     dlg = _dialog(_app, _out_dir)
     try:
         src = tmp_path / "Moab_Satin_240-p1s1-scanner.ti3"
-        src.write_text("CTI3\n")
+        src.write_text("CTI3\n", encoding="utf-8")
         dlg._prof_name.setText("Epson ET-8550 scanner")
         ti3, desc = dlg._apply_profile_name(src)
         assert ti3.name == "Epson ET-8550 scanner.ti3"
@@ -688,7 +688,7 @@ def test_explicit_ti2_pick_is_not_swapped_for_sibling_ti3(_app, _out_dir, tmp_pa
     file wins; the sibling only backs a '-verify' style indirect pick."""
     locs = ["A1", "A2", "A3", "A4"]
     _tiny_ti2(tmp_path / "Printer.ti2", locs)
-    (tmp_path / "Printer.ti3").write_text("CTI3\n")   # stale plain-scanin ti3
+    (tmp_path / "Printer.ti3").write_text("CTI3\n", encoding="utf-8")   # stale plain-scanin ti3
     _engine_channels(tmp_path / "Printer.channels.json", locs)
     dlg = _dialog(_app, _out_dir)
     try:
@@ -716,7 +716,7 @@ F _ _ 0.0 0.0 100.0 0.0 100.0 40.0 0.0 40.0
 {xlines}
 
 BOX_SHRINK 2.0
-""")
+""", encoding="utf-8")
 
 
 def test_byo_cht_flow_loads_chart_without_sidecar(_app, _out_dir, tmp_path):
@@ -898,7 +898,7 @@ def test_printer_mode_hides_averaging_and_says_first_scan_wins(_app, _out_dir, t
     dlg = _dialog(_app, _out_dir)
     try:
         dlg._ti3 = tmp_path / "mychart.ti2"
-        (tmp_path / "mychart.ti2").write_text("CTI2\n")
+        (tmp_path / "mychart.ti2").write_text("CTI2\n", encoding="utf-8")
         dlg._layout = {"patches": [{"page": 0}]}
         dlg._pages = [0]
         shots = dlg._page_shots(0)
@@ -978,13 +978,13 @@ def test_chromiq_mode_rewrites_f_to_patch_bbox(_app, _out_dir, tmp_path):
     scanin must carry F = the patch bbox — skipping that rewrite compressed
     Knut's grid downward (bottom row right, everything above shifted)."""
     src = tmp_path / "Printer_01.cht"
-    src.write_text(_PRINTTARG_CHT)
+    src.write_text(_PRINTTARG_CHT, encoding="utf-8")
     dlg = _dialog(_app, _out_dir)
     try:
         assert not dlg._standard_mode()          # ChromIQ-chart mode
         out = dlg._prepare_scanin_cht(src, [(0, 0), (99, 0), (99, 49), (0, 49)],
                                       1.0, tmp_path / "Printer", "t")
-        fline = next(l for l in out.read_text().splitlines()
+        fline = next(l for l in out.read_text(encoding="utf-8").splitlines()
                      if l.strip().startswith("F "))
         nums = [float(v) for v in fline.split()[3:]]
         # Patch bbox: x 17.5..42.0, y 17.5..31.5 — not the outer 10.25..66.75.
@@ -1053,7 +1053,7 @@ NUMBER_OF_SETS {len(locs)}
 BEGIN_DATA
 {rows}
 END_DATA
-""")
+""", encoding="utf-8")
 
     aims = [(20 + i * 3.0, 20 + i * 3.0, 20 + i * 3.0) for i in range(20)]
     _write(tmp_path / "chart.ti2", aims)
@@ -1080,7 +1080,7 @@ def test_page_count_mismatch_geometry_is_rejected(_app, _out_dir, tmp_path):
            "  X A1 A1 _ _ 7 7 10 10 0 0\n  X A2 A2 _ _ 7 7 20 10 0 0\n")
     (tmp_path / "chart.channels.json").write_text(json.dumps({"layout": {
         "engine": "printtarg", "cht_pages": [cht, cht, cht],
-        "locs": ["A1", "A2"] * 3}}))
+        "locs": ["A1", "A2"] * 3}}), encoding="utf-8")
     for i in (1, 2):                                # printed chart: 2 pages
         (tmp_path / f"chart_{i:02d}.tif").write_bytes(b"II*\0")
     dlg = _dialog(_app, _out_dir)
@@ -1121,14 +1121,14 @@ def test_engine_chart_keeps_exact_geometry(_app, _out_dir, tmp_path):
     for p in patches:
         lines.append(f"  X {p['loc']} {p['loc']} _ _ "
                      f"{p['w']} {p['h']} {p['x']} {p['y']} 0 0")
-    cht.write_text("\n".join(lines) + "\n")
+    cht.write_text("\n".join(lines) + "\n", encoding="utf-8")
     dlg = _dialog(_app, _out_dir)
     try:
         dlg._layout = {"patches": patches}        # engine chart is loaded
         out = dlg._prepare_scanin_cht(cht, [(0, 0), (955, 0), (955, 767), (0, 767)],
                                       1.0, tmp_path / "Engine", "t")
         from workflow.cht_parser import parse_cht
-        got = {b.name: b.x1 for b in parse_cht(out.read_text()).patches}
+        got = {b.name: b.x1 for b in parse_cht(out.read_text(encoding="utf-8")).patches}
         for p in patches:                         # positions byte-true, no rewrite
             assert got[p["loc"]] == p["x"]
     finally:

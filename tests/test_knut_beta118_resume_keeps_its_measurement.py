@@ -54,12 +54,12 @@ def tab_and_ti3(qapp, tmp_path):
     proj = Project.create(tmp_path / "out" / "Demo", "Demo")
     run = proj.current_run()
     ti2 = run.dir / f"{run.stem}.ti2"
-    ti2.write_text("CTI2\n\nNUMBER_OF_SETS 4\n")
+    ti2.write_text("CTI2\n\nNUMBER_OF_SETS 4\n", encoding="utf-8")
     ti3 = run.dir / f"{run.stem}.ti3"
     ti3.write_text(
         "CTI3\n\nNUMBER_OF_SETS 1\n\nBEGIN_DATA_FORMAT\n"
         "SAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z\nEND_DATA_FORMAT\n\n"
-        "BEGIN_DATA\n1 100 100 100 95.0 100.0 108.9\nEND_DATA\n")
+        "BEGIN_DATA\n1 100 100 100 95.0 100.0 108.9\nEND_DATA\n", encoding="utf-8")
 
     from ui.tabs.tab_measure import TabMeasure
     tab = TabMeasure(ArgyllRunner(s), s)

@@ -232,8 +232,8 @@ def main(argv=None) -> None:
     ap.add_argument("--compare", nargs=2, metavar=("BASE", "CAND"))
     args = ap.parse_args(argv)
     if args.compare:
-        base = json.loads(Path(args.compare[0]).read_text())
-        cand = json.loads(Path(args.compare[1]).read_text())
+        base = json.loads(Path(args.compare[0]).read_text(encoding="utf-8"))
+        cand = json.loads(Path(args.compare[1]).read_text(encoding="utf-8"))
         verdict = evaluate_gates(base, cand)
         for line in verdict["detail"]:
             print(line)
@@ -246,7 +246,7 @@ def main(argv=None) -> None:
     res = run_battery(cands, quality=args.quality, n_patches=args.patches,
                       n_eval=args.eval, printers=printers)
     if args.out:
-        Path(args.out).write_text(json.dumps(res, indent=1))
+        Path(args.out).write_text(json.dumps(res, indent=1), encoding="utf-8")
         print(f"wrote {args.out}")
 
 

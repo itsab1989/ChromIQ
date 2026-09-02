@@ -13,7 +13,7 @@ from workflow.profcheck_runner import (ProfcheckRunner, _ti3_device_channels,
 def test_device_channels_detection(tmp_path):
     def ti3(rep):
         p = tmp_path / f"{rep}.ti3"
-        p.write_text(f'CTI3\nCOLOR_REP "{rep}"\n')
+        p.write_text(f'CTI3\nCOLOR_REP "{rep}"\n', encoding="utf-8")
         return p
     assert _ti3_device_channels(ti3("CMYKOG_XYZ")) == 6
     assert _ti3_device_channels(ti3("CMYKOGV_XYZ")) == 7
@@ -55,7 +55,7 @@ def test_read_ti3_nchannel_with_loc(tmp_path):
         "BEGIN_DATA\n"
         "1 A1 0 0 0 0 0 0 96.4 100 82.5\n"
         "2 B3 100 0 0 0 0 0 20 30 60\n"
-        "END_DATA\n")
+        "END_DATA\n", encoding="utf-8")
     d = pn._read_ti3(p)
     assert d["n"] == 6 and not d["is_lab"]
     assert d["loc"] == ["A1", "B3"]
@@ -71,7 +71,7 @@ def test_read_ti3_irgb_maps_to_rgb_fields(tmp_path):
         "BEGIN_DATA_FORMAT\n"
         "SAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z\n"
         "END_DATA_FORMAT\nBEGIN_DATA\n"
-        "1 100 100 100 96 100 82\nEND_DATA\n")
+        "1 100 100 100 96 100 82\nEND_DATA\n", encoding="utf-8")
     d = pn._read_ti3(p)
     assert d["n"] == 3            # RGB, not 4 chars of "iRGB"
     assert d["device"].shape == (1, 3)
@@ -86,7 +86,7 @@ def test_recompute_needs_spectral_data(tmp_path):
         "BEGIN_DATA_FORMAT\n"
         "SAMPLE_ID CMYKOG_C CMYKOG_M CMYKOG_Y CMYKOG_K CMYKOG_O CMYKOG_G "
         "XYZ_X XYZ_Y XYZ_Z\nEND_DATA_FORMAT\nBEGIN_DATA\n"
-        "1 0 0 0 0 0 0 96 100 82\nEND_DATA\n")
+        "1 0 0 0 0 0 0 96 100 82\nEND_DATA\n", encoding="utf-8")
     with pytest.raises(pn.NChannelCheckError, match="spectral"):
         pn.run_check(p, p, bin_dir="/nonexistent", illum="D65")
 

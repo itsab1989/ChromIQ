@@ -394,7 +394,7 @@ def test_d2_a_truncated_meta_json_is_not_fatal(tmp_path, qapp):
     tab = _Tab(run, {"targen": [_Widget("-f", "5")]})
     tab.save_target_settings()
 
-    run.meta_path.write_text('{"create_chart_settings": {"targen-f": ')  # cut off
+    run.meta_path.write_text('{"create_chart_settings": {"targen-f": ', encoding="utf-8")  # cut off
     assert tab.load_target_settings() is False, "a truncated meta was not survived"
     # …and the target is still writable afterwards, rather than being poisoned.
     tab._widgets["targen"][0].set_value("9")

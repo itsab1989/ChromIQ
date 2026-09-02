@@ -60,8 +60,8 @@ _TI3 = ('CTI3\n\nNUMBER_OF_FIELDS 7\nBEGIN_DATA_FORMAT\n'
 
 def test_show_overlay_from_ti3_paints(tmp_path):
     tab = _make_tab()
-    ti2 = tmp_path / "chart.ti2"; ti2.write_text(_TI2)
-    (tmp_path / "chart.ti3").write_text(_TI3)
+    ti2 = tmp_path / "chart.ti2"; ti2.write_text(_TI2, encoding="utf-8")
+    (tmp_path / "chart.ti3").write_text(_TI3, encoding="utf-8")
     tab._ti1_path = ti2
     tab._tiff_pages = [tmp_path / "chart_01.tif"]
     # Geometry: both patches on page 0.
@@ -76,7 +76,7 @@ def test_show_overlay_from_ti3_paints(tmp_path):
 
 def test_show_overlay_no_ti3_returns_false(tmp_path):
     tab = _make_tab()
-    ti2 = tmp_path / "chart.ti2"; ti2.write_text(_TI2)   # no sibling .ti3
+    ti2 = tmp_path / "chart.ti2"; ti2.write_text(_TI2, encoding="utf-8")   # no sibling .ti3
     tab._ti1_path = ti2
     tab._patch_boxes = [{"A1": QRect(0, 0, 10, 10)}]
     assert tab._show_overlay_from_existing_ti3() is False
@@ -84,10 +84,10 @@ def test_show_overlay_no_ti3_returns_false(tmp_path):
 
 def test_show_overlay_foreign_ti3_returns_false(tmp_path):
     tab = _make_tab()
-    ti2 = tmp_path / "chart.ti2"; ti2.write_text(_TI2)
+    ti2 = tmp_path / "chart.ti2"; ti2.write_text(_TI2, encoding="utf-8")
     # A .ti3 whose SAMPLE_IDs don't match the chart → no items → False.
     (tmp_path / "chart.ti3").write_text(
-        _TI3.replace("\n1 ", "\n801 ").replace("\n2 ", "\n802 "))
+        _TI3.replace("\n1 ", "\n801 ").replace("\n2 ", "\n802 "), encoding="utf-8")
     tab._ti1_path = ti2
     tab._tiff_pages = [tmp_path / "chart_01.tif"]
     tab._patch_boxes = [{"A1": QRect(0, 0, 10, 10), "A2": QRect(10, 0, 10, 10)}]
@@ -97,8 +97,8 @@ def test_show_overlay_foreign_ti3_returns_false(tmp_path):
 def test_overlay_toggle_visible_with_ti3_and_paints(tmp_path):
     from PyQt6.QtCore import QRect
     tab = _make_tab()
-    ti2 = tmp_path / "chart.ti2"; ti2.write_text(_TI2)
-    (tmp_path / "chart.ti3").write_text(_TI3)
+    ti2 = tmp_path / "chart.ti2"; ti2.write_text(_TI2, encoding="utf-8")
+    (tmp_path / "chart.ti3").write_text(_TI3, encoding="utf-8")
     tab._ti1_path = ti2
     tab._tiff_pages = [tmp_path / "chart_01.tif"]
     tab._patch_boxes = [{"A1": QRect(0, 0, 10, 10), "A2": QRect(10, 0, 10, 10)}]
@@ -111,7 +111,7 @@ def test_overlay_toggle_visible_with_ti3_and_paints(tmp_path):
 
 def test_overlay_toggle_hidden_without_ti3(tmp_path):
     tab = _make_tab()
-    ti2 = tmp_path / "chart.ti2"; ti2.write_text(_TI2)   # no sibling .ti3
+    ti2 = tmp_path / "chart.ti2"; ti2.write_text(_TI2, encoding="utf-8")   # no sibling .ti3
     tab._ti1_path = ti2
     tab._update_resume_availability()
     assert tab._overlay_cb.isHidden()
@@ -122,8 +122,8 @@ def test_set_ti1_path_no_offer_when_tab_hidden(tmp_path, monkeypatch):
     """#134/K1: a cross-tab load (Measure tab NOT on screen) must NOT pop the
     overlay offer — it was appearing over Create Chart / Print Chart (Knut)."""
     tab = _make_tab()
-    ti2 = tmp_path / "chart.ti2"; ti2.write_text(_TI2)
-    (tmp_path / "chart.ti3").write_text(_TI3)
+    ti2 = tmp_path / "chart.ti2"; ti2.write_text(_TI2, encoding="utf-8")
+    (tmp_path / "chart.ti3").write_text(_TI3, encoding="utf-8")
     calls = []
     monkeypatch.setattr(tab, "_maybe_offer_existing_overlay",
                         lambda: calls.append(1))
@@ -137,8 +137,8 @@ def test_set_ti1_path_offers_when_tab_visible(tmp_path, monkeypatch):
     offers the overlay — and exactly once, even though being shown asks for the
     offer too (Knut, #130 2026-07-29)."""
     tab = _make_tab()
-    ti2 = tmp_path / "chart.ti2"; ti2.write_text(_TI2)
-    (tmp_path / "chart.ti3").write_text(_TI3)
+    ti2 = tmp_path / "chart.ti2"; ti2.write_text(_TI2, encoding="utf-8")
+    (tmp_path / "chart.ti3").write_text(_TI3, encoding="utf-8")
     calls = []
     monkeypatch.setattr(tab, "_maybe_offer_existing_overlay",
                         lambda: calls.append(1))
@@ -162,8 +162,8 @@ def test_load_popup_ok_applies_checkboxes(tmp_path, monkeypatch):
     from PyQt6.QtCore import QRect
     from PyQt6.QtWidgets import QDialog
     tab = _make_tab()
-    ti2 = tmp_path / "chart.ti2"; ti2.write_text(_TI2)
-    (tmp_path / "chart.ti3").write_text(_TI3)
+    ti2 = tmp_path / "chart.ti2"; ti2.write_text(_TI2, encoding="utf-8")
+    (tmp_path / "chart.ti3").write_text(_TI3, encoding="utf-8")
     tab._ti1_path = ti2
     tab._tiff_pages = [tmp_path / "chart_01.tif"]
     tab._patch_boxes = [{"A1": QRect(0, 0, 10, 10), "A2": QRect(10, 0, 10, 10)}]
@@ -181,8 +181,8 @@ def test_load_popup_cancel_does_nothing(tmp_path, monkeypatch):
     from PyQt6.QtCore import QRect
     from PyQt6.QtWidgets import QDialog
     tab = _make_tab()
-    ti2 = tmp_path / "chart.ti2"; ti2.write_text(_TI2)
-    (tmp_path / "chart.ti3").write_text(_TI3)
+    ti2 = tmp_path / "chart.ti2"; ti2.write_text(_TI2, encoding="utf-8")
+    (tmp_path / "chart.ti3").write_text(_TI3, encoding="utf-8")
     tab._ti1_path = ti2
     tab._tiff_pages = [tmp_path / "chart_01.tif"]
     tab._patch_boxes = [{"A1": QRect(0, 0, 10, 10), "A2": QRect(10, 0, 10, 10)}]

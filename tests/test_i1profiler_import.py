@@ -196,7 +196,7 @@ def test_parse_cgats_rejects_non_rgb(tmp_path):
 
 def test_write_ti1_has_three_tables(tmp_path):
     out = write_ti1([RgbPatch(100, 100, 100), RgbPatch(0, 0, 0)], tmp_path / "o.ti1")
-    text = out.read_text()
+    text = out.read_text(encoding="utf-8")
     assert text.count("CTI1") == 3
     assert text.count("BEGIN_DATA\n") == 3
     assert 'DENSITY_EXTREME_VALUES "8"' in text
@@ -212,7 +212,7 @@ def test_write_ti1_counts_white_and_black(tmp_path):
          RgbPatch(50, 50, 50)],
         tmp_path / "o.ti1",
     )
-    text = out.read_text()
+    text = out.read_text(encoding="utf-8")
     assert 'WHITE_COLOR_PATCHES "2"' in text
     assert 'BLACK_COLOR_PATCHES "1"' in text
 
@@ -221,7 +221,7 @@ def test_write_ti1_main_table_patch_count(tmp_path):
     patches = [RgbPatch(i, i, i) for i in range(10)]
     out = write_ti1(patches, tmp_path / "o.ti1")
     # First (main) table's set count is the input length, not the fixed aux tables.
-    main = out.read_text().split("CTI1", 2)[1]
+    main = out.read_text(encoding="utf-8").split("CTI1", 2)[1]
     assert "NUMBER_OF_SETS 10" in main
 
 
@@ -232,7 +232,7 @@ def test_black_patch_xyz_floored(tmp_path):
     channel and ~1.0 luminance, matching targen's own black floor.
     """
     out = write_ti1([RgbPatch(0, 0, 0)], tmp_path / "o.ti1")
-    main = out.read_text().split("CTI1", 2)[1]
+    main = out.read_text(encoding="utf-8").split("CTI1", 2)[1]
     data = main.split("BEGIN_DATA\n")[1].split("END_DATA")[0].strip()
     x, y, z = (float(v) for v in data.split()[4:7])
     assert 0.5 < x < 1.5 and 0.5 < y < 1.5 and 0.5 < z < 1.5
@@ -249,7 +249,7 @@ def test_density_extremes_table_is_white_first(tmp_path):
     bisection against a real targen .ti1.
     """
     out = write_ti1([RgbPatch(50, 50, 50)], tmp_path / "o.ti1")
-    text = out.read_text()
+    text = out.read_text(encoding="utf-8")
     # The second CTI1 table is DENSITY_EXTREME_VALUES.
     chunk = text.split("DENSITY_EXTREME_VALUES", 1)[1]
     data = chunk.split("BEGIN_DATA\n", 1)[1].split("END_DATA", 1)[0].strip()
@@ -279,7 +279,7 @@ def test_patch_xyz_matches_targen_flare():
 
 def test_import_dispatches_pxf(tmp_path):
     out, n = import_to_ti1(_write(tmp_path, "in.pxf", PXF), tmp_path / "out.ti1")
-    assert n == 3 and out.read_text().count("CTI1") == 3
+    assert n == 3 and out.read_text(encoding="utf-8").count("CTI1") == 3
 
 
 def test_import_dispatches_cgats(tmp_path):
@@ -317,7 +317,7 @@ def test_import_dispatches_pwxf(tmp_path):
     """A .pwxf workflow file carries the same CxF objects as a .pxf, so the
     importer reads it (ignoring the extra layout/instrument settings)."""
     out, n = import_to_ti1(_write(tmp_path, "wf.pwxf", PXF), tmp_path / "out.ti1")
-    assert n == 3 and out.read_text().count("CTI1") == 3
+    assert n == 3 and out.read_text(encoding="utf-8").count("CTI1") == 3
 
 
 def test_roundtrip_pwxf_export_then_import(tmp_path):
@@ -359,7 +359,7 @@ def test_pwxf_never_pairs_defaults_true_with_zero_percent(tmp_path):
     )
     pwxf = tmp_path / "wf.pwxf"
     write_pwxf(parse_ti1(src), pwxf, "rt", WorkflowOptions())
-    txt = pwxf.read_text()
+    txt = pwxf.read_text(encoding="utf-8")
 
     def attr(name):
         import re

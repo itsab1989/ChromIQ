@@ -52,13 +52,13 @@ def _settings(tmp_path):
 
 def _loose(folder: Path, stem="ext", ti3=False, icc=False):
     folder.mkdir(parents=True, exist_ok=True)
-    (folder / f"{stem}.ti1").write_text("ti1")
-    ti2 = folder / f"{stem}.ti2"; ti2.write_text("ti2")
-    (folder / f"{stem}_01.tif").write_text("t")
+    (folder / f"{stem}.ti1").write_text("ti1", encoding="utf-8")
+    ti2 = folder / f"{stem}.ti2"; ti2.write_text("ti2", encoding="utf-8")
+    (folder / f"{stem}_01.tif").write_text("t", encoding="utf-8")
     if ti3:
-        (folder / f"{stem}.ti3").write_text("m")
+        (folder / f"{stem}.ti3").write_text("m", encoding="utf-8")
     if icc:
-        (folder / f"{stem}.icc").write_text("i")
+        (folder / f"{stem}.icc").write_text("i", encoding="utf-8")
     return ti2
 
 
@@ -95,34 +95,34 @@ def test_loose_new_run_verification_chart_only(qapp, tmp_path, monkeypatch):
 def test_loose_overwrite_replace_archives(qapp, tmp_path, monkeypatch):
     work = tmp_path / "work"; work.mkdir(parents=True)
     proj = Project.create(work / "P", "P"); run = proj.current_run(); run.ensure_dir()
-    run.chart_ti2.write_text("old"); run.measurement_ti3.write_text("m")
-    run.profile_icc.write_text("icc")
+    run.chart_ti2.write_text("old", encoding="utf-8"); run.measurement_ti3.write_text("m", encoding="utf-8")
+    run.profile_icc.write_text("icc", encoding="utf-8")
     ctl = _ctl_for(proj.root)
     ctl.set_run_type(RUN_TYPE_PROFILING); ctl.set_profile_run("run1")
     ti2 = _loose(tmp_path / "ext", ti3=True, icc=True)
     monkeypatch.setattr(L, "_choice_dialog", lambda *a, **k: "replace")
     out, _ = L.resolve_ti2(None, ti2, _settings(tmp_path), ctl)
     r = Project.load(proj.root).run("run1")
-    assert r.old_dir.exists() and out == r.chart_ti2 and r.chart_ti2.read_text() == "ti2"
+    assert r.old_dir.exists() and out == r.chart_ti2 and r.chart_ti2.read_text(encoding="utf-8") == "ti2"
 
 
 def test_loose_overwrite_new_run_instead(qapp, tmp_path, monkeypatch):
     work = tmp_path / "work"; work.mkdir(parents=True)
     proj = Project.create(work / "P", "P"); run = proj.current_run(); run.ensure_dir()
-    run.chart_ti2.write_text("old")
+    run.chart_ti2.write_text("old", encoding="utf-8")
     ctl = _ctl_for(proj.root)
     ctl.set_run_type(RUN_TYPE_PROFILING); ctl.set_profile_run("run1")
     ti2 = _loose(tmp_path / "ext")
     monkeypatch.setattr(L, "_choice_dialog", lambda *a, **k: "new")
     out, _ = L.resolve_ti2(None, ti2, _settings(tmp_path), ctl)
     assert out == Project.load(proj.root).run("run2").chart_ti2   # new run, run1 untouched
-    assert (work / "P" / "runs" / "run1" / "P.ti2").read_text() == "old"
+    assert (work / "P" / "runs" / "run1" / "P.ti2").read_text(encoding="utf-8") == "old"
 
 
 def test_inside_current_continue_sets_bar(qapp, tmp_path, monkeypatch):
     work = tmp_path / "work"; work.mkdir(parents=True)
     proj = Project.create(work / "P", "P"); run = proj.current_run(); run.ensure_dir()
-    run.chart_ti2.write_text("c"); (run.dir / "P_01.tif").write_text("t")
+    run.chart_ti2.write_text("c", encoding="utf-8"); (run.dir / "P_01.tif").write_text("t", encoding="utf-8")
     ctl = _ctl_for(proj.root)
     monkeypatch.setattr(L, "_choice_dialog", lambda *a, **k: "continue")
     out, _ = L.resolve_ti2(None, run.chart_ti2, _settings(tmp_path), ctl)
@@ -145,7 +145,7 @@ def test_full_project_copy_whole(qapp, tmp_path, monkeypatch):
     ctl = _ctl_for(proj.root)
     # an external complete project Q
     q = Project.create(tmp_path / "ext" / "Q", "Q"); qr = q.current_run(); qr.ensure_dir()
-    qr.chart_ti2.write_text("qc"); (qr.dir / "Q_01.tif").write_text("t")
+    qr.chart_ti2.write_text("qc", encoding="utf-8"); (qr.dir / "Q_01.tif").write_text("t", encoding="utf-8")
     monkeypatch.setattr(L, "_choice_dialog", lambda *a, **k: "whole")
     monkeypatch.setattr(L, "_ask_project_name", lambda *a, **k: ("Q", False))
     out, _ = L.resolve_ti2(None, qr.chart_ti2, _settings(tmp_path), ctl)
@@ -163,12 +163,12 @@ def _seed_verify(run, *, date="2026-01-01_120000"):
     MUST match _VERIFY_ID_RE (yyyy-mm-dd_HHMMSS) or Run.verifications() ignores
     it — which is what real dated folders look like."""
     run.verifications_dir.mkdir(parents=True, exist_ok=True)
-    run.verify_chart_ti1.write_text("v1")
-    run.verify_chart_ti2.write_text("vc")
-    (run.verifications_dir / f"{run.verify_stem}_01.tif").write_text("t")
+    run.verify_chart_ti1.write_text("v1", encoding="utf-8")
+    run.verify_chart_ti2.write_text("vc", encoding="utf-8")
+    (run.verifications_dir / f"{run.verify_stem}_01.tif").write_text("t", encoding="utf-8")
     vdated = run.verifications_dir / date
     vdated.mkdir(parents=True, exist_ok=True)
-    (vdated / "measured.ti3").write_text("meas")
+    (vdated / "measured.ti3").write_text("meas", encoding="utf-8")
     return vdated
 
 
@@ -177,7 +177,7 @@ def test_A03plus_profiling_replace_also_archives_verifications(qapp, tmp_path, m
     old/ too — not just the run-root chart/ti3/icc."""
     work = tmp_path / "work"; work.mkdir(parents=True)
     proj = Project.create(work / "P", "P"); run = proj.current_run(); run.ensure_dir()
-    run.chart_ti2.write_text("old"); run.profile_icc.write_text("icc")
+    run.chart_ti2.write_text("old", encoding="utf-8"); run.profile_icc.write_text("icc", encoding="utf-8")
     vdated = _seed_verify(run)
     ctl = _ctl_for(proj.root)
     ctl.set_run_type(RUN_TYPE_PROFILING); ctl.set_profile_run("run1")
@@ -198,7 +198,7 @@ def test_A04_verification_replace_archives_and_keeps_profile(qapp, tmp_path, mon
     leaves both the profile and the dated verification folders alone."""
     work = tmp_path / "work"; work.mkdir(parents=True)
     proj = Project.create(work / "P", "P"); run = proj.current_run(); run.ensure_dir()
-    run.profile_icc.write_text("keepme")
+    run.profile_icc.write_text("keepme", encoding="utf-8")
     vdated = _seed_verify(run)
     ctl = _ctl_for(proj.root)
     ctl.set_run_type(RUN_TYPE_VERIFICATION); ctl.set_profile_run("run1")
@@ -209,8 +209,8 @@ def test_A04_verification_replace_archives_and_keeps_profile(qapp, tmp_path, mon
     assert r.verifications_old_dir.exists(), "archive belongs in verifications/old/"
     assert not r.old_dir.exists(), "a verification Replace must not touch the run root"
     assert vdated.exists(), "dated verification results are kept, not archived"
-    assert out == r.verify_chart_ti2 and r.verify_chart_ti2.read_text() == "ti2"
-    assert r.profile_icc.read_text() == "keepme", "profile must be untouched"
+    assert out == r.verify_chart_ti2 and r.verify_chart_ti2.read_text(encoding="utf-8") == "ti2"
+    assert r.profile_icc.read_text(encoding="utf-8") == "keepme", "profile must be untouched"
 
 
 def test_A07_full_project_import_just_this_chart(qapp, tmp_path, monkeypatch):
@@ -221,8 +221,8 @@ def test_A07_full_project_import_just_this_chart(qapp, tmp_path, monkeypatch):
     ctl = _ctl_for(proj.root)
     ctl.set_run_type(RUN_TYPE_PROFILING); ctl.set_profile_run("")
     q = Project.create(tmp_path / "ext" / "Q", "Q"); qr = q.current_run(); qr.ensure_dir()
-    qr.chart_ti2.write_text("qc"); (qr.dir / "Q.ti1").write_text("q1")
-    (qr.dir / "Q_01.tif").write_text("t")
+    qr.chart_ti2.write_text("qc", encoding="utf-8"); (qr.dir / "Q.ti1").write_text("q1", encoding="utf-8")
+    (qr.dir / "Q_01.tif").write_text("t", encoding="utf-8")
     # first dialog → "chart"; the inner loose dialog → "import"
     keys = iter(["chart", "import"])
     monkeypatch.setattr(L, "_choice_dialog", lambda *a, **k: next(keys))
@@ -249,14 +249,14 @@ def test_A10_use_as_base_for_new_profile(qapp, tmp_path, monkeypatch):
     project; the original P is untouched."""
     work = tmp_path / "work"; work.mkdir(parents=True)
     proj = Project.create(work / "P", "P"); run = proj.current_run(); run.ensure_dir()
-    run.chart_ti1.write_text("c1"); run.chart_ti2.write_text("c2")
-    (run.dir / "P_01.tif").write_text("t")
+    run.chart_ti1.write_text("c1", encoding="utf-8"); run.chart_ti2.write_text("c2", encoding="utf-8")
+    (run.dir / "P_01.tif").write_text("t", encoding="utf-8")
     ctl = _ctl_for(proj.root)
     monkeypatch.setattr(L, "_choice_dialog", lambda *a, **k: "new")
     monkeypatch.setattr(L, "_ask_profile_name", lambda *a, **k: ("Fresh", False))
     out, _ = L.resolve_ti2(None, run.chart_ti2, _settings(tmp_path), ctl)
     assert (work / "Fresh").exists() and out is not None
-    assert (work / "P" / "runs" / "run1" / "P.ti2").read_text() == "c2"  # P untouched
+    assert (work / "P" / "runs" / "run1" / "P.ti2").read_text(encoding="utf-8") == "c2"  # P untouched
 
 
 def test_A11_open_other_project(qapp, tmp_path, monkeypatch):
@@ -265,7 +265,7 @@ def test_A11_open_other_project(qapp, tmp_path, monkeypatch):
     work = tmp_path / "work"; work.mkdir(parents=True)
     proj = Project.create(work / "P", "P"); proj.current_run().ensure_dir()
     other = Project.create(work / "R", "R"); orun = other.current_run(); orun.ensure_dir()
-    orun.chart_ti2.write_text("rc"); (orun.dir / "R_01.tif").write_text("t")
+    orun.chart_ti2.write_text("rc", encoding="utf-8"); (orun.dir / "R_01.tif").write_text("t", encoding="utf-8")
     ctl = _ctl_for(proj.root)
     monkeypatch.setattr(L, "_choice_dialog", lambda *a, **k: "open")
     out, _ = L.resolve_ti2(None, orun.chart_ti2, _settings(tmp_path), ctl)
@@ -338,7 +338,7 @@ def test_nothing_open_a_chart_in_a_project_opens_that_project(qapp, tmp_path,
     """Open → the project is adopted and its run selected; nothing is copied."""
     work = tmp_path / "work"; work.mkdir(parents=True)
     proj = Project.create(work / "P", "P"); run = proj.current_run(); run.ensure_dir()
-    run.chart_ti2.write_text("c"); (run.dir / "P_01.tif").write_text("t")
+    run.chart_ti2.write_text("c", encoding="utf-8"); (run.dir / "P_01.tif").write_text("t", encoding="utf-8")
 
     ctl = _ctl_with_nothing_open(work)
     assert ctl.project_or_none() is None, "precondition: nothing is open"
@@ -367,7 +367,7 @@ def test_nothing_open_a_verification_chart_selects_verification(qapp, tmp_path,
     work = tmp_path / "work"; work.mkdir(parents=True)
     proj = Project.create(work / "P", "P"); run = proj.current_run(); run.ensure_dir()
     vdir = run.dir / "verifications"; vdir.mkdir(parents=True, exist_ok=True)
-    vti2 = vdir / "P-verify.ti2"; vti2.write_text("v")
+    vti2 = vdir / "P-verify.ti2"; vti2.write_text("v", encoding="utf-8")
 
     ctl = _ctl_with_nothing_open(work)
     monkeypatch.setattr(L, "_choice_dialog", lambda *a, **k: "open")
@@ -382,7 +382,7 @@ def test_nothing_open_the_user_can_still_start_a_new_profile(qapp, tmp_path,
     """The other choice must still copy out, not adopt."""
     work = tmp_path / "work"; work.mkdir(parents=True)
     proj = Project.create(work / "P", "P"); run = proj.current_run(); run.ensure_dir()
-    run.chart_ti2.write_text("c")
+    run.chart_ti2.write_text("c", encoding="utf-8")
 
     ctl = _ctl_with_nothing_open(work)
     monkeypatch.setattr(L, "_choice_dialog", lambda *a, **k: "new")

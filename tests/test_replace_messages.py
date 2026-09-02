@@ -181,14 +181,14 @@ def _shown(monkeypatch, tmp_path, *, held, expected):
     from PyQt6.QtWidgets import QMessageBox
 
     ti1 = tmp_path / "chart.ti1"
-    ti1.write_text("x")
+    ti1.write_text("x", encoding="utf-8")
     (tmp_path / "chart.ti2").write_text(
         "CGATS.17\nNUMBER_OF_SETS %d\nBEGIN_DATA\n%s\nEND_DATA\n"
-        % (expected, "\n".join(f"P{i+1} 100 100 100" for i in range(expected))))
+        % (expected, "\n".join(f"P{i+1} 100 100 100" for i in range(expected))), encoding="utf-8")
     ti3 = tmp_path / "chart.ti3"
     ti3.write_text(
         "CTI3\nNUMBER_OF_SETS %d\nBEGIN_DATA\n%s\nEND_DATA\n"
-        % (held, "\n".join(f"P{i+1} 100 100 100 50 50 50" for i in range(held))))
+        % (held, "\n".join(f"P{i+1} 100 100 100 50 50 50" for i in range(held))), encoding="utf-8")
 
     seen = {}
 

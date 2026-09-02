@@ -32,7 +32,7 @@ def _write_chart_ti3(p: Path) -> None:
         'CTI3\n\nDEVICE_CLASS "OUTPUT"\nCOLOR_REP "iRGB_XYZ"\nNUMBER_OF_FIELDS 7\n'
         "BEGIN_DATA_FORMAT\nSAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z\n"
         "END_DATA_FORMAT\n\nNUMBER_OF_SETS 1\nBEGIN_DATA\n1 100 100 100 86 90 75 \n"
-        "END_DATA\n")
+        "END_DATA\n", encoding="utf-8")
 
 
 def _make_tab():
@@ -122,7 +122,7 @@ def test_verification_guard_blocks_without_profile(tmp_path):
     tab = _make_tab()
     proj = Project.create(tmp_path / "P", "P")
     run = proj.current_run(); run.ensure_dir()
-    run.chart_ti2.write_text("x")
+    run.chart_ti2.write_text("x", encoding="utf-8")
     tab._ti1_path = run.chart_ti2
     _attach_controller(tab, tmp_path)
     tab._target_ctl.set_run_type("verification")
@@ -130,11 +130,11 @@ def test_verification_guard_blocks_without_profile(tmp_path):
     # No profile yet → blocked with a message.
     assert tab._verification_guard() is not None
     # Build a profile → Hole 1 satisfied, but no verify chart yet → Hole 2 blocks.
-    run.profile_icc.write_text("icc")
+    run.profile_icc.write_text("icc", encoding="utf-8")
     assert tab._verification_guard() is not None
     # Create the verification chart → allowed.
     run.verifications_dir.mkdir(parents=True, exist_ok=True)
-    run.verify_chart_ti2.write_text("vc")
+    run.verify_chart_ti2.write_text("vc", encoding="utf-8")
     assert tab._verification_guard() is None
     # Not ticked → never blocked.
     tab._target_ctl.set_run_type("profiling")
@@ -149,7 +149,7 @@ def test_verification_guard_hole2_no_verify_chart(tmp_path):
     tab = _make_tab()
     proj = Project.create(tmp_path / "P", "P")
     run = proj.current_run(); run.ensure_dir()
-    run.chart_ti2.write_text("x"); run.profile_icc.write_text("icc")
+    run.chart_ti2.write_text("x", encoding="utf-8"); run.profile_icc.write_text("icc", encoding="utf-8")
     tab._ti1_path = run.chart_ti2
     _attach_controller(tab, tmp_path)
     tab._target_ctl.set_run_type("verification")
@@ -162,7 +162,7 @@ def test_verification_guard_hole2_no_verify_chart(tmp_path):
 
 def test_verification_guard_ignores_external_charts(tmp_path):
     tab = _make_tab()
-    (tmp_path / "loose.ti2").write_text("x")
+    (tmp_path / "loose.ti2").write_text("x", encoding="utf-8")
     tab._ti1_path = tmp_path / "loose.ti2"
     _attach_controller(tab, tmp_path)
     tab._target_ctl.set_run_type("verification")
@@ -180,7 +180,7 @@ def test_verification_guard_keys_off_bar_run(tmp_path, monkeypatch):
     fm = FileManager(tab._settings)
     tab._settings.set("custom_output_path", str(tmp_path))
     proj = Project.create(tmp_path / "P", "P"); run = proj.current_run(); run.ensure_dir()
-    run.chart_ti2.write_text("chart")                 # profiling chart, but…
+    run.chart_ti2.write_text("chart", encoding="utf-8")                 # profiling chart, but…
     # …no built profile. Bar → this run, Run type = Verification.
     fm.set_target_name("P")
     ctl = MeasurementTargetController(fm)
@@ -189,7 +189,7 @@ def test_verification_guard_keys_off_bar_run(tmp_path, monkeypatch):
     tab.set_target_controller(ctl)
     # A verify chart loaded from verifications/ (its parent is not the run root).
     run.verifications_dir.mkdir(parents=True, exist_ok=True)
-    run.verify_chart_ti2.write_text("vc")
+    run.verify_chart_ti2.write_text("vc", encoding="utf-8")
     tab._ti1_path = run.verify_chart_ti2
     tab._target_ctl.set_run_type("verification")
 

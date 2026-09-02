@@ -101,7 +101,7 @@ def test_a_date_gaining_a_measurement_does_not_resize_the_box(qapp, tmp_path):
     bar, run = _bar(tmp_path, dates=("2026-07-20_100000",))
     before = bar._verify_combo.width()
 
-    run.verification("2026-07-20_100000").measurement_ti3.write_text("RESULT")
+    run.verification("2026-07-20_100000").measurement_ti3.write_text("RESULT", encoding="utf-8")
     bar.refresh()
     QApplication.processEvents(); bar.layout().activate()
 

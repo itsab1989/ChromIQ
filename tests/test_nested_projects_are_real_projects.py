@@ -48,7 +48,7 @@ def nested(tmp_path):
     root.parent.mkdir(parents=True)
     proj = Project.create(root, "Baryta")
     run = proj.current_run()
-    (run.dir / f"{run.stem}.icc").write_text("a finished profile")
+    (run.dir / f"{run.stem}.icc").write_text("a finished profile", encoding="utf-8")
     fm.open_project_at(root)
     return fm, root
 

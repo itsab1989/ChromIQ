@@ -64,7 +64,7 @@ def _ti2(tmp_path: Path, strips: dict, name="chart.ti2") -> Path:
             rows.append(f'{sid} "{letter}{i}" {r:.1f} {g:.1f} {b:.1f} 0 0 0')
     p = tmp_path / name
     p.write_text(_HEAD + f"NUMBER_OF_SETS {sid}\nBEGIN_DATA\n"
-                 + "\n".join(rows) + "\nEND_DATA\n")
+                 + "\n".join(rows) + "\nEND_DATA\n", encoding="utf-8")
     return p
 
 
@@ -101,7 +101,7 @@ def test_force_checkbox_enabled_when_unsafe(dlg, tmp_path):
 def test_safe_layout_auto_tagged(dlg, tmp_path):
     ti2 = _ti2(tmp_path, _SAFE)
     note = dlg._maybe_tag_randomised(ti2)
-    assert "RANDOM_START" in ti2.read_text()
+    assert "RANDOM_START" in ti2.read_text(encoding="utf-8")
     assert "automatically" in note.lower() or "bidirectional" in note.lower()
 
 
@@ -109,7 +109,7 @@ def test_unsafe_unforced_left_untagged(dlg, tmp_path):
     dlg._pt_force_tag.setChecked(False)
     ti2 = _ti2(tmp_path, _UNSAFE)
     note = dlg._maybe_tag_randomised(ti2)
-    assert "RANDOM_START" not in ti2.read_text()
+    assert "RANDOM_START" not in ti2.read_text(encoding="utf-8")
     assert "untagged" in note.lower()
 
 
@@ -118,7 +118,7 @@ def test_unsafe_forced_suppressed_tags_silently(dlg, tmp_path):
     dlg._settings.set("ti2_editor_force_tag_hide_warning", True)
     ti2 = _ti2(tmp_path, _UNSAFE)
     note = dlg._maybe_tag_randomised(ti2)
-    assert "RANDOM_START" in ti2.read_text()
+    assert "RANDOM_START" in ti2.read_text(encoding="utf-8")
     assert "forced" in note.lower()
 
 
@@ -127,7 +127,7 @@ def test_unsafe_forced_warning_accept_tags(dlg, tmp_path, monkeypatch):
     monkeypatch.setattr(QDialog, "exec", lambda self: QDialog.DialogCode.Accepted)
     ti2 = _ti2(tmp_path, _UNSAFE)
     dlg._maybe_tag_randomised(ti2)
-    assert "RANDOM_START" in ti2.read_text()
+    assert "RANDOM_START" in ti2.read_text(encoding="utf-8")
 
 
 def test_unsafe_forced_warning_reject_leaves_untagged(dlg, tmp_path, monkeypatch):
@@ -135,7 +135,7 @@ def test_unsafe_forced_warning_reject_leaves_untagged(dlg, tmp_path, monkeypatch
     monkeypatch.setattr(QDialog, "exec", lambda self: QDialog.DialogCode.Rejected)
     ti2 = _ti2(tmp_path, _UNSAFE)
     dlg._maybe_tag_randomised(ti2)
-    assert "RANDOM_START" not in ti2.read_text()
+    assert "RANDOM_START" not in ti2.read_text(encoding="utf-8")
 
 
 def test_force_warning_hide_checkbox_persists(dlg, tmp_path, monkeypatch):

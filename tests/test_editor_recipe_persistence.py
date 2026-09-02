@@ -47,7 +47,7 @@ def test_recipe_round_trips_with_layout_synced():
     built with (Set A → Set B), so the two records can't disagree."""
     with tempfile.TemporaryDirectory() as tmp:
         ti2 = Path(tmp) / "chart.ti2"
-        ti2.write_text("")  # only the parent folder's meta.json is used
+        ti2.write_text("", encoding="utf-8")  # only the parent folder's meta.json is used
         spec = R.ChartSpec.new("i1", "A4")
         recipe = {"mode": "generate", "cb": {"cube": True},
                   "sp": {"cube_n": 5}, "edges_auto": True}
@@ -69,7 +69,7 @@ def test_recipe_none_preserves_existing():
     # A layout-only save (recipe=None) must not wipe a stored recipe.
     with tempfile.TemporaryDirectory() as tmp:
         ti2 = Path(tmp) / "chart.ti2"
-        ti2.write_text("")
+        ti2.write_text("", encoding="utf-8")
         spec = R.ChartSpec.new("i1", "A4")
         recipe = {"mode": "generate", "sp": {"cube_n": 7}}
         R.save_editor_meta(ti2, spec, R.LayoutOptions(), "c", recipe=recipe)
@@ -85,7 +85,7 @@ def test_divergence_layout_save_updates_set_a_keeps_set_b():
     still leaves Set B's layout where it was."""
     with tempfile.TemporaryDirectory() as tmp:
         ti2 = Path(tmp) / "chart.ti2"
-        ti2.write_text("")
+        ti2.write_text("", encoding="utf-8")
         spec = R.ChartSpec.new("i1", "A4")
         recipe = {"mode": "generate", "sp": {"cube_n": 8}}
         R.save_editor_meta(ti2, spec, R.LayoutOptions(margin_mm=6), "c",
@@ -104,7 +104,7 @@ def test_divergence_layout_save_updates_set_a_keeps_set_b():
 def test_recipe_absent_returns_none():
     with tempfile.TemporaryDirectory() as tmp:
         ti2 = Path(tmp) / "chart.ti2"
-        ti2.write_text("")
+        ti2.write_text("", encoding="utf-8")
         R.save_editor_meta(ti2, R.ChartSpec.new("i1", "A4"),
                            R.LayoutOptions(), "c")  # no recipe given
         assert R.load_editor_recipe(ti2) is None
@@ -149,7 +149,7 @@ def test_preset_recipe_propagates_to_run_meta(qapp, tmp_path, monkeypatch):
     monkeypatch.setattr(R.ChartSpec, "from_ti2", staticmethod(lambda p: _Spec()))
     tab._last_params = ChartParams()
     ti2 = run.dir / f"{run.stem}.ti2"
-    ti2.write_text("x")
+    ti2.write_text("x", encoding="utf-8")
     tab._stamp_chart_meta(ti2)
     # The recipe rode into meta.json → the editor will seed New chart / Add. Its
     # generators are preserved and its layout is synced to the built chart (#92).
@@ -173,7 +173,7 @@ def test_plain_targen_chart_gets_no_recipe(qapp, tmp_path, monkeypatch):
     monkeypatch.setattr(R.ChartSpec, "from_ti2", staticmethod(lambda p: _Spec()))
     tab._last_params = ChartParams()
     ti2 = run.dir / f"{run.stem}.ti2"
-    ti2.write_text("x")
+    ti2.write_text("x", encoding="utf-8")
     tab._stamp_chart_meta(ti2)
     assert R.load_editor_recipe(ti2) is None
 
@@ -295,7 +295,7 @@ def test_save_editor_meta_no_sync_keeps_recipe_verbatim():
     from printtarg-era options that didn't produce it."""
     with tempfile.TemporaryDirectory() as tmp:
         ti2 = Path(tmp) / "chart.ti2"
-        ti2.write_text("")
+        ti2.write_text("", encoding="utf-8")
         spec = R.ChartSpec.new("CM", "A3")           # deliberately different
         opts = R.LayoutOptions(margin_mm=12, patch_scale=1.3)
         R.save_editor_meta(ti2, spec, opts, "c", recipe=_ENGINE_RECIPE,
@@ -323,7 +323,7 @@ def _engine_editor(qapp, tmp_path):
         'XYZ_Z\nEND_DATA_FORMAT\n\nNUMBER_OF_SETS 3\nBEGIN_DATA\n'
         '1 "A1" 100.0 100.0 100.0 95.1 100.0 108.8\n'
         '2 "A2" 0.0 0.0 0.0 0.0 0.0 0.0\n'
-        '3 "A3" 100.0 0.0 0.0 41.2 21.3 1.9\nEND_DATA\n')
+        '3 "A3" 100.0 0.0 0.0 41.2 21.3 1.9\nEND_DATA\n', encoding="utf-8")
     ed._spec = R.ChartSpec.from_ti2(ti2)
     ed._engine_panel_grp.setVisible(True)
     from workflow.layout_engine.presets import default_recipe
@@ -362,9 +362,9 @@ def test_apply_external_chart_carries_staging_recipe(qapp, tmp_path, monkeypatch
     tab, fm = _chart_tab(tmp_path)
     staging = tmp_path / "staging"
     staging.mkdir()
-    (staging / "c.ti1").write_text("x")
+    (staging / "c.ti1").write_text("x", encoding="utf-8")
     ti2 = staging / "c.ti2"
-    ti2.write_text("")
+    ti2.write_text("", encoding="utf-8")
     R.save_editor_meta(ti2, R.ChartSpec.new("i1", "A4"), R.LayoutOptions(),
                        "c", recipe=_ENGINE_RECIPE, sync_layout=False)
     calls = []
@@ -402,11 +402,11 @@ def test_stamp_chart_meta_engine_chart_recipe_stays_frozen(qapp, tmp_path,
     monkeypatch.setattr(R.ChartSpec, "from_ti2", staticmethod(lambda p: _Spec()))
     tab._last_params = ChartParams()
     ti2 = run.dir / f"{run.stem}.ti2"
-    ti2.write_text("x")
+    ti2.write_text("x", encoding="utf-8")
     # Engine marker: a channels.json whose layout block carries the recipe.
     ti2.with_suffix(".channels.json").write_text(json.dumps({
         "layout": {"engine": "chromiq", "engine_version": 1,
-                   "recipe": {"instrument": "SS", "paper": "A4R"}}}))
+                   "recipe": {"instrument": "SS", "paper": "A4R"}}}), encoding="utf-8")
     tab._stamp_chart_meta(ti2)
     assert R.load_editor_recipe(ti2) == _ENGINE_RECIPE
 
@@ -475,7 +475,7 @@ def _stamp(run_dir, recipe):
     from workflow.ti2_relayout import ChartSpec, LayoutOptions, save_editor_meta
 
     ti2 = run_dir / "chart.ti2"
-    ti2.write_text("x")
+    ti2.write_text("x", encoding="utf-8")
     spec = ChartSpec(instrument_flag="i1", paper_flag="A4", patches=100,
                      dev_fields=("RGB_R",), has_xyz=False, color_rep="RGB",
                      white_point=None, paper_mm=(210.0, 297.0))

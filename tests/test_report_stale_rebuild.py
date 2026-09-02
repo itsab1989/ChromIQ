@@ -48,11 +48,11 @@ def qapp():
 def _make_run(tmp_path: Path) -> Path:
     run = tmp_path / "runs" / "run1"
     run.mkdir(parents=True)
-    (run / "c.ti2").write_text(_TI2)
-    (run / "c.ti3").write_text(_TI3)
+    (run / "c.ti2").write_text(_TI2, encoding="utf-8")
+    (run / "c.ti3").write_text(_TI3, encoding="utf-8")
     reps = run / "reports"
     reps.mkdir()
-    (reps / "report_2026-01-02_10-00-00.json").write_text(json.dumps(_OLD_REPORT))
+    (reps / "report_2026-01-02_10-00-00.json").write_text(json.dumps(_OLD_REPORT), encoding="utf-8")
     return run
 
 
@@ -77,14 +77,14 @@ def test_current_schema_report_is_left_as_is(qapp, tmp_path):
     dlg = MeasurementReportDialog(AppSettings(), initial_ti3=None)
     run = tmp_path / "runs" / "run1"
     run.mkdir(parents=True)
-    (run / "c.ti2").write_text(_TI2)
-    (run / "c.ti3").write_text(_TI3)
+    (run / "c.ti2").write_text(_TI2, encoding="utf-8")
+    (run / "c.ti3").write_text(_TI3, encoding="utf-8")
     fresh = build_report(run / "c.ti3")
     fresh["created"] = "2025-12-31T09:00:00"
     fresh["_marker"] = "kept"
     reps = run / "reports"
     reps.mkdir()
-    (reps / "report_2025-12-31_09-00-00.json").write_text(json.dumps(fresh))
+    (reps / "report_2025-12-31_09-00-00.json").write_text(json.dumps(fresh), encoding="utf-8")
     assert fresh["schema"] == REPORT_SCHEMA
     _, runs = dlg._gather_runs(run / "c.ti3")
     assert runs[0].get("_marker") == "kept"      # not rebuilt

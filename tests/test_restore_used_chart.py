@@ -31,7 +31,7 @@ def _live_differs(target) -> None:
     """
     from workflow.chart_slot import slot_for
     for f in slot_for(target).files_to_copy():
-        f.write_text(f.read_text() + "  # edited since the snapshot")
+        f.write_text(f.read_text(encoding="utf-8") + "  # edited since the snapshot", encoding="utf-8")
         return
 
 
@@ -48,9 +48,9 @@ def _env(tmp_path, *, with_chart=True):
     proj = Project.create(root / "P", "P"); run = proj.current_run(); run.ensure_dir()
     run.verifications_dir.mkdir(parents=True, exist_ok=True)
     if with_chart:
-        run.verify_chart_ti1.write_text("TI1")
-        run.verify_chart_ti2.write_text("TI2")
-        (run.verifications_dir / f"{run.verify_stem}.channels.json").write_text("{}")
+        run.verify_chart_ti1.write_text("TI1", encoding="utf-8")
+        run.verify_chart_ti2.write_text("TI2", encoding="utf-8")
+        (run.verifications_dir / f"{run.verify_stem}.channels.json").write_text("{}", encoding="utf-8")
     fm.set_target_name("P")
     ctl = MeasurementTargetController(fm)
     ctl.set_profile_run("run1"); ctl.set_run_type(RUN_TYPE_VERIFICATION)
@@ -131,7 +131,7 @@ def test_confirmation_only_when_the_live_chart_differs(qapp, tmp_path):
     snapshot_chart(v); ctl.set_verification_id(v.id)
     assert ctl.restore_needs_confirmation() is False
 
-    run.verify_chart_ti2.write_text("SOMETHING ELSE")
+    run.verify_chart_ti2.write_text("SOMETHING ELSE", encoding="utf-8")
     assert ctl.restore_needs_confirmation() is True
 
 
@@ -139,14 +139,14 @@ def test_restore_emits_chart_restored_and_puts_the_chart_back(qapp, tmp_path):
     ctl, run = _env(tmp_path)
     v = run.verification("2026-07-25_120000"); v.ensure_dir()
     snapshot_chart(v); _live_differs(v); ctl.set_verification_id(v.id)
-    run.verify_chart_ti2.write_text("REPLACED")
+    run.verify_chart_ti2.write_text("REPLACED", encoding="utf-8")
     seen = {"n": 0}
     ctl.chart_restored.connect(lambda: seen.__setitem__("n", seen["n"] + 1))
 
     result = ctl.restore_used_chart()
 
     assert result is not None and result.ok
-    assert run.verify_chart_ti2.read_text() == "TI2"
+    assert run.verify_chart_ti2.read_text(encoding="utf-8") == "TI2"
     assert seen["n"] == 1, "the tabs must be told to refresh"
 
 
@@ -163,7 +163,7 @@ def test_dropdown_marks_a_verification_with_no_measurement(qapp, tmp_path):
     started = run.verification("2026-07-25_120000"); started.ensure_dir()
     snapshot_chart(started); _live_differs(started)                       # chart kept, no .ti3 written
     finished = run.verification("2026-07-25_130000"); finished.ensure_dir()
-    finished.measurement_ti3.write_text("MEASURED")
+    finished.measurement_ti3.write_text("MEASURED", encoding="utf-8")
 
     assert ctl.verification_has_measurement("run1", started.id) is False
     assert ctl.verification_has_measurement("run1", finished.id) is True
@@ -197,8 +197,8 @@ def test_outcome_needs_no_rebuild_when_the_images_came_back(qapp, tmp_path):
     """Without a recipe the images travel with the snapshot, so there is
     nothing to redraw."""
     ctl, run = _env(tmp_path, with_chart=False)
-    run.verify_chart_ti2.write_text("TI2")
-    (run.verifications_dir / f"{run.verify_stem}_01.tif").write_text("PAGE")
+    run.verify_chart_ti2.write_text("TI2", encoding="utf-8")
+    (run.verifications_dir / f"{run.verify_stem}_01.tif").write_text("PAGE", encoding="utf-8")
     v = run.verification("2026-07-25_120000"); v.ensure_dir()
     snapshot_chart(v); _live_differs(v); ctl.set_verification_id(v.id)
     for p in run.verify_chart_tiffs():

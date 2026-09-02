@@ -108,7 +108,7 @@ _GLOSSARY = {
 
 
 def _pairs(code: str):
-    j = json.loads((I18N / f"{code}.json").read_text())
+    j = json.loads((I18N / f"{code}.json").read_text(encoding="utf-8"))
     return [(k, v) for k, v in j.items() if not k.startswith("@") and v != k]
 
 

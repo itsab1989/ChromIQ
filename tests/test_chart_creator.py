@@ -43,9 +43,9 @@ class _MockRunner:
         cwd = Path(cwd)
         stem = args[-1]
         if tool == "targen":
-            (cwd / f"{stem}.ti1").write_text("FAKE TI1")
+            (cwd / f"{stem}.ti1").write_text("FAKE TI1", encoding="utf-8")
         elif tool == "printtarg":
-            (cwd / f"{stem}.ti2").write_text("FAKE TI2")
+            (cwd / f"{stem}.ti2").write_text("FAKE TI2", encoding="utf-8")
             arr = np.zeros((100, 100, 3), dtype=np.uint8)
             tifffile.imwrite(
                 str(cwd / f"{stem}_01.tif"),
@@ -124,7 +124,7 @@ def test_generate_writes_channels_sidecar(tmp_path: Path) -> None:
     # stem is the (sanitised) project folder name.
     sidecar = work_dir / "runs" / "run1" / "chart_proj.channels.json"
     assert sidecar.exists(), "generate() must write the channels sidecar"
-    assert json.loads(sidecar.read_text())["ink_channels"] == ["r", "g", "b"]
+    assert json.loads(sidecar.read_text(encoding="utf-8"))["ink_channels"] == ["r", "g", "b"]
 
 
 def test_query_patches_margin10_i1_a4_with_left_border() -> None:
@@ -536,7 +536,7 @@ def test_load_ti1_writes_channels_sidecar(tmp_path: Path) -> None:
     creator, work_dir = _make_creator(tmp_path)
     work_dir.mkdir(parents=True)
     src_ti1 = work_dir / "imported.ti1"
-    src_ti1.write_text("FAKE TI1")
+    src_ti1.write_text("FAKE TI1", encoding="utf-8")
 
     finished: list[list[Path]] = []
     creator.load_ti1_and_generate_preview(
@@ -553,7 +553,7 @@ def test_load_ti1_writes_channels_sidecar(tmp_path: Path) -> None:
         "load_ti1_and_generate_preview() must set _pending_params so the "
         "sidecar is written — regression guard for the second half of #15"
     )
-    assert json.loads(sidecar.read_text())["ink_channels"] == ["r", "g", "b"]
+    assert json.loads(sidecar.read_text(encoding="utf-8"))["ink_channels"] == ["r", "g", "b"]
 
 
 # ---------------------------------------------------------------------------
@@ -583,7 +583,7 @@ def test_import_external_preconditioning_copies_icc(tmp_path: Path) -> None:
     # Create the external .icc somewhere outside the project.
     ext = tmp_path / "external" / "vendor.icc"
     ext.parent.mkdir()
-    ext.write_text("EXT_ICC")
+    ext.write_text("EXT_ICC", encoding="utf-8")
 
     creator = ChartCreator(
         _MockRunner(), _MockFileManager(work_dir), _ToggleSettings(chromiq_refinement=False),
@@ -603,8 +603,8 @@ def test_import_external_preconditioning_with_refinement_copies_ti3(tmp_path: Pa
     work_dir = tmp_path / "proj"
     ext_dir = tmp_path / "external"
     ext_dir.mkdir()
-    (ext_dir / "vendor.icc").write_text("EXT_ICC")
-    (ext_dir / "vendor.ti3").write_text("EXT_TI3")
+    (ext_dir / "vendor.icc").write_text("EXT_ICC", encoding="utf-8")
+    (ext_dir / "vendor.ti3").write_text("EXT_TI3", encoding="utf-8")
 
     creator = ChartCreator(
         _MockRunner(), _MockFileManager(work_dir), _ToggleSettings(chromiq_refinement=True),
@@ -625,7 +625,7 @@ def test_import_external_preconditioning_noop_for_local_pick(tmp_path: Path) -> 
         _MockRunner(), _MockFileManager(work_dir), _ToggleSettings(chromiq_refinement=True),
     )
     run = creator._file_mgr.project().current_run()
-    run.preconditioning_icc.write_text("ALREADY_LOCAL")
+    run.preconditioning_icc.write_text("ALREADY_LOCAL", encoding="utf-8")
     in_args = shlex.join(["-c", str(run.preconditioning_icc)])
     new_args = creator._import_external_preconditioning(in_args, run)
     assert new_args == in_args
@@ -640,7 +640,7 @@ def test_stamp_uses_chart_layout_line_for_ti1_origin(tmp_path: Path, monkeypatch
     creator, work_dir = _make_creator(tmp_path)
     run = creator._file_mgr.project().current_run()
     run.ensure_dir()
-    (run.dir / f"{run.stem}.ti1").write_text("NUMBER_OF_SETS 484\n")
+    (run.dir / f"{run.stem}.ti1").write_text("NUMBER_OF_SETS 484\n", encoding="utf-8")
     tiff = run.dir / f"{run.stem}_01.tif"
     arr = np.zeros((100, 100, 3), dtype=np.uint8)
     tifffile.imwrite(str(tiff), arr, resolution=(200, 200), resolutionunit="INCH")
@@ -669,7 +669,7 @@ def test_stamp_uses_targen_line_for_fresh_chart(tmp_path: Path, monkeypatch) -> 
     creator, work_dir = _make_creator(tmp_path)
     run = creator._file_mgr.project().current_run()
     run.ensure_dir()
-    (run.dir / f"{run.stem}.ti1").write_text("NUMBER_OF_SETS 484\n")
+    (run.dir / f"{run.stem}.ti1").write_text("NUMBER_OF_SETS 484\n", encoding="utf-8")
     tiff = run.dir / f"{run.stem}_01.tif"
     arr = np.zeros((100, 100, 3), dtype=np.uint8)
     tifffile.imwrite(str(tiff), arr, resolution=(200, 200), resolutionunit="INCH")
@@ -710,12 +710,12 @@ def test_capture_scanner_cht_stores_verified_printtarg_geometry(tmp_path: Path) 
     _subprocess.run([str(_PRINTTARG), "-ii1", "-pA4", stem], cwd=run_dir,
                     check=True, capture_output=True)
     (run_dir / f"{stem}.channels.json").write_text(
-        json.dumps({"ink_channels": ["R", "G", "B"]}))
+        json.dumps({"ink_channels": ["R", "G", "B"]}), encoding="utf-8")
 
     creator._capture_scanner_cht(
         run_dir, stem, ChartParams(instrument="i1", paper="A4", is_manual=True))
 
-    doc = json.loads((run_dir / f"{stem}.channels.json").read_text())
+    doc = json.loads((run_dir / f"{stem}.channels.json").read_text(encoding="utf-8"))
     assert doc["ink_channels"] == ["R", "G", "B"]        # existing data preserved
     layout = doc["layout"]
     assert layout["engine"] == "printtarg" and layout["cht_pages"]

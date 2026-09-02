@@ -427,14 +427,14 @@ def test_the_greyed_labels_read_as_greyed_in_BOTH_themes():
         r, g, b = (int(h[i:i + 2], 16) for i in (0, 2, 4))
         return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
-    dark = Path("ui/styles.py").read_text()
+    dark = Path("ui/styles.py").read_text(encoding="utf-8")
     normal = re.search(r"QLabel#param_label,[^\n]*color: (#\w+)", dark)
     faint = re.search(r"QLabel#param_label:disabled,[^\n]*color: (#\w+)", dark)
     assert normal and faint, "the dark theme lost its #param_label rules"
     d_on = abs(lum(normal.group(1)) - lum("#1f1f1f"))
     d_off = abs(lum(faint.group(1)) - lum("#1f1f1f"))
 
-    light = Path("ui/light_styles.py").read_text()
+    light = Path("ui/light_styles.py").read_text(encoding="utf-8")
     assert "QLabel#param_label:disabled" in light, (
         "light mode has no dimmed-caption rule, so the labels would disable "
         "without looking disabled")

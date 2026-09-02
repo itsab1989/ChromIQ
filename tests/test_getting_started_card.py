@@ -219,9 +219,9 @@ def test_workflow_diagram_chapter_sits_between_tour_and_steps():
         svg = Path(resource_path(f"assets/help/workflow/{lang}.svg"))
         assert svg.is_file() and svg.stat().st_size > 10_000, lang
         assert QSvgRenderer(str(svg)).isValid(), lang
-    de = Path(resource_path("assets/help/workflow/de.svg")).read_text()
+    de = Path(resource_path("assets/help/workflow/de.svg")).read_text(encoding="utf-8")
     assert "erstellen" in de and ">Create <" not in de
     assert "runs/" in de                     # folder names stay literal
     assert "Legende:" in de                  # the truncated legend, repaired
-    en = Path(resource_path("assets/help/workflow/en.svg")).read_text()
+    en = Path(resource_path("assets/help/workflow/en.svg")).read_text(encoding="utf-8")
     assert "Legend:" in en and "&#x2026;" not in en

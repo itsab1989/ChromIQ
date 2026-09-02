@@ -23,8 +23,8 @@ def cal(tmp_path):
     root.mkdir()
     c = Calibration(root)
     c.ensure_dir()
-    c.ti1.write_text("ti1")
-    c.ti2.write_text("the printed chart")
+    c.ti1.write_text("ti1", encoding="utf-8")
+    c.ti2.write_text("the printed chart", encoding="utf-8")
     return c
 
 
@@ -47,8 +47,8 @@ def test_the_three_slots_stay_distinct(cal, tmp_path):
 def test_the_measurement_is_not_part_of_the_chart(cal):
     """Restoring a chart must never put back a stale measurement over a fresh
     one — the .ti3 and the .cal are results, not the chart."""
-    cal.ti3.write_text("readings")
-    cal.cal_path.write_text("curves")
+    cal.ti3.write_text("readings", encoding="utf-8")
+    cal.cal_path.write_text("curves", encoding="utf-8")
     names = {p.name for p in slot_for(cal).live_files()}
     assert f"{cal.stem}.ti1" in names and f"{cal.stem}.ti2" in names
     assert f"{cal.stem}.ti3" not in names
@@ -65,18 +65,18 @@ def test_a_stored_copy_matches_until_the_chart_changes(cal):
     snapshot_slot(slot)
     assert slot_has_snapshot(slot) is True
     assert snapshot_matches_live(slot) is True
-    cal.ti2.write_text("regenerated")
+    cal.ti2.write_text("regenerated", encoding="utf-8")
     assert snapshot_matches_live(slot) is False
 
 
 def test_restore_puts_the_measured_chart_back(cal):
     slot = slot_for(cal)
     snapshot_slot(slot)
-    cal.ti3.write_text("the readings")          # measured after the snapshot
-    cal.ti2.write_text("regenerated")
+    cal.ti3.write_text("the readings", encoding="utf-8")          # measured after the snapshot
+    cal.ti2.write_text("regenerated", encoding="utf-8")
     restore_slot(slot)
-    assert cal.ti2.read_text() == "the printed chart"
-    assert cal.ti3.read_text() == "the readings", "a restore ate the measurement"
+    assert cal.ti2.read_text(encoding="utf-8") == "the printed chart"
+    assert cal.ti3.read_text(encoding="utf-8") == "the readings", "a restore ate the measurement"
 
 
 # ---- E13: a project from before this existed ------------------------------

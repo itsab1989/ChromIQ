@@ -122,13 +122,13 @@ def test_port_announced_only_for_old_schema(qapp, tmp_path, monkeypatch):
 
     old = tmp_path / "Old" / "project.json"
     old.parent.mkdir(parents=True)
-    old.write_text(json.dumps({"schema_version": 1, "current_run": "run1", "runs": ["run1"]}))
+    old.write_text(json.dumps({"schema_version": 1, "current_run": "run1", "runs": ["run1"]}), encoding="utf-8")
     tab._maybe_announce_project_port(old)
     assert shown["n"] == 1                       # old project → announced
 
     new = tmp_path / "New" / "project.json"
     new.parent.mkdir(parents=True)
-    new.write_text(json.dumps({"schema_version": SCHEMA_VERSION, "current_run": "run1", "runs": ["run1"]}))
+    new.write_text(json.dumps({"schema_version": SCHEMA_VERSION, "current_run": "run1", "runs": ["run1"]}), encoding="utf-8")
     tab._maybe_announce_project_port(new)
     assert shown["n"] == 1                       # current schema → no extra dialog
 
@@ -141,7 +141,7 @@ def test_load_ti1_new_project_prompts_name_and_updates_field(qapp, tmp_path, mon
     import ui.ti2_loader as L
     tab, fm, ctl = _make_tab(tmp_path)
     # A real Argyll .ti1 (used as-is, no conversion).
-    ti1 = tmp_path / "MyPatches.ti1"; ti1.write_text("CTI1\n")
+    ti1 = tmp_path / "MyPatches.ti1"; ti1.write_text("CTI1\n", encoding="utf-8")
     monkeypatch.setattr(tc, "open_file_dialog", lambda *a, **k: str(ti1))
     monkeypatch.setattr(tab, "_ti1_load_destination", lambda src: "new")
     seen = {"prefill": None}
@@ -169,7 +169,7 @@ def test_load_ti1_new_project_cancel_aborts(qapp, tmp_path, monkeypatch):
     import ui.ti2_loader as L
     tab, fm, ctl = _make_tab(tmp_path)
     before = fm.get_target_name()
-    ti1 = tmp_path / "P.ti1"; ti1.write_text("CTI1\n")
+    ti1 = tmp_path / "P.ti1"; ti1.write_text("CTI1\n", encoding="utf-8")
     monkeypatch.setattr(tc, "open_file_dialog", lambda *a, **k: str(ti1))
     monkeypatch.setattr(tab, "_ti1_load_destination", lambda src: "new")
     # CANCEL ANSWERS None, NOT (None, False). `_ask_project_name` only ever

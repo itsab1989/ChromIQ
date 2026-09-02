@@ -137,7 +137,7 @@ def test_the_specification_tables_match_the_app():
     doc = (Path(__file__).resolve().parent.parent
            / "docs" / "design" / "measurement_window_sounds.md")
     assert doc.is_file(), "the window-sounds specification is missing"
-    text = doc.read_text()
+    text = doc.read_text(encoding="utf-8")
     missing = [row[0] for row in WINDOW_ROWS + EVENT_ROWS
                if row[0].replace("|", "\\|") not in text]
     assert not missing, f"rows in the app but not in the specification: {missing}"

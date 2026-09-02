@@ -37,7 +37,7 @@ def _live_differs(target) -> None:
     """
     from workflow.chart_slot import slot_for
     for f in slot_for(target).files_to_copy():
-        f.write_text(f.read_text() + "  # edited since the snapshot")
+        f.write_text(f.read_text(encoding="utf-8") + "  # edited since the snapshot", encoding="utf-8")
         return
 
 
@@ -54,9 +54,9 @@ def _env(tmp_path):
     fm = FileManager(s)
     proj = Project.create(root / "P", "P")
     run = proj.current_run(); run.ensure_dir()
-    run.chart_ti1.write_text("TI1")
-    run.chart_ti2.write_text("TI2")
-    run.chart_channels_json.write_text("{}")
+    run.chart_ti1.write_text("TI1", encoding="utf-8")
+    run.chart_ti2.write_text("TI2", encoding="utf-8")
+    run.chart_channels_json.write_text("{}", encoding="utf-8")
     fm.set_target_name("P")
     ctl = MeasurementTargetController(fm)
     ctl.set_profile_run("run1"); ctl.set_run_type(RUN_TYPE_PROFILING)
@@ -108,21 +108,21 @@ def test_the_button_says_when_the_stored_chart_is_out_of_step(qapp, tmp_path):
 def test_restoring_puts_the_run_chart_back(qapp, tmp_path):
     _s, run, ctl = _env(tmp_path)
     snapshot_slot(slot_for(run)); _live_differs(run)
-    run.chart_ti2.write_text("REPLACED")
-    run.measurement_ti3.write_text("A MEASUREMENT")
+    run.chart_ti2.write_text("REPLACED", encoding="utf-8")
+    run.measurement_ti3.write_text("A MEASUREMENT", encoding="utf-8")
 
     result = ctl.restore_used_chart()
 
     assert result is not None and result.ok
-    assert run.chart_ti2.read_text() == "TI2"
-    assert run.measurement_ti3.read_text() == "A MEASUREMENT"
+    assert run.chart_ti2.read_text(encoding="utf-8") == "TI2"
+    assert run.measurement_ti3.read_text(encoding="utf-8") == "A MEASUREMENT"
 
 
 def test_the_confirmation_is_only_needed_when_the_chart_changed(qapp, tmp_path):
     _s, run, ctl = _env(tmp_path)
     snapshot_slot(slot_for(run))
     assert ctl.restore_needs_confirmation() is False
-    run.chart_ti2.write_text("REPLACED")
+    run.chart_ti2.write_text("REPLACED", encoding="utf-8")
     assert ctl.restore_needs_confirmation() is True
 
 
@@ -179,14 +179,14 @@ def test_keep_leaves_the_copy_alone_and_records_it(qapp, tmp_path, monkeypatch):
     describe the measurement."""
     s, run, ctl = _env(tmp_path)
     snapshot_slot(slot_for(run)); _live_differs(run)
-    run.chart_ti2.write_text("A DIFFERENT CHART")
+    run.chart_ti2.write_text("A DIFFERENT CHART", encoding="utf-8")
     tab = _tab(s, ctl)
     monkeypatch.setattr(type(tab), "_profiling_overwrite_choice",
                         lambda self, _r: "keep")
 
     assert tab._snapshot_verification_chart() is True
 
-    kept = (slot_for(run).snapshot_dir / f"{run.stem}.ti2").read_text()
+    kept = (slot_for(run).snapshot_dir / f"{run.stem}.ti2").read_text(encoding="utf-8")
     assert kept == "TI2", "the stored chart must not have been touched"
     assert run.load_meta().chart_snapshot_stale is True
 
@@ -196,14 +196,14 @@ def test_replace_updates_the_copy_and_clears_the_mark(qapp, tmp_path,
     s, run, ctl = _env(tmp_path)
     snapshot_slot(slot_for(run)); _live_differs(run)
     meta = run.load_meta(); meta.chart_snapshot_stale = True; run.save_meta(meta)
-    run.chart_ti2.write_text("A DIFFERENT CHART")
+    run.chart_ti2.write_text("A DIFFERENT CHART", encoding="utf-8")
     tab = _tab(s, ctl)
     monkeypatch.setattr(type(tab), "_profiling_overwrite_choice",
                         lambda self, _r: "go")
 
     assert tab._snapshot_verification_chart() is True
 
-    kept = (slot_for(run).snapshot_dir / f"{run.stem}.ti2").read_text()
+    kept = (slot_for(run).snapshot_dir / f"{run.stem}.ti2").read_text(encoding="utf-8")
     assert kept == "A DIFFERENT CHART"
     assert run.load_meta().chart_snapshot_stale is False, \
         "the copy matches again, so the warning must stop"
@@ -213,14 +213,14 @@ def test_cancel_stops_the_measurement_and_changes_nothing(qapp, tmp_path,
                                                           monkeypatch):
     s, run, ctl = _env(tmp_path)
     snapshot_slot(slot_for(run)); _live_differs(run)
-    run.chart_ti2.write_text("A DIFFERENT CHART")
+    run.chart_ti2.write_text("A DIFFERENT CHART", encoding="utf-8")
     tab = _tab(s, ctl)
     monkeypatch.setattr(type(tab), "_profiling_overwrite_choice",
                         lambda self, _r: "cancel")
 
     assert tab._snapshot_verification_chart() is False
 
-    kept = (slot_for(run).snapshot_dir / f"{run.stem}.ti2").read_text()
+    kept = (slot_for(run).snapshot_dir / f"{run.stem}.ti2").read_text(encoding="utf-8")
     assert kept == "TI2"
 
 

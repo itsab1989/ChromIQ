@@ -70,7 +70,7 @@ def test_loaded_patch_set_aligns_to_bar_run(qapp, tmp_path, monkeypatch):
     tab, fm, ctl = _tab_with_three_runs(tmp_path)
     ctl.set_profile_run("run1"); ctl.set_run_type(RUN_TYPE_PROFILING)
     assert Project.load(tmp_path / "P").current_run().id == "run3"
-    src = tmp_path / "patchset.ti1"; src.write_text("CTI1\n")
+    src = tmp_path / "patchset.ti1"; src.write_text("CTI1\n", encoding="utf-8")
     monkeypatch.setattr(tc, "open_file_dialog", lambda *a, **k: str(src))
     monkeypatch.setattr(tab, "_ti1_load_destination", lambda _src: "into")
     captured = {}
@@ -95,11 +95,11 @@ def test_verification_build_protects_the_runs_profiling_work(qapp, tmp_path, mon
     ctl.set_profile_run("run1"); ctl.set_run_type(RUN_TYPE_VERIFICATION)
     run = Project.load(tmp_path / "P").run("run1")
     Project.load(tmp_path / "P").set_current_run("run1")
-    run.chart_ti2.write_text("PROFILING-CHART")
-    run.chart_ti1.write_text("PROFILING-TI1")
-    run.measurement_ti3.write_text("MEASUREMENT")
+    run.chart_ti2.write_text("PROFILING-CHART", encoding="utf-8")
+    run.chart_ti1.write_text("PROFILING-TI1", encoding="utf-8")
+    run.measurement_ti3.write_text("MEASUREMENT", encoding="utf-8")
     run.profile_icc.write_bytes(b"ICC-PROFILE")
-    src = tmp_path / "patchset.ti1"; src.write_text("CTI1\n")
+    src = tmp_path / "patchset.ti1"; src.write_text("CTI1\n", encoding="utf-8")
     monkeypatch.setattr(tc, "open_file_dialog", lambda *a, **k: str(src))
     monkeypatch.setattr(tab, "_ti1_load_destination", lambda _src: "into")
     # Stand in for the real build: it wipes the run root exactly like
@@ -112,9 +112,9 @@ def test_verification_build_protects_the_runs_profiling_work(qapp, tmp_path, mon
     tab._restore_profiling_chart()            # what _on_generate_finished calls
 
     r = Project.load(tmp_path / "P").run("run1")
-    assert r.chart_ti2.read_text() == "PROFILING-CHART"
-    assert r.chart_ti1.read_text() == "PROFILING-TI1"
-    assert r.measurement_ti3.read_text() == "MEASUREMENT"
+    assert r.chart_ti2.read_text(encoding="utf-8") == "PROFILING-CHART"
+    assert r.chart_ti1.read_text(encoding="utf-8") == "PROFILING-TI1"
+    assert r.measurement_ti3.read_text(encoding="utf-8") == "MEASUREMENT"
     assert r.profile_icc.read_bytes() == b"ICC-PROFILE"
 
 
@@ -125,7 +125,7 @@ def test_patch_set_into_used_run_offers_new_vs_replace(qapp, tmp_path, monkeypat
     tab, fm, ctl = _tab_with_three_runs(tmp_path)
     ctl.set_profile_run("run1"); ctl.set_run_type(RUN_TYPE_PROFILING)
     run = Project.load(tmp_path / "P").run("run1")
-    run.chart_ti2.write_text("EXISTING")
+    run.chart_ti2.write_text("EXISTING", encoding="utf-8")
     offered: list[list[str]] = []
     monkeypatch.setattr(L, "_choice_dialog",
                         lambda p, t, i, choices: (offered.append(
@@ -177,12 +177,12 @@ def test_patch_set_replace_archives_what_it_displaces(qapp, tmp_path, monkeypatc
     ctl.set_profile_run("run1"); ctl.set_run_type(RUN_TYPE_PROFILING)
     proj = Project.load(tmp_path / "P"); proj.set_current_run("run1")
     run = proj.run("run1")
-    run.chart_ti2.write_text("OLD-CHART")
-    run.measurement_ti3.write_text("OLD-MEASUREMENT")
+    run.chart_ti2.write_text("OLD-CHART", encoding="utf-8")
+    run.measurement_ti3.write_text("OLD-MEASUREMENT", encoding="utf-8")
     run.profile_icc.write_bytes(b"OLD-ICC")
     run.verifications_dir.mkdir(parents=True, exist_ok=True)
-    run.verify_chart_ti2.write_text("OLD-VERIFY")
-    src = tmp_path / "patchset.ti1"; src.write_text("CTI1\n")
+    run.verify_chart_ti2.write_text("OLD-VERIFY", encoding="utf-8")
+    src = tmp_path / "patchset.ti1"; src.write_text("CTI1\n", encoding="utf-8")
     monkeypatch.setattr(tc, "open_file_dialog", lambda *a, **k: str(src))
     monkeypatch.setattr(tab, "_ti1_load_destination", lambda _s: "into_replace")
     monkeypatch.setattr(tab._creator, "load_ti1_and_generate_preview",
@@ -209,9 +209,9 @@ def test_a_patch_set_load_asks_before_it_displaces_anything(qapp, tmp_path,
     ctl.set_profile_run("run1"); ctl.set_run_type(RUN_TYPE_PROFILING)
     proj = Project.load(tmp_path / "P"); proj.set_current_run("run1")
     run = proj.run("run1")
-    run.chart_ti2.write_text("OLD-CHART")
-    run.measurement_ti3.write_text("OLD-MEASUREMENT")
-    src = tmp_path / "patchset.ti1"; src.write_text("CTI1\n")
+    run.chart_ti2.write_text("OLD-CHART", encoding="utf-8")
+    run.measurement_ti3.write_text("OLD-MEASUREMENT", encoding="utf-8")
+    src = tmp_path / "patchset.ti1"; src.write_text("CTI1\n", encoding="utf-8")
     monkeypatch.setattr(tc, "open_file_dialog", lambda *a, **k: str(src))
     monkeypatch.setattr(tab, "_ti1_load_destination", lambda _s: "into_replace")
     generated = []
@@ -226,7 +226,7 @@ def test_a_patch_set_load_asks_before_it_displaces_anything(qapp, tmp_path,
     assert asked, "the question was not asked at all"
     assert not generated, "cancelling must not lay out the new chart"
     r = Project.load(tmp_path / "P").run("run1")
-    assert r.measurement_ti3.read_text() == "OLD-MEASUREMENT"
+    assert r.measurement_ti3.read_text(encoding="utf-8") == "OLD-MEASUREMENT"
     assert not r.old_dir.exists(), "nothing was displaced, so nothing archived"
 
 
@@ -237,8 +237,8 @@ def test_replacing_only_the_chart_asks_too(qapp, tmp_path, monkeypatch):
     tab, fm, ctl = _tab_with_three_runs(tmp_path)
     ctl.set_profile_run("run1"); ctl.set_run_type(RUN_TYPE_PROFILING)
     proj = Project.load(tmp_path / "P"); proj.set_current_run("run1")
-    proj.run("run1").measurement_ti3.write_text("OLD-MEASUREMENT")
-    src = tmp_path / "patchset.ti1"; src.write_text("CTI1\n")
+    proj.run("run1").measurement_ti3.write_text("OLD-MEASUREMENT", encoding="utf-8")
+    src = tmp_path / "patchset.ti1"; src.write_text("CTI1\n", encoding="utf-8")
     monkeypatch.setattr(tc, "open_file_dialog", lambda *a, **k: str(src))
     monkeypatch.setattr(tab, "_ti1_load_destination", lambda _s: "into_chart")
     monkeypatch.setattr(tab._creator, "load_ti1_and_generate_preview",
@@ -257,8 +257,8 @@ def test_patch_set_new_run_leaves_the_selected_run_alone(qapp, tmp_path, monkeyp
     tab, fm, ctl = _tab_with_three_runs(tmp_path)
     ctl.set_profile_run("run1"); ctl.set_run_type(RUN_TYPE_PROFILING)
     proj = Project.load(tmp_path / "P"); proj.set_current_run("run1")
-    proj.run("run1").chart_ti2.write_text("KEEP-ME")
-    src = tmp_path / "patchset.ti1"; src.write_text("CTI1\n")
+    proj.run("run1").chart_ti2.write_text("KEEP-ME", encoding="utf-8")
+    src = tmp_path / "patchset.ti1"; src.write_text("CTI1\n", encoding="utf-8")
     monkeypatch.setattr(tc, "open_file_dialog", lambda *a, **k: str(src))
     monkeypatch.setattr(tab, "_ti1_load_destination", lambda _s: "into_new")
     captured = {}
@@ -270,7 +270,7 @@ def test_patch_set_new_run_leaves_the_selected_run_alone(qapp, tmp_path, monkeyp
 
     assert captured.get("run") == "run4"       # a fresh run, not run1
     assert ctl.target.profile_run == "run4"    # the bar followed along
-    assert Project.load(tmp_path / "P").run("run1").chart_ti2.read_text() == "KEEP-ME"
+    assert Project.load(tmp_path / "P").run("run1").chart_ti2.read_text(encoding="utf-8") == "KEEP-ME"
 
 
 def test_failed_verification_build_gives_the_profiling_chart_back(qapp, tmp_path):
@@ -281,7 +281,7 @@ def test_failed_verification_build_gives_the_profiling_chart_back(qapp, tmp_path
     ctl.set_profile_run("run1"); ctl.set_run_type(RUN_TYPE_VERIFICATION)
     proj = fm.project(); proj.set_current_run("run1")   # the tab's own instance
     run = proj.run("run1")
-    run.chart_ti2.write_text("PROFILING-CHART")
+    run.chart_ti2.write_text("PROFILING-CHART", encoding="utf-8")
     run.profile_icc.write_bytes(b"ICC")
 
     tab._arm_verification_snapshot()
@@ -290,7 +290,7 @@ def test_failed_verification_build_gives_the_profiling_chart_back(qapp, tmp_path
     tab._on_generate_finished([])              # generation produced nothing
 
     r = Project.load(tmp_path / "P").run("run1")
-    assert r.chart_ti2.read_text() == "PROFILING-CHART"
+    assert r.chart_ti2.read_text(encoding="utf-8") == "PROFILING-CHART"
     assert r.profile_icc.read_bytes() == b"ICC"
 
 
@@ -314,7 +314,7 @@ def test_ti1_preset_aligns_to_bar_run(qapp, tmp_path, monkeypatch):
         tab._creator, "load_ti1_and_generate_preview",
         lambda *a, **k: captured.__setitem__(
             "run", Project.load(tmp_path / "P").current_run().id))
-    ti1 = tmp_path / "P" / "runs" / "run1" / "seed.ti1"; ti1.write_text("CTI1\n")
+    ti1 = tmp_path / "P" / "runs" / "run1" / "seed.ti1"; ti1.write_text("CTI1\n", encoding="utf-8")
 
     tab._generate_from_ti1(ti1)
 

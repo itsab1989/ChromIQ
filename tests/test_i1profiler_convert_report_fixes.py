@@ -70,7 +70,7 @@ def test_report_as_ti3_passthrough(qapp, settings, tmp_path):
         _settings=settings,
         _view=types.SimpleNamespace(setHtml=lambda _h: None))
     ti3 = tmp_path / "m.ti3"
-    ti3.write_text("x")
+    ti3.write_text("x", encoding="utf-8")
     assert MeasurementReportDialog._as_ti3(host, ti3) == ti3   # used as-is
 
 
@@ -82,7 +82,7 @@ def test_report_as_ti3_converts_i1profiler(qapp, settings, tmp_path, monkeypatch
     def fake_convert(src, argyll, out_dir):
         seen["src"] = Path(src)
         out = Path(out_dir) / f"{Path(src).stem}.ti3"
-        out.write_text("y")
+        out.write_text("y", encoding="utf-8")
         return out
 
     monkeypatch.setattr(
@@ -91,7 +91,7 @@ def test_report_as_ti3_converts_i1profiler(qapp, settings, tmp_path, monkeypatch
         _settings=settings,
         _view=types.SimpleNamespace(setHtml=lambda _h: None))
     txt = tmp_path / "Epson-P900_2026-01-06.txt"
-    txt.write_text("z")
+    txt.write_text("z", encoding="utf-8")
     out = MeasurementReportDialog._as_ti3(host, txt)
     assert out is not None and out.suffix == ".ti3"
     assert out.stem == "Epson-P900_2026-01-06"                 # stem preserved
@@ -107,10 +107,10 @@ def test_report_pdf_anchors_on_origin_not_temp(qapp, tmp_path, monkeypatch):
         "workflow.measurement_report.list_project_reports", lambda d: [])
     origin = tmp_path / "myfolder" / "Epson_2026-01-06.txt"
     origin.parent.mkdir(parents=True)
-    origin.write_text("x")
+    origin.write_text("x", encoding="utf-8")
     temp_ti3 = tmp_path / "chromiq_report_xyz" / "Epson_2026-01-06.ti3"
     temp_ti3.parent.mkdir()
-    temp_ti3.write_text("y")
+    temp_ti3.write_text("y", encoding="utf-8")
 
     host = types.SimpleNamespace(_sources=[], _ti3=None)
     host._source_key = types.MethodType(M._source_key, host)
@@ -146,7 +146,7 @@ def test_source_key_standalone_by_file_project_by_folder(qapp, tmp_path, monkeyp
     host = types.SimpleNamespace()
     key = types.MethodType(M._source_key, host)
     ti3 = tmp_path / "m.ti3"
-    ti3.write_text("x")
+    ti3.write_text("x", encoding="utf-8")
     monkeypatch.setattr(
         "workflow.measurement_report.list_project_reports", lambda d: [])
     assert key(ti3) == ("file", str(ti3))
@@ -163,8 +163,8 @@ def test_several_loose_ti3_in_one_folder_each_add(qapp, tmp_path, monkeypatch):
 
     monkeypatch.setattr(
         "workflow.measurement_report.list_project_reports", lambda d: [])
-    a = tmp_path / "m1.ti3"; a.write_text("x")
-    b = tmp_path / "m2.ti3"; b.write_text("y")
+    a = tmp_path / "m1.ti3"; a.write_text("x", encoding="utf-8")
+    b = tmp_path / "m2.ti3"; b.write_text("y", encoding="utf-8")
     host = types.SimpleNamespace(_sources=[], _ti3=None)
     host._source_key = types.MethodType(M._source_key, host)
     host._gather_runs = lambda ti3: (ti3.stem, [{"created": "2026-01-01"}])

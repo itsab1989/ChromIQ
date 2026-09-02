@@ -84,7 +84,7 @@ def write_synth_ti3(path: Path, rep: str, fields: list[str],
         lines.append(f"{i + 1} " + " ".join(f"{v * 100:.4f}" for v in d)
                      + " " + " ".join(f"{v:.4f}" for v in x))
     lines.append("END_DATA")
-    path.write_text("\n".join(lines))
+    path.write_text("\n".join(lines), encoding="utf-8")
     return path
 
 
@@ -201,7 +201,7 @@ def test_read_ti3_cmykog_and_ink_limit(tmp_path):
 
 def test_read_ti3_rejects_garbage(tmp_path):
     p = tmp_path / "x.ti3"
-    p.write_text("not a cgats file")
+    p.write_text("not a cgats file", encoding="utf-8")
     with pytest.raises(Ti3Error):
         read_ti3(p)
 

@@ -39,7 +39,7 @@ def _tab(qapp):
 def test_a_chart_with_no_ti2_does_not_offer_start(qapp, tmp_path):
     tab = _tab(qapp)
     ti1 = tmp_path / "chart.ti1"
-    ti1.write_text("CTI1\n")
+    ti1.write_text("CTI1\n", encoding="utf-8")
     tab.set_ti1_path(ti1)                       # what opening a project does
     assert not tab._start_btn.isEnabled()
 
@@ -47,8 +47,8 @@ def test_a_chart_with_no_ti2_does_not_offer_start(qapp, tmp_path):
 def test_the_same_chart_with_a_ti2_does(qapp, tmp_path):
     tab = _tab(qapp)
     ti1 = tmp_path / "chart.ti1"
-    ti1.write_text("CTI1\n")
-    (tmp_path / "chart.ti2").write_text("CGATS.17\n")
+    ti1.write_text("CTI1\n", encoding="utf-8")
+    (tmp_path / "chart.ti2").write_text("CGATS.17\n", encoding="utf-8")
     tab.set_ti1_path(ti1)
     assert tab._start_btn.isEnabled()
 
@@ -57,7 +57,7 @@ def test_being_handed_the_ti2_itself_works_too(qapp, tmp_path):
     """Most paths hand this tab the `.ti2`; one hands it the `.ti1`."""
     tab = _tab(qapp)
     ti2 = tmp_path / "chart.ti2"
-    ti2.write_text("CGATS.17\n")
+    ti2.write_text("CGATS.17\n", encoding="utf-8")
     tab.set_ti1_path(ti2)
     assert tab._start_btn.isEnabled()
 
@@ -67,7 +67,7 @@ def test_a_greyed_button_says_why(qapp, tmp_path):
     project keeps having to fix."""
     tab = _tab(qapp)
     ti1 = tmp_path / "chart.ti1"
-    ti1.write_text("CTI1\n")
+    ti1.write_text("CTI1\n", encoding="utf-8")
     tab.set_ti1_path(ti1)
     tip = tab._start_btn.toolTip()
     assert "no laid-out chart to measure" in tip
@@ -86,7 +86,7 @@ def test_the_tooltip_is_cleared_once_it_can_be_pressed(qapp, tmp_path):
     """
     tab = _tab(qapp)
     ti2 = tmp_path / "chart.ti2"
-    ti2.write_text("CGATS.17\n")
+    ti2.write_text("CGATS.17\n", encoding="utf-8")
     tab.set_ti1_path(ti2)
 
     tip = tab._start_btn.toolTip()
@@ -123,6 +123,6 @@ def test_the_message_for_the_prevented_condition_is_gone():
 
 def test_the_model_records_why_it_was_removed():
     spec = (Path(__file__).resolve().parent.parent / "docs" / "design"
-            / "unified_measurement_management.md").read_text()
+            / "unified_measurement_management.md").read_text(encoding="utf-8")
     assert "Removed 2026-08-04" in spec
     assert "Start Measurement was offered without a `.ti2`" in spec

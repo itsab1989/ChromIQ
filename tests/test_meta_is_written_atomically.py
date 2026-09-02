@@ -20,7 +20,7 @@ from core.file_manager import Project, write_json_atomically
 def test_it_writes_what_it_was_given(tmp_path):
     target = tmp_path / "meta.json"
     write_json_atomically(target, {"a": 1, "b": "two"})
-    assert json.loads(target.read_text()) == {"a": 1, "b": "two"}
+    assert json.loads(target.read_text(encoding="utf-8")) == {"a": 1, "b": "two"}
 
 
 def test_it_leaves_no_scratch_file_behind(tmp_path):
@@ -41,7 +41,7 @@ def test_a_failed_write_keeps_the_previous_file_intact(tmp_path, monkeypatch):
     with pytest.raises(OSError):
         write_json_atomically(target, {"good": False})
 
-    assert json.loads(target.read_text()) == {"good": True}, (
+    assert json.loads(target.read_text(encoding="utf-8")) == {"good": True}, (
         "the previous contents were lost by a write that failed"
     )
     assert not list(tmp_path.glob("*.tmp")), "a scratch file was left behind"

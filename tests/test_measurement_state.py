@@ -40,7 +40,7 @@ def _ti3(tmp_path, rows, *, claimed=None, name="m.ti3",
         if end:
             text += "END_DATA\n"
     p = tmp_path / name
-    p.write_text(text)
+    p.write_text(text, encoding="utf-8")
     return p
 
 
@@ -60,14 +60,14 @@ def test_a_missing_file_is_not_a_count(tmp_path):
 def test_blank_lines_in_the_body_are_not_readings(tmp_path):
     p = tmp_path / "m.ti3"
     p.write_text(HEADER + "\nNUMBER_OF_SETS 2\nBEGIN_DATA\n"
-                 "1 A1 1 1 1\n\n   \n2 A2 2 2 2\n\nEND_DATA\n")
+                 "1 A1 1 1 1\n\n   \n2 A2 2 2 2\n\nEND_DATA\n", encoding="utf-8")
     assert count_sets(p) == (2, 2)
 
 
 def test_crlf_is_read_the_same_as_lf(tmp_path):
     lf = _ti3(tmp_path, _rows(5), name="lf.ti3")
     crlf = tmp_path / "crlf.ti3"
-    crlf.write_bytes(lf.read_text().replace("\n", "\r\n").encode())
+    crlf.write_bytes(lf.read_text(encoding="utf-8").replace("\n", "\r\n").encode())
     assert count_sets(crlf) == count_sets(lf)
 
 
@@ -75,7 +75,7 @@ def test_anything_after_end_data_is_another_table(tmp_path):
     """A CGATS file may carry several tables; the measurement is the first."""
     p = tmp_path / "m.ti3"
     p.write_text(HEADER + "\nNUMBER_OF_SETS 2\nBEGIN_DATA\n1 A1 1 1 1\n"
-                 "2 A2 2 2 2\nEND_DATA\n\nBEGIN_DATA\n9 Z9 9 9 9\nEND_DATA\n")
+                 "2 A2 2 2 2\nEND_DATA\n\nBEGIN_DATA\n9 Z9 9 9 9\nEND_DATA\n", encoding="utf-8")
     assert count_sets(p) == (2, 2)
 
 

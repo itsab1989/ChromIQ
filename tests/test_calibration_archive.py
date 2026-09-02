@@ -36,7 +36,7 @@ def cal(tmp_path):
     c.ensure_dir()
     for name in (f"{c.stem}.ti1", f"{c.stem}.ti2", f"{c.stem}.ti3",
                  f"{c.stem}.cal"):
-        (c.dir / name).write_text(name)
+        (c.dir / name).write_text(name, encoding="utf-8")
     return c
 
 
@@ -44,7 +44,7 @@ def test_what_cannot_be_regenerated_is_archived(cal):
     cal.reset()
     archives = list(cal.old_dir.iterdir())
     assert len(archives) == 1
-    kept = {p.name: p.read_text() for p in archives[0].iterdir() if p.is_file()}
+    kept = {p.name: p.read_text(encoding="utf-8") for p in archives[0].iterdir() if p.is_file()}
     assert kept == {f"{cal.stem}.ti3": f"{cal.stem}.ti3",
                     f"{cal.stem}.cal": f"{cal.stem}.cal"}, (
         "the measurement and the .cal are the calibration; both must survive"
@@ -70,18 +70,18 @@ def test_a_rebuild_keeps_the_stored_chart_copy_where_it_is(cal):
     """``cal/chart/`` is what Restore Used Chart reads. A rebuild must not move
     it into an archive, or the button loses the chart it exists to put back."""
     cal.snapshot_dir.mkdir()
-    (cal.snapshot_dir / f"{cal.stem}.ti2").write_text("the measured chart")
+    (cal.snapshot_dir / f"{cal.stem}.ti2").write_text("the measured chart", encoding="utf-8")
     cal.reset()
-    assert (cal.snapshot_dir / f"{cal.stem}.ti2").read_text() == "the measured chart"
+    assert (cal.snapshot_dir / f"{cal.stem}.ti2").read_text(encoding="utf-8") == "the measured chart"
 
 
 def test_archiving_everything_takes_the_stored_chart_copy_along(cal):
     """The whole-calibration archive is a different question from a rebuild:
     restoring one must give the chart it was measured with."""
     cal.snapshot_dir.mkdir()
-    (cal.snapshot_dir / f"{cal.stem}.ti2").write_text("the measured chart")
+    (cal.snapshot_dir / f"{cal.stem}.ti2").write_text("the measured chart", encoding="utf-8")
     archive = cal.archive_to_old()
-    assert (archive / "chart" / f"{cal.stem}.ti2").read_text() == "the measured chart"
+    assert (archive / "chart" / f"{cal.stem}.ti2").read_text(encoding="utf-8") == "the measured chart"
 
 
 def test_the_calibrations_own_words_survive_a_rebuild(cal):
@@ -105,8 +105,8 @@ def test_archiving_an_empty_calibration_does_nothing(cal):
 def test_an_archive_is_never_swept_into_the_next_one(cal):
     """Nesting old/ inside old/ turns "go back to it" into a dig."""
     cal.reset()
-    (cal.dir / f"{cal.stem}.ti2").write_text("second chart")
-    (cal.dir / f"{cal.stem}.ti3").write_text("second measurement")
+    (cal.dir / f"{cal.stem}.ti2").write_text("second chart", encoding="utf-8")
+    (cal.dir / f"{cal.stem}.ti3").write_text("second measurement", encoding="utf-8")
     cal.reset()
     for archive in cal.old_dir.iterdir():
         assert not (archive / "old").exists()

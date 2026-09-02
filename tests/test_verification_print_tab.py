@@ -54,7 +54,7 @@ def _verify_env(tmp_path, *, with_profile: bool = True, n_pages: int = 2):
     run = fm.project().run("run1")
     run.verifications_dir.mkdir(parents=True, exist_ok=True)
     ti2 = run.verify_chart_ti2
-    ti2.write_text("CTI2\n")
+    ti2.write_text("CTI2\n", encoding="utf-8")
     pages = []
     for i in range(1, n_pages + 1):
         p = run.verifications_dir / f"{run.verify_stem}_{i:02d}.tif"
@@ -184,7 +184,7 @@ def test_the_chosen_intent_reaches_the_converter_and_the_record(
 
     tab._on_print_current()
     assert calls[0]["intent"] == "absolute"
-    rec = json.loads(vp.print_record_path(ti2).read_text())
+    rec = json.loads(vp.print_record_path(ti2).read_text(encoding="utf-8"))
     assert rec["colour"] == vp.COLOUR_THROUGH
     assert rec["intent"] == "absolute"
     assert rec["route"] == vp.ROUTE_CHROMIQ
@@ -212,7 +212,7 @@ def test_raw_choice_is_recorded_and_prints_unconverted(
 
     tab._on_print_current()
     assert sent and sent[0][0][0] == pages[0][0]      # untouched pages
-    rec = json.loads(vp.print_record_path(ti2).read_text())
+    rec = json.loads(vp.print_record_path(ti2).read_text(encoding="utf-8"))
     assert rec["colour"] == vp.COLOUR_RAW
     assert rec["intent"] == ""
 
@@ -236,7 +236,7 @@ def test_external_route_hands_over_files_and_prints_nothing(
 
     tab._on_print_all()
     assert revealed == [run.verifications_dir / "cache"]
-    rec = json.loads(vp.print_record_path(ti2).read_text())
+    rec = json.loads(vp.print_record_path(ti2).read_text(encoding="utf-8"))
     assert rec["route"] == vp.ROUTE_EXTERNAL
 
 
@@ -315,8 +315,8 @@ _TI3_TEXT = _TI2_TEXT.replace("CTI1", "CTI3").replace(
 
 def test_report_carries_the_printing_block_when_a_record_exists(tmp_path):
     from workflow.measurement_report import build_report
-    (tmp_path / "c.ti2").write_text(_TI2_TEXT)
-    (tmp_path / "c.ti3").write_text(_TI3_TEXT)
+    (tmp_path / "c.ti2").write_text(_TI2_TEXT, encoding="utf-8")
+    (tmp_path / "c.ti3").write_text(_TI3_TEXT, encoding="utf-8")
     profile = tmp_path / "c.icc"
     profile.write_bytes(b"icc")
     vp.write_print_record(tmp_path / "c.ti2", colour=vp.COLOUR_THROUGH,
@@ -337,8 +337,8 @@ def test_report_carries_the_printing_block_when_a_record_exists(tmp_path):
 
 def test_report_has_no_printing_block_without_a_record(tmp_path):
     from workflow.measurement_report import build_report
-    (tmp_path / "c.ti2").write_text(_TI2_TEXT)
-    (tmp_path / "c.ti3").write_text(_TI3_TEXT)
+    (tmp_path / "c.ti2").write_text(_TI2_TEXT, encoding="utf-8")
+    (tmp_path / "c.ti3").write_text(_TI3_TEXT, encoding="utf-8")
     assert "printing" not in build_report(tmp_path / "c.ti3")
 
 
@@ -426,7 +426,7 @@ def test_q3_default_follows_the_runs_history():
         # the existing trend keeps its meaning.
         assert vp.default_colour_for_run(_Run(tmp, ["v1"])) == vp.COLOUR_RAW
         # History made through the profile keeps that method.
-        (tmp / "P-verify.ti2").write_text("CTI2\n")
+        (tmp / "P-verify.ti2").write_text("CTI2\n", encoding="utf-8")
         vp.write_print_record(tmp / "P-verify.ti2", colour=vp.COLOUR_THROUGH,
                               intent="relative", profile=None,
                               route=vp.ROUTE_CHROMIQ)
@@ -469,7 +469,7 @@ def test_print_settings_roundtrip_through_the_target_store(qapp, tmp_path):
 # ------------------------------------------------------------------ T11
 def test_a_colorimetric_chart_forces_raw_and_stays_forced(qapp, tmp_path):
     s, fm, ctl, run, ti2, pages = _verify_env(tmp_path)
-    vp.colorimetric_reference_for(ti2).write_text("CTI3\n")
+    vp.colorimetric_reference_for(ti2).write_text("CTI3\n", encoding="utf-8")
     tab = _tab(s, ctl, ti2, pages)
     assert not tab._cm_through_rb.isEnabled()
     assert tab._cm_raw_rb.isChecked()
@@ -491,7 +491,7 @@ def test_a_claimed_reference_that_is_missing_also_forces_raw(qapp, tmp_path):
     s, fm, ctl, run, ti2, pages = _verify_env(tmp_path)
     run.verify_chart_channels_json.write_text(json.dumps(
         {"ink_channels": ["r", "g", "b"],
-         "colorimetric_reference": "P-verify-reference.ti3"}))
+         "colorimetric_reference": "P-verify-reference.ti3"}), encoding="utf-8")
     tab = _tab(s, ctl, ti2, pages)
     assert not tab._cm_through_rb.isEnabled()
     assert "reference file beside it is missing" in tab._cm_notice.text()
@@ -525,9 +525,9 @@ def test_check_refine_warns_on_a_print_time_converted_measurement(
     s, fm, ctl = _env(tmp_path)
     tab = TabCheckRefine(ArgyllRunner(s), s, None)
     ti2 = tmp_path / "c.ti2"
-    ti2.write_text("CTI2\n")
+    ti2.write_text("CTI2\n", encoding="utf-8")
     ti3 = tmp_path / "c.ti3"
-    ti3.write_text(_TI3_TEXT)
+    ti3.write_text(_TI3_TEXT, encoding="utf-8")
     icc = tmp_path / "c.icc"
     icc.write_bytes(b"icc")
     tab._ti3_path = ti3

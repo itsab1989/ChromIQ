@@ -54,12 +54,12 @@ def _project_with_a_read_only_folder(tmp_path) -> tuple[Path, Path]:
     root = tmp_path / "OneRun"
     run = root / "runs" / "run1"
     run.mkdir(parents=True)
-    (root / "project.json").write_text('{"schema_version": 3}')
+    (root / "project.json").write_text('{"schema_version": 3}', encoding="utf-8")
     for name in ("chart.ti1", "chart.ti2", "chart.ti3", "chart.icc"):
-        (run / name).write_text("x" * 64)
+        (run / name).write_text("x" * 64, encoding="utf-8")
     reports = run / "reports"
     reports.mkdir()
-    (reports / "Quality_Check_1.txt").write_text("a report")
+    (reports / "Quality_Check_1.txt").write_text("a report", encoding="utf-8")
     os.chmod(reports, 0o555)
     return root, reports
 
@@ -114,7 +114,7 @@ def test_a_failure_never_reports_success(tmp_path):
 
     root = tmp_path / "Proj"
     root.mkdir()
-    (root / "project.json").write_text("{}")
+    (root / "project.json").write_text("{}", encoding="utf-8")
 
     class _Lying:
         @staticmethod

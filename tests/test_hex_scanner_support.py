@@ -40,17 +40,17 @@ def _hex_chart(tmp_path, n=120, w_mm=12.0):
     lines += [f"{i+1} {float((i*37) % 101)} {float((i*53) % 101)} "
               f"{float((i*71) % 101)} 40 45 50" for i in range(n)]
     lines += ["END_DATA", ""]
-    ti1.write_text("\n".join(lines))
+    ti1.write_text("\n".join(lines), encoding="utf-8")
     stem = tmp_path / "HexChart"
     le_chart.build_chart(ti1, stem, instrument="SS", hflag=True,
                          pscale=w_mm / 7.0, paper="A4", border=6.0, dpi=200,
                          randomize=False)
-    strips = json.loads(stem.with_suffix(".strips.json").read_text())
+    strips = json.loads(stem.with_suffix(".strips.json").read_text(encoding="utf-8"))
     (tmp_path / "HexChart.channels.json").write_text(json.dumps({
         "ink_channels": ["r", "g", "b"],
         "layout": {"engine": "chromiq", "dpi": 200, "paper_mm": [210.0, 297.0],
                    "patches": strips["patches"],
-                   "recipe": {"instrument": "SS", "hflag": True}}}))
+                   "recipe": {"instrument": "SS", "hflag": True}}}), encoding="utf-8")
     return stem, [p for p in strips["patches"] if p["page"] == 0]
 
 

@@ -245,7 +245,7 @@ def _stage_chart(tmp_path, name="applied-test"):
     _write_chart_into would leave: <name>.ti1/.ti2 + one TIFF page."""
     from workflow import ti2_relayout as R
     src_ti2 = tmp_path / "src.ti2"
-    src_ti2.write_text(_TI2)
+    src_ti2.write_text(_TI2, encoding="utf-8")
     spec = R.ChartSpec.from_ti2(src_ti2)
     staging = tmp_path / "staging"
     staging.mkdir()
@@ -254,7 +254,7 @@ def _stage_chart(tmp_path, name="applied-test"):
     R.save_editor_meta(res.ti2, spec, R.LayoutOptions(), name)
     # _write_chart_into also drops the i1Profiler pair + colour list; stub the
     # i1Profiler file so the carry-over-into-the-run-folder path is exercised.
-    (staging / f"{name}-i1profiler.txt").write_text("stub\n")
+    (staging / f"{name}-i1profiler.txt").write_text("stub\n", encoding="utf-8")
     return staging, name
 
 
@@ -362,7 +362,7 @@ def _reflect(tab, settings, tmp_path):
     """Write a tiny .ti2 and reflect it (warning suppressed, no TIFFs)."""
     settings.set("reflect_backfill_hide_warning", True)
     ti2 = tmp_path / "loaded.ti2"
-    ti2.write_text(_TI2)
+    ti2.write_text(_TI2, encoding="utf-8")
     tab.reflect_loaded_chart(ti2, [])
     return ti2
 

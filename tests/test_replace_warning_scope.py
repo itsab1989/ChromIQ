@@ -159,7 +159,7 @@ def test_a_verification_date_with_a_measurement_is_scoped(qapp, tmp_path):
     vid = "2026-07-28_131500"
     vdir = tmp_path / "runs" / "run1" / "verifications" / vid
     vdir.mkdir(parents=True)
-    (vdir / "P-verify.ti3").write_text("x")
+    (vdir / "P-verify.ti3").write_text("x", encoding="utf-8")
 
     tab = _Tab(_Ctl(_project(tmp_path), _Target("verification", "run1", vid)))
     assert tab._replace_warning_scope() == (
@@ -171,7 +171,7 @@ def test_two_dates_of_one_run_are_scoped_apart(qapp, tmp_path):
     for vid in ("2026-07-28_131500", "2026-07-28_160244"):
         vdir = tmp_path / "runs" / "run1" / "verifications" / vid
         vdir.mkdir(parents=True)
-        (vdir / "P-verify.ti3").write_text("x")
+        (vdir / "P-verify.ti3").write_text("x", encoding="utf-8")
         scopes.append(_Tab(_Ctl(_project(tmp_path),
                                 _Target("verification", "run1", vid)
                                 ))._replace_warning_scope())
@@ -206,7 +206,7 @@ def test_a_verification_looks_in_its_dated_folder(qapp, tmp_path):
     vdir = tmp_path / "runs" / "run1" / "verifications" / vid
     vdir.mkdir(parents=True)
     ti3 = vdir / "P-verify.ti3"
-    ti3.write_text("x")
+    ti3.write_text("x", encoding="utf-8")
 
     tab = _Tab(_Ctl(_project(tmp_path), _Target("verification", "run1", vid)),
                chart_ti3=None)
@@ -221,7 +221,7 @@ def test_a_new_verification_puts_nothing_at_risk(qapp, tmp_path):
 
 def test_profiling_still_uses_the_chart_s_own_measurement(qapp, tmp_path):
     ti3 = tmp_path / "chart.ti3"
-    ti3.write_text("x")
+    ti3.write_text("x", encoding="utf-8")
     tab = _Tab(_Ctl(_project(tmp_path), _Target(profile_run="run1")),
                chart_ti3=ti3)
     assert tab._measurement_at_risk() == ti3

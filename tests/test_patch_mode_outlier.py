@@ -74,7 +74,7 @@ def test_the_patch_mode_help_is_in_both_modules():
 def test_the_settings_help_names_both_modes():
     import pathlib
     src = (pathlib.Path(__file__).resolve().parents[1]
-           / "ui" / "dialogs" / "settings_dialog.py").read_text()
+           / "ui" / "dialogs" / "settings_dialog.py").read_text(encoding="utf-8")
     assert "PATCH-BY-PATCH MODE IS DIFFERENT, ON PURPOSE" in src
     assert "when you read STRIPS" in src
 
@@ -83,6 +83,6 @@ def test_the_switch_says_it_is_strip_only():
     """It governs strip reading alone now, and must not imply otherwise."""
     import pathlib
     src = (pathlib.Path(__file__).resolve().parents[1]
-           / "ui" / "dialogs" / "settings_dialog.py").read_text()
+           / "ui" / "dialogs" / "settings_dialog.py").read_text(encoding="utf-8")
     assert "When reading strips, only flag a patch" in src
     assert "applies to strip reading only" in src

@@ -36,7 +36,7 @@ def _write_ti3(path: Path, rows: list[str], *, spectral: bool = False) -> None:
     body = (f"{header}\nNUMBER_OF_FIELDS {len(fmt.split())}\nBEGIN_DATA_FORMAT\n"
             f"{fmt}\nEND_DATA_FORMAT\n\nNUMBER_OF_SETS {len(rows)}\n"
             f"BEGIN_DATA\n" + "\n".join(rows) + "\nEND_DATA\n")
-    path.write_text(body)
+    path.write_text(body, encoding="utf-8")
 
 
 def test_parse_and_contrast(tmp_path: Path):
@@ -88,7 +88,7 @@ def test_non_monotonic_neutral_flagged(tmp_path: Path):
 
 def test_rejects_non_ti3(tmp_path: Path):
     p = tmp_path / "x.ti3"
-    p.write_text("this is not a cgats file\n")
+    p.write_text("this is not a cgats file\n", encoding="utf-8")
     with pytest.raises(Ti3ParseError):
         parse_ti3(p)
 
@@ -97,7 +97,7 @@ def test_requires_rgb(tmp_path: Path):
     p = tmp_path / "cmyk.ti3"
     p.write_text("CTI3\n\nNUMBER_OF_FIELDS 4\nBEGIN_DATA_FORMAT\n"
                  "SAMPLE_ID XYZ_X XYZ_Y XYZ_Z\nEND_DATA_FORMAT\n\n"
-                 "NUMBER_OF_SETS 1\nBEGIN_DATA\n1 50 50 50 \nEND_DATA\n")
+                 "NUMBER_OF_SETS 1\nBEGIN_DATA\n1 50 50 50 \nEND_DATA\n", encoding="utf-8")
     with pytest.raises(Ti3ParseError):
         parse_ti3(p)
 
@@ -142,7 +142,7 @@ def _write_cgats(path: Path, fmt: str, rows: list[str], extra_kw: str = "") -> N
             f"NUMBER_OF_FIELDS {len(fmt.split())}\nBEGIN_DATA_FORMAT\n{fmt}\n"
             f"END_DATA_FORMAT\n\nNUMBER_OF_SETS {len(rows)}\nBEGIN_DATA\n"
             + "\n".join(rows) + "\nEND_DATA\n")
-    path.write_text(body)
+    path.write_text(body, encoding="utf-8")
 
 
 def test_ciede2000_self_is_zero():

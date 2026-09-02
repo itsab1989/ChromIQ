@@ -109,7 +109,7 @@ def test_a_calibration_rebuild_keeps_its_description_and_notes(cal_home):
     fm.set_target_name("Cal-Keeps-Text")
     cal = fm.project().calibration
     cal.ensure_dir()
-    cal.cal_path.write_text("a calibration")
+    cal.cal_path.write_text("a calibration", encoding="utf-8")
     meta = cal.load_meta()
     meta.description = "Canson Baryta, new ink set"
     meta.chart_notes = "calibration sheet, 6 Aug"
@@ -123,7 +123,7 @@ def test_a_calibration_rebuild_keeps_its_description_and_notes(cal_home):
     assert after.chart_notes == "calibration sheet, 6 Aug"
     # The archive documents itself with a COPY, so going back to it still says
     # what that calibration was.
-    kept = json.loads((archive / "meta.json").read_text())
+    kept = json.loads((archive / "meta.json").read_text(encoding="utf-8"))
     assert kept["description"] == "Canson Baryta, new ink set"
     # …and the calibration itself did move.
     assert not cal.cal_path.exists()
@@ -150,7 +150,7 @@ def test_reflecting_this_project_s_own_chart_leaves_generate_available(chart_tab
     tab, _ctl, project = chart_tab
     run = project.run("run2")
     run.dir.mkdir(parents=True, exist_ok=True)
-    run.chart_ti2.write_text("")
+    run.chart_ti2.write_text("", encoding="utf-8")
     tab._reflected_active = True                # as Duplicate used to leave it
 
     tab.reflect_loaded_chart(run.chart_ti2, [])
@@ -310,7 +310,7 @@ def test_generate_does_not_claim_a_calibration_chart_that_is_not_there(cal_home)
     assert cal.live_files() == [], (
         "the calibration's own description is being counted as a calibration"
     )
-    cal.ti2.write_text("a real chart")
+    cal.ti2.write_text("a real chart", encoding="utf-8")
     assert [p.name for p in cal.live_files()] == [cal.ti2.name]
 
 
@@ -364,9 +364,9 @@ def _chart_with_notes(tab, notes: str):
                     or tab._target_ctl.project_or_none().calibration)
     slot.live_dir.mkdir(parents=True, exist_ok=True)
     ti2 = slot.live_dir / f"{slot.stem}.ti2"
-    ti2.write_text("")
+    ti2.write_text("", encoding="utf-8")
     (slot.live_dir / f"{slot.stem}.channels.json").write_text(
-        json.dumps({"chart_notes": notes}))
+        json.dumps({"chart_notes": notes}), encoding="utf-8")
     return ti2
 
 
@@ -500,10 +500,10 @@ def test_a_chart_missing_patches_is_not_called_complete(tmp_path):
     from workflow.measure_manager import MeasureManager
 
     ti2 = tmp_path / "chart.ti2"
-    ti2.write_text("NUMBER_OF_SETS 90\nBEGIN_DATA\nEND_DATA\n")
+    ti2.write_text("NUMBER_OF_SETS 90\nBEGIN_DATA\nEND_DATA\n", encoding="utf-8")
     ti3 = tmp_path / "chart.ti3"
     rows = "\n".join(f"{i} 10 10 10 5 5 5" for i in range(88))
-    ti3.write_text(f"NUMBER_OF_SETS 88\nBEGIN_DATA\n{rows}\nEND_DATA\n")
+    ti3.write_text(f"NUMBER_OF_SETS 88\nBEGIN_DATA\n{rows}\nEND_DATA\n", encoding="utf-8")
 
     all_strips_read = [{"strip": s, "read": True} for s in "ABCDEF"]
     assert MeasureManager._measurement_was_complete(str(ti2), all_strips_read) is False, (
@@ -517,11 +517,11 @@ def test_a_chart_with_every_reading_is_still_called_complete(tmp_path):
     from workflow.measure_manager import MeasureManager
 
     ti2 = tmp_path / "chart.ti2"
-    ti2.write_text("NUMBER_OF_SETS 3\nBEGIN_DATA\nEND_DATA\n")
+    ti2.write_text("NUMBER_OF_SETS 3\nBEGIN_DATA\nEND_DATA\n", encoding="utf-8")
     ti3 = tmp_path / "chart.ti3"
     ti3.write_text("NUMBER_OF_SETS 3\nBEGIN_DATA\n"
                    "1 10 10 10 5 5 5\n2 20 20 20 6 6 6\n3 30 30 30 7 7 7\n"
-                   "END_DATA\n")
+                   "END_DATA\n", encoding="utf-8")
     strips = [{"strip": "A", "read": True}]
     assert MeasureManager._measurement_was_complete(str(ti2), strips) is True
 

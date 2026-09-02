@@ -106,10 +106,10 @@ def test_project_root_for_finds_nested_project(qapp, tmp_path):
     proj = root / "companyA" / "2026" / "P"
     Project.create(proj, "P")
     run = proj / "runs" / "run1"; run.mkdir(parents=True, exist_ok=True)
-    ti2 = run / "P.ti2"; ti2.write_text("CTI2\n")
+    ti2 = run / "P.ti2"; ti2.write_text("CTI2\n", encoding="utf-8")
     assert _project_root_for(ti2, root) == proj
     # A loose chart not inside any project → None.
-    loose = root / "loose" / "x.ti2"; loose.parent.mkdir(parents=True); loose.write_text("x")
+    loose = root / "loose" / "x.ti2"; loose.parent.mkdir(parents=True); loose.write_text("x", encoding="utf-8")
     assert _project_root_for(loose, root) is None
     # A file outside the ChromIQ folder → None.
     assert _project_root_for(tmp_path / "elsewhere" / "y.ti2", root) is None
@@ -172,24 +172,24 @@ def test_import_into_nested_project_after_name_reapply(qapp, tmp_path, monkeypat
     fm, root, s = _fm(tmp_path)
     nested = root / "customers" / "2026" / "P"
     proj = Project.create(nested, "P"); run = proj.current_run(); run.ensure_dir()
-    run.chart_ti2.write_text("PROFILING-CHART")
+    run.chart_ti2.write_text("PROFILING-CHART", encoding="utf-8")
     run.verifications_dir.mkdir(parents=True, exist_ok=True)
-    run.verify_chart_ti2.write_text("OLD-VERIFY")
+    run.verify_chart_ti2.write_text("OLD-VERIFY", encoding="utf-8")
     fm.open_project_at(nested)
     fm.set_target_name("P")                       # the relocation trigger
 
     ctl = MeasurementTargetController(fm)
     ctl.set_profile_run("run1"); ctl.set_run_type(RUN_TYPE_VERIFICATION)
     ext = tmp_path / "elsewhere" / "loose"; ext.mkdir(parents=True)
-    src = ext / "loose.ti2"; src.write_text("NEW-VERIFY")
+    src = ext / "loose.ti2"; src.write_text("NEW-VERIFY", encoding="utf-8")
 
     monkeypatch.setattr(L2, "_choice_dialog", lambda *a, **k: "replace")
     out = resolve_ti2(None, src, s, ctl)
 
     assert out is not None
     r = Project.load(nested).run("run1")
-    assert r.verify_chart_ti2.read_text() == "NEW-VERIFY"   # landed in the real project
-    assert r.chart_ti2.read_text() == "PROFILING-CHART"     # profiling side untouched
+    assert r.verify_chart_ti2.read_text(encoding="utf-8") == "NEW-VERIFY"   # landed in the real project
+    assert r.chart_ti2.read_text(encoding="utf-8") == "PROFILING-CHART"     # profiling side untouched
     assert r.verifications_old_dir.exists()                 # displaced files archived
     assert not (root / "P").exists()                        # no phantom project
 
@@ -228,7 +228,7 @@ def test_resolve_ti2_opens_nested_other_project_in_place(qapp, tmp_path, monkeyp
     # A DIFFERENT project P nested deep, with a real chart.
     pnest = root / "sub" / "deep" / "P"
     pnest_proj = Project.create(pnest, "P"); run = pnest_proj.current_run(); run.ensure_dir()
-    run.chart_ti2.write_text("chart"); (run.dir / "P_01.tif").write_text("t")
+    run.chart_ti2.write_text("chart", encoding="utf-8"); (run.dir / "P_01.tif").write_text("t", encoding="utf-8")
 
     monkeypatch.setattr(L2, "_choice_dialog", lambda *a, **k: "open")
     out = resolve_ti2(None, run.chart_ti2, s, ctl)

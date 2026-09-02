@@ -38,8 +38,8 @@ END_DATA
 
 
 def _write(tmp_path: Path):
-    ti2 = tmp_path / "chart.ti2"; ti2.write_text(_TI2)
-    ti3 = tmp_path / "chart.ti3"; ti3.write_text(_TI3)
+    ti2 = tmp_path / "chart.ti2"; ti2.write_text(_TI2, encoding="utf-8")
+    ti3 = tmp_path / "chart.ti3"; ti3.write_text(_TI3, encoding="utf-8")
     return ti2, ti3
 
 
@@ -71,7 +71,7 @@ def test_foreign_ti3_no_matching_ids_returns_empty(tmp_path):
     foreign = tmp_path / "foreign.ti3"
     foreign.write_text(_TI3.replace("\n1 ", "\n901 ")
                             .replace("\n2 ", "\n902 ")
-                            .replace("\n3 ", "\n903 "))
+                            .replace("\n3 ", "\n903 "), encoding="utf-8")
     assert per_patch_overlay(foreign, ti2) == []
 
 

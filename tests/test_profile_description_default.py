@@ -143,7 +143,7 @@ def test_loading_a_measurement_no_longer_overwrites_your_text(tab, tmp_path):
     widget._desc_edit.setText("My Own Name For This")
 
     ti3 = tmp_path / "some-measurement.ti3"
-    ti3.write_text("CGATS.17\n")
+    ti3.write_text("CGATS.17\n", encoding="utf-8")
     widget.set_ti3_path(ti3, propagate=False)
 
     assert widget._m_desc_edit.text() == "My Own Name For This", (
@@ -155,7 +155,7 @@ def test_loading_a_measurement_still_names_an_untouched_field(tab, tmp_path):
     """…and the old behaviour survives where the field is still ours."""
     widget, ctl, project = tab
     ti3 = tmp_path / "some-measurement.ti3"
-    ti3.write_text("CGATS.17\n")
+    ti3.write_text("CGATS.17\n", encoding="utf-8")
     widget.set_ti3_path(ti3, propagate=False)
     assert widget._m_desc_edit.text() != ""
 

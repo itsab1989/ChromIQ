@@ -218,5 +218,5 @@ def test_gates_block_slow_build():
 def test_gates_serialisable(tmp_path):
     base = {"printers": {"S3": _fake(0.4, 0.5)}}
     f = tmp_path / "b.json"
-    f.write_text(json.dumps(base))
-    assert json.loads(f.read_text()) == base
+    f.write_text(json.dumps(base), encoding="utf-8")
+    assert json.loads(f.read_text(encoding="utf-8")) == base

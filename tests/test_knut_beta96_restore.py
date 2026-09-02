@@ -50,10 +50,10 @@ def _chart(tmp_path, stem="P-verify"):
     ti1 = tmp_path / f"{stem}.ti1"
     ti2 = tmp_path / f"{stem}.ti2"
     side = tmp_path / f"{stem}.channels.json"
-    ti1.write_text("CTI1\nNUMBER_OF_SETS 64\n")
+    ti1.write_text("CTI1\nNUMBER_OF_SETS 64\n", encoding="utf-8")
     ti2.write_text('CTI2\nCHART_ID "1875869861"\nSTEPS_IN_PASS "16"\n'
-                   "NUMBER_OF_SETS 64\n")
-    side.write_text('{"layout": {"seed": 1875869861}}')
+                   "NUMBER_OF_SETS 64\n", encoding="utf-8")
+    side.write_text('{"layout": {"seed": 1875869861}}', encoding="utf-8")
     return ti1, ti2, side
 
 
@@ -64,12 +64,12 @@ def test_a_rebuild_that_relaid_the_chart_is_undone(tmp_path):
     guard = _ChartRebuildGuard(ti2)
 
     ti2.write_text('CTI2\nRANDOM_START "1228950828"\nSTEPS_IN_PASS "15"\n'
-                   "NUMBER_OF_SETS 60\n")
+                   "NUMBER_OF_SETS 60\n", encoding="utf-8")
     changed = guard.put_back()
 
     assert changed == [ti2.name]
-    assert 'CHART_ID "1875869861"' in ti2.read_text()
-    assert "STEPS_IN_PASS \"16\"" in ti2.read_text()
+    assert 'CHART_ID "1875869861"' in ti2.read_text(encoding="utf-8")
+    assert "STEPS_IN_PASS \"16\"" in ti2.read_text(encoding="utf-8")
 
 
 def test_the_auto_tag_alone_is_enough_to_trip_it(tmp_path):
@@ -77,10 +77,10 @@ def test_the_auto_tag_alone_is_enough_to_trip_it(tmp_path):
     bidirectional recognition off CHART_ID versus RANDOM_START."""
     _ti1, ti2, _s = _chart(tmp_path)
     guard = _ChartRebuildGuard(ti2)
-    ti2.write_text(ti2.read_text().replace("CHART_ID", "RANDOM_START"))
+    ti2.write_text(ti2.read_text(encoding="utf-8").replace("CHART_ID", "RANDOM_START"), encoding="utf-8")
 
     assert guard.put_back() == [ti2.name]
-    assert "CHART_ID" in ti2.read_text()
+    assert "CHART_ID" in ti2.read_text(encoding="utf-8")
 
 
 def test_a_faithful_rebuild_is_left_alone(tmp_path):
@@ -95,10 +95,10 @@ def test_every_defining_file_is_held(tmp_path):
     ti1, ti2, side = _chart(tmp_path)
     guard = _ChartRebuildGuard(ti2)
     for p in (ti1, ti2, side):
-        p.write_text("clobbered")
+        p.write_text("clobbered", encoding="utf-8")
     assert sorted(guard.put_back()) == sorted(p.name for p in (ti1, ti2, side))
-    assert "CTI1" in ti1.read_text()
-    assert '"seed": 1875869861' in side.read_text()
+    assert "CTI1" in ti1.read_text(encoding="utf-8")
+    assert '"seed": 1875869861' in side.read_text(encoding="utf-8")
 
 
 def test_the_page_images_are_deliberately_not_held(tmp_path):
@@ -119,7 +119,7 @@ def test_a_missing_file_is_recreated_not_lost(tmp_path):
     guard = _ChartRebuildGuard(ti2)
     ti2.unlink()
     assert guard.put_back() == [ti2.name]
-    assert 'CHART_ID "1875869861"' in ti2.read_text()
+    assert 'CHART_ID "1875869861"' in ti2.read_text(encoding="utf-8")
 
 
 def test_holding_never_raises_on_an_unreadable_chart(tmp_path):

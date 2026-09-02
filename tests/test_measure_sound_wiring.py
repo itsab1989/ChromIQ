@@ -112,7 +112,7 @@ def test_measure_finished_plays_completion(monkeypatch, tmp_path):
     monkeypatch.setattr(QDialog, "exec", lambda self: 0)
     tab, played = _make_tab()
     ti3 = tmp_path / "x.ti3"
-    ti3.write_text("CTI3\n")
+    ti3.write_text("CTI3\n", encoding="utf-8")
     tab.measure_finished.emit(ti3)
     assert snd.MEASUREMENT_FINISHED in played
 

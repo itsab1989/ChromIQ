@@ -144,7 +144,7 @@ def test_reference_and_marker_written_after_adopt(qapp, tmp_path):
     run = fm.project().run("run1")
     run.verifications_dir.mkdir(parents=True, exist_ok=True)
     ti2 = run.verify_chart_ti2
-    ti2.write_text("CTI2\n")
+    ti2.write_text("CTI2\n", encoding="utf-8")
     tab = _chart_tab(s, fm, ctl)
 
     sel = gt.GamutSelection(
@@ -160,7 +160,7 @@ def test_reference_and_marker_written_after_adopt(qapp, tmp_path):
                                              colorimetric_reference_for)
     ref = colorimetric_reference_for(ti2)
     assert ref.exists()
-    sidecar = json.loads(run.verify_chart_channels_json.read_text())
+    sidecar = json.loads(run.verify_chart_channels_json.read_text(encoding="utf-8"))
     assert sidecar["colorimetric_reference"] == ref.name
     # Feature A's Print tab will now force Raw for this chart.
     assert chart_conversion_state(ti2) == STATE_CONVERTED
@@ -176,7 +176,7 @@ def test_relayout_restores_the_reference_from_the_cache(qapp, tmp_path):
     run = fm.project().run("run1")
     run.verifications_dir.mkdir(parents=True, exist_ok=True)
     ti2 = run.verify_chart_ti2
-    ti2.write_text("CTI2\n")
+    ti2.write_text("CTI2\n", encoding="utf-8")
     tab = _chart_tab(s, fm, ctl)
 
     sel = gt.GamutSelection(
@@ -276,11 +276,11 @@ def test_auto_update_assesses_the_verify_chart_not_the_profiling_one(
     run = fm.project().run("run1")
     run.profile_icc.write_bytes(b"icc")
     # The profiling side has real work — the exact state that wrongly paused.
-    run.measurement_ti3.write_text("CTI3\n")
+    run.measurement_ti3.write_text("CTI3\n", encoding="utf-8")
     run.verifications_dir.mkdir(parents=True, exist_ok=True)
-    run.verify_chart_ti2.write_text("CTI2\n")
+    run.verify_chart_ti2.write_text("CTI2\n", encoding="utf-8")
     ti1 = run.verifications_dir / "gamut.ti1"
-    ti1.write_text("CTI1\n")
+    ti1.write_text("CTI1\n", encoding="utf-8")
     s.set("auto_update_preview", True)
 
     tab = _chart_tab(s, fm, ctl)
@@ -308,7 +308,7 @@ def test_auto_update_assesses_the_verify_chart_not_the_profiling_one(
     # → the §4 pause applies.
     v = run.new_verification()
     v.ensure_dir()
-    v.measurement_ti3.write_text("CTI3\n")
+    v.measurement_ti3.write_text("CTI3\n", encoding="utf-8")
     built.clear()
     tab._last_auto_sig = "a layout that is not the one on screen"
     tab._auto_regenerate_preview()
@@ -324,7 +324,7 @@ def test_auto_update_assesses_the_verify_chart_not_the_profiling_one(
     # Generate replaced the live chart (its content changed): the measured
     # date now describes its snapshot, not the live chart — experimenting is
     # free again (Basti: "after hitting generate a working live update").
-    run.verify_chart_ti2.write_text("CTI2 regenerated\n")
+    run.verify_chart_ti2.write_text("CTI2 regenerated\n", encoding="utf-8")
     built.clear(); paused.clear()
     tab._auto_regenerate_preview()
     assert built and not paused

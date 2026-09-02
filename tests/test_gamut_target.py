@@ -42,7 +42,7 @@ END_DATA
 @pytest.fixture
 def master(tmp_path: Path) -> Path:
     p = tmp_path / "master.ti1"
-    p.write_text(_MASTER)
+    p.write_text(_MASTER, encoding="utf-8")
     return p
 
 
@@ -117,15 +117,15 @@ def test_chart_and_reference_agree_on_sample_ids(tmp_path, master, monkeypatch):
 def test_reference_reader_survives_a_missing_or_broken_file(tmp_path):
     assert gt.read_colorimetric_reference(tmp_path / "gone.ti3") is None
     broken = tmp_path / "broken.ti3"
-    broken.write_text("not a cgats file at all")
+    broken.write_text("not a cgats file at all", encoding="utf-8")
     assert gt.read_colorimetric_reference(broken) is None
 
 
 def test_mark_chart_records_the_reference_in_the_sidecar(tmp_path):
     ti2 = tmp_path / "P-verify.ti2"
-    ti2.write_text("CTI2\n")
+    ti2.write_text("CTI2\n", encoding="utf-8")
     gt.mark_chart_as_colorimetric(ti2, tmp_path / "P-verify-reference.ti3")
-    data = json.loads((tmp_path / "P-verify.channels.json").read_text())
+    data = json.loads((tmp_path / "P-verify.channels.json").read_text(encoding="utf-8"))
     assert data["colorimetric_reference"] == "P-verify-reference.ti3"
     # And feature A's detection reads it as the A3c claim.
     from workflow.verification_print import (STATE_CONVERTED_REF_MISSING,
@@ -168,8 +168,8 @@ def _fake_selection() -> gt.GamutSelection:
 
 def test_report_uses_the_colorimetric_reference_and_excludes_corners(tmp_path):
     from workflow.measurement_report import build_report
-    (tmp_path / "c.ti2").write_text(_TI2)
-    (tmp_path / "c.ti3").write_text(_TI3)
+    (tmp_path / "c.ti2").write_text(_TI2, encoding="utf-8")
+    (tmp_path / "c.ti3").write_text(_TI3, encoding="utf-8")
     gt.write_colorimetric_reference(_fake_selection(),
                                     tmp_path / "c-reference.ti3")
     r = build_report(tmp_path / "c.ti3")
@@ -185,10 +185,10 @@ def test_report_uses_the_colorimetric_reference_and_excludes_corners(tmp_path):
 def test_report_refuses_when_the_reference_is_claimed_but_missing(tmp_path):
     """§9.1 / B6 — never a plausible number from the wrong yardstick."""
     from workflow.measurement_report import build_report
-    (tmp_path / "c.ti2").write_text(_TI2)
-    (tmp_path / "c.ti3").write_text(_TI3)
+    (tmp_path / "c.ti2").write_text(_TI2, encoding="utf-8")
+    (tmp_path / "c.ti3").write_text(_TI3, encoding="utf-8")
     (tmp_path / "c.channels.json").write_text(json.dumps(
-        {"colorimetric_reference": "c-reference.ti3"}))
+        {"colorimetric_reference": "c-reference.ti3"}), encoding="utf-8")
     r = build_report(tmp_path / "c.ti3")
     assert r["reference_source"] == "colorimetric-missing"
     assert "de00" not in r
@@ -200,8 +200,8 @@ def test_report_refuses_when_the_reference_is_claimed_but_missing(tmp_path):
 
 def test_plain_charts_are_untouched(tmp_path):
     from workflow.measurement_report import build_report
-    (tmp_path / "c.ti2").write_text(_TI2)
-    (tmp_path / "c.ti3").write_text(_TI3)
+    (tmp_path / "c.ti2").write_text(_TI2, encoding="utf-8")
+    (tmp_path / "c.ti3").write_text(_TI3, encoding="utf-8")
     r = build_report(tmp_path / "c.ti3")
     assert r["reference_source"] == "design"
     assert r["de00"]["n"] == 3
@@ -248,7 +248,7 @@ BEGIN_DATA
 END_DATA
 """
     p = tmp_path / "wedge-master.ti1"
-    p.write_text(text)
+    p.write_text(text, encoding="utf-8")
     return p
 
 

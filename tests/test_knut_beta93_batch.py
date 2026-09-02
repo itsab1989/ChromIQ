@@ -54,7 +54,7 @@ def _ti2(tmp_path, keyword=None, number="1916078606", name="c-verify.ti2"):
         text += f'{keyword} "{number}"\n'
     text += "\nNUMBER_OF_SETS 4\n"
     p = tmp_path / name
-    p.write_text(text)
+    p.write_text(text, encoding="utf-8")
     return p
 
 
@@ -79,7 +79,7 @@ def test_a_chart_with_neither_keyword_says_it_does_not_know(tmp_path):
 
 def test_files_without_a_ti2_say_nothing(tmp_path):
     other = tmp_path / "c-verify.ti1"
-    other.write_text("CTI1\n")
+    other.write_text("CTI1\n", encoding="utf-8")
     assert vcs.chart_order_of([other]) == (vcs.ORDER_UNKNOWN, "")
 
 
@@ -182,7 +182,7 @@ def test_the_demo_builder_snapshots_with_the_real_function():
     """His session found a state ChromIQ never produces, because the builder
     wrote its own idea of a snapshot."""
     import pathlib
-    src = pathlib.Path("scripts/make_demo_projects.py").read_text()
+    src = pathlib.Path("scripts/make_demo_projects.py").read_text(encoding="utf-8")
     i = src.index("def _verification(")
     body = src[i:src.index("\ndef ", i + 10)]
     assert "snapshot_chart(" in body
@@ -198,7 +198,7 @@ def test_a_real_snapshot_carries_the_recipe(tmp_path):
     vdir = run_dir / "verifications"
     vdir.mkdir(parents=True)
     _ti2(vdir, "CHART_ID")
-    (vdir / "c-verify.channels.json").write_text('{"layout": {}}')
+    (vdir / "c-verify.channels.json").write_text('{"layout": {}}', encoding="utf-8")
     (vdir / "c-verify_01.tif").write_bytes(b"II*\0")
 
     run = Run.for_dir(run_dir)

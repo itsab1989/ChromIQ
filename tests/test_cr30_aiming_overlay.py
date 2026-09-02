@@ -69,10 +69,10 @@ class _Tab:
         self._cr30_aim_diameters_px = TabMeasure._cr30_aim_diameters_px.__get__(self)
         self._is = is_cr30
         self._ti1_path = tmp_path / "chart.ti2"
-        self._ti1_path.write_text("")
+        self._ti1_path.write_text("", encoding="utf-8")
         if dpi is not None:
             side = self._ti1_path.with_suffix(".channels.json")
-            side.write_text(json.dumps({"layout": {"dpi": dpi}}))
+            side.write_text(json.dumps({"layout": {"dpi": dpi}}), encoding="utf-8")
 
     def _chart_is_cr30(self):
         return self._is
@@ -98,7 +98,7 @@ def test_no_sidecar_means_no_circles(tmp_path):
 
 def test_a_corrupt_sidecar_means_no_circles(tmp_path):
     t = _Tab(tmp_path, 300.0)
-    t._ti1_path.with_suffix(".channels.json").write_text("{not json")
+    t._ti1_path.with_suffix(".channels.json").write_text("{not json", encoding="utf-8")
     assert t._cr30_aim_diameters_px() == (0.0, 0.0)
 
 

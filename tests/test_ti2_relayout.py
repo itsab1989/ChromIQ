@@ -45,7 +45,7 @@ END_DATA
 @pytest.fixture
 def ti2(tmp_path: Path) -> Path:
     p = tmp_path / "src.ti2"
-    p.write_text(_TI2)
+    p.write_text(_TI2, encoding="utf-8")
     return p
 
 
@@ -77,7 +77,7 @@ def test_load_rgb_program_from_cgats_txt(tmp_path: Path):
     p = tmp_path / "set.txt"
     p.write_text(
         "BEGIN_DATA_FORMAT\nSAMPLE_ID RGB_R RGB_G RGB_B\nEND_DATA_FORMAT\n"
-        "BEGIN_DATA\n1 100 50 0\n2 0 0 100\nEND_DATA\n"
+        "BEGIN_DATA\n1 100 50 0\n2 0 0 100\nEND_DATA\n", encoding="utf-8"
     )
     prog = R.load_rgb_program(p)
     assert prog == [(100.0, 50.0, 0.0), (0.0, 0.0, 100.0)]
@@ -88,14 +88,14 @@ def test_load_rgb_program_from_pxf(tmp_path: Path):
     p.write_text(
         '<?xml version="1.0"?>\n<Root><Object><ColorValues>'
         '<ColorRGB><R>100</R><G>0</G><B>50</B></ColorRGB>'
-        '</ColorValues></Object></Root>'
+        '</ColorValues></Object></Root>', encoding="utf-8"
     )
     assert R.load_rgb_program(p) == [(100.0, 0.0, 50.0)]
 
 
 def test_load_rgb_program_rejects_non_rgb_ti2(tmp_path: Path):
     p = tmp_path / "cmyk.ti2"
-    p.write_text(_TI2.replace('"iRGB"', '"iCMYK"'))
+    p.write_text(_TI2.replace('"iRGB"', '"iCMYK"'), encoding="utf-8")
     with pytest.raises(ValueError, match="RGB"):
         R.load_rgb_program(p)
 
@@ -107,7 +107,7 @@ def test_new_chart_from_scratch(tmp_path: Path):
     assert spec.paper_mm == (210.0, 297.0)
     prog = [(100, 100, 100), (0, 0, 0), (50, 50, 50)]  # built up by the editor
     out = R.write_ti1(spec, prog, tmp_path / "c.ti1")
-    assert out.read_text().count("CTI1") == 3
+    assert out.read_text(encoding="utf-8").count("CTI1") == 3
 
 
 def test_seed_parse_ignores_palette_tables(ti2: Path, tmp_path: Path):
@@ -232,7 +232,7 @@ def _make_ti2(tmp_path: Path, strips: dict, kw: str = "CHART_ID") -> Path:
     text = _TI2_HEAD.format(kw=kw) + f"NUMBER_OF_SETS {sid}\nBEGIN_DATA\n" \
         + "\n".join(rows) + "\nEND_DATA\n"
     p = tmp_path / "chart.ti2"
-    p.write_text(text)
+    p.write_text(text, encoding="utf-8")
     return p
 
 
@@ -274,7 +274,7 @@ def test_analyze_trivially_safe_with_one_strip(tmp_path: Path):
 def test_tag_rewrites_chart_id(tmp_path: Path):
     ti2 = _make_ti2(tmp_path, {"A": [(1, 2, 3)]}, kw="CHART_ID")
     assert R.tag_ti2_randomised(ti2) is True
-    text = ti2.read_text()
+    text = ti2.read_text(encoding="utf-8")
     assert "RANDOM_START" in text and "CHART_ID" not in text
 
 
@@ -393,7 +393,7 @@ def test_triple_density_patches_target_instrument(tmp_path: Path):
                            margin_mm=5, suppress_left_clip=True,
                            no_strip_limit=True)
     res = R.regenerate(spec, prog, tmp_path, ARGYLL_BIN, options=opts)
-    text = res.ti2.read_text()
+    text = res.ti2.read_text(encoding="utf-8")
     assert 'TARGET_INSTRUMENT "X-Rite ColorMunki"' in text
     assert 'TARGET_INSTRUMENT "GretagMacbeth i1 Pro"' not in text
 
@@ -403,7 +403,7 @@ def test_write_ti1_three_tables_and_order(ti2: Path, tmp_path: Path):
     spec = R.ChartSpec.from_ti2(ti2)
     dev_values = list(reversed(R.default_program(spec)))  # reverse order
     out = R.write_ti1(spec, dev_values, tmp_path / "c.ti1")
-    text = out.read_text()
+    text = out.read_text(encoding="utf-8")
     # printtarg requires three CGATS tables
     assert text.count("CTI1") == 3
     assert "DENSITY_EXTREME_VALUES" in text
@@ -419,7 +419,7 @@ def test_write_ti1_recolours_a_patch(ti2: Path, tmp_path: Path):
     prog = R.default_program(spec)
     prog[0] = (12.0, 34.0, 56.0)  # recolour first patch
     out = R.write_ti1(spec, prog, tmp_path / "c.ti1")
-    main = out.read_text().split("DENSITY_EXTREME_VALUES")[0]
+    main = out.read_text(encoding="utf-8").split("DENSITY_EXTREME_VALUES")[0]
     first_row = main.split("BEGIN_DATA\n")[1].splitlines()[0]
     assert first_row.split()[1:4] == ["12.0000", "34.0000", "56.0000"]
 
@@ -429,8 +429,8 @@ def test_write_ti1_custom_palette_lands_in_extremes(ti2: Path, tmp_path: Path):
     pal = ((100, 100, 100), (30, 70, 100), (0, 0, 0))
     out = R.write_ti1(spec, R.default_program(spec), tmp_path / "c.ti1",
                       spacer_palette=pal)
-    extremes = out.read_text().split("DENSITY_EXTREME_VALUES")[1]
-    assert 'DENSITY_EXTREME_VALUES "3"' in out.read_text()
+    extremes = out.read_text(encoding="utf-8").split("DENSITY_EXTREME_VALUES")[1]
+    assert 'DENSITY_EXTREME_VALUES "3"' in out.read_text(encoding="utf-8")
     assert "30.0000 70.0000 100.0000" in extremes
 
 
@@ -576,7 +576,7 @@ def test_load_colour_file_ti1_device_values(tmp_path):
 
 
 def test_load_colour_file_plain_hex(tmp_path):
-    p = tmp_path / "list.txt"; p.write_text("#ff0000\n#00ff00\n0,0,255\n")
+    p = tmp_path / "list.txt"; p.write_text("#ff0000\n#00ff00\n0,0,255\n", encoding="utf-8")
     prog = R.load_colour_file(p)
     assert len(prog) == 3
 
@@ -587,6 +587,6 @@ def test_load_colour_file_rejects_cie(tmp_path):
     cie = ("NUMBER_OF_FIELDS 4\nBEGIN_DATA_FORMAT\nSAMPLE_ID XYZ_X XYZ_Y XYZ_Z\n"
            "END_DATA_FORMAT\nBEGIN_DATA\nA1\t95\t100\t108\nA2\t0\t0\t0\n"
            "END_DATA\n")
-    p = tmp_path / "ref.cie"; p.write_text(cie)
+    p = tmp_path / "ref.cie"; p.write_text(cie, encoding="utf-8")
     with pytest.raises(ValueError, match="CIE reference"):
         R.load_colour_file(p)

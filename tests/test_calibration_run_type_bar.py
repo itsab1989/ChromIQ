@@ -198,13 +198,13 @@ def test_restore_is_offered_once_a_chart_has_been_stored(bar, cal_project):
     assert "no stored copy" in ctl.restore_state()[1]
 
     cal.ensure_dir()
-    cal.ti1.write_text("ti1")
-    cal.ti2.write_text("ti2")
+    cal.ti1.write_text("ti1", encoding="utf-8")
+    cal.ti2.write_text("ti2", encoding="utf-8")
     snapshot_slot(slot_for(cal))
     assert ctl.restore_state()[0] is False       # identical to live
     assert "already identical" in ctl.restore_state()[1]
 
-    cal.ti2.write_text("regenerated")
+    cal.ti2.write_text("regenerated", encoding="utf-8")
     enabled, tip = ctl.restore_state()
     assert enabled is True
     assert "calibration chart" in tip

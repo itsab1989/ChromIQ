@@ -56,7 +56,7 @@ def _engine_editor(qapp, tmp_path, monkeypatch, cap=5):
     # Make the engine path active without a full chart load: a spec + a visible
     # engine panel is all _engine_active() needs.
     ti2 = tmp_path / "chart.ti2"
-    ti2.write_text(_TI2)
+    ti2.write_text(_TI2, encoding="utf-8")
     ed._spec = R.ChartSpec.from_ti2(ti2)
     ed._engine_panel_grp.setVisible(True)
     # Seed the grid with a few patches.

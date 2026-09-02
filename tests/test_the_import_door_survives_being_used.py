@@ -425,7 +425,7 @@ def test_a_project_whose_manifest_will_not_parse_does_not_kill_the_app(
     import ui.dialogs.project_picker as pp
 
     win, measurement, work = house
-    (work / "Demo-Report-Matrix" / "project.json").write_text('{"cur')
+    (work / "Demo-Report-Matrix" / "project.json").write_text('{"cur', encoding="utf-8")
     monkeypatch.setattr(tcr, "open_file_dialog", lambda *a, **k: str(measurement))
     monkeypatch.setattr(pp, "choose_project", lambda *a, **k: "Demo-Report-Matrix")
 

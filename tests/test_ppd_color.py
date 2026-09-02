@@ -13,7 +13,7 @@ from workflow.ppd_color import (
 
 def _write_ppd(tmp_path, body: str):
     p = tmp_path / "printer.ppd"
-    p.write_text(textwrap.dedent(body).lstrip())
+    p.write_text(textwrap.dedent(body).lstrip(), encoding="utf-8")
     return str(p)
 
 

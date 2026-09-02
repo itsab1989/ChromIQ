@@ -45,7 +45,7 @@ def _write(path, rgb, ids=None, kind="CTI2"):
         lines.append(f"{sid} {r:.4f} {g:.4f} {b:.4f} "
                      f"{y * 0.95:.4f} {y:.4f} {y * 1.09:.4f}")
     lines += ["END_DATA", ""]
-    path.write_text("\n".join(lines))
+    path.write_text("\n".join(lines), encoding="utf-8")
     return path
 
 
@@ -139,7 +139,7 @@ def test_no_chart_means_unchecked_not_failed(tmp_path, chart, ti2):
 
 def test_an_unreadable_chart_means_unchecked(tmp_path):
     bad = tmp_path / "bad.ti2"
-    bad.write_text("this is not a CGATS file at all")
+    bad.write_text("this is not a CGATS file at all", encoding="utf-8")
     v = verify_patch_identity(_measured(tmp_path, CHART), bad)
     assert v["verdict"] == "unchecked"
 

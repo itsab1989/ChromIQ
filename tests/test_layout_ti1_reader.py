@@ -54,7 +54,7 @@ GRAY_TI1 = textwrap.dedent("""\
 
 
 def test_rgb(tmp_path):
-    p = tmp_path / "rgb.ti1"; p.write_text(RGB_TI1)
+    p = tmp_path / "rgb.ti1"; p.write_text(RGB_TI1, encoding="utf-8")
     t = ti1_reader.read_ti1(p)
     assert t.color_rep == "iRGB"
     assert t.device_fields == ["RGB_R", "RGB_G", "RGB_B"]
@@ -66,7 +66,7 @@ def test_rgb(tmp_path):
 
 
 def test_cmyk(tmp_path):
-    p = tmp_path / "cmyk.ti1"; p.write_text(CMYK_TI1)
+    p = tmp_path / "cmyk.ti1"; p.write_text(CMYK_TI1, encoding="utf-8")
     t = ti1_reader.read_ti1(p)
     assert t.color_rep == "CMYK"
     assert t.device_fields == ["CMYK_C", "CMYK_M", "CMYK_Y", "CMYK_K"]
@@ -75,7 +75,7 @@ def test_cmyk(tmp_path):
 
 
 def test_gray(tmp_path):
-    p = tmp_path / "gray.ti1"; p.write_text(GRAY_TI1)
+    p = tmp_path / "gray.ti1"; p.write_text(GRAY_TI1, encoding="utf-8")
     t = ti1_reader.read_ti1(p)
     assert t.color_rep == "W"
     assert t.device_fields == ["GRAY_W"]
@@ -83,6 +83,6 @@ def test_gray(tmp_path):
 
 
 def test_missing_data_raises(tmp_path):
-    p = tmp_path / "bad.ti1"; p.write_text('COLOR_REP "iRGB"\n')
+    p = tmp_path / "bad.ti1"; p.write_text('COLOR_REP "iRGB"\n', encoding="utf-8")
     with pytest.raises(ValueError):
         ti1_reader.read_ti1(p)

@@ -61,7 +61,7 @@ def test_a_chart_alone_already_counts_as_something_to_lose(tmp_path):
     """Knut's exact case. §4 says a chart-only run raises no window of ITS own —
     which is precisely why this question had to be a different one."""
     _proj, run = _project(tmp_path)
-    (run.dir / f"{run.stem}.ti2").write_text("chart")
+    (run.dir / f"{run.stem}.ti2").write_text("chart", encoding="utf-8")
     pk = peek_project(tmp_path / "test")
     assert (pk.chart, pk.measurement, pk.profile) == (True, False, False)
     assert pk.holds_anything
@@ -69,9 +69,9 @@ def test_a_chart_alone_already_counts_as_something_to_lose(tmp_path):
 
 def test_it_sees_a_measurement_a_profile_and_dated_verifications(tmp_path):
     _proj, run = _project(tmp_path)
-    (run.dir / f"{run.stem}.ti2").write_text("chart")
-    (run.dir / f"{run.stem}.ti3").write_text("measured")
-    (run.dir / f"{run.stem}.icc").write_text("profile")
+    (run.dir / f"{run.stem}.ti2").write_text("chart", encoding="utf-8")
+    (run.dir / f"{run.stem}.ti3").write_text("measured", encoding="utf-8")
+    (run.dir / f"{run.stem}.icc").write_text("profile", encoding="utf-8")
     for stamp in ("2026-03-04_101122", "2026-06-19_144005"):
         (run.verifications_dir / stamp).mkdir(parents=True)
     pk = peek_project(tmp_path / "test")
@@ -84,8 +84,8 @@ def test_a_seeded_preconditioning_copy_is_not_this_runs_own_work(tmp_path):
     run is made. Counting it would make a brand-new, untouched run look like a
     finished one and put a window in front of somebody for nothing."""
     _proj, run = _project(tmp_path)
-    (run.dir / "preconditioning.ti3").write_text("parent's")
-    (run.dir / "preconditioning.icc").write_text("parent's")
+    (run.dir / "preconditioning.ti3").write_text("parent's", encoding="utf-8")
+    (run.dir / "preconditioning.icc").write_text("parent's", encoding="utf-8")
     pk = peek_project(tmp_path / "test")
     assert not pk.holds_anything
 
@@ -110,8 +110,8 @@ def test_peeking_does_not_migrate_or_write_anything(tmp_path):
     manifest.write_text(json.dumps(
         {"schema_version": 1, "target_name": "old-project",
          "current_run": "run1", "runs": ["run1"]}), encoding="utf-8")
-    (run / "old-project.ti2").write_text("a v1 chart")
-    (run / "old-project.ti3").write_text("a v1 measurement")
+    (run / "old-project.ti2").write_text("a v1 chart", encoding="utf-8")
+    (run / "old-project.ti3").write_text("a v1 measurement", encoding="utf-8")
     before = {p.relative_to(root).as_posix(): p.read_bytes()
               for p in root.rglob("*") if p.is_file()}
 
@@ -129,7 +129,7 @@ def test_an_unreadable_manifest_is_treated_as_occupied(tmp_path):
     other answer would let a build walk into somebody's folder."""
     root = tmp_path / "broken"
     root.mkdir()
-    (root / "project.json").write_text("{not json")
+    (root / "project.json").write_text("{not json", encoding="utf-8")
     pk = peek_project(root)
     assert pk.exists and pk.holds_anything
 
@@ -240,8 +240,8 @@ def _answer(monkeypatch, label_getter):
 def _occupied(tmp_path, name="test"):
     proj = Project.create(tmp_path / name, name)
     run = proj.current_run()
-    (run.dir / f"{run.stem}.ti2").write_text("chart")
-    (run.dir / f"{run.stem}.ti3").write_text("measured")
+    (run.dir / f"{run.stem}.ti2").write_text("chart", encoding="utf-8")
+    (run.dir / f"{run.stem}.ti3").write_text("measured", encoding="utf-8")
     return proj
 
 
@@ -399,7 +399,7 @@ def test_the_line_appears_only_when_the_name_matches(chart_tab, tmp_path):
 
 def _a_ti1(tmp_path):
     p = tmp_path / "patches.ti1"
-    p.write_text("CTI1\nNUMBER_OF_SETS 1\nBEGIN_DATA\n1 0 0 0\nEND_DATA\n")
+    p.write_text("CTI1\nNUMBER_OF_SETS 1\nBEGIN_DATA\n1 0 0 0\nEND_DATA\n", encoding="utf-8")
     return p
 
 
@@ -551,7 +551,7 @@ def test_a_manifest_that_is_json_but_not_a_project_does_not_raise(tmp_path, raw)
     promise is that asking is safe — and took Generate Chart down with it."""
     root = tmp_path / "odd"
     root.mkdir()
-    (root / "project.json").write_text(raw)
+    (root / "project.json").write_text(raw, encoding="utf-8")
     pk = peek_project(root)
     assert pk.exists and pk.holds_anything
 
@@ -563,7 +563,7 @@ def test_a_project_holding_only_a_calibration_is_not_empty(tmp_path):
     proj = Project.create(tmp_path / "cal-only", "cal-only")
     cal = proj.calibration
     cal.ensure_dir()
-    cal.cal_path.write_text("a calibration")
+    cal.cal_path.write_text("a calibration", encoding="utf-8")
     pk = peek_project(tmp_path / "cal-only")
     assert pk.calibration and pk.holds_anything
     assert not (pk.chart or pk.measurement or pk.profile)
@@ -609,9 +609,9 @@ def test_regenerating_an_unmeasured_chart_leaves_no_old_folder(tmp_path):
     had nothing to lose."""
     proj = Project.create(tmp_path / "fresh", "fresh")
     run = proj.current_run()
-    (run.dir / f"{run.stem}.ti2").write_text("chart")
+    (run.dir / f"{run.stem}.ti2").write_text("chart", encoding="utf-8")
     run.exports_dir.mkdir(parents=True, exist_ok=True)
-    (run.exports_dir / f"{run.stem}-colours.txt").write_text("derived")
+    (run.exports_dir / f"{run.stem}-colours.txt").write_text("derived", encoding="utf-8")
 
     run.reset_chart_artefacts()
     assert not run.old_dir.exists(), \
@@ -623,10 +623,10 @@ def test_the_individual_reads_are_still_archived(tmp_path):
     regenerated, and `clear_reads()` used to rmtree them."""
     proj = Project.create(tmp_path / "measured", "measured")
     run = proj.current_run()
-    (run.dir / f"{run.stem}.ti3").write_text("the measurement")
+    (run.dir / f"{run.stem}.ti3").write_text("the measurement", encoding="utf-8")
     run.reads_dir.mkdir(parents=True, exist_ok=True)
     for i in (1, 2, 3):
-        (run.reads_dir / f"read{i}.ti3").write_text("a read")
+        (run.reads_dir / f"read{i}.ti3").write_text("a read", encoding="utf-8")
 
     run.reset_chart_artefacts()
     archived = sorted(p.name for p in run.old_dir.rglob("read*.ti3"))
@@ -649,7 +649,7 @@ def test_the_window_offers_every_run_and_defaults_to_a_new_one(chart_tab, tmp_pa
     tab, _fm, _s = chart_tab
     proj = Project.create(tmp_path / "many", "many")
     r1 = proj.current_run()
-    (r1.dir / f"{r1.stem}.ti3").write_text("measured")
+    (r1.dir / f"{r1.stem}.ti3").write_text("measured", encoding="utf-8")
     proj.new_run()                                   # run2, empty and current
     _type(tab, "many")
 
@@ -673,7 +673,7 @@ def test_a_project_whose_current_run_is_empty_still_warns(chart_tab, tmp_path):
     tab, _fm, _s = chart_tab
     proj = Project.create(tmp_path / "busy", "busy")
     r1 = proj.current_run()
-    (r1.dir / f"{r1.stem}.ti3").write_text("measured")
+    (r1.dir / f"{r1.stem}.ti3").write_text("measured", encoding="utf-8")
     proj.new_run()                                   # current run, empty
     _type(tab, "busy")
 
@@ -720,9 +720,9 @@ def test_a_schema_1_project_with_several_runs_is_seen_whole(tmp_path):
     for rid in ("run1", "run2"):
         d = root / "runs" / rid
         d.mkdir(parents=True)
-        (d / "legacy.ti2").write_text("chart")
-        (d / "legacy.ti3").write_text("measured")
-        (d / "legacy.icc").write_text("profile")
+        (d / "legacy.ti2").write_text("chart", encoding="utf-8")
+        (d / "legacy.ti3").write_text("measured", encoding="utf-8")
+        (d / "legacy.icc").write_text("profile", encoding="utf-8")
     (root / "project.json").write_text(json.dumps(
         {"schema_version": 1, "target_name": "legacy",
          "current_run": "run1", "runs": ["run1", "run2"]}), encoding="utf-8")
@@ -831,7 +831,7 @@ def test_an_empty_reads_folder_does_not_spawn_an_old_folder(tmp_path):
     work, and archiving it broke that rule the same way `exports/` did."""
     proj = Project.create(tmp_path / "empty-reads", "empty-reads")
     run = proj.current_run()
-    (run.dir / f"{run.stem}.ti2").write_text("chart")
+    (run.dir / f"{run.stem}.ti2").write_text("chart", encoding="utf-8")
     run.reads_dir.mkdir(parents=True, exist_ok=True)      # there, but empty
     run.reset_chart_artefacts()
     assert not run.old_dir.exists(), list(run.old_dir.rglob("*"))
@@ -921,7 +921,7 @@ def test_the_hint_carries_no_project_name(chart_tab, tmp_path):
     long_name = "Printer_Paper_Type_Instr_2026-08-27_20-30_Baryta_Gloss_i1Pro3_High"
     proj = Project.create(tmp_path / long_name, long_name)
     run = proj.current_run()
-    (run.dir / f"{run.stem}.ti3").write_text("measured")
+    (run.dir / f"{run.stem}.ti3").write_text("measured", encoding="utf-8")
 
     _type(tab, long_name)
     text = tab._manual_project_exists_lbl.text()

@@ -110,7 +110,7 @@ def test_the_filter_is_installed_for_the_whole_application():
     """The standardisation only holds if every button really passes through the
     filter — so this pins the wiring in main.py, not just the helper."""
     source = (__import__("pathlib").Path(__file__).resolve().parents[1]
-              / "main.py").read_text()
+              / "main.py").read_text(encoding="utf-8")
     # The four app-wide filters are installed as ONE object now (~1 s of a 5 s
     # launch was Qt dispatching each event to four separate Python filters), so
     # the wiring to pin is the composite — plus the escape hatch that puts the
@@ -132,7 +132,7 @@ def test_both_completion_dialogs_offer_close_and_the_renamed_button():
     again land in one place only."""
     import pathlib
     src = (pathlib.Path(__file__).resolve().parents[1]
-           / "ui" / "tabs" / "tab_measure.py").read_text()
+           / "ui" / "tabs" / "tab_measure.py").read_text(encoding="utf-8")
     # Three dialogs offer this step: the two All-Stripes-Read variants
     # (averaging on and off) and the post-measurement averaging dialog.
     #

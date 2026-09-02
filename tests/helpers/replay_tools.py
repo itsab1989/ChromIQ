@@ -58,7 +58,7 @@ def write_replay_script(ti2_path: Path, out_path: Path,
     """Write a replay script whose readings equal the chart's expected
     values (optionally with a deterministic offset to mimic print drift)."""
     steps, rows = parse_ti2_rows(ti2_path)
-    with out_path.open("w") as fp:
+    with out_path.open("w", encoding="utf-8") as fp:
         fp.write(f"# replay for {ti2_path.name}\nPATCHES {steps}\n")
         for letter in sorted(rows):
             fp.write(f"STRIP {letter}\n")

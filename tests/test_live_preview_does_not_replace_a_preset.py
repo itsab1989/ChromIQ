@@ -54,7 +54,7 @@ def tab(qapp, tmp_path):
 
 def test_starting_a_build_from_a_patch_set_drops_a_queued_re_render(tab, tmp_path):
     ti1 = tmp_path / "chart.ti1"
-    ti1.write_text("CTI1\n")                     # never reached: the guard fires first
+    ti1.write_text("CTI1\n", encoding="utf-8")                     # never reached: the guard fires first
     tab._auto_preview_timer.start(450)
     assert tab._auto_preview_timer.isActive()
 
@@ -103,7 +103,7 @@ def test_a_build_in_flight_is_seen_even_with_no_argyll_process(tab):
 
 def test_no_re_render_is_queued_while_a_build_is_in_flight(tab, tmp_path):
     ti1 = tmp_path / "chart.ti1"
-    ti1.write_text("CTI1\n")
+    ti1.write_text("CTI1\n", encoding="utf-8")
     tab._current_ti1_path = ti1
     tab._last_auto_sig = "something else"        # the layout "changed"
     tab._generate_btn.setEnabled(False)
@@ -115,7 +115,7 @@ def test_a_queued_re_render_that_fires_late_still_declines(tab, tmp_path):
     """Belt and braces: even if a timer somehow survives to fire mid-build, the
     re-render itself declines rather than racing the build."""
     ti1 = tmp_path / "chart.ti1"
-    ti1.write_text("CTI1\n")
+    ti1.write_text("CTI1\n", encoding="utf-8")
     tab._current_ti1_path = ti1
     tab._generate_btn.setEnabled(False)
     built: list = []

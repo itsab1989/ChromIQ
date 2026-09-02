@@ -47,7 +47,7 @@ _FMT = "SAMPLE_ID SAMPLE_LOC RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z"
 
 def _write(tmp_path, name, color_rep, rows):
     p = tmp_path / name
-    p.write_text(_ti3(color_rep, _FMT, rows))
+    p.write_text(_ti3(color_rep, _FMT, rows), encoding="utf-8")
     return p
 
 
@@ -59,7 +59,7 @@ def _data_rows(start, count, loc_prefix):
 
 
 def _read_data(path):
-    lines = path.read_text().splitlines()
+    lines = path.read_text(encoding="utf-8").splitlines()
     b = lines.index("BEGIN_DATA")
     e = lines.index("END_DATA")
     return [ln for ln in lines[b + 1:e] if ln.strip()]
@@ -89,7 +89,7 @@ def test_merge_concatenates_both_sets(tmp_path):
     assert out.exists()
     assert len(_read_data(out)) == 5
     assert any(
-        ln.strip() == "NUMBER_OF_SETS 5" for ln in out.read_text().splitlines()
+        ln.strip() == "NUMBER_OF_SETS 5" for ln in out.read_text(encoding="utf-8").splitlines()
     )
 
 
@@ -106,7 +106,7 @@ def test_data_format_mismatch_refused(tmp_path):
     fresh = _write(tmp_path, "chart.ti3", "iRGB_XYZ", _data_rows(1, 2, "A"))
     # pre file with a different (spectral-ish) format
     pre = tmp_path / "preconditioning.ti3"
-    pre.write_text(_ti3("iRGB_XYZ", _FMT + " SPEC_380", ['1 "B1" 10 20 30 11 12 13 0.5']))
+    pre.write_text(_ti3("iRGB_XYZ", _FMT + " SPEC_380", ['1 "B1" 10 20 30 11 12 13 0.5']), encoding="utf-8")
     out = tmp_path / "merged.ti3"
     with pytest.raises(Ti3MergeError):
         merge_preconditioning(fresh, pre, out)
@@ -116,7 +116,7 @@ def test_data_format_mismatch_refused(tmp_path):
 def test_missing_data_block_refused(tmp_path):
     fresh = _write(tmp_path, "chart.ti3", "iRGB_XYZ", _data_rows(1, 2, "A"))
     bad = tmp_path / "preconditioning.ti3"
-    bad.write_text("CTI3\nnot a real measurement file\n")
+    bad.write_text("CTI3\nnot a real measurement file\n", encoding="utf-8")
     out = tmp_path / "merged.ti3"
     with pytest.raises(Ti3MergeError):
         merge_preconditioning(fresh, bad, out)

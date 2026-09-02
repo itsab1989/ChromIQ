@@ -75,7 +75,7 @@ def _meas_with_duplicate_whites(tmp_path):
                      + " " + " ".join(f"{v:.4f}" for v in x))
     lines.append("END_DATA")
     p = tmp_path / "dup.ti3"
-    p.write_text("\n".join(lines))
+    p.write_text("\n".join(lines), encoding="utf-8")
     return read_ti3(p), xyz
 
 

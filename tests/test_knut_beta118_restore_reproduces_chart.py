@@ -131,7 +131,7 @@ def test_chart_date_read_from_the_ti2_header(tmp_path, created, expected):
     """Every project already on disk predates the saved date, so the ``.ti2``
     header is the only record of when the chart was made."""
     ti2 = tmp_path / "c.ti2"
-    ti2.write_text(f'CTI2\n\n{created}\n\nKEYWORD "x"\n')
+    ti2.write_text(f'CTI2\n\n{created}\n\nKEYWORD "x"\n', encoding="utf-8")
     assert _chart_date_from_ti2(ti2) == expected
 
 
@@ -176,12 +176,12 @@ def test_the_date_is_saved_with_the_chart(tmp_path):
         chart_date: str = "2026-07-30"
 
     sidecar = tmp_path / "c.channels.json"
-    sidecar.write_text("{}")
+    sidecar.write_text("{}", encoding="utf-8")
     params = ChartParams()
     params.layout_recipe = LayoutRecipe()
     ChartCreator._embed_layout_geometry(
         ChartCreator.__new__(ChartCreator), tmp_path, "c", _Result(), params)
-    assert json.loads(sidecar.read_text())["layout"]["date"] == "2026-07-30"
+    assert json.loads(sidecar.read_text(encoding="utf-8"))["layout"]["date"] == "2026-07-30"
 
 
 # --------------------------------------------------------------------------

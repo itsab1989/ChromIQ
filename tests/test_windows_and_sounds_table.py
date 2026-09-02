@@ -74,7 +74,7 @@ def test_every_sound_name_is_one_the_user_can_find_in_preferences():
     Only the Preferences labels may appear."""
     import pathlib
     settings_src = (pathlib.Path(__file__).resolve().parents[1]
-                    / "ui" / "dialogs" / "settings_dialog.py").read_text()
+                    / "ui" / "dialogs" / "settings_dialog.py").read_text(encoding="utf-8")
     labels = {"Patch read OK", "Patch reading looks off", "Strip read OK",
               "Strip read failed", "Instrument error", "Slow down",
               "Measurement finished", "Profile build finished"}

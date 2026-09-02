@@ -114,7 +114,7 @@ def test_the_same_chart_keeps_its_painting(tmp_path):
     a measurement ENDS, and blanking the preview there would wipe the strips the
     user has just read — at the exact moment they want to look at them."""
     ti2 = tmp_path / "chart.ti2"
-    ti2.write_text("x")
+    ti2.write_text("x", encoding="utf-8")
     p = _Painted(ti2)
 
     p._discard_stale_overlay()        # first sight of this chart
@@ -125,7 +125,7 @@ def test_the_same_chart_keeps_its_painting(tmp_path):
 
 def test_a_different_chart_drops_the_painting(tmp_path):
     a, b = tmp_path / "a.ti2", tmp_path / "b.ti2"
-    a.write_text("x"); b.write_text("x")
+    a.write_text("x", encoding="utf-8"); b.write_text("x", encoding="utf-8")
     p = _Painted(a)
     p._discard_stale_overlay()
     before = p.cleared
@@ -140,12 +140,12 @@ def test_re_generating_the_same_path_counts_as_a_different_chart(tmp_path):
     therefore includes when the .ti2 was written, not just where it is."""
     import os
     ti2 = tmp_path / "chart.ti2"
-    ti2.write_text("three columns")
+    ti2.write_text("three columns", encoding="utf-8")
     p = _Painted(ti2)
     p._discard_stale_overlay()
     before = p.cleared
 
-    ti2.write_text("four columns")
+    ti2.write_text("four columns", encoding="utf-8")
     os.utime(ti2, (1, 1))             # a re-generation writes it afresh
     p._discard_stale_overlay()
     assert p.cleared == before + 1, "the old chart's strips would still be shown"
@@ -153,7 +153,7 @@ def test_re_generating_the_same_path_counts_as_a_different_chart(tmp_path):
 
 def test_a_measurement_in_progress_is_left_alone(tmp_path):
     a, b = tmp_path / "a.ti2", tmp_path / "b.ti2"
-    a.write_text("x"); b.write_text("x")
+    a.write_text("x", encoding="utf-8"); b.write_text("x", encoding="utf-8")
     p = _Painted(a, running=True)
     p._discard_stale_overlay()
     p._ti1_path = b
@@ -180,7 +180,7 @@ class _Run:
             # beta.133: "M-CHART-CORRUPT (ONLY THIS MESSAGE …)").
             rows = "\n".join(f"{i} 50 50 50 20 20 20" for i in range(1, 5))
             self.measurement_ti3.write_text(
-                "CTI3\nNUMBER_OF_SETS 4\nBEGIN_DATA\n" + rows + "\nEND_DATA\n")
+                "CTI3\nNUMBER_OF_SETS 4\nBEGIN_DATA\n" + rows + "\nEND_DATA\n", encoding="utf-8")
         if icc:
             self.profile_icc.write_bytes(b"x")
 
@@ -354,7 +354,7 @@ def test_refining_or_resuming_is_not_replacing(qapp, tmp_path, resume, refine):
     """Both add to the readings instead of overwriting them, so neither is a
     reason to interrupt the user."""
     ti3 = tmp_path / "chart.ti3"
-    ti3.write_text("x")
+    ti3.write_text("x", encoding="utf-8")
     m = _Measure(ti3, resume=resume, refine=refine)
     assert m._confirm_replacing_measurement() is True
 
@@ -367,7 +367,7 @@ def test_a_plain_re_read_does_raise_the_question(qapp, tmp_path, monkeypatch):
     # test_replace_messages.py.
     ti3.write_text("CTI3\nNUMBER_OF_SETS 3\nBEGIN_DATA\n"
                    "P1 1 1 1 5 5 5\nP2 1 1 1 5 5 5\nP3 1 1 1 5 5 5\n"
-                   "END_DATA\n")
+                   "END_DATA\n", encoding="utf-8")
 
     seen = {}
     import PyQt6.QtWidgets as QtW

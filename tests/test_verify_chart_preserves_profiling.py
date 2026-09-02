@@ -37,31 +37,31 @@ def test_verify_generation_keeps_profiling_chart_at_run_root(qapp, tmp_path):
     fm.set_target_name("P")
     stem = run.stem
     # A profiling chart (+ a built profile + measurement) at the run root.
-    (run.dir / f"{stem}.ti1").write_text("prof-ti1")
-    (run.dir / f"{stem}.ti2").write_text("prof-ti2")
-    (run.dir / f"{stem}.tif").write_text("prof-tif")      # single page
-    run.measurement_ti3.write_text("prof-meas")
-    run.profile_icc.write_text("prof-icc")
+    (run.dir / f"{stem}.ti1").write_text("prof-ti1", encoding="utf-8")
+    (run.dir / f"{stem}.ti2").write_text("prof-ti2", encoding="utf-8")
+    (run.dir / f"{stem}.tif").write_text("prof-tif", encoding="utf-8")      # single page
+    run.measurement_ti3.write_text("prof-meas", encoding="utf-8")
+    run.profile_icc.write_text("prof-icc", encoding="utf-8")
 
     ctl.set_profile_run("run1"); ctl.set_run_type(RUN_TYPE_VERIFICATION)
 
     # --- the flow the build method + _on_generate_finished perform ---
     tab._verify_profiling_backup = tab._snapshot_profiling_chart()
     # verify generation overwrites the run root with the (smaller) verify chart
-    (run.dir / f"{stem}.ti1").write_text("verify-ti1")
-    (run.dir / f"{stem}.ti2").write_text("verify-ti2")
-    (run.dir / f"{stem}.tif").write_text("verify-tif")
+    (run.dir / f"{stem}.ti1").write_text("verify-ti1", encoding="utf-8")
+    (run.dir / f"{stem}.ti2").write_text("verify-ti2", encoding="utf-8")
+    (run.dir / f"{stem}.tif").write_text("verify-tif", encoding="utf-8")
     run.adopt_run_chart_as_verify()          # move it into verifications/
     tab._restore_profiling_chart()           # put the profiling chart back
 
     # Profiling chart is intact at the run root…
-    assert (run.dir / f"{stem}.ti2").read_text() == "prof-ti2"
-    assert (run.dir / f"{stem}.tif").read_text() == "prof-tif"
-    assert run.measurement_ti3.read_text() == "prof-meas"   # never touched
-    assert run.profile_icc.read_text() == "prof-icc"
+    assert (run.dir / f"{stem}.ti2").read_text(encoding="utf-8") == "prof-ti2"
+    assert (run.dir / f"{stem}.tif").read_text(encoding="utf-8") == "prof-tif"
+    assert run.measurement_ti3.read_text(encoding="utf-8") == "prof-meas"   # never touched
+    assert run.profile_icc.read_text(encoding="utf-8") == "prof-icc"
     # …and the verify chart lives only in verifications/.
-    assert run.verify_chart_ti2.read_text() == "verify-ti2"
-    assert (run.verifications_dir / f"{run.verify_stem}.tif").read_text() == "verify-tif"
+    assert run.verify_chart_ti2.read_text(encoding="utf-8") == "verify-ti2"
+    assert (run.verifications_dir / f"{run.verify_stem}.tif").read_text(encoding="utf-8") == "verify-tif"
     # The verify chart's stem is NOT at the run root.
     assert not (run.dir / f"{run.verify_stem}.ti2").exists()
 

@@ -34,7 +34,7 @@ from core.file_manager import Project                          # noqa: E402
 
 
 def _schema(root: Path) -> int:
-    return json.loads((root / "project.json").read_text())["schema_version"]
+    return json.loads((root / "project.json").read_text(encoding="utf-8"))["schema_version"]
 
 
 # ---- built once for the whole SUITE, copied per test ---------------------
@@ -99,14 +99,14 @@ def test_the_measurement_and_profile_are_never_moved(legacy_v1):
     """The Argyll-coupled chain stays exactly where it is — that coupling is
     what makes the files work at all."""
     run = legacy_v1 / "runs" / "run1"
-    before = (run / "Demo-Legacy-v1.ti3").read_text()
+    before = (run / "Demo-Legacy-v1.ti3").read_text(encoding="utf-8")
 
     Project.load(legacy_v1)
 
     assert (run / "Demo-Legacy-v1.ti3").is_file()
     assert (run / "Demo-Legacy-v1.icc").is_file()
     assert (run / "Demo-Legacy-v1.ti2").is_file()
-    assert (run / "Demo-Legacy-v1.ti3").read_text() == before, \
+    assert (run / "Demo-Legacy-v1.ti3").read_text(encoding="utf-8") == before, \
         "the measurement was rewritten"
 
 

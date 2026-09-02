@@ -104,7 +104,7 @@ def test_feeds_scanin_target_end_to_end(tmp_path):
     from workflow.scanin_target import build_scanin_target_from_paths
 
     lay = derive_grid_layout(MULTI, _rgb100(1500))
-    (tmp_path / "c.channels.json").write_text(json.dumps({"layout": lay}))
+    (tmp_path / "c.channels.json").write_text(json.dumps({"layout": lay}), encoding="utf-8")
     rows = []
     for i in range(1500):
         r, g, b = encode(i)
@@ -113,13 +113,13 @@ def test_feeds_scanin_target_end_to_end(tmp_path):
         'CTI3\n\nKEYWORD "SAMPLE_LOC"\n\nNUMBER_OF_FIELDS 8\nBEGIN_DATA_FORMAT\n'
         "SAMPLE_ID SAMPLE_LOC RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z\n"
         "END_DATA_FORMAT\n\nNUMBER_OF_SETS 1500\nBEGIN_DATA\n"
-        + "\n".join(rows) + "\nEND_DATA\n")
+        + "\n".join(rows) + "\nEND_DATA\n", encoding="utf-8")
     res = build_scanin_target_from_paths(
         tmp_path / "c.channels.json", tmp_path / "m.ti3", tmp_path / "out")
     assert res.n_patches == 1500 and res.n_pages == 2
     assert [p.name for p in res.cht_paths] == ["out_01.cht", "out_02.cht"]
     # numeric SampleID locs (what txt2ti3 yields) join the numeric geometry locs
-    page1_boxes = [ln for ln in res.cht_paths[0].read_text().splitlines()
+    page1_boxes = [ln for ln in res.cht_paths[0].read_text(encoding="utf-8").splitlines()
                    if ln.strip().startswith("X ")]
     assert len(page1_boxes) == 750
 
@@ -135,7 +135,7 @@ def _numeric_ti3(path: Path, n: int) -> None:
         'CTI3\n\nKEYWORD "SAMPLE_LOC"\n\nNUMBER_OF_FIELDS 8\nBEGIN_DATA_FORMAT\n'
         "SAMPLE_ID SAMPLE_LOC RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z\n"
         "END_DATA_FORMAT\n\n" + f"NUMBER_OF_SETS {n}\nBEGIN_DATA\n"
-        + "\n".join(rows) + "\nEND_DATA\n")
+        + "\n".join(rows) + "\nEND_DATA\n", encoding="utf-8")
 
 
 def test_orchestrator_from_ti1_and_render(tmp_path):

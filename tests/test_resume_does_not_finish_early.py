@@ -104,7 +104,7 @@ def test_starting_a_measurement_forgets_the_previous_one(manager, tmp_path):
     had already read something."""
     manager._read_something = True
     ti1 = tmp_path / "c.ti1"
-    ti1.write_text("CTI1")
+    ti1.write_text("CTI1", encoding="utf-8")
     try:
         manager.start(MeasureParams(ti1_path=ti1, instrument="1", resume=True),
                       on_line=lambda _s: None, on_finish=lambda _c: None)

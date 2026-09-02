@@ -87,7 +87,7 @@ def test_happy_path_full_session(fixed_chart):
     assert s.finish() == 0
     ti3 = base.with_suffix(".ti3")
     assert ti3.exists()
-    text = ti3.read_text()
+    text = ti3.read_text(encoding="utf-8")
     assert text.startswith("CTI3")
     assert 'TARGET_INSTRUMENT "GretagMacbeth i1 Pro"' in text
     assert text.count("\n") > 42          # header + 42 patch rows
@@ -281,8 +281,8 @@ def test_final_ti3_identical_single_shot_vs_autosave_path(tmp_path):
     s2.wait_event("done", timeout=5)
     s2.finish()
 
-    t1 = base1.with_suffix(".ti3").read_text().splitlines()
-    t2 = base2.with_suffix(".ti3").read_text().splitlines()
+    t1 = base1.with_suffix(".ti3").read_text(encoding="utf-8").splitlines()
+    t2 = base2.with_suffix(".ti3").read_text(encoding="utf-8").splitlines()
     # CREATED timestamps legitimately differ; every other byte must match.
     strip = lambda ls: [l for l in ls if not l.startswith('CREATED')]
     assert strip(t1) == strip(t2)

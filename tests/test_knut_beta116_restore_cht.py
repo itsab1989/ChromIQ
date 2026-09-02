@@ -35,7 +35,7 @@ from workflow.verify_chart_snapshot import (slot_snapshot_files,   # noqa: E402
 def _slot(tmp_path, names):
     snap = tmp_path / "chart"; snap.mkdir(exist_ok=True)
     for n in names:
-        (snap / n).write_text("x")
+        (snap / n).write_text("x", encoding="utf-8")
     live = tmp_path / "live"; live.mkdir(exist_ok=True)
     return types.SimpleNamespace(snapshot_dir=snap,
                                  files_to_copy=lambda: [],
@@ -65,8 +65,8 @@ def test_a_stray_dot_file_no_longer_makes_charts_look_different(tmp_path):
     snap = tmp_path / "chart"; snap.mkdir()
     live_dir = tmp_path / "live"; live_dir.mkdir()
     for d in (snap, live_dir):
-        (d / "P.ti1").write_text("same")
-    (snap / ".DS_Store").write_text("junk")
+        (d / "P.ti1").write_text("same", encoding="utf-8")
+    (snap / ".DS_Store").write_text("junk", encoding="utf-8")
     slot = types.SimpleNamespace(
         snapshot_dir=snap, files_to_copy=lambda: [live_dir / "P.ti1"],
         live_files=lambda: [live_dir / "P.ti1"])
@@ -107,9 +107,9 @@ def test_side_files_do_not_decide_whether_a_restore_would_change_anything(tmp_pa
     snap = tmp_path / "chart"; snap.mkdir()
     live_dir = tmp_path / "live"; live_dir.mkdir()
     for d in (snap, live_dir):
-        (d / "P.ti1").write_text("identical chart")
-    (snap / "meta.json").write_text('{"a": 1}')
-    (live_dir / "meta.json").write_text('{"a": 11}')      # the two-byte drift
+        (d / "P.ti1").write_text("identical chart", encoding="utf-8")
+    (snap / "meta.json").write_text('{"a": 1}', encoding="utf-8")
+    (live_dir / "meta.json").write_text('{"a": 11}', encoding="utf-8")      # the two-byte drift
     _live = [live_dir / "P.ti1", live_dir / "meta.json"]
     slot = types.SimpleNamespace(
         snapshot_dir=snap, files_to_copy=lambda: _live,
@@ -122,10 +122,10 @@ def test_a_real_chart_difference_is_still_seen(tmp_path):
     """The fix must not blind the check to what it is actually for."""
     snap = tmp_path / "chart"; snap.mkdir()
     live_dir = tmp_path / "live"; live_dir.mkdir()
-    (snap / "P.ti1").write_text("stored chart")
-    (live_dir / "P.ti1").write_text("DIFFERENT chart")
+    (snap / "P.ti1").write_text("stored chart", encoding="utf-8")
+    (live_dir / "P.ti1").write_text("DIFFERENT chart", encoding="utf-8")
     for d in (snap, live_dir):
-        (d / "meta.json").write_text("{}")
+        (d / "meta.json").write_text("{}", encoding="utf-8")
     _live = [live_dir / "P.ti1", live_dir / "meta.json"]
     slot = types.SimpleNamespace(
         snapshot_dir=snap, files_to_copy=lambda: _live,

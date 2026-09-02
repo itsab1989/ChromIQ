@@ -20,13 +20,13 @@ from workflow.verify_chart_snapshot import (restore_slot, slot_has_snapshot,
 def _run_with_chart(tmp_path, name="P", recipe=True):
     proj = Project.create(tmp_path / name, name)
     run = proj.current_run(); run.ensure_dir()
-    run.chart_ti1.write_text("TI1")
-    run.chart_ti2.write_text("TI2")
+    run.chart_ti1.write_text("TI1", encoding="utf-8")
+    run.chart_ti2.write_text("TI2", encoding="utf-8")
     if recipe:
-        run.chart_channels_json.write_text("{}")
-    (run.dir / f"{run.stem}_01.tif").write_text("PAGE")
+        run.chart_channels_json.write_text("{}", encoding="utf-8")
+    (run.dir / f"{run.stem}_01.tif").write_text("PAGE", encoding="utf-8")
     # the things a run also holds, which are NOT the chart
-    run.measurement_ti3.write_text("MEASUREMENT")
+    run.measurement_ti3.write_text("MEASUREMENT", encoding="utf-8")
     run.profile_icc.write_bytes(b"ICC")
     return proj, run
 
@@ -50,14 +50,14 @@ def test_the_settings_file_travels_with_the_chart(tmp_path):
     folders … Restoring the chart files should then also copy that meta.json
     file"."""
     _proj, run = _run_with_chart(tmp_path)
-    (run.dir / "meta.json").write_text('{"editor_recipe": {"count": 540}}')
+    (run.dir / "meta.json").write_text('{"editor_recipe": {"count": 540}}', encoding="utf-8")
 
     snapshot_slot(slot_for_run(run))
-    (run.dir / "meta.json").write_text('{"editor_recipe": {"count": 9}}')
+    (run.dir / "meta.json").write_text('{"editor_recipe": {"count": 9}}', encoding="utf-8")
     from workflow.verify_chart_snapshot import restore_slot
     restore_slot(slot_for_run(run))
 
-    assert '"count": 540' in (run.dir / "meta.json").read_text()
+    assert '"count": 540' in (run.dir / "meta.json").read_text(encoding="utf-8")
 
 
 def test_a_changed_settings_file_is_not_a_changed_chart(tmp_path):
@@ -67,7 +67,7 @@ def test_a_changed_settings_file_is_not_a_changed_chart(tmp_path):
     slot = slot_for_run(run)
     snapshot_slot(slot)
 
-    (run.dir / "meta.json").write_text('{"editor_recipe": {"count": 1}}')
+    (run.dir / "meta.json").write_text('{"editor_recipe": {"count": 1}}', encoding="utf-8")
 
     assert slot_live_differs(slot) is False
 
@@ -78,7 +78,7 @@ def test_a_run_with_only_a_settings_file_has_no_chart(tmp_path):
     from core.file_manager import Project
     proj = Project.create(tmp_path / "Bare", "Bare")
     run = proj.current_run(); run.ensure_dir()
-    (run.dir / "meta.json").write_text("{}")
+    (run.dir / "meta.json").write_text("{}", encoding="utf-8")
 
     assert snapshot_slot(slot_for_run(run)) is None
 
@@ -124,7 +124,7 @@ def test_a_changed_chart_is_reported_as_different(tmp_path):
     _proj, run = _run_with_chart(tmp_path)
     slot = slot_for_run(run)
     snapshot_slot(slot)
-    run.chart_ti2.write_text("A DIFFERENT CHART")
+    run.chart_ti2.write_text("A DIFFERENT CHART", encoding="utf-8")
     assert slot_live_differs(slot) is True
 
 
@@ -135,7 +135,7 @@ def test_a_new_measurement_does_not_count_as_a_changed_chart(tmp_path):
     _proj, run = _run_with_chart(tmp_path)
     slot = slot_for_run(run)
     snapshot_slot(slot)
-    run.measurement_ti3.write_text("A FRESH MEASUREMENT")
+    run.measurement_ti3.write_text("A FRESH MEASUREMENT", encoding="utf-8")
     assert slot_live_differs(slot) is False
 
 
@@ -144,14 +144,14 @@ def test_restoring_puts_the_chart_back_and_leaves_the_measurement(tmp_path):
     _proj, run = _run_with_chart(tmp_path)
     slot = slot_for_run(run)
     snapshot_slot(slot)
-    run.chart_ti2.write_text("REPLACED LATER")
-    run.measurement_ti3.write_text("MEASURED AFTERWARDS")
+    run.chart_ti2.write_text("REPLACED LATER", encoding="utf-8")
+    run.measurement_ti3.write_text("MEASURED AFTERWARDS", encoding="utf-8")
 
     result = restore_slot(slot)
 
     assert result.ok
-    assert run.chart_ti2.read_text() == "TI2"
-    assert run.measurement_ti3.read_text() == "MEASURED AFTERWARDS", \
+    assert run.chart_ti2.read_text(encoding="utf-8") == "TI2"
+    assert run.measurement_ti3.read_text(encoding="utf-8") == "MEASURED AFTERWARDS", \
         "a restore replaces the chart, never the measurement"
 
 
@@ -170,12 +170,12 @@ def test_a_restore_without_a_recipe_brings_the_pages_back_itself(tmp_path):
     _proj, run = _run_with_chart(tmp_path, recipe=False)
     slot = slot_for_run(run)
     snapshot_slot(slot)
-    (run.dir / f"{run.stem}_01.tif").write_text("A DIFFERENT PAGE")
+    (run.dir / f"{run.stem}_01.tif").write_text("A DIFFERENT PAGE", encoding="utf-8")
 
     result = restore_slot(slot)
 
     assert result.images_restored and not result.needs_regeneration
-    assert (run.dir / f"{run.stem}_01.tif").read_text() == "PAGE"
+    assert (run.dir / f"{run.stem}_01.tif").read_text(encoding="utf-8") == "PAGE"
 
 
 def test_the_two_slots_do_not_touch_each_other(tmp_path):
@@ -183,13 +183,13 @@ def test_the_two_slots_do_not_touch_each_other(tmp_path):
     place; restoring one must leave the other exactly as it was."""
     _proj, run = _run_with_chart(tmp_path)
     run.verifications_dir.mkdir(parents=True, exist_ok=True)
-    run.verify_chart_ti2.write_text("VERIFY CHART")
+    run.verify_chart_ti2.write_text("VERIFY CHART", encoding="utf-8")
     v = run.verification("2026-07-20_100000"); v.ensure_dir()
     snapshot_slot(slot_for_verification(v))
     snapshot_slot(slot_for_run(run))
 
-    run.chart_ti2.write_text("changed")
+    run.chart_ti2.write_text("changed", encoding="utf-8")
     restore_slot(slot_for_run(run))
 
-    assert run.verify_chart_ti2.read_text() == "VERIFY CHART"
+    assert run.verify_chart_ti2.read_text(encoding="utf-8") == "VERIFY CHART"
     assert slot_has_snapshot(slot_for_verification(v))

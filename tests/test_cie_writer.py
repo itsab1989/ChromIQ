@@ -21,7 +21,7 @@ def test_build_cie_text_structure(tmp_path):
     p = tmp_path / "c.ti3"
     p.write_text(_TI3, encoding="utf-8")
     out = cie_writer.write_cie(tmp_path / "c.cie", p, descriptor="My chart")
-    txt = out.read_text()
+    txt = out.read_text(encoding="utf-8")
 
     assert txt.startswith("IT8.7/2")
     assert 'DESCRIPTOR "My chart"' in txt

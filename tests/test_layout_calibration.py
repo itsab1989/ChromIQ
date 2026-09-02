@@ -41,7 +41,7 @@ CURVE_CAL = textwrap.dedent("""\
 
 
 def test_read_cal(tmp_path):
-    p = tmp_path / "lin.cal"; p.write_text(LINEAR_CAL)
+    p = tmp_path / "lin.cal"; p.write_text(LINEAR_CAL, encoding="utf-8")
     cal = calibration.read_cal(p)
     assert cal.color_rep == "RGB"
     assert cal.out_fields == ["RGB_R", "RGB_G", "RGB_B"]
@@ -50,14 +50,14 @@ def test_read_cal(tmp_path):
 
 
 def test_identity_apply(tmp_path):
-    p = tmp_path / "lin.cal"; p.write_text(LINEAR_CAL)
+    p = tmp_path / "lin.cal"; p.write_text(LINEAR_CAL, encoding="utf-8")
     cal = calibration.read_cal(p)
     out = cal.apply((50.0, 0.0, 100.0))
     assert out[0] == 50.0 and out[1] == 0.0 and out[2] == 100.0
 
 
 def test_curve_apply(tmp_path):
-    p = tmp_path / "c.cal"; p.write_text(CURVE_CAL)
+    p = tmp_path / "c.cal"; p.write_text(CURVE_CAL, encoding="utf-8")
     cal = calibration.read_cal(p)
     # R at 0.5 -> 0.25 -> 25 ; G identity -> 50 ; B clipped: 1.0 -> 0.5 -> 50
     out = cal.apply((50.0, 50.0, 100.0))
@@ -67,7 +67,7 @@ def test_curve_apply(tmp_path):
 
 
 def test_embed_text(tmp_path):
-    p = tmp_path / "lin.cal"; p.write_text(LINEAR_CAL)
+    p = tmp_path / "lin.cal"; p.write_text(LINEAR_CAL, encoding="utf-8")
     cal = calibration.read_cal(p)
     txt = calibration.cal_table_text(cal)
     assert txt.startswith("CAL")
@@ -88,11 +88,11 @@ def test_build_chart_embeds_and_applies(tmp_path):
         1 100.0 100.0 100.0 95.0 100.0 108.0
         2 50.0 50.0 100.0 30.0 30.0 60.0
         END_DATA
-        """))
-    cal = tmp_path / "c.cal"; cal.write_text(CURVE_CAL)
+        """), encoding="utf-8")
+    cal = tmp_path / "c.cal"; cal.write_text(CURVE_CAL, encoding="utf-8")
     res = chart.build_chart(ti1, tmp_path / "out", instrument="i1", paper="A4",
                             seed=1, dpi=72, cal_path=cal, apply_cal=True)
-    text = res.ti2_path.read_text()
+    text = res.ti2_path.read_text(encoding="utf-8")
     assert "COLOR_REP" in text
     # the embedded CAL table follows the CTI2 table
     assert text.count("BEGIN_DATA") >= 2

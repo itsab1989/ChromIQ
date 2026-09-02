@@ -93,7 +93,7 @@ def test_the_n_channel_tooltip_is_honest():
     flag preserves the ink values. Neither is true: every ink is written either
     way, and the flag only changes how the extras are labelled."""
     import yaml
-    data = yaml.safe_load(open("data/parameters.yaml"))["parameters"]
+    data = yaml.safe_load(open("data/parameters.yaml", encoding="utf-8"))["parameters"]
     n = next(p for p in data["printtarg"] if p["flag"] == "-N")
     body = n["tooltip_body"]
     assert "EVERY INK IS WRITTEN TO THE FILE EITHER WAY" in body

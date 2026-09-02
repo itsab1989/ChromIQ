@@ -365,12 +365,12 @@ def test_the_chart_stores_its_own_style(tmp_path):
         chart_date: str = "2026-09-01"
 
     sidecar = tmp_path / "c.channels.json"
-    sidecar.write_text("{}")
+    sidecar.write_text("{}", encoding="utf-8")
     params = ChartParams()
     params.layout_recipe = LayoutRecipe(indicator_size_mm=4.23)   # no flag
     ChartCreator._embed_layout_geometry(
         ChartCreator.__new__(ChartCreator), tmp_path, "c", _Result(), params)
-    rec = json.loads(sidecar.read_text())["layout"]["recipe"]
+    rec = json.loads(sidecar.read_text(encoding="utf-8"))["layout"]["recipe"]
     assert rec["label_style_explicit"] is True
     assert rec["indicator_size_mm"] == pytest.approx(4.23)
 

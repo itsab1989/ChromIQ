@@ -24,7 +24,7 @@ def _measured(tmp_path, monkeypatch, flags_fn):
     s, fm, ctl, run = _verify_env(tmp_path)
     v = run.new_verification()
     v.ensure_dir()
-    v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES))
+    v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES), encoding="utf-8")
     # the referee profile only has to EXIST — the round trip is stubbed
     run.built_profile_icc().parent.mkdir(parents=True, exist_ok=True)
     run.built_profile_icc().write_bytes(b"icc")
@@ -108,7 +108,7 @@ def test_verification_default_guard_is_wired(qapp):
     src = inspect.getsource(T.TabChart._refresh_gamut_visibility)
     assert 'self._switch_mode("gamut")' in src
     assert "_user_chose_module" in src and "profile is not None" in src
-    whole = Path(T.__file__).read_text()
+    whole = Path(T.__file__).read_text(encoding="utf-8")
     assert whole.count("_user_switch_mode(") >= 4      # def + three buttons
     assert 'clicked.connect(lambda: self._switch_mode(' not in whole
 
@@ -128,7 +128,7 @@ def test_report_options_are_remembered(qapp, tmp_path):
     s, fm, ctl, run = _verify_env(tmp_path)
     v = run.new_verification()
     v.ensure_dir()
-    v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES))
+    v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES), encoding="utf-8")
 
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
     dlg = MeasurementReportDialog(s, None, initial_ti3=v.measurement_ti3)
@@ -156,7 +156,7 @@ def test_report_options_are_remembered(qapp, tmp_path):
 def _drift_run(dir_: Path, name: str, ti3_text: str, created: str,
                colour="raw") -> dict:
     dir_.mkdir(parents=True, exist_ok=True)
-    (dir_ / name).write_text(ti3_text)
+    (dir_ / name).write_text(ti3_text, encoding="utf-8")
     return {"is_verification": True, "reference_source": "design",
             "printing": {"colour": colour}, "created": created,
             "_origin_dir": str(dir_), "ti3": name}

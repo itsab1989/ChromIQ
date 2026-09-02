@@ -83,7 +83,7 @@ def test_pxf_export_handles_white_ink(tmp_path):
     rows = [(tuple(10.0 for _ in range(n)), None) for _ in range(4)]
     ti1 = write_ti1_nchannel(rep, fields, rows, tmp_path / "c.ti1", ink_limit=300)
     _txt, pxf = X.export_from_ti1(ti1, tmp_path, base_name="c-i1p", descriptor="c")
-    body = pxf.read_text()
+    body = pxf.read_text(encoding="utf-8")
     assert "White" in body and "Light Yellow" in body
 
 
@@ -147,7 +147,7 @@ def test_sidecar_ink_channels_roundtrip(tmp_path):
     codes = rep_ink_codes("CMYKOG")
     assert codes == ["c", "m", "y", "k", "o", "g"]
     (tmp_path / "chart.channels.json").write_text(
-        json.dumps({"layout": {"engine": "chromiq"}, "ink_channels": codes}))
+        json.dumps({"layout": {"engine": "chromiq"}, "ink_channels": codes}), encoding="utf-8")
     (tmp_path / "chart_01.tif").write_bytes(b"")
     assert _find_sidecar_channels(tmp_path / "chart_01.tif") == codes
 

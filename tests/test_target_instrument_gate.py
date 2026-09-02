@@ -71,7 +71,7 @@ PAST_THE_GATE = "STEPS_IN_PASS"
 def _chart(tmp_path: Path, instrument: str | None) -> Path:
     kw = "" if instrument is None else f'TARGET_INSTRUMENT "{instrument}"\n'
     base = tmp_path / "probe"
-    base.with_suffix(".ti2").write_text(_TI2.format(instrument=kw))
+    base.with_suffix(".ti2").write_text(_TI2.format(instrument=kw), encoding="utf-8")
     return base
 
 

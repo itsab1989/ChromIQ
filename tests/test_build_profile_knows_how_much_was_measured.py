@@ -67,17 +67,17 @@ def tab():
 
 
 def _load(tab, tmp_path, n):
-    (tmp_path / "chart.ti2").write_text(_TI2)
+    (tmp_path / "chart.ti2").write_text(_TI2, encoding="utf-8")
     ti3 = tmp_path / "chart.ti3"
-    ti3.write_text(_ti3(n))
+    ti3.write_text(_ti3(n), encoding="utf-8")
     tab.set_ti3_path(ti3, propagate=False)
     return ti3
 
 
 def test_an_empty_measurement_cannot_build_a_profile(tab, tmp_path):
-    (tmp_path / "chart.ti2").write_text(_TI2)
+    (tmp_path / "chart.ti2").write_text(_TI2, encoding="utf-8")
     ti3 = tmp_path / "chart.ti3"
-    ti3.write_text(_HEAD + "\nNUMBER_OF_SETS 0\nBEGIN_DATA\nEND_DATA\n")
+    ti3.write_text(_HEAD + "\nNUMBER_OF_SETS 0\nBEGIN_DATA\nEND_DATA\n", encoding="utf-8")
     tab.set_ti3_path(ti3, propagate=False)
     assert not tab._build_btn.isEnabled(), (
         "Build Profile is offered for a measurement holding no readings")
@@ -139,9 +139,9 @@ def test_padding_patches_are_not_counted_as_missing(tab, tmp_path):
     Real charts on the owner's machine: a 1,155-row chart with 3 padding rows
     and a 1,173-row one with 13.
     """
-    (tmp_path / "chart.ti2").write_text(_TI2_PADDED)
+    (tmp_path / "chart.ti2").write_text(_TI2_PADDED, encoding="utf-8")
     ti3 = tmp_path / "chart.ti3"
-    ti3.write_text(_ti3(4))              # all four REAL patches measured
+    ti3.write_text(_ti3(4), encoding="utf-8")              # all four REAL patches measured
     tab.set_ti3_path(ti3, propagate=False)
 
     assert tab._build_btn.isEnabled()

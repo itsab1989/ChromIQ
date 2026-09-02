@@ -263,7 +263,7 @@ def test_engine_v2_cprt_transliterates_because_texttype_has_no_unicode():
 def _params(tmp_path: Path, description: str):
     from workflow.profile_builder import ProfileParams
     ti3 = tmp_path / "Target.ti3"
-    ti3.write_text("CTI3\n")
+    ti3.write_text("CTI3\n", encoding="utf-8")
     return ProfileParams(ti3_path=ti3, description=description)
 
 

@@ -132,7 +132,7 @@ def test_g1_a_user_preset_with_an_attached_ti1_does_not_invent(qapp, settings,
     (d / f"{name}.json").write_text(json.dumps(
         {"chromiq_preset_version": 1, "tab": "create_chart", "name": name,
          "data": {"auto_run": True, "attached_ti1": True,
-                  "printtarg_-i": "i1", "printtarg_-p": "A4"}}))
+                  "printtarg_-i": "i1", "printtarg_-p": "A4"}}), encoding="utf-8")
     shutil.copy(resource_path([p for p in KNUT_PRESETS
                                if p.slug.startswith("i1_w8")][0].ti1_asset),
                 ps.sidecar_path("create_chart", name, ".ti1"))
@@ -271,14 +271,14 @@ def test_g3_create_chart_help_does_not_send_you_to_the_reveal_folder_button(qapp
     in the header (top right)" for Open Project. That button moved to the
     masthead top LEFT in #130 — and a magenta folder button really is still in
     the Create Chart header top right: Reveal Folder."""
-    src = Path("/Users/Basti/develop/ChromIQ/ui/tabs/tab_chart.py").read_text()
+    src = Path("/Users/Basti/develop/ChromIQ/ui/tabs/tab_chart.py").read_text(encoding="utf-8")
     assert "magenta folder button" not in src
     assert "use the folder icon to\n" not in src and \
            "use the folder icon to " not in src
 
 
 def test_g3_the_gear_is_not_at_the_top_left():
-    src = Path("/Users/Basti/develop/ChromIQ/ui/tabs/tab_profile.py").read_text()
+    src = Path("/Users/Basti/develop/ChromIQ/ui/tabs/tab_profile.py").read_text(encoding="utf-8")
     assert "the gear at the top left" not in src, \
         "the settings gear is a top-RIGHT masthead child (masthead_header.py:96)"
 

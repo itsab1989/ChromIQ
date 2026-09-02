@@ -149,7 +149,7 @@ def test_tidy_legacy_intermediates_moves_debris_keeps_data(tmp_path):
             "x-p1s1-scanner.ti3", "x-p1-avg.ti3", "chart.cht", "chart.cie",
             "myscan.tif"]
     for n in debris + data:
-        (tmp_path / n).write_text("f")
+        (tmp_path / n).write_text("f", encoding="utf-8")
     moved = tidy_legacy_intermediates(tmp_path)
     assert sorted(p.name for p in moved) == sorted(debris)
     for n in debris:
@@ -163,9 +163,9 @@ def test_tidy_plain_sample_only_when_derived(tmp_path):
     """`<x>-sample.cht` moves only when its source `<x>.cht` sits beside it —
     a user's own chart merely ending in -sample is never touched."""
     from workflow.scanin_runner import tidy_legacy_intermediates
-    (tmp_path / "chart.cht").write_text("src")
-    (tmp_path / "chart-sample.cht").write_text("derived")      # → cache
-    (tmp_path / "colour-sample.cht").write_text("user chart")  # stays
+    (tmp_path / "chart.cht").write_text("src", encoding="utf-8")
+    (tmp_path / "chart-sample.cht").write_text("derived", encoding="utf-8")      # → cache
+    (tmp_path / "colour-sample.cht").write_text("user chart", encoding="utf-8")  # stays
     moved = tidy_legacy_intermediates(tmp_path)
     assert [p.name for p in moved] == ["chart-sample.cht"]
     assert (tmp_path / "colour-sample.cht").exists()
@@ -174,12 +174,12 @@ def test_tidy_plain_sample_only_when_derived(tmp_path):
 def test_tidy_conflict_drops_stale_duplicate(tmp_path):
     from workflow.scanin_runner import tidy_legacy_intermediates
     (tmp_path / "cache").mkdir()
-    (tmp_path / "cache" / "a-patchbox.cht").write_text("fresh")
-    (tmp_path / "a-patchbox.cht").write_text("stale flat copy")
+    (tmp_path / "cache" / "a-patchbox.cht").write_text("fresh", encoding="utf-8")
+    (tmp_path / "a-patchbox.cht").write_text("stale flat copy", encoding="utf-8")
     moved = tidy_legacy_intermediates(tmp_path)
     assert moved == []                                  # nothing newly moved
     assert not (tmp_path / "a-patchbox.cht").exists()   # stale dupe removed
-    assert (tmp_path / "cache" / "a-patchbox.cht").read_text() == "fresh"
+    assert (tmp_path / "cache" / "a-patchbox.cht").read_text(encoding="utf-8") == "fresh"
 
 
 def test_tidy_missing_folder_is_noop(tmp_path):

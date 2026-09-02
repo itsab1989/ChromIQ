@@ -128,7 +128,7 @@ def test_the_archive_really_moves_the_files(tmp_path):
     for vid in ("2026-01-01_100000", "2026-02-01_100000"):
         v = run.verification(vid)
         v.ensure_dir()
-        v.measurement_ti3.write_text("BEGIN_DATA\nEND_DATA\n")
+        v.measurement_ti3.write_text("BEGIN_DATA\nEND_DATA\n", encoding="utf-8")
 
     TabProfile._archive_superseded_profile(
         _Silent(), run)
@@ -154,7 +154,7 @@ def test_the_verifications_do_not_land_in_the_runs_own_old_folder(tmp_path):
     run.built_profile_icc().write_bytes(b"icc")
     v = run.verification("2026-01-01_100000")
     v.ensure_dir()
-    v.measurement_ti3.write_text("BEGIN_DATA\nEND_DATA\n")
+    v.measurement_ti3.write_text("BEGIN_DATA\nEND_DATA\n", encoding="utf-8")
 
     TabProfile._archive_superseded_profile(_Silent(), run)
 

@@ -328,7 +328,7 @@ def test_the_ti2_carries_the_honest_name(tmp_path: Path, hexagonal: bool) -> Non
     assert is_cr30(read_target_instrument(out))
     # The hex flag has to survive into the file too, or every downstream
     # consumer of HEXAGON_PATCHES sees a rectangular chart.
-    assert ('HEXAGON_PATCHES "True"' in out.read_text()) is hexagonal
+    assert ('HEXAGON_PATCHES "True"' in out.read_text(encoding="utf-8")) is hexagonal
 
 
 @pytest.mark.parametrize("name,expected", [

@@ -105,8 +105,8 @@ def _archived(run) -> "list[str]":
 # ---- the file is MOVED, and only when it is genuinely empty ---------------
 def test_an_empty_measurement_is_moved_into_old(qapp, tmp_path, monkeypatch):
     run = _run(tmp_path)
-    run.chart_ti2.write_text("CTI2")
-    run.measurement_ti3.write_text(empty_ti3())
+    run.chart_ti2.write_text("CTI2", encoding="utf-8")
+    run.measurement_ti3.write_text(empty_ti3(), encoding="utf-8")
     tab = _tab(tmp_path)
     tab._ti1_path = run.chart_ti2
     seen = _silence(monkeypatch)
@@ -123,8 +123,8 @@ def test_an_empty_measurement_is_moved_into_old(qapp, tmp_path, monkeypatch):
 def test_the_moved_file_keeps_its_contents(qapp, tmp_path, monkeypatch):
     """Moved, not emptied: whatever chartread wrote is still readable in old/."""
     run = _run(tmp_path)
-    run.chart_ti2.write_text("CTI2")
-    run.measurement_ti3.write_text(empty_ti3())
+    run.chart_ti2.write_text("CTI2", encoding="utf-8")
+    run.measurement_ti3.write_text(empty_ti3(), encoding="utf-8")
     tab = _tab(tmp_path)
     tab._ti1_path = run.chart_ti2
     _silence(monkeypatch)
@@ -133,14 +133,14 @@ def test_the_moved_file_keeps_its_contents(qapp, tmp_path, monkeypatch):
 
     moved = [p for p in run.old_dir.rglob("*") if p.is_file()]
     assert len(moved) == 1
-    assert moved[0].read_text() == empty_ti3()
+    assert moved[0].read_text(encoding="utf-8") == empty_ti3()
 
 
 def test_a_file_with_no_data_section_at_all_counts_as_empty(qapp, tmp_path,
                                                             monkeypatch):
     run = _run(tmp_path)
-    run.chart_ti2.write_text("CTI2")
-    run.measurement_ti3.write_text(headerless_ti3())
+    run.chart_ti2.write_text("CTI2", encoding="utf-8")
+    run.measurement_ti3.write_text(headerless_ti3(), encoding="utf-8")
     tab = _tab(tmp_path)
     tab._ti1_path = run.chart_ti2
     _silence(monkeypatch)
@@ -155,23 +155,23 @@ def test_a_single_reading_is_a_measurement_and_stays(qapp, tmp_path, monkeypatch
     """The line between 'nothing' and 'something' is one patch, and one patch
     already cost the user a print."""
     run = _run(tmp_path)
-    run.chart_ti2.write_text("CTI2")
-    run.measurement_ti3.write_text(measured_ti3(1))
+    run.chart_ti2.write_text("CTI2", encoding="utf-8")
+    run.measurement_ti3.write_text(measured_ti3(1), encoding="utf-8")
     tab = _tab(tmp_path)
     tab._ti1_path = run.chart_ti2
     seen = _silence(monkeypatch)
 
     tab._archive_empty_measurement()
 
-    assert run.measurement_ti3.read_text() == measured_ti3(1)
+    assert run.measurement_ti3.read_text(encoding="utf-8") == measured_ti3(1)
     assert not run.old_dir.exists() or not _archived(run)
     assert not seen, "it claimed nothing was measured after a patch was read"
 
 
 def test_a_full_measurement_is_untouched_and_silent(qapp, tmp_path, monkeypatch):
     run = _run(tmp_path)
-    run.chart_ti2.write_text("CTI2")
-    run.measurement_ti3.write_text(measured_ti3())
+    run.chart_ti2.write_text("CTI2", encoding="utf-8")
+    run.measurement_ti3.write_text(measured_ti3(), encoding="utf-8")
     tab = _tab(tmp_path)
     tab._ti1_path = run.chart_ti2
     seen = _silence(monkeypatch)
@@ -185,7 +185,7 @@ def test_a_full_measurement_is_untouched_and_silent(qapp, tmp_path, monkeypatch)
 def test_no_file_at_all_says_nothing(qapp, tmp_path, monkeypatch):
     """A session that never created a file needs no explanation about one."""
     run = _run(tmp_path)
-    run.chart_ti2.write_text("CTI2")
+    run.chart_ti2.write_text("CTI2", encoding="utf-8")
     tab = _tab(tmp_path)
     tab._ti1_path = run.chart_ti2
     seen = _silence(monkeypatch)
@@ -207,8 +207,8 @@ def test_a_move_that_fails_does_not_crash_or_lie(qapp, tmp_path, monkeypatch):
     certainly not a window announcing a move that never happened."""
     import shutil
     run = _run(tmp_path)
-    run.chart_ti2.write_text("CTI2")
-    run.measurement_ti3.write_text(empty_ti3())
+    run.chart_ti2.write_text("CTI2", encoding="utf-8")
+    run.measurement_ti3.write_text(empty_ti3(), encoding="utf-8")
     tab = _tab(tmp_path)
     tab._ti1_path = run.chart_ti2
     seen = _silence(monkeypatch)
@@ -233,8 +233,8 @@ def _replaced_then_cancelled(tmp_path, monkeypatch):
     """Set up exactly that: a real measurement, archived by the real Start-path
     method, and then a session that writes nothing."""
     run = _run(tmp_path)
-    run.chart_ti2.write_text("CTI2")
-    run.measurement_ti3.write_text(measured_ti3(12))
+    run.chart_ti2.write_text("CTI2", encoding="utf-8")
+    run.measurement_ti3.write_text(measured_ti3(12), encoding="utf-8")
     tab = _tab(tmp_path)
     tab._ti1_path = run.chart_ti2
     tab._archive_measurement_before_replacing()          # the real Start step
@@ -250,7 +250,7 @@ def test_a_cancelled_session_puts_the_measurement_back(qapp, tmp_path,
     tab._archive_empty_measurement()      # the session ended, having written nothing
 
     assert run.measurement_ti3.is_file(), "the measurement never came back"
-    assert "NUMBER_OF_SETS 12" in run.measurement_ti3.read_text()
+    assert "NUMBER_OF_SETS 12" in run.measurement_ti3.read_text(encoding="utf-8")
     assert seen, "the user was not told the read changed nothing"
     assert "put back exactly where it was" in seen[0]
 
@@ -270,12 +270,12 @@ def test_nothing_is_put_back_when_the_session_did_measure(qapp, tmp_path,
     """The guard is for sessions that wrote nothing. A real measurement stands,
     and the copy it displaced stays archived."""
     run, tab = _replaced_then_cancelled(tmp_path, monkeypatch)
-    run.measurement_ti3.write_text(measured_ti3(5))       # this session's file
+    run.measurement_ti3.write_text(measured_ti3(5), encoding="utf-8")       # this session's file
     _silence(monkeypatch)
 
     tab._archive_empty_measurement()
 
-    assert "NUMBER_OF_SETS 5" in run.measurement_ti3.read_text()
+    assert "NUMBER_OF_SETS 5" in run.measurement_ti3.read_text(encoding="utf-8")
     assert _archived(run), "the displaced measurement should still be in old/"
 
 
@@ -309,8 +309,8 @@ def test_an_empty_measurement_is_not_an_existing_measurement(qapp, tmp_path):
     """Knut's report: the Measure tab warned about a measurement, and Generate
     Chart warned one would be displaced, for a file holding no readings."""
     run = _run(tmp_path)
-    run.chart_ti2.write_text("CTI2")
-    run.measurement_ti3.write_text(empty_ti3())
+    run.chart_ti2.write_text("CTI2", encoding="utf-8")
+    run.measurement_ti3.write_text(empty_ti3(), encoding="utf-8")
     tab = _tab(tmp_path)
     tab._ti1_path = run.chart_ti2
 
@@ -319,8 +319,8 @@ def test_an_empty_measurement_is_not_an_existing_measurement(qapp, tmp_path):
 
 def test_a_real_measurement_still_is_one(qapp, tmp_path):
     run = _run(tmp_path)
-    run.chart_ti2.write_text("CTI2")
-    run.measurement_ti3.write_text(measured_ti3())
+    run.chart_ti2.write_text("CTI2", encoding="utf-8")
+    run.measurement_ti3.write_text(measured_ti3(), encoding="utf-8")
     tab = _tab(tmp_path)
     tab._ti1_path = run.chart_ti2
 
@@ -340,8 +340,8 @@ def test_the_window_says_where_the_file_went_and_what_is_safe(qapp, tmp_path,
     """Moving a file is alarming unless the message answers the fears it raises:
     where it went, that nothing was deleted, and that everything else stands."""
     run = _run(tmp_path)
-    run.chart_ti2.write_text("CTI2")
-    run.measurement_ti3.write_text(empty_ti3())
+    run.chart_ti2.write_text("CTI2", encoding="utf-8")
+    run.measurement_ti3.write_text(empty_ti3(), encoding="utf-8")
     tab = _tab(tmp_path)
     tab._ti1_path = run.chart_ti2
     seen = _silence(monkeypatch)
@@ -366,8 +366,8 @@ def test_a_displaced_measurement_that_vanished_is_not_claimed_to_be_safe(
     otherwise.
     """
     run = _run(tmp_path)
-    run.chart_ti2.write_text("CTI2")
-    run.measurement_ti3.write_text(empty_ti3())
+    run.chart_ti2.write_text("CTI2", encoding="utf-8")
+    run.measurement_ti3.write_text(empty_ti3(), encoding="utf-8")
     tab = _tab(tmp_path)
     tab._ti1_path = run.chart_ti2
     tab._displaced_measurement = run.old_dir / "gone"   # never created
@@ -385,8 +385,8 @@ def test_the_claim_is_not_carried_into_the_next_session(qapp, tmp_path,
     """A stale flag would make every later window mention a displacement that
     did not happen."""
     run = _run(tmp_path)
-    run.chart_ti2.write_text("CTI2")
-    run.measurement_ti3.write_text(empty_ti3())
+    run.chart_ti2.write_text("CTI2", encoding="utf-8")
+    run.measurement_ti3.write_text(empty_ti3(), encoding="utf-8")
     tab = _tab(tmp_path)
     tab._ti1_path = run.chart_ti2
     tab._displaced_measurement = run.old_dir / "x"
@@ -423,13 +423,13 @@ def test_the_refinement_sub_option_hides_with_its_parent(qapp, tmp_path):
     under nothing — offering to refine a measurement that does not exist."""
     from core.file_manager import reports_subdir
     run = _run(tmp_path)
-    run.chart_ti2.write_text("CTI2")
-    run.measurement_ti3.write_text(empty_ti3())
+    run.chart_ti2.write_text("CTI2", encoding="utf-8")
+    run.measurement_ti3.write_text(empty_ti3(), encoding="utf-8")
     # A refinement-strips file IS present: that is what used to keep the
     # sub-option visible and ticked regardless of the measurement.
     reports = reports_subdir(run.dir)
     reports.mkdir(parents=True, exist_ok=True)
-    (reports / f"Refine_Strips_{run.chart_ti2.stem}.txt").write_text("A\n")
+    (reports / f"Refine_Strips_{run.chart_ti2.stem}.txt").write_text("A\n", encoding="utf-8")
 
     tab = _tab(tmp_path)
     tab._ti1_path = run.chart_ti2
@@ -458,11 +458,11 @@ def test_a_real_measurement_still_offers_the_sub_option(qapp, tmp_path):
     """The fix must not take the option away when it genuinely applies."""
     from core.file_manager import reports_subdir
     run = _run(tmp_path)
-    run.chart_ti2.write_text("CTI2")
-    run.measurement_ti3.write_text(measured_ti3())
+    run.chart_ti2.write_text("CTI2", encoding="utf-8")
+    run.measurement_ti3.write_text(measured_ti3(), encoding="utf-8")
     reports = reports_subdir(run.dir)
     reports.mkdir(parents=True, exist_ok=True)
-    (reports / f"Refine_Strips_{run.chart_ti2.stem}.txt").write_text("A\n")
+    (reports / f"Refine_Strips_{run.chart_ti2.stem}.txt").write_text("A\n", encoding="utf-8")
 
     tab = _tab(tmp_path)
     tab._ti1_path = run.chart_ti2
@@ -498,12 +498,12 @@ def test_storing_a_chart_leaves_only_that_chart(tmp_path):
     live = tmp_path / "live"; live.mkdir()
     snap = tmp_path / "chart"; snap.mkdir()
     # What the previous chart left behind, including the .cht he named.
-    (snap / "Old-Chart.cht").write_text("old")
-    (snap / "Old-Chart.ti2").write_text("old")
+    (snap / "Old-Chart.cht").write_text("old", encoding="utf-8")
+    (snap / "Old-Chart.ti2").write_text("old", encoding="utf-8")
     new_files = []
     for name in ("New-Chart.ti1", "New-Chart.ti2"):
         f = live / name
-        f.write_text("new")
+        f.write_text("new", encoding="utf-8")
         new_files.append(f)
 
     slot = types.SimpleNamespace(snapshot_dir=snap,
@@ -522,7 +522,7 @@ def test_an_empty_chart_list_leaves_the_stored_chart_alone(tmp_path):
     from workflow.verify_chart_snapshot import snapshot_slot
 
     snap = tmp_path / "chart"; snap.mkdir()
-    (snap / "Kept.ti2").write_text("keep me")
+    (snap / "Kept.ti2").write_text("keep me", encoding="utf-8")
     slot = types.SimpleNamespace(snapshot_dir=snap, files_to_copy=lambda: [])
 
     assert snapshot_slot(slot) is None
@@ -535,8 +535,8 @@ def _displaced(tab, run, content):
     archived, and an empty file in its place."""
     dest = run.old_dir / "2026-07-31_120000"
     dest.mkdir(parents=True)
-    (dest / run.measurement_ti3.name).write_text(content)
-    run.measurement_ti3.write_text(empty_ti3())
+    (dest / run.measurement_ti3.name).write_text(content, encoding="utf-8")
+    run.measurement_ti3.write_text(empty_ti3(), encoding="utf-8")
     tab._displaced_measurement = dest
     return dest
 
@@ -546,7 +546,7 @@ def test_measuring_nothing_puts_the_old_measurement_back(qapp, tmp_path,
     """Knut, #130 2026-07-31: *"the empty ti3 should be removed and the ti3 that
     was temporarily stored in old should be returned to where it was placed."*"""
     run = _run(tmp_path)
-    run.chart_ti2.write_text("CTI2")
+    run.chart_ti2.write_text("CTI2", encoding="utf-8")
     tab = _tab(tmp_path)
     tab._ti1_path = run.chart_ti2
     dest = _displaced(tab, run, measured_ti3())
@@ -554,7 +554,7 @@ def test_measuring_nothing_puts_the_old_measurement_back(qapp, tmp_path,
 
     tab._archive_empty_measurement()
 
-    assert run.measurement_ti3.read_text() == measured_ti3(), \
+    assert run.measurement_ti3.read_text(encoding="utf-8") == measured_ti3(), \
         "the previous measurement was not put back"
     assert not dest.exists(), "the old/<date_time> folder was left behind"
     assert seen and "put back exactly where it was" in seen[0]
@@ -563,7 +563,7 @@ def test_measuring_nothing_puts_the_old_measurement_back(qapp, tmp_path,
 def test_the_empty_file_is_not_left_anywhere(qapp, tmp_path, monkeypatch):
     """It must not survive in old/ either — it is not a measurement."""
     run = _run(tmp_path)
-    run.chart_ti2.write_text("CTI2")
+    run.chart_ti2.write_text("CTI2", encoding="utf-8")
     tab = _tab(tmp_path)
     tab._ti1_path = run.chart_ti2
     _displaced(tab, run, measured_ti3())
@@ -580,11 +580,11 @@ def test_a_folder_holding_other_files_is_not_removed(qapp, tmp_path, monkeypatch
     """Only the folder this read created gets cleaned up; anything else in it
     belongs to somebody."""
     run = _run(tmp_path)
-    run.chart_ti2.write_text("CTI2")
+    run.chart_ti2.write_text("CTI2", encoding="utf-8")
     tab = _tab(tmp_path)
     tab._ti1_path = run.chart_ti2
     dest = _displaced(tab, run, measured_ti3())
-    (dest / "someone-elses.icc").write_text("keep me")
+    (dest / "someone-elses.icc").write_text("keep me", encoding="utf-8")
     _silence(monkeypatch)
 
     tab._archive_empty_measurement()
@@ -597,8 +597,8 @@ def test_with_nothing_displaced_it_still_archives_the_empty_file(qapp, tmp_path,
                                                                  monkeypatch):
     """The first-read case he described earlier must keep working."""
     run = _run(tmp_path)
-    run.chart_ti2.write_text("CTI2")
-    run.measurement_ti3.write_text(empty_ti3())
+    run.chart_ti2.write_text("CTI2", encoding="utf-8")
+    run.measurement_ti3.write_text(empty_ti3(), encoding="utf-8")
     tab = _tab(tmp_path)
     tab._ti1_path = run.chart_ti2
     tab._displaced_measurement = None
@@ -624,7 +624,7 @@ def test_a_header_only_file_holds_no_readings(tmp_path):
     """§3a's "header only": NUMBER_OF_SETS, a data FORMAT block, and no data."""
     from ui.tabs.tab_measure import _cgats_has_no_readings
     ti3 = tmp_path / "headeronly.ti3"
-    ti3.write_text(headerless_ti3())
+    ti3.write_text(headerless_ti3(), encoding="utf-8")
     assert _cgats_has_no_readings(ti3) is True
 
 
@@ -640,7 +640,7 @@ def test_the_two_checks_agree(tmp_path):
     }
     for name, text in cases.items():
         ti3 = tmp_path / name
-        ti3.write_text(text)
+        ti3.write_text(text, encoding="utf-8")
         facts = classify(ti3, None)
         uncountable = facts.state in (Ti3State.EMPTY, Ti3State.NO_DATA_BLOCK)
         assert _cgats_has_no_readings(ti3) is uncountable, name

@@ -57,7 +57,7 @@ def _cgats(tmp_path, name, n_rows, claimed=None):
     rows = "".join(f"{i} 0 0 0\n" for i in range(1, n_rows + 1))
     p = tmp_path / name
     p.write_text(HEADER.format(n=claimed if claimed is not None else n_rows,
-                               rows=rows))
+                               rows=rows), encoding="utf-8")
     return p
 
 

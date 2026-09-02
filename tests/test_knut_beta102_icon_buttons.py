@@ -62,7 +62,7 @@ def _live_differs(target) -> None:
     """
     from workflow.chart_slot import slot_for
     for f in slot_for(target).files_to_copy():
-        f.write_text(f.read_text() + "  # edited since the snapshot")
+        f.write_text(f.read_text(encoding="utf-8") + "  # edited since the snapshot", encoding="utf-8")
         return
 
 
@@ -89,8 +89,8 @@ def _project(tmp_path, *, runs=1, dated=(), snapshot_dates=(),
     run.ensure_dir()
     for _ in range(runs - 1):
         proj.new_run().ensure_dir()
-    run.chart_ti1.write_text("TI1")
-    run.chart_ti2.write_text("TI2")
+    run.chart_ti1.write_text("TI1", encoding="utf-8")
+    run.chart_ti2.write_text("TI2", encoding="utf-8")
     if profiling_snapshot:
         snapshot_slot(slot_for(run)); _live_differs(run)
         if stale:
@@ -99,9 +99,9 @@ def _project(tmp_path, *, runs=1, dated=(), snapshot_dates=(),
             run.save_meta(meta)
     run.verifications_dir.mkdir(parents=True, exist_ok=True)
     if verify_chart or dated:
-        run.verify_chart_ti1.write_text("TI1")
-        run.verify_chart_ti2.write_text("TI2")
-        (run.verifications_dir / f"{run.verify_stem}.channels.json").write_text("{}")
+        run.verify_chart_ti1.write_text("TI1", encoding="utf-8")
+        run.verify_chart_ti2.write_text("TI2", encoding="utf-8")
+        (run.verifications_dir / f"{run.verify_stem}.channels.json").write_text("{}", encoding="utf-8")
     for vid in dated:
         v = run.verification(vid)
         v.ensure_dir()

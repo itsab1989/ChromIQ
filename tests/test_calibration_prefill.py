@@ -22,7 +22,7 @@ def _build(settings, *, with_cal: bool):
     if with_cal:
         cal = proj.calibration
         cal.ensure_dir()
-        cal.cal_path.write_text("a calibration")
+        cal.cal_path.write_text("a calibration", encoding="utf-8")
     tab = TabChart(ArgyllRunner(settings), fm, settings)
     tab._check_for_cal_file("Test-Printer")
     return tab
@@ -96,7 +96,7 @@ def test_a_users_own_setting_is_not_switched_off(cal_home, qapp):
     proj = fm.project()
     cal = proj.calibration
     cal.ensure_dir()
-    cal.cal_path.write_text("a calibration")
+    cal.cal_path.write_text("a calibration", encoding="utf-8")
     tab = TabChart(ArgyllRunner(settings), fm, settings)
 
     tab._manual_cal_k_pw._enable_check.setChecked(True)

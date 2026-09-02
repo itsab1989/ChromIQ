@@ -29,11 +29,11 @@ def _run(tmp_path, *, ti1=False, ti2=False, recipe=False, tifs=0,
     run_dir.mkdir(parents=True, exist_ok=True)
     run = Run.for_dir(run_dir)
     if ti1:
-        run.chart_ti1.write_text("x")
+        run.chart_ti1.write_text("x", encoding="utf-8")
     if ti2:
         _write_ti2(run.chart_ti2, expected)
     if recipe:
-        run.chart_channels_json.write_text("{}")
+        run.chart_channels_json.write_text("{}", encoding="utf-8")
     for i in range(tifs):
         (run_dir / f"{run.stem}_{i + 1:02d}.tif").write_bytes(b"x")
     if readings:
@@ -42,7 +42,7 @@ def _run(tmp_path, *, ti1=False, ti2=False, recipe=False, tifs=0,
         run.profile_icc.write_bytes(b"icc")
     if verify_chart or verifications:
         run.verifications_dir.mkdir(parents=True, exist_ok=True)
-        run.verify_chart_ti2.write_text("x")
+        run.verify_chart_ti2.write_text("x", encoding="utf-8")
     for i in range(verifications):
         v = run.verification(f"2026-0{i + 1}-01_120000")
         v.ensure_dir()
@@ -53,13 +53,13 @@ def _run(tmp_path, *, ti1=False, ti2=False, recipe=False, tifs=0,
 def _write_ti2(path, n):
     rows = "\n".join(f"P{i + 1} 100 100 100" for i in range(n))
     path.write_text(f"CGATS.17\nNUMBER_OF_SETS {n}\n"
-                    f"BEGIN_DATA\n{rows}\nEND_DATA\n")
+                    f"BEGIN_DATA\n{rows}\nEND_DATA\n", encoding="utf-8")
 
 
 def _write_ti3(path, n):
     rows = "\n".join(f"P{i + 1} 100 100 100 50 50 50" for i in range(n))
     path.write_text(f"CTI3\nNUMBER_OF_SETS {n}\n"
-                    f"BEGIN_DATA\n{rows}\nEND_DATA\n")
+                    f"BEGIN_DATA\n{rows}\nEND_DATA\n", encoding="utf-8")
 
 
 # ---- §4's table ----------------------------------------------------------
@@ -155,7 +155,7 @@ def test_a_corrupt_measurement_gets_its_own_window(tmp_path):
     readings will not count.
     """
     run = _run(tmp_path, ti1=True, ti2=True, recipe=True, tifs=1)
-    run.measurement_ti3.write_text("not a CGATS file at all")
+    run.measurement_ti3.write_text("not a CGATS file at all", encoding="utf-8")
     title, text = _profiling_parts(run, assess_profiling_chart(run))
     assert title == "The measurement file in this run cannot be read"
     assert "Look at it there before you measure again" in text
@@ -168,7 +168,7 @@ def test_a_corrupt_measurement_with_a_profile_says_what_it_costs(tmp_path):
     """His point: the profile moves too, and nothing on disk then connects it
     to the chart it came from."""
     run = _run(tmp_path, ti1=True, ti2=True, recipe=True, tifs=1, profile=True)
-    run.measurement_ti3.write_text("not a CGATS file at all")
+    run.measurement_ti3.write_text("not a CGATS file at all", encoding="utf-8")
     text = _profiling_text(run, assess_profiling_chart(run))
     assert "The profile in this run moves to the “old” folder with it" in text
     assert "nothing on disk now connects the profile to the chart" in text
@@ -185,7 +185,7 @@ def test_a_measurement_file_that_cannot_be_read_still_warns(tmp_path):
     """§3a's empty and unreadable states. The file is there, the archive would
     move it, so the user hears about it — with no invented number."""
     run = _run(tmp_path, ti1=True, ti2=True, recipe=True, tifs=1)
-    run.measurement_ti3.write_text("not a CGATS file at all")
+    run.measurement_ti3.write_text("not a CGATS file at all", encoding="utf-8")
     cost = assess_profiling_chart(run)
     assert cost.warn and cost.has_measurement and cost.readings == 0
 

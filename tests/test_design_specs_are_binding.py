@@ -35,13 +35,13 @@ def test_every_binding_specification_exists():
 def test_each_one_says_it_is_binding():
     """Someone opening the file alone must learn the rule from the file."""
     silent = [n for n in BINDING
-              if "These specifications are binding" not in (DESIGN / n).read_text()]
+              if "These specifications are binding" not in (DESIGN / n).read_text(encoding="utf-8")]
     assert not silent, f"no binding notice: {silent}"
 
 
 def test_claude_md_names_them_all():
     """CLAUDE.md is what an agent reads first, so the list lives there too."""
-    text = (ROOT / "CLAUDE.md").read_text()
+    text = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
     assert "The design specifications are binding" in text
     unnamed = [n for n in BINDING if n not in text]
     assert not unnamed, f"not listed in CLAUDE.md: {unnamed}"
@@ -52,7 +52,7 @@ def test_the_docs_do_not_link_to_each_other_by_a_dead_path():
     dead = []
     for name in BINDING:
         doc = DESIGN / name
-        for target in re.findall(r"\]\((?!https?:)([^)#]+\.md)[^)]*\)", doc.read_text()):
+        for target in re.findall(r"\]\((?!https?:)([^)#]+\.md)[^)]*\)", doc.read_text(encoding="utf-8")):
             if not (doc.parent / target).resolve().is_file():
                 dead.append(f"{name} → {target}")
     assert not dead, f"dead cross-references: {dead}"
@@ -89,7 +89,7 @@ def test_a_confirmed_behaviour_section_names_who_confirmed_it():
     """"Confirmed" without a name is the assistant confirming itself."""
     offenders = []
     for name in BINDING:
-        for heading, body in _sections((DESIGN / name).read_text()):
+        for heading, body in _sections((DESIGN / name).read_text(encoding="utf-8")):
             if not _CONFIRMED_HEADING.match(heading.lstrip("#").strip()) \
                     and not _CONFIRMED_HEADING.search(heading):
                 continue
@@ -108,7 +108,7 @@ def test_an_awaiting_section_does_not_claim_to_be_confirmed():
     """The two states must stay tellable apart at a glance."""
     offenders = []
     for name in BINDING:
-        for heading, body in _sections((DESIGN / name).read_text()):
+        for heading, body in _sections((DESIGN / name).read_text(encoding="utf-8")):
             if not _AWAITING.search(heading):
                 continue
             if "**Confirmed by:** *nobody yet.*" not in body:
@@ -140,7 +140,7 @@ def test_an_awaiting_marker_carries_the_nobody_yet_line_wherever_it_sits():
     """
     offenders = []
     for name in BINDING:
-        lines = (DESIGN / name).read_text().splitlines()
+        lines = (DESIGN / name).read_text(encoding="utf-8").splitlines()
         for i, line in enumerate(lines):
             if not _AWAITING_MARKER.match(line):
                 continue

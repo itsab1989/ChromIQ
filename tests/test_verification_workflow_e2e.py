@@ -64,8 +64,8 @@ def _write_run_chart(run) -> None:
     enough for adopt_run_chart_as_verify to move."""
     run.ensure_dir()
     for p in (run.chart_ti1, run.chart_ti2, run.chart_cht):
-        p.write_text("x")
-    (run.dir / f"{run.stem}_01.tif").write_text("tif")
+        p.write_text("x", encoding="utf-8")
+    (run.dir / f"{run.stem}_01.tif").write_text("tif", encoding="utf-8")
 
 
 def test_full_verification_workflow(tmp_path):
@@ -73,8 +73,8 @@ def test_full_verification_workflow(tmp_path):
     proj = Project.create(tmp_path / "Canon-Pro300", "Canon-Pro300")
     run = proj.current_run()          # run1
     run.ensure_dir()
-    run.measurement_ti3.write_text("profiling measurement")
-    run.profile_icc.write_text("icc")          # a finished profile exists
+    run.measurement_ti3.write_text("profiling measurement", encoding="utf-8")
+    run.profile_icc.write_text("icc", encoding="utf-8")          # a finished profile exists
     # A profiling report point lives next to the profiling measurement.
     save_report(_point(run.stem, verification=False, created="2026-05-01T09:00:00"),
                 run.dir)
@@ -102,13 +102,13 @@ def test_full_verification_workflow(tmp_path):
     v1 = run.new_verification(dt.datetime(2026, 6, 1, 9, 0, 0))
     v1.ensure_dir()
     v1.measurement_ti3.write_text('CTI3\nKEYWORD "CHROMIQ_VERIFICATION"\n'
-                                  'CHROMIQ_VERIFICATION "true"\n')
+                                  'CHROMIQ_VERIFICATION "true"\n', encoding="utf-8")
     save_report(_point(run.verify_stem, verification=True,
                        created="2026-06-01T09:00:00"), v1.dir)
 
     v2 = run.new_verification(dt.datetime(2026, 7, 1, 9, 0, 0))
     v2.ensure_dir()
-    v2.measurement_ti3.write_text('CTI3\nCHROMIQ_VERIFICATION "true"\n')
+    v2.measurement_ti3.write_text('CTI3\nCHROMIQ_VERIFICATION "true"\n', encoding="utf-8")
     save_report(_point(run.verify_stem, verification=True,
                        created="2026-07-01T09:00:00"), v2.dir)
 
@@ -122,7 +122,7 @@ def test_full_verification_workflow(tmp_path):
 
     def _kinds(paths):
         import json
-        return {json.loads(p.read_text())["is_verification"] for p in paths}
+        return {json.loads(p.read_text(encoding="utf-8"))["is_verification"] for p in paths}
 
     assert len(prof_reports) == 1 and _kinds(prof_reports) == {False}
     assert len(verif_reports) == 2 and _kinds(verif_reports) == {True}
@@ -146,7 +146,7 @@ def test_hole1_new_run_verification_without_profile(tmp_path):
 
     # Build the profile → the profile block clears; now only the verify chart
     # is missing (that's produced on the Create Chart tab).
-    run.profile_icc.write_text("icc")
+    run.profile_icc.write_text("icc", encoding="utf-8")
     assert verification_blocked_reason(proj, target) == BLOCK_NO_CHART
 
     # Adopt a verify chart → nothing blocks the verification any more.

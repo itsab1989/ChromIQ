@@ -126,7 +126,7 @@ def test_the_block_is_seeded_when_the_target_is_written(tab_and_run):
     seed = new_run_seed_path(run)
     assert seed.is_file(), "no New-run block was seeded"
     import json
-    assert json.loads(seed.read_text())["targen-g"]["value"] == "seeded"
+    assert json.loads(seed.read_text(encoding="utf-8"))["targen-g"]["value"] == "seeded"
 
 
 def test_it_is_not_re_seeded_over_the_users_own_edits(tab_and_run):
@@ -135,11 +135,11 @@ def test_it_is_not_re_seeded_over_the_users_own_edits(tab_and_run):
     tab, run, _proj = tab_and_run
     tab.save_target_settings()
     seed = new_run_seed_path(run)
-    seed.write_text(json.dumps({"targen-g": {"enabled": True, "value": "MINE"}}))
+    seed.write_text(json.dumps({"targen-g": {"enabled": True, "value": "MINE"}}), encoding="utf-8")
 
     tab._widgets["targen"][0].set_value("something else")
     tab.save_target_settings()
-    assert json.loads(seed.read_text())["targen-g"]["value"] == "MINE", (
+    assert json.loads(seed.read_text(encoding="utf-8"))["targen-g"]["value"] == "MINE", (
         "re-seeding overwrote what the user had set up for the New run"
     )
 
@@ -166,7 +166,7 @@ def test_a_corrupt_block_does_not_stop_the_run_being_created(tab_and_run):
     """cache/ is safe to delete; a bad block must behave like a missing one."""
     tab, run, proj = tab_and_run
     tab.save_target_settings()
-    new_run_seed_path(run).write_text("{ this is not json")
+    new_run_seed_path(run).write_text("{ this is not json", encoding="utf-8")
     created = proj.new_run()
     assert tab._adopt_new_run_settings(created) is False
     assert not new_run_seed_path(run).exists(), "the bad block was left behind"

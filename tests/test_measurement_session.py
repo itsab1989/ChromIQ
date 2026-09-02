@@ -28,7 +28,7 @@ HEADER = "CTI3\n\nNUMBER_OF_FIELDS 4\nBEGIN_DATA_FORMAT\n" \
 def _write(path, n, claimed=None):
     rows = "".join(f"{i} 10 10 10\n" for i in range(1, n + 1))
     path.write_text(f"{HEADER}\nNUMBER_OF_SETS {claimed if claimed is not None else n}\n"
-                    f"BEGIN_DATA\n{rows}END_DATA\n")
+                    f"BEGIN_DATA\n{rows}END_DATA\n", encoding="utf-8")
     return path
 
 
@@ -45,7 +45,7 @@ def test_the_measurement_is_copied_before_a_session(run):
     s = MeasurementSession(ti3, old_dir=run / "old")
     archive = s.begin()
     assert archive is not None and archive.is_file()
-    assert archive.read_text() == ti3.read_text(), "byte-identical copy"
+    assert archive.read_text(encoding="utf-8") == ti3.read_text(encoding="utf-8"), "byte-identical copy"
     assert ti3.is_file(), "copied, not moved — a resume reads the live file"
     assert s.before == 12
 

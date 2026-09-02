@@ -328,7 +328,7 @@ def test_the_already_exists_line_goes_when_the_name_does(fresh):
     """
     w, out = fresh
     (out / "test").mkdir(parents=True, exist_ok=True)
-    (out / "test" / "project.json").write_text('{"schema_version": 2, "runs": []}')
+    (out / "test" / "project.json").write_text('{"schema_version": 2, "runs": []}', encoding="utf-8")
 
     tab = w._tab_chart
     field = tab._manual_target_name_edit
@@ -389,7 +389,7 @@ def test_backing_out_of_a_preset_takes_the_collision_line_with_it(fresh):
     """
     w, out = fresh
     (out / "test").mkdir(parents=True, exist_ok=True)
-    (out / "test" / "project.json").write_text('{"schema_version": 2, "runs": []}')
+    (out / "test" / "project.json").write_text('{"schema_version": 2, "runs": []}', encoding="utf-8")
     tab = w._tab_chart
     lbl = tab._manual_project_exists_lbl
 
@@ -414,7 +414,7 @@ def test_the_dialog_is_told_how_to_recognise_an_existing_project(fresh,
     """The notice is only as real as the callback behind it."""
     w, out = fresh
     (out / "test").mkdir(parents=True, exist_ok=True)
-    (out / "test" / "project.json").write_text('{"schema_version": 2, "runs": []}')
+    (out / "test" / "project.json").write_text('{"schema_version": 2, "runs": []}', encoding="utf-8")
     tab = w._tab_chart
 
     import ui.dialogs.name_prompt as np

@@ -466,7 +466,7 @@ def test_importing_an_unrelated_json_does_not_overwrite_real_presets(
         try:
             dlg._layout_panel.margins["t"].setValue(13.0)
             junk = tmp_path / "not-a-preset.json"
-            junk.write_text(json.dumps({"a": {"hello": "world"}, "b": {"x": 1}}))
+            junk.write_text(json.dumps({"a": {"hello": "world"}, "b": {"x": 1}}), encoding="utf-8")
             with mock.patch.object(W, "open_file_dialog",
                                    lambda *a, **k: str(junk)):
                 dlg._import_layout_presets()
@@ -485,7 +485,7 @@ def test_import_still_accepts_a_real_export(_app, tmp_path):
         r = default_recipe("CM", "A3", mode="extrahigh")
         r.margin_top = 9.25
         blob = tmp_path / "export.json"
-        blob.write_text(json.dumps({r.preset_key(): r.to_dict()}))
+        blob.write_text(json.dumps({r.preset_key(): r.to_dict()}), encoding="utf-8")
         dlg = SettingsDialog(_FakeSettings(), None,
                              layout_combo=("CM", "A3", "extrahigh"))
         try:
@@ -511,11 +511,11 @@ def test_a_preset_for_a_dropped_instrument_survives_a_save(_app, tmp_path):
         r.margin_top = 7.7
         (d / "41_A4_default.json").write_text(json.dumps({
             "chromiq_preset_version": 1, "tab": "chart_layout",
-            "name": "41|A4|default", "data": r.to_dict()}))
+            "name": "41|A4|default", "data": r.to_dict()}), encoding="utf-8")
         dlg = SettingsDialog(_FakeSettings(), None,
                              layout_combo=("i1", "A4", "clip"))
         dlg._layout_panel.margins["t"].setValue(5.5)
         dlg._save_and_close()
-        names = sorted(json.loads(p.read_text())["name"]
+        names = sorted(json.loads(p.read_text(encoding="utf-8"))["name"]
                        for p in d.glob("*.json"))
         assert "41|A4|default" in names

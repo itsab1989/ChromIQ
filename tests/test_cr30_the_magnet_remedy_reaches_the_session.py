@@ -353,7 +353,7 @@ def test_every_test_here_that_resumes_also_settles():
     because deciding case by case is how the hole got reopened.
     """
     import pathlib
-    src = pathlib.Path(__file__).read_text()
+    src = pathlib.Path(__file__).read_text(encoding="utf-8")
     offenders = []
     for block in src.split("\ndef test_")[1:]:
         name = block.split("(")[0]
