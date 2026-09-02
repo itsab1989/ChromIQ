@@ -303,12 +303,12 @@ def test_a_real_hfs_plus_round_trip_produces_the_decomposed_spelling(tmp_path):
     made = subprocess.run(
         ["hdiutil", "create", "-size", "20m", "-fs", "HFS+", "-volname",
          "CHROMIQTEST", str(dmg), "-quiet"], timeout=180,
-        capture_output=True, text=True)
+        capture_output=True, text=True, encoding="utf-8")
     if made.returncode != 0:                 # no disk-image support on this host
         pytest.skip(f"hdiutil create failed: {made.stderr.strip()[:120]}")
     att = subprocess.run(
         ["hdiutil", "attach", str(dmg), "-mountpoint", str(mnt), "-quiet",
-         "-nobrowse"], timeout=180, capture_output=True, text=True)
+         "-nobrowse"], timeout=180, capture_output=True, text=True, encoding="utf-8")
     if att.returncode != 0:
         pytest.skip(f"hdiutil attach failed: {att.stderr.strip()[:120]}")
     try:
