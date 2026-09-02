@@ -30,9 +30,9 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent))
 
 from PyQt6.QtCore import QPoint, QRect, QSize                    # noqa: E402
-from PyQt6.QtWidgets import (QAbstractButton, QApplication,      # noqa: E402
-                             QComboBox, QLabel, QLineEdit,
-                             QScrollArea, QSpinBox, QWidget)
+from PyQt6.QtWidgets import (QAbstractButton, QAbstractSpinBox,  # noqa: E402
+                             QApplication, QComboBox, QLabel,
+                             QLineEdit, QScrollArea, QWidget)
 
 # The narrowest screen the window has to fit, and the room insisted on beyond
 # it. Kept here so the probe and the tests cannot drift apart.
@@ -69,22 +69,61 @@ def settle(app, dlg, n=6):
     app.processEvents()
 
 
+#: The controls the checks below look at. A control not in this list is not
+#: measured, so it is also not what "leaf" means — see `clipped`.
+CHECKED = (QAbstractButton, QLabel, QLineEdit, QComboBox, QAbstractSpinBox)
+#: Controls built OUT OF other controls. A combo owns its popup container, a
+#: spin box owns a line edit and two buttons — those parts are not separate
+#: controls and the whole is what the user sees, so a compound is always a leaf
+#: and nothing inside it is ever one.
+COMPOUND = (QComboBox, QAbstractSpinBox)
+
+
+def _leaves(root):
+    """Every visible control the user sees as one thing.
+
+    "Leaf" cannot mean *has no child widget*. A QComboBox owns its popup
+    container and a QSpinBox owns a QLineEdit, so that version dropped both —
+    on the real window with Advanced open it checked **0 of 7 combos and 0 of
+    1 spin boxes**, the exact widget type this window's width was trimmed on.
+    Every clip figure printed here had been measured over labels, buttons,
+    checkboxes and line edits only.
+
+    Nor can it mean *has no child of a CHECKED kind*: that lets a combo back in
+    but still drops a spin box, whose inner QLineEdit is itself CHECKED — and
+    the line edit is not where a spin box is widest, its buttons are.
+    """
+    compounds = [w for w in root.findChildren(QWidget)
+                 if w.isVisible() and isinstance(w, COMPOUND)]
+    for w in root.findChildren(QWidget):
+        if not w.isVisible() or not isinstance(w, CHECKED):
+            continue
+        if isinstance(w, COMPOUND):
+            yield w
+            continue
+        if any(c.isAncestorOf(w) for c in compounds):
+            continue            # a part of a compound control, not a control
+        if any(c.isVisible() and isinstance(c, CHECKED)
+               for c in w.findChildren(QWidget)):
+            continue
+        yield w
+
+
 def clipped(dlg):
     """Every leaf control whose right edge falls outside its scroll viewport.
 
     A width the window can be dragged to but at which a control is cut in half
     is not a floor: both panes pin their horizontal scrollbar off, so there is
     nothing to scroll the missing part back into view.
+
+    This is GEOMETRY. It says nothing about whether the text inside a control
+    that does fit can be read — `unreadable` below is that question, and it is
+    the one that matters for a combo.
     """
     bad = []
     for scroll, side in ((dlg._scroll, "left"), (dlg._scroll_right, "right")):
         vp = scroll.viewport()
-        for w in scroll.widget().findChildren(QWidget):
-            if not w.isVisible() or w.findChildren(QWidget):
-                continue
-            if not isinstance(w, (QAbstractButton, QLabel, QLineEdit,
-                                  QComboBox, QSpinBox)):
-                continue
+        for w in _leaves(scroll.widget()):
             left = w.mapTo(vp, w.rect().topLeft()).x()
             if left + w.width() > vp.width() + 1:
                 text = ""
@@ -96,6 +135,55 @@ def clipped(dlg):
                         pass
                 bad.append(f"{side}: {type(w).__name__}({text!r}) "
                            f"+{left + w.width() - vp.width()}px")
+    return bad
+
+
+def width_for(combo, text):
+    """The width Qt says *combo* needs to show *text*, in pixels.
+
+    Qt's own arithmetic, not an estimate: `sizeFromContents(CT_ComboBox, …)`
+    over `fontMetrics().boundingRect(text)` is the same computation
+    `QComboBox.sizeHint()` runs, and it reproduces the hint of an
+    AdjustToContents combo holding exactly that string to the pixel.
+
+    A ruler matters here. The obvious one — `width() - 30` for the arrow and
+    the frame — is 2-3 px pessimistic, which is inside the noise for a long
+    string and outside it for a short one: it reports the profile-quality
+    combo's own default as cut in all thirteen catalogues, and that combo sits
+    at its own size hint and is not cut at all.
+    """
+    from PyQt6.QtCore import QSize
+    from PyQt6.QtWidgets import QStyle, QStyleOptionComboBox
+    opt = QStyleOptionComboBox()
+    combo.initStyleOption(opt)
+    fm = combo.fontMetrics()
+    return combo.style().sizeFromContents(
+        QStyle.ContentsType.CT_ComboBox, opt,
+        QSize(fm.boundingRect(text).width(), fm.height()), combo).width()
+
+
+def unreadable(dlg):
+    """Every visible combo that cannot show the value it is set to.
+
+    THE QUESTION `clipped` DOES NOT ASK. A combo can sit entirely inside its
+    viewport, be measured as fine, and still be showing a word cut in half:
+    Qt paints a combo's label into the room the style gives it and does not
+    elide, so text that does not fit is simply gone. That is how a cap of
+    eighteen characters put `Отобразить белое мишени в белое (по` on screen —
+    the combo's own DEFAULT, mid-word, in a window with no clip anywhere.
+
+    Checked for every combo the window shows, including the ones behind an
+    unticked checkbox: a disabled combo still displays its value.
+    """
+    bad = []
+    for c in dlg.findChildren(QComboBox):
+        if not c.isVisible():
+            continue
+        text = c.currentText()
+        need = width_for(c, text)
+        if need > c.width():
+            bad.append(f"{type(c).__name__}({text[:44]!r}) needs {need}px, "
+                       f"has {c.width()}px")
     return bad
 
 
@@ -225,6 +313,8 @@ def measure(app, lang, out_dir):
 
     # …and now sit the window on each state's own floor and look for damage.
     bad = []
+    cut = []
+    combos_seen = 0
     for label, setup, advanced, floor in states:
         setup()
         settle(app, dlg)
@@ -233,6 +323,9 @@ def measure(app, lang, out_dir):
         dlg.resize(floor, 900)
         settle(app, dlg, 8)
         bad += [f"{label}, at {floor}px: {b}" for b in clipped(dlg)]
+        cut += [f"{label}, at {floor}px: {b}" for b in unreadable(dlg)]
+        combos_seen = max(combos_seen, len([c for c in dlg.findChildren(QComboBox)
+                                            if c.isVisible()]))
     dlg._adv_inline_head.setChecked(False)
     settle(app, dlg)
 
@@ -265,6 +358,11 @@ def measure(app, lang, out_dir):
         "worst_state": worst_state,
         "floors": {s[0]: s[3] for s in states},
         "clipped": bad,
+        # Combos that cannot show the value they are set to, and how many
+        # combos were looked at to say so — a zero here is only worth
+        # something next to a non-zero there.
+        "unreadable": cut,
+        "combos_checked": combos_seen,
         "opens_at": opened[0],
         "handles": handles,
         "handles_out_of_reach": [f"{tag}: {name} {reach:.0%}"

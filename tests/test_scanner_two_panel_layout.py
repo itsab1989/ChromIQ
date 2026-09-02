@@ -17,7 +17,10 @@ What these guard:
   job that panel exists for;
 * Advanced is a live section: moving a control reaches the command, "Restore
   defaults" works, and each kind of profile shows and keeps its own options;
-* the two trims that bought the width back are still in place.
+* the trims that bought the width back are still in place — AND that what they
+  bought it from is still readable: a combo asks for the width of the value it
+  is showing, opening Advanced never widens the window, and a value too long
+  for its box says so with an ellipsis instead of stopping mid-word.
 """
 from __future__ import annotations
 
@@ -117,6 +120,31 @@ def _assert_fits(res):
     assert not res["clipped"], (
         f"{lang}: controls cut off at the floor the window reports: "
         + "; ".join(res["clipped"][:4]))
+    # …and the question geometry does not ask. A combo can sit wholly inside
+    # its viewport and still be showing a word cut in half, because Qt paints
+    # a combo's label into the room it has and does not elide. That is exactly
+    # what shipped: `Отобразить белое мишени в белое (по`, the combo's own
+    # DEFAULT, with nothing clipped anywhere on the window.
+    assert res["combos_checked"], (
+        f"{lang}: the probe looked at no combo at all — a zero in "
+        f"'unreadable' would mean nothing")
+    assert not res["unreadable"], (
+        f"{lang}: a combo cannot show the value it is set to, at the floor "
+        f"the window reports: " + "; ".join(res["unreadable"][:4]))
+    # Opening Advanced may not make the window wider. The section's controls
+    # are the widest things in the left column, and the pane is fixed-width, so
+    # a row that spends its width on a name AND a value side by side pushes the
+    # whole window out the moment the disclosure is opened — 73 px in Russian,
+    # 44 in German. With each option's control on its own line the section
+    # costs the window nothing at all, in every language and every source mode,
+    # which is what a disclosure is supposed to be.
+    grew = [f"{mode}: {res['floors'][mode + ', Advanced open']} open vs "
+            f"{res['floors'][mode + ', Advanced closed']} closed"
+            for mode in ("a ChromIQ chart", "a standard target",
+                         "printer from a scan")
+            if (res["floors"][mode + ", Advanced open"]
+                > res["floors"][mode + ", Advanced closed"])]
+    assert not grew, f"{lang}: opening Advanced widens the window — " + "; ".join(grew)
     assert res["worst"] <= SMALLEST_SCREEN - HEADROOM, (
         f"{lang} needs {res['worst']}px ({res['worst_state']}) — under "
         f"{HEADROOM}px of headroom on a {SMALLEST_SCREEN}px screen")
@@ -321,26 +349,205 @@ def test_the_advanced_switches_are_one_column(_app, _out_dir):
         dlg.deleteLater()
 
 
+def _option_combos(dlg, printer):
+    return ([dlg._gam_mode, dlg._perc_combo, dlg._sat_combo, dlg._b2a_combo]
+            if printer else [dlg._wp_mode])
+
+
 def test_the_option_combos_do_not_ask_for_their_longest_entry(_app, _out_dir):
-    """These combos take the stretch slot in their row, so capping the width
-    they ASK for changes nothing at any real window width and the drop-down
-    still shows every name in full — but it is worth 145 px of window floor in
-    Spanish, and the difference between fitting a 1280 screen and not."""
+    """An entry nobody has chosen may not set how wide this panel has to be.
+
+    The panel lives in the window's FIXED-width left pane, so a width it asks
+    for is a width the window keeps at every screen size. "Map chart white to
+    perfect white" is 410 px in Russian, and asking for it made the pane grow
+    by that much the moment Advanced was opened.
+
+    This is half of the guarantee and on its own it is the fault that shipped:
+    the first version of this test asserted exactly this and nothing else, so
+    it went green over a combo that could not show its own default. The other
+    half is `test_an_option_combo_can_show_the_value_it_is_set_to`.
+    """
     from ui.dialogs.scanner_colprof import ScannerAdvancedDialog
     for printer in (False, True):
         dlg = ScannerAdvancedDialog({}, None, printer=printer)
         try:
-            combos = [dlg._gam_mode, dlg._perc_combo, dlg._sat_combo,
-                      dlg._b2a_combo] if printer else [dlg._wp_mode]
-            for c in combos:
-                assert c.sizeAdjustPolicy() == \
-                    QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
-                # The proof, not the setting: give it an absurdly long entry
-                # and see whether the width it asks for follows.
-                before = c.sizeHint().width()
+            for c in _option_combos(dlg, printer):
+                before = c.sizeHint().width(), c.minimumSizeHint().width()
                 c.addItem("x" * 200, "__probe__")
-                assert c.sizeHint().width() == before, \
+                after = c.sizeHint().width(), c.minimumSizeHint().width()
+                assert after == before, \
                     f"{c.itemText(0)!r} still asks for its longest entry"
                 c.removeItem(c.count() - 1)
         finally:
             dlg.deleteLater()
+
+
+def test_an_option_and_its_control_are_on_separate_lines(_app, _out_dir):
+    """A name that is a phrase and a value that is a phrase, side by side in a
+    600-px pane, cannot both be read: the name takes its width first and the
+    value gets the remainder — 253 px in Polish for a value needing 378.
+
+    On its own line the control has the whole panel, so every entry of every
+    one of these combos fits in all thirteen catalogues, and the row is as wide
+    as its widest HALF instead of the sum of both. That is why opening Advanced
+    now costs the window nothing (see `_assert_fits`).
+    """
+    from PyQt6.QtWidgets import QHBoxLayout
+    from ui.dialogs.scanner_colprof import ScannerAdvancedDialog
+    for printer in (False, True):
+        dlg = ScannerAdvancedDialog({}, None, printer=printer)
+        try:
+            for c in _option_combos(dlg, printer):
+                row = next(box for box in dlg.findChildren(QHBoxLayout)
+                           if any(box.itemAt(i).widget() is c
+                                  for i in range(box.count())))
+                others = [box.itemAt(i).widget() for box in (row,)
+                          for i in range(box.count())
+                          if box.itemAt(i).widget() is not c]
+                # Only the indent spacer may share the line with it.
+                assert all(w is not None and w.objectName() == "form_label_spacer"
+                           for w in others), (
+                    f"{c.currentText()!r} shares its line with "
+                    + ", ".join(type(w).__name__ if w is None else
+                                f"{type(w).__name__}({getattr(w, 'text', lambda: '')()!r})"
+                                for w in others))
+        finally:
+            dlg.deleteLater()
+
+
+def test_an_option_combo_can_show_the_value_it_is_set_to(_app, _out_dir):
+    """…and the half the first version of this file did not check.
+
+    A combo that asks for a flat number of characters passes the test above and
+    still cuts the value on screen — eighteen characters is comfortable in
+    English and cuts a word in half in Russian. So the width a combo asks for
+    has to follow the value it is SHOWING, in whatever language that value is.
+
+    Every entry of every option combo, both profile kinds: whatever it is set
+    to, the width it asks for is enough to read it.
+    """
+    from tests.scanner_floor_probe import width_for
+    from ui.dialogs.scanner_colprof import ScannerAdvancedDialog
+    checked = 0
+    for printer in (False, True):
+        dlg = ScannerAdvancedDialog({}, None, printer=printer)
+        try:
+            for c in _option_combos(dlg, printer):
+                for i in range(c.count()):
+                    c.setCurrentIndex(i)
+                    need = width_for(c, c.currentText())
+                    assert c.sizeHint().width() >= need, (
+                        f"set to {c.currentText()!r}, the combo asks for "
+                        f"{c.sizeHint().width()}px and needs {need}px")
+                    checked += 1
+        finally:
+            dlg.deleteLater()
+    # 5 white-point + 3 gamut-source + 12 + 12 intent + 5 B2A. A guard, not a
+    # detail: the loop above is vacuously true over an empty combo list.
+    assert checked == 37, f"{checked} values were looked at, not 37"
+
+
+def test_a_value_too_long_to_fit_says_so_and_offers_the_full_text(_app, _out_dir):
+    """The backstop, for the one combo whose entries can never all fit.
+
+    A standard target's name and patch count reach 771 px and the pane is
+    ~600, so the window cannot promise every entry of the target list room.
+    What it can promise is that a value it cannot show reads as SHORTENED
+    rather than as a different, shorter value — and that the whole of it is one
+    hover away. Qt does neither on its own: it paints what fits and drops the
+    rest mid-word.
+
+    Proved by rendering. The squeezed combo is compared, pixel for pixel,
+    against the same widget holding the text already elided by hand — if it
+    matches, the ellipsis is really on screen.
+    """
+    from PyQt6.QtCore import Qt
+    from ui.widgets import ValueWidthComboBox
+    long_text = "IT8 / ISO 12641-2 — LaserSoft Advanced  ·  864 patches"
+
+    a = ValueWidthComboBox()
+    a.addItem(long_text)
+    a.show()
+    _app.processEvents()
+    room = a.sizeHint().width()
+    a.resize(room - 120, a.sizeHint().height())
+    _app.processEvents()
+
+    assert a.toolTip() == long_text, (
+        "a value that does not fit must offer the whole of itself as the "
+        f"tooltip; this one offers {a.toolTip()!r}")
+
+    from PyQt6.QtWidgets import QStyle, QStyleOptionComboBox
+    opt = QStyleOptionComboBox()
+    a.initStyleOption(opt)
+    avail = a.style().subControlRect(
+        QStyle.ComplexControl.CC_ComboBox, opt,
+        QStyle.SubControl.SC_ComboBoxEditField, a).width()
+    shortened = a.fontMetrics().elidedText(
+        long_text, Qt.TextElideMode.ElideRight, avail)
+    assert shortened.endswith("…") and shortened != long_text, \
+        f"the test's own reference is not elided: {shortened!r}"
+
+    b = ValueWidthComboBox()
+    b.addItem(shortened)
+    b.show()
+    b.resize(a.width(), a.height())
+    _app.processEvents()
+
+    assert a.grab().toImage() == b.grab().toImage(), (
+        "the squeezed combo does not paint the elided text — it is showing "
+        f"{long_text!r} cut off instead of {shortened!r}")
+    a.deleteLater()
+    b.deleteLater()
+
+
+def test_every_combo_in_this_window_can_shorten_what_it_cannot_show(_app, _out_dir):
+    """Structural, so a combo added later cannot bring the fault back.
+
+    The fault was not one string: it was a plain `QComboBox` in a pane that
+    could not always afford its values. Any combo in this window may one day be
+    handed a value longer than its room — a translation grows, a target list
+    gains an entry — and the only acceptable answer is an ellipsis and a
+    tooltip, never a word cut in half.
+    """
+    from ui.widgets import ElidingComboBox
+    dlg = _make(_app, _out_dir)
+    try:
+        def chart():
+            dlg._mode_chromiq.setChecked(True)
+            dlg._printer_cb.setChecked(False)
+
+        def standard():
+            dlg._printer_cb.setChecked(False)
+            dlg._mode_standard.setChecked(True)
+
+        def printer():
+            dlg._mode_chromiq.setChecked(True)
+            dlg._printer_cb.setChecked(True)
+
+        plain = []
+        seen = 0
+        # ALL THREE source modes. The first version of this test visited two of
+        # them, and the target-type combo — the one whose entries reach 771 px,
+        # the worst offender in the window — only ever appears in the third. It
+        # went green over a plain QComboBox sitting right there.
+        for kind, setup in (("a ChromIQ chart", chart),
+                            ("a standard target", standard),
+                            ("printer from a scan", printer)):
+            setup()
+            _settle(_app, dlg)
+            dlg._adv_inline_head.setChecked(True)
+            _settle(_app, dlg)
+            for c in dlg.findChildren(QComboBox):
+                if not c.isVisible():
+                    continue
+                seen += 1
+                if not isinstance(c, ElidingComboBox):
+                    plain.append(f"{kind}: {c.objectName() or c.currentText()!r}")
+        assert seen >= 13, f"only {seen} visible combos were looked at"
+        assert dlg._target_combo in dlg.findChildren(QComboBox)
+        assert not plain, (
+            "these combos cut their value off with no ellipsis and no "
+            "tooltip: " + "; ".join(sorted(set(plain))))
+    finally:
+        dlg.deleteLater()

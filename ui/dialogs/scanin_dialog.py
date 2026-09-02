@@ -40,9 +40,9 @@ from ui.dialogs.scanin_target_dialog import WHICH_CHART_HELP, WHICH_CHART_CAMERA
 from ui.dialogs import scanner_colprof
 from ui.theme import APPEARANCE_NEUTRAL, accent_for, resolve_mode
 from ui.tooltip_button import TooltipButton
-from ui.widgets import (NoScrollComboBox, NoScrollSpinBox,
-                        disabled_primary_qss, make_browse_button,
-                        primary_hover, primary_label,
+from ui.widgets import (ElidingComboBox, NoScrollSpinBox,
+                        ValueWidthComboBox, disabled_primary_qss,
+                        make_browse_button, primary_hover, primary_label,
                         open_file_dialog)
 from workflow.profile_builder import ProfileBuilder, ProfileParams
 from workflow.scanin_runner import ScaninParams, ScaninRunner
@@ -907,7 +907,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._page_row = QHBoxLayout()
         self._page_row.setContentsMargins(0, 0, 0, 0)
         self._page_row.addWidget(QLabel(tr("Page:"), self))
-        self._page_combo = NoScrollComboBox(self)
+        self._page_combo = ElidingComboBox(self)
         self._page_combo.currentIndexChanged.connect(self._on_page_changed)
         self._page_row.addWidget(self._page_combo)
         # Every page needs its own capture — say so, and count what's still
@@ -947,7 +947,7 @@ class ScannerProfileDialog(_ToolDialogBase):
             "next time this window opens — your edited files are never "
             "overwritten.")))
         trow = QHBoxLayout()
-        self._target_combo = NoScrollComboBox(self)
+        self._target_combo = ValueWidthComboBox(self)
         # Every standard target, keyed so a multi-page set (three ISO 12641-2
         # pages folded into one) can carry all its page .cht files. The label
         # shows each target's patch count — for a set, the per-page count (Knut).
@@ -966,13 +966,17 @@ class ScannerProfileDialog(_ToolDialogBase):
         # This combo does not ask for the width of its LONGEST entry. The
         # standard-target panel would otherwise want 771 px in Spanish and 739
         # in Dutch purely because one target's name and patch count is that
-        # wide, and that panel sits inside the fixed left pane. The combo takes
-        # the stretch slot in this row, so at any real window width it looks
-        # exactly the same and the drop-down still shows every name in full;
-        # only the width the pane has to reserve moves.
-        self._target_combo.setSizeAdjustPolicy(
-            NoScrollComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
-        self._target_combo.setMinimumContentsLength(28)
+        # wide, and that panel sits inside the fixed left pane.
+        #
+        # It asks for the width of the value it is SHOWING instead of a flat
+        # 28 characters. Twenty-eight was enough for the target this window
+        # opens on in eleven catalogues and six pixels short in Spanish,
+        # seventeen in Dutch — the first thing the user reads, cut, with no
+        # ellipsis. The entries themselves reach 771 px and no honest pane
+        # width will ever hold the longest of them, so one the user picks later
+        # is elided WITH an ellipsis and carries its full text as the tooltip,
+        # and the drop-down still shows every name in full. See
+        # `ValueWidthComboBox`.
         trow.addWidget(self._target_combo, 1)
         self._demo_btn = QPushButton(tr("Try with a demo scan"), self)
         self._demo_btn.setStyleSheet(_COMPACT_BTN)
@@ -1051,7 +1055,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         """Add-a-scan controls + averaging method (shown once a page has ≥2
         scans) — averaging repeated scans of a page cuts scanner noise."""
         row = QHBoxLayout()
-        self._shot_combo = NoScrollComboBox(self)
+        self._shot_combo = ElidingComboBox(self)
         self._shot_combo.currentIndexChanged.connect(self._on_shot_changed)
         self._shot_combo.setVisible(False)
         row.addWidget(self._shot_combo)
@@ -1086,7 +1090,7 @@ class ScannerProfileDialog(_ToolDialogBase):
 
         self._avg_row = QHBoxLayout()
         self._avg_row.addWidget(QLabel(tr("Combine repeated scans by:"), self))
-        self._avg_method = NoScrollComboBox(self)
+        self._avg_method = ElidingComboBox(self)
         self._avg_method.addItem(tr("Mean (simple average)"), "mean")
         self._avg_method.addItem(tr("Geometric mean (robust to an odd scan)"), "geomean")
         self._avg_method.addItem(tr("Trimmed mean (drop highest & lowest)"), "trimmed")
@@ -1436,7 +1440,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._pt_label = QLabel(tr("Profile type (-a):"), self)
         row3 = QHBoxLayout()
         row3.addWidget(self._pt_label)
-        self._ptype = NoScrollComboBox(self)
+        self._ptype = ElidingComboBox(self)
         for data, label in scanner_colprof.PTYPE_CHOICES:
             self._ptype.addItem(label, data)
         row3.addWidget(self._ptype, 1)
@@ -1477,7 +1481,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         row3b = QHBoxLayout()
         self._q_label = QLabel(tr("Quality (-q):"), self)
         row3b.addWidget(self._q_label)
-        self._pq = NoScrollComboBox(self)
+        self._pq = ElidingComboBox(self)
         for data, label in scanner_colprof.QUALITY_CHOICES:
             self._pq.addItem(label, data)
         self._pq.setCurrentIndex(1)                      # Medium

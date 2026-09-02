@@ -19,14 +19,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox,
+from PyQt6.QtWidgets import (QCheckBox, QDialog, QDialogButtonBox,
                              QGridLayout, QGroupBox, QHBoxLayout, QLabel,
                              QLineEdit, QScrollArea, QVBoxLayout, QWidget)
 
 from core.i18n import tr
 from ui.styles import SPEC_GREEN
 from ui.tooltip_button import TooltipButton
-from ui.widgets import (NoScrollComboBox, NoScrollDoubleSpinBox,
+from ui.widgets import (NoScrollDoubleSpinBox, ValueWidthComboBox,
                         make_browse_button, open_file_dialog)
 
 # QSettings prefix for the remembered scanner colprof configuration.
@@ -354,21 +354,64 @@ def make_profile_params(ti3, description: str, main_vals: dict[str, Any],
         verbose=True)
 
 
-def _cap_combo(combo: QComboBox, chars: int = 18) -> QComboBox:
-    """Stop an option combo asking for the width of its LONGEST entry.
+def _option_combo(parent: QWidget) -> ValueWidthComboBox:
+    """An option combo for this panel: sized by the value it is SHOWING.
 
-    These combos all take the stretch slot in their row, so at any real window
-    width they look exactly as they did; only the width the panel asks for
-    moves. The drop-down list still shows every name in full. It matters
-    because this panel lives inside the scanner window's fixed-width left
-    pane: "Map chart white to perfect white" is 410 px in Russian and 398 in
-    German, and that one entry made the pane grow by that much the moment
-    Advanced was opened.
+    Not by its longest entry, because this panel lives inside the scanner
+    window's FIXED-width left pane and "Map chart white to perfect white" is
+    410 px in Russian — one entry nobody has chosen would otherwise set how far
+    the pane has to grow the moment Advanced is opened.
+
+    And not by a character count either. That was tried here (eighteen
+    characters, `AdjustToMinimumContentsLengthWithIcon`) and it cut the value
+    the user was looking at in eleven of the thirteen catalogues — in Russian
+    and Italian the combo's own DEFAULT, chopped mid-word with no ellipsis, so
+    the window was wrong the moment it opened. Eighteen characters is a guess
+    made in English about a string that is a third longer in Russian; the width
+    of the actual string is not a guess.
+
+    :class:`ValueWidthComboBox` therefore reserves what the value on screen
+    needs, holds that minimum at the value the combo opened with so a later
+    choice can never widen the window, and elides anything longer with an
+    ellipsis and the full text in its tooltip. The drop-down always lists every
+    entry in full.
     """
-    combo.setSizeAdjustPolicy(
-        QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
-    combo.setMinimumContentsLength(chars)
-    return combo
+    return ValueWidthComboBox(parent)
+
+
+def _option_rows(g: QVBoxLayout, leader: QWidget, combo: QComboBox,
+                 tip: QWidget) -> None:
+    """Lay an option out as TWO lines: its name and ⓘ, then the control.
+
+    All five of these rows are a name that is a phrase and a value that is a
+    phrase — "Saturation Intent Override (-T):" against "Luminance Preserving
+    Perceptual (lp)". Side by side inside the scanner window's fixed left pane
+    they cannot both be read: the name takes its width first, and whatever is
+    left is what the value gets, which in Polish is 253 px for a value needing
+    378. The panel is ~600 px wide, so the control on its own line has room for
+    the longest entry of any catalogue with a hundred pixels to spare.
+
+    It costs a line of height per option and nothing at all in width — the row
+    is now as wide as its widest HALF instead of the sum of both, so the panel
+    (and with it the window's floor) gets narrower, not wider. The gamut-source
+    path field directly below already sits on its own line this way, which is
+    where the shape comes from.
+    """
+    head = QHBoxLayout()
+    head.addWidget(leader, stretch=1)
+    head.addWidget(tip)
+    g.addLayout(head)
+    g.addLayout(_indented(combo, leader.parentWidget()))
+
+
+def _indented(w: QWidget, parent: QWidget | None) -> QHBoxLayout:
+    """*w* on its own line, under the name it belongs to."""
+    row = QHBoxLayout()
+    sp = QLabel("", parent)
+    sp.setObjectName("form_label_spacer")
+    row.addWidget(sp)
+    row.addWidget(w, stretch=1)
+    return row
 
 
 def _green_tip(title: str, body: str, parent: QWidget, min_width: int = 460) -> TooltipButton:
@@ -480,18 +523,14 @@ class ScannerAdvancedDialog(QDialog):
         self._b2a_check = self._b2a_combo = None
         if printer:
             self._b2a_check = QCheckBox(tr("B2A Table Quality (-b):"), grp)
-            self._b2a_combo = NoScrollComboBox(grp)
+            self._b2a_combo = _option_combo(grp)
             for data, lbl in B2A_CHOICES:
                 self._b2a_combo.addItem(lbl, data)
-            _cap_combo(self._b2a_combo)
             self._b2a_combo.setCurrentIndex(1)          # Medium
             self._b2a_combo.setEnabled(False)
             self._b2a_check.toggled.connect(self._b2a_combo.setEnabled)
-            brow = QHBoxLayout()
-            brow.addWidget(self._b2a_check)
-            brow.addWidget(self._b2a_combo, stretch=1)
-            brow.addWidget(_green_tip("B2A Table Quality (-b)", _TIP_B2A, grp, 480))
-            g.addLayout(brow)
+            _option_rows(g, self._b2a_check, self._b2a_combo,
+                         _green_tip("B2A Table Quality (-b)", _TIP_B2A, grp, 480))
 
         layout.addWidget(grp)
 
@@ -500,14 +539,12 @@ class ScannerAdvancedDialog(QDialog):
         g = QVBoxLayout(grp)
         g.setSpacing(8)
 
-        row = QHBoxLayout()
-        row.addWidget(QLabel(tr("White point handling:"), grp))
-        self._wp_mode = _cap_combo(NoScrollComboBox(grp))
+        self._wp_mode = _option_combo(grp)
         for data, lbl in WP_MODE_CHOICES:
             self._wp_mode.addItem(lbl, data)
-        row.addWidget(self._wp_mode, stretch=1)
-        row.addWidget(_green_tip("White Point Handling (-u / -ua / -uc)", _TIP_WP, grp, 560))
-        g.addLayout(row)
+        _option_rows(g, QLabel(tr("White point handling:"), grp), self._wp_mode,
+                     _green_tip("White Point Handling (-u / -ua / -uc)",
+                                _TIP_WP, grp, 560))
 
         srow = QHBoxLayout()
         self._wp_scale_label = QLabel(tr("Manual scale:"), grp)
@@ -536,26 +573,19 @@ class ScannerAdvancedDialog(QDialog):
         g = QVBoxLayout(grp)
         g.setSpacing(8)
 
-        mode_row = QHBoxLayout()
-        mode_row.addWidget(QLabel(tr("Gamut Source:"), grp))
-        self._gam_mode = _cap_combo(NoScrollComboBox(grp))
+        self._gam_mode = _option_combo(grp)
         for data, lbl in GAMUT_SOURCE_CHOICES:
             self._gam_mode.addItem(lbl, data)
-        mode_row.addWidget(self._gam_mode, stretch=1)
-        mode_row.addWidget(_green_tip("Gamut Source (-s / -S)", _TIP_GAMUT, grp, 560))
-        g.addLayout(mode_row)
+        _option_rows(g, QLabel(tr("Gamut Source:"), grp), self._gam_mode,
+                     _green_tip("Gamut Source (-s / -S)", _TIP_GAMUT, grp, 560))
 
-        path_row = QHBoxLayout()
-        sp = QLabel("", grp)
-        sp.setObjectName("form_label_spacer")
-        path_row.addWidget(sp)
         self._gam_path = QLineEdit(grp)
         self._gam_path.setPlaceholderText(
             tr("Path to source RGB profile (e.g. ClayRGB1998.icm or sRGB.icm from Argyll/ref/)"))
         self._gam_browse = make_browse_button(
             grp, tr("Select gamut source profile"), icon="folder_measure")
         self._gam_browse.clicked.connect(self._browse_gamut)
-        path_row.addWidget(self._gam_path, stretch=1)
+        path_row = _indented(self._gam_path, grp)
         path_row.addWidget(self._gam_browse)
         g.addLayout(path_row)
 
@@ -577,17 +607,13 @@ class ScannerAdvancedDialog(QDialog):
 
     def _intent_row(self, g: QVBoxLayout, grp: QWidget, label: str,
                     tip_title: str, tip_body: str):
-        row = QHBoxLayout()
         check = QCheckBox(label, grp)
-        combo = _cap_combo(NoScrollComboBox(grp))
+        combo = _option_combo(grp)
         for val, lbl in INTENT_CHOICES:
             combo.addItem(lbl, val)
         combo.setEnabled(False)
         check.toggled.connect(combo.setEnabled)
-        row.addWidget(check)
-        row.addWidget(combo, stretch=1)
-        row.addWidget(_green_tip(tip_title, tip_body, grp, 500))
-        g.addLayout(row)
+        _option_rows(g, check, combo, _green_tip(tip_title, tip_body, grp, 500))
         return check, combo
 
     def _build_metadata_group(self, layout: QVBoxLayout, printer: bool) -> None:
