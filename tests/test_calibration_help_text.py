@@ -288,3 +288,93 @@ def test_no_help_text_assumes_the_calibration_tab_name(qapp):
         "say WHY the tab has two names, or the reader is left guessing which "
         "one they should be seeing"
     )
+
+
+def test_return_never_replaces_a_calibration_chart():
+    """The app's own rule, written at three other doors: *"Return must never
+    be a replace"*.
+
+    This window was the exception, and since the owner's 2026-09-02 ruling its
+    accept button DISCARDS an unmeasured chart that is kept nowhere, so a
+    stray Return was the cheapest possible way to lose it.
+    """
+    import inspect
+
+    from ui.tabs.tab_chart import TabChart
+    src = inspect.getsource(TabChart._confirm_replacing_calibration)
+    assert "box.setDefaultButton(cancel)" in src, (
+        "Return activates the button that replaces the chart")
+    assert "box.setDefaultButton(ok)" not in src
+
+
+#: Windows allowed to make their accept button the Return default, each with
+#: the reason. An entry here is a decision, not an oversight.
+_RETURN_DEFAULT_ALLOWED = {
+    # The profiling-chart overwrite question. Its whole area - when it warns,
+    # what it keeps - is DEFERRED by the owner (2026-09-02: "defer this for
+    # now and leave it as it is"), so its Return default is not ours to change
+    # while that stands. Recorded rather than silently skipped, so it comes
+    # back the moment the deferral lifts.
+    ("ui/tabs/tab_chart.py", "_ask_chart_question"),
+}
+
+
+def test_every_destructive_window_keeps_return_safe():
+    """The rule is app-wide, so it is checked app-wide rather than at one door.
+
+    TWO WRONG VERSIONS CAME FIRST, and both are worth recording. The first
+    matched the button's NAME and walked past `go = box.addButton(go_label,
+    ...)`. The second flagged every window that correctly defaults to Cancel,
+    twelve false alarms, because `cancel`, `keep`, `back` and `_stop` are
+    exactly what SHOULD be the default. The question is the button's ROLE: a
+    default carrying AcceptRole is the button that does the thing.
+    """
+    import pathlib
+    import re
+
+    bad = []
+    for path in sorted(pathlib.Path("ui").rglob("*.py")):
+        text = path.read_text(encoding="utf-8")
+        for dm in re.finditer(r"setDefaultButton\(\s*(\w+)\s*\)", text):
+            name = dm.group(1)
+            am = None
+            for cand in re.finditer(
+                    rf"\n\s*{re.escape(name)}\s*=\s*(?:box|_box)\.addButton\(",
+                    text[:dm.start()]):
+                am = cand
+            if am is None:
+                continue                       # built some other way
+            call = text[am.end():am.end() + 300]
+            if "AcceptRole" not in call.split(")")[0] + ")":
+                continue                       # not the button that acts
+            window = text[am.start():dm.start() + 200]
+            if "Cancel" not in window and "Go back" not in window:
+                continue                       # no safe alternative offered
+            before = text[:am.start()]
+            fn = re.findall(r"\n    def (\w+)\(", before)
+            owner = (str(path), fn[-1] if fn else "?")
+            if owner in _RETURN_DEFAULT_ALLOWED:
+                continue
+            bad.append(f"{path}:{before.count(chr(10)) + 2} ({owner[1]}) "
+                       f"makes {name!r}, an AcceptRole button, the Return default")
+    assert not bad, (
+        'Return activates a destructive button - the app\'s own rule is '
+        '"Return must never be a replace":\n  ' + "\n  ".join(bad))
+
+
+def test_the_allowed_list_is_not_a_way_to_hide_new_ones():
+    """A guard with an exemption list is only honest if the list is checked.
+
+    Proves the scanner still SEES the exempt window, so the entry cannot
+    quietly become dead while the pattern drifts past it.
+    """
+    import inspect
+    import re
+
+    from ui.tabs.tab_chart import TabChart
+    src = inspect.getsource(TabChart._ask_chart_question)
+    m = re.search(r"(\w+)\s*=\s*box\.addButton\(", src)
+    assert m, "the exempt window no longer builds its button that way"
+    assert f"setDefaultButton({m.group(1)})" in src, (
+        "the exempt window no longer makes its accept button the default - "
+        "remove it from _RETURN_DEFAULT_ALLOWED")

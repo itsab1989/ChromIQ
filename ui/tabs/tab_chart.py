@@ -16025,8 +16025,16 @@ class TabChart(QWidget):
         box.setInformativeText(body)
         go = tr("Replace the calibration") if measured else tr("Replace the chart")
         ok = box.addButton(go, QMessageBox.ButtonRole.AcceptRole)
-        box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
-        box.setDefaultButton(ok)
+        cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+        # RETURN MUST NEVER BE A REPLACE. This is the app's own rule, written
+        # in as many words at three other doors (`ti2_loader.py:1025` and
+        # `:1560`, `txt_loader.py:430`) and followed at every destructive
+        # window in the app - Close project, File it in a new run, Make a new
+        # run, Restore chart files anyway. This one was the exception, and
+        # since the owner's 2026-09-02 ruling the accept button on the
+        # unmeasured branch DISCARDS a chart that is not kept anywhere, so a
+        # stray Return was the cheapest possible way to lose it.
+        box.setDefaultButton(cancel)
         fit_message_box_buttons(box)
         box.exec()
         return box.clickedButton() is ok
