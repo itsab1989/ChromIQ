@@ -32,7 +32,6 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtCore import QPoint, QRect, QSize  # noqa: E402
 from PyQt6.QtWidgets import (QApplication, QComboBox, QGroupBox,  # noqa: E402
                              QWidget)
 
@@ -90,7 +89,10 @@ def _floor(lang, out_dir):
         done = subprocess.run(
             [sys.executable, str(PROBE), lang, str(out_dir)],
             cwd=str(REPO_ROOT), capture_output=True, text=True,
-            timeout=PROBE_TIMEOUT,
+            # NAMED, not the platform default: the probe prints the window's
+            # own labels, and Russian, Japanese and Chinese do not survive a
+            # guess (tests/test_encoding_is_named.py).
+            encoding="utf-8", timeout=PROBE_TIMEOUT,
             env={**os.environ, "QT_QPA_PLATFORM": "offscreen"})
     except subprocess.TimeoutExpired:
         pytest.fail(f"the floor probe for {lang!r} did not finish within "
@@ -169,8 +171,9 @@ def test_the_pane_cut_is_recorded_not_counted(_app, _out_dir):
 # --------------------------------------------------------------- the width
 @pytest.mark.parametrize("lang", ["en", "es", "ru"])
 def test_the_worst_languages_fit_a_1280_screen(_out_dir, lang):
-    """Spanish is the widest of the twelve, Russian the widest with the
-    Advanced section open, English the floor of the whole set."""
+    """Spanish is the widest of the twelve and English the floor of the whole
+    set. Russian is here because it is the case this width work was for: with
+    the Advanced section open it used to need 1279 px against a 1280 screen."""
     _assert_fits(_floor(lang, _out_dir))
 
 
