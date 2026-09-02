@@ -552,7 +552,8 @@ WORKFLOWS: list[dict] = [
                 "no longer accurate. Build a fresh profile after re-calibrating.\n\n"
                 "ChromIQ helps you keep track: each run records which "
                 "calibration it was built with, and making a new calibration "
-                "chart never deletes the old one — it moves into the project's "
+                "chart never deletes a calibration you have measured — it "
+                "moves into the project's "
                 "“cal/old” folder, in a folder named with the date, so you can "
                 "always go back to it. Runs made before ChromIQ started "
                 "recording this simply say it is unknown.")),

@@ -584,48 +584,127 @@ def test_a_run_and_a_calibration_settle_through_the_same_code():
 # 7. THE WINDOW AND THE CODE NOW DISAGREE, AND THAT IS DELIBERATE AND MARKED.
 # --------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, reason=(
-    "M-CAL-REPLACE-CHART still promises the unmeasured chart is kept, and "
-    "since the owner's option-3 ruling of 2026-09-02 it is not. The wording is "
-    "his to approve, so it is PROPOSED in the hand-back report and NOT written "
-    "into the tab. THIS BRANCH MUST NOT BE MERGED OR TAGGED WHILE THIS TEST "
-    "XFAILS: the window would be lying, which is the exact fault the ruling "
-    "came out of. When the new wording is approved and landed, this test goes "
-    "green and `strict=True` turns the gate RED until the marker is removed — "
-    "so the pair cannot drift again in either direction."))
+def _window_text(measured: bool) -> str:
+    """What the replace-calibration window would really show, rendered.
+
+    Rendered rather than read out of the source, which is what this test used to
+    do. Reading the source could only ever ask whether a particular sentence was
+    typed in a particular place; now that both branches come from the catalogue
+    there is no sentence in the tab to read, and the honest question is what the
+    user would see."""
+    from workflow import measurement_messages as M
+
+    title, body = (M.M_CAL_REPLACE_MEASURED.render(
+        runs_line=M.calibration_runs_phrase([])) if measured
+        else M.M_CAL_REPLACE_CHART.render())
+    headline = (M.M_CAL_MEASURED_HEADLINE if measured
+                else M.M_CAL_CHART_HEADLINE)
+    return "\n".join((title, headline, body))
+
+
 def test_the_window_says_what_the_code_does():
-    """The pair that drifted, checked in the only way that survives a rewording:
-    against the BEHAVIOUR, not against a quoted sentence.
+    """THE PAIR THAT DRIFTED, AND THE WHOLE POINT OF THE EXERCISE.
 
-    The unmeasured window must not tell the user the chart moves to "cal/old",
-    because it no longer does. It must say something a beginner can tell apart
-    from the measured window, which still does move everything there."""
-    import inspect
+    The behaviour landed first and this test was a STRICT XFAIL for exactly one
+    commit, so the branch could not be merged or tagged while the window
+    promised something the code no longer did. Basti approved the wording on
+    2026-09-02 and the marker came off with it; the assertion is what was worth
+    keeping.
 
-    from ui.tabs.tab_chart import TabChart
-
-    src = inspect.getsource(TabChart._confirm_replacing_calibration)
-    unmeasured_branch = src[src.index("else:", src.index("go = tr(")):]
-    assert "cal/old" not in unmeasured_branch, (
-        "the window still tells the user an unmeasured chart moves to "
+    An unmeasured chart is dropped, so its window must not say the chart moves
+    to "cal/old" or that nothing is deleted."""
+    text = _window_text(measured=False)
+    assert "cal/old" not in text.split("Once a calibration has been measured")[0], (
+        "the window tells the user an unmeasured chart moves to "
         "“cal/old”, and it is dropped instead")
-    assert "Nothing is deleted" not in unmeasured_branch, (
-        "the window still says nothing is deleted over a chart that is")
+    assert "Nothing is deleted" not in text, (
+        "the window says nothing is deleted over a chart that is")
+    assert "is not kept" in text, (
+        "the window no longer says plainly that the chart is not kept")
+
+
+def test_a_beginner_can_tell_the_two_windows_apart():
+    """The second half of the approved wording's job. The two windows must not
+    read alike, or the one that means "gone" is skimmed as the one that means
+    "kept"."""
+    unmeasured = _window_text(measured=False)
+    measured = _window_text(measured=True)
+    assert unmeasured != measured
+    assert "not kept" in unmeasured and "not kept" not in measured
+    assert "nothing is deleted" in measured.lower()
+    # …and the unmeasured one says what the OTHER case does, which is how a
+    # beginner learns the difference at the moment it matters.
+    assert "Once a calibration has been measured" in unmeasured
 
 
 def test_the_measured_window_still_promises_correctly():
     """The other window did NOT change and must not: everything it names really
-    does move to cal/old. If the reword above touches this branch by accident,
-    this fails."""
-    import inspect
+    does move to cal/old."""
+    text = _window_text(measured=True)
+    assert "cal/old" in text
+    assert "the calibration chart" in text, (
+        "M-CAL-REPLACE-MEASURED no longer lists the chart among what moves")
+    assert "its measurement" in text and "(.cal)" in text
 
+
+def _drive_the_real_window(measured: bool, runs=()):
+    """Call `TabChart._calibration_replace_message` itself, unbound.
+
+    THE METHOD, NOT ITS SOURCE. The first version of the test below asked
+    whether the string "measurement_messages" appeared in the method — and a
+    mutation that broke the rendering entirely while leaving an unused import
+    behind sailed straight through it (M12c, 2026-09-02). A substring is not a
+    behaviour. The method is pure, so it can be driven with a stand-in for
+    `self` that carries only the two helpers it uses.
+    """
     from ui.tabs.tab_chart import TabChart
 
-    src = inspect.getsource(TabChart._confirm_replacing_calibration)
-    measured_branch = src[src.index("if measured:"):src.index("go = tr(")]
-    assert "cal/old" in measured_branch
-    assert "the calibration chart" in measured_branch, (
-        "M-CAL-REPLACE-MEASURED no longer lists the chart among what moves")
+    class _Stand_in:
+        _pretty_run_name = staticmethod(TabChart._pretty_run_name)
+
+        def _runs_built_on_calibration(self, proj):
+            return list(runs)
+
+    return TabChart._calibration_replace_message(_Stand_in(), None, measured)
+
+
+def test_both_windows_come_from_the_approved_catalogue():
+    """A window that renders from §M cannot invent a sentence. Before this, both
+    branches were prose typed into the tab, which is how the promise went false
+    without anything failing.
+
+    Driven, then compared to the catalogue STRING BY STRING, so the only way to
+    pass is to have actually rendered it."""
+    from workflow import measurement_messages as M
+
+    for mid in ("M-CAL-REPLACE-CHART", "M-CAL-REPLACE-MEASURED",
+                "M-CAL-ARCHIVED-HERE"):
+        assert mid in M.CATALOGUE, mid
+        assert M.CATALOGUE[mid].approved, f"{mid} is in the code unapproved"
+        assert mid not in M.PROPOSED, mid
+
+    title, headline, body = _drive_the_real_window(measured=False)
+    want_title, want_body = M.M_CAL_REPLACE_CHART.render()
+    assert (title, headline, body) == (want_title, M.M_CAL_CHART_HEADLINE,
+                                       want_body)
+
+    title, headline, body = _drive_the_real_window(measured=True)
+    want_title, want_body = M.M_CAL_REPLACE_MEASURED.render(runs_line="")
+    assert (title, headline, body) == (want_title, M.M_CAL_MEASURED_HEADLINE,
+                                       want_body)
+
+
+def test_the_window_names_the_runs_that_were_built_on_the_calibration():
+    """The `{runs_line}` fragment, driven through the real method — real
+    singular and plural, and silence when nothing recorded the calibration."""
+    _, _, none = _drive_the_real_window(measured=True, runs=())
+    _, _, one = _drive_the_real_window(measured=True, runs=("run3",))
+    _, _, many = _drive_the_real_window(measured=True, runs=("run3", "run5"))
+
+    assert "was built using this calibration" not in none
+    assert "Run 3 was built using this calibration" in one
+    assert "Run 3 and Run 5 were built using this calibration" in many
+    assert "(s)" not in one + many
 
 
 def test_the_window_and_the_code_ask_the_same_kind_of_question():
@@ -645,18 +724,17 @@ def test_the_window_and_the_code_ask_the_same_kind_of_question():
         "promise safety over a chart the code drops")
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "The file guide's `cal/old/` entry says a new calibration chart moves "
-    "“what was there” into a dated folder. Since the option-3 ruling that is "
-    "true only when something was measured. Same approval route as the window "
-    "above, same batch, same rule: NOT rewritten here. This is the “where are "
-    "my files?” page, so it is guarded rather than only mentioned."))
 def test_the_file_guide_says_what_the_code_does():
+    """The "where are my files?" page. Also a strict xfail for one commit, for
+    the same reason and released by the same approval."""
     entry = _cal_old_guide_text()
     assert "Earlier calibrations" in entry, (
         "precondition: this is not the cal/old row any more")
     assert "what was there" not in entry, (
-        "the file guide still says everything moves to cal/old")
+        "the file guide says everything moves to cal/old, and an unmeasured "
+        "chart does not")
+    assert "Once a calibration has been measured" in entry
+    assert "A chart you never measured is replaced instead" in entry
 
 
 def _cal_old_guide_text() -> str:
@@ -782,3 +860,21 @@ def test_the_app_says_where_the_calibration_archive_went(tmp_path):
     creator._announce_calibration_archive(None, lines.append)
     assert lines == [], (
         "an unmeasured rebuild announced an archive that is not there")
+
+
+def test_the_two_help_texts_no_longer_read_as_the_chart():
+    """Approved in the same batch (Basti, 2026-09-02). Both speak of "the
+    calibration" rather than "the chart", which was true in their own
+    vocabulary and read as false to a beginner, because a calibration is by
+    definition measured and a chart is not."""
+    import inspect
+
+    import ui.dialogs.welcome_dialog as wd
+    import ui.measurement_target_bar as bar
+
+    tip = inspect.getsource(bar)
+    assert "moves the calibration you have measured" in tip.replace(
+        '"\n                "', ""), "the Delete tooltip still says \u201cthe one you have\u201d"
+    hello = inspect.getsource(wd)
+    assert "never deletes a calibration you have measured" in hello.replace(
+        '"\n                "', ""), "the welcome card still says \u201cthe old one\u201d"

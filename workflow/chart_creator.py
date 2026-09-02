@@ -830,18 +830,23 @@ class ChartCreator:
         branch said nothing, before or after. Found by the adversarial round,
         2026-09-02.
 
-        **THE PATH, AND NOT A SENTENCE.** The sentence that should introduce it
-        is new user-facing text and is the owner's to approve (proposed as
-        M-CAL-ARCHIVED-HERE in the hand-back report). What can be wired without
-        inventing wording is the mechanism and the fact: the folder is now
-        carried out of `reset()` and written where the person can see it, beside
-        the tool output that already prints paths. When the sentence is
-        approved it goes on the line above this one.
+        M-CAL-ARCHIVED-HERE, approved by Basti on 2026-09-02 and rendered from
+        the catalogue like every other message. It shipped for one commit as the
+        bare folder path, with no sentence, because the sentence was not yet
+        approved and a path beside the tool output invents no wording; the
+        sentence is here now.
+
+        Only the ARCHIVE is announced. An unmeasured chart is dropped rather
+        than kept (the same ruling), so there is no folder to name and this says
+        nothing at all — announcing one would be the old fault upside down.
         """
         if dest is None or on_line is None:
             return
+        from workflow import measurement_messages as M
         try:
-            on_line(str(dest))
+            title, body = M.M_CAL_ARCHIVED_HERE.render(folder=str(dest))
+            on_line(title)
+            on_line(body)
         except Exception:      # noqa: BLE001 — never fail a build over a log line
             log.debug("could not announce the calibration archive",
                       exc_info=True)
