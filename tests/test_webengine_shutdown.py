@@ -34,6 +34,82 @@ from core.webengine_shutdown import drain_web_view  # noqa: E402
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+#: Seconds a subprocess that builds a real QWebEngineView is given.
+#
+# IT WAS 60, AND 60 IS A PHANTOM RED. That subprocess starts a whole Chromium.
+# Measured on an idle machine 2026-09-02, the two tests below cost **1.17 s and
+# 0.99 s** — so 60 was already a fifty-fold margin, and the release gate blew
+# straight through it anyway, because the gate saturates every core with twelve
+# workers. The run came out red with `subprocess.TimeoutExpired`, and the thing
+# these tests exist for — that the process exits CLEANLY — was never evaluated
+# at all. A budget that depends on how busy the machine is measures the machine.
+#
+# 300 s is ~250x the idle cost and still catches the only thing a timeout here
+# is for: a process that never exits.
+WEBENGINE_SUBPROCESS_TIMEOUT = 300
+
+
+def _run_web_subprocess(script, env):
+    """Run *script* in its own interpreter; make a timeout say what it is.
+
+    A bare `subprocess.TimeoutExpired` propagates as a traceback that reads like
+    the app crashed. It did not crash — it did not finish. The two need
+    different answers from whoever reads the log, so they are said differently.
+    """
+    try:
+        return subprocess.run(
+            [sys.executable, "-c", script], capture_output=True, text=True,
+            env=env, timeout=WEBENGINE_SUBPROCESS_TIMEOUT, encoding="utf-8",
+        )
+    except subprocess.TimeoutExpired as exc:
+        pytest.fail(
+            f"the QtWebEngine subprocess did not finish within "
+            f"{WEBENGINE_SUBPROCESS_TIMEOUT} s.\n"
+            f"THIS IS NOT THE ISSUE-#38 CRASH: the process never got as far as "
+            f"exiting, so nothing about its exit has been tested. Either the "
+            f"machine was saturated, or the view genuinely hangs — the log "
+            f"below says which.\n"
+            f"STDOUT:\n{exc.stdout}\nSTDERR:\n{exc.stderr}")
+
+
+def _webengine_is_available():
+    """…and give the availability probe a timeout of its own.
+
+    CLAUDE.md's rule ("anything that shells out in a test needs a `timeout=`")
+    applies to this one too: it was an unbounded `subprocess.run`, and an import
+    that wedges would have hung the run with no attribution.
+    """
+    try:
+        return subprocess.run(
+            [sys.executable, "-c", "import PyQt6.QtWebEngineWidgets"],
+            capture_output=True, timeout=120,
+        ).returncode == 0
+    except subprocess.TimeoutExpired:
+        return False
+
+
+def test_a_timeout_says_it_did_not_finish_not_that_it_crashed(monkeypatch):
+    """Control — the new error path, exercised.
+
+    Raising the budget is only half the change. The other half is that a
+    subprocess which runs out of time must not read like the #38 crash: a bare
+    `subprocess.TimeoutExpired` traceback is what sent one gate run's reader
+    looking for a crash that had not happened. Give the helper a script that
+    never finishes and one second to do it in.
+    """
+    monkeypatch.setattr(sys.modules[__name__],
+                        "WEBENGINE_SUBPROCESS_TIMEOUT", 1, raising=True)
+    # `pytest.fail` raises `Failed`, which descends from BaseException, not
+    # Exception — `pytest.raises(Exception)` would let it straight through and
+    # this control would report the very failure it is trying to catch.
+    with pytest.raises(pytest.fail.Exception) as caught:
+        _run_web_subprocess("import time; time.sleep(60)", dict(os.environ))
+    message = str(caught.value)
+    assert "did not finish" in message, message
+    assert "NOT THE ISSUE-#38 CRASH" in message, message
+    assert "crashed at exit" not in message, (
+        "a timeout is being reported in the words used for a crash")
+
 
 @pytest.fixture(scope="module")
 def qapp():
@@ -106,13 +182,7 @@ def test_drain_none_and_placeholder_are_noops(qapp):
 def test_real_view_drained_then_exit_is_clean():
     """A genuine QWebEngineView drained via drain_web_view lets the process
     finalise without the issue-#38 SIGBUS."""
-    if (
-        subprocess.run(
-            [sys.executable, "-c", "import PyQt6.QtWebEngineWidgets"],
-            capture_output=True,
-        ).returncode
-        != 0
-    ):
+    if not _webengine_is_available():
         pytest.skip("PyQt6-WebEngine not available")
 
     script = textwrap.dedent(
@@ -133,10 +203,7 @@ def test_real_view_drained_then_exit_is_clean():
         """
     )
     env = dict(os.environ, QT_QPA_PLATFORM="offscreen", PYTHONPATH=REPO_ROOT)
-    proc = subprocess.run(
-        [sys.executable, "-c", script],
-        capture_output=True, text=True, env=env, timeout=60, encoding="utf-8",
-    )
+    proc = _run_web_subprocess(script, env)
     assert proc.returncode == 0, (
         f"process crashed at exit (rc={proc.returncode}):\n"
         f"STDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}"
@@ -154,13 +221,7 @@ def test_undrained_view_exits_clean_via_hard_exit():
     Mirrors Knut's reproduction: a process that has used a web view and then
     quits. Run in a subprocess because a real QWebEngineView destabilises the
     shared offscreen test interpreter."""
-    if (
-        subprocess.run(
-            [sys.executable, "-c", "import PyQt6.QtWebEngineWidgets"],
-            capture_output=True,
-        ).returncode
-        != 0
-    ):
+    if not _webengine_is_available():
         pytest.skip("PyQt6-WebEngine not available")
 
     script = textwrap.dedent(
@@ -183,10 +244,7 @@ def test_undrained_view_exits_clean_via_hard_exit():
         """
     )
     env = dict(os.environ, QT_QPA_PLATFORM="offscreen", PYTHONPATH=REPO_ROOT)
-    proc = subprocess.run(
-        [sys.executable, "-c", script],
-        capture_output=True, text=True, env=env, timeout=60, encoding="utf-8",
-    )
+    proc = _run_web_subprocess(script, env)
     assert proc.returncode == 0, (
         f"process crashed at exit (rc={proc.returncode}):\n"
         f"STDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}"
