@@ -17,6 +17,12 @@ DEFAULTS: dict[str, Any] = {
     # Step 1 — chart creation
     "chart_mode":                "guided",
     "chart_instrument":          "i1",
+    # Which reader Tools ▸ "Read single patches" uses: "auto", "argyll" or
+    # "cr30". A NEW key, defaulting to the behaviour that already ran, so
+    # nothing moves for anybody and there is no migration to write. "auto"
+    # recognises a CR30 this machine has already reached over USB and
+    # otherwise starts ArgyllCMS spotread exactly as before.
+    "spot_read_instrument":      "auto",
     "chart_paper":               "A4",
     "chart_pages":               1,
     "chart_double_density":      False,

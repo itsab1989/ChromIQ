@@ -454,6 +454,25 @@ M_CR30_TRIGGER_NOT_ARMED = _m(
     approved=False)
 
 
+# --- PROPOSED: two windows reaching for one instrument ---------------------
+#: #159, 2026-09-02. Tools ▸ "Read single patches" can now drive the CR30 with
+#: ChromIQ's own reader, and that reader is not a process: every "is something
+#: measuring?" guard in the app answers from `ArgyllRunner.is_running`, which
+#: is process state, so nothing already in the app could see it. Over Bluetooth
+#: a CR30 accepts one connection and stops advertising once it is taken; over
+#: USB two openers interleave their bytes. The instrument holds its last
+#: reading indefinitely, so the failure is not an error, it is a plausible
+#: wrong colour recorded under the other window's name.
+M_INSTRUMENT_BUSY = _m(
+    "M-INSTRUMENT-BUSY",
+    "Your instrument is already in use",
+    "ChromIQ is measuring in {where}, and your instrument can only answer one "
+    "window at a time.\n\n"
+    "Finish or stop that measurement, then start this one again.\n\n"
+    "Nothing has been changed and nothing has been measured.",
+    approved=False)
+
+
 # ---------------------------------------------------------------------------
 # §5 — starting a measurement over an existing one
 # ---------------------------------------------------------------------------
@@ -1595,6 +1614,7 @@ CATALOGUE = {m.id: m for m in (
     M_CR30_CALIBRATE, M_CR30_CALIBRATE_BLACK, M_CR30_MAGNET,
     M_CR30_HOW_TO_MEASURE, M_CR30_READ_FAILED,
     M_CR30_LEARN_TILE, M_CR30_TRIGGER_NOT_ARMED,
+    M_INSTRUMENT_BUSY,
     M_CAL_REPLACE_CHART, M_CAL_REPLACE_MEASURED, M_CAL_ARCHIVED_HERE,
 )}
 

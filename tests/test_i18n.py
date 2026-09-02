@@ -277,10 +277,23 @@ def test_the_catalogue_is_actually_translated_into_german():
 # whole exercise existed to stop asserting, which is worse than English. The
 # two keys that changed by PUNCTUATION only (an em dash became a comma) were
 # carried, and cost nothing here.
+# 2026-09-02, #159, +1 for German and +3 for the other eleven: Tools ▸ Read
+# single patches can now read a CR30, and it brought nine strings with it.
+# German carries all nine. The eleven carry eight — including the CR30's
+# spot-reading instruction, whose SIBLINGS in the same function are translated
+# everywhere, so leaving that one in English would have been conspicuous in a
+# way the §M messages are not. Two are identical to their key:
+#
+#   •  "CR30 (ChnSpec)" is the product's name, identical in all twelve, German
+#      included. That is German's +1.
+#   •  M-INSTRUMENT-BUSY's body is PROPOSED wording (§M-PROPOSED). Translating
+#      a sentence nobody has approved is the churn behind "translate before the
+#      final, not during a beta", and the whole M-CR30-* family already sits in
+#      English in these eleven for the same reason.
 _IDENTICAL_TO_KEY = {
-    "de": 151,
-    "es": 270, "fr": 290, "it": 282, "ja": 259, "nl": 299,
-    "no": 283, "pl": 274, "pt": 274, "ru": 246, "sv": 287, "zh_CN": 252,
+    "de": 152,
+    "es": 272, "fr": 292, "it": 284, "ja": 261, "nl": 301,
+    "no": 285, "pl": 276, "pt": 276, "ru": 248, "sv": 289, "zh_CN": 254,
 }
 
 
