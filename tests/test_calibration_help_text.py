@@ -103,14 +103,50 @@ def test_the_n_channel_tooltip_is_honest():
 
 
 # ---- the two new windows --------------------------------------------------
-def test_the_replace_windows_promise_nothing_is_deleted():
+def test_the_replace_windows_say_what_each_one_really_does():
+    """The two windows now promise DIFFERENT things, and that is the point.
+
+    The owner ruled on 2026-09-02 that an unmeasured calibration chart is
+    replaced rather than kept, the way a profile run's chart is, because
+    somebody trying layouts is experimenting and not building an archive. So
+    the measured window still promises the archive and the unmeasured one must
+    NOT - saying "you can go back to it" about a chart that has just been
+    discarded is exactly the fault this whole area was fixed for.
+
+    THIS TEST USED TO PICK ITS TARGET WITH `next(...)` on "move to the
+    project", which both windows now contain, so it read whichever key came
+    first and passed or failed on iteration order - it failed inside the gate
+    and passed alone on the same tree. Each window is addressed by its own
+    headline now.
+    """
     keys = _catalog_keys()
-    for start in ("This project already has a finished calibration",
-                  "You already made a calibration chart for this project"):
+    measured_head = "This project already has a finished calibration"
+    unmeasured_head = "You already made a calibration chart for this project"
+    for start in (measured_head, unmeasured_head):
         assert any(k.startswith(start) for k in keys), start
-    moved = next(k for k in keys if "move to the project" in k)
-    assert "nothing is deleted" in moved
-    assert "go back to them at any time" in moved
+
+    # The measured window keeps the promise, and keeps it in full.
+    kept = [k for k in keys
+            if "move to the project" in k and "nothing is deleted" in k]
+    assert kept, "no window promises the archive any more"
+    assert any("go back to them at any time" in k for k in kept), (
+        "the measured window stopped promising you can go back to it")
+
+    # The unmeasured window says the opposite, and says it plainly.
+    body = next((k for k in keys
+                 if "the chart you have now is not kept" in k), None)
+    assert body is not None, (
+        "the unmeasured window no longer says the chart is not kept")
+    # THE PROMISE, NOT THE PHRASE. A first version of this asserted that
+    # "go back to" was absent, and the approved text legitimately contains
+    # "treats it as an attempt rather than as work to go back to" - the same
+    # words used to say the opposite thing. What must be absent is the
+    # PROMISE, so the promise is what is named.
+    for promise in ("you can go back to it at any time",
+                    "go back to them at any time"):
+        assert promise not in body, (
+            f"the unmeasured window still promises {promise!r} about a chart "
+            f"it discards")
 
 
 def test_the_affected_runs_line_has_real_singular_and_plural():
