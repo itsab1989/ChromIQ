@@ -601,6 +601,15 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._hint = by_mode("#4a4a4a", "#b8b8b8", _n.NM_TEXT_FAINT,
                              resolve_mode(settings.get("appearance", "auto")))
         self._build_inputs()
+        # PROPOSAL ONLY (see _reflow_two_panel) — off unless the env var is set.
+        import os as _os
+        _tp = _os.environ.get("CHROMIQ_SCANIN_TWO_PANEL", "").strip()
+        if _tp:
+            self.MIN_WIDTH = int(_os.environ.get("CHROMIQ_SCANIN_TWO_PANEL_W", 1240))
+            if _tp in ("3", "4"):
+                self._reflow_full_proposal(_tp)
+            else:
+                self._reflow_two_panel(_tp)
         self._run_btn.setObjectName("primary")
         # "Reveal profile" — shown after a successful build so the .icc is easy to
         # find (ChromIQ doesn't auto-install scanner profiles). Hidden until then.
@@ -1519,6 +1528,275 @@ class ScannerProfileDialog(_ToolDialogBase):
         _w = max(l.sizeHint().width() for l in _labels) + 8
         for _l in _labels:
             _l.setFixedWidth(_w)
+
+    # ------------------------------------------------------------------
+    # PROPOSAL ONLY — two-panel reflow (not approved, not on by default).
+    # ------------------------------------------------------------------
+    # Set CHROMIQ_SCANIN_TWO_PANEL=1 for the owner's cut (the preview and
+    # everything down to and including "Use fiducial marks" moves right), or
+    # =2 for the alternative cut (the reading controls stay with the profile
+    # settings on the left; only the preview and its direct view controls go
+    # right). Unset, the window is exactly as it ships.
+    #
+    # It re-parents the SAME layout items the single column already holds, so
+    # every widget, style and signal is untouched — this is a mockup you can
+    # click, not a rewrite.
+    # Breathing room either side of the splitter handle — the same 16 px the
+    # inner layout already leaves under the log (owner's ask).
+    _PANE_GAP = 16
+    _TWO_PANEL_CUTS = {
+        # name: (first index that moves right, last index that moves right)
+        "1": (6, 13),   # owner's cut: marquee … options grid (incl. fiducials)
+        "2": (6, 9),    # alternative: marquee + view buttons + the two hints
+    }
+
+    def _reflow_two_panel(self, which: str) -> None:
+        cut = self._TWO_PANEL_CUTS.get(which)
+        if cut is None:
+            return
+        first, last = cut
+        items = [self._content.itemAt(i) for i in range(self._content.count())]
+        # Take every item out, back to front, so indices stay valid.
+        for i in range(self._content.count() - 1, -1, -1):
+            self._content.takeAt(i)
+
+        left = QVBoxLayout()
+        left.setSpacing(10)
+        right = QVBoxLayout()
+        right.setSpacing(10)
+        for i, it in enumerate(items):
+            target = right if first <= i <= last else left
+            if it.widget() is not None:
+                target.addWidget(it.widget())
+            elif it.layout() is not None:
+                target.addLayout(it.layout())
+        # The short column would otherwise stretch its rows apart.
+        left.addStretch(1)
+        right.addStretch(1)
+
+        cols = QHBoxLayout()
+        cols.setSpacing(22)
+        cols.addLayout(left, 1)
+        cols.addLayout(right, 1)
+        self._content.addLayout(cols)
+        self._two_panel_columns = (left, right)
+
+    # ------------------------------------------------------------------
+    # PROPOSAL ONLY — the owner's FULL proposal, all three asks together:
+    #   (a) two panels, cut at "Use fiducial marks";
+    #   (b) the status log under the LEFT panel only, not the whole width;
+    #   (c) Advanced folded into the window as a collapsed section, so the
+    #       "Advanced…" button goes away, and Save as Defaults / Restore
+    #       defaults move to the bottom button row.
+    # CHROMIQ_SCANIN_TWO_PANEL=3 (owner's cut) or =4 (the alternative cut).
+    # Nothing here is approved. It exists to be looked at and judged.
+    # ------------------------------------------------------------------
+    def _reflow_full_proposal(self, which: str) -> None:
+        from PyQt6.QtWidgets import (QFrame, QScrollArea, QSizePolicy,
+                                     QToolButton)
+        first, last = self._TWO_PANEL_CUTS["1" if which == "3" else "2"]
+
+        items = [self._content.itemAt(i) for i in range(self._content.count())]
+        for i in range(self._content.count() - 1, -1, -1):
+            self._content.takeAt(i)
+
+        def column(idxs):
+            lay = QVBoxLayout()
+            lay.setSpacing(10)
+            lay.setContentsMargins(0, 0, 0, 0)
+            for i in idxs:
+                it = items[i]
+                if it.widget() is not None:
+                    lay.addWidget(it.widget())
+                elif it.layout() is not None:
+                    lay.addLayout(it.layout())
+            return lay
+
+        left_idx = [i for i in range(len(items)) if not (first <= i <= last)]
+        right_idx = [i for i in range(len(items)) if first <= i <= last]
+        left_lay, right_lay = column(left_idx), column(right_idx)
+
+        # (c) Advanced, inline and collapsed. The REAL editor's controls are
+        # re-parented in, so this is the actual panel, not a stand-in.
+        # Reserve room for the eight drag handles, or the side ones fall outside
+        # the widget and cannot be grabbed at all. See ScanGridMarquee.
+        from ui.scan_grid_marquee import _HANDLE_OFFSET, _HANDLE_R
+        self._marquee.handle_margin = _HANDLE_OFFSET + _HANDLE_R
+        self._adv_inline = self._build_inline_advanced()
+        left_lay.addWidget(self._adv_inline)
+        self._adv_btn.setVisible(False)          # the button it replaces
+        left_lay.addStretch(1)
+        right_lay.addStretch(1)
+
+        # The existing scroll area keeps the LEFT column; the right gets its own,
+        # so the preview scrolls without dragging the settings out of view.
+        # ORDER MATTERS. Build the RIGHT pane first: `self._scroll.setWidget`
+        # destroys the old content widget, and doing that while the right
+        # column's rows are still homeless crashes PyQt6 inside FadeScrollArea
+        # (the re-entrant scroll-range path CLAUDE.md documents).
+        right_w = QWidget(self)
+        right_lay.setContentsMargins(self._PANE_GAP, 0, 0, 0)
+        right_w.setLayout(right_lay)
+        self._scroll_right = QScrollArea(self)
+        self._scroll_right.setWidgetResizable(True)
+        self._scroll_right.setFrameShape(QFrame.Shape.NoFrame)
+        self._scroll_right.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._scroll_right.setWidget(right_w)
+        lw = QWidget(self)
+        lw.setLayout(left_lay)
+        self._scroll.setWidget(lw)
+
+        # (b) Rebuild the dialog body so the spectrum bar, the big buttons and
+        # the log all sit UNDER THE LEFT PANEL ONLY — and in the main window's
+        # order: controls, bar, buttons, then the log LAST, drag-resizable.
+        inner = self._inner
+        for w in (self._scroll, self._busy_bar, self._log, self._button_box):
+            if w is not None:
+                inner.removeWidget(w)
+        left_pane_w = QWidget(self)
+        left_pane = QVBoxLayout(left_pane_w)
+        left_pane.setContentsMargins(0, 0, self._PANE_GAP, 0)
+        left_pane.setSpacing(10)
+        left_pane.addWidget(self._scroll, 1)
+        if self._busy_bar is not None:
+            left_pane.addWidget(self._busy_bar)
+        # Button order, left to right (owner): Build profile, Save as Defaults,
+        # Restore defaults, Close. A QDialogButtonBox orders by ROLE and by
+        # platform convention, so it cannot express that — use a plain row.
+        self._btn_row_w = QWidget(self)
+        self._btn_row = QHBoxLayout(self._btn_row_w)
+        self._btn_row.setContentsMargins(0, 0, 0, 0)
+        left_pane.addWidget(self._btn_row_w)
+        # The tabs' own log treatment: nine lines of the font it really gets,
+        # plus the drag-the-top-edge grip whose height the app remembers.
+        from ui.widgets import add_log_row, fit_log_height
+        # NOT setObjectName("log") — that name pulls in the main window's own
+        # green monospace log styling, which does not belong in a Tools window.
+        # Only the height behaviour and the drag grip are wanted here.
+        self._log.setMaximumHeight(16777215)
+        fit_log_height(self._log)
+        add_log_row(left_pane, self._log, left_pane_w)
+
+        # A splitter, like the four main tabs (ui/tabs/tab_chart.py:2891), so
+        # the divider can be dragged. tab_chart's own note warns that a splitter
+        # OVERLAPS its panes when their minimums exceed the window — hence the
+        # cap on the right pane below.
+        from PyQt6.QtWidgets import QSplitter
+        split = QSplitter(Qt.Orientation.Horizontal, self)
+        split.setHandleWidth(4)
+        split.addWidget(left_pane_w)
+        split.addWidget(self._scroll_right)
+        split.setStretchFactor(0, 1)
+        split.setStretchFactor(1, 1)
+        # The right pane's rows (the five view buttons, the two checkboxes) do
+        # not shrink below this, so an even 50/50 clips them. Ask for the width
+        # each pane actually needs.
+        split.setSizes([700, 700])
+        self._scroll_right.setMinimumWidth(360)   # the marquee's own floor
+
+        # A MINIMUM WIDTH IS NOT OPTIONAL HERE (owner). A QScrollArea does not
+        # pass its widget's minimum width up, and both scroll areas pin the
+        # horizontal bar OFF — so without this the window can be dragged narrow
+        # enough that the right pane is amputated and its controls, "Use
+        # fiducial marks" included, cannot be reached at all. Measured on the
+        # real widgets: the two panes need 662 + 640 in English and 717 + 856 in
+        # German, so the floor is read off the layout rather than hard-coded.
+        self._needs_min_width = True
+        self._left_pane_w = left_pane_w
+        # The left pane is FIXED-WIDTH (owner), the way every main-window tab
+        # already does it (ui/tabs/tab_chart.py:2897, `left.setFixedWidth(580)`).
+        # Extra window width then goes entirely to the preview, which is the
+        # only thing that gains from it. The number is READ, not chosen: 580
+        # does not fit here because the "Create profile using:" radio row is
+        # 662 px wide in English and 717 in German. Let that row wrap and this
+        # window could match the tabs exactly.
+        split.setChildrenCollapsible(False)
+        self._two_panel_split = split
+        inner.addWidget(split, 1)
+
+        # (c) Save as Defaults / Restore defaults join the bottom row, in the
+        # owner's order: Build profile, Save as Defaults, Restore defaults, Close.
+        self._restore_defaults_btn = QPushButton(tr("Restore defaults"), self)
+        # Populated in showEvent, NOT here: __init__ adds Reveal/Install to the
+        # button box after this runs, and QDialogButtonBox re-claims every
+        # button it still lists on its next relayout — which silently pulled
+        # Build and Close back out of this row and left it showing two buttons.
+        self._two_panel_columns = (left_lay, right_lay)
+
+    def showEvent(self, event) -> None:  # noqa: N802
+        """Pin the fixed left-pane width and the window's minimum width, once
+        the layout is real. PROPOSAL ONLY — no-op unless the reflow ran."""
+        first = not self._sized_once
+        super().showEvent(event)
+        if not (first and getattr(self, "_needs_min_width", False)):
+            return
+        # Build profile, Save as Defaults, Restore defaults, Close — left to
+        # right (owner). `removeButton` first, or the box takes them back.
+        for b in (self._run_btn, self._save_defaults_btn,
+                  self._restore_defaults_btn, self._close_btn):
+            self._button_box.removeButton(b)
+            b.setParent(None)
+            self._btn_row.addWidget(b)
+            b.setVisible(True)      # setParent(None) hides a widget for good
+        self._btn_row.addStretch(1)
+        self._button_box.setVisible(False)
+
+        lay = self.layout()
+        lay.activate()
+        # Read the width the CONTENT needs, not the scroll area's size hint —
+        # a QScrollArea's hint is a generic default that has nothing to do with
+        # its widget, and sizing the pane from it clips the widest row (the
+        # "Create profile using:" radios) with no scrollbar to recover it.
+        content_w = self._scroll.widget().sizeHint().width()
+        bar = self._scroll.verticalScrollBar().sizeHint().width() + 4
+        want = max(content_w + bar,
+                   self._btn_row_w.sizeHint().width(),
+                   self._log.minimumWidth(), 580)
+        self._left_pane_w.setFixedWidth(want + self._PANE_GAP)
+        lay.activate()
+        floor = lay.minimumSize()
+        self.setMinimumWidth(max(floor.width(), self.MIN_WIDTH))
+        self.resize(max(self.width(), self.minimumWidth()), self.height())
+
+    def _build_inline_advanced(self) -> QWidget:
+        """A collapsed 'Advanced' disclosure holding the real Advanced editor's
+        controls, so the modal window is no longer needed."""
+        from PyQt6.QtWidgets import QFrame, QToolButton
+        from ui.dialogs.scanner_colprof import ScannerAdvancedDialog
+        box = QFrame(self)
+        box.setFrameShape(QFrame.Shape.StyledPanel)
+        v = QVBoxLayout(box)
+        v.setContentsMargins(8, 4, 8, 4)
+        v.setSpacing(6)
+        head = QToolButton(box)
+        head.setText(tr("Advanced…"))
+        head.setCheckable(True)
+        head.setChecked(False)
+        head.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        head.setArrowType(Qt.ArrowType.RightArrow)
+        head.setStyleSheet("QToolButton { border: none; font-weight: 600; }")
+        v.addWidget(head)
+        self._adv_editor = ScannerAdvancedDialog(
+            dict(self._adv_vals), self, printer=self._printer_mode())
+        body = self._adv_editor.findChildren(QWidget)[0]
+        from PyQt6.QtWidgets import QScrollArea
+        sc = self._adv_editor.findChildren(QScrollArea)[0]
+        body = sc.takeWidget()
+        body.setParent(box)
+        body.setVisible(False)
+        v.addWidget(body)
+
+        def _toggle(on: bool) -> None:
+            body.setVisible(on)
+            head.setArrowType(Qt.ArrowType.DownArrow if on
+                              else Qt.ArrowType.RightArrow)
+            self._refit_height()
+
+        head.toggled.connect(_toggle)
+        self._adv_inline_body = body
+        self._adv_inline_head = head
+        return box
 
     # ------------------------------------------------------------------
     # Scanner colprof settings (#121, Knut)
