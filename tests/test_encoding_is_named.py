@@ -17,10 +17,17 @@ THE RULE, which `core/text_io.py` states in full:
   * **Reading tries UTF-8 first**, then this machine's own default if it is
     something else, then cp1252 — and says so in the log when it falls back.
 
-The order is what makes the fallback safe rather than a guess: a cp1252 file
-containing an umlaut is *invalid* UTF-8, so step 1 cannot mis-fire on legacy
-data, and steps 2-3 are only ever reached for bytes that are definitely not
-UTF-8.
+The order is what makes the fallback *safer*, not safe. A cp1252 file
+containing an umlaut is invalid UTF-8, so step 1 cannot mis-fire on THAT, which
+is why German is recovered. The reverse is not guaranteed and this file used to
+say it was: 1,770 two-character cp1252 strings are also valid UTF-8 meaning
+something else, and for those nothing falls back and nothing is logged.
+`test_a_cp1252_file_can_also_be_valid_utf8_and_nobody_can_tell` measures it.
+
+And the last resort cannot say no. cp1252 maps 251 of 256 byte values, so it
+decoded UTF-16 into visible nonsense without raising, and UTF-16LE with ASCII
+content is valid UTF-8 outright. Section 7 pins the refusal that now comes
+first.
 
 What this file proves, in the order the issue asks for it:
 
@@ -240,11 +247,17 @@ def test_a_cp1252_file_from_an_older_windows_is_recovered(tmp_path, caplog):
     p.write_bytes(NOTES.encode("cp1252"))
     with pytest.raises(UnicodeDecodeError):
         p.read_text(encoding="utf-8")           # what a naive fix would do
-    text_io._REPORTED.clear()
     with caplog.at_level("WARNING"):
         assert read_text(p) == NOTES
-    assert any("not UTF-8" in r.message or "not UTF-8" in r.getMessage()
+    assert any("not valid UTF-8" in r.getMessage()
                for r in caplog.records), [r.getMessage() for r in caplog.records]
+    # …AND AGAIN. There used to be a module-global `_REPORTED` set here, so the
+    # second read of the same file said nothing (Basti, 2026-09-02: every
+    # non-UTF-8 read gets reported, every time).
+    caplog.clear()
+    with caplog.at_level("WARNING"):
+        assert read_text(p) == NOTES
+    assert any("not valid UTF-8" in r.getMessage() for r in caplog.records)
 
 
 def test_a_bom_is_eaten_not_delivered(tmp_path):
@@ -605,3 +618,163 @@ def test_the_module_is_importable_without_qt():
             imports.update(a.name.split(".")[0] for a in n.names)
     assert imports <= {"__future__", "locale", "os", "pathlib", "core"}, imports
     assert "PyQt6" not in src
+
+
+# ---------------------------------------------------------------------------
+# 7. A file that is not this kind of text at all
+#
+# cp1252 maps 251 of 256 byte values, so the last resort always "succeeded"
+# and a UTF-16 file came back as visible nonsense with no exception:
+#
+#     utf16le_bom          -> 'ÿþM\x00ü\x00l\x00l\x00e\x00r…'   NO EXCEPTION
+#     utf16be_bom          -> 'þÿ\x00M\x00ü\x00l\x00l\x00e…'    NO EXCEPTION
+#     utf16le_nobom_ascii  -> 'C\x00R\x00E\x00A\x00T\x00E\x00D…'  NO EXCEPTION,
+#                                                             AND NO WARNING
+#
+# The third is the worst: UTF-16LE with ASCII content is valid UTF-8 (NUL is a
+# legal UTF-8 byte), so the FIRST attempt succeeded and nothing was logged at
+# all, which is the silence this whole module exists to remove.
+#
+# Producer: Windows PowerShell 5.1, still the default shell there, writes
+# UTF-16LE+BOM for `>` and `Out-File`; older Notepad's "Save as -> Unicode"
+# does the same. No ChromIQ or Argyll producer writes UTF-16, so the mechanism
+# is proved and the trigger is plausible but unobserved.
+# ---------------------------------------------------------------------------
+
+UTF16_CASES = {
+    "utf16le_bom": NOTES.encode("utf-16"),                     # BOM + LE
+    "utf16be_bom": b"\xfe\xff" + NOTES.encode("utf-16-be"),
+    "utf16le_nobom_ascii": 'CREATED "2026-09-02"\n'.encode("utf-16-le"),
+    "utf16le_bom_ascii_only": "BEGIN_DATA\n1 100.0\nEND_DATA\n".encode("utf-16"),
+}
+
+
+@pytest.mark.parametrize("case", sorted(UTF16_CASES))
+def test_a_utf16_file_raises_instead_of_decoding_to_nonsense(tmp_path, case, caplog):
+    """Every one of the four measured inputs. Loudly, not silently."""
+    p = tmp_path / f"{case}.ti3"
+    p.write_bytes(UTF16_CASES[case])
+    with caplog.at_level("ERROR"):
+        with pytest.raises(UnicodeDecodeError) as exc:
+            read_text(p)
+    # The reason says what was found, not what it guesses about who wrote it.
+    assert ("UTF-16" in str(exc.value) or "NUL" in str(exc.value)), str(exc.value)
+    assert any(str(p) in r.getMessage() for r in caplog.records), (
+        "a refusal that is not logged is the silence again")
+
+
+@pytest.mark.parametrize("case", sorted(UTF16_CASES))
+def test_a_lenient_caller_gets_the_real_text_and_never_raises(tmp_path, case):
+    """`lenient=True` exists so an optional sidecar cannot kill a build.
+
+    It must not raise, and handing back the nonsense the refusal exists to
+    prevent would be no better, so a file that declares itself (or is
+    structurally unmistakable) is decoded as what it is.
+    """
+    p = tmp_path / f"{case}.ti3"
+    p.write_bytes(UTF16_CASES[case])
+    got = read_text(p, lenient=True)
+    assert "\x00" not in got, repr(got[:60])
+    if case == "utf16le_bom":
+        assert got == NOTES
+    if case == "utf16le_nobom_ascii":
+        assert got.startswith('CREATED "2026-09-02"')
+
+
+def test_the_refusal_is_a_unicodedecodeerror_so_existing_callers_still_catch_it(
+        tmp_path):
+    """One failure mode, the one a strict read always had.
+
+    `read_text` already raised `UnicodeDecodeError` for a file no codec
+    decodes, and callers catch that (or `ValueError`, or `Exception`). A new
+    exception class would have walked past every one of those handlers.
+    """
+    p = tmp_path / "x.ti3"
+    p.write_bytes(b"\xff\xfe" + "hello".encode("utf-16-le"))
+    with pytest.raises(ValueError):          # UnicodeDecodeError is a ValueError
+        read_text(p)
+    try:
+        read_text(p)
+    except UnicodeDecodeError as exc:
+        assert exc.encoding == "utf-8"
+        assert exc.object == p.read_bytes()
+        assert exc.reason
+
+
+def test_a_nul_byte_is_refused_whatever_produced_it(tmp_path):
+    """ChromIQ writes CGATS, JSON and plain text; Argyll writes CGATS. None of
+    them contains a NUL, so one means these are not the bytes we think."""
+    p = tmp_path / "truncated.ti3"
+    p.write_bytes(b"CTI3\n\x00\x00\x00\x00")
+    with pytest.raises(UnicodeDecodeError):
+        read_text(p)
+
+
+@pytest.mark.parametrize("payload", [
+    NOTES.encode("utf-8"),                          # the normal case
+    NOTES.encode(LEGACY_ENCODING),                  # the legacy case
+    b"\xef\xbb\xbf" + NOTES.encode("utf-8"),        # Notepad's UTF-8 BOM
+    b"BEGIN_DATA\r\n1 100.0\r\nEND_DATA\r\n",       # CRLF, plain ASCII
+    b"",                                            # an empty file
+])
+def test_the_refusal_does_not_touch_a_file_that_was_always_fine(tmp_path, payload):
+    """The overwhelming majority. A guard that fires on real data is a bug."""
+    p = tmp_path / "fine.ti3"
+    p.write_bytes(payload)
+    read_text(p)                                    # strict: must not raise
+    read_text(p, lenient=True)
+
+
+def test_a_cp1252_file_can_also_be_valid_utf8_and_nobody_can_tell():
+    """The claim this module used to make, measured and disproved.
+
+    "Text that is valid UTF-8 is not also plausibly cp1252" was stated as the
+    reason step 1 can never mis-fire. It can. This is not fixed here (both
+    readings are legitimate text and the bytes do not say which) but the
+    docstring no longer says otherwise, and the number is pinned so nobody
+    re-derives it.
+    """
+    both = 0
+    for a in range(256):
+        for b in range(256):
+            try:
+                s = bytes([a, b]).decode(LEGACY_ENCODING)
+            except UnicodeDecodeError:
+                continue
+            raw = s.encode(LEGACY_ENCODING)
+            try:
+                if raw.decode("utf-8") != s:
+                    both += 1
+            except UnicodeDecodeError:
+                pass
+    assert both == 1770, both
+    # The realistic shape of it: text that was already mojibake once.
+    doubled = "prÃ©fÃ©rence".encode(LEGACY_ENCODING)
+    assert doubled.decode("utf-8") == "préférence"
+
+
+def test_the_dedup_that_went_quiet_is_gone():
+    """Basti, 2026-09-02: every non-UTF-8 read gets reported, every time.
+
+    There was a module-global `_REPORTED` set, keyed by (path, codec) and
+    never cleared, so a measurement file read on every chartread run warned
+    once and then said nothing for the rest of the session, and the set grew
+    for the life of the process.
+    """
+    assert not hasattr(text_io, "_REPORTED")
+    src = (REPO / "core" / "text_io.py").read_text(encoding="utf-8")
+    assert "_REPORTED" not in src
+
+
+def test_the_fallback_warning_claims_only_what_it_knows(tmp_path, caplog):
+    """It used to say the file "was probably written by an older ChromIQ on
+    Windows". It cannot know that, and for a UTF-16 file it was simply untrue.
+    """
+    p = tmp_path / "legacy.ti3"
+    p.write_bytes(NOTES.encode(LEGACY_ENCODING))
+    with caplog.at_level("WARNING"):
+        read_text(p)
+    msg = " ".join(r.getMessage() for r in caplog.records)
+    assert "older ChromIQ" not in msg
+    assert LEGACY_ENCODING in msg and "guess" in msg
+    assert "—" not in msg, "no em dashes in text a user may be shown"

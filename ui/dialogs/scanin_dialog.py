@@ -1742,6 +1742,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         # Preferences → Beta. It profiles correctly — that was measured end to
         # end — but scanin's chart finder can abort on a honeycomb, so the
         # default stays the long-proven behaviour. See `hex_scanner_message`.
+        from core.file_manager import nfc
         from workflow.hex_support import (chart_is_hexagonal,
                                           hex_scanner_allowed,
                                           hex_scanner_message)
@@ -1754,7 +1755,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         # name has a "suffix" pathlib would replace — core/stem_paths.py.
         ti3, ti2 = artefact(base, ".ti3"), artefact(base, ".ti2")
         if (picked.suffix.lower() in (".ti2", ".ti3") and picked.is_file()
-                and picked.stem == base.name):     # not a "-verify" alias pick
+                and nfc(picked.stem) == nfc(base.name)):   # not a "-verify" alias pick
             ref = picked
         else:
             ref = ti3 if ti3.is_file() else ti2
@@ -1804,7 +1805,8 @@ class ScannerProfileDialog(_ToolDialogBase):
         # instead of showing a grid that can never match the scan (#108).
         if self._layout.get("engine") == "printtarg":
             stored = len(self._layout.get("cht_pages") or [])
-            tifs = sorted(base.parent.glob(f"{base.name}_*.tif"))
+            from core.file_manager import files_matching
+            tifs = files_matching(base.parent, f"{base.name}_*.tif")
             printed = len(tifs) or (1 if artefact(base, ".tif").is_file() else 0)
             if stored and printed and stored != printed:
                 self._layout = None

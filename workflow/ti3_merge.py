@@ -54,7 +54,10 @@ def _parse(path: Path) -> _Parsed:
     """Read just enough of a CGATS .ti3 to validate compatibility before merging."""
     try:
         text = read_text(path)
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
+        # UnicodeDecodeError too: `read_text` refuses a UTF-16 file rather than
+        # laundering it through cp1252 into nonsense, and a merge that reports
+        # WHICH file it could not read is more use than a traceback.
         raise Ti3MergeError(f"Could not read '{path.name}': {exc}") from exc
 
     lines = text.splitlines()

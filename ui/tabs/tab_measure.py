@@ -37,7 +37,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from core.file_manager import FileManager, Run
+from core.file_manager import FileManager, Run, files_matching
 from core.platform_paths import file_manager_name
 from core.logger import get_logger
 from core.preset_store import (
@@ -4390,7 +4390,8 @@ class TabMeasure(QWidget):
         _stem = self._ti1_path.stem
 
         def _newest_refine(folder):
-            found = sorted(folder.glob(f"Refine_Strips_*_{_stem}.txt"),
+            found = sorted(files_matching(folder,
+                                         f"Refine_Strips_*_{_stem}.txt"),
                            key=lambda q: q.stat().st_mtime)
             plain = folder / f"Refine_Strips_{_stem}.txt"
             if plain.exists():
@@ -4578,7 +4579,7 @@ class TabMeasure(QWidget):
         # chart sharing that prefix (core/stem_paths.py).
         stem   = without_ext(without_ext(base_path, ".ti2"), ".ti1").name
         folder = base_path.parent
-        tiffs  = sorted(folder.glob(f"{stem}*.tif"))
+        tiffs  = files_matching(folder, f"{stem}*.tif")
         if tiffs:
             self._tiff_pages = tiffs
             self._preview.load_tiff(tiffs)

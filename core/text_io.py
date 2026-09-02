@@ -32,14 +32,29 @@ it is what ArgyllCMS's byte-level CGATS parsers accept, and it is what Python
    filed against. This is a **guess**, and it says so: every fallback decode
    logs a warning naming the file and the codec.
 
-The order is what makes the guess safe rather than reckless. It is not
-symmetrical: text that is valid UTF-8 is *not* also plausibly cp1252, because
-any non-ASCII UTF-8 sequence is a byte run cp1252 renders as visible mojibake —
-whereas a cp1252 file containing an umlaut (``0xfc``) is *invalid* UTF-8 and
-cannot be mistaken for it. So step 1 never mis-fires on a legacy file, and steps
-2-3 are only ever reached for bytes that are definitely not UTF-8. Since
-cp1252 maps 251 of 256 byte values, the fallback also almost never raises where
-the platform default used to succeed.
+The order is what makes the guess *safer*, not what makes it safe. A cp1252
+file containing an umlaut (``0xfc`` followed by an ASCII letter) is invalid
+UTF-8 and cannot be mistaken for it, which is why German — the language the
+issue was filed in — is recovered correctly. **But the reverse is not
+guaranteed, and this module used to claim it was.** 1,770 two-character cp1252
+strings encode to bytes that are also valid UTF-8 meaning something else
+(measured; ``tests/test_encoding_is_named.py``). The realistic one is
+double-encoded text: a file that already says ``prÃ©fÃ©rence`` in cp1252 is the
+exact bytes of ``préférence`` in UTF-8, so step 1 succeeds, the text silently
+changes meaning, and **no fallback happens and nothing is logged at all**. That
+case is not detectable from the bytes — both readings are legitimate text — so
+it is not fixed here; it is written down so nobody reasons from the old claim.
+
+Since cp1252 maps 251 of 256 byte values, the fallback also almost never raises
+where the platform default used to succeed. That is convenient and it is also
+the danger: it means the last resort cannot say no. So a file that is
+positively **not** ChromIQ text at all is refused before the fallback is ever
+reached, and refusing is the whole point of :func:`_not_text_at_all`.
+
+Every fallback decode is reported. Every time, not once per file: a
+measurement read on every chartread run warned once and then went quiet for the
+rest of the session, which is the same silence the issue is about wearing a
+different hat.
 
 What this deliberately is **not**:
 
@@ -48,7 +63,8 @@ What this deliberately is **not**:
   failure mode the issue is about, so it cannot be the fix.
 * A charset sniffer. ChromIQ's own files and Argyll's are ASCII-or-UTF-8 by
   construction, plus one known legacy case; statistical detection would add a
-  new way to be wrong about the files we do understand.
+  new way to be wrong about the files we do understand. Reading a byte-order
+  mark is not sniffing: a BOM is the file stating what it is, in the file.
 * A rewrite-on-read migration. Reading must not modify what it read — a
   measurement or a chart is evidence. Legacy files become UTF-8 the next time
   ChromIQ *writes* them, which is the point at which it owns the bytes.
@@ -80,9 +96,12 @@ LEGACY_ENCODING = "cp1252"
 
 _UTF8_ALIASES = {"utf-8", "utf8", "utf_8", "utf-8-sig", "ascii", "us-ascii", "ansi_x3.4-1968"}
 
-#: Files whose fallback has already been reported, so a caller in a loop does
-#: not fill the log with the same line. Keyed by (path, codec).
-_REPORTED: set[tuple[str, str]] = set()
+#: Byte-order marks that say "this file is UTF-16 or UTF-32", i.e. two or four
+#: bytes per character with NULs in between. ``FF FE 00 00`` is UTF-32LE and
+#: starts with the UTF-16LE mark, so the pair is enough to recognise all four.
+#: The UTF-8 BOM is deliberately absent: ``utf-8-sig`` eats that one, which is
+#: the whole reason it is the first codec tried.
+_UTF16_BOMS = (b"\xff\xfe", b"\xfe\xff")
 
 
 def _native_encoding() -> str:
@@ -134,20 +153,112 @@ def _universal_newlines(text: str) -> str:
     return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
+def _not_text_at_all(raw: bytes) -> "tuple[str, int, int] | None":
+    """``(reason, start, end)`` when *raw* is positively not ChromIQ text.
+
+    THE LAST RESORT CANNOT SAY NO, SO SOMEBODY HAS TO SAY IT FIRST. cp1252
+    maps 251 of 256 byte values, so it decodes almost anything, and it decoded
+    UTF-16 into visible nonsense without raising:
+    ``FF FE 4D 00 FC 00`` came back as ``'ÿþM\x00ü\x00'``. Worse, UTF-16LE
+    with ASCII content is *valid UTF-8* (NUL is a legal UTF-8 byte), so
+    ``'CREATED "2026"'`` written by PowerShell decoded on the first try with
+    no warning at all. Both were measured.
+
+    Two signals, both certainties rather than statistics:
+
+    * a UTF-16/UTF-32 byte-order mark. The file says what it is.
+    * a NUL byte anywhere. ChromIQ writes CGATS, JSON and plain text; Argyll
+      writes CGATS. None of them contains a NUL, so one means the bytes are
+      not the text they are being read as, whether that is UTF-16 with no BOM
+      or a binary file handed to the wrong reader.
+
+    Windows PowerShell 5.1 is still the default shell there, and ``>`` and
+    ``Out-File`` write UTF-16LE with a BOM; older Notepad's "Save as →
+    Unicode" does the same. No ChromIQ or Argyll producer writes UTF-16, so
+    the mechanism is proved and the trigger is plausible but unobserved.
+    """
+    for bom in _UTF16_BOMS:
+        if raw.startswith(bom):
+            return ("byte-order mark says UTF-16 or UTF-32, not UTF-8", 0,
+                    len(bom))
+    nul = raw.find(b"\x00")
+    if nul >= 0:
+        return ("NUL byte in a text file (UTF-16 with no byte-order mark, "
+                "or not text at all)", nul, nul + 1)
+    return None
+
+
+def _decode_as_declared(raw: bytes) -> str:
+    """*raw* read as whatever its byte-order mark says, for ``lenient=True``.
+
+    A lenient caller must never raise, and returning the bytes mangled through
+    ``utf-8``/``replace`` would hand it the nonsense this whole function exists
+    to refuse. When the file declares itself, honour the declaration; the
+    result is the text somebody actually wrote.
+    """
+    for bom, codec in ((b"\xff\xfe\x00\x00", "utf-32"),
+                       (b"\x00\x00\xfe\xff", "utf-32"),
+                       (b"\xff\xfe", "utf-16"),
+                       (b"\xfe\xff", "utf-16")):
+        if raw.startswith(bom):
+            try:
+                return raw.decode(codec)
+            except (UnicodeDecodeError, LookupError):
+                break
+    # No mark, but UTF-16 with no mark still has a shape nothing else has:
+    # ASCII text puts a NUL under every second byte, on one fixed parity for
+    # the whole file. That is a structure, not a statistic, so it is checked
+    # rather than guessed at, and only here — a strict read has already
+    # refused the file, and this path may not raise.
+    if len(raw) >= 4 and not len(raw) % 2:
+        nuls = [i for i, b in enumerate(raw) if b == 0]
+        if nuls and all(i % 2 for i in nuls):
+            try:
+                return raw.decode("utf-16-le")
+            except UnicodeDecodeError:
+                pass
+        elif nuls and not any(i % 2 for i in nuls):
+            try:
+                return raw.decode("utf-16-be")
+            except UnicodeDecodeError:
+                pass
+    return raw.decode("utf-8", errors="replace")
+
+
 def read_text(path: str | os.PathLike[str], *, lenient: bool = False) -> str:
     """Read a text file, naming the encoding rather than inheriting one.
 
     UTF-8 first; then this machine's own default if it is something else; then
     cp1252. Anything but the first is logged as the guess it is.
 
-    With ``lenient=False`` (the default) a file that no codec decodes raises
-    :class:`UnicodeDecodeError`, exactly as a strict read always did. With
-    ``lenient=True`` it is decoded as UTF-8 with replacement characters and
-    never raises — for the call sites that passed ``errors="replace"`` or
-    ``errors="ignore"`` before this change.
+    A file that is positively not ChromIQ text is refused before any of that
+    (see :func:`_not_text_at_all`), so the codec list cannot be used to launder
+    UTF-16 into nonsense.
+
+    With ``lenient=False`` (the default) a file that no codec decodes, and a
+    file that is refused, raise :class:`UnicodeDecodeError` — one failure mode,
+    the one a strict read always had, so every caller that already handles a
+    bad file keeps handling it. With ``lenient=True`` nothing raises: a file
+    that declares itself UTF-16 is decoded as UTF-16, anything else as UTF-8
+    with replacement characters, for the call sites that passed
+    ``errors="replace"`` or ``errors="ignore"`` before this change.
     """
     p = Path(path)
     raw = p.read_bytes()
+
+    refused = _not_text_at_all(raw)
+    if refused is not None:
+        reason, start, end = refused
+        if lenient:
+            log.warning(
+                "%s is not UTF-8: %s. Reading it as best as can be managed; "
+                "the text may not be what whoever wrote it intended.",
+                p, reason)
+            return _universal_newlines(_decode_as_declared(raw))
+        log.error("%s is not UTF-8: %s. ChromIQ writes UTF-8 and cannot read "
+                  "this file. Save it as UTF-8 and try again.", p, reason)
+        raise UnicodeDecodeError("utf-8", raw, start, end, reason)
+
     order = read_order()
     first_error: UnicodeDecodeError | None = None
     for i, enc in enumerate(order):
@@ -158,14 +269,24 @@ def read_text(path: str | os.PathLike[str], *, lenient: bool = False) -> str:
                 first_error = exc
             continue
         if i:
-            key = (str(p), enc)
-            if key not in _REPORTED:
-                _REPORTED.add(key)
-                log.warning(
-                    "%s is not UTF-8; read as %s instead. It was probably "
-                    "written by an older ChromIQ on Windows. It will be "
-                    "rewritten as UTF-8 the next time ChromIQ saves it.",
-                    p, enc)
+            # EVERY TIME, not once per file. This used to dedup on
+            # (path, codec) in a module-global set that was never cleared, so
+            # a measurement read on every chartread run warned once and then
+            # went quiet for the rest of the session, and the set grew for the
+            # life of the process. Nothing can make the guess always right, so
+            # what gets removed is the silence, not the ambiguity (Basti,
+            # 2026-09-02).
+            #
+            # The text says what happened and what was assumed, and claims
+            # nothing else. It used to say the file "was probably written by
+            # an older ChromIQ on Windows", which it cannot know: a cp1252
+            # file may equally have come off any Windows machine, any editor,
+            # or a hand edit.
+            log.warning(
+                "%s is not valid UTF-8. It was read as %s instead, which is a "
+                "guess: the file does not say what it is, so the text may not "
+                "be what whoever wrote it intended. ChromIQ will write it as "
+                "UTF-8 the next time it saves it.", p, enc)
         return _universal_newlines(text)
 
     if lenient:
