@@ -113,6 +113,43 @@ def cr30_is_probably_attached() -> bool:
         log.debug("could not look for a CR30 on USB", exc_info=True)
         return False
 
+
+def cr30_is_remembered_over_bluetooth() -> bool:
+    """Has this computer ever reached a CR30 over Bluetooth?
+
+    THE OTHER HALF OF AUTOMATIC, AND IT WAS MISSING. The owner tried the tool
+    with a CR30 paired over Bluetooth on 2026-09-02: automatic did not find it,
+    fell through to ArgyllCMS, and spotread offered him
+    `/dev/cu.Bluetooth-Incoming-Port` — macOS's own incoming serial port, which
+    is not an instrument and never will be. ArgyllCMS cannot drive a CR30 at
+    all, so that route could only ever end in "no instrument detected".
+
+    The reason was structural rather than a bug in the search:
+    :func:`cr30_is_probably_attached` asks `discovery.candidates()`, which
+    filters on the CH340 bridge's `0x1A86:0x7523` — and a Bluetooth CR30 is not
+    a USB serial port, so it can never appear in that list however many times it
+    has been used.
+
+    **The evidence used here is exactly as strong as the USB rule's**, which is
+    what makes it safe to add: `DeviceReader` writes
+    ``REMEMBERED_ADDRESS_KEY`` only after ``identify()`` has come back from that
+    address with the model string — i.e. only for a device that has answered as
+    a CR30 on this machine. Nothing is opened, nothing is written, and no
+    Bluetooth scan is started: this reads one remembered setting.
+
+    It cannot report a device that is out of range — a scan is the only thing
+    that could, and a scan measured 15.4 s on the owner's Mac, which is not
+    something to spend before a dropdown can answer. When the instrument is
+    away, ChromIQ's own reader says so in its own words, which name both
+    transports; that is a far better ending than spotread's port list.
+    """
+    try:
+        from workflow.cr30.measure_bridge import DeviceReader
+        return bool(DeviceReader._remembered_address())
+    except Exception:      # noqa: BLE001 — a guess, never worth an error
+        log.debug("could not look for a remembered CR30 address", exc_info=True)
+        return False
+
 _HELP = tr(
     "Read individual colour patches with your measuring instrument, off any "
     "material — printed sheets, fabric, paint chips, or even a display.\n\n"
@@ -415,11 +452,29 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         return self._cr30 if self._cr30 is not None else self._manager
 
     def _chosen_reader(self) -> str:
-        """"argyll" or "cr30" — which reader a Start would use, right now."""
+        """"argyll" or "cr30" — which reader a Start would use, right now.
+
+        AUTOMATIC LOOKS AT BOTH TRANSPORTS. It used to look only for a CR30 on
+        USB, so a CR30 that lives on Bluetooth was invisible to it and the tool
+        silently ran spotread instead — see
+        :func:`cr30_is_remembered_over_bluetooth`.
+
+        The decision is logged, because it was not. His log of the failed
+        session (2026-09-02 23:29) records the spotread launch and nothing at
+        all about why ChromIQ chose spotread, so the first question anybody
+        asked of it could not be answered from the file.
+        """
         key = _INSTRUMENT_KEYS[self._instrument.currentIndex()]
         if key != "auto":
+            log.info("spot read: reader chosen by hand: %s", key)
             return key
-        return "cr30" if cr30_is_probably_attached() else "argyll"
+        on_usb = cr30_is_probably_attached()
+        over_bt = cr30_is_remembered_over_bluetooth()
+        chosen = "cr30" if (on_usb or over_bt) else "argyll"
+        log.info("spot read: Detect automatically -> %s "
+                 "(CR30 on USB now: %s; CR30 reached over Bluetooth before: %s)",
+                 chosen, on_usb, over_bt)
+        return chosen
 
     def _on_instrument_changed(self, _index: int) -> None:
         """Remember the choice, and grey out what the chosen reader cannot do.
@@ -901,6 +956,58 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         except Exception:      # noqa: BLE001 — wording must never break a read
             return None
 
+    # ------------------------------------------------------------------
+    # The drawn instrument, in the windows that ask for a physical move
+    # ------------------------------------------------------------------
+    def _dial_column(self, dlg: QDialog, lay: QVBoxLayout,
+                     position: str) -> QVBoxLayout:
+        """Put the ColorMunki dial beside this window's text, and return the
+        layout the text belongs in.
+
+        THE MEASURE TAB HAS HAD THIS SINCE 2026-09-01 AND THIS TOOL HAD NOT.
+        The owner used Read single patches on real hardware on 2026-09-02 and
+        said so: *"i noticed it did not use the nice graphics to help the user
+        during calibration (calibration position and measurement position)."*
+        Every window here that asks him to turn the dial now shows the same
+        drawing the Measure tab shows for the same instruction, so the two
+        places read as one instrument rather than two different products.
+
+        Same rules as the Measure tab's copy, and they are not cosmetic:
+
+        * **Only the ColorMunki family.** The drawing is a ColorMunki's dial.
+          An i1Pro has no wheel to point at and keeps the words alone, which is
+          what `ui/dial_pictogram.py` was built for and what its docstring says.
+        * **Nothing sits under the picture.** The picture takes a column of its
+          own and every line of text takes the column beside it, so the text
+          starts on one left edge instead of stepping back under the wheel
+          (Basti, 2026-09-01).
+        * `position` is "calibrate" (the gear) or "measure" (the target mark) —
+          the same wheel turned two ways, so the windows read as one movement
+          of one physical thing.
+
+        Nothing is redrawn here. `dial()` is the drawing he approved over a
+        dozen rounds at the instrument; this only places it.
+        """
+        if self._instrument_family() != "colormunki":
+            return lay
+        try:
+            from ui.dial_pictogram import dial
+        except Exception:      # noqa: BLE001 — a picture is never worth a crash
+            log.debug("could not draw the instrument dial", exc_info=True)
+            return lay
+        dlg.setMinimumWidth(620)
+        pic = QLabel(dlg)
+        pic.setPixmap(dial(position, dlg, 150))
+        pic.setAlignment(Qt.AlignmentFlag.AlignTop)
+        row = QHBoxLayout()
+        row.setSpacing(18)
+        row.addWidget(pic, 0, Qt.AlignmentFlag.AlignTop)
+        text_col = QVBoxLayout()
+        text_col.setSpacing(16)
+        row.addLayout(text_col, 1)
+        lay.addLayout(row)
+        return text_col
+
     def _on_calibration_position_wrong(self) -> None:
         """The calibration was asked for again — the instrument was not ready.
 
@@ -923,6 +1030,8 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         lay = QVBoxLayout(dlg)
         lay.setSpacing(16)
         lay.setContentsMargins(24, 20, 24, 20)
+        outer = lay          # the buttons stay on the dialog, not in the text column
+        lay = self._dial_column(dlg, lay, "calibrate")
         msg = QLabel(
             tr("<b>The calibration cannot start yet — the instrument is not in "
                "its calibration position.</b><br><br>")
@@ -947,7 +1056,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         box.addButton(tr("Cancel session"), QDialogButtonBox.ButtonRole.RejectRole)
         box.accepted.connect(dlg.accept)
         box.rejected.connect(dlg.reject)
-        lay.addWidget(box)
+        outer.addWidget(box)
         tint_dialog_primary(dlg, _ACCENT)
         self._cal_pos_open = True
         try:
@@ -981,6 +1090,8 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         lay = QVBoxLayout(dlg)
         lay.setSpacing(16)
         lay.setContentsMargins(24, 20, 24, 20)
+        outer = lay          # the buttons stay on the dialog, not in the text column
+        lay = self._dial_column(dlg, lay, "measure")
         msg = QLabel(
             tr("<b>That reading could not be taken — the instrument is not in "
                "its measuring position.</b><br><br>"
@@ -996,7 +1107,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         again = box.addButton(tr("Try again"), QDialogButtonBox.ButtonRole.AcceptRole)
         again.setObjectName("primary")
         box.accepted.connect(dlg.accept)
-        lay.addWidget(box)
+        outer.addWidget(box)
         tint_dialog_primary(dlg, _ACCENT)
         self._sensor_pos_open = True
         try:
@@ -1033,6 +1144,8 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         lay = QVBoxLayout(dlg)
         lay.setSpacing(16)
         lay.setContentsMargins(24, 20, 24, 20)
+        outer = lay          # the buttons stay on the dialog, not in the text column
+        lay = self._dial_column(dlg, lay, "measure")
         msg = QLabel(
             # Knut, #130 2026-07-31, on the first version of this text: *"The
             # text mentions 'Take it off the calibration tile', which does not
@@ -1061,7 +1174,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         ok = box.addButton(tr("Start Reading"), QDialogButtonBox.ButtonRole.AcceptRole)
         ok.setObjectName("primary")
         box.accepted.connect(dlg.accept)
-        lay.addWidget(box)
+        outer.addWidget(box)
         tint_dialog_primary(dlg, _ACCENT)
         self._cal_done_open = True
         try:
@@ -1084,6 +1197,8 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         # (Knut asked for exactly that); generic wording when the instrument is
         # unknown.
         from ui.ti2_loader import calibration_instructions_html
+        outer = lay          # the buttons stay on the dialog, not in the text column
+        lay = self._dial_column(dlg, lay, "calibrate")
         msg = QLabel(calibration_instructions_html(self._instrument_family()), dlg)
         msg.setWordWrap(True)
         msg.setTextFormat(Qt.TextFormat.RichText)
@@ -1101,7 +1216,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
                                QDialogButtonBox.ButtonRole.RejectRole)
         box.accepted.connect(dlg.accept)
         box.rejected.connect(dlg.reject)
-        lay.addWidget(box)
+        outer.addWidget(box)
 
         tint_dialog_primary(dlg, _ACCENT)
         if dlg.exec() == QDialog.DialogCode.Accepted:
@@ -1119,6 +1234,15 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         no-instrument window, rather than the bare "connect it and try again"
         it used to show."""
         self._set_status(tr("No instrument detected."))
+        # ONE WINDOW, HOWEVER MANY TIMES IT IS REPORTED — the same guard its
+        # four siblings in this file already carry, and the same one the
+        # Measure tab keeps as `_no_instrument_shown`. spotread can print the
+        # line more than once (an instrument that drops off the bus reports it
+        # every retry), and each match opened another modal on top of the
+        # unanswered one. Knut has reported that shape twice, #130 2026-07-31
+        # for this window's siblings and again for the Measure tab's.
+        if getattr(self, "_no_instrument_open", False):
+            return
         fast_on = bool(self._settings.get("fast_instrument_connect", True))
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.Warning)
@@ -1147,7 +1271,11 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
                 "port and plug straight into the computer rather than through "
                 "a hub, and close any other program that may be holding it."))
         box.addButton(tr("OK"), QMessageBox.ButtonRole.AcceptRole)
-        box.exec()
+        self._no_instrument_open = True
+        try:
+            box.exec()
+        finally:
+            self._no_instrument_open = False
         if turn_off is not None and box.clickedButton() is turn_off:
             self._settings.set("fast_instrument_connect", False)
             log.info("Read single patches: faster instrument connection "

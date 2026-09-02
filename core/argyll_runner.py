@@ -332,6 +332,41 @@ class ArgyllRunner(QObject):
         # not tear down the new run's state or fire its callback.
         self._pty_gen: int = 0
         self._pty_done.connect(self._on_pty_finished)
+        # ONE PERMANENT CONNECTION FOR THE PER-RUN `on_line` CALLBACK.
+        #
+        # It used to be `line_received.connect(on_line)` at the start of every
+        # run and `disconnect(on_line)` at the end of it, with `on_line` a
+        # closure the caller passed in. That is what killed the app in Read
+        # Single Patches (his crash log, 2026-09-02 23:30): `line_received` is
+        # emitted from the PTY READER THREAD, so PyQt delivers it through a
+        # QUEUED call to a `PyQtSlotProxy`; a window opened from inside that
+        # delivery runs a nested event loop, the same proxy is re-entered by the
+        # lines that keep arriving, and PyQt guards re-entry with a BIT rather
+        # than a counter (`PROXY_SLOT_INVOKED`, qpycore_pyqtslotproxy.cpp). The
+        # inner call clears the bit; `disconnect()` then reaches
+        # `PyQtSlotProxy::disable()`, which sees it clear and frees the proxy
+        # while an outer `unislot()` frame is still live. The next queued call
+        # lands on freed memory — `unislot -> deleteLater -> postEvent`, which
+        # is his stack frame for frame.
+        #
+        # A permanent bound-method slot removes the whole class of fault:
+        # nothing is ever disconnected, so `disable()` is never called, so the
+        # bit can never be read at the wrong moment. Registering a run's
+        # callback is now plain state, and dropping it is
+        # `self._run_on_line = None`.
+        self.line_received.connect(self._dispatch_run_line)
+
+    def _dispatch_run_line(self, line: str) -> None:
+        """Hand one output line to whatever callback the current run registered.
+
+        Read through the attribute every time, so a run that has been forgotten
+        (:meth:`forget_run_callbacks`) or has finished simply stops receiving —
+        without a `disconnect()`, and without a slot proxy being torn down under
+        a live invocation.
+        """
+        on_line = self._run_on_line
+        if on_line is not None:
+            on_line(line)
 
     def _serial_exclusion_value(self, existing: "str | None") -> "str | None":
         """The ARGYLL_EXCLUDE_SERIAL_SCAN value to use for the next launch, or
@@ -413,8 +448,6 @@ class ArgyllRunner(QObject):
         # the one place they could have fixed it, until they restarted.
         self._process.errorOccurred.connect(self._on_failed_to_start)
 
-        if on_line:
-            self.line_received.connect(on_line)
 
         # QProcess's OWN `started` — it fires only when the program really
         # began. Emitting ours straight after `start()` was a lie on the one
@@ -490,15 +523,15 @@ class ArgyllRunner(QObject):
         the same failure mode for app shutdown; this is the per-window half of
         it, so a dialog can leave the singleton clean without tearing down a
         runner other windows still use.
+
+        It used to `disconnect()` the closure from `line_received` as well.
+        That disconnect was itself a crash — see `__init__` — and it is no
+        longer needed: `_dispatch_run_line` reads `_run_on_line` fresh on every
+        line, so clearing the attribute stops the delivery just as completely
+        and cannot free a slot proxy under a live invocation.
         """
-        on_line = self._run_on_line
         self._run_on_finish = None
         self._run_on_line = None
-        if on_line is not None:
-            try:
-                self.line_received.disconnect(on_line)
-            except (TypeError, RuntimeError):
-                pass
 
     def cleanup(self) -> None:
         """Kill any running process and join the PTY thread before app shutdown.
@@ -610,8 +643,6 @@ class ArgyllRunner(QObject):
 
         self._run_on_finish = on_finish
         self._run_on_line   = on_line
-        if on_line:
-            self.line_received.connect(on_line)
 
         self._pty_thread = threading.Thread(
             target=self._pty_reader,
@@ -658,8 +689,6 @@ class ArgyllRunner(QObject):
 
         self._run_on_finish = on_finish
         self._run_on_line   = on_line
-        if on_line:
-            self.line_received.connect(on_line)
 
         self._pty_thread = threading.Thread(
             target=self._pipe_reader, args=(self._pty_gen,), daemon=True
@@ -688,8 +717,6 @@ class ArgyllRunner(QObject):
 
         self._run_on_finish = on_finish
         self._run_on_line   = on_line
-        if on_line:
-            self.line_received.connect(on_line)
 
         self._pty_thread = threading.Thread(
             target=self._pipe_reader, args=(self._pty_gen,), daemon=True
@@ -873,14 +900,8 @@ class ArgyllRunner(QObject):
         self._pty_proc          = None
         self._use_console_input = False
         on_finish = self._run_on_finish
-        on_line   = self._run_on_line
         self._run_on_finish = None
         self._run_on_line   = None
-        if on_line:
-            try:
-                self.line_received.disconnect(on_line)
-            except (TypeError, RuntimeError):
-                pass
         log.info("ArgyllRunner (PTY): finished with code %d", code)
         self.finished.emit(code)
         if on_finish:
@@ -950,7 +971,6 @@ class ArgyllRunner(QObject):
 
         # Capture per-run callbacks before they can be overwritten by a chained run()
         on_finish = self._run_on_finish
-        on_line   = self._run_on_line
         self._run_on_finish = None
         self._run_on_line   = None
         try:
@@ -958,11 +978,6 @@ class ArgyllRunner(QObject):
             self._process.finished.disconnect(self._on_finished)
         except RuntimeError:
             pass
-        if on_line:
-            try:
-                self.line_received.disconnect(on_line)
-            except (TypeError, RuntimeError):
-                pass
         # Emit public signal for any external observers
         self.finished.emit(exit_code)
         # Call per-run callback directly so chained run() calls (targen→printtarg)

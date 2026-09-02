@@ -36,7 +36,10 @@ def test_forget_run_callbacks_drops_both(qapp):
     calls = []
     runner._run_on_line = lambda line: calls.append(line)
     runner._run_on_finish = lambda code: calls.append(code)
-    runner.line_received.connect(runner._run_on_line)
+    # NOTE: nothing is connected here any more. Registering a run's `on_line`
+    # IS setting the attribute — see `_dispatch_run_line`. This test used to
+    # `connect()` the closure itself, which is the mechanism the 2026-09-02
+    # crash came out of; see test_spot_read_slot_proxy.py.
 
     runner.forget_run_callbacks()
 
