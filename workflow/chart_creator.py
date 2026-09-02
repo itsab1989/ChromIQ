@@ -1481,10 +1481,9 @@ class ChartCreator:
         # Set-comprehension dedupes Windows' case-insensitive glob matches
         # (chart.tif matches both *.tif and *.TIF), which otherwise made the
         # preview display "Page 1/2" for a single-file chart (forum #148124).
-        from core.file_manager import files_matching
+        from core.file_manager import stem_files
         tiffs = sorted({
-            *files_matching(work_dir, f"{stem}*.tif", f"{stem}*.TIF",
-                            f"{stem}*.tiff"),
+            *stem_files(work_dir, stem, "*.tif", "*.TIF", "*.tiff"),
         })
         log.info("printtarg produced %d TIFF(s) in %s", len(tiffs), work_dir)
         if not tiffs:
@@ -1748,8 +1747,8 @@ class ChartCreator:
             # — #108, Knut). A capture whose page count differs from the
             # printed chart is wrong by construction: discard it
             # (correct-or-absent, never silently off).
-            from core.file_manager import files_matching
-            printed = len(files_matching(work_dir, f"{stem}_*.tif"))
+            from core.file_manager import stem_files
+            printed = len(stem_files(work_dir, stem, "_*.tif"))
             if printed == 0 and (work_dir / f"{stem}.tif").is_file():
                 printed = 1
             if printed and len(pages) != printed:
@@ -1791,8 +1790,8 @@ class ChartCreator:
         import json
         try:
             ti2 = work_dir / f"{stem}.ti2"
-            from core.file_manager import files_matching
-            tiffs = files_matching(work_dir, f"{stem}_*.tif")
+            from core.file_manager import stem_files
+            tiffs = stem_files(work_dir, stem, "_*.tif")
             if not tiffs and (work_dir / f"{stem}.tif").is_file():
                 tiffs = [work_dir / f"{stem}.tif"]
             if not ti2.is_file() or not tiffs:

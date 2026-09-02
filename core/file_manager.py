@@ -240,6 +240,17 @@ def cache_subdir(folder: Path | str) -> Path:
 
 #: ``Path.glob`` is case-insensitive on Windows and case-sensitive everywhere
 #: else. :func:`files_matching` reproduces that rather than changing it.
+#:
+#: READ AT CALL TIME, ON PURPOSE. This branch is dead on macOS and Linux, so the
+#: whole gate ran past it for as long as it existed; a test that rebinds this
+#: name is the only way it is ever executed here.
+#: ``tests/test_a_name_is_not_a_pattern.py`` does exactly that.
+#:
+#: It lowercases the PATTERN as well as the name, which would mangle a genuine
+#: character range (``[A-Z]`` -> ``[a-z]``). Every literal now arrives escaped —
+#: ``[*]``, ``[?]``, ``[[]``, all case-free — so there is nothing left in a
+#: ChromIQ pattern for that to damage, and lowering both sides is what
+#: case-insensitive matching means.
 _NAME_CASEFOLD = os.name == "nt"
 
 
@@ -254,6 +265,65 @@ def nfc(name: str) -> str:
     left. See :func:`files_matching` for why that matters.
     """
     return unicodedata.normalize("NFC", name)
+
+
+#: ``*``, ``?`` and ``[`` are the only characters `fnmatch` treats as syntax.
+#: A closing ``]`` with no class open is already a literal, so it is left alone
+#: — escaping it would only make the pattern harder to read in a log line.
+_GLOB_META = re.compile(r"([*?\[])")
+
+
+def glob_escape(name: str) -> str:
+    """*name* as a pattern that matches *name* and nothing else.
+
+    A PROJECT FOLDER IS NAMED BY A PERSON, NOT BY US. ``_sanitise`` maps ``[``,
+    ``]``, ``*`` and ``?`` to ``_``, so ChromIQ can never *create* a folder
+    holding one — but ``open_project_at`` opens whatever folder the user picked,
+    under the name it has on disk, and Finder will happily rename a project to
+    ``Canon-Pro300 [test]``. Interpolated straight into ``f"{stem}*.tif"`` that
+    name stops being a name and becomes syntax:
+
+    * ``[`` and ``]`` open a character class, so ``Chart [v2]_01.tif`` does not
+      match ``Chart [v2]*.tif`` — ``chart_ti2.exists()`` says True, the chart
+      tiffs come back empty, and the Chart tab says there is no chart with four
+      page bitmaps sitting in the folder. The identical signature to the HFS+
+      decomposed-name fault :func:`files_matching` was written for;
+    * ``*`` and ``?`` OVER-match, and pull in a file belonging to a project with
+      a different name — which then gets printed, copied or **archived** as if
+      it were a page of this chart.
+
+    Escaping wraps each metacharacter in a one-character class (``*`` -> ``[*]``),
+    which `fnmatch` reads as the literal. ``glob.escape`` does the same thing but
+    splits a Windows drive letter off first; these are single path components,
+    where that is meaningless, so this does it without the drive rule and behaves
+    identically on all three platforms.
+
+    Prefer :func:`stem_files` to calling this by hand — see its docstring for
+    why the escaping belongs on the far side of the call.
+    """
+    return _GLOB_META.sub(r"[\1]", name)
+
+
+def stem_files(folder: "Path | str | None", stem: str,
+               *tails: str) -> list[Path]:
+    """The files in *folder* called *stem* + one of *tails*.
+
+    THE POINT OF THE SEPARATE ARGUMENT. Every caller of :func:`files_matching`
+    in ChromIQ wanted the same thing: "the files whose name starts with this
+    LITERAL stem". Written as ``files_matching(d, f"{stem}*.tif")`` the literal
+    and the wildcard arrive as one string, and by then nothing can tell which
+    ``*`` the caller meant and which one came out of somebody's folder name — so
+    the fault could only ever be fixed one interpolation at a time, and the next
+    interpolation somebody writes brings it back. Passing the stem as its own
+    argument means the escaping happens once, here, and a metacharacter in a
+    name can no longer reach the matcher at all.
+
+    *tails* are the patterns (``"*.tif"``, ``"_*.tif"``, ``".ti2"``, ``"*"``);
+    the stem is never one. ``tests/test_a_name_is_not_a_pattern.py`` fails if an
+    f-string is ever handed to ``files_matching`` again.
+    """
+    esc = glob_escape(nfc(stem))
+    return files_matching(folder, *(esc + t for t in tails))
 
 
 def files_matching(folder: "Path | str | None", *patterns: str) -> list[Path]:
@@ -294,6 +364,13 @@ def files_matching(folder: "Path | str | None", *patterns: str) -> list[Path]:
     *patterns* are single path components: ``"Müller*.tif"``, never
     ``"chart/*"``. A pattern with a separator raises rather than quietly
     matching less than the caller asked for.
+
+    A PATTERN IS SYNTAX, AND A NAME IS NOT. Do not interpolate a stem into a
+    pattern here — ``files_matching(d, f"{stem}*.tif")`` is the shape that lost
+    a whole chart to a ``[`` in a folder name and adopted a stranger's file into
+    another on a ``*``. Call :func:`stem_files` instead, which takes the literal
+    as its own argument and escapes it. This function is for patterns that are
+    genuinely patterns (``"*.x3d.html"``, ``"report_*.json"``).
     """
     if folder is None:
         return []
@@ -650,13 +727,17 @@ class Calibration:
     def chart_tiffs(self) -> list[Path]:
         # `<stem>*.tif` matches both single-page <stem>.tif and multi-page
         # <stem>_NN.tif (see Run.chart_tiffs for the rationale).
-        return self.files_matching(f"{self.stem}*.tif", f"{self.stem}*.TIF",
-                                   f"{self.stem}*.tiff")
+        return self.stem_files(self.stem, "*.tif", "*.TIF", "*.tiff")
 
     def files_matching(self, *patterns: str) -> list[Path]:
         """The calibration folder's files matching *patterns*, accent spelling
         and all. See :func:`files_matching`."""
         return files_matching(self.dir, *patterns)
+
+    def stem_files(self, stem: str, *tails: str) -> list[Path]:
+        """The calibration folder's files called *stem* + one of *tails*, with
+        *stem* taken as a literal name. See :func:`stem_files`."""
+        return stem_files(self.dir, stem, *tails)
 
     def exists(self) -> bool:
         """True when at least one calibration artefact is on disk."""
@@ -900,17 +981,27 @@ class Run:
         chart_creator._printtarg_done. Using `<stem>_*.tif` (underscore) would
         silently miss single-page charts.
         """
-        return self.files_matching(f"{self.stem}*.tif", f"{self.stem}*.TIF",
-                                   f"{self.stem}*.tiff")
+        return self.stem_files(self.stem, "*.tif", "*.TIF", "*.tiff")
 
     def files_matching(self, *patterns: str) -> list[Path]:
         """This run's files matching *patterns*, accent spelling and all.
 
-        The one way anything in ChromIQ asks "which files in this run are
-        called <stem>-something". `Path.glob` is not, because it compares
-        spellings rather than names — see :func:`files_matching`.
+        For "which files in this run are called <stem>-something" use
+        :meth:`stem_files`, which takes the name as a literal. This one is for
+        a pattern that is genuinely a pattern — see :func:`files_matching`.
         """
         return files_matching(self.dir, *patterns)
+
+    def stem_files(self, stem: str, *tails: str) -> list[Path]:
+        """This run's files called *stem* + one of *tails*.
+
+        The one way anything in ChromIQ asks "which files in this run are
+        called <stem>-something". `Path.glob` is not, because it compares
+        spellings rather than names; and an f-string is not, because a folder
+        somebody renamed to ``Chart [v2]`` in Finder stops being a name the
+        moment it is pasted into a pattern — see :func:`stem_files`.
+        """
+        return stem_files(self.dir, stem, *tails)
 
     # ---- measurements
     # The canonical measurement is ``<stem>.ti3`` — chartread is stem-coupled
@@ -1081,7 +1172,7 @@ class Run:
         return self.verifications_dir / f"{self.verify_stem}.channels.json"
 
     def verify_chart_tiffs(self) -> list[Path]:
-        return files_matching(self.verifications_dir, f"{self.verify_stem}*.tif")
+        return stem_files(self.verifications_dir, self.verify_stem, "*.tif")
 
     def has_verify_chart(self) -> bool:       return self.verify_chart_ti2.exists()
 
@@ -1143,7 +1234,7 @@ class Run:
         # `str.replace` would find nothing and move the page to verifications/
         # still carrying the PROFILING stem — a verify chart with a page the
         # verify glob cannot see.
-        for tif in self.files_matching(f"{old}_*.tif"):
+        for tif in self.stem_files(old, "_*.tif"):
             dst = self.verifications_dir / nfc(tif.name).replace(nfc(old),
                                                                 nfc(new), 1)
             shutil.move(str(tif), str(dst))
@@ -1181,10 +1272,10 @@ class Run:
         if not vdir.exists():
             return
         stem = self.verify_stem
-        targets = [p for p in files_matching(vdir, f"{stem}*") if p.is_file()]
+        targets = [p for p in stem_files(vdir, stem, "*") if p.is_file()]
         vexp = vdir / EXPORTS_DIRNAME
         if vexp.is_dir():
-            targets += [f for f in files_matching(vexp, f"{stem}*")
+            targets += [f for f in stem_files(vexp, stem, "*")
                         if f.is_file()]
         try:
             self.archive_to_old(targets, into=self.verifications_old_dir)
@@ -2214,7 +2305,13 @@ class Project:
                 continue
             found: list[Path] = []
             for pat in patterns:
-                filled = pat.format(stem=source.stem)
+                # THE STEM GOES IN ESCAPED. These are templates, so the folder
+                # name lands inside a pattern whatever the call looks like — and
+                # a project called `Chart [v2]` then copied its `.ti1` and none
+                # of its pages, while one called `Chart*A` would have copied a
+                # different project's. `{stem}` never appears in the
+                # multi-segment patterns, so escaping is a no-op for those.
+                filled = pat.format(stem=glob_escape(nfc(source.stem)))
                 # `chart/**/*` and friends are multi-segment and carry no stem,
                 # so `Path.glob` is still right for them; the stem patterns are
                 # all single names and go through the accent-blind matcher, or
@@ -2466,6 +2563,21 @@ class FileManager:
         harakat have marks with no composed form to normalise to, so the
         character class has to admit combining marks as well — see
         ``_MARK_CATEGORIES`` above.
+
+        A NAME ALREADY ON DISK IS A FIXED POINT, and that is why this function
+        does NOT cap the length or refuse the Windows device names. It is also
+        the function that RESOLVES an existing folder: ``open_project_at``
+        cleans a folder's own name to derive the target name, and
+        ``working_dir`` re-cleans it to decide whether the project is where it
+        says it is — so a rule that shortened a long name or turned ``CON`` into
+        something else would move somebody's existing project (Basti's ruling;
+        ``tests/test_project_name_keeps_its_accents.py`` pins it name by name).
+
+        Those two rules belong at the door instead, where the name is still
+        somebody's typing rather than a folder that exists:
+        ``ui.dialogs.name_prompt.validate`` caps at 120 UTF-8 bytes and refuses
+        the device names, and every route that accepts a NEW name goes through
+        it — see ``tests/test_a_new_project_name_goes_through_one_door.py``.
         """
         s = unicodedata.normalize("NFC", name).strip().replace(" ", "-")
         out: list[str] = []

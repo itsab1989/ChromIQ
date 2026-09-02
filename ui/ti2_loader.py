@@ -691,9 +691,8 @@ def _next_run_id(project) -> str:
 
 
 def _dest_tiffs(ti2_in_project: Path) -> "list[Path]":
-    from core.file_manager import files_matching
-    return files_matching(ti2_in_project.parent,
-                          f"{ti2_in_project.stem}_*.tif")
+    from core.file_manager import stem_files
+    return stem_files(ti2_in_project.parent, ti2_in_project.stem, "_*.tif")
 
 
 def _run_and_kind_for_ti2(ti2_path: Path) -> "tuple[str, bool]":
@@ -919,7 +918,7 @@ def _handle_full_project(parent, ti2_path, src_root, working_dir, controller):
         _point_bar_at_current_run(controller)
         from core.file_manager import Project
         run = Project.load(dest).current_run()
-        return run.chart_ti2, run.files_matching(f"{run.stem}_*.tif")
+        return run.chart_ti2, run.stem_files(run.stem, "_*.tif")
     if key == "chart":
         return _handle_loose_into_project(parent, ti2_path, working_dir, controller)
     return None
@@ -1108,7 +1107,7 @@ def _project_root_for(path: Path, working_dir: Path) -> Path | None:
 
 def _related_files(ti2_path: Path) -> tuple[Path | None, list[Path]]:
     """Return (ti1_or_None, sorted_tiff_list) for a given .ti2."""
-    from core.file_manager import files_matching
+    from core.file_manager import stem_files
     folder = ti2_path.parent
     stem   = ti2_path.stem
     ti1    = folder / f"{stem}.ti1"
@@ -1118,8 +1117,7 @@ def _related_files(ti2_path: Path) -> tuple[Path | None, list[Path]]:
     # existing target* (forum #148275 — same root cause as the generation-path
     # fix in chart_creator._printtarg_done for #148124).
     tiffs  = sorted({
-        *files_matching(folder, f"{stem}*.tif", f"{stem}*.TIF",
-                        f"{stem}*.tiff"),
+        *stem_files(folder, stem, "*.tif", "*.TIF", "*.tiff"),
     })
     return (ti1 if ti1.exists() else None), tiffs
 
@@ -1359,11 +1357,22 @@ def _ask_profile_name(
         return FileManager._sanitise(cleaned) if cleaned.strip() else ""
 
     def _validate(name: str) -> str | None:
-        if not name:
-            return "Please enter a name."
-        if any(c in name for c in r'/\:*?"<>|'):
-            return "Name contains invalid characters."
-        return None
+        """The shape of a name — asked at THE one door, not at this one.
+
+        This used to be a private four-line check that knew about the forbidden
+        characters and nothing else, and it was handed the ALREADY SANITISED
+        name, which no longer has any: so it passed everything. A 250-character
+        name and `CON` both came through, and `ui/dialogs/name_prompt` is the
+        module whose own docstring names these loaders as the two copies of this
+        question that had drifted. Driven, before and after:
+        `review/FIX-NAMES/evidence/*-f2-doors.txt`.
+
+        The TYPED text goes in, not the sanitised name — `validate` judges both,
+        and a leading dot or a device name is a fact about what the person
+        typed.
+        """
+        from ui.dialogs.name_prompt import validate as _one_door
+        return _one_door(name)
 
     def _on_name_changed(_text: str = "") -> None:
         name = _normalise(name_edit.text())
@@ -1384,7 +1393,7 @@ def _ask_profile_name(
 
     def _on_accept() -> None:
         name = _normalise(name_edit.text())
-        err = _validate(name)
+        err = _validate(name_edit.text())
         if err:
             error_lbl.setText(err)
             return
@@ -1403,7 +1412,7 @@ def _ask_profile_name(
 
     def _on_overwrite() -> None:
         name = _normalise(name_edit.text())
-        err = _validate(name)
+        err = _validate(name_edit.text())
         if err:
             error_lbl.setText(err)
             return
