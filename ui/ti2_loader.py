@@ -444,7 +444,7 @@ def _say_the_replace_failed(parent, folder, reason) -> None:
     # "The existing project could not be moved aside", about a read-only folder
     # holding one text file (round 2, T1-D). Same act, same promise, and the
     # only difference is the one sentence that describes what is there.
-    # M-IMPORT-REPLACE-FOLDER-FAILED, awaiting approval.
+    # M-IMPORT-REPLACE-FOLDER-FAILED, approved by Basti on 2026-09-02.
     _msg = (M.M_PROJECT_REPLACE_FAILED if is_a_project(folder)
             else M.M_IMPORT_REPLACE_FOLDER_FAILED)
     title, body = _msg.render(folder=str(folder), reason=str(reason))
@@ -1473,7 +1473,7 @@ def _ask_profile_name(
             # this line asserts one of them. `.exists()` alone said "already a
             # project" about any folder at all - including the plain folder
             # whose NOT being a project is the only reason this window opens
-            # (round 2, T1-D). M-IMPORT-FOLDER-EXISTS, awaiting approval.
+            # (round 2, T1-D). M-IMPORT-FOLDER-EXISTS, approved by Basti on 2026-09-02.
             from core.file_manager import is_a_project
             from workflow import measurement_messages as M
             if is_a_project(working_dir / name):
@@ -1543,7 +1543,7 @@ def _ask_profile_name(
         # is false of a folder that is not one - and a folder that is not one
         # is the ONLY thing this branch can be reached for once the collision
         # line above tells them apart (round 2, T1-D).
-        # M-IMPORT-REPLACE-FOLDER-CONFIRM, awaiting approval.
+        # M-IMPORT-REPLACE-FOLDER-CONFIRM, approved by Basti on 2026-09-02.
         from core.file_manager import is_a_project
         _confirm = (M.M_IMPORT_REPLACE_CONFIRM if is_a_project(dest)
                     else M.M_IMPORT_REPLACE_FOLDER_CONFIRM)
