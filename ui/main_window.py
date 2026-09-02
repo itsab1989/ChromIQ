@@ -2442,11 +2442,31 @@ class MainWindow(QMainWindow):
 
     def _set_tab_status(self, msg: str, warning: bool = False) -> None:
         self._status_msg = msg
-        style_warn = (
-            "background: #3a2a00; color: #ffb42d; border: 1px solid #ffb42d; "
-            "border-radius: 4px; padding: 6px 10px; margin: 0px 16px 8px 16px;"
-        )
-        style_info = "color: #909090; font-size: 11px; padding: 4px 16px 8px 16px;"
+        #: Remembered so apply_theme can repaint the line for a new appearance
+        #: — the style is per-widget, so nothing else would refresh it.
+        self._status_warning = bool(warning)
+        # THE WARNING SLAB IS A DARK-THEME VALUE AND IT WAS PAINTED IN EVERY
+        # APPEARANCE. `#3a2a00` is a near-black brown and `#ffb42d` an amber:
+        # on the Neutral ground that is a 60,000-pixel dark box in a theme
+        # whose rule 2 is "all text is dark, there is no inverted text
+        # anywhere". `by_mode` hands Light and Dark exactly the string they
+        # had, so neither moves by a pixel; Neutral gets the shape its own
+        # stylesheet already defines for QLabel#warning — a surface fill, a
+        # 1px BORDER edge and body ink.
+        from ui import neutral_styles as _nm
+        from ui.theme import by_mode
+        _slab = ("background: #3a2a00; color: #ffb42d; "
+                 "border: 1px solid #ffb42d; ")
+        style_warn = by_mode(
+            _slab, _slab,
+            (f"background: {_nm.NM_BG_SURFACE}; color: {_nm.NM_TEXT_MAIN}; "
+             f"border: 1px solid {_nm.NM_BORDER}; "),
+        ) + "border-radius: 4px; padding: 6px 10px; margin: 0px 16px 8px 16px;"
+        # #909090 is 3.05:1 on the Neutral ground, which in that theme means
+        # "disabled"; its tertiary ink is 8.13:1 and is what a live note wants.
+        style_info = (
+            f"color: {by_mode('#909090', '#909090', _nm.NM_TEXT_FAINT)}; "
+            "font-size: 11px; padding: 4px 16px 8px 16px;")
         for tab in (self._tab_chart, self._tab_print, self._tab_measure):
             lbl = tab._status_bar_lbl
             lbl.setText(msg)
@@ -2678,6 +2698,15 @@ class MainWindow(QMainWindow):
                 vf = vp.font()
                 vf.setWeight(_log_weight)
                 vp.setFont(vf)
+
+        # The tab status line's colours are a per-widget stylesheet, so a
+        # message already on screen — "ArgyllCMS binaries were not found", the
+        # commonest one — would keep the appearance it was painted in. Re-set
+        # it with what it already says; the method picks the ink for the
+        # appearance that is on screen now.
+        if getattr(self, "_status_msg", ""):
+            self._set_tab_status(self._status_msg,
+                                 warning=getattr(self, "_status_warning", False))
 
     def _apply_title_bar(self, mode: str) -> None:
         """Set the macOS native title bar appearance to match `mode`."""
