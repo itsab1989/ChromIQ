@@ -710,7 +710,14 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
 
     def _on_take_reading(self) -> None:
         """Take a reading — clearing a misread first, when there is one."""
-        if self._cr30 is not None:
+        # ASKED OF THE INSTANCE DICT, NOT OF THE OBJECT. The misread-recovery
+        # tests build this window with `__new__` and never call `__init__`, and
+        # on a PyQt wrapper in that state a MISSING attribute raises
+        # RuntimeError from sip — which `getattr(..., default)` does not catch,
+        # because it only swallows AttributeError. The line below it survives
+        # for the opposite reason: `_misread` is one of the attributes those
+        # tests do set.
+        if self.__dict__.get("_cr30") is not None:
             # ChromIQ asks the instrument itself, which is measurably steadier
             # than pressing its button: the press shifts the reading by about
             # 0.5 %R, ten times the instrument's own repeat noise. There is no
