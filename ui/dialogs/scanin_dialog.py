@@ -600,10 +600,19 @@ class ScannerProfileDialog(_ToolDialogBase):
         from ui import neutral_styles as _n
         self._hint = by_mode("#4a4a4a", "#b8b8b8", _n.NM_TEXT_FAINT,
                              resolve_mode(settings.get("appearance", "auto")))
-        self._build_inputs()
         # PROPOSAL ONLY (see _reflow_two_panel) — off unless the env var is set.
+        # Read BEFORE _build_inputs, because the two-line forms of the long rows
+        # are built in place rather than un-picked afterwards.
         import os as _os
         _tp = _os.environ.get("CHROMIQ_SCANIN_TWO_PANEL", "").strip()
+        # Which of the four long rows are laid out on two lines. Default: all
+        # four, whenever the two-panel proposal is on. Set
+        # CHROMIQ_SCANIN_WRAP=radios,buttons,checks,bottombtns (or "none").
+        _wrap = _os.environ.get("CHROMIQ_SCANIN_WRAP")
+        if _wrap is None:
+            _wrap = "radios,buttons,checks,bottombtns" if _tp else ""
+        self._wrap = {w.strip() for w in _wrap.split(",") if w.strip()} - {"none"}
+        self._build_inputs()
         if _tp:
             self.MIN_WIDTH = int(_os.environ.get("CHROMIQ_SCANIN_TWO_PANEL_W", 1240))
             if _tp in ("3", "4"):
@@ -725,10 +734,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._mode_chromiq.setChecked(True)
         self._mode_group.addButton(self._mode_chromiq)
         self._mode_group.addButton(self._mode_standard)
-        row.addWidget(self._mode_chromiq)
-        row.addWidget(self._mode_standard)
-        row.addStretch(1)
-        row.addWidget(self._tip(
+        tip = self._tip(
             tr("Which source?"),
             tr("Two ways to profile a scanner:\n\n"
             "• A chart I made in ChromIQ — print and measure a chart, then scan "
@@ -736,9 +742,38 @@ class ScannerProfileDialog(_ToolDialogBase):
             "• A standard target I own — a bought reflective target such as a "
             "Wolf Faust IT8, LaserSoft or X-Rite ColorChecker. Pick its type and "
             "the reference data file that came with your target (.cie / .txt), "
-            "then scan it. No printing or measuring needed.")),
-            0, Qt.AlignmentFlag.AlignVCenter)
-        form.addLayout(row)
+            "then scan it. No printing or measuring needed."))
+        # PROPOSAL: the two options go on their own lines UNDER the question
+        # instead of trailing after it. On one line this row has to be as wide
+        # as the label plus BOTH options — 717 px in German, and that is what
+        # sets the whole left pane's width. Stacked, it is only as wide as the
+        # longer single option (379 px in Russian, the worst of the twelve).
+        # The left pane is fixed width (the owner's own requirement), so nothing
+        # here has to reflow as the window is resized: two lines from the start
+        # is the entire fix, and no flow layout is needed.
+        if "radios" in getattr(self, "_wrap", ()):
+            row.addStretch(1)
+            row.addWidget(tip, 0, Qt.AlignmentFlag.AlignVCenter)
+            col = QVBoxLayout()
+            col.setContentsMargins(0, 0, 0, 0)
+            col.setSpacing(4)
+            col.addLayout(row)
+            for _r in (self._mode_chromiq, self._mode_standard):
+                line = QHBoxLayout()
+                line.setContentsMargins(0, 0, 0, 0)
+                # Indent the options under the question that names them, the
+                # way a list sits under its heading.
+                line.addSpacing(14)
+                line.addWidget(_r)
+                line.addStretch(1)
+                col.addLayout(line)
+            form.addLayout(col)
+        else:
+            row.addWidget(self._mode_chromiq)
+            row.addWidget(self._mode_standard)
+            row.addStretch(1)
+            row.addWidget(tip, 0, Qt.AlignmentFlag.AlignVCenter)
+            form.addLayout(row)
         self._mode_chromiq.toggled.connect(self._on_mode_changed)
 
     def _build_chromiq_inputs(self, form) -> None:
@@ -946,6 +981,18 @@ class ScannerProfileDialog(_ToolDialogBase):
             self._target_combo.addItem(self._target_label(t), t.key)
         self._target_combo.addItem(tr("Other… (choose a .cht file)"), "")
         self._target_combo.currentIndexChanged.connect(self._on_target_changed)
+        # PROPOSAL: stop this combo asking for the width of its LONGEST entry.
+        # It is not a row anybody would call long, and it is the fifth width
+        # driver: the standard-target panel wants 771 px in Spanish and 739 in
+        # Dutch purely because one target's name and patch count is that wide,
+        # and that panel sits inside the fixed left pane. The combo already
+        # takes the stretch slot in this row, so at any real window width it
+        # looks exactly the same; only the floor moves. The drop-down list
+        # still shows every name in full.
+        if "combo" in getattr(self, "_wrap", ()):
+            self._target_combo.setSizeAdjustPolicy(
+                NoScrollComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+            self._target_combo.setMinimumContentsLength(28)
         trow.addWidget(self._target_combo, 1)
         self._demo_btn = QPushButton(tr("Try with a demo scan"), self)
         self._demo_btn.setStyleSheet(_COMPACT_BTN)
@@ -1230,13 +1277,43 @@ class ScannerProfileDialog(_ToolDialogBase):
             "deleted when you close the result — your files stay untouched."))
         self._check_align_btn.setStyleSheet(_COMPACT_BTN)
         self._check_align_btn.clicked.connect(self._on_check_alignment)
-        ctl.addWidget(self._rotate_btn)
-        ctl.addWidget(self._reset_btn)
-        ctl.addWidget(self._reset_grid_btn)
-        ctl.addWidget(self._check_align_btn)
-        ctl.addStretch(1)
-        ctl.addWidget(self._popout_btn)
-        form.addLayout(ctl)
+        # PROPOSAL: two lines, 3 + 2. This row lives in the RIGHT pane, which is
+        # NOT fixed width — so unlike the radios above it could in principle
+        # reflow. It is still laid out on two lines from the start, and the
+        # measurement is the reason: five buttons in a row need 840 px in
+        # German, and with the preview beside a fixed left pane that puts the
+        # window's floor above a 1440 screen. A flow layout would buy back one
+        # line only above about 1500 px of window, which is a look, not a
+        # function — the buttons are all reachable either way. Two lines is
+        # three lines of layout code instead of a custom QLayout subclass.
+        # The split is chosen by measurement across all twelve catalogues:
+        # 3 + 2 is the narrowest of the four order-preserving splits in every
+        # one of them (worst line 447 px, German; 2 + 3 costs 555, 4 + 1 costs
+        # 608). It also keeps the author's own grouping — the three "put it
+        # back" buttons together, and "Pop out" still pushed away on its own.
+        if "buttons" in getattr(self, "_wrap", ()):
+            ctl.addWidget(self._rotate_btn)
+            ctl.addWidget(self._reset_btn)
+            ctl.addWidget(self._reset_grid_btn)
+            ctl.addStretch(1)
+            ctl2 = QHBoxLayout()
+            ctl2.addWidget(self._check_align_btn)
+            ctl2.addStretch(1)
+            ctl2.addWidget(self._popout_btn)
+            two = QVBoxLayout()
+            two.setContentsMargins(0, 0, 0, 0)
+            two.setSpacing(6)
+            two.addLayout(ctl)
+            two.addLayout(ctl2)
+            form.addLayout(two)
+        else:
+            ctl.addWidget(self._rotate_btn)
+            ctl.addWidget(self._reset_btn)
+            ctl.addWidget(self._reset_grid_btn)
+            ctl.addWidget(self._check_align_btn)
+            ctl.addStretch(1)
+            ctl.addWidget(self._popout_btn)
+            form.addLayout(ctl)
 
         form.addWidget(self._hint_label(tr(
             "Drag the four corners onto the target's patch area until the green "
@@ -1318,8 +1395,17 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._perspective = QCheckBox(tr("Correct perspective (slightly skewed scan)"), self)
         self._perspective.setChecked(True)
         self._diag = QCheckBox(tr("Save a diagnostic image of what was read"), self)
+        # PROPOSAL: the three reading options in ONE column instead of two
+        # across and one under. Side by side this row is the WIDEST thing in
+        # the right pane in five of the twelve languages — 814 px in Russian,
+        # 746 in French — so it, and not the buttons, would have set the
+        # window's floor once the buttons were fixed. Stacked it is 416 px at
+        # its worst, and three related switches in a list read better than a
+        # 2 + 1 block anyway.
+        _stack_checks = "checks" in getattr(self, "_wrap", ())
         opts.addWidget(self._perspective, 0, 0)
-        opts.addWidget(self._diag, 0, 1)
+        opts.addWidget(self._diag, 1 if _stack_checks else 0,
+                       0 if _stack_checks else 1)
         opts.setColumnStretch(2, 1)
         opts.addWidget(self._tip(
             tr("Reading options"),
@@ -1347,7 +1433,7 @@ class ScannerProfileDialog(_ToolDialogBase):
             "(so you still just line up the patches). It puts the grid in exactly "
             "the same spot, so turn it on only if you find the marks handy to see. "
             "It hides automatically for ChromIQ-made charts, which print no marks.")),
-            0, 3, 2, 1,
+            0, 3, 3 if _stack_checks else 2, 1,
             Qt.AlignmentFlag.AlignVCenter)
 
         self._use_fiducials_cb = QCheckBox(
@@ -1368,7 +1454,7 @@ class ScannerProfileDialog(_ToolDialogBase):
             "The box turns itself off (with a quick flash) for targets that don't "
             "have separate fiducial marks — there's nothing extra to show."))
         self._use_fiducials_cb.toggled.connect(self._on_fiducial_toggled)
-        opts.addWidget(self._use_fiducials_cb, 1, 0)
+        opts.addWidget(self._use_fiducials_cb, 2 if _stack_checks else 1, 0)
         form.addLayout(opts)
 
         # Profile type (-a) + colour space (-a) + quality (-q), the most-used
@@ -1623,7 +1709,11 @@ class ScannerProfileDialog(_ToolDialogBase):
         from ui.scan_grid_marquee import _HANDLE_OFFSET, _HANDLE_R
         self._marquee.handle_margin = _HANDLE_OFFSET + _HANDLE_R
         self._adv_inline = self._build_inline_advanced()
-        left_lay.addWidget(self._adv_inline)
+        # The command preview is the LAST row of the left column, and it shows
+        # the command the Advanced options change — so Advanced goes above it,
+        # not below (owner, 2026-09-02). Open the section and the box beneath
+        # it is the answer to what you just changed.
+        left_lay.insertWidget(left_lay.count() - 1, self._adv_inline)
         self._adv_btn.setVisible(False)          # the button it replaces
         left_lay.addStretch(1)
         right_lay.addStretch(1)
@@ -1665,8 +1755,23 @@ class ScannerProfileDialog(_ToolDialogBase):
         # Restore defaults, Close. A QDialogButtonBox orders by ROLE and by
         # platform convention, so it cannot express that — use a plain row.
         self._btn_row_w = QWidget(self)
-        self._btn_row = QHBoxLayout(self._btn_row_w)
+        self._btn_col = QVBoxLayout(self._btn_row_w)
+        self._btn_col.setContentsMargins(0, 0, 0, 0)
+        self._btn_col.setSpacing(8)
+        self._btn_row = QHBoxLayout()
         self._btn_row.setContentsMargins(0, 0, 0, 0)
+        self._btn_col.addLayout(self._btn_row)
+        # PROPOSAL: the bottom row on two lines as well. It is the fourth long
+        # row and, once the other three are fixed, it is THE one that sets the
+        # fixed left pane's width — 965 px in Russian, 911 in German and
+        # Polish, against 501 for the widest settings row. It only became a
+        # width driver because these buttons now sit under the LEFT pane alone
+        # (the owner's own follow-up); across the whole window they were free.
+        self._btn_row2 = None
+        if "bottombtns" in getattr(self, "_wrap", ()):
+            self._btn_row2 = QHBoxLayout()
+            self._btn_row2.setContentsMargins(0, 0, 0, 0)
+            self._btn_col.addLayout(self._btn_row2)
         left_pane.addWidget(self._btn_row_w)
         # The tabs' own log treatment: nine lines of the font it really gets,
         # plus the drag-the-top-edge grip whose height the app remembers.
@@ -1694,6 +1799,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         # each pane actually needs.
         split.setSizes([700, 700])
         self._scroll_right.setMinimumWidth(360)   # the marquee's own floor
+        self._right_pane_w = right_w
 
         # A MINIMUM WIDTH IS NOT OPTIONAL HERE (owner). A QScrollArea does not
         # pass its widget's minimum width up, and both scroll areas pin the
@@ -1733,13 +1839,24 @@ class ScannerProfileDialog(_ToolDialogBase):
             return
         # Build profile, Save as Defaults, Restore defaults, Close — left to
         # right (owner). `removeButton` first, or the box takes them back.
+        # On two lines (PROPOSAL) the primary action keeps the first line to
+        # itself and the three secondary buttons share the second, in the same
+        # left-to-right order. 1 + 3 is the narrowest of the splits that keeps
+        # that order in every language: worst line 549 px (German) against 965
+        # for one line (Russian).
         for b in (self._run_btn, self._save_defaults_btn,
                   self._restore_defaults_btn, self._close_btn):
             self._button_box.removeButton(b)
             b.setParent(None)
-            self._btn_row.addWidget(b)
+            row = self._btn_row if (self._btn_row2 is None
+                                    or b is self._run_btn) else self._btn_row2
+            row.addWidget(b)
             b.setVisible(True)      # setParent(None) hides a widget for good
         self._btn_row.addStretch(1)
+        if self._btn_row2 is not None:
+            # Close sits away from the two "defaults" buttons, so it is never
+            # hit by accident while reaching for them.
+            self._btn_row2.insertStretch(2, 1)
         self._button_box.setVisible(False)
 
         lay = self.layout()
@@ -1749,11 +1866,63 @@ class ScannerProfileDialog(_ToolDialogBase):
         # its widget, and sizing the pane from it clips the widest row (the
         # "Create profile using:" radios) with no scrollbar to recover it.
         content_w = self._scroll.widget().sizeHint().width()
+        # …and the width of the panels that are HIDDEN right now. The left
+        # column swaps a whole sub-panel when the source changes and another
+        # when "profile my printer" is ticked, and a fixed pane sized from
+        # whichever one happens to be on screen at start-up is a permanent
+        # clip the moment the user switches: measured at 65 px of the standard
+        # target's own controls, with no scrollbar to recover them.
+        for _hidden in (self._chromiq_box, self._standard_box,
+                        self._printer_box):
+            content_w = max(content_w, _hidden.sizeHint().width())
         bar = self._scroll.verticalScrollBar().sizeHint().width() + 4
         want = max(content_w + bar,
                    self._btn_row_w.sizeHint().width(),
                    self._log.minimumWidth(), 580)
-        self._left_pane_w.setFixedWidth(want + self._PANE_GAP)
+        # The inline Advanced panel is HIDDEN while it is collapsed, so it
+        # contributes nothing to the measurement above — and its own controls
+        # want 611 px in English and 707 in Russian, more than the pane needs
+        # for anything else. Sized without it, opening Advanced clipped the
+        # whole left column against a fixed pane with no scrollbar to recover
+        # it (seen on the dark 1440 shot: the demo-scan button and the
+        # reference field cut in half).
+        #
+        # Two widths, then, and the pane takes the one the current state
+        # needs. Making the window as wide as an OPEN Advanced would cost
+        # every user 90-120 px of floor for a section that starts closed and
+        # that most people never open; the disclosure already resizes the
+        # window's height when it is toggled (_refit_height), so it may as
+        # well ask for the width it needs at the same moment.
+        self._pane_w_closed = want + self._PANE_GAP
+        _adv_m = self._adv_inline.contentsMargins()
+        self._pane_w_open = max(
+            self._pane_w_closed,
+            self._adv_inline_body.minimumSizeHint().width() + bar
+            + _adv_m.left() + _adv_m.right() + 16 + self._PANE_GAP)
+        self._left_pane_w.setFixedWidth(self._pane_w_closed)
+        # The SAME trap on the right: a QScrollArea does not pass its widget's
+        # minimum width up either, and the horizontal bar is pinned off, so a
+        # hard-coded 360 let the window report a floor at which the view
+        # buttons and "Pop out" were simply off the edge — 111 px of them in
+        # German. Read the floor off the content instead.
+        self._scroll_right.setMinimumWidth(
+            max(360, self._right_pane_w.minimumSizeHint().width())
+            + self._PANE_GAP)
+        # A QSplitter caches the minimum it reports, and the two panes were
+        # only just given their widths — read it without invalidating first and
+        # the window's floor comes back as 547 px when the panes alone need
+        # 1084. The window then lets itself be dragged to half its own content.
+        self._refresh_min_width()
+
+    def _refresh_min_width(self) -> None:
+        """PROPOSAL ONLY — re-read the window's floor from the layout."""
+        lay = self.layout()
+        # A QSplitter caches the minimum it reports, and the two panes were
+        # only just given their widths — read it without invalidating first and
+        # the window's floor comes back as 547 px when the panes alone need
+        # 1084. The window then lets itself be dragged to half its own content.
+        lay.invalidate()
+        self._two_panel_split.refresh()
         lay.activate()
         floor = lay.minimumSize()
         self.setMinimumWidth(max(floor.width(), self.MIN_WIDTH))
@@ -1791,6 +1960,13 @@ class ScannerProfileDialog(_ToolDialogBase):
             body.setVisible(on)
             head.setArrowType(Qt.ArrowType.DownArrow if on
                               else Qt.ArrowType.RightArrow)
+            # Advanced's own controls are wider than the rest of the left
+            # column; the fixed pane widens for them and gives the width back
+            # when the section closes. See showEvent for why not always.
+            if getattr(self, "_pane_w_open", None) is not None:
+                self._left_pane_w.setFixedWidth(
+                    self._pane_w_open if on else self._pane_w_closed)
+                self._refresh_min_width()
             self._refit_height()
 
         head.toggled.connect(_toggle)
