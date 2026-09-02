@@ -1036,6 +1036,8 @@ def resolve_ti3(
     parent: "QWidget",
     ti3_path: Path,
     settings: "AppSettings",
+    *,
+    name: str | None = None,
 ) -> Path | None:
     """Determine how to load a .ti3 relative to the working folder.
 
@@ -1049,6 +1051,15 @@ def resolve_ti3(
     .ti3 (no chart files beside it), a measurement-only project is created.
     Either way, ``Project.create`` writes the "Where are my files.txt" README
     at the new project root so the user gets the new layout on the spot.
+
+    *name* IS THE ANSWER SOMEBODY HAS ALREADY GIVEN, and it is used instead of
+    asking again. The import door (`ui/measurement_filing.py`) asks "where
+    should this measurement go?" and takes a name; without this it then handed
+    the file here, and here asked for the name a second time, in different
+    words, with the box empty. One question, one answer, carried. When *name*
+    is given, the only window this can still raise is the one that has a
+    genuinely different question to ask: a folder of that name already exists
+    and something has to be done about it.
     """
     # THE PROMISE THAT NOTHING IS DELETED, KEPT OR EXPLAINED.
     try:
@@ -1057,14 +1068,16 @@ def resolve_ti3(
             return ti3_path                              # already in a project
         sibling_ti2 = ti3_path.with_suffix(".ti2")
         if sibling_ti2.is_file():
-            result = _handle_outside(parent, sibling_ti2, working_dir)
+            result = _handle_outside(parent, sibling_ti2, working_dir,
+                                     name=name)
             if result is None:
                 return None
             new_ti2, _tiffs = result
             new_ti3 = new_ti2.with_suffix(".ti3")
             return new_ti3 if new_ti3.exists() else None
         # Bare .ti3 — import the measurement (and sibling .icc, if any) alone.
-        return _handle_outside_ti3_only(parent, ti3_path, working_dir)
+        return _handle_outside_ti3_only(parent, ti3_path, working_dir,
+                                        name=name)
     except ReplaceFailed as exc:
         # ONLY a failed archive. Any other OSError is a different fault and
         # must not be reported as "the existing project could not be moved
@@ -1122,13 +1135,38 @@ def _related_files(ti2_path: Path) -> tuple[Path | None, list[Path]]:
     return (ti1 if ti1.exists() else None), tiffs
 
 
+def _name_is_free(working_dir: Path, name: str) -> bool:
+    """Whether *name* can be used without asking anybody anything.
+
+    The name has already been answered for at the import door; the only thing
+    that can still need a window is a folder that is already sitting there.
+    Judged on the SANITISED name, because that is the folder that will really
+    be made — asking about the typed string was the trap that reported
+    "Demo-Report-Matrix copy" free while its sanitised twin existed.
+    """
+    from core.file_manager import FileManager
+    cleaned = FileManager.strip_workfile_ext(name or "")
+    if not cleaned.strip():
+        return False
+    try:
+        return not (working_dir / FileManager._sanitise(cleaned)).exists()
+    except OSError:
+        return False
+
+
 def _handle_outside(
     parent: "QWidget",
     ti2_path: Path,
     working_dir: Path,
+    *,
+    name: str | None = None,
 ) -> tuple[Path, list[Path]] | None:
     ti1, tiffs = _related_files(ti2_path)
-    result = _ask_profile_name(parent, ti2_path, ti1, tiffs, working_dir)
+    if name and _name_is_free(working_dir, name):
+        result = (name, False)           # asked at the door, answered there
+    else:
+        result = _ask_profile_name(parent, ti2_path, ti1, tiffs, working_dir,
+                                   prefill=name or "")
     if result is None:
         return None
     new_name, overwrite = result
@@ -1235,7 +1273,15 @@ def _ask_profile_name(
     working_dir: Path,
     subject: str | None = None,
     is_measurement: bool = False,
+    prefill: str = "",
 ) -> tuple[str, bool] | None:
+    # *prefill* is a name the person has ALREADY given, at the import door.
+    # This window then opens with it in the box and its collision line already
+    # showing, so what is being asked is the one thing the door could not
+    # answer — replace what is there, or choose another name — rather than the
+    # name all over again. It used to arrive empty: the answer to "Give this
+    # project a name" was discarded, and pressing OK without retyping was
+    # refused with "Please enter a name." (R3 review F2).
     # *subject* names what is being imported, for the windows this dialog
     # raises. It is shared by two routes that import different things: three
     # callers hand it a .ti2 (a chart) and one hands it a bare .ti3 (a
@@ -1390,6 +1436,12 @@ def _ask_profile_name(
             overwrite_btn.setVisible(False)
 
     name_edit.textChanged.connect(_on_name_changed)
+    # AFTER the connection, so the collision line and the Replace button are
+    # already correct for the name that was carried in. Setting it before would
+    # show the name with the window still dressed as though nothing existed.
+    if prefill:
+        name_edit.setText(prefill)
+        name_edit.selectAll()
 
     def _on_accept() -> None:
         name = _normalise(name_edit.text())
@@ -1555,14 +1607,22 @@ def _handle_outside_ti3_only(
     parent: "QWidget",
     ti3_path: Path,
     working_dir: Path,
+    *,
+    name: str | None = None,
 ) -> Path | None:
     """Import a bare .ti3 (no chart files) into a new project as the
     canonical measurement. The matching .icc/.icm is carried over too.
-    Reuses _ask_profile_name to gather the project name + overwrite intent."""
-    result = _ask_profile_name(parent, ti3_path, ti1=None, tiffs=[],
-                               subject=tr("the measurement"),
-                               is_measurement=True,
-                                working_dir=working_dir)
+    Reuses _ask_profile_name to gather the project name + overwrite intent —
+    unless *name* was already answered for at the import door, in which case
+    nothing is asked at all and that answer is what is used."""
+    if name and _name_is_free(working_dir, name):
+        result = (name, False)
+    else:
+        result = _ask_profile_name(parent, ti3_path, ti1=None, tiffs=[],
+                                   subject=tr("the measurement"),
+                                   is_measurement=True,
+                                   working_dir=working_dir,
+                                   prefill=name or "")
     if result is None:
         return None
     name, overwrite = result

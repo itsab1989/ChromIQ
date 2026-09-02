@@ -4250,6 +4250,57 @@ class TabProfile(QWidget):
         self.set_ti3_path(filed)
         self.ti3_manually_loaded.emit()
 
+    def _adopt_the_project_the_loader_made(self, source: Path,
+                                           resolved: Path) -> None:
+        """Be IN the project an import just created, and load the copy.
+
+        `resolve_ti3` creates a project and never OPENS it, so an import that
+        made one finished with `is_named()` False, `working_dir()` naming a
+        folder that had never been created, and the bar telling the person to
+        go and load the project ChromIQ had just made for them (R3 review F1,
+        driven again 2026-09-02).
+
+        The import door now performs the whole open itself; this covers the
+        routes that still reach `resolve_ti3` directly — an `.mxf`/`.cxf`
+        sitting inside a project, whose CONVERTED file is outside every project
+        and so gets one made for it. It ends on the same
+        `measurement_filing.finish_the_import` the door does, so the two cannot
+        drift into different end states again.
+
+        ONLY WHEN A PROJECT WAS ACTUALLY MADE. `resolve_ti3` hands the path
+        straight back for a file already inside a project, and switching
+        projects because somebody loaded a measurement from one is a different
+        act nobody asked for; the test is that the path CHANGED.
+        """
+        from ui.measurement_filing import (NO_MACHINERY, finish_the_import,
+                                           open_the_project)
+        from ui.ti2_loader import _project_root_for, _resolve_working_dir
+
+        ctl = getattr(self, "_target_ctl", None)
+        fm = getattr(ctl, "_fm", None)
+        if fm is None or Path(resolved) == Path(source):
+            self._adopt_filed_ti3(resolved)
+            return
+        root = _project_root_for(Path(resolved),
+                                 _resolve_working_dir(self._settings))
+        if root is None:
+            self._adopt_filed_ti3(resolved)
+            return
+        opened = open_the_project(self, fm, root.name, root)
+        if opened is None or opened is NO_MACHINERY:
+            self._adopt_filed_ti3(resolved)
+            return
+        run_id = ""
+        try:
+            proj = fm.project()
+            run_id = next((r.id for r in proj.all_runs()
+                           if r.measurement_ti3 == Path(resolved)),
+                          "") or proj.current_run().id
+        except Exception:      # noqa: BLE001 — the file is filed either way
+            self._log.appendPlainText(
+                f"[NOTE] could not name the run {Path(resolved).name} went into")
+        finish_the_import(ctl, run_id, Path(resolved), self._adopt_filed_ti3)
+
     def _file_into_project(self, name: str, measurement: Path, fm, ctl) -> bool:
         """The act behind that question; see `ui/measurement_filing.py`."""
         from ui.measurement_filing import file_into_project
@@ -4317,9 +4368,7 @@ class TabProfile(QWidget):
                 _ctl.project_replaced_on_disk()
             if resolved is None:
                 return
-            self.about_to_load_ti3.emit()
-            self.set_ti3_path(resolved)
-            self.ti3_manually_loaded.emit()
+            self._adopt_the_project_the_loader_made(p, Path(resolved))
 
     # ------------------------------------------------------------------
     # i1Profiler .txt import  (txt2ti3 → .ti3)
@@ -4364,9 +4413,7 @@ class TabProfile(QWidget):
             _ctl.project_replaced_on_disk()
         if resolved is None:
             return
-        self.about_to_load_ti3.emit()
-        self.set_ti3_path(resolved)
-        self.ti3_manually_loaded.emit()
+        self._adopt_the_project_the_loader_made(out, Path(resolved))
 
     def _import_i1profiler_txt(self, txt_path: Path) -> None:
         """Bring an i1Profiler measurement .txt into the working folder and

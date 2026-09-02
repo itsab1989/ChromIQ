@@ -395,9 +395,11 @@ def test_the_bar_is_not_pointed_at_a_run_that_may_be_undone():
     src = inspect.getsource(file_into_project)
     src = "\n".join(l for l in src.splitlines()
                     if not l.lstrip().startswith("#"))
-    # the CALL, not the `def` line, which also contains the name
+    # `finish_the_import` is where the bar is pointed now — one ending shared
+    # with the new-project door, instead of a closure each door had its own
+    # version of (or, in the new-project door's case, did not have at all).
     assert src.index("verdict = assess(") < src.index(
-        "\n    _point_the_bar_at_the_run()"), (
+        "\n    finish_the_import("), (
         "the bar is pointed at the run before the file has been judged, so a "
         "refusal leaves it naming a run that no longer exists")
 

@@ -377,7 +377,7 @@ def test_the_bare_ti3_route_calls_its_file_a_measurement(work, qapp, monkeypatch
     seen = {}
 
     def _fake(parent, path, ti1, tiffs, working_dir, subject=None,
-              is_measurement=False):
+              is_measurement=False, prefill=""):
         seen["subject"] = subject
         seen["is_measurement"] = is_measurement
         return None
