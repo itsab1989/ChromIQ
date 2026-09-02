@@ -22,6 +22,7 @@ from PyQt6.QtWidgets import (
 
 from core.logger import get_logger
 from core.webengine_shutdown import drain_web_view
+from ui import neutral_styles
 from ui.fade_scroll import FadeScrollArea
 from ui.styles import SPEC_VIOLET, TEXT_DIM
 from ui.tooltip_button import InfoDialog, TooltipButton
@@ -36,7 +37,56 @@ if TYPE_CHECKING:
 
 log = get_logger(__name__)
 
+#: The violet this panel accented with in every appearance. It is now the
+#: light/dark entry of :data:`_PALETTES` and nothing reads it directly; kept as
+#: a name because it is the value Light and Dark must keep painting.
 _ACCENT = SPEC_VIOLET
+
+#: THE PANEL'S OWN COLOURS, PER APPEARANCE.
+#:
+#: THE 3D GAMUT IS THE USER'S DATA and nothing here reaches it — the shape, its
+#: hues and its translucency are produced by ``workflow/gamut_viewer.py`` and
+#: are identical in all three appearances. What this table themes is the well
+#: the viewer sits in and the panel's own labels, sliders and accents.
+#:
+#: Neutral's well is ``BG_PANEL``, the panel grey. That is the owner's
+#: instruction for the preview well ("the same background colours as the light
+#: grey used for the majority of the main window panel") applied to its
+#: neighbour: these two wells sit on the same screen, and a gamut in a darker
+#: hole beside a preview on the panel would read as two different kinds of
+#: place. The 1 px ``BORDER`` edge is what says "well".
+#:
+#: ``accent`` replaces the module-level violet: a colourless theme has ONE
+#: accent value, and a hairline rule in ``ACTION`` is what the handoff asks for
+#: here.
+_PALETTE_LIGHT = {
+    "frame_bg": "#efebe6", "frame_border": "#d0ccc6",
+    "hdr": "#7a7570", "profile": "#7a7570", "placeholder": "#7a7570",
+    "groove": "#1c1b18", "accent": SPEC_VIOLET,
+}
+_PALETTE_DARK = {
+    "frame_bg": "#111111", "frame_border": "#333",
+    "hdr": TEXT_DIM, "profile": "#b8b8b8", "placeholder": TEXT_DIM,
+    "groove": "#333333", "accent": SPEC_VIOLET,
+}
+_PALETTE_NEUTRAL = {
+    "frame_bg":     neutral_styles.NM_BG_PANEL,
+    "frame_border": neutral_styles.NM_BORDER,
+    "hdr":          neutral_styles.NM_TEXT_DIM,
+    "profile":      neutral_styles.NM_TEXT_MAIN,
+    # Nothing that works is allowed to be faint: the "run gamut analysis" line
+    # is tertiary ink at 8.83:1, not a pale grey.
+    "placeholder":  neutral_styles.NM_TEXT_FAINT,
+    # Rule 1 — nothing is lighter than its ground. The unfilled groove is a
+    # step DOWN from the panel; the filled part and the handle are ACTION.
+    "groove":       neutral_styles.NM_BORDER,
+    "accent":       neutral_styles.NM_ACTION,
+}
+_PALETTES = {
+    "light":   _PALETTE_LIGHT,
+    "dark":    _PALETTE_DARK,
+    "neutral": _PALETTE_NEUTRAL,
+}
 
 
 class GamutPanel(QWidget):
@@ -79,11 +129,36 @@ class GamutPanel(QWidget):
 
         self._build_ui()
         self._load_defaults()
+        # THE HEADER AND THE PROFILE LINE ARE STYLED INLINE WHILE _build_ui
+        # RUNS, WITH THE DARK VALUES, and `set_appearance` early-returns when
+        # the mode it is handed is the one the panel was born with — so a panel
+        # BORN in an appearance never runs `_apply_mode_styles` at all and
+        # keeps those dark values for ever. That is why "GAMUT VOLUME" is
+        # #8a8a8a and the profile line #b8b8b8 in Light, where the light
+        # palette says #7a7570.
+        #
+        # IT IS A FAULT IN LIGHT TOO, AND IT IS DELIBERATELY LEFT THERE. This
+        # change may not move Light or Dark by a pixel — that is proved by
+        # hashing every grab in both — and calling this unconditionally moves
+        # 633 of them. Fixing Light belongs in a commit that is allowed to.
+        # Neutral is new, has no pixels to preserve, and gets its values from
+        # the start.
+        if self._mode not in ("light", "dark"):
+            self._apply_mode_styles()
 
     # ------------------------------------------------------------------
+    def _palette(self) -> dict:
+        """This appearance's frame colours. A fourth is a row in _PALETTES."""
+        return _PALETTES.get(self._mode, _PALETTE_DARK)
+
     def _current_bg(self) -> str:
-        """Page background that should match the surrounding viewer frame."""
-        return "#efebe6" if self._mode == "light" else "#111111"
+        """Page background that should match the surrounding viewer frame.
+
+        This is the ground the 3D gamut is drawn ON, not part of the gamut: the
+        shape, its hues and its opacity are the same in every appearance, and
+        the light theme has always handed the page a light ground here.
+        """
+        return self._palette()["frame_bg"]
 
     def _slider_stylesheet(self) -> str:
         """QSlider QSS for the opacity / saturation sliders, theme-aware.
@@ -94,17 +169,26 @@ class GamutPanel(QWidget):
         light-mode palette instead of staying at the hardcoded cool
         #333333 that looked out of place against the warm light frame.
         Dark mode falls back to the original #333333 — a white groove
-        would clash with the dark surround.
+        would clash with the dark surround. Neutral's groove is BORDER
+        and its fill and handle are ACTION: one accent, and the track
+        never brightens above the panel it is cut into.
         """
-        groove = "#1c1b18" if self._mode == "light" else "#333333"
+        pal = self._palette()
+        groove, accent = pal["groove"], pal["accent"]
         return (
             f"QSlider::groove:horizontal {{ height: 4px; background: {groove};"
             " border-radius: 2px; }"
-            f"QSlider::handle:horizontal {{ background: {SPEC_VIOLET}; border: none;"
+            f"QSlider::handle:horizontal {{ background: {accent}; border: none;"
             " width: 12px; height: 12px; margin: -4px 0; border-radius: 6px; }"
-            f"QSlider::sub-page:horizontal {{ background: {SPEC_VIOLET};"
+            f"QSlider::sub-page:horizontal {{ background: {accent};"
             " border-radius: 2px; }"
         )
+
+    def _value_style(self) -> str:
+        """The headline volume figure: the accent, in this appearance."""
+        return (f"color: {self._palette()['accent']};"
+                " font-family: Menlo, Consolas, 'Courier New', monospace;"
+                " font-size: 12px; font-weight: bold;")
 
     def set_appearance(self, mode: str) -> None:
         """Switch viewer + header colors between dark and light themes."""
@@ -116,18 +200,12 @@ class GamutPanel(QWidget):
         self._apply_mode_styles()
 
     def _apply_mode_styles(self) -> None:
-        if self._mode == "light":
-            frame_bg     = "#efebe6"
-            frame_border = "#d0ccc6"
-            hdr_color    = "#7a7570"
-            profile_color = "#7a7570"
-            placeholder_text = "#7a7570"
-        else:
-            frame_bg     = "#111111"
-            frame_border = "#333"
-            hdr_color    = TEXT_DIM
-            profile_color = "#b8b8b8"
-            placeholder_text = TEXT_DIM
+        pal = self._palette()
+        frame_bg         = pal["frame_bg"]
+        frame_border     = pal["frame_border"]
+        hdr_color        = pal["hdr"]
+        profile_color    = pal["profile"]
+        placeholder_text = pal["placeholder"]
 
         viewer_frame = self.findChild(QWidget, "gamutViewerFrame")
         if viewer_frame is not None:
@@ -175,6 +253,11 @@ class GamutPanel(QWidget):
             ss = self._slider_stylesheet()
             self._opacity_slider.setStyleSheet(ss)
             self._sat_slider.setStyleSheet(ss)
+        # The volume figure carried a module-level violet baked in at build
+        # time, so it kept it through every theme switch. It follows the
+        # appearance now.
+        if getattr(self, "_vol_label", None) is not None:
+            self._vol_label.setStyleSheet(self._value_style())
 
     # ------------------------------------------------------------------
     # Public API
@@ -363,8 +446,7 @@ class GamutPanel(QWidget):
 
         _dim_style  = (f"color: {TEXT_DIM}; font-family: Menlo, Consolas, 'Courier New', monospace;"
                        " font-size: 11px;")
-        _bold_style = (f"color: {_ACCENT}; font-family: Menlo, Consolas, 'Courier New', monospace;"
-                       " font-size: 12px; font-weight: bold;")
+        _bold_style = self._value_style()
 
         self._vol_label             = QLabel(tr("Volume: —"), vol_grp)
         self._compare_vol_label     = QLabel(tr("Compare: —"), vol_grp)
@@ -652,7 +734,7 @@ class GamutPanel(QWidget):
         # Initial styling — _apply_mode_styles() can rewrite this on theme
         # switch. Kept here so the very first paint isn't bare.
         _init_bg = self._current_bg()
-        _init_border = "#d0ccc6" if self._mode == "light" else "#333"
+        _init_border = self._palette()["frame_border"]
         container.setStyleSheet(
             "QWidget#gamutViewerFrame {"
             f" background: {_init_bg};"
@@ -691,7 +773,7 @@ class GamutPanel(QWidget):
                 container,
             )
             lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            _fallback_color = "#7a7570" if self._mode == "light" else TEXT_DIM
+            _fallback_color = self._palette()["placeholder"]
             lbl.setStyleSheet(
                 f"color: {_fallback_color}; background: {_init_bg};"
                 " font-family: Menlo, Consolas, 'Courier New', monospace; font-size: 10px;"
@@ -702,9 +784,8 @@ class GamutPanel(QWidget):
     def _show_placeholder(self) -> None:
         if self._web_view is None:
             return
-        bg = "#efebe6" if self._mode == "light" else "#111111"
-        fg = getattr(self, "_placeholder_text_color",
-                     "#7a7570" if self._mode == "light" else TEXT_DIM)
+        bg = self._palette()["frame_bg"]
+        fg = getattr(self, "_placeholder_text_color", self._palette()["placeholder"])
         html = (
             f"<html><body style='background:{bg}; margin:0; display:flex;"
             " align-items:center; justify-content:center; height:100vh;'>"

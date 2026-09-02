@@ -45,17 +45,58 @@ def test_the_floating_badge_keeps_its_own_colours():
     Its contrast cannot come from the palette, because what is behind it is the
     user's chart — any colour at all. This is the boundary between the two, and
     the reason only one of them changed.
+
+    The badge became **per appearance** when Neutral arrived (a near-black slab
+    is a dark-theme value, and Neutral's answer is an ``ACTION`` fill with
+    ``ON_ACTION`` on it — the one sanctioned light-on-dark pairing). What is
+    asserted is therefore the property, not one literal: the badge names a
+    background of its own in *every* appearance, that background is opaque
+    enough to stand on any chart, and its label reads on it. Light and Dark
+    still name the exact slab they always did.
     """
-    import inspect
+    from ui.tiff_preview import (_PREVIEW_BY_MODE, _PREVIEW_DARK,
+                                 _PREVIEW_LIGHT)
 
-    from ui.tiff_preview import TiffPreview
+    slab = "rgba(30, 30, 30, 185)"
+    assert _PREVIEW_LIGHT["badge_bg"] == slab
+    assert _PREVIEW_LIGHT["badge_text"] == "#f4f2ef"
+    assert _PREVIEW_DARK["badge_bg"] == slab
+    assert _PREVIEW_DARK["badge_text"] == "#f4f2ef"
 
-    src = inspect.getsource(TiffPreview)
-    i = src.index("_badge_lbl = QLabel(self)")
-    assert "rgba(30, 30, 30" in src[i:i + 400], (
-        "the floating badge lost its own background; over an arbitrary chart "
-        "image the palette's colours guarantee nothing"
-    )
+    for mode, pal in _PREVIEW_BY_MODE.items():
+        bg = pal["badge_bg"]
+        assert bg and bg != "transparent", (
+            f"{mode}: the floating badge lost its own background; over an "
+            "arbitrary chart image the palette's colours guarantee nothing"
+        )
+        if bg.startswith("rgba("):
+            alpha = int(bg[bg.index("(") + 1:bg.index(")")].split(",")[3])
+            assert alpha >= 150, f"{mode}: the badge slab is too transparent"
+        assert _contrast(pal["badge_text"], _opaque(bg)) >= 7.0, (
+            f"{mode}: the badge's own label does not read on its own slab"
+        )
+
+
+def _opaque(value: str) -> str:
+    """A colour spec as its opaque hex — the slab's own colour, alpha aside."""
+    if value.startswith("rgba(") or value.startswith("rgb("):
+        r, g, b = (int(float(x)) for x in
+                   value[value.index("(") + 1:value.index(")")].split(",")[:3])
+        return f"#{r:02x}{g:02x}{b:02x}"
+    return value
+
+
+def _contrast(a: str, b: str) -> float:
+    def lum(hexc: str) -> float:
+        h = hexc.lstrip("#")
+        parts = [int(h[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+        lin = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+               for c in parts]
+        return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
+    la, lb = lum(a), lum(b)
+    if la < lb:
+        la, lb = lb, la
+    return (la + 0.05) / (lb + 0.05)
 
 
 # A third test tried to prove the colour CHANGES with the theme. Two ways were

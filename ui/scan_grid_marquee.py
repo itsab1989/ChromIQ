@@ -24,6 +24,8 @@ from PyQt6.QtCore import QPointF, QRectF, Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QImage, QPainter, QPen, QPixmap, QTransform
 from PyQt6.QtWidgets import QWidget
 
+from ui import neutral_styles
+
 
 def unit_quad_homography(quad: list[tuple[float, float]]) -> np.ndarray:
     """3×3 homography mapping the unit square corners ``(0,0),(1,0),(1,1),(0,1)``
@@ -374,7 +376,55 @@ _HANDLE_OFFSET = 26   # handles sit this far OUTSIDE the true corner (screen px)
 _HANDLE_DIRS = ((-1, -1), (1, -1), (1, 1), (-1, 1))   # TL, TR, BR, BL, outward
 _SIDE_PAIRS = ((0, 1), (1, 2), (2, 3), (3, 0))   # top, right, bottom, left (corner idx)
 _SIDE_R = 6           # mid-side handle radius (moves the whole edge, parallel)
+#: The Measure green the marquee has always drawn its ants and handles in.
+#: Kept as a module name because it *is* the light/dark value — see
+#: :data:`_ACCENT_BY_MODE`, which is the thing to read.
 _ACCENT = QColor("#56d6a5")
+
+#: THE MARQUEE'S OWN COLOURS, PER APPEARANCE.
+#:
+#: Light and Dark keep the Measure green they always painted; Neutral takes the
+#: handoff's single ``ACTION`` value, because a colourless theme has one accent
+#: and the tab a window happens to belong to is not what a selection frame is
+#: saying.
+#:
+#: **The under-stroke is not decoration.** Green over a printed chart separated
+#: itself from the ink for free — no patch a printer lays down is that green. A
+#: near-black ink has no such luck: over a solid black patch the ants would
+#: vanish exactly where the user is trying to aim. So in Neutral every stroke is
+#: drawn twice, the first pass 2 px wider in the surface value, and the ants
+#: keep their edge over a patch of any density. Light and Dark have no
+#: under-stroke, which is why this is a mapping and not a constant.
+_ACCENT_BY_MODE = {
+    "light":   QColor("#56d6a5"),
+    "dark":    QColor("#56d6a5"),
+    "neutral": QColor(neutral_styles.NM_ACTION),
+}
+_UNDER_BY_MODE = {
+    "light":   None,
+    "dark":    None,
+    "neutral": QColor(neutral_styles.NM_BG_SURFACE),
+}
+
+#: The well the scan sits in. This widget IS the ground, so it carries the
+#: viewer value itself rather than inheriting one.
+#:
+#: Neutral's is ``BG_PANEL`` — the panel grey, the owner's instruction for the
+#: preview well applied here as well ("the same background colours as the light
+#: grey used for the majority of the main window panel"). What makes this read
+#: as a well is the scan's own edge against it, not a step down in value.
+_BACKDROP_BY_MODE = {
+    "light":   "#e8e8e8",
+    "dark":    "#111",
+    "neutral": neutral_styles.NM_BG_PANEL,
+}
+#: The "load a scan" line, on that backdrop. Dark ink on a light ground in
+#: Neutral: nothing that works is allowed to be faint.
+_EMPTY_TEXT_BY_MODE = {
+    "light":   "#888",
+    "dark":    "#888",
+    "neutral": neutral_styles.NM_TEXT_DIM,
+}
 
 
 class ScanGridMarquee(QWidget):
@@ -576,9 +626,10 @@ class ScanGridMarquee(QWidget):
 
     def paintEvent(self, e) -> None:  # noqa: N802
         p = QPainter(self)
-        p.fillRect(self.rect(), QColor("#111" if self._is_dark() else "#e8e8e8"))
+        mode = self._appearance()
+        p.fillRect(self.rect(), QColor(_BACKDROP_BY_MODE[mode]))
         if self._pix is None:
-            p.setPen(QColor("#888"))
+            p.setPen(QColor(_EMPTY_TEXT_BY_MODE[mode]))
             p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter,
                        "Load a scan of the printed chart")
             return
@@ -588,6 +639,16 @@ class ScanGridMarquee(QWidget):
                         self._img_w * s, self._img_h * s)
         p.drawPixmap(target, self._pix, QRectF(self._pix.rect()))
         p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        # THE UNDER-STROKE PASS. Same geometry, 2 px wider, in the surface
+        # value, so the accent pass that follows keeps its edge over a patch of
+        # any density. Only Neutral has one — see _UNDER_BY_MODE.
+        under = _UNDER_BY_MODE[mode]
+        if under is not None:
+            self._ink_colour, self._ink_widen, self._ink_hollow = under, 2.0, True
+            self._draw_grid(p)
+            self._draw_quad(p)
+        self._ink_colour, self._ink_widen, self._ink_hollow = (
+            _ACCENT_BY_MODE[mode], 0.0, False)
         self._draw_grid(p)
         self._draw_quad(p)
 
@@ -604,11 +665,11 @@ class ScanGridMarquee(QWidget):
         # u/v units on a common scale first.
         from workflow.scanin_runner import sample_margin
         asp = self._grid.aspect or 1.0
-        outline = QPen(QColor(86, 214, 165, 90))  # full patch cell — faint
-        outline.setWidthF(1.0)
-        sample = QPen(QColor(86, 214, 165, 220))  # sampled sub-area — solid
-        sample.setWidthF(1.4)
-        fill = QColor(86, 214, 165, 40)
+        outline = QPen(self._ink(90))             # full patch cell — faint
+        outline.setWidthF(1.0 + self._ink_widen)
+        sample = QPen(self._ink(220))             # sampled sub-area — solid
+        sample.setWidthF(1.4 + self._ink_widen)
+        fill = (Qt.BrushStyle.NoBrush if self._ink_hollow else self._ink(40))
 
         # Every chart draws its own float box rects (#119, Knut's CMP Studio
         # find): the old integer-edge rebuild placed interior cells for the
@@ -648,8 +709,8 @@ class ScanGridMarquee(QWidget):
         ir = self._grid.ink_rect
         if ir is not None:
             u0, v0, u1, v1 = ir
-            ipen = QPen(QColor(86, 214, 165, 150))
-            ipen.setWidthF(1.2)
+            ipen = QPen(self._ink(150))
+            ipen.setWidthF(1.2 + self._ink_widen)
             ipen.setStyle(Qt.PenStyle.DotLine)
             p.setPen(ipen)
             p.drawPolygon(*[self._to_widget(*apply_h(h, x, y)) for x, y in
@@ -662,8 +723,8 @@ class ScanGridMarquee(QWidget):
         fr = self._grid.fiducial_rect
         if self._show_fiducials and fr is not None:
             u0, v0, u1, v1 = fr
-            fpen = QPen(QColor(86, 214, 165, 210))
-            fpen.setWidthF(1.6)
+            fpen = QPen(self._ink(210))
+            fpen.setWidthF(1.6 + self._ink_widen)
             fpen.setStyle(Qt.PenStyle.DashLine)
             p.setPen(fpen)
             p.drawPolygon(*[self._to_widget(*apply_h(h, x, y)) for x, y in
@@ -695,23 +756,24 @@ class ScanGridMarquee(QWidget):
     def _draw_quad(self, p: QPainter) -> None:
         if len(self._corners) != 4:
             return
-        pen = QPen(_ACCENT)
-        pen.setWidthF(2.0)
+        pen = QPen(self._ink(255))
+        pen.setWidthF(2.0 + self._ink_widen)
         p.setPen(pen)
         p.setBrush(Qt.BrushStyle.NoBrush)
         wc = [self._to_widget(*c) for c in self._corners]
         p.drawPolygon(*wc)
-        conn = QPen(_ACCENT)
+        conn = QPen(self._ink(255))
         conn.setStyle(Qt.PenStyle.DotLine)
-        conn.setWidthF(1.2)
+        conn.setWidthF(1.2 + self._ink_widen)
         for i, c in enumerate(wc):
             hp = self._handle_pos(i)
             p.setPen(conn)                       # 45° dotted line to the corner
             p.setBrush(Qt.BrushStyle.NoBrush)
             p.drawLine(c, hp)
             p.setPen(Qt.PenStyle.NoPen)
-            p.setBrush(_ACCENT)
-            p.drawEllipse(hp, _HANDLE_R, _HANDLE_R)
+            p.setBrush(self._ink(255))
+            p.drawEllipse(hp, _HANDLE_R + self._ink_widen,
+                          _HANDLE_R + self._ink_widen)
         for i in range(4):                       # mid-side handles (move an edge)
             a, b = _SIDE_PAIRS[i]
             mid = QPointF((wc[a].x() + wc[b].x()) / 2, (wc[a].y() + wc[b].y()) / 2)
@@ -720,20 +782,50 @@ class ScanGridMarquee(QWidget):
             p.setBrush(Qt.BrushStyle.NoBrush)
             p.drawLine(mid, sp)
             p.setPen(Qt.PenStyle.NoPen)
-            p.setBrush(_ACCENT)
-            p.drawEllipse(sp, _SIDE_R, _SIDE_R)
+            p.setBrush(self._ink(255))
+            p.drawEllipse(sp, _SIDE_R + self._ink_widen,
+                          _SIDE_R + self._ink_widen)
         p.setBrush(Qt.BrushStyle.NoBrush)
 
     def _is_dark(self) -> bool:
-        """Which appearance the scan well is being painted for.
+        """Whether the scan well is being painted for a DARK ground.
 
-        The two backdrops this picks between (``#111`` / ``#e8e8e8``, in
-        :meth:`paintEvent`) are theme values for the viewer well, not a
-        response to the ground — this widget IS the ground. So it asks the
-        theme module, from its own palette, rather than measuring itself.
+        This widget IS the ground, so it asks the theme module from its own
+        palette rather than measuring itself. Two answers, and two is all this
+        one can give — kept because a caller that only needs "dark or not"
+        should not have to know the appearance's name.
         """
         from ui.theme import is_dark
         return is_dark(self.palette())
+
+    def _appearance(self) -> str:
+        """WHICH appearance the well is being painted for, by name.
+
+        The backdrop, the accent and the under-stroke are three-way choices
+        (:data:`_BACKDROP_BY_MODE`, :data:`_ACCENT_BY_MODE`,
+        :data:`_UNDER_BY_MODE`), and a light-grey third appearance answers
+        :meth:`_is_dark` exactly as Light does. So this asks for the name, and
+        a fourth appearance is a row in each table rather than an edit here.
+        """
+        from ui.theme import active_mode
+        mode = active_mode(self.palette())
+        return mode if mode in _BACKDROP_BY_MODE else "dark"
+
+    # ------------------------------------------------------------------
+    #: The colour and width the current pass paints with — set by
+    #: :meth:`paintEvent` before each of the (at most two) passes over the
+    #: overlay. ``_ink_hollow`` suppresses the translucent sample-area fill on
+    #: the under-stroke pass: the under-stroke is there to give the ants an
+    #: edge, not to lay a second veil over the user's patch.
+    _ink_colour = _ACCENT
+    _ink_widen = 0.0
+    _ink_hollow = False
+
+    def _ink(self, alpha: int) -> QColor:
+        """The current pass's colour at *alpha*."""
+        c = QColor(self._ink_colour)
+        c.setAlpha(alpha)
+        return c
 
     # ---------------------------------------------------------------- mouse
     def mousePressEvent(self, e) -> None:  # noqa: N802

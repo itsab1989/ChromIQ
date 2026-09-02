@@ -46,6 +46,7 @@ from core.i18n import tr
 from core.logger import get_logger
 from core.platform_paths import detect_display_profile, icc_system_dirs
 from core.webengine_shutdown import drain_web_view
+from ui import neutral_styles
 from ui.dialog_sizing import pin_min_height
 from ui.dialogs.tools_dialogs import neutral_controls_qss
 from ui.styles import SPEC_AMBER, SPEC_VIOLET, TEXT_DIM, TEXT_MAIN
@@ -69,7 +70,64 @@ if TYPE_CHECKING:
 
 log = get_logger(__name__)
 
+#: The violet this window has always been themed in. Kept as a name because it
+#: is the value Light and Dark must keep painting — read :data:`_PALETTES`.
 _ACCENT = SPEC_VIOLET
+
+#: THIS WINDOW'S OWN COLOURS, PER APPEARANCE.
+#:
+#: THE PROOF IS THE USER'S IMAGE and the 3D gamut is the user's data; neither
+#: is touched here. What this themes is the frame: the well both of them are
+#: shown in, the option labels, the metric, the toggle and the v4 banner.
+#:
+#: Neutral's well is ``BG_PANEL``, matching the TIFF preview this dialog embeds
+#: — it *is* a ``TiffPreview``, and a well that disagreed with itself between
+#: the tab and the tool would be the same picture in two different places.
+#:
+#: ``accent`` is the handoff's single ``ACTION`` value: a colourless theme has
+#: one accent, and "this window is violet-themed throughout" is a statement
+#: about the other two appearances.
+_PALETTE_LIGHT = {
+    "bg": "#efebe6", "border": "#d0ccc6", "placeholder": "#7a7570",
+    "toggle_bg": "#ffffff", "toggle_fg": "#1c1b18", "toggle_bd": "#cfcac3",
+    "on_accent": "white", "groove": "#555", "dim": TEXT_DIM,
+    "warn_bg": "rgba(255,180,45,0.12)", "warn_fg": SPEC_AMBER,
+    "warn_bd": SPEC_AMBER, "accent": SPEC_VIOLET,
+}
+_PALETTE_DARK = {
+    "bg": "#111111", "border": "#333", "placeholder": TEXT_DIM,
+    "toggle_bg": "#2a2a28", "toggle_fg": "#d0d0d0", "toggle_bd": "#454340",
+    "on_accent": "white", "groove": "#555", "dim": TEXT_DIM,
+    "warn_bg": "rgba(255,180,45,0.12)", "warn_fg": SPEC_AMBER,
+    "warn_bd": SPEC_AMBER, "accent": SPEC_VIOLET,
+}
+_PALETTE_NEUTRAL = {
+    "bg":     neutral_styles.NM_BG_PANEL,
+    "border": neutral_styles.NM_BORDER,
+    # Nothing that works is faint: the empty-well line is tertiary ink.
+    "placeholder": neutral_styles.NM_TEXT_FAINT,
+    # An unchecked toggle is an enabled control, so it keeps a fill and a solid
+    # edge; the checked one is an ACTION fill with ON_ACTION on it — the one
+    # sanctioned light-on-dark pairing, and it is a fill.
+    "toggle_bg": neutral_styles.NM_BG_SURFACE,
+    "toggle_fg": neutral_styles.NM_TEXT_MAIN,
+    "toggle_bd": neutral_styles.NM_BORDER,
+    "on_accent": neutral_styles.NM_ON_ACTION,
+    # Rule 1 — the unfilled groove is a step DOWN from the panel, never up.
+    "groove": neutral_styles.NM_BORDER,
+    "dim":    neutral_styles.NM_TEXT_DIM,
+    # The v4 banner loses the amber wash and takes the handoff's warning
+    # treatment: the raised surface, a solid edge, dark ink.
+    "warn_bg": neutral_styles.NM_BG_SURFACE,
+    "warn_fg": neutral_styles.NM_TEXT_MAIN,
+    "warn_bd": neutral_styles.NM_BORDER_HI,
+    "accent":  neutral_styles.NM_ACTION,
+}
+_PALETTES = {
+    "light":   _PALETTE_LIGHT,
+    "dark":    _PALETTE_DARK,
+    "neutral": _PALETTE_NEUTRAL,
+}
 
 _HELP = tr(
     "This tool gives you a rough on-screen preview of how a photo will look once "
@@ -156,7 +214,7 @@ class SoftproofDialog(QDialog):
         head, _header, stripe = dialog_masthead(
             self, tr("PROFILE · SOFT-PROOF"), tr("Soft-proof / check image"),
             tooltip_title=tr("Soft-proof / check image"), tooltip_body=_HELP,
-            accent=_ACCENT)
+            accent=self._pal()["accent"])
         root.addLayout(head)
         root.addWidget(stripe)
 
@@ -205,27 +263,27 @@ class SoftproofDialog(QDialog):
         # the Soft-proof button is gone). Native macOS push buttons clip under a
         # forced fixed height, so give them an explicit flat look; the active one
         # wears the accent.
-        if self._mode == "light":
-            t_bg, t_fg, t_bd = "#ffffff", "#1c1b18", "#cfcac3"
-        else:
-            t_bg, t_fg, t_bd = "#2a2a28", "#d0d0d0", "#454340"
+        pal = self._pal()
+        accent = pal["accent"]
+        t_bg, t_fg, t_bd = pal["toggle_bg"], pal["toggle_fg"], pal["toggle_bd"]
         self.setStyleSheet(
-            neutral_controls_qss(_ACCENT, popup=_ACCENT)
+            neutral_controls_qss(accent, popup=accent)
             + (f"QPushButton#view_toggle {{ background: {t_bg}; color: {t_fg};"
                f" border: 1px solid {t_bd}; border-radius: 4px; padding: 6px 10px; }}"
-               f"QPushButton#view_toggle:checked {{ background: {_ACCENT};"
-               f" color: white; border: 1px solid {_ACCENT}; font-weight: bold; }}"
+               f"QPushButton#view_toggle:checked {{ background: {accent};"
+               f" color: {pal['on_accent']}; border: 1px solid {accent};"
+               " font-weight: bold; }"
                # A disabled QLabel keeps the app-wide QSS text colour (QSS beats
                # the disabled palette), so grey the option names explicitly.
-               f"QLabel:disabled {{ color: {TEXT_DIM}; }}"
+               f"QLabel:disabled {{ color: {pal['dim']}; }}"
                # Per-gamut opacity / saturation sliders, in the accent colour.
-               "QSlider::groove:horizontal { height: 4px; background: #555;"
+               f"QSlider::groove:horizontal {{ height: 4px; background: {pal['groove']};"
                " border-radius: 2px; }"
-               f"QSlider::sub-page:horizontal {{ background: {_ACCENT};"
+               f"QSlider::sub-page:horizontal {{ background: {accent};"
                " border-radius: 2px; }"
-               f"QSlider::handle:horizontal {{ background: {_ACCENT};"
+               f"QSlider::handle:horizontal {{ background: {accent};"
                " width: 12px; margin: -5px 0; border-radius: 6px; }"))
-        tint_dialog_primary(self, _ACCENT)
+        tint_dialog_primary(self, accent)
         self._preselect_display_profile()
         # Pre-fill the last image used, as a convenience across sessions.
         last_image = str(settings.get("softproof_last_image", "") or "")
@@ -341,7 +399,7 @@ class SoftproofDialog(QDialog):
                "Relative colorimetric (recommended) keeps in-gamut colours exact and clips "
                "the rest to the gamut boundary, which is what the out-of-gamut detection "
                "relies on. Perceptual compresses the whole image to fit."),
-            self, min_width=520, color=_ACCENT), 0, 2)
+            self, min_width=520, color=self._pal()["accent"]), 0, 2)
 
         int_lbl = QLabel(tr("Intent:"), self)
         self._opt_labels.append(int_lbl)
@@ -384,7 +442,7 @@ class SoftproofDialog(QDialog):
             tr("A pixel counts as out of gamut when the printer would shift its colour by "
                "more than this ΔE. Lower = stricter (flags more pixels); 2 is a good "
                "default. The mark colour is what those pixels are painted in the preview."),
-            self, min_width=460, color=_ACCENT), 3, 2)
+            self, min_width=460, color=self._pal()["accent"]), 3, 2)
 
         mark_lbl = QLabel(tr("Mark colour:"), self)
         self._opt_labels.append(mark_lbl)
@@ -434,7 +492,7 @@ class SoftproofDialog(QDialog):
         self._oog_label = QLabel(tr("Out of gamut: —"), self)
         self._oog_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._oog_label.setStyleSheet(
-            f"color: {_ACCENT}; font-family: Menlo, Consolas, monospace;"
+            f"color: {self._pal()['accent']}; font-family: Menlo, Consolas, monospace;"
             " font-size: 13px; font-weight: bold;")
         self._left.addWidget(self._oog_label)
 
@@ -633,8 +691,8 @@ class SoftproofDialog(QDialog):
             "if(window._chromiqApplyCompare)window._chromiqApplyCompare();")
 
     def _make_web_view(self) -> QWidget:
-        bg = "#efebe6" if self._mode == "light" else "#111111"
-        border = "#d0ccc6" if self._mode == "light" else "#333"
+        bg = self._pal()["bg"]
+        border = self._pal()["border"]
         container = QWidget(self)
         container.setObjectName("gamutViewerFrame")
         container.setStyleSheet(
@@ -663,7 +721,7 @@ class SoftproofDialog(QDialog):
             self._web_view = None
             lbl = QLabel(tr("Install PyQt6-WebEngine to view the 3D gamut."), container)
             lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            lbl.setStyleSheet(f"color: {TEXT_DIM};")
+            lbl.setStyleSheet(f"color: {self._pal()['placeholder']};")
             lay.addWidget(lbl)
         return container
 
@@ -676,8 +734,8 @@ class SoftproofDialog(QDialog):
     def _set_web_placeholder(self, text: str) -> None:
         if self._web_view is None:
             return
-        bg = "#efebe6" if self._mode == "light" else "#111111"
-        fg = "#7a7570" if self._mode == "light" else TEXT_DIM
+        bg = self._pal()["bg"]
+        fg = self._pal()["placeholder"]
         self._web_view.setHtml(
             f"<html><body style='background:{bg};margin:0;display:flex;"
             "align-items:center;justify-content:center;height:100vh;'>"
@@ -798,9 +856,11 @@ class SoftproofDialog(QDialog):
                 "<b>This printer profile is ICC v4.</b> ArgyllCMS can only read v2 "
                 "profiles, so it can't be soft-proofed here. Open it in the "
                 "<b>Profile info</b> tool for details, or use a v2 profile."))
+            _wp = self._pal()
             self._banner.setStyleSheet(
-                f"QLabel {{ background: rgba(255,180,45,0.12); color: {SPEC_AMBER};"
-                f" border: 1px solid {SPEC_AMBER}; border-radius: 4px; padding: 8px 10px; }}")
+                f"QLabel {{ background: {_wp['warn_bg']}; color: {_wp['warn_fg']};"
+                f" border: 1px solid {_wp['warn_bd']}; border-radius: 4px;"
+                " padding: 8px 10px; }")
             self._banner.setVisible(True)
         else:
             self._banner.setVisible(False)
@@ -962,8 +1022,12 @@ class SoftproofDialog(QDialog):
         self._set_web_placeholder(tr("Building the 3D gamut… this can take a few seconds."))
         self._start_printer_gamut()
 
+    def _pal(self) -> dict:
+        """This appearance's frame colours. A fourth is a row in _PALETTES."""
+        return _PALETTES.get(self._mode, _PALETTE_DARK)
+
     def _bg(self) -> str:
-        return "#efebe6" if self._mode == "light" else "#111111"
+        return self._pal()["bg"]
 
     def _start_printer_gamut(self) -> None:
         from workflow.gamut_viewer import GamutViewer, GamutViewerParams
