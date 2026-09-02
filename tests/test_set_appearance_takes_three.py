@@ -265,6 +265,39 @@ def _image_file_button():
     return ImageFileButton("#56d6a5"), "set_appearance"
 
 
+# --- the four the Index rule added ------------------------------------
+# None of them stores a mode. They repaint, and read the live appearance at
+# paint time — which is the right shape for a widget whose only theme-dependent
+# decision is "one accent value or five hues", and which is why they are all
+# `attr=None` below: a component that invents a `_mode` it never consults is a
+# second copy of the answer waiting to go stale.
+
+def _tab_header():
+    from ui.tab_header import TabHeader
+    return TabHeader("STEP 01", "Title", "#56d6a5"), "set_appearance"
+
+
+def _spectrum_stripe():
+    from ui.tab_header import SpectrumStripe
+    return SpectrumStripe(), "set_appearance"
+
+
+def _gradient_overlay():
+    from PyQt6.QtWidgets import QWidget as _W
+    from ui.gradient_overlay import GradientOverlay
+    host = _W()
+    overlay = GradientOverlay("#56d6a5", parent=host)
+    # The host owns the overlay; without a reference it is garbage-collected
+    # and takes its child with it before the test can call anything on it.
+    overlay._test_host = host
+    return overlay, "set_appearance"
+
+
+def _tooltip_button():
+    from ui.tooltip_button import TooltipButton
+    return TooltipButton("t", "b"), "set_appearance"
+
+
 #: (name, builder, attribute the mode lands in or None for a no-op component)
 COMPONENTS = [
     ("ToolsPopup",           _tools_popup,           "_mode"),
@@ -289,6 +322,10 @@ COMPONENTS = [
     ("MeasuredChartButton",  _measured_chart_button, None),
     ("RevealFolderButton",   _reveal_folder_button,  None),
     ("ImageFileButton",      _image_file_button,     None),
+    ("TabHeader",            _tab_header,            None),
+    ("SpectrumStripe",       _spectrum_stripe,       None),
+    ("GradientOverlay",      _gradient_overlay,      None),
+    ("TooltipButton",        _tooltip_button,        None),
 ]
 
 _IDS = [c[0] for c in COMPONENTS]

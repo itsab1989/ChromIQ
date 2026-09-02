@@ -21,6 +21,8 @@ from PyQt6.QtCore import QRectF, Qt, QTimer
 from PyQt6.QtGui import QColor, QFont, QPainter, QPen
 from PyQt6.QtWidgets import QSizePolicy, QWidget
 
+from ui import index_rule
+
 SPECTRUM = [
     "#ff4573",  # Create Chart
     "#ffb42d",  # Print Chart
@@ -31,6 +33,29 @@ SPECTRUM = [
 
 LABEL_COLOR    = "#909090"
 SUBLABEL_COLOR = "#606060"
+
+
+def _palette() -> "tuple[str, str, QColor, QColor]":
+    """``(label, sublabel, filled, empty)`` for the appearance on screen.
+
+    THIS BAR IS A SPECTRUM SITE AND ALSO A PROGRESS READOUT, which is why the
+    chosen accent draft fits it exactly: five segments filled left to right
+    already *is* the Index rule, drawn fat. In Neutral it keeps its geometry
+    and loses its hues — filled cells in ACTION, unreached ones in BORDER_HI at
+    28 %, the same two values every other site uses.
+
+    The two label greys move too, and not for tidiness: `#909090` is **2.53:1**
+    on the Neutral panel and `#606060` is 5.13:1. In this theme low contrast
+    means "disabled" and nothing else, and a bar that is building is the
+    opposite of disabled — so they become TEXT_DIM and TEXT_FAINT. Light and
+    Dark keep both greys.
+    """
+    if index_rule.use_index_rule():
+        from ui import neutral_styles
+        filled, empty = index_rule.rule_colours()
+        return (neutral_styles.NM_TEXT_DIM, neutral_styles.NM_TEXT_FAINT,
+                filled, empty)
+    return LABEL_COLOR, SUBLABEL_COLOR, QColor(), QColor()
 
 
 class SpectrumSegmentsBar(QWidget):
@@ -84,8 +109,11 @@ class SpectrumSegmentsBar(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
+        label_col, sub_col, index_filled, index_empty = _palette()
+        neutral = index_rule.use_index_rule()
+
         # Top row: label + sub
-        p.setPen(QColor(LABEL_COLOR))
+        p.setPen(QColor(label_col))
         font = self.font()
         font.setPixelSize(10)
         font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1.2)
@@ -96,7 +124,7 @@ class SpectrumSegmentsBar(QWidget):
                    self._label)
 
         if self._sub:
-            p.setPen(QColor(SUBLABEL_COLOR))
+            p.setPen(QColor(sub_col))
             sub_text = self._sub
             if self._value is not None:
                 pct = int(self._value * 100)
@@ -116,10 +144,20 @@ class SpectrumSegmentsBar(QWidget):
         if self._value is None:
             # Indeterminate: pulse outward from current phase
             for i, hex_col in enumerate(SPECTRUM):
-                col = QColor(hex_col)
-                dist = abs(i - self._phase)
-                intensity = max(0.18, 1.0 - dist * 0.32)
-                col.setAlphaF(intensity)
+                if neutral:
+                    # THE PULSE CANNOT BE A FADE HERE. Fading ACTION toward
+                    # the panel makes a "faint" cell LIGHTER than an unreached
+                    # one (ACTION at 18 % lands at L* 196; BORDER_HI at 28 %
+                    # lands at 182), so the dimmest cell would out-shine the
+                    # empty ones — backwards, and against rule 1. It sweeps
+                    # instead: cells fill up to the phase and start again, so
+                    # the animation IS the Index rule, moving.
+                    col = QColor(index_filled if i <= self._phase
+                                 else index_empty)
+                else:
+                    col = QColor(hex_col)
+                    dist = abs(i - self._phase)
+                    col.setAlphaF(max(0.18, 1.0 - dist * 0.32))
                 rect = QRectF(i * (seg_w + gap), bar_y, seg_w, bar_h)
                 p.setPen(Qt.PenStyle.NoPen)
                 p.setBrush(col)
@@ -128,13 +166,15 @@ class SpectrumSegmentsBar(QWidget):
             # Determinate: fill segments left-to-right based on value
             filled = self._value * n
             for i, hex_col in enumerate(SPECTRUM):
-                col = QColor(hex_col)
+                col = QColor(index_empty if neutral else hex_col)
                 if i + 1 <= filled:
-                    col.setAlphaF(1.0)
+                    col = QColor(index_filled) if neutral else QColor(hex_col)
+                    if not neutral:
+                        col.setAlphaF(1.0)
                 elif i < filled:
                     # Partial segment: render full faint + clip a colored slice
                     pass
-                else:
+                elif not neutral:
                     col.setAlphaF(0.18)
                 rect = QRectF(i * (seg_w + gap), bar_y, seg_w, bar_h)
                 p.setPen(Qt.PenStyle.NoPen)
@@ -145,8 +185,9 @@ class SpectrumSegmentsBar(QWidget):
                     frac = filled - i
                     fill_rect = QRectF(rect.x(), rect.y(),
                                        rect.width() * frac, rect.height())
-                    full = QColor(hex_col)
-                    full.setAlphaF(1.0)
+                    full = QColor(index_filled) if neutral else QColor(hex_col)
+                    if not neutral:
+                        full.setAlphaF(1.0)
                     p.setBrush(full)
                     p.drawRoundedRect(fill_rect, bar_h / 2, bar_h / 2)
 

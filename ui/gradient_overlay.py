@@ -20,7 +20,13 @@ class GradientOverlay(QWidget):
                  alpha: int = _ALPHA, height: int = _HEIGHT,
                  on_top: bool = True) -> None:
         super().__init__(parent)
-        self._color = QColor(color)
+        #: The hue this wash was BUILT with — one of the five tab accents. Kept
+        #: so :meth:`set_appearance` can go back to it: the wash is created once
+        #: per tab at construction and never rebuilt, so folding the appearance
+        #: into `_color` here would strand it on whatever theme was on screen
+        #: when the window was made.
+        self._base_color = color
+        self._color = QColor(self._resolved(color))
         self._alpha = alpha
         self._height = height
         # When True the wash is raised above the content (subtle tint over it,
@@ -37,6 +43,36 @@ class GradientOverlay(QWidget):
         self._restack()
 
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _resolved(color: str) -> str:
+        """The colour this wash actually paints under the live appearance.
+
+        In Neutral there is ONE accent value, so a wash cannot be a tab's hue:
+        this one measured **28 % of its own area** in the scan — the densest
+        single offender in the app, because a gradient spreads its hue over
+        every pixel it touches instead of a 3px strip. The gesture stays; the
+        hue does not. ACTION at the same alpha darkens the top of the pane by
+        the same amount, which is the handoff's rule 1 (nothing is ever lighter
+        than its ground) and reads as the same wash.
+        """
+        from ui import index_rule
+        if index_rule.use_index_rule():
+            from ui import neutral_styles
+            return neutral_styles.NM_ACTION
+        return color
+
+    def set_appearance(self, _mode: str) -> None:
+        """Re-resolve the wash for a new appearance.
+
+        `MainWindow.apply_theme` broadcasts to every descendant with this
+        method, and a dialog's wash is re-created with the dialog, so between
+        them every wash in the app follows a theme switch.
+        """
+        new = QColor(self._resolved(self._base_color))
+        if new != self._color:
+            self._color = new
+            self.update()
 
     def _restack(self) -> None:
         if self._on_top:

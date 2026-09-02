@@ -15,7 +15,7 @@ from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import QToolButton, QWidget
 
 from core.resource_path import resource_path
-from ui import neutral_styles
+from ui import index_rule, neutral_styles
 from ui.welcome_button import WelcomeButton
 from core.i18n import tr
 from ui.keyboard_help import with_shortcut
@@ -128,6 +128,10 @@ class MastheadHeader(QWidget):
         self._version = version
         self._mode    = "dark"
         self._palette = _PALETTE_DARK
+        #: Which workflow step the window is on, 1..5 — the Index rule's fill
+        #: in Neutral, and nothing at all in Light and Dark, which paint the
+        #: five hues regardless. `MainWindow._on_tab_changed` pushes it.
+        self._step = 1
         # The rail grows to fit whatever centre widget is installed — the
         # Profile-run bar gained a second line ("Location being edited"), and a
         # fixed 28 px rail silently pushed it up out of view (#130).
@@ -218,8 +222,22 @@ class MastheadHeader(QWidget):
         self._repositioning = False    # guards the layout-request filter
 
     # ------------------------------------------------------------------
+    def set_step(self, step: int) -> None:
+        """Which of the five workflow steps the window is showing (1-based).
+
+        Only Neutral paints it: there the stripe is the Index rule, five cells
+        filled up to the current step. Light and Dark keep the five spectrum
+        hues, which say the same thing with colour, so this is a no-op for them
+        beyond a repaint that changes no pixel.
+        """
+        step = max(1, min(index_rule.CELLS, int(step)))
+        if step != self._step:
+            self._step = step
+            self.update()
+
+    # ------------------------------------------------------------------
     def set_appearance(self, mode: str) -> None:
-        """Switch between 'light' and 'dark' palettes and repaint."""
+        """Switch between the 'light', 'dark' and 'neutral' palettes and repaint."""
         from ui.theme import accept_mode
         new_mode = accept_mode(mode)
         if new_mode == self._mode:
@@ -472,12 +490,18 @@ class MastheadHeader(QWidget):
         # Background
         p.fillRect(self.rect(), QColor(pal["bg"]))
 
-        # Spectrum stripe
-        n = len(_STOPS)
-        for i, col in enumerate(_STOPS):
-            x0 = int(round(i * w / n))
-            x1 = int(round((i + 1) * w / n)) if i < n - 1 else w
-            p.fillRect(x0, 0, x1 - x0, self.STRIPE_H, QColor(col))
+        # The stripe. In Neutral it is the Index rule — five cells filled up to
+        # the step the window is on — and not five hues; that is the whole
+        # point of the chosen accent draft, and this is the largest of the five
+        # screen sites the spectrum bar occupied. Light and Dark are untouched.
+        if index_rule.use_index_rule(self._mode):
+            index_rule.paint_index_rule(p, 0, 0, w, self.STRIPE_H, self._step)
+        else:
+            n = len(_STOPS)
+            for i, col in enumerate(_STOPS):
+                x0 = int(round(i * w / n))
+                x1 = int(round((i + 1) * w / n)) if i < n - 1 else w
+                p.fillRect(x0, 0, x1 - x0, self.STRIPE_H, QColor(col))
 
         # Version rail
         ver_y = h - self._rail_h
@@ -551,8 +575,13 @@ class MastheadHeader(QWidget):
           2. default settings_v2.png (in dark mode, or as fallback)
           3. programmatic sliders icon, tinted for the current mode
         """
+        # WHICH KIND OF GROUND, not which NAME. The pair of assets is
+        # light-artwork / dark-artwork, and Neutral is a pale ground: asking
+        # `self._mode == "light"` handed it the dark-tuned PNG, which is the
+        # one this method's own comment says to skip on a pale background.
+        from ui.theme import has_dark_ground
         candidates: list[str] = []
-        if self._mode == "light":
+        if not has_dark_ground(self._mode):
             candidates.append("assets/settings_v2_light.png")
         candidates.append("assets/settings_v2.png")
 
@@ -575,7 +604,7 @@ class MastheadHeader(QWidget):
             self._btn.setIconSize(QSize(26, 26))
             # In light mode skip the dark-tuned PNG and fall through to the
             # programmatic icon, which we can re-tint to match.
-            if self._mode == "light" and rel == "assets/settings_v2.png":
+            if not has_dark_ground(self._mode) and rel == "assets/settings_v2.png":
                 break
             return
 
@@ -595,7 +624,11 @@ class MastheadHeader(QWidget):
         screen (Sebastian, 2026-07-31). Each ships a light variant whose strokes
         are heavier, because the dark artwork disappears on a pale background.
         """
-        suffix = "_light" if self._mode == "light" else ""
+        # A pale ground, not the name "light" — see _load_settings_icon. The
+        # light variant's strokes are heavier because the dark artwork
+        # disappears on a pale background, and Neutral's background is pale.
+        from ui.theme import has_dark_ground
+        suffix = "" if has_dark_ground(self._mode) else "_light"
         for btn, name in ((self._load_project_btn, "load_project"),
                           (self._load_ti2_btn, "load_ti2"),
                           (self._close_project_btn, "close_project")):
@@ -723,7 +756,9 @@ class MastheadHeader(QWidget):
         the 44x44 button) so the visible shape matches the optical weight of the
         adjacent settings gear and "?" help glyph.
         """
-        rel = "assets/tools_v2_light.svg" if self._mode == "light" else "assets/tools_v2.svg"
+        from ui.theme import has_dark_ground
+        rel = ("assets/tools_v2.svg" if has_dark_ground(self._mode)
+               else "assets/tools_v2_light.svg")
         path = resource_path(rel)
         if not path.exists():
             return
@@ -757,7 +792,14 @@ class MastheadHeader(QWidget):
         px.fill(Qt.GlobalColor.transparent)
         p = QPainter(px)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        track_cols = ["#ff4573", "#37bcd6", "#ffb42d"]
+        # ONE accent value in Neutral, per the chosen draft: the three knobs
+        # stop being three hues and become three ACTION dots on the palette's
+        # own track. This is the fallback icon, drawn only when the PNG asset
+        # is missing; the shipped PNGs are the assets job.
+        if index_rule.use_index_rule(self._mode):
+            track_cols = [neutral_styles.NM_ACTION] * 3
+        else:
+            track_cols = ["#ff4573", "#37bcd6", "#ffb42d"]
         knob_x     = [0.65, 0.30, 0.50]
         track_color = self._palette["icon_track"]
         for i, (col, kx) in enumerate(zip(track_cols, knob_x)):

@@ -18,7 +18,7 @@ from PyQt6.QtCore import QRect, Qt
 from PyQt6.QtGui import QColor, QFont, QPainter, QPen
 from PyQt6.QtWidgets import QStyleOptionTab, QTabBar, QWidget
 
-from ui import neutral_styles
+from ui import index_rule, neutral_styles
 
 # Five spectrum colors — same order as tabs:
 # 1 Create · 2 Print · 3 Measure · 4 Profile · 5 Check
@@ -84,6 +84,14 @@ _PALETTES = {
 # at import time cannot follow a theme that changes at runtime, and turning
 # them into functions would be an API change for zero callers. If a caller ever
 # appears, it wants `SpectrumTabBar._palette`, not these.
+#
+# RE-CHECKED when the Index rule landed, because a module that now paints three
+# appearances holding one of them in its API is a trap worth re-opening: still
+# zero importers anywhere in `ui/`, `core/`, `workflow/`, `scripts/` or
+# `tests/`. Left alone rather than deleted — removing a public name for nobody
+# has a cost and no benefit — but they are NOT "the tab bar's colours", they
+# are Dark's, and reading them as the former is how a fourth appearance gets
+# folded into Dark all over again.
 BG_BAR     = _PALETTE_DARK["bar_bg"]
 BG_INACTIVE = "transparent"
 BG_ACTIVE   = _PALETTE_DARK["active_bg"]
@@ -138,6 +146,9 @@ class SpectrumTabBar(QTabBar):
         p.setRenderHint(QPainter.RenderHint.Antialiasing, False)
 
         pal = self._palette
+        #: Asked ONCE per repaint, not per tab: the appearance cannot change
+        #: half way down a bar, and it decides four separate marks below.
+        index = index_rule.use_index_rule(self._mode)
 
         # Fill the entire bar background — covers any gap to the right
         p.fillRect(self.rect(), QColor(pal["bar_bg"]))
@@ -205,13 +216,30 @@ class SpectrumTabBar(QTabBar):
 
                 p.fillRect(overlay_x, rect.y(), overlay_w, rect.height(),
                            QColor(pal["active_bg"]))
-                tint = QColor(color)
-                tint.setAlpha(15)
-                p.fillRect(overlay_x, rect.y(), overlay_w, rect.height(), tint)
+                # THE ACTIVE TAB'S TINT IS THE PINK. `#ece1e4` measured 17.5 %
+                # of this bar in Neutral — the largest single hue on it, and
+                # the reason the active tab read pink in a theme that has no
+                # pink. In Neutral the active tab is BG_PANEL and nothing else:
+                # it connects to the panel below, which is exactly what the
+                # handoff's tab-bar states say it does.
+                if not index:
+                    tint = QColor(color)
+                    tint.setAlpha(15)
+                    p.fillRect(overlay_x, rect.y(), overlay_w, rect.height(),
+                               tint)
 
-            # Top accent strip (3px)
+            # Top accent strip (3px). In Neutral this is the Index rule — five
+            # cells filled up to this tab's number — and it is drawn on the
+            # ACTIVE tab only: the handoff gives an inactive tab a label and a
+            # trough and nothing else, and five rules across one bar is the
+            # same fact read out five times.
             strip_h = 3
-            if is_active:
+            if index:
+                if is_active:
+                    index_rule.paint_index_rule(
+                        p, overlay_x + 10, rect.y(), overlay_w - 20, strip_h,
+                        i + 1)
+            elif is_active:
                 p.fillRect(overlay_x, rect.y(),
                            overlay_w, strip_h, color)
             else:
@@ -228,8 +256,11 @@ class SpectrumTabBar(QTabBar):
                            rect.x() + rect.width() - 1,
                            rect.y() + rect.height() - 8)
 
-            # Active underline glow
-            if is_active:
+            # Active underline glow — a second, fainter echo of the accent
+            # under the label. In Neutral the accent has no hue to echo, and a
+            # 47%-black hairline under a black label is noise: the active tab
+            # is said once, by the rule along the top.
+            if is_active and not index:
                 under = QColor(color)
                 under.setAlpha(120)
                 p.fillRect(overlay_x + 14, rect.y() + rect.height() - 4,

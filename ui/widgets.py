@@ -2237,16 +2237,31 @@ def _apply_groupbox_surface(gb: QGroupBox) -> None:
     bodies render the same surface colour as the section. Setting only
     palette.Window via setPalette() does not contaminate descendants'
     Base role, so inputs stay white per their own QSS rule."""
-    # WHICH THEME, not how light the window happens to be: the branch below
-    # reaches into ui.light_styles for that theme's own surface colour, so only
-    # the light theme can want it. Asked app-wide — a group box wears whatever
-    # the application is set to.
-    from ui.theme import is_light as _theme_is_light
-    if _theme_is_light():
-        from ui.light_styles import LM_BG_SURFACE
+    # WHICH THEME, not how light the window happens to be. Asked app-wide — a
+    # group box wears whatever the application is set to.
+    #
+    # A TABLE, NOT A YES/NO. `is_light()` had room for one appearance with a
+    # raised group-box surface and the light theme was it, so Neutral fell into
+    # the "no surface" branch — and worse than flat: measured in the running
+    # app, its group boxes came out at the LIGHT theme's cream `#f7f4ef`,
+    # 250,000 non-neutral pixels across the five tabs and the single largest
+    # source of colour left in the window. (The reset in the else branch does
+    # run and does set the inherited grey; QStyleSheetStyle then restores the
+    # palette it cached when the box was first polished, under Light, and
+    # autoFillBackground is beside the point because a QSS-styled widget paints
+    # its own background from the palette.) Naming the colour explicitly for
+    # every appearance that has one settles it, and the Stacked surface logic
+    # the handoff specifies — panel L* 93, raised surface L* 97 — is then
+    # actually delivered instead of only declared.
+    from ui.theme import active_mode
+    from ui.light_styles import LM_BG_SURFACE
+    from ui.neutral_styles import NM_BG_SURFACE
+    _surface = {"light": LM_BG_SURFACE, "neutral": NM_BG_SURFACE}
+    surface = _surface.get(active_mode())
+    if surface is not None:
         gb.setAutoFillBackground(True)
         pal = gb.palette()
-        pal.setColor(QPalette.ColorRole.Window, QColor(LM_BG_SURFACE))
+        pal.setColor(QPalette.ColorRole.Window, QColor(surface))
         gb.setPalette(pal)
     else:
         gb.setAutoFillBackground(False)
