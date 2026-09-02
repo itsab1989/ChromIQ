@@ -2627,13 +2627,19 @@ class WelcomeDialog(QDialog):
 
                 fm_r = QFontMetricsF(font_r)
                 fm_i = QFontMetricsF(font_i)
-                # The trailing "Chrom" stays attached to the painted
-                # magenta "IQ" wordmark; only the greeting translates.
-                text_pre = tr("Welcome to") + " Chrom"
+                # THREE RUNS, NOT TWO. The greeting and "Chrom" used to be
+                # drawn as one string in one colour, so the sixth brand site
+                # physically could not follow the masthead when "Chrom" was
+                # given its own value: brightening it here would have greyed
+                # the greeting with it. Only the greeting translates; "Chrom"
+                # and "IQ" are the mark and never do.
+                text_hi  = tr("Welcome to") + " "
+                text_ch  = "Chrom"
                 text_iq  = "IQ"
-                wpre = fm_r.horizontalAdvance(text_pre)
+                whi  = fm_r.horizontalAdvance(text_hi)
+                wch  = fm_r.horizontalAdvance(text_ch)
                 wiq  = fm_i.horizontalAdvance(text_iq)
-                total = wpre + wiq - 1
+                total = whi + wch + wiq - 1
                 x_start = (self.width() - total) / 2
                 baseline = (self.height() + fm_r.ascent() - fm_r.descent()) / 2
 
@@ -2644,17 +2650,26 @@ class WelcomeDialog(QDialog):
                 # the sixth brand site, and it is a SCREEN one, so the PDF
                 # wordmark is untouched.
                 from ui import neutral_styles as _n
+                from ui.masthead_header import _NEUTRAL_WORDMARK
                 from ui.theme import by_mode
-                fg = by_mode("#22211f", "#ffffff", _n.NM_TEXT_FAINT,
-                             self._dialog._mode)
+                mode = self._dialog._mode
+                # The greeting is dialog text and keeps the value it always
+                # had, in all three appearances - this split moves no pixel of
+                # Light or Dark.
+                greeting = by_mode("#22211f", "#ffffff", _n.NM_TEXT_FAINT, mode)
+                # "Chrom" is the mark, and in Neutral it reads from the
+                # masthead's brand value so this site cannot drift from the
+                # masthead and the splash again.
+                chrom = by_mode("#22211f", "#ffffff", _NEUTRAL_WORDMARK, mode)
                 p.setFont(font_r)
-                p.setPen(QColor(fg))
-                p.drawText(int(x_start), int(baseline), text_pre)
+                p.setPen(QColor(greeting))
+                p.drawText(int(x_start), int(baseline), text_hi)
+                p.setPen(QColor(chrom))
+                p.drawText(int(x_start + whi), int(baseline), text_ch)
                 p.setFont(font_i)
                 p.setPen(QColor(by_mode(SPEC_MAGENTA, SPEC_MAGENTA,
-                                        _n.NM_TEXT_MAIN,
-                                        self._dialog._mode)))
-                p.drawText(int(x_start + wpre - 1), int(baseline), text_iq)
+                                        _n.NM_TEXT_MAIN, mode)))
+                p.drawText(int(x_start + whi + wch - 1), int(baseline), text_iq)
                 p.end()
 
         self._heading = _Heading(self)

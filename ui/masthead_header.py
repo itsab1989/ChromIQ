@@ -36,6 +36,29 @@ _STOPS = (
 #: never chose an appearance).
 _ACCENT     = "#ff4573"  # tab-1 tint for "IQ" in Light and Dark
 
+#: "Chrom" in the Neutral appearance. A BRAND VALUE, deliberately not a token:
+#: `ui/neutral_styles.py` says in as many words that its table is the signed
+#: handoff verbatim and must not be re-derived or extended, and this grey is
+#: not in it. It lives here, with the wordmark it serves.
+#:
+#: THE OWNER, 2026-09-02: *"the part 'Chrom' of the apps name in the masthead
+#: and the splash screen could maybe be a touch brighter to better seperate it
+#: from the 'IQ'."* He is in Neutral, and Neutral is the one appearance where
+#: the magenta "IQ" is gone, so value and italic carry the whole lockup.
+#: Measured, each half rendered alone on its own ground: the Chrom-to-IQ ink
+#: depth ratio was **1.078x** in Neutral against 1.423x in Light and 3.786x in
+#: Dark - a quarter of Dark's separation, which is why it reads as one word
+#: here and as two everywhere else.
+#:
+#: `#606060` is 4.85:1 on the masthead ground and 3.03:1 against "IQ" (it was
+#: 1.807:1), which puts Neutral's step beside Dark's 3.31:1 - the appearance
+#: nobody has complained about. It is NOT taken further: `#666666` would match
+#: Dark exactly and measures 4.43:1, below the 4.5:1 floor that
+#: `tests/test_neutral_ground_and_rule.py` enforces on everything that works.
+#: In this theme low contrast means "disabled" and nothing else, and the
+#: application's own name may not read as switched off.
+_NEUTRAL_WORDMARK = "#606060"
+
 # Per-mode palettes. Dark values are historical; light values per the
 # light-mode v2 handoff design.
 _PALETTE_DARK = {
@@ -78,7 +101,7 @@ _PALETTE_NEUTRAL = {
     "ver_fg":         neutral_styles.NM_TEXT_DIM,     # 10.60:1 on the rail
     "tag_fg":         neutral_styles.NM_TEXT_FAINT,   # tertiary
     "rail_hint_fg":   neutral_styles.NM_TEXT_MAIN,    # instruction, not decoration
-    "wordmark":       neutral_styles.NM_TEXT_FAINT,   # "Chrom"
+    "wordmark":       _NEUTRAL_WORDMARK,              # "Chrom" - see above
     "wordmark_accent": neutral_styles.NM_TEXT_MAIN,   # "IQ"
     "ver_separator":  neutral_styles.NM_BORDER,
     "icon_track":     neutral_styles.NM_TEXT_FAINT,   # programmatic fallback icon

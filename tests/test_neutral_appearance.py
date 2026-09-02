@@ -505,7 +505,8 @@ def test_the_neutral_splash_drops_the_magenta_wordmark(app):
     from ui.splash import make_splash_pixmap
     seen = _wordmark_pixels(make_splash_pixmap(NEUTRAL, "v9.9.9"))
     assert MAGENTA not in seen
-    assert seen.get(N.NM_TEXT_FAINT, 0) > 100, "no 'Chrom' in TEXT_FAINT"
+    from ui.masthead_header import _NEUTRAL_WORDMARK
+    assert seen.get(_NEUTRAL_WORDMARK, 0) > 100, "no 'Chrom' in the brand grey"
     assert seen.get(N.NM_TEXT_MAIN, 0) > 100, "no 'IQ' in TEXT_MAIN"
     assert seen.get(N.NM_BG_WINDOW, 0) > 1000, "the splash ground is not BG_WINDOW"
 
@@ -541,7 +542,8 @@ def test_the_masthead_wordmark_accent_is_a_palette_key_not_a_global():
     assert _PALETTES["light"]["wordmark_accent"] == _ACCENT
     assert _PALETTES["dark"]["wordmark_accent"] == _ACCENT
     assert _PALETTES[NEUTRAL]["wordmark_accent"] == N.NM_TEXT_MAIN
-    assert _PALETTES[NEUTRAL]["wordmark"] == N.NM_TEXT_FAINT
+    from ui.masthead_header import _NEUTRAL_WORDMARK
+    assert _PALETTES[NEUTRAL]["wordmark"] == _NEUTRAL_WORDMARK
 
 
 # ======================================================================
@@ -572,3 +574,58 @@ def test_the_combo_entry_is_translated_everywhere(code):
     assert catalog["Neutral"] in tip, (
         f"[{code}] the tooltip does not mention the Neutral entry by its own "
         f"translated name")
+
+
+# ======================================================================
+# The wordmark's two halves have to read as two halves
+# ======================================================================
+
+def _contrast_ratio(a: str, b: str) -> float:
+    def lum(h):
+        h = h.lstrip("#")
+        parts = [int(h[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+        lin = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+               for c in parts]
+        return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
+    la, lb = sorted((lum(a), lum(b)), reverse=True)
+    return (la + 0.05) / (lb + 0.05)
+
+
+def test_chrom_and_iq_are_told_apart_in_neutral():
+    """The owner, 2026-09-02: *"the part 'Chrom' of the apps name in the
+    masthead and the splash screen could maybe be a touch brighter to better
+    seperate it from the 'IQ'."*
+
+    Neutral is the one appearance with no magenta "IQ", so value and italic
+    carry the whole lockup. Measured before the change, the two halves stood
+    at 1.807:1 - they read as one word. Dark, which nobody has complained
+    about, stands at 3.31:1.
+    """
+    from ui import neutral_styles as N
+    from ui.masthead_header import _PALETTES
+    pal = _PALETTES["neutral"]
+    step = _contrast_ratio(pal["wordmark"], pal["wordmark_accent"])
+    assert step >= 2.5, (
+        f"'Chrom' and 'IQ' are only {step:.2f}:1 apart - they read as one word")
+    # ...and the mark may not become faint reaching for that separation. In
+    # this theme low contrast means "disabled" and nothing else, and the
+    # application's own name may not read as switched off.
+    on_ground = _contrast_ratio(pal["wordmark"], N.NM_BG_WINDOW)
+    assert on_ground >= 4.5, (
+        f"'Chrom' is {on_ground:.2f}:1 on its ground, which this theme reserves "
+        f"for controls that do not work")
+
+
+def test_the_welcome_dialog_paints_chrom_in_the_same_brand_grey():
+    """The sixth brand site could not follow the masthead, because it drew the
+    greeting and "Chrom" as ONE run in ONE colour. Found by a challenge agent
+    before the change was made, not after."""
+    import inspect
+
+    from ui.dialogs import welcome_dialog
+    src = inspect.getsource(welcome_dialog.WelcomeDialog._make_heading)
+    assert "_NEUTRAL_WORDMARK" in src, (
+        "the welcome dialog no longer reads the masthead's brand value")
+    assert 'tr("Welcome to") + " Chrom"' not in src, (
+        "the greeting and the mark are one run again, so 'Chrom' cannot be "
+        "given its own value here")
