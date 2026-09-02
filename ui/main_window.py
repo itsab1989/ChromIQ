@@ -120,7 +120,20 @@ def _darken_for_light_log(hex_color: str) -> str:
     """Return a tab accent darkened for readable log text on the light-mode
     log background. Preserves hue, reduces lightness, and tames very
     saturated inputs so they don't read as a deep indigo / scarlet after
-    crushing."""
+    crushing.
+
+    LIGHT ONLY, AND NOW BY RULING RATHER THAN BY ACCIDENT. What the log text
+    should be in a colourless theme was one of the two open questions the owner
+    kept for himself, and he has answered it: **log text is black or very dark
+    grey.** So Neutral does not call this at all — it takes
+    :data:`ui.neutral_styles.NM_LOG_TEXT` (``#101010``, 17.45:1 on the log
+    surface) straight from the token table, and there is nothing per-tab left
+    to darken. Before the ruling the per-tab accent was painted raw on the log
+    in Neutral and measured **1.63:1** (amber) to 3.03:1 (magenta).
+
+    Light and Dark are untouched: this function is still exactly what the light
+    theme's log uses, and Dark still paints the accent undarkened.
+    """
     r = int(hex_color[1:3], 16) / 255
     g = int(hex_color[3:5], 16) / 255
     b = int(hex_color[5:7], 16) / 255
@@ -575,6 +588,19 @@ class MainWindow(QMainWindow):
         # #130: keep the shared Profile-run list current (a run may have been
         # created since the bar last populated). Cheap; the picked run/type stay.
         color = TAB_COLORS[index] if index < len(TAB_COLORS) else TAB_COLORS[-1]
+        # ONE ACCENT VALUE IN NEUTRAL, and the step says which tab instead.
+        # `color` below tints the left accent line and the masthead bar's combo
+        # highlight and ⓘ; under the chosen draft those are the controls that
+        # say "here", not "which tab", so they are the same in all five.
+        from ui import index_rule
+        if index_rule.use_index_rule(getattr(self, "_title_bar_mode", None)):
+            from ui import neutral_styles
+            color = neutral_styles.NM_ACTION
+        # The masthead stripe is the Index rule in Neutral: five cells filled
+        # up to the step the window is on. Pushed here because the masthead has
+        # no idea which tab is current — and ignored by Light and Dark, which
+        # paint all five hues whatever the step.
+        self._masthead.set_step(index + 1)
         if getattr(self, "_target_bar", None) is not None:
             # Check & Refine works on the measurement file loaded into it, not
             # on this selection, so the bar is shown but locked there (#130,
@@ -650,15 +676,28 @@ class MainWindow(QMainWindow):
         cannot pass a background that disagrees with the border, and a leftover
         positional argument cannot bind silently to the wrong parameter.
         """
-        is_light = getattr(self, "_title_bar_mode", "dark") == "light"
-        pane_bg = "#ffffff" if is_light else "#181818"
+        # THREE APPEARANCES, THREE ANSWERS. `== "light"` had room for two and
+        # gave Neutral the DARK pane — #181818 behind a light-grey window, a
+        # hole wherever a tab does not cover its own pane. It is a grey, so the
+        # non-neutral scan is blind to it; only reading the branch finds it.
+        from ui.theme import APPEARANCE_NEUTRAL, accept_mode
+        _pane_mode = accept_mode(getattr(self, "_title_bar_mode", "dark"))
+        if _pane_mode == APPEARANCE_NEUTRAL:
+            from ui import neutral_styles
+            pane_bg = neutral_styles.NM_BG_PANEL
+        else:
+            pane_bg = "#ffffff" if _pane_mode == "light" else "#181818"
+        is_light = _pane_mode == "light"
         # MEASURED, not chosen. These are the colours that make
         # MeasurementReportDialog agree with itself: its trend tabs inherit this
         # sheet when the dialog is opened from the Measure tab and do not when it
         # is opened from Tools, so any other value shows a different hairline
         # depending on where the user came from. rgba(0,0,0,0.10) left the two
         # entry points 2,400 px apart at dRGB 42; these give (0,0,0) from both.
-        glow = "#d0ccc6" if is_light else "#000000"
+        if _pane_mode == APPEARANCE_NEUTRAL:
+            glow = neutral_styles.NM_BORDER
+        else:
+            glow = "#d0ccc6" if is_light else "#000000"
         return (
             "\n            QTabWidget#chromiq_main_tabs::pane {\n"
             "                border: none;\n"
@@ -687,11 +726,71 @@ class MainWindow(QMainWindow):
         if not tab_w:
             return
 
+        from ui.theme import APPEARANCE_NEUTRAL, accept_mode
+
+        _mode = accept_mode(getattr(self, "_title_bar_mode", "dark"))
+
+        if _mode == APPEARANCE_NEUTRAL:
+            # ------------------------------------------------------------
+            # NEUTRAL: THE PER-TAB ACCENT SHEET IS ALMOST ENTIRELY GONE.
+            #
+            # This generator carried 26 literal colour values and a whole tab
+            # hue, and it is where the theme leaked worst: `QLabel#patch_count`
+            # painted #ffffff at **1.19:1**, `QPushButton#primary` wore the raw
+            # tab hue, the log text landed at 1.63:1, every checkbox tick and
+            # every ⓘ ring in the app came out coloured.
+            #
+            # The chosen draft says those controls are IDENTICAL in all five
+            # tabs — "they say 'here' and 'on', and were never where the user
+            # learns which tab they are in" — and a rule that is the same in
+            # every tab does not belong in a per-tab sheet at all. Every one of
+            # them is already written, once, in NEUTRAL_STYLESHEET. So the
+            # sheet shrinks to the two things the app-wide sheet genuinely
+            # cannot say, and every other rule below simply stops existing
+            # rather than being re-stated in grey:
+            #
+            #   * the focus ring on the spin boxes and an OPEN combo — the app
+            #     sheet covers QLineEdit and QComboBox but not QSpinBox,
+            #     QDoubleSpinBox or `QComboBox:on`;
+            #   * `#mode_btn:checked`, which ui/neutral_styles.py names in a
+            #     comment as this method's job.
+            #
+            # Tab identity is not lost — it moved to the Index rule, which is a
+            # part you can see rather than a tint you have to remember.
+            from ui import neutral_styles as _nm
+            color = _nm.NM_ACTION
+            _sheet = f"""
+                QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus,
+                QComboBox:focus, QComboBox:on {{
+                    border-color: {_nm.NM_ACTION};
+                }}
+                QPushButton#mode_btn:checked {{
+                    background: {_nm.NM_ACTION};
+                    border: 1px solid {_nm.NM_ACTION};
+                    color: {_nm.NM_ON_ACTION};
+                    font-size: 13px;
+                    font-weight: 700;
+                    padding: 6px 22px;
+                }}
+                QPushButton#mode_btn:checked:hover {{
+                    background: {_nm.NM_BORDER_HI};
+                    border-color: {_nm.NM_BORDER_HI};
+                    color: {_nm.NM_ON_ACTION};
+                }}
+            """
+            if self._styled_tab_theme.get(index) != _mode:
+                tab_w.setStyleSheet(_sheet)
+                self._styled_tab_theme[index] = _mode
+            TooltipButton.ACCENT = color
+            for btn in tab_w.findChildren(TooltipButton):
+                btn._set_icon()
+            return
+
         color = TAB_COLORS[index] if index < len(TAB_COLORS) else TAB_COLORS[-1]
         # Compute variants without broken hex-alpha (Qt reads #AARRGGBB, not #RRGGBBAA)
         r, g, b = int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
         color_hover = "#{:02x}{:02x}{:02x}".format(int(r * 0.82), int(g * 0.82), int(b * 0.82))
-        is_light = getattr(self, "_title_bar_mode", "dark") == "light"
+        is_light = _mode == "light"
 
         if is_light:
             # Light theme — keep the colored chip readable on a light bg.
@@ -844,8 +943,10 @@ class MainWindow(QMainWindow):
         # that both answer `is_light == False` would share one cache entry, and
         # switching between them would be a HIT — skipping the very re-style a
         # theme switch exists to perform.
-        from ui.theme import APPEARANCE_DARK, accept_mode
-        _mode = accept_mode(getattr(self, "_title_bar_mode", APPEARANCE_DARK))
+        # `_mode` was resolved at the top of this method — one `accept_mode`
+        # call for the whole thing, so the branch that chose the values and the
+        # cache that stores them can never disagree about which appearance this
+        # is.
         if self._styled_tab_theme.get(index) != _mode:
             tab_w.setStyleSheet(_sheet)
             self._styled_tab_theme[index] = _mode
@@ -2470,7 +2571,11 @@ class MainWindow(QMainWindow):
                     pass
         # Reload theme-aware icons (folder glyphs, preset +/-) so their palette-
         # dependent variants repaint without needing an app restart.
+        # Asked once for the whole method: two separate decisions below turn on
+        # WHICH KIND of ground this appearance paints, not on its name.
+        from ui.theme import APPEARANCE_NEUTRAL, accept_mode, has_dark_ground
         from ui.widgets import apply_themed_icons, reapply_groupbox_surface, reapply_input_stylesheet
+        _mode_now = accept_mode(mode)
         apply_themed_icons(self)
         reapply_groupbox_surface(self)
         reapply_input_stylesheet(self)
@@ -2500,18 +2605,55 @@ class MainWindow(QMainWindow):
             # two statements later repolishes it back OFF. The second pass exists
             # to undo the first. Dark never enters that fight, so it keeps the
             # cache and a quarter-second of launch.
-            if mode == "light":
+            # WHICH KIND OF GROUND, not the name "light". The fight this
+            # clear settles is between `apply_theme` turning a group box's
+            # autoFillBackground ON and the per-tab setStyleSheet two
+            # statements later polishing it back OFF — and as of this change
+            # Neutral turns it on too (it has a BG_SURFACE for group boxes,
+            # where before it had none). So Neutral is now in the same fight
+            # and needs the same second pass; Dark still never enters it and
+            # still keeps its quarter-second of launch.
+            if not has_dark_ground(mode):
                 self._styled_tab_theme.clear()
             for _i in range(self._tabs.count()):
                 self._apply_tab_widget_styling(_i)
             self._on_tab_changed(self._tabs.currentIndex())
+            # AND AGAIN, AFTER. `reapply_groupbox_surface` above runs BEFORE
+            # the per-tab `setStyleSheet`, and setting a stylesheet makes
+            # QStyleSheetStyle unpolish the subtree — which restores each
+            # widget's palette as it was when that widget was FIRST polished.
+            # For a session that started in Light (the shipped default) that
+            # saved palette is the light theme's cream surface, so every group
+            # box in the window snapped back to `#f7f4ef` the instant the tabs
+            # were re-styled. Measured in Neutral before this line existed:
+            # 250,000 cream pixels across the five tabs, more than every other
+            # offender in the chrome put together, and invisible to the branch
+            # itself — the branch was right and its result was thrown away.
+            # A second pass after the re-style is what makes it stick.
+            #
+            # NEUTRAL ONLY, AND MEASURED THAT WAY. The obvious version of this
+            # line ran for every appearance, and the five Light tab grabs then
+            # came back with five different hashes — Light's group boxes really
+            # do end up painting what the unpolish restored, not what the first
+            # pass set, and that is the look that shipped and was approved.
+            # A colourless theme may not buy its own correctness with a change
+            # to Light, so the repair is scoped to the appearance that needs it.
+            if _mode_now == APPEARANCE_NEUTRAL:
+                reapply_groupbox_surface(self)
         # Boost the log-widget weight in light mode — QSS font-weight on
         # QPlainTextEdit text is unreliable on Windows because the document
         # uses its own default font, so set it via QFont directly. Done AFTER
         # the per-tab QSS re-injection so the stylesheet's font cascade
         # doesn't overwrite our heavier weight.
         from PyQt6.QtGui import QFont
-        _log_weight = QFont.Weight.Black if mode == "light" else QFont.Weight.Normal
+        # A PALE GROUND, not the name "light". The boost exists because dark
+        # text on a pale log surface renders thin, and Neutral's log is
+        # #101010 on #f5f5f5 — the same problem, and its own stylesheet already
+        # asks for font-weight 800 in QSS, which this is the reliable way to
+        # get (QSS font-weight on a QPlainTextEdit is unreliable on Windows —
+        # the document carries its own default font). Dark is unchanged.
+        _log_weight = (QFont.Weight.Black if not has_dark_ground(mode)
+                       else QFont.Weight.Normal)
         for log in self.findChildren(QPlainTextEdit, "log"):
             f = log.font()
             f.setWeight(_log_weight)

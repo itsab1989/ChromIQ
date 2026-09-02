@@ -64,7 +64,16 @@ class WelcomeButton(QToolButton):
         path = QPainterPath()
         path.addText(float(gx), float(gy), font, glyph)
 
-        color = QColor(SPEC_MAGENTA)
+        # THE MASTHEAD "?" IS PAINTED HERE, not baked into an asset — the one
+        # masthead glyph a theme can still reach. In Neutral it takes the single
+        # ACTION value like every other accent surface; the magenta measures
+        # 2.55:1 on this frame anyway, so it was not carrying the mark there.
+        from ui import index_rule
+        if index_rule.use_index_rule():
+            from ui import neutral_styles
+            color = QColor(neutral_styles.NM_ACTION)
+        else:
+            color = QColor(SPEC_MAGENTA)
         if not self._hover:
             color.setAlpha(230)
         p.setBrush(color)

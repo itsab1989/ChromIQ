@@ -18,11 +18,19 @@ def qapp():
 
 
 @pytest.fixture()
-def win(qapp, tmp_path_factory):
+def win(qapp, tmp_path_factory, monkeypatch):
     from core.settings import AppSettings
     from ui.main_window import MainWindow
 
-    MainWindow._apply_title_bar = lambda self, mode: None
+    # THROUGH `monkeypatch`, NOT BY ASSIGNMENT. This used to be a bare
+    # `MainWindow._apply_title_bar = lambda ...` and it was never put back — a
+    # class-level patch that outlives the module and follows the process into
+    # whatever file xdist schedules next. `test_set_appearance_takes_three.py`
+    # reads that method's SOURCE to check it asks `has_dark_ground`, and got
+    # the lambda: a green check turned red for a reason that had nothing to do
+    # with the code under test, whenever the two files shared a worker.
+    monkeypatch.setattr(MainWindow, "_apply_title_bar",
+                        lambda self, mode: None, raising=False)
     tmp = tmp_path_factory.mktemp("style")
     s = AppSettings()
     s._qs = QSettings(str(tmp / "t.ini"), QSettings.Format.IniFormat)
@@ -63,7 +71,7 @@ def test_theme_switch_reapplies_all_tabs(win):
     assert all(v == new for v in win._styled_tab_theme.values())
 
 
-def test_applying_a_light_theme_restyles_every_tab(qapp, tmp_path):
+def test_applying_a_light_theme_restyles_every_tab(win):
     """Basti, on a real launch: "on launch the styling in create chart tab is not
     correct. switching between modules does not help, switching to another tab
     and back fixes it."
@@ -78,15 +86,48 @@ def test_applying_a_light_theme_restyles_every_tab(qapp, tmp_path):
 
     Rendered comparison put a number on it: without the clear, light mode
     differs from master over 21% of the window; dark is pixel-identical either
-    way, which is why the clear is light-only.
+    way, which is why the clear is for the PALE grounds only.
+
+    It used to be spelled `if mode == "light"`, and this test asserted that
+    literal. The condition that was meant all along is *does this appearance
+    paint a pale ground* — the fight is with the group boxes' surface, and
+    Neutral now has one too, so it needs the same second pass. Dark still never
+    enters it and still keeps its ~264 ms. Asserted as behaviour rather than as
+    a spelling: what matters is which appearances clear, not how the branch is
+    written.
     """
     import inspect
     from ui.main_window import MainWindow
+    from ui.theme import CONCRETE_APPEARANCES, has_dark_ground
     src = inspect.getsource(MainWindow.apply_theme)
     head = src.split("_log_weight", 1)[0]
     assert "_styled_tab_theme.clear()" in head, (
         "applying a theme must forget what was styled at construction, or the "
         "tabs keep the stylesheet from before the theme was known")
-    assert 'if mode == "light"' in head, (
-        "the clear is light-only: dark is pixel-identical with and without it, "
-        "and clearing it there costs ~264 ms of every dark launch")
+    assert 'mode == "light"' not in head, (
+        "the clear is not about the NAME 'light' — a light-grey appearance "
+        "paints group-box surfaces too and needs the same second pass")
+
+    # Watch the thing the clear exists to cause: does applying the SAME
+    # appearance a second time actually re-set the tab's stylesheet? A poisoned
+    # cache entry would not tell them apart — a miss rewrites the entry with or
+    # without the clear — so the sheet itself is the observable.
+    tab0 = win._tabs.widget(0)
+    calls: list = []
+    _orig_set = tab0.setStyleSheet
+    tab0.setStyleSheet = lambda qss: (calls.append(qss), _orig_set(qss))[1]
+
+    for mode in CONCRETE_APPEARANCES:
+        win.apply_theme(mode)
+        calls.clear()
+        win.apply_theme(mode)          # same appearance, straight after
+        cleared = bool(calls)
+        if has_dark_ground(mode):
+            assert not cleared, (
+                f"{mode} paints a dark ground and is pixel-identical with and "
+                f"without the clear; clearing costs ~264 ms of every launch")
+        else:
+            assert cleared, (
+                f"{mode} paints a pale ground, so its group-box surfaces are "
+                f"repolished away by the per-tab stylesheet unless every tab "
+                f"is re-styled")

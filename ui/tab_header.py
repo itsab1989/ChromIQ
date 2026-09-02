@@ -5,6 +5,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QFont, QPainter
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 
+from ui import index_rule
 from ui.styles import SPEC_MAGENTA, TAB_COLORS
 from ui.tooltip_button import TooltipButton
 from core.i18n import tr
@@ -40,16 +41,13 @@ class TabHeader(QWidget):
         step_row.setContentsMargins(0, 0, 0, 0)
         step_row.setSpacing(8)
 
-        bar = QFrame(self)
+        self._accent = accent_color
+        self._bar = bar = QFrame(self)
         bar.setFixedSize(22, 2)
-        bar.setStyleSheet(f"background-color: {accent_color}; border: none;")
         step_row.addWidget(bar, 0, Qt.AlignmentFlag.AlignVCenter)
 
         self._step_lbl = QLabel(step_text, self)
-        self._step_lbl.setStyleSheet(
-            "color: #808080; background: transparent;"
-            " font-family: Menlo; font-size: 12px; font-weight: 300;"
-        )
+        self._paint_accent()
         step_row.addWidget(self._step_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
         step_row.addStretch()
 
@@ -107,6 +105,40 @@ class TabHeader(QWidget):
         title_row.addWidget(_strut)
         root.addLayout(title_row)
 
+    def _paint_accent(self) -> None:
+        """The 22x2 stroke and the eyebrow, for the appearance now on screen.
+
+        TWO VALUES CHANGE IN NEUTRAL AND NEITHER IS COSMETIC. The stroke is a
+        per-tab hue — tab identity carried by a shade, which is the one thing
+        the chosen accent draft replaces — so it becomes the single ACTION
+        value; identity is the Index rule's job now. And `#808080` is 3.05:1 on
+        the Neutral panel, which in this theme means "disabled" and nothing
+        else (handoff rule 3), so the eyebrow takes TEXT_FAINT at 8.83:1. Light
+        and Dark keep both values exactly as they were.
+        """
+        if index_rule.use_index_rule():
+            from ui import neutral_styles
+            stroke = neutral_styles.NM_ACTION
+            eyebrow = neutral_styles.NM_TEXT_FAINT
+        else:
+            stroke = self._accent
+            eyebrow = "#808080"
+        self._bar.setStyleSheet(f"background-color: {stroke}; border: none;")
+        self._step_lbl.setStyleSheet(
+            f"color: {eyebrow}; background: transparent;"
+            " font-family: Menlo; font-size: 12px; font-weight: 300;"
+        )
+
+    def set_appearance(self, _mode: str) -> None:
+        """Re-paint the accent stroke and eyebrow for a new appearance.
+
+        `MainWindow.apply_theme` broadcasts to every descendant that has this
+        method. Both values are set with a per-widget stylesheet, so nothing
+        else would refresh them: before this, a header built under Light kept
+        its tab hue after a switch to Neutral.
+        """
+        self._paint_accent()
+
     def set_texts(self, step_text: str, title_text: str) -> None:
         self._step_lbl.setText(step_text)
         self._title_lbl.setText(title_text)
@@ -121,27 +153,56 @@ class TabHeader(QWidget):
 
 
 class SpectrumStripe(QWidget):
-    """A thin full-width band of the five ChromIQ tab hues, painted as equal
-    blocks — the same stripe the main-window masthead and the chart-design
-    windows use. The hues (TAB_COLORS) are plain spectrum colours, identical in
-    light and dark mode; only the chrome around them changes per theme, so this
-    needs no per-mode palette."""
+    """The dialog masthead's rule — the same part the main-window masthead wears.
+
+    In Light and Dark it is a thin full-width band of the five ChromIQ tab hues
+    painted as equal blocks. The hues (TAB_COLORS) are plain spectrum colours,
+    identical in both, so it needs no per-mode palette there.
+
+    In Neutral it is the **Index rule** (:mod:`ui.index_rule`): five cells
+    filled up to ``step``. One component replaces the spectrum bar at every
+    screen site, and a dialog masthead is one of them — this stripe measured
+    100 % non-neutral, five hues wide, in a theme that has none.
+
+    ``step`` is where in the run this window belongs, which
+    :func:`dialog_masthead` derives from the accent it was given: a Measure
+    tool's masthead is at step 3 whether or not it is green. A window with no
+    place in the run leaves it at :data:`ui.index_rule.ALL`.
+    """
 
     HEIGHT = 4
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, parent: QWidget | None = None, *,
+                 step: int = index_rule.ALL) -> None:
         super().__init__(parent)
+        self._step = step
         self.setFixedHeight(self.HEIGHT)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
+
+    def step(self) -> int:
+        return self._step
+
+    def set_step(self, step: int) -> None:
+        if step != self._step:
+            self._step = step
+            self.update()
+
+    def set_appearance(self, _mode: str) -> None:
+        """Repaint. The appearance itself is read at paint time, from the live
+        application palette, so there is no stored mode here to go stale."""
+        self.update()
 
     def paintEvent(self, _ev) -> None:  # noqa: N802
         p = QPainter(self)
         w = self.width()
-        n = len(TAB_COLORS)
-        for i, col in enumerate(TAB_COLORS):
-            x0 = int(round(i * w / n))
-            x1 = int(round((i + 1) * w / n)) if i < n - 1 else w
-            p.fillRect(x0, 0, x1 - x0, self.HEIGHT, QColor(col))
+        if index_rule.use_index_rule():
+            index_rule.paint_index_rule(p, 0, 0, w, self.HEIGHT, self._step)
+        else:
+            n = len(TAB_COLORS)
+            for i, col in enumerate(TAB_COLORS):
+                x0 = int(round(i * w / n))
+                x1 = int(round((i + 1) * w / n)) if i < n - 1 else w
+                p.fillRect(x0, 0, x1 - x0, self.HEIGHT, QColor(col))
         p.end()
 
 
@@ -179,7 +240,17 @@ def dialog_masthead(
         tooltip_color=accent,
     )
     head.addWidget(header, 1, Qt.AlignmentFlag.AlignVCenter)
-    stripe = SpectrumStripe(parent)
+    # WHERE IN THE RUN THIS WINDOW BELONGS, taken from the accent it already
+    # declares: a Measure tool passes SPEC_GREEN, which is tab 3. In Light and
+    # Dark the accent paints the hue and the step is unused; in Neutral the hue
+    # is gone and the step is the only thing left saying which part of the
+    # workflow you are in. An accent that is not one of the five (a tool with
+    # its own colour) means "no position" and fills the rule.
+    try:
+        step = TAB_COLORS.index(accent) + 1
+    except ValueError:
+        step = index_rule.ALL
+    stripe = SpectrumStripe(parent, step=step)
     if parent is not None:
         from ui.gradient_overlay import GradientOverlay
         # Same peak saturation as the main-window tab wash (alpha 15), but taller

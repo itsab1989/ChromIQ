@@ -17,6 +17,7 @@ from PyQt6.QtGui import QPainter
 from PyQt6.QtWidgets import QApplication, QSplashScreen, QWidget
 
 # Reuse the masthead's single source of truth for colours + wordmark styling.
+from ui import index_rule
 from ui.masthead_header import _ACCENT, _PALETTE_DARK, _PALETTES, _STOPS
 
 _W, _H = 640, 400          # logical size (points); rendered at device pixel ratio
@@ -74,14 +75,21 @@ def make_splash_pixmap(mode: str, version: str = "") -> QPixmap:
     p.setFont(ital); p.setPen(QColor(pal.get("wordmark_accent", _ACCENT)))
     p.drawText(int(x0 + chrom_w - 1), int(baseline), "IQ")
 
-    # Full-width spectrum bar (5 solid segments, no gaps) clearing the Q tail.
+    # Full-width bar clearing the Q tail: five solid hue segments in Light and
+    # Dark, the Index rule in Neutral — the same part the masthead stripe wears,
+    # and the last of the five screen sites the spectrum bar occupied. It is
+    # filled to ALL here rather than to a step: a splash has no position in the
+    # run, so it wears the mark and not a readout.
     q_ink_bottom = baseline + fm_i.tightBoundingRect("IQ").bottom()
     by = q_ink_bottom + _BAR_GAP
-    n = len(_STOPS)
-    for i, col in enumerate(_STOPS):
-        xa = round(i * _W / n)
-        xb = round((i + 1) * _W / n) if i < n - 1 else _W
-        p.fillRect(int(xa), int(by), int(xb - xa), _BAR_H, QColor(col))
+    if index_rule.use_index_rule(mode):
+        index_rule.paint_index_rule(p, 0, int(by), _W, _BAR_H, index_rule.ALL)
+    else:
+        n = len(_STOPS)
+        for i, col in enumerate(_STOPS):
+            xa = round(i * _W / n)
+            xb = round((i + 1) * _W / n) if i < n - 1 else _W
+            p.fillRect(int(xa), int(by), int(xb - xa), _BAR_H, QColor(col))
 
     # Tagline (product, not sponsor) + version, both muted.
     tag = QFont(); tag.setFamilies(["Inter", "Arial", "Helvetica Neue"]); tag.setPixelSize(17)

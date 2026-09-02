@@ -125,8 +125,35 @@ class TooltipButton(QToolButton):
         self._color_override = color
         self._set_icon()
 
+    def set_appearance(self, _mode: str) -> None:
+        """Re-draw the ring for a new appearance.
+
+        `MainWindow.apply_theme` broadcasts this to every descendant that has
+        it. The per-tab styling pass already re-draws the buttons inside a tab;
+        this reaches the ones that are NOT in a tab — the masthead's four, the
+        Profile-run bar's three — which otherwise kept the accent they were
+        built with until the app was restarted.
+        """
+        self._set_icon()
+
     def _set_icon(self) -> None:
         color = getattr(self, "_color_override", None) or self.__class__.ACCENT
+        # ONE ACCENT VALUE IN NEUTRAL — resolved HERE, at the last possible
+        # moment, because there are two ways a colour reaches this button and
+        # neither can be caught upstream. The tab accent arrives through the
+        # class global, which MainWindow already sets to ACTION; but every tool
+        # dialog and the editor pass their own `color=SPEC_GREEN` /
+        # `SPEC_MAGENTA` at construction, and those never go past MainWindow at
+        # all. Every ⓘ ring in the app was coloured, in dialogs and in tabs
+        # alike, and this is the single place both paths meet.
+        #
+        # Asked per icon rather than cached: an appearance switch re-draws
+        # these anyway, and the icon cache is keyed on the resolved colour, so
+        # a switch is a cache miss and not a stale ring.
+        from ui import index_rule
+        if index_rule.use_index_rule():
+            from ui import neutral_styles
+            color = neutral_styles.NM_ACTION
         self.setIcon(self._draw_icon(QColor(color)))
         # The icon is as wide/tall as the nudge made it; Qt centres it in the
         # button, so the extra room on one side is what produces the shift.
