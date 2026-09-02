@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import (
 
 from core.i18n import tr
 from core.logger import get_logger
+from ui import neutral_styles
 from ui.styles import SPEC_GREEN, SPEC_MAGENTA
 from core.i18n import tr
 
@@ -51,8 +52,92 @@ _TOOLTIP_QSS_LIGHT = (
     "padding: 4px;"
     " }"
 )
+_TOOLTIP_QSS_NEUTRAL = (
+    "QToolTip { "
+    f"background-color: {neutral_styles.NM_BG_SURFACE}; "
+    f"color: {neutral_styles.NM_TEXT_MAIN}; "
+    f"border: 1px solid {neutral_styles.NM_BORDER}; "
+    "padding: 4px;"
+    " }"
+)
+_TOOLTIP_QSS_BY_MODE = {
+    "light":   _TOOLTIP_QSS_LIGHT,
+    "dark":    _TOOLTIP_QSS_DARK,
+    "neutral": _TOOLTIP_QSS_NEUTRAL,
+}
 # Back-compat alias: existing dark stylesheet strings concatenate this.
 _TOOLTIP_QSS = _TOOLTIP_QSS_DARK
+
+# ---------------------------------------------------------------------------
+# THE PREVIEW'S OWN COLOURS, PER APPEARANCE
+#
+# THE CHART IS THE USER'S WORK AND KEEPS EVERY COLOUR IT HAS. What is themed
+# here is the FRAME: the well the sheet is laid on, the caption above it, the
+# filename, the page counter and the empty-state line. Nothing in this table
+# touches a pixel of the TIFF, the #126 engine overlays or the printed ruler
+# marks — those are data, and they are a different job.
+#
+# NEUTRAL'S WELL IS ``BG_PANEL``, the panel grey, and that is the owner's own
+# instruction: *"the tiff preview should have the same background colours as
+# the light grey used for the majority of the main window panel."* It is one
+# step lighter than the handoff's ``BG_VIEWER``; what makes the well read as a
+# well is its 1 px ``BORDER`` edge and the sheet's own shadowless white, not a
+# step down in value. Dark's #111111 hole in a light-grey page is the thing
+# being fixed.
+_PREVIEW_LIGHT = {
+    "caption":  "#7a7570", "filename": "#7a7570", "page": "#7a7570",
+    "img_bg":   "#efebe6", "img_border": "#d0ccc6", "img_text": "#a8a4a0",
+    # #808080 in BOTH shipped appearances, not the light theme's #7a7570: the
+    # ink readout was styled once in __init__ and never re-themed, so this is
+    # the value Light has always painted and the one it must keep painting.
+    "readout":  "#808080",
+    "banner_bg": "#f0c674", "banner_border": "#b88a2a", "banner_text": "#2a1a00",
+    "badge_bg": "rgba(30, 30, 30, 185)", "badge_text": "#f4f2ef",
+    "tip_bg": "#ffffff", "tip_text": "#22211f", "tip_border": "#d0ccc6",
+    "tip_swatch_border": "#b8b3ad",
+}
+_PREVIEW_DARK = {
+    "caption":  "#808080", "filename": "#b8b8b8", "page": "#909090",
+    "img_bg":   "#111111", "img_border": "#333", "img_text": "#606060",
+    "readout":  "#808080",
+    "banner_bg": "#f0c674", "banner_border": "#b88a2a", "banner_text": "#2a1a00",
+    "badge_bg": "rgba(30, 30, 30, 185)", "badge_text": "#f4f2ef",
+    "tip_bg": "#262626", "tip_text": "#e6e6e6", "tip_border": "#404040",
+    "tip_swatch_border": "#5a5a5a",
+}
+_PREVIEW_NEUTRAL = {
+    "caption":  neutral_styles.NM_TEXT_DIM,
+    "filename": neutral_styles.NM_TEXT_MAIN,
+    "page":     neutral_styles.NM_TEXT_DIM,
+    # The well, the owner's value — see the note above.
+    "img_bg":     neutral_styles.NM_BG_PANEL,
+    "img_border": neutral_styles.NM_BORDER,
+    # The empty-state line is dark ink at 8.83:1, not a pale grey: in this
+    # theme low contrast means "disabled" and nothing else, and an empty
+    # preview is not a broken one.
+    "img_text":   neutral_styles.NM_TEXT_FAINT,
+    "readout":    neutral_styles.NM_TEXT_DIM,
+    # The advisory banner loses the amber. It keeps the handoff's warning
+    # treatment instead — a solid edge and dark ink on the raised surface.
+    "banner_bg":     neutral_styles.NM_BG_SURFACE,
+    "banner_border": neutral_styles.NM_BORDER_HI,
+    "banner_text":   neutral_styles.NM_TEXT_MAIN,
+    # The render badge floats OVER the image, whose colour is anything at all,
+    # so it has to carry its own ground. It is the handoff's one sanctioned
+    # light-on-dark pairing — ON_ACTION on an ACTION fill, 15.53:1 — and that
+    # is a fill, not inverted text.
+    "badge_bg":   neutral_styles.NM_ACTION,
+    "badge_text": neutral_styles.NM_ON_ACTION,
+    "tip_bg":     neutral_styles.NM_BG_SURFACE,
+    "tip_text":   neutral_styles.NM_TEXT_MAIN,
+    "tip_border": neutral_styles.NM_BORDER,
+    "tip_swatch_border": neutral_styles.NM_BORDER,
+}
+_PREVIEW_BY_MODE = {
+    "light":   _PREVIEW_LIGHT,
+    "dark":    _PREVIEW_DARK,
+    "neutral": _PREVIEW_NEUTRAL,
+}
 
 # ---------------------------------------------------------------------------
 # Ink channel tables
@@ -396,7 +481,18 @@ class _PatchInfoTile(QWidget):
     def paintEvent(self, _ev) -> None:  # noqa: N802
         if not self._rows:
             return
-        if self._mode == "light":
+        # THE SWATCHES IN THIS TILE ARE THE USER'S COLOURS and are drawn
+        # untouched below; only the card they sit on is themed. Neutral's card
+        # is the raised surface with dark ink on it — never the dark theme's
+        # near-black tile, which on a light-grey page is a hole with light text
+        # in it.
+        if self._mode == "neutral":
+            bg = QColor(neutral_styles.NM_BG_SURFACE)
+            bg.setAlpha(246)
+            border = QColor(neutral_styles.NM_BORDER)
+            fg = QColor(neutral_styles.NM_TEXT_MAIN)
+            sw_border = QColor(neutral_styles.NM_BORDER)
+        elif self._mode == "light":
             bg, border, fg = QColor(255, 255, 255, 244), QColor("#c9c4be"), QColor("#2a2a2a")
             sw_border = QColor("#b8b3ad")
         else:
@@ -689,22 +785,14 @@ class TiffPreview(QWidget):
         self._apply_mode_styles()
 
     def _apply_mode_styles(self) -> None:
-        if self._mode == "light":
-            tooltip = _TOOLTIP_QSS_LIGHT
-            caption_color  = "#7a7570"
-            filename_color = "#7a7570"
-            page_color     = "#7a7570"
-            img_bg         = "#efebe6"
-            img_border     = "#d0ccc6"
-            img_text       = "#a8a4a0"
-        else:
-            tooltip = _TOOLTIP_QSS_DARK
-            caption_color  = "#808080"
-            filename_color = "#b8b8b8"
-            page_color     = "#909090"
-            img_bg         = "#111111"
-            img_border     = "#333"
-            img_text       = "#606060"
+        pal = _PREVIEW_BY_MODE.get(self._mode, _PREVIEW_DARK)
+        tooltip        = _TOOLTIP_QSS_BY_MODE.get(self._mode, _TOOLTIP_QSS_DARK)
+        caption_color  = pal["caption"]
+        filename_color = pal["filename"]
+        page_color     = pal["page"]
+        img_bg         = pal["img_bg"]
+        img_border     = pal["img_border"]
+        img_text       = pal["img_text"]
         self._caption_lbl.setStyleSheet(
             f"QLabel {{ color: {caption_color}; background: transparent; padding: 4px;"
             " font-family: Menlo; font-size: 9px; font-weight: 300; }"
@@ -724,6 +812,22 @@ class TiffPreview(QWidget):
             + tooltip
         )
         self._page_label.setStyleSheet(f"color: {page_color}; font-size: 12px;")
+        # Set in __init__ with the dark values and never re-themed until now:
+        # the advisory banner (an amber slab in a colourless theme), the two
+        # render badges, and the ink readout.
+        self._banner_lbl.setStyleSheet(
+            f"QLabel {{ color: {pal['banner_text']}; background: {pal['banner_bg']};"
+            f" border: 1px solid {pal['banner_border']}; border-radius: 4px;"
+            " padding: 6px 10px; margin: 6px 4px 0 4px;"
+            " font-size: 11px; }")
+        badge_qss = (
+            f"QLabel {{ background: {pal['badge_bg']}; color: {pal['badge_text']};"
+            " border-radius: 4px; padding: 2px 8px; font-size: 11px; }")
+        self._ink_badge.setStyleSheet(badge_qss)
+        if getattr(self, "_badge_lbl", None) is not None:
+            self._badge_lbl.setStyleSheet(badge_qss)
+        self._ink_readout.setStyleSheet(
+            f"QLabel {{ color: {pal['readout']}; font-family: 'Menlo'; }}")
 
     # ------------------------------------------------------------------
     # Public API
@@ -1186,14 +1290,11 @@ class TiffPreview(QWidget):
             self._file_tip_timer = QTimer(self)
             self._file_tip_timer.setSingleShot(True)
             self._file_tip_timer.timeout.connect(self._hide_file_tip)
-        if self._mode == "light":
-            lbl.setStyleSheet(
-                "QLabel { background-color: #ffffff; color: #22211f;"
-                " border: 1px solid #d0ccc6; padding: 4px; }")
-        else:
-            lbl.setStyleSheet(
-                "QLabel { background-color: #262626; color: #e6e6e6;"
-                " border: 1px solid #404040; padding: 4px; }")
+        _tpal = _PREVIEW_BY_MODE.get(self._mode, _PREVIEW_DARK)
+        lbl.setStyleSheet(
+            f"QLabel {{ background-color: {_tpal['tip_bg']};"
+            f" color: {_tpal['tip_text']};"
+            f" border: 1px solid {_tpal['tip_border']}; padding: 4px; }}")
         lbl.setText(text)
         lbl.adjustSize()
         pos = global_pos + QPoint(12, 16)
@@ -2217,8 +2318,10 @@ class TiffPreview(QWidget):
             if not mode:
                 return
             self._badge_lbl = QLabel(self)
+            _bpal = _PREVIEW_BY_MODE.get(self._mode, _PREVIEW_DARK)
             self._badge_lbl.setStyleSheet(
-                "QLabel { background: rgba(30, 30, 30, 185); color: #f4f2ef;"
+                f"QLabel {{ background: {_bpal['badge_bg']};"
+                f" color: {_bpal['badge_text']};"
                 " border-radius: 4px; padding: 2px 8px; font-size: 11px; }")
             self._badge_lbl.raise_()
         if not mode:
@@ -3218,7 +3321,7 @@ class TiffPreview(QWidget):
         canvas.setDevicePixelRatio(dpr)
         # Dark/light viewer background fills the surround; only a thin frame
         # hugging the image is tinted (e.g. simulated paper white).
-        bg = QColor("#efebe6") if self._mode == "light" else QColor("#111111")
+        bg = QColor(_PREVIEW_BY_MODE.get(self._mode, _PREVIEW_DARK)["img_bg"])
         canvas.fill(bg)
         painter = QPainter(canvas)
         scaled = self._pixmap.scaled(
