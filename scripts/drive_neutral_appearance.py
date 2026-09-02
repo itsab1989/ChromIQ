@@ -337,7 +337,7 @@ def main() -> int:
         print(f"  {len(s.files)} grabs")
 
     (OUT / "onscreen.json").write_text(
-        json.dumps(report, indent=2, sort_keys=True))
+        json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
     print(f"\nwrote {OUT / 'onscreen.json'}")
 
     contact_sheet(sheets, OUT.parent / "CONTACT-SHEET.png")
