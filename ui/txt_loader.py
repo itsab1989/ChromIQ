@@ -266,7 +266,11 @@ def _ask_profile_name(
     layout.addWidget(name_edit)
 
     error_lbl = QLabel("", dlg)
-    error_lbl.setStyleSheet("color: #e05555;")
+    # Empty until the typed name is refused, so a pixel census never renders it
+    # — the same blind spot as the "this project already exists" line. The words
+    # carry the message; `set_ink` takes the red out in Neutral only.
+    from ui.widgets import set_ink
+    set_ink(error_lbl, "#e05555")
     error_lbl.setWordWrap(True)
     layout.addWidget(error_lbl)
 

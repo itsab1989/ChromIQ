@@ -813,7 +813,22 @@ class _ReorderListWidget(QListWidget):
         x, y0, y1 = self._drop_line
         p = QPainter(self.viewport())
         # Magenta accent — matches the app's drag/active highlight family.
-        p.setPen(QPen(QColor(SPEC_MAGENTA), 2))
+        #
+        # THE ONLY DRAG-OVER STATE IN THE APP, AND NOTHING HAD DRAWN IT. This
+        # line exists for the length of a drag and no longer: no census renders
+        # it, and no census in this environment could — a `:hover` rule cannot
+        # even be made to paint here, let alone a drag. It was found by reading
+        # the source, which is the instrument that works for a state you cannot
+        # photograph (`scripts/audit_interaction_state_rules.py`).
+        #
+        # It is drawn in the GAP between two swatches, on the view's own
+        # background, not over the user's colours — unlike the selection
+        # outlines further down this file, which sit on the chart preview and
+        # keep their hue for the same reason the TIFF preview does. So this one
+        # goes through `accent_for` like every other accent surface, resolved
+        # at paint time so a theme switched under an open editor reaches it.
+        # Light and Dark get the magenta back untouched.
+        p.setPen(QPen(QColor(accent_for(SPEC_MAGENTA)), 2))
         p.drawLine(x, y0, x, y1)
         p.end()
 

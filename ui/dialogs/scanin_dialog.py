@@ -591,8 +591,15 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._std_grid = None
         self._convert_tmp: Path | None = None   # scratch for converted references
         self._ref_converted_note = ""           # set when a .cxf/.txt was converted
-        light = resolve_mode(settings.get("appearance", "auto")) == "light"
-        self._hint = "#4a4a4a" if light else "#b8b8b8"
+        # THE HINT LINES UNDER EVERY FIELD, and a fold with room for two
+        # answers gave the light-grey appearance the dark theme's `#b8b8b8` —
+        # 1.53:1 on the Neutral dialog, which is not a faint hint, it is text
+        # you cannot see. A perfect grey, so the hue census scores it zero, and
+        # this is a Tools dialog nothing had opened in the first place.
+        from ui.theme import by_mode
+        from ui import neutral_styles as _n
+        self._hint = by_mode("#4a4a4a", "#b8b8b8", _n.NM_TEXT_FAINT,
+                             resolve_mode(settings.get("appearance", "auto")))
         self._build_inputs()
         self._run_btn.setObjectName("primary")
         # "Reveal profile" — shown after a successful build so the .icc is easy to

@@ -44,7 +44,7 @@ from core.resource_path import resource_path
 from ui.fade_scroll import FadeScrollArea
 from ui.tab_header import TabHeader
 from ui.tooltip_button import InfoDialog, TooltipButton
-from ui.widgets import add_log_row, fit_button_width, fit_log_height, fit_message_box_buttons, spread_message_box_buttons, GatedOption, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, make_browse_button, open_file_dialog, replace_log_line, set_accent_html, set_folder_icon, set_preset_icon, spectrum_cell, tint_dialog_primary
+from ui.widgets import add_log_row, fit_button_width, fit_log_height, fit_message_box_buttons, spread_message_box_buttons, GatedOption, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, make_browse_button, open_file_dialog, replace_log_line, set_accent_html, set_ink, set_folder_icon, set_preset_icon, spectrum_cell, tint_dialog_primary
 from ui.ti2_loader import (has_spectral_data, instrument_label, is_colormunki,
                           read_target_instrument, spectral_options_unavailable)
 from ui.spectrum_progress import SpectrumSegmentsBar
@@ -5247,7 +5247,11 @@ class TabProfile(QWidget):
                 dlg,
             )
             warn_lbl.setWordWrap(True)
-            warn_lbl.setStyleSheet("color: #d4a017;")
+            # THE BUILD-FINISHED WINDOW, and only when colprof had something to
+            # complain about: a state inside a state, which is why no census had
+            # rendered this amber. The line is already headed "Warnings
+            # detected:" in bold and lists each one, so the hue was decoration.
+            set_ink(warn_lbl, "#d4a017")
             layout.addWidget(warn_lbl)
 
         next_lbl = QLabel(tr("What would you like to do next?"), dlg)

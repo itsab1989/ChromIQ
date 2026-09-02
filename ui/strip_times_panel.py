@@ -128,6 +128,24 @@ class StripTimesPanel(QWidget):
         the interface's normal size — not smaller (Knut, #131 2026-07-27)."""
         return QFont(self.font())
 
+    def _muted_ink(self) -> str:
+        """The times' ink for the appearance on screen NOW.
+
+        THIS PANEL IS ONLY EVER ON SCREEN WHILE A STRIP IS BEING READ, so no
+        pixel census has drawn it — and the census would not have flagged it if
+        one had: `#909090` is a perfect grey, chroma 0, and an instrument that
+        looks for hue cannot see that a grey is the wrong LIGHTNESS. It is
+        2.53:1 on the Neutral panel, where low contrast means "disabled" and
+        nothing else (handoff rule 3) — and a time being written under a strip
+        as you swipe it is the opposite of disabled. `ui.spectrum_progress`
+        moved its two label greys for exactly this reason.
+
+        Asked at paint time so the panel follows an appearance switched under
+        it. Light and Dark get `#909090` straight back from `ink_for`.
+        """
+        from ui.theme import ink_for
+        return ink_for(self._muted, level="dim")
+
     def sizeHint(self) -> QSize:      # noqa: N802
         if not self._columns and not self._verdict:
             return QSize(200, 0)      # nothing to say: take no room at all
@@ -247,7 +265,7 @@ class StripTimesPanel(QWidget):
 
         if self._columns:
             p.setFont(self._time_font())
-            p.setPen(QColor(self._muted))
+            p.setPen(QColor(self._muted_ink()))
             fm = QFontMetrics(self._time_font())
             placed = self._placed_columns(dx, fm)
             # _placed_columns may have changed the band count, and polish may
@@ -273,7 +291,7 @@ class StripTimesPanel(QWidget):
             if self._label and placed:
                 # Centred on the block of times, at the left edge — and never
                 # allowed to run into the first strip's time, which owns its x.
-                p.setPen(QColor(self._muted))
+                p.setPen(QColor(self._muted_ink()))
                 lfm = QFontMetrics(self._time_font())
                 lines = self._label.split("\n")
                 room = min(x for x, _t, _i, _b in placed) - 8

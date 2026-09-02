@@ -36,6 +36,7 @@ from PyQt6.QtWidgets import (
 from core.i18n import tr
 from core.logger import get_logger
 from core.platform_paths import icc_system_dirs
+from ui import neutral_styles
 from ui.dialog_sizing import pin_min_height
 from ui.dialogs.tools_dialogs import _indicator_color, neutral_controls_qss
 from ui.fade_scroll import FadeScrollArea
@@ -172,11 +173,21 @@ class ProfileInfoDialog(QDialog):
 
     # ------------------------------------------------------------------
     def _resolve_text_colors(self) -> tuple[str, str]:
-        """(main, dim) detail-text colours for the active light/dark theme."""
-        from ui.theme import resolve_mode
-        if resolve_mode(self._settings.get("appearance", "auto")) == "light":
-            return "#1c1b18", "#5a5a5a"
-        return TEXT_MAIN, TEXT_DIM
+        """(main, dim) detail-text colours for the appearance on screen.
+
+        THE DETAILS WERE UNREADABLE IN NEUTRAL, and no hue census could have
+        said so. The fold had room for two answers, so a light-grey appearance
+        took the DARK branch and got the dark theme's near-white ink —
+        ``#e6e6e6`` on ``#e2e2e2``, which is 1.02:1. Both values are perfect
+        greys, chroma 0, so the instrument that reported "zero hued pixels
+        app-wide" scores this at zero as well: it can only see a hue, never a
+        wrong lightness. And this dialog is a Tools window with nothing in it
+        until a profile is loaded, so nothing had rendered it either way.
+        """
+        from ui.theme import by_mode, resolve_mode
+        return by_mode(("#1c1b18", "#5a5a5a"), (TEXT_MAIN, TEXT_DIM),
+                       (neutral_styles.NM_TEXT_MAIN, neutral_styles.NM_TEXT_DIM),
+                       resolve_mode(self._settings.get("appearance", "auto")))
 
     def showEvent(self, event) -> None:  # noqa: N802
         super().showEvent(event)

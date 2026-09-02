@@ -54,7 +54,15 @@ class DriftPlotDialog(QDialog):
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
 
         self._mode = resolve_mode(settings.get("appearance", "auto"))
-        bg = _BG_LIGHT if self._mode == "light" else _BG_DARK
+        # THE PAGE THE PLOT SITS ON. Folded into two answers, so the light-grey
+        # appearance was handed `#111111` and opened a near-black window from a
+        # light-grey one. Reached only after a colverify run has produced a
+        # difference map, which is why nothing had rendered it. The green and
+        # red MARKERS below stay exactly as they are (``themed=False``): they
+        # are the measurement, and the legend names them by colour in words.
+        from ui.theme import by_mode
+        from ui import neutral_styles as _n
+        bg = by_mode(_BG_LIGHT, _BG_DARK, _n.NM_BG_VIEWER, self._mode)
         # Patch the file in place: page background + full-height canvas, but keep
         # colverify's own green/red markers (themed=False) since they carry meaning.
         try:

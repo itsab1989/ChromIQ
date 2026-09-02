@@ -34,6 +34,7 @@ from PyQt6.QtWidgets import (
 
 from core.i18n import tr
 from core.logger import get_logger
+from ui import neutral_styles
 from ui.dialog_sizing import pin_min_height
 from ui.dialogs.tools_dialogs import neutral_controls_qss
 from ui.fade_scroll import FadeScrollArea
@@ -338,11 +339,18 @@ class Ti3InfoDialog(QDialog):
 
     # ------------------------------------------------------------------
     def _resolve_text_colors(self) -> tuple[str, str]:
-        """(main, dim) detail-text colours for the active light/dark theme."""
-        from ui.theme import resolve_mode
-        if resolve_mode(self._settings.get("appearance", "auto")) == "light":
-            return "#1c1b18", "#5a5a5a"
-        return TEXT_MAIN, TEXT_DIM
+        """(main, dim) detail-text colours for the appearance on screen.
+
+        Same fold, same result, as ``ProfileInfoDialog``: a two-answer choice
+        gave the light-grey appearance the dark theme's near-white ink, so the
+        whole detail column measured 1.02:1 and was not readable at all. Both
+        values are greys, so the hue census scored it zero, and this window is
+        empty until a ``.ti3`` is loaded, so nothing had drawn it.
+        """
+        from ui.theme import by_mode, resolve_mode
+        return by_mode(("#1c1b18", "#5a5a5a"), (TEXT_MAIN, TEXT_DIM),
+                       (neutral_styles.NM_TEXT_MAIN, neutral_styles.NM_TEXT_DIM),
+                       resolve_mode(self._settings.get("appearance", "auto")))
 
     def showEvent(self, event) -> None:  # noqa: N802
         super().showEvent(event)

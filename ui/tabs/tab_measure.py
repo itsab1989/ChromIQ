@@ -51,7 +51,7 @@ from core.strip_utils import letter_to_idx, parse_passes_per_page
 from ui.fade_scroll import FadeScrollArea
 from ui.tab_header import TabHeader
 from ui.tooltip_button import TooltipButton
-from ui.widgets import ElidingComboBox, ElidingLabel, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, make_browse_button, open_file_dialog, set_accent_html, set_folder_icon, set_preset_icon, spectrum_cell, tint_dialog_primary
+from ui.widgets import ElidingComboBox, ElidingLabel, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, info_box_qss, make_browse_button, open_file_dialog, set_accent_html, set_ink, set_folder_icon, set_preset_icon, spectrum_cell, tint_dialog_primary
 
 _TAB_COLOR = "#56d6a5"  # Measure tab accent
 from ui.styles import SPEC_GREEN, TAB_COLORS
@@ -80,16 +80,32 @@ def make_scanner_target_row(parent, checked: bool, *, accent: str = "#56d6a5",
 
     # ``hint_light``/``hint_dark`` and the two tint alphas are per-theme
     # values, so this is a theme question and the theme module answers it.
-    # A third appearance needs a third hint colour here — the keyword pair
-    # above is the thing that would have to grow.
-    from ui.theme import is_dark
+    #
+    # AND THE THIRD APPEARANCE IS ANSWERED HERE NOW. This docstring used to end
+    # "a third appearance needs a third hint colour here", and it was right and
+    # nothing had supplied one — because the card is only built when the chart
+    # you have just measured carries scanner geometry, i.e. at the end of a real
+    # measurement, which no census reaches. Left alone it painted a green (or,
+    # in Check & Refine, violet) tinted card with a coloured tick and coloured
+    # helper text into a theme with one accent and no hues.
+    from ui.theme import APPEARANCE_NEUTRAL, accent_for, active_mode, is_dark
     dark = is_dark()
+    neutral = active_mode() == APPEARANCE_NEUTRAL
     # Readable secondary text on the tinted card — a muted accent that keeps
     # clear contrast in both themes (palette(mid) washed out on the tint).
     hint_color = hint_dark if dark else hint_light
+    accent = accent_for(accent)
     r, g, b    = (int(accent[i:i + 2], 16) for i in (1, 3, 5))
     tint_a     = "0.13" if dark else "0.10"
     tint_bg    = f"rgba({r},{g},{b},{tint_a})"
+    if neutral:
+        # The card keeps its SHAPE — a bordered, slightly-raised panel is what
+        # says "this is an aside you can opt into" — and spends the theme's own
+        # values on it: the raised surface, the ordinary border, body ink for
+        # the hint. The tick and the ⓘ are accents and are already ACTION.
+        from ui import neutral_styles as _n
+        hint_color = _n.NM_TEXT_DIM
+        tint_bg = _n.NM_BG_SURFACE
 
     row = QFrame(parent)
     row.setObjectName("scannerTargetRow")
@@ -1724,18 +1740,42 @@ class TabMeasure(QWidget):
         # The button keeps its light-grey "always-stand-out" base in both
         # themes; only the disabled state changes so it doesn't paint a
         # dark slab over the light tab background.
-        if self._mode == "light":
-            disabled_bg     = "#eeeae5"
-            disabled_fg     = "#a8a4a0"
-            disabled_border = "#ccc9c3"
+        #
+        # AND THE THIRD APPEARANCE WAS GETTING EXACTLY THAT SLAB. The fold had
+        # room for two answers, so Neutral took the dark branch: `#2a2a2a` on
+        # `#e2e2e2`, 16,493 pixels of near-black button on the light-grey
+        # Measure tab — and it is the DEFAULT state of the tab, because Stop is
+        # disabled until a measurement is running. Every pixel census walked
+        # straight past it, because `#2a2a2a` is a perfect grey: R = G = B,
+        # chroma 0, invisible to an instrument that only looks for hue. Nothing
+        # about the wrong LIGHTNESS of a grey is measurable that way, which is
+        # the larger half of what those censuses could not see.
+        #
+        # Neutral answers with the shape the theme already uses for a disabled
+        # control (`ui.widgets.disabled_button_qss`): no fill, DISABLED edge and
+        # label. Light and Dark keep their four values untouched.
+        from ui.theme import APPEARANCE_NEUTRAL
+        if self._mode == APPEARANCE_NEUTRAL:
+            from ui import neutral_styles as _n
+            disabled_rule = (f"QPushButton:disabled {{ background: transparent;"
+                             f" color: {_n.NM_DISABLED};"
+                             f" border-color: {_n.NM_DISABLED}; }}")
         else:
-            disabled_bg     = "#2a2a2a"
-            disabled_fg     = "#555555"
-            disabled_border = "#333333"
+            if self._mode == "light":
+                disabled_bg     = "#eeeae5"
+                disabled_fg     = "#a8a4a0"
+                disabled_border = "#ccc9c3"
+            else:
+                disabled_bg     = "#2a2a2a"
+                disabled_fg     = "#555555"
+                disabled_border = "#333333"
+            disabled_rule = (
+                f"QPushButton:disabled {{ background: {disabled_bg};"
+                f" color: {disabled_fg}; border-color: {disabled_border}; }}")
         self._stop_btn.setStyleSheet(
             "QPushButton { background: #f4f4f4; color: #121212; border: 1px solid #cccccc; font-weight: 600; }"
             "QPushButton:hover { background: #e0e0e0; border-color: #bbbbbb; }"
-            f"QPushButton:disabled {{ background: {disabled_bg}; color: {disabled_fg}; border-color: {disabled_border}; }}"
+            + disabled_rule
         )
 
     # ------------------------------------------------------------------
@@ -3779,20 +3819,34 @@ class TabMeasure(QWidget):
         intro.setWordWrap(True)
         lay.addWidget(intro)
 
+        # THIS WINDOW ONLY OPENS WHEN THE CHART YOU JUST LOADED ALREADY HAS A
+        # MEASUREMENT (#134). That is a state, not a screen, so nothing that
+        # opened the app and walked the tabs has ever drawn it — and it carried
+        # three separate hues into a colourless theme: the tab's green on every
+        # checkbox tick, a near-black info box (`#181818`, the dark branch of a
+        # two-answer fold) and an amber warning line.
+        from ui.theme import APPEARANCE_NEUTRAL, accent_for, resolve_mode
+        _dlg_mode = resolve_mode(self._settings.get("appearance", "auto"))
         # Tint the checkboxes with the Measure tab's green accent (the app fills
         # a checked indicator with the accent; per-tab code overrides :checked).
+        # `accent_for` collapses that to the theme's single ACTION in Neutral
+        # and hands the green back untouched in Light and Dark.
+        _cb_accent = accent_for(_TAB_COLOR, _dlg_mode)
         _green_cb_css = (
             "QCheckBox::indicator:checked { background:%s; border-color:%s; }"
             "QCheckBox::indicator:hover { border-color:%s; }"
-            % (_TAB_COLOR, _TAB_COLOR, _TAB_COLOR))
+            % (_cb_accent, _cb_accent, _cb_accent))
         # Info boxes under each choice — neutral boxed frame matching the
         # post-measurement / "calibration complete" dialogs (see
         # _on_calibration_done): gray surface, gray border, default text.
         # NB: object name is NOT "info" — the global stylesheet paints QLabel#info
         # magenta-on-dark (a different kind of callout). Use our own name so the
         # neutral frame fully wins, text colour included.
-        from ui.theme import resolve_mode
-        if resolve_mode(self._settings.get("appearance", "auto")) == "light":
+        if _dlg_mode == APPEARANCE_NEUTRAL:
+            from ui import neutral_styles as _n
+            _info_bg, _info_bd, _info_fg = (_n.NM_BG_SURFACE, _n.NM_BORDER,
+                                            _n.NM_TEXT_DIM)
+        elif _dlg_mode == "light":
             _info_bg, _info_bd, _info_fg = "#f7f4ef", "#d0ccc6", "#33312e"
         else:
             _info_bg, _info_bd, _info_fg = "#181818", "#2a2a2a", "#c8c8c8"
@@ -3853,7 +3907,10 @@ class TabMeasure(QWidget):
             "measurement, it will REPLACE this existing measurement. Tick it to "
             "keep your previous readings."), dlg)
         warn.setWordWrap(True)
-        warn.setStyleSheet("color:#c8781e; font-weight:600;")
+        # The amber was decoration: the line already opens with a warning glyph
+        # and spells out, in words, that an untick REPLACES the measurement. It
+        # is already bold, so the emphasis survives without it.
+        set_ink(warn, "#c8781e", " font-weight:600;", level="main")
         lay.addWidget(warn)
 
         # What each button does, spelled out — Knut, #131 2026-07-28: "Make
@@ -9308,9 +9365,19 @@ class TabMeasure(QWidget):
         layout.setContentsMargins(24, 20, 24, 20)
         _outer = layout             # the buttons stay on the dialog, not in a column
 
-        from ui.theme import resolve_mode
+        # THE WINDOW THAT ONLY OPENS AFTER THE INSTRUMENT HAS CALIBRATED. Two
+        # more values folded into two answers, so the light-grey appearance got
+        # the dark one: a near-black card (`#181818`) with the Measure tab's
+        # green on every key cap, in the middle of a colourless dialog. It takes
+        # an instrument on the desk to reach, which is why nothing had drawn it.
+        from ui.theme import APPEARANCE_NEUTRAL, accent_for, resolve_mode
         _mode = resolve_mode(self._settings.get("appearance", "auto"))
-        if _mode == "light":
+        if _mode == APPEARANCE_NEUTRAL:
+            from ui import neutral_styles as _n
+            _frame_bg, _frame_border, _dim_text = (_n.NM_BG_SURFACE,
+                                                   _n.NM_BORDER,
+                                                   _n.NM_TEXT_FAINT)
+        elif _mode == "light":
             _frame_bg, _frame_border, _dim_text = "#f7f4ef", "#d0ccc6", "#7a7570"
         else:
             _frame_bg, _frame_border, _dim_text = "#181818", "#2a2a2a", "#909090"
@@ -9319,7 +9386,8 @@ class TabMeasure(QWidget):
             " border-radius: 6px; }"
         )
         _key_style = (
-            f"font-family: Menlo, monospace; font-weight: 700; color: {_TAB_COLOR};"
+            f"font-family: Menlo, monospace; font-weight: 700;"
+            f" color: {accent_for(_TAB_COLOR, _mode)};"
             " background: transparent; border: none;"
         )
         _dim_style = f"color: {_dim_text}; background: transparent; border: none;"
@@ -10330,27 +10398,26 @@ class TabMeasure(QWidget):
     def _apply_import_box_style(self) -> None:
         """Paint the import info box in the Measure tab's green — readable in
         both themes (the shared QLabel#info chrome is magenta, so this box
-        carries its own)."""
+        carries its own).
+
+        THIS MODULE EXISTS ONLY IN A VERIFICATION RUN (see
+        :meth:`_import_available`, #133 §9.1), so no pixel census has ever
+        rendered it: every one of them opened the app in its default
+        configuration, where the run type is Profiling and this box is not on
+        screen at all. The fold below had room for two answers and gave the
+        light-grey appearance the DARK one — a near-black green box
+        (``#0b1f18``) with mint-green text, measured at 150,784 hued pixels. It
+        is a plain explanation of what the import will do, not a warning, so it
+        takes no escalation mark in Neutral."""
         if getattr(self, "_mode", "dark") == "light":
             bg, border = "#e9f9f2", _TAB_COLOR
             title_color, body_color = "#157a52", "#23553f"
         else:
             bg, border = "#0b1f18", _TAB_COLOR
             title_color, body_color = _TAB_COLOR, "#cfe9dd"
-        self._import_box.setStyleSheet(
-            f"#importInfoBox {{"
-            f"  background-color: {bg};"
-            f"  border: 1px solid {border};"
-            "  border-radius: 6px;"
-            "}"
-            "#importInfoBox QLabel { background: transparent; }"
-            f"#importInfoBox QLabel#importInfoTitle {{"
-            f"  font-weight: bold; color: {title_color};"
-            "}"
-            f"#importInfoBox QLabel#importInfoBody {{"
-            f"  color: {body_color};"
-            "}"
-        )
+        self._import_box.setStyleSheet(info_box_qss(
+            "import", bg=bg, border=border, title=title_color,
+            body=body_color, mode=getattr(self, "_mode", "dark"), kind="note"))
 
     def _import_available(self) -> bool:
         """The IMPORT module exists only while the shared Run type is
@@ -11994,7 +12061,26 @@ class TabMeasure(QWidget):
         lbl = getattr(self, "_pace_verdict_lbl", None)
         if lbl is not None:
             lbl.setText(verdict or "")
-            lbl.setStyleSheet(f"color: {colour};")
+            # THE VERDICT ONLY EXISTS WHILE A STRIP IS BEING READ, which is why
+            # no census had ever drawn it: red for "Too fast", amber for "Close
+            # to the limit", green for "Good reading speed", and an instrument
+            # in your hand is the only way to get any of the three on screen.
+            #
+            # THE SEVERITY IS THE INFORMATION HERE, so flattening all three to
+            # one ink would delete it rather than de-hue it. The words do say
+            # which is which — but a verdict you glance at while swiping has to
+            # be readable at a glance, so in Neutral the WEIGHT carries the
+            # escalation the colour carried: bold for a strip that must be read
+            # again, normal when nothing needs doing. Light and Dark keep all
+            # three hues and their normal weight — `set_ink` hands the value
+            # back untouched there, and the extra rule is empty for them.
+            from ui.theme import APPEARANCE_NEUTRAL, active_mode
+            _needs_action = colour in ("#ff6b6b", "#e0a63a")
+            _extra = (" font-weight: 700;"
+                      if _needs_action and active_mode() == APPEARANCE_NEUTRAL
+                      else "")
+            set_ink(lbl, colour, _extra,
+                    level="main" if _needs_action else "dim")
             lbl.setVisible(bool(verdict))
             self._sync_pace_area_visible()
             if verdict:

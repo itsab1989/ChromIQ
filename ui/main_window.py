@@ -2441,6 +2441,22 @@ class MainWindow(QMainWindow):
         self._startup_update_checker.check_async()
 
     def _set_tab_status(self, msg: str, warning: bool = False) -> None:
+        """The line under the masthead on Create Chart, Print Chart and Measure.
+
+        THE WARNING STATE HAS NEVER BEEN ON SCREEN IN A CENSUS. The only caller
+        that passes ``warning=True`` is :meth:`_check_argyll_binaries`, and on a
+        machine with ArgyllCMS installed that branch is never taken — so a
+        dark-brown slab with amber text, 88,000 hued pixels wide, sat across
+        three tabs in a colourless theme and no measurement had ever seen it.
+        Reached by pointing ``argyll_bin_path`` at a folder that is not there.
+
+        Both states go through the theme now. The warning keeps its shape — a
+        filled, bordered box, which is what tells it apart from the plain
+        information line — and in Neutral spends the handoff's escalation mark
+        instead of the amber: a 2 px ACTION underline, dark ink, bold. The words
+        already name the problem and the fix ("ArgyllCMS not found. Open
+        Preferences to set the path"), so no meaning is lost with the hue.
+        """
         self._status_msg = msg
         #: Remembered so apply_theme can repaint the line for a new appearance
         #: — the style is per-widget, so nothing else would refresh it.
@@ -2450,9 +2466,17 @@ class MainWindow(QMainWindow):
         # on the Neutral ground that is a 60,000-pixel dark box in a theme
         # whose rule 2 is "all text is dark, there is no inverted text
         # anywhere". `by_mode` hands Light and Dark exactly the string they
-        # had, so neither moves by a pixel; Neutral gets the shape its own
-        # stylesheet already defines for QLabel#warning — a surface fill, a
-        # 1px BORDER edge and body ink.
+        # had, so neither moves by a pixel.
+        #
+        # AND IT SAYS "WARNING" THE WAY THE REST OF THE APP DOES. Taking the
+        # amber out leaves a bordered box, which is what an ordinary panel
+        # looks like — so with the hue gone there was nothing left that made
+        # this line a warning rather than a notice. It now carries the same
+        # escalation every other warning surface in the app carries in this
+        # theme: `ui.widgets.banner_qss` gives a warning a 2 px ACTION
+        # underline and a failure a 3 px left bar, and `info_box_qss` (the
+        # AirPrint / import / calibration boxes) follows it. Four places, one
+        # vocabulary. The bold is the same escalation at text scale.
         from ui import neutral_styles as _nm
         from ui.theme import by_mode
         _slab = ("background: #3a2a00; color: #ffb42d; "
@@ -2460,7 +2484,8 @@ class MainWindow(QMainWindow):
         style_warn = by_mode(
             _slab, _slab,
             (f"background: {_nm.NM_BG_SURFACE}; color: {_nm.NM_TEXT_MAIN}; "
-             f"border: 1px solid {_nm.NM_BORDER}; "),
+             f"border: 1px solid {_nm.NM_BORDER}; "
+             f"border-bottom: 2px solid {_nm.NM_ACTION}; font-weight: 700; "),
         ) + "border-radius: 4px; padding: 6px 10px; margin: 0px 16px 8px 16px;"
         # #909090 is 3.05:1 on the Neutral ground, which in that theme means
         # "disabled"; its tertiary ink is 8.13:1 and is what a live note wants.
