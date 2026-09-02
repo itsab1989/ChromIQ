@@ -1,7 +1,7 @@
 # Unified Measurement Management — Design Specification
 
 > **Revision 2026-08-09 (e) — two approved messages carry a revised print step.**
-> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A), M-VERIFY-CREATE-NO-PROFILE and M-GAMUT-NO-PROFILE (feature B — wording agreed verbatim with Sebastian on #133, 2026-08-02, listed for the formal record), M-IMPORT-MISMATCH and M-IMPORT-DATE-TAKEN (the Measure tab's IMPORT module; its import-done window was approved by Sebastian 2026-08-10), plus the revised M-CHART-VERIFY (W5, reworked after the 2026-08-10 hardware session) and M-HOW-PRINTED (pairing 3 — the measure-time question for sheets ChromIQ did not print), plus M-ALL-STRIPS-PATCHES-LEFT (new, 2026-08-14 — every strip read while patches inside them are not, #156; both are wording only, their bug fixes are already in the code and speak through the log until these are approved), plus M-NO-INSTRUMENT-FAST (new, 2026-08-13 — Knut's ColorMunki was invisible on older hardware until "Faster instrument connection" was switched off, so that variant of the no-instrument window names the shortcut and carries its switch), plus M-ENGINE-FELL-BACK (new, 2026-08-14 — asked for by Knut on #148: ChromIQ's own measuring engine could not use the instrument, so stock chartread took over, which also silences ChromIQ's measurement sounds without saying so) — all defined in the awaiting-review section below, plus M-PATCHSET-MISSING (new, 2026-08-25 — a loaded patch set that had gone from disk wrote one line to the log and built a different chart, in silence), plus M-PROJECT-EXISTS (new, 2026-08-27 — a typed project name that already names a project on disk adopted it in silence; Knut reported it and Basti ruled on when it may appear and what it may offer, but the WORDING is new and waits here), plus M-PROJECT-REPLACE-CONFIRM and M-PROJECT-REPLACE-FAILED (new, 2026-08-27 — the second look before §S4.7's "Replace it" clears a whole project, and the window for the case where its promise cannot be kept), plus M-CR30-STOCK-READER (new, 2026-08-28, #159 — a CR30 chart carries the honest name the device reports for itself, which stock ArgyllCMS chartread refuses outright, so the window names the Preferences control that fixes it) and M-CR30-READ-ENDED (new, 2026-08-28, #159 — the same refusal seen from the other end: an engine run that fails on a CR30 chart has no second reader to fall back to, so the two existing fallback messages, one of which promises that every measured strip will be kept, must not be shown) and M-CR30-MAGNET (new, 2026-08-30, #159 — a magnet recalibrated the instrument mid-chart, which happened to Basti with a MacBook under his paper; the session now stops and offers to retake the white calibration instead of inviting another press) and M-CR30-CALIBRATE-BLACK (new, 2026-08-29, #159 — the dark reference, taken against open air with the instrument's own command, offered by an unticked per-use checkbox so it never becomes a second window on every Start) and M-CR30-CALIBRATE (new, 2026-08-28, #159 — Basti ruled that ChromIQ triggers the CR30's white calibration itself on both transports, which deliberately reverses a documented safety rule; the window's warning is about which face of the cap meets the aperture, not about magnets) and M-CR30-INSTRUMENT-GONE (new, 2026-08-28, #159 — the instrument unplugged mid-measurement and ChromIQ said nothing at all) and M-CR30-PATCH-GAVE-UP (new, 2026-08-28, #159 — one refused reading used to end a CR30 session for ever in silence; refusals are now re-armed and this is the window for when re-arming keeps failing) and M-CR30-HOW-TO-MEASURE (new, 2026-08-28, #159 — every other instrument reaches its "how to measure" window through `calibration_done`, which cannot fire when ChromIQ supplies the values itself, so a CR30 user was given a spot session with no on-screen instruction at all) and M-CR30-READ-FAILED (new, 2026-08-30, #159 — a refused reading was announced only in the log, where Basti did not see it; the behaviour was already right and only the place it was said was wrong, so this is a modeless window that closes itself when the reading arrives) and M-CR30-LEARN-TILE (new, 2026-08-30, #159 — the magnet guard recognised one unit's stored white-tile value because it was hard-coded from that unit; every other owner had no protection at all, so ChromIQ now learns it from a single capped press) and M-CR30-TRIGGER-NOT-ARMED (new, 2026-08-30, #159 — taking the reading from the keyboard is measurably steadier than pressing the instrument's button, but a reading ChromIQ asks for cannot report the magnet gate, so it is refused until that instrument's tile is known), plus M-IMPORT-NOT-OPENED, M-IMPORT-FOLDER-EXISTS, M-IMPORT-REPLACE-FOLDER-CONFIRM and M-IMPORT-REPLACE-FOLDER-FAILED (new, 2026-09-02 — round 2 of the import-door review: three failure paths that filed the copy and then left the app outside the project without a word, and a window that told the person their plain folder was already a project), plus M-IMPORT-REPLACE-CONFIRM, M-IMPORT-REPLACE-PROJECT-CONFIRM and M-IMPORT-REPLACED-KEPT (new, 2026-08-31 — importing a measurement or a chart under a name that is already a project asked the question in each loader's own words AND with its own consequence: one said “Overwrite existing folder” and destroyed the project outright, the other said “Replace” and archived it. Basti ruled that the consequence and the vocabulary are shared with §S4.7 while the window stays the loaders' own, because theirs carries a name box and a live “this name is taken” line that §S4.7's has no room for; the third message exists because nothing anywhere told the person where their replaced project had gone) — all defined in the awaiting-review section below.
+> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A), M-VERIFY-CREATE-NO-PROFILE and M-GAMUT-NO-PROFILE (feature B — wording agreed verbatim with Sebastian on #133, 2026-08-02, listed for the formal record), M-IMPORT-MISMATCH and M-IMPORT-DATE-TAKEN (the Measure tab's IMPORT module; its import-done window was approved by Sebastian 2026-08-10), plus the revised M-CHART-VERIFY (W5, reworked after the 2026-08-10 hardware session) and M-HOW-PRINTED (pairing 3 — the measure-time question for sheets ChromIQ did not print), plus M-ALL-STRIPS-PATCHES-LEFT (new, 2026-08-14 — every strip read while patches inside them are not, #156; both are wording only, their bug fixes are already in the code and speak through the log until these are approved), plus M-NO-INSTRUMENT-FAST (new, 2026-08-13 — Knut's ColorMunki was invisible on older hardware until "Faster instrument connection" was switched off, so that variant of the no-instrument window names the shortcut and carries its switch), plus M-ENGINE-FELL-BACK (new, 2026-08-14 — asked for by Knut on #148: ChromIQ's own measuring engine could not use the instrument, so stock chartread took over, which also silences ChromIQ's measurement sounds without saying so) — all defined in the awaiting-review section below, plus M-PATCHSET-MISSING (new, 2026-08-25 — a loaded patch set that had gone from disk wrote one line to the log and built a different chart, in silence), plus M-PROJECT-EXISTS (new, 2026-08-27 — a typed project name that already names a project on disk adopted it in silence; Knut reported it and Basti ruled on when it may appear and what it may offer, but the WORDING is new and waits here), plus M-PROJECT-REPLACE-CONFIRM and M-PROJECT-REPLACE-FAILED (new, 2026-08-27 — the second look before §S4.7's "Replace it" clears a whole project, and the window for the case where its promise cannot be kept), plus M-CR30-STOCK-READER (new, 2026-08-28, #159 — a CR30 chart carries the honest name the device reports for itself, which stock ArgyllCMS chartread refuses outright, so the window names the Preferences control that fixes it) and M-CR30-READ-ENDED (new, 2026-08-28, #159 — the same refusal seen from the other end: an engine run that fails on a CR30 chart has no second reader to fall back to, so the two existing fallback messages, one of which promises that every measured strip will be kept, must not be shown) and M-CR30-MAGNET (new, 2026-08-30, #159 — a magnet recalibrated the instrument mid-chart, which happened to Basti with a MacBook under his paper; the session now stops and offers to retake the white calibration instead of inviting another press) and M-CR30-CALIBRATE-BLACK (new, 2026-08-29, #159 — the dark reference, taken against open air with the instrument's own command, offered by an unticked per-use checkbox so it never becomes a second window on every Start) and M-CR30-CALIBRATE (new, 2026-08-28, #159 — Basti ruled that ChromIQ triggers the CR30's white calibration itself on both transports, which deliberately reverses a documented safety rule; the window's warning is about which face of the cap meets the aperture, not about magnets) and M-CR30-INSTRUMENT-GONE (new, 2026-08-28, #159 — the instrument unplugged mid-measurement and ChromIQ said nothing at all) and M-CR30-PATCH-GAVE-UP (new, 2026-08-28, #159 — one refused reading used to end a CR30 session for ever in silence; refusals are now re-armed and this is the window for when re-arming keeps failing) and M-CR30-HOW-TO-MEASURE (new, 2026-08-28, #159 — every other instrument reaches its "how to measure" window through `calibration_done`, which cannot fire when ChromIQ supplies the values itself, so a CR30 user was given a spot session with no on-screen instruction at all) and M-CR30-READ-FAILED (new, 2026-08-30, #159 — a refused reading was announced only in the log, where Basti did not see it; the behaviour was already right and only the place it was said was wrong, so this is a modeless window that closes itself when the reading arrives) and M-CR30-LEARN-TILE (new, 2026-08-30, #159 — the magnet guard recognised one unit's stored white-tile value because it was hard-coded from that unit; every other owner had no protection at all, so ChromIQ now learns it from a single capped press) and M-CR30-TRIGGER-NOT-ARMED (new, 2026-08-30, #159 — taking the reading from the keyboard is measurably steadier than pressing the instrument's button, but a reading ChromIQ asks for cannot report the magnet gate, so it is refused until that instrument's tile is known), plus M-IMPORT-REPLACE-CONFIRM, M-IMPORT-REPLACE-PROJECT-CONFIRM and M-IMPORT-REPLACED-KEPT (new, 2026-08-31 — importing a measurement or a chart under a name that is already a project asked the question in each loader's own words AND with its own consequence: one said “Overwrite existing folder” and destroyed the project outright, the other said “Replace” and archived it. Basti ruled that the consequence and the vocabulary are shared with §S4.7 while the window stays the loaders' own, because theirs carries a name box and a live “this name is taken” line that §S4.7's has no room for; the third message exists because nothing anywhere told the person where their replaced project had gone) — all defined in the awaiting-review section below.
 > **Withdrawn, never approved:** the patch-set sibling of the message above was removed on 2026-08-26 without reaching the catalogue. Ticking “Edit patch recipe (override preset)” already opens a window saying the loaded patches will be replaced, and that box is shown for a patch set the user loaded themselves, not only for a built-in preset — so a second window at Generate time would have interrupted a decision the user had already made and acknowledged. Knut, 4.1.3-beta.17: *“there is already a message when clicking the ‘Edit patch recipe’ warning of consequences … that warning should be sufficient for a user.”* Checked against the existing text before removal.
 
 > Both were approved by Knut on 2026-08-04, but one step in each instructed *"(with colour management on)"* — a setting ChromIQ deliberately locks **off** on every print path, so the approved text told the user to do something the app prevents (established in `verification_printing_and_target.md` §1, and A0.1 of its plan). With feature A the instruction has a real control to name — the Print Chart tab's **Colour** row — so that one step is revised and the revision waits in §M-PROPOSED. Every other message in §M remains approved as before: the last, **M-BUILD-ELSEWHERE**, was accepted on 2026-08-04 — *"Message M-BUILD-ELSEWHERE accepted"* — and M-CHART-CORRUPT, M-REPLACE-UNCOUNTABLE and M-PREVIEW-PAUSED the day before. A new message goes to §M-PROPOSED first, and `tests/test_message_catalogue.py` fails if one is added to the code without it.
@@ -1006,6 +1006,103 @@ there is no folder to name and nothing is said.
 >
 > {folder}
 
+### M-IMPORT-NOT-OPENED · the copy is filed and ChromIQ is not in the project — the import door
+
+*Approved by Basti, 2026-09-02. New for 4.1.5, round 2 of the import-door review (2026-09-02, findings T1-A,
+T1-B and T1-C). The new-project door has three ways to end with the measurement
+copied to disk and the app still standing outside the project it was copied
+into: no `project.json` above the copy, an open that was attempted and failed
+(a truncated manifest, which `save_manifest` writes non-atomically, so it is an
+ordinary accident), and no Create Chart tab to perform the open with. All three
+ended in a `log.warning`, no window, and a bar that said "Load a profile
+project" about a project ChromIQ had just made — the exact fault the door was
+rewritten to remove. The person is told the one thing they cannot work out for
+themselves: where the file is.*
+
+> **The measurement is filed, but the project could not be opened**
+>
+> Nothing has been lost. Your own file is untouched where it is, and the copy ChromIQ made is here:
+>
+> {folder}
+>
+> ChromIQ could not open that project afterwards, so it is not the project you are working in, and the bar at the top still shows the one you were on.
+>
+> The reason: {reason}.
+>
+> That folder is an ordinary folder. Everything ChromIQ put in it, including the measurement you have just imported, is there and can be opened like any other folder on your computer. Once the reason above is dealt with, use “Open Project” at the top left of the window to go there.
+
+`{reason}` is one of three, and each is written out here because the reviewer
+sees the sentence, not the code:
+
+* *there is no project.json in that folder or above it, so ChromIQ has nothing to open*
+* *the project could not be read ({error})*
+* *the Create Chart tab, which performs the Open Project step, is not open*
+
+### M-IMPORT-FOLDER-EXISTS · the typed name is a folder and not a project — the import door
+
+*Approved by Basti, 2026-09-02. New for 4.1.5, round 2 (finding T1-D). The window decided "already a project"
+from the folder merely existing, so the one window the door still opens for a
+plain folder arrived asserting, in red, that the folder is a project — about
+the folder whose NOT being one is the only reason that window opens at all.
+The consequence and the vocabulary follow M-IMPORT-REPLACE-CONFIRM, which Basti
+ruled on for the project case on 2026-08-31; only the claim about what is there
+differs, because what is there is different.*
+
+> **There is already a folder called “{name}”**
+>
+> ChromIQ found it here:
+>
+> {folder}
+>
+> It is not a ChromIQ project: there is no project.json in it. Nothing has been changed yet.
+>
+> •  Type a different name, and ChromIQ starts a new project under that name instead. Nothing in the folder above is touched.
+>
+> •  Replace it: everything in that folder is moved into its own “old” folder, with today’s date on it, and a new and empty project of the same name is started in its place, with what you are importing in its first run. Nothing is deleted, and ChromIQ asks you to confirm before it does it.
+>
+> •  Cancel: stops here and changes nothing.
+
+The form this takes on screen today is the live line under the name box, which
+is a fragment of the message above and the twin of the sentence shown when the
+name really is a project:
+
+* *“{name}” is a folder you already have, and it is not a ChromIQ project. Choose a different name, or click “Replace it”.*
+
+### M-IMPORT-REPLACE-FOLDER-CONFIRM · the second look before a plain folder is moved aside — the import door
+
+*Approved by Basti, 2026-09-02. New for 4.1.5, round 2 (finding T1-D). The twin of M-IMPORT-REPLACE-CONFIRM
+for a folder that is not a project: the same act, the same promise, and no
+claim that what is being moved aside is a project.*
+
+> **Move everything in “{name}” aside?**
+>
+> That folder is not a ChromIQ project, and everything in it is about to be moved into its own “old” folder, with today’s date on it:
+>
+> {folder}
+>
+> Nothing is deleted. That “old” folder stays where the files were, so you can open it at any time and take anything back out of it.
+>
+> After that, a new and completely empty ChromIQ project of the same name is started in the same place, and {subject} you are importing is put into its first run.
+
+### M-IMPORT-REPLACE-FOLDER-FAILED · that move could not be made — the import door
+
+*Approved by Basti, 2026-09-02. New for 4.1.5, round 2 (finding T1-D). The twin of M-PROJECT-REPLACE-FAILED,
+which said “The existing project could not be moved aside” about a plain
+folder — driven against a read-only folder that held one text file.*
+
+> **That folder could not be moved aside**
+>
+> ChromIQ was going to move everything in this folder into its own “old” folder before starting a project of the same name in its place, and it could not:
+>
+> {folder}
+>
+> Nothing has been changed. Anything that had already been moved has been put back, and nothing has been imported.
+>
+> The reason given was:
+> {reason}
+>
+> This usually means the folder is read-only, is on a disk or a share that is no longer available, or holds a file another program still has open. Close anything that might be using it and try again, or type a different name and leave that folder alone.
+
 ## M-PROPOSED. Messages awaiting review
 
 *This section is where a new or revised message goes: add it to
@@ -1848,103 +1945,6 @@ find it again.*
 > {folder}
 >
 > Nothing was deleted. You can open that folder at any time and take anything back out of it.
-
-### M-IMPORT-NOT-OPENED · PROPOSED · the copy is filed and ChromIQ is not in the project — the import door
-
-*New for 4.1.5, round 2 of the import-door review (2026-09-02, findings T1-A,
-T1-B and T1-C). The new-project door has three ways to end with the measurement
-copied to disk and the app still standing outside the project it was copied
-into: no `project.json` above the copy, an open that was attempted and failed
-(a truncated manifest, which `save_manifest` writes non-atomically, so it is an
-ordinary accident), and no Create Chart tab to perform the open with. All three
-ended in a `log.warning`, no window, and a bar that said "Load a profile
-project" about a project ChromIQ had just made — the exact fault the door was
-rewritten to remove. The person is told the one thing they cannot work out for
-themselves: where the file is.*
-
-> **The measurement is filed, but the project could not be opened**
->
-> Nothing has been lost. Your own file is untouched where it is, and the copy ChromIQ made is here:
->
-> {folder}
->
-> ChromIQ could not open that project afterwards, so it is not the project you are working in, and the bar at the top still shows the one you were on.
->
-> The reason: {reason}.
->
-> That folder is an ordinary folder. Everything ChromIQ put in it, including the measurement you have just imported, is there and can be opened like any other folder on your computer. Once the reason above is dealt with, use “Open Project” at the top left of the window to go there.
-
-`{reason}` is one of three, and each is written out here because the reviewer
-sees the sentence, not the code:
-
-* *there is no project.json in that folder or above it, so ChromIQ has nothing to open*
-* *the project could not be read ({error})*
-* *the Create Chart tab, which performs the Open Project step, is not open*
-
-### M-IMPORT-FOLDER-EXISTS · PROPOSED · the typed name is a folder and not a project — the import door
-
-*New for 4.1.5, round 2 (finding T1-D). The window decided "already a project"
-from the folder merely existing, so the one window the door still opens for a
-plain folder arrived asserting, in red, that the folder is a project — about
-the folder whose NOT being one is the only reason that window opens at all.
-The consequence and the vocabulary follow M-IMPORT-REPLACE-CONFIRM, which Basti
-ruled on for the project case on 2026-08-31; only the claim about what is there
-differs, because what is there is different.*
-
-> **There is already a folder called “{name}”**
->
-> ChromIQ found it here:
->
-> {folder}
->
-> It is not a ChromIQ project: there is no project.json in it. Nothing has been changed yet.
->
-> •  Type a different name, and ChromIQ starts a new project under that name instead. Nothing in the folder above is touched.
->
-> •  Replace it: everything in that folder is moved into its own “old” folder, with today’s date on it, and a new and empty project of the same name is started in its place, with what you are importing in its first run. Nothing is deleted, and ChromIQ asks you to confirm before it does it.
->
-> •  Cancel: stops here and changes nothing.
-
-The form this takes on screen today is the live line under the name box, which
-is a fragment of the message above and the twin of the sentence shown when the
-name really is a project:
-
-* *“{name}” is a folder you already have, and it is not a ChromIQ project. Choose a different name, or click “Replace it”.*
-
-### M-IMPORT-REPLACE-FOLDER-CONFIRM · PROPOSED · the second look before a plain folder is moved aside — the import door
-
-*New for 4.1.5, round 2 (finding T1-D). The twin of M-IMPORT-REPLACE-CONFIRM
-for a folder that is not a project: the same act, the same promise, and no
-claim that what is being moved aside is a project.*
-
-> **Move everything in “{name}” aside?**
->
-> That folder is not a ChromIQ project, and everything in it is about to be moved into its own “old” folder, with today’s date on it:
->
-> {folder}
->
-> Nothing is deleted. That “old” folder stays where the files were, so you can open it at any time and take anything back out of it.
->
-> After that, a new and completely empty ChromIQ project of the same name is started in the same place, and {subject} you are importing is put into its first run.
-
-### M-IMPORT-REPLACE-FOLDER-FAILED · PROPOSED · that move could not be made — the import door
-
-*New for 4.1.5, round 2 (finding T1-D). The twin of M-PROJECT-REPLACE-FAILED,
-which said “The existing project could not be moved aside” about a plain
-folder — driven against a read-only folder that held one text file.*
-
-> **That folder could not be moved aside**
->
-> ChromIQ was going to move everything in this folder into its own “old” folder before starting a project of the same name in its place, and it could not:
->
-> {folder}
->
-> Nothing has been changed. Anything that had already been moved has been put back, and nothing has been imported.
->
-> The reason given was:
-> {reason}
->
-> This usually means the folder is read-only, is on a disk or a share that is no longer available, or holds a file another program still has open. Close anything that might be using it and try again, or type a different name and leave that folder alone.
 
 ### M-CM-NO-CCTIFF · PROPOSED · the profile-applying tool is missing — feature A, §3.2 A10
 

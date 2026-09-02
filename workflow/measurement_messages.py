@@ -1430,7 +1430,8 @@ M_CAL_ARCHIVED_HERE = _m(
     "it was deleted:",
     "{folder}")
 
-# --- PROPOSED: the copy is filed and ChromIQ is NOT in the project ----------
+# --- the copy is filed and ChromIQ is NOT in the project --------------------
+# APPROVED by Basti, 2026-09-02.
 # Round 2 of the import-door review (2026-09-02), findings T1-A, T1-B and T1-C.
 #
 # `make_new_project_and_file` has three ways to end with the measurement copied
@@ -1456,7 +1457,7 @@ M_IMPORT_NOT_OPENED = _m(
     "be opened like any other folder on your computer. Once the reason "
     "above is dealt with, use "
     "\u201cOpen Project\u201d at the top left of the window to go there.",
-    approved=False)
+    approved=True)
 
 #: The three ``{reason}`` fragments of M-IMPORT-NOT-OPENED. They live here, in
 #: the catalogue, so the door holds no prose of its own, and each is its own
@@ -1488,7 +1489,8 @@ def not_opened_no_tab() -> str:
     return tr(_NOT_OPENED_NO_TAB)
 
 
-# --- PROPOSED: the typed name is a FOLDER, and not a project ---------------
+# --- the typed name is a FOLDER, and not a project -------------------------
+# APPROVED by Basti, 2026-09-02.
 # Round 2, finding T1-D. `_ask_profile_name` decided "already a project" from
 # `(working_dir / name).exists()`, which is true of any folder. So the one
 # window the import door still opens for a plain folder arrived asserting, in
@@ -1512,7 +1514,7 @@ M_IMPORT_FOLDER_EXISTS = _m(
     "are importing in its first run. Nothing is deleted, and ChromIQ asks you "
     "to confirm before it does it.\n\n"
     "\u2022  Cancel: stops here and changes nothing.",
-    approved=False)
+    approved=True)
 
 #: The live line under the name box, which is the form this message actually
 #: takes today: the window is the loader's own, with a name box and a line that
@@ -1549,7 +1551,7 @@ M_IMPORT_REPLACE_FOLDER_CONFIRM = _m(
     "take anything back out of it.\n\nAfter that, a new and completely "
     "empty ChromIQ project of the same name is started in the same place, and "
     "{subject} you are importing is put into its first run.",
-    approved=False)
+    approved=True)
 
 M_IMPORT_REPLACE_FOLDER_FAILED = _m(
     "M-IMPORT-REPLACE-FOLDER-FAILED",
@@ -1563,7 +1565,7 @@ M_IMPORT_REPLACE_FOLDER_FAILED = _m(
     "available, or holds a file another program still has open. Close "
     "anything that might be using it and try again, or type a different name "
     "and leave that folder alone.",
-    approved=False)
+    approved=True)
 
 
 CATALOGUE = {m.id: m for m in (

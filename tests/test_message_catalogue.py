@@ -233,18 +233,11 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  "M-IMPORT-REPLACE-PROJECT-CONFIRM",
                                  # …and where the replaced project went, which
                                  # nothing anywhere recorded.
-                                 "M-IMPORT-REPLACED-KEPT",
-                                 # 2026-09-02, round 2 of the import-door
-                                 # review. Three failure paths filed the copy
-                                 # and then left the app standing outside the
-                                 # project with nothing but a log.warning
-                                 # (T1-A, T1-B, T1-C), and the one window the
-                                 # door still opens for a plain folder told the
-                                 # person it was already a project (T1-D).
-                                 "M-IMPORT-NOT-OPENED",
-                                 "M-IMPORT-FOLDER-EXISTS",
-                                 "M-IMPORT-REPLACE-FOLDER-CONFIRM",
-                                 "M-IMPORT-REPLACE-FOLDER-FAILED"}
+                                 "M-IMPORT-REPLACED-KEPT"}
+# Round 2 of the import-door review added four and Basti approved all four on
+# 2026-09-02, so they never sat in this set for longer than one branch:
+# M-IMPORT-NOT-OPENED, M-IMPORT-FOLDER-EXISTS, M-IMPORT-REPLACE-FOLDER-CONFIRM
+# and M-IMPORT-REPLACE-FOLDER-FAILED are in §M with his name against each.
 
 
 def test_nothing_is_quietly_proposed():
@@ -485,3 +478,112 @@ def test_the_uncatalogued_window_list_does_not_grow():
 def test_every_catalogued_window_still_uses_the_catalogue():
     """Belt and braces: the allow-list must not shrink either."""
     assert len(WINDOW_SOURCES) >= 12
+
+
+# ---- 2b. the windows WINDOW_SOURCES cannot express -----------------------
+#
+# WINDOW_SOURCES is a (module, class, method) allow-list, and both loaders say
+# in as many words that it "cannot express a module-level function — text
+# written straight into this file is invisible to every check we have". Four
+# messages approved on 2026-09-02 (round 2 of the import-door review) are shown
+# from exactly such functions, so approving them would have moved four messages
+# into §M with the prose rule looking at none of them. Same two assertions,
+# addressed by (module, function).
+MODULE_LEVEL_WINDOW_SOURCES = [
+    ("ui.measurement_filing", "say_filed_but_not_opened"),   # M-IMPORT-NOT-OPENED
+    ("ui.ti2_loader", "_say_the_replace_failed"),            # M-IMPORT-REPLACE-FOLDER-FAILED
+    ("ui.txt_loader", "_say_the_replace_failed"),            # …and its twin
+]
+
+
+@pytest.mark.parametrize("module,func", MODULE_LEVEL_WINDOW_SOURCES)
+def test_the_module_level_window_takes_its_text_from_the_catalogue(module, func):
+    mod = __import__(module, fromlist=[func])
+    src = inspect.getsource(getattr(mod, func))
+    assert "measurement_messages" in src, f"{module}.{func} does not use the catalogue"
+
+
+@pytest.mark.parametrize("module,func", MODULE_LEVEL_WINDOW_SOURCES)
+def test_the_module_level_window_writes_no_prose_of_its_own(module, func):
+    mod = __import__(module, fromlist=[func])
+    src = inspect.getsource(getattr(mod, func))
+    for literal in _translated_literals(src):
+        assert len(literal) < 60, (
+            f"{module}.{func} shows a sentence that is not in the catalogue:\n"
+            f"  {literal[:120]}…")
+
+
+#: The four approved on 2026-09-02. Two of them are rendered from inside
+#: `_ask_profile_name`, which is neither a method nor free of older prose, so
+#: neither allow-list can reach them — and the property that actually matters
+#: is the same one either way: the words on screen come from §M and exist
+#: nowhere else.
+ROUND2_IMPORT_MESSAGES = ("M-IMPORT-NOT-OPENED", "M-IMPORT-FOLDER-EXISTS",
+                          "M-IMPORT-REPLACE-FOLDER-CONFIRM",
+                          "M-IMPORT-REPLACE-FOLDER-FAILED")
+
+
+def test_the_approved_import_messages_are_approved_and_in_the_model():
+    for mid in ROUND2_IMPORT_MESSAGES:
+        assert mid in M.CATALOGUE, mid
+        assert M.CATALOGUE[mid].approved, f"{mid} is in §M but still marked proposed"
+        assert mid not in M.PROPOSED, mid
+
+
+def _searchable_forms(path: Path) -> "list[str]":
+    """The module's text in both the forms a copied sentence can take.
+
+    The raw file catches a sentence pasted into a docstring or a comment. The
+    DECODED string constants catch the other form, and it is the likelier one:
+    the catalogue writes its curly quotes as ``\\u201c`` escapes, so anything
+    copied out of it arrives escaped and a raw-text probe walks straight past
+    it. Found by a mutation that stayed green — the mutation was the faulty
+    thing, and the blind spot behind it was real.
+    """
+    import ast
+    raw = path.read_text(encoding="utf-8")
+    forms = [raw]
+    try:
+        tree = ast.parse(raw)
+    except SyntaxError:                       # not ours to judge
+        return forms
+    forms += [n.value for n in ast.walk(tree)
+              if isinstance(n, ast.Constant) and isinstance(n.value, str)]
+    return forms
+
+
+def test_no_ui_module_carries_its_own_copy_of_an_approved_message():
+    """A second copy of an approved sentence is how a window drifts from §M.
+
+    The catalogue is the one place these words live; the loaders and the import
+    door reference them.
+    """
+    root = Path(__file__).resolve().parent.parent
+    offenders = []
+    probed: "dict[str, int]" = {}
+    for mid in ROUND2_IMPORT_MESSAGES:
+        msg = M.CATALOGUE[mid]
+        for text in (msg.title, msg.body):
+            probe = text.split("\n")[0].strip()
+            # Short fragments are skipped: "ChromIQ found it here:" is 22
+            # characters and would match unrelated prose all over the tree.
+            if len(probe) < 40:
+                continue
+            probed[mid] = probed.get(mid, 0) + 1
+            for path in sorted((root / "ui").rglob("*.py")):
+                if "__pycache__" in path.parts:
+                    continue
+                if any(probe in form for form in _searchable_forms(path)):
+                    offenders.append(f"{mid} → {path.relative_to(root).as_posix()}")
+    # …AND THE SKIP MUST NOT SWALLOW A WHOLE MESSAGE. Two of the four have a
+    # title under 40 characters and one has a short first body line, so which
+    # field carries the probe differs between them. If a re-wording ever left a
+    # message with no probe at all, this test would pass while looking at
+    # nothing — which is the failure mode it was written to prevent elsewhere.
+    unprobed = [mid for mid in ROUND2_IMPORT_MESSAGES if not probed.get(mid)]
+    assert not unprobed, (
+        "these messages are no longer checked for duplicate copies at all — "
+        f"every field is under 40 characters: {unprobed}")
+    assert not offenders, (
+        "an approved message's own words are written into a UI module as well "
+        "as the catalogue:\n  " + "\n  ".join(offenders))
