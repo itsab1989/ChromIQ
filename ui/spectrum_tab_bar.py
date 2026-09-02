@@ -277,14 +277,30 @@ class SpectrumTabBar(QTabBar):
                            rect.y() + rect.height() - 8)
 
             # Active underline glow — a second, fainter echo of the accent
-            # under the label. In Neutral the accent has no hue to echo, and a
-            # 47%-black hairline under a black label is noise: the active tab
-            # is said once, by the rule along the top.
-            if is_active and not index:
-                under = QColor(color)
-                under.setAlpha(120)
-                p.fillRect(overlay_x + 14, rect.y() + rect.height() - 4,
-                           overlay_w - 28, 1, under)
+            # under the label.
+            #
+            # NEUTRAL GETS IT TOO, and the reason it did not is a reason that
+            # expired the same day. It read "the active tab is said once, by
+            # the rule along the top" — and then the owner asked for that rule
+            # to go, so the tab was left saying itself with an outline and no
+            # bottom edge while Light and Dark still drew this line. He saw
+            # the difference at once: *"in the colored modes the active tab
+            # has a hairline at the bottom of the tab. in neutral this is
+            # missing (below the label, above the main window)."*
+            #
+            # Same geometry as the other two appearances, so the three agree
+            # on where the line is; the value is BORDER_HI, the same ink as
+            # the outline it closes, rather than a fourth grey.
+            if is_active:
+                if index:
+                    p.fillRect(overlay_x + 14, rect.y() + rect.height() - 4,
+                               overlay_w - 28, 1,
+                               QColor(neutral_styles.NM_BORDER_HI))
+                else:
+                    under = QColor(color)
+                    under.setAlpha(120)
+                    p.fillRect(overlay_x + 14, rect.y() + rect.height() - 4,
+                               overlay_w - 28, 1, under)
 
             # Label
             text_color = pal["text_active"] if is_active else pal["text_inactive"]

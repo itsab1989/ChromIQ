@@ -284,3 +284,39 @@ def test_the_comfortable_width_comes_back_when_there_is_room(qapp, tmp_path):
                  for i in range(bar._verify_combo.count()))
     assert bar._verify_combo.width() >= widest, \
         "with room to spare every entry must be fully readable again"
+
+
+def test_the_tools_and_preferences_buttons_carry_their_optical_nudge(qapp):
+    """The owner, 2026-09-02: *"in all colorschemes the tools and preferences
+    button in the masthead should move 2px to the right."*
+
+    An optical correction: the "?" is a drawn glyph with its own side bearing
+    inside its button, while Tools and Preferences are artwork that fills
+    theirs, so a mathematically equal gap does not look equal. It applies to
+    those two only, and to every appearance - so this asserts the RELATIONSHIP
+    rather than three absolute numbers, and it holds at any window width.
+    """
+    from ui.masthead_header import MastheadHeader
+    for mode in ("light", "dark", "neutral"):
+        m = MastheadHeader()
+        m.set_appearance(mode)
+        m.resize(1400, 96)
+        # SHOWN, or resizeEvent never runs and every button sits at 0,0 -
+        # which fails identically whether the nudge is there or not, so the
+        # test would have been failing for a reason that has nothing to do
+        # with what it claims to measure.
+        m.show()
+        qapp.processEvents()
+        help_x = m._help_btn.x()
+        bw = m._btn.width()
+        # Preferences sits one button-width plus the 8 px gap left of "?",
+        # then 2 px back to the right.
+        assert m._btn.x() == help_x - bw - 8 + 2, (
+            f"{mode}: Preferences is not carrying the 2 px nudge")
+        # Tools keeps its own 8 px gap from Preferences, and the same nudge.
+        assert m._tools_btn.x() == (
+            help_x - bw - 8 - m._tools_btn.width() - 8 + 2), (
+            f"{mode}: Tools is not carrying the 2 px nudge")
+        # The "?" itself did NOT move: it keeps its 12 px from the edge.
+        assert help_x == m.width() - m._help_btn.width() - 12, (
+            f"{mode}: the help glyph moved, and it was not asked to")

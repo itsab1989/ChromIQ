@@ -312,9 +312,20 @@ class MastheadHeader(QWidget):
         body_bot  = self.height() - self._rail_h
         btn_y = body_top + (body_bot - body_top - bh) // 2
         help_x = self.width() - self._help_btn.width() - 12
+        # THE OWNER, 2026-09-02: *"in all colorschemes the tools and
+        # preferences button in the masthead should move 2px to the right."*
+        # An optical correction, not a geometric one: the "?" is a drawn glyph
+        # that sits inside its button with its own side bearing, while Tools
+        # and Preferences are artwork that fills theirs, so a mathematically
+        # equal 8 px gap does not look equal. It applies to those two buttons
+        # only - the "?" keeps its 12 px from the window edge - and to every
+        # appearance, because it is about the shapes and not the colours.
+        _OPTICAL_NUDGE = 2
         self._help_btn.move(help_x, btn_y)
-        self._btn.move(help_x - bw - 8, btn_y)
-        self._tools_btn.move(help_x - bw - 8 - self._tools_btn.width() - 8, btn_y)
+        self._btn.move(help_x - bw - 8 + _OPTICAL_NUDGE, btn_y)
+        self._tools_btn.move(
+            help_x - bw - 8 - self._tools_btn.width() - 8 + _OPTICAL_NUDGE,
+            btn_y)
         # Left edge: [ Load Project ] [ Load .ti2 ], mirroring the right-hand
         # group. Knut's spec (#130, 2026-07-31): the same icon size, the gap
         # between them equal to the Tools↔Preferences gap (8 px), and the left

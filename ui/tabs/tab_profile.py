@@ -5020,9 +5020,18 @@ class TabProfile(QWidget):
                    "Settings and build again — the engine handles multi-ink "
                    "measurements."))
             return
-        self._build_headline.setText(
-            tr("Working hard<span style=\"color: {SPEC_CYAN}; font-style: italic;\">…</span>").format(SPEC_CYAN=SPEC_CYAN)
-        )
+        # THE BUSY HEADLINE, through the same door as the idle one. This was
+        # a raw `setText` with the colour already substituted, which is
+        # exactly what the comment in `_restore_build_box` warns against a few
+        # lines below: it drops the template, so the mark keeps its cyan in a
+        # theme that has no cyan and a live appearance switch cannot reach it.
+        # The owner saw it while a profile was building - the idle "Ready to
+        # build?" had been fixed and its busy twin had not, because a pixel
+        # census never catches a string that only exists during an operation.
+        set_accent_html(
+            self._build_headline,
+            tr("Working hard<span style=\"color: {SPEC_CYAN}; font-style: italic;\">…</span>"),
+            SPEC_CYAN=SPEC_CYAN)
         self._build_subtext.setText(tr("Good things take time."))
         self._build_btn.setText(tr("Building Profile…"))
         self._build_btn.setEnabled(False)

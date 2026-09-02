@@ -3410,9 +3410,15 @@ class TabChart(QWidget):
         # when it points at one that is already there.
         self._project_exists_lbl = QLabel("", inner)
         self._project_exists_lbl.setWordWrap(True)
-        # The Create Chart tab's own accent, not a colour of its own (Basti).
+        # The Create Chart tab's own accent, not a colour of its own (Basti) -
+        # and in Neutral there is one accent, so it goes through `accent_for`
+        # like every other accent surface. This label is `setVisible(False)`
+        # until a typed name matches a project that already exists, so no
+        # pixel census has ever rendered it: state-dependent text is exactly
+        # where a theme sweep goes blind.
+        from ui.theme import accent_for
         self._project_exists_lbl.setStyleSheet(
-            f"color: {SPEC_MAGENTA}; font-size: 11px;")
+            f"color: {accent_for(SPEC_MAGENTA)}; font-size: 11px;")
         self._project_exists_lbl.setVisible(False)
         folder_layout.addWidget(self._project_exists_lbl)
         self._target_name_edit.textChanged.connect(
@@ -3877,8 +3883,11 @@ class TabChart(QWidget):
         output_layout.addWidget(self._manual_target_name_hint)
         self._manual_project_exists_lbl = QLabel("", w)
         self._manual_project_exists_lbl.setWordWrap(True)
+        # Same label, Manual mode - and the same blindness: hidden until a
+        # name collides, so no census renders it. See the Guided one above.
+        from ui.theme import accent_for as _accent_for
         self._manual_project_exists_lbl.setStyleSheet(
-            f"color: {SPEC_MAGENTA}; font-size: 11px;")
+            f"color: {_accent_for(SPEC_MAGENTA)}; font-size: 11px;")
         self._manual_project_exists_lbl.setVisible(False)
         output_layout.addWidget(self._manual_project_exists_lbl)
         self._manual_target_name_edit.textChanged.connect(
