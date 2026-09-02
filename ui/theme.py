@@ -310,3 +310,73 @@ def apply_appearance(
         main_window.apply_theme(mode)
     log.debug("Appearance applied: setting=%s mode=%s", setting, mode)
     return mode
+
+
+# ----------------------------------------------------------------------
+# What a colour becomes in the appearance that is on screen
+# ----------------------------------------------------------------------
+#: The three ink levels the Neutral token table offers, by name.
+_NEUTRAL_INK = {
+    "main":  neutral_styles.NM_TEXT_MAIN,    # 15.96:1 on the panel
+    "dim":   neutral_styles.NM_TEXT_DIM,     # 13.18:1
+    "faint": neutral_styles.NM_TEXT_FAINT,   #  8.83:1 — tertiary, still reads
+}
+
+
+def accent_for(colour: str, mode: "str | None" = None) -> str:
+    """The value to paint where ``colour`` is an ACCENT.
+
+    **Neutral has ONE accent.** The five tab hues, the six tool-dialog accents
+    and the app's magenta all collapse to :data:`ui.neutral_styles.NM_ACTION`
+    there, because the handoff's Index draft says so: a focus ring, a tick and
+    a primary fill mean "here" and "on", never "which tab you are in".
+
+    For Light and Dark this returns its argument **unchanged**. That is the
+    whole point of the shape: it can be put in front of every accent site in
+    the app without moving a single pixel of the two shipped appearances, and
+    a hash comparison proves it.
+
+    ``mode`` is the appearance NAME when the caller already has one (a dialog
+    that resolved its setting, a component handed one by ``set_appearance``).
+    Left out, the live application palette answers — see :func:`active_mode`.
+    """
+    if (mode or active_mode()) == APPEARANCE_NEUTRAL:
+        return neutral_styles.NM_ACTION
+    return colour
+
+
+def ink_for(colour: str, mode: "str | None" = None, *,
+            level: str = "main") -> str:
+    """The value to paint where ``colour`` is TEXT.
+
+    Neutral's answer is dark ink at one of three levels — ``"main"``,
+    ``"dim"``, ``"faint"`` — and never the original hue. Use it for the status
+    greens, the warning ambers, the error reds and the magenta link: in a
+    colourless theme those carry their meaning in the WORDS, and the handoff's
+    glyph/row treatment, not in a hue.
+
+    ``level`` picks how loud, and **none of the three is faint enough to read
+    as disabled**: the tertiary value is 8.83:1 on the panel. Rule 3 —
+    low contrast means "disabled" and nothing else — is why this function has
+    no dimmer option than that.
+
+    Light and Dark get their argument back untouched, exactly as
+    :func:`accent_for` does.
+    """
+    if (mode or active_mode()) == APPEARANCE_NEUTRAL:
+        return _NEUTRAL_INK.get(level, neutral_styles.NM_TEXT_MAIN)
+    return colour
+
+
+def by_mode(light, dark, neutral, mode: "str | None" = None):
+    """Pick a value per appearance.
+
+    The shape that replaces ``X if mode == "light" else Y`` — a fold with room
+    for two answers that files a third appearance under Dark, which is how a
+    dark-theme constant ends up painted on a light-grey ground. Adding a fourth
+    appearance is adding an argument here, and every caller fails loudly rather
+    than silently inheriting somebody else's value.
+    """
+    return {APPEARANCE_LIGHT: light,
+            APPEARANCE_DARK: dark,
+            APPEARANCE_NEUTRAL: neutral}.get(mode or active_mode(), dark)

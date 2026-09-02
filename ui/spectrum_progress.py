@@ -80,12 +80,28 @@ class SpectrumSegmentsBar(QWidget):
         self.update()
 
     # ------------------------------------------------------------------
+    def _palette(self) -> "tuple[list[str], str, str]":
+        """``(segment colours, label, sub-label)`` for the appearance on screen.
+
+        The bar is ALREADY the handoff's five-cell geometry — five segments,
+        a gap, filled left to right — so Neutral needs no new component, only
+        the hue taken out: every cell is ACTION, and the two labels become dark
+        ink instead of the dark theme's greys (``#909090`` is 3.0:1 on this
+        theme's surface, and nothing that works may be faint).
+        """
+        from ui.theme import APPEARANCE_NEUTRAL, active_mode
+        if active_mode() != APPEARANCE_NEUTRAL:
+            return SPECTRUM, LABEL_COLOR, SUBLABEL_COLOR
+        from ui import neutral_styles as _n
+        return ([_n.NM_ACTION] * len(SPECTRUM), _n.NM_TEXT_DIM, _n.NM_TEXT_FAINT)
+
     def paintEvent(self, event) -> None:  # type: ignore[override]
+        spectrum, label_color, sublabel_color = self._palette()
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
         # Top row: label + sub
-        p.setPen(QColor(LABEL_COLOR))
+        p.setPen(QColor(label_color))
         font = self.font()
         font.setPixelSize(10)
         font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1.2)
@@ -96,7 +112,7 @@ class SpectrumSegmentsBar(QWidget):
                    self._label)
 
         if self._sub:
-            p.setPen(QColor(SUBLABEL_COLOR))
+            p.setPen(QColor(sublabel_color))
             sub_text = self._sub
             if self._value is not None:
                 pct = int(self._value * 100)
@@ -109,13 +125,13 @@ class SpectrumSegmentsBar(QWidget):
         bar_y = 22
         bar_h = 14
         gap = 4
-        n = len(SPECTRUM)
+        n = len(spectrum)
         seg_w = (self.width() - gap * (n - 1)) / n
 
         # Segments
         if self._value is None:
             # Indeterminate: pulse outward from current phase
-            for i, hex_col in enumerate(SPECTRUM):
+            for i, hex_col in enumerate(spectrum):
                 col = QColor(hex_col)
                 dist = abs(i - self._phase)
                 intensity = max(0.18, 1.0 - dist * 0.32)
@@ -127,7 +143,7 @@ class SpectrumSegmentsBar(QWidget):
         else:
             # Determinate: fill segments left-to-right based on value
             filled = self._value * n
-            for i, hex_col in enumerate(SPECTRUM):
+            for i, hex_col in enumerate(spectrum):
                 col = QColor(hex_col)
                 if i + 1 <= filled:
                     col.setAlphaF(1.0)

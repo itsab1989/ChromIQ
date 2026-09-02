@@ -41,7 +41,8 @@ from ui.dialogs.tools_dialogs import _indicator_color, neutral_controls_qss
 from ui.fade_scroll import FadeScrollArea
 from ui.styles import SPEC_AMBER, SPEC_VIOLET, TEXT_DIM, TEXT_MAIN
 from ui.tab_header import dialog_masthead
-from ui.widgets import make_browse_button, open_file_dialog, save_file_dialog
+from ui.widgets import (banner_qss, make_browse_button, open_file_dialog,
+                        save_file_dialog)
 from workflow.icc_info import IccInfo, IccParseError, read_icc
 
 if TYPE_CHECKING:
@@ -259,8 +260,7 @@ class ProfileInfoDialog(QDialog):
                    "works normally in ColorSync and other colour-managed applications."
                    ).format(ver=info.version))
             self._banner.setStyleSheet(
-                f"QLabel {{ background: rgba(255,180,45,0.12); color: {SPEC_AMBER};"
-                f" border: 1px solid {SPEC_AMBER}; border-radius: 4px; padding: 8px 10px; }}")
+                banner_qss(SPEC_AMBER, "rgba(255,180,45,0.12)", kind="warn"))
             self._banner.setVisible(True)
         else:
             self._banner.setVisible(False)
@@ -268,8 +268,7 @@ class ProfileInfoDialog(QDialog):
     def _show_error_banner(self, msg: str) -> None:
         self._banner.setText(tr("Could not read this profile: {msg}").format(msg=msg))
         self._banner.setStyleSheet(
-            "QLabel { background: rgba(255,69,115,0.12); color: #ff4573;"
-            " border: 1px solid #ff4573; border-radius: 4px; padding: 8px 10px; }")
+            banner_qss("#ff4573", "rgba(255,69,115,0.12)", kind="error"))
         self._banner.setVisible(True)
 
     # ------------------------------------------------------------------

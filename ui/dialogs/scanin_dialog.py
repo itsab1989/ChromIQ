@@ -37,9 +37,11 @@ from ui.scan_grid_marquee import GridSpec, ScanGridMarquee
 from ui.styles import SPEC_GREEN
 from ui.dialogs.scanin_target_dialog import WHICH_CHART_HELP, WHICH_CHART_CAMERA_NOTE
 from ui.dialogs import scanner_colprof
-from ui.theme import resolve_mode
+from ui.theme import APPEARANCE_NEUTRAL, accent_for, resolve_mode
 from ui.tooltip_button import TooltipButton
-from ui.widgets import (NoScrollComboBox, NoScrollSpinBox, make_browse_button,
+from ui.widgets import (NoScrollComboBox, NoScrollSpinBox,
+                        disabled_primary_qss, make_browse_button,
+                        primary_hover, primary_label,
                         open_file_dialog)
 from workflow.profile_builder import ProfileBuilder, ProfileParams
 from workflow.scanin_runner import ScaninParams, ScaninRunner
@@ -642,17 +644,15 @@ class ScannerProfileDialog(_ToolDialogBase):
             "Colour-managed programs list it after they restart."))
 
     def _style_primary_button(self) -> None:
-        c = SPEC_GREEN
-        r, g, b = int(c[1:3], 16), int(c[3:5], 16), int(c[5:7], 16)
-        hover = "#{:02x}{:02x}{:02x}".format(int(r * .86), int(g * .86), int(b * .86))
-        light = resolve_mode(self._settings.get("appearance", "auto")) == "light"
-        dis_bg, dis_fg = ("#e8e6e1", "#a8a4a0") if light else ("#1e1e1e", "#484848")
+        mode = resolve_mode(self._settings.get("appearance", "auto"))
+        c = accent_for(SPEC_GREEN, mode)
+        hover = primary_hover(c, mode, 0.86)
+        label = primary_label(mode)
         self._run_btn.setStyleSheet(
-            f"QPushButton {{ background:{c}; border:1px solid {c}; color:#0a0a0a;"
+            f"QPushButton {{ background:{c}; border:1px solid {c}; color:{label};"
             f" font-weight:700; }}"
             f"QPushButton:hover {{ background:{hover}; border-color:{hover}; }}"
-            f"QPushButton:disabled {{ background:{dis_bg}; border:1px solid {c};"
-            f" color:{dis_fg}; }}")
+            + disabled_primary_qss(c, mode))
 
     def _tip(self, title: str, body: str) -> TooltipButton:
         return TooltipButton(title, body, self, min_width=500, color=SPEC_GREEN)
@@ -1468,9 +1468,15 @@ class ScannerProfileDialog(_ToolDialogBase):
 
         # Command preview: the exact colprof command the current settings run,
         # in a green-accented info box (like the Create Chart info box, #121 Knut).
-        _light = resolve_mode(self._settings.get("appearance", "auto")) == "light"
+        _mode = resolve_mode(self._settings.get("appearance", "auto"))
+        _light = _mode == "light"
         _cmd_bg = "#eafaf3" if _light else "#06251a"
         _cmd_fg = "#0a7a58" if _light else SPEC_GREEN
+        if _mode == APPEARANCE_NEUTRAL:
+            # A command preview is a READING surface, not a status: the raised
+            # card with body ink on it, and the edge carries the box.
+            from ui import neutral_styles as _n
+            _cmd_bg, _cmd_fg = _n.NM_BG_SURFACE, _n.NM_TEXT_MAIN
         cmd_row = QHBoxLayout()
         self._cmd_preview = QLabel("", self)
         self._cmd_preview.setObjectName("info")
@@ -1479,7 +1485,7 @@ class ScannerProfileDialog(_ToolDialogBase):
             Qt.TextInteractionFlag.TextSelectableByMouse)
         self._cmd_preview.setStyleSheet(
             f"QLabel#info {{ background: {_cmd_bg}; color: {_cmd_fg};"
-            f" border: 1px solid {SPEC_GREEN}; border-radius: 4px;"
+            f" border: 1px solid {accent_for(SPEC_GREEN, _mode)}; border-radius: 4px;"
             f" padding: 6px 10px; font-family: Menlo, monospace; font-size: 11px; }}")
         cmd_row.addWidget(self._cmd_preview, 1)
         cmd_row.addWidget(self._tip(
@@ -2424,7 +2430,13 @@ class ScannerProfileDialog(_ToolDialogBase):
         """
         from PyQt6.QtCore import QTimer
         orig = w.styleSheet()
-        seq = ["QCheckBox{color:#d9534f;}", orig] * 2
+        # The flash is MOTION, which greyscale keeps in full. Neutral swaps
+        # the red for ACTION at bold weight so the blink still reads.
+        from ui.theme import APPEARANCE_NEUTRAL as _NEU, active_mode as _am
+        _flash = ("QCheckBox{color:%s;font-weight:700;}"
+                  % __import__("ui.neutral_styles", fromlist=["x"]).NM_ACTION
+                  if _am() == _NEU else "QCheckBox{color:#d9534f;}")
+        seq = [_flash, orig] * 2
         timer = QTimer(w)                    # dies with the widget
         timer.setInterval(200)
         state = {"i": 0}
@@ -2510,13 +2522,14 @@ class ScannerProfileDialog(_ToolDialogBase):
         # The pop-out is its own window, so it doesn't inherit the dialog's green
         # accent — the global "primary" style would make Done blue. Paint it green
         # (the scanner/measure family colour) explicitly.
+        _done_bg = accent_for(SPEC_GREEN)
         done.setStyleSheet(
             "QPushButton {"
-            f"  background: {SPEC_GREEN}; color: #08130e; border: none;"
+            f"  background: {_done_bg}; color: {primary_label()}; border: none;"
             "   border-radius: 6px; padding: 3px 22px; min-height: 0;"
             "   font-size: 11px; font-weight: 600; }"
-            "QPushButton:hover { background: #6fe0b6; }"
-            "QPushButton:pressed { background: #45b98d; }")
+            f"QPushButton:hover {{ background: {primary_hover(_done_bg, None, 0.86)}; }}"
+            f"QPushButton:pressed {{ background: {primary_hover(_done_bg, None, 0.72)}; }}")
         bar.addWidget(rot)
         bar.addWidget(rst)
         bar.addStretch(1)

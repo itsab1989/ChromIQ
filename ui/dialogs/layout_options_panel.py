@@ -27,6 +27,8 @@ from ui.widgets import (
     NoScrollDoubleSpinBox,
     NoScrollSpinBox,
     WrappingCheckBox,
+    reapply_ink,
+    set_ink,
 )
 from workflow.layout_engine.presets import LayoutRecipe
 
@@ -79,6 +81,19 @@ class LayoutOptionsPanel(QWidget):
     """All layout-engine controls except instrument/paper/mode."""
 
     changed = pyqtSignal()
+
+    def set_appearance(self, mode: str) -> None:
+        """Re-resolve this panel's own text colours for ``mode``.
+
+        Reached by ``MainWindow.apply_theme``'s broadcast (the panel lives
+        inside the Create Chart tab) and harmless anywhere else. Only the
+        :func:`ui.widgets.set_ink` labels move — the spacer swatches are ink on
+        paper and are never touched by an appearance.
+        """
+        from ui.theme import accept_mode
+        # Kept, not just acted on — see TabChart.set_appearance.
+        self._mode = accept_mode(mode)
+        reapply_ink(self, self._mode)
 
     # Labels mirror the printtarg -i combobox (data/parameters.yaml) so the engine
     # and printtarg show the same instrument names (Knut). Codes stay i1/p3/CM/SS.
@@ -438,7 +453,7 @@ class LayoutOptionsPanel(QWidget):
             column's slack, so it doesn't widen the panel. Blank for a spinbox
             on its special ('auto'/'square') value."""
             inch = QLabel("", self)
-            inch.setStyleSheet("color: #909090; font-size: 10px;")
+            set_ink(inch, "#909090", " font-size: 10px;", level="faint")
             inch.setMinimumWidth(48)
 
             def _upd(*_a):
@@ -948,6 +963,10 @@ class LayoutOptionsPanel(QWidget):
         _swrow = QHBoxLayout(); _swrow.setContentsMargins(0, 0, 0, 0); _swrow.setSpacing(4)
         # Five ChromIQ accents plus white + black, so the engine can pick a
         # high-contrast separator against very light or very dark patches too.
+        # THESE ARE INK ON PAPER, NOT CHROME. They are the colours the engine
+        # PRINTS between patches, and the swatch has to show the colour it will
+        # print — the same exemption the strip-letter rules have. No appearance
+        # may touch them.
         for _hex in ("#ff4573", "#ffb42d", "#56d6a5", "#37bcd6", "#9f82ff",
                      "#ffffff", "#000000"):
             _b = QPushButton(self)
@@ -2753,8 +2772,22 @@ class LayoutOptionsPanel(QWidget):
     # widgets); the old un-scoped "border: …" sheet wiped that rule, leaving
     # every box that ever touched conflict handling looking permanently
     # greyed-out even though it stayed enabled (Knut, beta.5).
-    _CONFLICT_QSS = (" QSpinBox, QDoubleSpinBox {"
-                     " border: 1px solid #d9534f; border-radius: 3px; }")
+    @staticmethod
+    def _conflict_qss() -> str:
+        """The outline a conflicting field wears.
+
+        Red in the two coloured appearances. Neutral has no red — the flag is
+        carried by WEIGHT instead: a 2px ACTION edge, which is heavier than any
+        ordinary field edge in the theme and still darker than its ground.
+        """
+        from ui.theme import APPEARANCE_NEUTRAL, active_mode
+        if active_mode() == APPEARANCE_NEUTRAL:
+            from ui import neutral_styles
+            return (" QSpinBox, QDoubleSpinBox {"
+                    f" border: 2px solid {neutral_styles.NM_ACTION};"
+                    " border-radius: 3px; }")
+        return (" QSpinBox, QDoubleSpinBox {"
+                " border: 1px solid #d9534f; border-radius: 3px; }")
 
     def _set_field_conflict(self, widget, message: "str | None") -> None:
         """Flag ``widget`` with a red outline + ``message`` tooltip, or clear the
@@ -2770,7 +2803,7 @@ class LayoutOptionsPanel(QWidget):
                 self._field_conflict_orig[wid] = (widget.toolTip(),
                                                   widget.styleSheet())
             _tip, orig_qss = self._field_conflict_orig[wid]
-            widget.setStyleSheet(orig_qss + self._CONFLICT_QSS)
+            widget.setStyleSheet(orig_qss + self._conflict_qss())
             widget.setToolTip(message)
         elif wid in self._field_conflict_orig:
             tip, orig_qss = self._field_conflict_orig.pop(wid)

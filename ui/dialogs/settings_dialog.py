@@ -36,7 +36,9 @@ from core.platform_paths import (
 )
 from core.updater import UpdateChecker, WEBSITE_URL, _RELEASES_PAGE
 from core.version import APP_VERSION
+from ui import neutral_styles
 from ui.styles import SPEC_MAGENTA
+from ui.theme import APPEARANCE_NEUTRAL, accent_for, ink_for
 from ui.tooltip_button import TooltipButton
 from ui.widgets import (
     NoScrollComboBox,
@@ -44,6 +46,8 @@ from ui.widgets import (
     NoScrollSpinBox,
     make_browse_button,
     open_dir_dialog,
+    reapply_ink,
+    set_ink as _ink,
 )
 
 if TYPE_CHECKING:
@@ -1406,7 +1410,7 @@ class SettingsDialog(QDialog):
 
         self._language_restart_hint = QLabel(
             tr("Takes effect after you restart ChromIQ."), self)
-        self._language_restart_hint.setStyleSheet("color: #e6a23c; font-size: 11px;")
+        _ink(self._language_restart_hint, "#e6a23c", " font-size: 11px;")
         self._language_restart_hint.setVisible(False)
         ap.addWidget(self._language_restart_hint, 1, 0, 1, 2)
 
@@ -1440,17 +1444,19 @@ class SettingsDialog(QDialog):
         # ---- About / Updates (below the tabs) ----
         # The link word instead of the raw URL, in the app's magenta accent
         # (Sebastian: "something that looks nice", "use the magenta accent") —
-        # SPEC_MAGENTA is theme-independent, so it reads in both modes.
+        # SPEC_MAGENTA reads in both COLOURED appearances. In Neutral it is the
+        # only hue left in this window, so it becomes dark ink; the underline
+        # and the pointer already say it is a link.
         credit1 = QLabel(tr(
             "ChromIQ v{APP_VERSION} · Created by Sebastian Reiprich · "
             "<a href=\"{url}\" style=\"color:{accent}\">Website</a>").format(
                 APP_VERSION=APP_VERSION, url=WEBSITE_URL,
-                accent=SPEC_MAGENTA), self)
+                accent=ink_for(SPEC_MAGENTA)), self)
         credit1.setTextFormat(Qt.TextFormat.RichText)
         credit1.setOpenExternalLinks(True)
         credit1.setToolTip(tr("Open the ChromIQ website in your browser."))
         credit1.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        credit1.setStyleSheet("color: #606060; font-size: 11px;")
+        _ink(credit1, "#606060", " font-size: 11px;", level="faint")
         outer.addWidget(credit1)
 
         credit2 = QLabel(
@@ -1458,7 +1464,7 @@ class SettingsDialog(QDialog):
             "Testing & feedback: Nelson (Pharmacist), Alan Goldhammer"), self
         )
         credit2.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        credit2.setStyleSheet("color: #606060; font-size: 11px;")
+        _ink(credit2, "#606060", " font-size: 11px;", level="faint")
         outer.addWidget(credit2)
 
         self._update_status = QLabel("", self)
@@ -1647,7 +1653,7 @@ class SettingsDialog(QDialog):
             "more careful measurements, or set it to “Off” to silence the hint "
             "for that instrument."), self)
         note.setWordWrap(True)
-        note.setStyleSheet("color: #909090; font-size: 11px;")
+        _ink(note, "#909090", " font-size: 11px;", level="faint")
         v.addWidget(note)
 
         self._pace_enable = QCheckBox(tr("Warn me when I read a strip too fast"), self)
@@ -1787,7 +1793,7 @@ class SettingsDialog(QDialog):
 
             # The live figure: patches x minimum readings / readings per second.
             est = QLabel("", self)
-            est.setStyleSheet("color: #909090;")
+            _ink(est, "#909090", level="faint")
             form.addWidget(est, row, 5)
             self._pace_estimate[key] = est
             hz.valueChanged.connect(self._refresh_pace_estimates)
@@ -1954,7 +1960,7 @@ class SettingsDialog(QDialog):
             "“Play” to hear one. To add your own sounds, set a sounds folder on "
             "the Paths tab."), self)
         note.setWordWrap(True)
-        note.setStyleSheet("color: #909090; font-size: 11px;")
+        _ink(note, "#909090", " font-size: 11px;", level="faint")
         v.addWidget(note)
 
         # The full windows-and-sounds table. It belongs on this tab and not on
@@ -2147,7 +2153,7 @@ class SettingsDialog(QDialog):
             "measured chart against its design colours and tracks how a printer "
             "drifts over time."), self)
         intro.setWordWrap(True)
-        intro.setStyleSheet("color: #909090; font-size: 11px;")
+        _ink(intro, "#909090", " font-size: 11px;", level="faint")
         v.addWidget(intro)
 
         # Auto-save (moved here from the Beta tab), in its own section so it lines
@@ -2413,7 +2419,7 @@ class SettingsDialog(QDialog):
             "you get warnings on builds you've verified are fine, tighten "
             "them to be warned earlier."), page)
         intro.setWordWrap(True)
-        intro.setStyleSheet("color: #909090; font-size: 11px;")
+        _ink(intro, "#909090", " font-size: 11px;", level="faint")
         v.addWidget(intro)
 
         grp = QGroupBox(tr("Misalignment warnings"), page)
@@ -2693,7 +2699,7 @@ class SettingsDialog(QDialog):
             "Chart preview warns when a chart goes outside these. Editable starting "
             "points — adjust them to your own rig."), self)
         intro.setWordWrap(True)
-        intro.setStyleSheet("color: #909090; font-size: 11px;")
+        _ink(intro, "#909090", " font-size: 11px;", level="faint")
         intro_row.addWidget(intro, stretch=1)
         intro_row.addWidget(TooltipButton(
             tr("About instrument limits"),
@@ -3068,7 +3074,15 @@ class SettingsDialog(QDialog):
         without reopening the dialog.
           Light: masthead "Chrom" wordmark.  Dark: neutral grey (Restore border).
         """
-        indicator = "#1c1b18" if mode == "light" else "#d0d0d0"
+        # NEUTRAL IS NOT DARK. `#d0d0d0` is a DARK-theme value: on a light-grey
+        # dialog it made every ticked checkbox read as switched off, while the
+        # disabled rule below painted a near-black block — the two states
+        # exactly the wrong way round, which is how the owner saw it
+        # ("in preferences activated checkboxes are light grey, disabled ones
+        # have a much darker grey — should be vice versa"). Neutral's answer is
+        # its single accent, ACTION, which is what NEUTRAL_STYLESHEET already
+        # paints; this dialog-scoped sheet was overriding it.
+        indicator = accent_for("#1c1b18" if mode == "light" else "#d0d0d0", mode)
         # Shared with the Tools dialogs so every dialog highlights controls the
         # same neutral way (checkboxes, radios and the focus ring on text/number/
         # combo inputs).
@@ -3077,17 +3091,34 @@ class SettingsDialog(QDialog):
         # which would otherwise keep a *disabled* checked box looking active. Add a
         # higher-specificity :checked:disabled rule so it greys out like the rest
         # of the app (matching the global QCheckBox::indicator:disabled greys).
-        dis_bg, dis_border = (
-            ("#eeece8", "#d0ccc6") if mode == "light" else ("#1f1f1f", "#3a3a3a")
-        )
-        disabled_qss = (
-            f"QCheckBox::indicator:checked:disabled {{"
-            f" background: {dis_bg}; border-color: {dis_border}; }}"
-        )
-        self.setStyleSheet(neutral_controls_qss(indicator) + disabled_qss)
+        if mode == APPEARANCE_NEUTRAL:
+            # No fill, dashed edge — the handoff's shape for "disabled", and the
+            # only thing in this theme allowed to be faint. A fill of any value
+            # here is a disabled control shouting over the enabled ones.
+            disabled_qss = (
+                f"QCheckBox::indicator:checked:disabled {{"
+                f" background: transparent;"
+                f" border: 1px dashed {neutral_styles.NM_DISABLED}; }}"
+            )
+        else:
+            dis_bg, dis_border = (
+                ("#eeece8", "#d0ccc6") if mode == "light" else ("#1f1f1f", "#3a3a3a")
+            )
+            disabled_qss = (
+                f"QCheckBox::indicator:checked:disabled {{"
+                f" background: {dis_bg}; border-color: {dis_border}; }}"
+            )
+        self.setStyleSheet(
+            neutral_controls_qss(indicator, mode=mode) + disabled_qss)
         for btn in self.findChildren(TooltipButton):
             btn._color_override = indicator
             btn._set_icon()
+        # …AND EVERY LITERAL TEXT COLOUR IN THE WINDOW. The theme can be
+        # previewed from inside this dialog, so a label coloured at build time
+        # would keep the previous appearance's value until the window is
+        # reopened — which is exactly how a dark-theme grey ends up on a
+        # light-grey ground.
+        reapply_ink(self, mode)
 
     def _on_appearance_preview(self, _index: int) -> None:
         """Apply the picked theme immediately without persisting it."""
@@ -3168,7 +3199,7 @@ class SettingsDialog(QDialog):
             "tab, above the layout panel. Here you set the default layout each "
             "instrument and paper starts from."), self)
         moved_note.setWordWrap(True)
-        moved_note.setStyleSheet("color: #909090; font-size: 11px;")
+        _ink(moved_note, "#909090", " font-size: 11px;", level="faint")
         v.addWidget(moved_note)
 
         # Everything below the master toggle lives in a body widget that is
@@ -3188,7 +3219,7 @@ class SettingsDialog(QDialog):
             "starting point Create Chart uses, which you can still tweak per "
             "chart. Presets are saved as files you can back up or share."), self)
         intro.setWordWrap(True)
-        intro.setStyleSheet("color: #909090; font-size: 11px;")
+        _ink(intro, "#909090", " font-size: 11px;", level="faint")
         intro_row.addWidget(intro, stretch=1)
         intro_row.addWidget(TooltipButton(
             tr("About chart layout"),
@@ -3293,7 +3324,7 @@ class SettingsDialog(QDialog):
 
         self._layout_calc = QLabel("", self)
         self._layout_calc.setWordWrap(True)
-        self._layout_calc.setStyleSheet("color: #1a8f3c; font-weight: 600;")
+        _ink(self._layout_calc, "#1a8f3c", " font-weight: 600;")
         v.addWidget(self._layout_calc)
 
         # ---- buttons ----
@@ -3408,7 +3439,7 @@ class SettingsDialog(QDialog):
             "How the per-strip letter labels (A, B, C…) look on every new chart "
             "— including charts loaded from a saved preset."), self)
         intro.setWordWrap(True)
-        intro.setStyleSheet("color: #909090; font-size: 11px;")
+        _ink(intro, "#909090", " font-size: 11px;", level="faint")
         g.addWidget(intro, 0, 0, 1, 3)
         g.addWidget(TooltipButton(
             tr("Strip indicator style"),
@@ -3731,13 +3762,13 @@ class SettingsDialog(QDialog):
                     .format(mode=jumped) if jumped
                     else tr("Showing the layout you saved for this combination."))
             w.setText(" ".join(x for x in (head, also) if x))
-            w.setStyleSheet("color: #1a8f3c; font-size: 11px;")
+            _ink(w, "#1a8f3c", " font-size: 11px;")
         else:
             w.setText(" ".join(x for x in (
                 tr("Nothing saved for this combination yet — these are "
                    "ChromIQ's own defaults. Change any value below to "
                    "save a layout for it."), also) if x))
-            w.setStyleSheet("color: #c47f17; font-size: 11px;")
+            _ink(w, "#c47f17", " font-size: 11px;")
 
     def _other_saved_layouts(self, inst: str, paper: str,
                              mode: str) -> tuple[list[str], bool]:
@@ -3809,15 +3840,15 @@ class SettingsDialog(QDialog):
                 show=r.show_strip_indicators)
             if iw:
                 msgs.append((iw, False))
-            html = ("<span style='color:#1a8f3c;font-weight:600'>"
+            html = (f"<span style='color:{ink_for('#1a8f3c')};font-weight:600'>"
                     + tr("≈ {n} patches per sheet").format(n=cap) + "</span>")
             for txt, is_err in msgs:
-                colour = "#e05252" if is_err else "#c47f17"
+                colour = ink_for("#e05252" if is_err else "#c47f17")
                 html += f"<br><span style='color:{colour}'>⚠ {txt}</span>"
             self._layout_calc.setText(html)
         except geometry.LayoutError as exc:
             self._layout_calc.setText(
-                f"<span style='color:#e05252'>⚠ {exc}</span>")
+                f"<span style='color:{ink_for('#e05252')}'>⚠ {exc}</span>")
         except Exception:
             self._layout_calc.setText("—")
 
@@ -4009,10 +4040,10 @@ class SettingsDialog(QDialog):
         detected = find_argyll_bin_path()
         if detected:
             self._argyll_edit.setText(str(detected))
-            self._argyll_status.setStyleSheet("color: #4caf50;")
+            _ink(self._argyll_status, "#4caf50")
             self._argyll_status.setText(tr("Auto-detected at {detected}").format(detected=detected))
         else:
-            self._argyll_status.setStyleSheet("color: #ff5252;")
+            _ink(self._argyll_status, "#ff5252")
             self._argyll_status.setText(
                 tr("ArgyllCMS not found in any known location. "
                 "Install it or set the path manually.")
@@ -4049,9 +4080,7 @@ class SettingsDialog(QDialog):
                 results.append(f"✗ {tool} (not found)")
         msg = "  ".join(results)
         all_ok = all(r.startswith("✓") for r in results)
-        self._argyll_status.setStyleSheet(
-            "color: #4caf50;" if all_ok else "color: #ff9800;"
-        )
+        _ink(self._argyll_status, "#4caf50" if all_ok else "#ff9800")
         self._argyll_status.setText(msg)
         log.info("ArgyllCMS test: %s", msg)
 
@@ -4294,7 +4323,7 @@ class SettingsDialog(QDialog):
     def _on_update_available(self, latest: str) -> None:
         self._update_btn.setEnabled(True)
         self._update_btn.setText(tr("Check for Updates"))
-        self._update_status.setStyleSheet("font-size: 11px; color: #e67e00;")
+        _ink(self._update_status, "#e67e00", " font-size: 11px;")
         self._update_status.setText(
             tr("{latest} available — <a href=\"{_RELEASES_PAGE}\">open GitHub Releases</a>").format(latest=latest, _RELEASES_PAGE=_RELEASES_PAGE)
         )
@@ -4303,7 +4332,7 @@ class SettingsDialog(QDialog):
     def _on_up_to_date(self) -> None:
         self._update_btn.setEnabled(True)
         self._update_btn.setText(tr("Check for Updates"))
-        self._update_status.setStyleSheet("font-size: 11px; color: #4caf50;")
+        _ink(self._update_status, "#4caf50", " font-size: 11px;")
         self._update_status.setText(tr("You're up to date."))
 
     def _on_update_failed(self, reason: str) -> None:

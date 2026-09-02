@@ -125,8 +125,49 @@ class TooltipButton(QToolButton):
         self._color_override = color
         self._set_icon()
 
+    def set_appearance(self, mode: str) -> None:
+        """Redraw the ⓘ for a new appearance.
+
+        The colour is resolved in :meth:`_set_icon`, at draw time — so a button
+        built while Dark was on screen keeps Dark's value until something asks
+        it to draw again. `MainWindow.apply_theme` broadcasts to every
+        descendant that has this method, which is what makes a live theme
+        switch reach the ~600 ⓘ icons in the app rather than only the ones
+        whose tab happens to be restyled afterwards.
+
+        The redraw is a dict lookup after the first icon of each colour
+        (`_ICON_CACHE`), so this is cheap even at that count.
+        """
+        from ui.theme import accept_mode
+        self._mode = accept_mode(mode)
+        self._set_icon()
+
     def _set_icon(self) -> None:
+        # ONE ACCENT UNDER NEUTRAL, whatever set this one. The ⓘ ring is the
+        # most repeated accent surface in the app — every parameter row, every
+        # dialog masthead — and it arrives here from three directions: the
+        # per-tab class ACCENT, a per-instance `color=`, and Preferences'
+        # indicator override. Collapsing it at the one place all three pass
+        # through means no caller has to know about a third appearance.
+        # `accent_for` returns its argument unchanged in Light and Dark.
+        from ui.theme import accent_for
         color = getattr(self, "_color_override", None) or self.__class__.ACCENT
+        color = accent_for(color, getattr(self, "_mode", None))
+        # THE OWNER, ON THE SHIPPED BUILD: *"in preferences neutral mode the
+        # tooltip icons are too light. the color they currently have would be
+        # good for a disabled state or something."* He was looking at
+        # `#d0d0d0` — the DARK theme's indicator, handed to every ⓘ in
+        # Preferences. Measured on this theme's window it is **1.19:1**, which
+        # is fainter than DISABLED itself (**1.35:1**): not merely a poor
+        # enabled value, a value *below* the one the theme reserves for
+        # controls that do not work. Rule 3 says low contrast means "disabled"
+        # and nothing else, so an ⓘ that works is ACTION, at **14.69:1**.
+        #
+        # And the two do NOT want swapping. A ⓘ is a ring and a glyph — it has
+        # no fill to drop and no edge to dash, so the handoff's disabled SHAPE
+        # does not apply to it; its disabled state is Qt fading this same icon
+        # (QIcon.Mode.Disabled), which is one mechanism in all three
+        # appearances and needs no value of its own.
         self.setIcon(self._draw_icon(QColor(color)))
         # The icon is as wide/tall as the nudge made it; Qt centres it in the
         # button, so the extra room on one side is what produces the shift.

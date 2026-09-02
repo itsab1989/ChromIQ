@@ -221,6 +221,25 @@ def _welcome_dialog():
     return WelcomeDialog(AppSettings(), None, "dark"), "set_appearance"
 
 
+def _tooltip_button():
+    from ui.tooltip_button import TooltipButton
+    return TooltipButton("t", "b"), "set_appearance"
+
+
+def _tab_chart():
+    from core.argyll_runner import ArgyllRunner
+    from core.file_manager import FileManager
+    from core.settings import AppSettings
+    from ui.tabs.tab_chart import TabChart
+    st = AppSettings()
+    return TabChart(ArgyllRunner(st), FileManager(st), st, None), "set_appearance"
+
+
+def _layout_options_panel():
+    from ui.dialogs.layout_options_panel import LayoutOptionsPanel
+    return LayoutOptionsPanel(None, defer_clip_preview=True), "set_appearance"
+
+
 def _tab_measure():
     from core.argyll_runner import ArgyllRunner
     from core.settings import AppSettings
@@ -269,7 +288,7 @@ def _image_file_button():
 COMPONENTS = [
     ("ToolsPopup",           _tools_popup,           "_mode"),
     ("BuiltinPresetPopup",   _builtin_preset_popup,  "_mode"),
-    ("BuiltinPresetButton",  _builtin_preset_button, None),
+    ("BuiltinPresetButton",  _builtin_preset_button, "_mode"),
     ("MarginInspectorPanel", _margin_inspector,      "_mode"),
     ("MastheadHeader",       _masthead,              "_mode"),
     ("SpectrumTabBar",       _spectrum_tab_bar,      "_mode"),
@@ -289,6 +308,9 @@ COMPONENTS = [
     ("MeasuredChartButton",  _measured_chart_button, None),
     ("RevealFolderButton",   _reveal_folder_button,  None),
     ("ImageFileButton",      _image_file_button,     None),
+    ("TabChart",             _tab_chart,             "_mode"),
+    ("LayoutOptionsPanel",   _layout_options_panel,  "_mode"),
+    ("TooltipButton",        _tooltip_button,        "_mode"),
 ]
 
 _IDS = [c[0] for c in COMPONENTS]

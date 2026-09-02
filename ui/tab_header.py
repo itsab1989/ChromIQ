@@ -124,10 +124,18 @@ class SpectrumStripe(QWidget):
     """A thin full-width band of the five ChromIQ tab hues, painted as equal
     blocks — the same stripe the main-window masthead and the chart-design
     windows use. The hues (TAB_COLORS) are plain spectrum colours, identical in
-    light and dark mode; only the chrome around them changes per theme, so this
-    needs no per-mode palette."""
+    light and dark mode; only the chrome around them changes per theme.
+
+    **Neutral has no hues to spend**, so it keeps the geometry and drops the
+    colour: five cells in ACTION with a gap between them — the handoff's
+    five-cell Index rule at the size a dialog masthead needs. A dialog is not a
+    step in the run, so all five cells are filled; the tab bar's version, where
+    "how far along am I" is a real question, is the chrome job's.
+    """
 
     HEIGHT = 4
+    #: Gap between cells in the Neutral rule, in px.
+    CELL_GAP = 3
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -135,9 +143,21 @@ class SpectrumStripe(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
 
     def paintEvent(self, _ev) -> None:  # noqa: N802
+        from ui.theme import APPEARANCE_NEUTRAL, active_mode
         p = QPainter(self)
         w = self.width()
         n = len(TAB_COLORS)
+        if active_mode() == APPEARANCE_NEUTRAL:
+            from ui import neutral_styles as _n
+            cell = QColor(_n.NM_ACTION)
+            gap = self.CELL_GAP
+            span = (w - gap * (n - 1)) / float(n)
+            for i in range(n):
+                x0 = int(round(i * (span + gap)))
+                x1 = int(round(i * (span + gap) + span)) if i < n - 1 else w
+                p.fillRect(x0, 0, max(1, x1 - x0), self.HEIGHT, cell)
+            p.end()
+            return
         for i, col in enumerate(TAB_COLORS):
             x0 = int(round(i * w / n))
             x1 = int(round((i + 1) * w / n)) if i < n - 1 else w
@@ -171,6 +191,12 @@ def dialog_masthead(
     behind their headline (it's parented to the dialog, so it lives as long as
     the dialog and refits/raises itself).
     """
+    # ONE ACCENT UNDER NEUTRAL, for every dialog masthead in the app — the
+    # header stroke, the ⓘ ring and the GradientOverlay wash installed below
+    # all take their colour from here. Light and Dark are handed back exactly
+    # what the caller asked for.
+    from ui.theme import accent_for
+    accent = accent_for(accent)
     head = QHBoxLayout()
     head.setContentsMargins(side, top, side, bottom)
     header = TabHeader(

@@ -65,11 +65,12 @@ from ui.dialogs.target_change_dialog import TargetChangeAction, TargetChangeDial
 from ui.fade_scroll import FadeScrollArea
 from ui.parameter_widget import ParameterWidget
 from ui.styles import SPEC_AMBER, SPEC_CYAN, SPEC_GREEN, SPEC_MAGENTA, SPEC_VIOLET
+from ui.theme import accent_for
 from ui.tab_header import TabHeader
 from ui.builtin_preset_popup import BuiltinPresetButton, BuiltinPresetPopup
 from ui.tiff_preview import TiffPreview
 from ui.tooltip_button import InfoDialog, TooltipButton
-from ui.widgets import add_log_row, fit_log_height, CollapsibleGroupBox, NoScrollComboBox, NoScrollSpinBox, PatchGridButton, PrefixLockedLineEdit, icc_profile_paths, load_magenta_folder_icon, make_browse_button, open_file_dialog, set_folder_icon, set_preset_icon
+from ui.widgets import add_log_row, fit_log_height, CollapsibleGroupBox, NoScrollComboBox, NoScrollSpinBox, PatchGridButton, PrefixLockedLineEdit, icc_profile_paths, load_magenta_folder_icon, make_browse_button, open_file_dialog, reapply_ink, set_folder_icon, set_ink, set_preset_icon
 from core.i18n import count_phrase, tr
 from workflow.i1profiler_export import EXTRA_INK, export_from_ti1, parse_ti1
 from workflow.i1profiler_import import import_to_ti1
@@ -2934,7 +2935,8 @@ class TabChart(QWidget):
         self._reveal_folder_btn.clicked.connect(self._reveal_chart_folder)
         _ht.addWidget(self._reveal_folder_btn)
         left_layout.addWidget(TabHeader(
-            tr("STEP 01 · GENERATE CHART"), tr("Create test chart"), "#ff4573", left,
+            tr("STEP 01 · GENERATE CHART"), tr("Create test chart"),
+            accent_for("#ff4573"), left,
             tooltip_title=tr("Step 1 — Make a test chart"),
             tooltip_body=tr(
                 "This is where you design the sheet of colour patches your printer "
@@ -3400,7 +3402,7 @@ class TabChart(QWidget):
         self._guided_run_desc_lbl.setFixedWidth(_guided_lbl_w)
         self._target_name_hint = QLabel("", inner)
         self._target_name_hint.setWordWrap(True)
-        self._target_name_hint.setStyleSheet("color: #d08a3a; font-size: 11px;")
+        set_ink(self._target_name_hint, "#d08a3a", " font-size: 11px;")
         self._target_name_hint.setVisible(False)
         folder_layout.addWidget(self._target_name_hint)
         # §S4.7's quiet half: which project this name points at, shown ONLY
@@ -3741,10 +3743,7 @@ class TabChart(QWidget):
         # auto-detection, because the plain "—" placeholder carries no markup
         # and would otherwise flip the label back to plain text.
         self._patch_count_lbl.setTextFormat(Qt.TextFormat.RichText)
-        self._patch_count_lbl.setStyleSheet(
-            "background: transparent;"
-            " font-family: Georgia; font-size: 56px;"
-        )
+        self._patch_count_lbl.setStyleSheet(self._COUNT_QSS)
         count_font = QFont()
         count_font.setLetterSpacing(QFont.SpacingType.PercentageSpacing, 85)
         self._patch_count_lbl.setFont(count_font)
@@ -3752,10 +3751,10 @@ class TabChart(QWidget):
 
         self._patch_detail_lbl = QLabel("", inner)
         self._patch_detail_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._patch_detail_lbl.setStyleSheet(
-            "color: #808080; background: transparent;"
-            " font-family: Menlo; font-size: 9px; font-weight: 300;"
-        )
+        set_ink(self._patch_detail_lbl, "#808080",
+                " background: transparent;"
+                " font-family: Menlo; font-size: 9px; font-weight: 300;",
+                level="faint")
         count_layout.addWidget(self._patch_detail_lbl)
 
         # 5-segment spectrum bar, centered
@@ -3763,10 +3762,17 @@ class TabChart(QWidget):
         bar_row.setContentsMargins(0, 6, 0, 0)
         bar_row.setSpacing(0)
         bar_row.addStretch()
+        # Five segments — and one ACTION value under Neutral, which keeps the
+        # geometry (it is already the handoff's five-cell rule) and drops the
+        # hue. Kept as `_count_bar_segs` so `set_appearance` can repaint them.
+        self._count_bar_segs = []
         for _color in (SPEC_MAGENTA, SPEC_AMBER, SPEC_GREEN, SPEC_CYAN, SPEC_VIOLET):
             _seg = QFrame(inner)
             _seg.setFixedSize(22, 2)
-            _seg.setStyleSheet(f"background-color: {_color}; border: none;")
+            _seg.setProperty("spectrum_hue", _color)
+            _seg.setStyleSheet(
+                f"background-color: {accent_for(_color)}; border: none;")
+            self._count_bar_segs.append(_seg)
             bar_row.addWidget(_seg)
         bar_row.addStretch()
         count_layout.addLayout(bar_row)
@@ -3821,7 +3827,7 @@ class TabChart(QWidget):
 
         self._cal_status_lbl = QLabel("", w)
         self._cal_status_lbl.setWordWrap(True)
-        self._cal_status_lbl.setStyleSheet("color: #56d6a5; font-size: 11px;")
+        set_ink(self._cal_status_lbl, "#56d6a5", " font-size: 11px;")
         self._cal_status_lbl.setVisible(False)
         cal_tgt_layout.addWidget(self._cal_status_lbl)
 
@@ -3865,7 +3871,7 @@ class TabChart(QWidget):
         output_layout.addLayout(name_row)
         self._manual_target_name_hint = QLabel("", w)
         self._manual_target_name_hint.setWordWrap(True)
-        self._manual_target_name_hint.setStyleSheet("color: #d08a3a; font-size: 11px;")
+        set_ink(self._manual_target_name_hint, "#d08a3a", " font-size: 11px;")
         self._manual_target_name_hint.setVisible(False)
         output_layout.addWidget(self._manual_target_name_hint)
         self._manual_project_exists_lbl = QLabel("", w)
@@ -5522,6 +5528,56 @@ class TabChart(QWidget):
             panel = getattr(self, attr, None)
             if panel is not None:
                 fit_log_height(panel)
+
+    #: What the Calculated-Patches number is set in, before any appearance
+    #: has spoken. The COLOUR is deliberately absent: the per-tab pane QSS
+    #: supplies it in Light and Dark, and this label must not fight it there.
+    _COUNT_QSS = "background: transparent; font-family: Georgia; font-size: 56px;"
+
+    def set_appearance(self, mode: str) -> None:
+        """Repaint what this tab colours for itself, for ``mode``.
+
+        Reached by ``MainWindow.apply_theme``'s broadcast. Two jobs:
+
+        * every :func:`ui.widgets.set_ink` label — the name hints, the
+          calibration status line, the "+ 8" note, the patch-count subtitle —
+          is re-resolved, so a value chosen while Dark was on screen does not
+          stay on a light-grey one;
+        * the big Calculated-Patches numeral takes an explicit dark ink in
+          Neutral. Its colour otherwise comes from the per-tab pane QSS, whose
+          non-light branch paints it ``#ffffff`` — white on a light-grey panel,
+          1.19:1, the number simply gone. That is the fault the owner reported
+          ("the estimated patches section uses white text — should use the dark
+          grey or black"), and a rule set on the label itself outranks the
+          ancestor sheet, in this appearance only.
+        """
+        from ui.theme import APPEARANCE_NEUTRAL, accept_mode
+        #: THE APPEARANCE IS KEPT, not just acted on. `accept_mode` is the one
+        #: door that admits a broadcast appearance whole, and a component that
+        #: does not store what came through it cannot be asked afterwards which
+        #: appearance it is in — which is what
+        #: `tests/test_set_appearance_takes_three.py` checks for every one.
+        self._mode = mode = accept_mode(mode)
+        reapply_ink(self, mode)
+        lbl = getattr(self, "_patch_count_lbl", None)
+        if lbl is not None:
+            extra = ""
+            if mode == APPEARANCE_NEUTRAL:
+                from ui import neutral_styles
+                extra = f" color: {neutral_styles.NM_TEXT_MAIN};"
+            lbl.setStyleSheet(self._COUNT_QSS + extra)
+        for seg in getattr(self, "_count_bar_segs", ()):
+            hue = seg.property("spectrum_hue")
+            if hue:
+                seg.setStyleSheet(
+                    f"background-color: {accent_for(hue, mode)}; border: none;")
+        # The closing mark is drawn INSIDE the label's rich text, so it needs
+        # the text rebuilt rather than a stylesheet.
+        if hasattr(self, "_update_patch_count"):
+            try:
+                self._update_patch_count()
+            except Exception:                      # noqa: BLE001 — cosmetic
+                pass
 
     def changeEvent(self, event) -> None:      # noqa: N802 (Qt override)
         super().changeEvent(event)
@@ -15128,7 +15184,7 @@ class TabChart(QWidget):
         # chart holds more patches than they typed (Sebastian, 2026-08-11):
         # the eight cube corners are always added on top, whatever the count.
         _plus8 = QLabel(tr("+ 8"), count_w)
-        _plus8.setStyleSheet("color: #909090;")
+        set_ink(_plus8, "#909090", level="faint")
         _plus8.setToolTip(tr(
             "The 8 cube corners — paper white, black and the six primary and "
             "secondary ink corners — are always added on top of the number "
@@ -16290,7 +16346,11 @@ class TabChart(QWidget):
         """
         import html as _html
 
-        return (f'{_html.escape(number)}<span style="color: {SPEC_MAGENTA}; '
+        # ONE ACCENT UNDER NEUTRAL. The mark is the tab's own hue in the two
+        # coloured appearances and ACTION in the third — the same value the
+        # numeral itself is set in there, so the headline reads as one word.
+        return (f'{_html.escape(number)}<span style="color: '
+                f'{accent_for(SPEC_MAGENTA)}; '
                 f'font-style: italic;">{mark}</span>')
 
     def _no_chart_guidance(self) -> str:
