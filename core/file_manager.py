@@ -37,6 +37,7 @@ String-concatenating paths anywhere else is a code smell.
 """
 from __future__ import annotations
 
+import fnmatch
 import json
 import os
 import re
@@ -235,6 +236,88 @@ def declutter_folder(folder: "Path | str") -> int:
 def cache_subdir(folder: Path | str) -> Path:
     """``<folder>/cache`` — see :func:`reports_subdir`."""
     return Path(folder) / CACHE_DIRNAME
+
+
+#: ``Path.glob`` is case-insensitive on Windows and case-sensitive everywhere
+#: else. :func:`files_matching` reproduces that rather than changing it.
+_NAME_CASEFOLD = os.name == "nt"
+
+
+def nfc(name: str) -> str:
+    """*name* with its accents composed — the one spelling ChromIQ compares on.
+
+    "Müller" is a single character U+00FC when a Mac keyboard types it and two
+    ("u" + U+0308) when the same name comes back off a Mac OS Extended (HFS+)
+    volume. HFS+ stores every filename decomposed, and ``shutil.copytree`` back
+    onto APFS keeps that spelling, so a project restored from a Time Machine
+    disk or an older external drive is spelled differently from the one that
+    left. See :func:`files_matching` for why that matters.
+    """
+    return unicodedata.normalize("NFC", name)
+
+
+def files_matching(folder: "Path | str | None", *patterns: str) -> list[Path]:
+    """The files in *folder* matching any of *patterns*, ACCENT-SPELLING AND ALL.
+
+    WHY THIS EXISTS, AND WHY ``Path.glob`` CANNOT BE USED FOR A STEM
+    ---------------------------------------------------------------
+    Every *existence* check in ChromIQ asks the filesystem, and APFS is
+    normalisation-INSENSITIVE: ``(run.dir / "Müller.ti2").exists()`` is True
+    whether the name on disk is composed or decomposed. ``Path.glob`` is not.
+    It lists the directory and compares in Python, where the two spellings are
+    simply different strings — so on a project restored from an HFS+ volume,
+    ``chart_ti2.exists()`` said True while ``glob("Müller*.tif")`` returned
+    nothing, and the Chart tab said "No chart for this profile run yet" with
+    four page bitmaps sitting in the folder. Measured with a real 20 MB HFS+
+    disk image; see ``tests/test_a_decomposed_name_finds_its_files.py``.
+
+    So the comparison is done on the composed spelling of BOTH sides. A name
+    that normalisation does not change — every ASCII name, which is the
+    overwhelming majority — folds to itself, and takes exactly the path it took
+    before: same matches, same order.
+
+    WHAT THIS DELIBERATELY DOES NOT DO
+    ----------------------------------
+    It does not rename anything. On Linux (and on Windows) the filesystem is
+    normalisation-*preserving and sensitive*, so ``Müller.tif`` composed and
+    ``Müller.tif`` decomposed are two genuinely different files that can sit in
+    one folder. Normalising names on the way in would have to overwrite one
+    with the other; matching returns both, which is the truthful answer — they
+    are both pages of that chart — and no caller here does anything to a match
+    but read, copy or archive it.
+
+    It does not fold case either. ``Path.glob`` is case-sensitive on POSIX and
+    case-insensitive on Windows, and callers pass ``*.tif``/``*.TIF`` pairs
+    because of it. That behaviour is reproduced exactly, so the only thing this
+    helper changes anywhere is the accent spelling.
+
+    *patterns* are single path components: ``"Müller*.tif"``, never
+    ``"chart/*"``. A pattern with a separator raises rather than quietly
+    matching less than the caller asked for.
+    """
+    if folder is None:
+        return []
+    for pat in patterns:
+        if "/" in pat or os.sep in pat:
+            raise ValueError(
+                f"files_matching takes one path component, not {pat!r}")
+    folded = [nfc(pat) for pat in patterns]
+    out: list[Path] = []
+    try:
+        with os.scandir(str(folder)) as entries:
+            for entry in entries:
+                name = nfc(entry.name)
+                if _NAME_CASEFOLD:
+                    name = name.lower()
+                if any(fnmatch.fnmatchcase(
+                        name, pat.lower() if _NAME_CASEFOLD else pat)
+                       for pat in folded):
+                    out.append(Path(entry.path))
+    except (OSError, ValueError):
+        # A folder that is not there holds no files — the same answer
+        # `Path.glob` gives, and every caller here already treats it that way.
+        return []
+    return sorted(out)
 
 
 def ensure_subdir(path: Path) -> Path:
@@ -567,12 +650,13 @@ class Calibration:
     def chart_tiffs(self) -> list[Path]:
         # `<stem>*.tif` matches both single-page <stem>.tif and multi-page
         # <stem>_NN.tif (see Run.chart_tiffs for the rationale).
-        if not self.dir.exists():
-            return []
-        out: set[Path] = set()
-        for pattern in (f"{self.stem}*.tif", f"{self.stem}*.TIF", f"{self.stem}*.tiff"):
-            out.update(self.dir.glob(pattern))
-        return sorted(out)
+        return self.files_matching(f"{self.stem}*.tif", f"{self.stem}*.TIF",
+                                   f"{self.stem}*.tiff")
+
+    def files_matching(self, *patterns: str) -> list[Path]:
+        """The calibration folder's files matching *patterns*, accent spelling
+        and all. See :func:`files_matching`."""
+        return files_matching(self.dir, *patterns)
 
     def exists(self) -> bool:
         """True when at least one calibration artefact is on disk."""
@@ -816,12 +900,17 @@ class Run:
         chart_creator._printtarg_done. Using `<stem>_*.tif` (underscore) would
         silently miss single-page charts.
         """
-        if not self.dir.exists():
-            return []
-        out: set[Path] = set()
-        for pattern in (f"{self.stem}*.tif", f"{self.stem}*.TIF", f"{self.stem}*.tiff"):
-            out.update(self.dir.glob(pattern))
-        return sorted(out)
+        return self.files_matching(f"{self.stem}*.tif", f"{self.stem}*.TIF",
+                                   f"{self.stem}*.tiff")
+
+    def files_matching(self, *patterns: str) -> list[Path]:
+        """This run's files matching *patterns*, accent spelling and all.
+
+        The one way anything in ChromIQ asks "which files in this run are
+        called <stem>-something". `Path.glob` is not, because it compares
+        spellings rather than names — see :func:`files_matching`.
+        """
+        return files_matching(self.dir, *patterns)
 
     # ---- measurements
     # The canonical measurement is ``<stem>.ti3`` — chartread is stem-coupled
@@ -992,9 +1081,7 @@ class Run:
         return self.verifications_dir / f"{self.verify_stem}.channels.json"
 
     def verify_chart_tiffs(self) -> list[Path]:
-        if not self.verifications_dir.exists():
-            return []
-        return sorted(self.verifications_dir.glob(f"{self.verify_stem}*.tif"))
+        return files_matching(self.verifications_dir, f"{self.verify_stem}*.tif")
 
     def has_verify_chart(self) -> bool:       return self.verify_chart_ti2.exists()
 
@@ -1051,8 +1138,14 @@ class Run:
                 shutil.move(str(src), str(dst))
                 if ext == ".ti2":
                     moved_ti2 = dst
-        for tif in sorted(self.dir.glob(f"{old}_*.tif")):
-            dst = self.verifications_dir / tif.name.replace(old, new, 1)
+        # NFC on both sides of the rename as well as the match: a page whose
+        # name came off an HFS+ volume is spelled differently from `old`, so
+        # `str.replace` would find nothing and move the page to verifications/
+        # still carrying the PROFILING stem — a verify chart with a page the
+        # verify glob cannot see.
+        for tif in self.files_matching(f"{old}_*.tif"):
+            dst = self.verifications_dir / nfc(tif.name).replace(nfc(old),
+                                                                nfc(new), 1)
             shutil.move(str(tif), str(dst))
         # A single-page chart's TIFF has no "_NN" suffix — it's just "<stem>.tif"
         # — so the glob above misses it. Move that too, or a single-page verify
@@ -1067,8 +1160,9 @@ class Run:
             vexp = self.verifications_dir / EXPORTS_DIRNAME
             vexp.mkdir(parents=True, exist_ok=True)
             for f in list(exp.iterdir()):
-                if f.is_file() and f.name.startswith(old):
-                    shutil.move(str(f), str(vexp / f.name.replace(old, new, 1)))
+                if f.is_file() and nfc(f.name).startswith(nfc(old)):
+                    shutil.move(str(f), str(
+                        vexp / nfc(f.name).replace(nfc(old), nfc(new), 1)))
         return moved_ti2
 
     def _clear_verify_chart_files(self) -> None:
@@ -1087,10 +1181,11 @@ class Run:
         if not vdir.exists():
             return
         stem = self.verify_stem
-        targets = [p for p in vdir.glob(f"{stem}*") if p.is_file()]
+        targets = [p for p in files_matching(vdir, f"{stem}*") if p.is_file()]
         vexp = vdir / EXPORTS_DIRNAME
         if vexp.is_dir():
-            targets += [f for f in vexp.glob(f"{stem}*") if f.is_file()]
+            targets += [f for f in files_matching(vexp, f"{stem}*")
+                        if f.is_file()]
         try:
             self.archive_to_old(targets, into=self.verifications_old_dir)
         except OSError as exc:
@@ -1939,12 +2034,19 @@ class Project:
         protected = {self.MANIFEST, self.README, "meta.json"}
         tail_re = re.compile(r"(-cal|-verify)?(-i1profiler|-colours)?(_\d+)?\.[\w.]+$")
 
+        # NFC ON BOTH SIDES. `old_stem` comes from a name ChromIQ composed;
+        # the names on disk may be decomposed, because a project restored from
+        # a Mac OS Extended volume is spelled that way. Compared raw, a rename
+        # skipped every accented artefact and left the whole chart behind under
+        # the old name while the project moved on.
+        old_stem_nfc = nfc(old_stem)
         for f in sorted(self._root.rglob("*")):
             if not f.is_file() or f.name in protected:
                 continue
-            if not f.name.startswith(old_stem):
+            name_nfc = nfc(f.name)
+            if not name_nfc.startswith(old_stem_nfc):
                 continue
-            tail = f.name[len(old_stem):]
+            tail = name_nfc[len(old_stem_nfc):]
             if not tail_re.fullmatch(tail):
                 continue
             dst = f.with_name(new_stem + tail)
@@ -2099,7 +2201,15 @@ class Project:
                 continue
             found: list[Path] = []
             for pat in patterns:
-                for p in sorted(source.dir.glob(pat.format(stem=source.stem))):
+                filled = pat.format(stem=source.stem)
+                # `chart/**/*` and friends are multi-segment and carry no stem,
+                # so `Path.glob` is still right for them; the stem patterns are
+                # all single names and go through the accent-blind matcher, or
+                # a duplicate of a project restored from an HFS+ volume copies
+                # the chart's metadata and none of its pages.
+                hits = (sorted(source.dir.glob(filled)) if "/" in filled
+                        else files_matching(source.dir, filled))
+                for p in hits:
                     if p.is_file() and p not in found:
                         found.append(p)
             if found:

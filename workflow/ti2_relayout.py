@@ -1005,7 +1005,8 @@ def regenerate(
                            text=True, timeout=300, stdin=subprocess.DEVNULL)
         if r.returncode != 0:
             raise RuntimeError(f"printtarg failed ({r.returncode}): {r.stderr.strip()}")
-        return sorted({*work.glob(f"{basename}*.tif"), *work.glob(f"{basename}*.tiff")})
+        from core.file_manager import files_matching
+        return files_matching(work, f"{basename}*.tif", f"{basename}*.tiff")
 
     tiffs = _run(out_dir, bw=False)
     # The B&W twin is a second printtarg run, used only to locate spacer pixels

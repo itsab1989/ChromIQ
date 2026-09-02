@@ -691,7 +691,9 @@ def _next_run_id(project) -> str:
 
 
 def _dest_tiffs(ti2_in_project: Path) -> "list[Path]":
-    return sorted(ti2_in_project.parent.glob(f"{ti2_in_project.stem}_*.tif"))
+    from core.file_manager import files_matching
+    return files_matching(ti2_in_project.parent,
+                          f"{ti2_in_project.stem}_*.tif")
 
 
 def _run_and_kind_for_ti2(ti2_path: Path) -> "tuple[str, bool]":
@@ -917,7 +919,7 @@ def _handle_full_project(parent, ti2_path, src_root, working_dir, controller):
         _point_bar_at_current_run(controller)
         from core.file_manager import Project
         run = Project.load(dest).current_run()
-        return run.chart_ti2, sorted(run.dir.glob(f"{run.stem}_*.tif"))
+        return run.chart_ti2, run.files_matching(f"{run.stem}_*.tif")
     if key == "chart":
         return _handle_loose_into_project(parent, ti2_path, working_dir, controller)
     return None
@@ -1100,6 +1102,7 @@ def _project_root_for(path: Path, working_dir: Path) -> Path | None:
 
 def _related_files(ti2_path: Path) -> tuple[Path | None, list[Path]]:
     """Return (ti1_or_None, sorted_tiff_list) for a given .ti2."""
+    from core.file_manager import files_matching
     folder = ti2_path.parent
     stem   = ti2_path.stem
     ti1    = folder / f"{stem}.ti1"
@@ -1109,9 +1112,8 @@ def _related_files(ti2_path: Path) -> tuple[Path | None, list[Path]]:
     # existing target* (forum #148275 — same root cause as the generation-path
     # fix in chart_creator._printtarg_done for #148124).
     tiffs  = sorted({
-        *folder.glob(f"{stem}*.tif"),
-        *folder.glob(f"{stem}*.TIF"),
-        *folder.glob(f"{stem}*.tiff"),
+        *files_matching(folder, f"{stem}*.tif", f"{stem}*.TIF",
+                        f"{stem}*.tiff"),
     })
     return (ti1 if ti1.exists() else None), tiffs
 

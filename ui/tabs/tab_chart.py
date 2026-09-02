@@ -6176,7 +6176,7 @@ class TabChart(QWidget):
         try:
             run = self._file_mgr.project().current_run()
             ti2 = run.chart_ti2
-            tiffs = sorted(run.dir.glob(f"{run.stem}_*.tif"))
+            tiffs = run.files_matching(f"{run.stem}_*.tif")
             if not tiffs and (run.dir / f"{run.stem}.tif").is_file():
                 tiffs = [run.dir / f"{run.stem}.tif"]
         except Exception as exc:  # noqa: BLE001 — never block on a malformed run
@@ -11214,7 +11214,8 @@ class TabChart(QWidget):
         src_ti2 = src_dir / f"{stem}.ti2"
         # Multi-page charts are "<stem>_01.tif…"; a single page is just
         # "<stem>.tif". Accept both so a one-page applied chart still imports.
-        src_tiffs = sorted(src_dir.glob(f"{stem}_*.tif"))
+        from core.file_manager import files_matching
+        src_tiffs = files_matching(src_dir, f"{stem}_*.tif")
         if not src_tiffs and (src_dir / f"{stem}.tif").is_file():
             src_tiffs = [src_dir / f"{stem}.tif"]
         _ctl = getattr(self, "_target_ctl", None)
@@ -11319,9 +11320,14 @@ class TabChart(QWidget):
         # staged files carry the editor's layout name; rename them to the run
         # stem (the profile name) so the whole run folder is self-consistent —
         # the profile name and the chart layout name now differ (#70).
-        for extra in sorted(src_dir.glob(f"{stem}-i1profiler.*")) + \
-                sorted(src_dir.glob(f"{stem}-colours.txt")):
-            dest_name = run.stem + extra.name[len(stem):]
+        from core.file_manager import files_matching, nfc
+        for extra in files_matching(src_dir, f"{stem}-i1profiler.*",
+                                    f"{stem}-colours.txt"):
+            # NFC on both sides: `len(stem)` is a count of code points, and a
+            # decomposed page name has more of them than the composed stem the
+            # slice is measured against, so the tail would be cut in the wrong
+            # place.
+            dest_name = run.stem + nfc(extra.name)[len(nfc(stem)):]
             try:
                 shutil.copy(extra, run.dir / dest_name)
             except OSError as exc:
@@ -11435,7 +11441,8 @@ class TabChart(QWidget):
         src_ti2 = resource_path(f"{stem_rel}.ti2")
         src_dir = src_ti1.parent
         src_stem = src_ti1.stem
-        src_tiffs = sorted(src_dir.glob(f"{src_stem}_*.tif"))
+        from core.file_manager import files_matching
+        src_tiffs = files_matching(src_dir, f"{src_stem}_*.tif")
         if not src_ti1.is_file() or not src_tiffs:
             InfoDialog(
                 "Prebuilt chart not found",
@@ -15845,7 +15852,7 @@ class TabChart(QWidget):
         srcs = [run.dir / f"{stem}{ext}" for ext in
                 (".ti1", ".ti2", ".cht", ".channels.json", ".strips.json",
                  ".tif", ".ti3", ".icc", ".icm")]
-        srcs += list(run.dir.glob(f"{stem}_*.tif"))
+        srcs += run.files_matching(f"{stem}_*.tif")
         present = [p for p in srcs if p.is_file()]
         if not present:
             return None
@@ -16034,7 +16041,7 @@ class TabChart(QWidget):
                 tiffs = run.verify_chart_tiffs()
             else:
                 ti2, ti1 = run.chart_ti2, run.chart_ti1
-                tiffs = sorted(run.dir.glob(f"{run.stem}_*.tif"))
+                tiffs = run.files_matching(f"{run.stem}_*.tif")
                 if not tiffs and (run.dir / f"{run.stem}.tif").is_file():
                     tiffs = [run.dir / f"{run.stem}.tif"]
             if ti2.is_file() and tiffs:
