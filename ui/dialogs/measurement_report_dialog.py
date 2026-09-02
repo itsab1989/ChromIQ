@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import (
 
 from core.i18n import tr
 from core.logger import get_logger
+from ui import neutral_styles
 from ui.fade_scroll import attach_edge_fades
 from ui.styles import BG_INPUT, BORDER, SPEC_GREEN, TAB_COLORS, TEXT_MAIN
 from ui.tab_header import dialog_masthead
@@ -94,6 +95,36 @@ _DARK_REPORT = {
     "rule": "#5a5a5a", "hair": "#3a3a3a", "zebra": "#272727", "panel": "#232323",
     "pass": "#4fd77a", "fail": "#ff6f61", "error": "#ff6f61",
     "swatch_edge": "#6a6a6a",
+}
+#: Neutral. NO HUE CARRIES A VERDICT HERE: the report already writes the words
+#: "Pass" and "Fail" in bold beside every colour it sets, so the greens and
+#: reds were reinforcement, not the message. Pass recedes to tertiary ink and a
+#: failure takes full ink — the handoff's "a page of passes should look calm,
+#: a failing row is findable while scrolling without reading". The GLYPHS that
+#: complete that rule (solid disc / triangle / square, a 1px underline, a 3px
+#: left bar) are a component job and are not here yet; until they land the two
+#: verdicts differ by ink weight and the word alone.
+#:
+#: The PDF is untouched by this: ``_report_body_html`` picks ``_LIGHT_REPORT``
+#: whenever ``for_pdf`` is set, because the report leaves the building, gets
+#: printed, and is read by someone who never chose an appearance.
+_NEUTRAL_REPORT = {
+    "text": neutral_styles.NM_TEXT_MAIN,   "head": neutral_styles.NM_TEXT_MAIN,
+    "dim":  neutral_styles.NM_TEXT_DIM,    "faint": neutral_styles.NM_TEXT_FAINT,
+    "rule": neutral_styles.NM_BORDER,      "hair": neutral_styles.NM_DISABLED,
+    "zebra": neutral_styles.NM_BG_SURFACE, "panel": neutral_styles.NM_BG_SURFACE,
+    "pass": neutral_styles.NM_TEXT_FAINT,  "fail": neutral_styles.NM_TEXT_MAIN,
+    "error": neutral_styles.NM_TEXT_MAIN,
+    "swatch_edge": neutral_styles.NM_BORDER,
+}
+#: ``{appearance: palette}``. The two picks below were
+#: ``_DARK_REPORT if … == "dark" else _LIGHT_REPORT`` — which gave Neutral the
+#: LIGHT report by accident. Readable, and wrong: it is the warm light palette
+#: with green and red verdicts in a theme that has no hue.
+_REPORTS = {
+    "light":   _LIGHT_REPORT,
+    "dark":    _DARK_REPORT,
+    "neutral": _NEUTRAL_REPORT,
 }
 #: The palette the HTML builders are currently rendering with. Set by
 #: ``_report_body_html`` before it builds anything, so the module-level
@@ -2003,10 +2034,9 @@ class MeasurementReportDialog(QDialog):
         # white paper so it is always the light one, and the window follows the
         # theme. Global because the module-level heading helpers use it too.
         global _C
-        _C = dict(_LIGHT_REPORT if for_pdf
-                  else (_DARK_REPORT
-                        if resolve_mode(self._settings.get("appearance", "auto")) == "dark"
-                        else _LIGHT_REPORT))
+        _C = dict(_LIGHT_REPORT if for_pdf else _REPORTS.get(
+            resolve_mode(self._settings.get("appearance", "auto")),
+            _LIGHT_REPORT))
         if not runs:
             return self._empty_html()
         # A plain "Created: …" line — at the top of the window body, and under
@@ -2071,9 +2101,9 @@ class MeasurementReportDialog(QDialog):
         message shown after a PDF save would still be wearing the PDF's
         light-on-white colours."""
         global _C
-        _C = dict(_DARK_REPORT
-                  if resolve_mode(self._settings.get("appearance", "auto")) == "dark"
-                  else _LIGHT_REPORT)
+        _C = dict(_REPORTS.get(
+            resolve_mode(self._settings.get("appearance", "auto")),
+            _LIGHT_REPORT))
 
     def _empty_html(self) -> str:
         self._use_theme_palette()

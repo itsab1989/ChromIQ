@@ -16,6 +16,7 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtWidgets import QApplication, QWidget
 from core.i18n import tr
+from ui import neutral_styles
 
 
 # Per-mode visual tokens. Hover background uses a translucent accent so the
@@ -35,6 +36,27 @@ _PALETTE_LIGHT = {
     "text_hover":    "#22211f",
     "hover_bg":      "#f0ece6",
     "shadow":        QColor(0, 0, 0, 30),
+}
+#: Neutral. The popup is a raised card, and its hover steps DOWN from that
+#: card rather than up — nothing in this theme is lighter than its ground.
+_PALETTE_NEUTRAL = {
+    "panel_bg":      neutral_styles.NM_BG_SURFACE,
+    "panel_border":  neutral_styles.NM_BORDER,
+    "text":          neutral_styles.NM_TEXT_MAIN,
+    "text_hover":    neutral_styles.NM_TEXT_MAIN,
+    "hover_bg":      neutral_styles.NM_BG_WINDOW,
+    "shadow":        QColor(0, 0, 0, 30),
+}
+
+#: ``{appearance: palette}`` — a TABLE, not a ternary. ``_PALETTE_LIGHT if
+#: mode == "light" else _PALETTE_DARK`` had room for two answers and gave the
+#: dark one to everything else: the appearance name arrived intact (that was
+#: ``accept_mode``'s job, one layer up) and the COLOURS were still folded.
+#: Adding an appearance is adding a row.
+_PALETTES = {
+    "light":   _PALETTE_LIGHT,
+    "dark":    _PALETTE_DARK,
+    "neutral": _PALETTE_NEUTRAL,
 }
 
 
@@ -147,7 +169,7 @@ class ToolsPopup(QWidget):
     def set_appearance(self, mode: str) -> None:
         from ui.theme import accept_mode
         self._mode = accept_mode(mode)
-        self._palette = _PALETTE_LIGHT if self._mode == "light" else _PALETTE_DARK
+        self._palette = _PALETTES.get(self._mode, _PALETTE_DARK)
         self.update()
 
     # ------------------------------------------------------------------

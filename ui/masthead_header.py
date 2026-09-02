@@ -15,6 +15,7 @@ from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import QToolButton, QWidget
 
 from core.resource_path import resource_path
+from ui import neutral_styles
 from ui.welcome_button import WelcomeButton
 from core.i18n import tr
 from ui.keyboard_help import with_shortcut
@@ -27,7 +28,14 @@ _STOPS = (
     "#9f82ff",  # Check & Refine
 )
 
-_ACCENT     = "#ff4573"  # tab-1 tint for "IQ" — unchanged in both modes
+#: The historical "IQ" tint, magenta, in the Light and Dark appearances. It is
+#: NOT a global any more: each appearance names its own wordmark accent under
+#: the ``wordmark_accent`` key below, because Neutral has no magenta. Kept as a
+#: module constant so the two appearances that do use it read from one place —
+#: and because `ui/pdf_layout.py` keeps the magenta on paper regardless of the
+#: screen theme (the report leaves the building and is read by someone who
+#: never chose an appearance).
+_ACCENT     = "#ff4573"  # tab-1 tint for "IQ" in Light and Dark
 
 # Per-mode palettes. Dark values are historical; light values per the
 # light-mode v2 handoff design.
@@ -41,6 +49,7 @@ _PALETTE_DARK = {
     #: new user what to do. 4.56:1 against this rail (WCAG AA wants 4.5:1).
     "rail_hint_fg":   "#787878",
     "wordmark":       "#ffffff",   # "Chrom"
+    "wordmark_accent": _ACCENT,    # "IQ" — the magenta, unchanged
     "ver_separator":  "#000000",
     "icon_track":     "#555555",   # programmatic fallback icon
     "wordmark_dy":    0,           # vertical fine-tune for the wordmark baseline
@@ -52,10 +61,42 @@ _PALETTE_LIGHT = {
     "tag_fg":         "#b8b4ae",
     "rail_hint_fg":   "#404040",      # 8.71:1 against the light rail
     "wordmark":       "#1c1b18",
+    "wordmark_accent": _ACCENT,    # "IQ" — the magenta, unchanged
     "ver_separator":  "#d8d4ce",
     "icon_track":     "#c8c4be",
     "wordmark_dy":    -5,          # nudge "ChromIQ" 5 px up in light mode
 }
+
+#: Neutral — the handoff's token table. THE MAGENTA GOES: measured on this
+#: frame it is 2.55:1, so it was not carrying the mark on a light ground
+#: anyway. "Chrom" drops to TEXT_FAINT and "IQ" takes TEXT_MAIN; the italic
+#: already separates them, and that is a larger contrast step than the magenta
+#: was providing. Nothing here is carried over from the dark palette — every
+#: value is ink on a light ground (handoff rule 2).
+_PALETTE_NEUTRAL = {
+    "bg":             neutral_styles.NM_BG_WINDOW,    # outer chrome, L* 90
+    "ver_bg":         neutral_styles.NM_BG_VIEWER,    # the rail, one step down
+    "ver_fg":         neutral_styles.NM_TEXT_DIM,     # 10.60:1 on the rail
+    "tag_fg":         neutral_styles.NM_TEXT_FAINT,   # tertiary
+    "rail_hint_fg":   neutral_styles.NM_TEXT_MAIN,    # instruction, not decoration
+    "wordmark":       neutral_styles.NM_TEXT_FAINT,   # "Chrom"
+    "wordmark_accent": neutral_styles.NM_TEXT_MAIN,   # "IQ"
+    "ver_separator":  neutral_styles.NM_BORDER,
+    "icon_track":     neutral_styles.NM_TEXT_FAINT,   # programmatic fallback icon
+    "wordmark_dy":    -5,          # same optical nudge as the light masthead
+}
+
+#: ``{appearance: palette}`` — a TABLE, not a ternary. ``_PALETTE_LIGHT if
+#: mode == "light" else _PALETTE_DARK`` had room for two answers and gave the
+#: dark one to everything else, which is the fault ``accept_mode`` was written
+#: to stop one layer up: the name arrived intact and the colours were still
+#: folded. Adding an appearance is adding a row.
+_PALETTES = {
+    "light":   _PALETTE_LIGHT,
+    "dark":    _PALETTE_DARK,
+    "neutral": _PALETTE_NEUTRAL,
+}
+
 
 
 class MastheadHeader(QWidget):
@@ -184,7 +225,7 @@ class MastheadHeader(QWidget):
         if new_mode == self._mode:
             return
         self._mode = new_mode
-        self._palette = _PALETTE_LIGHT if new_mode == "light" else _PALETTE_DARK
+        self._palette = _PALETTES.get(new_mode, _PALETTE_DARK)
         self._load_settings_icon()
         self._load_tools_icon()
         self._load_masthead_left_icons()
@@ -496,7 +537,7 @@ class MastheadHeader(QWidget):
         p.drawText(int(x_start), int(baseline), "Chrom")
 
         p.setFont(font_i)
-        p.setPen(QColor(_ACCENT))
+        p.setPen(QColor(pal.get("wordmark_accent", _ACCENT)))
         p.drawText(int(x_start + chrom_w - 1), int(baseline), "IQ")
 
         p.end()

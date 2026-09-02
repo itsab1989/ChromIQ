@@ -13,8 +13,9 @@ from PyQt6.QtGui import QColor, QPalette
 from PyQt6.QtWidgets import QApplication
 
 from core.logger import get_logger
-from ui import light_styles, styles
+from ui import light_styles, neutral_styles, styles
 from ui.light_styles import LIGHT_STYLESHEET, make_light_palette
+from ui.neutral_styles import NEUTRAL_STYLESHEET, make_neutral_palette
 from ui.styles import APP_STYLESHEET, make_dark_palette
 
 if TYPE_CHECKING:
@@ -22,15 +23,23 @@ if TYPE_CHECKING:
 
 log = get_logger(__name__)
 
-APPEARANCE_LIGHT = "light"
-APPEARANCE_DARK  = "dark"
-APPEARANCE_AUTO  = "auto"
+APPEARANCE_LIGHT   = "light"
+APPEARANCE_DARK    = "dark"
+#: The third appearance: a light-grey working environment with no colour
+#: anywhere in the interface. Its values live in :mod:`ui.neutral_styles`.
+APPEARANCE_NEUTRAL = "neutral"
+APPEARANCE_AUTO    = "auto"
 
-VALID_APPEARANCES = (APPEARANCE_LIGHT, APPEARANCE_DARK, APPEARANCE_AUTO)
+VALID_APPEARANCES = (APPEARANCE_LIGHT, APPEARANCE_DARK, APPEARANCE_NEUTRAL,
+                     APPEARANCE_AUTO)
 
 #: The concrete appearances — the answers :func:`active_mode` can give. AUTO is
 #: not here: it is a *setting*, and resolves to one of these.
-CONCRETE_APPEARANCES = (APPEARANCE_LIGHT, APPEARANCE_DARK)
+#:
+#: NEUTRAL is not something AUTO can resolve to: the OS reports light or dark
+#: and has no third scheme to follow, so Neutral is only ever reached by asking
+#: for it by name.
+CONCRETE_APPEARANCES = (APPEARANCE_LIGHT, APPEARANCE_DARK, APPEARANCE_NEUTRAL)
 
 #: How an appearance is RECOGNISED on screen, rather than guessed at.
 #:
@@ -58,6 +67,14 @@ _FINGERPRINTS: "dict[str, dict[QPalette.ColorRole, str]]" = {
         QPalette.ColorRole.Window:     styles.BG_PANEL,
         QPalette.ColorRole.WindowText: styles.TEXT_MAIN,
     },
+    # THE ROW THIS TABLE WAS BUILT FOR. Neutral's window is L* 90 and its
+    # panel L* 93: every lightness threshold the app ever used (127, 128, 150)
+    # calls that "light". Only an identification tells the two apart, and this
+    # is it.
+    APPEARANCE_NEUTRAL: {
+        QPalette.ColorRole.Window:     neutral_styles.NM_BG_WINDOW,
+        QPalette.ColorRole.WindowText: neutral_styles.NM_TEXT_MAIN,
+    },
 }
 
 #: The role order :func:`active_mode` consults. Window first: it is what the
@@ -77,8 +94,11 @@ _FINGERPRINT_ROLES = (QPalette.ColorRole.Window, QPalette.ColorRole.WindowText)
 #: instead of testing the name against ``"light"``, which a light-grey third
 #: appearance would fail while needing the light answer.
 _DARK_GROUND: "dict[str, bool]" = {
-    APPEARANCE_LIGHT: False,
-    APPEARANCE_DARK:  True,
+    APPEARANCE_LIGHT:   False,
+    APPEARANCE_DARK:    True,
+    # Light-grey, so the light answer — this is the row that keeps a black
+    # native title bar off a light-grey window.
+    APPEARANCE_NEUTRAL: False,
 }
 
 
@@ -215,9 +235,12 @@ def has_dark_ground(mode: str) -> bool:
 
 
 def resolve_mode(setting: str) -> str:
-    """Return 'light' or 'dark' for the given setting value.
+    """Return the concrete appearance for the given setting value.
 
-    Auto consults Qt's QStyleHints.colorScheme(). If the platform reports
+    A setting that already names one of :data:`CONCRETE_APPEARANCES` — light,
+    dark or neutral — passes straight through. Auto consults Qt's
+    QStyleHints.colorScheme(), which reports light or dark and knows nothing of
+    a third scheme, so Auto never resolves to Neutral. If the platform reports
     Unknown, fall back to 'dark' (the historical default).
     """
     if setting in CONCRETE_APPEARANCES:
@@ -234,21 +257,42 @@ def resolve_mode(setting: str) -> str:
     return APPEARANCE_DARK
 
 
+#: ``{mode: (stylesheet, palette factory)}`` — what each concrete appearance
+#: PAINTS. A table rather than ``LIGHT_STYLESHEET if mode == "light" else
+#: APP_STYLESHEET``, for the same reason :data:`_FINGERPRINTS` is a table: that
+#: expression had room for two answers and gave the dark sheet to everything
+#: else, so a third appearance would have arrived as a light-grey palette
+#: wearing the dark stylesheet. Adding an appearance is adding a row.
+_APPEARANCE_STYLE: "dict[str, tuple[str, object]]" = {
+    APPEARANCE_LIGHT:   (LIGHT_STYLESHEET,   make_light_palette),
+    APPEARANCE_DARK:    (APP_STYLESHEET,     make_dark_palette),
+    APPEARANCE_NEUTRAL: (NEUTRAL_STYLESHEET, make_neutral_palette),
+}
+
+
 def apply_appearance(
     app: QApplication,
     main_window: "MainWindow | None",
     setting: str,
 ) -> str:
-    """Apply palette + stylesheet for `setting` ('light' | 'dark' | 'auto').
+    """Apply palette + stylesheet for `setting`.
 
-    Returns the resolved concrete mode ('light' or 'dark').
-    Safe to call multiple times.
+    `setting` is one of :data:`VALID_APPEARANCES` — 'light', 'dark', 'neutral'
+    or 'auto'. Returns the resolved concrete mode, one of
+    :data:`CONCRETE_APPEARANCES`. Safe to call multiple times.
     """
     if setting not in VALID_APPEARANCES:
         log.warning("Unknown appearance %r — falling back to auto", setting)
         setting = APPEARANCE_AUTO
     mode = resolve_mode(setting)
-    stylesheet = LIGHT_STYLESHEET if mode == APPEARANCE_LIGHT else APP_STYLESHEET
+    try:
+        stylesheet, make_palette = _APPEARANCE_STYLE[mode]
+    except KeyError:
+        # A concrete appearance with no row here paints nothing of its own.
+        # Loud, not silent: a quiet fall-through to Dark is precisely the fold
+        # this table replaced. `tests/test_neutral_appearance.py` fails first.
+        log.error("No style registered for appearance %r — using dark", mode)
+        stylesheet, make_palette = _APPEARANCE_STYLE[APPEARANCE_DARK]
     # Setting an app-wide stylesheet forces Qt to re-polish *every* existing
     # widget — ~2 s for our ~2500-widget tree on a cold start. At launch this
     # runs twice with the same resolved mode: once before the window exists (to
@@ -260,7 +304,7 @@ def apply_appearance(
     # window-only bits (macOS native title bar, masthead, per-tab accents) sync
     # regardless of whether the app-wide QSS was touched.
     if app.styleSheet() != stylesheet:
-        app.setPalette(make_light_palette() if mode == APPEARANCE_LIGHT else make_dark_palette())
+        app.setPalette(make_palette())
         app.setStyleSheet(stylesheet)
     if main_window is not None and hasattr(main_window, "apply_theme"):
         main_window.apply_theme(mode)

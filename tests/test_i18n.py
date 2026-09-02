@@ -254,8 +254,14 @@ def test_the_catalogue_is_actually_translated_into_german():
 # real import door, which is four new strings (the third answer, its log
 # line and the two window bodies). German carries all four, which also
 # cleared one older placeholder it shared wording with.
+# 2026-09-02, +1 for German only: the Neutral appearance's combo entry. The
+# German for the theme IS "Neutral" — it is the same word, in the same sense,
+# and inventing a different one to satisfy a counter would be the wrong way
+# round. Every other language names it differently (Neutro, Neutre, Nøytral,
+# ニュートラル, 中性色, …), so no other count moves. The tooltip that lists the
+# four appearances is translated in all twelve and is not identical anywhere.
 _IDENTICAL_TO_KEY = {
-    "de": 149,
+    "de": 150,
     "es": 262, "fr": 282, "it": 274, "ja": 251, "nl": 291,
     "no": 275, "pl": 266, "pt": 266, "ru": 238, "sv": 279, "zh_CN": 244,
 }

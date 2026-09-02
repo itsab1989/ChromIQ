@@ -18,6 +18,8 @@ from PyQt6.QtCore import QRect, Qt
 from PyQt6.QtGui import QColor, QFont, QPainter, QPen
 from PyQt6.QtWidgets import QStyleOptionTab, QTabBar, QWidget
 
+from ui import neutral_styles
+
 # Five spectrum colors — same order as tabs:
 # 1 Create · 2 Print · 3 Measure · 4 Profile · 5 Check
 SPECTRUM = [
@@ -47,8 +49,41 @@ _PALETTE_LIGHT = {
     "disabled_overlay": "#e5e2dd",
     "disabled_text":    "#b8b4ae",
 }
+#: Neutral. Active connects to the panel below it, inactive sits on the window
+#: trough — the handoff's tab-bar states, in this theme's tokens. The per-tab
+#: SPECTRUM accent above is NOT replaced here: under the chosen Index draft it
+#: becomes a five-cell rule, which is its own component.
+_PALETTE_NEUTRAL = {
+    "bar_bg":        neutral_styles.NM_BG_WINDOW,   # the trough, L* 90
+    "active_bg":     neutral_styles.NM_BG_PANEL,    # connects to the panel
+    "text_inactive": neutral_styles.NM_TEXT_DIM,    # 12.13:1 on the trough
+    "text_active":   neutral_styles.NM_TEXT_MAIN,
+    "sep":           neutral_styles.NM_BORDER,
+    "disabled_overlay": neutral_styles.NM_BG_WINDOW,
+    "disabled_text":    neutral_styles.NM_DISABLED,
+}
+
+#: ``{appearance: palette}`` — a TABLE, not a ternary. ``_PALETTE_LIGHT if
+#: mode == "light" else _PALETTE_DARK`` had room for two answers and gave the
+#: dark one to everything else: the appearance name arrived intact (that was
+#: ``accept_mode``'s job, one layer up) and the COLOURS were still folded.
+#: Adding an appearance is adding a row.
+_PALETTES = {
+    "light":   _PALETTE_LIGHT,
+    "dark":    _PALETTE_DARK,
+    "neutral": _PALETTE_NEUTRAL,
+}
 
 # Module-level back-compat (read by anything still importing these names).
+#
+# THESE ARE DARK'S VALUES AND ALWAYS WERE — Dark is hard-wired into this
+# module's public API. Nothing in `ui/`, `core/`, `workflow/` or `tests/`
+# imports any of them (checked: the only importer of this module is
+# `ui/main_window.py`, and it imports `SpectrumTabBar` alone), so they are left
+# exactly as they are rather than being made theme-aware: a name that resolves
+# at import time cannot follow a theme that changes at runtime, and turning
+# them into functions would be an API change for zero callers. If a caller ever
+# appears, it wants `SpectrumTabBar._palette`, not these.
 BG_BAR     = _PALETTE_DARK["bar_bg"]
 BG_INACTIVE = "transparent"
 BG_ACTIVE   = _PALETTE_DARK["active_bg"]
@@ -78,7 +113,7 @@ class SpectrumTabBar(QTabBar):
         if new_mode == self._mode:
             return
         self._mode = new_mode
-        self._palette = _PALETTE_LIGHT if new_mode == "light" else _PALETTE_DARK
+        self._palette = _PALETTES.get(new_mode, _PALETTE_DARK)
         self.update()
 
     # ------------------------------------------------------------------
@@ -152,7 +187,13 @@ class SpectrumTabBar(QTabBar):
             # edge by 1; dark mode extends the left edge by 1 (when there's
             # a previous tab to extend into).
             if is_active:
-                if self._mode == "light":
+                # WHICH KIND OF GROUND, not which NAME. This 1px fudge aligns
+                # the coloured overlay against the tab borders each stylesheet
+                # draws, and the light and neutral sheets draw them the same
+                # way. `self._mode == "light"` would have sent a light-grey
+                # appearance down the DARK branch.
+                from ui.theme import has_dark_ground
+                if not has_dark_ground(self._mode):
                     overlay_x = rect.x()
                     overlay_w = paint_w - 1
                 elif i > 0:

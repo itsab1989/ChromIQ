@@ -11,10 +11,13 @@ implementations correctly and sixteen of them would have repainted themselves
 Dark — a light-grey window with a dark masthead, a dark tab bar, a dark tool
 popup and a dark TIFF preview.
 
-Every test here CALLS the real component. The third appearance is registered in
-``ui.theme.CONCRETE_APPEARANCES`` for the duration of a test and removed again:
-**no Neutral colour values are added anywhere by this change**, only the
-plumbing that can carry a third answer.
+Every test here CALLS the real component. When this file was written the third
+appearance was registered in ``ui.theme.CONCRETE_APPEARANCES`` for the duration
+of a test and removed again, because only the plumbing existed. **Neutral now
+ships** (``ui/neutral_styles.py``), so the fixture no longer simulates it — it
+asserts it is really there and the mutation is performed with the shipped
+appearance. The tests are otherwise unchanged: what they prove is still that no
+component folds a third answer away.
 
 APPEARANCE IS SET BY HANDING A COMPONENT A MODE, NEVER BY ``apply_appearance``.
 An app-wide ``setStyleSheet`` in a test re-polishes every widget the suite has
@@ -45,14 +48,20 @@ def app():
 
 
 @pytest.fixture
-def third(monkeypatch):
-    """Register a third concrete appearance, light-grounded, then remove it."""
-    monkeypatch.setattr(
-        theme, "CONCRETE_APPEARANCES",
-        theme.CONCRETE_APPEARANCES + (THIRD,), raising=True)
-    monkeypatch.setattr(
-        theme, "_DARK_GROUND", {**theme._DARK_GROUND, THIRD: False},
-        raising=True)
+def third():
+    """The third concrete appearance — now a shipped one, not a simulated one.
+
+    This used to monkeypatch ``CONCRETE_APPEARANCES`` and ``_DARK_GROUND`` for
+    the duration of each test. Neutral is registered for real now, so the
+    fixture's job is to say so: if either registration is ever removed, every
+    test that takes this fixture fails here with the reason, rather than
+    failing far away with a component "folding" an appearance that no longer
+    exists.
+    """
+    assert THIRD in theme.CONCRETE_APPEARANCES, (
+        f"{THIRD!r} is not a concrete appearance any more")
+    assert theme.has_dark_ground(THIRD) is False, (
+        f"{THIRD!r} lost its light _DARK_GROUND row")
     return THIRD
 
 
@@ -87,8 +96,12 @@ def test_accept_mode_carries_a_third_appearance_once_it_is_registered(third):
 
 
 def test_accept_mode_still_refuses_a_name_that_is_not_an_appearance():
-    """The fold's defensive purpose is kept; only its ceiling is removed."""
-    assert theme.accept_mode(THIRD) == theme.APPEARANCE_DARK
+    """The fold's defensive purpose is kept; only its ceiling is removed.
+
+    ``THIRD`` used to be the example here, because it was not yet registered.
+    It ships now, so the example is a name that never will be.
+    """
+    assert "chartreuse" not in theme.CONCRETE_APPEARANCES
     assert theme.accept_mode("chartreuse") == theme.APPEARANCE_DARK
     assert theme.accept_mode("auto", default="light") == "light"
 
@@ -344,8 +357,11 @@ def test_patch_cube_panel_keeps_the_appearance_it_was_constructed_with(app,
     assert PatchCubePanel(mode=THIRD)._mode == THIRD
     assert PatchCubePanel(mode="light")._mode == "light"
     assert PatchCubePanel(mode="dark")._mode == "dark"
-    # No third colour table is added by this change, so it still paints Dark.
-    assert PatchCubePanel(mode=THIRD)._theme["bg"] == "#111111"
+    # …and now that `_THEME` has a third entry, it paints its OWN well rather
+    # than Dark's. Keeping the name is what made that entry reachable.
+    from ui.neutral_styles import NM_BG_VIEWER
+    assert PatchCubePanel(mode=THIRD)._theme["bg"] == NM_BG_VIEWER
+    assert PatchCubePanel(mode="dark")._theme["bg"] == "#111111"
 
 
 def test_the_per_tab_style_cache_tells_a_third_appearance_from_dark(app, third):
