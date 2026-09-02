@@ -976,6 +976,20 @@ def _ask_project_name(parent, default_name, working_dir):
         name = edit.text().strip()
         if not name:
             err.setText(tr("Please enter a name.")); return
+        # THE SAME DOOR AS EVERY OTHER NAME BOX. This one was missed when the
+        # other four were routed through `name_prompt.validate`: it knew only
+        # "empty" and "already taken", so it was looser even than the four-line
+        # checks the loaders used to carry — a 250-character name, `CON`,
+        # `.hidden` and `bad:name` all came through. Two of its three callers
+        # then COPY A WHOLE PROJECT into that folder and the third calls
+        # `start_new_project`, so the first page bitmap dies with Errno 63
+        # (`<250 chars>_01.tif` is 257 bytes) and `CON` makes a folder Windows
+        # cannot open. The sentence is `validate`'s own, in the error label
+        # this dialog already has — no new wording reaches a user.
+        from ui.dialogs.name_prompt import validate as _one_door
+        _why = _one_door(edit.text())
+        if _why is not None:
+            err.setText(_why); return
         if _exists(name) and not replace:
             replace_btn.setVisible(True)
             err.setText(tr("A project named “{name}” already exists. Choose a "

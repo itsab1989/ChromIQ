@@ -173,6 +173,47 @@ def test_the_txt_import_dialog_still_takes_an_ordinary_name(qapp,
 
 
 # ---------------------------------------------------------------------------
+# The "Copy project" dialog — the FOURTH door, found by a challenge round
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("typed", REFUSED + ["bad:name"])
+def test_the_copy_project_dialog_refuses_an_impossible_name(qapp,
+                                                            import_source,
+                                                            typed):
+    """`ui/ti2_loader._ask_project_name` is a fourth name box, in the same file
+    as one of the three above, and it was missed. It knew only "empty" and
+    "already taken" — looser even than the four-line checks the loaders used to
+    carry, since it did not refuse a forbidden character either.
+
+    It matters because of what its three callers do with the answer:
+    A1b "Copy the whole project in" and File > Open Project on an outside
+    project both hand it to `chart_import.copy_whole_project`, and Load patch
+    set > new project hands it to `FileManager.start_new_project`. A
+    250-character name makes a folder whose first page bitmap is 257 bytes and
+    dies with Errno 63; `CON` makes a folder Windows cannot open.
+    """
+    from ui import ti2_loader
+    work, _ti2, _txt = import_source
+    parent = QWidget()
+    got, refusal = _drive(
+        lambda: ti2_loader._ask_project_name(parent, "Src", work), typed)
+    assert got is None, got
+    assert refusal == validate(typed), refusal
+
+
+@pytest.mark.parametrize("typed", ACCEPTED)
+def test_the_copy_project_dialog_still_takes_an_ordinary_name(qapp,
+                                                              import_source,
+                                                              typed):
+    from ui import ti2_loader
+    work, _ti2, _txt = import_source
+    parent = QWidget()
+    got, _refusal = _drive(
+        lambda: ti2_loader._ask_project_name(parent, "Src", work), typed)
+    assert got is not None and got[0] == typed, got
+
+
+# ---------------------------------------------------------------------------
 # The rename route
 # ---------------------------------------------------------------------------
 
