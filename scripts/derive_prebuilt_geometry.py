@@ -48,7 +48,7 @@ def main() -> int:
         from workflow.scanin_target import build_scanin_target_from_paths
         sidecar = d / f"{stem}.channels.json"
         doc = {"ink_channels": ["r", "g", "b"], "layout": layout}
-        sidecar.write_text(json.dumps(doc))
+        sidecar.write_text(json.dumps(doc), encoding="utf-8")
         with tempfile.TemporaryDirectory() as td:
             res = build_scanin_target_from_paths(sidecar, ti2, Path(td) / stem)
             assert res.n_patches == len(layout["patches"]), label

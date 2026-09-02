@@ -27,6 +27,7 @@ from pathlib import Path
 
 from core.logger import get_logger
 from core.resource_path import argyll_binary
+from core.text_io import read_text
 
 log = get_logger(__name__)
 
@@ -52,7 +53,7 @@ class _Parsed:
 def _parse(path: Path) -> _Parsed:
     """Read just enough of a CGATS .ti3 to validate compatibility before merging."""
     try:
-        text = path.read_text()
+        text = read_text(path)
     except OSError as exc:
         raise Ti3MergeError(f"Could not read '{path.name}': {exc}") from exc
 

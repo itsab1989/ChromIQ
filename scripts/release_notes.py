@@ -58,7 +58,7 @@ def _versions() -> "list[tuple[str, list[str]]]":
     out: "list[tuple[str, list[str]]]" = []
     cur: "str | None" = None
     body: "list[str]" = []
-    for line in CHANGELOG.read_text().splitlines():
+    for line in CHANGELOG.read_text(encoding="utf-8").splitlines():
         m = re.match(r"^## (\S+)\s*$", line)
         if m:
             if cur is not None:

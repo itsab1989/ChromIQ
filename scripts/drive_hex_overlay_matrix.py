@@ -64,7 +64,7 @@ def _probe_ti1(path: Path, n: int, mark: int) -> None:
         r, g, b = (100.0, 0.0, 100.0) if i == mark else (78.0, 78.0, 78.0)
         lines.append(f"{i+1} {r} {g} {b} 40.0 45.0 50.0")
     lines += ["END_DATA", ""]
-    path.write_text("\n".join(lines))
+    path.write_text("\n".join(lines), encoding="utf-8")
 
 
 def main() -> int:
@@ -123,14 +123,14 @@ def main() -> int:
         except Exception as exc:              # noqa: BLE001
             check(False, name, f"build failed: {exc}")
             continue
-        strips = json.loads(stem.with_suffix(".strips.json").read_text())
+        strips = json.loads(stem.with_suffix(".strips.json").read_text(encoding="utf-8"))
         (folder / "Chart.channels.json").write_text(json.dumps({
             "ink_channels": ["r", "g", "b"],
             "layout": {"engine": "chromiq", "engine_version": 1, "dpi": 200,
                        "paper_mm": [210.0, 297.0], "patches": strips["patches"],
                        "recipe": dict({"instrument": kw.get("instrument", "i1")},
                                       **{k: v for k, v in kw.items()
-                                         if k in ("hflag", "cm_stagger")})}}))
+                                         if k in ("hflag", "cm_stagger")})}}), encoding="utf-8")
         win.resize(ww, wh)
         pump(app, 400)
         tab.set_ti1_path(stem.with_suffix(".ti2"))

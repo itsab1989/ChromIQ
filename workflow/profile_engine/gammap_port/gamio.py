@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+from core.text_io import read_text
 
 
 @dataclass
@@ -26,7 +27,7 @@ class GamFile:
 
 
 def read_gam(path: Path | str) -> GamFile:
-    text = Path(path).read_text(errors="replace")
+    text = read_text(Path(path), lenient=True)
 
     def vec(key: str) -> np.ndarray:
         m = re.search(rf'^{key}\s+"([^"]+)"', text, re.M)

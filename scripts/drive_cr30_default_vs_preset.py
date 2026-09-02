@@ -95,7 +95,7 @@ def built_charts(root) -> dict:
     out = {}
     for cj in sorted(Path(root).rglob("*.channels.json")):
         try:
-            d = json.loads(cj.read_text())
+            d = json.loads(cj.read_text(encoding="utf-8"))
         except Exception:      # noqa: BLE001 — a bad sidecar is not the subject
             continue
         lay = d.get("layout") or {}

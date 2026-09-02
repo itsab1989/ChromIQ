@@ -86,7 +86,7 @@ def main() -> int:
         lines.append(f"{i+1} {r} {g} {b} 40.0 45.0 50.0")
     lines += ["END_DATA", ""]
     ti1 = work / "HexChart" / "probe.ti1"
-    ti1.write_text("\n".join(lines))
+    ti1.write_text("\n".join(lines), encoding="utf-8")
     stem = work / "HexChart" / "HexChart"
     res = le_chart.build_chart(ti1, stem, instrument="SS", paper="A4",
                                hflag=True, pscale=W / 7.0, border=6.0,
@@ -102,12 +102,12 @@ def main() -> int:
     # script would quietly test the rectangular path instead — which is exactly
     # what it did until the before/after screenshots came out byte-identical.
     import json
-    strips = json.loads(stem.with_suffix(".strips.json").read_text())
+    strips = json.loads(stem.with_suffix(".strips.json").read_text(encoding="utf-8"))
     (stem.parent / f"{stem.name}.channels.json").write_text(json.dumps({
         "ink_channels": ["r", "g", "b"],
         "layout": {"engine": "chromiq", "engine_version": 1, "dpi": 200,
                    "paper_mm": [210.0, 297.0], "patches": strips["patches"],
-                   "recipe": {"instrument": "SS", "hflag": True}}}))
+                   "recipe": {"instrument": "SS", "hflag": True}}}), encoding="utf-8")
     from workflow.hex_support import chart_is_hexagonal
     print(f"chart_is_hexagonal -> {chart_is_hexagonal(stem.with_suffix('.ti2'))}\n")
 

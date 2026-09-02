@@ -325,7 +325,7 @@ def main() -> int:
         win.close(); pump(app, 300)
     finally:
         guard_out(before)
-        (SANDBOX / "log.txt").write_text("\n".join(LOG))
+        (SANDBOX / "log.txt").write_text("\n".join(LOG), encoding="utf-8")
     return 0
 
 

@@ -372,7 +372,7 @@ def main() -> int:      # noqa: PLR0915, PLR0912
         if not jf.is_file():
             note(f"{tname}: no store file yet")
             continue
-        body = json.loads(jf.read_text())
+        body = json.loads(jf.read_text(encoding="utf-8"))
         got_i = ((body.get("create_chart_settings") or {}).get("printtarg-i")
                  or {}).get("value")
         got_g = ((body.get("create_chart_ui") or {}).get("guided")
@@ -462,7 +462,7 @@ def main() -> int:      # noqa: PLR0915, PLR0912
         if not jf.is_file():
             check(f"{tname}: {jf.relative_to(work)} exists", False, "missing")
             continue
-        body = json.loads(jf.read_text())
+        body = json.loads(jf.read_text(encoding="utf-8"))
         chart = dict(body.get("create_chart_settings") or {})
         for k, v in (body.get("create_chart_ui") or {}).items():
             if k == "guided" and isinstance(v, dict):
@@ -482,7 +482,7 @@ def main() -> int:      # noqa: PLR0915, PLR0912
     # F1 (fixed 2026-08-11): the verification's sections live in their OWN file
     ver_store = work / src.name / "runs" / run_a / "verifications" / "meta.json"
     if ver_store.is_file():
-        vbody = json.loads(ver_store.read_text())
+        vbody = json.loads(ver_store.read_text(encoding="utf-8"))
         vchart = dict(vbody.get("create_chart_settings") or {})
         for k, v in (vbody.get("create_chart_ui") or {}).items():
             if k == "guided" and isinstance(v, dict):

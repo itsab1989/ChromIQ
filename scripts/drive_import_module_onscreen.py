@@ -194,7 +194,7 @@ def main() -> int:
           "; ".join(closer.titles))
     if dst is None or not dst.exists():
         return 1
-    text = dst.read_text()
+    text = dst.read_text(encoding="utf-8")
     check("CHROMIQ_VERIFICATION keyword stamped",
           'CHROMIQ_VERIFICATION "true"' in text)
     from workflow.verify_chart_snapshot import has_snapshot
@@ -229,13 +229,13 @@ def main() -> int:
     before = sorted(p.name for p in run.verifications_dir.iterdir())
 
     # A deliberately truncated file must be refused by the count check.
-    lines = src_ti3.read_text().splitlines()
+    lines = src_ti3.read_text(encoding="utf-8").splitlines()
     cut = outside / "truncated.ti3"
     n_sets = next(i for i, ln in enumerate(lines) if "NUMBER_OF_SETS" in ln)
     end = next(i for i, ln in enumerate(lines) if ln.strip() == "END_DATA")
     kept = lines[:end - 5] + ["END_DATA"]
     kept[n_sets] = f"NUMBER_OF_SETS {int(lines[n_sets].split()[1]) - 5}"
-    cut.write_text("\n".join(kept) + "\n")
+    cut.write_text("\n".join(kept) + "\n", encoding="utf-8")
     closer.titles.clear()
     ctl.set_verification_id("")     # "New verification" again
     pump(app)

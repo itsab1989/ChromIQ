@@ -64,18 +64,18 @@ def build_chart(work: Path, name: str, w_mm: float, hexagonal: bool) -> Path:
               f"{float((i * 71) % 101)} 40.0 45.0 50.0" for i in range(n)]
     lines += ["END_DATA", ""]
     ti1 = folder / "probe.ti1"
-    ti1.write_text("\n".join(lines))
+    ti1.write_text("\n".join(lines), encoding="utf-8")
     stem = folder / name
     res = le_chart.build_chart(ti1, stem, instrument="SS", paper="A4",
                                hflag=hexagonal, pscale=w_mm / 7.0, border=6.0,
                                dpi=200, randomize=False)
-    strips = json.loads(stem.with_suffix(".strips.json").read_text())
+    strips = json.loads(stem.with_suffix(".strips.json").read_text(encoding="utf-8"))
     patches = [p for p in strips["patches"] if p["page"] == 0]
     (folder / f"{name}.channels.json").write_text(json.dumps({
         "ink_channels": ["r", "g", "b"],
         "layout": {"engine": "chromiq", "engine_version": 1, "dpi": 200,
                    "paper_mm": [210.0, 297.0], "patches": strips["patches"],
-                   "recipe": {"instrument": "SS", "hflag": hexagonal}}}))
+                   "recipe": {"instrument": "SS", "hflag": hexagonal}}}), encoding="utf-8")
     pw = sorted(p["w"] for p in patches)[len(patches) // 2]
     ph = sorted(p["h"] for p in patches)[len(patches) // 2]
     print(f"{name}: {res.layout.total_patches} patches, "

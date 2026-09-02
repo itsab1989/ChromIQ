@@ -24,6 +24,7 @@ from pathlib import Path
 import numpy as np
 
 from core.logger import get_logger
+from core.text_io import read_text
 
 log = get_logger(__name__)
 
@@ -39,7 +40,7 @@ def ti3_device_part(color_rep: str) -> str:
 
 def _read_ti3(ti3_path: Path) -> dict:
     """Parse the fields we need from a .ti3: device + CIE + ids."""
-    text = Path(ti3_path).read_text(errors="replace")
+    text = read_text(Path(ti3_path), lenient=True)
     m = re.search(r'^COLOR_REP\s+"([^"]+)"', text, re.M)
     if not m:
         raise NChannelCheckError("no COLOR_REP in measurement file")
@@ -203,7 +204,7 @@ def _recompute_spectral_xyz(ti3_path: Path, bin_dir: Path, *, illum: str,
     the real spectral data, and read the recomputed XYZ back. Bit-exact Argyll
     colorimetry (incl. FWA), no reimplementation.
     """
-    text = Path(ti3_path).read_text(errors="replace")
+    text = read_text(Path(ti3_path), lenient=True)
     if "SPECTRAL_BANDS" not in text or not re.search(r"\bSPEC_\d", text):
         raise NChannelCheckError(
             "the measurement has no spectral data, so a different "
@@ -247,7 +248,7 @@ def _recompute_spectral_xyz(ti3_path: Path, bin_dir: Path, *, illum: str,
             w = f"{brightness[j]:.4f}" if brightness is not None else "0"
             head.append(f"{r[sid_i]} {w} {w} {w} 0 0 0 {spec}")
         head += ["END_DATA", ""]
-        rel.write_text("\n".join(head))
+        rel.write_text("\n".join(head), encoding="utf-8")
 
         args = [str(spec2cie)]
         if fwa:
@@ -262,7 +263,7 @@ def _recompute_spectral_xyz(ti3_path: Path, bin_dir: Path, *, illum: str,
             raise NChannelCheckError(
                 f"spec2cie failed: {(r.stderr or r.stdout).strip()[:160]}")
 
-        otext = out.read_text()
+        otext = read_text(out)
         ofmt = re.search(r"BEGIN_DATA_FORMAT\s*\n(.*?)\nEND_DATA_FORMAT",
                          otext, re.S).group(1).split()
         oxi = [ofmt.index(f) for f in ("XYZ_X", "XYZ_Y", "XYZ_Z")]

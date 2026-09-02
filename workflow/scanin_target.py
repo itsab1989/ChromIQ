@@ -33,6 +33,7 @@ from pathlib import Path
 
 from core.i18n import count_phrase, tr
 from core.stem_paths import artefact
+from core.text_io import read_text
 
 from workflow.layout_engine import cht_writer, cie_writer
 from workflow.ti3_analysis import Ti3Data, parse_ti3
@@ -75,7 +76,7 @@ def _load_scanner_layout(channels_json: str | Path) -> dict:
             "was created. Measure a chart created with ChromIQ and its scanner "
             "files can be built from it.")
     try:
-        layout = json.loads(p.read_text()).get("layout") or {}
+        layout = json.loads(read_text(p)).get("layout") or {}
     except (OSError, ValueError) as exc:
         raise NotAnEngineChart(f"Couldn't read the chart layout: {exc}") from exc
     engine = layout.get("engine")
@@ -127,7 +128,7 @@ def layout_from_cht_files(cht_paths: list, ref_path: str | Path) -> dict:
     for p in cht_paths:
         p = Path(p)
         try:
-            text = p.read_text(errors="ignore")
+            text = read_text(p, lenient=True)
         except OSError as exc:
             raise ScaninTargetError(f"Couldn't read “{p.name}”: {exc}") from exc
         locs = _cht_x_box_locs(text)

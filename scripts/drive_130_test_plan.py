@@ -252,7 +252,7 @@ def run_scenarios() -> None:
         proj = Project.load(work / "Test-Profiling-P")
         run1 = proj.run("run1")
         # Ensure run1 has a profiling chart + measurement to displace.
-        run1.chart_ti2.write_text("old-chart"); run1.measurement_ti3.write_text("old-meas")
+        run1.chart_ti2.write_text("old-chart", encoding="utf-8"); run1.measurement_ti3.write_text("old-meas", encoding="utf-8")
         ctl.set_profile_run("run1"); ctl.set_run_type(RUN_TYPE_PROFILING)
         state["choice"] = "replace"
         out = resolve_ti2(win, ext / "loose-chart" / "loose-chart.ti2", settings, ctl)
@@ -285,7 +285,7 @@ def run_scenarios() -> None:
         tab_chart._load_existing_profile()
         pump(app)
         import json
-        ver = json.loads((legacy / "project.json").read_text()).get("schema_version")
+        ver = json.loads((legacy / "project.json").read_text(encoding="utf-8")).get("schema_version")
         tc.InfoDialog = real_info
         ok = info_shown["n"] >= 1 and ver == 3
         record("SCN-8 legacy project ported + announced", ok,
@@ -299,7 +299,7 @@ def run_scenarios() -> None:
     try:
         proj = Project.load(work / "Second-Project-R")
         run = proj.run("run1")
-        run.profile_icc.write_text("icc")             # has a profile
+        run.profile_icc.write_text("icc", encoding="utf-8")             # has a profile
         # Remove any verify chart so Hole 2 applies.
         if run.verifications_dir.exists():
             import shutil as _sh; _sh.rmtree(run.verifications_dir)

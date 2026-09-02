@@ -24,7 +24,7 @@ def main() -> int:
     no_strips = "--no-strips" in sys.argv
     app = QApplication.instance() or QApplication(sys.argv[:1])
     from ui.tiff_preview import TiffPreview
-    lay = json.loads(ti2.with_suffix(".channels.json").read_text())["layout"]
+    lay = json.loads(ti2.with_suffix(".channels.json").read_text(encoding="utf-8"))["layout"]
     tif = sorted(ti2.parent.glob(f"{ti2.stem}*.tif"))
     pv = TiffPreview()
     w, h = 900, 900

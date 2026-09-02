@@ -218,7 +218,7 @@ def _cataloguish(lang: str) -> dict:
     if lang == "en":
         return {"printer_profile_project_name": ["Printer Profile Project Name:"],
                 "folder_label": ["Folder:"], "duplicate": ["Duplicate"]}
-    cat = json.loads((ROOT / "data" / "i18n" / f"{lang}.json").read_text())
+    cat = json.loads((ROOT / "data" / "i18n" / f"{lang}.json").read_text(encoding="utf-8"))
     out = {}
     for key, (cat_key, suffix) in FROM_CATALOGUE.items():
         out[key] = [str(cat.get(cat_key, cat_key)) + suffix]
@@ -444,7 +444,7 @@ def generate() -> int:
             f'width="{vb[2]:.0f}" height="{vb[3]:.0f}" '
             f'viewBox="{vb[0]:.0f} {vb[1]:.0f} {vb[2]:.0f} {vb[3]:.0f}"',
             out, count=1)
-        (OUT_DIR / f"{lang}.svg").write_text(out)
+        (OUT_DIR / f"{lang}.svg").write_text(out, encoding="utf-8")
         print(f"  {lang}.svg written")
     print(f"\n{len(TABLE)} labels verified against the PDF; "
           f"{1 + len(LANGS)} SVGs in {OUT_DIR}")

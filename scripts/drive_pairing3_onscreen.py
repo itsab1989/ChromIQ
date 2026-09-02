@@ -232,7 +232,7 @@ def main() -> int:
         return 1
     rec_path = dst.parent / f"{dst.stem}.print.json"
     check("print record written beside the dated measurement", rec_path.exists())
-    rec = json.loads(rec_path.read_text()) if rec_path.exists() else {}
+    rec = json.loads(rec_path.read_text(encoding="utf-8")) if rec_path.exists() else {}
     check("record says through-profile via external colour management",
           rec.get("colour") == "through-profile"
           and rec.get("route") == "external-cm"

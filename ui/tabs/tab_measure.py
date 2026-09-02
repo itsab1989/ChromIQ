@@ -147,6 +147,7 @@ from workflow.ti3_analysis import mark_verification_ti3
 from workflow.scanin_target import has_scanner_geometry
 from ui.tiff_preview import TiffPreview
 from core.i18n import tr
+from core.text_io import read_text
 
 if TYPE_CHECKING:
     from core.argyll_runner import ArgyllRunner
@@ -439,7 +440,7 @@ def patch_boxes_from_sidecar(ti2_path: Path, n_pages: int
     strips_json = ti2_path.with_suffix(".strips.json")
     if strips_json.is_file():
         try:
-            data = json.loads(strips_json.read_text())
+            data = json.loads(read_text(strips_json))
             got = _ingest(data.get("patches") or [])
         except Exception:
             pass
@@ -448,7 +449,7 @@ def patch_boxes_from_sidecar(ti2_path: Path, n_pages: int
         channels = ti2_path.with_suffix(".channels.json")
         if channels.is_file():
             try:
-                layout = json.loads(channels.read_text()).get("layout") or {}
+                layout = json.loads(read_text(channels)).get("layout") or {}
                 if isinstance(layout, dict):
                     _ingest(layout.get("patches") or [])
             except Exception:
@@ -474,7 +475,7 @@ def edge_spacer_px_from_sidecar(ti2_path: "Path | None") -> int:
     if not channels.is_file():
         return 0
     try:
-        layout = json.loads(channels.read_text()).get("layout") or {}
+        layout = json.loads(read_text(channels)).get("layout") or {}
         recipe = layout.get("recipe") or {}
         if not recipe.get("edge_spacers"):
             return 0
@@ -563,7 +564,7 @@ def engine_strip_rects_from_sidecar(sidecar: Path, n_pages: int):
     if n_pages < 1 or not sidecar.is_file():
         return None
     try:
-        layout = json.loads(sidecar.read_text()).get("layout")
+        layout = json.loads(read_text(sidecar)).get("layout")
     except Exception:
         return None
     if not isinstance(layout, dict):
@@ -1471,7 +1472,7 @@ class TabMeasure(QWidget):
             channels = Path(ti2).with_suffix(".channels.json")
             if not channels.is_file():
                 return 0.0, 0.0
-            dpi = float((json.loads(channels.read_text()).get("layout") or {})
+            dpi = float((json.loads(read_text(channels)).get("layout") or {})
                         .get("dpi") or 0.0)
             if dpi <= 0:
                 return 0.0, 0.0
@@ -10172,10 +10173,10 @@ class TabMeasure(QWidget):
             # print time it does not know.
             if rec is not None:
                 import json as _json
-                data = _json.loads(Path(rec).read_text())
+                data = _json.loads(read_text(Path(rec)))
                 data["recorded"] = "asked-at-measure"
                 data.pop("printed_at", None)
-                Path(rec).write_text(_json.dumps(data, indent=2))
+                Path(rec).write_text(_json.dumps(data, indent=2), encoding="utf-8")
         except Exception:      # noqa: BLE001 — never lose a measurement over it
             log.warning("Could not store the how-printed answer", exc_info=True)
 
@@ -10401,7 +10402,7 @@ class TabMeasure(QWidget):
         if ti2 is None:
             return None
         try:
-            m = re.search(r"NUMBER_OF_SETS\s+(\d+)", ti2.read_text(errors="replace"))
+            m = re.search(r"NUMBER_OF_SETS\s+(\d+)", read_text(ti2, lenient=True))
         except OSError:
             return None
         return int(m.group(1)) if m else None

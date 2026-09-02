@@ -75,7 +75,7 @@ def main() -> int:
            "pages": len(res.tiff_paths or [])}
     ch = base.with_suffix(".channels.json")
     if ch.is_file():
-        lay = json.loads(ch.read_text())["layout"]
+        lay = json.loads(ch.read_text(encoding="utf-8"))["layout"]
         pats = [p for p in lay["patches"] if p.get("page", 0) == 0]
         dpi = float(lay.get("dpi") or 300)
         pats.sort(key=lambda p: (p["x"], p["y"]))
@@ -93,7 +93,7 @@ def main() -> int:
         out[f"tiff{i}_bytes"] = Path(t).stat().st_size
     print(json.dumps(out, sort_keys=True))
     (out_dir / f"{case}.facts.json").write_text(json.dumps(out, sort_keys=True,
-                                                           indent=1))
+                                                           indent=1), encoding="utf-8")
     return 0
 
 

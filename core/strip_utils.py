@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from core.text_io import read_text
 
 
 def parse_passes_per_page(ti2_path: "Path | str") -> list[int]:
@@ -18,7 +19,7 @@ def parse_passes_per_page(ti2_path: "Path | str") -> list[int]:
     Returns an empty list when the file can't be read or the field is absent.
     """
     try:
-        text = Path(ti2_path).read_text(errors="replace")
+        text = read_text(Path(ti2_path), lenient=True)
     except OSError:
         return []
     m = re.search(r'PASSES_IN_STRIPS2\s+"([^"]*)"', text)

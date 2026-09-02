@@ -71,7 +71,7 @@ def main() -> int:
         print(f"no landing set at {LAND} -- run capture_screens.py with "
               f"CHROMIQ_SHOTS_OUT={LAND} CHROMIQ_SHOTS_CLEAN_PREVIEW=1 first")
         return 1
-    html = PAGE.read_text()
+    html = PAGE.read_text(encoding="utf-8")
     before = len(html)
 
     # Swap in the fresh screenshots.
@@ -128,7 +128,7 @@ def main() -> int:
             return 1
     print("  captions: print and measure say what those shots now show")
 
-    PAGE.write_text(new)
+    PAGE.write_text(new, encoding="utf-8")
     print(f"\n  replaced {len(PLAN)} images, {total/1024:.0f} KB of webp")
     print(f"  page is now {len(new)/1024:.0f} KB (was {before/1024:.0f} KB)")
     return 0

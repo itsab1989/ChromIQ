@@ -222,7 +222,7 @@ def build_chart(app, win, tab, name, *, instrument="CR30", shape="hex",
 
 def chart_facts(ti2: Path):
     ch = ti2.with_suffix(".channels.json")
-    lay = json.loads(ch.read_text())["layout"]
+    lay = json.loads(ch.read_text(encoding="utf-8"))["layout"]
     dpi = float(lay.get("dpi") or 0)
     pats = [p for p in lay["patches"] if p.get("page") == 0]
     w_mm = pats[0]["w"] * 25.4 / dpi if dpi else 0
@@ -395,24 +395,24 @@ def phase_B(app, win, charts):
     shutil.move(bak, ch)
 
     say("  B8 the sidecar is CORRUPT")
-    good = ch.read_text()
-    ch.write_text("{ this is not json ")
+    good = ch.read_text(encoding="utf-8")
+    ch.write_text("{ this is not json ", encoding="utf-8")
     load_into_measure(app, win, charts["hex"])
     say(f"      is_cr30={mt._chart_is_cr30()} row={aim_row_state(mt)['m']}")
     say(f"      diameters = {mt._cr30_aim_diameters_px()}")
-    ch.write_text(good)
+    ch.write_text(good, encoding="utf-8")
 
     say("  B9 the sidecar has NO dpi")
     d = json.loads(good)
     d["layout"].pop("dpi", None)
-    ch.write_text(json.dumps(d))
+    ch.write_text(json.dumps(d), encoding="utf-8")
     load_into_measure(app, win, charts["hex"])
     say(f"      diameters = {mt._cr30_aim_diameters_px()}")
     arm_patch(app, mt)
     pv = mt._preview
     say(f"      preview: aim={pv._aim_overlay} body={pv._aim_body_px}")
     shot(mt._preview, "B9_no_dpi_nothing_drawn")
-    ch.write_text(good)
+    ch.write_text(good, encoding="utf-8")
     return None
 
 
@@ -715,7 +715,7 @@ def render_reference(outdir: Path):
     from ui.tiff_preview import TiffPreview
     app = QApplication.instance() or QApplication(sys.argv[:1])
     ti2 = next(iter(sorted((WORK / "cr30-aim-hex").glob("runs/run*/*.ti2"))))
-    lay = json.loads(ti2.with_suffix(".channels.json").read_text())["layout"]
+    lay = json.loads(ti2.with_suffix(".channels.json").read_text(encoding="utf-8"))["layout"]
     tif = (sorted(ti2.parent.glob(f"{ti2.stem}_01.tif"))
            or sorted(ti2.parent.glob(f"{ti2.stem}.tif")))[0]
     pats = [p for p in lay["patches"] if p.get("page") == 0]

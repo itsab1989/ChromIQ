@@ -32,6 +32,7 @@ import numpy as np
 
 from core.logger import get_logger
 from core.strip_utils import parse_passes_per_page
+from core.text_io import read_text
 from workflow.ti2_relayout import _imread_rgb, _patch_grid_bbox
 
 log = get_logger(__name__)
@@ -545,7 +546,7 @@ def _steps_in_pass(ti2_path: "Path | str") -> int | None:
     import re
 
     try:
-        text = Path(ti2_path).read_text(errors="replace")
+        text = read_text(Path(ti2_path), lenient=True)
     except OSError:
         return None
     m = re.search(r'STEPS_IN_PASS\s+"?(\d+)"?', text)

@@ -128,7 +128,7 @@ def build_chart(app, win, tab, name, expect_law_left=None):
         return None
     pump(app, 2000)
     ch = Path(ti2).with_suffix(".channels.json")
-    lay = json.loads(ch.read_text())["layout"]
+    lay = json.loads(ch.read_text(encoding="utf-8"))["layout"]
     dpi = float(lay.get("dpi") or 300)
     pats = [p for p in lay["patches"] if p.get("page") == 0]
     allp = lay["patches"]
@@ -419,7 +419,7 @@ def main() -> int:
         print(f"    gamut-module chart: {ti2g}")
         if ti2g:
             chg = Path(ti2g).with_suffix(".channels.json")
-            layg = json.loads(chg.read_text())["layout"]
+            layg = json.loads(chg.read_text(encoding="utf-8"))["layout"]
             dpig = float(layg.get("dpi") or 300)
             p0 = [p for p in layg["patches"] if p.get("page") == 0]
             x0g = min(p["x"] for p in p0) * 25.4 / dpig

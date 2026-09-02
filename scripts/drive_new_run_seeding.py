@@ -238,7 +238,7 @@ def main() -> int:
     cal_block = Path(work / src.name) / "cal" / "cache" / "new_run.json"
     if cal_block.is_file():
         import json as _json
-        keys = len(_json.loads(cal_block.read_text()))
+        keys = len(_json.loads(cal_block.read_text(encoding="utf-8")))
         note("cal/cache/new_run.json contents", f"{keys} rows carried")
     check("no New-run block is written into cal/ — Knut: seeding should only "
           "work for profiling and verification runs", cal_block.is_file(), False)

@@ -70,7 +70,7 @@ def _ti1(path: Path, n: int) -> Path:
         z = 0.0193 * r + 0.1192 * g + 0.9505 * b
         lines.append(f"{i+1} {r:.4f} {g:.4f} {b:.4f} {x:.4f} {y:.4f} {z:.4f}")
     lines += ["END_DATA", ""]
-    path.write_text("\n".join(lines))
+    path.write_text("\n".join(lines), encoding="utf-8")
     return path
 
 
@@ -88,7 +88,7 @@ def build(work: Path, name: str, hexagonal: bool) -> Path:
                   pscale=PATCH_MM / 7.0, border=6.0, dpi=CHART_DPI,
                   randomize=False, seed=1)
     res = le_chart.build_chart(ti1, stem, **kwargs)
-    layout = json.loads(stem.with_suffix(".strips.json").read_text())
+    layout = json.loads(stem.with_suffix(".strips.json").read_text(encoding="utf-8"))
     layout.update({"engine": "chromiq", "engine_version": 1, "dpi": CHART_DPI,
                    "seed": res.seed, "color_rep": res.color_rep,
                    "recipe": LayoutRecipe.from_build_kwargs(kwargs).to_dict()})
@@ -96,7 +96,7 @@ def build(work: Path, name: str, hexagonal: bool) -> Path:
     # where `scanin_target` looks. Written flat, the tools reject the chart as
     # "not an engine chart" — which is what the first build of this pack did.
     (folder / f"{name}.channels.json").write_text(json.dumps(
-        {"ink_channels": ["r", "g", "b"], "layout": layout}))
+        {"ink_channels": ["r", "g", "b"], "layout": layout}), encoding="utf-8")
     stem.with_suffix(".strips.json").unlink()
     print(f"  {name}: {res.layout.total_patches} patches, "
           f"{res.layout.passes} x {res.layout.steps_in_pass}")
@@ -205,7 +205,7 @@ def main() -> int:
             if src.is_file():
                 shutil.copy(src, pack / "chart" / src.name)
         simulate_scan(stem, pack / "scan" / f"{name}-simulated-scan.tif")
-    (pack / "README.md").write_text(README)
+    (pack / "README.md").write_text(README, encoding="utf-8")
     shutil.rmtree(work)
 
     zpath = out / "ChromIQ-hex-scanner-sample.zip"

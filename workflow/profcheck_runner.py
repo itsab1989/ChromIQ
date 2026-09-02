@@ -11,6 +11,7 @@ from PyQt6.QtCore import QThread, pyqtSignal
 from core.i18n import tr
 from core.logger import get_logger
 from core.strip_utils import letter_to_idx
+from core.text_io import read_text
 
 if TYPE_CHECKING:
     from core.argyll_runner import ArgyllRunner
@@ -104,7 +105,7 @@ class ProfcheckResult:
 def _ti3_device_channels(ti3_path: Path) -> int:
     """Number of device channels from the .ti3 COLOR_REP (0 if unreadable)."""
     try:
-        head = Path(ti3_path).read_text(errors="replace")[:8000]
+        head = read_text(Path(ti3_path), lenient=True)[:8000]
     except OSError:
         return 0
     m = re.search(r'^COLOR_REP\s+"([^"]+)"', head, re.M)

@@ -31,6 +31,7 @@ import numpy as np
 
 from workflow import cie_data
 from workflow.icc_info import xyz_to_lab
+from core.text_io import read_text
 
 # Reference white for the file's native (D50) Lab — matches xyz_to_lab's default.
 _D50_REF = (0.96422, 1.0, 0.82521)
@@ -66,14 +67,14 @@ def mark_verification_ti3(src: str | Path) -> Path:
     src = Path(src)
     dst = (src if src.stem.endswith("-verify")
            else src.with_name(f"{src.stem}-verify{src.suffix}"))
-    text = src.read_text(errors="replace")
+    text = read_text(src, lenient=True)
     if VERIFICATION_KEYWORD not in text:
         lines = text.splitlines()
         at = 1 if lines and lines[0].strip().startswith("CTI3") else 0
         lines[at:at] = [f'KEYWORD "{VERIFICATION_KEYWORD}"',
                         f'{VERIFICATION_KEYWORD} "true"']
         text = "\n".join(lines) + "\n"
-    dst.write_text(text)
+    dst.write_text(text, encoding="utf-8")
     if dst != src and src.exists():
         src.unlink()
     return dst
@@ -118,7 +119,7 @@ def parse_ti3(path: str | Path) -> Ti3Data:
     that isn't a readable measurement table with device + XYZ/Lab data."""
     p = Path(path)
     try:
-        text = p.read_text(errors="replace")
+        text = read_text(p, lenient=True)
     except OSError as exc:
         raise Ti3ParseError(str(exc)) from exc
     lines = text.splitlines()
@@ -629,7 +630,7 @@ def parse_reference_labs(path: str | Path) -> dict[str, tuple[float, float, floa
     XYZ_* (D50). Raises :class:`Ti3ParseError` if no usable colour columns."""
     p = Path(path)
     try:
-        lines = p.read_text(errors="replace").splitlines()
+        lines = read_text(p, lenient=True).splitlines()
     except OSError as exc:
         raise Ti3ParseError(str(exc)) from exc
     try:

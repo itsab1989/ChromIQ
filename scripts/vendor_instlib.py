@@ -84,5 +84,5 @@ prov.write_text(
     "- Upstream: https://www.argyllcms.com/ (Argyll_V3.5.0)\n\n"
     "| vendored file | upstream path | sha256 (first 16) |\n"
     "|---|---|---|\n" + "\n".join(lines) + "\n"
-)
+, encoding="utf-8")
 print(f"vendored {len(FILES)} files → {DST}")

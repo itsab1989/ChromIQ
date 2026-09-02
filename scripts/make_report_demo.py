@@ -91,14 +91,14 @@ def stamp(ti3: Path, when: str, instrument: str = "X-Rite ColorMunki") -> None:
     the app uses, never by ad-hoc text surgery."""
     from workflow.ti3_analysis import mark_verification_ti3
     mark_verification_ti3(ti3)
-    text = ti3.read_text()
+    text = ti3.read_text(encoding="utf-8")
     lines = text.splitlines()
     at = next(i for i, l in enumerate(lines)
               if l.startswith("NUMBER_OF_FIELDS"))
     lines[at:at] = ['KEYWORD "CHROMIQ_MEASURED"',
                     f'CHROMIQ_MEASURED "{when}"',
                     f'TARGET_INSTRUMENT "{instrument}"']
-    ti3.write_text("\n".join(lines) + "\n")
+    ti3.write_text("\n".join(lines) + "\n", encoding="utf-8")
     # The file's own time tells the same story as the keyword — the mtime is
     # the fallback date for measurements without the keyword, and Finder
     # sorting the dates correctly makes the package self-explaining.
@@ -135,7 +135,7 @@ def record(cdir: Path, stem: str, *, colour, route, intent, profile,
     if asked:
         rec["recorded"] = "asked-at-measure"
         rec.pop("printed_at")
-    (cdir / f"{stem}.print.json").write_text(json.dumps(rec, indent=2))
+    (cdir / f"{stem}.print.json").write_text(json.dumps(rec, indent=2), encoding="utf-8")
 
 
 def main(argv=None) -> int:
@@ -291,7 +291,7 @@ def main(argv=None) -> int:
            "intent": "relative", "route": "chromiq", "source_profile": "",
            "profile": icc.name, "profile_path": str(icc),
            "profile_mtime": "2026-01-01T00:00:00"}    # older than the file
-    (c / f"{vstem}.print.json").write_text(_json.dumps(rec, indent=2))
+    (c / f"{vstem}.print.json").write_text(_json.dumps(rec, indent=2), encoding="utf-8")
 
     print("== run2: no profile — the split must degrade, never error")
     run2 = proj.new_run()
@@ -310,7 +310,7 @@ def main(argv=None) -> int:
     shutil.rmtree(work)
 
     shutil.rmtree(gdir, ignore_errors=True)
-    (root / "README.md").write_text(README)
+    (root / "README.md").write_text(README, encoding="utf-8")
     print(f"\nDemo-Report-Matrix written to {root}")
     print("Next: .venv/bin/python scripts/drive_report_demo_onscreen.py")
     return 0

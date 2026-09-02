@@ -91,7 +91,7 @@ def _table1_bounds(lines: list[str]) -> tuple[int, int]:
 
 
 def read_base_rgb(path: Path) -> tuple[list[str], int, int, list[tuple[float, float, float]]]:
-    lines = path.read_text().split("\n")
+    lines = path.read_text(encoding="utf-8").split("\n")
     bi, ei = _table1_bounds(lines)
     rgb = [
         (float(p[1]), float(p[2]), float(p[3]))
@@ -106,7 +106,7 @@ def write_ti1(lines, bi, ei, colors, dst: Path) -> None:
         sid = row.split()[0]
         X, Y, Z = srgb_to_xyz(R, G, B)
         out.append(f"{sid} {R:.5f} {G:.5f} {B:.5f} {X:.4f} {Y:.4f} {Z:.4f} ")
-    dst.write_text("\n".join(lines[: bi + 1] + out + lines[ei:]))
+    dst.write_text("\n".join(lines[: bi + 1] + out + lines[ei:]), encoding="utf-8")
 
 
 # --------------------------------------------------------------------------- #

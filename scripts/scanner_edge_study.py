@@ -81,7 +81,7 @@ def _cht_to_image(irot, xoff, yoff, xsc, ysc):
 
 
 def _read_ti3(p: Path):
-    txt = p.read_text(errors="ignore")
+    txt = p.read_text(errors="ignore", encoding="utf-8")
     fmt = txt.split("BEGIN_DATA_FORMAT", 1)[1].split("END_DATA_FORMAT", 1)[0].split()
     body = txt.split("\nBEGIN_DATA\n", 1)[1].split("\nEND_DATA", 1)[0]
     xyz_i = [fmt.index(c) for c in ("XYZ_X", "XYZ_Y", "XYZ_Z")]
@@ -108,7 +108,7 @@ class Target:
     def __init__(self, name, tif, cht, ref):
         self.name, self.tif, self.cht, self.ref = name, tif, cht, ref
         tp = _scanin_transform(tif, cht, ref)
-        self.geom = parse_cht(cht.read_text(errors="ignore"))
+        self.geom = parse_cht(cht.read_text(errors="ignore", encoding="utf-8"))
         self.boxes = [_Box(b) for b in self.geom.patches]
         f = _cht_to_image(*tp)
         self.src_quad = (list(self.geom.fiducials)

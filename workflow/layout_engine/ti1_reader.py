@@ -18,6 +18,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from core.text_io import read_text
 
 # Columns that are not device colorant channels.
 _NON_DEVICE = {"SAMPLE_ID", "SAMPLE_LOC", "INDEX", "SAMPLE_NAME"}
@@ -59,7 +60,7 @@ class ColorTarget:
 
 def read_ti1(path: str | Path) -> ColorTarget:
     """Parse a targen ``.ti1`` (the first data table) into a :class:`ColorTarget`."""
-    text = Path(path).read_text(errors="replace")
+    text = read_text(Path(path), lenient=True)
 
     m = re.search(r'^COLOR_REP\s+"([^"]+)"', text, re.MULTILINE)
     color_rep = m.group(1) if m else "iRGB"

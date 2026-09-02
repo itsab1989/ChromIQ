@@ -144,7 +144,7 @@ LEFT_MM, TOP_MM, RIGHT_MM, BOTTOM_MM = 5.0, 6.0, 5.0, 12.0
 
 def chart_facts(ti2: Path):
     ch = ti2.with_suffix(".channels.json")
-    lay = json.loads(ch.read_text())["layout"]
+    lay = json.loads(ch.read_text(encoding="utf-8"))["layout"]
     dpi = float(lay.get("dpi") or 0)
     pats = [p for p in lay["patches"] if p.get("page") == 0]
     npages = 1 + max((p.get("page", 0) for p in lay["patches"]), default=0)
@@ -229,9 +229,9 @@ def write_ti3(facts):
     from scripts.make_demo_projects import _ti3_from_ti2
     ti3 = facts["ti2"].with_suffix(".ti3")
     if not ti3.exists():
-        ti3.write_text(_ti3_from_ti2(facts["ti2"], drift=1.6))
+        ti3.write_text(_ti3_from_ti2(facts["ti2"], drift=1.6), encoding="utf-8")
     say(f"    .ti3 beside the chart: {ti3.name} "
-        f"({len(ti3.read_text().splitlines())} lines)")
+        f"({len(ti3.read_text(encoding="utf-8").splitlines())} lines)")
     return ti3
 
 
@@ -659,11 +659,11 @@ def phase_E(app, win, charts):
     # The commit names three routes. Try the one the UI can actually take:
     # a sidecar whose page count does not match the loaded TIFFs.
     ch = facts["channels"]
-    good = ch.read_text()
+    good = ch.read_text(encoding="utf-8")
     d = json.loads(good)
     for pt in d["layout"]["patches"]:
         pt["page"] = pt.get("page", 0) + 1        # claim page 2 of a 1-page tif
-    ch.write_text(json.dumps(d))
+    ch.write_text(json.dumps(d), encoding="utf-8")
     try:
         mt = load_measured(app, win, facts)
         pv = mt._preview
@@ -671,7 +671,7 @@ def phase_E(app, win, charts):
             f"{len(pv._stripe_rects)} boxes={[len(b) for b in mt._patch_boxes]} "
             f"items={len(pv._patch_overlay.get(0, []))} legend={pv._legend_rect}")
     finally:
-        ch.write_text(good)
+        ch.write_text(good, encoding="utf-8")
 
     say("  E1b the SYNTHETIC form of the same state, on the real widget")
     mt = load_measured(app, win, charts["i1"])
@@ -1424,11 +1424,11 @@ def phase_L(app, win, charts):
         "returns -- it has no 'strips' key at all)")
     facts = charts["i1"]
     ch = facts["channels"]
-    good = ch.read_text()
+    good = ch.read_text(encoding="utf-8")
     d = json.loads(good)
     had = len(d["layout"].get("strips") or [])
     d["layout"].pop("strips", None)
-    ch.write_text(json.dumps(d))
+    ch.write_text(json.dumps(d), encoding="utf-8")
     try:
         mt2 = load_measured(app, win, facts)
         pv = mt2._preview
@@ -1451,7 +1451,7 @@ def phase_L(app, win, charts):
                   lab.height() + 70), "L1_no_strips_sidecar_chip_below_patches")
             shot(pv._img_label, "L1b_no_strips_whole_sheet")
     finally:
-        ch.write_text(good)
+        ch.write_text(good, encoding="utf-8")
 
     say("  L2 clear() on the SAME chart -- the one route where "
         "_discard_stale_overlay bows out")
@@ -1841,7 +1841,7 @@ def main() -> int:
         pump(app, 300)
     finally:
         guard_plist_out(before)
-        (SANDBOX / "log.txt").write_text("\n".join(LOG))
+        (SANDBOX / "log.txt").write_text("\n".join(LOG), encoding="utf-8")
         say(f"    transcript -> {SANDBOX / 'log.txt'}")
     return 0
 

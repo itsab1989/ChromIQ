@@ -84,7 +84,7 @@ DELEGATED = re.compile(r"_OutputRow\(|\boutput\s*=|\bout_path\b|\bout\s*=\s*"
 
 def tool_keys_and_classes() -> "dict[str, tuple[str, str]]":
     """{key: (class, module)} straight out of ``open_tool_dialog``."""
-    src = REGISTRY.read_text()
+    src = REGISTRY.read_text(encoding="utf-8")
     pat = re.compile(
         r'key == "([a-z0-9_]+)":\s*\n((?:\s*(?:from|import)[^\n]*\n)*)\s*dlg = (\w+)\(')
     out = {}
@@ -100,7 +100,7 @@ def tool_keys_and_classes() -> "dict[str, tuple[str, str]]":
 
 
 def popup_keys() -> "set[str]":
-    return set(re.findall(r'ToolEntry\("([a-z0-9_]+)"', POPUP.read_text()))
+    return set(re.findall(r'ToolEntry\("([a-z0-9_]+)"', POPUP.read_text(encoding="utf-8")))
 
 
 def _module_path(dotted: str) -> Path:
@@ -108,7 +108,7 @@ def _module_path(dotted: str) -> Path:
 
 
 def _class_node(path: Path, cls: str):
-    tree = ast.parse(path.read_text())
+    tree = ast.parse(path.read_text(encoding="utf-8"))
     for node in ast.walk(tree):
         if isinstance(node, ast.ClassDef) and node.name == cls:
             return node
@@ -152,10 +152,10 @@ def audit_class(path: Path, cls: str) -> dict:
         kind = _is_write(sub)
         if kind is None:
             continue
-        seg = ast.get_source_segment(path.read_text(), sub) or ""
+        seg = ast.get_source_segment(path.read_text(encoding="utf-8"), sub) or ""
         entry = {"line": sub.lineno, "src": " ".join(seg.split())[:110]}
         (dialogs if kind == "dialog" else writes).append(entry)
-    body = ast.get_source_segment(path.read_text(), node) or ""
+    body = ast.get_source_segment(path.read_text(encoding="utf-8"), node) or ""
     delegated = sorted({m.group(0).strip() for m in DELEGATED.finditer(body)})
     return {
         "writes": writes,

@@ -35,7 +35,7 @@ def _patch_colour(i: int, n: int) -> tuple[int, int, int]:
 
 
 def build(name: str, out_dir: Path) -> tuple[Path, Path]:
-    cht = (TARGETS_DIR / f"{name}.cht").read_text(errors="ignore")
+    cht = (TARGETS_DIR / f"{name}.cht").read_text(errors="ignore", encoding="utf-8")
     g = parse_cht(cht)
     boxes = g.patches
     minx = min(b.x1 for b in boxes); miny = min(b.y1 for b in boxes)
@@ -62,7 +62,7 @@ def build(name: str, out_dir: Path) -> tuple[Path, Path]:
     tif = out_dir / f"{name}-test.tif"
     ref = out_dir / f"{name}-test.cie"
     img.save(tif)
-    ref.write_text("\n".join(cie))
+    ref.write_text("\n".join(cie), encoding="utf-8")
     return tif, ref
 
 

@@ -116,14 +116,14 @@ def click_delete(bar, answer=None, shot=None):
 
 def verify_chart(run):
     run.verifications_dir.mkdir(parents=True, exist_ok=True)
-    run.verify_chart_ti2.write_text("TI2")
+    run.verify_chart_ti2.write_text("TI2", encoding="utf-8")
 
 
 def verification(run, vid, measured=True):
     v = run.verification(vid)
     v.ensure_dir()
     if measured:
-        v.measurement_ti3.write_text("V")
+        v.measurement_ti3.write_text("V", encoding="utf-8")
 
 
 def main(app):
@@ -258,9 +258,9 @@ def main(app):
     tmp = tempfile.mkdtemp()
     proj = make_project(tmp, runs=4)
     for rid in ("run1", "run2", "run3", "run4"):
-        (proj.run(rid).dir / "marker.txt").write_text(rid)
+        (proj.run(rid).dir / "marker.txt").write_text(rid, encoding="utf-8")
     r2 = proj.run("run2")
-    (r2.dir / f"{r2.stem}.ti3").write_text("MEAS")
+    (r2.dir / f"{r2.stem}.ti3").write_text("MEAS", encoding="utf-8")
     b = Bar(proj)
     b.select("run2")
     seen = click_delete(b, answer="Delete run 2 permanently", shot="P1")
@@ -272,12 +272,12 @@ def main(app):
         "selects the last run in the project, run 3" in seen["body"])
     row("P1  folders renumbered on disk", names == ["run1", "run2", "run3"], str(names))
     row("P1  contents travelled with the folder",
-        (root / "run2" / "marker.txt").read_text() == "run3")
-    man = json.loads((proj.root / Project.MANIFEST).read_text())
+        (root / "run2" / "marker.txt").read_text(encoding="utf-8") == "run3")
+    man = json.loads((proj.root / Project.MANIFEST).read_text(encoding="utf-8"))
     row("P1  manifest rebuilt", man["runs"] == ["run1", "run2", "run3"], str(man["runs"]))
     row("P1  current_run = last run (D2)", man["current_run"] == "run3",
         man["current_run"])
-    metas = [json.loads((root / rid / "meta.json").read_text())["run_id"]
+    metas = [json.loads((root / rid / "meta.json").read_text(encoding="utf-8"))["run_id"]
              for rid in ("run1", "run2", "run3")]
     row("P1  every meta.json rewritten", metas == ["run1", "run2", "run3"], str(metas))
     row("P1  bar now offers exactly the surviving runs",
@@ -290,7 +290,7 @@ def main(app):
     tmp = tempfile.mkdtemp()
     proj = make_project(tmp, runs=1)
     run1 = proj.run("run1")
-    (run1.dir / f"{run1.stem}.ti3").write_text("MEAS")
+    (run1.dir / f"{run1.stem}.ti3").write_text("MEAS", encoding="utf-8")
     b = Bar(proj)
     b.select("run1")
     en, tip = b.ctl.delete_state()

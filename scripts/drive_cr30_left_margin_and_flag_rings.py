@@ -227,7 +227,7 @@ def fault_a(app) -> int:
           if gap > 5.0 else "    -> not reproduced; report the numbers.")
     tiffs = list(getattr(tab, "_margin_tiffs", []) or [])
     import json as _json
-    _lay = _json.loads(ch.read_text())["layout"]["patches"]
+    _lay = _json.loads(ch.read_text(encoding="utf-8"))["layout"]["patches"]
     boxes = [(p["loc"], p["x"], p["y"], p["w"], p["h"])
              for p in _lay if p.get("page") == 0][:2]
     print(f"    two REAL neighbours from the chart: {boxes}")

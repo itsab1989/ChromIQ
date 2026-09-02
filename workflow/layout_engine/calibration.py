@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+from core.text_io import read_text
 
 
 @dataclass(frozen=True)
@@ -56,7 +57,7 @@ class Calibration:
 
 def read_cal(path: str | Path) -> Calibration:
     """Parse an ArgyllCMS ``.cal`` file."""
-    text = Path(path).read_text(errors="replace")
+    text = read_text(Path(path), lenient=True)
 
     rep_m = re.search(r'^COLOR_REP\s+"([^"]+)"', text, re.MULTILINE)
     color_rep = rep_m.group(1) if rep_m else "RGB"

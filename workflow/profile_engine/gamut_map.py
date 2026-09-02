@@ -753,7 +753,7 @@ def fit_multiink_anchor(model: ForwardModel, meas: Ti3Measurement,
                          + " ".join(f"{v * 100:.3f}" for v in d4) + " "
                          + " ".join(f"{v:.4f}" for v in x))
         lines.append("END_DATA")
-        base.with_suffix(".ti3").write_text("\n".join(lines))
+        base.with_suffix(".ti3").write_text("\n".join(lines), encoding="utf-8")
         r = subprocess.run([str(colprof), "-qm", "-S", str(source_gamut),
                             *_k_args(settings), str(base)],
                            capture_output=True, text=True)

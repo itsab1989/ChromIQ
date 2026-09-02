@@ -25,6 +25,7 @@ from core.i18n import tr
 from core.logger import get_logger
 from ui.styles import SPEC_GREEN, SPEC_MAGENTA
 from core.i18n import tr
+from core.text_io import read_text
 
 log = get_logger(__name__)
 
@@ -231,7 +232,7 @@ def _find_sidecar_channels(path: Path) -> list[str] | None:
     for candidate in candidates:
         if candidate.exists():
             try:
-                data = json.loads(candidate.read_text())
+                data = json.loads(read_text(candidate))
                 channels = data.get("ink_channels")
                 if isinstance(channels, list):
                     return channels
