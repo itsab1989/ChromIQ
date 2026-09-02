@@ -23,7 +23,7 @@ from PyQt6.QtWidgets import (
 
 from core.i18n import tr
 from ui.tooltip_button import TooltipButton
-from ui.widgets import NoScrollDoubleSpinBox, WrappingCheckBox
+from ui.widgets import NoScrollDoubleSpinBox, WrappingCheckBox, set_ink
 from workflow.margin_inspector import MarginReport, Violation
 
 # Frame, text margin, the up/down buttons and the theme's padding around a spin
@@ -422,16 +422,27 @@ class MarginInspectorPanel(QGroupBox):
             for v in violations
         ] if thresholds_defined else []
         lines = margin_lines + text_warnings
+        # THE STATUS LINE THROUGH `set_ink`. It was three raw literals - a red
+        # for a violation, a green for "Margins: OK", a grey for "no
+        # thresholds" - so it kept its hues in a theme that has none. The
+        # owner saw the green one, and only after generating a preview: this
+        # panel is empty until a chart exists, which is why every pixel census
+        # walked past it.
+        #
+        # Nothing is lost by taking the hue out here, because the colour was
+        # never the message: the warning names the edge, the measurement and
+        # the threshold in words, and "Margins: OK" says so. `set_ink` returns
+        # the Light and Dark values unchanged.
         if lines:                                       # something to warn about
             self._status.setText("\n".join(lines))
-            self._status.setStyleSheet(
-                "color: #e0564b; font-size: 14px; font-weight: 700;")
+            set_ink(self._status, "#e0564b",
+                    " font-size: 14px; font-weight: 700;", level="main")
             return
         if not thresholds_defined:
             self._status.setText(tr(
                 "No instrument margins set for this instrument and paper size."))
-            self._status.setStyleSheet("color: #909090; font-size: 11px;")
+            set_ink(self._status, "#909090", " font-size: 11px;", level="faint")
             return
         self._status.setText(tr("Margins: OK"))
-        self._status.setStyleSheet(
-            "color: #4fc27a; font-size: 15px; font-weight: 700;")
+        set_ink(self._status, "#4fc27a",
+                " font-size: 15px; font-weight: 700;", level="main")

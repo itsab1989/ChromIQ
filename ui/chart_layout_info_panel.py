@@ -16,11 +16,18 @@ from PyQt6.QtWidgets import (QGridLayout, QGroupBox, QHBoxLayout, QLabel,
                             QVBoxLayout, QWidget)
 
 from core.i18n import tr
+from ui.widgets import set_ink
 from ui.tooltip_button import TooltipButton
 
 _DASH = "—"
 _AMBER = "#c47f17"      # estimate differs from the chart on screen
 _MUTED = "#909090"
+
+def _flag_by_weight() -> bool:
+    """Does this appearance need weight to say what amber says elsewhere?"""
+    from ui.index_rule import use_index_rule
+    return use_index_rule()
+
 
 
 class ChartLayoutInfoPanel(QGroupBox):
@@ -215,6 +222,15 @@ class ChartLayoutInfoPanel(QGroupBox):
                            or abs(a[1] - e[1]) > self._PATCH_TOL_MM)
             else:
                 differs = a != e
-            est.setStyleSheet(
-                f"font-family: Menlo; font-size: 11px; "
-                f"color: {_AMBER if differs else _MUTED};")
+            # THE FLAG SURVIVES WITHOUT THE HUE. Amber-versus-grey was the
+            # only thing saying "this estimate does not match the chart on
+            # screen", so taking the colour out in Neutral would delete the
+            # information rather than de-hue it. The value carries it instead:
+            # dark ink and bold where they differ, faint where they agree, so
+            # the divergence is still the thing your eye lands on. Light and
+            # Dark keep the amber, unchanged - `set_ink` returns their values
+            # as they are.
+            weight = " font-weight: 700;" if differs and _flag_by_weight() else ""
+            set_ink(est, _AMBER if differs else _MUTED,
+                    f" font-family: Menlo; font-size: 11px;{weight}",
+                    level="main" if differs else "faint")
