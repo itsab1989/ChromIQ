@@ -153,7 +153,7 @@ def main() -> int:
                                              colorimetric_reference_for)
     ref = colorimetric_reference_for(ti2)
     check("colorimetric reference beside the chart", ref.exists())
-    sidecar = json.loads(run.verify_chart_channels_json.read_text())
+    sidecar = json.loads(run.verify_chart_channels_json.read_text(encoding="utf-8"))
     check("channels.json carries the marker",
           sidecar.get("colorimetric_reference") == ref.name)
     check("chart reads as already-converted",

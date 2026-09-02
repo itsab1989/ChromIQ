@@ -90,7 +90,7 @@ def _ti3_from_ti2(ti2: Path, *, drift: float = 0.0) -> str:
     """
     rows, fields = [], []
     in_fmt = in_data = False
-    for line in ti2.read_text().splitlines():
+    for line in ti2.read_text(encoding="utf-8").splitlines():
         s = line.strip()
         if s == "BEGIN_DATA_FORMAT":
             in_fmt = True; continue
@@ -331,7 +331,7 @@ def _chart_files(into: Path, stem: str, *, patches: int, rows: int,
     sidecar = into / f"{stem}.channels.json"
     strips = into / f"{stem}.strips.json"
     doc = {"channels": ["r", "g", "b"]}
-    layout = json.loads(strips.read_text()) if strips.exists() else {}
+    layout = json.loads(strips.read_text(encoding="utf-8")) if strips.exists() else {}
     layout["engine"] = "chromiq"
     layout["engine_version"] = 1
     layout["seed"] = getattr(result, "seed", 0)
@@ -347,7 +347,7 @@ def _chart_files(into: Path, stem: str, *, patches: int, rows: int,
     # `ChartCreator._embed_layout_geometry`, which this mirrors.
     layout["margins_chosen_by_user"] = False
     doc["layout"] = layout
-    sidecar.write_text(json.dumps(doc))
+    sidecar.write_text(json.dumps(doc), encoding="utf-8")
     strips.unlink(missing_ok=True)      # geometry now lives in channels.json
 
 
@@ -358,7 +358,7 @@ def _write_manifest(root: Path, name: str, runs: list, current: str,
         "schema_version": schema,
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "target_name": name, "current_run": current, "runs": runs,
-    }, indent=2))
+    }, indent=2), encoding="utf-8")
 
 
 def _meta(run_dir: Path, rid: str, **extra) -> None:
@@ -367,7 +367,7 @@ def _meta(run_dir: Path, rid: str, **extra) -> None:
          "parent_run": None, "instrument": "CM", "paper": "A4",
          "status": "complete"}
     d.update(extra)
-    (run_dir / "meta.json").write_text(json.dumps(d, indent=2))
+    (run_dir / "meta.json").write_text(json.dumps(d, indent=2), encoding="utf-8")
 
 
 def _verification(run_dir: Path, stem: str, when: datetime, de: float) -> None:
@@ -375,7 +375,7 @@ def _verification(run_dir: Path, stem: str, when: datetime, de: float) -> None:
     (vdir / "chart").mkdir(parents=True, exist_ok=True)
     (vdir / "reports").mkdir(parents=True, exist_ok=True)
     verify_ti2 = run_dir / "verifications" / f"{stem}-verify.ti2"
-    (vdir / f"{stem}-verify.ti3").write_text(_ti3_from_ti2(verify_ti2, drift=de))
+    (vdir / f"{stem}-verify.ti3").write_text(_ti3_from_ti2(verify_ti2, drift=de), encoding="utf-8")
     # The chart snapshot is taken by the REAL application code, not by a second
     # copy of the rule here. Knut, #130 2026-07-29: this used to copy the .ti2
     # alone, so every dated folder was missing the .channels.json a real
@@ -387,7 +387,7 @@ def _verification(run_dir: Path, stem: str, when: datetime, de: float) -> None:
     snapshot_chart(Run.for_dir(run_dir).verification(
         when.strftime("%Y-%m-%d_%H%M%S")))
     (vdir / "reports" / f"report_{when:%Y-%m-%d_%H-%M-%S}.json").write_text(
-        _report(f"{stem}-verify", when, de))
+        _report(f"{stem}-verify", when, de), encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -401,7 +401,7 @@ def build_full(root: Path) -> None:
     _write_manifest(p, name, ["run1", "run2", "run3"], "run3", 3)
     (p / "cal").mkdir(parents=True, exist_ok=True)
     _chart_files(p / "cal", f"{stem}-cal", patches=60, rows=10)
-    (p / "cal" / f"{stem}-cal.ti3").write_text(_ti3_from_ti2(p / "cal" / f"{stem}-cal.ti2"))
+    (p / "cal" / f"{stem}-cal.ti3").write_text(_ti3_from_ti2(p / "cal" / f"{stem}-cal.ti2"), encoding="utf-8")
     # A REAL .cal, made by Argyll printcal from that measurement — the demo
     # must let a user exercise the Apply/Include Calibration File rows
     # (Sebastian's beta.5 check 3 found the folder had no .cal to pick).
@@ -411,12 +411,12 @@ def build_full(root: Path) -> None:
     except Exception as exc:      # noqa: BLE001 — the rest of the demo stands
         print(f"  (printcal skipped: {exc})")
     (p / "exports").mkdir(exist_ok=True)
-    (p / "exports" / f"{stem}-colours.txt").write_text("# demo export\n")
+    (p / "exports" / f"{stem}-colours.txt").write_text("# demo export\n", encoding="utf-8")
 
     # run1 — a finished profile with everything around it
     r1 = p / "runs" / "run1"
     _chart_files(r1, stem, patches=240, rows=15, pages=2)
-    (r1 / f"{stem}.ti3").write_text(_ti3_from_ti2(r1 / f"{stem}.ti2"))
+    (r1 / f"{stem}.ti3").write_text(_ti3_from_ti2(r1 / f"{stem}.ti2"), encoding="utf-8")
     _build_icc(r1, stem)
     (r1 / "chart").mkdir(exist_ok=True)
     _chart_files(r1 / "chart", stem, patches=240, rows=15, pages=2)
@@ -430,18 +430,18 @@ def build_full(root: Path) -> None:
         if body is None:
             _write_tiff(r1 / sub / fname, 9)
         else:
-            (r1 / sub / fname).write_text(body)
+            (r1 / sub / fname).write_text(body, encoding="utf-8")
     (r1 / "reads").mkdir(exist_ok=True)
     for n in (1, 2):
-        (r1 / "reads" / f"read{n}.ti3").write_text(_ti3_from_ti2(r1 / f"{stem}.ti2", drift=n * 0.2))
+        (r1 / "reads" / f"read{n}.ti3").write_text(_ti3_from_ti2(r1 / f"{stem}.ti2", drift=n * 0.2), encoding="utf-8")
     _meta(r1, "run1", averaging_enabled=True, averaging_read_count=2)
 
     # run2 — refined from run1, and verified twice
     r2 = p / "runs" / "run2"
     _chart_files(r2, stem, patches=240, rows=15, pages=2)
-    (r2 / f"{stem}.ti3").write_text(_ti3_from_ti2(r2 / f"{stem}.ti2", drift=0.4))
+    (r2 / f"{stem}.ti3").write_text(_ti3_from_ti2(r2 / f"{stem}.ti2", drift=0.4), encoding="utf-8")
     _build_icc(r2, stem)
-    (r2 / "preconditioning.ti3").write_text(_ti3_from_ti2(r1 / f"{stem}.ti2"))
+    (r2 / "preconditioning.ti3").write_text(_ti3_from_ti2(r1 / f"{stem}.ti2"), encoding="utf-8")
     shutil.copy2(r1 / f"{stem}.icc", r2 / "preconditioning.icc") if (r1 / f"{stem}.icc").exists() else None
     _chart_files(r2 / "verifications", f"{stem}-verify", patches=60, rows=10)
     for when, de in ((datetime(2026, 5, 20, 9, 5), 0.9),
@@ -463,7 +463,7 @@ def build_verify_history(root: Path) -> None:
     _write_manifest(p, name, ["run1"], "run1", 3)
     r1 = p / "runs" / "run1"
     _chart_files(r1, stem, patches=240, rows=15, pages=2)
-    (r1 / f"{stem}.ti3").write_text(_ti3_from_ti2(r1 / f"{stem}.ti2"))
+    (r1 / f"{stem}.ti3").write_text(_ti3_from_ti2(r1 / f"{stem}.ti2"), encoding="utf-8")
     _build_icc(r1, stem)
     _chart_files(r1 / "verifications", f"{stem}-verify", patches=60, rows=10)
     start = datetime(2026, 1, 12, 11, 0)
@@ -485,19 +485,19 @@ def build_legacy_v1(root: Path) -> None:
     for rid in ("run1", "run2"):
         rd = p / "runs" / rid
         _chart_files(rd, stem, patches=240, rows=15, pages=2)
-        (rd / f"{stem}.ti3").write_text(_ti3_from_ti2(rd / f"{stem}.ti2"))
+        (rd / f"{stem}.ti3").write_text(_ti3_from_ti2(rd / f"{stem}.ti2"), encoding="utf-8")
         _build_icc(rd, stem)
         # …flat, exactly where v1 left them
-        (rd / f"Quality_Check_1_{stem}.txt").write_text("worst dE 3.1\n")
-        (rd / f"Quality_Check_2_{stem}.txt").write_text("worst dE 2.2\n")
-        (rd / f"Refine_Strips_{stem}.txt").write_text("A\nD\nF\n")
-        (rd / f"{stem}-patchbox.cht").write_text("BOXES 240\n")
-        (rd / f"{stem}-aligned.cht").write_text("BOXES 240\n")
+        (rd / f"Quality_Check_1_{stem}.txt").write_text("worst dE 3.1\n", encoding="utf-8")
+        (rd / f"Quality_Check_2_{stem}.txt").write_text("worst dE 2.2\n", encoding="utf-8")
+        (rd / f"Refine_Strips_{stem}.txt").write_text("A\nD\nF\n", encoding="utf-8")
+        (rd / f"{stem}-patchbox.cht").write_text("BOXES 240\n", encoding="utf-8")
+        (rd / f"{stem}-aligned.cht").write_text("BOXES 240\n", encoding="utf-8")
         _write_tiff(rd / f"{stem}-diag.tif", 3)
         _meta(rd, rid)
     cal = p / "cal"
     _chart_files(cal, f"{stem}-cal", patches=60, rows=10)
-    (cal / f"{stem}-cal-patchbox.cht").write_text("BOXES 60\n")
+    (cal / f"{stem}-cal-patchbox.cht").write_text("BOXES 60\n", encoding="utf-8")
 
 
 def build_legacy_v2(root: Path) -> None:
@@ -510,15 +510,15 @@ def build_legacy_v2(root: Path) -> None:
     _write_manifest(p, name, ["run1"], "run1", 2)
     rd = p / "runs" / "run1"
     _chart_files(rd, stem, patches=240, rows=15, pages=2)
-    (rd / f"{stem}.ti3").write_text(_ti3_from_ti2(rd / f"{stem}.ti2"))
+    (rd / f"{stem}.ti3").write_text(_ti3_from_ti2(rd / f"{stem}.ti2"), encoding="utf-8")
     _build_icc(rd, stem)
     (rd / "reports").mkdir(exist_ok=True)
-    (rd / "reports" / f"Quality_Check_1_{stem}.txt").write_text("worst dE 2.8\n")
+    (rd / "reports" / f"Quality_Check_1_{stem}.txt").write_text("worst dE 2.8\n", encoding="utf-8")
     # The legacy one-slot verification, flat at the run root — a real chart, so
     # the migrated result is something you can actually open afterwards.
     _chart_files(rd, f"{stem}-verify", patches=60, rows=10)
     (rd / f"{stem}-verify.ti3").write_text(
-        _ti3_from_ti2(rd / f"{stem}-verify.ti2"))
+        _ti3_from_ti2(rd / f"{stem}-verify.ti2"), encoding="utf-8")
     _meta(rd, "run1")
 
 

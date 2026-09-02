@@ -9,6 +9,7 @@ from typing import Optional
 
 from core.logger import get_logger
 from core.name_order import sort_names
+from core.text_io import read_text
 from workflow.cups_printer import CUPS_AVAILABLE, PrintConfig
 
 if CUPS_AVAILABLE:
@@ -556,7 +557,7 @@ class PrintModule:
         labels: dict[str, dict[str, str]] = {}
         try:
             pattern = re.compile(r'^\*(\S+)\s+(\S+)/([^:]+):')
-            for line in pathlib.Path(ppd_file).read_text(errors="replace").splitlines():
+            for line in read_text(pathlib.Path(ppd_file), lenient=True).splitlines():
                 m = pattern.match(line)
                 if m:
                     opt, val, label = m.group(1), m.group(2), m.group(3).strip()

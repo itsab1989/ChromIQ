@@ -87,7 +87,7 @@ def build_chart(work: Path, name: str, mark: int, border: float) -> Path:
         lines.append(f"{i+1} {r} {g} {b} 40.0 45.0 50.0")
     lines += ["END_DATA", ""]
     ti1 = work / f"{name}.ti1"
-    ti1.write_text("\n".join(lines))
+    ti1.write_text("\n".join(lines), encoding="utf-8")
     stem = work / name
     le_chart.build_chart(ti1, stem, instrument="i1", paper="A4", pscale=1.0,
                          border=border, dpi=200, randomize=False)
@@ -96,11 +96,11 @@ def build_chart(work: Path, name: str, mark: int, border: float) -> Path:
     # makes the scan arrow anchor to the top of the first patch instead of
     # hanging under the strip labels — which is what my first proof did, and
     # what Basti spotted in the screenshot.
-    strips = json.loads(stem.with_suffix(".strips.json").read_text())
+    strips = json.loads(stem.with_suffix(".strips.json").read_text(encoding="utf-8"))
     layout = dict(strips)
     layout.update({"engine": "chromiq", "dpi": 200, "paper_mm": [210.0, 297.0]})
     (work / f"{name}.channels.json").write_text(json.dumps({
-        "ink_channels": ["r", "g", "b"], "layout": layout}))
+        "ink_channels": ["r", "g", "b"], "layout": layout}), encoding="utf-8")
     return stem
 
 
@@ -164,7 +164,7 @@ def main() -> int:
     import numpy as np
     from PIL import Image
     page = np.asarray(Image.open(stem.with_suffix(".tif")).convert("RGB")).astype(int)
-    strips = json.loads((sandbox / "work" / "EngineChart.channels.json").read_text())
+    strips = json.loads((sandbox / "work" / "EngineChart.channels.json").read_text(encoding="utf-8"))
     patches = strips["layout"]["patches"]
 
     boxes = {p["loc"]: p for p in patches if p.get("page", 0) == 0}

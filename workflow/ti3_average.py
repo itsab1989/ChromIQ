@@ -23,6 +23,7 @@ from __future__ import annotations
 import math
 import re
 from pathlib import Path
+from core.text_io import read_text
 
 _RGB_FIELDS = ("RGB_R", "RGB_G", "RGB_B")
 _EPS = 1e-6
@@ -43,7 +44,7 @@ def _split_block(lines: list[str], begin: str, end: str) -> tuple[int, int]:
 
 def _parse(path: Path) -> tuple[list[str], list[str], dict[str, list[str]], list[str]]:
     """Return (lines, format_fields, rows_by_id, id_order) for one ``.ti3``."""
-    lines = Path(path).read_text().splitlines()
+    lines = read_text(Path(path)).splitlines()
     fb, fe = _split_block(lines, "BEGIN_DATA_FORMAT", "END_DATA_FORMAT")
     fields = " ".join(lines[fb + 1:fe]).split()
     db, de = _split_block(lines, "BEGIN_DATA", "END_DATA")
@@ -116,5 +117,5 @@ def average_scanner_ti3(inputs: list[str | Path], output: str | Path,
     db, de = _split_block(base_lines, "BEGIN_DATA", "END_DATA")
     out_lines = base_lines[:db + 1] + out_rows + base_lines[de:]
     out = Path(output)
-    out.write_text("\n".join(out_lines) + "\n")
+    out.write_text("\n".join(out_lines) + "\n", encoding="utf-8")
     return out

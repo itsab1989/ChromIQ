@@ -184,7 +184,7 @@ def audit_parameters() -> "tuple[list[Finding], dict]":
         print("PyYAML not available — skipping the parameter tooltips",
               file=sys.stderr)
         return [], {}
-    data = yaml.safe_load(PARAMS.read_text())
+    data = yaml.safe_load(PARAMS.read_text(encoding="utf-8"))
     out: list[Finding] = []
     lengths: list[int] = []
     n = 0
@@ -223,7 +223,7 @@ def main() -> int:
     ap.add_argument("--rule", help="show only this rule")
     args = ap.parse_args()
 
-    cat = json.loads(CATALOGUE.read_text())
+    cat = json.loads(CATALOGUE.read_text(encoding="utf-8"))
     keys = [k for k in cat if not k.startswith("@")]
 
     findings = audit_catalogue(keys)

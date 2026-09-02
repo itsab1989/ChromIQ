@@ -75,7 +75,7 @@ def main() -> int:
     sandbox = Path(tempfile.mkdtemp(prefix="chromiq_uiclobber_"))
     work = sandbox / "ChromIQ"
     clone_manifests(real, work / name)
-    stored = json.loads((work / name / "runs/run1/meta.json").read_text())
+    stored = json.loads((work / name / "runs/run1/meta.json").read_text(encoding="utf-8"))
     ui = stored.get("create_chart_ui") or {}
     print(f"the target's STORED state: mode={ui.get('mode')!r} "
           f"guided.instrument={(ui.get('guided') or {}).get('instrument')!r} "

@@ -131,13 +131,13 @@ def main() -> int:
             le_chart.build_chart(ti1, out, instrument="SS", paper="A4",
                                  hflag=True, pscale=W / 7.0, border=6.0,
                                  dpi=200, randomize=False)
-            strips = json.loads((sandbox / f"hex{int(W)}.strips.json").read_text())
+            strips = json.loads((sandbox / f"hex{int(W)}.strips.json").read_text(encoding="utf-8"))
             rects = [r for r in strips["patches"] if r["page"] == 0]
             sc = sandbox / f"hex{int(W)}.channels.json"
             sc.write_text(json.dumps({"layout": {
                 "engine": "chromiq", "dpi": 200, "paper_mm": [210.0, 297.0],
                 "patches": rects,
-                "recipe": {"instrument": "SS", "hflag": True}}}))
+                "recipe": {"instrument": "SS", "hflag": True}}}), encoding="utf-8")
             rep, _ = measure_from_engine(sc, 0)
             left_mm = min(r["x"] for r in rects) * 25.4 / 200
             check(abs(rep.left_mm - left_mm) < 0.06,

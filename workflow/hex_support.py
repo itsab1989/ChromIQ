@@ -41,6 +41,7 @@ from pathlib import Path
 from core.stem_paths import artefact, without_ext
 
 from core.i18n import tr
+from core.text_io import read_text
 
 
 def hex_scanner_message() -> str:
@@ -157,7 +158,7 @@ def chart_is_hexagonal(chart_path: "str | Path | None") -> bool:
     for cj in candidates:
         try:
             if cj.is_file():
-                data = json.loads(cj.read_text())
+                data = json.loads(read_text(cj))
                 recipe = (data.get("layout") or {}).get("recipe")
                 return recipe_is_hexagonal(recipe)
         except Exception:

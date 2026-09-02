@@ -14,6 +14,7 @@ from pathlib import Path
 import tifffile
 
 from core.logger import get_logger
+from core.text_io import read_text
 
 log = get_logger(__name__)
 
@@ -42,7 +43,7 @@ def get_page_size_points(ppd_path: str | None, value: str) -> tuple[float, float
     if not ppd_path or not value:
         return None
     try:
-        text = pathlib.Path(ppd_path).read_text(errors="replace")
+        text = read_text(pathlib.Path(ppd_path), lenient=True)
     except OSError:
         return None
 
@@ -78,7 +79,7 @@ def get_imageable_area_points(ppd_path: str | None, value: str) -> tuple[float, 
     if not ppd_path or not value:
         return None
     try:
-        text = pathlib.Path(ppd_path).read_text(errors="replace")
+        text = read_text(pathlib.Path(ppd_path), lenient=True)
     except OSError:
         return None
 

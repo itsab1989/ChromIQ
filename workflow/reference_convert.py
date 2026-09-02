@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Callable
 
 from core.stem_paths import artefact
+from core.text_io import read_text
 
 
 class ReferenceKind(Enum):
@@ -52,7 +53,7 @@ def classify_reference(path: str | Path) -> ReferenceKind:
         return ReferenceKind.DIRECT
     # .txt (or anything else): sniff for colorimetric columns.
     try:
-        head = p.read_text(errors="ignore")[:8000]
+        head = read_text(p, lenient=True)[:8000]
     except OSError:
         return ReferenceKind.DIRECT
     return (ReferenceKind.DIRECT if _COLORIMETRIC.search(head)
@@ -117,7 +118,7 @@ def read_instrumentation(txt_path: str | Path) -> "str | None":
     """The i1Profiler / X-Rite ``INSTRUMENTATION`` header value (e.g.
     ``"i1Pro 2"``), or ``None`` when the file names no real instrument."""
     try:
-        text = Path(txt_path).read_text(errors="replace")
+        text = read_text(Path(txt_path), lenient=True)
     except OSError:
         return None
     m = re.search(r'^\s*INSTRUMENTATION\s+"?(.*?)"?\s*$', text,
@@ -147,7 +148,7 @@ def read_measurement_date(txt_path: str | Path) -> "str | None":
     """The measurement date from an i1Profiler export's ``CREATED`` header, as an
     ISO date (``YYYY-MM-DD``), or ``None`` if absent/unparseable. Locale-safe."""
     try:
-        text = Path(txt_path).read_text(errors="replace")
+        text = read_text(Path(txt_path), lenient=True)
     except OSError:
         return None
     m = re.search(r'^\s*CREATED\s+"?(.*?)"?\s*$', text, re.IGNORECASE | re.MULTILINE)
@@ -181,7 +182,7 @@ def stamp_measurement_date_from_source(ti3_path: str | Path,
     carries one. Returns the ISO date written (or already present), else None."""
     ti3_path = Path(ti3_path)
     try:
-        text = ti3_path.read_text(errors="replace")
+        text = read_text(ti3_path, lenient=True)
     except OSError:
         return None
     m = re.search(r'^\s*CHROMIQ_MEASURED\s+"?(.*?)"?\s*$', text,
@@ -194,7 +195,7 @@ def stamp_measurement_date_from_source(ti3_path: str | Path,
     lines = text.splitlines()
     at = 1 if lines and lines[0].strip().upper().startswith("CTI3") else 0
     lines[at:at] = ['KEYWORD "CHROMIQ_MEASURED"', f'CHROMIQ_MEASURED "{date}"']
-    ti3_path.write_text("\n".join(lines) + "\n")
+    ti3_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return date
 
 
@@ -222,7 +223,7 @@ def stamp_instrument_from_source(ti3_path: str | Path, source_txt: str | Path,
     """
     ti3_path = Path(ti3_path)
     try:
-        text = ti3_path.read_text(errors="replace")
+        text = read_text(ti3_path, lenient=True)
     except OSError:
         return ""
     m = re.search(r'^\s*TARGET_INSTRUMENT\s+"?(.*?)"?\s*$', text,
@@ -235,7 +236,7 @@ def stamp_instrument_from_source(ti3_path: str | Path, source_txt: str | Path,
         # Replace txt2ti3's placeholder value in place (its KEYWORD line stays).
         text = re.sub(r'^(\s*TARGET_INSTRUMENT\s+).*$', rf'\1"{name}"', text,
                       count=1, flags=re.MULTILINE)
-        ti3_path.write_text(text)
+        ti3_path.write_text(text, encoding="utf-8")
     else:
         # No tag at all: insert one, declared with a KEYWORD line so ArgyllCMS
         # tools still parse the file (mirrors ti3_analysis.mark_verification_ti3).
@@ -243,7 +244,7 @@ def stamp_instrument_from_source(ti3_path: str | Path, source_txt: str | Path,
         at = 1 if lines and lines[0].strip().upper().startswith("CTI3") else 0
         lines[at:at] = ['KEYWORD "TARGET_INSTRUMENT"',
                         f'TARGET_INSTRUMENT "{name}"']
-        ti3_path.write_text("\n".join(lines) + "\n")
+        ti3_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return name
 
 

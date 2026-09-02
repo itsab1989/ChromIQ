@@ -117,7 +117,7 @@ def check_citations() -> None:
         if not p.is_file():
             bad(f"{rel}:{lineno}", "the file does not exist")
             continue
-        lines = p.read_text(errors="replace").splitlines()
+        lines = p.read_text(errors="replace", encoding="utf-8").splitlines()
         if lineno > len(lines):
             bad(f"{rel}:{lineno}", f"file has only {len(lines)} lines")
             continue
@@ -200,7 +200,7 @@ def check_numbers() -> None:
             bad(f"engine {instr}/{paper}", f"document says {want}, engine says {got}")
 
     print("\n--- 2d. where the four WRONG figures really came from ---")
-    src = (ROOT / "data" / "patch_db.py").read_text()
+    src = (ROOT / "data" / "patch_db.py").read_text(encoding="utf-8")
     for num, key in WRONG_NUMBER_PROVENANCE.items():
         if isinstance(key, tuple):
             pat = (rf'\(\s*"{key[0]}"\s*,\s*{key[1]}\s*,\s*"{key[2]}"\)\s*:\s*{num}\b')
@@ -266,7 +266,7 @@ def check_quotations(body: "str | None") -> None:
             name, must if must in text else
             f"the shipped message no longer contains {must!r}")
 
-    tip = (ROOT / "ui" / "dialogs" / "layout_options_panel.py").read_text()
+    tip = (ROOT / "ui" / "dialogs" / "layout_options_panel.py").read_text(encoding="utf-8")
     for frag in ("Same as source (no colour management)",
                  "a pure red patch of 255,0,0 came back as "):
         if frag in tip:
@@ -274,7 +274,7 @@ def check_quotations(body: "str | None") -> None:
         else:
             bad("PDF tooltip", f"no longer contains {frag!r}")
 
-    lock = (ROOT / "ui" / "main_window.py").read_text()
+    lock = (ROOT / "ui" / "main_window.py").read_text(encoding="utf-8")
     if "Not for a verification run." in lock:
         ok("Build Profile lock tooltip is still the quoted one")
     else:
@@ -320,7 +320,7 @@ def main() -> int:
     ap.add_argument("--body", type=Path, default=None,
                     help="a dump of the issue body to cross-check")
     args = ap.parse_args()
-    body = args.body.read_text() if args.body and args.body.is_file() else None
+    body = args.body.read_text(encoding="utf-8") if args.body and args.body.is_file() else None
 
     check_citations()
     check_numbers()

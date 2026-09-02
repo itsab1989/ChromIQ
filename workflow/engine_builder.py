@@ -26,6 +26,7 @@ from PyQt6.QtCore import QThread, pyqtSignal
 
 from core.i18n import tr
 from core.logger import get_logger
+from core.text_io import read_text
 from workflow.profile_engine import BuildSettings
 
 if TYPE_CHECKING:
@@ -41,7 +42,7 @@ _COLPROF_REPS = {"RGB", "iRGB", "CMYK", "CMY", "K", "W", "GRAY"}
 def ti3_device_rep(ti3_path: Path | str) -> str:
     """The device part of the file's COLOR_REP (``""`` when unreadable)."""
     try:
-        head = Path(ti3_path).read_text(errors="replace")[:8000]
+        head = read_text(Path(ti3_path), lenient=True)[:8000]
     except OSError:
         return ""
     m = re.search(r'^COLOR_REP\s+"([^"]+)"', head, re.M)

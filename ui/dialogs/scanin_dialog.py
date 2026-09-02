@@ -31,6 +31,7 @@ from PyQt6.QtWidgets import (
 
 from core.i18n import tr
 from core.logger import get_logger
+from core.text_io import read_text
 from ui.dialogs.tools_dialogs import (
     _ToolDialogBase, _initial_dir, _remember_dir, neutral_controls_qss)
 from ui.scan_grid_marquee import GridSpec, ScanGridMarquee
@@ -247,7 +248,7 @@ def page_ids_from_cht(cht: Path) -> set[str] | None:
     file can't be parsed."""
     from workflow.cht_parser import ChtParseError, parse_cht
     try:
-        geom = parse_cht(cht.read_text(errors="ignore"))
+        geom = parse_cht(read_text(cht, lenient=True))
     except (OSError, ChtParseError):
         return None
     return {_plain_id(b.name) for b in geom.patches} or None
@@ -1785,7 +1786,7 @@ class ScannerProfileDialog(_ToolDialogBase):
                 "⚠ This chart has no .ti3 or .ti2 next to it, so ChromIQ can't read "
                 "its patch values."))
             return
-        _doc = json.loads(channels.read_text())
+        _doc = json.loads(read_text(channels))
         self._layout = _doc["layout"]
         # The Create Chart registry travels beside the layout, and it is the
         # only place a printtarg-drawn honeycomb says so (there is no engine
@@ -2361,7 +2362,7 @@ class ScannerProfileDialog(_ToolDialogBase):
             return
         self._capture_current_corners()
         try:
-            self._std_grid = GridSpec.from_cht(self._std_cht.read_text(errors="ignore"))
+            self._std_grid = GridSpec.from_cht(read_text(self._std_cht, lenient=True))
         except OSError:
             self._std_grid = GridSpec([])
         self._marquee.set_grid(self._std_grid)
@@ -2374,7 +2375,7 @@ class ScannerProfileDialog(_ToolDialogBase):
             return False
         from ui.scan_grid_marquee import cht_has_fiducials
         try:
-            return cht_has_fiducials(self._std_cht.read_text(errors="ignore"))
+            return cht_has_fiducials(read_text(self._std_cht, lenient=True))
         except OSError:
             return False
 
@@ -2398,7 +2399,7 @@ class ScannerProfileDialog(_ToolDialogBase):
             return
         from ui.scan_grid_marquee import fiducial_frame
         from workflow.cht_parser import ChtParseError, parse_cht
-        txt = self._std_cht.read_text(errors="ignore")
+        txt = read_text(self._std_cht, lenient=True)
         fr = fiducial_frame(txt)
         if fr is None:
             return
@@ -2666,7 +2667,7 @@ class ScannerProfileDialog(_ToolDialogBase):
                     except OSError:
                         pass
         try:
-            text = orig_cht.read_text(errors="ignore")
+            text = read_text(orig_cht, lenient=True)
         except OSError:
             text = None
         # The chart's own float geometry is used as-is for EVERY chart kind
@@ -2695,7 +2696,7 @@ class ScannerProfileDialog(_ToolDialogBase):
             return corners
         from ui.scan_grid_marquee import extrapolate_to_fiducials
         try:
-            text = orig_cht.read_text(errors="ignore")
+            text = read_text(orig_cht, lenient=True)
         except OSError:
             return corners
         return extrapolate_to_fiducials(corners, text) or corners
@@ -2717,7 +2718,7 @@ class ScannerProfileDialog(_ToolDialogBase):
             return cht                # ON: corners were placed on the real marks
         from workflow.scanin_runner import cht_with_patchbox_fiducials
         try:
-            txt = cht.read_text(errors="ignore")
+            txt = read_text(cht, lenient=True)
         except OSError:
             return cht
         new = cht_with_patchbox_fiducials(txt)
@@ -2729,7 +2730,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         # volume refuses a new directory (read-only scan location).
         from core.file_manager import cache_subdir, ensure_subdir
         dst = ensure_subdir(cache_subdir(base.parent)) / f"{cht.stem}-patchbox.cht"
-        dst.write_text(new)
+        dst.write_text(new, encoding="utf-8")
         return dst
 
     def _apply_sample_area(self, cht: Path, frac: float, base: Path) -> Path:
@@ -2741,12 +2742,12 @@ class ScannerProfileDialog(_ToolDialogBase):
         silently reads ≈ 50 % of each patch (Knut, #119)."""
         from workflow.scanin_runner import cht_with_sample_area
         try:
-            new_text = cht_with_sample_area(cht.read_text(errors="ignore"), frac)
+            new_text = cht_with_sample_area(read_text(cht, lenient=True), frac)
         except OSError:
             return cht
         from core.file_manager import cache_subdir, ensure_subdir
         dst = ensure_subdir(cache_subdir(base.parent)) / f"{cht.stem}-sample.cht"
-        dst.write_text(new_text)
+        dst.write_text(new_text, encoding="utf-8")
         return dst
 
     def _execute(self) -> None:
@@ -3300,7 +3301,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         corners = params.corners
         if not corners or len(corners) != 4:
             return None
-        geom = parse_cht(params.cht.read_text(errors="ignore"))
+        geom = parse_cht(read_text(params.cht, lenient=True))
         if not geom.patches:
             return None
         # The corners correspond to the prepared cht's F line — the real
@@ -3538,13 +3539,13 @@ class ScannerProfileDialog(_ToolDialogBase):
         otherwise make colprof reject the whole .ti3 (a common Windows crash)."""
         from workflow.scanin_runner import sanitize_ti3
         try:
-            clean, zeroed, dropped = sanitize_ti3(ti3.read_text(errors="ignore"))
+            clean, zeroed, dropped = sanitize_ti3(read_text(ti3, lenient=True))
         except OSError:
             return
         if not (zeroed or dropped):
             return
         try:
-            ti3.write_text(clean)
+            ti3.write_text(clean, encoding="utf-8")
         except OSError:
             return
         if dropped:
@@ -3622,7 +3623,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         merged = base.with_name(base.name + "-scanner.ti3")
         header, rows = None, []
         for tp in page_ti3s:
-            text = tp.read_text()
+            text = read_text(tp)
             lines = text.splitlines()
             ds = next(i for i, l in enumerate(lines) if l.strip() == "BEGIN_DATA")
             de = next(i for i, l in enumerate(lines) if l.strip() == "END_DATA")
@@ -3637,7 +3638,7 @@ class ScannerProfileDialog(_ToolDialogBase):
             else:
                 out.append(l)
         out += rows + ["END_DATA", ""]
-        merged.write_text("\n".join(out))
+        merged.write_text("\n".join(out), encoding="utf-8")
         return merged
 
     def _log_line(self, line: str) -> None:

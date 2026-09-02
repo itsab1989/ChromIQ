@@ -329,7 +329,7 @@ def main() -> int:
         report[mode] = r
 
     (OUT / "onscreen.json").write_text(
-        json.dumps(_jsonable(report), indent=2, sort_keys=True))
+        json.dumps(_jsonable(report), indent=2, sort_keys=True), encoding="utf-8")
     print(f"\nwrote {OUT / 'onscreen.json'}")
 
     win.close()

@@ -26,7 +26,7 @@ if len(sys.argv) != 4:
     raise SystemExit(2)
 
 code, langname, native = sys.argv[1:4]
-template = (Path(__file__).parent / "prompt_template.md").read_text()
+template = (Path(__file__).parent / "prompt_template.md").read_text(encoding="utf-8")
 prompt = (template.replace("{CODE}", code)
                   .replace("{LANGNAME}", langname)
                   .replace("{NATIVE}", native))

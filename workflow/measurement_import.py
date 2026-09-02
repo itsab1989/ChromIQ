@@ -35,6 +35,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from core.i18n import tr
+from core.text_io import read_text
 
 log = logging.getLogger(__name__)
 
@@ -129,7 +130,7 @@ def _chart_patch_count(ti2: "Path | None") -> int:
         return 0
     try:
         m = re.search(r"NUMBER_OF_SETS\s+(\d+)",
-                      Path(ti2).read_text(errors="replace"))
+                      read_text(Path(ti2), lenient=True))
     except OSError:
         return 0
     return int(m.group(1)) if m else 0

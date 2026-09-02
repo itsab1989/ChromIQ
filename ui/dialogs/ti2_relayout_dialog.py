@@ -453,6 +453,7 @@ _STRIP_INSTRUMENTS = frozenset({"i1", "3p"})
 # Paper sizes the new-chart dropdown offers — matches the Create Chart tab.
 from data.patch_db import PAPER_LABELS, PAPER_PRINTTARG_ARG, paper_name_token
 from core.i18n import count_phrase, tr
+from core.text_io import read_text
 from ui.keyboard_help import with_shortcut
 
 
@@ -7552,7 +7553,7 @@ class Ti2RelayoutDialog(QDialog):
         # Create Chart build (workflow.chart_creator._embed_layout_geometry).
         sidecar = target / f"{name}.channels.json"
         strips = target / f"{name}.strips.json"
-        layout = json.loads(strips.read_text()) if strips.exists() else {}
+        layout = json.loads(read_text(strips)) if strips.exists() else {}
         layout["engine"] = "chromiq"
         layout["engine_version"] = 1
         layout["seed"] = result.seed
@@ -7569,7 +7570,7 @@ class Ti2RelayoutDialog(QDialog):
         _codes = rep_ink_codes(result.color_rep)
         if _codes:
             doc["ink_channels"] = _codes
-        sidecar.write_text(json.dumps(doc))
+        sidecar.write_text(json.dumps(doc), encoding="utf-8")
         if strips.exists():
             strips.unlink()
         # Hand-off sidecars (colour list + i1Profiler pair) — the same set the

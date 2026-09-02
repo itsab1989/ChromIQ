@@ -16,6 +16,7 @@ from pathlib import Path
 from core.logger import get_logger
 from core.name_order import sort_names
 from core.resource_path import resource_path
+from core.text_io import read_text
 
 log = get_logger(__name__)
 
@@ -106,7 +107,7 @@ def patch_count(cht: Path) -> int:
     """Number of patches described by a ``.cht`` (0 if it can't be parsed)."""
     from workflow.cht_parser import ChtParseError, parse_cht
     try:
-        return len(parse_cht(cht.read_text(errors="ignore")).patches)
+        return len(parse_cht(read_text(cht, lenient=True)).patches)
     except (OSError, ChtParseError):
         return 0
 
@@ -328,7 +329,7 @@ def make_test_scan(cht_path, out_dir):
     from PIL import Image
     from workflow.cht_parser import parse_cht
     cht_path = _P(cht_path); out_dir = _P(out_dir); out_dir.mkdir(parents=True, exist_ok=True)
-    text = cht_path.read_text(errors="ignore")
+    text = read_text(cht_path, lenient=True)
     boxes = parse_cht(text).patches
     minx = min(b.x1 for b in boxes); maxx = max(b.x2 for b in boxes)
     miny = min(b.y1 for b in boxes); maxy = max(b.y2 for b in boxes)
@@ -380,7 +381,7 @@ def make_test_scan(cht_path, out_dir):
     arr = arr + rng.normal(0.0, 0.015 * 255.0, size=arr.shape)
     img = Image.fromarray(_np.clip(arr, 0, 255).astype(_np.uint8))
     tif = out_dir / f"{cht_path.stem}-test.tif"; ref = out_dir / f"{cht_path.stem}-test.cie"
-    img.save(tif); ref.write_text("\n".join(cie))
+    img.save(tif); ref.write_text("\n".join(cie), encoding="utf-8")
     return tif, ref
 
 
@@ -394,7 +395,7 @@ def merge_demo_references(cie_paths, out_path):
     header: list[str] | None = None
     rows: list[str] = []
     for cp in cie_paths:
-        lines = _P(cp).read_text().splitlines()
+        lines = read_text(_P(cp)).splitlines()
         ds = next(i for i, l in enumerate(lines) if l.strip() == "BEGIN_DATA")
         de = next(i for i, l in enumerate(lines) if l.strip() == "END_DATA")
         if header is None:
@@ -405,7 +406,7 @@ def merge_demo_references(cie_paths, out_path):
         out.append(f"NUMBER_OF_SETS {len(rows)}"
                    if l.strip().startswith("NUMBER_OF_SETS") else l)
     out += rows + ["END_DATA", ""]
-    out_path.write_text("\n".join(out))
+    out_path.write_text("\n".join(out), encoding="utf-8")
     return out_path
 
 

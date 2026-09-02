@@ -25,6 +25,7 @@ from pathlib import Path
 import numpy as np
 
 from core.logger import get_logger
+from core.text_io import read_text
 from workflow.ti3_analysis import (
     Ti3ParseError, ciede2000, is_verification_ti3, parse_ti3, xyz_to_lab,
 )
@@ -825,7 +826,7 @@ def list_project_reports(run_dir: str | Path) -> list[Path]:
 
     def _created(p: Path) -> str:
         try:
-            return str(json.loads(p.read_text()).get("created", "")) or p.name
+            return str(json.loads(read_text(p)).get("created", "")) or p.name
         except Exception:  # noqa: BLE001
             return p.name
     return sorted(paths, key=_created)

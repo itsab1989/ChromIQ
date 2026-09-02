@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import pathlib
 import re
+from core.text_io import read_text
 
 # A PPD UI option is specifically a "colour-management" option if its label
 # looks like one (used to qualify a bare "Off"/"None" value):
@@ -87,7 +88,7 @@ def vendor_no_cm_settings(ppd_path: str) -> list[tuple[str, str]]:
     types colour-managed (2026-06 survey of the Apple vendor driver bundles).
     """
     try:
-        text = pathlib.Path(ppd_path).read_text(errors="replace")
+        text = read_text(pathlib.Path(ppd_path), lenient=True)
     except OSError:
         return []
     hits: list[tuple[int, int, str, str]] = []

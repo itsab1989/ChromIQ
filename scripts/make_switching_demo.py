@@ -308,7 +308,7 @@ def main() -> int:      # noqa: PLR0915
                       ("run2", proj_dir / "runs/run2/meta.json"),
                       ("cal", proj_dir / "cal/meta.json")):
         try:
-            ps = _json.loads(mj.read_text()).get("profile_settings") or {}
+            ps = _json.loads(mj.read_text(encoding="utf-8")).get("profile_settings") or {}
             print(f"   on disk {label}: profile_settings.smoothing="
                   f"{ps.get('smoothing')!r} ({len(ps)} keys)")
         except Exception as e:      # noqa: BLE001

@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Optional
 
 from core.logger import get_logger
+from core.text_io import read_text
 from data.patch_db import EXTERNAL_INSTRUMENTS, SUPPORTED_PATCH_SCALES, query_patches
 
 if TYPE_CHECKING:
@@ -1373,8 +1374,8 @@ class ChartCreator:
         sidecar = work_dir / f"{stem}.channels.json"
         strips = work_dir / f"{stem}.strips.json"
         try:
-            doc = json.loads(sidecar.read_text()) if sidecar.exists() else {}
-            layout = json.loads(strips.read_text()) if strips.exists() else {}
+            doc = json.loads(read_text(sidecar)) if sidecar.exists() else {}
+            layout = json.loads(read_text(strips)) if strips.exists() else {}
             layout["engine"] = "chromiq"      # explicit marker: a ChromIQ-engine chart
             layout["engine_version"] = 1
             layout["seed"] = result.seed
@@ -1446,7 +1447,7 @@ class ChartCreator:
                 # (20 -> 74).
                 layout["margins_chosen_by_user"] = False
             doc["layout"] = layout
-            sidecar.write_text(json.dumps(doc))
+            sidecar.write_text(json.dumps(doc), encoding="utf-8")
             if strips.exists():
                 strips.unlink()   # geometry now lives in channels.json
         except Exception as exc:  # noqa: BLE001
@@ -1670,7 +1671,7 @@ class ChartCreator:
                 # targen + printtarg registry at Generate, restored when the
                 # chart is loaded again.
                 "create_chart_settings": dict(params.settings_snapshot or {}),
-            }))
+            }), encoding="utf-8")
             log.debug("Wrote channel sidecar %s: %s", sidecar.name, channels)
         except Exception as exc:
             log.warning("Could not write channel sidecar: %s", exc)
@@ -1770,10 +1771,10 @@ class ChartCreator:
                             "— not stored", stem, len(cht_locs), len(ti2_locs))
                 return False
             sidecar = work_dir / f"{stem}.channels.json"
-            doc = json.loads(sidecar.read_text()) if sidecar.exists() else {}
+            doc = json.loads(read_text(sidecar)) if sidecar.exists() else {}
             doc["layout"] = {"engine": "printtarg", "cht_pages": pages,
                              "locs": sorted(cht_locs)}
-            sidecar.write_text(json.dumps(doc))
+            sidecar.write_text(json.dumps(doc), encoding="utf-8")
             log.info("Captured scanner .cht geometry for %s: %d page(s), %d patches",
                      stem, len(pages), len(cht_locs))
             return True
@@ -1797,9 +1798,9 @@ class ChartCreator:
             from workflow.layout_from_render import derive_layout_from_render
             layout = derive_layout_from_render(tiffs, ti2)
             sidecar = work_dir / f"{stem}.channels.json"
-            doc = json.loads(sidecar.read_text()) if sidecar.exists() else {}
+            doc = json.loads(read_text(sidecar)) if sidecar.exists() else {}
             doc["layout"] = layout
-            sidecar.write_text(json.dumps(doc))
+            sidecar.write_text(json.dumps(doc), encoding="utf-8")
             log.info("Derived scanner geometry from the render for %s: "
                      "%d patches, %d page(s)", stem,
                      len(layout["patches"]), len(tiffs))

@@ -278,7 +278,7 @@ def main() -> int:
     print("\n--- README step 17: a calibration rebuild keeps its text ---")
     cal = proj.calibration
     cal.ensure_dir()
-    cal.cal_path.write_text("a calibration")
+    cal.cal_path.write_text("a calibration", encoding="utf-8")
     m = cal.load_meta()
     m.description, m.chart_notes = "cal text", "cal notes"
     cal.save_meta(m)

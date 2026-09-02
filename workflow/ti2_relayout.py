@@ -36,6 +36,7 @@ import numpy as np
 
 from core.logger import get_logger
 from core.strip_utils import letter_to_idx, parse_passes_per_page
+from core.text_io import read_text
 
 log = get_logger(__name__)
 
@@ -667,7 +668,7 @@ def load_colour_file(path: Path) -> list[tuple[float, float, float]]:
             raise
     except Exception:  # noqa: BLE001 — fall through to the plain value list
         pass
-    text = path.read_text(errors="ignore")
+    text = read_text(path, lenient=True)
     vals = parse_color_values(text)
     if vals:
         return vals

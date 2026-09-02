@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import (
 
 from core.i18n import tr
 from core.logger import get_logger
+from core.text_io import read_text
 from ui import neutral_styles
 from ui.fade_scroll import attach_edge_fades
 from ui.styles import BG_INPUT, BORDER, SPEC_GREEN, TAB_COLORS, TEXT_MAIN
@@ -974,7 +975,7 @@ class MeasurementReportDialog(QDialog):
         runs: list[dict] = []
         for p in list_project_reports(ti3.parent):
             try:
-                rep = json.loads(p.read_text())
+                rep = json.loads(read_text(p))
             except Exception:  # noqa: BLE001
                 continue
             # Reports saved by an older ChromIQ carry an older schema whose

@@ -76,15 +76,15 @@ def _env(tmp: Path, *, recipe: bool = True):
     s.set("custom_output_path", str(root))
     fm = FileManager(s)
     proj = Project.create(root / "P", "P"); run = proj.current_run(); run.ensure_dir()
-    run.chart_ti2.write_text("PROFILING-CHART")
-    run.measurement_ti3.write_text("MEASUREMENT")
+    run.chart_ti2.write_text("PROFILING-CHART", encoding="utf-8")
+    run.measurement_ti3.write_text("MEASUREMENT", encoding="utf-8")
     run.profile_icc.write_bytes(b"ICC")
     run.verifications_dir.mkdir(parents=True, exist_ok=True)
-    run.verify_chart_ti1.write_text("VTI1")
-    run.verify_chart_ti2.write_text("VTI2")
+    run.verify_chart_ti1.write_text("VTI1", encoding="utf-8")
+    run.verify_chart_ti2.write_text("VTI2", encoding="utf-8")
     if recipe:
-        (run.verifications_dir / f"{run.verify_stem}.channels.json").write_text("{}")
-    (run.verifications_dir / f"{run.verify_stem}_01.tif").write_text("PAGE")
+        (run.verifications_dir / f"{run.verify_stem}.channels.json").write_text("{}", encoding="utf-8")
+    (run.verifications_dir / f"{run.verify_stem}_01.tif").write_text("PAGE", encoding="utf-8")
     fm.set_target_name("P")
     ctl = MeasurementTargetController(fm)
     ctl.set_profile_run("run1"); ctl.set_run_type(RUN_TYPE_VERIFICATION)
@@ -112,7 +112,7 @@ def run_rows() -> None:
     (run.verifications_dir / "old").mkdir(exist_ok=True)
     (run.verifications_dir / "reports").mkdir(exist_ok=True)
     older = run.verification("2026-06-01_090000"); older.ensure_dir()
-    older.measurement_ti3.write_text("OLD RESULT")
+    older.measurement_ti3.write_text("OLD RESULT", encoding="utf-8")
     bar.refresh()
     labels = [bar._verify_combo.itemText(i) for i in range(bar._verify_combo.count())]
     record("V-01 dropdown lists the dated folder + New verification, hides old/ & reports/",
@@ -164,13 +164,13 @@ def run_rows() -> None:
     ctl.set_measuring(False)
 
     print("\n--- restore ---")
-    run.verify_chart_ti2.write_text("REPLACED LATER")
+    run.verify_chart_ti2.write_text("REPLACED LATER", encoding="utf-8")
     seen = {"n": 0}
     ctl.chart_restored.connect(lambda: seen.__setitem__("n", seen["n"] + 1))
     result = ctl.restore_used_chart()
     record("V-10 restore puts the chart back and keeps the measurements",
-           bool(result and result.ok) and run.verify_chart_ti2.read_text() == "VTI2"
-           and older.measurement_ti3.read_text() == "OLD RESULT"
+           bool(result and result.ok) and run.verify_chart_ti2.read_text(encoding="utf-8") == "VTI2"
+           and older.measurement_ti3.read_text(encoding="utf-8") == "OLD RESULT"
            and seen["n"] == 1,
            f"ok={getattr(result, 'ok', None)} tabs_notified={seen['n']}")
     record("V-11 dated folders and old/ untouched by a restore",
@@ -189,7 +189,7 @@ def run_rows() -> None:
            run.verifications_old_dir.exists() and older.dir.exists()
            and run.chart_ti2.exists(),
            f"verifications/old={run.verifications_old_dir.exists()}")
-    run.verify_chart_ti2.write_text("BACK")
+    run.verify_chart_ti2.write_text("BACK", encoding="utf-8")
     archive_run_for_replace(run, verification=False)
     archived = sorted(p.name for p in run.old_dir.rglob("*")) if run.old_dir.exists() else []
     record("V-14 profiling Replace archives every folder in the run",
@@ -223,16 +223,16 @@ def run_rows() -> None:
 
     record("P-04 an unchanged chart needs no confirmation",
            ctl.restore_needs_confirmation() is False)
-    run.chart_ti2.write_text("REPLACED LATER")
+    run.chart_ti2.write_text("REPLACED LATER", encoding="utf-8")
     record("P-05 a changed chart does need confirmation",
            ctl.restore_needs_confirmation() is True)
 
-    run.measurement_ti3.write_text("MEASURED AFTERWARDS")
+    run.measurement_ti3.write_text("MEASURED AFTERWARDS", encoding="utf-8")
     result = ctl.restore_used_chart()
     record("P-06 restore puts the chart back and keeps the measurement",
            bool(result and result.ok)
-           and run.chart_ti2.read_text() == "PROFILING-CHART"
-           and run.measurement_ti3.read_text() == "MEASURED AFTERWARDS",
+           and run.chart_ti2.read_text(encoding="utf-8") == "PROFILING-CHART"
+           and run.measurement_ti3.read_text(encoding="utf-8") == "MEASURED AFTERWARDS",
            f"ok={getattr(result, 'ok', None)}")
 
     meta = run.load_meta(); meta.chart_snapshot_stale = True; run.save_meta(meta)

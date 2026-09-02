@@ -82,7 +82,7 @@ def _chart_files_printtarg(into: Path, stem: str, *, patches: int,
 
 def _row_count(ti3: Path) -> int:
     """How many data rows a measurement holds (used while building)."""
-    text = ti3.read_text(errors="ignore")
+    text = ti3.read_text(errors="ignore", encoding="utf-8")
     body = text.partition("BEGIN_DATA")[2].partition("END_DATA")[0]
     return len([l for l in body.splitlines() if l.strip()])
 
@@ -91,12 +91,12 @@ def _shrink_chart(ti2: Path, *, keep: int) -> None:
     """Cut a laid-out chart down to *keep* patches, leaving the measurement
     beside it describing more readings than the chart has — §3a's "C > A", the
     row that says the measurement does not belong to this chart."""
-    text = ti2.read_text(errors="ignore")
+    text = ti2.read_text(errors="ignore", encoding="utf-8")
     head, sep, rest = text.partition("BEGIN_DATA\n")
     body, sep2, tail = rest.partition("END_DATA")
     rows = [l for l in body.splitlines() if l.strip()][:keep]
     head = re.sub(r"NUMBER_OF_SETS\s+\d+", f"NUMBER_OF_SETS {len(rows)}", head)
-    ti2.write_text(head + sep + "\n".join(rows) + "\n" + sep2 + tail)
+    ti2.write_text(head + sep + "\n".join(rows) + "\n" + sep2 + tail, encoding="utf-8")
 
 
 def _strip(path: Path) -> None:
@@ -140,7 +140,7 @@ def _measure(chart_dir: Path, stem: str, *, seed_icc: Path,
 
 def _cgats(path: Path) -> "tuple[list[str], list[str], list[str]]":
     """(header lines, data rows, trailer lines) of a CGATS file."""
-    lines = path.read_text().splitlines()
+    lines = path.read_text(encoding="utf-8").splitlines()
     i = lines.index("BEGIN_DATA")
     j = lines.index("END_DATA")
     return lines[:i + 1], [l for l in lines[i + 1:j] if l.strip()], lines[j:]
@@ -156,7 +156,7 @@ def _write_cgats(path: Path, head, rows, tail) -> None:
     """
     head = [f"NUMBER_OF_SETS {len(rows)}" if l.startswith("NUMBER_OF_SETS")
             else l for l in head]
-    path.write_text("\n".join(head + rows + tail) + "\n")
+    path.write_text("\n".join(head + rows + tail) + "\n", encoding="utf-8")
 
 
 def _merge_sample_loc(ti3: Path, ti2: Path) -> None:
@@ -220,10 +220,10 @@ def _break_measurement(ti3: Path, how: str) -> None:
     if how == "header_lies":
         head = [f"NUMBER_OF_SETS {len(rows) + 961}"
                 if l.startswith("NUMBER_OF_SETS") else l for l in head]
-        ti3.write_text("\n".join(head + rows + tail) + "\n")
+        ti3.write_text("\n".join(head + rows + tail) + "\n", encoding="utf-8")
     elif how == "no_data":
         i = head.index("BEGIN_DATA")
-        ti3.write_text("\n".join(head[:i]) + "\n")
+        ti3.write_text("\n".join(head[:i]) + "\n", encoding="utf-8")
     else:                                        # pragma: no cover
         raise ValueError(how)
 
@@ -241,7 +241,7 @@ def _verification(run_dir: Path, stem: str, when: datetime, de: float,
     (v / "reports").mkdir(parents=True, exist_ok=True)
     shutil.copy2(source_ti3, v / f"{stem}-verify.ti3")
     (v / "reports" / f"report_{when:%Y-%m-%d_%H-%M-%S}.json").write_text(
-        _report(f"{stem}-verify", when, de))
+        _report(f"{stem}-verify", when, de), encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -269,7 +269,7 @@ def _seed_profile(_unused: Path) -> Path:
     # fake one through — so this first one is synthesised, and it is the only
     # one in the package that is. Everything the user sees comes from fakeread
     # against the profile it produces.
-    (work / f"{stem}.ti3").write_text(_ti3_from_ti2(work / f"{stem}.ti2"))
+    (work / f"{stem}.ti3").write_text(_ti3_from_ti2(work / f"{stem}.ti2"), encoding="utf-8")
     if not _build_icc(work, stem):
         raise SystemExit("could not build the seed profile — is colprof on PATH?")
     _SEED = work / f"{stem}.icc"
@@ -694,7 +694,7 @@ def build_many_runs(root: Path) -> None:
                       de, source_ti3=vti3)
     (r / "reports").mkdir(exist_ok=True)
     (r / "reports" / "report_2026-04-01_09-00-00.json").write_text(
-        _report(name, datetime(2026, 4, 1, 9, 0), 1.2))
+        _report(name, datetime(2026, 4, 1, 9, 0), 1.2), encoding="utf-8")
     _meta(r, "run5")
 
     r = p / "runs" / "run6"
@@ -1001,14 +1001,14 @@ def build_run_descriptions(root: Path) -> None:
     cal.ensure_dir()
     _chart_files(cal.dir, cal.stem, patches=RUN_PATCHES, rows=RUN_ROWS)
     _measure(cal.dir, cal.stem, seed_icc=seed)
-    cal.cal_path.write_text("# a calibration made from the chart beside it\n")
+    cal.cal_path.write_text("# a calibration made from the chart beside it\n", encoding="utf-8")
     from workflow.chart_slot import slot_for_calibration
     snapshot_slot(slot_for_calibration(cal))
     (cal.dir / "meta.json").write_text(json.dumps({
         "description": "Canson Baryta, new ink set, warm room",
         "chart_notes": "calibration sheet, 5 Aug",
         "profile_description": "",
-    }, indent=2))
+    }, indent=2), encoding="utf-8")
 
 
 @case(name="Demo-10-Import-A-Measurement",
@@ -1087,7 +1087,7 @@ def build_import_case(root: Path) -> None:
     _chart_files(r / "verifications", f"{name}-verify",
                  patches=48, rows=VERIFY_ROWS)
     _n = lambda f: int(re.search(r"NUMBER_OF_SETS\s+(\d+)",  # noqa: E731
-                                 f.read_text()).group(1))
+                                 f.read_text(encoding="utf-8")).group(1))
     vdir = r / "verifications"
     if _n(vdir / f"{name}-verify.ti1") != _n(vdir / f"{name}-verify.ti2"):
         raise SystemExit(
@@ -1114,7 +1114,7 @@ def build_import_case(root: Path) -> None:
 
 def _spec_sequences() -> "list[str]":
     """Every sequence ID the model defines, read from the document."""
-    text = SPEC_DOC.read_text()
+    text = SPEC_DOC.read_text(encoding="utf-8")
     body = text[text.index("## S. Sequences"):]
     body = body[:body.index("## T. Test plan")]
     # \d+ on BOTH sides: the model reached S2.10, and a single-digit pattern
@@ -1154,7 +1154,7 @@ def _patch_count(ti2: Path) -> "int | None":
     its generator, so the number on screen is never quite the number asked
     for — and the document must quote the one the tester will see."""
     try:
-        for line in ti2.read_text(errors="replace").splitlines():
+        for line in ti2.read_text(errors="replace", encoding="utf-8").splitlines():
             if line.startswith("NUMBER_OF_SETS"):
                 return int(line.split()[1])
     except Exception:      # noqa: BLE001
@@ -1437,7 +1437,7 @@ def _catalogue():
 
 def _app_version() -> str:
     ns: dict = {}
-    exec((ROOT / "core" / "version.py").read_text(), ns)
+    exec((ROOT / "core" / "version.py").read_text(encoding="utf-8"), ns)
     return ns.get("APP_VERSION", "?")
 
 
@@ -1456,7 +1456,7 @@ def build_all(dest: Path) -> Path:
     for i, c in enumerate(CASES, 1):
         print(f"[{i}/{len(CASES)}] {c['name']} …", flush=True)
         c["fn"](dest)
-    (dest / "README.md").write_text(_document(CASES, dest))
+    (dest / "README.md").write_text(_document(CASES, dest), encoding="utf-8")
     write_readme_pdf(dest / "README.md")
     return dest
 
@@ -1495,7 +1495,7 @@ def write_readme_pdf(readme: Path) -> "Path | None":
     )
     # setMarkdown understands the GitHub dialect the README is written in
     # (tables, fenced code), so the PDF keeps the step tables readable.
-    doc.setMarkdown(readme.read_text())
+    doc.setMarkdown(readme.read_text(encoding="utf-8"))
 
     pdf = readme.with_suffix(".pdf")
     writer = QPdfWriter(str(pdf))
@@ -1694,7 +1694,7 @@ def verify(dest: Path) -> "list[str]":
     problems += _check_measurements_are_real(dest)
     readme = dest / "README.md"
     if readme.exists():
-        text = readme.read_text()
+        text = readme.read_text(encoding="utf-8")
         for token in ("{n}", "{v}", "{c}", "{c1}", "{c2}", "None patches"):
             if token in text:
                 problems.append(

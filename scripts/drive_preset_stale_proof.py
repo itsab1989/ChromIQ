@@ -119,7 +119,7 @@ def geometry_digest(run_dir: Path) -> dict:
     import json as _json
     out = {}
     for side in sorted(run_dir.glob("*.channels.json")):
-        lay = _json.loads(side.read_text()).get("layout", {})
+        lay = _json.loads(side.read_text(encoding="utf-8")).get("layout", {})
         geo = {
             "paper_mm": lay.get("paper_mm"),
             "steps_in_pass": lay.get("steps_in_pass"),
@@ -243,7 +243,7 @@ def main() -> int:
     # -- What went into the store.
     try:
         import json as _json
-        meta = _json.loads((run_dir / "meta.json").read_text())
+        meta = _json.loads((run_dir / "meta.json").read_text(encoding="utf-8"))
         rec = (meta.get("create_chart_ui") or {}).get("engine_recipe") or {}
         res["06_meta_json_recipe"] = {
             k: rec.get(k) for k in res["01_panel_before_preset"]}
@@ -344,7 +344,7 @@ def main() -> int:
     win.close()
     pump(app, 300)
 
-    (out / f"{tag}_results.json").write_text(json.dumps(res, indent=2))
+    (out / f"{tag}_results.json").write_text(json.dumps(res, indent=2), encoding="utf-8")
     print(f"\nwrote {out / (tag + '_results.json')}")
     return 0
 

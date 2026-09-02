@@ -260,7 +260,7 @@ def main() -> int:
     finally:
         guard_out(before)
         OUT.mkdir(parents=True, exist_ok=True)
-        (OUT / "driver_log.txt").write_text("\n".join(LOG))
+        (OUT / "driver_log.txt").write_text("\n".join(LOG), encoding="utf-8")
     return 0
 
 

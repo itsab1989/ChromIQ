@@ -96,7 +96,7 @@ _GLOSSARY = {
 
 def check(code: str) -> "tuple[dict, list[str]]":
     path = I18N / f"{code}.json"
-    j = json.loads(path.read_text())
+    j = json.loads(path.read_text(encoding="utf-8"))
     pairs = [(k, v) for k, v in j.items() if not k.startswith("@")]
     done = [(k, v) for k, v in pairs if v != k]
     placeholders = [k for k, v in pairs if v == k]

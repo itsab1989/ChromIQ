@@ -26,6 +26,7 @@ from pathlib import Path
 import numpy as np
 
 from workflow.profile_engine.icc_writer import BRADFORD
+from core.text_io import read_text
 
 D50_XYZ100 = np.array([96.42, 100.0, 82.49])
 
@@ -199,7 +200,7 @@ _KW_RE = re.compile(r'^([A-Z0-9_]+)\s+"?([^"\n]*)"?\s*$')
 def read_ti3(path: Path | str) -> Ti3Measurement:
     """Parse a ``.ti3`` into device n-D + XYZ arrays (Lab-only files accepted)."""
     p = Path(path)
-    text = p.read_text(errors="replace")
+    text = read_text(p, lenient=True)
     fm = re.search(r"BEGIN_DATA_FORMAT\s*\n(.*?)\nEND_DATA_FORMAT", text, re.S)
     dm = re.search(r"BEGIN_DATA\s*\n(.*?)\nEND_DATA", text, re.S)
     if not fm or not dm:

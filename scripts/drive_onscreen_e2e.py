@@ -26,12 +26,12 @@ sys.path.insert(0, str(ROOT))
 OUT = Path(os.environ.get("CHROMIQ_E2E_OUT", Path.home() / "chromiq-e2e"))
 OUT.mkdir(exist_ok=True)
 STAGES = OUT / "stages.txt"
-STAGES.write_text("")
+STAGES.write_text("", encoding="utf-8")
 
 
 def stage(text: str) -> None:
     line = f"{time.strftime('%H:%M:%S')} {text}\n"
-    with STAGES.open("a") as f:
+    with STAGES.open("a", encoding="utf-8") as f:
         f.write(line)
     print(line.rstrip(), flush=True)
 
@@ -279,7 +279,7 @@ except Exception as exc:                       # noqa: BLE001
 stage("closing")
 win.close()
 pump(0.4)
-(OUT / "report.txt").write_text("\n".join(REPORT) + "\n")
+(OUT / "report.txt").write_text("\n".join(REPORT) + "\n", encoding="utf-8")
 stage("REPORT WRITTEN")
 print("\n===== REPORT =====")
 for line in REPORT:

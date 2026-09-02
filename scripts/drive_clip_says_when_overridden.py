@@ -243,7 +243,7 @@ def main() -> int:
     home = Path.home() / "ChromIQ"
     res["09_home_chromiq_has_project"] = (home / PROJECT).exists()
 
-    (out / "onscreen-result.json").write_text(json.dumps(res, indent=2))
+    (out / "onscreen-result.json").write_text(json.dumps(res, indent=2), encoding="utf-8")
     print("written", out / "onscreen-result.json")
 
     for t in _timers:

@@ -281,12 +281,12 @@ def _merge_engine_geometry(stem) -> bool:
         log("  no engine geometry to merge (chart not engine-built?)")
         return False
     try:
-        doc = json.loads(sidecar.read_text()) if sidecar.is_file() else {}
-        layout = json.loads(strips.read_text())
+        doc = json.loads(sidecar.read_text(encoding="utf-8")) if sidecar.is_file() else {}
+        layout = json.loads(strips.read_text(encoding="utf-8"))
         layout["engine"] = "chromiq"
         layout["engine_version"] = 1
         doc["layout"] = layout
-        sidecar.write_text(json.dumps(doc))
+        sidecar.write_text(json.dumps(doc), encoding="utf-8")
     except Exception as e:      # noqa: BLE001
         log(f"  could not merge engine geometry: {e}")
         return False

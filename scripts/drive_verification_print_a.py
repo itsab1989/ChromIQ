@@ -83,7 +83,7 @@ def main() -> int:
         run = fm.project().run("run1")
         run.verifications_dir.mkdir(parents=True, exist_ok=True)
         ti2 = run.verify_chart_ti2
-        ti2.write_text("CTI2\n")
+        ti2.write_text("CTI2\n", encoding="utf-8")
         # A real RGB page with saturated colours, so the conversion has work.
         page = run.verifications_dir / f"{run.verify_stem}_01.tif"
         img = Image.new("RGB", (300, 200))
@@ -137,7 +137,7 @@ def main() -> int:
         tab._on_print_all()
         check("Print All converts too (T4)", submitted == [conv])
 
-        rec = json.loads(vp.print_record_path(ti2).read_text())
+        rec = json.loads(vp.print_record_path(ti2).read_text(encoding="utf-8"))
         check("record: colour through-profile", rec["colour"] == "through-profile")
         check("record: intent relative", rec["intent"] == "relative")
         check("record: route chromiq", rec["route"] == "chromiq")
@@ -149,12 +149,12 @@ def main() -> int:
         tab._cm_raw_rb.setChecked(True)
         tab._on_print_current()
         check("raw submits the untouched page", submitted == [page])
-        rec = json.loads(vp.print_record_path(ti2).read_text())
+        rec = json.loads(vp.print_record_path(ti2).read_text(encoding="utf-8"))
         check("record now says raw, no intent",
               rec["colour"] == "raw" and rec["intent"] == "")
 
         print("\n-- a chart that is already converted (§3.1a) --")
-        vp.colorimetric_reference_for(ti2).write_text("CTI3\n")
+        vp.colorimetric_reference_for(ti2).write_text("CTI3\n", encoding="utf-8")
         tab._update_colour_row_visible()
         check("through is DISABLED, not merely deselected",
               not tab._cm_through_rb.isEnabled())

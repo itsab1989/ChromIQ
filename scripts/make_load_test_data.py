@@ -98,7 +98,7 @@ def write_ti1(path: Path, pats):
     lines += _extra_table("DENSITY_EXTREME_VALUES", "8", _CORNERS)
     lines += _extra_table("DEVICE_COMBINATION_VALUES", "9",
                           _CORNERS + [(50.0, 50.0, 50.0)])
-    path.write_text("\n".join(lines))
+    path.write_text("\n".join(lines), encoding="utf-8")
 
 
 #: The instrument name ArgyllCMS itself writes and recognises. NOT a ChromIQ
@@ -125,7 +125,7 @@ def write_ti2(path: Path, pats):
         x, y, z = _srgb_xyz(r, g, b)
         lines.append(f"{i} A{i} {r:.4f} {g:.4f} {b:.4f} {x:.4f} {y:.4f} {z:.4f}")
     lines += ["END_DATA", ""]
-    path.write_text("\n".join(lines))
+    path.write_text("\n".join(lines), encoding="utf-8")
 
 
 def write_ti3(path: Path, pats, verification=False):
@@ -141,7 +141,7 @@ def write_ti3(path: Path, pats, verification=False):
     for i, (r, g, b) in enumerate(pats, 1):
         x, y, z = _srgb_xyz(r, g, b)
         body.append(f"{i} A{i} {r:.4f} {g:.4f} {b:.4f} {x:.4f} {y:.4f} {z:.4f}")
-    path.write_text("\n".join(hdr + body + ["END_DATA", ""]))
+    path.write_text("\n".join(hdr + body + ["END_DATA", ""]), encoding="utf-8")
 
 
 def write_tiff(path: Path, pats):
@@ -168,8 +168,8 @@ def _chart(dst_dir: Path, stem: str, *, pages=1, ti3=False, icc=False,
     pats = _patches()
     write_ti1(dst_dir / f"{stem}.ti1", pats)
     write_ti2(dst_dir / f"{stem}.ti2", pats)
-    (dst_dir / f"{stem}.cht").write_text("BOXES 0\n")
-    (dst_dir / f"{stem}.channels.json").write_text(json.dumps({"channels": ["r", "g", "b"]}))
+    (dst_dir / f"{stem}.cht").write_text("BOXES 0\n", encoding="utf-8")
+    (dst_dir / f"{stem}.channels.json").write_text(json.dumps({"channels": ["r", "g", "b"]}), encoding="utf-8")
     for i in range(1, pages + 1):
         write_tiff(dst_dir / f"{stem}_{i:02d}.tif", pats)
     if ti3:
@@ -203,7 +203,7 @@ def _legacy_flat_project(root: Path, name: str):
     no runs/ folder, a legacy <stem>-verify.ti3 — exercises Load-profile porting."""
     root.mkdir(parents=True, exist_ok=True)
     (root / "project.json").write_text(json.dumps(
-        {"schema_version": 1, "current_run": "run1", "runs": ["run1"]}, indent=2))
+        {"schema_version": 1, "current_run": "run1", "runs": ["run1"]}, indent=2), encoding="utf-8")
     stem = name.replace(" ", "-")
     _chart(root, stem, pages=1, ti3=True, icc=True)
     write_ti3(root / f"{stem}-verify.ti3", _patches(), verification=True)
@@ -224,7 +224,7 @@ def main(out_dir: Path):
     _chart(ext / "old-flat-chart", "old-flat-chart", pages=1)     # no project.json
     _legacy_flat_project(ext / "Legacy-Flat-Project", "Legacy-Flat-Project")
 
-    (root / "README.txt").write_text(_README)
+    (root / "README.txt").write_text(_README, encoding="utf-8")
 
     zip_path = out_dir / "ChromIQ-load-test-data.zip"
     if zip_path.exists():

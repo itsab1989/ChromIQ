@@ -71,6 +71,7 @@ from ui.tiff_preview import TiffPreview
 from ui.tooltip_button import InfoDialog, TooltipButton
 from ui.widgets import add_log_row, fit_log_height, CollapsibleGroupBox, NoScrollComboBox, NoScrollSpinBox, PatchGridButton, PrefixLockedLineEdit, icc_profile_paths, load_magenta_folder_icon, make_browse_button, open_file_dialog, set_folder_icon, set_preset_icon
 from core.i18n import count_phrase, tr
+from core.text_io import read_text
 from workflow.i1profiler_export import EXTRA_INK, export_from_ti1, parse_ti1
 from workflow.i1profiler_import import import_to_ti1
 from workflow.chart_creator import (
@@ -102,7 +103,7 @@ _TARGEN_ADDED_RE = re.compile(r"Added (\d+)/(\d+)")
 def _number_of_sets(path) -> int | None:
     """``NUMBER_OF_SETS`` from a CGATS .ti1/.ti2, or None if unreadable."""
     try:
-        for line in Path(path).read_text(errors="ignore").splitlines():
+        for line in read_text(Path(path), lenient=True).splitlines():
             if line.startswith("NUMBER_OF_SETS"):
                 return int(line.split()[-1])
     except (OSError, ValueError):
@@ -2449,7 +2450,7 @@ def _chart_date_from_ti2(ti2: Path) -> str:
     import re as _re
     from datetime import datetime
     try:
-        head = Path(ti2).read_text(errors="replace")[:4000]
+        head = read_text(Path(ti2), lenient=True)[:4000]
     except OSError:
         return ""
     m = _re.search(r'CREATED\s+"([^"]+)"', head)
@@ -10483,7 +10484,7 @@ class TabChart(QWidget):
                 if not sidecar.exists():
                     sidecar = ti2_path.parent / f"{ti2_path.stem}.channels.json"
                 if sidecar.exists():
-                    layout = _json.loads(sidecar.read_text()).get("layout", {})
+                    layout = _json.loads(read_text(sidecar)).get("layout", {})
                     pages = 1 + max((int(p.get("page", 0))
                                      for p in layout.get("patches") or []),
                                     default=-1)
@@ -10555,7 +10556,7 @@ class TabChart(QWidget):
         self._restored_chart_date = ""
         # Patch count from the .ti2 itself — works for every chart kind.
         try:
-            txt = Path(ti2_path).read_text(errors="replace")
+            txt = read_text(Path(ti2_path), lenient=True)
             m = _re.search(r"NUMBER_OF_SETS\s+(\d+)", txt)
             if m:
                 self._set_manual_value("targen", "-f", int(m.group(1)))
@@ -10571,7 +10572,7 @@ class TabChart(QWidget):
         if not sidecar.is_file():
             return False
         try:
-            doc = _json.loads(sidecar.read_text())
+            doc = _json.loads(read_text(sidecar))
         except Exception:  # noqa: BLE001 — never block a load on a bad sidecar
             log.warning("could not restore chart settings from %s", sidecar,
                         exc_info=True)
@@ -10716,7 +10717,7 @@ class TabChart(QWidget):
                 self._loading_target_settings = was_loading
             try:
                 m = _re.search(r"NUMBER_OF_SETS\s+(\d+)",
-                               Path(ti2_path).read_text(errors="replace"))
+                               read_text(Path(ti2_path), lenient=True))
                 if m:
                     self._set_manual_value("targen", "-f", int(m.group(1)))
             except Exception:  # noqa: BLE001
@@ -10758,12 +10759,12 @@ class TabChart(QWidget):
             return
         sidecar = Path(ti2).with_suffix(".channels.json")
         try:
-            doc = json.loads(sidecar.read_text()) if sidecar.is_file() else {}
+            doc = json.loads(read_text(sidecar)) if sidecar.is_file() else {}
         except Exception:  # noqa: BLE001
             doc = {}
         doc["printtarg_fields"] = self._snapshot_printtarg_fields()
         try:
-            sidecar.write_text(json.dumps(doc))
+            sidecar.write_text(json.dumps(doc), encoding="utf-8")
         except Exception:  # noqa: BLE001
             log.warning("could not store printtarg fields in %s", sidecar)
 
@@ -14071,7 +14072,7 @@ class TabChart(QWidget):
             if seed is not None and seed.is_file():
                 try:
                     import json as _json
-                    held = _json.loads(seed.read_text())
+                    held = _json.loads(read_text(seed))
                 except Exception:      # noqa: BLE001 — a bad block is not fatal
                     log.warning("Could not read %s; the New run starts clean",
                                 seed, exc_info=True)
@@ -14242,7 +14243,7 @@ class TabChart(QWidget):
             return False
         try:
             import json as _json
-            held = _json.loads(seed.read_text())
+            held = _json.loads(read_text(seed))
         except Exception:      # noqa: BLE001
             log.warning("Could not read %s when creating %s", seed,
                         getattr(new_run, "id", new_run), exc_info=True)
@@ -16833,7 +16834,7 @@ class TabChart(QWidget):
         try:
             import re
             m = re.search(r"NUMBER_OF_SETS\s+(\d+)",
-                          Path(ti2).read_text(errors="replace"))
+                          read_text(Path(ti2), lenient=True))
             return int(m.group(1)) if m else None
         except Exception:
             return None
@@ -16885,7 +16886,7 @@ class TabChart(QWidget):
         try:
             import re
             from core.strip_utils import parse_passes_per_page
-            txt = Path(ti2).read_text(errors="replace")
+            txt = read_text(Path(ti2), lenient=True)
             total = int(re.search(r"NUMBER_OF_SETS\s+(\d+)", txt).group(1))
             _m = re.search(r'STEPS_IN_PASS\s+"?(\d+)"?', txt)
             rows = int(_m.group(1)) if _m else 0
@@ -16923,7 +16924,7 @@ class TabChart(QWidget):
             sidecar = Path(ti2).with_suffix(".channels.json")
             if not sidecar.is_file():
                 return (0.0, 0.0)
-            doc = json.loads(sidecar.read_text())
+            doc = json.loads(read_text(sidecar))
             layout = doc.get("layout") or {}
             rects = layout.get("patches") or []
             recipe = layout.get("recipe") or {}
@@ -17496,7 +17497,7 @@ class TabChart(QWidget):
         if not on:
             return None
         m = re.search(r"NUMBER_OF_SETS\s+(\d+)",
-                      Path(self._margin_ti2).read_text(errors="replace"))
+                      read_text(Path(self._margin_ti2), lenient=True))
         if not m:
             return None
         # THE SAME KWARGS THE RENDERER USED, INCLUDING THE PATCH COUNT.
@@ -17559,7 +17560,7 @@ class TabChart(QWidget):
             ch = Path(self._margin_ti2).with_suffix(".channels.json")
             if not ch.is_file():
                 return None
-            layout = json.loads(ch.read_text()).get("layout") or {}
+            layout = json.loads(read_text(ch)).get("layout") or {}
             recipe = layout.get("recipe")
             if not isinstance(recipe, dict):
                 return None
@@ -17613,7 +17614,7 @@ class TabChart(QWidget):
             ch = Path(self._margin_ti2).with_suffix(".channels.json")
             if not ch.is_file():
                 return ""
-            doc = json.loads(ch.read_text())
+            doc = json.loads(read_text(ch))
             recipe = (doc.get("layout") or {}).get("recipe") or {}
             return str(recipe.get("instrument") or "")
         except Exception:      # noqa: BLE001 — the inspector must never crash
@@ -17737,7 +17738,7 @@ class TabChart(QWidget):
         try:
             import json as _json
             ch = Path(ti2).with_suffix(".channels.json")
-            layout = (_json.loads(ch.read_text()).get("layout") or {})
+            layout = (_json.loads(read_text(ch)).get("layout") or {})
             return layout.get("margins_chosen_by_user") is not False
         except Exception:      # noqa: BLE001 — unreadable sidecar: assume the
             return True        # recipe is honest, as it was before this existed
@@ -17802,7 +17803,7 @@ class TabChart(QWidget):
             if rec is None:
                 return None                  # printtarg chart — no engine layout
             m = re.search(r"NUMBER_OF_SETS\s+(\d+)",
-                          Path(ti2).read_text(errors="replace"))
+                          read_text(Path(ti2), lenient=True))
             if not m:
                 return None
             total = int(m.group(1))

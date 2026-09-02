@@ -65,7 +65,7 @@ def check(step: str, got, want) -> bool:
 def _sets(ti_path: Path) -> "int | None":
     """NUMBER_OF_SETS out of a .ti1/.ti2, or None."""
     try:
-        for line in ti_path.read_text(errors="replace").splitlines():
+        for line in ti_path.read_text(errors="replace", encoding="utf-8").splitlines():
             if line.strip().startswith("NUMBER_OF_SETS"):
                 return int(line.split()[-1])
     except OSError:
