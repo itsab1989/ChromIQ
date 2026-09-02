@@ -674,6 +674,27 @@ def make_new_project_and_file(parent, name: str, measurement: Path, fm, ctl,
     return True
 
 
+def _the_run_the_person_is_looking_at(proj, ctl):
+    """The run the Profile-run pulldown names, or the manifest's current run.
+
+    The one place a new run's chart is copied from, so the run ChromIQ uses and
+    the run the person is shown cannot be two different things (R6 F1). Never
+    raises: a project that cannot answer at all gives ``None``, and the caller
+    already says so on screen rather than filing blind.
+    """
+    from core.measurement_target import resolve_run
+    try:
+        target = getattr(ctl, "target", None) if ctl is not None else None
+        if target is not None:
+            return resolve_run(proj, target)
+    except Exception:      # noqa: BLE001 — fall through to the manifest
+        log.warning("import: could not read the run from the bar", exc_info=True)
+    try:
+        return proj.current_run()
+    except Exception:      # noqa: BLE001
+        return None
+
+
 def file_into_project(parent, name: str, measurement: Path, fm, ctl,
                       *, accent: str = "", on_filed=None, root=None) -> bool:
     """Open *name* (if it is not already open) and file the measurement in
@@ -835,12 +856,29 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
     # `duplicate_run(source, groups=("chart",))` — the chart the measurement
     # is supposed to be OF, and nothing else. Where there is no source run
     # to take a chart from, the import is refused rather than filed blind.
+    #
+    # AND THE CHART IS TAKEN FROM THE RUN THE PERSON CAN SEE.
+    #
+    # This read `proj.current_run()` — the MANIFEST's field, which picking a
+    # run on the bar does not write. Driven (R6 F1, `d07_prove_source.py`): the
+    # same journey twice, the bar reading "Run 1" both times, only
+    # `project.json`'s `current_run` different. With `run3` the new run was
+    # seeded from run 3's 400-patch chart and the import was refused —
+    # "This measurement does not belong to that chart … 225 of 240 patches" —
+    # about a measurement that is run 1's own. With `run1` it filed. The
+    # refusal was the LUCKY outcome: where the two runs hold same-sized charts,
+    # the import is ACCEPTED and the new run carries the wrong run's chart and
+    # page images, with nothing on screen saying so.
+    #
+    # `resolve_run` is the one rule for this in the app: the bar's
+    # `profile_run` when that run exists in the project, and the manifest's
+    # `current_run` otherwise. That fallback is what keeps the note above true
+    # — for a project ChromIQ has just opened on the person's behalf the bar is
+    # pointed at the manifest anyway, so this can only ever be the same answer
+    # or a better one. It decides the SOURCE OF THE CHART only; where the
+    # measurement goes is still asked, never inherited.
     if run is None:
-        source = None
-        try:
-            source = proj.current_run()
-        except Exception:      # noqa: BLE001
-            source = None
+        source = _the_run_the_person_is_looking_at(proj, ctl)
         if source is None or not source.chart_ti2.is_file():
             InfoDialog(
                 tr("There is no chart to check this measurement against"),

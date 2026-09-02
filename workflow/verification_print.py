@@ -306,6 +306,37 @@ def write_print_record(ti2_path: Path, *, colour: str, intent: str,
     return path
 
 
+def record_answers_how_printed(rec: "dict | None") -> bool:
+    """True when a print record actually answers "how was this sheet made?".
+
+    The Measure tab skips the M-HOW-PRINTED question when it finds a record,
+    on the reasoning that ChromIQ printed the sheet and therefore knows. That
+    is only sound for a record that says two things, and a bare
+    ``read_print_record(...) is not None`` checks neither:
+
+    * **what was done** — a ``colour`` this module recognises. An empty
+      object, a truncated file re-read as ``{}``, or a record with no
+      ``colour`` is not an answer; it silenced the question and put nothing
+      into the report, so the sheet was judged with neither a stated
+      provenance nor a chance to state one.
+    * **that it was done** — a ``printed_at`` (a print that happened) or a
+      ``recorded`` marker (the person answered this very question at measure
+      time; ``_ask_how_printed`` writes that kind and deliberately carries no
+      ``printed_at``, because it does not know the print time).
+
+    Anything else, the question is asked. That is the safe direction: being
+    asked and answering "Not sure" changes nothing, while not being asked
+    silently decides which yardstick every ΔE00 in the report is measured
+    against (R6 F5).
+    """
+    if not isinstance(rec, dict):
+        return False
+    if rec.get("colour") not in (COLOUR_RAW, COLOUR_THROUGH):
+        return False
+    return bool(str(rec.get("printed_at") or "").strip()
+                or str(rec.get("recorded") or "").strip())
+
+
 def read_print_record(ti3_path: Path) -> "dict | None":
     """The print record for a measured verification ``.ti3``, or None.
 

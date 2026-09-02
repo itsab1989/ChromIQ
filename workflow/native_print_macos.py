@@ -502,7 +502,7 @@ except Exception:  # pragma: no cover - non-macOS / no PyObjC
     _ChartPrintView = None  # type: ignore[assignment]
 
 
-def print_frames(pages: list[tuple[Path, int]]) -> None:
+def print_frames(pages: list[tuple[Path, int]]) -> bool:
     """Show the native macOS print dialog for *pages* and submit them as one job.
 
     *pages* is a list of ``(tiff_path, frame_index)`` tuples — the same shape
@@ -510,9 +510,17 @@ def print_frames(pages: list[tuple[Path, int]]) -> None:
     the TIFF's native size (from its resolution tag) with no scaling and no
     colour management.  Raises on failure; the caller surfaces it to the user.
     Must be called on the main (GUI) thread.
+
+    Returns **True when the job was handed to the spooler** and False when it
+    was not — the dialog was cancelled, or there was nothing to print, or
+    ``runOperation`` refused it. It used to return ``None`` on all four
+    outcomes, so a caller could not tell a print from a cancel; the print
+    record depends on that difference (R6 F5).  ``ColorManagementMismatch`` is
+    raised only *after* a successful submission, so an exception of that one
+    kind also means the job went.
     """
     if not pages:
-        return
+        return False
     if _ChartPrintView is None:
         raise RuntimeError("PyObjC AppKit is not available on this system")
 
@@ -586,7 +594,7 @@ def print_frames(pages: list[tuple[Path, int]]) -> None:
     ok_response = getattr(AppKit, "NSModalResponseOK", getattr(AppKit, "NSOKButton", 1))
     if panel.runModalWithPrintInfo_(print_info) != ok_response:
         log.info("native print: dialog cancelled")
-        return
+        return False
 
     _lock_no_color_management(print_info)
     _apply_session_no_color_management(print_info)
@@ -605,7 +613,7 @@ def print_frames(pages: list[tuple[Path, int]]) -> None:
         pi_after = print_info
     if not ok:
         log.warning("native print: job submission failed")
-        return
+        return False
     # Verify what the submitted job actually carried.  If something overrode
     # the lock between our re-apply and submission, surface it to the user.
     mismatches = _verify_color_management(pi_after, "post-submit")
@@ -617,3 +625,4 @@ def print_frames(pages: list[tuple[Path, int]]) -> None:
             "the job was submitted but ChromIQ could not verify that colour "
             "management was disabled — " + details
         )
+    return True

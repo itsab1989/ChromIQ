@@ -1774,8 +1774,14 @@ class MainWindow(QMainWindow):
         else:
             self._tab_measure.clear_chart_file()
         if s["check_ti3"] is not None:
-            icc = s["check_icc"] if s["check_icc"] is not None else s["check_ti3"].with_suffix(".icc")
-            self._tab_check.set_paths(s["check_ti3"], icc, propagate=False)
+            # RESTORE WHAT WAS RECORDED, AND NOTHING MORE. This used to
+            # substitute `check_ti3.with_suffix(".icc")` when no profile had
+            # been found, which puts a path to a non-existent file in the
+            # profile field and ENABLES Analyse (the button asks only whether
+            # both paths are set). Harmless while the snapshot was always empty
+            # here; a real fault the moment it stopped being (R6 F2).
+            self._tab_check.set_paths(s["check_ti3"], s["check_icc"],
+                                      propagate=False)
         else:
             self._tab_check.clear_files()
 

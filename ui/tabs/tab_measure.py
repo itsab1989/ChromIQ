@@ -10220,10 +10220,19 @@ class TabMeasure(QWidget):
         from workflow import measurement_messages as M
         from workflow.verification_print import (COLOUR_RAW, COLOUR_THROUGH,
                                                  read_print_record,
+                                                 record_answers_how_printed,
                                                  write_print_record)
         try:
-            if read_print_record(ti3) is not None:
-                return                    # ChromIQ printed it — it knows
+            # NOT "a record exists" — "a record that answers this".
+            #
+            # `is not None` here was the second half of R6 F5: a print ChromIQ
+            # refused to make still left a `<stem>.print.json`, and that file
+            # silenced this question about a sheet ChromIQ had not printed. The
+            # write is now timed to a real print (`tab_print`), and this side
+            # checks what it found rather than only that it found something —
+            # so a malformed or half-written record asks instead of assuming.
+            if record_answers_how_printed(read_print_record(ti3)):
+                return                    # it says how it was made, and that it was
         except Exception:      # noqa: BLE001 — a question must never crash
             return
         title, body = M.M_HOW_PRINTED.render()
