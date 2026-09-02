@@ -126,9 +126,9 @@ def _darken_for_light_log(hex_color: str) -> str:
     should be in a colourless theme was one of the two open questions the owner
     kept for himself, and he has answered it: **log text is black or very dark
     grey.** So Neutral does not call this at all — it takes
-    :data:`ui.neutral_styles.NM_LOG_TEXT` (``#101010``, 17.45:1 on the log
-    surface) straight from the token table, and there is nothing per-tab left
-    to darken. Before the ruling the per-tab accent was painted raw on the log
+    :data:`ui.neutral_styles.NM_LOG_TEXT` (``#101010``, 19.03:1 on the log
+    well, which the owner made WHITE on 2026-09-02) straight from the token
+    table, and there is nothing per-tab left to darken. Before the ruling the per-tab accent was painted raw on the log
     in Neutral and measured **1.63:1** (amber) to 3.03:1 (magenta).
 
     Light and Dark are untouched: this function is still exactly what the light

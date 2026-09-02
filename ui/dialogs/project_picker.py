@@ -166,13 +166,33 @@ def _wear_the_tab_accent(dlg, accent: str) -> None:
     """
     if not accent:
         return
+    # THROUGH `accent_for`, LIKE ITS TWIN. `tint_dialog_primary` — the same
+    # tab hue, the same dialogs, thirty lines away in ui/widgets.py — has
+    # routed its accent through the theme since Neutral shipped; this one did
+    # not, so opening the picker or the name box from Build Profile put a
+    # CYAN focus ring on the name field and a cyan bar across the chosen
+    # project in a theme with no cyan in it. The callers hand over a raw
+    # `_TAB_COLOR`, which is right: the appearance is answered here, at the
+    # one place the value reaches a stylesheet, rather than at each of them.
+    # It is an INTERACTION state — a ring you only see while typing, a bar
+    # you only see once a row is chosen — which is why every pixel census
+    # taken at rest walked past it.
+    from ui.theme import accent_for, active_mode, APPEARANCE_NEUTRAL
+    mode = active_mode()
+    accent = accent_for(accent, mode)
     try:
         r, g, b = (int(accent[1:3], 16), int(accent[3:5], 16), int(accent[5:7], 16))
     except (ValueError, IndexError):
         return
     # Dark text on the accent, the same rule `tint_dialog_primary` uses: these
-    # accents are all light enough that white on them fails to read.
-    on_accent = "#0a0a0a" if (r * 299 + g * 587 + b * 114) / 1000 > 140 else "#ffffff"
+    # accents are all light enough that white on them fails to read. Neutral's
+    # ACTION is not, and its answer is the theme's one sanctioned pairing.
+    if mode == APPEARANCE_NEUTRAL:
+        from ui import neutral_styles as _n
+        on_accent = _n.NM_ON_ACTION
+    else:
+        on_accent = ("#0a0a0a" if (r * 299 + g * 587 + b * 114) / 1000 > 140
+                     else "#ffffff")
     dlg.setStyleSheet((dlg.styleSheet() or "") + f"""
         QLineEdit:focus, QComboBox:focus {{ border-color: {accent}; }}
         QListWidget {{ selection-background-color: {accent};

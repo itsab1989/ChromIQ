@@ -21,8 +21,8 @@ than moving these by hand.
 THREE RULES COME OUT OF THE MEASUREMENTS, and the second is the one this file
 exists to keep:
 
-1. **Nothing is ever lighter than its ground.** On a panel at L* 93 there is no
-   headroom above — white on the panel reaches 1.2:1. Every accent, rule, ring
+1. **Nothing is ever lighter than its ground.** On a panel at L* 90 there is no
+   headroom above — white on the panel reaches 1.3:1. Every accent, rule, ring
    and indicator is *darker* than what it sits on, without exception.
 2. **All text is dark. There is no inverted text anywhere.** Nothing here is
    copied across from ``ui/styles.py``: a light constant painted onto a surface
@@ -30,9 +30,19 @@ exists to keep:
    is :data:`NM_ON_ACTION` on :data:`NM_ACTION` (15.53:1), which is a fill, not
    an inversion of the theme.
 3. **Low contrast means "disabled" and nothing else.** Enabled controls carry a
-   fill and a solid 1px edge; disabled controls lose the fill and take a dashed
-   edge in :data:`NM_DISABLED` (1.46:1 — deliberately low). Nothing that works
+   fill and a solid 1px edge; disabled controls LOSE THE FILL and their edge
+   drops to :data:`NM_DISABLED` (1.35:1 — deliberately low). Nothing that works
    is allowed to be faint.
+
+   THE EDGE IS SOLID, NOT DASHED. The handoff's shape for "disabled" was a
+   dashed edge, and it shipped that way; the owner looked at it on screen and
+   ruled it out (2026-09-02): *"checkboxes and comboboxes (probably also
+   spinboxes) from deactivated options have dotted lines in neutral mode -
+   should be continuous"*. His call, over the handoff. Do not put the dash
+   back. What says "disabled" without it: the fill is GONE (a live field is
+   white, a dead one is the ground), the label and the edge drop to
+   NM_DISABLED, and a ticked box loses its ACTION fill — three signals, none
+   of them a hue and none of them a dash.
 """
 from __future__ import annotations
 
@@ -50,8 +60,12 @@ _ARROW_UP_DARK   = str(resource_path("assets/arrow_up_dark.svg")).replace("\\", 
 #
 #   token          hex        L*    use
 #   BG_WINDOW      #e2e2e2    90    outer chrome, tab trough, masthead, gutters
-#   BG_PANEL       #ebebeb    93    the main working panel — the reading surface
-#   BG_SURFACE     #f5f5f5    97    raised group boxes and cards
+#   BG_PANEL       #e2e2e2    90    the main working panel — the reading surface
+#   BG_SURFACE     #e2e2e2    90    group boxes and cards
+#
+# BG_PANEL and BG_SURFACE were #ebebeb (L* 93) and #f5f5f5 (L* 97). The owner
+# collapsed them onto the window value on 2026-09-02 — see the note beside the
+# constants. Every ratio in this file's comments is recomputed against #e2e2e2.
 #   BG_INPUT       #ffffff   100    fields, combo boxes, spin boxes
 #   BG_VIEWER      #d4d4d4    85    preview and gamut wells
 #   BORDER         #b6b6b6    74    ordinary separation
@@ -66,41 +80,68 @@ _ARROW_UP_DARK   = str(resource_path("assets/arrow_up_dark.svg")).replace("\\", 
 
 # Backgrounds
 NM_BG_WINDOW   = "#e2e2e2"   # window background, tab-bar trough, masthead
-NM_BG_PANEL    = "#ebebeb"   # main content panels (tab pane)
-NM_BG_SURFACE  = "#f5f5f5"   # GroupBox fill, footer strips, cards
+# ONE GROUND, NOT THREE. The handoff stacked three surfaces — window #e2e2e2,
+# panel #ebebeb, raised surface #f5f5f5 — and the owner looked at the shipped
+# build and ruled the stack out (2026-09-02):
+#
+#     "it looks like every section in every tab is a little lighter than the
+#      background of the main window. should be the same color."
+#
+# So the two names below now resolve to the window value. THE NAMES STAY:
+# roughly forty sites say which surface they mean, and reading "the panel" or
+# "the raised card" at the point of use is worth more than the one value they
+# share. What tells a section from its ground is its 1px BORDER edge, which is
+# rule 3's own answer — a thing that works carries a solid edge — and here the
+# edge carries all of it.
+#
+# Anything that stepped DOWN from these (hover, pressed, the popups' hover row)
+# had to move down with them; see the derived block below.
+NM_BG_PANEL    = NM_BG_WINDOW   # main content panels (tab pane)
+NM_BG_SURFACE  = NM_BG_WINDOW   # GroupBox fill, footer strips, cards
 NM_BG_INPUT    = "#ffffff"   # QLineEdit / QSpinBox / QComboBox bg
 NM_BG_VIEWER   = "#d4d4d4"   # TIFF preview / 3D gamut viewer fill
 
 # Borders
-NM_BORDER      = "#b6b6b6"   # ordinary separation                  1.70:1 on panel
-NM_BORDER_HI   = "#2f2f2f"   # active / focused edge               11.23:1 on panel
+NM_BORDER      = "#b6b6b6"   # ordinary separation                  1.57:1 on panel
+NM_BORDER_HI   = "#2f2f2f"   # active / focused edge               10.33:1 on panel
 
 # Text — all of it dark, see rule 2
-NM_TEXT_MAIN   = "#101010"   # body, values, labels                15.96:1 on panel
-NM_TEXT_DIM    = "#232323"   # secondary labels, units, help       13.18:1 on panel
-NM_TEXT_FAINT  = "#3f3f3f"   # tertiary                             8.83:1 on panel
+NM_TEXT_MAIN   = "#101010"   # body, values, labels                14.69:1 on panel
+NM_TEXT_DIM    = "#232323"   # secondary labels, units, help       12.13:1 on panel
+NM_TEXT_FAINT  = "#3f3f3f"   # tertiary                             8.13:1 on panel
 
 # The accent. ONE value, on every accent surface — Draft 1, "Index". Focus
 # rings, checkboxes, primary buttons and dropdown highlights are IDENTICAL
 # across all five tabs, deliberately: those controls say "here" and "on", and
 # were never where the user learns which tab they are in. Tab identity is
 # carried by a five-cell rule, which is a separate component and not built yet.
-NM_ACTION      = "#101010"   # rule, ring, tick, fill              15.96:1 on panel
+NM_ACTION      = "#101010"   # rule, ring, tick, fill              14.69:1 on panel
 NM_ON_ACTION   = "#e8e8e8"   # the ONLY light-on-dark pairing      15.53:1 on ACTION
 
 # Disabled. The one place low contrast is allowed, and it means nothing else.
-NM_DISABLED    = "#c4c4c4"   # disabled text and edges              1.46:1 on panel
+NM_DISABLED    = "#c4c4c4"   # disabled text and edges              1.35:1 on panel
 
 # --- derived, and derived only from the table above ----------------------
-# A control's own fill is the raised-surface value; its hover and pressed
-# states step DOWN the same ladder (rule 1 — a control never brightens under
-# the pointer). No new hue is introduced: every one of these is a token.
-NM_BG_WIDGET   = NM_BG_SURFACE   # QPushButton / drop-down body
-NM_BG_HOVER    = NM_BG_WINDOW    # one step down from the widget fill
-NM_BG_PRESSED  = NM_BG_VIEWER    # two steps down
+# A control's own fill is the ground it sits on; its hover and pressed states
+# step DOWN from there (rule 1 — a control never brightens under the pointer).
+# No new hue is introduced: every one of these is a token.
+#
+# THE LADDER MOVED DOWN WITH THE GROUND. Hover was BG_WINDOW and pressed
+# BG_VIEWER, one and two steps under a raised BG_SURFACE fill. With the surface
+# collapsed onto the window, hover would have BEEN the fill and every hover in
+# the app would have done nothing — a drop-down arrow, a spin button and a
+# browse button change nothing but their background under the pointer. They
+# keep their meaning by stepping down from the single ground instead.
+NM_BG_WIDGET   = NM_BG_SURFACE   # QPushButton / drop-down body — the ground
+NM_BG_HOVER    = NM_BG_VIEWER    # one step down                 1.14:1 step
+NM_BG_PRESSED  = NM_BORDER       # two steps down                1.57:1 step
 
 # Tab bar (the QSS tabs — the main window's SpectrumTabBar paints its own).
-# Active connects to the panel below it; inactive sits on the window trough.
+# Active connects to the panel below it; inactive sits on the window trough —
+# and with one ground those are now the SAME VALUE. The selected tab is told
+# apart by its edge and its weight instead: BORDER_HI all round and a bold
+# label, in the ``QTabBar::tab:selected`` rule below. A lighter fill is not
+# available to it any more, and that is the point.
 NM_TAB_INACTIVE_BG   = NM_BG_WINDOW
 NM_TAB_INACTIVE_TEXT = NM_TEXT_DIM
 NM_TAB_ACTIVE_BG     = NM_BG_PANEL
@@ -114,8 +155,18 @@ NM_MODE_TEXT   = NM_TEXT_DIM
 # Log / terminal. The log's TEXT COLOUR under a per-tab accent is one of the
 # two decisions the owner still owns (`_darken_for_light_log`); what is set
 # here is the theme's own answer — body text on a raised surface.
-NM_LOG_BG      = NM_BG_SURFACE
-NM_LOG_TEXT    = NM_TEXT_MAIN
+# WHITE. The owner's instruction, 2026-09-02: *"the log output field in
+# neutral mode should have a white background"*. It reuses BG_INPUT rather
+# than inventing a value — the log IS a field you read into, it is the only
+# other place in the theme that is white, and with the three grounds collapsed
+# onto one it is now the single surface on screen that differs from its
+# surround, which is exactly what he was asking for. NM_LOG_TEXT is 19.03:1 on
+# it (it was 14.69:1 on the ground), so the readout got MORE legible, not less.
+NM_LOG_BG      = NM_BG_INPUT
+NM_LOG_TEXT    = NM_TEXT_MAIN    # 19.03:1 on the white well
+# The border does LESS work than it did, not more: the well used to sit a hair
+# off its surround (#f5f5f5 on #ebebeb, 1.19:1) and now stands off it at
+# 1.29:1 by its own fill. BORDER stays for the edge, unchanged.
 NM_LOG_BORDER  = NM_BORDER
 
 # Good / warning / bad. In this theme the verdict is carried by SHAPE, not by
@@ -216,9 +267,16 @@ QTabBar::tab {{
     border-top-right-radius: 4px;
     min-width: 130px;
 }}
+/* THE SELECTED TAB HAS NO LIGHTER FILL LEFT. With one ground, active and
+ * inactive are the same value, so the mark is the EDGE and the WEIGHT: the
+ * active-focused border and a bold label. That pairing is the theme's own
+ * escalation everywhere else (a warning gains a rule, a failure a bar), and it
+ * is what rule 1 leaves available when brightening is not. */
 QTabBar::tab:selected {{
     background: {NM_TAB_ACTIVE_BG};
     color: {NM_TAB_ACTIVE_TEXT};
+    border-color: {NM_BORDER_HI};
+    font-weight: bold;
 }}
 QTabBar::tab:hover:!selected {{
     background: {NM_BG_VIEWER};
@@ -250,7 +308,7 @@ QPushButton:pressed {{
 QPushButton:disabled {{
     background: transparent;
     color: {NM_DISABLED};
-    border: 1px dashed {NM_DISABLED};
+    border: 1px solid {NM_DISABLED};
 }}
 QPushButton#primary {{
     background: {NM_ACTION};
@@ -264,7 +322,7 @@ QPushButton#primary:hover {{
 }}
 QPushButton#primary:disabled {{
     background: transparent;
-    border: 1px dashed {NM_DISABLED};
+    border: 1px solid {NM_DISABLED};
     color: {NM_DISABLED};
 }}
 /* No red. A destructive button is the heavier edge and the bolder label — the
@@ -293,17 +351,19 @@ QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {{
 QLineEdit:focus, QComboBox:focus {{
     border-color: {NM_ACTION};
 }}
-/* Disabled inputs — no fill and a dashed edge, so an off field cannot be
- * mistaken for a live one. QPlainTextEdit / QTextEdit belong here too — see
- * the note in ui/styles.py: without them a disabled text box is
- * indistinguishable from a live one. */
+/* Disabled inputs — the fill goes and the edge drops to DISABLED, so an off
+ * field cannot be mistaken for a live one: a live field is WHITE and a dead
+ * one is the ground. The edge is solid (see rule 3 — the dash was the
+ * handoff's and the owner removed it on 2026-09-02). QPlainTextEdit /
+ * QTextEdit belong here too — see the note in ui/styles.py: without them a
+ * disabled text box is indistinguishable from a live one. */
 QLineEdit:disabled,
 QSpinBox:disabled, QDoubleSpinBox:disabled,
 QComboBox:disabled,
 QPlainTextEdit:disabled, QTextEdit:disabled {{
     color: {NM_DISABLED};
     background: {NM_BG_PANEL};
-    border: 1px dashed {NM_DISABLED};
+    border: 1px solid {NM_DISABLED};
 }}
 QSpinBox:disabled::up-button,   QSpinBox:disabled::down-button,
 QDoubleSpinBox:disabled::up-button, QDoubleSpinBox:disabled::down-button {{
@@ -416,7 +476,7 @@ QCheckBox:disabled {{
 }}
 QCheckBox::indicator:disabled {{
     background: transparent;
-    border: 1px dashed {NM_DISABLED};
+    border: 1px solid {NM_DISABLED};
 }}
 /* …EXCEPT when the box is disabled BECAUSE it is forced on. The rule above
    makes a ticked-and-disabled box look identical to an unticked one — right
@@ -450,7 +510,7 @@ QRadioButton:disabled {{
 }}
 QRadioButton::indicator:disabled {{
     background: transparent;
-    border: 1px dashed {NM_DISABLED};
+    border: 1px solid {NM_DISABLED};
 }}
 
 /* -- Log / terminal output ---------------------------------------- */
@@ -477,7 +537,7 @@ QGroupBox {{
     padding-top: 4px;
 }}
 /* TERTIARY, NOT FAINT. The light theme's group titles use its own TEXT_FAINT,
-   which is a pale grey; this theme's tertiary value is dark ink at 8.83:1,
+   which is a pale grey; this theme's tertiary value is dark ink at 8.13:1,
    because a title that works may not be faint (rule 3). */
 QGroupBox::title {{
     subcontrol-origin: margin;
@@ -522,14 +582,26 @@ QSplitter::handle {{
 /* -- Labels -------------------------------------------------------- */
 /* The verdict boxes. No amber, no red: the escalation is a RULE, deliberately
    uneven so a failing row is findable while scrolling without reading —
-   nothing for a pass, a heavier bottom edge for a warning, a 3px left bar and
+   nothing for a pass, the ⚠ the message itself carries for a warning (the
+   heavier bottom edge went — see the note on QLabel#warning), a 3px left bar and
    a bold label for a failure. The glyphs (disc / triangle / square) are a
    component job and are not in the stylesheet. */
+/* THE WARNING BOX HAS FOUR EQUAL EDGES. It had a 2px BORDER_HI bottom — the
+   escalation above — and on the Print Chart notice, which is thirty lines
+   tall, that did not read as "this is a warning": it read as a lopsided
+   frame. The owner, 2026-09-02: *"the lower margin of this info box in print
+   chart tab is thicker than the others"*. Measured on that box: top edge 1px
+   #b6b6b6, bottom edge 2px #2f2f2f, and the white space above the first line
+   and below the last is 8.5 px on both sides — so it was the EDGE he saw, not
+   a margin. An underline works next to the text it qualifies; half a metre
+   below it, it is just an uneven box.
+   The escalation is not lost: every one of these messages opens with a ⚠, and
+   `banner_qss` (the one-line banners in the tool dialogs, where the underline
+   IS next to its text) keeps it. */
 QLabel#warning {{
     background: {NM_BG_SURFACE};
     color: {NM_TEXT_MAIN};
     border: 1px solid {NM_BORDER};
-    border-bottom: 2px solid {NM_BORDER_HI};
     border-radius: 4px;
     padding: 6px 10px;
 }}
@@ -580,7 +652,7 @@ QRadioButton#param_label::indicator {{
     background: {NM_BG_INPUT};
 }}
 QRadioButton#param_label::indicator:checked {{ background: {NM_ACTION}; border-color: {NM_ACTION}; }}
-QRadioButton#param_label::indicator:disabled {{ background: transparent; border: 1px dashed {NM_DISABLED}; }}
+QRadioButton#param_label::indicator:disabled {{ background: transparent; border: 1px solid {NM_DISABLED}; }}
 
 /* -- Mode buttons (Guided / Manual / Expert) --------------------- */
 /* Default appearance. The per-tab QSS injection in main_window also targets

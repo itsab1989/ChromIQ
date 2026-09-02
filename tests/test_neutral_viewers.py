@@ -111,15 +111,24 @@ def test_the_patch_cube_keeps_the_darker_viewer_value_on_purpose():
     """THE ONE WELL THAT IS NOT THE PANEL GREY, AND THE REASON IT IS NOT.
 
     The cube's dots are the patch set's own colours, and a patch set contains
-    white and near-white patches. On BG_PANEL a white dot is 1.13:1 against its
-    ground and disappears; on BG_VIEWER it is 1.40:1 and survives. This view
-    exists to show *where the patches are*, so a patch that cannot be seen is
-    data lost — which is why this one keeps a step down and the others do not.
+    white and near-white patches. On the panel a white dot is 1.30:1 against its
+    ground; on BG_VIEWER it is 1.48:1 and survives better. This view exists to
+    show *where the patches are*, so a patch that cannot be seen is data lost —
+    which is why this one keeps a step down and the others do not.
+
+    THE MARGIN NARROWED AND THE REASON DID NOT. The panel was #ebebeb, where a
+    white dot reached 1.13:1; the owner collapsed the grounds onto #e2e2e2 on
+    2026-09-02, which lifted that to 1.30:1 on its own. The well is still the
+    darker of the two and still the better ground for a white dot, which is the
+    whole claim — but it is no longer 20 % better, so the test asks for the
+    ordering it actually depends on rather than a margin that has moved once.
     """
     assert PCP._THEME[NEUTRAL]["bg"] == N.NM_BG_VIEWER
     white_on_panel = _contrast("#ffffff", N.NM_BG_PANEL)
     white_on_well = _contrast("#ffffff", N.NM_BG_VIEWER)
-    assert white_on_well > white_on_panel * 1.2
+    assert white_on_well > white_on_panel
+    # …and the well is a real step down, not a rounding difference.
+    assert QColor(N.NM_BG_VIEWER).lightness() + 8 < QColor(N.NM_BG_PANEL).lightness()
 
 
 # ======================================================================
@@ -242,21 +251,38 @@ def test_the_marquee_ants_get_an_under_stroke_only_in_neutral():
     assert SGM._UNDER_BY_MODE[DARK] is None
 
 
-def test_the_under_stroke_actually_reaches_the_pixels(app):
+def test_the_under_stroke_actually_reaches_the_pixels(app, monkeypatch):
     """Not the table — the paint. Over a SOLID BLACK patch, which is where a
-    near-black ant would otherwise vanish, the surface value has to appear."""
-    black = QImage(400, 300, QImage.Format.Format_ARGB32)
-    black.fill(QColor("#000000"))
-    m = SGM.ScanGridMarquee()
-    m.resize(400, 300)
-    m.setPalette(N.make_neutral_palette())
-    m.set_image(black)
-    grab = m.grab().toImage()
-    seen = {grab.pixelColor(x, y).name()
-            for y in range(0, grab.height(), 2)
-            for x in range(0, grab.width(), 2)}
-    assert N.NM_BG_SURFACE in seen, "no under-stroke was painted"
-    assert "#56d6a5" not in seen, "the Measure green survived in Neutral"
+    near-black ant would otherwise vanish, the surface value has to appear.
+
+    DIFFERENTIAL, not a membership test. It used to assert simply that
+    BG_SURFACE was somewhere in the grab, which worked while the backdrop was
+    BG_PANEL and the two were different colours. The owner collapsed the
+    grounds onto one on 2026-09-02, and from that moment the backdrop alone
+    satisfied the assertion: the test would have stayed green with the
+    under-stroke deleted. So it now takes the same grab twice, with and
+    without the stroke, and asks that the stroke put pixels on the screen.
+    """
+    def count(colour: str) -> int:
+        black = QImage(400, 300, QImage.Format.Format_ARGB32)
+        black.fill(QColor("#000000"))
+        m = SGM.ScanGridMarquee()
+        m.resize(400, 300)
+        m.setPalette(N.make_neutral_palette())
+        m.set_image(black)
+        grab = m.grab().toImage()
+        seen = [grab.pixelColor(x, y).name()
+                for y in range(0, grab.height(), 2)
+                for x in range(0, grab.width(), 2)]
+        assert "#56d6a5" not in seen, "the Measure green survived in Neutral"
+        return sum(1 for n in seen if n == colour)
+
+    with_stroke = count(N.NM_BG_SURFACE)
+    monkeypatch.setitem(SGM._UNDER_BY_MODE, NEUTRAL, None)
+    without = count(N.NM_BG_SURFACE)
+    assert with_stroke > without, (
+        f"the under-stroke paints nothing: {with_stroke} px with it, "
+        f"{without} px without")
 
 
 def test_the_marquee_keeps_its_green_in_light_and_dark(app):

@@ -113,7 +113,7 @@ _PREVIEW_NEUTRAL = {
     # The well, the owner's value — see the note above.
     "img_bg":     neutral_styles.NM_BG_PANEL,
     "img_border": neutral_styles.NM_BORDER,
-    # The empty-state line is dark ink at 8.83:1, not a pale grey: in this
+    # The empty-state line is dark ink at 8.13:1, not a pale grey: in this
     # theme low contrast means "disabled" and nothing else, and an empty
     # preview is not a broken one.
     "img_text":   neutral_styles.NM_TEXT_FAINT,

@@ -6,8 +6,11 @@ Three faults the owner reported by eye are pinned here as assertions:
    painted `#d0d0d0` (a DARK-theme value) and a ticked-and-disabled one
    `#1f1f1f`, so the box that worked was pale and the one that did not was the
    darkest thing in the window. The rule is the handoff's: enabled controls
-   carry a fill and a solid edge, disabled ones have no fill and a dashed edge,
-   and low contrast means "disabled" and nothing else.
+   carry a fill and a solid edge, disabled ones have no fill, and low contrast
+   means "disabled" and nothing else. (The handoff made the disabled edge
+   DASHED as well; the owner removed the dash on 2026-09-02 — *"deactivated
+   options have dotted lines in neutral mode - should be continuous"* — so
+   every rule below asks for a SOLID edge and it must stay that way.)
 2. **A light constant on a now-light surface** — the Calculated Patches
    headline, and the same shape everywhere else in this territory.
 3. **One accent** — the tab hues and the six tool-dialog accents collapse to
@@ -168,7 +171,8 @@ def test_an_enabled_tick_is_darker_than_a_disabled_one():
     assert lightness(enabled_fill) < lightness(nm.NM_BG_PANEL)
     # …and the disabled one carries NO fill at all, so it cannot be darker.
     assert "background: transparent" in dis
-    assert "dashed" in dis
+    # SOLID, not dashed — the owner's 2026-09-02 ruling, see the module docstring.
+    assert "solid" in dis and "dashed" not in dis
     assert nm.NM_DISABLED in dis
 
 
@@ -187,7 +191,8 @@ def test_settings_dialog_disabled_checkbox_has_no_fill_in_neutral(wearing, qapp)
     src = inspect.getsource(SettingsDialog._apply_indicator_theme)
     assert "APPEARANCE_NEUTRAL" in src
     assert "background: transparent" in src
-    assert "dashed" in src
+    assert "1px solid {neutral_styles.NM_DISABLED}" in src
+    assert "dashed {" not in src
     # …and the two shipped branches are still there, untouched.
     assert '("#eeece8", "#d0ccc6")' in src
     assert '("#1f1f1f", "#3a3a3a")' in src
@@ -251,7 +256,8 @@ def test_a_disabled_primary_button_loses_its_fill_in_neutral():
     from ui.widgets import disabled_primary_qss
     rule = disabled_primary_qss(SPEC_AMBER, APPEARANCE_NEUTRAL)
     assert hues(rule) == []
-    assert "background: transparent" in rule and "dashed" in rule
+    assert "background: transparent" in rule
+    assert "solid" in rule and "dashed" not in rule
 
 
 @pytest.mark.parametrize("mode,fill", ((APPEARANCE_LIGHT, "#e8e6e1"),

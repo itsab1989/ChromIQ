@@ -56,8 +56,11 @@ from PyQt6.QtCore import Qt                                        # noqa: E402
 from PyQt6.QtGui import QColor, QFontDatabase, QPainter, QPixmap   # noqa: E402
 from PyQt6.QtWidgets import (QApplication, QDialog, QMessageBox)   # noqa: E402
 
+# BG_PANEL and BG_SURFACE were #ebebeb and #f5f5f5 until the owner collapsed
+# the three grounds onto one on 2026-09-02; the names stay because a pixel here
+# is still reported by the surface it belongs to.
 TOKENS = {
-    "BG_WINDOW": "#e2e2e2", "BG_PANEL": "#ebebeb", "BG_SURFACE": "#f5f5f5",
+    "BG_WINDOW": "#e2e2e2", "BG_PANEL": "#e2e2e2", "BG_SURFACE": "#e2e2e2",
     "BG_INPUT": "#ffffff", "BG_VIEWER": "#d4d4d4", "BORDER": "#b6b6b6",
     "BORDER_HI": "#2f2f2f", "TEXT_MAIN": "#101010", "TEXT_DIM": "#232323",
     "TEXT_FAINT": "#3f3f3f", "ACTION": "#101010", "ON_ACTION": "#e8e8e8",

@@ -490,12 +490,22 @@ class MastheadHeader(QWidget):
         # Background
         p.fillRect(self.rect(), QColor(pal["bg"]))
 
-        # The stripe. In Neutral it is the Index rule — five cells filled up to
-        # the step the window is on — and not five hues; that is the whole
-        # point of the chosen accent draft, and this is the largest of the five
-        # screen sites the spectrum bar occupied. Light and Dark are untouched.
+        # The stripe. In Light and Dark it is the five-hue spectrum bar.
+        #
+        # IN NEUTRAL THERE IS NO STRIPE. It was the Index rule — five cells
+        # filled up to the step the window is on — and the owner asked for it
+        # to go (2026-09-02): *"for neutral mode i want this indexing lines
+        # over every tab gone"*. This band spans the full window width, so it
+        # sits over all five tab columns, and it is the one he was pointing at.
+        #
+        # WHAT IS LEFT IS A 1px HAIRLINE, not nothing. The masthead is
+        # BG_WINDOW and the system title bar above it is another light grey;
+        # with the stripe gone they meet with no edge and the window has no
+        # top. BORDER is the theme's ordinary separation value and is doing
+        # exactly its job here. The band keeps its height, so nothing below it
+        # moves.
         if index_rule.use_index_rule(self._mode):
-            index_rule.paint_index_rule(p, 0, 0, w, self.STRIPE_H, self._step)
+            p.fillRect(0, 0, w, 1, QColor(neutral_styles.NM_BORDER))
         else:
             n = len(_STOPS)
             for i, col in enumerate(_STOPS):

@@ -317,9 +317,9 @@ def apply_appearance(
 # ----------------------------------------------------------------------
 #: The three ink levels the Neutral token table offers, by name.
 _NEUTRAL_INK = {
-    "main":  neutral_styles.NM_TEXT_MAIN,    # 15.96:1 on the panel
-    "dim":   neutral_styles.NM_TEXT_DIM,     # 13.18:1
-    "faint": neutral_styles.NM_TEXT_FAINT,   #  8.83:1 — tertiary, still reads
+    "main":  neutral_styles.NM_TEXT_MAIN,    # 14.69:1 on the panel
+    "dim":   neutral_styles.NM_TEXT_DIM,     # 12.13:1
+    "faint": neutral_styles.NM_TEXT_FAINT,   #  8.13:1 — tertiary, still reads
 }
 
 
@@ -356,7 +356,7 @@ def ink_for(colour: str, mode: "str | None" = None, *,
     glyph/row treatment, not in a hue.
 
     ``level`` picks how loud, and **none of the three is faint enough to read
-    as disabled**: the tertiary value is 8.83:1 on the panel. Rule 3 —
+    as disabled**: the tertiary value is 8.13:1 on the panel. Rule 3 —
     low contrast means "disabled" and nothing else — is why this function has
     no dimmer option than that.
 

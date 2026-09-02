@@ -113,7 +113,7 @@ class TabHeader(QWidget):
         the chosen accent draft replaces — so it becomes the single ACTION
         value; identity is the Index rule's job now. And `#808080` is 3.05:1 on
         the Neutral panel, which in this theme means "disabled" and nothing
-        else (handoff rule 3), so the eyebrow takes TEXT_FAINT at 8.83:1. Light
+        else (handoff rule 3), so the eyebrow takes TEXT_FAINT at 8.13:1. Light
         and Dark keep both values exactly as they were.
         """
         if index_rule.use_index_rule():

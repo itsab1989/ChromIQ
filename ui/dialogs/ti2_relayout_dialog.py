@@ -66,14 +66,16 @@ def _acc() -> str:
 def _dis_ind() -> str:
     """``background``/``border-color`` for a ticked-but-DISABLED indicator.
 
-    Mid-grey in the two coloured appearances. Neutral drops the fill and takes
-    a dashed edge instead — a disabled control may not be the darkest thing on
-    the panel.
+    Mid-grey in the two coloured appearances. Neutral drops the fill instead
+    — a disabled control may not be the darkest thing on the panel. Its edge is
+    SOLID: the handoff made it dashed and the owner removed the dash on
+    2026-09-02 (*"deactivated options have dotted lines in neutral mode -
+    should be continuous"*). Do not restore it.
     """
     from ui.theme import APPEARANCE_NEUTRAL, active_mode
     if active_mode() == APPEARANCE_NEUTRAL:
         from ui import neutral_styles as _n
-        return f"background: transparent; border: 1px dashed {_n.NM_DISABLED};"
+        return f"background: transparent; border: 1px solid {_n.NM_DISABLED};"
     return "background: #4a4a4a; border-color: #4a4a4a;"
 
 

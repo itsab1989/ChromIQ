@@ -131,12 +131,22 @@ def test_apply_appearance_pairs_the_neutral_sheet_with_the_neutral_palette():
 # 2. THE VALUES ARE THE HANDOFF'S
 # ======================================================================
 
-#: The handoff's design-token table, verbatim. Nothing in the app may re-derive
-#: these; the ratios below were computed from them and signed off.
+#: The handoff's design-token table, with the ONE change the owner has made to
+#: it since. Nothing in the app may re-derive these; the ratios below were
+#: computed from them.
+#:
+#: BG_PANEL was #ebebeb (L* 93) and BG_SURFACE #f5f5f5 (L* 97) — the handoff's
+#: "Stacked" surface logic. The owner looked at the shipped build on 2026-09-02
+#: and collapsed both onto the window value: *"it looks like every section in
+#: every tab is a little lighter than the background of the main window. should
+#: be the same color."* His instruction outranks the handoff. Every contrast
+#: below is recomputed against #e2e2e2, and the pairs that used to be told
+#: apart by a step in value are told apart by an edge and a weight instead —
+#: see tests/test_neutral_ground_and_rule.py.
 HANDOFF_TOKENS = {
     "BG_WINDOW":  "#e2e2e2",
-    "BG_PANEL":   "#ebebeb",
-    "BG_SURFACE": "#f5f5f5",
+    "BG_PANEL":   "#e2e2e2",
+    "BG_SURFACE": "#e2e2e2",
     "BG_INPUT":   "#ffffff",
     "BG_VIEWER":  "#d4d4d4",
     "BORDER":     "#b6b6b6",
@@ -150,22 +160,25 @@ HANDOFF_TOKENS = {
 }
 
 #: The handoff's "Contrast, as designed" table, verbatim.
+#: RECOMPUTED against the one ground. The right-hand column of the handoff's
+#: own table, for the pairs that moved, was 15.96 / 17.45 / 13.18 / 14.42 /
+#: 8.83 / 15.96 / 11.23 / 1.70 / 1.46. Nothing that works dropped below 8:1.
 HANDOFF_CONTRAST = [
-    ("TEXT_MAIN",  "BG_PANEL",   15.96),
-    ("TEXT_MAIN",  "BG_SURFACE", 17.45),
+    ("TEXT_MAIN",  "BG_PANEL",   14.69),
+    ("TEXT_MAIN",  "BG_SURFACE", 14.69),
     ("TEXT_MAIN",  "BG_INPUT",   19.03),
-    ("TEXT_DIM",   "BG_PANEL",   13.18),
-    ("TEXT_DIM",   "BG_SURFACE", 14.42),
-    ("TEXT_FAINT", "BG_PANEL",    8.83),
+    ("TEXT_DIM",   "BG_PANEL",   12.13),
+    ("TEXT_DIM",   "BG_SURFACE", 12.13),
+    ("TEXT_FAINT", "BG_PANEL",    8.13),
     ("TEXT_MAIN",  "BG_WINDOW",  14.69),
     ("TEXT_MAIN",  "BG_VIEWER",  12.84),
-    ("ACTION",     "BG_PANEL",   15.96),
+    ("ACTION",     "BG_PANEL",   14.69),
     ("ACTION",     "BG_WINDOW",  14.69),
     ("ACTION",     "BG_INPUT",   19.03),
     ("ON_ACTION",  "ACTION",     15.53),
-    ("BORDER_HI",  "BG_PANEL",   11.23),
-    ("BORDER",     "BG_PANEL",    1.70),
-    ("DISABLED",   "BG_PANEL",    1.46),
+    ("BORDER_HI",  "BG_PANEL",   10.33),
+    ("BORDER",     "BG_PANEL",    1.57),
+    ("DISABLED",   "BG_PANEL",    1.35),
 ]
 
 

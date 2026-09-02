@@ -145,15 +145,21 @@ def _disabled_indicator_qss(mode: "str | None" = None) -> str:
 
     Neutral cannot use a fill at all. Its rule is the handoff's, and it is a
     shape rather than a value: **enabled controls carry a fill and a solid 1px
-    edge; disabled ones have no fill and a dashed edge.** The mid-grey block
-    was the darkest thing on a light-grey dialog, which is how a disabled box
-    ended up shouting louder than a ticked one.
+    edge; disabled ones have no fill.** The mid-grey block was the darkest
+    thing on a light-grey dialog, which is how a disabled box ended up shouting
+    louder than a ticked one.
+
+    The disabled edge was DASHED, which is what the handoff specified. The
+    owner removed the dash on 2026-09-02 — *"deactivated options have dotted
+    lines in neutral mode - should be continuous"* — and it is not to come
+    back. A ticked box that is disabled loses its ACTION fill; that, and the
+    DISABLED value, are what carry it.
     """
     if (mode or active_mode()) == APPEARANCE_NEUTRAL:
         return (f"QCheckBox::indicator:checked:disabled,"
                 f" QRadioButton::indicator:checked:disabled {{"
                 f" background: transparent;"
-                f" border: 1px dashed {neutral_styles.NM_DISABLED}; }}")
+                f" border: 1px solid {neutral_styles.NM_DISABLED}; }}")
     return ("QCheckBox::indicator:checked:disabled,"
             " QRadioButton::indicator:checked:disabled {"
             " background: #4a4a4a; border-color: #4a4a4a; }")
