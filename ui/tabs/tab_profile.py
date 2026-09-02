@@ -4299,7 +4299,8 @@ class TabProfile(QWidget):
         except Exception:      # noqa: BLE001 — the file is filed either way
             self._log.appendPlainText(
                 f"[NOTE] could not name the run {Path(resolved).name} went into")
-        finish_the_import(ctl, run_id, Path(resolved), self._adopt_filed_ti3)
+        finish_the_import(self, ctl, run_id, Path(resolved),
+                          self._adopt_filed_ti3)
 
     def _file_into_project(self, name: str, measurement: Path, fm, ctl) -> bool:
         """The act behind that question; see `ui/measurement_filing.py`."""

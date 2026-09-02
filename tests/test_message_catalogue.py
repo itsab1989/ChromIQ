@@ -233,7 +233,18 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  "M-IMPORT-REPLACE-PROJECT-CONFIRM",
                                  # …and where the replaced project went, which
                                  # nothing anywhere recorded.
-                                 "M-IMPORT-REPLACED-KEPT"}
+                                 "M-IMPORT-REPLACED-KEPT",
+                                 # 2026-09-02, round 2 of the import-door
+                                 # review. Three failure paths filed the copy
+                                 # and then left the app standing outside the
+                                 # project with nothing but a log.warning
+                                 # (T1-A, T1-B, T1-C), and the one window the
+                                 # door still opens for a plain folder told the
+                                 # person it was already a project (T1-D).
+                                 "M-IMPORT-NOT-OPENED",
+                                 "M-IMPORT-FOLDER-EXISTS",
+                                 "M-IMPORT-REPLACE-FOLDER-CONFIRM",
+                                 "M-IMPORT-REPLACE-FOLDER-FAILED"}
 
 
 def test_nothing_is_quietly_proposed():

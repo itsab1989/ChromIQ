@@ -176,7 +176,7 @@ def test_both_answers_to_one_question_end_on_the_same_call(house, monkeypatch):
     win, measurement, work = house
     seen: list = []
     monkeypatch.setattr(filing, "finish_the_import",
-                        lambda ctl, run_id, filed, on_filed:
+                        lambda parent, ctl, run_id, filed, on_filed:
                         seen.append((run_id, Path(filed))))
     monkeypatch.setattr(project_picker, "choose_project",
                         lambda *a, **kw: project_picker.NEW_PROJECT)

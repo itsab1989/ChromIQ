@@ -438,9 +438,16 @@ def _say_the_replace_failed(parent, folder, reason) -> None:
     the layer that has one.
     """
     from PyQt6.QtWidgets import QMessageBox
+    from core.file_manager import is_a_project
     from workflow import measurement_messages as M
-    title, body = M.M_PROJECT_REPLACE_FAILED.render(folder=str(folder),
-                                                    reason=str(reason))
+    # A PLAIN FOLDER IS NOT A PROJECT, and this window's headline said it was:
+    # "The existing project could not be moved aside", about a read-only folder
+    # holding one text file (round 2, T1-D). Same act, same promise, and the
+    # only difference is the one sentence that describes what is there.
+    # M-IMPORT-REPLACE-FOLDER-FAILED, awaiting approval.
+    _msg = (M.M_PROJECT_REPLACE_FAILED if is_a_project(folder)
+            else M.M_IMPORT_REPLACE_FOLDER_FAILED)
+    title, body = _msg.render(folder=str(folder), reason=str(reason))
     box = QMessageBox(parent)
     box.setIcon(QMessageBox.Icon.Warning)
     box.setWindowTitle(title)
@@ -1046,6 +1053,20 @@ def _point_bar_at_current_run(controller) -> None:
     controller.notify_changed()
 
 
+def chart_beside(ti3_path: Path) -> "Path | None":
+    """The `.ti2` that will become the chart of the run an import creates.
+
+    ONE EXPRESSION, ONE PLACE. `resolve_ti3` decides by this whether a loose
+    measurement brings a chart with it, and the import door has to judge the
+    measurement against the very chart that is about to be imported beside it
+    (`ui/measurement_filing.py`, round 2 T1-G). Two copies of
+    `with_suffix(".ti2")` is how those two come to disagree about what the
+    chart even is.
+    """
+    sibling = Path(ti3_path).with_suffix(".ti2")
+    return sibling if sibling.is_file() else None
+
+
 def resolve_ti3(
     parent: "QWidget",
     ti3_path: Path,
@@ -1080,8 +1101,8 @@ def resolve_ti3(
         working_dir = _resolve_working_dir(settings)
         if _project_root_for(ti3_path, working_dir) is not None:
             return ti3_path                              # already in a project
-        sibling_ti2 = ti3_path.with_suffix(".ti2")
-        if sibling_ti2.is_file():
+        sibling_ti2 = chart_beside(ti3_path)
+        if sibling_ti2 is not None:
             result = _handle_outside(parent, sibling_ti2, working_dir,
                                      name=name)
             if result is None:
@@ -1408,6 +1429,16 @@ def _ask_profile_name(
         """True when the folder we would replace HOLDS the file being imported."""
         return is_self_collision(working_dir, name, ti2_path)
 
+    def _self_collision_line(name: str) -> str:
+        """…and it says "project" only when it IS one (round 2, T1-D)."""
+        from core.file_manager import is_a_project
+        from workflow import measurement_messages as M
+        if is_a_project(working_dir / name):
+            return tr("That project holds the file you are importing, so "
+                      "replacing it would take the file with it. Please pick "
+                      "a different name.")
+        return M.self_collision_folder_line()
+
     def _normalise(text: str) -> str:
         """Sanitise the typed name the same way set_target_name does (spaces→-,
         illegal chars→_), so the on-disk folder = the user-facing name. Empty
@@ -1438,10 +1469,20 @@ def _ask_profile_name(
         name = _normalise(name_edit.text())
         collision = bool(name) and (working_dir / name).exists() and not _is_self_collision(name)
         if collision:
-            error_lbl.setText(
-                tr("“{name}” is already a project. Choose a different name, "
-                   "or click “Replace it”.").format(name=name)
-            )
+            # WHICH OF THE TWO IT IS, because they are not the same thing and
+            # this line asserts one of them. `.exists()` alone said "already a
+            # project" about any folder at all - including the plain folder
+            # whose NOT being a project is the only reason this window opens
+            # (round 2, T1-D). M-IMPORT-FOLDER-EXISTS, awaiting approval.
+            from core.file_manager import is_a_project
+            from workflow import measurement_messages as M
+            if is_a_project(working_dir / name):
+                error_lbl.setText(
+                    tr("“{name}” is already a project. Choose a different name, "
+                       "or click “Replace it”.").format(name=name)
+                )
+            else:
+                error_lbl.setText(M.folder_taken_line(name))
             ok_btn.setVisible(False)
             overwrite_btn.setVisible(True)
         else:
@@ -1467,10 +1508,7 @@ def _ask_profile_name(
             _on_name_changed()
             return
         if _is_self_collision(name):
-            error_lbl.setText(
-                tr("That project holds the file you are importing, so replacing it "
-                   "would take the file with it. Please pick a different name.")
-            )
+            error_lbl.setText(_self_collision_line(name))
             return
         result["name"] = name
         result["overwrite"] = False
@@ -1483,11 +1521,7 @@ def _ask_profile_name(
             error_lbl.setText(err)
             return
         if _is_self_collision(name):
-            error_lbl.setText(
-                tr("That project holds the file you are importing, so "
-                   "replacing it would take the file with it. Please pick a "
-                   "different name.")
-            )
+            error_lbl.setText(_self_collision_line(name))
             return
         dest = working_dir / name
         if not dest.exists():
@@ -1504,7 +1538,16 @@ def _ask_profile_name(
         # C++ event loop and cannot be reached by a test.
         from workflow import measurement_messages as M
         _subject = subject or tr("the chart")
-        _title, _body = M.M_IMPORT_REPLACE_CONFIRM.render(
+        # …AND THE SECOND LOOK SAYS WHICH OF THE TWO IT IS MOVING ASIDE.
+        # M-IMPORT-REPLACE-CONFIRM opens "Everything this project holds", which
+        # is false of a folder that is not one - and a folder that is not one
+        # is the ONLY thing this branch can be reached for once the collision
+        # line above tells them apart (round 2, T1-D).
+        # M-IMPORT-REPLACE-FOLDER-CONFIRM, awaiting approval.
+        from core.file_manager import is_a_project
+        _confirm = (M.M_IMPORT_REPLACE_CONFIRM if is_a_project(dest)
+                    else M.M_IMPORT_REPLACE_FOLDER_CONFIRM)
+        _title, _body = _confirm.render(
             name=name, folder=str(dest), subject=_subject)
         _box = QMessageBox(dlg)
         _box.setIcon(QMessageBox.Icon.NoIcon)
