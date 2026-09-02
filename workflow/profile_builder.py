@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
+from core import icc_text
 from core.logger import get_logger
 from core.platform_paths import icc_install_dir
 
@@ -196,13 +197,56 @@ class ProfileBuilder:
             self._scan_line(line)
             on_line(line)
 
+        def _finished(code: int) -> None:
+            if code == 0:
+                self._restore_accents(params)
+            on_finish(code)
+
         self._runner.run(
             "colprof",
             args,
             cwd,
             on_line=_accumulate,
-            on_finish=on_finish,
+            on_finish=_finished,
         )
+
+    def _restore_accents(self, params: ProfileParams) -> None:
+        """Put the accents colprof dropped back into the finished profile.
+
+        AN ACCENT IS PART OF THE NAME, and colprof throws it away: its ASCII
+        converter substitutes ``'?'`` for every non-ASCII character
+        (Argyll 3.5.0, ``icc/icc_util.c::icmUTF8toASCIIZSn``) and it never
+        fills the Unicode field that the same tag provides
+        (``profile/profout.c:1293`` sets only ``wo->desc``). A project called
+        ``Müller-Prüfdruck`` therefore reaches the file as the literal bytes
+        ``M?ller-Pr?fdruck``, which is what Windows — and macOS — then show.
+
+        THIS TOUCHES THE FILE ARGYLL WROTE, so it is deliberately inert
+        unless it is needed: when every name is already ASCII the profile is
+        not even opened, and :func:`core.icc_text.repair_descriptions` only
+        rewrites a tag whose stored ASCII is exactly Argyll's ``'?'`` spelling
+        of the name we asked for. A failure here is logged and swallowed —
+        a profile with a ``?`` in its name is a blemish; a profile that
+        failed to build is not.
+        """
+        desc = params.description or params.ti3_path.stem
+        names = {
+            b"desc": desc,
+            b"dmdd": params.model or desc,
+            b"dmnd": params.manufacturer or "ChromIQ",
+        }
+        if all(name.isascii() for name in names.values()):
+            return
+        try:
+            path = self.expected_icc_path(params)
+            data = path.read_bytes()
+            repaired = icc_text.repair_descriptions(data, names)
+            if repaired != data:
+                path.write_bytes(repaired)
+                log.info("Restored non-ASCII profile name in %s", path.name)
+        except Exception:                     # noqa: BLE001 — cosmetic only
+            log.warning("Could not restore the profile's accented name",
+                        exc_info=True)
 
     def _scan_line(self, line: str) -> None:
         for pattern, key, fmt in _COLPROF_ERROR_PATTERNS:
