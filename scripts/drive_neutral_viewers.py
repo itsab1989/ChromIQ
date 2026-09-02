@@ -48,9 +48,9 @@ OUT = Path(sys.argv[1] if len(sys.argv) > 1 else "/tmp/nview-shots")
 MODE = sys.argv[2] if len(sys.argv) > 2 else "neutral"
 
 WORK.mkdir(parents=True, exist_ok=True)
-if not SETTINGS_INI.exists() or "custom_output_path" not in SETTINGS_INI.read_text():
+if not SETTINGS_INI.exists() or "custom_output_path" not in SETTINGS_INI.read_text(encoding="utf-8"):
     SETTINGS_INI.parent.mkdir(parents=True, exist_ok=True)
-    SETTINGS_INI.write_text(f"[General]\ncustom_output_path={WORK}\n")
+    SETTINGS_INI.write_text(f"[General]\ncustom_output_path={WORK}\n", encoding="utf-8")
 
 try:
     import PyQt6.QtWebEngineWidgets  # noqa: F401  (before QApplication)
@@ -364,7 +364,7 @@ def main() -> int:   # noqa: PLR0915, PLR0912
 
     (OUT / f"viewers-{MODE}.json").write_text(
         json.dumps({"mode": MODE, "shots": s.record, "scan": scans,
-                    "modals": dismissed}, indent=2, sort_keys=True))
+                    "modals": dismissed}, indent=2, sort_keys=True), encoding="utf-8")
     print(f"\nwrote {OUT / f'viewers-{MODE}.json'}")
 
     for w in (cube_e, cube_f, marq, sp):

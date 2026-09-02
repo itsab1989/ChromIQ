@@ -329,7 +329,7 @@ def main() -> int:
 
     grand += grand_pf
     c.record["GRAND_TOTAL_non_neutral_px"] = grand
-    (OUT / "census.json").write_text(json.dumps(c.record, indent=2, sort_keys=True))
+    (OUT / "census.json").write_text(json.dumps(c.record, indent=2, sort_keys=True), encoding="utf-8")
     print(f"\nGRAND TOTAL non-neutral pixels: {grand}")
     print(f"wrote {OUT / 'census.json'}")
 

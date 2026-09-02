@@ -234,7 +234,7 @@ def main() -> int:
         tool.close(); tool.setParent(None); tool.deleteLater()
         pump(app, 300)
 
-    (OUT / "faults.json").write_text(json.dumps(out, indent=2, sort_keys=True))
+    (OUT / "faults.json").write_text(json.dumps(out, indent=2, sort_keys=True), encoding="utf-8")
     print(json.dumps(out, indent=2, sort_keys=True))
     win.close(); pump(app, 300)
     return 0

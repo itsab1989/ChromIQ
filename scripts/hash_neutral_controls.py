@@ -217,7 +217,7 @@ def main() -> int:
     take("51-preflight", pf)
     pf.close(); pf.setParent(None); pf.deleteLater()
 
-    (OUT / "hashes.json").write_text(json.dumps(rec, indent=2, sort_keys=True))
+    (OUT / "hashes.json").write_text(json.dumps(rec, indent=2, sort_keys=True), encoding="utf-8")
     print(f"\n{len(rec)} grabs -> {OUT / 'hashes.json'}")
     win.close(); pump(app, 400)
     return 0

@@ -176,7 +176,7 @@ def main() -> int:
     rec["disabled_darkest_contrast_vs_ground"] = contrast(ddark, GROUND)
     tip.setEnabled(True)
 
-    (OUT / "tooltip.json").write_text(json.dumps(rec, indent=2, sort_keys=True))
+    (OUT / "tooltip.json").write_text(json.dumps(rec, indent=2, sort_keys=True), encoding="utf-8")
     print(json.dumps(rec, indent=2, sort_keys=True))
     dlg.close(); win.close(); pump(app, 300)
     return 0
