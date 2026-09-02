@@ -25,6 +25,8 @@ from pathlib import Path
 
 import numpy as np
 
+from core import icc_text
+
 # The v2 "legacy" 16-bit Lab PCS encoding tops out at 0xFF00 for L=100 /
 # a,b=+127; the u16 range keeps going to 0xFFFF, so a LUT grid spanning the
 # full input range covers L up to 100*0xFFFF/0xFF00. B2A grids must be laid
@@ -177,13 +179,28 @@ def make_mluc(text: str) -> bytes:
 
 
 def make_desc(text: str) -> bytes:
-    t = text.encode("ascii", "replace") + b"\0"
-    return (b"desc" + b"\0" * 4 + struct.pack(">I", len(t)) + t
-            + b"\0" * 4 + b"\0" * 4 + struct.pack(">H", 0) + b"\0" + b"\0" * 67)
+    """``textDescriptionType`` (ICC v2 ``desc``/``dmnd``/``dmdd``).
+
+    An ACCENT IS PART OF THE NAME. The tag carries the same string three
+    times — 7-bit ASCII, UTF-16BE and Macintosh ScriptCode — and only the
+    first is limited to ASCII, so ``Müller-Prüfdruck`` goes in the Unicode
+    field verbatim and the ASCII field gets a transliteration
+    (``Mueller-Pruefdruck``) rather than colprof's ``M?ller-Pr?fdruck``.
+    See :mod:`core.icc_text` for the measurements behind that.
+
+    Pure-ASCII text is byte-identical to what this wrote before.
+    """
+    return icc_text.text_description(text)
 
 
 def make_text(text: str) -> bytes:
-    return b"text" + b"\0" * 4 + text.encode("ascii", "replace") + b"\0"
+    """``textType`` (ICC v2 ``cprt``/``targ``) — 7-bit ASCII, no Unicode field.
+
+    Nothing can carry the accent here, so the best available spelling is a
+    transliteration; ASCII text is unchanged.
+    """
+    return (b"text" + b"\0" * 4
+            + icc_text.ascii_fallback(text).encode("ascii", "replace") + b"\0")
 
 
 def make_xyz(xyz: tuple[float, float, float]) -> bytes:
