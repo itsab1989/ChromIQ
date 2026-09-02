@@ -4081,6 +4081,20 @@ class TabProfile(QWidget):
             # is needed — the averaged result reuses the canonical chart stem.
             ti2 = path.with_suffix(".ti2")
             if ti2.exists():
+                # THE SNAPSHOT BELONGS HERE, WITH THIS TAB ALREADY HOLDING
+                # `path`. `about_to_load_ti3` is what
+                # `MainWindow._save_load_state` records and
+                # `_restore_load_state` puts back when the propagation on the
+                # next line is cancelled. It used to be emitted by the two
+                # adopters below (`_adopt_filed_ti3`, the txt import) BEFORE
+                # they called this method, so the recording said "Build Profile
+                # is empty" and a cancel downstream cleared the measurement
+                # that had just been filed out of the tab it was filed from
+                # (the same shape as R6 F2 in Check & Refine). Here it is taken
+                # once, on the one line that can be undone, and it is fresh for
+                # every propagating load rather than left over from an earlier
+                # one.
+                self.about_to_load_ti3.emit()
                 self.ti2_found.emit(ti2)
 
     def clear_files(self) -> None:
@@ -4245,8 +4259,10 @@ class TabProfile(QWidget):
 
     def _adopt_filed_ti3(self, filed: Path) -> None:
         """Load the copy the filing helper just made. This tab's own three
-        lines, which the helper used to run on its behalf."""
-        self.about_to_load_ti3.emit()
+        lines, which the helper used to run on its behalf.
+
+        No `about_to_load_ti3` here: `set_ti3_path` emits it at the one point
+        it can protect — see the note beside `ti2_found`."""
         self.set_ti3_path(filed)
         self.ti3_manually_loaded.emit()
 
@@ -4489,7 +4505,7 @@ class TabProfile(QWidget):
         except Exception:
             pass
         self._log.ensureCursorVisible()
-        self.about_to_load_ti3.emit()
+        # `set_ti3_path` takes the snapshot itself, once it holds the file.
         self.set_ti3_path(ti3)
         self.ti3_manually_loaded.emit()
 

@@ -185,8 +185,17 @@ class TabCheckRefine(QWidget):
             self._ti3_path is not None and self._icc_path is not None
         )
 
-    def set_paths(self, ti3: Path, icc: Path, propagate: bool = True) -> None:
-        """Pre-populate both file fields after a successful profile build."""
+    def set_paths(self, ti3: Path, icc: "Path | None",
+                  propagate: bool = True) -> None:
+        """Pre-populate the file fields after a successful profile build.
+
+        ``icc`` may be None: a measurement that has no profile beside it yet
+        leaves the profile field EMPTY and Analyse disabled, rather than being
+        given a path to a file that does not exist. `_update_run_btn` enables
+        the button on the two paths alone, so an invented one would offer to
+        analyse nothing (found while fixing R6 F2, where the state restore
+        started reaching this method with no profile to give it).
+        """
         # A BUILD HANDS OVER A FILED MEASUREMENT, so this is never in place.
         # Every path that sets `_ti3_path` answers this, or the report from the
         # NEXT check lands wherever the LAST one decided.
@@ -194,7 +203,7 @@ class TabCheckRefine(QWidget):
         self._ti3_path = ti3
         self._icc_path = icc
         self._ti3_edit.setText(str(ti3))
-        self._icc_edit.setText(str(icc))
+        self._icc_edit.setText(str(icc) if icc is not None else "")
         self._update_run_btn()
         self._gamut_panel.set_icc_path(icc)
         self._detect_instrument(ti3)
@@ -1314,7 +1323,6 @@ class TabCheckRefine(QWidget):
         made the run, wrote the manifest, and then aborted the app.
         """
         self._checking_in_place = in_place
-        self.about_to_load_ti3.emit()
         self._ti3_path = chosen
         self._ti3_edit.setText(str(chosen))
         self._auto_fill_icc(chosen)
@@ -1336,6 +1344,23 @@ class TabCheckRefine(QWidget):
         # nothing for the other tabs to be pointed at. They are told when it is
         # filed, and not before.
         if not in_place:
+            # THE SNAPSHOT IS TAKEN HERE, NOT AT THE TOP OF THIS METHOD.
+            #
+            # `about_to_load_ti3` is what `MainWindow._save_load_state`
+            # records, and `_restore_load_state` puts that recording back when
+            # the propagation below is cancelled. Emitted before
+            # `self._ti3_path = chosen`, the recording said "Check & Refine is
+            # empty" — so filing a measurement from this tab and then pressing
+            # Cancel on the window the propagation opens restored EMPTY over
+            # the file that had just been filed: the field back to its
+            # placeholder, the ICC field cleared and Analyse disabled, with the
+            # measurement sitting on disk in the run the bar now named
+            # (R6 F2, driven `d03_who_clears_check.py`).
+            #
+            # The snapshot exists to undo the PROPAGATION, which starts on the
+            # next line. So it is taken with the tab already holding the file
+            # the person chose, and a cancel downstream leaves that standing.
+            self.about_to_load_ti3.emit()
             self._notify_ti2(chosen)
             self.ti3_selected.emit(chosen)
 

@@ -78,6 +78,39 @@ def _tab(s, ctl, ti2, pages):
     return tab
 
 
+def _real_tiff(path: Path) -> None:
+    """A TIFF `_send_page` can actually open — the 4-byte stubs elsewhere in
+    this file never reach it, because those tests stop at `_print_pages`."""
+    from PIL import Image
+    Image.new("RGB", (4, 4), (255, 255, 255)).save(path, format="TIFF")
+
+
+def _ready_to_print(tab, s, *, exit_code: int = 0, reachable: bool = True,
+                    preflight: bool = False):
+    """Put the tab in a state where the REAL `_print_pages` runs end to end,
+    with only the radio replaced: `print_job_ps` is the call that hands the
+    PostScript to `lp`, and it reports the exit code back exactly as CUPS does.
+
+    Returns the list every submitted page is appended to.
+    """
+    s.set("confirm_before_printing", preflight)
+    tab._printer_combo.clear()
+    tab._printer_combo.addItem("A printer", "A_printer")
+    tab._printer_combo.setCurrentIndex(0)
+    tab._printer.is_printer_reachable = lambda name: reachable
+    tab._module.get_stuck_jobs = lambda name: []
+    sent: list = []
+
+    def _fake_lp(tiff_path, config, ink_channels=None, on_finish=None,
+                 orientation=None, page_size_pt=None, pdf_fallback=False):
+        sent.append(Path(tiff_path))
+        if on_finish:
+            on_finish(exit_code)
+
+    tab._printer.print_job_ps = _fake_lp
+    return sent
+
+
 def _fake_converter(calls: list):
     def fake(pages, profile, intent, out_dir, **kw):
         calls.append({"pages": list(pages), "profile": Path(profile),
@@ -87,7 +120,9 @@ def _fake_converter(calls: list):
         mapping = {}
         for p in pages:
             dst = out / p.name
-            dst.write_bytes(b"converted")
+            # A REAL TIFF: the tests that drive the whole print path reach
+            # `_send_page`, which opens the page with PIL before submitting it.
+            _real_tiff(dst)
             mapping[p] = dst
         return mapping
     return fake
@@ -171,47 +206,54 @@ def test_both_print_buttons_convert_and_cache_gets_the_sheets(
 def test_the_chosen_intent_reaches_the_converter_and_the_record(
         qapp, tmp_path, monkeypatch):
     """T3 at tab level, and A15–A18: the record beside the chart says how the
-    sheet was produced."""
+    sheet was produced — after the sheet has actually gone to the printer.
+
+    This test used to stub `_print_pages` to a no-op and assert the record
+    anyway, which is precisely the fault R6 F5 found: it was pinning that
+    ChromIQ writes "printed_at" for a print it never made. The radio is stubbed
+    now, and nothing above it."""
     s, fm, ctl, run, ti2, pages = _verify_env(tmp_path)
+    for p, _f in pages:
+        _real_tiff(p)
     tab = _tab(s, ctl, ti2, pages)
     calls: list = []
     monkeypatch.setattr(
         "workflow.verification_print.convert_pages_through_profile",
         _fake_converter(calls))
-    monkeypatch.setattr(tab, "_print_pages", lambda pages: None)
+    sent = _ready_to_print(tab, s)
     idx = tab._cm_intent_combo.findData("absolute")
     tab._cm_intent_combo.setCurrentIndex(idx)
 
     tab._on_print_current()
     assert calls[0]["intent"] == "absolute"
+    assert len(sent) == 1
     rec = json.loads(vp.print_record_path(ti2).read_text(encoding="utf-8"))
     assert rec["colour"] == vp.COLOUR_THROUGH
     assert rec["intent"] == "absolute"
     assert rec["route"] == vp.ROUTE_CHROMIQ
     assert rec["profile"] == run.profile_icc.name
     assert rec["profile_mtime"]
+    assert rec["printed_at"]
 
 
 def test_raw_choice_is_recorded_and_prints_unconverted(
         qapp, tmp_path, monkeypatch):
     """§3.1 A5 — raw stays a legitimate choice, and the record says so."""
     s, fm, ctl, run, ti2, pages = _verify_env(tmp_path)
+    for p, _f in pages:
+        _real_tiff(p)
     tab = _tab(s, ctl, ti2, pages)
     monkeypatch.setattr(
         "workflow.verification_print.convert_pages_through_profile",
         lambda *a, **k: pytest.fail("raw must not convert"))
-    sent: list = []
-    monkeypatch.setattr(tab, "_print_pages",
-                        lambda pages: sent.append(list(pages)))
-    # Windows forces use_native_print_dialog True (no lp), so _on_print_current
-    # dispatches through _print_native there; capture both so the assertion
-    # holds on whichever path the platform takes.
-    monkeypatch.setattr(tab, "_print_native",
-                        lambda pages: sent.append(list(pages)))
+    # Windows forces use_native_print_dialog True (no lp); pin the lp path so
+    # the same assertion holds on every platform.
+    s.set("use_native_print_dialog", False)
+    sent = _ready_to_print(tab, s)
     tab._cm_raw_rb.setChecked(True)
 
     tab._on_print_current()
-    assert sent and sent[0][0][0] == pages[0][0]      # untouched pages
+    assert sent == [pages[0][0]]                      # untouched pages
     rec = json.loads(vp.print_record_path(ti2).read_text(encoding="utf-8"))
     assert rec["colour"] == vp.COLOUR_RAW
     assert rec["intent"] == ""
@@ -238,6 +280,142 @@ def test_external_route_hands_over_files_and_prints_nothing(
     assert revealed == [run.verifications_dir / "cache"]
     rec = json.loads(vp.print_record_path(ti2).read_text(encoding="utf-8"))
     assert rec["route"] == vp.ROUTE_EXTERNAL
+
+
+# ------------------------------------------------- R6 F5, the print record
+#
+# "A print that never happened is recorded as a print, and that record then
+# silences the question that would have got the colour right." Every one of
+# these is a refusal that used to leave `<stem>.print.json` behind with a
+# `printed_at` in it.
+
+def test_an_offline_printer_leaves_no_print_record(qapp, tmp_path, monkeypatch):
+    """R6 F5 journey A, driven on the tab: the printer is asleep, ChromIQ says
+    so, zero pages go out — and there must be no record of a print."""
+    s, fm, ctl, run, ti2, pages = _verify_env(tmp_path)
+    for p, _f in pages:
+        _real_tiff(p)
+    tab = _tab(s, ctl, ti2, pages)
+    monkeypatch.setattr(
+        "workflow.verification_print.convert_pages_through_profile",
+        _fake_converter([]))
+    monkeypatch.setattr(QMessageBox, "critical", staticmethod(
+        lambda *a, **k: None))
+    sent = _ready_to_print(tab, s, reachable=False)
+
+    tab._on_print_current()
+    assert sent == []
+    assert not vp.print_record_path(ti2).exists()
+
+
+def test_cancelling_the_preflight_leaves_no_print_record(
+        qapp, tmp_path, monkeypatch):
+    """R6 F5 journey B: Cancel at "Confirm Print Settings"."""
+    s, fm, ctl, run, ti2, pages = _verify_env(tmp_path)
+    for p, _f in pages:
+        _real_tiff(p)
+    tab = _tab(s, ctl, ti2, pages)
+    monkeypatch.setattr(
+        "workflow.verification_print.convert_pages_through_profile",
+        _fake_converter([]))
+    sent = _ready_to_print(tab, s, preflight=True)
+    monkeypatch.setattr(tab, "_show_preflight",
+                        lambda *a, **k: False)          # the person cancels
+
+    tab._on_print_all()
+    assert sent == []
+    assert not vp.print_record_path(ti2).exists()
+
+
+def test_a_job_the_queue_refuses_leaves_no_print_record(
+        qapp, tmp_path, monkeypatch):
+    """The page IS handed to lp and lp exits non-zero. Nothing was printed, so
+    nothing is recorded — the same rule one step further down."""
+    s, fm, ctl, run, ti2, pages = _verify_env(tmp_path)
+    for p, _f in pages:
+        _real_tiff(p)
+    tab = _tab(s, ctl, ti2, pages)
+    monkeypatch.setattr(
+        "workflow.verification_print.convert_pages_through_profile",
+        _fake_converter([]))
+    monkeypatch.setattr(QMessageBox, "critical", staticmethod(
+        lambda *a, **k: None))
+    sent = _ready_to_print(tab, s, exit_code=1)
+
+    tab._on_print_current()
+    assert len(sent) == 1                    # it really was submitted
+    assert not vp.print_record_path(ti2).exists()
+
+
+def test_the_external_route_records_the_hand_over_it_really_makes(
+        qapp, tmp_path, monkeypatch):
+    """The other half of the timing rule: for route = external the HAND-OFF is
+    the act, it has happened by the time the folder opens, and nothing further
+    can refuse it — so that record is still written on the spot."""
+    s, fm, ctl, run, ti2, pages = _verify_env(tmp_path)
+    tab = _tab(s, ctl, ti2, pages)
+    monkeypatch.setattr(
+        "workflow.verification_print.convert_pages_through_profile",
+        _fake_converter([]))
+    monkeypatch.setattr("core.preset_store.reveal_in_file_manager",
+                        lambda p: None)
+    monkeypatch.setattr(tab, "_print_pages", lambda pages: pytest.fail(
+        "the external route must not print"))
+    tab._cm_route_ext_rb.setChecked(True)
+
+    tab._on_print_all()
+    rec = json.loads(vp.print_record_path(ti2).read_text(encoding="utf-8"))
+    assert rec["route"] == vp.ROUTE_EXTERNAL
+    assert rec["printed_at"]
+    assert tab._pending_print_record is None
+
+
+def test_the_record_is_held_not_written_until_a_page_is_submitted(
+        qapp, tmp_path, monkeypatch):
+    """The mechanism itself, so the two halves cannot drift apart: the funnel
+    holds the record for the ChromIQ route and writes nothing."""
+    s, fm, ctl, run, ti2, pages = _verify_env(tmp_path)
+    tab = _tab(s, ctl, ti2, pages)
+    monkeypatch.setattr(
+        "workflow.verification_print.convert_pages_through_profile",
+        _fake_converter([]))
+
+    out = tab._apply_verification_colour([pages[0]])
+    assert out is not None                             # it wants to print
+    assert not vp.print_record_path(ti2).exists()
+    held_ti2, held = tab._pending_print_record
+    assert held_ti2 == ti2 and held["route"] == vp.ROUTE_CHROMIQ
+
+    tab._commit_print_record(False)                    # nothing went out
+    assert not vp.print_record_path(ti2).exists()
+    assert tab._pending_print_record is None
+
+    tab._apply_verification_colour([pages[0]])
+    tab._commit_print_record(True)                     # a page did
+    assert vp.print_record_path(ti2).exists()
+
+
+def test_a_record_only_silences_the_question_when_it_answers_it(tmp_path):
+    """R6 F5's second half. `_ask_how_printed` skipped on `is not None`, so any
+    file at all — including one no reader can interpret — decided the report's
+    yardstick in silence."""
+    assert not vp.record_answers_how_printed(None)
+    assert not vp.record_answers_how_printed({})
+    assert not vp.record_answers_how_printed("not a dict")
+    # a print that happened
+    assert vp.record_answers_how_printed(
+        {"colour": vp.COLOUR_RAW, "printed_at": "2026-09-02T10:00:00"})
+    assert vp.record_answers_how_printed(
+        {"colour": vp.COLOUR_THROUGH, "printed_at": "2026-09-02T10:00:00"})
+    # the answer the person gave at measure time carries no printed_at
+    assert vp.record_answers_how_printed(
+        {"colour": vp.COLOUR_THROUGH, "recorded": "asked-at-measure"})
+    # a colour nobody can interpret, or an act that never happened
+    assert not vp.record_answers_how_printed(
+        {"colour": "sideways", "printed_at": "2026-09-02T10:00:00"})
+    assert not vp.record_answers_how_printed({"colour": vp.COLOUR_RAW})
+    assert not vp.record_answers_how_printed(
+        {"colour": vp.COLOUR_RAW, "printed_at": "  ", "recorded": ""})
 
 
 # --------------------------------------------------------------- T5 + T6

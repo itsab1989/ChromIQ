@@ -115,10 +115,19 @@ def test_every_format_reaches_the_same_question(qapp):
         "never reach it")
 
 
-def _import_into(work, monkeypatch, pick_run, n_runs=3):
+def _import_into(work, monkeypatch, pick_run, n_runs=3, *,
+                 bar_run=None, manifest_run=None, rows_per_run=None,
+                 landed_out=None):
     """Drive the real routing with a real picker, and say where the file goes.
 
     Returns (which run the measurement landed in, the runs offered on screen).
+
+    ``bar_run`` selects a run on the Profile-run pulldown; ``manifest_run``
+    writes a DIFFERENT run into `project.json`'s `current_run`, which is what
+    picking on the bar deliberately does not do. ``rows_per_run`` gives each
+    run a chart of its own size, so the run a new run's chart was copied from
+    can be read back off disk. ``landed_out`` receives the run folder the
+    measurement ended up in.
     """
     from PyQt6.QtWidgets import QComboBox, QMessageBox
     from core.argyll_runner import ArgyllRunner
@@ -137,12 +146,17 @@ def _import_into(work, monkeypatch, pick_run, n_runs=3):
     for i in range(n_runs):
         run = proj.current_run() if i == 0 else proj.new_run()
         run.ensure_dir()
-        _cgats(run.chart_ti2, "CTI2", _ROWS)
+        rows = (rows_per_run or {}).get(run.id, _ROWS)
+        _cgats(run.chart_ti2, "CTI2", rows)
+    if manifest_run is not None:
+        proj.set_current_run(manifest_run)
     fm.set_target_name("P")
 
     tab_chart = TabChart(ArgyllRunner(settings), fm, settings)
     ctl = MeasurementTargetController(fm)
     tab_chart.set_target_controller(ctl)
+    if bar_run is not None:
+        ctl.set_profile_run(bar_run)
     tab = TabProfile(ArgyllRunner(settings), settings)
     tab.set_target_controller(ctl)
     tab._tab_chart = tab_chart          # what `self.window()` is asked for
@@ -175,7 +189,65 @@ def _import_into(work, monkeypatch, pick_run, n_runs=3):
     # so asking it would report an empty list for a file that is really there.
     landed = sorted(d.name for d in (root / "P" / "runs").iterdir()
                     if d.is_dir() and any(d.glob("*.ti3")))
+    if landed_out is not None:
+        landed_out.append(root / "P" / "runs")
     return landed, offered
+
+
+def _patches(chart_ti2):
+    """How many patches a chart holds, read off disk."""
+    for line in chart_ti2.read_text(encoding="utf-8").splitlines():
+        if line.startswith("NUMBER_OF_SETS"):
+            return int(line.split()[1])
+    raise AssertionError(f"no NUMBER_OF_SETS in {chart_ti2}")
+
+
+def test_a_new_run_takes_its_chart_from_the_run_on_the_bar(
+        work, qapp, monkeypatch):
+    """R6 F1. "A new run" copied its chart from `project.json`'s `current_run`
+    — a field picking a run on the bar does not write — so the run ChromIQ used
+    and the run the person was shown were two different things.
+
+    Driven the way it was found: the bar says Run 1, the manifest says run 3,
+    and the two runs hold charts of different sizes. The chart in the new run
+    must be RUN 1's, because Run 1 is the only run identity on screen.
+    """
+    runs_dir: list = []
+    landed, _ = _import_into(
+        work, monkeypatch, pick_run="", n_runs=3,
+        bar_run="run1", manifest_run="run3",
+        rows_per_run={"run3": _ROWS + [(25, 25, 25), (75, 75, 75)]},
+        landed_out=runs_dir)
+    new = [r for r in landed if r not in ("run1", "run2", "run3")]
+    assert new, f"'a new run' filed into an existing one: {landed}"
+    made = runs_dir[0] / new[0] / "P.ti2"
+    assert _patches(made) == len(_ROWS), (
+        f"the new run was seeded from the manifest's run3 "
+        f"({_patches(made)} patches), not from Run 1 on the bar "
+        f"({len(_ROWS)} patches)")
+
+
+def test_the_manifest_still_decides_when_the_bar_names_no_run(
+        work, qapp, monkeypatch):
+    """The other half, so the fix above cannot be "always run 1".
+
+    With the bar on "New run" there is no run on screen to take a chart from,
+    and the manifest's current run is the documented fallback — the note in
+    `file_into_project` says so, and it is what keeps a project ChromIQ has
+    just opened on the person's behalf working at all.
+    """
+    runs_dir: list = []
+    landed, _ = _import_into(
+        work, monkeypatch, pick_run="", n_runs=3,
+        bar_run="", manifest_run="run3",
+        rows_per_run={"run3": _ROWS + [(25, 25, 25), (75, 75, 75)]},
+        landed_out=runs_dir)
+    new = [r for r in landed if r not in ("run1", "run2", "run3")]
+    assert new, f"'a new run' filed into an existing one: {landed}"
+    made = runs_dir[0] / new[0] / "P.ti2"
+    assert _patches(made) == len(_ROWS) + 2, (
+        "with no run named on the bar the manifest's current run is the "
+        "source, and it was not used")
 
 
 def test_the_run_picker_choice_is_connected(work, qapp, monkeypatch):

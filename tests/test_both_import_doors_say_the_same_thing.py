@@ -159,9 +159,17 @@ def _load(win, measurement, monkeypatch):
     # raises "Load Test Session" — a question about that tab, asked on every
     # open, before and after this change. Answered "Continue" (use the files as
     # they are), which is what the drives answered on screen.
-    monkeypatch.setattr(ti2, "_handle_inside",
-                        lambda parent, ti2_path, working_dir:
-                        (ti2_path, ti2._related_files(ti2_path)[1]))
+    # EVERY ROAD, because the cross-tab propagation now passes the controller
+    # (R6 F2) and the resolver routes on that: which of these it picks depends
+    # on whether the project opened, which is exactly what several of these
+    # tests vary. The answer is the same one the drives gave on screen — "use
+    # the files as they are" — wherever it lands.
+    def _use_it_where_it_is(parent, ti2_path, *rest):
+        return ti2_path, ti2._related_files(ti2_path)[1]
+
+    for _handler in ("_handle_inside", "_handle_inside_current",
+                     "_handle_inside_other", "_handle_inside_nothing_open"):
+        monkeypatch.setattr(ti2, _handler, _use_it_where_it_is)
     monkeypatch.setattr(tp, "open_file_dialog", lambda *a, **k: str(measurement))
     win._tab_profile._on_load_ti3()
 

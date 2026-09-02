@@ -376,6 +376,9 @@ class TabPrint(QWidget):
         self._tiff_pages: list[Path] = []
         self._current_ti2: Path | None = None
         self._target_ctl = None          # shared Profile-run / Run-type controller (#130)
+        # (ti2, kwargs) for a print record that is written only if a page is
+        # actually submitted — see `_apply_verification_colour` (R6 F5).
+        self._pending_print_record: "tuple[Path, dict] | None" = None
         # Sequential-enabling state — populated in _rebuild_option_rows
         self._ordered_opts: list[tuple[str, list[str], QComboBox]] = []
         self._raw_value_pairs: dict[str, list[tuple[str, str]]] = {}
@@ -974,10 +977,40 @@ class TabPrint(QWidget):
             self._set_status(tr(
                 "The sheets have been prepared through this run's profile."))
 
+        # A RECORD OF A PRINT IS WRITTEN WHEN THERE HAS BEEN ONE (R6 F5).
+        #
+        # This wrote `<stem>.print.json` here, above BOTH print paths and above
+        # every one of their guards — no printer, printer offline, stuck jobs,
+        # the borderless warning, the preflight, a TIFF that will not open, a
+        # queue that rejects the job. Driven: with the printer asleep ChromIQ
+        # correctly said so, sent zero pages, and left behind
+        # `{"printed_at": …, "colour": "raw", "route": "chromiq"}`. Same on
+        # Cancel at the preflight. That file then told the Measure tab that
+        # ChromIQ had printed the sheet, so the "How was this sheet printed?"
+        # question was never asked about a sheet ChromIQ had NOT printed, and
+        # the report asserted `colour: raw` about a sheet that went through the
+        # profile — with pairing 3's media-relative yardstick left off.
+        #
+        # So the two routes are timed by what each of them actually does:
+        #
+        #   route = external — the hand-off IS the act. By this line the pages
+        #     are converted and the folder is about to open; nothing further
+        #     can refuse. Written here, unchanged.
+        #   route = chromiq  — the act is a print, and ChromIQ has not made one
+        #     yet. The record is held and committed by whichever print path
+        #     runs, once a page has been accepted by the printing system.
+        #
+        # "Accepted" is the strongest fact available: paper coming out of a
+        # printer is not observable from here, and the record's question is
+        # "did ChromIQ put this sheet through the profile", not "did it reach
+        # the paper". A job the queue took carries the converted pages and the
+        # answer is yes; a job that was never submitted, or that CUPS refused,
+        # is not a print and leaves no record.
+        self._pending_print_record = None
         if self._current_ti2 is not None:
             run = self._cm_run()
-            vp.write_print_record(
-                Path(self._current_ti2), colour=colour,
+            pending = dict(
+                colour=colour,
                 intent=self._cm_selected_intent(),
                 profile=(run.built_profile_icc() if run is not None else None),
                 route=route,
@@ -985,6 +1018,10 @@ class TabPrint(QWidget):
                     self._settings.get("argyll_bin_path",
                                        "/Applications/Argyll/bin"))
                     if colour == vp.COLOUR_THROUGH else ""))
+            if route == vp.ROUTE_EXTERNAL:
+                vp.write_print_record(Path(self._current_ti2), **pending)
+            else:
+                self._pending_print_record = (Path(self._current_ti2), pending)
 
         if route == vp.ROUTE_EXTERNAL:
             folder = converted_dir if converted_dir is not None else (
@@ -1335,11 +1372,22 @@ class TabPrint(QWidget):
         next_combo.blockSignals(False)
 
     def set_ti2_path(self, path: Path) -> None:
-        """Programmatically load a .ti2 file (cross-tab auto-population)."""
+        """Programmatically load a .ti2 file (cross-tab auto-population).
+
+        THE CONTROLLER GOES IN, exactly as this tab's own Browse passes it.
+        `resolve_ti2` routes on that argument: with a controller it takes the
+        #130 model (A1a/A2a/A2b/A1b), without one it falls through to the
+        pre-#130 "Load Test Session" window. This omission meant EVERY
+        cross-tab propagation of a chart took the legacy road whatever the bar
+        said — and the legacy road offers to "copy the files to a new subfolder
+        so you can build a separate ICC profile" about a project ChromIQ has
+        just filed a measurement into (R6 F2, driven `d03_who_clears_check.py`).
+        """
         from ui.ti2_loader import resolve_ti2
         if not path.exists():
             return
-        result = resolve_ti2(self, path, self._settings)
+        result = resolve_ti2(self, path, self._settings,
+                             getattr(self, "_target_ctl", None))
         if result is None:
             self.ti2_load_cancelled.emit()
             return
@@ -1529,8 +1577,27 @@ class TabPrint(QWidget):
         elif mismatch:
             log.warning("Preflight disabled; printing despite mismatch: %s", mismatch)
 
+        submitted = False
         for path, frame in pages:
-            self._send_page(path, frame, orientation, page_size_pt)
+            if self._send_page(path, frame, orientation, page_size_pt):
+                submitted = True
+        self._commit_print_record(submitted)
+
+    def _commit_print_record(self, submitted: bool) -> None:
+        """Write the held print record, or drop it (R6 F5).
+
+        Called by both print paths and by nothing else, so a route that ends in
+        a refusal, a cancelled window or a rejected job leaves no record at
+        all — and the next sheet is asked about rather than assumed.
+        """
+        pending, self._pending_print_record = self._pending_print_record, None
+        if pending is None or not submitted:
+            if pending is not None:
+                log.info("nothing was submitted; no print record written")
+            return
+        ti2, kwargs = pending
+        from workflow import verification_print as vp
+        vp.write_print_record(ti2, **kwargs)
 
     def _confirm_borderless(self) -> bool:
         """Warn that borderless scales the chart. Returns False to cancel."""
@@ -1705,11 +1772,18 @@ class TabPrint(QWidget):
         frame: int = 0,
         orientation: int | None = None,
         page_size_pt: tuple[float, float] | None = None,
-    ) -> None:
+    ) -> bool:
+        """Submit one page. Returns True when the printing system ACCEPTED it.
+
+        The return value is what decides whether a print record is written
+        (R6 F5), so it says only what it can prove: the job was handed to CUPS
+        and CUPS took it. Whether ink reached paper is not knowable from here,
+        and is not what the record claims.
+        """
         printer = self._printer_combo.currentData() or ""
         if not printer:
             QMessageBox.warning(self, tr("No Printer"), tr("Please select a printer before printing."))
-            return
+            return False
 
         # Extract the target frame to a temporary single-page TIFF when needed.
         tmp_path: Path | None = None
@@ -1730,16 +1804,25 @@ class TabPrint(QWidget):
                 self, tr("TIFF Error"),
                 tr("Cannot read TIFF file:\n{name}\n\n{exc}").format(name=tiff_path.name, exc=exc),
             )
-            return
+            return False
 
         selected_opts = {k: (c.currentData() or "") for k, c in self._option_combos.items()}
         config = self._module.build_config(printer=printer, options=selected_opts)
         self._set_status(tr("Sending {name} (page {page}) to {printer}…").format(
             name=tiff_path.name, page=frame + 1, printer=printer))
 
+        # `print_job_ps` reports the exit code through `on_finish`, and calls it
+        # before returning on every one of its paths (PS, the PDF retry, the
+        # TIFF retry, and a failure to generate PostScript at all). Recorded in
+        # a cell rather than returned, so a path that ever became asynchronous
+        # would leave this False — which asks the person how the sheet was
+        # printed instead of assuming, the safe way round.
+        accepted = [False]
+
         def _cleanup_and_finish(code: int) -> None:
             if tmp_path and tmp_path.exists():
                 tmp_path.unlink(missing_ok=True)
+            accepted[0] = (code == 0)
             self._on_print_done(code)
 
         ink_channels = _find_sidecar_channels(tiff_path)
@@ -1753,6 +1836,7 @@ class TabPrint(QWidget):
                 self._settings.get("pdf_print_fallback", False)
             ),
         )
+        return accepted[0]
 
     def _on_print_done(self, code: int) -> None:
         if code == 0:
@@ -1940,11 +2024,17 @@ class TabPrint(QWidget):
     def _print_native(self, pages: list[tuple[Path, int]]) -> None:
         import sys as _sys
         if _sys.platform == "darwin":
+            submitted = False
             try:
                 from workflow.native_print_macos import print_frames, ColorManagementMismatch
                 try:
-                    print_frames(pages)
+                    submitted = bool(print_frames(pages))
                 except ColorManagementMismatch as exc:
+                    # The job WAS submitted; only the colour-management lock
+                    # could not be verified afterwards. That is a print, so the
+                    # record describes it — and the window below says what
+                    # could not be checked about it.
+                    submitted = True
                     log.warning("Native macOS print: %s", exc)
                     QMessageBox.warning(
                         self, tr("Colour Management Lock Not Verified"),
@@ -1962,6 +2052,7 @@ class TabPrint(QWidget):
                     self, tr("Print Failed"),
                     tr("Could not open the macOS print dialog:\n{exc}").format(exc=exc),
                 )
+            self._commit_print_record(submitted)
             return
         self._print_native_qt(pages)
 
@@ -1973,9 +2064,12 @@ class TabPrint(QWidget):
         printer = QPrinter(QPrinter.PrinterMode.HighResolution)
         dialog = QPrintDialog(printer, self)
         if dialog.exec() != QDialog.DialogCode.Accepted:
+            # Cancelled at the OS dialog: nothing was printed, so no record.
+            self._commit_print_record(False)
             return
 
         painter = QPainter(printer)
+        drawn = 0
         for i, (tiff_path, frame) in enumerate(pages):
             if i > 0:
                 printer.newPage()
@@ -2001,6 +2095,10 @@ class TabPrint(QWidget):
                 painter.setWindow(qimg.rect())
                 painter.drawImage(0, 0, qimg)
                 painter.restore()
+                drawn += 1
             except Exception as exc:
                 log.warning("Native print: cannot render %s frame %d: %s", tiff_path.name, frame, exc)
         painter.end()
+        # A record only if a page really went onto the QPrinter: every page
+        # failing to render leaves an empty job and nothing to describe.
+        self._commit_print_record(drawn > 0)
