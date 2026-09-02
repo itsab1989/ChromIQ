@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import logging
 import struct
+import sys
+import unicodedata
 from pathlib import Path
 
 import pytest
@@ -308,6 +310,79 @@ def test_the_shared_path_repairs_a_real_colprof_style_profile(tmp_path):
     assert found[b"desc"] == ("Mueller-Pruefdruck", "Müller-Prüfdruck")
     assert found[b"dmdd"] == ("Mueller-Pruefdruck", "Müller-Prüfdruck")
     assert found[b"dmnd"] == ("ChromIQ", "")
+
+
+def test_qprocess_hands_argyll_the_DECOMPOSED_name():
+    """The mechanism the test above cannot see, pinned against Qt itself.
+
+    `ArgyllRunner` runs every tool through `QProcess`, and QProcess converts
+    its arguments to NFD on macOS. So colprof is not given the composed name
+    the UI holds — which is why the repair below has to know both spellings.
+    Asserted against `/bin/echo` rather than a stub, because a stub of Qt
+    would only repeat what this test claims.
+    """
+    if sys.platform != "darwin":
+        pytest.skip("the NFD conversion is macOS's; elsewhere args pass through")
+    from PyQt6.QtCore import QProcess
+    name = "Müller-Prüfdruck"
+    assert name == unicodedata.normalize("NFC", name)   # what the UI holds
+    p = QProcess()
+    p.start("/bin/echo", ["-n", name])
+    assert p.waitForFinished(10_000), "/bin/echo did not finish"
+    echoed = bytes(p.readAllStandardOutput()).decode("utf-8")
+    assert echoed == unicodedata.normalize("NFD", name)
+    assert echoed != name
+    # …and this is what Argyll's '?' substitution then makes of it.
+    assert echoed.encode("ascii", "replace").decode() == "Mu?ller-Pru?fdruck"
+
+
+def test_the_repair_finds_the_name_colprof_ACTUALLY_stored(tmp_path):
+    """The decomposed spelling is the one a real macOS build produces.
+
+    Driven end to end on 2026-09-02: a real colprof build for a project called
+    "Müller-Prüfdruck" wrote `desc` = "Mu?ller-Pru?fdruck" with an empty
+    Unicode field, and the repair left it alone — it was looking for
+    "M?ller-Pr?fdruck", the spelling a *direct* call produces. Every other
+    test here builds its fixture from the composed name, so they all matched
+    and the feature shipped green while doing nothing on any real build.
+    """
+    from workflow.profile_builder import ProfileBuilder
+    params = _params(tmp_path, "Müller-Prüfdruck")
+    stored = unicodedata.normalize("NFD", "Müller-Prüfdruck")
+    assert stored.encode("ascii", "replace").decode() == "Mu?ller-Pru?fdruck"
+    icc = tmp_path / "Target.icc"
+    icc.write_bytes(_fake_profile([
+        (b"desc", _argyll_style_desc(stored)),
+        (b"dmdd", _argyll_style_desc(stored)),
+        (b"dmnd", _argyll_style_desc("ChromIQ"))]))
+
+    ProfileBuilder(runner=None)._restore_accents(params)
+
+    data = icc.read_bytes()
+    found = {}
+    for i in range(struct.unpack(">I", data[128:132])[0]):
+        sig, off, size = struct.unpack(">4sII", data[132 + 12 * i:144 + 12 * i])
+        found[sig] = parse_text_description(data[off:off + size])
+    assert found[b"desc"] == ("Mueller-Pruefdruck", "Müller-Prüfdruck")
+    assert found[b"dmdd"] == ("Mueller-Pruefdruck", "Müller-Prüfdruck")
+    assert found[b"dmnd"] == ("ChromIQ", "")
+
+
+def test_a_name_that_is_not_ours_is_still_left_alone_in_either_form(tmp_path):
+    """Widening the guard to two normal forms must not widen it to any name.
+
+    Both spellings of a DIFFERENT name are still refused, so the tag is only
+    ever rewritten when the file proves it is the one we asked for.
+    """
+    from workflow.profile_builder import ProfileBuilder
+    params = _params(tmp_path, "Müller-Prüfdruck")
+    for other in ("Schröder-Test",
+                  unicodedata.normalize("NFD", "Schröder-Test")):
+        icc = tmp_path / "Target.icc"
+        before = _fake_profile([(b"desc", _argyll_style_desc(other))])
+        icc.write_bytes(before)
+        ProfileBuilder(runner=None)._restore_accents(params)
+        assert icc.read_bytes() == before, f"rewrote a tag holding {other!r}"
 
 
 def test_a_repair_failure_never_fails_the_build(tmp_path, caplog):

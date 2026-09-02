@@ -187,8 +187,31 @@ def repair_descriptions(data: bytes, names: dict[bytes, str]) -> bytes:
         except (ValueError, struct.error):
             continue
         # Argyll's own '?' substitution of the requested name. If the file
-        # does not hold exactly that, this is not the tag we think it is.
-        if stored_ascii != true_name.encode("ascii", "replace").decode("ascii"):
+        # does not hold one of those spellings, this is not the tag we think
+        # it is.
+        #
+        # BOTH NORMAL FORMS, BECAUSE macOS SENDS THE DECOMPOSED ONE.
+        # `ArgyllRunner` runs colprof through `QProcess`, and QProcess
+        # converts its arguments to NFD on macOS — measured: `/bin/echo`
+        # handed the NFC "Müller-Prüfdruck" (16 chars) prints it back
+        # decomposed (18), while `subprocess` prints it unchanged. colprof
+        # therefore stores "Mu?ller-Pru?fdruck", one '?' per combining mark,
+        # not the "M?ller-Pr?fdruck" a direct call produces. Comparing only
+        # against the composed spelling meant this guard never matched on the
+        # one platform the feature was written for, and the repair silently
+        # did nothing on every real build — the profile kept the mangled name
+        # and the Unicode field stayed empty.
+        #
+        # The guard is no less strict: the file must still hold exactly
+        # Argyll's '?' spelling of the name we asked for. It may now hold it
+        # in either normal form, which is the only thing that varies.
+        _spellings = {
+            n.encode("ascii", "replace").decode("ascii")
+            for n in (true_name,
+                      unicodedata.normalize("NFC", true_name),
+                      unicodedata.normalize("NFD", true_name))
+        }
+        if stored_ascii not in _spellings:
             continue
         if stored_uni:
             continue                       # already carries a Unicode name
