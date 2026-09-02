@@ -716,17 +716,45 @@ class Calibration:
         return [self.dir / name for name in self.KEPT_ACROSS_ARCHIVE
                 if (self.dir / name).is_file()]
 
-    #: What a rebuild ARCHIVES rather than replaces — the things that cannot be
-    #: regenerated. The chart files are rebuilt by the generation that follows,
-    #: so they are simply replaced, exactly as ``Run.reset_chart_artefacts``
-    #: treats a run's chart. Knut, beta.148: *"Only measurement ti3 files shall
-    #: be copied to cal/old/<date_time>/ folder, similar to how it is done for a
-    #: run."*
+    #: What goes into the TOP LEVEL of an archive — the things that cannot be
+    #: regenerated at all. Knut, beta.148: *"Only measurement ti3 files shall be
+    #: copied to cal/old/<date_time>/ folder, similar to how it is done for a
+    #: run."* The chart is kept too, one level down in ``chart/``, because the
+    #: window shown before a rebuild promises it — see :meth:`reset`.
     RESULT_SUFFIXES = (".ti3", ".cal", ".icc", ".icm")
 
+    #: The sub-folder of an archive that holds the chart the calibration was
+    #: made with — the same name ``cal/chart/`` uses live, and the same place
+    #: the whole-calibration archive already puts the stored chart copy.
+    ARCHIVE_CHART_DIRNAME = "chart"
+
+    def chart_files(self) -> "list[Path]":
+        """The live files that ARE the chart: everything in ``cal/`` that is not
+        a result and not the calibration's own words.
+
+        Defined by subtraction on purpose. A list of stems and suffixes would go
+        stale the first time a new sidecar is added — ``.strips.json`` and
+        ``.print.json`` have both been forgotten by such a list already
+        (``Run.chart_artefact_names``) — whereas "whatever is live and is not a
+        measurement" cannot miss a file it has never heard of. So the ``.ti1``,
+        the ``.ti2``, the ``.channels.json``, every ``_NN.tif`` page and any
+        sidecar beside them are all covered by construction.
+        """
+        results = set(self.result_files())
+        return [p for p in self.live_files() if p not in results]
+
+    def result_files(self) -> "list[Path]":
+        """The live files that cannot be regenerated — the measurement, the
+        ``.cal``, any profile built from them, and the partial a measurement
+        that stopped part way through leaves behind."""
+        return [p for p in self.live_files()
+                if p.suffix.lower() in self.RESULT_SUFFIXES
+                or p.name.endswith(".ti3.engine-partial")]
+
     def archive_to_old(self, when: "datetime | None" = None,
-                       *, only: "list[Path] | None" = None) -> "Path | None":
-        """Move a calibration's results into ``cal/old/<date>/`` — never delete.
+                       *, only: "list[Path] | None" = None,
+                       chart: "list[Path] | None" = None) -> "Path | None":
+        """Move a calibration into ``cal/old/<date>/`` — never delete.
 
         A calibration is a whole printed and measured chart's worth of work, and
         it is what ``printcal``'s Re-calibrate and Verify modes read back
@@ -734,10 +762,22 @@ class Calibration:
         this protection since #130 §2a; ``cal/`` never did, and rebuilding a
         calibration chart called :meth:`reset`, which was ``rmtree``.
 
-        ``only`` names what to archive; without it, everything live goes. The
-        chart snapshot travels along ONLY in the everything case — a rebuild
-        keeps ``chart/`` where it is, because it is the copy Restore Used Chart
-        reads.
+        ``only`` names what goes into the archive's TOP LEVEL; without it,
+        everything live goes. The chart snapshot travels along ONLY in the
+        everything case — a rebuild keeps ``chart/`` where it is, because it is
+        the copy Restore Used Chart reads.
+
+        ``chart`` names what goes into ``<archive>/chart/``. Two reasons it is
+        a sub-folder rather than the top level, and they pull the same way:
+
+        * The window the user reads before this happens promises the chart moves
+          here and can be gone back to (M-CAL-REPLACE-CHART, and the first
+          bullet of M-CAL-REPLACE-MEASURED). It has to be IN the archive.
+        * Knut ruled at beta.148 that only what cannot be regenerated belongs in
+          a dated folder, because a folder holding a bare ``.ti1``/``.ti2``
+          "reads like a kept calibration and is not one". Putting the chart one
+          level down, in a folder that says ``chart``, keeps the dated folder's
+          own listing exactly as he asked for it and still keeps the chart.
 
         Returns the archive folder, or None when there was nothing to keep.
         """
@@ -751,7 +791,8 @@ class Calibration:
             # the chart that replaced it.
             if self.snapshot_dir.is_dir():
                 existing.append(self.snapshot_dir)
-        if not existing:
+        sub = [p for p in (chart or []) if p.exists()]
+        if not existing and not sub:
             return None
         when = when or datetime.now()
         # ONE FOLDER PER ARCHIVE, always. Two rebuilds inside the same second
@@ -765,14 +806,24 @@ class Calibration:
             dest = self.old_dir / f"{stamp}_{n}"
             n += 1
         dest.mkdir(parents=True, exist_ok=True)
-        for p in existing:
-            target = dest / p.name
-            k = 1
-            while target.exists():
-                target = dest / f"{p.stem}_{k}{p.suffix}"
-                k += 1
-            shutil.move(str(p), str(target))
-            log.info("archived calibration %s -> cal/old/%s/", p.name, dest.name)
+
+        def _move_into(folder: Path, paths: "list[Path]") -> None:
+            for p in paths:
+                target = folder / p.name
+                k = 1
+                while target.exists():
+                    target = folder / f"{p.stem}_{k}{p.suffix}"
+                    k += 1
+                shutil.move(str(p), str(target))
+                log.info("archived calibration %s -> cal/old/%s/%s",
+                         p.name, dest.name,
+                         "" if folder == dest else f"{folder.name}/")
+
+        _move_into(dest, existing)
+        if sub:
+            chart_dir = dest / self.ARCHIVE_CHART_DIRNAME
+            chart_dir.mkdir(parents=True, exist_ok=True)
+            _move_into(chart_dir, sub)
         # …and the calibration's own words go in as a COPY, so the archive
         # documents itself while the live fields keep what the user typed.
         for p in copied:
@@ -781,25 +832,54 @@ class Calibration:
                      "stays)", p.name, dest.name)
         return dest
 
-    def reset(self) -> None:
-        """Make room for a new calibration chart — the run rule, for ``cal/``.
+    def reset(self) -> "Path | None":
+        """Make room for a new calibration chart — and keep what was there.
 
-        **What cannot be regenerated is archived; what can be is replaced.**
-        The measurement, the ``.cal`` and any profile built from it go to
-        ``cal/old/<date_time>/``; the chart files are about to be rebuilt, so
-        they are simply removed. That is exactly what
-        :meth:`Run.reset_chart_artefacts` does for a run, and Knut asked for the
-        parity in as many words (beta.148): *"Only measurement ti3 files shall
-        be copied to cal/old/<date_time>/ folder, similar to how it is done for
-        a run."*
+        **Nothing in ``cal/`` is deleted.** The measurement, the ``.cal`` and
+        any profile built from them go to the top of ``cal/old/<date_time>/``;
+        the chart that was there — the ``.ti1``, the ``.ti2``, the
+        ``.channels.json``, every page image and any sidecar beside them — goes
+        to ``cal/old/<date_time>/chart/``, and ``cal/exports/`` goes with it.
+        Returns the archive folder, or None when ``cal/`` held nothing.
 
-        It used to sweep **everything** into the archive, chart included — so a
-        regenerated calibration chart left its predecessor's ``.ti1``/``.ti2``
-        in a dated folder that reads like a kept calibration and is not one.
+        **THE CHART USED TO BE DELETED WHILE THE WINDOW SAID IT WAS KEPT.**
+        `TabChart._confirm_replacing_calibration` shows one of two windows
+        immediately before this runs, and both of them promise otherwise:
 
-        ``meta.json`` stays (it describes the calibration, not the chart), and
-        so does ``chart/`` — the copy of the chart a measurement was taken with,
-        which Restore Used Chart reads. Anything already in ``cal/old/`` is left
+        > *"Nothing is deleted: the chart you have now moves to the project's
+        > 'cal/old' folder, in a folder named with today's date, and you can go
+        > back to it at any time."*  (M-CAL-REPLACE-CHART)
+
+        and M-CAL-REPLACE-MEASURED names *"the calibration chart"* as the first
+        of the three things that move. Measured on an unmeasured calibration:
+        five files in, ``meta.json`` out, and no ``cal/old/`` at all — because
+        with no measurement there were no results, so no archive was made and
+        the whole chart was unlinked. The user reads the reassurance and presses
+        the button BECAUSE of it, which makes this the worst shape a fault can
+        have here.
+
+        **Why ``chart/`` and not the top level.** Knut narrowed the archive at
+        beta.148 — *"Only measurement ti3 files shall be copied to
+        cal/old/<date_time>/ folder, similar to how it is done for a run"* — and
+        the reason he gave holds: a dated folder holding a bare ``.ti1``/
+        ``.ti2`` reads like a kept calibration and is not one. One level down,
+        in a folder that says ``chart``, satisfies both him and the window: the
+        dated folder's own listing still shows only what cannot be regenerated,
+        and the chart is still in ``cal/old/`` and still openable. It is also
+        where the whole-calibration archive already puts a chart
+        (:meth:`archive_to_old`), so there is one place to look, not two.
+
+        **A chart is not "regenerated" the way a run's is, either.** The layout
+        seed lives only in the ``.ti2``, so building again from identical
+        settings gives a chart that no longer matches sheets already printed,
+        and ``chartread`` reads a printed sheet against that very ``.ti2``. The
+        run path answers this with a stash it drops on success
+        (:meth:`Run.reset_chart_artefacts`); the calibration path cannot, because
+        the window has already told the user the chart is in ``cal/old/``.
+
+        ``meta.json`` stays (it describes the calibration, not the chart) and is
+        copied into the archive, and ``cal/chart/`` stays where it is — it is the
+        copy Restore Used Chart reads. Anything already in ``cal/old/`` is left
         alone: an archive of archives helps nobody.
         """
         # THE ENGINE PARTIAL IS SOMEBODY'S MEASUREMENT TOO.
@@ -808,21 +888,23 @@ class Calibration:
         # so it was unlinked below, unarchived, while `Run.reset_chart_artefacts`
         # names it explicitly as something to preserve (`:1378`). A calibration
         # had no such mercy. Measured: it survived nowhere.
-        results = [p for p in self.live_files()
-                   if p.suffix.lower() in self.RESULT_SUFFIXES
-                   or p.name.endswith(".ti3.engine-partial")]
-        if results:
-            self.archive_to_old(only=results)
+        results = self.result_files()
+        chart = self.chart_files()
+        # exports/ TRAVELS WITH THE CHART IT WAS MADE FROM. These are the
+        # hand-off sidecars (`-colours.txt`, `-i1profiler.txt/.pxf`) the user may
+        # already have sent somewhere; `rmtree` on them made "Nothing is deleted"
+        # false a second time, in a line nobody was reading.
+        if self.exports_dir.is_dir():
+            chart.append(self.exports_dir)
+        dest = self.archive_to_old(only=results, chart=chart)
+        # Whatever the move could not take (a permission error, a file that
+        # appeared in between) is left where it is rather than unlinked. An
+        # unarchivable file is still the user's; the build that follows will
+        # overwrite what it needs to and no more.
         for p in self.live_files():
-            try:
-                p.unlink()
-            except OSError as exc:
-                log.warning("Could not remove %s: %s", p, exc)
-        if self.exports_dir.exists():
-            try:
-                shutil.rmtree(self.exports_dir)
-            except OSError as exc:
-                log.warning("Could not delete %s: %s", self.exports_dir, exc)
+            log.warning("calibration file %s could not be archived and has been "
+                        "left in cal/", p.name)
+        return dest
 
 
 # ---------------------------------------------------------------------------

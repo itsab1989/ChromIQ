@@ -19,6 +19,16 @@ path construction are owned by `core/file_manager.py` via three classes:
     <target-name>-cal.icc
     <target-name>-cal.channels.json
     exports/                         # the cal chart's hand-off sidecars (#127)
+    chart/                           # the chart a measurement was taken with
+                                     #   (Restore Used Chart reads this)
+    old/                             # earlier calibrations — never deleted
+      <YYYY-MM-DD_HHMMSS>/           # one folder per rebuild; _2, _3 … if two
+                                     #   land in the same second
+        <target-name>-cal.ti3 / .cal / .icc    # what cannot be regenerated
+        meta.json                    # a COPY; the live one stays in cal/
+        chart/                       # the chart that was replaced, whole:
+          <target-name>-cal.ti1 / .ti2 / .channels.json / _NN.tif
+          exports/                   # …and its hand-off sidecars
     meta.json
   exports/                           # Tools-menu exports (project-wide)
     <target-name>-i1profiler.txt
@@ -107,7 +117,14 @@ Check & Refine always works from the clean `chart.ti3` (Architecture D).
 |-------|----------------|
 | `Project` | `project.json` manifest; `create` / `load` / `create_or_load`; `current_run()`, `new_run(preconditioning_from=…)`, `all_runs()`; `calibration`, `exports_dir` |
 | `Run` | every path in a run folder (`chart_ti1`, `measurement_ti3` → `chart.ti3`, `profile_icc` → `chart.icc`, `merged_ti3/_icc`, `calibrated_icc`, `preconditioning_ti3/_icc`); `reads()`, `next_read_path()`, `promote_measurement_to_read()`, `clear_reads()`, `reset_chart_artefacts()`, `built_profile_icc()` |
-| `Calibration` | the `cal/` folder (`cal_path`, `ti1/.ti2/.ti3/.icc`, `chart_tiffs()`, `exists()`, `reset()`) |
+| `Calibration` | the `cal/` folder (`cal_path`, `ti1/.ti2/.ti3/.icc`, `chart_tiffs()`, `exists()`, `live_files()`, `result_files()`, `chart_files()`, `archive_to_old()`, `reset()`) |
+
+`Calibration.reset()` **archives, it does not delete** — the window shown before
+it runs promises exactly that, and for a while it did not keep the promise.
+Results go to the top of `cal/old/<date_time>/` and the whole chart goes to
+`cal/old/<date_time>/chart/`; see the method's own docstring for why the chart
+is one level down. `chart_files()` is defined by subtraction (live, minus
+results) so a sidecar nobody has added yet is covered by construction.
 
 Two entry points:
 
