@@ -325,8 +325,23 @@ class ToolsPopup(QWidget):
         # CLIP TO THE PANEL BEFORE DRAWING ROWS. Scrolled rows still have
         # rectangles above and below the visible area; without this they paint
         # over the tail, the shadow margin and whatever is behind the popup.
+        #
+        # AND CLIP TO THE ROUNDED SHAPE, NOT ITS BOUNDING BOX. `setClipRect`
+        # left the four corner regions - inside the rectangle, outside the
+        # rounded edge - available to anything drawn here. Today's rows are
+        # inset by H_PAD and never reach them, so this changes no pixel; it is
+        # belt and braces, and it is NOT the corner fault the owner reported.
+        # That one is the scroll fades below, which are painted after the clip
+        # is restored. Inset by 1 px the way the rectangle was, so the border
+        # the bubble draws stays visible rather than painted over from inside.
+        clip = QPainterPath()
+        clip.addRoundedRect(
+            float(panel.left() + 1), float(panel.top() + 1),
+            float(panel.width() - 2), float(panel.height() - 2),
+            float(self.CORNER_R), float(self.CORNER_R),
+        )
         p.save()
-        p.setClipRect(panel.adjusted(1, 1, -1, -1))
+        p.setClipPath(clip)
 
         # Rows (grouped: muted uppercase headers, hoverable tool rows)
         header_font = QFont(self.font())
@@ -367,6 +382,21 @@ class ToolsPopup(QWidget):
         # is something in that direction, plus a slim thumb on the right.
         if self.is_scrollable():
             from PyQt6.QtGui import QLinearGradient
+            # THE FADES ARE SQUARE AND THE BUBBLE IS NOT. Each is a full-width
+            # `fillRect` 18 px tall against the top or bottom edge, and
+            # CORNER_R is 10 - so they painted panel colour straight into the
+            # corner arcs and squared them off. And because the top fade is
+            # only drawn once you have scrolled down, and the bottom one only
+            # while there is more below, WHICH corners looked wrong changed as
+            # you scrolled. The owner, 2026-09-02: *"the tools buttons
+            # speechbubble overlay has rounded corners but depending on how
+            # far its content is scrolled some corners shine through."*
+            #
+            # Not a Neutral fault: the geometry is identical in all three
+            # appearances and only the fill colour differs, which is why he
+            # could not tell from looking.
+            p.save()
+            p.setClipPath(clip)
             edge = QColor(pal["panel_bg"])
             fade_h = 18
             if self._scroll > 0:
@@ -403,6 +433,7 @@ class ToolsPopup(QWidget):
                       panel.top() + self.V_PAD + pos,
                       self.SCROLLBAR_W, thumb_h),
                 self.SCROLLBAR_W / 2.0, self.SCROLLBAR_W / 2.0)
+            p.restore()
 
         p.end()
 
