@@ -1410,6 +1410,98 @@ class ElidingComboBox(NoScrollComboBox):
         self._refresh_elide_tooltip()
 
 
+class ValueWidthComboBox(ElidingComboBox):
+    """A combo sized by the value it is SHOWING, not by its longest entry.
+
+    :class:`ElidingComboBox` keeps Qt's habit of *asking* for the width of the
+    longest entry and only lowers the minimum. That is right where the panel
+    can afford the longest entry and merely prefers not to insist on it — the
+    Create Chart and Measure panels, where the combo takes its natural width
+    whenever there is room.
+
+    It is wrong where the panel can never afford it. Then the preferred width
+    is one nothing will ever grant, the combo is squeezed to its ten-character
+    minimum, and the value on screen is elided from the first frame — including
+    the default, before the user has touched anything.
+
+    This one asks for the width of the string that is actually there:
+
+    * ``sizeHint`` follows the current value, so a panel measured from its
+      content reserves what the value on screen needs, in whatever language
+      that value happens to be;
+    * ``minimumSizeHint`` INSISTS on the value the combo opened with — its
+      default — so the window opens readable and stays that way;
+    * a longer value chosen afterwards does NOT move the minimum, so it can
+      never push a panel wider than the width the window was measured at. It
+      elides instead, with an ellipsis and the full text in the tooltip.
+
+    Sizing to the current value is the only unit that survives translation. A
+    character count is a guess made in English: "Map chart white to perfect
+    white (default)" is 316 px and its Russian is 390, so eighteen characters
+    is comfortable in one catalogue and cuts a word in half in another.
+    """
+
+    def __init__(self, *args, **kwargs):
+        #: The value the combo opened with — captured the first time a layout
+        #: asks how big it is, which is after its items and its saved value are
+        #: in. `None` until then; `_fit_text()` falls back to the live value.
+        self._opened_with = None
+        super().__init__(*args, **kwargs)
+        # A bound method, never a self-capturing lambda — see
+        # tests/test_a_scrollbar_signal_never_takes_a_lambda.py.
+        self.currentIndexChanged.connect(self._on_value_changed)
+
+    def _on_value_changed(self, *_a) -> None:
+        """The width this combo asks for follows the value, and so does the
+        tooltip that carries the full text when the value does not fit.
+
+        `ElidingComboBox` refreshes that tooltip on resize and on show only,
+        which is enough for a combo whose value never changes under it. Here
+        the value changing IS the case that elides.
+        """
+        self.updateGeometry()
+        self._refresh_elide_tooltip()
+
+    # -- geometry ------------------------------------------------------
+    def _width_for(self, text: str) -> int:
+        """The width Qt says this combo needs to show *text*.
+
+        `sizeFromContents` is the same computation Qt runs for its own
+        `sizeHint`, so this reproduces the hint of an AdjustToContents combo
+        holding that one string, to the pixel. Once the widget has a geometry
+        the real chrome is known (`_style_chrome`, which includes the QSS
+        padding Qt's cached hint misses) and the larger of the two is taken.
+        """
+        from PyQt6.QtWidgets import QStyleOptionComboBox
+        fm = self.fontMetrics()
+        opt = QStyleOptionComboBox()
+        self.initStyleOption(opt)
+        want = self.style().sizeFromContents(
+            QStyle.ContentsType.CT_ComboBox, opt,
+            QSize(fm.boundingRect(text).width(), fm.height()), self).width()
+        chrome = self._style_chrome()
+        if chrome > 0:
+            want = max(want, fm.horizontalAdvance(text) + chrome + 2)
+        return want
+
+    def _fit_text(self) -> str:
+        """The value the minimum is held at, captured on first ask."""
+        if self._opened_with is None and self.count():
+            self._opened_with = self.currentText()
+        return self._opened_with or self.currentText()
+
+    def sizeHint(self) -> QSize:  # noqa: N802 (Qt override)
+        base = super().sizeHint()       # the longest entry — never exceed it
+        want = max(self._width_for(self.currentText()),
+                   self._width_for(self._fit_text()))
+        return QSize(min(base.width(), want), base.height())
+
+    def minimumSizeHint(self) -> QSize:  # noqa: N802 (Qt override)
+        base = super().minimumSizeHint()    # ElidingComboBox's 10-char floor
+        want = min(super().sizeHint().width(), self._width_for(self._fit_text()))
+        return QSize(max(base.width(), want), base.height())
+
+
 class NoScrollSpinBox(QSpinBox):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

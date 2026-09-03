@@ -92,11 +92,19 @@ def _hex_chart(tmp_path, n=60, w_mm=12.0, hflag=True):
             "recipe": {"instrument": "SS", "hflag": hflag}}
 
 
-def _dialog(qapp):
+def _dialog(qapp, tmp_path):
     from core.argyll_runner import ArgyllRunner
     from core.settings import AppSettings
     from ui.dialogs.scanin_dialog import ScannerProfileDialog
     s = AppSettings()
+    # THE OUTPUT ROOT HAS TO BE PINNED. `custom_output_path` defaults to "",
+    # and "" IS ~/ChromIQ — the owner's own projects folder. This window
+    # provisions the user's `scanner-test-targets` folder as it opens, so a
+    # bare AppSettings() writes into it on every gate run; the session tripwire
+    # in conftest caught `scanner-test-targets/.provisioned.json` being
+    # rewritten. Sandboxing QSettings is NOT enough on its own, which is the
+    # trap that guard's own message names.
+    s.set("custom_output_path", str(tmp_path / "out"))
     return ScannerProfileDialog(ArgyllRunner(s), s)
 
 
@@ -106,7 +114,7 @@ def test_the_dialog_caps_the_spinbox_from_the_chart_it_loaded(qapp, tmp_path,
     """Driven through `_load_page_grid`, the real code path the page selector
     runs — not by calling the helper directly, which would still pass if nobody
     ever called it. A rectangular chart must keep the full 80 %."""
-    d = _dialog(qapp)
+    d = _dialog(qapp, tmp_path)
     d._layout = _hex_chart(tmp_path, hflag=hflag)
     d._page = 0
     d._sample_area.setValue(80)
@@ -132,7 +140,7 @@ def test_the_dialog_caps_the_spinbox_from_the_chart_it_loaded(qapp, tmp_path,
 def test_the_cap_lifts_again_when_a_rectangular_chart_is_loaded(qapp, tmp_path):
     """The clamp is a property of the chart on screen, not a one-way latch —
     a user who opens a hexagonal chart and then a square one gets 80 % back."""
-    d = _dialog(qapp)
+    d = _dialog(qapp, tmp_path)
     d._page = 0
     (tmp_path / "hex").mkdir()
     d._layout = _hex_chart(tmp_path / "hex", hflag=True)
@@ -150,7 +158,7 @@ def test_the_cap_lifts_again_when_a_rectangular_chart_is_loaded(qapp, tmp_path):
 def test_a_chart_with_no_patch_geometry_is_not_capped(qapp, tmp_path):
     """A printtarg chart arrives as captured .cht pages, with no per-patch
     rects to measure — it must fall back to 80 %, never to a guess."""
-    d = _dialog(qapp)
+    d = _dialog(qapp, tmp_path)
     d._page = 0
     d._layout = {"cht_pages": [], "patches": []}
     d._load_page_grid()
@@ -168,7 +176,7 @@ def test_a_printtarg_honeycomb_is_capped_although_it_has_no_recipe(qapp, tmp_pat
     ChromIQ's guard drops it, and the geometry is derived from the rendered sheet
     instead. A shape test that reads only the recipe sees a rectangular chart and
     lifts the cap on a honeycomb."""
-    d = _dialog(qapp)
+    d = _dialog(qapp, tmp_path)
     d._page = 0
     d._layout = _hex_chart(tmp_path, hflag=True)
     d._layout.pop("recipe")                      # as the render-derived path leaves it

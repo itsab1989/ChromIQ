@@ -117,7 +117,7 @@ def test_advanced_dialog_roundtrip_and_restore(_app):
         assert abs(float(out["-r"]) - 2.0) < 1e-6
         assert "extra_args" not in out
         # Restore defaults zeroes everything back to the param defaults
-        dlg._restore_defaults()
+        dlg.restore_defaults()
         out2 = dlg.values()
         assert out2["-A"] == "" and out2["-ni"] is False
         assert abs(float(out2["-r"]) - 0.5) < 1e-6
@@ -191,7 +191,7 @@ def test_scanner_white_point_options_wire_and_round_trip(_app):
                                    {"ptype": "l", "quality": "h"}, out)))
         assert "-ua" in cmd.split() and "-R" in cmd.split()
         # restore-defaults clears them
-        ds._restore_defaults()
+        ds.restore_defaults()
         out2 = ds.values()
         assert out2["wp_mode"] == "" and out2["-R"] is False
     finally:

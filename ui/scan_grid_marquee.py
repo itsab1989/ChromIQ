@@ -603,13 +603,33 @@ class ScanGridMarquee(QWidget):
         return bool(self._corners) and self._pix is not None
 
     # ---------------------------------------------------------------- view
+    #: Reserve this much of the widget for the drag handles when fitting the
+    #: image. It defaults to 0 — the widget on its own still fills edge to edge
+    #: — but THE SCANNER WINDOW TURNS IT ON (`scanin_dialog._build_two_panel_
+    #: layout` sets `_HANDLE_OFFSET + _HANDLE_R`), so the shipped preview draws
+    #: its image slightly smaller than the panel it sits in. That is the trade:
+    #: placing the four corners is the whole job this preview exists for.
+    #:
+    #: The fit below fills the widget edge to edge, but the eight handles are
+    #: drawn ``_HANDLE_OFFSET`` px OUTSIDE the grid corners. So whenever the
+    #: image is wider in aspect than the widget, the image touches both side
+    #: edges and the left/right handles land outside the widget entirely —
+    #: painted away and, worse, un-grabbable, because the hit test in
+    #: ``mousePressEvent`` never sees a press that far out. Measured on the
+    #: bundled IT8 demo scan: 3 of the 8 handles unreachable in a 668 px wide
+    #: panel, 8 of 8 with ``handle_margin = _HANDLE_OFFSET + _HANDLE_R``.
+    #: This is NOT specific to any layout — it is the widget's own fit.
+    handle_margin: int = 0
+
     def _recompute_fit(self) -> None:
         if not self._img_w or not self._img_h:
             return
-        aw, ah = self.width(), self.height()
+        m = self.handle_margin
+        aw = max(1, self.width() - 2 * m)
+        ah = max(1, self.height() - 2 * m)
         self._scale = min(aw / self._img_w, ah / self._img_h)
-        self._ox = (aw - self._img_w * self._scale) / 2
-        self._oy = (ah - self._img_h * self._scale) / 2
+        self._ox = (self.width() - self._img_w * self._scale) / 2
+        self._oy = (self.height() - self._img_h * self._scale) / 2
 
     def _to_widget(self, x: float, y: float) -> QPointF:
         s = self._scale * self._zoom
