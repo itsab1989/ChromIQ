@@ -1740,7 +1740,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         box.setInformativeText(body)
         save = box.addButton(tr("Save"), QMessageBox.ButtonRole.AcceptRole)
         discard = box.addButton(tr("Discard"), QMessageBox.ButtonRole.DestructiveRole)
-        cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+        box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(save)
         clicked = self._ask(box)
         if clicked is discard:
@@ -1749,7 +1749,11 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         if clicked is save:
             self._closing = bool(self._on_save())
             return self._closing
-        assert clicked is cancel or clicked is None
+        # Cancel, or the window dismissed some other way. NOT an assert: this
+        # runs inside `closeEvent`, an assert is removed under -O and raises
+        # everywhere else, and "I could not identify the button" must never be
+        # the reason a window closes on work nobody saved. Anything that is not
+        # Save or Discard keeps the readings.
         return False
 
     def reject(self) -> None:  # noqa: D102
