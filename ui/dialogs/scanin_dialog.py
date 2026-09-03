@@ -1340,29 +1340,35 @@ class ScannerProfileDialog(_ToolDialogBase):
             "deleted when you close the result — your files stay untouched."))
         self._check_align_btn.setStyleSheet(_COMPACT_BTN)
         self._check_align_btn.clicked.connect(self._on_check_alignment)
-        # Two lines, 3 + 2. Five buttons in one row need 840 px in German, and
-        # with the preview beside a fixed left pane that alone puts the window's
-        # floor above a 1440 screen, so one line is not available at any size
-        # this window is meant for. The split is picked by measurement across
-        # all twelve catalogues: 3 + 2 is the narrowest of the four
-        # order-preserving splits in every one of them (worst line 447 px in
-        # German; 2 + 3 costs 555, 4 + 1 costs 608). It also keeps the grouping
-        # — the three "put it back where it was" buttons together, and "Pop out"
-        # pushed away on its own.
+        # THREE lines, 2 + 2 + 2, and the third line is what Auto align cost.
+        # Six buttons in one row need 840 px in German, and with the preview
+        # beside a fixed left pane that alone puts the window's floor above a
+        # 1440 screen, so one line is not available at any size this window is
+        # meant for. The old 3 + 2 was the narrowest order-preserving split of
+        # five buttons; adding a sixth to it takes German's worst line from 390
+        # to 474 px and pushes the whole window past the 1280-screen budget
+        # (measured: 1276 against a 1220 ceiling, and es/it/ru with it).
+        # 2 + 2 + 2 measures at or BELOW the old worst line in all twelve
+        # catalogues (German 330 vs 390, Russian 369 vs 371, Chinese 186 vs
+        # 252) and keeps the grouping: the two that place the grid, the two
+        # that put the view back, then the check and "Pop out" on its own.
         ctl.addWidget(self._rotate_btn)
         ctl.addWidget(self._auto_align_btn)
-        ctl.addWidget(self._reset_btn)
         ctl.addStretch(1)
         ctl2 = QHBoxLayout()
+        ctl2.addWidget(self._reset_btn)
         ctl2.addWidget(self._reset_grid_btn)
-        ctl2.addWidget(self._check_align_btn)
         ctl2.addStretch(1)
-        ctl2.addWidget(self._popout_btn)
+        ctl3 = QHBoxLayout()
+        ctl3.addWidget(self._check_align_btn)
+        ctl3.addStretch(1)
+        ctl3.addWidget(self._popout_btn)
         two = QVBoxLayout()
         two.setContentsMargins(0, 0, 0, 0)
         two.setSpacing(6)
         two.addLayout(ctl)
         two.addLayout(ctl2)
+        two.addLayout(ctl3)
         form.addLayout(two)
 
         form.addWidget(self._hint_label(tr(
