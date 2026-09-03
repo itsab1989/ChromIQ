@@ -14,12 +14,14 @@ Every size, rect and pixel this suite asserts on comes out of the style, so a
 gate on the wrong style can neither catch a real styling fault nor be trusted
 about one it reports.
 
-It stopped being theoretical on 2026-09-03. On the owner's Windows 11 ARM64 VM
-a `--runslow` worker died with `Windows fatal exception: access violation`
-inside a `QStyle::drawControl` call from `WrappingCheckBox.paintEvent`, twice,
-and took the whole session with it — while the same widgets rendered correctly
-in the running app all evening. The app was on Fusion. Only the suite was on
-QWindows11Style.
+On 2026-09-03, on the owner's Windows 11 ARM64 VM, a `--runslow` worker died
+with `Windows fatal exception: access violation` inside a `QStyle::drawControl`
+call from `WrappingCheckBox.paintEvent` and took the whole session with it —
+while the same widgets rendered correctly in the running app all evening. That
+is a **lead** for this file's existence, not a proof of it: neither the report
+nor either gate log records whether `QT_QPA_PLATFORM=offscreen` was set for
+those runs, and if it was, that gate was already on Fusion and the style is
+innocent. The reason to pin the style does not depend on the answer.
 
 WHAT THIS PINS, AND WHAT IT DOES NOT
 ------------------------------------

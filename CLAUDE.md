@@ -46,9 +46,12 @@ turned one unrelated test red that passes alone. `tests/test_the_suite_paints_
 with_the_shipped_style.py` pins Fusion, and pins that `main.py` still builds on
 it.
 
-This is why the Windows gate could crash in `QStyle::drawControl` while the
-running app rendered the same widgets correctly all evening: only the suite was
-on the Windows 11 style.
+This **may** be why the Windows gate crashed in `QStyle::drawControl` while the
+running app rendered the same widgets correctly all evening. It is a lead, not a
+finding: neither the report nor either gate log records whether
+`QT_QPA_PLATFORM=offscreen` was set for those runs, and if it was, that gate was
+already on Fusion and the style is innocent. The line is right either way — a
+gate should measure what ships.
 
 **A DEAD WORKER MUST END THE RUN — `--max-worker-restart=0` IS IN `addopts`.**
 The crash banner below only fires from `pytest_terminal_summary`, so it is worth

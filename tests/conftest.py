@@ -122,11 +122,17 @@ def _one_qapplication_per_worker():
 
     That is not a detail. Every size, rect and pixel this suite asserts on comes
     out of the style, so a gate on the wrong style can neither catch a real
-    styling fault nor be believed about one it reports — and on Windows it goes
-    further than that: the 2026-09-03 gate on the owner's ARM64 VM killed a
-    worker inside a `drawControl` call, in `QWindows11Style`, while the same
-    widgets rendered correctly in the running app all evening. The app was on
-    Fusion; only the suite was on the Windows 11 style.
+    styling fault nor be believed about one it reports.
+
+    It may also be why the 2026-09-03 gate on the owner's Windows ARM64 VM
+    killed a worker inside a `QStyle::drawControl` call, from
+    `WrappingCheckBox.paintEvent`, while the same widgets rendered correctly in
+    the running app all evening. **That is a lead, not a finding**, and the one
+    thing that would settle it is not recorded: neither the report nor either
+    gate log says whether `QT_QPA_PLATFORM=offscreen` was set for those runs. If
+    it was — as CLAUDE.md's documented command does — that gate was already on
+    Fusion and the style had nothing to do with it. Either way this line is
+    right, because a gate should measure what ships.
 
     So the suite is pinned to **Fusion**, which is the style the app draws with,
     on every platform and every plugin.
