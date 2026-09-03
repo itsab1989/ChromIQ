@@ -3358,7 +3358,7 @@
   "That is about {n} sheets with your current layout.": "按你当前的布局大约是 {n} 张纸。",
   "That isn't a ChromIQ project. Choose the “project.json” file inside a profile folder under your ChromIQ folder.": "这不是 ChromIQ 项目。请在 ChromIQ 文件夹下的某个配置文件夹中选择 「project.json」 文件。",
   "That name has no letters or numbers in it, so ChromIQ cannot make a folder from it. Please add some.": "这个名称里没有字母也没有数字，ChromIQ 无法据此创建文件夹。请添加一些。",
-  "That name is too long for a folder. Please shorten it to about 120 characters or fewer.": "这个名称对文件夹来说太长了。请缩短到大约 120 个字符以内。",
+  "That name is too long for a folder. Please shorten it to about {limit} characters or fewer.": "这个名称对文件夹来说太长了。请缩短到大约 {limit} 个字符以内。",
   "That name points to the measurement's own folder. Pick a different name.": "这个名字指向测量自己的文件夹。请换一个名字。",
   "That patch could not be read": "That patch could not be read",
   "That project holds the file you are importing, so replacing it would take the file with it. Please pick a different name.": "该项目中就存放着你正在导入的文件，替换它会把这个文件一并带走。请另选名称。",

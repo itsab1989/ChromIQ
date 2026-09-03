@@ -3358,7 +3358,7 @@
   "That is about {n} sheets with your current layout.": "Con il tuo layout attuale sono circa {n} fogli.",
   "That isn't a ChromIQ project. Choose the “project.json” file inside a profile folder under your ChromIQ folder.": "Questo non è un progetto ChromIQ. Scegli il file «project.json» all'interno di una cartella di profilo nella tua cartella ChromIQ.",
   "That name has no letters or numbers in it, so ChromIQ cannot make a folder from it. Please add some.": "Questo nome non contiene lettere né numeri, quindi ChromIQ non può ricavarne una cartella. Aggiungine.",
-  "That name is too long for a folder. Please shorten it to about 120 characters or fewer.": "Questo nome è troppo lungo per una cartella. Accorcialo a circa 120 caratteri o meno.",
+  "That name is too long for a folder. Please shorten it to about {limit} characters or fewer.": "Questo nome è troppo lungo per una cartella. Accorcialo a circa {limit} caratteri o meno.",
   "That name points to the measurement's own folder. Pick a different name.": "Quel nome punta alla cartella stessa della misurazione. Scegli un nome diverso.",
   "That patch could not be read": "That patch could not be read",
   "That project holds the file you are importing, so replacing it would take the file with it. Please pick a different name.": "Quel progetto contiene il file che stai importando: sostituirlo se lo porterebbe via. Scegli un altro nome.",

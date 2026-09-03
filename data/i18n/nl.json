@@ -3358,7 +3358,7 @@
   "That is about {n} sheets with your current layout.": "Dat zijn ongeveer {n} vellen met je huidige lay-out.",
   "That isn't a ChromIQ project. Choose the “project.json” file inside a profile folder under your ChromIQ folder.": "Dat is geen ChromIQ-project. Kies het bestand “project.json” in een profielmap onder je ChromIQ-map.",
   "That name has no letters or numbers in it, so ChromIQ cannot make a folder from it. Please add some.": "Deze naam bevat geen letters of cijfers, dus ChromIQ kan er geen map van maken. Voeg er een paar toe.",
-  "That name is too long for a folder. Please shorten it to about 120 characters or fewer.": "Deze naam is te lang voor een map. Kort hem in tot ongeveer 120 tekens of minder.",
+  "That name is too long for a folder. Please shorten it to about {limit} characters or fewer.": "Deze naam is te lang voor een map. Kort hem in tot ongeveer {limit} tekens of minder.",
   "That name points to the measurement's own folder. Pick a different name.": "Die naam verwijst naar de eigen map van de meting. Kies een andere naam.",
   "That patch could not be read": "That patch could not be read",
   "That project holds the file you are importing, so replacing it would take the file with it. Please pick a different name.": "Dat project bevat het bestand dat je importeert; het vervangen zou het bestand meenemen. Kies een andere naam.",

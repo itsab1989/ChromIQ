@@ -39,8 +39,8 @@ from PyQt6.QtWidgets import (QApplication, QComboBox, QGroupBox,  # noqa: E402
                              QWidget)
 
 from tests.scanner_floor_probe import (FakeSettings, HEADROOM,  # noqa: E402
-                                       LANGUAGES, SMALLEST_SCREEN,
-                                       handle_reach)
+                                       LANGUAGES, SMALLEST_CLIENT_H,
+                                       SMALLEST_SCREEN, handle_reach)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PROBE = REPO_ROOT / "tests" / "scanner_floor_probe.py"
@@ -148,6 +148,23 @@ def _assert_fits(res):
     assert res["worst"] <= SMALLEST_SCREEN - HEADROOM, (
         f"{lang} needs {res['worst']}px ({res['worst_state']}) — under "
         f"{HEADROOM}px of headroom on a {SMALLEST_SCREEN}px screen")
+    # …AND THE OTHER DIMENSION, which this sweep did not ask about when the
+    # window became two panels. It came out with a floor of 675 logical pixels
+    # on a Windows 11 VM and 716 measured here, against the 672 a 1920x1080
+    # laptop at 150 % scaling has once its taskbar is taken off (finding C of
+    # the Windows verification, 2026-09-03). A window whose MINIMUM exceeds the
+    # screen cannot be used at all: it cannot be dragged smaller, and the row
+    # that carries "Build profile" and "Close" is below the bottom edge.
+    #
+    # No HEADROOM here, and that is deliberate rather than an oversight: the
+    # width figure is a client width on a screen whose whole width is usable,
+    # while `SMALLEST_CLIENT_H` has already had the taskbar AND the caption
+    # subtracted, so the slack is in the number itself.
+    assert res["worst_h"] <= SMALLEST_CLIENT_H, (
+        f"{lang} has a floor of {res['worst_h']}px tall "
+        f"({res['worst_h_state']}) — a 1920x1080 laptop at 150 % leaves "
+        f"{SMALLEST_CLIENT_H}px of client height, so the window cannot be "
+        f"made to fit at all")
     assert not res["handles_out_of_reach"], (
         f"{lang}: " + "; ".join(res["handles_out_of_reach"]))
 
