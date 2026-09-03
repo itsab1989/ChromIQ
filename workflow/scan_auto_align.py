@@ -57,9 +57,9 @@ from core.logger import get_logger
 
 log = get_logger(__name__)
 
-__all__ = ["AutoAlignResult", "auto_align", "corners_from_candidate",
-           "parse_candidates", "chosen_index", "quad_is_sane",
-           "reference_agreement_at"]
+__all__ = ["AutoAlignResult", "auto_align", "border_agreement",
+           "corners_from_candidate", "expected_luminance", "parse_candidates",
+           "chosen_index", "quad_is_sane", "reference_agreement_at"]
 
 # scanin -v2, scanrd.c::calc_rotation
 _CAND_RE = re.compile(
@@ -292,8 +292,11 @@ def reference_agreement_at(image_path: Path, boxes: Sequence,
 # ---------------------------------------------------------------------------
 def _run_scanin(runner, scanin_exe, workdir: Path, scan: Path, cht: Path,
                 cie: Path, extra: Sequence[str], timeout: int) -> str:
+    # Absolute paths: scanin runs with cwd set to the throwaway folder the
+    # .ti3 is written into, so a relative scan path would resolve there.
     args = [str(scanin_exe), "-v2", "-O", "chromiq-autoalign.ti3", *extra,
-            str(scan), str(cht), str(cie)]
+            str(Path(scan).resolve()), str(Path(cht).resolve()),
+            str(Path(cie).resolve())]
     try:
         r = runner(args, capture_output=True, text=True, encoding="utf-8",
                    errors="replace", cwd=str(workdir), timeout=timeout,
@@ -374,6 +377,13 @@ def auto_align(scanin_exe: str | Path,
         if rho is None:
             rejected.append(f"{source}: could not be measured")
             continue
+        # The second gate, and the one that sees what a rank correlation
+        # cannot: a placement shifted by a whole patch pitch reads every patch
+        # as its neighbour, and on a chart whose patches step smoothly the
+        # ranks survive that. The chart's outer boundary does not.
+        if border_agreement(scan, boxes, quad) is False:
+            rejected.append(f"{source}: the grid's edges are not the chart's")
+            continue
         if best is None or rho > best[0]:
             best = (rho, source, quad)
 
@@ -446,3 +456,137 @@ def expected_luminance(cht_text: str, cie: Path | None = None) -> dict[str, floa
             except ValueError:
                 continue
     return out
+
+
+# ---------------------------------------------------------------------------
+def _sampler(image_path: Path, max_side: int = 1400):
+    """(luminance integral image, width, height, scale) for one scan."""
+    import numpy as np
+    from PIL import Image
+    try:
+        img = Image.open(image_path)
+        img.load()
+    except Exception:  # noqa: BLE001
+        return None
+    if img.mode not in ("RGB", "L"):
+        img = img.convert("RGB")
+    scale = min(1.0, max_side / max(img.size))
+    if scale < 1.0:
+        img = img.resize((max(1, int(img.width * scale)),
+                          max(1, int(img.height * scale))))
+    arr = np.asarray(img, dtype=np.float64)
+    lum = ((0.2126 * arr[..., 0] + 0.7152 * arr[..., 1] + 0.0722 * arr[..., 2])
+           if arr.ndim == 3 else arr)
+    h, w = lum.shape
+    integ = np.zeros((h + 1, w + 1))
+    integ[1:, 1:] = np.cumsum(np.cumsum(lum, axis=0), axis=1)
+    return integ, w, h, scale
+
+
+def border_agreement(image_path: Path, boxes: Sequence,
+                     corners: Sequence[tuple[float, float]],
+                     sides_needed: int = 3,
+                     ratio: float = 0.40) -> bool | None:
+    """Does the quad's OUTSIDE look like paper and its INSIDE look like patches?
+
+    A rank correlation cannot see a placement shifted by a whole patch pitch on
+    a chart whose patches step smoothly — every box still reads a patch, and
+    the ranks survive. What does not survive is the chart's own outer boundary:
+    shift the grid by a pitch and one edge of it walks off the printed block
+    onto bare paper, while the opposite edge samples the sheet.
+
+    So each side is sampled twice, in the ``.cht``'s own coordinates: a band
+    just inside the patch area, and a band a patch further out. On a correct
+    placement the outer band is one flat colour and the inner band steps from
+    patch to patch. *sides_needed* of the four must show the outer band at most
+    *ratio* as varied as the inner one -- three, not four, because a ChromIQ
+    sheet carries its strip labels below the patch block.
+
+    ``None`` when the image cannot be read; then the caller has only the
+    reference agreement to go on."""
+    import numpy as np
+    got = _sampler(image_path)
+    if got is None or not boxes:
+        return None
+    integ, w, h, scale = got
+    minx = min(b.x1 for b in boxes)
+    maxx = max(b.x2 for b in boxes)
+    miny = min(b.y1 for b in boxes)
+    maxy = max(b.y2 for b in boxes)
+    src = [(minx, miny), (maxx, miny), (maxx, maxy), (minx, maxy)]
+    dst = [(x * scale, y * scale) for x, y in corners]
+    a = []
+    for (x, y), (u, v) in zip(src, dst):
+        a.append([x, y, 1, 0, 0, 0, -u * x, -u * y, -u])
+        a.append([0, 0, 0, x, y, 1, -v * x, -v * y, -v])
+    try:
+        _, _, vt = np.linalg.svd(np.asarray(a, dtype=float))
+    except np.linalg.LinAlgError:
+        return None
+    hm = vt[-1].reshape(3, 3)
+    if not np.isfinite(hm).all() or hm[2, 2] == 0:
+        return None
+    hm = hm / hm[2, 2]
+
+    def warp(x, y):
+        d = hm[2, 0] * x + hm[2, 1] * y + hm[2, 2]
+        if d == 0:
+            return None
+        return ((hm[0, 0] * x + hm[0, 1] * y + hm[0, 2]) / d,
+                (hm[1, 0] * x + hm[1, 1] * y + hm[1, 2]) / d)
+
+    pw = float(np.median([b.x2 - b.x1 for b in boxes])) or 1.0
+    ph = float(np.median([b.y2 - b.y1 for b in boxes])) or 1.0
+
+    def cell_mean(x0, y0, x1, y1):
+        pa, pb = warp(x0, y0), warp(x1, y1)
+        if pa is None or pb is None:
+            return None
+        ax = int(math.floor(min(pa[0], pb[0])))
+        bx = int(math.ceil(max(pa[0], pb[0])))
+        ay = int(math.floor(min(pa[1], pb[1])))
+        by = int(math.ceil(max(pa[1], pb[1])))
+        if ax < 0 or ay < 0 or bx > w or by > h or bx - ax < 1 or by - ay < 1:
+            return None
+        s = integ[by, bx] - integ[ay, bx] - integ[by, ax] + integ[ay, ax]
+        return float(s) / ((bx - ax) * (by - ay))
+
+    def band(axis: str, lo: float, hi: float, n: int = 24):
+        vals = []
+        for i in range(n):
+            if axis in ("top", "bottom"):
+                x0 = minx + (maxx - minx) * i / n
+                x1 = minx + (maxx - minx) * (i + 1) / n
+                y0, y1 = (lo, hi)
+            else:
+                y0 = miny + (maxy - miny) * i / n
+                y1 = miny + (maxy - miny) * (i + 1) / n
+                x0, x1 = (lo, hi)
+            v = cell_mean(x0, y0, x1, y1)
+            if v is not None:
+                vals.append(v)
+        return float(np.std(vals)) if len(vals) >= n // 2 else None
+
+    sides = [
+        ("top", (miny + 0.05 * ph, miny + 0.45 * ph),
+         (miny - 0.90 * ph, miny - 0.30 * ph)),
+        ("bottom", (maxy - 0.45 * ph, maxy - 0.05 * ph),
+         (maxy + 0.30 * ph, maxy + 0.90 * ph)),
+        ("left", (minx + 0.05 * pw, minx + 0.45 * pw),
+         (minx - 0.90 * pw, minx - 0.30 * pw)),
+        ("right", (maxx - 0.45 * pw, maxx - 0.05 * pw),
+         (maxx + 0.30 * pw, maxx + 0.90 * pw)),
+    ]
+    good = 0
+    seen = 0
+    for name, ins, out in sides:
+        si = band(name, *ins)
+        so = band(name, *out)
+        if si is None or so is None:
+            continue
+        seen += 1
+        if so <= ratio * si:
+            good += 1
+    if seen == 0:
+        return None
+    return good >= min(sides_needed, seen)
