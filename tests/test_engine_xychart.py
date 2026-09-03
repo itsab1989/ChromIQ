@@ -104,8 +104,19 @@ def test_xy_mode_on_reads_sheets_and_saves(chart, monkeypatch):
             except TimeoutError:
                 break
             s.send(cmd="accept")
-        s.wait_event("xy_sheet_read", timeout=6)
-        s.wait_event("saved", timeout=5)
+        # BUDGETED FOR A LOADED MACHINE, NOT AN IDLE ONE. These were 6 s and
+        # 5 s. Measured idle, the whole test costs 4.04 s - most of it the
+        # deliberate 4 s timeout that ends the loop above - so `xy_sheet_read`
+        # arrives at once and 6 s looked like ample headroom. Inside a
+        # `-n auto` gate it is not: the helper is a real subprocess competing
+        # with twelve workers for twelve cores, and this failed at 6 s on a
+        # gate run whose wall time was 291 s against the same suite's 185 s.
+        # The same trap as `test_webengine_shutdown` in CLAUDE.md: 1.2 s idle,
+        # 60 s budget, red anyway. A generous budget costs nothing when the
+        # test passes, and `faulthandler_timeout` (300 s) still names a genuine
+        # hang. The 4 s above stays short ON PURPOSE - it is how the loop ends.
+        s.wait_event("xy_sheet_read", timeout=90)
+        s.wait_event("saved", timeout=90)
         assert base.with_suffix(".ti3").is_file()
     finally:
         if s.proc.poll() is None:
