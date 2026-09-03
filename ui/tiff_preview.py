@@ -809,6 +809,15 @@ class TiffPreview(QWidget):
             return
         self._mode = new_mode
         self._apply_mode_styles()
+        # AND REPAINT THE CANVAS, which nothing else was doing. The overlays
+        # (the strip arrow, the patch ring, the aiming circle) and the
+        # interactive surround are painted INTO a pixmap and handed to the
+        # label; the stylesheet work above cannot reach any of them. Switching
+        # appearance from Preferences while a measurement is running therefore
+        # left the previous appearance's arrow on screen until the next strip
+        # came up -- and in interactive mode left the previous appearance's
+        # background around the sheet indefinitely.
+        self._schedule_refresh()
 
     def _apply_mode_styles(self) -> None:
         pal = _PREVIEW_BY_MODE.get(self._mode, _PREVIEW_DARK)
@@ -2370,6 +2379,46 @@ class TiffPreview(QWidget):
         self._badge_lbl.raise_()
         self._badge_lbl.setVisible(True)
 
+    #: The two greens the measurement overlays are drawn in. `#56d6a5` is
+    #: :data:`ui.styles.SPEC_GREEN`, the Measure tab's own accent, used where a
+    #: mark sits on white paper; `#1f8f6b` is its darker sibling, used where a
+    #: stroke has to hold its own against a patch colour. Named here so the one
+    #: door below has something to be a door for.
+    _OVERLAY_ARROW = SPEC_GREEN     # the swipe arrow, on the label band
+    _OVERLAY_RING  = "#1f8f6b"      # the patch ring and the aiming circle
+
+    def _overlay_accent(self, colour: str) -> QColor:
+        """The value to paint an overlay ACCENT in, for the appearance on screen.
+
+        THE TWO THINGS THE OWNER NAMED LIVE HERE, and neither had ever been
+        photographed: *"in the measure tab for the new neutral colorscheme i
+        would like to have the arrow stripindicator for strip reading mode and
+        patch highlighter in patch by patch mode during measurement colorless -
+        neutral."* Both are drawn only once an instrument is in somebody's hand
+        and a strip or a patch has been armed, so every census the app has ever
+        run rendered a preview with no overlay on it at all.
+
+        Nothing is lost taking the hue out of these. The arrow says WHICH STRIP
+        by pointing at it and the ring says WHICH PATCH by enclosing it: the
+        information is the position, and the green was decoration. So
+        :func:`ui.theme.accent_for` is the right door, and it hands Light and
+        Dark their argument back unchanged, which is what makes those two
+        appearances provably unmoved.
+
+        WHAT THIS DELIBERATELY DOES NOT COVER: the red of a suspect patch's
+        ring and of the aperture warning. There the hue IS the message: a
+        single alarm among hundreds of marks the app draws in its accent, and
+        flattening it would delete the warning rather than de-hue it. See the
+        comment above the aperture circle, which records why it was given an
+        alarm colour of its own in the first place.
+
+        Resolved at PAINT time rather than stored, for the same reason
+        :meth:`_ProgressHeader._fill_colour` is: a preview outlives an
+        appearance switch made from Preferences while a measurement is running.
+        """
+        from ui.theme import accent_for
+        return QColor(accent_for(colour, self._mode))
+
     def _repaint_label(self) -> None:
         if not self._pixmap:
             return
@@ -2464,7 +2513,7 @@ class TiffPreview(QWidget):
                     path.lineTo(cx + rw / 2, y)
                     path.lineTo(cx, y + arrow_h)
                 path.closeSubpath()
-                painter.fillPath(path, QColor("#56d6a5"))
+                painter.fillPath(path, self._overlay_accent(self._OVERLAY_ARROW))
 
                 # Bidirectional reading: mirror a second arrow near the
                 # chart's bottom edge (not the strip's own bottom — that
@@ -2479,7 +2528,7 @@ class TiffPreview(QWidget):
                     bot.lineTo(cx + rw / 2, y_bot)
                     bot.lineTo(cx, y_bot - arrow_h)
                     bot.closeSubpath()
-                    painter.fillPath(bot, QColor("#56d6a5"))
+                    painter.fillPath(bot, self._overlay_accent(self._OVERLAY_ARROW))
 
         if self._margin_guides or self._measured_guides:
             self._draw_margin_guides(
@@ -2861,7 +2910,7 @@ class TiffPreview(QWidget):
             painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
             def _aim_circle(d_px: float, dash: bool,
-                            accent: str = "#1f8f6b") -> None:
+                            accent: str = self._OVERLAY_RING) -> None:
                 rad = d_px * s / 2.0
                 # The dash guard applies to the DASHED body circle only. A
                 # 4 mm aperture on a 3 mm patch is small on screen by nature --
@@ -2873,8 +2922,12 @@ class TiffPreview(QWidget):
                 if rad < 1.5:
                     return
                 rect = QRectF(cx - rad, cy - rad, rad * 2.0, rad * 2.0)
+                # Through the same door as the ring below it. The ONLY
+                # caller is the dashed body circle -- the aperture warning was
+                # deliberately moved out of here so it could keep an alarm
+                # colour of its own, and that is the case this must not flatten.
                 for colour, extra in ((QColor(255, 255, 255, 225), 2.4),
-                                      (QColor(accent), 0.0)):
+                                      (self._overlay_accent(accent), 0.0)):
                     pen = QPen(colour)
                     pen.setWidthF(2.0 + extra)
                     if dash:
@@ -2939,7 +2992,7 @@ class TiffPreview(QWidget):
                 painter.drawPath(_hex)
             else:
                 painter.drawRect(x0, y0, x1 - x0, y1 - y0)
-            ring = QPen(QColor("#1f8f6b"))
+            ring = QPen(self._overlay_accent(self._OVERLAY_RING))
             ring.setWidthF(RING_ACCENT_W_SMALL if _small else RING_ACCENT_W)
             ring.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
             painter.setPen(ring)
@@ -2989,7 +3042,7 @@ class TiffPreview(QWidget):
                 y0 = round(hr.y() * s + oy)
                 x1 = round((hr.x() + hr.width()) * s + ox)
                 y1 = round((hr.y() + hr.height()) * s + oy)
-                pen = QPen(QColor("#56d6a5"))
+                pen = QPen(self._overlay_accent(self._OVERLAY_ARROW))
                 pen.setWidthF(2.5)
                 pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
                 painter.setPen(pen)
@@ -3007,7 +3060,7 @@ class TiffPreview(QWidget):
             # the white paper around them). Fall back to the full strip rect
             # when the chart exposes no per-patch geometry (Basti, #126).
             strip_rect = self._stripe_rects[self._hover_stripe]
-            pen = QPen(QColor("#56d6a5"))
+            pen = QPen(self._overlay_accent(self._OVERLAY_ARROW))
             pen.setWidthF(2.5)
             pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
             painter.setPen(pen)
