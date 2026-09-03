@@ -10,6 +10,7 @@ import json
 import subprocess
 import threading
 import time
+import os
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
@@ -32,10 +33,19 @@ def _helper() -> Path:
     tests run against the binary the user gets, and on a healthy checkout they
     run at all.
     """
+    #: AN OVERRIDE THAT POINTS AT NOTHING IS AN ANSWER, NOT AN ERROR. The
+    #: fallback below used to swallow it, so `$CHROMIQ_CHARTREAD=/nowhere`
+    #: silently used the build binary anyway - which made the override inert
+    #: AND made the gate's own "a run without the helper stops" test
+    #: unfailable, because the run always found one. The app raises here for
+    #: the same reason it raises anywhere: the person said where to look.
+    override = os.environ.get("CHROMIQ_CHARTREAD")
     try:
         from workflow.chartread_engine import helper_path
         return Path(helper_path())
     except Exception:                       # noqa: BLE001 - EngineUnavailable
+        if override:
+            return Path(override)           # missing on purpose: absent, not fallen back
         return REPO / "native" / "chartread_helper" / "build" / "chromiq-chartread"
 
 
