@@ -1702,6 +1702,47 @@ class WrappingCheckBox(QCheckBox):
 
     # -- painting ------------------------------------------------------
     def paintEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        """Draw the indicator, then the whole wrapped label, in TWO style calls.
+
+        ONE CALL PER LABEL, NOT ONE PER LINE — AND THAT IS THE POINT.
+        This used to run ``drawControl(CE_CheckBoxLabel, …)`` once per wrapped
+        line, each with a freshly built ``QStyleOptionButton`` and a rect this
+        method computed itself. On the owner's Windows 11 ARM64 VM
+        (2026-09-03), a test worker died with
+        ``Windows fatal exception: access violation`` inside that call, in the
+        multi-line branch — twice, in two independent `--runslow` attempts, and
+        it took the whole session with it. The single-line branch, which makes
+        exactly one ordinary style call, has never been implicated.
+
+        **The mechanism was never named.** It could not be reproduced on macOS:
+        no garbage collection ever runs inside this paint (0 of 39,339
+        collections over a full suite), the painter is never inactive, no rect
+        is ever invalid, Qt emits no message, and deliberately painting a
+        deleted widget raises `RuntimeError` rather than faulting. So this is
+        not "the fix" in the sense of a bug understood and removed; it is the
+        multi-line path being made structurally identical to the single-line
+        path, which is the branch the crash has never touched.
+
+        Everything else it buys is worth having on its own:
+
+        * ``N + 1`` entries into the style become ``2``, whatever N is.
+        * The per-line rects and the per-line option copies are gone. Qt lays
+          the lines out, through the same ``QStyle::drawItemText`` the style
+          would have used anyway — ``\\n`` is a hard line break to
+          ``QPainter::drawText(rect, flags, text)`` unless ``TextSingleLine``
+          is set, and neither QCommonStyle nor QStyleSheetStyle sets it.
+        * ``&`` handling, the palette role, the disabled shading and the
+          stylesheet's rules all stay where they were: inside the style.
+
+        **Proved pixel-identical**, 440 renders each on Fusion and on the macOS
+        style — every label in `tests/test_wrapping_checkbox_paints_in_two_calls.py`
+        crossed with ten widths and the four checked/focused combinations.
+        The one way the two could differ is a font with non-zero *leading*:
+        Qt inserts the leading above each laid-out line, so every line would sit
+        `fm.leading()` px lower than the hand-placed loop put it. Both fonts
+        measured here report ``leading == 0`` (`lineSpacing == height`), which
+        is why the images match exactly.
+        """
         from PyQt6.QtWidgets import QStyleOptionButton, QStylePainter
         opt = QStyleOptionButton()
         self.initStyleOption(opt)
@@ -1715,27 +1756,24 @@ class WrappingCheckBox(QCheckBox):
         ind = QStyleOptionButton(opt)
         ind.rect = style.subElementRect(
             QStyle.SubElement.SE_CheckBoxIndicator, opt, self)
+        label = QStyleOptionButton(opt)
+        label.rect = text_rect
+
         if len(lines) > 1:
             # Sit the indicator on the FIRST line rather than in the middle of
             # a two-line block, which is where a centred one would land.
             ind.rect.moveTop(text_rect.top()
                              + max(0, (fm.lineSpacing() - ind.rect.height()) // 2))
-        painter.drawPrimitive(QStyle.PrimitiveElement.PE_IndicatorCheckBox, ind)
+            # The lines are RAW (still `&`-escaped): the style un-escapes them.
+            label.text = "\n".join(lines)
+            total = len(lines) * fm.lineSpacing()
+            label.rect = QRect(text_rect.left(),
+                               text_rect.top()
+                               + max(0, (text_rect.height() - total) // 2),
+                               text_rect.width(), total)
 
-        if len(lines) <= 1:
-            line_opt = QStyleOptionButton(opt)
-            line_opt.rect = text_rect
-            painter.drawControl(QStyle.ControlElement.CE_CheckBoxLabel, line_opt)
-            return
-        total = len(lines) * fm.lineSpacing()
-        y = text_rect.top() + max(0, (text_rect.height() - total) // 2)
-        for line in lines:
-            line_opt = QStyleOptionButton(opt)
-            line_opt.text = line
-            line_opt.rect = QRect(text_rect.left(), y,
-                                  text_rect.width(), fm.lineSpacing())
-            painter.drawControl(QStyle.ControlElement.CE_CheckBoxLabel, line_opt)
-            y += fm.lineSpacing()
+        painter.drawPrimitive(QStyle.PrimitiveElement.PE_IndicatorCheckBox, ind)
+        painter.drawControl(QStyle.ControlElement.CE_CheckBoxLabel, label)
 
 
 class WrappingButtonRow(QLayout):
