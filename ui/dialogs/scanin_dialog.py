@@ -499,6 +499,26 @@ def scan_reference_correlation(ti3: Path) -> float | None:
     return num / den if den else None
 
 
+def _remove_empty_icc(icc: Path) -> None:
+    """Take away the EMPTY .icc a failed colprof leaves behind.
+
+    colprof creates the output file before it decides it cannot build the
+    profile, so a failed run left a 0-byte `.icc` sitting where a real profile
+    would be — with exactly the name the user typed, beside the real profiles
+    in the same folder. Measured: a failed printer build left
+    `Review4 printer from scan.icc`, 0 bytes, next to a valid 27 KB one.
+
+    ONLY at exactly zero bytes. That is unambiguous — no profile of any kind is
+    empty — and it can destroy nothing: if a file of the user's had that name,
+    colprof truncated it when it opened it for writing, long before this runs.
+    """
+    try:
+        if icc.exists() and icc.stat().st_size == 0:
+            icc.unlink()
+    except OSError:                       # a read-only volume is not our problem
+        log.warning("could not remove the empty %s left by a failed build", icc)
+
+
 class ScannerProfileDialog(_ToolDialogBase):
     TOOL_KEY    = "scanner_profile"
     TITLE       = tr("Build profile with scanner or camera")
@@ -1825,6 +1845,22 @@ class ScannerProfileDialog(_ToolDialogBase):
             # ordinary child and no window is ever created.
             self._btn_grid.addWidget(b, r, c)
             b.setVisible(True)
+        # "Reveal profile" / "Install profile" have to move too. They live on
+        # the same button box, and the line below hides it for good — so a
+        # build that succeeded set `setVisible(True)` on two buttons whose
+        # PARENT was hidden, and neither ever appeared. The user was told the
+        # profile was saved and then left with no way to open its folder and no
+        # way to install it, which is the whole of what this window offers
+        # afterwards. Same order as above (add, then show) for the same reason —
+        # except these two must stay HIDDEN here: a build has not happened yet,
+        # and Qt layouts skip a hidden widget, so the row costs nothing until
+        # `_done` shows them.
+        for b, (r, c) in ((self._reveal_btn, (2, 0)),
+                          (self._install_btn, (2, 1))):
+            self._button_box.removeButton(b)
+            b.setSizePolicy(QSizePolicy.Policy.Expanding,
+                            b.sizePolicy().verticalPolicy())
+            self._btn_grid.addWidget(b, r, c)
         self._button_box.setVisible(False)
 
         lay = self.layout()
@@ -3988,19 +4024,24 @@ class ScannerProfileDialog(_ToolDialogBase):
 
         return _on_line, found
 
-    def _selfcheck_verdict(self, found: list[tuple[float, float]]) -> None:
+    def _selfcheck_verdict(self, found: list[tuple[float, float]]) -> bool:
         """Warn when colprof's fit check looks like a misread. BOTH numbers
         must be high: a matrix scanner profile legitimately fits a few
         extreme patches poorly (Knut's perfectly aligned build: peak 32.8,
         average 8.5), while a misplaced grid lifts the AVERAGE too (his
-        misaligned runs: peak 60–91 with averages around 40)."""
+        misaligned runs: peak 60–91 with averages around 40).
+
+        Returns **True when it warned**, so the caller can say the same thing
+        with the button as well as the line — the warning used to be printed
+        between "[OK] … profile saved" and "Install it as your …", where the
+        two sentences either side of it both said the opposite."""
         if not found:
-            return
+            return False
         peak, avg = found[-1]
         peak_lim = float(self._settings.get("scanner_selfcheck_peak", 30.0))
         avg_lim = float(self._settings.get("scanner_selfcheck_avg", 12.0))
         if peak <= peak_lim or avg <= avg_lim:
-            return
+            return False
         self._log.appendPlainText(tr(
             "⚠ Self-check: colprof reports a peak fit error of {p} with an "
             "average of {a} — an aligned read keeps the average well under "
@@ -4009,6 +4050,24 @@ class ScannerProfileDialog(_ToolDialogBase):
             "realign and rebuild before trusting this profile. (Thresholds: "
             "Preferences → Scanner Limits.)").format(
                 p=round(peak, 1), a=round(avg, 1), al=round(avg_lim)))
+        return True
+
+    def _offer_install(self, failed_selfcheck: bool) -> None:
+        """Show "Reveal profile" / "Install profile" after a build — and when
+        the self-check warned, say so on the button itself.
+
+        "Install Profile Anyway" is the app's own wording for exactly this,
+        from `ui/tabs/tab_check_refine.py`, where a result that needs work
+        grades the same button that way. It is an existing, already-translated
+        string in all twelve catalogues, so this needs no new text. Reset on a
+        clean build: the window can build again without being reopened."""
+        self._reveal_btn.setText(tr("Reveal profile"))
+        self._reveal_btn.setVisible(True)
+        self._reveal_btn.setEnabled(True)
+        self._install_btn.setText(tr("Install Profile Anyway") if failed_selfcheck
+                                  else tr("Install profile"))
+        self._install_btn.setVisible(True)
+        self._install_btn.setEnabled(True)
 
     def _build_printer_profile(self, pbase: Path, base: Path) -> None:
         ti3 = artefact(pbase, ".ti3")
@@ -4024,6 +4083,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         def _done(code: int) -> None:
             icc = self._profiler.expected_icc_path(params)
             if not (icc.exists() and icc.stat().st_size > 1000):
+                _remove_empty_icc(icc)
                 fail = self._profiler.primary_failure()
                 if fail:
                     self._log.appendPlainText(f"[ERROR] {fail[1]}")
@@ -4035,17 +4095,18 @@ class ScannerProfileDialog(_ToolDialogBase):
                 self._finish(False)
                 return
             self._log.appendPlainText(tr("[OK] Printer profile saved: {p}").format(p=icc))
-            self._selfcheck_verdict(_check)
             self._log.appendPlainText(tr(
                 "Install it as your printer's profile. The measurement (.ti3) sits "
                 "next to it — load that in the Build Profile tab if you want to "
                 "fine-tune the printer profile (intents, quality, …)."))
+            # LAST, not sandwiched. The warning used to be printed between
+            # "[OK] Printer profile saved" and "Install it as your printer's
+            # profile", so the user read a success headline, then "do not
+            # trust this", then an instruction to install it — and the button
+            # said "Install profile" either way.
+            failed = self._selfcheck_verdict(_check)
             self._last_profile = icc
-            self._reveal_btn.setText(tr("Reveal profile"))
-            self._reveal_btn.setVisible(True)
-            self._reveal_btn.setEnabled(True)
-            self._install_btn.setVisible(True)
-            self._install_btn.setEnabled(True)
+            self._offer_install(failed)
             self._finish(True)
 
         on_line, _check = self._watch_profile_check()
@@ -4103,6 +4164,7 @@ class ScannerProfileDialog(_ToolDialogBase):
             # which used to make ChromIQ cry failure and hide the profile (Nelson).
             icc = self._profiler.expected_icc_path(params)
             if not (icc.exists() and icc.stat().st_size > 1000):
+                _remove_empty_icc(icc)
                 fail = self._profiler.primary_failure()
                 if fail:
                     self._log.appendPlainText(f"[ERROR] {fail[1]}")
@@ -4115,16 +4177,13 @@ class ScannerProfileDialog(_ToolDialogBase):
                 self._finish(False)
                 return
             self._log.appendPlainText(tr("[OK] Scanner profile saved: {p}").format(p=icc))
-            self._selfcheck_verdict(_check)
             self._log.appendPlainText(tr(
                 "Install it as your scanner's input profile. Use the diagnostic "
                 "image (if you saved one) to check the patches were read correctly."))
+            # LAST, not sandwiched — see `_build_printer_profile._done`.
+            failed = self._selfcheck_verdict(_check)
             self._last_profile = icc
-            self._reveal_btn.setText(tr("Reveal profile"))
-            self._reveal_btn.setVisible(True)     # let the user find the .icc
-            self._reveal_btn.setEnabled(True)
-            self._install_btn.setVisible(True)
-            self._install_btn.setEnabled(True)
+            self._offer_install(failed)
             self._finish(True)
 
         on_line, _check = self._watch_profile_check()
