@@ -7014,9 +7014,9 @@ class TabChart(QWidget):
             if instr == "CM":
                 self._manual_dd_pw.setVisible(True)
                 self._manual_dd_pw.set_display_text(
-                    "Double density",
-                    "Double Density (-h)",
-                    "Doubles the number of patches that fit in each measurement "
+                    tr("Double density"),
+                    tr("Double Density (-h)"),
+                    tr("Doubles the number of patches that fit in each measurement "
                     "strip when using a ColorMunki / i1Studio / ColorChecker "
                     "Studio.\n\n"
                     "REQUIRES the physical measuring rig accessory — a clear "
@@ -7029,15 +7029,15 @@ class TabChart(QWidget):
                     "fewer sheets. Recommended for anyone with the rig — it's "
                     "a strict upgrade on patch density.\n\n"
                     "Has no effect on i1Pro, i1Pro 3 Plus or SpectroScan — the "
-                    "option is hidden when those are selected.",
+                    "option is hidden when those are selected."),
                     tooltip_min_width=600,
                 )
             elif instr == "SS":
                 self._manual_dd_pw.setVisible(True)
                 self._manual_dd_pw.set_display_text(
-                    "Hexagon patches",
-                    "Hexagon Patches (-h)",
-                    "Switches the SpectroScan chart layout from rectangular to "
+                    tr("Hexagon patches"),
+                    tr("Hexagon Patches (-h)"),
+                    tr("Switches the SpectroScan chart layout from rectangular to "
                     "hexagonal patches. Hexagons tessellate more tightly than "
                     "rectangles, so roughly 14% more patches fit on the same "
                     "sheet — useful for squeezing extra colour samples out of "
@@ -7046,7 +7046,7 @@ class TabChart(QWidget):
                     "reads each patch individually under a motorised arm, so it "
                     "doesn't care whether the patch is square or hexagonal.\n\n"
                     "Has no effect on i1Pro, i1Pro 3 Plus or ColorMunki — the "
-                    "option is hidden when those are selected.",
+                    "option is hidden when those are selected."),
                     tooltip_min_width=600,
                 )
             else:
@@ -13417,11 +13417,11 @@ class TabChart(QWidget):
         if getattr(self, "_preview", None) is None:
             return
         if self._is_isis_selected():
-            self._preview.set_banner(
+            self._preview.set_banner(tr(
                 "Layout preview only — i1Profiler will lay out the actual chart "
                 "from the patch list when you load the .pxf, so the printed "
                 "chart will look different from what's shown here."
-            )
+            ))
         else:
             self._preview.set_banner(None)
 

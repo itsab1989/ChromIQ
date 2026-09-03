@@ -18,7 +18,9 @@ from core import i18n
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
-from i18n_extract import extract_keys  # noqa: E402
+from i18n_extract import (UNTRANSLATED_ON_PURPOSE,  # noqa: E402
+                          extract_keys, is_user_facing_text,
+                          unwrapped_literals)
 
 
 @pytest.fixture(autouse=True)
@@ -224,6 +226,90 @@ def test_the_catalogue_is_actually_translated_into_german():
 
 
 # ---------------------------------------------------------------------------
+# The gap the other tests here CANNOT see
+# ---------------------------------------------------------------------------
+#
+# Every check above starts from `extract_keys()`, which collects `tr()` calls.
+# So "0 missing" has only ever meant "everything already wrapped has a
+# translation" — and it said exactly that, out loud, while
+# `ui/scan_grid_marquee.py` painted "Load a scan of the printed chart" as a
+# bare literal into the scanner window's preview pane, in English, in all
+# thirteen languages. A person reading a German window on a Windows 11 VM found
+# it; this file was green throughout (2026-09-03, WINDOWS-VM-REPORT.md §D).
+#
+# The sweep that closes it lives in `scripts/i18n_extract.py` next to the
+# extractor, because the two questions share one list of source files and one
+# idea of what a user-facing string looks like.
+
+def test_no_user_facing_literal_skips_tr():
+    """Nothing puts a bare string literal on screen.
+
+    A hit is one of two things and both need doing something about: a string
+    that should be wrapped in `tr()`, or one that is deliberately the same in
+    every language — in which case it goes in `UNTRANSLATED_ON_PURPOSE` **with
+    the reason**, so the next person does not have to guess.
+    """
+    hits = unwrapped_literals()
+    assert hits == [], (
+        f"{len(hits)} user-facing literals never reach tr():\n"
+        + "\n".join(f"    {f}:{ln}  {sink}(arg{i})  {text[:60]!r}"
+                     for f, ln, sink, i, text in hits[:10]))
+
+
+def test_the_literal_sweep_is_not_vacuous():
+    """Guard the guard, twice over.
+
+    A sweep that returns [] because it looks at nothing would pass the test
+    above for ever, which is the exact failure the whole finding is about. So:
+    the sinks must actually be recognised on a real call, and the sentence
+    filter must accept a sentence while still rejecting a key.
+    """
+    import ast
+    from i18n_extract import _sink_positions
+
+    def positions(src):
+        return _sink_positions(ast.parse(src, mode="eval").body)
+
+    # The shape that shipped untranslated, and three others.
+    assert positions('p.drawText(r, flag, "hello")') == (2,)
+    assert positions('w.setText("hello")') == (0,)
+    assert positions('QLabel("hello")') == (0,)
+    assert positions('bar.set_label("hello", "sub")') == (0, 1)
+    # …and a logger is not a text sink, or the sweep drowns in 380 log lines.
+    assert positions('log.warning("could not read %s", p)') == ()
+
+    assert is_user_facing_text("Load a scan of the printed chart")
+    assert not is_user_facing_text("area_first")
+    assert not is_user_facing_text("could not read %s")
+
+
+def test_every_deliberate_exception_says_why():
+    """An allow-list with no reasons is where unwrapped strings hide.
+
+    Each entry must sit under a comment in the source. Checked by reading the
+    file, because a set literal cannot carry its own annotations.
+    """
+    src = (ROOT / "scripts" / "i18n_extract.py").read_text(encoding="utf-8")
+    body = src[src.index("UNTRANSLATED_ON_PURPOSE = {"):]
+    body = body[:body.index("\n}")]
+    assert len(UNTRANSLATED_ON_PURPOSE) >= 12, UNTRANSLATED_ON_PURPOSE
+    # A comment line arms the next run of entries; a blank line disarms it. So
+    # every group of exceptions has to be introduced, and appending one to the
+    # end of the file without a word is what fails here.
+    reason = False
+    orphans = []
+    for raw in body.splitlines()[1:]:
+        ln = raw.strip()
+        if not ln:
+            reason = False
+        elif ln.startswith("#"):
+            reason = True
+        elif not reason:
+            orphans.append(ln)
+    assert orphans == [], f"no reason given for: {orphans}"
+
+
+# ---------------------------------------------------------------------------
 # A value that is identical to its key is INVISIBLE to every other check here
 # ---------------------------------------------------------------------------
 #
@@ -319,10 +405,23 @@ def test_the_catalogue_is_actually_translated_into_german():
 # approval: translating eleven languages during a beta is the churn that
 # "translate before the final, not during a beta" exists to avoid. German is
 # carried in German, as always, because it is the language the owner reads.
+#
+# 2026-09-03, the Windows verification's finding D: +8 for the eleven and +0
+# for German. NOTHING NEW IS ON SCREEN. These eight keys were ALREADY being
+# shown, in English, in all thirteen languages, as bare literals that never
+# reached `tr()` — the preview placeholder "Load a scan of the printed chart"
+# that a German user read on the Windows VM, the six progress labels on the
+# Build Profile tab, and the two "[ERROR] …" lines under Create/Apply
+# Calibration. Wrapping them changes only whether they CAN be translated.
+# German now carries all eight, which is a strict gain; the eleven hold the
+# English source they were already displaying, so the pixels do not move and
+# the count rises by exactly the eight that became visible to this counter.
+# `scripts/i18n_extract.py --unwrapped` is the guard that stops the next one,
+# and `tests/test_i18n.py::test_no_user_facing_literal_skips_tr` runs it.
 _IDENTICAL_TO_KEY = {
     "de": 152,
-    "es": 301, "fr": 321, "it": 313, "ja": 290, "nl": 330,
-    "no": 314, "pl": 305, "pt": 305, "ru": 277, "sv": 318, "zh_CN": 283,
+    "es": 309, "fr": 329, "it": 321, "ja": 298, "nl": 338,
+    "no": 322, "pl": 313, "pt": 313, "ru": 285, "sv": 326, "zh_CN": 291,
 }
 
 
