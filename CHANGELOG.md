@@ -27,6 +27,15 @@ anyway, because a fault you never saw is still a fault that existed.
   its controls moved to the right, so the twelve wheel-turns of scrolling it
   used to take to reach the last control are now none. It fits a 1280 screen in
   all twelve languages.
+- **Auto align, in the scanner and camera window.** Press it and ChromIQ tries
+  to place the grid on the chart's patches for you, turning it the right way up
+  if the scan was made sideways. It is an addition, not a replacement: nothing
+  runs until you press it, one press puts your corners back exactly, and when
+  it is not confident it says so and moves nothing rather than guessing. On
+  scans it placed the grid correctly in 21 of 29 deliberately awkward cases and
+  refused the other 8 out loud. On photographs it is much weaker: it refused
+  most of them, and dragging the corners roughly around the chart first is what
+  makes it work on a cluttered desk.
 - **A profile keeps its accented name.** A profile called Müller-Prüfdruck used
   to arrive as M?ller-Pr?fdruck in Windows' colour management, because the ICC
   field ArgyllCMS fills cannot hold an accent. ChromIQ now writes the name into
@@ -46,6 +55,17 @@ anyway, because a fault you never saw is still a fault that existed.
 
 ### Fixed
 
+- **Windows: a project name that was accepted and then could not be written.**
+  Names of about 111 to 120 characters passed the name box and then failed when
+  ChromIQ wrote the chart, because Windows limits the whole path rather than
+  each folder name. The limit is now worked out from the longest file ChromIQ
+  actually creates, and a project you already have opens whatever it is called.
+- **Windows: the scanner and camera window would not fit a 1080p laptop.** Its
+  smallest height was taller than the screen leaves once the taskbar and title
+  bar are taken off, in every language.
+- **Two projects whose names differ only in capitals no longer overwrite each
+  other's chart.** ChromIQ kept the name you typed while the folder kept its
+  own, so one run could hold two charts, each invisible to the other.
 - **A measurement is no longer lost when you quit.** Closing ChromIQ during a
   measurement killed the reader, and the reader only writes its file on a clean
   exit, so the reading was gone with no warning. Quitting now asks, the way
@@ -77,7 +97,17 @@ anyway, because a fault you never saw is still a fault that existed.
 
 ### Known issues
 
-- **Nothing in this release has been run on Windows or Linux.** The encoding
+- **Auto align has not been tried on a real printed chart.** Every scan it was
+  measured against was generated. It is also untested on hexagonal charts, and
+  it refuses small targets such as the QPcard, where it cannot reach the
+  confidence it requires before moving anything.
+- **Windows has now been tried, once, and the test suite could not finish
+  there.** The app itself started and worked, in German at 200 % scaling, as a
+  source checkout and as a packaged build. The suite hit a crash while drawing
+  a checkbox and the run then hung; the hang is fixed and the drawing was
+  rewritten, but nobody has yet seen a completed Windows run. Linux is
+  untried.
+ The encoding
   work above is the fix for a Windows-only fault, and it was written and tested
   on a Mac. If you have a Windows machine, that is the single most useful thing
   you can test.
