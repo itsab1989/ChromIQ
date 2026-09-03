@@ -158,10 +158,20 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # while the wording is section M-PROPOSED, exactly as M-INSTRUMENT-BUSY and the
 # M-SPOT pair do. 148 is again the highest ACTUAL count across the eleven (fr),
 # not a round ceiling.
+# 2026-09-03, Auto align: +9 for the eleven and +0 for German. Twelve keys
+# arrive and four leave (the reason-code wording they replace), and NINE of the
+# twelve are counted here: "Target reference data" is under the 25-character
+# floor, and two bodies open with the word "ChromIQ", which the filter above
+# treats as legitimately identical. German carries all twelve and stays at 31
+# against its budget of 35. Unlike every entry above, this text IS approved —
+# Basti approved it the day it was written — so the eleven hold English for the
+# other reason: eleven languages are translated before a final, not during a
+# beta. 157 is again the highest ACTUAL count across the eleven (fr), not a
+# round ceiling.
 _BUDGET = {
     "de": 35,
-    "es": 148, "fr": 148, "it": 148, "ja": 148, "nl": 148,
-    "no": 148, "pl": 148, "pt": 148, "ru": 148, "sv": 148, "zh_CN": 148,
+    "es": 157, "fr": 157, "it": 157, "ja": 157, "nl": 157,
+    "no": 157, "pl": 157, "pt": 157, "ru": 157, "sv": 157, "zh_CN": 157,
 }
 
 

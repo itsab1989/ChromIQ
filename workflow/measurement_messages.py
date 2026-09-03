@@ -1727,6 +1727,117 @@ M_SCAN_PROFILE_ARCHIVED = _m(
     approved=False)
 
 
+# --- Auto align, in the scanner window's preview ---------------------------
+# APPROVED by Basti, 2026-09-03.
+#
+# Auto align hands the scan to ArgyllCMS's own chart recogniser, checks the
+# answer against this chart's reference, and either places the grid on it or
+# changes nothing (`workflow/scan_auto_align.py`). The module answers with a
+# machine-readable REASON -- "below-floor", "no-usable-candidate" and four
+# more -- which is what the log file and the tests want, and is exactly what a
+# user must never be shown. The first implementation printed it in brackets in
+# the middle of the sentence. These messages are those reasons in the user's
+# own terms, and `scan_align_refusal` below is the only place the two meet, so
+# a reason with no message of its own falls back to words rather than reaching
+# a window as a code (`tests/test_scan_auto_align.py` proves it cannot).
+#
+# All six refusals open with the same headline, because after a refusal the
+# first thing the user needs to know is that they have lost nothing: the four
+# corners they placed are untouched, and the button they pressed was safe to
+# press.
+_ALIGN_KEPT = "Auto align left your corners exactly where they are"
+
+#: {ref_row} and {chart_row} name the row on screen the user should look at,
+#: and there are three of them: a standard target is chosen in "Target type"
+#: with its colours in "Target reference data", while a ChromIQ chart takes
+#: both from one picker -- "Measured chart (.ti3)", or "Chart you printed
+#: (.ti2)" in printer mode. The window fills them in from the labels it is
+#: actually showing, so a message never names a row that is hidden.
+M_SCAN_ALIGN_AMBIGUOUS = _m(
+    "M-SCAN-ALIGN-AMBIGUOUS",
+    _ALIGN_KEPT,
+    "This chart's patches look the same whichever way round it is turned, so "
+    "ChromIQ cannot work out which way your scan was made. If you know it "
+    "needs turning, use the “⟳ Rotate 90°” button below "
+    "the preview. Otherwise drag the four corners onto the chart yourself, "
+    "which always works.")
+
+M_SCAN_ALIGN_NO_MATCH = _m(
+    "M-SCAN-ALIGN-NO-MATCH",
+    _ALIGN_KEPT,
+    "It found the chart, but what your scan shows does not match the "
+    "reference closely enough to rely on. That usually means the reference "
+    "file belongs to a different target, or the scan is of a different chart. "
+    "Check the file in the “{ref_row}” row above and try again.")
+
+M_SCAN_ALIGN_NOT_FOUND = _m(
+    "M-SCAN-ALIGN-NOT-FOUND",
+    _ALIGN_KEPT,
+    "ChromIQ could not find this chart anywhere in the picture. That usually "
+    "happens when the picture shows a lot more than the chart, or when one "
+    "edge of the chart is missing. Drag the four corners roughly around the "
+    "chart and press Auto align again: it will then search only inside them.")
+
+M_SCAN_ALIGN_NO_FIT = _m(
+    "M-SCAN-ALIGN-NO-FIT",
+    _ALIGN_KEPT,
+    "ChromIQ found something chart-shaped in the picture, but no way of "
+    "fitting this target's patches onto it. Check that the chart chosen in "
+    "the “{chart_row}” row above is the one you actually scanned.")
+
+M_SCAN_ALIGN_NO_GEOMETRY = _m(
+    "M-SCAN-ALIGN-NO-GEOMETRY",
+    _ALIGN_KEPT,
+    "The chart definition for this target does not record where its patches "
+    "sit, and that is what Auto align needs to work. Place the four corners "
+    "yourself; everything else in this window works normally.")
+
+M_SCAN_ALIGN_NO_BETTER = _m(
+    "M-SCAN-ALIGN-NO-BETTER",
+    _ALIGN_KEPT,
+    "It searched, and your own placement is already the closer match, so "
+    "there was nothing to improve.")
+
+M_SCAN_ALIGN_DONE = _m(
+    "M-SCAN-ALIGN-DONE",
+    "Auto align put the grid on the patches",
+    "What the grid reads now agrees with this chart's own reference to {rho}, "
+    "on a scale where 1.00 is a perfect match and anything below 0.80 is "
+    "refused. Press “Check alignment” below to look at the read "
+    "before you build anything. Nothing else has changed, and you can still "
+    "drag any corner by hand.")
+
+M_SCAN_ALIGN_NO_INPUT = _m(
+    "M-SCAN-ALIGN-NO-INPUT",
+    "Auto align has nothing to look at yet",
+    "Load a scan for this page and choose the chart it was made from, then "
+    "press Auto align again.")
+
+#: Auto align's internal refusal reasons, and the message each one is told in.
+#: The reasons stay machine-readable -- they go to the log file and the tests
+#: read them -- and this map is the ONLY place they turn into words.
+SCAN_ALIGN_REFUSALS = {
+    "ambiguous-orientation": M_SCAN_ALIGN_AMBIGUOUS,
+    "below-floor": M_SCAN_ALIGN_NO_MATCH,
+    "not-recognised": M_SCAN_ALIGN_NOT_FOUND,
+    "no-usable-candidate": M_SCAN_ALIGN_NO_FIT,
+    "no-chart-geometry": M_SCAN_ALIGN_NO_GEOMETRY,
+    "no-better": M_SCAN_ALIGN_NO_BETTER,
+}
+
+
+def scan_align_refusal(reason: str) -> Message:
+    """The message for an Auto align refusal, by its internal reason.
+
+    A reason with no message of its own gets the "could not find this chart"
+    wording rather than putting its own name on screen -- so adding a reason
+    to :mod:`workflow.scan_auto_align` and forgetting the message costs a
+    slightly wrong sentence, never a code in front of a user. The test that
+    pins the set of reasons is what stops it staying wrong.
+    """
+    return SCAN_ALIGN_REFUSALS.get(reason, M_SCAN_ALIGN_NOT_FOUND)
+
+
 CATALOGUE = {m.id: m for m in (
     M_REPLACE_PARTIAL, M_REPLACE_COMPLETE, M_TI3_MISMATCH,
     M_REPLACE_UNCOUNTABLE,
@@ -1758,6 +1869,10 @@ CATALOGUE = {m.id: m for m in (
     M_CAL_REPLACE_CHART, M_CAL_REPLACE_MEASURED, M_CAL_ARCHIVED_HERE,
     M_SPOT_CLEAR, M_SPOT_UNSAVED,
     M_SCAN_REF_SHORT, M_SCAN_REF_DISAGREES, M_SCAN_CLIPPED,
+    M_SCAN_ALIGN_AMBIGUOUS, M_SCAN_ALIGN_NO_MATCH,
+    M_SCAN_ALIGN_NOT_FOUND, M_SCAN_ALIGN_NO_FIT,
+    M_SCAN_ALIGN_NO_GEOMETRY, M_SCAN_ALIGN_NO_BETTER,
+    M_SCAN_ALIGN_DONE, M_SCAN_ALIGN_NO_INPUT,
     M_SCAN_PROFILE_ARCHIVED,
 )}
 
