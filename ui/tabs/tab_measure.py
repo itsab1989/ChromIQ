@@ -6001,6 +6001,23 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # Here rather than inside the question above: asking and archiving are
         # different jobs, and a method called _confirm_… that quietly moves
         # files is a surprise waiting for the next reader.
+        #
+        # NOTE THE FILE'S AGE **BEFORE** IT IS MOVED OUT OF THE WAY.
+        #
+        # `_on_measure_done` decides whether THIS session wrote a measurement by
+        # comparing the .ti3's mtime against this snapshot, and reads "no file
+        # here beforehand" as "so anything here now is fresh". Taken after the
+        # archive below, that snapshot was `None` on every fresh read — and when
+        # the session then measured nothing, `_restore_displaced_measurement`
+        # put the previous file back with its original mtime and the app read
+        # the restored file as this session's own work: it claimed "partial
+        # readings saved", ticked Refine/resume, emitted `measure_finished` and
+        # minted a dated measurement report that was a byte-for-byte copy of the
+        # previous session's. The owner hit exactly that on 2026-09-03.
+        _ti3_pre = self._ti1_path.with_suffix(".ti3") if self._ti1_path else None
+        self._ti3_mtime_before = (
+            _ti3_pre.stat().st_mtime if (_ti3_pre and _ti3_pre.exists()) else None
+        )
         self._archive_measurement_before_replacing()
         # A FRESH READ STARTS WITH A CLEAN SHEET.
         #
@@ -6015,6 +6032,18 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         if not self._read_builds_on_existing():
             self._sync_overlay_checkboxes(False)
             self._clear_overlay()
+            # …AND SO DOES THE PROGRESS FIGURE. It is the same sentence about
+            # the same file, and it was only half said.
+            #
+            # `_progress_base` is seeded from the run's .ti3 when the chart is
+            # loaded, and nothing put it back to zero when a fresh read moved
+            # that .ti3 to old/. So a replacing read began with the previous
+            # measurement's count still in it: the owner's chart holds 390
+            # patches and his previous measurement held 18, and the bar sat at
+            # 18/390 = 4.6% for the whole session while the overlay beside it —
+            # cleared one line above — showed no patch as read. Two readouts of
+            # one thing, disagreeing, and the frozen one was the wrong one.
+            self._reset_progress(from_files=False)
         else:
             # SHOW EVERYTHING ALREADY MEASURED, NOT JUST THIS SESSION (#156).
             #
@@ -6033,6 +6062,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             except Exception:      # noqa: BLE001 — never block a measurement
                 log.warning("Could not seed the overlay from the existing "
                             "measurement", exc_info=True)
+            # The bar counts the same readings the overlay has just painted, so
+            # it is seeded from the same file at the same moment. Stated rather
+            # than left to whatever the last chart load happened to leave
+            # behind — that assumption is what the fresh branch above got wrong.
+            self._reset_progress()
         self._preview.set_bidirectional(self._effective_bidirectional(params))
         # (the log was cleared before the calibration — see above)
         self._auto_proceed = False
@@ -6048,10 +6082,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._instrument_disconnected = False
         self._device_busy = False
         self._no_instrument = False
-        _ti3_pre = self._ti1_path.with_suffix(".ti3") if self._ti1_path else None
-        self._ti3_mtime_before = (
-            _ti3_pre.stat().st_mtime if (_ti3_pre and _ti3_pre.exists()) else None
-        )
+        # (`_ti3_pre` / `_ti3_mtime_before` were taken above, before the archive)
         # §2a: copy the measurement aside and record C₀ before anything can
         # touch it. chartread writes its .ti3 only on a clean exit and a resume
         # overwrites the file it resumed from, so this is the last moment the
@@ -10215,13 +10246,23 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
     def _refresh_progress_from_files(self) -> None:
         """Re-read the run's measurement once a session has ended.
 
+        Called from `_on_measure_done` **after** §S3 has judged the session and
+        settled the file — an empty one is aside and the previous measurement is
+        back — because until then the .ti3 on disk is not the run's answer.
+
         ArgyllCMS writes the .ti3 only on a clean exit, so this is the first
         moment the file is authoritative again. It corrects the live count,
         including the one case the set cannot see for itself: re-reading a patch
         that was already in the file this session resumed from.
+
+        Not gated on the progress-bar preference. `_count_strip_progress` says
+        why: the ids are collected *"whether or not the progress bar is switched
+        on"*, because #156 needs the record of WHICH patches have a reading to
+        know when a chart is actually finished — and `_unread_patch_count` reads
+        the same two numbers. Returning early here left that record frozen at
+        whatever the last chart load found for every user who had turned the bar
+        off, which is the opposite of what the collector promises.
         """
-        if not self._progress_enabled():
-            return
         self._reset_progress()
 
     def _on_measure_done(self, code: int) -> None:
@@ -10236,8 +10277,6 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # fires; per-patch/strip sounds can no longer sound outside a read.
         if getattr(self, "_sound", None) is not None:
             self._sound.disarm()
-        # #153: the .ti3 has just been written, so it can settle the count.
-        self._refresh_progress_from_files()
         self._preview.highlight_stripe(-1)
         self._preview.set_bidirectional(False)
         # #126: click-to-jump only lives while an engine session runs; the
@@ -10290,6 +10329,25 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # Superseded by the guard for any run it protects; still the only
         # handler for a session that never got one.
         self._archive_empty_measurement()
+
+        # #153: NOW the .ti3 on disk is the run's answer, so it can settle the
+        # count. Not one line earlier.
+        #
+        # This ran at the very top of this method, which is the one moment in
+        # the whole session when the file is wrong: chartread had written its
+        # own .ti3 (or, for a session that read nothing, written none at all)
+        # and §S3 had not yet judged it. So a stopped-with-nothing-read session
+        # read a missing file, put the bar at 0%, and never looked again — while
+        # the two lines above restored the previous measurement and every other
+        # readout in the app went back to saying 18 of 390. The owner saw both
+        # numbers at once on 2026-09-03: *"it showed the measured vs expected
+        # patches from before but the progress bar was then at 0%"*.
+        #
+        # §S3 of `unified_measurement_management.md` already fixes this order —
+        # S3.2 moves an empty file aside and restores the archived copy, and
+        # only S3.7 reports. The progress refresh had simply been added in front
+        # of the queue rather than behind it.
+        self._refresh_progress_from_files()
 
         # With "Show overlay from existing measurement" ticked, the overlay is
         # what the user wants to look at — including right after stopping, when
@@ -10487,7 +10545,23 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             )
         else:
             ti3_exists = False
-        failed = self._measure_failed or (code != 0 and not ti3_exists)
+        # AN ENDING THE USER CHOSE IS NOT A FAILURE.
+        #
+        # Stop kills the reader, so `code` is non-zero on every deliberate
+        # ending; the only thing that used to keep "[ERROR] Measurement failed"
+        # off the screen was a `.ti3` being there afterwards. For a session
+        # stopped before the first patch there is none — and the previous
+        # measurement, restored a moment ago, was standing in for one. With that
+        # mistake gone the honest path is to ask whether the user ended it,
+        # which `MeasureManager` has recorded all along: *"the non-zero exit
+        # that follows must not be described as one"* (`abort`).
+        #
+        # A genuine fault still sets `_measure_failed`, which this does not
+        # touch, and §1 row 5 of the specification has already been honoured —
+        # "nothing was measured, so nothing was saved", on screen.
+        failed = self._measure_failed or (
+            code != 0 and not ti3_exists
+            and not self._manager.ended_by_the_user)
         self._measure_failed = False
 
         is_cal = (

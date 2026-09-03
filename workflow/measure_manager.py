@@ -1056,6 +1056,23 @@ class MeasureManager(QObject):
         """
         return bool(self._read_something)
 
+    @property
+    def ended_by_the_user(self) -> bool:
+        """True when this session was ended on purpose rather than by a fault.
+
+        Set by `abort`, by `send_key` for q/Q/Esc, by the quit door and by the
+        reader's own ``aborted`` event — every one of them a decision. The
+        non-zero exit code that follows a deliberate ending is not evidence of
+        anything, and `abort`'s docstring already says so: *"the non-zero exit
+        that follows must not be described as one"*. Three branches in this
+        module test the flag for exactly that; the Measure tab could not,
+        because there was no way to ask.
+
+        A real failure is carried by ``TabMeasure._measure_failed``, which this
+        never touches.
+        """
+        return bool(self._user_quit)
+
     def abort(self) -> None:
         """End the run now. Always deliberate — never an engine failure.
 
