@@ -3788,6 +3788,44 @@ class ScannerProfileDialog(_ToolDialogBase):
             log.warning("misalignment check failed", exc_info=True)
         self._check_read_is_this_chart(job)
 
+    def _read_verdicts(self, params, rho) -> list[str]:
+        """The build gate's three questions, phrased for the Check-alignment
+        window.
+
+        Without this, that window prints a green tick over a scan that is not
+        this chart at all — which is where review 5's B2 was found. At rho 0.03
+        `ref_usable` below goes False, the rank-displacement layer is skipped
+        because the reference cannot predict the scan, and the geometric ladder
+        then reports "the current grid position keeps all sample boxes within
+        their chart patches (placement agreement: worst 99.70 %)". Every word of
+        that is true. It is also about a different target's reference, and the
+        window said nothing about that.
+
+        Headlines only: this is a list of verdict lines, and the full text
+        belongs in the window the build gate raises.
+        """
+        from workflow.scan_read_check import inspect_read
+        from workflow import measurement_messages as M
+        out: list[str] = []
+        try:
+            got = inspect_read(params.out_ti3, rho)
+            if got is None:
+                return out
+            cov = self._reference_shortfall()
+            if cov is not None:
+                out.append("⚠ " + self._short_reference_message(cov)[0])
+            if got.disagrees(float(self._settings.get(
+                    "scanner_min_agreement", 0.25))):
+                out.append("⚠ " + M.M_SCAN_REF_DISAGREES.render(
+                    rho=f"{got.agreement:.2f}")[0])
+            if got.clipped > float(self._settings.get(
+                    "scanner_max_clipped", 0.15)):
+                out.append("⚠ " + M.M_SCAN_CLIPPED.render(
+                    pct=f"{got.clipped * 100:.0f} %")[0])
+        except Exception:  # noqa: BLE001 — a sanity check must never block
+            log.warning("read sanity check failed", exc_info=True)
+        return out
+
     def _check_read_is_this_chart(self, job: dict) -> None:
         """The other half of the question, asked of the DATA (review 5).
 
@@ -4018,6 +4056,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         # predict the scan at all: on strongly saturated targets (LaserSoft)
         # even a perfect read ranks against the reference at ρ≈0.5, and
         # rank-displacement clustering fires on nothing but metamerism.
+        out += self._read_verdicts(params, rho)
         ref_usable = rho is None or rho >= 0.8
         groups = (locally_misaligned_groups(read, exp)
                   if ref_usable else [])

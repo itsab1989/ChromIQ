@@ -423,6 +423,68 @@ def test_the_data_window_does_not_claim_the_alignment_check_failed():
         "the printer builder was left out — the same fault, half fixed"
 
 
+class _AlignParams:
+    """The pre-build probe's params: the same shape `_alignment_verdicts` gets."""
+
+    is_printer = False
+    pbase = None
+    cht = Path("/nonexistent.cht")
+
+    def __init__(self, ti3):
+        self.out_ti3 = ti3
+        self.cie = None
+
+
+def test_the_check_alignment_window_does_not_tick_a_scan_that_is_not_this_chart(
+        _app, _out_dir, tmp_path):
+    """This is the picture B2 was reported with.
+
+    At rho 0.03 the window's `ref_usable` gate goes False, the
+    rank-displacement layer is skipped because the reference cannot predict the
+    scan, and the geometric ladder then prints "the current grid position keeps
+    all sample boxes within their chart patches (placement agreement: worst
+    99.70 %, average 99.96 %)". Every word of that is true. It is also about a
+    different target's reference, and the window said nothing about that.
+    """
+    dlg = _dialog(_app, _out_dir)
+    try:
+        rows = [(f'"A{k}"', float(k), float(101 - k)) for k in range(1, 101)]
+        ti3 = _write_read(tmp_path / "flip.ti3", rows)
+        from ui.dialogs.scanin_dialog import scan_reference_correlation
+        rho = scan_reference_correlation(ti3)
+        assert rho < 0, "the fixture is not the case under test"
+        verdicts = dlg._read_verdicts(_AlignParams(ti3), rho)
+        assert verdicts, (
+            "the Check alignment window still has nothing to say about a scan "
+            "that is the opposite of its reference")
+        assert verdicts[0].startswith("\u26a0")
+        assert "does not match this reference" in verdicts[0]
+    finally:
+        dlg.deleteLater()
+
+
+def test_the_check_alignment_window_still_ticks_a_good_read(
+        _app, _out_dir, tmp_path):
+    dlg = _dialog(_app, _out_dir)
+    try:
+        rows = [(f'"A{k}"', float(k) * 0.9, float(k)) for k in range(1, 101)]
+        ti3 = _write_read(tmp_path / "good.ti3", rows)
+        from ui.dialogs.scanin_dialog import scan_reference_correlation
+        assert dlg._read_verdicts(
+            _AlignParams(ti3), scan_reference_correlation(ti3)) == []
+    finally:
+        dlg.deleteLater()
+
+
+def test_the_verdicts_are_consulted_where_the_tick_is_printed():
+    """A helper nobody calls is the same silence with more code in it."""
+    import inspect
+    from ui.dialogs.scanin_dialog import ScannerProfileDialog
+    src = inspect.getsource(ScannerProfileDialog._alignment_verdicts)
+    assert "_read_verdicts" in src, \
+        "_alignment_verdicts can still print a green tick over the wrong chart"
+
+
 def test_the_new_sentences_are_marked_as_awaiting_approval():
     """Wording is §M: proposed, never landed. The mechanism ships; the
     sentences are the owner's to approve."""
