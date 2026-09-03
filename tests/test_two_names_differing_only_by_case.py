@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -198,3 +199,31 @@ def test_the_project_created_under_either_spelling_is_one_project(tmp_path):
     b = Project.create_or_load(tmp_path / "chart", "chart")
     assert os.path.samefile(a.root, b.root)
     assert [p.name for p in tmp_path.iterdir()] == ["Chart"]
+
+
+def test_the_filesystems_answer_is_what_decides(tmp_path, monkeypatch):
+    """The guard that cannot be reached on a case-insensitive machine.
+
+    `_existing_folder_spelling` adopts a folder's spelling only when
+    `(parent / name).exists()` — the filesystem saying the two names are one
+    folder. On a case-SENSITIVE volume that is False and nothing is adopted,
+    which is the whole reason the check asks the filesystem instead of testing
+    `sys.platform`. This suite runs on a case-insensitive Mac, where that
+    branch is never taken, so it is forced: `exists` is made to answer the way
+    a case-sensitive volume would, and nothing else changes.
+    """
+    (tmp_path / "Chart").mkdir()
+    assert _existing_folder_spelling(tmp_path, "chart") in ("Chart", "chart")
+
+    real_exists = Path.exists
+
+    def case_sensitive_exists(self, *a, **kw):
+        # `<tmp>/chart` is not there on a volume that tells the two apart.
+        if self == tmp_path / "chart":
+            return False
+        return real_exists(self, *a, **kw)
+
+    monkeypatch.setattr(Path, "exists", case_sensitive_exists)
+    assert _existing_folder_spelling(tmp_path, "chart") == "chart", (
+        "a case-sensitive volume holds two different projects, and moving one "
+        "into the other is exactly what must not happen")

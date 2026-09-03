@@ -2011,7 +2011,6 @@ class ScannerProfileDialog(_ToolDialogBase):
         if base is None:
             base = self._left_scroll_floor = self._scroll.minimumHeight()
         cur = self._scroll.minimumHeight()
-        self._settle_the_splitter()
         over = (lay.minimumSize().height() - cur + base) - self.MAX_FLOOR_H
         want = max(self.MIN_LEFT_SCROLL_H, base - over) if over > 0 else base
         if want == cur:
@@ -2022,13 +2021,19 @@ class ScannerProfileDialog(_ToolDialogBase):
     def _settle_the_splitter(self) -> None:
         """Make the window's layout tell the truth about its minimum.
 
-        A QSplitter CACHES the minimum it reports, and both this method's
-        callers have just changed something inside a pane. `_refresh_min_width`
+        A QSplitter CACHES the minimum it reports, and the caller has just
+        changed the height of something inside a pane. `_refresh_min_width`
         already knew that for width — its own note records the floor coming
-        back as 547 px when the panes needed 1084 — and the height half hit the
-        identical wall: shrinking the settings pane and reading the layout in
-        the next statement returned the OLD 716, so the arithmetic corrected a
-        number that had not moved yet and asked for a pane 48 px tall.
+        back as 547 px when the panes needed 1084 — and the height half hits
+        the identical wall: shrink the settings pane and the window's own
+        `_refit_height` still reads the OLD 716 and pins the minimum there,
+        which is a floor above the screen with the pane already made small to
+        get under it. The worst of both.
+
+        Called AFTER the change and not before it. A settle before the
+        measurement was there too and was removed: it changed nothing that
+        could be measured in any of the thirteen languages, and a line that
+        cannot be shown to matter is a line nobody can maintain.
         """
         lay = self.layout()
         if lay is None:

@@ -299,11 +299,15 @@ def _existing_folder_spelling(parent: Path, name: str) -> str:
     ``(parent / name).exists()`` is the filesystem's own answer, rather than a
     guess about the platform.
 
-    CASE ONLY. An accent spelled differently (``Müller`` composed against the
-    decomposed form an HFS+ volume hands back) is the problem :func:`nfc` and
-    :func:`files_matching` already solve, in their own way, and quietly
-    adopting a decomposed name here would change what
-    ``tests/test_project_name_keeps_its_accents.py`` pins.
+    CASE ONLY, and ``str.lower`` is what keeps it that way. An accent spelled
+    differently — ``Müller`` composed against the decomposed form an HFS+
+    volume hands back — is the problem :func:`nfc` and :func:`files_matching`
+    already solve, in their own way, and quietly adopting a decomposed name
+    here would change what ``tests/test_project_name_keeps_its_accents.py``
+    pins. It cannot happen: lowering a combining mark leaves it a combining
+    mark, so the two spellings do not compare equal and the loop walks past.
+    An explicit NFC guard stood here as well and was removed, because no
+    mutation of it could be made to change any outcome.
     """
     if not name:
         return name
@@ -317,8 +321,7 @@ def _existing_folder_spelling(parent: Path, name: str) -> str:
     if name in found:
         return name                         # the exact spelling is on disk
     for other in found:
-        if (other.lower() == name.lower()
-                and unicodedata.normalize("NFC", other) == other):
+        if other.lower() == name.lower():
             return other
     return name
 

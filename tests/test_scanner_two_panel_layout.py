@@ -169,6 +169,41 @@ def _assert_fits(res):
         f"{lang}: " + "; ".join(res["handles_out_of_reach"]))
 
 
+def test_the_height_floor_settles_in_one_pass(_app, _out_dir):
+    """Two properties of the floor fit, and each is a bug this already had.
+
+    ONE PASS IS ENOUGH. A QSplitter caches the minimum it reports, so reading
+    the layout in the statement after the settings pane was shrunk returns the
+    OLD number — the arithmetic then corrects a figure that has not moved and
+    asks for a pane 48 px tall, clamped to the 96 px floor. It self-heals on
+    the next layout event, so nothing visible stays wrong; what stays wrong is
+    the settings pane, permanently smaller than it needs to be for anyone who
+    sees the window before that event arrives.
+
+    AND A SECOND PASS MUST CHANGE NOTHING. `event` runs this on every
+    LayoutRequest, and the invalidation inside it posts LayoutRequests: a pass
+    that keeps moving is a pass that keeps feeding itself.
+    """
+    dlg = _make(_app, _out_dir)
+    try:
+        # Back to the pane's original floor, then re-fit ONCE with no event
+        # loop in between — which is the situation `showEvent` is in.
+        dlg._scroll.setMinimumHeight(dlg._left_scroll_floor)
+        dlg._fit_floor_to_the_smallest_screen()
+        one_pass = dlg._scroll.minimumHeight()
+        for _ in range(5):
+            dlg._fit_floor_to_the_smallest_screen()
+        assert dlg._scroll.minimumHeight() == one_pass, (
+            f"one pass left the pane at {one_pass}px and five more moved it to "
+            f"{dlg._scroll.minimumHeight()}px — the first reading was stale")
+        assert dlg.layout().minimumSize().height() <= dlg.MAX_FLOOR_H
+        assert one_pass > dlg.MIN_LEFT_SCROLL_H, (
+            "the pane was clamped to its hard floor, which is what happens "
+            "when the arithmetic is done against a stale layout minimum")
+    finally:
+        dlg.deleteLater()
+
+
 # --------------------------------------------------------------- the panes
 def test_the_window_is_two_panes(_app, _out_dir):
     """The settings on the left, the preview and its controls on the right —
