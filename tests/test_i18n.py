@@ -290,10 +290,21 @@ def test_the_catalogue_is_actually_translated_into_german():
 #      a sentence nobody has approved is the churn behind "translate before the
 #      final, not during a beta", and the whole M-CR30-* family already sits in
 #      English in these eleven for the same reason.
+# 2026-09-03, review 3, +9 for the eleven and +0 for German: Tools ▸ Read
+# single patches could throw a whole measuring session away in silence by two
+# routes, and both now ask first (M-SPOT-CLEAR, M-SPOT-UNSAVED). Nine keys: two
+# headlines, four bodies (each message states a count, so each has a singular
+# and a plural body) and three labels — "Discard", "Undo clear" and the status
+# line "Readings restored.". German carries all nine and moves by nothing,
+# because none of them is the same word in German. The eleven hold the English
+# source, for the reason already given for M-INSTRUMENT-BUSY one line above:
+# the WORDING is §M-PROPOSED and nobody has approved it, so translating it now
+# is the churn that "translate before the final, not during a beta" exists to
+# avoid. When Basti approves the text, these nine are part of the GA pass.
 _IDENTICAL_TO_KEY = {
     "de": 152,
-    "es": 272, "fr": 292, "it": 284, "ja": 261, "nl": 301,
-    "no": 285, "pl": 276, "pt": 276, "ru": 248, "sv": 289, "zh_CN": 254,
+    "es": 281, "fr": 301, "it": 293, "ja": 270, "nl": 310,
+    "no": 294, "pl": 285, "pt": 285, "ru": 257, "sv": 298, "zh_CN": 263,
 }
 
 

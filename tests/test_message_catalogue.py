@@ -241,7 +241,15 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # guard could see it — they all answer from
                                  # process state, and this reader is not a
                                  # process.
-                                 "M-INSTRUMENT-BUSY"}
+                                 "M-INSTRUMENT-BUSY",
+                                 # 2026-09-03, review 3. Tools ▸ Read single
+                                 # patches could bin a whole session in silence
+                                 # by two routes: Clear had no question and no
+                                 # undo, and Close / the red button / Escape
+                                 # discarded the readings without a word. Knut
+                                 # found the first by pressing the spacebar,
+                                 # which is the Measure tab's reading trigger.
+                                 "M-SPOT-CLEAR", "M-SPOT-UNSAVED"}
 # Round 2 of the import-door review added four and Basti approved all four on
 # 2026-09-02, so they never sat in this set for longer than one branch:
 # M-IMPORT-NOT-OPENED, M-IMPORT-FOLDER-EXISTS, M-IMPORT-REPLACE-FOLDER-CONFIRM
@@ -347,6 +355,8 @@ WINDOW_SOURCES = [
     ("ui.tabs.tab_chart", "TabChart", "_project_exists_message"),
     ("ui.tabs.tab_measure", "TabMeasure", "_cr30_stock_reader_window"),
     ("ui.tabs.tab_chart", "TabChart", "_calibration_replace_message"),
+    ("ui.dialogs.spot_read_dialog", "SpotReadDialog", "_confirm_clear"),
+    ("ui.dialogs.spot_read_dialog", "SpotReadDialog", "_may_close"),
 ]
 
 #: Measurement windows that are NOT yet in §M, listed so the gap is visible.

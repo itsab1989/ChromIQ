@@ -141,7 +141,12 @@ def test_reading_is_re_enabled_when_the_calibration_ends(qapp):
     """The prompt disables the read button; nothing re-enabled it here before."""
     from ui.dialogs.spot_read_dialog import SpotReadDialog
     src = inspect.getsource(SpotReadDialog._on_calibration_finished)
-    assert "_read_btn.setEnabled(True)" in src
+    # It used to say `_read_btn.setEnabled(True)` here. 2026-09-03 routed every
+    # enable and disable of that button through `_set_read_enabled`, which does
+    # the same thing and additionally keeps the focus off Clear and Close when
+    # the button goes away under it — Knut's spacebar report. Same promise,
+    # one name.
+    assert "_set_read_enabled(True)" in src
 
 
 # ---- item 2: a way out of the calibration prompt -------------------------

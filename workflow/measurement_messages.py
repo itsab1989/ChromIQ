@@ -1586,6 +1586,49 @@ M_IMPORT_REPLACE_FOLDER_FAILED = _m(
     "and leave that folder alone.",
     approved=True)
 
+# --- PROPOSED: the two ways a spot-read session can be thrown away --------
+#
+# Knut, 2026-09-03, reporting the spacebar: the window had no guard on either
+# route. Clear emptied the list with no question and no way back, and closing,
+# rejecting or pressing Escape discarded a whole measuring session in silence.
+# The mechanism is in `ui/dialogs/spot_read_dialog.py`; the WORDING waits here.
+M_SPOT_CLEAR = _m(
+    "M-SPOT-CLEAR",
+    "Clear every reading in this list?",
+    "This window holds {n} readings, and none of them are saved to a file "
+    "yet.\n\nClearing empties the list. Nothing is written to disk and "
+    "nothing is asked of the instrument, so if you clear by mistake press "
+    "\u201cUndo clear\u201d and every reading comes straight back. The next "
+    "reading you take replaces what Undo would restore.\n\nTo keep them, "
+    "choose Cancel and use Save first.",
+    body_one="This window holds one reading, and it is not saved to a file "
+             "yet.\n\nClearing empties the list. Nothing is written to disk "
+             "and nothing is asked of the instrument, so if you clear by "
+             "mistake press \u201cUndo clear\u201d and the reading comes "
+             "straight back. The next reading you take replaces what Undo "
+             "would restore.\n\nTo keep it, choose Cancel and use Save "
+             "first.",
+    count_key="n",
+    approved=False)
+
+M_SPOT_UNSAVED = _m(
+    "M-SPOT-UNSAVED",
+    "These readings are not saved yet",
+    "This window holds {n} readings that are not written to any file. They "
+    "live in this window only, so closing it lets them go.\n\nSave writes "
+    "them as a CSV and an ArgyllCMS .ti3 beside the run you are working on, "
+    "and then the window closes. Discard closes the window and loses the "
+    "readings. Cancel leaves the window open exactly as it is, with every "
+    "reading still in the list.",
+    body_one="This window holds one reading that is not written to any file. "
+             "It lives in this window only, so closing it lets it go.\n\n"
+             "Save writes it as a CSV and an ArgyllCMS .ti3 beside the run "
+             "you are working on, and then the window closes. Discard closes "
+             "the window and loses the reading. Cancel leaves the window open "
+             "exactly as it is, with the reading still in the list.",
+    count_key="n",
+    approved=False)
+
 
 CATALOGUE = {m.id: m for m in (
     M_REPLACE_PARTIAL, M_REPLACE_COMPLETE, M_TI3_MISMATCH,
@@ -1616,6 +1659,7 @@ CATALOGUE = {m.id: m for m in (
     M_CR30_LEARN_TILE, M_CR30_TRIGGER_NOT_ARMED,
     M_INSTRUMENT_BUSY,
     M_CAL_REPLACE_CHART, M_CAL_REPLACE_MEASURED, M_CAL_ARCHIVED_HERE,
+    M_SPOT_CLEAR, M_SPOT_UNSAVED,
 )}
 
 #: Paragraphs appended to another message rather than shown on their own.

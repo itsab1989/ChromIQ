@@ -879,11 +879,26 @@ class DeviceReader:
         patch refused".
         """
         try:
-            from .tile_learning import learned_signature
+            from .tile_learning import adopt_address_key, learned_signature
+            # THE IDENTITY IS THE UNIT, THE ADDRESS IS A LOCATOR.
+            #
+            # A signature learned on the Bluetooth fast path before ChromIQ
+            # could name the connected unit is filed under `ble:<address>`, and
+            # the same instrument over USB never found it (Knut, 2026-09-03).
+            # `ble.py` now asks a CONNECTED peripheral what it is called, so
+            # the moment below is the one moment the two keys can be reconciled
+            # with proof rather than a guess: this link is that address, and
+            # the device has just named itself over it.
+            uid = getattr(dev, "unit_id", None)
+            address = getattr(getattr(dev, "_t", None), "address", None)
+            if uid and address:
+                adopt_address_key(address, str(uid))
             # The device's own id, set by `identify()`, is the real key. Over
-            # USB that is the unit's serial; over Bluetooth there is none on
-            # the fast path, and `learned_signature` then arms only if exactly
-            # one instrument has ever been learned here.
+            # USB that is the unit's serial; over Bluetooth it is the same
+            # string, read from the advertisement or from the open connection.
+            # Only when neither is available does the address stand in, and
+            # `learned_signature` then arms only if exactly one instrument has
+            # ever been learned here.
             self.unit_id = self._signature_key(dev) or self.unit_id
             dev.learned_tile = learned_signature(self.unit_id)
             if dev.learned_tile:
