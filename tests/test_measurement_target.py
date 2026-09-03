@@ -89,10 +89,18 @@ def test_verification_blocked_reason_hole1(tmp_path):
     assert verification_blocked_reason(proj, t) is None
 
 
-def test_verify_tool_dirs_cascade(tmp_path, monkeypatch):
+def test_verify_tool_dirs_cascade(tmp_path, monkeypatch,
+                                  the_real_default_output_root):
     from pathlib import Path
     from core.measurement_target import verify_tool_dirs
     # No project → ~/ChromIQ for both.
+    #
+    # `the_real_default_output_root` because this test is ABOUT the fallback.
+    # The suite points `CHROMIQ_OUTPUT_ROOT` at a sandbox so that no test can
+    # reach the owner's real projects by accident, and with it in place a fake
+    # `Path.home` is no longer what `default_output_root()` answers. The fixture
+    # lifts the redirect for this one test; it does not lift the ~/ChromIQ
+    # guards, and nothing here writes anywhere but tmp_path.
     home = tmp_path / "home"
     monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
     prof, meas = verify_tool_dirs(None)

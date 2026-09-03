@@ -70,6 +70,7 @@ from workflow.profcheck_runner import (
     write_refine_strips,
 )
 from core.i18n import tr
+from core.platform_paths import default_output_root
 
 
 def _scanner_tip_on_dark() -> bool:
@@ -1278,7 +1279,7 @@ class TabCheckRefine(QWidget):
         # was still written loose beside the file instead of in the run.
         _in_place = False
         _work = Path(self._settings.get("custom_output_path", "")
-                     or (Path.home() / "ChromIQ"))
+                     or (default_output_root()))
         if _project_root_for(_picked, _work) is None:
             # Outside every project: ask, in this tab's own accent, and offer
             # to check it where it lies (§2 of the amendment).

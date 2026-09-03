@@ -13,7 +13,33 @@ import time
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-HELPER = REPO / "native" / "chartread_helper" / "build" / "chromiq-chartread"
+
+
+def _helper() -> Path:
+    """The chart-reading helper, found the way the APP finds it.
+
+    This was one path - the CMake build tree, which is gitignored. A worktree,
+    a fresh clone and any CI runner therefore have no helper, and the nine
+    files that drive the real engine skip WHOLESALE: 85 tests, in silence, with
+    only the run total to notice it by. Measured 2026-09-03 in a worktree of
+    the very commit a release was being judged on: 9,867 passed / 227 skipped,
+    against 9,952 / 142 on the machine that happened to have built it.
+
+    `workflow.chartread_engine.helper_path()` has always looked in a second
+    place - `native/chromiq-chartread`, the binary that is COMMITTED and that
+    the app actually ships. The suite looked in neither that one nor at
+    `$CHROMIQ_CHARTREAD`. Asking the app where its own helper is means the
+    tests run against the binary the user gets, and on a healthy checkout they
+    run at all.
+    """
+    try:
+        from workflow.chartread_engine import helper_path
+        return Path(helper_path())
+    except Exception:                       # noqa: BLE001 - EngineUnavailable
+        return REPO / "native" / "chartread_helper" / "build" / "chromiq-chartread"
+
+
+HELPER = _helper()
 
 
 def parse_ti2_rows(ti2_path: Path) -> tuple[int, dict[str, list[tuple[float, float, float]]]]:

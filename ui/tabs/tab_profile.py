@@ -64,6 +64,7 @@ log = get_logger(__name__)
 _TAB_COLOR = "#37bcd6"  # Build Profile tab accent
 from ui.styles import SPEC_CYAN, TAB_COLORS
 from core.i18n import tr
+from core.platform_paths import default_output_root
 
 # ---------------------------------------------------------------------------
 # Profile Metadata tooltips (shared by the guided and manual panels).
@@ -4220,7 +4221,7 @@ class TabProfile(QWidget):
             target = self._ti3_path.parent
         else:
             custom = str(self._settings.get("custom_output_path", "")).strip()
-            target = Path(custom).expanduser() if custom else Path.home() / "ChromIQ"
+            target = Path(custom).expanduser() if custom else default_output_root()
         reveal_in_file_manager(target)
 
     def _convert_for_import(self, src: Path) -> "Path | None":
@@ -4361,7 +4362,7 @@ class TabProfile(QWidget):
         _ask_about = _converted or p
         from ui.ti2_loader import _project_root_for as _root_for
         _wd = self._settings.get("custom_output_path", "") or None
-        _root = Path(_wd) if _wd else Path.home() / "ChromIQ"
+        _root = Path(_wd) if _wd else default_output_root()
         if _root_for(p, _root) is None and \
                 self._offer_import_into_a_project(_ask_about):
             return

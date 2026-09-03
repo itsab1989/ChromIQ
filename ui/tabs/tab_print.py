@@ -86,6 +86,7 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 from ui.styles import SPEC_AMBER, TAB_COLORS
 from core.i18n import tr
+from core.platform_paths import default_output_root
 
 
 _TT_TITLE_PRINT = "Step 2 — Print the chart"
@@ -1439,7 +1440,7 @@ class TabPrint(QWidget):
             target = Path(ti2).parent
         else:
             custom = str(self._settings.get("custom_output_path", "")).strip()
-            target = Path(custom).expanduser() if custom else Path.home() / "ChromIQ"
+            target = Path(custom).expanduser() if custom else default_output_root()
         reveal_in_file_manager(target)
 
     def _on_load_ti2(self) -> None:

@@ -119,6 +119,34 @@ def argyll_download_page() -> str:
 # Filesystem locations
 # ---------------------------------------------------------------------------
 
+def default_output_root() -> Path:
+    """Where projects live when "custom output path" has not been set.
+
+    ONE definition, and this is the whole point of it. Nineteen places, in fourteen
+    files, built ``Path.home() / "ChromIQ"`` for themselves, so
+    ``custom_output_path`` defaulting to ``""`` meant nineteen independent doors
+    into the developer's own projects folder - and the suite could only shut them one at a time, by
+    each test remembering to pin the setting. It did not: on 2026-08-28 a gate
+    run was found rewriting a whole run of the owner's own project, and on
+    2026-09-03 his ``scanner-test-targets/.provisioned.json`` still carried a
+    gate run's timestamp.
+
+    ``CHROMIQ_OUTPUT_ROOT`` moves the fallback, so ``tests/conftest.py`` can
+    shut all nineteen with one line and a driver script can sandbox the working
+    folder the same way it already sandboxes the settings
+    (``CHROMIQ_SETTINGS_FILE``) and the presets (``CHROMIQ_PRESETS_DIR``).
+    Unset, nothing changes.
+
+    It moves the DEFAULT only. A ``custom_output_path`` the user has actually
+    set still wins, because that is the user's answer and this is only the
+    answer for when there is none.
+    """
+    override = os.environ.get("CHROMIQ_OUTPUT_ROOT")
+    if override:
+        return Path(override)
+    return Path.home() / "ChromIQ"
+
+
 def log_dir() -> Path:
     """Directory where ChromIQ writes its rotating log file."""
     if is_windows():

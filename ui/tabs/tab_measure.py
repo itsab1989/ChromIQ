@@ -171,6 +171,7 @@ from workflow.scanin_target import has_scanner_geometry
 from ui.tiff_preview import TiffPreview
 from core.i18n import tr
 from core.text_io import read_text
+from core.platform_paths import default_output_root
 
 if TYPE_CHECKING:
     from core.argyll_runner import ArgyllRunner
@@ -12843,7 +12844,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             target = self._ti1_path.parent
         else:
             custom = str(self._settings.get("custom_output_path", "")).strip()
-            target = Path(custom).expanduser() if custom else Path.home() / "ChromIQ"
+            target = Path(custom).expanduser() if custom else default_output_root()
         reveal_in_file_manager(target)
 
     def _maybe_save_measurement_report(self, ti3) -> None:

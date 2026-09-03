@@ -35,6 +35,7 @@ from typing import Any
 
 from core.logger import get_logger
 from core.resource_path import resource_path
+from core.platform_paths import default_output_root
 
 log = get_logger("i18n")
 
@@ -72,7 +73,7 @@ def user_i18n_dir() -> Path:
     except Exception:
         pass
     if root is None:
-        root = Path.home() / "ChromIQ"
+        root = default_output_root()
     return root / "i18n"
 
 

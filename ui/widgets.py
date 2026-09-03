@@ -12,6 +12,7 @@ from PyQt6.QtGui import QColor, QFont, QIcon, QPainter, QPainterPath, QPalette, 
 from core.i18n import tr
 from core.name_order import name_sort_key
 from core.logger import get_logger
+from core.platform_paths import default_output_root
 import weakref
 
 from PyQt6.QtWidgets import (
@@ -2571,7 +2572,7 @@ def chromiq_root_dir() -> Path:
         custom = AppSettings().get("custom_output_path", "")
     except Exception:      # noqa: BLE001 — a file dialog is never worth a crash
         custom = ""
-    return Path(custom) if custom else Path.home() / "ChromIQ"
+    return Path(custom) if custom else default_output_root()
 
 
 def _is_dir_safe(path: Path) -> bool:

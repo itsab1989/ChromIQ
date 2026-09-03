@@ -485,6 +485,7 @@ _STRIP_INSTRUMENTS = frozenset({"i1", "3p"})
 from data.patch_db import PAPER_LABELS, PAPER_PRINTTARG_ARG, paper_name_token
 from core.i18n import count_phrase, tr
 from core.text_io import read_text
+from core.platform_paths import default_output_root
 from ui.keyboard_help import with_shortcut
 
 
@@ -1624,7 +1625,7 @@ class _NewChartDialog(QDialog):
     def _browse_precond(self) -> None:
         from ui.widgets import icc_profile_paths
         start = (self._settings.get("custom_output_path", "")
-                 if self._settings else "") or str(Path.home() / "ChromIQ")
+                 if self._settings else "") or str(default_output_root())
         path = open_file_dialog(
             self, tr("Choose preconditioning profile"),
             "ICC profiles (*.icc *.icm)", start_dir=start,
@@ -5321,7 +5322,7 @@ class Ti2RelayoutDialog(QDialog):
 
     def _load_ti2(self) -> None:
         start = (self._settings.get("custom_output_path", "")
-                 or str(Path.home() / "ChromIQ"))
+                 or str(default_output_root()))
         path = open_file_dialog(
             self, "Load chart",
             "Charts & colour files (*.ti2 *.ti1 *.ti3 *.cgats *.txt);;"
@@ -6172,7 +6173,7 @@ class Ti2RelayoutDialog(QDialog):
             return
         as_hex = fmt.startswith("Hex")
         start = (self._settings.get("custom_output_path", "")
-                 or str(Path.home() / "ChromIQ"))
+                 or str(default_output_root()))
         default_name = f"{self._basename or 'chart'}-colours.txt"
         path = save_file_dialog(
             self, "Save patch colours",
@@ -6220,7 +6221,7 @@ class Ti2RelayoutDialog(QDialog):
 
         prog = self._program_from_grid()
         start = (self._settings.get("custom_output_path", "")
-                 or str(Path.home() / "ChromIQ"))
+                 or str(default_output_root()))
         default_name = f"{self._basename or 'chart'}-i1profiler"
         path = save_file_dialog(
             self, "Export i1Profiler files",
@@ -7492,7 +7493,7 @@ class Ti2RelayoutDialog(QDialog):
         loc_row = QHBoxLayout()
         loc_row.addWidget(QLabel(tr("Location:"), dlg))
         start = (self._settings.get("custom_output_path", "")
-                 or str(Path.home() / "ChromIQ"))
+                 or str(default_output_root()))
         loc_edit = QLineEdit(start, dlg)
         loc_row.addWidget(loc_edit, 1)
         browse = QPushButton(tr("Browse…"), dlg)

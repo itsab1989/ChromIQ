@@ -17,6 +17,7 @@ from core.logger import get_logger
 from core.name_order import sort_names
 from core.resource_path import resource_path
 from core.text_io import read_text
+from core.platform_paths import default_output_root
 
 log = get_logger(__name__)
 
@@ -173,7 +174,7 @@ def user_targets_dir(settings) -> Path:
     ``.cht`` in here OVERRIDES the bundled one (Knut, beta.5) — that's how a
     user-modified recognition file takes effect."""
     custom = (settings.get("custom_output_path", "") or "") if settings else ""
-    root = Path(custom) if custom else Path.home() / "ChromIQ"
+    root = Path(custom) if custom else default_output_root()
     return root / "scanner-test-targets"
 
 

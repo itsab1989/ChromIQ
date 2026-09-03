@@ -23,15 +23,24 @@ import pathlib
 import shutil
 import signal
 import subprocess
+import sys
 import threading
 import time
 
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-BIN = ROOT / "native" / "chartread_helper" / "build" / "chromiq-chartread"
+# THROUGH THE APP'S OWN SEARCH ORDER, not a second hard-coded copy of the
+# build path. This file had its own `ROOT / "native" / "chartread_helper" /
+# "build" / …`, so it skipped WHOLESALE on every worktree, fresh clone and CI
+# runner - which is where `native/chromiq-chartread`, the binary that actually
+# ships, has been sitting all along. `tests/helpers/replay_tools.py` asks
+# `workflow.chartread_engine.helper_path()`; asking it here too means there is
+# one answer to "where is the helper" instead of three.
+sys.path.insert(0, str(ROOT / "tests" / "helpers"))
+from replay_tools import HELPER as BIN                       # noqa: E402
 pytestmark = pytest.mark.skipif(
-    not BIN.is_file(), reason="needs the built chromiq-chartread helper")
+    not BIN.is_file(), reason="chromiq-chartread helper not built")
 
 #: The chart these tests read, GENERATED rather than borrowed.
 #:

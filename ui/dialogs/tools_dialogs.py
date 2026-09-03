@@ -46,6 +46,7 @@ from datetime import datetime
 
 from core.i18n import tr
 from core.logger import get_logger
+from core.platform_paths import default_output_root
 from ui.fade_scroll import FadeScrollArea
 from ui.spectrum_progress import SpectrumSegmentsBar
 from ui.styles import (
@@ -265,7 +266,7 @@ log = get_logger(__name__)
 
 def _working_dir(settings: "AppSettings") -> Path:
     custom = settings.get("custom_output_path", "")
-    return Path(custom) if custom else Path.home() / "ChromIQ"
+    return Path(custom) if custom else default_output_root()
 
 
 def _last_dir_key(tool_key: str) -> str:
