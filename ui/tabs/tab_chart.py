@@ -73,6 +73,7 @@ from ui.tooltip_button import InfoDialog, TooltipButton
 from ui.widgets import add_log_row, fit_log_height, CollapsibleGroupBox, NoScrollComboBox, NoScrollSpinBox, PatchGridButton, PrefixLockedLineEdit, icc_profile_paths, load_magenta_folder_icon, make_browse_button, open_file_dialog, reapply_ink, set_folder_icon, set_ink, set_preset_icon
 from core.i18n import count_phrase, tr
 from core.text_io import read_text
+from core.platform_paths import default_output_root
 from workflow.i1profiler_export import EXTRA_INK, export_from_ti1, parse_ti1
 from workflow.i1profiler_import import import_to_ti1
 from workflow.chart_creator import (
@@ -3290,7 +3291,7 @@ class TabChart(QWidget):
             target = self._margin_ti2.parent
         else:
             custom = str(self._settings.get("custom_output_path", "")).strip()
-            target = Path(custom).expanduser() if custom else Path.home() / "ChromIQ"
+            target = Path(custom).expanduser() if custom else default_output_root()
         reveal_in_file_manager(target)
 
     def _warn_if_hexagonal_selected(self, *_a) -> None:

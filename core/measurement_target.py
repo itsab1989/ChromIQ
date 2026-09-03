@@ -14,6 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from core.file_manager import Project, Run, Verification
+from core.platform_paths import default_output_root
 
 RUN_TYPE_PROFILING = "profiling"
 RUN_TYPE_VERIFICATION = "verification"
@@ -141,7 +142,7 @@ def verify_tool_dirs(project: "Project | None",
     Both fall back to ``~/ChromIQ`` when no project is loaded, so the dialog
     always opens somewhere sensible."""
     from pathlib import Path
-    home = Path.home() / "ChromIQ"
+    home = default_output_root()
     if project is None:
         return home, home
     run = (resolve_run(project, target) if target is not None

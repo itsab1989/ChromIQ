@@ -500,6 +500,7 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
     those, in a green run, as evidence of a crash. So the difference is spelt
     out here instead of being left to be re-derived.
     """
+    _skip_census(terminalreporter, config)
     if not _CRASHED_WORKERS:
         return
     w = terminalreporter
@@ -589,6 +590,7 @@ def pytest_sessionstart(session):
     """
     if hasattr(session.config, "workerinput"):
         return                               # an xdist worker, not the master
+    _say_it_even_when_quiet(session)
     folders, freed = _sweep_stale_temp_dirs()
     if folders:
         print(f"\n[cleanup] removed {folders} leftover temp folder(s) from "
@@ -669,6 +671,25 @@ def _never_touch_the_real_chromiq_folder():
     )
 
 
+@pytest.fixture
+def the_real_default_output_root(monkeypatch):
+    """The opt-in for a test that is ABOUT the default output root.
+
+    `pytest_configure` points `CHROMIQ_OUTPUT_ROOT` at a sandbox so no test can
+    reach the owner's real `~/ChromIQ` by accident. A handful of tests exist to
+    prove what the fallback IS, and they cannot do that with the fallback
+    moved. Ask for this fixture and the override is lifted for the one test.
+
+    It lifts the override, not the guards: `_never_touch_the_real_chromiq_
+    folder` and `_no_gate_run_may_rewrite_the_real_chromiq_folder` both compute
+    the real folder from `Path.home()` directly and still fail a test that
+    WRITES there. So this is a licence to look, never to touch.
+    """
+    monkeypatch.delenv("CHROMIQ_OUTPUT_ROOT", raising=False)
+    from core.platform_paths import default_output_root
+    return default_output_root()
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _no_gate_run_may_rewrite_the_real_chromiq_folder():
     """Fail the RUN if it changed anything inside the user's real ~/ChromIQ.
@@ -744,6 +765,8 @@ def _no_gate_run_may_rewrite_the_real_chromiq_folder():
 def pytest_configure(config):
     import tempfile
 
+    _enforce_the_helper(config)
+
     from PyQt6.QtCore import QSettings
 
     import core.settings as _cs
@@ -758,6 +781,27 @@ def pytest_configure(config):
     # test does today and it patches correctly, but nothing enforced that.
     os.environ.setdefault(
         "CHROMIQ_PRESETS_DIR", str(sandbox / "presets"))
+
+    # …AND THE FALLBACK ITSELF, which is the door the two fixes below could
+    # never shut.
+    #
+    # Seeding `custom_output_path` in the ini and moving `DEFAULTS` covers
+    # `AppSettings` and every double built from `DEFAULTS`. It does NOT cover a
+    # hand-written double whose store is its own dict (`.get("custom_output_
+    # path", "")` answers ""), a `settings=None`, or the nineteen places, in
+    # fourteen files, that built `Path.home() / "ChromIQ"` for themselves and
+    # never asked the settings at all. Each of those was a separate door into the owner's real
+    # projects folder, and the suite could only shut them one test at a time.
+    #
+    # `core.platform_paths.default_output_root()` is now the single definition
+    # of that fallback, and `CHROMIQ_OUTPUT_ROOT` moves it. One line, all
+    # nineteen, whatever kind of settings object a test happens to hold.
+    #
+    # A test that genuinely needs the real default asks for the
+    # `the_real_default_output_root` fixture, which unsets it for that test
+    # only. Nothing else should.
+    os.environ.setdefault(
+        "CHROMIQ_OUTPUT_ROOT", str(sandbox / "projects"))
 
     # …AND THE WORKING FOLDER ITSELF, which the QSettings sandbox alone does NOT
     # cover and which is the mechanism that has actually cost data.
@@ -826,6 +870,248 @@ def pytest_configure(config):
 def pytest_addoption(parser):
     parser.addoption("--runslow", action="store_true", default=False,
                      help="also run the slow end-to-end build tests")
+    parser.addoption("--allow-missing-helper", action="store_true",
+                     default=False,
+                     help="let a --runslow run continue without the "
+                          "chromiq-chartread helper. The run then proves "
+                          "nothing about the chart-reading engine.")
+
+
+# ---------------------------------------------------------------------------
+# WHAT A RUN CAN AND CANNOT PROVE - SAID AT THE TOP, EVERY TIME
+# ---------------------------------------------------------------------------
+# The gate header named the platform, PyQt, the plugins and the worker count,
+# and said nothing about the two things that decide how much of the suite
+# actually ran. Both had already cost a wrong claim in writing:
+#
+# * `tests/test_chartread_engine.py` and seven other files carry a MODULE-LEVEL
+#   `skipif` on a GITIGNORED build artefact, and an eighth skips part of itself
+#   on the same thing. Absent, 85 tests skip. A worktree,
+#   a fresh clone and any CI runner are the normal case for that artefact, and
+#   the only trace in the log is the total - so "the helper was present so
+#   nothing was silently skipped" was an inference from a remembered number,
+#   not something the run had said. Measured 2026-09-03 in a worktree of the
+#   same commit: 9,867 passed / 227 skipped, against 9,952 / 142 on the machine
+#   that had the helper. Same tree, 85 fewer tests, nothing said.
+#
+# * At least fourteen files skip on BUILD SHAPE - "no engine panel in this
+#   build", "this build has no row-indicator checkbox". Those turn a REMOVAL
+#   into a pass, which is the one thing a suite must never do quietly.
+#
+# So the header states the capability facts up front, and the census at the end
+# groups every skip the run actually took by reason. Anything the census cannot
+# place is reported as UNCATEGORISED rather than folded into a bucket, so the
+# categorisation cannot rot without saying so.
+
+def _helper_path() -> "pathlib.Path | None":
+    """Where the chart-reading helper is, through the app's own search order."""
+    sys.path.insert(0, str(pathlib.Path(__file__).parent / "helpers"))
+    try:
+        from replay_tools import HELPER
+    except Exception:                      # noqa: BLE001
+        return None
+    return HELPER if HELPER and HELPER.exists() else None
+
+
+#: Reason-text patterns, most specific first. `None` marks the bucket a reason
+#: has to be placed in by hand; everything unmatched is reported as
+#: UNCATEGORISED so this table cannot silently go stale.
+_SKIP_BUCKETS: tuple = (
+    ("BUILD SHAPE - a removed feature would pass as a skip", (
+        "in this build", "this build", "not available in this build",
+        "no engine panel", "no layout panel", "no manual printtarg widgets",
+        "no row-indicator checkbox", "no free-text row", "panel shape",
+        "not shown in this state", "does not open the dialog itself",
+        "no target controller", "no picker for this target type",
+        "toggle not present", "could not resolve run1",
+    )),
+    ("the helper is not built", (
+        "chromiq-chartread helper not built", "bundled helper not present",
+        "helper source not in this checkout", "no pinned helper source line",
+    )),
+    # BEFORE the Argyll bucket, and this order was earned. The census's first
+    # real run reported 121 of its 155 skips as "ArgyllCMS is not installed
+    # here" - on a machine where Argyll IS installed - because
+    # "engine-built preset - printtarg not used" contains the word `printtarg`.
+    # It is not a missing tool, it is a parametrised case that does not apply,
+    # and it is the single largest reason in the whole run. The census caught
+    # its own mislabelling the first time it was looked at, which is the
+    # argument for printing it at all.
+    ("the case does not arise for this input", (
+        "engine-built preset", "the list fits", "does not fit this page",
+        "nothing to scroll", "not translated in this catalogue",
+        "no recorded count",
+    )),
+    ("ArgyllCMS is not installed here", (
+        "argyll", "targen", "printtarg", "colprof", "scanin", "colverify",
+        "ref/",
+    )),
+    ("the platform cannot show it", (
+        "offscreen", "windows", "macos", "symlink", "case-insensitive",
+        "webengine", "freetype", "font", "no print queue", "hdiutil",
+    )),
+    ("a data file is not on this machine", (
+        "not available (see module docstring)", "fixture missing",
+        "not present on this machine", "not on this machine",
+        "example not present", "example incomplete", "not present",
+        "not in ref/", "not found under",
+    )),
+    ("the slow tier was not asked for", ("use --runslow",)),
+)
+
+
+def _skip_bucket(reason: str) -> str:
+    low = (reason or "").lower()
+    for name, needles in _SKIP_BUCKETS:
+        for n in needles:
+            if n in low:
+                return name
+    return "UNCATEGORISED - nobody has said what this one means"
+
+
+def _skip_census(terminalreporter, config) -> None:
+    """Every skip this run took, grouped by what it means.
+
+    A number on its own ("142 skipped") is the thing that let a removal hide:
+    it is the same number whether the suite chose not to test something or
+    could not find the feature to test. Grouping says which.
+    """
+    # `getattr`, because tests build reporter doubles: the census is a
+    # courtesy and must never be the reason a summary hook explodes.
+    reports = (getattr(terminalreporter, "stats", None) or {}).get(
+        "skipped", [])
+    if not reports:
+        return
+    buckets: dict = {}
+    for rep in reports:
+        reason = ""
+        lr = getattr(rep, "longrepr", None)
+        if isinstance(lr, tuple) and len(lr) == 3:
+            reason = str(lr[2])
+        reason = reason.replace("Skipped: ", "").strip()
+        where = ""
+        if isinstance(lr, tuple) and len(lr) == 3:
+            where = str(lr[0])
+        buckets.setdefault(_skip_bucket(reason), []).append((reason, where))
+
+    w = terminalreporter
+    total = sum(len(v) for v in buckets.values())
+    w.write_sep("=", f"WHAT THIS RUN DID NOT TEST - {total} skips", bold=True)
+    shape = next((k for k in buckets if k.startswith("BUILD SHAPE")), None)
+    unknown = next((k for k in buckets if k.startswith("UNCATEGORISED")), None)
+    order = sorted(buckets, key=lambda k: (k is not shape, k is not unknown,
+                                           -len(buckets[k])))
+    for name in order:
+        rows = buckets[name]
+        loud = name is shape or name is unknown
+        w.write_line(f"  {len(rows):4d}  {name}", red=loud, bold=loud)
+        seen: dict = {}
+        for reason, where in rows:
+            seen[reason] = seen.get(reason, 0) + 1
+        for reason, n in sorted(seen.items(), key=lambda kv: -kv[1])[:8]:
+            w.write_line(f"          {n:3d} x {reason[:96]}")
+        if len(seen) > 8:
+            w.write_line(f"          … and {len(seen) - 8} more distinct "
+                         f"reasons")
+    if shape:
+        w.write_line("")
+        w.write_line("  A BUILD-SHAPE skip asks whether a widget is there and "
+                     "steps aside when it is not,", red=True)
+        w.write_line("  so deleting the feature turns its test green. Those "
+                     f"{len(buckets[shape])} are not evidence of anything.",
+                     red=True)
+    if unknown:
+        w.write_line("")
+        w.write_line("  An UNCATEGORISED skip is one nobody has classified. "
+                     "Add it to _SKIP_BUCKETS", red=True)
+        w.write_line("  in tests/conftest.py, or fix the test.", red=True)
+    w.write_line("")
+
+
+def pytest_report_header(config):
+    helper = _helper_path()
+    gate = bool(config.getoption("--runslow"))
+    out = ["", "what this run can and cannot prove:"]
+    if helper is not None:
+        out.append(f"  chart-reading engine: helper PRESENT at {helper}")
+    else:
+        out.append("  chart-reading engine: helper ABSENT - 8 files SKIP "
+                   "WHOLESALE and 1 more skips in")
+        out.append("      part (85 tests when this was last measured, "
+                   "2026-09-03), and a chart-reading")
+        out.append("      engine deleted outright would still pass. The "
+                   "census at the end of this run")
+        out.append("      says how many it actually was.")
+        out.append("      Build it: cmake -S native/chartread_helper "
+                   "-B native/chartread_helper/build && \\")
+        out.append("                cmake --build native/chartread_helper/build")
+    out.append(f"  tier: {'--runslow (THE RELEASE GATE)' if gate else 'everyday (the slow tier is skipped, this is NOT a gate)'}")
+    out.append(f"  output root: {os.environ.get('CHROMIQ_OUTPUT_ROOT', 'NOT SANDBOXED - the real ~/ChromIQ')}")
+    out.append("  a census of every skip this run took, grouped by reason, "
+               "is printed at the end.")
+    return out
+
+
+def _say_it_even_when_quiet(session):
+    """…and say it under `-q` too, which is how the gate is actually run.
+
+    `pytest_report_header` is the canonical place and pytest DISCARDS it at
+    `-q`: the hook is called and nothing is printed. The 41 gate logs on the
+    Desktop were all run at normal verbosity and so WOULD have shown it - that
+    much I checked rather than assumed - but `-q` is an ordinary way to drive
+    this suite and is how every run in this task was driven. A header that
+    disappears depending on a flag is not a header anyone can rely on.
+
+    It also has to fire under xdist, and that is why this hangs off
+    `pytest_sessionstart` rather than `pytest_collection_finish` - the first
+    version used the latter, printed perfectly at `-n0`, and printed NOTHING in
+    the `-n auto` gate, because the xdist controller does not run that hook.
+    Which is the same failure as the one this whole file is about: a check that
+    is absent exactly where it was needed, and looks fine everywhere else.
+
+    Controller only: a worker has no `terminalreporter` plugin, so `get_plugin`
+    answers None there and this is not printed twelve times over.
+    """
+    tr = session.config.pluginmanager.get_plugin("terminalreporter")
+    if tr is None or getattr(tr, "verbosity", 0) >= 0:
+        return                       # the header hook has already shown it
+    for line in pytest_report_header(session.config):
+        tr.write_line(line)
+
+
+def _enforce_the_helper(config):
+    """A release gate that quietly drops 85 tests is not a gate.
+
+    Judgement, and it is a judgement: a plain `pytest` stays GREEN without the
+    helper, because a fresh clone and a CI runner are the normal case for a
+    gitignored build artefact and a hard failure there would only teach people
+    to delete the check. `--runslow` is different - CLAUDE.md defines it as the
+    thing a merge or release decision rests on, no CI runs it, and the helper
+    is now resolved through the app's own search order, so on a healthy tree it
+    is found even when nothing has been built. Missing it therefore means the
+    tree is broken, not that the machine is ordinary.
+
+    `--allow-missing-helper` still lets a gate run finish, loudly.
+    """
+    if not config.getoption("--runslow"):
+        return
+    if _helper_path() is not None:
+        return
+    if config.getoption("--allow-missing-helper"):
+        return
+    raise pytest.UsageError(
+        "--runslow is the release gate, and the chromiq-chartread helper is "
+        "not here.\n"
+        "Eight files would skip WHOLESALE in silence and one more in part "
+        "(85 tests when\n"
+        "this was last measured), and a chart-reading engine deleted outright "
+        "would pass.\n"
+        "Build it:\n"
+        "    cmake -S native/chartread_helper -B native/chartread_helper/build\n"
+        "    cmake --build native/chartread_helper/build\n"
+        "or pass --allow-missing-helper to run the gate knowing it cannot "
+        "prove that part."
+    )
 
 
 def pytest_collection_modifyitems(config, items):

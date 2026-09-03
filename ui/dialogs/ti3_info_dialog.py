@@ -34,6 +34,7 @@ from PyQt6.QtWidgets import (
 
 from core.i18n import tr
 from core.logger import get_logger
+from core.platform_paths import default_output_root
 from ui import neutral_styles
 from ui.dialog_sizing import pin_min_height
 from ui.dialogs.tools_dialogs import neutral_controls_qss
@@ -101,7 +102,7 @@ def _chromiq_root(settings) -> Path:
         custom = settings.get("custom_output_path", "") if settings else ""
     except Exception:      # noqa: BLE001 — a browse must never fail on this
         custom = ""
-    root = Path(custom).expanduser() if custom else Path.home() / "ChromIQ"
+    root = Path(custom).expanduser() if custom else default_output_root()
     return root if root.exists() else Path.home()
 
 

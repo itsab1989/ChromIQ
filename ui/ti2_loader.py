@@ -15,6 +15,7 @@ from core.logger import get_logger
 from core.measurement_target import (RUN_TYPE_PROFILING, RUN_TYPE_VERIFICATION,
                                      MeasurementTarget)
 import workflow.chart_import as _chart_import
+from core.platform_paths import default_output_root
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QWidget
@@ -1143,7 +1144,7 @@ def resolve_ti3(
 
 def _resolve_working_dir(settings: "AppSettings") -> Path:
     custom = settings.get("custom_output_path", "")
-    return Path(custom) if custom else Path.home() / "ChromIQ"
+    return Path(custom) if custom else default_output_root()
 
 
 def _project_root_for(path: Path, working_dir: Path) -> Path | None:

@@ -49,6 +49,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 
 from core.logger import get_logger
+from core.platform_paths import default_output_root
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
@@ -1059,8 +1060,10 @@ class Calibration:
 
         Still defined by subtraction, which is what makes it safe: a list of
         stems and suffixes would go stale the first time a new sidecar is added
-        — ``.strips.json`` and ``.print.json`` have both been forgotten by such
-        a list already (``Run.chart_artefact_names``) — whereas "live, not a
+        - ``.strips.json`` and ``.print.json`` were both forgotten by such a
+        list (``Run.chart_artefact_names``), and this note named the second one
+        for weeks while the list two hundred lines below still had the hole:
+        naming a bug is not fixing it - whereas "live, not a
         measurement, and named after this calibration" covers a sidecar nobody
         has invented yet, because ChromIQ names it after the calibration like
         everything else it writes there.
@@ -1685,8 +1688,12 @@ class Run:
         return v
 
     #: Chart-file extensions moved when a generated chart becomes a verify chart.
+    #: `.print.json` travels with the chart here for the same reason it does in
+    #: DUPLICATE_GROUPS: it describes how THIS chart was printed, so a chart
+    #: that moves and a record that stays behind is a record filed against
+    #: whatever chart lands on that stem next.
     _CHART_EXTS = (".ti1", ".ti2", ".cht", ".ps", ".channels.json",
-                   ".strips.json", ".cie", ".pdf")
+                   ".strips.json", ".cie", ".pdf", ".print.json")
 
     def adopt_run_chart_as_verify(self) -> "Path | None":
         """Move a just-generated chart from the run root into ``verifications/``
@@ -1868,10 +1875,21 @@ class Run:
         `_02.tif` and `_03.tif` behind, because putting a chart back only walks
         the STASH, and a page the old chart never had is not in it. The run then
         showed three pages for a one-page `.ti2`.
+
+        `.print.json` is on this list because it is the record of how THIS
+        chart was printed - the colour handling, the intent, the queue. Left
+        behind by a regenerate it becomes the old chart's record sitting beside
+        the new chart, and the measurement report reads it
+        (`workflow/measurement_report.py`, via `read_print_record`) and states
+        a provenance for a sheet that was never printed that way. Same class of
+        fault as a print record written for a job that was refused. The comment
+        at `Calibration.chart_files` has named this list and this omission by
+        name since the sidecar was added; the list is what needed changing.
         """
         s = self.stem
         return [f"{s}.ti1", f"{s}.ti2", f"{s}.cht", f"{s}.cie", f"{s}.ps",
-                f"{s}.pdf", f"{s}.channels.json", f"{s}.strips.json"]
+                f"{s}.pdf", f"{s}.channels.json", f"{s}.strips.json",
+                f"{s}.print.json"]
 
     def settle_chart_stash(self, stash: "Path | None", *, built: bool) -> None:
         """Finish what :meth:`reset_chart_artefacts` started.
@@ -1985,6 +2003,7 @@ class Run:
             f"{s}.ti1", f"{s}.ti2", f"{s}.cht", f"{s}.cie", f"{s}.ps",
             f"{s}.pdf",                  # vector-PDF export (was left stale, Basti)
             f"{s}.channels.json", f"{s}.strips.json",
+            f"{s}.print.json",           # how the chart that is GOING was printed
         ) + ((
             f"{s}.ti3",                  # the measurement (chartread output)
             f"{s}.ti3.engine-partial",   # …and the engine partial beside it
@@ -3156,7 +3175,7 @@ class FileManager:
     # ---- folder resolution
     def root_dir(self) -> Path:
         custom = self._settings.get("custom_output_path", "")
-        return Path(custom) if custom else Path.home() / "ChromIQ"
+        return Path(custom) if custom else default_output_root()
 
     def working_dir(self) -> Path:
         # A nested project (opened from a sub-folder) resolves at its actual
