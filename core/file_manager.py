@@ -3165,9 +3165,32 @@ class FileManager:
         papertype: str = "Type",
         instrument: str = "Instr",
     ) -> str:
+        """The name ChromIQ suggests when nobody has typed one.
+
+        THE APP MUST NOT PROPOSE A NAME IT WOULD THEN REFUSE. Four real
+        descriptions joined together get long — "Canon PIXMA PRO-300 series",
+        "Hahnemuehle Photo Rag 308", "Matte Fine Art" and "i1Pro 3 Plus" make
+        **97 characters**, against a cap of 80 (`core.path_budget`). Before that
+        cap existed the 120-byte one hid it; with the Windows path budget in
+        place, the suggestion would have been rejected by the door the moment
+        Generate was pressed, and the person would have been told to shorten a
+        name they never wrote.
+
+        So the DESCRIPTION is trimmed and the timestamp is kept whole: the
+        stamp is what makes two suggestions different from each other, and a
+        truncated one would make two builds a minute apart collide.
+        """
         ts = datetime.now().strftime("%Y-%m-%d_%H-%M")
-        parts = [printer, paper, papertype, instrument, ts]
-        return "_".join(cls._sanitise(p) for p in parts)
+        head = "_".join(cls._sanitise(p)
+                        for p in (printer, paper, papertype, instrument))
+        try:
+            from core.path_budget import name_budget
+            room = name_budget() - len(ts) - 1
+        except Exception:                # noqa: BLE001 — never fail to name
+            room = len(head)
+        if room > 0 and len(head) > room:
+            head = _TRAIL.sub("", head[:room].rstrip("-_."))
+        return f"{head}_{ts}"
 
     def _auto_name(self) -> str:
         return self.default_target_name()

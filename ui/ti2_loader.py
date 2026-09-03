@@ -1011,8 +1011,13 @@ def _ask_project_name(parent, default_name, working_dir):
         # (`<250 chars>_01.tif` is 257 bytes) and `CON` makes a folder Windows
         # cannot open. The sentence is `validate`'s own, in the error label
         # this dialog already has — no new wording reaches a user.
+        # `on_disk` — a name already on disk is a fixed point, and this window
+        # exists to REPLACE such a project, which reuses its paths rather than
+        # lengthening them. Without it, tightening the length cap for Windows
+        # would refuse to re-import into a project ChromIQ itself made under the
+        # older cap. See `core.path_budget`.
         from ui.dialogs.name_prompt import validate as _one_door
-        _why = _one_door(edit.text())
+        _why = _one_door(edit.text(), on_disk=_exists(name))
         if _why is not None:
             err.setText(_why); return
         if _exists(name) and not replace:
@@ -1479,9 +1484,18 @@ def _ask_profile_name(
         The TYPED text goes in, not the sanitised name — `validate` judges both,
         and a leading dot or a device name is a fact about what the person
         typed.
+
+        A NAME ALREADY ON DISK IS A FIXED POINT, so a name that is already a
+        project is judged without the LENGTH rule — the window's own job here
+        is to replace that project, which reuses its paths and adds nothing to
+        them. Without this, tightening the cap for Windows would refuse to
+        re-import into a project ChromIQ itself made under the older cap.
         """
+        from core.file_manager import is_a_project
         from ui.dialogs.name_prompt import validate as _one_door
-        return _one_door(name)
+        folder = _normalise(name)
+        return _one_door(name, on_disk=bool(folder)
+                         and is_a_project(working_dir / folder))
 
     def _on_name_changed(_text: str = "") -> None:
         name = _normalise(name_edit.text())

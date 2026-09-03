@@ -328,9 +328,18 @@ def _ask_profile_name(
         The TYPED text goes in, not the sanitised name — `validate` judges both,
         and a leading dot or a device name is a fact about what the person
         typed.
+
+        A NAME ALREADY ON DISK IS A FIXED POINT, so a name that is already a
+        project is judged without the LENGTH rule — the window's own job here
+        is to replace that project, which reuses its paths and adds nothing to
+        them. Without this, tightening the cap for Windows would refuse to
+        re-import into a project ChromIQ itself made under the older cap.
         """
+        from core.file_manager import is_a_project
         from ui.dialogs.name_prompt import validate as _one_door
-        return _one_door(name)
+        folder = _normalise(name)
+        return _one_door(name, on_disk=bool(folder)
+                         and is_a_project(working_dir / folder))
 
     def _on_name_changed(_text: str = "") -> None:
         name = _normalise(name_edit.text())
