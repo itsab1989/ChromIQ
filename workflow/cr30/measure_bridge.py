@@ -225,7 +225,11 @@ class Cr30MeasureBridge(QObject):
         #: cleared when its value goes out.
         self._awaiting_loc: "str | None" = None
         #: The patch a reading is being taken for, so a second prompt for the
-        #: same loc (an `ok`/`retry` echo) does not start a second read.
+        #: same loc (an `ok`/`retry` echo) does not start a second read. A
+        #: PROPERTY (below): assigning it also arms or disarms the reader, so
+        #: "a press belongs to this patch" and "this patch is being read"
+        #: cannot drift apart. They did, and Space in the gap was refused with
+        #: the wrong explanation on screen.
         self._reading_loc: "str | None" = None
         #: The last loc we sent a value for, so `patch_read` can be checked.
         self._answered_loc: "str | None" = None
@@ -236,6 +240,36 @@ class Cr30MeasureBridge(QObject):
         self._threads: list = []          # kept referenced until finished
 
     # -- state, for the tab and for tests ------------------------------
+    #: THE ARM AND THE PATCH ARE ONE FACT, SO THEY ARE ONE ASSIGNMENT.
+    #:
+    #: `_reading_loc` is set in `_start_read` before the worker thread is even
+    #: started, and cleared on every way a read can end -- which is exactly
+    #: when a press does and does not belong to that patch. Telling the reader
+    #: separately would mean six call sites that have to agree, and the tab's
+    #: keyboard filter already asks `armed_for` (this same field) before it
+    #: will accept Space at all. Routing the assignment through here makes the
+    #: two impossible to contradict.
+    @property
+    def _reading_loc(self) -> "str | None":
+        return self.__reading_loc
+
+    @_reading_loc.setter
+    def _reading_loc(self, loc: "str | None") -> None:
+        self.__reading_loc = loc
+        reader = getattr(self, "_reader", None)
+        try:
+            if loc is None:
+                disarm = getattr(reader, "disarm_trigger", None)
+                if callable(disarm):
+                    disarm()
+            else:
+                arm = getattr(reader, "arm_trigger", None)
+                if callable(arm):
+                    arm(loc)
+        except Exception:          # noqa: BLE001 — never break a read over it
+            log.debug("CR30: could not tell the reader what is armed",
+                      exc_info=True)
+
     @property
     def awaiting_loc(self) -> "str | None":
         return self._awaiting_loc
@@ -615,10 +649,30 @@ class DeviceReader:
         #: Set by the keyboard, consumed by the reader thread. A trigger has to
         #: leave from the thread that owns the link -- see `request_trigger`.
         self._trigger_requested = False
-        #: True only while a read is actually waiting for the operator. A
-        #: request made when nothing is listening has no read to belong to, and
-        #: must not be kept for the next one.
+        #: True only while a read is actually waiting for the operator.
+        #: DIAGNOSTIC, and one of the two ways a request can be accepted --
+        #: NOT the whole answer to "may this press be accepted", which is what
+        #: it used to be. See `_arm_token` immediately below.
         self._reading_in_flight = False
+        #: WHICH READ A PRESS BELONGS TO, or None when there is no such read.
+        #:
+        #: Set by whoever is about to start a read, on the thread that starts
+        #: it, BEFORE the read is running -- so the fact is true from the
+        #: moment the user could act on it, not from the moment a worker thread
+        #: happens to get scheduled. `_reading_in_flight` alone could not do
+        #: that: it becomes true inside `__call__`, after the lock is taken and
+        #: after the transport has been opened, which on Bluetooth is seconds
+        #: later. A press in between was refused and kept nowhere, so it
+        #: vanished with no error at all.
+        #:
+        #: A token, not a bool, because that is what makes the carried request
+        #: safe. `arm_trigger` clears any pending request when the token
+        #: changes, so a press made for one read can never be spent by a
+        #: different one -- the mislabelling hazard the rest of this module
+        #: exists to prevent. The Measure tab's token is the patch id; the spot
+        #: window's is the session, because there every read is "whatever is
+        #: under the aperture now" and they are interchangeable.
+        self._arm_token: object | None = None
 
     #: Where the last Bluetooth address is remembered between sessions.
     REMEMBERED_ADDRESS_KEY = "cr30_ble_address"
@@ -891,6 +945,7 @@ class DeviceReader:
                 log.info("CR30: opened over %s", self._dev.kind)
             from .device import DeviceLost
             self._reading_in_flight = True
+            armed_as = self._arm_token
             try:
                 m = self._dev.read_next_measurement(
                     timeout=self.button_timeout_s,
@@ -920,7 +975,19 @@ class DeviceReader:
                 # reading that came back was plausible, so it went in as the
                 # patch value in silence. That is the exact class of fault this
                 # whole module exists to prevent.
-                self._trigger_requested = False
+                #
+                # "ONE READ" IS THE ARM TOKEN, NOT THIS CALL. A read that ends
+                # while its caller is still armed for the same thing is not the
+                # end of anything the user can see: the spot window's loop
+                # simply arms the next wait, and the Measure tab re-arms the
+                # same patch after a refusal. Clearing here regardless was the
+                # other half of the dropped press -- a press landing in that
+                # gap was accepted and then thrown away, which is worse than
+                # being refused, because the window had already said yes.
+                # Whenever the arm has gone or moved on, the old rule applies
+                # unchanged and the request dies here.
+                if self._arm_token is None or self._arm_token is not armed_as:
+                    self._trigger_requested = False
         from .colour import spectrum_to_xyz
         return spectrum_to_xyz(m.values)
 
@@ -994,6 +1061,40 @@ class DeviceReader:
         return {"learned": False, "presses": presses, "provenance": ""}
 
     # -- reading without touching the instrument ---------------------------
+    def arm_trigger(self, token: object) -> None:
+        """Declare which read a "take the reading now" press belongs to.
+
+        Called by whoever is about to start a read, on the thread that starts
+        it, BEFORE the control that asks for one is live. That ordering is the
+        whole point: the reader thread sets `_reading_in_flight` only once it
+        is inside the wait, which is after the lock and after the transport has
+        been opened, and a press before that was refused and kept nowhere. It
+        did nothing, said nothing, and looked exactly like a broken instrument.
+
+        *token* names the read. Arming for a DIFFERENT token throws away any
+        request still pending, because a press made for one read must never be
+        spent by another -- that is the mislabelling this module exists to
+        prevent, and it is why this is a token and not a bool. Arming again for
+        the same token keeps it, which is what a re-armed patch and a spot
+        window's next wait both are.
+        """
+        if token is None:
+            self.disarm_trigger()
+            return
+        if token != self._arm_token:
+            self._trigger_requested = False
+        self._arm_token = token
+
+    def disarm_trigger(self) -> None:
+        """No read is expecting a press any more; anything pending dies here."""
+        self._arm_token = None
+        self._trigger_requested = False
+
+    @property
+    def trigger_armed(self) -> bool:
+        """Is there a read for a press to belong to?"""
+        return self._arm_token is not None
+
     def request_trigger(self) -> bool:
         """Ask for the NEXT reading to be taken without a button press.
 
@@ -1012,8 +1113,17 @@ class DeviceReader:
         came back as the patch value in silence. A request is a live user
         action about the patch on screen now; if nothing is waiting for that
         patch, there is nothing to ask for.
+
+        "NO READ IS LISTENING" IS NOT THE SAME AS "NO WORKER IS INSIDE THE
+        WAIT", and reading it that way is what dropped the press. A read that
+        has been armed but whose thread has not reached the wait yet is a read
+        the press belongs to: the button was live, the user pressed it for that
+        reading, and it arrives a moment later. So both facts accept, and only
+        the two of them together being false refuses -- see `arm_trigger`.
         """
-        if not self.trigger_allowed() or not self._reading_in_flight:
+        if not self.trigger_allowed():
+            return False
+        if not (self._reading_in_flight or self._arm_token is not None):
             return False
         self._trigger_requested = True
         return True
@@ -1205,6 +1315,9 @@ class DeviceReader:
     def cancel(self) -> None:
         """Stop a wait in progress, so Stop does not block for the timeout."""
         self._cancel = True
+        # Nothing will collect a press now. A request left standing here would
+        # be the stale one this module refuses to keep.
+        self.disarm_trigger()
 
     def _cancelled(self) -> bool:
         return self._cancel
@@ -1220,6 +1333,7 @@ class DeviceReader:
         # normal and goes round again. Cancelling is what the loop actually
         # checks.
         self._cancel = True
+        self.disarm_trigger()
         got = self._lock.acquire(timeout=2.0)
         try:
             dev, self._dev = self._dev, None
