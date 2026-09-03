@@ -1103,6 +1103,117 @@ folder — driven against a read-only folder that held one text file.*
 >
 > This usually means the folder is read-only, is on a disk or a share that is no longer available, or holds a file another program still has open. Close anything that might be using it and try again, or type a different name and leave that folder alone.
 
+### M-SCAN-ALIGN-AMBIGUOUS · Auto align cannot tell which way up the sheet is — Tools ▸ Build profile with scanner or camera
+
+*Approved by Basti, 2026-09-03. New for 4.1.5. Auto align hands the scan to
+ArgyllCMS's own chart recogniser, scores the answer against this chart's
+reference, and either places the grid on it or changes nothing. It refuses for
+six distinct reasons, and the module names them the way a program wants them
+named — `ambiguous-orientation`, `below-floor`, `not-recognised`,
+`no-usable-candidate`, `no-chart-geometry`, `no-better`. Those names belong in
+the log file and in the tests. The first implementation printed them in
+brackets in the middle of the sentence the user reads, which is what these six
+messages replace.*
+
+*All six open with the same line, because after a refusal the first thing the
+user needs to know is that they have lost nothing: the four corners they placed
+by hand are exactly where they left them, and the button was safe to press.*
+
+*This one: a rectangle of patches maps onto itself when it is turned, so more
+than one orientation scores the same and picking one of them at random would
+read every patch as another patch and build a confidently wrong profile.*
+
+> **Auto align left your corners exactly where they are**
+>
+> This chart's patches look the same whichever way round it is turned, so ChromIQ cannot work out which way your scan was made. If you know it needs turning, use the “⟳ Rotate 90°” button below the preview. Otherwise drag the four corners onto the chart yourself, which always works.
+
+### M-SCAN-ALIGN-NO-MATCH · what Auto align found does not agree with the reference — Tools ▸ Build profile with scanner or camera
+
+*Approved by Basti, 2026-09-03. New for 4.1.5. The recogniser found a chart and
+the placement scored below the agreement floor of 0.80, which is the same
+question M-SCAN-REF-DISAGREES asks of a finished read, asked before anything is
+moved.*
+
+*`{ref_row}` is the row on screen that holds this chart's known colours, and
+there are three of them: “Target reference data” for a standard target, and the
+chart picker for a ChromIQ chart — “Measured chart (.ti3)”, or “Chart you
+printed (.ti2)” in printer mode. The window fills it in from the label it is
+actually showing, so the message never names a row that is hidden.*
+
+> **Auto align left your corners exactly where they are**
+>
+> It found the chart, but what your scan shows does not match the reference closely enough to rely on. That usually means the reference file belongs to a different target, or the scan is of a different chart. Check the file in the “{ref_row}” row above and try again.
+
+### M-SCAN-ALIGN-NOT-FOUND · Auto align found nothing chart-like at all — Tools ▸ Build profile with scanner or camera
+
+*Approved by Basti, 2026-09-03. New for 4.1.5. The recogniser returned no
+candidate placement of any kind. The advice is not a formality: when the user's
+own quad covers less than 70 % of the image, Auto align re-runs the same
+recogniser inside it, so drawing the corners roughly round the chart really is
+what makes a cluttered photograph work.*
+
+> **Auto align left your corners exactly where they are**
+>
+> ChromIQ could not find this chart anywhere in the picture. That usually happens when the picture shows a lot more than the chart, or when one edge of the chart is missing. Drag the four corners roughly around the chart and press Auto align again: it will then search only inside them.
+
+### M-SCAN-ALIGN-NO-FIT · something was found, and this chart does not fit it — Tools ▸ Build profile with scanner or camera
+
+*Approved by Basti, 2026-09-03. New for 4.1.5. The distinction from the message
+above is a real one and not a shade of the same thing: there, nothing
+chart-shaped was found; here, candidates came back and every one of them was
+rejected — the quad was not a plausible sheet, its values could not be
+measured, or its outer edges are not this chart's edges. The usual cause is a
+target chosen that is not the one on the glass.*
+
+*`{chart_row}` is “Target type” for a standard target, and the chart picker for
+a ChromIQ chart, filled in the same way as `{ref_row}` above.*
+
+> **Auto align left your corners exactly where they are**
+>
+> ChromIQ found something chart-shaped in the picture, but no way of fitting this target's patches onto it. Check that the chart chosen in the “{chart_row}” row above is the one you actually scanned.
+
+### M-SCAN-ALIGN-NO-GEOMETRY · the chart definition records no patch positions — Tools ▸ Build profile with scanner or camera
+
+*Approved by Basti, 2026-09-03. New for 4.1.5. Auto align works from the patch
+boxes in the `.cht`; without them there is nothing to fit. Nothing else in the
+window depends on it, and the message says so, because a user who has just been
+told a feature cannot work needs to know how far the trouble reaches.*
+
+> **Auto align left your corners exactly where they are**
+>
+> The chart definition for this target does not record where its patches sit, and that is what Auto align needs to work. Place the four corners yourself; everything else in this window works normally.
+
+### M-SCAN-ALIGN-NO-BETTER · the user's own placement is already the better one — Tools ▸ Build profile with scanner or camera
+
+*Approved by Basti, 2026-09-03. New for 4.1.5. Not a failure: Auto align only
+moves the corners when it beats where they already are by a margin, so a user
+who has already placed them well is told that, and nothing moves under their
+hands.*
+
+> **Auto align left your corners exactly where they are**
+>
+> It searched, and your own placement is already the closer match, so there was nothing to improve.
+
+### M-SCAN-ALIGN-DONE · Auto align moved the corners — Tools ▸ Build profile with scanner or camera
+
+*Approved by Basti, 2026-09-03. New for 4.1.5. `{rho}` is the agreement between
+what the placed grid reads and this chart's reference, to two decimals, on the
+same scale as M-SCAN-REF-DISAGREES. The number is given a scale in the sentence
+rather than left bare, and the message points at the pre-build check rather than
+inviting a build.*
+
+> **Auto align put the grid on the patches**
+>
+> What the grid reads now agrees with this chart's own reference to {rho}, on a scale where 1.00 is a perfect match and anything below 0.80 is refused. Press “Check alignment” below to look at the read before you build anything. Nothing else has changed, and you can still drag any corner by hand.
+
+### M-SCAN-ALIGN-NO-INPUT · Auto align pressed before there is anything to align — Tools ▸ Build profile with scanner or camera
+
+*Approved by Basti, 2026-09-03. New for 4.1.5.*
+
+> **Auto align has nothing to look at yet**
+>
+> Load a scan for this page and choose the chart it was made from, then press Auto align again.
+
 ## M-PROPOSED. Messages awaiting review
 
 *This section is where a new or revised message goes: add it to

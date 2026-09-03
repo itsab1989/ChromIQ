@@ -717,3 +717,115 @@ def test_the_starting_quad_is_the_one_the_marquee_always_used(qapp, tmp_path):
     bare.set_image(img)
     bare.reset_selection_grid()
     assert d._marquee.corners_image_px() == bare.corners_image_px()
+
+
+# --------------------------------------------------------------- the wording
+#
+# The reasons are machine-readable ON PURPOSE: they are what the log file
+# records and what the tests above assert on. What they must never be is what a
+# user reads. The first version of this feature printed
+#
+#     Auto align could not place the grid with confidence
+#     (ambiguous-orientation) — your corners are exactly where you left them.
+#
+# so these three tests are the guard: every reason has a message, no message
+# text carries a reason, and the window that shows them holds no prose of its
+# own to carry one in.
+
+REASONS = {"ambiguous-orientation", "below-floor", "not-recognised",
+           "no-usable-candidate", "no-chart-geometry", "no-better"}
+
+
+def _catalogue():
+    from workflow import measurement_messages as M
+    return M
+
+
+def test_every_reason_the_module_can_return_is_the_set_we_have_words_for():
+    """Read out of the module's own source, not out of a list kept by hand: a
+    seventh reason added tomorrow fails here rather than falling back to
+    slightly wrong wording in silence."""
+    import ast
+    import re
+    src = Path(aa_module().__file__).read_text(encoding="utf-8")
+    # Every hyphenated lower-case literal in the module. A reason built into a
+    # conditional -- which one of them is -- is invisible to a `reason="..."`
+    # match, and that is exactly the one that would slip through.
+    pat = re.compile(r"^[a-z]+(?:-[a-z]+)+$")
+    produced = {n.value for n in ast.walk(ast.parse(src))
+                if isinstance(n, ast.Constant) and isinstance(n.value, str)
+                and pat.match(n.value)}
+    assert produced == REASONS, produced
+    M = _catalogue()
+    assert set(M.SCAN_ALIGN_REFUSALS) == REASONS
+    for r in REASONS:
+        assert M.scan_align_refusal(r).id.startswith("M-SCAN-ALIGN-")
+
+
+def test_no_reason_code_appears_in_anything_a_user_can_read():
+    """Not just the Auto align messages -- the whole catalogue, and every
+    literal the scanner window hands to tr()."""
+    import ast
+    M = _catalogue()
+    texts = []
+    for mid, msg in M.CATALOGUE.items():
+        texts += [(mid, msg.title), (mid, msg.body), (mid, msg.body_one or "")]
+    texts += [(k, v) for k, v in vars(M).items()
+              if isinstance(v, str) and (k.startswith("M_") or k.startswith("_"))]
+    for where, text in texts:
+        for code in REASONS:
+            assert code not in text, f"{where} shows the reason code {code!r}"
+
+    import ui.dialogs.scanin_dialog as sd
+    tree = ast.parse(Path(sd.__file__).read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and node.func.id == "tr" and node.args
+                and isinstance(node.args[0], ast.Constant)
+                and isinstance(node.args[0].value, str)):
+            for code in REASONS:
+                assert code not in node.args[0].value, node.args[0].value
+
+
+def test_a_refusal_renders_as_a_sentence_and_not_as_a_code(qapp, tmp_path):
+    """The whole path, on the real window: an unsuccessful result in, two
+    lines of ordinary English out. Rendered from what the dialog itself puts
+    in the log, so a placeholder or a code would show up here."""
+    import workflow.scan_auto_align as aa
+    from workflow import measurement_messages as M
+    d = _dialog(qapp, tmp_path)
+    seen = []
+    d._log.appendPlainText = seen.append
+    for reason in sorted(REASONS):
+        seen.clear()
+        d._auto_align_done(aa.AutoAlignResult(reason=reason))
+        assert len(seen) == 2, (reason, seen)
+        joined = "\n".join(seen)
+        assert "{" not in joined and "}" not in joined, joined
+        for code in REASONS:
+            assert code not in joined, (reason, joined)
+        assert joined.startswith(
+            M.M_SCAN_ALIGN_AMBIGUOUS.title), (reason, joined)
+    # ...and the same for a result the worker could not produce at all.
+    seen.clear()
+    d._auto_align_done(None)
+    assert len(seen) == 2 and "-" not in seen[0]
+
+
+def test_the_row_a_message_names_is_the_row_on_screen(qapp, tmp_path):
+    """The one message that tells the user which field to check must name the
+    field they can actually see. Three modes, three labels, and two of them are
+    hidden whenever the third is showing."""
+    d = _dialog(qapp, tmp_path)
+    d._mode_standard.setChecked(True)
+    assert d._align_reference_row() == "Target reference data"
+    assert d._align_chart_row() == "Target type"
+    d._mode_chromiq.setChecked(True)
+    assert d._align_reference_row() == d._chart_label.text().rstrip(":")
+    assert d._align_chart_row() == d._align_reference_row()
+    assert ":" not in d._align_reference_row()
+
+
+def aa_module():
+    import workflow.scan_auto_align as aa
+    return aa

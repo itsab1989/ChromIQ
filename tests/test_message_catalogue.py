@@ -378,6 +378,13 @@ WINDOW_SOURCES = [
     ("ui.tabs.tab_chart", "TabChart", "_calibration_replace_message"),
     ("ui.dialogs.spot_read_dialog", "SpotReadDialog", "_confirm_clear"),
     ("ui.dialogs.spot_read_dialog", "SpotReadDialog", "_may_close"),
+    # Auto align. Not a modal window but the window's own log, which is where
+    # a placement message belongs — and the same two rules apply: the text is
+    # the catalogue's, and the method writes no prose of its own. That second
+    # rule is the one that matters here, because what it replaced was a
+    # sentence with an internal reason code formatted into the middle of it.
+    ("ui.dialogs.scanin_dialog", "ScannerProfileDialog", "_on_auto_align"),
+    ("ui.dialogs.scanin_dialog", "ScannerProfileDialog", "_auto_align_done"),
 ]
 
 #: Measurement windows that are NOT yet in §M, listed so the gap is visible.
@@ -462,7 +469,10 @@ def test_no_message_reaches_the_screen_with_a_placeholder_left():
         M.M_CAL_REPLACE_MEASURED.render(
             runs_line=M.calibration_runs_phrase(["Run 3", "Run 5", "Run 6"])),
         M.M_CAL_ARCHIVED_HERE.render(folder="/x/cal/old/2026-09-02_120000"),
-    ]
+        M.M_SCAN_ALIGN_DONE.render(rho="0.97"),
+        M.M_SCAN_ALIGN_NO_INPUT.render(),
+    ] + [m.render(ref_row="Target reference data", chart_row="Target type")
+         for m in M.SCAN_ALIGN_REFUSALS.values()]
     for title, body in rendered:
         for text in (title, body):
             assert "{" not in text and "}" not in text, text[:120]

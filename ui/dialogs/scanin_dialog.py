@@ -3998,6 +3998,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         press puts the corners back exactly as they were."""
         from PyQt6.QtCore import QObject, QThread
         from core.resource_path import argyll_binary
+        from workflow import measurement_messages as M
         from workflow.cht_parser import ChtParseError, parse_cht
         from workflow.scan_auto_align import auto_align, expected_luminance
 
@@ -4011,9 +4012,7 @@ class ScannerProfileDialog(_ToolDialogBase):
             return
         got = self._auto_align_inputs()
         if got is None:
-            self._log.appendPlainText(tr(
-                "Load a scan and pick the chart first — then Auto align can "
-                "look for the patches."))
+            self._say_align(M.M_SCAN_ALIGN_NO_INPUT)
             return
         scan, cht, cie = got
         try:
@@ -4022,9 +4021,10 @@ class ScannerProfileDialog(_ToolDialogBase):
         except (OSError, ChtParseError, ValueError):
             boxes = []
         if not boxes:
-            self._log.appendPlainText(tr(
-                "Auto align needs the chart's patch layout, and this chart "
-                "does not carry one."))
+            # The same condition auto_align reports as "no-chart-geometry",
+            # caught here before a subprocess is started; one condition, one
+            # message.
+            self._say_align(M.scan_align_refusal("no-chart-geometry"))
             return
         expected = expected_luminance(text, cie)
         size = self._marquee.image_size()
@@ -4101,17 +4101,49 @@ class ScannerProfileDialog(_ToolDialogBase):
         if pair is not None:
             pair[0].deleteLater()
 
+    def _align_reference_row(self) -> str:
+        """The row on screen that holds this chart's known colours, named the
+        way it is labelled right now.
+
+        There are three of them and only one is ever visible: a standard target
+        picks its colours in “Target reference data”, while a ChromIQ chart
+        takes them from the chart picker — whose label is “Measured chart
+        (.ti3)”, or “Chart you printed (.ti2)” once printer mode is ticked. It
+        is read from the widget rather than written out, so a message can never
+        name a row the user is not looking at.
+        """
+        if self._standard_mode():
+            return tr("Target reference data")
+        return self._chart_label.text().rstrip(":")
+
+    def _align_chart_row(self) -> str:
+        """The row on screen that says WHICH chart this is — the standard
+        target combo, or the same chart picker as above."""
+        if self._standard_mode():
+            return tr("Target type")
+        return self._chart_label.text().rstrip(":")
+
+    def _say_align(self, msg, **kw) -> None:
+        """One Auto align message into the window's log, headline first — the
+        shape M-SCAN-PROFILE-ARCHIVED already uses here."""
+        title, body = msg.render(ref_row=self._align_reference_row(),
+                                 chart_row=self._align_chart_row(), **kw)
+        self._log.appendPlainText(title)
+        self._log.appendPlainText(body)
+
     def _auto_align_done(self, result) -> None:
+        from workflow import measurement_messages as M
         before = getattr(self, "_align_before", []) or []
         self._align_before = []
         self._set_busy(False)
         self._auto_align_btn.setEnabled(True)
         if result is None or not result.ok:
             why = getattr(result, "reason", "") or "not-recognised"
-            self._log.appendPlainText(tr(
-                "Auto align could not place the grid with confidence "
-                "({why}) — your corners are exactly where you left them."
-            ).format(why=why))
+            # The reason stays machine-readable and stays OFF the screen: it
+            # goes to the log file, where a support question can find it, and
+            # `scan_align_refusal` is the only place it turns into words.
+            log.info("auto align refused (%s)", why)
+            self._say_align(M.scan_align_refusal(why))
             return
         corners = result.corners
         if (self._standard_mode() and self._fiducials_available()
@@ -4131,10 +4163,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._capture_current_corners()
         if self._align_undo:
             self._auto_align_btn.setText(tr("Undo auto align"))
-        self._log.appendPlainText(tr(
-            "Auto align placed the grid on the patches (agreement with the "
-            "chart's reference: {rho}). Use Check alignment to see the read "
-            "before you build.").format(rho=f"{result.rho:.2f}"))
+        self._say_align(M.M_SCAN_ALIGN_DONE, rho=f"{result.rho:.2f}")
 
     def _on_check_alignment(self) -> None:
         """Knut's pre-build check: read ONLY the page on screen into a
