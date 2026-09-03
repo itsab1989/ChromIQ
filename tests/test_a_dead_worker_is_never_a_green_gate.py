@@ -167,3 +167,46 @@ def test_a_worker_process_never_reports_its_own_exit_status(hooks):
     session.exitstatus = 0
     hooks.pytest_sessionfinish(session, 0)
     assert session.exitstatus == 0
+
+
+# ---------------------------------------------------------------------------
+# ...AND IT MUST NOT BE ABLE TO HANG THE SESSION EITHER
+# ---------------------------------------------------------------------------
+# The banner above only ever fires from `pytest_terminal_summary`, so it is
+# worth exactly nothing if the session never ends. On the owner's Windows ARM64
+# VM (2026-09-03) it did not: a worker died at 99 %, xdist spawned a
+# replacement, execnet's bootstrap for that replacement raised
+# `OSError: [Errno 22] Invalid argument`, and the controller then waited for a
+# node that never reported. Two `--runslow` attempts, no summary line, no exit
+# code, both killed by hand.
+#
+# `--max-worker-restart=0` removes the restart, and with it the code path that
+# hung. It also stops the restart storm: a reproducible crash is otherwise
+# re-run once per replacement (measured: nine).
+
+def _addopts() -> str:
+    import configparser
+    import pathlib
+    ini = pathlib.Path(__file__).resolve().parent.parent / "pytest.ini"
+    cp = configparser.ConfigParser()
+    cp.read(ini, encoding="utf-8")
+    return cp["pytest"].get("addopts", "")
+
+
+def test_the_gate_never_restarts_a_crashed_worker():
+    """Without this flag a dead worker can hang the whole session, and the
+    guard above cannot save it — a banner printed at the end of a run that has
+    no end is not printed at all."""
+    opts = _addopts()
+    assert "--max-worker-restart=0" in opts, (
+        "pytest.ini no longer passes --max-worker-restart=0. A crashed xdist "
+        "worker will be REPLACED, and if that replacement fails to start the "
+        "run hangs for ever with no summary and no exit code — which is what "
+        "happened on Windows on 2026-09-03. See the comment in pytest.ini.")
+
+
+def test_the_gate_still_keeps_one_file_per_worker():
+    """Guarding the line above must not have dropped what shared it."""
+    opts = _addopts()
+    assert "--dist loadfile" in opts
+    assert "--maxprocesses=12" in opts
