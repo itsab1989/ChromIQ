@@ -619,6 +619,10 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._printer_scan_profile: Path | None = None   # scanner ICC for printer mode
         self._chart_measured = False   # loaded chart has a real .ti3 (not just .ti2)
         self._align_warnings: list[str] = []   # per-page misalignment findings
+        # Findings about the DATA rather than the grid — review 5. Kept
+        # apart from the alignment ones because they are a different
+        # question with a different answer, and the two windows say so.
+        self._read_findings: list[tuple[str, str]] = []
         self._run_diags: list[Path] = []       # diagnostic images this run writes
         self._chart_reject_reason: str | None = None  # why the last pick failed (#101)
         # Bring-your-own-.cht (#105): a printer-mode chart without channels.json
@@ -1191,8 +1195,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._scan_field.setText(str(scan) if scan else "")
         if scan and Path(scan).is_file():
             self._marquee.set_image(_load_scan_qimage(scan))
-            if shot["corners"]:
-                self._marquee.set_corners(shot["corners"])
+            self._apply_shot_corners(shot)
         else:
             self._marquee.set_image(QImage())
         self._refresh_shot_bar()
@@ -2218,6 +2221,77 @@ class ScannerProfileDialog(_ToolDialogBase):
             return None
         return _re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", raw).strip(". ") or None
 
+    def _archive_previous_profile(self, ti3: Path) -> "Path | None":
+        """Move a profile this build is about to write over into
+        ``old/<date>/`` first, and return the folder it went to.
+
+        Review 5, finding B5: building twice in the same folder replaced the
+        first profile in place — no copy, no question, and not a word in the
+        log — and it may be one the user has already installed and been
+        working against. The measurement beside it went the same way, because
+        `_apply_profile_name` copies the read to ``<name>.ti3`` and that copy
+        overwrites too. Everywhere else the app archives rather than destroys
+        (``runs/run1, run2, …``, ``old/<timestamp>/``, "Deleting moves to the
+        Trash"); this window was the exception.
+
+        Called BEFORE `_apply_profile_name`, because by the time that has run
+        the measurement has already been overwritten. Both `.icc` and `.icm`
+        are looked for, since colprof writes either.
+
+        Only files this build is really about to replace. The read scanin just
+        wrote is never archived: it is this build's input, and it is derived
+        from the scan anyway.
+        """
+        stem = self._custom_profile_stem() or ti3.stem
+        folder = ti3.parent
+        doomed = [folder / (stem + ext) for ext in (".icc", ".icm")]
+        named_ti3 = folder / (stem + ".ti3")
+        if named_ti3.resolve() != ti3.resolve():
+            doomed.append(named_ti3)
+        doomed = [p for p in doomed if p.is_file()]
+        if not doomed:
+            return None
+        try:
+            from core.file_manager import Run
+            dest = Run.for_dir(folder).archive_to_old(doomed)
+        except OSError:
+            # A read-only volume is not worth failing a build over, but it IS
+            # worth not pretending the old profile was kept.
+            log.warning("could not archive the profile being replaced",
+                        exc_info=True)
+            return None
+        if dest is None:
+            return None
+        from workflow import measurement_messages as M
+        title, body = M.M_SCAN_PROFILE_ARCHIVED.render(folder=str(dest))
+        self._log.appendPlainText(title)
+        self._log.appendPlainText(body)
+        return dest
+
+    def _restore_archived_profile(self, dest: "Path | None") -> None:
+        """Put an archived profile back when the build that displaced it
+        failed, so a failed rebuild leaves the folder exactly as it found it.
+
+        The same lesson `Run.reset_chart_artefacts`'s stash was added for: a
+        build that is stopped, fails or is interrupted must not leave the user
+        with less than they started with.
+        """
+        if dest is None or not dest.is_dir():
+            return
+        try:
+            import shutil
+            for p in sorted(dest.iterdir()):
+                back = dest.parent.parent / p.name
+                if not back.exists():
+                    shutil.move(str(p), str(back))
+            if not any(dest.iterdir()):
+                dest.rmdir()
+                old = dest.parent
+                if old.name == "old" and not any(old.iterdir()):
+                    old.rmdir()
+        except OSError:
+            log.warning("could not put the archived profile back", exc_info=True)
+
     def _apply_profile_name(self, ti3: Path) -> tuple[Path, str | None]:
         """Honour the optional profile name (Nelson): colprof names the .icc
         after its .ti3, so copy *ti3* to ``<name>.ti3`` and return it together
@@ -2580,7 +2654,44 @@ class ScannerProfileDialog(_ToolDialogBase):
 
     def _capture_current_corners(self) -> None:
         if self._marquee.has_placement():
-            self._cur_shot()["corners"] = self._marquee.corners_image_px()
+            shot = self._cur_shot()
+            shot["corners"] = self._marquee.corners_image_px()
+            # …and the image they were placed on. Corners are absolute pixels,
+            # so without this they are meaningless on any other scan — see
+            # `_apply_shot_corners`.
+            shot["corners_size"] = self._marquee.image_size()
+
+    def _apply_shot_corners(self, shot: dict) -> None:
+        """Put this shot's remembered corners on the image now loaded, scaled
+        to it if it is a different size.
+
+        Review 5, finding A3: placing the grid on a 300 dpi scan and then
+        picking a 1200 dpi re-scan of the same target — the most ordinary thing
+        a user does after a first attempt reads badly — applied the 300 dpi
+        scan's ABSOLUTE pixel corners to the bigger image, so the grid
+        collapsed into the top-left quarter and nothing was said. Measured:
+        (71,158)…(2170,1473) on a 2241x1544 image, reused unchanged on an
+        8962x6173 one, where the truth is (283,633)…(8679,5890).
+
+        `_restore_placement`, one branch below the offending line, had it right
+        all along — it stores fractions of the image size, and `_save_placement`
+        promises in its own docstring that a placement can be reused "on a
+        future scan of the same target at any resolution". The two paths
+        disagreed and the wrong one won. This is that same arithmetic, so the
+        grid lands where the user put it whatever the scan's size, and there is
+        nothing new to say to them.
+        """
+        corners = shot.get("corners")
+        if not corners:
+            return
+        was = shot.get("corners_size")
+        now = self._marquee.image_size()
+        if (was and now and all(was) and all(now) and tuple(was) != tuple(now)):
+            fx, fy = now[0] / was[0], now[1] / was[1]
+            corners = [(x * fx, y * fy) for x, y in corners]
+            shot["corners"] = corners
+            shot["corners_size"] = now
+        self._marquee.set_corners(corners)
 
     # -------------------------------------------------- remembered placement
     def _target_key(self) -> str | None:
@@ -2590,6 +2701,14 @@ class ScannerProfileDialog(_ToolDialogBase):
         if self._standard_mode():
             return f"std:{self._std_cht.stem}" if self._std_cht else None
         return f"chart:{self._ti3.stem}" if self._ti3 else None
+
+    def _remember_accepted_placement(self) -> None:
+        """Store the grid for next time, once this build is really going ahead.
+
+        Called from both builders after every warning window has been answered,
+        so the placement kept is the one the user accepted — never one they
+        stopped."""
+        self._save_placement()
 
     def _save_placement(self) -> None:
         """Store the current grid as fractions of the image size, keyed by target,
@@ -2847,6 +2966,9 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._ref_field.setText(str(p))
         self._update_std_note()
         self._refresh()
+        cov = self._reference_shortfall()
+        if cov is not None:
+            self._warn_short_reference(cov)
 
     def _set_std_targets(self, chts: list[Path]) -> None:
         """Select a standard target: one ``.cht`` for an ordinary target, or one
@@ -2994,6 +3116,63 @@ class ScannerProfileDialog(_ToolDialogBase):
         step()
         timer.start()
 
+    def _chart_ids(self) -> "set[str] | None":
+        """Every patch id the chosen target reads, across all its pages.
+
+        The union, not one page's, because a reference file covers the whole
+        target: judging a three-page ISO 12641-2 set against page 1 alone would
+        call two thirds of a perfectly good reference "extra".
+        """
+        chts = self._std_chts if self._standard_mode() else []
+        ids: set[str] = set()
+        for c in chts:
+            got = page_ids_from_cht(c)
+            if got is None:
+                return None
+            ids |= got
+        return ids or None
+
+    def _reference_shortfall(self):
+        """The chosen reference measured against the chosen target, or None.
+
+        None where there is nothing to judge — no target, no reference, a file
+        neither side can parse. **A check that cannot see must not accuse**:
+        the cost of one false alarm here is a user who then clicks past the
+        real one.
+        """
+        if not self._standard_mode() or self._std_ref is None:
+            return None
+        from workflow.scan_read_check import reference_coverage
+        try:
+            cov = reference_coverage(Path(self._std_ref), self._chart_ids())
+        except Exception:  # noqa: BLE001 — a sanity check never blocks a pick
+            log.warning("reference coverage check failed", exc_info=True)
+            return None
+        floor = float(self._settings.get("scanner_min_coverage", 0.97))
+        return cov if (cov is not None and cov.is_short(floor)) else None
+
+    def _short_reference_message(self, cov):
+        """§M M-SCAN-REF-SHORT, rendered. PROPOSED wording — see
+        `docs/design/unified_measurement_management.md` §M-PROPOSED."""
+        from workflow import measurement_messages as M
+        return M.M_SCAN_REF_SHORT.render(
+            covered=cov.covered, total=cov.chart_patches, missing=cov.missing)
+
+    def _warn_short_reference(self, cov) -> None:
+        """Say it at the moment the reference is picked, where the user can
+        still fix it by choosing another file — rather than after a read that
+        has already thrown five sixths of the sheet away (review 5, finding D).
+        """
+        from PyQt6.QtWidgets import QMessageBox
+        title, body = self._short_reference_message(cov)
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        box.addButton(QMessageBox.StandardButton.Ok)
+        box.exec()
+
     def _update_std_note(self) -> None:
         if not self._std_chts or self._std_cht is None:
             self._std_note.setText("")
@@ -3027,6 +3206,14 @@ class ScannerProfileDialog(_ToolDialogBase):
                          "marks.").format(n=n)
             if self._ref_converted_note:
                 msg += "  " + self._ref_converted_note
+            # The green tick is the lie in review 5's finding D: "Ready — 288
+            # patches, reference loaded" is the .cht's count with the word
+            # "reference" beside it, and it stayed green while the reference
+            # named 48 of them. When it does, the line says so instead, in the
+            # message's own headline so every word the user reads is §M's.
+            cov = self._reference_shortfall()
+            if cov is not None:
+                msg = "⚠ " + self._short_reference_message(cov)[0]
             self._std_note.setText(msg)
 
     # ------------------------------------------------------------------ scan
@@ -3159,9 +3346,10 @@ class ScannerProfileDialog(_ToolDialogBase):
                 "can't be aligned on it. Re-save the scan as an 8-bit TIFF (or "
                 "PNG) and pick it again."))
         if self._cur_shot()["corners"]:
-            self._marquee.set_corners(self._cur_shot()["corners"])
+            self._apply_shot_corners(self._cur_shot())
         elif self._restore_placement():          # reuse last session's placement
             self._cur_shot()["corners"] = self._marquee.corners_image_px()
+            self._cur_shot()["corners_size"] = self._marquee.image_size()
         self._refresh_shot_bar()
         self._refresh()
 
@@ -3305,9 +3493,15 @@ class ScannerProfileDialog(_ToolDialogBase):
 
     def _execute(self) -> None:
         self._capture_current_corners()
-        self._save_placement()                   # remember this target's grid
+        # NOT _save_placement() here. It used to run at the top of this method,
+        # so a grid that failed its own alignment check was written into the
+        # settings BEFORE the user was asked, and pressing Stop stored it just
+        # the same — every later session for that target then started from the
+        # grid the app had itself just called wrong (review 5, A3). It now runs
+        # where the user has said yes: see `_remember_accepted_placement`.
         self._log.clear()
         self._align_warnings = []                # per-page misalignment findings
+        self._read_findings = []                 # per-page data findings (review 5)
         self._run_diags: list[Path] = []         # diagnostic images this run writes
         method = self._avg_method.currentData() or "mean"
         if self._standard_mode():
@@ -3592,6 +3786,73 @@ class ScannerProfileDialog(_ToolDialogBase):
                 self._check_local_groups(job, p.out_ti3)
         except Exception:  # noqa: BLE001 — a sanity check must never block
             log.warning("misalignment check failed", exc_info=True)
+        self._check_read_is_this_chart(job)
+
+    def _check_read_is_this_chart(self, job: dict) -> None:
+        """The other half of the question, asked of the DATA (review 5).
+
+        Everything above judges where the grid sits. Nothing above asks whether
+        what came back is this chart at all — and four of review 5's findings
+        live in that gap: a reference covering a sixth of the target, a wrong
+        reference, an upside-down scan, and a scan with two of every five
+        patches clipped to white. All four are visible in the one file scanin
+        has just written, and none of them is visible to the checks above.
+
+        Findings go to ``_read_findings`` rather than ``_align_warnings``, so
+        the window that shows them can say what they actually are instead of
+        "the alignment check failed".
+        """
+        from workflow.scan_read_check import inspect_read
+        from workflow import measurement_messages as M
+        try:
+            p = job["params"]
+            ti3 = p.out_ti3
+            if not ti3.exists():
+                return
+            rho = (page_reference_agreement(
+                       ti3, artefact(p.pbase, ".ti2"),
+                       ids=page_ids_from_cht(p.cht)) if p.is_printer
+                   else scan_reference_correlation(ti3))
+            got = inspect_read(ti3, rho)
+            if got is None:
+                return
+            seen = {t for t, _b in self._read_findings}
+
+            # (1) The reference covers only part of the chart. Asked of the
+            # REFERENCE, never of the read: a read that came back short already
+            # has two messages of its own (scanin's "Not all sample values have
+            # been filled" and the dropped-patch note), and a third voice
+            # saying the same thing in different numbers would be noise.
+            cov = self._reference_shortfall()
+            if cov is not None:
+                t, b = self._short_reference_message(cov)
+                if t not in seen:
+                    self._read_findings.append((t, b))
+
+            # (2) What was read and what the reference says barely rank
+            # together. The floor sits well under the 0.8 gate above, which
+            # exists for a different purpose: a saturated LaserSoft target
+            # ranks at about 0.5 on a PERFECT read, so a warning floor must
+            # clear that by a wide margin. Measured: good reads +0.940 to
+            # +0.972, broken ones -0.60 to +0.14.
+            floor = float(self._settings.get("scanner_min_agreement", 0.25))
+            if got.disagrees(floor):
+                t, b = M.M_SCAN_REF_DISAGREES.render(
+                    rho=f"{got.agreement:.2f}")
+                if t not in seen:
+                    self._read_findings.append((t, b))
+
+            # (3) The scan ran out of scale. Clipping is invisible to (2) — a
+            # 39 %-clipped scan still ranks at +0.943, because clipping shifts
+            # values without reordering them.
+            cap = float(self._settings.get("scanner_max_clipped", 0.15))
+            if got.clipped > cap:
+                t, b = M.M_SCAN_CLIPPED.render(
+                    pct=f"{got.clipped * 100:.0f} %")
+                if t not in seen:
+                    self._read_findings.append((t, b))
+        except Exception:  # noqa: BLE001 — a sanity check must never block
+            log.warning("read sanity check failed", exc_info=True)
 
     @staticmethod
     def _read_expected_dicts(ti3: Path, ti2: Path | None = None,
@@ -3963,6 +4224,66 @@ class ScannerProfileDialog(_ToolDialogBase):
         dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
         dlg.show()
 
+    def _stop_before_colprof(self, tip: bool = True) -> None:
+        """Everything Stop does, whichever window asked. Factored out when the
+        read-sanity window joined the alignment one: pressing Stop must leave
+        the user in the same place either way, with the evidence one click
+        away, and it used to be written into one of them only."""
+        self._log.appendPlainText(tr(
+            "Stopped — realign the flagged page's grid and build again."))
+        # Put the evidence one click away (Knut: the reveal button only
+        # appeared after a FINISHED build, so the diagnostic image the
+        # message points at was left to hunt for by hand).
+        diags = [d for d in getattr(self, "_run_diags", []) if d.exists()]
+        scans = [s["path"] for pg in self._pages
+                 for s in self._page_shots(pg) if s["path"]]
+        target = diags[0] if diags else (scans[0] if scans else None)
+        if target is not None:
+            # It reveals the FOLDER (Knut: the old label promised the
+            # image itself, and appeared even with the diag box unticked).
+            self._last_profile = target
+            self._reveal_btn.setText(tr("Reveal folder"))
+            self._reveal_btn.setVisible(True)
+            self._reveal_btn.setEnabled(True)
+        if tip and not diags:
+            self._log.appendPlainText(tr(
+                "Tip: tick “Save a diagnostic image of what was read” and "
+                "build again — the image shows exactly which patches were "
+                "read from your scan."))
+        self._finish(False)
+
+    def _confirm_despite_read_findings(self) -> bool:
+        """Modal stop before colprof when the READ does not look like this
+        chart — review 5's D, B2, B3 and B4.
+
+        Separate from the alignment window on purpose. That one says "the
+        alignment check failed", which would be a lie about a reference file
+        that covers a sixth of the target or a scan that has run out of scale,
+        and a message the user can see is untrue is worse than none. Every word
+        here comes from §M; where several findings arrive at once they are
+        stacked under the first one's headline, worst first.
+
+        Returns True to build anyway. The wording is §M-PROPOSED — the
+        mechanism does not depend on it and the sentences are the owner's to
+        approve.
+        """
+        from PyQt6.QtWidgets import QMessageBox
+        title, first = self._read_findings[0]
+        rest = [b for _t, b in self._read_findings[1:]]
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText("\n\n".join([first] + rest))
+        stop = box.addButton(tr("Stop"), QMessageBox.ButtonRole.RejectRole)
+        box.addButton(tr("Build anyway"), QMessageBox.ButtonRole.AcceptRole)
+        box.setDefaultButton(stop)
+        box.exec()
+        if box.clickedButton() is stop:
+            self._stop_before_colprof()
+            return False
+        return True
+
     def _confirm_despite_misalignment(self) -> bool:
         """Modal stop before colprof when a page failed the alignment check —
         a profile from a scrambled read is garbage, and a log line alone is
@@ -3982,28 +4303,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         box.setDefaultButton(stop)
         box.exec()
         if box.clickedButton() is stop:
-            self._log.appendPlainText(tr(
-                "Stopped — realign the flagged page's grid and build again."))
-            # Put the evidence one click away (Knut: the reveal button only
-            # appeared after a FINISHED build, so the diagnostic image the
-            # message points at was left to hunt for by hand).
-            diags = [d for d in getattr(self, "_run_diags", []) if d.exists()]
-            scans = [s["path"] for pg in self._pages
-                     for s in self._page_shots(pg) if s["path"]]
-            target = diags[0] if diags else (scans[0] if scans else None)
-            if target is not None:
-                # It reveals the FOLDER (Knut: the old label promised the
-                # image itself, and appeared even with the diag box unticked).
-                self._last_profile = target
-                self._reveal_btn.setText(tr("Reveal folder"))
-                self._reveal_btn.setVisible(True)
-                self._reveal_btn.setEnabled(True)
-            if not diags:
-                self._log.appendPlainText(tr(
-                    "Tip: tick “Save a diagnostic image of what was read” and "
-                    "build again — the image shows exactly which patches were "
-                    "read from your scan."))
-            self._finish(False)
+            self._stop_before_colprof()
             return False
         return True
 
@@ -4072,9 +4372,13 @@ class ScannerProfileDialog(_ToolDialogBase):
     def _build_printer_profile(self, pbase: Path, base: Path) -> None:
         ti3 = artefact(pbase, ".ti3")
         self._sanitize_scanner_ti3(ti3)              # once, on the accumulated .ti3
+        if self._read_findings and not self._confirm_despite_read_findings():
+            return
         if self._align_warnings and not self._confirm_despite_misalignment():
             return
+        self._remember_accepted_placement()
         self._log.appendPlainText(tr("Building the printer profile…"))
+        stash = self._archive_previous_profile(ti3)
         ti3, custom = self._apply_profile_name(ti3)
         desc = custom or f"{base.name} (scanner-measured)"
         params = scanner_colprof.make_profile_params(       # #121: same settings
@@ -4084,6 +4388,7 @@ class ScannerProfileDialog(_ToolDialogBase):
             icc = self._profiler.expected_icc_path(params)
             if not (icc.exists() and icc.stat().st_size > 1000):
                 _remove_empty_icc(icc)
+                self._restore_archived_profile(stash)
                 fail = self._profiler.primary_failure()
                 if fail:
                     self._log.appendPlainText(f"[ERROR] {fail[1]}")
@@ -4142,6 +4447,8 @@ class ScannerProfileDialog(_ToolDialogBase):
 
     def _build_profile(self, page_ti3s: list[Path], base: Path) -> None:
         # Combine multi-page reads into one .ti3, then colprof → scanner ICC.
+        if self._read_findings and not self._confirm_despite_read_findings():
+            return
         if self._align_warnings and not self._confirm_despite_misalignment():
             return
         try:
@@ -4150,7 +4457,9 @@ class ScannerProfileDialog(_ToolDialogBase):
             self._log.appendPlainText(f"[ERROR] {exc}")
             self._finish(False)
             return
+        self._remember_accepted_placement()
         self._log.appendPlainText(tr("Building the scanner profile…"))
+        stash = self._archive_previous_profile(combined)
         combined, custom = self._apply_profile_name(combined)
         desc = custom or f"{base.name} scanner"
         params = scanner_colprof.make_profile_params(       # #121: main + advanced
@@ -4165,6 +4474,7 @@ class ScannerProfileDialog(_ToolDialogBase):
             icc = self._profiler.expected_icc_path(params)
             if not (icc.exists() and icc.stat().st_size > 1000):
                 _remove_empty_icc(icc)
+                self._restore_archived_profile(stash)
                 fail = self._profiler.primary_failure()
                 if fail:
                     self._log.appendPlainText(f"[ERROR] {fail[1]}")

@@ -7060,7 +7060,7 @@ class Ti2RelayoutDialog(QDialog):
         # and the border offset is just B (logical px).
         if (self._mode_spacers.isChecked()
                 and self._sel_spacers and self._spacers):
-            # Fill + outline (à la ui.scan_highlighter) — a translucent yellow
+            # Fill + outline — a translucent yellow
             # wash makes thin bars visible at a glance, the 2px outline keeps
             # the boundary crisp.
             p = QPainter(pm)

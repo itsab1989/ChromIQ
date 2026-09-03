@@ -1629,6 +1629,103 @@ M_SPOT_UNSAVED = _m(
     count_key="n",
     approved=False)
 
+# --- PROPOSED: the reference file covers only part of the target -----------
+#: Review 5, 2026-09-03, finding D. A reference file holding the first 48 rows
+#: of the target's own correct 288-row reference builds a profile from a sixth
+#: of the sheet with every indicator green: "Ready, 288 patches", the alignment
+#: tick, and a colprof self-check of 0.185/0.076 -- BETTER than the correct
+#: build's 0.620/0.098, because forty-eight points fit a matrix beautifully.
+#: The 288 on screen is the .cht's count and nothing ever compared it with the
+#: reference's own rows. Counting is the only thing that sees this, so it is
+#: counted the moment the reference is picked, where the user can still fix it
+#: by choosing another file, rather than after a read.
+M_SCAN_REF_SHORT = _m(
+    "M-SCAN-REF-SHORT",
+    "This reference file covers only part of the target",
+    "The reference file you picked gives colours for {covered} of the {total} "
+    "patches on this target. ChromIQ can only use the patches the reference "
+    "names, so the other {missing} would be read from your scan and then "
+    "thrown away, and the profile would describe your scanner from a fraction "
+    "of the sheet.\n\n"
+    "Nothing later would show it. A profile built from fewer patches passes "
+    "its own quality check more easily, not less.\n\n"
+    "In the \u201cTarget reference data\u201d row, pick the full reference file that "
+    "came with this target. That file lists every patch, so it has about as "
+    "many rows as the target has patches.",
+    approved=False,
+    body_one=(
+        "The reference file you picked gives colours for {covered} of the "
+        "{total} patches on this target. ChromIQ can only use the patches the "
+        "reference names, so the remaining one would be read from your scan "
+        "and then thrown away.\n\n"
+        "In the \u201cTarget reference data\u201d row, pick the full reference file that "
+        "came with this target. That file lists every patch, so it has about "
+        "as many rows as the target has patches."),
+    count_key="missing")
+
+
+# --- PROPOSED: what was read does not match the reference ------------------
+#: Review 5, findings B2 and B4. `scan_reference_correlation` reads +0.94 to
+#: +0.97 on every good read and -0.60 to +0.14 on every broken one, and the
+#: window computed it only to decide whether to run a FURTHER check -- then
+#: printed a green tick from the geometric ladder, which never looks at the
+#: reference at all. An upside-down scan is the ordinary case: the patch block
+#: maps onto itself, so every geometric check passes and every patch reads its
+#: opposite number's colour.
+M_SCAN_REF_DISAGREES = _m(
+    "M-SCAN-REF-DISAGREES",
+    "What was read does not match this reference",
+    "ChromIQ compared how light each patch came out of your scan with how "
+    "light the reference says that patch is. On a good scan the two run "
+    "together closely. Here they hardly agree at all: {rho}, where a good "
+    "read is above 0.9.\n\n"
+    "That is what happens when the scan is upside down or a quarter turn out, "
+    "or when the reference belongs to a different target from the one you "
+    "scanned. A profile built from this read would be wrong, and nothing "
+    "later would tell you.\n\n"
+    "Check that the scan is the right way up, and that the file in the "
+    "\u201cTarget reference data\u201d row is the one that came with this target.",
+    approved=False)
+
+
+# --- PROPOSED: the scan has run out of scale -------------------------------
+#: Review 5, finding B3. A scan with every value lifted 55 % built a clean
+#: profile in silence: 39.2 % of patches read at the top of the device scale,
+#: rank agreement +0.943 (so the agreement check cannot see it), and colprof's
+#: self-check passed. Measured across an exposure ladder, profcheck against the
+#: read's own data goes 0.098 -> 0.286 -> 1.097 -> 5.967 average dE as the
+#: clipped share goes 0 % -> 6 % -> 16 % -> 39 %. Clipping is the one scan
+#: fault that cannot be profiled around: the values are gone, not shifted.
+M_SCAN_CLIPPED = _m(
+    "M-SCAN-CLIPPED",
+    "Part of this scan has no colour left in it",
+    "{pct} of the patches were read at the very end of the scan's brightness "
+    "range, where there is nothing left to record. Their real colours are "
+    "gone, not merely shifted, so ChromIQ cannot tell those patches apart and "
+    "the profile would treat \u201cas far as this scanner goes\u201d as a "
+    "measurement.\n\n"
+    "Scan the target again with the automatic brightness and contrast turned "
+    "off in your scanner software, so that no patch reaches either end of the "
+    "scale.",
+    approved=False)
+
+
+# --- PROPOSED: where the profile this build replaced went ------------------
+#: Review 5, finding B5. Building twice wrote over the first profile in place:
+#: no copy, no question, and not a word in the log -- and it may be one the
+#: user has installed and been working against. The app's habit everywhere else
+#: is to archive, so the build now moves the previous profile and measurement
+#: into old/<date>/ first. That much needs no new wording. Saying WHERE does,
+#: and the adversarial round of 2026-09-02 already established that moving
+#: something and naming the folder nowhere is its own fault -- see
+#: M-CAL-ARCHIVED-HERE, whose shape this follows deliberately.
+M_SCAN_PROFILE_ARCHIVED = _m(
+    "M-SCAN-PROFILE-ARCHIVED",
+    "The profile that was here has moved to this folder, and nothing in it "
+    "was deleted:",
+    "{folder}",
+    approved=False)
+
 
 CATALOGUE = {m.id: m for m in (
     M_REPLACE_PARTIAL, M_REPLACE_COMPLETE, M_TI3_MISMATCH,
@@ -1660,6 +1757,8 @@ CATALOGUE = {m.id: m for m in (
     M_INSTRUMENT_BUSY,
     M_CAL_REPLACE_CHART, M_CAL_REPLACE_MEASURED, M_CAL_ARCHIVED_HERE,
     M_SPOT_CLEAR, M_SPOT_UNSAVED,
+    M_SCAN_REF_SHORT, M_SCAN_REF_DISAGREES, M_SCAN_CLIPPED,
+    M_SCAN_PROFILE_ARCHIVED,
 )}
 
 #: Paragraphs appended to another message rather than shown on their own.

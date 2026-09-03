@@ -12,16 +12,23 @@ answer into what the user reads.
 
 Three things are measured, because no one of them can stand for the others:
 
-**Coverage** — how many of the chart's patches are in the data at all. Review 5
-case D: a reference file holding the first 48 rows of the target's own correct
-288-row reference (a truncated download, a partial export, a maker's "short"
-file). scanin keeps only the ids the reference names, so 240 patches were read
-off the scan and thrown away, and the profile described the scanner from a sixth
-of the sheet. Every other signal was green — including colprof's own self-check,
-which scored **better** than the correct build (0.185/0.076 against 0.620/0.098),
-because forty-eight points fit a matrix beautifully. Counting is the only thing
-that sees this, which is why it is measured before the read (against the
-reference the user picked) and again after it (against the rows that arrived).
+**Coverage** — how many of the chart's patches the reference names at all.
+Review 5 case D: a reference file holding the first 48 rows of the target's own
+correct 288-row reference (a truncated download, a partial export, a maker's
+"short" file). scanin keeps only the ids the reference names, so 240 patches
+were read off the scan and thrown away, and the profile described the scanner
+from a sixth of the sheet. Every other signal was green — including colprof's
+own self-check, which scored **better** than the correct build (0.185/0.076
+against 0.620/0.098), because forty-eight points fit a matrix beautifully.
+Counting is the only thing that sees this.
+
+Coverage is asked of the **reference**, never of the read. A read that came back
+short already has two messages of its own — scanin's "Not all sample values have
+been filled" and `_sanitize_scanner_ti3`'s dropped-patch note — and a third
+voice saying the same thing in different numbers would be noise. What neither of
+those can see is a read that filled every sample it was ASKED about, because the
+reference asked about a sixth of the chart. That is what this counts, and it can
+be counted before a single patch is read.
 
 **Agreement** — :func:`scan_reference_correlation`'s rank agreement between the
 scan's luminance and the reference's Y. Already computed by the window, and
@@ -179,46 +186,43 @@ class ReadInspection:
     """What one page's read looks like, measured from its own ``.ti3``."""
 
     rows: int
-    #: patches the page's chart geometry promised, when it could be read
-    chart_patches: "int | None"
     #: rank agreement with the reference; ``None`` when it cannot be computed
     agreement: "float | None"
     #: share of patches sitting at the top / bottom of the device scale
     clipped_high: float
     clipped_low: float
 
-    @property
-    def covered_fraction(self) -> "float | None":
-        if not self.chart_patches:
-            return None
-        return self.rows / self.chart_patches
-
-    def is_short(self, floor: float) -> bool:
-        f = self.covered_fraction
-        return f is not None and f < floor
+    def disagrees(self, floor: float) -> bool:
+        """True when the read and the reference barely rank together. ``None``
+        agreement is not a disagreement — it means the pairing could not be
+        computed, and a check that cannot see must not accuse."""
+        return self.agreement is not None and self.agreement < floor
 
     @property
     def clipped(self) -> float:
-        """The worse of the two rails. One number, because the message names
-        which rail it is separately and a scan that clips both is not twice as
-        wrong."""
+        """The worse of the two rails, because the message names which rail it
+        is separately and a scan that clips both is not twice as wrong."""
         return max(self.clipped_high, self.clipped_low)
+
+    @property
+    def clipped_at_top(self) -> bool:
+        return self.clipped_high >= self.clipped_low
 
 
 #: Device value (0-100) at or above which a patch has hit the top of the scale,
 #: and at or below which it has hit the bottom. Not 100/0 exactly: an 8-bit
 #: scan quantises to 255ths (0.392 apart), and a patch pinned at 255 in one
-#: channel averages a shade under 100 once scanin means the sample box over
-#: noise. Measured on review 4's material: every legitimate scan sits at 0.0 %
-#: with these limits, and the over-exposed one at 39.2 %.
+#: channel averages a shade under 100 once scanin means its sample box over
+#: noise. Measured across 30 reads (review 4's material and review 5's exposure
+#: sweep): every well-exposed scan sits at 0.0 % with these limits.
 CLIP_HIGH = 99.5
 CLIP_LOW = 0.5
 
 
-def inspect_read(ti3: Path, chart_patches: "int | None",
+def inspect_read(ti3: Path,
                  agreement: "float | None") -> "ReadInspection | None":
     """Measure one page's read. *agreement* is passed in rather than recomputed
-    because the window already has it — this module does not import Qt and the
+    because the window already has it — this module does not import Qt, and the
     correlation lives beside the code that uses it for the alignment ladder.
 
     ``None`` when the ``.ti3`` cannot be parsed. Nothing here raises: a sanity
@@ -234,6 +238,5 @@ def inspect_read(ti3: Path, chart_patches: "int | None",
     n = len(t.rgb)
     hi = int((t.rgb.max(axis=1) >= CLIP_HIGH).sum())
     lo = int((t.rgb.min(axis=1) <= CLIP_LOW).sum())
-    return ReadInspection(rows=n, chart_patches=chart_patches,
-                          agreement=agreement,
+    return ReadInspection(rows=n, agreement=agreement,
                           clipped_high=hi / n, clipped_low=lo / n)

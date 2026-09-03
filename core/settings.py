@@ -364,6 +364,28 @@ DEFAULTS: dict[str, Any] = {
     # worst = 0). Calibrated on his real Wolf Faust scan so a 25 % grid
     # offset flags and ≤15 % passes at 50 % sample area (#108).
     "scanner_check_agreement":   0.85,
+    # Review 5 (2026-09-03): three floors for "is the data about to become a
+    # profile actually this chart, in full?" — see workflow/scan_read_check.py.
+    # All three are deliberately generous, because a check that cries wolf on a
+    # legitimate scan is worse than the silence it replaces: the same user then
+    # clicks past the real one.
+    #   coverage — the share of the chart's patches the reference file names.
+    #     A reference holding a correct SUBSET of the target builds a profile
+    #     from that fraction of the sheet with every indicator green. 0.97
+    #     leaves room for an id-naming quirk without letting a sixth of the
+    #     chart go missing.
+    #   agreement — scan_reference_correlation's floor. Good reads measured
+    #     +0.940 to +0.972 across 30 reads on two targets; broken ones -0.60 to
+    #     +0.14. 0.25 sits between them AND well under the ρ≈0.5 a saturated
+    #     LaserSoft target reaches on a perfect read (the case the 0.85 above
+    #     exists for).
+    #   clipped — share of patches at either end of the device scale. The
+    #     highest legitimate reading measured was 9.7 % (an extreme warm cast);
+    #     profcheck against the read's own data stays under 1.1 ΔE up to 16 %
+    #     and reaches 5.97 at 39 %. 0.15 is 1.55x the worst legitimate case.
+    "scanner_min_coverage":      0.97,
+    "scanner_min_agreement":     0.25,
+    "scanner_max_clipped":       0.15,
     # Flank override (Knut's derivative design): patch borders are LINES of
     # high spatial gradient (centred, two scales — symmetric in all 8
     # directions); a box is ON an edge when 3+ CONNECTED sub-cells of its
