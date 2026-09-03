@@ -312,10 +312,17 @@ def test_the_catalogue_is_actually_translated_into_german():
 # WORDING is §M-PROPOSED and nobody has approved it, so translating it now is
 # the churn that "translate before the final, not during a beta" exists to
 # avoid. When Basti approves the text, these eight are part of the GA pass.
+#
+# 2026-09-03, Auto align: twelve more in the eleven. These ARE approved text --
+# Basti approved the wording the same day it was written, so they are in §M and
+# not in §M-PROPOSED -- but the beta rule is about the release, not about
+# approval: translating eleven languages during a beta is the churn that
+# "translate before the final, not during a beta" exists to avoid. German is
+# carried in German, as always, because it is the language the owner reads.
 _IDENTICAL_TO_KEY = {
     "de": 152,
-    "es": 289, "fr": 309, "it": 301, "ja": 278, "nl": 318,
-    "no": 302, "pl": 293, "pt": 293, "ru": 265, "sv": 306, "zh_CN": 271,
+    "es": 301, "fr": 321, "it": 313, "ja": 290, "nl": 330,
+    "no": 314, "pl": 305, "pt": 305, "ru": 277, "sv": 318, "zh_CN": 283,
 }
 
 
