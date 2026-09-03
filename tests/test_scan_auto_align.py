@@ -486,3 +486,234 @@ def test_the_real_recogniser_finds_a_real_chart(tmp_path):
     assert r.ok, f"refused: {r.reason} / {r.log_tail}"
     worst = max(math.dist(a, b) for a, b in zip(r.corners, truth))
     assert worst < 8.0, f"corners {worst:.1f} px out: {r.corners}"
+
+
+# ---------------------------------------------------------------------------
+# which way up is the sheet
+# ---------------------------------------------------------------------------
+def _sym_chart(tmp_path: Path, sym: str, n=8, box=30, margin=40):
+    """A SQUARE chart whose colours can be made symmetric, so the four
+    orientations become genuinely indistinguishable."""
+    boxes, colors = [], {}
+    for c in range(n):
+        for r in range(n):
+            loc = f"{chr(65 + c)}{r + 1:02d}"
+            boxes.append({"loc": loc, "x": float(c * box), "y": float(r * box),
+                          "w": float(box), "h": float(box)})
+            if sym == "180":
+                key = min(c * n + r, (n - 1 - c) * n + (n - 1 - r))
+            elif sym == "4":
+                key = min(c * n + r, (n - 1 - c) * n + (n - 1 - r),
+                          r * n + c, (n - 1 - r) * n + (n - 1 - c))
+            else:
+                key = c * n + r
+            v = 20 + key * 200 // (n * n)
+            colors[loc] = (v, (v * 7) % 256, (v * 13) % 256)
+    exp = [(b["loc"], colors[b["loc"]][0] / 2.55, colors[b["loc"]][1] / 2.55,
+            colors[b["loc"]][2] / 2.55) for b in boxes]
+    text = build_cht_text(boxes, exp)
+    img = Image.new("RGB", (n * box + 2 * margin, n * box + 2 * margin),
+                    (255, 255, 255))
+    px = img.load()
+    for b in boxes:
+        for y in range(int(b["y"]) + margin, int(b["y"] + b["h"]) + margin):
+            for x in range(int(b["x"]) + margin, int(b["x"] + b["w"]) + margin):
+                px[x, y] = colors[b["loc"]]
+    p = tmp_path / "scan.tif"
+    img.save(p)
+    (tmp_path / "chart.cht").write_text(text, encoding="utf-8")
+    truth = [(float(margin), float(margin)),
+             (float(margin + n * box), float(margin)),
+             (float(margin + n * box), float(margin + n * box)),
+             (float(margin), float(margin + n * box))]
+    return p, text, truth
+
+
+def test_a_square_chart_is_still_decided_by_its_colours(tmp_path):
+    """Geometry cannot tell which way up a square chart is. Colour can."""
+    from workflow.scan_auto_align import ORIENTATION_MARGIN, orientation_scores
+    scan, text, truth = _sym_chart(tmp_path, "none")
+    boxes = parse_cht(text).patches
+    s = orientation_scores(scan, boxes, truth, expected_luminance(text), 0.6)
+    ranked = sorted((v if v is not None else -9.0) for v in s)
+    assert ranked[-1] > 0.9
+    assert ranked[-1] - ranked[-2] > ORIENTATION_MARGIN
+
+
+def test_a_half_turn_symmetric_chart_has_no_answer(tmp_path):
+    from workflow.scan_auto_align import ORIENTATION_MARGIN, orientation_scores
+    scan, text, truth = _sym_chart(tmp_path, "180")
+    boxes = parse_cht(text).patches
+    s = orientation_scores(scan, boxes, truth, expected_luminance(text), 0.6)
+    ranked = sorted((v if v is not None else -9.0) for v in s)
+    assert ranked[-1] - ranked[-2] < ORIENTATION_MARGIN, (
+        f"a half-turn-symmetric chart looked decidable: {s}")
+
+
+def test_an_undecidable_chart_is_refused_rather_than_guessed(tmp_path):
+    """The whole point: three of the four answers read every patch as another
+    patch, so a guess makes a confidently wrong profile."""
+    scan, text, truth = _sym_chart(tmp_path, "180")
+    boxes = parse_cht(text).patches
+    cie = tmp_path / "chart.cie"
+    cie.write_text("", encoding="utf-8")
+    bbox = (min(b.x1 for b in boxes), min(b.y1 for b in boxes),
+            max(b.x2 for b in boxes), max(b.y2 for b in boxes))
+    with Image.open(scan) as im:
+        size = im.size
+    r = auto_align("scanin", scan, tmp_path / "chart.cht", cie, boxes,
+                   expected_luminance(text), size,
+                   runner=_FakeRun(_log_for(truth, bbox),
+                                   _log_for(truth, bbox)))
+    assert not r.ok
+    assert r.reason == "ambiguous-orientation"
+    assert any("more than one way up" in s for s in r.rejected)
+
+
+def test_an_upside_down_scan_is_turned_the_right_way(tmp_path):
+    """scanin is made to answer with the corner order a half-turned sheet
+    gives. The four-way score has to turn it back."""
+    scan, cht, cie, boxes, exp, size, truth, bbox, _box = _setup(tmp_path)
+    upside = truth[2:] + truth[:2]
+    r = auto_align("scanin", scan, cht, cie, boxes, exp, size,
+                   runner=_FakeRun(_log_for(upside, bbox)))
+    assert r.ok, f"refused: {r.reason} {r.rejected}"
+    for got, want in zip(r.corners, truth):
+        assert got == pytest.approx(want, abs=1.0)
+
+
+# ---------------------------------------------------------------------------
+# narrowing the search to a rectangle the user drew
+# ---------------------------------------------------------------------------
+def test_a_search_region_crops_what_the_recogniser_is_shown(tmp_path):
+    """The region is not a different algorithm: the same recogniser runs on a
+    crop and the corners are shifted back."""
+    scan, cht, cie, boxes, exp, size, truth, bbox, _box = _setup(tmp_path)
+    region = (20.0, 25.0, float(size[0]), float(size[1]))
+    inner = [(x - 20.0, y - 25.0) for x, y in truth]
+    fake = _FakeRun(_log_for(inner, bbox))
+    r = auto_align("scanin", scan, cht, cie, boxes, exp, size,
+                   search_region=region, runner=fake)
+    assert r.ok, f"refused: {r.reason} {r.rejected}"
+    for got, want in zip(r.corners, truth):
+        assert got == pytest.approx(want, abs=0.5), "the offset was not undone"
+    handed = Path(fake.calls[0][-3])
+    assert handed != scan and handed.name == "region.tif"
+
+
+def test_a_nonsense_region_falls_back_to_the_whole_frame(tmp_path):
+    scan, cht, cie, boxes, exp, size, truth, bbox, _box = _setup(tmp_path)
+    r = auto_align("scanin", scan, cht, cie, boxes, exp, size,
+                   search_region=(-5000.0, -5000.0, -4000.0, -4000.0),
+                   runner=_FakeRun(_log_for(truth, bbox)))
+    assert r.ok or r.reason, "a bad rectangle must not raise"
+
+
+def _drive_align(qapp, tmp_path, monkeypatch, quad, answers):
+    """Press Auto align with the recogniser replaced, and return (calls, dialog).
+    *answers* is consumed one per auto_align call."""
+    import workflow.scan_auto_align as aa
+    from workflow.scan_auto_align import AutoAlignResult
+    calls: list = []
+
+    def fake(*a, **k):
+        calls.append(k.get("search_region"))
+        return answers[min(len(calls) - 1, len(answers) - 1)]
+    monkeypatch.setattr(aa, "auto_align", fake)
+    monkeypatch.setattr("ui.dialogs.scanin_dialog.ScannerProfileDialog."
+                        "_auto_align_inputs",
+                        lambda self: (tmp_path / "s.tif", tmp_path / "c.cht",
+                                      tmp_path / "c.cie"))
+    (tmp_path / "c.cht").write_text(
+        build_cht_text([{"loc": "A01", "x": 0.0, "y": 0.0, "w": 5.0, "h": 5.0}],
+                       [("A01", 20.0, 20.0, 20.0)]), encoding="utf-8")
+    (tmp_path / "c.cie").write_text("", encoding="utf-8")
+    d = _dialog(qapp, tmp_path)
+    d._marquee.set_image(Image_qimage(1000, 1000))
+    d._marquee.set_corners(quad)
+    d._capture_current_corners()
+    d._on_auto_align()
+    for _ in range(400):
+        qapp.processEvents()
+        if d._align_thread is None:
+            break
+    qapp.processEvents()
+    _ = AutoAlignResult
+    return calls, d
+
+
+def test_the_window_retries_inside_a_deliberately_placed_quad(qapp, tmp_path,
+                                                              monkeypatch):
+    """Basti: "the user can then limit the area". No second mode: when the
+    whole frame finds nothing AND the corners sit somewhere deliberate, the
+    same search runs again inside them."""
+    from workflow.scan_auto_align import AutoAlignResult
+    found = [(200.0, 200.0), (400.0, 200.0), (400.0, 400.0), (200.0, 400.0)]
+    small = [(180.0, 180.0), (420.0, 180.0), (420.0, 420.0), (180.0, 420.0)]
+    calls, d = _drive_align(
+        qapp, tmp_path, monkeypatch, small,
+        [AutoAlignResult(reason="not-recognised"),
+         AutoAlignResult(corners=found, rho=0.97, source="auto")])
+    assert len(calls) == 2, f"no second, narrowed search: {calls}"
+    assert calls[0] is None and calls[1] is not None
+    x0, y0, x1, y1 = calls[1]
+    assert x0 < 180.0 and y0 < 180.0 and x1 > 420.0 and y1 > 420.0
+    assert d._marquee.corners_image_px() == found
+
+
+def test_the_starting_quad_is_not_treated_as_a_hint(qapp, tmp_path,
+                                                    monkeypatch):
+    """The untouched quad covers about 81 % of the sheet. Searching inside it
+    would be searching the whole image again, so it must not happen."""
+    from workflow.scan_auto_align import AutoAlignResult
+    big = [(20.0, 20.0), (980.0, 20.0), (980.0, 980.0), (20.0, 980.0)]
+    calls, d = _drive_align(qapp, tmp_path, monkeypatch, big,
+                            [AutoAlignResult(reason="not-recognised")])
+    assert calls == [None], f"a second search ran on the untouched quad: {calls}"
+    assert d._marquee.corners_image_px() == big
+
+
+# ---------------------------------------------------------------------------
+# an addition, never a replacement
+# ---------------------------------------------------------------------------
+def test_nothing_aligns_itself_unless_the_button_is_pressed(qapp, tmp_path,
+                                                            monkeypatch):
+    """Basti: "it should not replace it right away as this is a beta anyway."
+    So the window must behave EXACTLY as it did before: no detection on load,
+    on a scan being set, or on a page change -- only on the press."""
+    import workflow.scan_auto_align as aa
+    called: list = []
+    monkeypatch.setattr(aa, "auto_align",
+                        lambda *a, **k: called.append(a) or None)
+    d = _dialog(qapp, tmp_path)
+    d._marquee.set_image(Image_qimage(400, 300))
+    d._marquee.reset_selection_grid()
+    seeded = d._marquee.corners_image_px()
+    d._cur_shot()["path"] = tmp_path / "nope.tif"
+    d._on_page_changed(0)
+    d._capture_current_corners()
+    assert called == [], "something ran the recogniser on its own"
+    assert d._marquee.corners_image_px() == seeded, "the grid moved by itself"
+    assert d._align_undo is None
+    assert d._auto_align_btn.text() == tr_text("Auto align")
+
+
+def tr_text(s):
+    from core.i18n import tr
+    return tr(s)
+
+
+def test_the_starting_quad_is_the_one_the_marquee_always_used(qapp, tmp_path):
+    """A comparison rather than a promise: the corners the window seeds are
+    byte-for-byte the ones a bare ScanGridMarquee seeds for the same image and
+    the same grid, so nothing this feature added touches the starting state."""
+    from ui.scan_grid_marquee import ScanGridMarquee
+    d = _dialog(qapp, tmp_path)
+    img = Image_qimage(1000, 700)
+    d._marquee.set_image(img)
+    d._marquee.reset_selection_grid()
+    bare = ScanGridMarquee()
+    bare.set_grid(d._marquee._grid)
+    bare.set_image(img)
+    bare.reset_selection_grid()
+    assert d._marquee.corners_image_px() == bare.corners_image_px()
