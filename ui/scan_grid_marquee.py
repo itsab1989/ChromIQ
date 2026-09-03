@@ -24,6 +24,7 @@ from PyQt6.QtCore import QPointF, QRectF, Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QImage, QPainter, QPen, QPixmap, QTransform
 from PyQt6.QtWidgets import QWidget
 
+from core.i18n import tr
 from ui import neutral_styles
 
 
@@ -650,8 +651,16 @@ class ScanGridMarquee(QWidget):
         p.fillRect(self.rect(), QColor(_BACKDROP_BY_MODE[mode]))
         if self._pix is None:
             p.setPen(QColor(_EMPTY_TEXT_BY_MODE[mode]))
+            # `tr` AT PAINT TIME, not in a module constant: a string captured
+            # at import keeps the language the module was imported in, and
+            # `main.py` sets the language after the first imports have already
+            # run. This one shipped as a BARE literal — English in all thirteen
+            # catalogues, invisible to `scripts/i18n_extract.py`, and read by a
+            # German user on the Windows VM with the rest of the window in
+            # German (2026-09-03). The extractor now refuses this shape; see
+            # `tests/test_i18n.py::test_no_user_facing_literal_skips_tr`.
             p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter,
-                       "Load a scan of the printed chart")
+                       tr("Load a scan of the printed chart"))
             return
         self._recompute_fit()
         s = self._scale * self._zoom

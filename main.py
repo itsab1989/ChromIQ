@@ -131,7 +131,8 @@ def main() -> int:
     app.setApplicationName("ChromIQ")
     app.setApplicationVersion(APP_VERSION)
     app.setOrganizationName("ChromIQ")
-    app.setApplicationDisplayName("ChromIQ — Printer Profiling")
+    # The display name is set LATER, once the catalogue is loaded — see the
+    # `setApplicationDisplayName` call below `set_language`.
 
     # Silence the cosmetic QtWebEngine/Chromium teardown warnings printed on the
     # crash-safe os._exit path (see core.qt_message_filter / core.webengine_shutdown).
@@ -180,8 +181,19 @@ def main() -> int:
 
     # Language must be set before any widget is built — strings are
     # translated at construction time (restart-to-apply, see core/i18n.py).
-    from core.i18n import install_qt_translator, set_language
+    from core.i18n import install_qt_translator, set_language, tr
     set_language(settings.get("language", "en"))
+    # AFTER `set_language`, AND THROUGH `tr` — both halves, or the title bar
+    # says it twice in two languages. Qt appends the application display name
+    # to every window title unless the title already ends with it
+    # (`QPlatformWindow::formatWindowTitle`), and the main window's own title is
+    # this same sentence. Set in English while the app runs in German, the two
+    # stopped matching and Windows showed
+    # "ChromIQ — Druckerprofilierung - ChromIQ — Printer Profiling" on every
+    # window and in the task bar (Windows 11 VM, German UI, 2026-09-03).
+    # Set here, they match again and Qt appends nothing. It cannot move any
+    # earlier: `tr` before `set_language` is the English catalogue.
+    app.setApplicationDisplayName(tr("ChromIQ — Printer Profiling"))
     # Qt's own strings (OK/Cancel/Close buttons, context menus) come from
     # qtbase_<code>.qm, not our catalog.
     install_qt_translator(app)

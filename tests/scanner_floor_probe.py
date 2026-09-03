@@ -38,6 +38,17 @@ from PyQt6.QtWidgets import (QAbstractButton, QAbstractSpinBox,  # noqa: E402
 # it. Kept here so the probe and the tests cannot drift apart.
 SMALLEST_SCREEN = 1280
 HEADROOM = 60
+
+# …and the same question for HEIGHT, which was never asked. The window came out
+# of the two-panel rework with a floor of 675 logical pixels on the Windows VM
+# and 716 measured here — on a 1920x1080 laptop at 150 % scaling, which has 720
+# logical pixels minus a 48 px taskbar, so 672. A window whose minimum exceeds
+# the screen cannot be used at all (finding C of the Windows verification,
+# 2026-09-03). `minimumHeight` is a CLIENT height, so the caption comes off too.
+SMALLEST_SCREEN_H = 720
+TASKBAR_H = 48
+TITLEBAR_H = 32
+SMALLEST_CLIENT_H = SMALLEST_SCREEN_H - TASKBAR_H - TITLEBAR_H
 LANGUAGES = ["en", "de", "fr", "es", "it", "nl", "no", "pl", "pt", "ru", "sv",
              "ja", "zh_CN"]
 
@@ -304,18 +315,25 @@ def measure(app, lang, out_dir):
             settle(app, dlg)
             label = name + (", Advanced open" if advanced else
                             ", Advanced closed")
-            states.append((label, setup, advanced, dlg.minimumWidth()))
+            # HEIGHT AS WELL AS WIDTH, and per state for the same reason width
+            # is: Advanced open adds rows to the left column, which is the
+            # column that sets this window's height floor.
+            states.append((label, setup, advanced, dlg.minimumWidth(),
+                           max(dlg.minimumHeight(),
+                               dlg.minimumSizeHint().height())))
     dlg._adv_inline_head.setChecked(False)
     settle(app, dlg)
 
     worst_state, worst = max(((s[0], s[3]) for s in states),
                              key=lambda sw: sw[1])
+    worst_h_state, worst_h = max(((s[0], s[4]) for s in states),
+                                 key=lambda sh: sh[1])
 
     # …and now sit the window on each state's own floor and look for damage.
     bad = []
     cut = []
     combos_seen = 0
-    for label, setup, advanced, floor in states:
+    for label, setup, advanced, floor, _floor_h in states:
         setup()
         settle(app, dlg)
         dlg._adv_inline_head.setChecked(advanced)
@@ -357,6 +375,9 @@ def measure(app, lang, out_dir):
         "worst": worst,
         "worst_state": worst_state,
         "floors": {s[0]: s[3] for s in states},
+        "worst_h": worst_h,
+        "worst_h_state": worst_h_state,
+        "floors_h": {s[0]: s[4] for s in states},
         "clipped": bad,
         # Combos that cannot show the value they are set to, and how many
         # combos were looked at to say so — a zero here is only worth

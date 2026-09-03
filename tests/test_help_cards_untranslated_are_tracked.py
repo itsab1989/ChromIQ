@@ -168,10 +168,19 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # other reason: eleven languages are translated before a final, not during a
 # beta. 157 is again the highest ACTUAL count across the eleven (fr), not a
 # round ceiling.
+# 2026-09-03, the Windows verification's finding D: +4 for the eleven and +0
+# for German. Eight keys arrive and FOUR of the eight are counted here — the
+# other four are under the 25-character floor ("Building", "Hexagon patches",
+# "Applying calibration…", "Creating calibration…"). None of this is new text:
+# all eight were already on screen in English in every language, as literals
+# that never reached `tr()`, and the eleven simply keep displaying what they
+# were displaying. German carries all eight and does not move, because none of
+# them is the same wording in German. 161 is again fr's ACTUAL count, not a
+# round ceiling.
 _BUDGET = {
     "de": 35,
-    "es": 157, "fr": 157, "it": 157, "ja": 157, "nl": 157,
-    "no": 157, "pl": 157, "pt": 157, "ru": 157, "sv": 157, "zh_CN": 157,
+    "es": 161, "fr": 161, "it": 161, "ja": 161, "nl": 161,
+    "no": 161, "pl": 161, "pt": 161, "ru": 161, "sv": 161, "zh_CN": 161,
 }
 
 

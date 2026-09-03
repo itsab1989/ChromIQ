@@ -7014,9 +7014,9 @@ class TabChart(QWidget):
             if instr == "CM":
                 self._manual_dd_pw.setVisible(True)
                 self._manual_dd_pw.set_display_text(
-                    "Double density",
-                    "Double Density (-h)",
-                    "Doubles the number of patches that fit in each measurement "
+                    tr("Double density"),
+                    tr("Double Density (-h)"),
+                    tr("Doubles the number of patches that fit in each measurement "
                     "strip when using a ColorMunki / i1Studio / ColorChecker "
                     "Studio.\n\n"
                     "REQUIRES the physical measuring rig accessory — a clear "
@@ -7029,15 +7029,15 @@ class TabChart(QWidget):
                     "fewer sheets. Recommended for anyone with the rig — it's "
                     "a strict upgrade on patch density.\n\n"
                     "Has no effect on i1Pro, i1Pro 3 Plus or SpectroScan — the "
-                    "option is hidden when those are selected.",
+                    "option is hidden when those are selected."),
                     tooltip_min_width=600,
                 )
             elif instr == "SS":
                 self._manual_dd_pw.setVisible(True)
                 self._manual_dd_pw.set_display_text(
-                    "Hexagon patches",
-                    "Hexagon Patches (-h)",
-                    "Switches the SpectroScan chart layout from rectangular to "
+                    tr("Hexagon patches"),
+                    tr("Hexagon Patches (-h)"),
+                    tr("Switches the SpectroScan chart layout from rectangular to "
                     "hexagonal patches. Hexagons tessellate more tightly than "
                     "rectangles, so roughly 14% more patches fit on the same "
                     "sheet — useful for squeezing extra colour samples out of "
@@ -7046,7 +7046,7 @@ class TabChart(QWidget):
                     "reads each patch individually under a motorised arm, so it "
                     "doesn't care whether the patch is square or hexagonal.\n\n"
                     "Has no effect on i1Pro, i1Pro 3 Plus or ColorMunki — the "
-                    "option is hidden when those are selected.",
+                    "option is hidden when those are selected."),
                     tooltip_min_width=600,
                 )
             else:
@@ -12478,11 +12478,43 @@ class TabChart(QWidget):
         with no window of any kind. Exactly what `name_prompt.validate` says it
         exists to prevent. Keeping the rule in one method is what stops the next
         route from being missed too.
+
+        AND A NAME THAT IS ALREADY A PROJECT IS NOT ASKED ABOUT. This is the
+        one route where the text in the box need not be somebody's fresh typing
+        — opening a project puts its own name there — so tightening the length
+        cap for Windows (`core.path_budget`) would otherwise have locked a
+        person out of a project ChromIQ itself made under the older, longer cap.
+        A NAME ALREADY ON DISK IS A FIXED POINT; `_name_is_a_project_on_disk`
+        is what tells `validate` so.
         """
         from ui.dialogs.name_prompt import validate
         if typed:
-            return validate(typed) is not None
+            return validate(
+                typed,
+                on_disk=self._name_is_a_project_on_disk(typed)) is not None
         return not target_name and not _is_named(self._file_mgr)
+
+    def _name_is_a_project_on_disk(self, typed: str) -> bool:
+        """Whether *typed* names a project folder that exists — INCLUDING the
+        one already open.
+
+        Not `_project_already_exists`, and the difference is the whole point:
+        that one deliberately answers False for the open project, because it
+        drives the "this name is already taken" line and the open project is
+        not news. Here the open project is exactly the case that matters — it
+        is the name most likely to be sitting in the box when a build starts.
+
+        The same cheap check it uses: one `is_file()` on the manifest, never
+        `Project.load`, which migrates in place.
+        """
+        typed = (typed or "").strip()
+        if not typed:
+            return False
+        try:
+            root = self._file_mgr.resolved_root_for_name(typed)
+            return root is not None and (root / "project.json").is_file()
+        except OSError:
+            return False
 
     def _ask_for_a_project_name(self) -> bool:
         """Ask for the project name, put it in the box, and say whether the
@@ -13417,11 +13449,11 @@ class TabChart(QWidget):
         if getattr(self, "_preview", None) is None:
             return
         if self._is_isis_selected():
-            self._preview.set_banner(
+            self._preview.set_banner(tr(
                 "Layout preview only — i1Profiler will lay out the actual chart "
                 "from the patch list when you load the .pxf, so the printed "
                 "chart will look different from what's shown here."
-            )
+            ))
         else:
             self._preview.set_banner(None)
 

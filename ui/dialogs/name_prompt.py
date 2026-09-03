@@ -26,6 +26,7 @@ from PyQt6.QtWidgets import (
     QDialog, QHBoxLayout, QLabel, QLineEdit, QPushButton, QVBoxLayout, QWidget,
 )
 
+from core import path_budget
 from core.i18n import tr
 from ui.styles import SPEC_MAGENTA
 from ui.tooltip_button import TooltipButton
@@ -83,10 +84,19 @@ def _tooltip_body() -> str:
     )
 
 
-def validate(text: str) -> str | None:
+def validate(text: str, *, on_disk: bool = False) -> str | None:
     """The reason *text* cannot be used as a project name, or None if it can.
 
     SHAPE ONLY — see the module docstring. Nothing here reads the disk.
+
+    ``on_disk=True`` says the CALLER has already established that this name
+    belongs to a project that exists. It relaxes the LENGTH rule and nothing
+    else. A NAME ALREADY ON DISK IS A FIXED POINT (Basti's ruling, quoted in
+    ``FileManager._sanitise``): ChromIQ made names of up to 120 bytes under the
+    old cap, the new one is 80 characters, and a person who has such a project
+    must still be able to open it and build in it. Every other rule stays,
+    because a folder holding ``:`` or called ``CON`` cannot exist in the first
+    place — only the length rule can be true of a folder that does.
     """
     name = (text or "").strip()
     if not name:
@@ -103,12 +113,22 @@ def validate(text: str) -> str | None:
     # A FOLDER NAME HAS A LENGTH LIMIT, AND FAILING LATE IS EXPENSIVE.
     # macOS and most Linux filesystems cap a single name at 255 BYTES; a 250
     # character name passed validation, reached `mkdir`, died with Errno 63
-    # ("File name too long") and left a half-built project on disk. Bytes, not
-    # characters — one emoji is four of them. 120 leaves generous room for the
-    # suffixes ChromIQ appends to files inside the folder.
-    if len(name.encode("utf-8")) > 120:
+    # ("File name too long") and left a half-built project on disk.
+    #
+    # AND THAT WAS THE WRONG LIMIT FOR WINDOWS, WHICH CAPS THE WHOLE PATH.
+    # A name of 111 to 120 characters passed this check and then the chart file
+    # could not be written at all: the person saw a file-not-found naming an
+    # ordinary-looking path, with nothing anywhere saying "too long" (Windows 11
+    # VM, 2026-09-03). `core.path_budget` derives what actually fits, from
+    # MAX_PATH, the project root and the longest name-bearing path ChromIQ
+    # builds; the number it returns is 80 on the reference root and less on a
+    # deeper one. The message names the length this name must come down to
+    # rather than the cap, because there are two rules in two different units
+    # and either one alone can misdirect — see `longest_prefix_that_fits`.
+    if not on_disk and not path_budget.fits(name):
         return tr("That name is too long for a folder. Please shorten it to "
-                  "about 120 characters or fewer.")
+                  "about {limit} characters or fewer.").format(
+                      limit=path_budget.longest_prefix_that_fits(name))
     if not any(ch.isalnum() for ch in name):
         return tr("That name has no letters or numbers in it, so ChromIQ "
                   "cannot make a folder from it. Please add some.")

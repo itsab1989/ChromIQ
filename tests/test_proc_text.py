@@ -92,12 +92,64 @@ def test_utf8_output_comes_back_as_written():
     assert decode_output(NAME.encode("utf-8")) == NAME
 
 
-def test_ansi_output_from_a_windows_tool_is_recovered(caplog):
-    """What an MSVC console program echoes on a German Windows.
+#: The exact stderr bytes ArgyllCMS 3.5.0 (official win64 build, x64 emulation)
+#: wrote on Windows 11 Home 26200.9168 ARM64, German UI, captured with
+#: `capture_output=True` and never decoded — WINDOWS-VM-REPORT.md §2d,
+#: 2026-09-03. Kept as bytes so nothing in this file can quietly re-encode it.
+ARGYLL_WINDOWS_STDERR = (
+    b"printtarg: Error - CGATS file read error : Unable to open file "
+    b"'M\xc3\xbcller-Pr\xc3\xbcfdruck-does-not-exist.ti1' for reading\r\n")
 
-    `main()` receives argv already narrowed through the ANSI code page, and
-    `printf` writes those same bytes to a redirected pipe. cp1252 bytes are
-    invalid UTF-8, so the first rung cannot mis-fire on them.
+
+def test_argyll_on_windows_writes_utf8_and_the_first_rung_takes_it(caplog):
+    """The measurement that falsified this module's own Windows reasoning.
+
+    The docstring used to argue that ArgyllCMS, being MSVC console programs
+    with no UTF-8 manifest, writes the ANSI code page — cp1252 on the German
+    Windows issue #178 was filed from. It does not: it wrote UTF-8, on a
+    machine whose `GetACP()` really is 1252. What saved the app was that the
+    module built a ladder instead of trusting that analysis.
+
+    So this pins BOTH halves: those exact bytes are UTF-8 and are not cp1252,
+    and `decode_output` takes them on the FIRST rung, with no warning — because
+    a warning here would mean the ladder had fallen through to a guess.
+    """
+    assert 0xFC not in ARGYLL_WINDOWS_STDERR, \
+        "0xFC is the ANSI byte for 'ü'; these bytes are supposed to be UTF-8"
+    assert b"\xc3\xbc" in ARGYLL_WINDOWS_STDERR
+    proc_text._REPORTED.clear()
+    with caplog.at_level("WARNING"):
+        got = decode_output(ARGYLL_WINDOWS_STDERR, what="printtarg")
+    assert "Müller-Prüfdruck-does-not-exist.ti1" in got
+    assert "MÃ¼ller" not in got, "decoded through the ANSI rung, not UTF-8"
+    assert caplog.records == [], [r.getMessage() for r in caplog.records]
+
+
+def test_the_utf8_rung_is_first_and_a_windows_ansi_rung_never_precedes_it():
+    """The order, and the reason it must not be inverted.
+
+    "ANSI first on Windows" is the change the falsified comment invited, and it
+    cannot fail loudly: cp1252 maps 251 of 256 byte values, so it decodes valid
+    UTF-8 into mojibake without ever raising. UTF-8 must therefore be tried
+    before any single-byte codec, on every platform.
+    """
+    order = output_order()
+    assert order[0].startswith("utf-8")
+    single_byte = [i for i, e in enumerate(order)
+                   if e.startswith("cp") or e.startswith("latin")]
+    assert all(i > 0 for i in single_byte), order
+    # …and it is not merely that UTF-8 is first: it must decode the measured
+    # bytes, which is what makes being first worth anything.
+    assert ARGYLL_WINDOWS_STDERR.decode(order[0]).count("ü") == 2
+
+
+def test_ansi_output_from_a_windows_tool_is_recovered(caplog):
+    """A tool that DOES echo the ANSI code page is still recovered.
+
+    Not ArgyllCMS 3.5.0 — that was measured writing UTF-8 (above). This is the
+    rung that exists for the builds and the tools nobody has measured: cp1252
+    bytes are invalid UTF-8, so the first rung cannot mis-fire on them and the
+    fallback is reached honestly.
     """
     raw = NAME.encode("cp1252")
     with pytest.raises(UnicodeDecodeError):

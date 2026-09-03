@@ -249,6 +249,21 @@ def cache_subdir(folder: Path | str) -> Path:
 #: name is the only way it is ever executed here.
 #: ``tests/test_a_name_is_not_a_pattern.py`` does exactly that.
 #:
+#: AND IT IS THE *MATCHING* RULE, NOT THE FILESYSTEM'S. Do not read this line
+#: as "macOS is case-sensitive": a default APFS volume is **case-insensitive**,
+#: measured on the owner's Mac (``mkdir Chart`` then ``mkdir chart`` ->
+#: ``FileExistsError``, and ``os.path.samefile`` says True). So macOS gets
+#: Windows' filesystem with Linux's matching rule, and a file whose name
+#: differs from the stem only by case is invisible to
+#: :func:`stem_files` there — while the same file is found on Windows.
+#: ChromIQ writes those files itself, from the folder's own name, so it does
+#: not reach that state on its own; a file renamed by hand in Finder does.
+#: Left as it is deliberately, because lowering both sides everywhere would
+#: change matching on the case-SENSITIVE volumes ChromIQ also runs on (an APFS
+#: volume formatted case-sensitive, and every ordinary Linux one), where two
+#: files that differ by case really are two files.
+#: ``tests/test_two_names_differing_only_by_case.py`` measures all of this.
+#:
 #: It lowercases the PATTERN as well as the name, which would mangle a genuine
 #: character range (``[A-Z]`` -> ``[a-z]``). Every literal now arrives escaped —
 #: ``[*]``, ``[?]``, ``[[]``, all case-free — so there is nothing left in a
@@ -268,6 +283,47 @@ def nfc(name: str) -> str:
     left. See :func:`files_matching` for why that matters.
     """
     return unicodedata.normalize("NFC", name)
+
+
+def _existing_folder_spelling(parent: Path, name: str) -> str:
+    """The name *parent* really holds for *name*, when the two are one folder.
+
+    A default macOS APFS volume and every Windows volume are case-insensitive
+    and case-PRESERVING: ``<parent>/chart`` opens a folder called ``Chart`` and
+    keeps calling it ``Chart``. So a name typed in the other case names an
+    existing project, and taking the typed spelling as the project's name makes
+    the run's file stem disagree with the folder it sits in.
+
+    Returns *name* unchanged when nothing on disk matches, when the exact
+    spelling is there, or when the volume is case-sensitive — for which
+    ``(parent / name).exists()`` is the filesystem's own answer, rather than a
+    guess about the platform.
+
+    CASE ONLY, and ``str.lower`` is what keeps it that way. An accent spelled
+    differently — ``Müller`` composed against the decomposed form an HFS+
+    volume hands back — is the problem :func:`nfc` and :func:`files_matching`
+    already solve, in their own way, and quietly adopting a decomposed name
+    here would change what ``tests/test_project_name_keeps_its_accents.py``
+    pins. It cannot happen: lowering a combining mark leaves it a combining
+    mark, so the two spellings do not compare equal and the loop walks past.
+    An explicit NFC guard stood here as well and was removed, because no
+    mutation of it could be made to change any outcome.
+    """
+    if not name:
+        return name
+    try:
+        if not (parent / name).exists():
+            return name                     # nothing there, nothing to adopt
+        with os.scandir(str(parent)) as entries:
+            found = [e.name for e in entries if e.is_dir()]
+    except (OSError, ValueError):
+        return name
+    if name in found:
+        return name                         # the exact spelling is on disk
+    for other in found:
+        if other.lower() == name.lower():
+            return other
+    return name
 
 
 #: ``*``, ``?`` and ``[`` are the only characters `fnmatch` treats as syntax.
@@ -3026,6 +3082,20 @@ class FileManager:
         # phantom project instead of the one on screen. A genuinely different
         # name means a different, fresh project, which always lives directly
         # under the ChromIQ folder — so the override is dropped in that case.
+        # THE FOLDER'S OWN SPELLING WINS OVER THE TYPED ONE. On a filesystem
+        # that does not distinguish `Chart` from `chart` — Windows, and a
+        # DEFAULT macOS APFS volume, which is the half everyone forgets —
+        # typing the other case opens the same folder while leaving the typed
+        # spelling as the target name. `Run.stem` is the project folder's name,
+        # so the run then built `chart.ti2` beside the `Chart.ti2` already
+        # there: two chart chains in one run, each invisible to the other,
+        # because `stem_files` compares spellings. Measured on macOS, not
+        # reasoned (`tests/test_two_names_differing_only_by_case.py`).
+        #
+        # `(parent / new_name).exists()` is the FILESYSTEM's own answer to "are
+        # these two the same folder", so nothing is adopted on a case-sensitive
+        # volume, where `Chart` and `chart` really are two projects.
+        new_name = _existing_folder_spelling(self.root_dir(), new_name)
         ov = self._project_root_override
         if ov is None or self._sanitise(ov.name) != new_name:
             self._project_root_override = None
@@ -3165,9 +3235,32 @@ class FileManager:
         papertype: str = "Type",
         instrument: str = "Instr",
     ) -> str:
+        """The name ChromIQ suggests when nobody has typed one.
+
+        THE APP MUST NOT PROPOSE A NAME IT WOULD THEN REFUSE. Four real
+        descriptions joined together get long — "Canon PIXMA PRO-300 series",
+        "Hahnemuehle Photo Rag 308", "Matte Fine Art" and "i1Pro 3 Plus" make
+        **97 characters**, against a cap of 80 (`core.path_budget`). Before that
+        cap existed the 120-byte one hid it; with the Windows path budget in
+        place, the suggestion would have been rejected by the door the moment
+        Generate was pressed, and the person would have been told to shorten a
+        name they never wrote.
+
+        So the DESCRIPTION is trimmed and the timestamp is kept whole: the
+        stamp is what makes two suggestions different from each other, and a
+        truncated one would make two builds a minute apart collide.
+        """
         ts = datetime.now().strftime("%Y-%m-%d_%H-%M")
-        parts = [printer, paper, papertype, instrument, ts]
-        return "_".join(cls._sanitise(p) for p in parts)
+        head = "_".join(cls._sanitise(p)
+                        for p in (printer, paper, papertype, instrument))
+        try:
+            from core.path_budget import name_budget
+            room = name_budget() - len(ts) - 1
+        except Exception:                # noqa: BLE001 — never fail to name
+            room = len(head)
+        if room > 0 and len(head) > room:
+            head = _TRAIL.sub("", head[:room].rstrip("-_."))
+        return f"{head}_{ts}"
 
     def _auto_name(self) -> str:
         return self.default_target_name()

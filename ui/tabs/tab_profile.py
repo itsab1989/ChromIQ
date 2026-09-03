@@ -547,7 +547,7 @@ class TabProfile(QWidget):
         # including the two modules that only appear with calibration options
         # switched on.
         self._progress_bar = SpectrumSegmentsBar(colprof_container)
-        self._progress_bar.set_label("Build Profile", "")
+        self._progress_bar.set_label(tr("Build Profile"), "")
         self._progress_bar.set_value(0)
         cc.addWidget(self._progress_bar)
 
@@ -1078,7 +1078,7 @@ class TabProfile(QWidget):
         btn_row.addWidget(self._pc_save_defaults_btn)
         # ---- Progress bar, above the buttons (see the colprof module) ----
         self._pc_progress = SpectrumSegmentsBar(container)
-        self._pc_progress.set_label("Create Calibration File", "")
+        self._pc_progress.set_label(tr("Create Calibration File"), "")
         self._pc_progress.set_value(0)
         cc.addWidget(self._pc_progress)
 
@@ -1357,12 +1357,12 @@ class TabProfile(QWidget):
         if self._runner.is_running:
             return
         if self._cal_ti3_path is None or not self._cal_ti3_path.exists():
-            self._pc_log.setPlainText("[ERROR] No input .ti3 file selected.")
+            self._pc_log.setPlainText(tr("[ERROR] No input .ti3 file selected."))
             return
 
         self._pc_log.clear()
         self._pc_run_btn.setEnabled(False)
-        self._pc_progress.set_label("Creating calibration…", "printcal")
+        self._pc_progress.set_label(tr("Creating calibration…"), "printcal")
         self._pc_progress.set_value(None)
         self._pc_progress.start()
 
@@ -1391,7 +1391,7 @@ class TabProfile(QWidget):
 
         def _on_finish(cal_path: Path | None) -> None:
             self._pc_progress.stop()
-            self._pc_progress.set_label("Create Calibration File", "")
+            self._pc_progress.set_label(tr("Create Calibration File"), "")
             self._pc_progress.set_value(0)
             self._pc_run_btn.setEnabled(True)
             if cal_path is None:
@@ -1530,7 +1530,7 @@ class TabProfile(QWidget):
         btn_row.addWidget(self._ac_save_defaults_btn)
         # ---- Progress bar, above the buttons (see the colprof module) ----
         self._ac_progress = SpectrumSegmentsBar(container)
-        self._ac_progress.set_label("Apply Calibration", "")
+        self._ac_progress.set_label(tr("Apply Calibration"), "")
         self._ac_progress.set_value(0)
         cc.addWidget(self._ac_progress)
 
@@ -1595,7 +1595,9 @@ class TabProfile(QWidget):
         cal = self._ac_cal_edit.text().strip()
         in_icc = self._ac_in_edit.text().strip()
         if not cal or not in_icc:
-            self._ac_log.setPlainText("[ERROR] Please select a .cal file and an input ICC profile.")
+            self._ac_log.setPlainText(
+                tr("[ERROR] Please select a .cal file and an input ICC "
+                   "profile."))
             return
         out_raw = self._ac_out_edit.text().strip()
         if out_raw:
@@ -1607,7 +1609,7 @@ class TabProfile(QWidget):
         self._ac_log.clear()
         self._ac_run_btn.setEnabled(False)
         mode = self._ac_mode_combo.currentData() or "apply"
-        self._ac_progress.set_label("Applying calibration…", "applycal")
+        self._ac_progress.set_label(tr("Applying calibration…"), "applycal")
         self._ac_progress.set_value(None)
         self._ac_progress.start()
 
@@ -1617,7 +1619,7 @@ class TabProfile(QWidget):
 
         def _on_finish(result: Path | None) -> None:
             self._ac_progress.stop()
-            self._ac_progress.set_label("Apply Calibration", "")
+            self._ac_progress.set_label(tr("Apply Calibration"), "")
             self._ac_progress.set_value(0)
             self._ac_run_btn.setEnabled(True)
             if result is None:
@@ -5105,7 +5107,8 @@ class TabProfile(QWidget):
         self._file_grp.setEnabled(False)
         self._stack.setEnabled(False)
         self._progress_bar.set_label(
-            "Building", "colprof" if engine == "colprof" else "ChromIQ engine")
+            tr("Building"),
+            "colprof" if engine == "colprof" else "ChromIQ engine")
         self._progress_bar.set_value(None)
         self._progress_bar.start()
         self.profile_active.emit(True)
@@ -5156,7 +5159,7 @@ class TabProfile(QWidget):
         self._file_grp.setEnabled(True)
         self._stack.setEnabled(True)
         self._progress_bar.stop()
-        self._progress_bar.set_label("Build Profile", "")
+        self._progress_bar.set_label(tr("Build Profile"), "")
         self._progress_bar.set_value(0)
 
     def _on_engine_done(self, code: int) -> None:

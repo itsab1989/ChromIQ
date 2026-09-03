@@ -23,7 +23,7 @@ from core.stem_paths import artefact
 import re
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import QEvent, Qt, pyqtSignal
 from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import (
     QApplication, QButtonGroup, QCheckBox, QDialog, QDialogButtonBox, QGridLayout,
@@ -531,6 +531,27 @@ class ScannerProfileDialog(_ToolDialogBase):
     # smaller — 1048 px in English, 1186 in Spanish, the worst of the twelve.
     MIN_WIDTH   = 1240
     SCROLLABLE_CONTENT = True    # tall (mode toggle + inputs + marquee + averaging)
+
+    # THE FLOOR HAS TO FIT A SCREEN SOMEBODY OWNS, AND ONLY THE WIDTH WAS
+    # MEASURED. This window's width floor was read off its own content in
+    # twelve languages when it became two panels; its HEIGHT floor was not, and
+    # it came out at 675 logical pixels on the Windows VM and 716 here — on a
+    # laptop that has 672 (finding C, 2026-09-03). A window whose minimum
+    # exceeds the screen cannot be used at all: it cannot be resized to fit and
+    # its bottom row, which is where "Build profile" and "Close" live, is off
+    # the edge.
+    #
+    # The three numbers, each in LOGICAL pixels, which is what Qt sizes in:
+    SMALLEST_SCREEN_H = 720      # 1920x1080 at 150 %, a very common Windows setup
+    TASKBAR_H = 48               # the Windows 11 taskbar, which does not scale away
+    TITLEBAR_H = 32              # the Windows 11 caption, outside the client area
+    #: What `minimumHeight` — a CLIENT height — may therefore be.
+    MAX_FLOOR_H = SMALLEST_SCREEN_H - TASKBAR_H - TITLEBAR_H
+
+    #: …and how little the settings pane may be squeezed to get there. It is a
+    #: scroll area, so a small one still reaches every row; below this it stops
+    #: being a pane and becomes a slit.
+    MIN_LEFT_SCROLL_H = 96
 
     # Prepended OUTSIDE the main tr() key — appending inside would orphan the
     # existing help key and its translations (the WHICH_CHART_HELP lesson).
@@ -1928,6 +1949,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         # the window's floor comes back as 547 px when the panes alone need
         # 1084. The window then lets itself be dragged to half its own content.
         self._refresh_min_width()
+        self._refit_height()
 
     def _measure_advanced_width(self) -> None:
         """How wide the fixed left pane has to be with Advanced OPEN.
@@ -1951,6 +1973,115 @@ class ScannerProfileDialog(_ToolDialogBase):
             self._pane_w_closed,
             self._adv_inline_body.minimumSizeHint().width() + self._pane_bar_w
             + m.left() + m.right() + self._BAR_GAP + 4 + self._PANE_GAP)
+
+    def _fit_floor_to_the_smallest_screen(self) -> None:
+        """Bring the window's floor down to something a 1080p laptop can show.
+
+        The PREVIEW pane is not what sets the height floor, which is worth
+        stating because it looks as though it should: `_scroll_right` is a
+        QScrollArea and reports a minimum of 44, so the marquee's own
+        `setMinimumHeight(460)` never reaches the window. The floor is the LEFT
+        column — the settings scroll's shared 200 px minimum
+        (`tools_dialogs.py`), the spectrum bar, the four big buttons and the
+        nine-line log, which `fit_log_height` pins at min == max.
+
+        So the settings scroll is what gives. It is the one thing in that column
+        that scrolls, so a smaller one still reaches every row; the user's own
+        log height and the four buttons are left exactly as they are. How much
+        it gives is DERIVED from the layout, not chosen, because the amount is
+        different in every language and in every source mode.
+
+        IDEMPOTENT, AND IT CAN GIVE THE ROOM BACK. Every call works from the
+        pane's ORIGINAL floor, so a source mode that needs less does not inherit
+        the squeeze of one that needed more — and a call that changes nothing
+        touches nothing, which is what lets `event` run this on every layout
+        change without the invalidation feeding itself.
+
+        The original floor is reached arithmetically rather than by resetting
+        the pane and measuring again: the pane's minimum adds linearly to the
+        left column's, which adds to the window's, so the floor the pane WOULD
+        have is the floor it has plus the room it gave up.
+        """
+        if self._scroll is None:
+            return
+        lay = self.layout()
+        if lay is None:
+            return
+        base = getattr(self, "_left_scroll_floor", None)
+        if base is None:
+            base = self._left_scroll_floor = self._scroll.minimumHeight()
+        cur = self._scroll.minimumHeight()
+        over = (lay.minimumSize().height() - cur + base) - self.MAX_FLOOR_H
+        want = max(self.MIN_LEFT_SCROLL_H, base - over) if over > 0 else base
+        if want == cur:
+            return
+        self._scroll.setMinimumHeight(want)
+        self._settle_the_splitter()
+
+    def _settle_the_splitter(self) -> None:
+        """Make the window's layout tell the truth about its minimum.
+
+        A QSplitter CACHES the minimum it reports, and the caller has just
+        changed the height of something inside a pane. `_refresh_min_width`
+        already knew that for width — its own note records the floor coming
+        back as 547 px when the panes needed 1084 — and the height half hits
+        the identical wall: shrink the settings pane and the window's own
+        `_refit_height` still reads the OLD 716 and pins the minimum there,
+        which is a floor above the screen with the pane already made small to
+        get under it. The worst of both.
+
+        Called AFTER the change and not before it. A settle before the
+        measurement was there too and was removed: it changed nothing that
+        could be measured in any of the thirteen languages, and a line that
+        cannot be shown to matter is a line nobody can maintain.
+        """
+        lay = self.layout()
+        if lay is None:
+            return
+        lay.invalidate()
+        split = getattr(self, "_two_panel_split", None)
+        if split is not None:
+            pane = getattr(self, "_left_pane_w", None)
+            if pane is not None and pane.layout() is not None:
+                pane.layout().invalidate()
+            split.refresh()
+        lay.activate()
+
+    def event(self, e):                                   # noqa: N802 — Qt's
+        """Re-fit the floor whenever the layout changes.
+
+        NOT a list of call sites. The left column swaps a whole sub-panel when
+        the source changes and another when "profile my printer" is ticked, and
+        each of those makes the window's floor different — so a floor computed
+        once in `showEvent` was right until the first radio button was pressed
+        and then 732 px again, over the screen it had just been brought under.
+        `LayoutRequest` is the event Qt posts for exactly this, so there is no
+        handler left to forget.
+
+        The guard is against the invalidation above posting the event that runs
+        it again; the pass that changes nothing is what stops it recurring.
+        """
+        handled = super().event(e)
+        if (e.type() == QEvent.Type.LayoutRequest
+                and self._sized_once
+                and not getattr(self, "_fitting_floor", False)):
+            self._fitting_floor = True
+            try:
+                self._fit_floor_to_the_smallest_screen()
+            finally:
+                self._fitting_floor = False
+        return handled
+
+    def _refit_height(self) -> None:
+        """The base class's "the layout changed, sit the window on it again",
+        with the floor brought inside the screen FIRST.
+
+        Order matters and it is the whole fix: `_ToolDialogBase._refit_height`
+        opens the window at ``max(floor, min(hint, 90 % of the screen))``, so
+        its screen cap does nothing at all while the floor is above the screen.
+        """
+        self._fit_floor_to_the_smallest_screen()
+        super()._refit_height()
 
     def _refresh_min_width(self) -> None:
         """Re-read the window's floor from the layout."""

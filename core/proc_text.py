@@ -32,20 +32,43 @@ What encoding is actually right
 **macOS and Linux: UTF-8.** Python hands argv to the tool as UTF-8 bytes and
 the tool echoes those bytes back. There is nothing to guess.
 
-**Windows: the ANSI code page** — cp1252 on a German install. ArgyllCMS ships
-as MSVC console programs with no UTF-8 manifest, so ``main()`` receives argv
-already narrowed from the wide command line through the ANSI code page, and
-``printf`` writes those same bytes to a redirected pipe. A blanket
-``encoding="utf-8"`` would therefore have replaced a crash with a mangling on
-the one platform the issue was filed from, which is the worse trade because it
-is silent.
+**Windows: MEASURED, and it is UTF-8.** This paragraph used to argue the
+opposite — that ArgyllCMS ships as MSVC console programs with no UTF-8
+manifest, so ``main()`` receives argv already narrowed from the wide command
+line through the ANSI code page and ``printf`` writes those same bytes back.
+That reasoning is FALSIFIED. On **Windows 11 Home 26200.9168 (25H2), ARM64,
+German UI**, with **ArgyllCMS 3.5.0, the official win64 build, under x64
+emulation**, ``printtarg.exe`` was made to echo a path holding umlauts into an
+error message and the raw bytes were captured without being decoded
+(a Claude Code session on the owner's VM, 2026-09-03, reported in
+``WINDOWS-VM-REPORT.md`` §2d)::
 
-Neither of us has a Windows machine to check that reasoning on. So this module
-does not bet on it: it tries the codecs in order, exactly as
-:func:`core.text_io.read_order` does for files, and takes the first that
-decodes. On macOS and Linux that is UTF-8 and nothing changes. On Windows a
-UTF-8 echo decodes as UTF-8 and an ANSI echo decodes as ANSI, whichever the
-tool turns out to write.
+    argv: [...\\printtarg.exe, '-v', 'Müller-Prüfdruck-does-not-exist']
+    stderr RAW BYTES: b"... 'M\\xc3\\xbcller-Pr\\xc3\\xbcfdruck-does-not-exist.ti1' ..."
+
+``ü`` came back as ``0xC3 0xBC`` — UTF-8. The ANSI byte for ``ü`` on that
+machine is ``0xFC``, and the machine really is an ANSI-cp1252 one::
+
+    GetACP() = 1252      GetConsoleOutputCP() = 850
+    locale.getpreferredencoding(False) = cp1252
+
+**Nothing here changes, and the reason the order is still right is a different
+one.** It is not "we do not know what Windows writes" any more; it is that
+**one Argyll build is not every Argyll build**. That measurement covers 3.5.0
+win64 under emulation, and the module is also handed ``lp`` (which does not
+exist on Windows) and ``sysctl`` (nor does it) on the platforms where they do
+— neither was, or can be, measured there. So the module still does not bet: it
+tries the codecs in order, exactly as :func:`core.text_io.read_order` does for
+files, and takes the first that decodes.
+
+**UTF-8 first is now the measured-correct first rung rather than a hopeful
+one**, and the ladder is what stopped the old reasoning from doing damage: had
+this module hard-coded the ANSI code page on Windows — which is exactly what
+the falsified paragraph argued for — every Argyll path with an umlaut would
+today be ``MÃ¼ller-PrÃ¼fdruck`` on screen, silently, on the one platform issue
+#178 was filed from. The order must not be inverted to "ANSI first on
+Windows": that decodes valid UTF-8 into mojibake without ever raising, because
+cp1252 maps 251 of 256 byte values and therefore cannot say no.
 
 Why one policy is safe for parsed output as well as for the log
 ---------------------------------------------------------------
@@ -127,10 +150,17 @@ def decode_output(raw: bytes | str | None, *, what: str = "a tool") -> str:
         except UnicodeDecodeError:
             continue
         if i:
+            # A DIAGNOSTIC, not UI text: this logger has a file handler and a
+            # stream handler and no log-panel handler, so nothing here reaches
+            # a window. It used to end "on Windows that is the tool's own ANSI
+            # code page and is expected" — measured false for ArgyllCMS 3.5.0,
+            # which writes UTF-8 there (see the module docstring). Reaching a
+            # fallback rung is now a surprise on every platform, and the line
+            # says so, because "expected" is what stops somebody looking.
             _report(enc, what,
-                    "%s wrote output that is not UTF-8; read as %s instead. On "
-                    "Windows that is the tool's own ANSI code page and is "
-                    "expected; anywhere else it is a guess.")
+                    "%s wrote output that is not UTF-8; read as %s instead. "
+                    "That is a fallback and a guess: name the tool and the "
+                    "platform before trusting any path in this output.")
         return text
     _report("replace", what,
             "%s wrote output that decodes as no known text encoding (%s); "
