@@ -100,6 +100,13 @@ class Cr30SpotManager(QObject):
         self._worker: "_ReadLoop | None" = None
         self._on_line: "Callable[[str], None] | None" = None
         self._running = False
+        #: Names the run of reads this session is, so a "Take reading" press
+        #: can belong to it. One token for the whole session, and deliberately:
+        #: here every read is "whatever is under the aperture now", so they are
+        #: interchangeable and a press does not care which of them collects it.
+        #: The Measure tab's token is a patch id, which is not interchangeable
+        #: at all -- see `DeviceReader.arm_trigger`.
+        self._session: "object | None" = None
 
     # ------------------------------------------------------------------
     @property
@@ -140,6 +147,19 @@ class Cr30SpotManager(QObject):
         except Exception:      # noqa: BLE001 — a preference, never a blocker
             log.debug("could not set the CR30 re-arm interval", exc_info=True)
         self._note(_transport_note(self._reader))
+        # ARM BEFORE THE WINDOW SAYS READY, AND BEFORE THE THREAD EXISTS.
+        #
+        # `ready_to_read` is what enables "Take reading", and the reader thread
+        # does not reach its wait until it has taken the lock and opened the
+        # transport -- seconds, over Bluetooth. Every press in between used to
+        # be refused and kept nowhere: no reading, no error, nothing. Arming
+        # here means the press is held by the read it was made for and spent
+        # the moment that read opens.
+        self._session = object()
+        try:
+            self._reader.arm_trigger(self._session)
+        except AttributeError:      # an older reader; the press is refused
+            log.debug("CR30: this reader cannot be armed for a trigger")
         self._start_loop()
         self.ready_to_read.emit()
 
@@ -222,9 +242,18 @@ class Cr30SpotManager(QObject):
         """
         worker, self._worker = self._worker, None
         thread, self._thread = self._thread, None
+        self._session = None
         if worker is not None:
             worker.stop()
         if self._reader is not None:
+            try:
+                # `cancel` disarms too; this is belt and braces for a reader
+                # that predates it. Nothing may collect a press from here.
+                self._reader.disarm_trigger()
+            except AttributeError:
+                pass
+            except Exception:      # noqa: BLE001 — teardown only
+                log.debug("CR30: disarm failed", exc_info=True)
             try:
                 self._reader.cancel()
             except Exception:      # noqa: BLE001 — teardown only
@@ -250,8 +279,15 @@ class Cr30SpotManager(QObject):
         from workflow.cr30.colour import xyz_to_lab
         lab = xyz_to_lab(tuple(xyz))
         self.reading_ready.emit(tuple(xyz), tuple(lab))
-        # The next read is already outstanding — the loop armed it before this
-        # signal was delivered — so the window is ready again straight away.
+        # THE NEXT READ IS NOT YET OUTSTANDING, WHATEVER THIS USED TO SAY.
+        #
+        # `_ReadLoop.run` emits its reading and only then goes round to call
+        # the reader again, so this slot runs while nothing is inside a wait.
+        # Saying "ready" here is still right -- the session is listening and
+        # the loop is a microsecond behind -- but it is right because the
+        # session is ARMED (see `start`), not because a worker happens to be
+        # in position. Believing the old sentence is how a press made in this
+        # gap came to be thrown away.
         self.ready_to_read.emit()
 
     def _on_gated(self, reason: str) -> None:
