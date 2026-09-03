@@ -379,7 +379,7 @@ def _option_combo(parent: QWidget) -> ValueWidthComboBox:
     return ValueWidthComboBox(parent)
 
 
-def _option_rows(g: QVBoxLayout, leader: QWidget, combo: QComboBox,
+def _option_rows(g: QVBoxLayout, leader: QWidget, combo: ValueWidthComboBox,
                  tip: QWidget) -> None:
     """Lay an option out as TWO lines: its name and ⓘ, then the control.
 
