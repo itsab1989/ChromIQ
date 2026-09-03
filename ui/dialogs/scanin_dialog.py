@@ -1299,6 +1299,23 @@ class ScannerProfileDialog(_ToolDialogBase):
         ctl = QHBoxLayout()
         self._rotate_btn = QPushButton(tr("⟳ Rotate 90°"), self)
         self._rotate_btn.clicked.connect(self._marquee.rotate_90)
+        # Auto align (Basti): let ArgyllCMS's own chart recogniser place the
+        # grid, instead of dragging four corners onto it. It is checked before
+        # it is applied and it refuses rather than guess — see
+        # workflow/scan_auto_align.py.
+        self._auto_align_btn = QPushButton(tr("Auto align"), self)
+        self._auto_align_btn.setToolTip(tr(
+            "Put the grid on the patches automatically. ChromIQ hands the "
+            "scan to ArgyllCMS's chart recogniser, checks the answer against "
+            "this chart's own reference, and only moves the corners if the "
+            "check passes. If it cannot find the patches with confidence it "
+            "says so and leaves your corners exactly where they are. Press "
+            "the button again to undo."))
+        self._auto_align_btn.clicked.connect(self._on_auto_align)
+        self._align_undo: list | None = None
+        self._align_before: list = []
+        self._align_thread = None
+        self._marquee.changed.connect(self._forget_align_undo)
         self._reset_btn = QPushButton(tr("Reset view"), self)
         self._reset_btn.clicked.connect(self._marquee._reset_view)
         self._reset_grid_btn = QPushButton(tr("Reset grid"), self)
@@ -1309,7 +1326,8 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._reset_grid_btn.clicked.connect(self._marquee.reset_selection_grid)
         self._popout_btn = QPushButton(tr("⤢ Pop out for a bigger view"), self)
         self._popout_btn.clicked.connect(self._toggle_popout)
-        for _b in (self._rotate_btn, self._reset_btn, self._reset_grid_btn, self._popout_btn):
+        for _b in (self._rotate_btn, self._auto_align_btn, self._reset_btn,
+                   self._reset_grid_btn, self._popout_btn):
             _b.setStyleSheet(_COMPACT_BTN)
         # Pre-build alignment check (Knut, #108): a scanin dry-run for the
         # page on screen, into a temporary folder — verdict + diagnostic image
@@ -1332,10 +1350,11 @@ class ScannerProfileDialog(_ToolDialogBase):
         # — the three "put it back where it was" buttons together, and "Pop out"
         # pushed away on its own.
         ctl.addWidget(self._rotate_btn)
+        ctl.addWidget(self._auto_align_btn)
         ctl.addWidget(self._reset_btn)
-        ctl.addWidget(self._reset_grid_btn)
         ctl.addStretch(1)
         ctl2 = QHBoxLayout()
+        ctl2.addWidget(self._reset_grid_btn)
         ctl2.addWidget(self._check_align_btn)
         ctl2.addStretch(1)
         ctl2.addWidget(self._popout_btn)
@@ -3639,6 +3658,153 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._align_warnings.append(msg)
 
     # ------------------------------------------------- pre-build check (#108)
+    def _forget_align_undo(self) -> None:
+        """Any hand movement of the grid ends the one-step undo — from then on
+        the button offers a fresh alignment, not the previous corners back."""
+        if self._align_undo is not None and self._align_thread is None:
+            self._align_undo = None
+            self._auto_align_btn.setText(tr("Auto align"))
+
+    def _auto_align_inputs(self):
+        """(scan, cht, cie) for the page on screen, or None when the tool has
+        not been given enough to look at yet."""
+        shot = self._cur_shot()
+        if not shot.get("path"):
+            return None
+        try:
+            if self._standard_mode():
+                cht, cie = self._std_cht, self._std_ref
+            else:
+                if self._ti3 is None:
+                    return None
+                cht, cie = self._files_for_page(self._page,
+                                                _chart_base(self._ti3))
+        except (OSError, ValueError, AttributeError):
+            return None
+        if cht is None or cie is None:
+            return None
+        if not Path(cht).is_file() or not Path(cie).is_file():
+            return None
+        return Path(shot["path"]), Path(cht), Path(cie)
+
+    def _on_auto_align(self) -> None:
+        """Ask ArgyllCMS's recogniser where the patches are, check the answer,
+        and either place the grid on it or say nothing could be found. A second
+        press puts the corners back exactly as they were."""
+        from PyQt6.QtCore import QObject, QThread
+        from core.resource_path import argyll_binary
+        from workflow.cht_parser import ChtParseError, parse_cht
+        from workflow.scan_auto_align import auto_align, expected_luminance
+
+        if self._align_thread is not None:
+            return
+        if self._align_undo is not None:
+            self._marquee.set_corners([tuple(p) for p in self._align_undo])
+            self._align_undo = None
+            self._auto_align_btn.setText(tr("Auto align"))
+            self._log.appendPlainText(tr("Auto align undone."))
+            return
+        got = self._auto_align_inputs()
+        if got is None:
+            self._log.appendPlainText(tr(
+                "Load a scan and pick the chart first — then Auto align can "
+                "look for the patches."))
+            return
+        scan, cht, cie = got
+        try:
+            text = read_text(cht, lenient=True)
+            boxes = parse_cht(text).patches
+        except (OSError, ChtParseError, ValueError):
+            boxes = []
+        if not boxes:
+            self._log.appendPlainText(tr(
+                "Auto align needs the chart's patch layout, and this chart "
+                "does not carry one."))
+            return
+        expected = expected_luminance(text, cie)
+        size = self._marquee.image_size()
+        self._capture_current_corners()
+        before = list(self._cur_shot().get("corners") or [])
+        frac = self._sample_area.value() / 100.0
+        exe = str(Path(self._settings.get("argyll_bin_path",
+                                          "/Applications/Argyll/bin"))
+                  / argyll_binary("scanin"))
+
+        class _Worker(QObject):
+            done = pyqtSignal(object)
+
+            def run(self) -> None:
+                try:
+                    r = auto_align(exe, scan, cht, cie, boxes, expected, size,
+                                   current_corners=before or None,
+                                   sample_frac=frac)
+                except Exception:  # noqa: BLE001 — a probe must not kill the tool
+                    log.warning("auto align failed", exc_info=True)
+                    r = None
+                self.done.emit(r)
+
+        note = tr("Looking for the patches…")
+        self._log.appendPlainText(note)
+        self._align_before = before
+        self._set_busy(True)
+        self._set_busy_note(note)
+        self._auto_align_btn.setEnabled(False)
+        thread, worker = QThread(self), _Worker()
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        # A bound method, never a self-capturing lambda: PyQt6 6.11 faults
+        # invoking such a closure from a signal (see CLAUDE.md, the scrollbar
+        # SIGSEGV), and a bound receiver lets Qt sever the connection instead.
+        worker.done.connect(self._auto_align_done)
+        worker.done.connect(thread.quit)
+        thread.finished.connect(worker.deleteLater)
+        # Keep BOTH referenced until finished: a QThread collected while
+        # running takes the process with it.
+        self._align_thread = (thread, worker)
+        thread.finished.connect(self._release_align_thread)
+        thread.start()
+
+    def _release_align_thread(self) -> None:
+        pair = self._align_thread
+        self._align_thread = None
+        if pair is not None:
+            pair[0].deleteLater()
+
+    def _auto_align_done(self, result) -> None:
+        before = getattr(self, "_align_before", []) or []
+        self._align_before = []
+        self._set_busy(False)
+        self._auto_align_btn.setEnabled(True)
+        if result is None or not result.ok:
+            why = getattr(result, "reason", "") or "not-recognised"
+            self._log.appendPlainText(tr(
+                "Auto align could not place the grid with confidence "
+                "({why}) — your corners are exactly where you left them."
+            ).format(why=why))
+            return
+        corners = result.corners
+        if (self._standard_mode() and self._fiducials_available()
+                and self._use_fiducials_cb.isChecked()):
+            # The marquee is on the fiducial marks in this mode; the recogniser
+            # answers in patch-area terms, so push the quad back out the same
+            # way the read does.
+            from ui.scan_grid_marquee import extrapolate_to_fiducials
+            try:
+                out = extrapolate_to_fiducials(
+                    corners, read_text(self._std_cht, lenient=True))
+            except OSError:
+                out = None
+            corners = out or corners
+        self._align_undo = [tuple(p) for p in before] if before else None
+        self._marquee.set_corners([tuple(p) for p in corners])
+        self._capture_current_corners()
+        if self._align_undo:
+            self._auto_align_btn.setText(tr("Undo auto align"))
+        self._log.appendPlainText(tr(
+            "Auto align placed the grid on the patches (agreement with the "
+            "chart's reference: {rho}). Use Check alignment to see the read "
+            "before you build.").format(rho=f"{result.rho:.2f}"))
+
     def _on_check_alignment(self) -> None:
         """Knut's pre-build check: read ONLY the page on screen into a
         temporary folder, run the misalignment checks on it, and show the

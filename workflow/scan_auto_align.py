@@ -395,3 +395,54 @@ def auto_align(scanin_exe: str | Path,
     return AutoAlignResult(corners=quad, rho=rho, rho_before=rho_before,
                            source=source, candidates=len(seen),
                            log_tail=log_tail, rejected=rejected)
+
+
+# ---------------------------------------------------------------------------
+def expected_luminance(cht_text: str, cie: Path | None = None) -> dict[str, float]:
+    """``{patch name: reference Y}`` for the agreement check.
+
+    Prefers the ``.cht``'s own ``EXPECTED XYZ`` block (every chart ChromIQ
+    writes has one, as do Argyll's bundled targets); falls back to the ``.cie``
+    when a hand-made ``.cht`` carries none."""
+    out: dict[str, float] = {}
+    lines = cht_text.splitlines()
+    for i, line in enumerate(lines):
+        s = line.strip()
+        if s.startswith("EXPECTED XYZ"):
+            try:
+                n = int(s.split()[-1])
+            except ValueError:
+                break
+            for j in range(i + 1, min(i + 1 + n, len(lines))):
+                t = lines[j].split()
+                if len(t) >= 4:
+                    try:
+                        out[t[0]] = float(t[2])
+                    except ValueError:
+                        continue
+            break
+    if out or cie is None:
+        return out
+    try:
+        text = cie.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return out
+    rows = text.splitlines()
+    try:
+        fb = next(i for i, l in enumerate(rows)
+                  if l.strip() == "BEGIN_DATA_FORMAT")
+        fields = rows[fb + 1].split()
+        li = fields.index("SAMPLE_ID")
+        yi = fields.index("XYZ_Y")
+        db = next(i for i, l in enumerate(rows) if l.strip() == "BEGIN_DATA")
+        de = next(i for i, l in enumerate(rows) if l.strip() == "END_DATA")
+    except (StopIteration, ValueError, IndexError):
+        return out
+    for line in rows[db + 1:de]:
+        t = line.split()
+        if len(t) == len(fields):
+            try:
+                out[t[li].strip('"')] = float(t[yi])
+            except ValueError:
+                continue
+    return out
