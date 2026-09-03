@@ -689,3 +689,51 @@ def test_expert_options_needs_no_new_translation(qapp):
             missing.append(path.stem)
     assert not missing, (
         f"'Expert Options' is untranslated in: {', '.join(missing)}")
+
+
+def test_a_finished_build_can_show_reveal_and_install(_app, _out_dir):
+    """The two buttons a finished build offers must be able to appear.
+
+    They are created on the same `QDialogButtonBox` as Build and Close, and
+    `showEvent` moves that box's buttons into the owner's grid and then hides
+    the box for good. The four it moves survive; these two were left behind, so
+    `_build_profile._done` set `setVisible(True)` on children of a hidden
+    parent and NOTHING appeared — the user was told "[OK] Scanner profile
+    saved" and "Install it as your scanner's input profile" with no way to open
+    the folder and no way to install it. The same dead button is what
+    `_confirm_despite_misalignment` offers as "Reveal folder" after Stop.
+
+    Two halves, and both are needed: hidden before a build (the row must cost
+    nothing until there is a profile), and really on screen after one — which
+    is what a hidden parent silently prevents.
+    """
+    dlg = _make(_app, _out_dir)
+    try:
+        for name in ("_reveal_btn", "_install_btn"):
+            b = getattr(dlg, name)
+            assert not b.isVisible(), (
+                f"{name} is on screen before anything has been built")
+
+        # exactly what `_build_profile._done` does after colprof succeeds
+        dlg._reveal_btn.setVisible(True)
+        dlg._reveal_btn.setEnabled(True)
+        dlg._install_btn.setVisible(True)
+        dlg._install_btn.setEnabled(True)
+        _settle(_app, dlg)
+
+        for name, what in (("_reveal_btn", "open the profile's folder"),
+                           ("_install_btn", "install the profile")):
+            b = getattr(dlg, name)
+            assert b.isVisible(), (
+                f"a build has succeeded and {name} is still not on screen, so "
+                f"the user has no way to {what}. Showing a widget whose parent "
+                f"is hidden does not show it — the button has to be moved out "
+                f"of the button box the way Build and Close are.")
+            assert not b.isWindow(), (
+                f"{name} was shown while it had no parent — that costs a real "
+                f"native window")
+            assert dlg.rect().contains(
+                b.mapTo(dlg, b.rect().topLeft())), (
+                f"{name} is visible but lands outside the window")
+    finally:
+        dlg.deleteLater()

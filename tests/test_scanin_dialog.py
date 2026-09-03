@@ -1241,3 +1241,110 @@ def test_execute_tidies_legacy_intermediates(_app, _out_dir, tmp_path, monkeypat
         assert i_tidy < i_printer
     finally:
         dlg.deleteLater()
+
+
+# ---------------------------------------------------------------------------
+# A failed self-check must not be sandwiched between two lines saying the
+# opposite — and the empty .icc a failed colprof leaves must go
+# ---------------------------------------------------------------------------
+
+def test_the_selfcheck_warning_says_whether_it_warned(_app, _out_dir):
+    """`_selfcheck_verdict` reports its verdict instead of only printing it.
+
+    Without a return value the caller cannot say the same thing anywhere else,
+    which is why the button underneath read "Install profile" after a build the
+    window had just told the user not to trust.
+    """
+    dlg = _dialog(_app, _out_dir)
+    try:
+        dlg._settings.set("scanner_selfcheck_peak", 30.0)
+        dlg._settings.set("scanner_selfcheck_avg", 12.0)
+        assert dlg._selfcheck_verdict([]) is False, "nothing measured is not a warning"
+        assert dlg._selfcheck_verdict([(2.1, 0.3)]) is False, "a good fit is not a warning"
+        assert dlg._selfcheck_verdict([(96.7, 50.9)]) is True, (
+            "peak 96.7 with an average of 50.9 is the misread case and must "
+            "report itself as one")
+        assert "Self-check" in dlg._log.toPlainText()
+    finally:
+        dlg.deleteLater()
+
+
+def test_a_profile_that_failed_its_selfcheck_does_not_offer_a_plain_install(_app, _out_dir):
+    """The button grades with the verdict, using the app's own existing wording.
+
+    `ui/tabs/tab_check_refine.py` already labels this exact button "Install
+    Profile Anyway" when a result needs work, and that string is translated in
+    all twelve catalogues — so this needs no new text. What it must never do is
+    read "Install profile" straight after the window has said the profile
+    cannot be trusted.
+    """
+    dlg = _dialog(_app, _out_dir)
+    try:
+        dlg._offer_install(failed_selfcheck=False)
+        clean = dlg._install_btn.text()
+        assert clean == "Install profile", clean
+        assert dlg._reveal_btn.text() == "Reveal profile"
+
+        dlg._offer_install(failed_selfcheck=True)
+        warned = dlg._install_btn.text()
+        assert warned != clean, (
+            "the self-check warned that this profile cannot be trusted and the "
+            "button still says exactly what it says after a clean build")
+        assert "Anyway" in warned, warned
+
+        # …and it must go back, because the window can build again without
+        # being reopened.
+        dlg._offer_install(failed_selfcheck=False)
+        assert dlg._install_btn.text() == clean
+    finally:
+        dlg.deleteLater()
+
+
+def test_the_warning_is_the_last_thing_the_user_reads(_app, _out_dir):
+    """Order, in the source of both branches: "[OK] … saved", then "Install it
+    as your …", then the self-check verdict. It used to be printed in the
+    middle, so the user read a success headline, a "do not trust this", and an
+    instruction to install it, in that order.
+    """
+    import inspect
+    from ui.dialogs import scanin_dialog
+    for fn, saved in ((scanin_dialog.ScannerProfileDialog._build_profile,
+                       "[OK] Scanner profile saved"),
+                      (scanin_dialog.ScannerProfileDialog._build_printer_profile,
+                       "[OK] Printer profile saved")):
+        src = inspect.getsource(fn)
+        i_ok = src.index(saved)
+        i_install = src.index("Install it as your")
+        i_check = src.index("_selfcheck_verdict(")
+        assert i_ok < i_install < i_check, (
+            f"{fn.__name__}: the self-check verdict is printed at {i_check}, "
+            f"between the saved line ({i_ok}) and the install line "
+            f"({i_install}) — it belongs last")
+
+
+def test_a_failed_build_leaves_no_empty_icc(tmp_path):
+    """colprof creates its output file before deciding it cannot build the
+    profile, so a failed run left a 0-byte `.icc` with the name the user typed,
+    beside the real profiles in the same folder.
+    """
+    from ui.dialogs.scanin_dialog import _remove_empty_icc
+    empty = tmp_path / "A failed build.icc"
+    empty.write_bytes(b"")
+    real = tmp_path / "A real profile.icc"
+    real.write_bytes(b"\0" * 27552)
+    partial = tmp_path / "Half written.icc"
+    partial.write_bytes(b"\0" * 40)
+
+    _remove_empty_icc(empty)
+    assert not empty.exists(), (
+        "a 0-byte .icc from a failed build is still on disk, where a user "
+        "browsing the folder sees it as a profile")
+
+    _remove_empty_icc(real)
+    assert real.exists() and real.stat().st_size == 27552, (
+        "a real profile must never be removed")
+    _remove_empty_icc(partial)
+    assert partial.exists(), (
+        "only an EMPTY file is unambiguous; anything with bytes in it is left "
+        "alone")
+    _remove_empty_icc(tmp_path / "never existed.icc")     # must not raise
