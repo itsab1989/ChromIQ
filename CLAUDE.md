@@ -20,14 +20,45 @@ python main.py
 
 ```bash
 source .venv/bin/activate
-QT_QPA_PLATFORM=offscreen pytest -n auto            # everyday tier, ~9,380 tests, ~1:45
-QT_QPA_PLATFORM=offscreen pytest --runslow -n auto  # THE RELEASE GATE, ~9,480 tests, ~3:20
+QT_QPA_PLATFORM=offscreen pytest -n auto            # everyday tier, ~10,370 tests, ~1:55
+QT_QPA_PLATFORM=offscreen pytest --runslow -n auto  # THE RELEASE GATE, ~10,380 tests, ~3:10
 ```
 
 The suite is two-tiered: ~20 heavy end-to-end profile-build tests carry
 `@pytest.mark.slow` and are skipped by a plain `pytest` run; `--runslow`
 includes them. **Any merge/release decision requires a green `--runslow`
 run** — the everyday tier alone is not a gate.
+
+**THE SUITE PAINTS THROUGH FUSION, BECAUSE THE APP DOES.** `main.py:147` runs
+`app.setStyle(WinButtonLayoutStyle("Fusion"))` before it builds a window, on
+every platform. The suite never calls `main()`, so until 2026-09-03 it took
+whatever the platform plugin gave: **fusion** under `offscreen`, **macos** under
+`cocoa`, **QWindows11Style on Windows**. Three platforms, three styles, none of
+them the app's — and every size, rect and pixel this suite asserts on comes out
+of the style. `tests/conftest.py::_one_qapplication_per_worker` now pins Fusion.
+
+Not the `WinButtonLayoutStyle` proxy itself: it overrides only
+`SH_DialogButtonLayout` and draws nothing, but it is a *Python* `styleHint` in
+front of a hint Qt asks for constantly. Everyday tier, `-n auto`, same machine,
+back to back: platform default **106.6 s**, `setStyle("Fusion")` **114.5 s**,
+`setStyle(WinButtonLayoutStyle("Fusion"))` **133.2 s** — and the proxy run also
+turned one unrelated test red that passes alone. `tests/test_the_suite_paints_
+with_the_shipped_style.py` pins Fusion, and pins that `main.py` still builds on
+it.
+
+This is why the Windows gate could crash in `QStyle::drawControl` while the
+running app rendered the same widgets correctly all evening: only the suite was
+on the Windows 11 style.
+
+**A DEAD WORKER MUST END THE RUN — `--max-worker-restart=0` IS IN `addopts`.**
+The crash banner below only fires from `pytest_terminal_summary`, so it is worth
+nothing if the session never ends, and on 2026-09-03 it did not: on the owner's
+Windows ARM64 VM a worker died at 99 %, xdist spawned a replacement, execnet's
+bootstrap for that replacement raised `OSError: [Errno 22] Invalid argument`, and
+the controller waited for a node that never reported. Two `--runslow` attempts,
+no summary, no exit code, both killed by hand. Measured here with a deliberate
+`ctypes.string_at(0)`: without the flag **nine** restarts, each re-running the
+same crashing test; with it, one FAILED and a clean exit.
 
 **A RED GATE MEANS SOMETHING AGAIN, AND SO DOES A GREEN ONE.** Measured
 2026-09-02, on ten gate runs: **four of them crashed a worker**, and what

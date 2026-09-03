@@ -110,11 +110,52 @@ def _no_modal_may_hang_the_suite(request):
 
 @pytest.fixture(scope="session", autouse=True)
 def _one_qapplication_per_worker():
-    """Create the QApplication once and keep it alive for the whole session."""
+    """Create the QApplication once, ON THE STYLE THE APP SHIPS, and keep it
+    alive for the whole session.
+
+    THE SUITE USED TO PAINT THROUGH A STYLE THE USER NEVER GETS.
+    `main.py` line 147 does ``app.setStyle(WinButtonLayoutStyle("Fusion"))``
+    before it builds a single window, on every platform. The suite never runs
+    `main()`, so until this line it took whatever the platform plugin handed it:
+    Fusion under `offscreen`, **QWindows11Style on Windows**, QMacStyle under
+    cocoa. Three different styles, none of them the shipped one.
+
+    That is not a detail. Every size, rect and pixel this suite asserts on comes
+    out of the style, so a gate on the wrong style can neither catch a real
+    styling fault nor be believed about one it reports — and on Windows it goes
+    further than that: the 2026-09-03 gate on the owner's ARM64 VM killed a
+    worker inside a `drawControl` call, in `QWindows11Style`, while the same
+    widgets rendered correctly in the running app all evening. The app was on
+    Fusion; only the suite was on the Windows 11 style.
+
+    So the suite is pinned to **Fusion**, which is the style the app draws with,
+    on every platform and every plugin.
+
+    WHY FUSION AND NOT `WinButtonLayoutStyle("Fusion")` ITSELF. The proxy
+    overrides exactly one thing — `SH_DialogButtonLayout`, the ORDER of the
+    buttons in a QDialogButtonBox. It draws nothing. But it is a Python
+    reimplementation of `styleHint`, which Qt asks for constantly, and every one
+    of those calls then crosses into Python: measured on the everyday tier,
+    2026-09-03, `-n auto`, same machine, back to back —
+
+        platform default (was: whatever the plugin gave)   106.6 s
+        setStyle("Fusion")                                 114.5 s
+        setStyle(WinButtonLayoutStyle("Fusion"))           133.2 s
+
+    — and the proxy run also turned one unrelated test red that passes on its
+    own. 27 s of gate for a button-order hint no test asserts on is the wrong
+    trade; the hint deserves its own small test rather than a tax on all ten
+    thousand. What matters here is the PAINTING style, and Fusion is that.
+    """
     global _PINNED_QAPP
     from PyQt6.QtWidgets import QApplication
 
     _PINNED_QAPP = QApplication.instance() or QApplication([])
+    try:
+        _PINNED_QAPP.setStyle("Fusion")
+    except Exception:                                    # pragma: no cover
+        pass          # a Qt build without Fusion: better the platform default
+                      # than no QApplication at all
     yield _PINNED_QAPP
     # Deliberately NOT destroyed: tearing it down at session end would delete
     # every QObject still alive during other fixtures' teardown, which is the
