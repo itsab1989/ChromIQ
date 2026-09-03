@@ -164,3 +164,58 @@ def test_unmodified_copy_refreshes_on_bundle_update(tmp_path, monkeypatch):
     st.ensure_user_targets_dir(s)
     assert (d / "it8Wolf.cht").read_text(encoding="utf-8") == "v2 corrected"   # refreshed
     assert (d / "Hutchcolor.cht").read_text(encoding="utf-8") == "USER EDIT"   # preserved
+
+
+def test_looking_at_the_targets_twice_does_not_rewrite_the_manifest(tmp_path):
+    """Nothing the user owns has its modification time moved by an operation
+    that changed nothing in it.
+
+    The manifest was rewritten unconditionally, and because
+    `custom_output_path` defaults to "" - which IS the owner's own ~/ChromIQ -
+    every gate run that built a scanner window rewrote a file in his real
+    projects folder. Two agents hunted it separately: one could not reproduce
+    it, and the suite's own guard then caught it intermittently while naming
+    whichever test tore down next rather than the writer.
+    """
+    import os
+
+    from workflow.standard_targets import ensure_user_targets_dir
+
+    from core.settings import AppSettings
+    settings = AppSettings()
+    settings.set("custom_output_path", str(tmp_path / "out"))
+
+    d = ensure_user_targets_dir(settings)
+    manifest = d / ".provisioned.json"
+    assert manifest.exists(), "the first call should provision"
+    before = manifest.read_bytes()
+    stamp = os.stat(manifest).st_mtime_ns
+
+    os.utime(manifest, ns=(stamp - 5_000_000_000, stamp - 5_000_000_000))
+    older = os.stat(manifest).st_mtime_ns
+
+    ensure_user_targets_dir(settings)            # nothing has changed
+
+    assert manifest.read_bytes() == before, "the manifest's content moved"
+    assert os.stat(manifest).st_mtime_ns == older, (
+        "the manifest was rewritten even though nothing in it changed")
+
+
+def test_a_real_change_is_still_written(tmp_path):
+    """...and the guard above must not have turned the manifest read-only."""
+    import json
+
+    from workflow.standard_targets import ensure_user_targets_dir
+
+    from core.settings import AppSettings
+    settings = AppSettings()
+    settings.set("custom_output_path", str(tmp_path / "out"))
+
+    d = ensure_user_targets_dir(settings)
+    manifest = d / ".provisioned.json"
+    manifest.write_text(json.dumps({"stale": "value"}), encoding="utf-8")
+
+    ensure_user_targets_dir(settings)
+
+    assert json.loads(manifest.read_text(encoding="utf-8")) != {"stale": "value"}, (
+        "a manifest that no longer describes the folder was left alone")

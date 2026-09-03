@@ -252,9 +252,23 @@ def ensure_user_targets_dir(settings) -> Path | None:
             note.write_text(_USER_TARGETS_README, encoding="utf-8")
         except OSError:
             pass
+    # WRITTEN ONLY WHEN IT CHANGED. This was unconditional, so merely LOOKING
+    # at the standard targets rewrote the manifest - and because
+    # `custom_output_path` defaults to "", which IS the owner's own ~/ChromIQ,
+    # every gate run that happened to build a scanner window rewrote a file in
+    # his real projects folder. It cost two agents a hunt apiece: one reported
+    # it as an unexplained write it could not reproduce, and the suite's own
+    # ~/ChromIQ guard then caught it intermittently, naming whichever test
+    # happened to tear down next rather than the writer.
+    #
+    # Comparing before writing is the honest fix, and it is the right
+    # behaviour regardless of the tests: nothing the user owns should have its
+    # modification time moved by an operation that changed nothing in it.
+    payload = json.dumps(manifest, indent=2, sort_keys=True)
     try:
-        manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True),
-                                 encoding="utf-8")
+        if not manifest_path.exists() or manifest_path.read_text(
+                encoding="utf-8") != payload:
+            manifest_path.write_text(payload, encoding="utf-8")
     except OSError:
         pass
     return d
