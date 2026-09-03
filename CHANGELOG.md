@@ -1,5 +1,96 @@
 # Changelog
 
+## v4.1.5-beta.7
+
+**A third appearance called Neutral, a project with an umlaut that survives the
+trip to Windows, and a long night of adversarial testing that found faults
+which had been shipping for months.**
+
+Two full review rounds and more than twenty attacking passes went at this
+build, each one going at the round before it. Several of the worst things below
+were introduced during that work and caught within the hour; they are listed
+anyway, because a fault you never saw is still a fault that existed.
+
+### New
+
+- **Neutral, a third appearance.** A designed greyscale scheme, not Light with
+  the colour turned down: one accent value, five-cell rules where the tab hues
+  used to be, and every icon redrawn to read without colour. Choose it in
+  Preferences beside Light and Dark. Light and Dark are byte-identical to
+  beta 6 - checked view by view, not window by window.
+- **Read single patches works with a CR30**, over USB and over Bluetooth,
+  through ChromIQ's own driver. ArgyllCMS has never supported that instrument
+  and no fork of it was needed. Pick your instrument in the window, or leave it
+  on Detect automatically. Your ColorMunki and every other ArgyllCMS instrument
+  behave exactly as before.
+- **The scanner and camera profiling window is two panels.** The preview and
+  its controls moved to the right, so the twelve wheel-turns of scrolling it
+  used to take to reach the last control are now none. It fits a 1280 screen in
+  all twelve languages.
+- **A profile keeps its accented name.** A profile called Müller-Prüfdruck used
+  to arrive as M?ller-Pr?fdruck in Windows' colour management, because the ICC
+  field ArgyllCMS fills cannot hold an accent. ChromIQ now writes the name into
+  the field that can, and ChromIQ's own Profile Info window reads it back.
+
+### Changed
+
+- **An unmeasured calibration chart is treated as an experiment.** Replace one
+  and it is not kept, the way a profile run's chart is not kept. A calibration
+  that *has* been measured is always archived to the project's "cal/old"
+  folder, and the window now says which of the two is about to happen. Before
+  this, the window promised to keep a chart and then deleted five files.
+- **The scanner window checks that what it read is the chart you meant.** It
+  compares the reference against the chart, the read against the reference, and
+  looks for clipping, before it builds anything.
+- **Return no longer presses the button that discards a chart.**
+
+### Fixed
+
+- **A measurement is no longer lost when you quit.** Closing ChromIQ during a
+  measurement killed the reader, and the reader only writes its file on a clean
+  exit, so the reading was gone with no warning. Quitting now asks, the way
+  every other way out of a session already did.
+- **"Save and stop" saves.** It was sending the reader a key it rejects, so the
+  session never ended and nothing was written. "Keep measuring" now keeps
+  measuring instead of stranding the session.
+- **A single corrupt byte in a measurement no longer destroys it.** One zeroed
+  byte in a `.ti3` made ChromIQ read the whole file as a different encoding and
+  replace it with nonsense.
+- **A project with an umlaut can be opened after a trip through a backup
+  drive.** Older Mac disks store accented names differently, and ChromIQ found
+  none of the project's files afterwards while telling you the chart was
+  missing.
+- **A bracket in a project's folder name no longer hides its chart**, and an
+  asterisk no longer lets one project claim another's files.
+- **A print that never happened is no longer recorded as one.** A sleeping
+  printer or a cancelled dialog left a record saying the sheet had been printed
+  through the profile, which then silently changed the yardstick every dE in
+  the report was measured against.
+- **Importing a measurement into a new project asks for the name once.** It
+  used to ask twice, throw the first answer away, and leave ChromIQ saying you
+  had no project open.
+- **The app no longer crashes when a tool window is opened** after a spot read
+  ends badly. A scroll bar was also crashing the app outright in some windows.
+- **Everything ChromIQ writes now names its encoding**, so a file written on
+  Windows and read on a Mac, or the reverse, arrives as what was written.
+  This is GitHub issue #178.
+
+### Known issues
+
+- **Nothing in this release has been run on Windows or Linux.** The encoding
+  work above is the fix for a Windows-only fault, and it was written and tested
+  on a Mac. If you have a Windows machine, that is the single most useful thing
+  you can test.
+- **The scanner window's "Correct perspective" tick has no effect** on a normal
+  read. Found while testing something else, left alone rather than changed
+  under a release.
+- Generating a new chart over a run that holds a chart and no measurement still
+  replaces it without asking. Unchanged from beta 6, and deliberately deferred.
+- In Neutral, a suspect patch is still marked in red. The colour is the
+  information there, so it was left rather than flattened.
+- Nine controls in the Check and Refine gamut panel cannot be reached at the
+  smallest window size. Present in beta 6 as well.
+
 ## v4.1.5-beta.6
 
 **Check & Refine now asks where a measurement should go instead of deciding for

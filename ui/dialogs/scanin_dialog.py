@@ -3180,8 +3180,15 @@ class ScannerProfileDialog(_ToolDialogBase):
         """§M M-SCAN-REF-SHORT, rendered. PROPOSED wording — see
         `docs/design/unified_measurement_management.md` §M-PROPOSED."""
         from workflow import measurement_messages as M
+        # THE ROW NAME IS READ OFF THE SCREEN, NOT WRITTEN OUT. Three rows
+        # can hold a chart's known colours and only one is ever visible: a
+        # standard target uses "Target reference data", a ChromIQ chart uses
+        # the chart picker. These messages named the standard one
+        # unconditionally, so in ChromIQ-chart mode - the default - they sent
+        # the user to a row that is not on screen.
         return M.M_SCAN_REF_SHORT.render(
-            covered=cov.covered, total=cov.chart_patches, missing=cov.missing)
+            covered=cov.covered, total=cov.chart_patches, missing=cov.missing,
+            ref_row=self._align_reference_row())
 
     def _warn_short_reference(self, cov) -> None:
         """Say it at the moment the reference is picked, where the user can
@@ -3842,7 +3849,8 @@ class ScannerProfileDialog(_ToolDialogBase):
             if got.disagrees(float(self._settings.get(
                     "scanner_min_agreement", 0.25))):
                 out.append("⚠ " + M.M_SCAN_REF_DISAGREES.render(
-                    rho=f"{got.agreement:.2f}")[0])
+                    rho=f"{got.agreement:.2f}",
+                    ref_row=self._align_reference_row())[0])
             if got.clipped > float(self._settings.get(
                     "scanner_max_clipped", 0.15)):
                 out.append("⚠ " + M.M_SCAN_CLIPPED.render(
@@ -3901,7 +3909,8 @@ class ScannerProfileDialog(_ToolDialogBase):
             floor = float(self._settings.get("scanner_min_agreement", 0.25))
             if got.disagrees(floor):
                 t, b = M.M_SCAN_REF_DISAGREES.render(
-                    rho=f"{got.agreement:.2f}")
+                    rho=f"{got.agreement:.2f}",
+                    ref_row=self._align_reference_row())
                 if t not in seen:
                     self._read_findings.append((t, b))
 

@@ -829,3 +829,59 @@ def test_the_row_a_message_names_is_the_row_on_screen(qapp, tmp_path):
 def aa_module():
     import workflow.scan_auto_align as aa
     return aa
+
+
+def test_no_message_names_a_row_the_user_cannot_see():
+    """Three rows can hold a chart's known colours and only one is on screen.
+
+    A standard target picks its colours in "Target reference data"; a ChromIQ
+    chart takes them from the chart picker, and that row is hidden. Two
+    messages named the standard row unconditionally, so in ChromIQ-chart mode,
+    which is the default, they sent the user to a row that is not there.
+
+    Found by the agent that wrote the Auto align messages, in messages it had
+    been told not to touch.
+    """
+    import inspect
+    import pathlib
+
+    from workflow import measurement_messages as M
+
+    # BOTH SPELLINGS. The module writes its curly quotes as \\u201c escapes,
+    # so a probe looking only for the rendered character walks straight past
+    # them - the first version of this test did exactly that and stayed green
+    # under a mutation that put the hard-coded row name back.
+    src = inspect.getsource(M)
+    src += "\n" + pathlib.Path(M.__file__).read_text(encoding="utf-8")
+    for label in ("\u201cTarget reference data\u201d row",
+                  "\\u201cTarget reference data\\u201d row",
+                  "\u201cTarget type\u201d row",
+                  "\\u201cTarget type\\u201d row"):
+        assert label not in src, (
+            f"a message writes {label!r} out instead of asking the window "
+            f"which row is on screen; use the {{ref_row}} / {{chart_row}} "
+            f"placeholder so it can never name a hidden one")
+
+
+def test_the_row_name_reaches_the_messages_that_need_it():
+    """...and the guard above is only worth having if the placeholder is fed.
+
+    An unfilled placeholder would reach the user as the literal text
+    "{ref_row}", which is the same class of fault as a reason code.
+    """
+    import inspect
+
+    from ui.dialogs import scanin_dialog
+
+    src = inspect.getsource(scanin_dialog)
+    for call in ("M_SCAN_REF_SHORT.render(", "M_SCAN_REF_DISAGREES.render("):
+        idx = 0
+        while True:
+            idx = src.find(call, idx)
+            if idx == -1:
+                break
+            window = src[idx:idx + 320]
+            assert "ref_row=" in window, (
+                f"{call} is rendered without ref_row, so the message would "
+                f"show the placeholder to the user")
+            idx += len(call)

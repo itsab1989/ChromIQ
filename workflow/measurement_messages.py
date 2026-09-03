@@ -1649,7 +1649,7 @@ M_SCAN_REF_SHORT = _m(
     "of the sheet.\n\n"
     "Nothing later would show it. A profile built from fewer patches passes "
     "its own quality check more easily, not less.\n\n"
-    "In the \u201cTarget reference data\u201d row, pick the full reference file that "
+    "In the \u201c{ref_row}\u201d row, pick the full reference file that "
     "came with this target. That file lists every patch, so it has about as "
     "many rows as the target has patches.",
     approved=False,
@@ -1658,7 +1658,7 @@ M_SCAN_REF_SHORT = _m(
         "{total} patches on this target. ChromIQ can only use the patches the "
         "reference names, so the remaining one would be read from your scan "
         "and then thrown away.\n\n"
-        "In the \u201cTarget reference data\u201d row, pick the full reference file that "
+        "In the \u201c{ref_row}\u201d row, pick the full reference file that "
         "came with this target. That file lists every patch, so it has about "
         "as many rows as the target has patches."),
     count_key="missing")
@@ -1684,7 +1684,7 @@ M_SCAN_REF_DISAGREES = _m(
     "scanned. A profile built from this read would be wrong, and nothing "
     "later would tell you.\n\n"
     "Check that the scan is the right way up, and that the file in the "
-    "\u201cTarget reference data\u201d row is the one that came with this target.",
+    "\u201c{ref_row}\u201d row is the one that came with this target.",
     approved=False)
 
 
