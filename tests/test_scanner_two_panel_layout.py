@@ -551,3 +551,88 @@ def test_every_combo_in_this_window_can_shorten_what_it_cannot_show(_app, _out_d
             "tooltip: " + "; ".join(sorted(set(plain))))
     finally:
         dlg.deleteLater()
+
+
+# ---------------------------------------------------------------------------
+# Opening this window may not create a native window of its own for anything
+# but the window (owner's beta-7 report: macOS full screen).
+# ---------------------------------------------------------------------------
+
+def test_opening_the_window_shows_no_widget_that_is_a_window(_app, _out_dir):
+    """Nothing but the dialog itself may be SHOWN while it has no parent.
+
+    A parentless widget IS a top-level window, and showing one makes the
+    platform create a real window for it. `showEvent` lifts four buttons out of
+    the QDialogButtonBox to lay them out in its own grid, and it used to show
+    them in the gap between `setParent(None)` and `addWidget` — four native
+    windows per open, reclaimed a moment later. On a plain desktop they are
+    invisible; in macOS full screen the compositor has to animate each one into
+    and out of the Space, which is what the owner saw and reported.
+
+    The check has to run DURING the show: by the time `show()` returns the
+    buttons have been reparented and their window handle is already gone, so
+    nothing about the finished window records that this happened.
+    """
+    from PyQt6.QtCore import QEvent, QObject
+    from ui.dialogs.scanin_dialog import ScannerProfileDialog
+
+    caught: list[str] = []
+
+    class _Spy(QObject):
+        def eventFilter(self, obj, event):
+            if (event.type() == QEvent.Type.Show
+                    and isinstance(obj, QWidget)
+                    and obj.parent() is None
+                    and not isinstance(obj, ScannerProfileDialog)):
+                caught.append(f"{type(obj).__name__} "
+                              f"{getattr(obj, 'text', lambda: '')()!r}")
+            return False
+
+    spy = _Spy()
+    _app.installEventFilter(spy)
+    try:
+        dlg = _make(_app, _out_dir)
+    finally:
+        _app.removeEventFilter(spy)
+    try:
+        assert not caught, (
+            "opening the scanner window showed these widgets while they had no "
+            "parent — each one costs a real native window: " + "; ".join(caught))
+        # …and the buttons it moves are on screen where they belong, so the
+        # check above cannot be satisfied by simply never showing them.
+        for name in ("_run_btn", "_save_defaults_btn",
+                     "_restore_defaults_btn", "_close_btn"):
+            b = getattr(dlg, name)
+            assert b.isVisible(), f"{name} is not visible after the window opened"
+            assert not b.isWindow(), f"{name} is still a top-level window"
+    finally:
+        dlg.deleteLater()
+
+
+def test_printer_mode_leaves_no_orphaned_info_button(_app, _out_dir):
+    """Printer mode hides the whole averaging row — the ⓘ included.
+
+    It reads ONE scan per page, so the add / remove / "Scan 1, Scan 2 …" /
+    "Combine repeated scans by" controls are all hidden there. The ⓘ that
+    explains them sat in the same row and was not, leaving a lone info button
+    against the right edge offering to explain a feature that is not in this
+    mode.
+    """
+    dlg = _make(_app, _out_dir)
+    try:
+        dlg._mode_chromiq.setChecked(True)
+        dlg._printer_cb.setChecked(False)
+        _settle(_app, dlg)
+        assert dlg._add_shot_btn.isVisible(), "the averaging row should be here"
+        assert dlg._avg_tip.isVisible(), "…and so should the ⓘ that explains it"
+
+        dlg._printer_cb.setChecked(True)
+        _settle(_app, dlg)
+        assert not dlg._add_shot_btn.isVisible(), (
+            "printer mode reads one scan per page — the add button belongs hidden")
+        assert not dlg._avg_tip.isVisible(), (
+            "the ⓘ explaining scan averaging is still on screen in printer "
+            "mode, alone in an otherwise empty row, explaining a feature this "
+            "mode does not have")
+    finally:
+        dlg.deleteLater()
