@@ -23,7 +23,7 @@ from core.stem_paths import artefact
 import re
 from pathlib import Path
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import (
     QApplication, QButtonGroup, QCheckBox, QDialog, QDialogButtonBox, QGridLayout,
@@ -40,7 +40,7 @@ from ui.dialogs.scanin_target_dialog import WHICH_CHART_HELP, WHICH_CHART_CAMERA
 from ui.dialogs import scanner_colprof
 from ui.theme import APPEARANCE_NEUTRAL, accent_for, resolve_mode
 from ui.tooltip_button import TooltipButton
-from ui.widgets import (ElidingComboBox, NoScrollSpinBox,
+from ui.widgets import (CollapsibleGroupBox, ElidingComboBox, NoScrollSpinBox,
                         ValueWidthComboBox, disabled_primary_qss,
                         make_browse_button, primary_hover, primary_label,
                         open_file_dialog)
@@ -127,6 +127,36 @@ CAMERA_HELP = tr(
     "The profile applies to that camera under that light. A camera isn't a "
     "colorimeter, so treat it as a very good approximation — great for consistent "
     "studio or repro work, less so across mixed lighting.")
+
+
+class _AdvancedSection(CollapsibleGroupBox):
+    """The window's "Advanced…" disclosure: the app's ordinary collapsible
+    section, wearing the checkable API this window (and its tests) already use.
+
+    `CollapsibleGroupBox` toggles on a click in its title band and has no
+    signal; the window needs to know, because opening the section changes the
+    width the fixed left pane must have. `opened` carries that, and
+    `setChecked` / `isChecked` keep the QToolButton vocabulary the call sites
+    were written against. Not `toggled`: `QGroupBox` already owns that name for
+    its checkable mode, and shadowing a base-class signal is how a slot ends up
+    connected to the wrong one.
+    """
+
+    #: True when the section is open. Emitted for a click AND for setChecked().
+    opened = pyqtSignal(bool)
+
+    def set_collapsed(self, collapsed: bool) -> None:
+        was = self.is_collapsed()
+        super().set_collapsed(collapsed)
+        if self.is_collapsed() != was:
+            self.opened.emit(not self.is_collapsed())
+
+    # -- QToolButton-shaped API the window and its tests speak ---------------
+    def isChecked(self) -> bool:           # noqa: N802 (Qt vocabulary)
+        return not self.is_collapsed()
+
+    def setChecked(self, on: bool) -> None:  # noqa: N802 (Qt vocabulary)
+        self.set_collapsed(not bool(on))
 
 
 def _user_profile_dir() -> Path:
@@ -1072,7 +1102,11 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._remove_shot_btn.setVisible(False)
         row.addWidget(self._remove_shot_btn)
         row.addStretch(1)
-        row.addWidget(self._tip(
+        # Kept, so it can be hidden WITH the row it explains. Printer mode hides
+        # every control on this line (it reads one scan per page), and the ⓘ was
+        # the one thing left behind — a lone info button floating against the
+        # right edge, offering to explain a feature that is not there.
+        self._avg_tip = self._tip(
             tr("Averaging several scans"),
             tr("Scanning the same sheet more than once and averaging the results "
             "smooths out the random noise every scanner adds, giving a cleaner, "
@@ -1084,8 +1118,8 @@ class ScannerProfileDialog(_ToolDialogBase):
             "sheet shifted a little on the glass between scans.\n\n"
             "When you build, ChromIQ reads every scan, averages each patch, and "
             "profiles from the result. (For a multi-page ChromIQ chart, scans are "
-            "averaged separately within each page.)")),
-            0, Qt.AlignmentFlag.AlignVCenter)
+            "averaged separately within each page.)"))
+        row.addWidget(self._avg_tip, 0, Qt.AlignmentFlag.AlignVCenter)
         form.addLayout(row)
 
         self._avg_row = QHBoxLayout()
@@ -1159,6 +1193,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         # add them there (Knut's question; per-page averaging for printer mode
         # would be its own feature).
         self._add_shot_btn.setVisible(not printer)
+        self._avg_tip.setVisible(not printer)
         self._shot_combo.setVisible(multi and not printer)
         self._remove_shot_btn.setVisible(multi)
         self._avg_row_w.setVisible(multi and not printer)
@@ -1766,8 +1801,6 @@ class ScannerProfileDialog(_ToolDialogBase):
         for b in (self._run_btn, self._save_defaults_btn,
                   self._restore_defaults_btn, self._close_btn):
             self._button_box.removeButton(b)
-            b.setParent(None)
-            b.setVisible(True)      # setParent(None) hides a widget for good
         for b, (r, c) in ((self._save_defaults_btn, (0, 0)),
                           (self._restore_defaults_btn, (0, 1)),
                           (self._run_btn, (1, 0)),
@@ -1776,7 +1809,22 @@ class ScannerProfileDialog(_ToolDialogBase):
             # and sit left in a half-empty column.
             b.setSizePolicy(QSizePolicy.Policy.Expanding,
                             b.sizePolicy().verticalPolicy())
+            # ADD FIRST, SHOW SECOND. `removeButton` leaves the button with no
+            # parent AND explicitly hidden, so it does need showing again —
+            # adding it to a layout does not undo an explicit hide. But **a
+            # parentless widget IS a top-level window**, and showing one makes
+            # macOS create a real NSWindow for it. Done in the other order,
+            # opening this tool spawned FOUR extra native windows — measured,
+            # each carrying NSWindowCollectionBehaviorFullScreenPrimary — which
+            # were reclaimed a moment later when `addWidget` reparented them.
+            # Invisible on a plain desktop; in macOS full screen that is four
+            # windows the compositor has to animate into and out of a Space,
+            # which is the "weird animation like other windows opening full
+            # screen as well until it settled" the owner reported for beta 7.
+            # `addWidget` reparents, so by the line below the button is an
+            # ordinary child and no window is ever created.
             self._btn_grid.addWidget(b, r, c)
+            b.setVisible(True)
         self._button_box.setVisible(False)
 
         lay = self.layout()
@@ -1860,27 +1908,28 @@ class ScannerProfileDialog(_ToolDialogBase):
     def _build_inline_advanced(self) -> QWidget:
         """The 'Advanced' section of this window: a disclosure that starts
         closed and holds the REAL Advanced editor's controls, so there is no
-        separate modal to open."""
-        from PyQt6.QtWidgets import QFrame, QToolButton
-        box = QFrame(self)
-        box.setFrameShape(QFrame.Shape.StyledPanel)
-        self._adv_inline_layout = QVBoxLayout(box)
+        separate modal to open.
+
+        THE SAME SECTION WIDGET THE REST OF THE APP USES (owner, beta 7): this
+        window had grown its own disclosure — a square `QFrame` with a
+        `QToolButton` sitting *inside* it — while the group boxes it contains,
+        and every other collapsible section in the app (`tab_chart`,
+        `layout_options_panel`, the device-link tool's "Expert options"), are
+        `CollapsibleGroupBox`: a rounded frame with the label and its ▶/▼ on the
+        frame itself. One odd section out of the whole app is exactly what he
+        saw. `_adv_inline_head` keeps the checkable API the window and its tests
+        already speak, so nothing else in here had to change.
+        """
+        box = _AdvancedSection(tr("Advanced…"), self, collapsed=True)
+        self._adv_inline_layout = QVBoxLayout(box.body)
         self._adv_inline_layout.setContentsMargins(8, 4, 8, 4)
         self._adv_inline_layout.setSpacing(6)
-        head = QToolButton(box)
-        head.setText(tr("Advanced…"))
-        head.setCheckable(True)
-        head.setChecked(False)
-        head.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        head.setArrowType(Qt.ArrowType.RightArrow)
-        head.setStyleSheet("QToolButton { border: none; font-weight: 600; }")
-        self._adv_inline_layout.addWidget(head)
-        self._adv_inline_head = head
-        self._adv_inline_body = self._make_advanced_body(box)
+        self._adv_inline_head = box
+        self._adv_inline_body = self._make_advanced_body(box.body)
         self._adv_inline_layout.addWidget(self._adv_inline_body)
         # A BOUND METHOD, not a lambda or a closure: a slot that outlives the
         # widgets it captures is how this window has crashed before.
-        head.toggled.connect(self._on_advanced_toggled)
+        box.opened.connect(self._on_advanced_toggled)
         return box
 
     def _make_advanced_body(self, parent: QWidget) -> QWidget:
@@ -1927,7 +1976,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         if self._adv_ctx == self._colprof_context():
             return
         old_body, old_editor = self._adv_inline_body, self._adv_editor
-        self._adv_inline_body = self._make_advanced_body(self._adv_inline)
+        self._adv_inline_body = self._make_advanced_body(self._adv_inline.body)
         self._adv_inline_layout.replaceWidget(old_body, self._adv_inline_body)
         old_body.setParent(None)
         old_body.deleteLater()
@@ -1945,8 +1994,6 @@ class ScannerProfileDialog(_ToolDialogBase):
 
     def _on_advanced_toggled(self, on: bool) -> None:
         self._adv_inline_body.setVisible(on)
-        self._adv_inline_head.setArrowType(Qt.ArrowType.DownArrow if on
-                                           else Qt.ArrowType.RightArrow)
         # Advanced's own controls are wider than the rest of the left column;
         # the fixed pane widens for them and gives the width back when the
         # section closes. See showEvent for why it is not simply always wide.
