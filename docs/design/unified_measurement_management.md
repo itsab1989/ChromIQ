@@ -1,7 +1,7 @@
 # Unified Measurement Management — Design Specification
 
 > **Revision 2026-08-09 (e) — two approved messages carry a revised print step.**
-> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A), M-VERIFY-CREATE-NO-PROFILE and M-GAMUT-NO-PROFILE (feature B — wording agreed verbatim with Sebastian on #133, 2026-08-02, listed for the formal record), M-IMPORT-MISMATCH and M-IMPORT-DATE-TAKEN (the Measure tab's IMPORT module; its import-done window was approved by Sebastian 2026-08-10), plus the revised M-CHART-VERIFY (W5, reworked after the 2026-08-10 hardware session) and M-HOW-PRINTED (pairing 3 — the measure-time question for sheets ChromIQ did not print), plus M-ALL-STRIPS-PATCHES-LEFT (new, 2026-08-14 — every strip read while patches inside them are not, #156; both are wording only, their bug fixes are already in the code and speak through the log until these are approved), plus M-NO-INSTRUMENT-FAST (new, 2026-08-13 — Knut's ColorMunki was invisible on older hardware until "Faster instrument connection" was switched off, so that variant of the no-instrument window names the shortcut and carries its switch), plus M-ENGINE-FELL-BACK (new, 2026-08-14 — asked for by Knut on #148: ChromIQ's own measuring engine could not use the instrument, so stock chartread took over, which also silences ChromIQ's measurement sounds without saying so) — all defined in the awaiting-review section below, plus M-PATCHSET-MISSING (new, 2026-08-25 — a loaded patch set that had gone from disk wrote one line to the log and built a different chart, in silence), plus M-PROJECT-EXISTS (new, 2026-08-27 — a typed project name that already names a project on disk adopted it in silence; Knut reported it and Basti ruled on when it may appear and what it may offer, but the WORDING is new and waits here), plus M-PROJECT-REPLACE-CONFIRM and M-PROJECT-REPLACE-FAILED (new, 2026-08-27 — the second look before §S4.7's "Replace it" clears a whole project, and the window for the case where its promise cannot be kept), plus M-CR30-STOCK-READER (new, 2026-08-28, #159 — a CR30 chart carries the honest name the device reports for itself, which stock ArgyllCMS chartread refuses outright, so the window names the Preferences control that fixes it) and M-CR30-READ-ENDED (new, 2026-08-28, #159 — the same refusal seen from the other end: an engine run that fails on a CR30 chart has no second reader to fall back to, so the two existing fallback messages, one of which promises that every measured strip will be kept, must not be shown) and M-CR30-MAGNET (new, 2026-08-30, #159 — a magnet recalibrated the instrument mid-chart, which happened to Basti with a MacBook under his paper; the session now stops and offers to retake the white calibration instead of inviting another press) and M-CR30-CALIBRATE-BLACK (new, 2026-08-29, #159 — the dark reference, taken against open air with the instrument's own command, offered by an unticked per-use checkbox so it never becomes a second window on every Start) and M-CR30-CALIBRATE (new, 2026-08-28, #159 — Basti ruled that ChromIQ triggers the CR30's white calibration itself on both transports, which deliberately reverses a documented safety rule; the window's warning is about which face of the cap meets the aperture, not about magnets) and M-CR30-INSTRUMENT-GONE (new, 2026-08-28, #159 — the instrument unplugged mid-measurement and ChromIQ said nothing at all) and M-CR30-PATCH-GAVE-UP (new, 2026-08-28, #159 — one refused reading used to end a CR30 session for ever in silence; refusals are now re-armed and this is the window for when re-arming keeps failing) and M-CR30-HOW-TO-MEASURE (new, 2026-08-28, #159 — every other instrument reaches its "how to measure" window through `calibration_done`, which cannot fire when ChromIQ supplies the values itself, so a CR30 user was given a spot session with no on-screen instruction at all) and M-CR30-READ-FAILED (new, 2026-08-30, #159 — a refused reading was announced only in the log, where Basti did not see it; the behaviour was already right and only the place it was said was wrong, so this is a modeless window that closes itself when the reading arrives) and M-CR30-LEARN-TILE (new, 2026-08-30, #159 — the magnet guard recognised one unit's stored white-tile value because it was hard-coded from that unit; every other owner had no protection at all, so ChromIQ now learns it from a single capped press) and M-CR30-TRIGGER-NOT-ARMED (new, 2026-08-30, #159 — taking the reading from the keyboard is measurably steadier than pressing the instrument's button, but a reading ChromIQ asks for cannot report the magnet gate, so it is refused until that instrument's tile is known), plus M-IMPORT-REPLACE-CONFIRM, M-IMPORT-REPLACE-PROJECT-CONFIRM and M-IMPORT-REPLACED-KEPT (new, 2026-08-31 — importing a measurement or a chart under a name that is already a project asked the question in each loader's own words AND with its own consequence: one said “Overwrite existing folder” and destroyed the project outright, the other said “Replace” and archived it. Basti ruled that the consequence and the vocabulary are shared with §S4.7 while the window stays the loaders' own, because theirs carries a name box and a live “this name is taken” line that §S4.7's has no room for; the third message exists because nothing anywhere told the person where their replaced project had gone) and M-INSTRUMENT-BUSY (new, 2026-09-02, #159 — Tools ▸ Read single patches now reads a CR30 with ChromIQ's own driver, which is the first time two windows can reach for one instrument; every existing guard answers from process state and cannot see a reader that spawns no process, and the instrument hands its last reading to whoever asks, so the fault it prevents is a plausible wrong colour rather than an error), plus M-SPOT-CLEAR and M-SPOT-UNSAVED (new, 2026-09-03 — Tools ▸ Read single patches could throw a whole measuring session away in silence by two separate routes: Clear had no question and no undo, and Close, the red window button and Escape all discarded the readings without a word. Knut found the first of them by pressing the spacebar, which the Measure tab uses as the reading trigger) — all defined in the awaiting-review section below.
+> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A), M-VERIFY-CREATE-NO-PROFILE and M-GAMUT-NO-PROFILE (feature B — wording agreed verbatim with Sebastian on #133, 2026-08-02, listed for the formal record), M-IMPORT-MISMATCH and M-IMPORT-DATE-TAKEN (the Measure tab's IMPORT module; its import-done window was approved by Sebastian 2026-08-10), plus the revised M-CHART-VERIFY (W5, reworked after the 2026-08-10 hardware session) and M-HOW-PRINTED (pairing 3 — the measure-time question for sheets ChromIQ did not print), plus M-ALL-STRIPS-PATCHES-LEFT (new, 2026-08-14 — every strip read while patches inside them are not, #156; both are wording only, their bug fixes are already in the code and speak through the log until these are approved), plus M-NO-INSTRUMENT-FAST (new, 2026-08-13 — Knut's ColorMunki was invisible on older hardware until "Faster instrument connection" was switched off, so that variant of the no-instrument window names the shortcut and carries its switch), plus M-ENGINE-FELL-BACK (new, 2026-08-14 — asked for by Knut on #148: ChromIQ's own measuring engine could not use the instrument, so stock chartread took over, which also silences ChromIQ's measurement sounds without saying so) — all defined in the awaiting-review section below, plus M-PATCHSET-MISSING (new, 2026-08-25 — a loaded patch set that had gone from disk wrote one line to the log and built a different chart, in silence), plus M-PROJECT-EXISTS (new, 2026-08-27 — a typed project name that already names a project on disk adopted it in silence; Knut reported it and Basti ruled on when it may appear and what it may offer, but the WORDING is new and waits here), plus M-PROJECT-REPLACE-CONFIRM and M-PROJECT-REPLACE-FAILED (new, 2026-08-27 — the second look before §S4.7's "Replace it" clears a whole project, and the window for the case where its promise cannot be kept), plus M-CR30-STOCK-READER (new, 2026-08-28, #159 — a CR30 chart carries the honest name the device reports for itself, which stock ArgyllCMS chartread refuses outright, so the window names the Preferences control that fixes it) and M-CR30-READ-ENDED (new, 2026-08-28, #159 — the same refusal seen from the other end: an engine run that fails on a CR30 chart has no second reader to fall back to, so the two existing fallback messages, one of which promises that every measured strip will be kept, must not be shown) and M-CR30-MAGNET (new, 2026-08-30, #159 — a magnet recalibrated the instrument mid-chart, which happened to Basti with a MacBook under his paper; the session now stops and offers to retake the white calibration instead of inviting another press) and M-CR30-CALIBRATE-BLACK (new, 2026-08-29, #159 — the dark reference, taken against open air with the instrument's own command, offered by an unticked per-use checkbox so it never becomes a second window on every Start) and M-CR30-CALIBRATE (new, 2026-08-28, #159 — Basti ruled that ChromIQ triggers the CR30's white calibration itself on both transports, which deliberately reverses a documented safety rule; the window's warning is about which face of the cap meets the aperture, not about magnets) and M-CR30-INSTRUMENT-GONE (new, 2026-08-28, #159 — the instrument unplugged mid-measurement and ChromIQ said nothing at all) and M-CR30-PATCH-GAVE-UP (new, 2026-08-28, #159 — one refused reading used to end a CR30 session for ever in silence; refusals are now re-armed and this is the window for when re-arming keeps failing) and M-CR30-HOW-TO-MEASURE (new, 2026-08-28, #159 — every other instrument reaches its "how to measure" window through `calibration_done`, which cannot fire when ChromIQ supplies the values itself, so a CR30 user was given a spot session with no on-screen instruction at all) and M-CR30-READ-FAILED (new, 2026-08-30, #159 — a refused reading was announced only in the log, where Basti did not see it; the behaviour was already right and only the place it was said was wrong, so this is a modeless window that closes itself when the reading arrives) and M-CR30-LEARN-TILE (new, 2026-08-30, #159 — the magnet guard recognised one unit's stored white-tile value because it was hard-coded from that unit; every other owner had no protection at all, so ChromIQ now learns it from a single capped press) and M-CR30-TRIGGER-NOT-ARMED (new, 2026-08-30, #159 — taking the reading from the keyboard is measurably steadier than pressing the instrument's button, but a reading ChromIQ asks for cannot report the magnet gate, so it is refused until that instrument's tile is known), plus M-IMPORT-REPLACE-CONFIRM, M-IMPORT-REPLACE-PROJECT-CONFIRM and M-IMPORT-REPLACED-KEPT (new, 2026-08-31 — importing a measurement or a chart under a name that is already a project asked the question in each loader's own words AND with its own consequence: one said “Overwrite existing folder” and destroyed the project outright, the other said “Replace” and archived it. Basti ruled that the consequence and the vocabulary are shared with §S4.7 while the window stays the loaders' own, because theirs carries a name box and a live “this name is taken” line that §S4.7's has no room for; the third message exists because nothing anywhere told the person where their replaced project had gone) and M-INSTRUMENT-BUSY (new, 2026-09-02, #159 — Tools ▸ Read single patches now reads a CR30 with ChromIQ's own driver, which is the first time two windows can reach for one instrument; every existing guard answers from process state and cannot see a reader that spawns no process, and the instrument hands its last reading to whoever asks, so the fault it prevents is a plausible wrong colour rather than an error), plus M-SPOT-CLEAR and M-SPOT-UNSAVED (new, 2026-09-03 — Tools ▸ Read single patches could throw a whole measuring session away in silence by two separate routes: Clear had no question and no undo, and Close, the red window button and Escape all discarded the readings without a word. Knut found the first of them by pressing the spacebar, which the Measure tab uses as the reading trigger), plus M-SCAN-REF-SHORT, M-SCAN-REF-DISAGREES, M-SCAN-CLIPPED and M-SCAN-PROFILE-ARCHIVED (new, 2026-09-03 — review 5 of Tools ▸ Build profile with scanner or camera found the app building a profile from data that is not the chart it thinks it is, with every indicator on screen green: a reference file holding a correct SUBSET of the target builds from a sixth of the sheet and scores BETTER on colprof's own self-check than the correct build, an upside-down scan passes every pre-build check, and a scan with two of every five patches clipped to white builds clean and silent. The mechanisms are in the code and can ship ahead of these words; the fourth message says where a rebuilt profile's predecessor went, now that it is archived instead of overwritten) — all defined in the awaiting-review section below.
 > **Withdrawn, never approved:** the patch-set sibling of the message above was removed on 2026-08-26 without reaching the catalogue. Ticking “Edit patch recipe (override preset)” already opens a window saying the loaded patches will be replaced, and that box is shown for a patch set the user loaded themselves, not only for a built-in preset — so a second window at Generate time would have interrupted a decision the user had already made and acknowledged. Knut, 4.1.3-beta.17: *“there is already a message when clicking the ‘Edit patch recipe’ warning of consequences … that warning should be sufficient for a user.”* Checked against the existing text before removal.
 
 > Both were approved by Knut on 2026-08-04, but one step in each instructed *"(with colour management on)"* — a setting ChromIQ deliberately locks **off** on every print path, so the approved text told the user to do something the app prevents (established in `verification_printing_and_target.md` §1, and A0.1 of its plan). With feature A the instruction has a real control to name — the Print Chart tab's **Colour** row — so that one step is revised and the revision waits in §M-PROPOSED. Every other message in §M remains approved as before: the last, **M-BUILD-ELSEWHERE**, was accepted on 2026-08-04 — *"Message M-BUILD-ELSEWHERE accepted"* — and M-CHART-CORRUPT, M-REPLACE-UNCOUNTABLE and M-PREVIEW-PAUSED the day before. A new message goes to §M-PROPOSED first, and `tests/test_message_catalogue.py` fails if one is added to the code without it.
@@ -2340,6 +2340,127 @@ end of a session is still one click.*
 > Save writes it as a CSV and an ArgyllCMS .ti3 beside the run you are working on, and then the window closes. Discard closes the window and loses the reading. Cancel leaves the window open exactly as it is, with the reading still in the list.
 
 *Buttons: **Save** (default), **Discard** (destructive) and **Cancel**.*
+
+### M-SCAN-REF-SHORT · PROPOSED · the reference file covers only part of the target — Tools ▸ Build profile with scanner or camera
+
+*New for 4.1.4, review 5 (2026-09-03), finding D. **The most serious thing this
+window does.** A reference file holding the first 48 rows of the target's own
+correct 288-row reference — a truncated download, a partial export, a maker's
+"short" file — builds a profile from a sixth of the sheet while every indicator
+on screen is green: "✓ Ready — 288 patches, reference loaded", the alignment
+tick at "worst 99.84 %, average 99.96 %", and colprof's own self-check at
+0.185 / 0.076, which is **better** than the correct 288-patch build's
+0.620 / 0.098 because forty-eight points fit a matrix beautifully. The `.ti3`
+records `NUMBER_OF_SETS 48`: 240 patches were read off the scan and thrown away
+in silence. The 288 on screen is the `.cht`'s count and nothing ever compared it
+with the reference's own rows.*
+
+*Shown the moment the reference is picked, in the status line under the
+"Target reference data" row, where the user can still fix it by choosing another
+file — and again as a line in the pre-build warning window, so it cannot be
+scrolled past. `{covered}` is how many of the chart's patches the reference
+names, `{total}` how many the chart has, `{missing}` the difference.*
+
+*The opposite case says nothing: a reference with MORE rows than the chart has
+patches builds a perfect profile, because the extra rows simply go unused
+(measured: peak 0.62, average 0.098 from a 400-row reference for a 288-patch
+target).*
+
+> **This reference file covers only part of the target**
+>
+> The reference file you picked gives colours for {covered} of the {total} patches on this target. ChromIQ can only use the patches the reference names, so the other {missing} would be read from your scan and then thrown away, and the profile would describe your scanner from a fraction of the sheet.
+>
+> Nothing later would show it. A profile built from fewer patches passes its own quality check more easily, not less.
+>
+> In the “Target reference data” row, pick the full reference file that came with this target. That file lists every patch, so it has about as many rows as the target has patches.
+
+*Singular, when exactly one patch is missing:*
+
+> The reference file you picked gives colours for {covered} of the {total} patches on this target. ChromIQ can only use the patches the reference names, so the remaining one would be read from your scan and then thrown away.
+>
+> In the “Target reference data” row, pick the full reference file that came with this target. That file lists every patch, so it has about as many rows as the target has patches.
+
+### M-SCAN-REF-DISAGREES · PROPOSED · what was read does not match the reference — Tools ▸ Build profile with scanner or camera
+
+*New for 4.1.4, review 5, findings B2 and B4. ChromIQ already computes the one
+number that names a wrong reference or an upside-down scan —
+`scan_reference_correlation`, the rank agreement between how light each patch
+read and how light the reference says it is — and used it only to decide whether
+to run a further check. Measured: **+0.94 to +0.97 on every good read, and −0.60
+to +0.14 on every broken one**. When it collapsed, the window quietly declined
+to judge and then printed a green tick from the geometric ladder, which never
+looks at the reference at all.*
+
+*An upside-down scan is the ordinary flatbed mistake and the clearest case: the
+patch block maps onto itself, so every geometric check passes, every patch reads
+its opposite number's colour, and only colprof's fit noticed, at the very end.*
+
+*Shown as a line in the pre-build warning window, which already offers Stop and
+Build anyway. `{rho}` is the measured agreement, to two decimals.*
+
+*The floor is **0.25**, not the 0.8 the existing `ref_usable` gate uses for a
+different purpose. A strongly saturated target (LaserSoft) ranks at ρ≈0.5 even
+on a perfect read, which is why that gate exists; this one must sit well below
+it. Measured against 30 legitimate reads on two targets across an exposure and
+cast sweep, the lowest was **+0.940**.*
+
+> **What was read does not match this reference**
+>
+> ChromIQ compared how light each patch came out of your scan with how light the reference says that patch is. On a good scan the two run together closely. Here they hardly agree at all: {rho}, where a good read is above 0.9.
+>
+> That is what happens when the scan is upside down or a quarter turn out, or when the reference belongs to a different target from the one you scanned. A profile built from this read would be wrong, and nothing later would tell you.
+>
+> Check that the scan is the right way up, and that the file in the “Target reference data” row is the one that came with this target.
+
+### M-SCAN-CLIPPED · PROPOSED · the scan has run out of scale — Tools ▸ Build profile with scanner or camera
+
+*New for 4.1.4, review 5, finding B3. A scan with every value lifted 55 % built
+a clean profile in silence: 39.2 % of its patches read at the top of the device
+scale, rank agreement +0.943 (so the check above cannot see it), and colprof's
+self-check passed without a word. Clipping is the one scan fault that cannot be
+profiled around — the values are gone, not merely shifted, and the profile
+treats "as bright as this scanner goes" as a measurement.*
+
+*Shown as a line in the pre-build warning window. `{pct}` is the share of
+patches at either end of the scale.*
+
+*The floor is **15 %**, and it is deliberately late rather than eager. Measured
+across an exposure ladder, `profcheck` against the read's own data goes 0.098 →
+0.286 → 0.740 → 1.097 → 5.967 average ΔE as the clipped share goes 0 % → 6 % →
+11 % → 16 % → 39 %, so the damage becomes real between 10 % and 16 %. Against
+that, the highest reading from any legitimate scan measured — including an
+extreme warm cast, a low-contrast scan, a second target, and exposures from
+×0.12 to ×1.10 — was **9.7 %**. A floor of 15 % keeps a 1.55× margin over the
+worst legitimate case and still catches the scan that is ruined.*
+
+> **Part of this scan has no colour left in it**
+>
+> {pct} of the patches were read at the very end of the scan's brightness range, where there is nothing left to record. Their real colours are gone, not merely shifted, so ChromIQ cannot tell those patches apart and the profile would treat “as far as this scanner goes” as a measurement.
+>
+> Scan the target again with the automatic brightness and contrast turned off in your scanner software, so that no patch reaches either end of the scale.
+
+### M-SCAN-PROFILE-ARCHIVED · PROPOSED · where the profile this build replaced went — the scanner window's log
+
+*New for 4.1.4, review 5, finding B5. Building twice in the same folder wrote
+over the first profile in place: no copy, no question, and not a word in the log
+— and it may be one the user has already installed and been working against. The
+measurement beside it went the same way. The app's habit everywhere else is to
+archive (`runs/run1, run2, …`, `old/<timestamp>/`, "Deleting moves to the
+Trash"), and this window was the exception.*
+
+*The archiving itself needs no new wording and is fixed outright. Saying WHERE
+does — and the adversarial round of 2026-09-02 established that moving something
+and then naming the folder nowhere is a fault of its own, which is why
+M-CAL-ARCHIVED-HERE exists. This follows its shape and its sentence deliberately,
+with one word changed.*
+
+*Not a window: two lines written into the log the build is already streaming
+into. Shown only when an archive was really made — a first build in a clean
+folder moves nothing and says nothing.*
+
+> **The profile that was here has moved to this folder, and nothing in it was deleted:**
+>
+> {folder}
 
 ### M-x. Which table uses which message
 

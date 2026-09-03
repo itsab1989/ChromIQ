@@ -147,10 +147,21 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # while the wording is §M-PROPOSED, exactly as M-INSTRUMENT-BUSY does.
 # 141 is again the highest ACTUAL count across the eleven (fr), not a round
 # ceiling.
+# 2026-09-03, review 5, +7 for the eleven and +0 for German: the four windows
+# that stop Tools > Build profile with scanner or camera building a profile
+# from data that is not the chart it thinks it is (M-SCAN-REF-SHORT,
+# M-SCAN-REF-DISAGREES, M-SCAN-CLIPPED, M-SCAN-PROFILE-ARCHIVED). Eight keys
+# arrive; SEVEN of them are counted here, because M-SCAN-REF-DISAGREES's body
+# opens with the word "ChromIQ" and the filter above treats a string beginning
+# with a brand name as legitimately identical. German carries all eight and
+# stays at 31 against its budget of 35. The eleven hold the English source
+# while the wording is section M-PROPOSED, exactly as M-INSTRUMENT-BUSY and the
+# M-SPOT pair do. 148 is again the highest ACTUAL count across the eleven (fr),
+# not a round ceiling.
 _BUDGET = {
     "de": 35,
-    "es": 141, "fr": 141, "it": 141, "ja": 141, "nl": 141,
-    "no": 141, "pl": 141, "pt": 141, "ru": 141, "sv": 141, "zh_CN": 141,
+    "es": 148, "fr": 148, "it": 148, "ja": 148, "nl": 148,
+    "no": 148, "pl": 148, "pt": 148, "ru": 148, "sv": 148, "zh_CN": 148,
 }
 
 

@@ -249,7 +249,28 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # discarded the readings without a word. Knut
                                  # found the first by pressing the spacebar,
                                  # which is the Measure tab's reading trigger.
-                                 "M-SPOT-CLEAR", "M-SPOT-UNSAVED"}
+                                 "M-SPOT-CLEAR", "M-SPOT-UNSAVED",
+                                 # 2026-09-03, review 5. Tools > Build
+                                 # profile with scanner or camera builds
+                                 # a profile from data that is not the
+                                 # chart it thinks it is, with every
+                                 # indicator green: a reference holding a
+                                 # correct SUBSET of the target builds
+                                 # from a sixth of the sheet and scores
+                                 # BETTER on colprof's self-check than
+                                 # the correct build; an upside-down scan
+                                 # passes every pre-build check; a scan
+                                 # with 39 % of its patches clipped to
+                                 # white builds clean and silent. The
+                                 # mechanisms are in the code and can ship
+                                 # ahead of the wording. The fourth says
+                                 # where a rebuilt profile's predecessor
+                                 # went, now that it is archived rather
+                                 # than overwritten in place.
+                                 "M-SCAN-REF-SHORT",
+                                 "M-SCAN-REF-DISAGREES",
+                                 "M-SCAN-CLIPPED",
+                                 "M-SCAN-PROFILE-ARCHIVED"}
 # Round 2 of the import-door review added four and Basti approved all four on
 # 2026-09-02, so they never sat in this set for longer than one branch:
 # M-IMPORT-NOT-OPENED, M-IMPORT-FOLDER-EXISTS, M-IMPORT-REPLACE-FOLDER-CONFIRM
