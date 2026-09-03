@@ -159,6 +159,46 @@ class BleAxis:
         return [self.start_nm + i * self.step_nm for i in range(self.bands)]
 
 
+def _connected_name(client) -> "str | None":
+    """The device name of an OPEN BLE connection, without a scan.
+
+    Backend-specific by necessity and best-effort by design: bleak exposes no
+    portable accessor, and this CR30 has no GAP Device Name characteristic to
+    read instead. Each attempt is guarded on its own, so a bleak upgrade or
+    another platform degrades to `None` -- which is exactly the state the fast
+    path was in before this existed.
+    """
+    backend = getattr(client, "_backend", None)
+    if backend is None:
+        return None
+    # macOS / CoreBluetooth: the peripheral object carries the advertised name.
+    try:
+        peripheral = getattr(backend, "_peripheral", None)
+        name = peripheral.name() if peripheral is not None else None
+        if name:
+            return str(name).strip() or None
+    except Exception:                # noqa: BLE001 — a hint, never a hard need
+        log.debug("CR30 BLE: CoreBluetooth would not name the peripheral",
+                  exc_info=True)
+    # Windows / WinRT.
+    try:
+        info = getattr(backend, "_device_info", None)
+        name = getattr(info, "Name", None) or getattr(info, "name", None)
+        if name:
+            return str(name).strip() or None
+    except Exception:                # noqa: BLE001
+        log.debug("CR30 BLE: WinRT would not name the device", exc_info=True)
+    # Linux / BlueZ.
+    try:
+        props = getattr(backend, "_properties", None) or {}
+        name = props.get("Alias") or props.get("Name")
+        if name:
+            return str(name).strip() or None
+    except Exception:                # noqa: BLE001
+        log.debug("CR30 BLE: BlueZ would not name the device", exc_info=True)
+    return None
+
+
 class BleTransport:
     """Poll-driven BLE link. Synchronous facade over bleak's async API."""
 
@@ -239,6 +279,12 @@ class BleTransport:
                         "disconnect the phone app; then press its button to "
                         "wake it and try again.")
                 target = ok[0]["address"]
+                # KEEP THE NAME THE SCAN JUST READ. It is the unit's own id
+                # string (`second_id`), which is the key a learned white-tile
+                # signature is filed under -- and it was thrown away here, so
+                # even the SCANNING path had no unit id unless something later
+                # asked the device over the protocol.
+                self.name = self.name or (ok[0].get("name") or None)
             # REMEMBER WHAT WE ACTUALLY CONNECTED TO, so the caller can skip
             # the scan next time. Measured on the owner's Mac, 2026-08-30:
             # finding the device by name took 15.42 s, connecting to it 2.33 s.
@@ -249,6 +295,30 @@ class BleTransport:
             t0 = time.monotonic()
             await c.connect()
             t1 = time.monotonic()
+            # ASK THE THING THAT ANSWERED WHAT IT IS CALLED.
+            #
+            # The name is the unit's OWN id string (`second_id`, `AA 0A 01`),
+            # and it is the key a learned white-tile signature is filed under
+            # on every other path. The fast path skipped the scan for speed and
+            # therefore had no name, so it filed under `ble:<address>` instead
+            # -- and the SAME instrument over USB, which knows its `second_id`,
+            # then found nothing and asked the owner to learn the tile a second
+            # time. That is Knut's report of 2026-09-03, and the cure is not to
+            # put the scan back: a CONNECTED peripheral still reports its name.
+            #
+            # Measured on his CR30, 2026-09-03, connecting by address alone:
+            #   advertised name from a scan : 'CM454M0223'
+            #   peripheral.name() connected : 'CM454M0223'
+            # The portable route -- the GAP Device Name characteristic 0x2A00
+            # -- does NOT exist on this device (it exposes only the HM-10
+            # `ffe0` service), so the name has to come from the backend, and
+            # every attempt below is optional. No name means today's behaviour,
+            # which is a key of `ble:<address>` and nothing worse.
+            if not self.name:
+                self.name = _connected_name(c)
+                if self.name:
+                    log.info("CR30 BLE: the connected unit calls itself %s",
+                             self.name)
             await c.start_notify(FFE1, self._on_notify)
             # TIMED, BECAUSE THIS IS WHERE THE OWNER'S FIRST GAP LIVES.
             # The first connection of a session is made when he presses

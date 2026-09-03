@@ -139,10 +139,18 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # German carries all seven and its own count is 31 against a budget of 35.
 # 135 is the highest ACTUAL count across the eleven (fr), not a round ceiling,
 # following the note above about uniform ceilings hiding real figures.
+# 2026-09-03, review 3, +6 for the eleven and +0 for German: the two windows
+# that stop Tools ▸ Read single patches binning a measuring session in silence
+# (M-SPOT-CLEAR, M-SPOT-UNSAVED). Six SUBSTANTIAL strings — the two headlines
+# and the four bodies, singular and plural of each. German carries all six and
+# stays at 31 against its budget of 35. The eleven hold the English source
+# while the wording is §M-PROPOSED, exactly as M-INSTRUMENT-BUSY does.
+# 141 is again the highest ACTUAL count across the eleven (fr), not a round
+# ceiling.
 _BUDGET = {
     "de": 35,
-    "es": 135, "fr": 135, "it": 135, "ja": 135, "nl": 135,
-    "no": 135, "pl": 135, "pt": 135, "ru": 135, "sv": 135, "zh_CN": 135,
+    "es": 141, "fr": 141, "it": 141, "ja": 141, "nl": 141,
+    "no": 141, "pl": 141, "pt": 141, "ru": 141, "sv": 141, "zh_CN": 141,
 }
 
 

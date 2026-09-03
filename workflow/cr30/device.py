@@ -106,7 +106,21 @@ class CR30:
         never treat either as an identity test.
         """
         t = ble.BleTransport(name, address=address, **kw); t.open()
-        return cls(t, "ble")
+        dev = cls(t, "ble")
+        # NAME IT AT OPEN TIME, NOT ONLY AT `identify()`.
+        #
+        # `unit_id` is the key a learned white-tile signature is filed under,
+        # and only `identify()` used to set it -- which `DeviceReader._open_ble`
+        # calls on the remembered-address branch and NOT on the discovery one.
+        # So a CR30 found by scanning was keyed by its ADDRESS even though the
+        # advertisement had just carried its id, and the same instrument over
+        # USB then found nothing and asked for the tile again (Knut,
+        # 2026-09-03). The transport now knows the name on both branches -- from
+        # the advertisement when it scans, from the connected peripheral when it
+        # does not -- so this costs no round trip. `identify()` still sets the
+        # same value when it runs.
+        dev.unit_id = (getattr(t, "name", "") or "").strip() or None
+        return dev
 
     @staticmethod
     def discover_ble(timeout: float = 10.0) -> list[dict]:

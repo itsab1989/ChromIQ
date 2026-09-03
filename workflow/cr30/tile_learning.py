@@ -127,6 +127,61 @@ def learned_signature(unit_id: str | None = None) -> list[float] | None:
         return None
 
 
+def adopt_address_key(address: str | None, unit_id: str | None) -> bool:
+    """Re-file a signature learned under `ble:<address>` under the unit's id.
+
+    Knut, 2026-09-03: *"in a very short test via usb the read single patches
+    tool asked me to learn the white tile of the device via usb again although
+    chromiq should already have learned it."*
+
+    He had learned it over Bluetooth. The store is shared, but the KEY was per
+    transport: the remembered-address fast path never scans, so it had no unit
+    id and filed under the address, and USB -- which does know the unit's
+    `second_id` -- looked under a key that was not there.
+
+    The identity of a physical instrument is its own id, never the address. A
+    CoreBluetooth UUID is host-local, changes when a pairing database is reset,
+    and says nothing about which unit answers at it. So the address is demoted
+    to what it always was, a locator, and the legacy key is migrated the ONE
+    moment it can be migrated safely: while connected to that address, having
+    just heard the device name itself. Same link, same instrument, no guess.
+
+    Deliberately NOT done at a USB open. Nothing there proves which unit an
+    `ble:` key belonged to, and adopting the wrong one would make
+    `guard_is_armed()` answer True while the guard matched nothing -- a false
+    assurance, which is worse than the honest "unarmed" it replaces.
+    """
+    if not address or not unit_id:
+        return False
+    legacy = f"ble:{address}"
+    if legacy == str(unit_id):
+        return False
+    try:
+        store = _load()
+        values = store.get(legacy)
+        if values is None:
+            return False
+        if store.get(str(unit_id)) is not None:
+            # The unit already has its own signature. Drop the duplicate rather
+            # than leave two keys for one instrument to drift apart.
+            store.pop(legacy, None)
+            _settings().set(SIGNATURE_KEY, json.dumps(store))
+            log.info("CR30: dropped the stale address key %s -- unit %s has "
+                     "its own learned signature", legacy, unit_id)
+            return False
+        store[str(unit_id)] = values
+        store.pop(legacy, None)
+        _settings().set(SIGNATURE_KEY, json.dumps(store))
+        log.info("CR30: the tile signature filed under %s belongs to unit %s, "
+                 "which has just said so over that very connection -- re-filed "
+                 "under the unit, so USB and Bluetooth now share it",
+                 legacy, unit_id)
+        return True
+    except Exception:                # noqa: BLE001 — a guard, never a hard need
+        log.debug("could not re-file the CR30 tile signature", exc_info=True)
+        return False
+
+
 def remember_signature(values, unit_id: str | None = None) -> bool:
     """Store a proven signature under this unit's id. Returns whether it was."""
     try:

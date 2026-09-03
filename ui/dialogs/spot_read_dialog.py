@@ -17,10 +17,12 @@ from typing import TYPE_CHECKING
 
 from core.stem_paths import artefact, without_ext
 
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import QEvent, QObject, Qt, QTimer
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QAbstractItemView,
+    QAbstractSpinBox,
+    QApplication,
     QCheckBox,
     QDialog,
     QDialogButtonBox,
@@ -28,11 +30,13 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QLineEdit,
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
+    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -42,6 +46,7 @@ from ui.cr30_calibration import Cr30CalibrationMixin
 from ui.dialogs.tools_dialogs import _indicator_color, neutral_controls_qss
 from ui.styles import SPEC_GREEN
 from ui.tab_header import dialog_masthead
+from ui.warning_sign import set_warning_icon
 from ui.widgets import NoScrollComboBox, set_ink, tint_dialog_primary
 from workflow.spot_read_io import SpotReading, average_readings, write_csv, write_ti3
 from workflow.spot_read_manager import SpotReadManager, SpotReadParams
@@ -253,6 +258,18 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         self._auto_timer.setInterval(2000)
         self._auto_timer.timeout.connect(self._refresh_auto_choice)
         self._readings: list[SpotReading] = []
+        #: What the last Clear took away, kept so it can be put back. Nothing
+        #: the user made is destroyed without a way back; see `_on_clear`.
+        self._cleared: list[SpotReading] = []
+        #: True once a reading exists that has not been written to a file, so
+        #: closing the window can say so instead of binning a session.
+        self._unsaved = False
+        #: True while `_set_read_enabled(False)` moved the focus out of the
+        #: way, so re-enabling can hand it back.
+        self._focus_parked = False
+        #: True once the unsaved-work question has been answered "go ahead",
+        #: so the second route into `_may_close` does not ask again.
+        self._closing = False
         #: True between a misread and the next ready prompt. While set, Take
         #: reading clears the error before it reads (see _on_take_reading).
         self._misread = False
@@ -886,13 +903,125 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         """
         self._on_calibration_finished()
 
+    # ------------------------------------------------------------------
+    # Keyboard: Space is the trigger, and a disabled button never hands the
+    # focus to a destructive one
+    # ------------------------------------------------------------------
+    def _set_read_enabled(self, on: bool) -> None:
+        """Enable or disable Take reading WITHOUT throwing the focus at Clear.
+
+        Knut, 2026-09-03: *"pressing spacebar there which is a trigger in
+        measure tab closes the read single patches window even in an active
+        session."*
+
+        The window never handled a key. What it did was disable the focused
+        button: `QWidget::setEnabled(false)` on the focus widget calls
+        `focusNextChild()`, which SKIPS every disabled button, so the focus
+        walked on to the next enabled one in the bottom row. Measured on the
+        real dialog:
+
+        * nothing measured yet — the next enabled button is **Close**, and
+          Space closed the window. That is what he reported.
+        * readings in the table — **Clear** is enabled by then and catches it
+          first, so Space emptied the whole session and left the window open,
+          which says nothing at all. That is worse, and it is the one he was
+          most likely to hit, because he was measuring.
+
+        Three separate things fix that, and each is worth having on its own:
+        this method (the focus never lands on a destructive button), the event
+        filter below (Space means "take a reading", as it does in the Measure
+        tab), and the guards on Clear and on closing (nothing is lost even if a
+        press does get through).
+        """
+        # ASKED OF THE INSTANCE DICT, for the reason `_on_take_reading` gives
+        # below: the misread-recovery tests build this window with `__new__`
+        # and never call `__init__`, and on a PyQt wrapper in that state a
+        # MISSING attribute raises RuntimeError out of sip, which
+        # `getattr(..., default)` does not catch. Those tests hand in a plain
+        # stand-in for the button, so the focus half is skipped and the enable
+        # half — the part they are about — still runs.
+        btn = self.__dict__.get("_read_btn")
+        if btn is None:
+            return
+        table = self.__dict__.get("_table")
+        parked = bool(self.__dict__.get("_focus_parked"))
+        has_focus = getattr(btn, "hasFocus", None)
+        if not on and table is not None and callable(has_focus) and has_focus():
+            # The readings table is the one safe parking place in this window:
+            # every other focusable widget either ends the session, clears the
+            # list or closes the window.
+            table.setFocus(Qt.FocusReason.OtherFocusReason)
+            self._focus_parked = True
+        btn.setEnabled(on)
+        # AFTER the enable, never before: a disabled widget cannot take focus,
+        # so handing it back first silently did nothing at all.
+        if on and parked:
+            self._focus_parked = False
+            if table is not None and table.hasFocus():
+                btn.setFocus(Qt.FocusReason.OtherFocusReason)
+
+    def eventFilter(self, obj: QObject, event: QEvent) -> bool:   # noqa: D102
+        # SPACE IS THE TRIGGER, HERE TOO.
+        #
+        # His mental model comes from the Measure tab, where Space takes the
+        # reading (`ui/tabs/tab_measure.py`, the CR30 branch of its filter).
+        # This window measures the same way with the same instruments, so the
+        # key means the same thing — and claiming it is also what stops it
+        # reaching a button nobody aimed at.
+        #
+        # Installed on the application, like the Measure tab's, because a key
+        # press goes to the focus widget and a QPushButton swallows Space
+        # before any parent sees it. Scoped by ancestry rather than by
+        # `isActiveWindow`, which offscreen cannot answer: a child window (a
+        # message box, a combo popup) is not an ancestor of this dialog, so its
+        # keys are left alone.
+        if event.type() != QEvent.Type.KeyPress:
+            return False
+        if not (obj is self or (isinstance(obj, QWidget) and self.isAncestorOf(obj))):
+            return False
+        if event.key() != Qt.Key.Key_Space:
+            return False
+        if event.modifiers() & (Qt.KeyboardModifier.ControlModifier
+                                | Qt.KeyboardModifier.MetaModifier
+                                | Qt.KeyboardModifier.AltModifier):
+            return False          # a shortcut is not a trigger
+        # A SPACE TYPED INTO A BOX IS A SPACE. The readings table renames a
+        # patch in place, and the name may well have one in it.
+        fw = QApplication.focusWidget()
+        if isinstance(fw, (QLineEdit, QTextEdit, QPlainTextEdit, QAbstractSpinBox)):
+            return False
+        if not self._read_btn.isEnabled():
+            # Nothing to trigger — the session is not running, or the misread
+            # two-step is in its 300 ms gap. Left alone rather than swallowed,
+            # so a keyboard user can still work the buttons; Clear and closing
+            # carry their own guards.
+            return False
+        self._on_take_reading()
+        return True
+
+    def showEvent(self, event) -> None:   # noqa: N802, D102
+        super().showEvent(event)
+        # A window shown again is a new session's worth of work to protect.
+        self._closing = False
+        app = QApplication.instance()
+        if app is not None:
+            # Qt moves an already-installed filter to the front rather than
+            # installing it twice, so a reopened window cannot stack them.
+            app.installEventFilter(self)
+
+    def hideEvent(self, event) -> None:   # noqa: N802, D102
+        app = QApplication.instance()
+        if app is not None:
+            app.removeEventFilter(self)
+        super().hideEvent(event)
+
     def _set_session_running(self, running: bool) -> None:
         self._instrument.setEnabled(not running)
         self._mode.setEnabled(not running)
         self._skip_cal.setEnabled(not running)
         self._start_btn.setText(tr("Stop session") if running else tr("Start session"))
         if not running:
-            self._read_btn.setEnabled(False)
+            self._set_read_enabled(False)
             self._apply_reader_capabilities()
             self._refresh_auto_choice()
 
@@ -904,7 +1033,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         # spotread's menu prompt is the only proof the error mode is over, so
         # it — not a timer — is what ends the misread state.
         self._misread = False
-        self._read_btn.setEnabled(True)
+        self._set_read_enabled(True)
         # Knut, #130 2026-08-01: *"the 'Ready ….' message is inaccurate, as
         # using instrument button is also possible. Revise text."* Both ways of
         # reading are named now.
@@ -937,7 +1066,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         always implied, and the text says which control works.
         """
         self._misread = True
-        self._read_btn.setEnabled(True)
+        self._set_read_enabled(True)
         self._set_status(tr(
             "Misread — that reading was inconsistent and has been discarded, "
             "usually because the instrument moved while it was measuring. Place "
@@ -969,12 +1098,12 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         # prompt (which is what puts "Ready" on screen), the second is the
         # reading itself. Disabled in between so a second click cannot queue a
         # third keypress and read twice.
-        self._read_btn.setEnabled(False)
+        self._set_read_enabled(False)
         self._manager.send_key("\r")
 
         def _then_read() -> None:
             self._misread = False
-            self._read_btn.setEnabled(True)
+            self._set_read_enabled(True)
             self._manager.take_reading()
 
         QTimer.singleShot(self._MISREAD_CLEAR_PAUSE_MS, _then_read)
@@ -987,8 +1116,9 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         reading = SpotReading(name=name, xyz=tuple(xyz), lab=tuple(lab))
         self._readings.append(reading)
         self._append_row(reading)
+        self._unsaved = True
         self._save_btn.setEnabled(True)
-        self._clear_btn.setEnabled(True)
+        self._forget_undo()
         self._set_status(
             tr("Read {name}: L* {l:.1f}  a* {a:.1f}  b* {b:.1f}").format(
                 name=name, l=lab[0], a=lab[1], b=lab[2])
@@ -1039,19 +1169,89 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         averaged = average_readings([self._readings[r] for r in rows], tr("Average"))
         self._readings.append(averaged)
         self._append_row(averaged)
+        self._unsaved = True
         self._save_btn.setEnabled(True)
-        self._clear_btn.setEnabled(True)
+        self._forget_undo()
         self._set_status(
             tr("Averaged {n} readings: L* {l:.1f}  a* {a:.1f}  b* {b:.1f}").format(
                 n=len(rows), l=averaged.lab[0], a=averaged.lab[1], b=averaged.lab[2])
         )
 
+    #: What the Clear button says once it can put the readings back.
+    def _clear_button_text(self) -> str:
+        return tr("Undo clear") if (self._cleared and not self._readings) \
+            else tr("Clear")
+
+    def _sync_clear_btn(self) -> None:
+        self._clear_btn.setText(self._clear_button_text())
+        self._clear_btn.setEnabled(bool(self._readings) or bool(self._cleared))
+
+    def _forget_undo(self) -> None:
+        """A new reading replaces what Undo would put back."""
+        if self._cleared:
+            self._cleared = []
+        self._sync_clear_btn()
+
     def _on_clear(self) -> None:
+        """Clear the list, or put back the list that was cleared.
+
+        NOTHING THE USER MADE IS DESTROYED WITHOUT A WAY BACK. This used to
+        empty the table on one click with no question and no undo, and the
+        spacebar could deliver that click by itself (see `_set_read_enabled`) —
+        a whole measuring session gone, in a window that stayed open and said
+        nothing. Two answers, because they cover different mistakes: the
+        question stops the click that was never meant, and the undo covers the
+        one that was meant and regretted.
+        """
+        if not self._readings and self._cleared:
+            restored, self._cleared = self._cleared, []
+            for r in restored:
+                self._readings.append(r)
+                self._append_row(r)
+            self._unsaved = True
+            self._save_btn.setEnabled(True)
+            self._sync_clear_btn()
+            self._update_average_btn()
+            self._set_status(tr("Readings restored."))
+            return
+        if not self._readings:
+            return
+        if not self._confirm_clear():
+            return
+        self._cleared = list(self._readings)
         self._readings.clear()
         self._table.setRowCount(0)
         self._save_btn.setEnabled(False)
-        self._clear_btn.setEnabled(False)
         self._avg_btn.setEnabled(False)
+        self._sync_clear_btn()
+
+    def _ask(self, box: QMessageBox):
+        """Show a question window and return the button that was pressed.
+
+        ONE SEAM, so a test can answer a modal without patching
+        `QMessageBox.exec` for the whole process. That patch has bitten this
+        suite twice — `tests/test_qmessagebox_exec_patch_leak.py` exists
+        because saving and restoring it does not restore it — and a repeating
+        `QTimer` never fires inside a nested `exec()`, so there is no honest
+        way to click one from outside. A subclass overrides this, and every
+        other line of the window is the real one.
+        """
+        box.exec()
+        return box.clickedButton()
+
+    def _confirm_clear(self) -> bool:
+        """M-SPOT-CLEAR — the second look before the list is emptied."""
+        from workflow import measurement_messages as M
+        title, body = M.M_SPOT_CLEAR.render(n=len(self._readings))
+        box = QMessageBox(self)
+        set_warning_icon(box)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        clear = box.addButton(tr("Clear"), QMessageBox.ButtonRole.DestructiveRole)
+        cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(cancel)
+        return self._ask(box) is clear
 
     def _suggested_save_path(self) -> "Path":
         """Where a set of spot readings belongs: the current run's exports."""
@@ -1072,9 +1272,15 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
             pass
         return chromiq_root_dir() / name
 
-    def _on_save(self) -> None:
+    def _on_save(self) -> bool:
+        """Write the readings out. Returns whether anything reached disk.
+
+        The answer is load-bearing now: the close guard offers Save as one of
+        its three ways out, and a save the user backed out of must leave the
+        window open rather than close it on the readings it did not write.
+        """
         if not self._readings:
-            return
+            return False
         from ui.widgets import save_file_dialog
         # SAVE IT BESIDE THE THING IT DESCRIBES. This pointed at
         # `~/spot-readings/`, a folder nothing in ChromIQ ever creates — the
@@ -1087,7 +1293,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
             self, tr("Save spot readings"), tr("Spot readings (*.csv)"),
             start_path=str(start))
         if not chosen:
-            return
+            return False
         # A typed save name is a NAME: "readings.v2" has no extension to strip
         # (core/stem_paths.py). Remove only a .csv/.ti3 the user actually typed.
         base = without_ext(without_ext(chosen, ".csv"), ".ti3")
@@ -1096,12 +1302,14 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
             ti3_path = write_ti3(artefact(base, ".ti3"), self._readings)
         except OSError as exc:
             QMessageBox.warning(self, tr("Save failed"), str(exc))
-            return
+            return False
+        self._unsaved = False
         QMessageBox.information(
             self, tr("Saved"),
             tr("Readings saved to:\n{csv}\n{ti3}").format(
                 csv=csv_path.name, ti3=ti3_path.name),
         )
+        return True
 
     # ------------------------------------------------------------------
     # Calibration + error pop-ups
@@ -1317,7 +1525,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         # print its ready prompt again, and each one opened another window.
         if getattr(self, "_cal_done_open", False):
             return
-        self._read_btn.setEnabled(True)
+        self._set_read_enabled(True)
         dlg = QDialog(self)
         dlg.setWindowTitle(tr("Calibration Complete"))
         from ui.ti2_loader import spot_measurement_instructions_html
@@ -1366,7 +1574,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
     def _on_calibration_prompt(self) -> None:
         # Same wording as the Measure tab's calibration pop-up — generic but
         # clear — with the strip-specific tail swapped for a spot-read one.
-        self._read_btn.setEnabled(False)
+        self._set_read_enabled(False)
         dlg = QDialog(self)
         dlg.setWindowTitle(tr("Calibration Required"))
         dlg.setMinimumWidth(500)
@@ -1502,10 +1710,57 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
             cr30.detach()
         self._close_cr30_bridge()
 
+    def _may_close(self) -> bool:
+        """M-SPOT-UNSAVED — ask before a whole session goes out with the window.
+
+        `self._readings` is in memory and nowhere else; the only thing that
+        writes it out is Save. Until now Close, the red window button and
+        Escape all went straight to `_release_instrument` and out, so a
+        measuring session could be binned without a word by any of the three.
+        """
+        # ASKED ONCE, HOWEVER THE WINDOW IS CLOSED.
+        #
+        # `QDialog::closeEvent` CALLS `reject()`, so the red window button
+        # reaches this twice: once from `closeEvent` and once from the reject
+        # that Qt raises out of it. Found by driving the real window on screen,
+        # 2026-09-03 — the second question had nobody left to answer it and the
+        # app simply stopped. The offscreen tests never saw it, because
+        # answering "Cancel" stops at the first window and `reject()` on its own
+        # only reaches this once.
+        if self._closing:
+            return True
+        if not self._readings or not self._unsaved:
+            return True
+        from workflow import measurement_messages as M
+        title, body = M.M_SPOT_UNSAVED.render(n=len(self._readings))
+        box = QMessageBox(self)
+        set_warning_icon(box)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        save = box.addButton(tr("Save"), QMessageBox.ButtonRole.AcceptRole)
+        discard = box.addButton(tr("Discard"), QMessageBox.ButtonRole.DestructiveRole)
+        cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(save)
+        clicked = self._ask(box)
+        if clicked is discard:
+            self._closing = True
+            return True
+        if clicked is save:
+            self._closing = bool(self._on_save())
+            return self._closing
+        assert clicked is cancel or clicked is None
+        return False
+
     def reject(self) -> None:  # noqa: D102
+        if not self._may_close():
+            return
         self._release_instrument()
         super().reject()
 
     def closeEvent(self, event) -> None:  # noqa: N802
+        if not self._may_close():
+            event.ignore()
+            return
         self._release_instrument()
         super().closeEvent(event)
