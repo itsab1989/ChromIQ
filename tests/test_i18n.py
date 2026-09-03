@@ -301,10 +301,21 @@ def test_the_catalogue_is_actually_translated_into_german():
 # the WORDING is §M-PROPOSED and nobody has approved it, so translating it now
 # is the churn that "translate before the final, not during a beta" exists to
 # avoid. When Basti approves the text, these nine are part of the GA pass.
+# 2026-09-03, review 5, +8 for the eleven and +0 for German: Tools > Build
+# profile with scanner or camera built a profile from data that was not the
+# chart it thought it was, and said nothing (M-SCAN-REF-SHORT,
+# M-SCAN-REF-DISAGREES, M-SCAN-CLIPPED, M-SCAN-PROFILE-ARCHIVED). Eight keys:
+# four headlines, three bodies and the singular body of the one that states a
+# count. German carries all eight, and moves by nothing, because none of them
+# is the same wording in German. The eleven hold the English source, for the
+# reason already given for M-INSTRUMENT-BUSY and the M-SPOT-* pair above: the
+# WORDING is §M-PROPOSED and nobody has approved it, so translating it now is
+# the churn that "translate before the final, not during a beta" exists to
+# avoid. When Basti approves the text, these eight are part of the GA pass.
 _IDENTICAL_TO_KEY = {
     "de": 152,
-    "es": 281, "fr": 301, "it": 293, "ja": 270, "nl": 310,
-    "no": 294, "pl": 285, "pt": 285, "ru": 257, "sv": 298, "zh_CN": 263,
+    "es": 289, "fr": 309, "it": 301, "ja": 278, "nl": 318,
+    "no": 302, "pl": 293, "pt": 293, "ru": 265, "sv": 306, "zh_CN": 271,
 }
 
 
