@@ -361,6 +361,7 @@ def auto_align(scanin_exe: str | Path,
                current_corners: Sequence[tuple[float, float]] | None = None,
                sample_frac: float = 0.6,
                floor: float = AGREEMENT_FLOOR,
+               search_region: "tuple[float, float, float, float] | None" = None,
                timeout: int = 300,
                runner: Callable[..., subprocess.CompletedProcess] = subprocess.run,
                ) -> AutoAlignResult:
@@ -368,7 +369,14 @@ def auto_align(scanin_exe: str | Path,
 
     *boxes* are ``.cht`` patch boxes (:mod:`workflow.cht_parser`), *expected_y*
     maps each box name to the chart's known luminance, *current_corners* is
-    where the user's quad sits now. The returned corners are in image pixels,
+    where the user's quad sits now.
+
+    *search_region* ``(x0, y0, x1, y1)`` in image pixels narrows the search to
+    a rectangle the user drew loosely round the chart. It is not a different
+    algorithm: the image is cropped to that rectangle, the same recogniser runs
+    on the crop, and the corners are shifted back. It exists because a
+    PHOTOGRAPH often has other things in the frame, and everything outside the
+    rectangle is then simply not there to be mistaken for a chart. The returned corners are in image pixels,
     marquee order, and are only non-``None`` when they beat both the floor and
     the placement already on screen."""
     import tempfile
@@ -381,9 +389,30 @@ def auto_align(scanin_exe: str | Path,
     tmp = Path(tempfile.mkdtemp(prefix="chromiq-autoalign-"))
     seen: list[tuple[str, list[tuple[float, float]]]] = []
     log_tail = ""
+    look_at = scan
+    off = (0.0, 0.0)
+    try:
+        if search_region is not None:
+            from PIL import Image
+            x0, y0, x1, y1 = (float(v) for v in search_region)
+            box = (int(max(0, min(x0, x1))), int(max(0, min(y0, y1))),
+                   int(max(x0, x1)), int(max(y0, y1)))
+            try:
+                with Image.open(scan) as im:
+                    Image.MAX_IMAGE_PIXELS = None
+                    crop = im.crop(box)
+                    look_at = tmp / "region.tif"
+                    crop.save(look_at)
+                off = (float(box[0]), float(box[1]))
+            except Exception:  # noqa: BLE001 — a bad rectangle is not a crash
+                log.warning("auto align could not crop to the region",
+                            exc_info=True)
+                look_at, off = scan, (0.0, 0.0)
+    except Exception:  # noqa: BLE001
+        look_at, off = scan, (0.0, 0.0)
     try:
         for extra, source in (((), "auto"), (("-a",), "auto -a")):
-            text = _run_scanin(runner, scanin_exe, tmp, scan, cht, cie,
+            text = _run_scanin(runner, scanin_exe, tmp, look_at, cht, cie,
                                extra, timeout)
             log_tail = "\n".join(
                 [ln for ln in text.strip().splitlines() if ln.strip()][-3:])
@@ -393,7 +422,8 @@ def auto_align(scanin_exe: str | Path,
             best_i = chosen_index(text, cands)
             order = [best_i] + [i for i in range(len(cands)) if i != best_i]
             for i in order:
-                seen.append((source, corners_from_candidate(cands[i], bbox)))
+                q = corners_from_candidate(cands[i], bbox)
+                seen.append((source, [(x + off[0], y + off[1]) for x, y in q]))
             if source == "auto":
                 # Argyll's own four-way discrimination accepted this image;
                 # there is no need for the ungated -a pass.

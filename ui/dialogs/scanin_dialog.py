@@ -3736,6 +3736,25 @@ class ScannerProfileDialog(_ToolDialogBase):
                                           "/Applications/Argyll/bin"))
                   / argyll_binary("scanin"))
 
+        # The user's own quad as a search hint (Basti: "the user can then limit
+        # the area"). No second mode and no second gesture: if the whole frame
+        # yields nothing AND the corners have been placed somewhere deliberate
+        # — anything smaller than 70 % of the sheet, which the untouched
+        # starting quad is not — the same search runs again inside them. It is
+        # the same recogniser on a crop, so it cannot be less safe; it only
+        # removes what was never the chart. Measured over seven photographs it
+        # rescued the cluttered-desk case and turned no refusal into a wrong
+        # answer (AUTO-ALIGN/exp/run_photos.py).
+        region = None
+        if before and size[0] and size[1]:
+            xs = [p[0] for p in before]
+            ys = [p[1] for p in before]
+            area = (max(xs) - min(xs)) * (max(ys) - min(ys))
+            if 0 < area < 0.70 * size[0] * size[1]:
+                pad = 0.06 * max(max(xs) - min(xs), max(ys) - min(ys))
+                region = (min(xs) - pad, min(ys) - pad,
+                          max(xs) + pad, max(ys) + pad)
+
         class _Worker(QObject):
             done = pyqtSignal(object)
 
@@ -3744,6 +3763,13 @@ class ScannerProfileDialog(_ToolDialogBase):
                     r = auto_align(exe, scan, cht, cie, boxes, expected, size,
                                    current_corners=before or None,
                                    sample_frac=frac)
+                    if r is not None and not r.ok and region is not None:
+                        narrowed = auto_align(
+                            exe, scan, cht, cie, boxes, expected, size,
+                            current_corners=before or None, sample_frac=frac,
+                            search_region=region)
+                        if narrowed.ok:
+                            r = narrowed
                 except Exception:  # noqa: BLE001 — a probe must not kill the tool
                     log.warning("auto align failed", exc_info=True)
                     r = None
