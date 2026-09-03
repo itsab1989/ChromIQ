@@ -302,6 +302,17 @@ def test_an_answer_one_patch_off_is_refused(tmp_path):
     assert any("edges" in s for s in r.rejected)
 
 
+def test_an_answer_that_does_not_reach_the_floor_is_refused(tmp_path):
+    """The floor itself, exercised by raising it out of reach: a placement
+    that is otherwise perfect must still be refused when it cannot clear it."""
+    scan, cht, cie, boxes, exp, size, truth, bbox, _box = _setup(tmp_path)
+    r = auto_align("scanin", scan, cht, cie, boxes, exp, size, floor=1.5,
+                   runner=_FakeRun(_log_for(truth, bbox)))
+    assert not r.ok
+    assert r.reason == "below-floor"
+    assert r.rho is not None and r.rho > 0.9      # it WAS a good placement
+
+
 def test_an_answer_on_blank_paper_is_refused(tmp_path):
     """The quad is the right size and shape but sits on the margin."""
     scan, cht, cie, boxes, exp, size, truth, bbox, _box = _setup(tmp_path)
