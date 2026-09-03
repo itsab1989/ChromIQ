@@ -646,7 +646,20 @@ class ScannerAdvancedDialog(QDialog):
         layout.addWidget(grp)
 
     def _build_advanced_group(self, layout: QVBoxLayout, printer: bool) -> None:
-        grp = QGroupBox(tr("Advanced"), self)
+        # "Expert Options", not "Advanced", and the owner named the reason on
+        # 2026-09-03: this box sits INSIDE the window's own "Advanced..."
+        # section, so both read "Advanced" and neither tells you which is
+        # which. The two hold different KINDS of thing rather than different
+        # depths - the outer one has the ordinary profile settings (type,
+        # quality, description) while this one has raw ArgyllCMS switches
+        # (-ni, -no, -np, -nc, -R and the gamut source).
+        #
+        # The app already draws exactly that distinction with exactly these
+        # words: `tab_chart.py` calls its block of `expert_only` parameters
+        # "Expert Options", and the device-link tool does the same. So this is
+        # the convention everywhere else, not a coinage - and the key already
+        # exists in all twelve catalogues, so no language ships English.
+        grp = QGroupBox(tr("Expert Options"), self)
         g = QGridLayout(grp)
         g.setHorizontalSpacing(8)
         g.setVerticalSpacing(6)

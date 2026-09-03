@@ -636,3 +636,56 @@ def test_printer_mode_leaves_no_orphaned_info_button(_app, _out_dir):
             "mode does not have")
     finally:
         dlg.deleteLater()
+
+
+def test_the_two_sections_do_not_both_say_advanced(qapp):
+    """The owner, 2026-09-03: *"in build profile with scanner or camera there
+    is an advanced section in the advanced section. one of them needs to
+    change the name."*
+
+    The outer collapsible section holds the ordinary profile settings; the
+    inner box holds raw ArgyllCMS switches. Different KINDS of thing, not
+    different depths - so the inner one takes the name the rest of the app
+    already gives a block of raw switches, which `tab_chart` and the
+    device-link tool both call "Expert Options".
+
+    Asserted on the built widgets rather than on the source, because what
+    matters is the two titles a user reads at the same time.
+    """
+    import inspect
+
+    from ui.dialogs import scanner_colprof, scanin_dialog
+
+    inner = inspect.getsource(
+        scanner_colprof.ScannerAdvancedDialog._build_advanced_group)
+    assert 'tr("Expert Options")' in inner, (
+        "the inner box no longer uses the app's existing Expert Options key")
+    assert 'QGroupBox(tr("Advanced")' not in inner
+
+    outer = inspect.getsource(scanin_dialog)
+    assert '_AdvancedSection(tr("Advanced' in outer, (
+        "the outer section was renamed instead; the owner asked for the "
+        "INNER one to change")
+
+
+def test_expert_options_needs_no_new_translation(qapp):
+    """The reason this rename was cheap, pinned so it stays true.
+
+    "Expert Options" is an existing key in every catalogue. If someone later
+    edits it to something new, twelve languages would silently ship English,
+    which is the failure this project has had before.
+    """
+    import json
+    import pathlib
+
+    missing = []
+    for path in sorted(pathlib.Path("data/i18n").glob("*.json")):
+        if path.name.startswith("parameters."):
+            continue
+        catalogue = json.loads(path.read_text(encoding="utf-8"))
+        if "@language_name" not in catalogue:
+            continue
+        if not catalogue.get("Expert Options"):
+            missing.append(path.stem)
+    assert not missing, (
+        f"'Expert Options' is untranslated in: {', '.join(missing)}")
