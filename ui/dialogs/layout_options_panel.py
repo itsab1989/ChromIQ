@@ -1189,7 +1189,22 @@ class LayoutOptionsPanel(QWidget):
         # spare: Dutch sits exactly on the 514 px budget in
         # `tests/test_the_layout_panel_fits_the_pane_in_every_language.py`, and
         # this frame is the widest thing in the panel.
-        _si_v.setContentsMargins(4, 0, 4, 0)
+        #
+        # THE TOP MARGIN IS 0 AND STILL MEASURES 4 — DO NOT "FIX" IT TO MATCH
+        # THE OTHER THREE. All three stylesheets carry
+        # `QGroupBox { margin-top: 14px; padding-top: 4px; }` and no
+        # padding-bottom, so the group box hands its layout a contents rect that
+        # is already inset 4 px at the top and 0 at the bottom. Writing 4 here
+        # would stack on that padding and make the top 8. Measured
+        # border-to-border with the app's own QSS: left 4, right 4, top 4,
+        # bottom 4. Fixing only left/right (which is all Knut named) left the
+        # bottom at 0 and made the asymmetry the obvious remaining fault —
+        # Basti, on the round-1 screenshots: *"the bottom ones are still
+        # touching"*. Height is not budgeted the way width is: the Manual pane
+        # pins its HORIZONTAL scrollbar off (`ui/tabs/tab_chart.py`) and leaves
+        # the vertical one AsNeeded, so the 4 px costs a scrolling column 4 px
+        # and nothing else.
+        _si_v.setContentsMargins(4, 0, 4, 4)
         _si_v.setSpacing(6)
         for _g in (sig2, sig3):
             _g.setContentsMargins(4, 4, 4, 4)
