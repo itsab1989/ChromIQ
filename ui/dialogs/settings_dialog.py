@@ -59,6 +59,161 @@ import sys as _sys
 from core.i18n import tr
 
 
+# ---------------------------------------------------------------------------
+# The driver helper's words, as pure functions
+# ---------------------------------------------------------------------------
+#
+# `_show_usb_installer` below is a `while True:` around `dlg.exec()`, and
+# CLAUDE.md warns that a test which opens a modal `.exec()` makes the whole
+# suite look like it has hung. So for years the only thing standing behind
+# "the WinUSB path still says what it always said" was reading the source with
+# `inspect.getsource` (tests/test_winusb_never_reaches_a_serial_instrument.py)
+# — which counts phrases, and cannot tell you what a user would actually read.
+#
+# These two functions are the message-building lifted out verbatim. They take
+# plain data, return plain strings, touch no widget and no registry, and
+# tests/test_usb_driver_dialog.py pins every branch of them. Extract first,
+# change second: that ordering is the only reason "unchanged for Argyll users"
+# means anything.
+
+def usb_installer_text(devices, wdi_available: bool) -> "tuple[str, str | None]":
+    """The first window's message and its primary button.
+
+    *devices* is any sequence of objects carrying ``.name`` and ``.has_winusb``
+    (in the app, `core.usb_driver_installer.UsbDevice`). Returns
+    ``(message_html, button_label)``; the label is None when there is no device
+    to act on and therefore no primary button.
+    """
+    needs_install = [d for d in devices if not d.has_winusb]
+
+    if not devices:
+        return (
+            "<b>No colorimeter detected.</b><br><br>"
+            "Make sure your device is plugged in via USB, "
+            "then click <b>Refresh</b>.",
+            None,
+        )
+
+    lines = [
+        f"&nbsp;&nbsp;• {d.name} — "
+        f"<i>{'WinUSB ✓' if d.has_winusb else 'driver not installed'}</i>"
+        for d in devices
+    ]
+    if not needs_install:
+        # Every detected device already has a WinUSB/libusb0 driver.
+        # Don't promise an installer the old code wouldn't show a
+        # button for; explain that and still offer a manual repair
+        # path (forum #148275: dialog mentioned Zadig but had no
+        # button when the device reported the driver as installed).
+        action_text = (
+            "The driver is already installed for the "
+            + ("device above. " if len(lines) == 1
+               else "devices above. ") +
+            "If ChromIQ or Argyll still can't open your instrument, click "
+            "<b>Reinstall Driver</b> to run the installer again."
+        )
+        btn_label = "Reinstall Driver" if wdi_available else "Open Zadig"
+    elif wdi_available:
+        action_text = (
+            "Click <b>Install Driver</b> to install the Microsoft WinUSB driver "
+            "automatically. A Windows security prompt will appear — click Yes to "
+            "continue.<br><br>"
+            "<i>No test-signing mode required. Works on x64 and ARM64.</i>"
+        )
+        btn_label = "Install Driver"
+    else:
+        # THE WARNING IS NOT OPTIONAL ON A MACHINE THAT MAY HAVE
+        # A CR30. "Find your colorimeter and give it WinUSB" is
+        # right for every device this dialog knows about and
+        # catastrophic for one it does not: the CR30 is reached
+        # through a COM port, and WinUSB removes it. Nothing in the
+        # app can steer the user there — but this text can, and a
+        # user with driver trouble is exactly who follows it.
+        action_text = (
+            "Click <b>Open Zadig</b> and ChromIQ will launch <b>Zadig</b>, a free "
+            "USB driver tool. In Zadig:<br>"
+            "&nbsp;&nbsp;1. Click <b>Options → List All Devices</b><br>"
+            "&nbsp;&nbsp;2. Find your colorimeter in the dropdown<br>"
+            "&nbsp;&nbsp;3. Select <b>WinUSB</b> as the driver and click "
+            "<b>Install Driver</b>"
+            "<br><br><b>If you own a CR30:</b> do not pick the USB-serial "
+            "device (CH340) in Zadig. That instrument is reached "
+            "through its COM port, and giving it WinUSB would stop "
+            "ChromIQ finding it at all."
+        )
+        btn_label = "Open Zadig"
+
+    msg_text = (
+        ("<b>Connected colorimeter:</b><br>" if len(lines) == 1
+         else "<b>Connected colorimeters:</b><br>")
+        + "<br>".join(lines)
+        + "<br><br>"
+        + action_text
+    )
+    return msg_text, btn_label
+
+
+def usb_install_outcome(*, wdi_available: bool, ran_ok: bool,
+                        still_unbound_names: "list[str]",
+                        zadig_status: "str | None") -> "tuple[str, bool]":
+    """What the second window says, and whether it offers a Zadig button.
+
+    With wdi-simple present, the verdict comes from *ran_ok* plus
+    *still_unbound_names* (the instruments that re-enumerated without a driver
+    — an empty list is the only success). Without it, ChromIQ has already
+    launched Zadig and *zadig_status* is what that returned.
+    """
+    if wdi_available:
+        if ran_ok and not still_unbound_names:
+            return "WinUSB driver installed successfully.", False
+        if not ran_ok:
+            return (
+                "Automatic installation failed or was cancelled.<br>"
+                "Click <b>Try Zadig</b> to install it manually using the guided tool.",
+                True,
+            )
+        names = ", ".join(still_unbound_names) or "the instrument"
+        return (
+            "Windows reported the install finished, but the driver still "
+            f"isn't bound to {names}. This often happens when the device "
+            "was previously plugged into a different USB port.<br><br>"
+            "Click <b>Try Zadig</b> to install it reliably: pick your "
+            "instrument in Zadig, choose <b>WinUSB</b> (or libusb-win32), "
+            "then click <b>Replace Driver</b>. Unplugging and replugging the "
+            "instrument first can also help.",
+            True,
+        )
+
+    if zadig_status == "launched":
+        return (
+            "Zadig is open. Select your colorimeter, choose WinUSB, "
+            "then click Install Driver."
+            "<br><br><b>If you own a CR30:</b> do not pick the USB-serial "
+            "device (CH340) in Zadig. That instrument is reached "
+            "through its COM port, and giving it WinUSB would stop "
+            "ChromIQ finding it at all.",
+            False,
+        )
+    if zadig_status == "download_page":
+        return (
+            "Zadig isn't bundled with this build, so its download page "
+            "has been opened in your browser.<br>"
+            "Download and run <b>Zadig</b>, then: Options → List All Devices → "
+            "select your colorimeter → choose WinUSB → Install Driver."
+            "<br><br><b>If you own a CR30:</b> do not pick the USB-serial "
+            "device (CH340) in Zadig. That instrument is reached "
+            "through its COM port, and giving it WinUSB would stop "
+            "ChromIQ finding it at all.",
+            False,
+        )
+    return (
+        "Could not open Zadig or its download page. Visit "
+        "<b>https://zadig.akeo.ie</b> manually, or try running ChromIQ "
+        "as Administrator.",
+        False,
+    )
+
+
 class SettingsDialog(QDialog):
     def __init__(self, settings: "AppSettings", parent: QWidget | None = None,
                  *, margin_combo: "tuple[str, str, str] | None" = None,
@@ -4127,76 +4282,14 @@ class SettingsDialog(QDialog):
             layout.setSpacing(14)
             layout.setContentsMargins(24, 20, 24, 20)
 
-            if not devices:
-                msg_text = (
-                    "<b>No colorimeter detected.</b><br><br>"
-                    "Make sure your device is plugged in via USB, "
-                    "then click <b>Refresh</b>."
-                )
-            else:
-                lines = [
-                    f"&nbsp;&nbsp;• {d.name} — "
-                    f"<i>{'WinUSB ✓' if d.has_winusb else 'driver not installed'}</i>"
-                    for d in devices
-                ]
-                if not needs_install:
-                    # Every detected device already has a WinUSB/libusb0 driver.
-                    # Don't promise an installer the old code wouldn't show a
-                    # button for; explain that and still offer a manual repair
-                    # path (forum #148275: dialog mentioned Zadig but had no
-                    # button when the device reported the driver as installed).
-                    action_text = (
-                        "The driver is already installed for the "
-                        + ("device above. " if len(lines) == 1
-                           else "devices above. ") +
-                        "If ChromIQ or Argyll still can't open your instrument, click "
-                        "<b>Reinstall Driver</b> to run the installer again."
-                    )
-                elif _wdi_available:
-                    action_text = (
-                        "Click <b>Install Driver</b> to install the Microsoft WinUSB driver "
-                        "automatically. A Windows security prompt will appear — click Yes to "
-                        "continue.<br><br>"
-                        "<i>No test-signing mode required. Works on x64 and ARM64.</i>"
-                    )
-                else:
-                    # THE WARNING IS NOT OPTIONAL ON A MACHINE THAT MAY HAVE
-                    # A CR30. "Find your colorimeter and give it WinUSB" is
-                    # right for every device this dialog knows about and
-                    # catastrophic for one it does not: the CR30 is reached
-                    # through a COM port, and WinUSB removes it. Nothing in the
-                    # app can steer the user there — but this text can, and a
-                    # user with driver trouble is exactly who follows it.
-                    action_text = (
-                        "Click <b>Open Zadig</b> and ChromIQ will launch <b>Zadig</b>, a free "
-                        "USB driver tool. In Zadig:<br>"
-                        "&nbsp;&nbsp;1. Click <b>Options → List All Devices</b><br>"
-                        "&nbsp;&nbsp;2. Find your colorimeter in the dropdown<br>"
-                        "&nbsp;&nbsp;3. Select <b>WinUSB</b> as the driver and click "
-                        "<b>Install Driver</b>"
-                        "<br><br><b>If you own a CR30:</b> do not pick the USB-serial "
-                        "device (CH340) in Zadig. That instrument is reached "
-                        "through its COM port, and giving it WinUSB would stop "
-                        "ChromIQ finding it at all."
-                    )
-                msg_text = (
-                    ("<b>Connected colorimeter:</b><br>" if len(lines) == 1
-                     else "<b>Connected colorimeters:</b><br>")
-                    + "<br>".join(lines)
-                    + "<br><br>"
-                    + action_text
-                )
+            msg_text, btn_label = usb_installer_text(devices, _wdi_available)
 
             msg = QLabel(msg_text, dlg)
             msg.setWordWrap(True)
             layout.addWidget(msg)
 
             btn_box = QDialogButtonBox()
-            if devices:
-                if not needs_install:
-                    btn_label = "Reinstall Driver" if _wdi_available else "Open Zadig"
-                else:
-                    btn_label = "Install Driver" if _wdi_available else "Open Zadig"
+            if btn_label is not None:
                 install_btn = btn_box.addButton(btn_label, QDialogButtonBox.ButtonRole.AcceptRole)
                 install_btn.setObjectName("primary")
             refresh_btn = btn_box.addButton(tr("Refresh"), QDialogButtonBox.ButtonRole.ResetRole)
@@ -4229,56 +4322,17 @@ class SettingsDialog(QDialog):
                 # previous USB port can misdirect it. Verify by re-enumerating
                 # before claiming success, and fall back to Zadig if it didn't bind.
                 still_unbound = unbound_targets(targets)
-                if ran_ok and not still_unbound:
-                    outcome_text = "WinUSB driver installed successfully."
-                    offer_zadig = False
-                elif not ran_ok:
-                    outcome_text = (
-                        "Automatic installation failed or was cancelled.<br>"
-                        "Click <b>Try Zadig</b> to install it manually using the guided tool."
-                    )
-                    offer_zadig = True
-                else:
-                    names = ", ".join(d.name for d in still_unbound) or "the instrument"
-                    outcome_text = (
-                        "Windows reported the install finished, but the driver still "
-                        f"isn't bound to {names}. This often happens when the device "
-                        "was previously plugged into a different USB port.<br><br>"
-                        "Click <b>Try Zadig</b> to install it reliably: pick your "
-                        "instrument in Zadig, choose <b>WinUSB</b> (or libusb-win32), "
-                        "then click <b>Replace Driver</b>. Unplugging and replugging the "
-                        "instrument first can also help."
-                    )
-                    offer_zadig = True
+                outcome_text, offer_zadig = usb_install_outcome(
+                    wdi_available=True,
+                    ran_ok=ran_ok,
+                    still_unbound_names=[d.name for d in still_unbound],
+                    zadig_status=None,
+                )
             else:
-                status = launch_zadig()
-                if status == "launched":
-                    outcome_text = (
-                        "Zadig is open. Select your colorimeter, choose WinUSB, "
-                        "then click Install Driver."
-                        "<br><br><b>If you own a CR30:</b> do not pick the USB-serial "
-                        "device (CH340) in Zadig. That instrument is reached "
-                        "through its COM port, and giving it WinUSB would stop "
-                        "ChromIQ finding it at all."
-                    )
-                elif status == "download_page":
-                    outcome_text = (
-                        "Zadig isn't bundled with this build, so its download page "
-                        "has been opened in your browser.<br>"
-                        "Download and run <b>Zadig</b>, then: Options → List All Devices → "
-                        "select your colorimeter → choose WinUSB → Install Driver."
-                        "<br><br><b>If you own a CR30:</b> do not pick the USB-serial "
-                        "device (CH340) in Zadig. That instrument is reached "
-                        "through its COM port, and giving it WinUSB would stop "
-                        "ChromIQ finding it at all."
-                    )
-                else:
-                    outcome_text = (
-                        "Could not open Zadig or its download page. Visit "
-                        "<b>https://zadig.akeo.ie</b> manually, or try running ChromIQ "
-                        "as Administrator."
-                    )
-                offer_zadig = False
+                outcome_text, offer_zadig = usb_install_outcome(
+                    wdi_available=False, ran_ok=False, still_unbound_names=[],
+                    zadig_status=launch_zadig(),
+                )
 
             outcome_dlg = QDialog(self)
             outcome_dlg.setWindowTitle(tr("Driver Installation"))
