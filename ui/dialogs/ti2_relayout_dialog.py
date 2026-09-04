@@ -50,6 +50,7 @@ from ui.widgets import (
     open_dir_dialog, open_file_dialog, primary_hover, primary_label,
     save_file_dialog, set_ink, spectrum_cell,
 )
+from ui.warning_sign import inform, set_warning_icon, warn
 
 
 def _acc() -> str:
@@ -3699,7 +3700,7 @@ class _NewChartDialog(QDialog):
             im.thumbnail((200, 200))
             self._gen_image_px = np.asarray(im).reshape(-1, 3)
         except Exception as exc:  # noqa: BLE001 — surface any decode failure
-            QMessageBox.warning(self, tr("Load failed"), str(exc))
+            warn(self, tr("Load failed"), str(exc))
             return
         self._gen_image_name = Path(path).name
         self._gen_image_btn.setText(self._gen_image_name)
@@ -3825,10 +3826,10 @@ class _NewChartDialog(QDialog):
         try:
             prog = R.load_colour_file(Path(path))
         except Exception as exc:  # noqa: BLE001 — surface the parser's message
-            QMessageBox.warning(self, tr("Could not read file"), str(exc))
+            warn(self, tr("Could not read file"), str(exc))
             return
         if not prog:
-            QMessageBox.warning(self, tr("No colours"),
+            warn(self, tr("No colours"),
                                 tr("No colour values were found in that file."))
             return
         # Write the parsed 0..100 RGB into the paste box (its parser reads them
@@ -3869,12 +3870,12 @@ class _NewChartDialog(QDialog):
                 program = R.seed_from_targen(self._bin_dir, self._count.value(),
                                              device=dt, extra_args=extra_args)
             except Exception as exc:
-                QMessageBox.warning(self, tr("targen failed"), str(exc))
+                warn(self, tr("targen failed"), str(exc))
                 return
         elif self._mode_paste.isChecked():
             program = R.parse_color_values(self._paste_edit.toPlainText())
             if not program:
-                QMessageBox.warning(self, tr("No values"),
+                warn(self, tr("No values"),
                                     tr("Couldn't parse any RGB / hex values "
                                     "from the pasted text."))
                 return
@@ -3882,10 +3883,10 @@ class _NewChartDialog(QDialog):
             try:
                 program = self._build_generated_program()
             except Exception as exc:  # noqa: BLE001 — targen/xicclu failure
-                QMessageBox.warning(self, tr("Generation failed"), str(exc))
+                warn(self, tr("Generation failed"), str(exc))
                 return
             if not program:
-                QMessageBox.warning(self, tr("No colour sets"),
+                warn(self, tr("No colour sets"),
                                     tr("Tick at least one colour set to "
                                     "generate patches from."))
                 return
@@ -4116,10 +4117,10 @@ class _AddPatchesDialog(_NewChartDialog):
         try:
             prog = R.load_colour_file(Path(path))
         except Exception as exc:  # noqa: BLE001 — surface the parser's message
-            QMessageBox.warning(self, tr("Could not read file"), str(exc))
+            warn(self, tr("Could not read file"), str(exc))
             return
         if not prog:
-            QMessageBox.warning(self, tr("No colours"),
+            warn(self, tr("No colours"),
                                 tr("No colour values were found in that file."))
             return
         # Space out near-duplicate colours so the chart still reads — a loaded
@@ -4165,7 +4166,7 @@ class _AddPatchesDialog(_NewChartDialog):
     def _on_add(self) -> None:
         if self._add_mode_file.isChecked():
             if not self._loaded_add_program:
-                QMessageBox.warning(self, tr("No file"),
+                warn(self, tr("No file"),
                                     tr("Choose a colour file to add first."))
                 return
             self.result_program = list(self._loaded_add_program)
@@ -4174,7 +4175,7 @@ class _AddPatchesDialog(_NewChartDialog):
         if self._add_mode_gen.isChecked():
             program = self._build_generated_program()
             if not program:
-                QMessageBox.warning(self, tr("No colour sets"),
+                warn(self, tr("No colour sets"),
                                     tr("Tick at least one colour set to "
                                     "generate patches from."))
                 return
@@ -5345,7 +5346,7 @@ class Ti2RelayoutDialog(QDialog):
             spec = R.ChartSpec.from_ti2(path)
             program = R.default_program(spec)
         except Exception as exc:  # noqa: BLE001 — surface the parser's message
-            QMessageBox.warning(self, tr("Could not load chart"), str(exc))
+            warn(self, tr("Could not load chart"), str(exc))
             return False
         # Restore the printtarg layout knobs from the chart folder's meta.json
         # if this chart was saved by ChromIQ (the .ti2 itself only carries
@@ -5409,10 +5410,10 @@ class Ti2RelayoutDialog(QDialog):
         try:
             program = R.load_colour_file(path)
         except Exception as exc:  # noqa: BLE001 — surface the parser's message
-            QMessageBox.warning(self, tr("Could not load chart"), str(exc))
+            warn(self, tr("Could not load chart"), str(exc))
             return False
         if not program:
-            QMessageBox.warning(self, tr("Could not load chart"),
+            warn(self, tr("Could not load chart"),
                                 tr("No colour values were found in that file."))
             return False
         self._options = R.LayoutOptions()
@@ -5670,7 +5671,7 @@ class Ti2RelayoutDialog(QDialog):
         if not self._is_dirty():
             return True
         box = QMessageBox(self)
-        box.setIcon(QMessageBox.Icon.Warning)
+        set_warning_icon(box)
         box.setWindowTitle(tr("Discard changes?"))
         box.setText(tr("This chart has unsaved changes."))
         box.setInformativeText(
@@ -6198,7 +6199,7 @@ class Ti2RelayoutDialog(QDialog):
         try:
             out_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         except OSError as exc:
-            QMessageBox.warning(self, tr("Save failed"), str(exc))
+            warn(self, tr("Save failed"), str(exc))
             return
         n_exp = len(lines)
         self._status.setText(
@@ -6251,7 +6252,7 @@ class Ti2RelayoutDialog(QDialog):
                     also_shuffled=bool(self._settings and self._settings.get(
                         "export_shuffled_pxf", False)))
         except Exception as exc:  # noqa: BLE001 — surface any writer failure
-            QMessageBox.warning(self, tr("Save failed"), str(exc))
+            warn(self, tr("Save failed"), str(exc))
             return
         name = (f"{txt_out.name} + {pxf_out.name}" if txt_out else pxf_out.name)
         n_exp = len(prog)
@@ -6713,7 +6714,7 @@ class Ti2RelayoutDialog(QDialog):
     def _on_regen_done(self, result) -> None:
         self._set_busy(False)
         if isinstance(result, Exception):
-            QMessageBox.warning(self, tr("Render failed"), str(result))
+            warn(self, tr("Render failed"), str(result))
             self._status.setText(tr("Render failed."))
             return
         self._regen = result
@@ -7455,9 +7456,9 @@ class Ti2RelayoutDialog(QDialog):
         try:
             msg = self._write_chart_into(target, name)
         except Exception as exc:  # noqa: BLE001 — surface any writer failure
-            QMessageBox.warning(self, tr("Save failed"), str(exc))
+            warn(self, tr("Save failed"), str(exc))
             return
-        QMessageBox.information(self, tr("Saved"), msg)
+        inform(self, tr("Saved"), msg)
         self._status.setText(msg.splitlines()[0])
         self._mark_saved()   # Save As clears the unsaved-changes flag (#49)
 
@@ -7750,7 +7751,7 @@ class Ti2RelayoutDialog(QDialog):
             try:
                 self._write_chart_into(staging, name)
             except Exception as exc:  # noqa: BLE001
-                QMessageBox.warning(self, tr("Could not prepare chart"), str(exc))
+                warn(self, tr("Could not prepare chart"), str(exc))
                 return
             self._status.setText(
                 tr("Applying this chart to the Create Chart tab…"))
@@ -7758,7 +7759,7 @@ class Ti2RelayoutDialog(QDialog):
                 applied = self._on_apply(staging, name)
             except Exception as exc:  # noqa: BLE001
                 log.exception("apply callback failed")
-                QMessageBox.warning(self, tr("Could not apply chart"), str(exc))
+                warn(self, tr("Could not apply chart"), str(exc))
                 return
             # The host returns False when the user backed out of a prompt — keep
             # the editor open so they can try again.

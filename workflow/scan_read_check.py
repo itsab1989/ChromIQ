@@ -10,7 +10,7 @@ says that patch is** (``XYZ_*``), before colprof has run.
 So this module asks the question once, from one parse, and the window turns the
 answer into what the user reads.
 
-Three things are measured, because no one of them can stand for the others:
+Five things are measured, because no one of them can stand for the others:
 
 **Coverage** — how many of the chart's patches the reference names at all.
 Review 5 case D: a reference file holding the first 48 rows of the target's own
@@ -40,13 +40,40 @@ device scale. Clipping is the one scan fault that cannot be profiled around: the
 values are gone, not merely shifted, and the profile treats "as bright as this
 scanner goes" as a measurement.
 
+**Highlight level** (beta 8, B8-01) — where the chart's own white sits on the
+device scale. Everything above is **scale-invariant**, and an exposure slip is
+**pure scale**: darken every pixel of a good scan by 30 % and coverage is
+unchanged, the rank agreement is unchanged to three decimals (+0.9839 against
++0.9838), and the clipped share does not move by one patch. Measured on Knut's
+own Wolf Faust sheet, that scan builds a profile with **no warning of any kind**
+and a true error of 21.7 ΔE against a correctly exposed read; at ×0.18 it is
+177.9 ΔE and still silent. See :func:`highlight_level` for the measure and why
+it is the max channel of the reference's near-white patches rather than anything
+about the mean, the black or the range.
+
+**Fit support** (beta 8, B8-03) — how many DISTINCT colours the reference gives
+the profile to be fitted to. colprof's own self-check is computed against the
+same rows it was fitted to, so it is smallest exactly when there is least to
+fit: a reference whose every ``SAMPLE_ID`` reads ``A1`` leaves one row, scores
+``peak err = 0.007339, avg err = 0.007339`` and is reported as a triumph; a
+reference whose every value is ``0.00`` leaves 288 rows of one colour, sends
+colprof's Powell fit to ``residual error = nan`` and lands a profile whose white
+point is ``nan nan nan``, again with no warning. Counting the distinct colours
+is what sees both, before colprof spends two minutes on the second one.
+
 What each MISSES matters as much, and is the reason there are three:
 
 * agreement misses coverage (case D reads +0.968 — the rows that survived are
   correct) and misses clipping (a 39 %-clipped scan reads +0.943, because
   clipping shifts values without reordering them);
 * coverage misses a reference with the right count and the wrong values;
-* clipping misses anything that stops short of a rail.
+* clipping misses anything that stops short of a rail — including every
+  under-exposure, which never reaches one;
+* the highlight level misses everything that is not about level: it is
+  deliberately blind to tone curve, colour cast, paper and medium, which is the
+  only reason it can be trusted about level;
+* fit support misses a reference with plenty of distinct colours and the wrong
+  ones — that is agreement's job.
 
 Pure functions, no Qt, no ArgyllCMS — the window supplies the paths and the
 thresholds, and decides what to say.
@@ -192,11 +219,29 @@ class ReadInspection:
     clipped_high: float
     clipped_low: float
 
+    #: device level (0-100) of the chart's own near-white patches, or ``None``
+    #: when the reference names nothing near white — see :func:`highlight_level`
+    highlight: "float | None" = None
+    #: distinct reference colours the profile would be fitted to
+    support: int = 0
+
     def disagrees(self, floor: float) -> bool:
         """True when the read and the reference barely rank together. ``None``
         agreement is not a disagreement — it means the pairing could not be
         computed, and a check that cannot see must not accuse."""
         return self.agreement is not None and self.agreement < floor
+
+    def underexposed(self, floor: float) -> bool:
+        """True when the chart's own white did not get near the top of the
+        device scale. ``None`` is not an accusation, for the same reason as
+        above: it means the reference named no near-white patch to judge by."""
+        return self.highlight is not None and self.highlight < floor
+
+    def fit_is_unsupported(self, floor: int) -> bool:
+        """True when the reference gives too few distinct colours for a profile
+        to be determined at all — and therefore too few for colprof's own
+        self-check to mean anything."""
+        return 0 < self.support < floor
 
     @property
     def clipped(self) -> float:
@@ -219,6 +264,132 @@ CLIP_HIGH = 99.5
 CLIP_LOW = 0.5
 
 
+#: A reference patch counts as "near white" when its Y is within this much of
+#: the brightest patch the reference names. On an IT8 that is the top of the
+#: greyscale plus the Dmin patch — 10 patches of 288 on Wolf Faust, 17 of 864 on
+#: the ISO 12641-2; on a ColorChecker it is the single white patch. The median
+#: over them is taken so one dust speck cannot decide the verdict.
+NEAR_WHITE = 0.95
+
+#: The reference must claim a near-white patch before :func:`highlight_level`
+#: says anything. Y is relative luminance 0-100, so 60 is about L* 82 — light
+#: grey. A chart whose brightest patch is darker than that is a low-key target,
+#: and there is no exposure to judge against: measured on a deliberately dark
+#: chart (every reference value scaled to 0.28 and the scan darkened to match)
+#: the near-white level reads 44.1, which would be an accusation, and the
+#: reference's own brightest patch reads Y = 22.97, which declines instead.
+HIGHLIGHT_REFERENCE_MIN_Y = 60.0
+
+#: The minimum number of DISTINCT reference colours a profile may be fitted to.
+#: The smallest target ChromIQ or ArgyllCMS ships is ``MLG``, 21 patches, and it
+#: builds cleanly (self-check 0.61/0.22); the two degenerate references measured
+#: in beta 8 leave **one** distinct colour each. 10 sits under half the smallest
+#: legitimate case and ten times the degenerate one.
+MIN_FIT_SUPPORT = 10
+
+
+def highlight_level(rgb, xyz) -> "float | None":
+    """Where the chart's own white landed on the device scale, 0-100.
+
+    **The measure.** Take the patches the REFERENCE calls near-white, and report
+    the median of their largest device channel. ``None`` when the reference
+    names no near-white patch (see :data:`HIGHLIGHT_REFERENCE_MIN_Y`).
+
+    **Why this and not something else.** A properly exposed scan puts the
+    chart's brightest patch near the top of the device scale, because that is
+    what setting the exposure *means*; and it is the one statement about level
+    that survives a change of scanner, because every encoding curve fixes white.
+    Three cheaper-looking measures were built and thrown away on the material
+    below, each by a legitimate scan that beat an under-exposed one:
+
+    * **mean device level.** A transparency's tone scale reads 28.04 where a
+      scan darkened to −1.2 stops reads 27.27. The legitimate one is darker.
+    * **the black patch sitting far above 0.** Matte paper, blacks lifted 8 %,
+      reads 14.52 where the same −1.2 stops reads 5.04 and ×0.18 reads 1.29 —
+      the check is upside down, and the transparency (1.38) is darker than the
+      ×0.18 scan.
+    * **device luminance of the white patch** rather than its max channel. A
+      cool cast (0.66, 0.88, 1.00) drops the luminance of Knut's own white patch
+      to 66.28, BELOW a genuinely under-exposed ×0.85 scan at 66.88. The max
+      channel of the same two reads 80.44 and 68.28 — a cast moves the other
+      channels, never the one the exposure was set by.
+
+    **The material.** 74 reads, all through ``scanin`` with the app's own
+    ``.cht`` rewrites: Knut's ten real IT8 sheets on his own scanner (two
+    targets); this session's re-reads of his two full-resolution scans, at full
+    size and at the 693 px he actually had on screen; the app's own demo scan
+    for all 25 bundled and ArgyllCMS targets; nine legitimate variations built
+    from his scans (a gamma-1.8 scanner, a gamma-2.6 scanner, matte paper, a
+    transparency tone scale anchored at the medium's Dmin, a warm cast, a cool
+    cast, a scanner running 12 % hot, 16-bit, JPEG q12); and ten deliberate
+    under-exposures on both targets, ×0.85 down to ×0.18.
+
+    ===============================================  ==============
+    what                                             this measure
+    ===============================================  ==============
+    Knut's ten real sheets                           72.92 – 79.82
+    this session's re-reads of the same two scans    74.84, 79.77
+    the app's own demos, 25 targets                  80.96 – 94.34
+    the nine legitimate variations                   69.57 – 83.86
+    ×0.85 (−0.47 stop)                               67.84
+    ×0.70 (−1.15 stops)                              55.85  /  52.43
+    ×0.45                                            35.87  /  33.71
+    ×0.18                                            14.47
+    ===============================================  ==============
+
+    The lowest legitimate reading of all 64 is 69.57 — a deliberately harsh
+    synthetic tone scale; the lowest from real hardware is Knut's LaserSoft
+    sheet 05 at 72.92. The floor lives in ``scanner_min_highlight``
+    (:mod:`core.settings`) at **60**, which is 9.6 points under the worst
+    legitimate case measured and 12.9 under the worst real one.
+
+    **What it deliberately does not catch.** ×0.85 at 67.84 sits 1.7 points
+    under that harsh synthetic case, and no threshold can separate them. Half a
+    stop therefore passes in silence, and it is not free: that profile is 9.5 ΔE
+    out against a correct read. Crying wolf costs more — the same user then
+    clicks past the ×0.70 window, which is 21.7 ΔE out.
+    """
+    import numpy as np
+    rgb = np.asarray(rgb, dtype=float)
+    xyz = np.asarray(xyz, dtype=float)
+    if rgb.ndim != 2 or rgb.shape[0] == 0 or xyz.shape[0] != rgb.shape[0]:
+        return None
+    y = xyz[:, 1]
+    good = np.isfinite(y) & np.isfinite(rgb).all(axis=1)
+    if not good.any():
+        return None
+    y = np.where(good, y, -np.inf)
+    ymax = float(y.max())
+    if not np.isfinite(ymax) or ymax < HIGHLIGHT_REFERENCE_MIN_Y:
+        return None
+    sel = good & (y >= NEAR_WHITE * ymax)
+    if not sel.any():
+        return None
+    return float(np.median(rgb[sel].max(axis=1)))
+
+
+def fit_support(xyz) -> int:
+    """How many DISTINCT colours the reference gives the fit.
+
+    Rounded to three decimals, which is finer than any reference file states its
+    values and coarse enough that float noise cannot invent a colour. Rows whose
+    reference is not a finite number are not colours and are not counted.
+
+    Measured: 21 on the smallest target anybody ships (``MLG``), 24 on a
+    ColorChecker, 288 on Wolf Faust, 864 on the ISO 12641-2 — and **1** on both
+    of beta 8's degenerate references, the one that renames every patch ``A1``
+    and the one that sets every value to ``0.00``.
+    """
+    import numpy as np
+    xyz = np.asarray(xyz, dtype=float)
+    if xyz.ndim != 2 or xyz.shape[0] == 0:
+        return 0
+    xyz = xyz[np.isfinite(xyz).all(axis=1)]
+    if xyz.shape[0] == 0:
+        return 0
+    return len({tuple(v) for v in np.round(xyz, 3)})
+
+
 def inspect_read(ti3: Path,
                  agreement: "float | None") -> "ReadInspection | None":
     """Measure one page's read. *agreement* is passed in rather than recomputed
@@ -239,4 +410,6 @@ def inspect_read(ti3: Path,
     hi = int((t.rgb.max(axis=1) >= CLIP_HIGH).sum())
     lo = int((t.rgb.min(axis=1) <= CLIP_LOW).sum())
     return ReadInspection(rows=n, agreement=agreement,
-                          clipped_high=hi / n, clipped_low=lo / n)
+                          clipped_high=hi / n, clipped_low=lo / n,
+                          highlight=highlight_level(t.rgb, t.xyz),
+                          support=fit_support(t.xyz))

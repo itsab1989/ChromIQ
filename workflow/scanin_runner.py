@@ -15,7 +15,7 @@ Two registration paths:
   ``-p`` compensating for perspective. The robust path, since the engine prints
   no fiducial *marks* (the ``.cht`` ``F`` line gives ``-F`` its reference quad).
 
-``-d`` (e.g. ``-dipn``) additionally writes a **diagnostic image** with the
+``-d`` (e.g. ``-dipon``) additionally writes a **diagnostic image** with the
 recognised patch boxes drawn on it, so a mis-read can be seen before profiling.
 
 Mirrors the other Argyll runners (:mod:`workflow.cctiff_apply`): a params
@@ -342,7 +342,7 @@ def scanin_args(scan_tif: Path, cht: Path, cie: Path,
 
     *corners* (four image-pixel (x, y), order TL/TR/BR/BL) switches on manual
     ``-F`` registration; ``None`` uses auto-recognition. *diag* writes a
-    diagnostic image (extra ``-dipn`` + the diag path as the trailing arg).
+    diagnostic image (extra ``-dipon`` + the diag path as the trailing arg).
     *out_name* (via ``-O``) sets the output ``.ti3`` filename — used to give the
     scanner ``.ti3`` a distinct ``-scanner`` name so it can never overwrite the
     chart's own measurement / printer profile. Default is scanin's ``<scan>.ti3``."""
@@ -375,7 +375,7 @@ def scanin_args(scan_tif: Path, cht: Path, cie: Path,
     if perspective and corners is None:
         args.append("-p")
     if diag is not None:
-        args.append("-dipn")
+        args.append("-dipon")
     if out_name is not None:
         args += ["-O", out_name]
     args += [str(scan_tif), str(cht), str(cie)]
@@ -406,7 +406,7 @@ def scanin_printer_args(scan_tif: Path, cht: Path, scan_profile: Path, pbase: Pa
     if perspective and corners is None:
         args.append("-p")
     if diag is not None:
-        args.append("-dipn")
+        args.append("-dipon")
     args += [str(scan_tif), str(cht), str(scan_profile), str(pbase)]
     if diag is not None:
         args.append(str(diag))
@@ -478,13 +478,50 @@ _SCANIN_ERROR_PATTERNS: list[tuple[re.Pattern[str], str, str]] = [
      "patches or device type). Recreate them from this chart's own "
      "measurement with Tools ▸ Create scanner target."),
 
+    # Bucket B2 — THE FILE SAYS HOW MANY COLOURS IT HAS AND THEN LISTS FEWER.
+    # An ordinary way to get one: a download that stopped, or a file trimmed by
+    # hand without editing NUMBER_OF_SETS. This used to fall through to bucket C
+    # and reach the user as "check the files exist and the folder is writable"
+    # — about a file that existed, in a folder that was writable, whose real
+    # reason ArgyllCMS had printed two lines further up the same log (beta 8,
+    # B8-17). cgats.c: "Read %d sets, expected %d sets".
+    (re.compile(r"Read (\d+) sets, expected (\d+) sets", re.IGNORECASE),
+     "reference_incomplete",
+     "This reference file says it lists {1} colours and then gives only {0}. "
+     "It is incomplete — get a fresh copy of the reference that came with your "
+     "target, then pick it again."),
+
+    # Bucket B3 — NOT PLAIN TEXT. A reference exported from a Windows tool as
+    # UTF-16 reaches ArgyllCMS as text with a NUL after every character, and its
+    # CGATS parser reports an illegal keyword rather than an encoding. ChromIQ
+    # transcodes one on the way in (`reference_convert.utf8_reference`), so this
+    # is the belt to that fix's braces — and it is also what a genuinely corrupt
+    # file gets, instead of a lecture about folder permissions.
+    (re.compile(r"cgats\.add_kword\(\)|keyword '.*' ?is illegal",
+                re.IGNORECASE),
+     "reference_not_text",
+     "ChromIQ couldn't read this reference file as plain text — it may be "
+     "saved in UTF-16 (a common export from Windows software) or have stray "
+     "characters in it. Re-save it as plain text and pick it again."),
+
     # Bucket C — a generic CGATS read/write failure on a reference or output
     # file (permission, disk, truncation). scanin.c L596-799, L1165.
-    (re.compile(r"CGATS file .*read error|[Ww]rite error to|Can't open file",
-                re.IGNORECASE),
+    #
+    # IT SAYS WHICH HALF IT IS. "Check the files exist and the folder is
+    # writable" was printed for a READ failure on a file whose full path was in
+    # the same message ArgyllCMS had just written, and sent the user to look at
+    # permissions on a file they had just picked in a file dialog.
+    (re.compile(r"CGATS file '([^']*)' read error\s*:\s*(\S.*)$", re.IGNORECASE),
+     "reference_unreadable",
+     "ChromIQ couldn't read '{0}'. ArgyllCMS said: {1}"),
+    (re.compile(r"CGATS file '([^']*)' read error", re.IGNORECASE),
+     "reference_unreadable",
+     "ChromIQ couldn't read '{0}'. Its reason is in the log just above this "
+     "line."),
+    (re.compile(r"[Ww]rite error to|Can't open file", re.IGNORECASE),
      "reference_io",
-     "Couldn't read or write one of the scanner files. Check the files exist "
-     "and the folder is writable, then try again."),
+     "Couldn't write one of the scanner files. Check the folder the scan sits "
+     "in can be written to, then try again."),
 
     # Out of memory on a very large scan. scanin.c L521, L976.
     (re.compile(r"Malloc failed|Unable to allocate", re.IGNORECASE),

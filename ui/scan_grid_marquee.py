@@ -21,7 +21,8 @@ from dataclasses import dataclass
 
 import numpy as np
 from PyQt6.QtCore import QPointF, QRectF, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QImage, QPainter, QPen, QPixmap, QTransform
+from PyQt6.QtGui import (QColor, QImage, QPainter, QPen, QPixmap, QPolygonF,
+                         QTransform)
 from PyQt6.QtWidgets import QWidget
 
 from core.i18n import tr
@@ -175,8 +176,22 @@ def rectarg_align_cht(text: str, wpx: float, hpx: float) -> str:
         else:
             out.append(lines[i])
         i += 1
-    out.append(f"XLIST {len(xset)}"); out += [f"  {x:g} {sh:g} 1.0" for x in sorted(xset)]
-    out.append(f"YLIST {len(yset)}"); out += [f"  {y:g} {sw:g} 1.0" for y in sorted(yset)]
+    # COLUMN 2 IS A STRENGTH, NOT A LENGTH. ArgyllCMS `doc/cht_format.html`:
+    # "the second number is used to improve the correlation by representing the
+    # strength of that 'tick' relative to the strongest tick which will have a
+    # value 1.0". Writing the absolute cross-length there is the exact fault
+    # B8-05 fixed in the eight bundled `.cht` files, where it made scanin's
+    # automatic recogniser return `r0 = nan` and find nothing. This rewrite put
+    # it back: measured on a real ChromIQ chart, the regenerated XLIST came out
+    # with column 2 = 224.028 where the chart's own file had 0.5 and 1.0.
+    #
+    # It has never bitten, because the prepared file is only ever handed to
+    # `scanin -F` (all four call sites in `scanin_dialog` pass
+    # `corners=self._scanin_corners(...)`), and `-F` never reads XLIST/YLIST.
+    # It is written correctly anyway: every regenerated tick spans the same
+    # cross-length, so normalised they are all exactly 1.0.
+    out.append(f"XLIST {len(xset)}"); out += [f"  {x:g} 1.0 1.0" for x in sorted(xset)]
+    out.append(f"YLIST {len(yset)}"); out += [f"  {y:g} 1.0 1.0" for y in sorted(yset)]
     out.append("")
     return "\n".join(out)
 
@@ -444,8 +459,24 @@ class ScanGridMarquee(QWidget):
         self._grid = GridSpec([])
         self._show_fiducials = False # draw the .cht fiducial frame around the patches
         self._sample_frac = 0.5      # fraction of each patch AREA that scanin reads
+        # THE CELL CORNERS, IN UNIT-SQUARE (u, v) COORDINATES, BUILT ONCE.
+        # They depend only on the chart geometry and the sample fraction —
+        # never on the quad, the zoom or the pan — so a drag re-transforms them
+        # and rebuilds nothing. Invalidated (None) by the only two setters that
+        # can change either input: `set_grid` and `set_sample_fraction`.
+        # See :meth:`_cell_uv`.
+        self._cell_uv_cache: tuple | None = None
         # Quad corners in IMAGE pixels, order TL, TR, BR, BL.
         self._corners: list[list[float]] = []
+        # HAS ANYBODY ACTUALLY PLACED THIS QUAD, or is it still the seed?
+        # `_seed_corners` invents a starting rectangle the moment a scan is
+        # loaded, and it is indistinguishable, as four numbers, from a
+        # placement the user worked at. Auto align weighs its candidate
+        # against "where you are now" and declines to move anything that is
+        # not clearly better — a rule that is right about a deliberate
+        # placement and wrong about a guess the app made itself. See
+        # `is_placed`.
+        self._placed = False
         self._drag = -1
         # View transform: image px → widget px is (fit_scale·zoom)·p + fit_off + pan.
         self._scale = 1.0                     # fit-to-view scale
@@ -497,6 +528,7 @@ class ScanGridMarquee(QWidget):
         cx, cy = iw / 2.0, ih / 2.0
         self._corners = [[cx - w / 2, cy - h / 2], [cx + w / 2, cy - h / 2],
                          [cx + w / 2, cy + h / 2], [cx - w / 2, cy + h / 2]]
+        self._placed = False                     # the app's guess, not an answer
         self.changed.emit()
 
     def _rebuild_pixmap(self) -> None:
@@ -531,6 +563,7 @@ class ScanGridMarquee(QWidget):
 
     def set_grid(self, grid: GridSpec) -> None:
         self._grid = grid
+        self._cell_uv_cache = None
         if self._pix is not None:            # target changed with a scan loaded
             self._seed_corners()
         self.update()
@@ -566,6 +599,7 @@ class ScanGridMarquee(QWidget):
     def set_sample_fraction(self, frac: float) -> None:
         """Fraction (0–1) of each patch's AREA that scanin samples — drawn as an
         inner rectangle inside every patch cell so the read zone is visible."""
+        self._cell_uv_cache = None
         self._sample_frac = max(0.05, min(1.0, float(frac)))
         self.update()
 
@@ -580,6 +614,7 @@ class ScanGridMarquee(QWidget):
         w, h = self._img_w, self._img_h
         mx, my = w * 0.08, h * 0.08
         self._corners = [[mx, my], [w - mx, my], [w - mx, h - my], [mx, h - my]]
+        self._placed = False                     # the app's guess, not an answer
         self.changed.emit()
 
     def corners_image_px(self) -> list[tuple[float, float]]:
@@ -598,10 +633,26 @@ class ScanGridMarquee(QWidget):
         page's quad when switching pages of a multi-page chart."""
         if corners and len(corners) == 4:
             self._corners = [[float(x), float(y)] for x, y in corners]
+            self._placed = True
             self.update()
 
     def has_placement(self) -> bool:
         return bool(self._corners) and self._pix is not None
+
+    def is_placed(self) -> bool:
+        """True once these corners came from somewhere other than the seed —
+        dragged by hand, restored from a previous session, carried over from
+        another shot, or put there by Auto align. False while the quad is
+        still the rectangle `_seed_corners` invented when the scan was loaded.
+
+        Auto align needs the difference. Its `no-better` rule exists to protect
+        a placement the user worked at; measured on Knut's own 4157x2939 Wolf
+        Faust scan, the SEED scores rank agreement 0.9799 against the
+        recogniser's correct 0.9839 — inside IMPROVEMENT_MARGIN — so the button
+        refused a placement Check alignment scores at 96.63 % in favour of one
+        it scores at 0.00 %, and told the user their own placement was already
+        the closer match. They had not made one."""
+        return self._placed
 
     # ---------------------------------------------------------------- view
     #: Reserve this much of the widget for the drag handles when fitting the
@@ -668,37 +719,130 @@ class ScanGridMarquee(QWidget):
                         self._img_w * s, self._img_h * s)
         p.drawPixmap(target, self._pix, QRectF(self._pix.rect()))
         p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        # WHILE THE GRID IS BEING MOVED, THE UNDER-STROKE IS DRAWN WITHOUT
+        # ANTIALIASING — that pass only, and only while it is being moved.
+        #
+        # It is not antialiasing that costs; it is antialiasing a WIDE stroke.
+        # Qt's raster engine (QWidget painting never reaches the GPU) resolves a
+        # stroke by building its outline and computing coverage across the whole
+        # stroke AREA, so cost climbs with width. Measured on this widget, 988
+        # patches, 1,976 polygons per pass: with the accent's 1.0-1.4 px pens
+        # antialiasing costs 1.5x, which is nothing; on the under-stroke's
+        # 3.0-3.4 px it costs 5.7x. So one pass is worth aliasing and the other
+        # is not.
+        #
+        # Real widget, Neutral (the only appearance with an under-stroke, and
+        # therefore the only one that draws the overlay twice):
+        #     both passes smooth, as shipped   48.7 ms   21 fps
+        #     both passes aliased              15.6 ms   64 fps
+        #     this — under-stroke only         25.2 ms   40 fps
+        # Aliasing both is faster still, but the under-stroke is scaffolding —
+        # it exists to give the accent an edge over a dense patch — while the
+        # accent is the line the eye follows. Basti chose to keep the line he
+        # is aiming with smooth and spend the frames on the scaffolding.
+        #
+        # THE GEOMETRY DOES NOT MOVE. Every vertex handed to Qt is the same
+        # double it always was; only the coverage blending along the
+        # under-stroke's edge is off while the button is down.
+        # `mouseReleaseEvent` calls `update()`, so the instant it comes up the
+        # overlay is repainted exactly as it always was. Nothing that is ever
+        # judged, measured or handed to scanin is drawn aliased.
+        moving = (self._drag >= 0 or self._side_drag >= 0
+                  or self._moving or self._panning)
         # THE UNDER-STROKE PASS. Same geometry, 2 px wider, in the surface
         # value, so the accent pass that follows keeps its edge over a patch of
         # any density. Only Neutral has one — see _UNDER_BY_MODE.
         under = _UNDER_BY_MODE[mode]
         if under is not None:
+            if moving:
+                p.setRenderHint(QPainter.RenderHint.Antialiasing, False)
             self._ink_colour, self._ink_widen, self._ink_hollow = under, 2.0, True
             self._draw_grid(p)
             self._draw_quad(p)
+            if moving:      # the accent, the frame and its handles stay smooth
+                p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         self._ink_colour, self._ink_widen, self._ink_hollow = (
             _ACCENT_BY_MODE[mode], 0.0, False)
         self._draw_grid(p)
         self._draw_quad(p)
 
+    def _cell_uv(self) -> tuple[np.ndarray, np.ndarray, int]:
+        """``(u, v, stride)`` — every cell's drawn corners in unit-square
+        coordinates, one flat array, built once and reused by every paint.
+
+        Each cell contributes ``stride`` points: the patch cell first (four
+        corners, or the six of the hexagon a SpectroScan chart prints), then the
+        four corners of the sampled sub-area. The sub-area is inset by
+        :func:`workflow.scanin_runner.sample_margin` — Knut's #119 equal-margin
+        rule, **the same maths scanin reads with**: the same distance to the
+        patch border on all four sides, the area exactly the chosen fraction,
+        and each differently-shaped cell (a Wolf Faust GS strip vs its square
+        main grid) its own margin.
+
+        This is exactly the arithmetic ``_draw_grid`` used to run per cell per
+        paint. What changes is *when*: it depends only on the chart and the
+        sample fraction, so dragging the quad — which changes neither — reuses
+        it, and the per-cell Python leaves the paint path. On CMP Digital Target
+        Studio (988 patches) that is 29,640 calls per paint that no longer
+        happen.
+        """
+        if self._cell_uv_cache is not None:
+            return self._cell_uv_cache
+        from workflow.scanin_runner import sample_margin
+        asp = self._grid.aspect or 1.0
+        hexed = self._grid.hexagonal
+        stride = (6 if hexed else 4) + 4
+        pts: list[tuple[float, float]] = []
+        for (u, v, w, hh) in self._grid.rects:
+            if hexed:
+                # pointed top and bottom, flat vertical sides — the same shape
+                # raster._hexagon_points draws, so the mesh reads as the chart
+                t6 = hh / 6.0
+                cxu = u + w / 2.0
+                pts += [(cxu, v - t6), (u + w, v + t6), (u + w, v + hh - t6),
+                        (cxu, v + hh + t6), (u, v + hh - t6), (u, v + t6)]
+            else:
+                pts += [(u, v), (u + w, v), (u + w, v + hh), (u, v + hh)]
+            mg = sample_margin(w * asp, hh, self._sample_frac)
+            iu, iv = u + mg / asp, v + mg
+            iw, ih = w - 2.0 * mg / asp, hh - 2.0 * mg
+            pts += [(iu, iv), (iu + iw, iv), (iu + iw, iv + ih), (iu, iv + ih)]
+        arr = np.array(pts, float) if pts else np.zeros((0, 2))
+        self._cell_uv_cache = (arr[:, 0].copy(), arr[:, 1].copy(), stride)
+        return self._cell_uv_cache
+
+    def _map_cells(self, h: np.ndarray) -> tuple[np.ndarray, np.ndarray, int]:
+        """The cached cell corners, mapped through homography *h* and then the
+        view transform, in widget pixels — the whole grid in four numpy
+        expressions instead of two Python calls per point.
+
+        The expressions are written out rather than handed to a matrix product
+        **on purpose**: written this way the result is *bit-identical* to the
+        old ``apply_h`` + ``_to_widget`` pair (verified over every bundled
+        target and several quads — max difference 0.0), where a batched matrix
+        multiply differs in the last bits and a ``QTransform`` in about 3e-11 of
+        a pixel. Nothing this draws moves.
+        """
+        u, v, stride = self._cell_uv()
+        x = h[0, 0] * u + h[0, 1] * v + h[0, 2]
+        y = h[1, 0] * u + h[1, 1] * v + h[1, 2]
+        w = h[2, 0] * u + h[2, 1] * v + h[2, 2]
+        s = self._scale * self._zoom
+        return (self._ox + self._pan[0] + (x / w) * s,
+                self._oy + self._pan[1] + (y / w) * s, stride)
+
     def _draw_grid(self, p: QPainter) -> None:
         if not self._grid.rects or len(self._corners) != 4:
             return
         h = unit_quad_homography(self._corners)
-        # Knut's #119 equal-margin rule, the same maths scanin reads with
-        # (workflow.scanin_runner.sample_margin): the sample box keeps the
-        # SAME distance to the patch border on all four sides, its area is
-        # exactly the chosen fraction, and each differently-shaped cell (a
-        # Wolf Faust GS strip vs its square main grid) gets its own margin.
-        # Computed per cell below; the aspect factor puts the normalised
-        # u/v units on a common scale first.
-        from workflow.scanin_runner import sample_margin
-        asp = self._grid.aspect or 1.0
+        xs, ys, stride = self._map_cells(h)
+        nc = stride - 4                          # points in the cell outline
         outline = QPen(self._ink(90))             # full patch cell — faint
         outline.setWidthF(1.0 + self._ink_widen)
         sample = QPen(self._ink(220))             # sampled sub-area — solid
         sample.setWidthF(1.4 + self._ink_widen)
-        fill = (Qt.BrushStyle.NoBrush if self._ink_hollow else self._ink(40))
+        nobrush = Qt.BrushStyle.NoBrush
+        fill = (nobrush if self._ink_hollow else self._ink(40))
 
         # Every chart draws its own float box rects (#119, Knut's CMP Studio
         # find): the old integer-edge rebuild placed interior cells for the
@@ -706,29 +850,21 @@ class ScanGridMarquee(QWidget):
         # corners are pixel-exact — and the demo scans are now painted on
         # the same float geometry the .cht carries, so the drawn grid, the
         # image and scanin agree without any rebuilding.
-        cells = self._grid.rects
-
-        for (u, v, w, hh) in cells:
+        #
+        # Same two polygons per cell, in the same order (cell, then sample), so
+        # the pens, the joins and the alpha compositing are exactly what they
+        # were — only the coordinates arrive from one vectorised transform
+        # instead of eight scalar ones.
+        for i in range(0, len(xs), stride):
             p.setPen(outline)
-            p.setBrush(Qt.BrushStyle.NoBrush)
-            if self._grid.hexagonal:
-                # pointed top and bottom, flat vertical sides — the same shape
-                # raster._hexagon_points draws, so the mesh reads as the chart
-                t6 = hh / 6.0
-                cxu = u + w / 2.0
-                pts = ((cxu, v - t6), (u + w, v + t6), (u + w, v + hh - t6),
-                       (cxu, v + hh + t6), (u, v + hh - t6), (u, v + t6))
-            else:
-                pts = ((u, v), (u + w, v), (u + w, v + hh), (u, v + hh))
-            p.drawPolygon(*[self._to_widget(*apply_h(h, x, y)) for x, y in pts])
-            mg = sample_margin(w * asp, hh, self._sample_frac)
-            iu, iv = u + mg / asp, v + mg
-            iw, ih = w - 2.0 * mg / asp, hh - 2.0 * mg
+            p.setBrush(nobrush)
+            p.drawPolygon(QPolygonF([QPointF(xs[j], ys[j])
+                                     for j in range(i, i + nc)]))
             p.setPen(sample)
             p.setBrush(fill)
-            p.drawPolygon(*[self._to_widget(*apply_h(h, x, y)) for x, y in
-                            ((iu, iv), (iu + iw, iv), (iu + iw, iv + ih), (iu, iv + ih))])
-        p.setBrush(Qt.BrushStyle.NoBrush)
+            p.drawPolygon(QPolygonF([QPointF(xs[j], ys[j])
+                                     for j in range(i + nc, i + stride)]))
+        p.setBrush(nobrush)
 
         # Ink-block guide (engine charts, #119): a dashed line one spacer
         # strip outside the patch grid, marking where the PRINTED block ends.
@@ -904,6 +1040,8 @@ class ScanGridMarquee(QWidget):
 
     def mouseMoveEvent(self, e) -> None:  # noqa: N802
         pos = e.position()
+        if self._drag >= 0 or self._side_drag >= 0 or self._moving:
+            self._placed = True          # a hand has been on it — see is_placed
         if self._drag >= 0:
             dx, dy = _HANDLE_DIRS[self._drag]    # handle is offset — move the corner
             x, y = self._to_image(pos.x() - dx * _HANDLE_OFFSET,
@@ -941,6 +1079,9 @@ class ScanGridMarquee(QWidget):
         self._panning = False
         self._moving = False
         self.unsetCursor()
+        # Repaint antialiased now the movement has ended — see paintEvent. The
+        # grid the user judges is always the smooth one.
+        self.update()
 
     def keyPressEvent(self, e) -> None:  # noqa: N802
         if e.modifiers() & (Qt.KeyboardModifier.ControlModifier

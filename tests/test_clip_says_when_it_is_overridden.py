@@ -84,7 +84,13 @@ def _panel(app, *, clip: float, border: float = 26.0, rows: bool = True,
 
 
 def _note(p) -> str:
-    return p.text_edge_clip_note.text()
+    """What the panel is disclosing about "Clip" right now.
+
+    It was a label under the three spin boxes until 2026-09-04; it is now the
+    live note on that row's own ⓘ (Basti: *"not directly inside a section"*).
+    The WORDS did not change, so neither did anything below this line.
+    """
+    return p._text_edge_tip.live_note()
 
 
 def _geom(p):
@@ -102,7 +108,7 @@ def test_the_row_labels_being_held_at_the_border_is_reported(app):
         f"the premise failed: the floor is {g.row_label_floor:.2f} mm, so the "
         f"typed 4.0 mm IS in force and there is nothing to report")
     txt = _note(p)
-    assert p.text_edge_clip_note.isVisibleTo(p.text_edge_clip_note.parentWidget())
+    assert p._text_edge_tip.live_note(), "the ⓘ is carrying nothing"
     assert "row indicator" in txt, txt
     # BOTH numbers, and the setting that did it, read back out of the geometry
     # rather than typed in here a second time.
@@ -164,7 +170,7 @@ def test_nothing_is_said_when_the_typed_value_is_in_force(app):
     g = _geom(p)
     assert abs(g.row_label_floor - 27.0) < 0.05, "the premise failed"
     assert _note(p) == "", _note(p)
-    assert not p.text_edge_clip_note.isVisible()
+    assert not p._text_edge_tip.live_note()
 
 
 def test_nothing_is_said_when_clip_exactly_matches_the_border(app):

@@ -36,6 +36,7 @@ from ui.theme import APPEARANCE_NEUTRAL, accent_for
 from core.i18n import tr
 from ui.keyboard_help import keys_for
 from core.logger import get_logger
+from ui.warning_sign import warn
 
 log = get_logger(__name__)
 
@@ -2442,7 +2443,7 @@ class WelcomeDialog(QDialog):
             log.warning("could not save the help card as a PDF", exc_info=True)
             from PyQt6.QtWidgets import QMessageBox
             self.raise_()
-            QMessageBox.warning(
+            warn(
                 self, tr("Couldn't save this help card"),
                 tr("Something went wrong while writing the PDF, so no file was "
                    "saved. You can still read the help card here on screen."))
@@ -2482,7 +2483,7 @@ class WelcomeDialog(QDialog):
             # three possible outcomes.
             log.warning("could not print the help card", exc_info=True)
             from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.warning(
+            warn(
                 self, tr("Couldn't print this help card"),
                 tr("Something went wrong while preparing this help card for "
                    "printing, so nothing was sent to your printer.\n\n"

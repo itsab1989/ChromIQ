@@ -49,8 +49,13 @@ def test_measure_refuses_to_start_on_new_run(qapp, tmp_path, monkeypatch):
     tab.set_target_controller(ctl)
     ctl.set_profile_run(""); ctl.set_run_type(RUN_TYPE_PROFILING)   # New run
     shown: list[str] = []
-    monkeypatch.setattr(QMessageBox, "information",
-                        staticmethod(lambda p, t, m, *a, **k: shown.append(m)))
+    # Patch the name where the MODULE looks it up. The app no longer calls the
+    # static `QMessageBox.information` — it calls `ui.warning_sign.inform`, so
+    # ChromIQ's own sign is shown instead of the platform's. Stubbing the
+    # static still "works" and intercepts nothing, which lets a real modal open
+    # in a headless test and is caught only by the watchdog, four seconds later.
+    import ui.tabs.tab_measure as _mod
+    monkeypatch.setattr(_mod, "inform", lambda p, t, m, *a, **k: shown.append(m))
 
     assert tab._blocked_by_new_run() is True
     assert shown and "already created chart" in shown[0]
@@ -72,8 +77,13 @@ def test_print_refuses_on_new_run_and_proceeds_otherwise(qapp, tmp_path, monkeyp
     tab = TabPrint(s)
     tab.set_target_controller(ctl)
     shown: list[str] = []
-    monkeypatch.setattr(QMessageBox, "information",
-                        staticmethod(lambda p, t, m, *a, **k: shown.append(m)))
+    # Patch the name where the MODULE looks it up. The app no longer calls the
+    # static `QMessageBox.information` — it calls `ui.warning_sign.inform`, so
+    # ChromIQ's own sign is shown instead of the platform's. Stubbing the
+    # static still "works" and intercepts nothing, which lets a real modal open
+    # in a headless test and is caught only by the watchdog, four seconds later.
+    import ui.tabs.tab_print as _mod
+    monkeypatch.setattr(_mod, "inform", lambda p, t, m, *a, **k: shown.append(m))
 
     ctl.set_profile_run("")
     assert tab._blocked_by_new_run() is True

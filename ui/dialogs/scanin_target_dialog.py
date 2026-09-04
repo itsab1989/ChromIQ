@@ -52,6 +52,7 @@ from workflow.scanin_target import (
     build_scanin_target_from_render,
     has_scanner_geometry,
 )
+from ui.warning_sign import warn
 
 log = get_logger(__name__)
 
@@ -391,7 +392,7 @@ class ScaninTargetDialog(_ToolDialogBase):
         if hex_scanner_allowed(getattr(self, "_settings", None)):
             return False
         from PyQt6.QtWidgets import QMessageBox
-        QMessageBox.warning(self, tr("Hexagonal chart"), hex_scanner_message())
+        warn(self, tr("Hexagonal chart"), hex_scanner_message())
         return True
 
     def _pick_pset(self) -> None:

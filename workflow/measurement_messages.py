@@ -1710,6 +1710,104 @@ M_SCAN_CLIPPED = _m(
     approved=False)
 
 
+# --- PROPOSED: the scan never reached the top of the scale -----------------
+#: beta 8, B8-01. The opposite twin of M-SCAN-CLIPPED, and the one nothing could
+#: see. Every other guard in this window is SCALE-INVARIANT and an exposure slip
+#: is PURE SCALE: darkening Knut's own Wolf Faust sheet by 30 % leaves coverage
+#: unchanged, rank agreement unchanged to three decimals (+0.9839 -> +0.9838)
+#: and the clipped share unmoved to the patch, so the build is silent -- while
+#: the profile it produces is 21.7 dE out against a correctly exposed read. At
+#: x0.18 it is 177.9 dE out and still silent. colprof's self-check cannot see it
+#: either: it is computed against the same dark data, and across the whole
+#: ladder it moves only 1.93 -> 2.59 against limits of 30 and 12.
+M_SCAN_DARK = _m(
+    "M-SCAN-DARK",
+    "This scan came out darker than it should be",
+    "The white patches on this target came out at {pct} of your "
+    "scanner\u2019s brightness range. On a scan exposed for this target they "
+    "sit just under the top of that range, and getting them there is what the "
+    "brightness or exposure setting in your scanning software is for.\n\n"
+    "Nothing later in ChromIQ would tell you. A dark scan is not harder to "
+    "describe than a bright one: it passes every other check in this window, "
+    "and the quality number you are shown at the end of the build is worked "
+    "out from this same dark reading, so it comes out looking just as good. "
+    "What changes is the profile itself \u2014 it would describe your scanner "
+    "in a state you are unlikely to set up again, so it would not match your "
+    "everyday scans.\n\n"
+    "Scan the target again with the brightness or exposure turned back up in "
+    "your scanner\u2019s own software \u2014 not in ChromIQ, which never "
+    "changes your scan \u2014 so that the white patches sit just below the "
+    "top of the scale without touching it.\n\n"
+    "One exception: if you are scanning a transparency or a negative, a low "
+    "reading here can be normal for that medium. Check the exposure before you "
+    "go on, but you may find nothing is wrong.",
+    approved=False)
+
+
+# --- PROPOSED: the reference gives too few colours to fit a profile to -----
+#: beta 8, B8-03, the pre-build half. colprof's self-check is measured against
+#: the very rows it was fitted to, so it is SMALLEST exactly when there is least
+#: to fit. A reference whose every SAMPLE_ID reads "A1" leaves one row and
+#: scores peak 0.007339 / avg 0.007339 -- a perfect mark, and the log ends
+#: "Install it as your scanner's input profile". A reference whose every value
+#: reads "0.00" leaves 288 rows of ONE colour, sends colprof's Powell fit to
+#: "residual error = nan" and lands a profile whose white point is nan nan nan.
+#: An error FLOOR cannot separate these: the app's own ColorChecker demo build
+#: scores avg 0.059311, only eight times the degenerate case. Counting the
+#: distinct colours can -- 1 against 21 for the smallest target anybody ships.
+M_SCAN_FIT_UNSUPPORTED = _m(
+    "M-SCAN-FIT-UNSUPPORTED",
+    "This reference file describes too few colours to build a profile from",
+    "The reference file names only {support} different colours for this "
+    "target. A profile describes how your scanner answers to colour, and that "
+    "cannot be worked out from so few.\n\n"
+    "ChromIQ can still build one, and it would pass its own quality check "
+    "easily \u2014 when there is almost nothing to match against, almost any "
+    "answer matches. The quality number you are shown at the end of the build "
+    "would look better than a correct profile\u2019s, and it would mean "
+    "nothing at all.\n\n"
+    "In the \u201c{ref_row}\u201d row, choose the reference file that came "
+    "with your target. It lists a different colour for every patch on the "
+    "sheet.",
+    approved=False,
+    body_one=(
+        "The reference file names the same colour for every patch it lists. A "
+        "profile describes how your scanner answers to colour, and that cannot "
+        "be worked out from a single one.\n\n"
+        "ChromIQ can still build one, and it would pass its own quality check "
+        "perfectly \u2014 when there is nothing to match against, any answer "
+        "matches. The quality number you are shown at the end of the build "
+        "would look better than a correct profile\u2019s, and it would mean "
+        "nothing at all.\n\n"
+        "In the \u201c{ref_row}\u201d row, choose the reference file that "
+        "came with your target. It lists a different colour for every patch on "
+        "the sheet."),
+    count_key="support")
+
+
+# --- PROPOSED: colprof's own quality check produced no number --------------
+#: beta 8, B8-03, the post-build half. `_PROFCHECK_RE` matched only digits and
+#: dots, so colprof's "avg err = nan" line did not match at all, `found` came
+#: back empty and the verdict returned on its "if not found" line -- the one
+#: case where the check had the most to say was the one case it could not read.
+#: Even parsed, `0.0 <= 30.0` would have short-circuited the "or". The build
+#: then wrote "[OK] Scanner profile saved" and "Install it as your scanner's
+#: input profile" over a profile whose white point is nan nan nan.
+M_SCAN_SELFCHECK_UNUSABLE = _m(
+    "M-SCAN-SELFCHECK-UNUSABLE",
+    "This profile could not be checked",
+    "After building a profile, ChromIQ asks how closely it matches the colours "
+    "it was built from, and shows you the answer as a quality number. This "
+    "time no number came back at all \u2014 the answer was "
+    "\u201c{raw}\u201d, which is what happens when the measurements handed "
+    "over had nothing in them to match against.\n\n"
+    "So the file on disk is a profile in name only, and nothing has confirmed "
+    "that it describes your scanner. Treat it as unchecked: read the warnings "
+    "above, put right what they name, and build again before you use it for "
+    "anything.",
+    approved=False)
+
+
 # --- PROPOSED: where the profile this build replaced went ------------------
 #: Review 5, finding B5. Building twice wrote over the first profile in place:
 #: no copy, no question, and not a word in the log -- and it may be one the
@@ -1724,6 +1822,99 @@ M_SCAN_PROFILE_ARCHIVED = _m(
     "The profile that was here has moved to this folder, and nothing in it "
     "was deleted:",
     "{folder}",
+    approved=False)
+
+
+# --- PROPOSED: the window said nothing at all when a scan was loaded -------
+#: beta 8, B8-16 (Agent B, reproduced by Agent I). Loading a scan under the
+#: wrong Target type produced an EMPTY log, a live Run button and a 288-cell
+#: mesh drawn across 24 patches. Pressing Run does fire two guards, so it is
+#: not a silent wrong profile -- but for as long as the user cares to look the
+#: window is authoritative about a placement that cannot be right, and it
+#: invites them straight past it.
+#:
+#: The honest fix is not a mismatch detector: at load time the app has not read
+#: anything and cannot know. It is to stop being silent -- to say what was
+#: loaded, what it will be read AS, and that nothing has been checked yet.
+M_SCAN_LOADED = _m(
+    "M-SCAN-LOADED",
+    "Scan loaded",
+    "{file} \u2014 {w} \u00d7 {h} pixels. It will be read as \u201c{target}\u201d, "
+    "which has {n} patches.\n"
+    "Nothing has been checked yet. Place the grid over the patch area, then "
+    "press Check alignment \u2014 that reads the scan and says whether the grid "
+    "is really on the patches.",
+    approved=False)
+
+
+# --- PROPOSED: a diagnostic image offered as a scan ------------------------
+#: beta 8, B8-15. Knut did this in his own beta.7 log at 15:30: he picked
+#: `diagnosticReadLSTarget01.tif` -- a scanin -dipn OUTPUT -- as the scan, the
+#: app took it without a word, and the alignment check then reported a
+#: misplacement that was not real ("sample boxes sit on patch edges, worst
+#: 73.80 %") about a read that had been fine. The picture is recognised from
+#: its pixels, not its name, because his file was written by his own scanin
+#: command (`workflow/scan_diagnostic_image.py` carries the measurements).
+M_SCAN_DIAGNOSTIC = _m(
+    "M-SCAN-DIAGNOSTIC",
+    "This looks like a diagnostic image, not a scan",
+    "ChromIQ writes one of these after every read: your scan turned grey, with "
+    "the colour painted back only where ArgyllCMS sampled it, and the patch "
+    "names drawn on top. It is a picture of a read, not something that can be "
+    "read again.\n\n"
+    "The grid cannot line up on it, and the alignment check will report a "
+    "misplacement that is not real. Load the original scan of your target "
+    "instead \u2014 diagnostic images live in the \u201ccache\u201d folder "
+    "beside it and are safe to delete.",
+    approved=False)
+
+
+# --- PROPOSED: an averaging slot that was left empty -----------------------
+#: beta 8, B8-32 (sweep finding F-7). Press "＋ Add another scan to average",
+#: stop there, and the window shows "Scan 1 / Scan 2" while `_page_ready` asks
+#: only `any(...)`: the Run button stays live, the build reads ONE scan, runs
+#: no averaging step, and ends "[OK] Scanner profile saved" as though one scan
+#: had been asked for. Driven end to end in the real window (sweep check J32):
+#: 2 slots, 1 file, exactly 1 scanin call, and nothing said anywhere.
+#:
+#: It says so rather than refusing, which is this window's rule elsewhere
+#: (B8-15): what happens is a legitimate build from fewer scans, not a wrong
+#: profile, and a Run button that greys out with no reason attached is a new
+#: silence rather than the end of one.
+#:
+#: Every count in it is a bare number in a sentence that does not inflect
+#: around it, so there is one message rather than a singular and a plural.
+M_SCAN_SHOT_EMPTY = _m(
+    "M-SCAN-SHOT-EMPTY",
+    "An empty scan slot was skipped",
+    "This page has {slots} scan slots, and a file has been picked for "
+    "{filled} of them. An empty slot is not read and nothing is averaged with "
+    "it, so this build uses only the scans that are there.\n"
+    "If you meant to average repeated scans of this page, pick a file for "
+    "each empty slot and build again. If a slot was added by mistake, "
+    "\u201cRemove this scan\u201d takes it away.",
+    approved=False)
+
+
+# --- PROPOSED: the scan a target-type change throws away -------------------
+#: beta 8, B8-32 (sweep finding F-9). Load a scan, place the grid, change
+#: "Target type": the scan, its four corners and every other shot on the page
+#: are dropped by `_set_std_targets` -> `_reset_shots`, and the log — which is
+#: cleared in the same block — said nothing about any of it.
+#:
+#: The discard itself is right and is not being changed: a different target has
+#: a different grid, so a placement made on the old one is meaningless on the
+#: new one, and a demo scan belongs to the target that generated it. What was
+#: missing is the sentence saying it happened.
+M_SCAN_TARGET_CHANGED = _m(
+    "M-SCAN-TARGET-CHANGED",
+    "Target type changed \u2014 the loaded scan was cleared",
+    "A scan is read through the target\u2019s own recognition file, and a "
+    "different target has a different grid, so a placement made on the old one "
+    "would not mean anything on this one. The scan that was loaded, its four "
+    "corners and any further scans on this page have been dropped.\n"
+    "Nothing on disk was touched. Pick the scan again \u2014 or press "
+    "\u201cTry with a demo scan\u201d \u2014 for the target now selected.",
     approved=False)
 
 
@@ -1792,11 +1983,28 @@ M_SCAN_ALIGN_NO_GEOMETRY = _m(
     "sit, and that is what Auto align needs to work. Place the four corners "
     "yourself; everything else in this window works normally.")
 
+#: REVISED for B8-42, so back in the review queue with the headline unchanged.
+#: It used to be the recogniser's ending alone -- "it searched, and your own
+#: placement is already the closer match" -- and the merged button reaches it
+#: only when BOTH halves declined: the search had nothing better and the
+#: reshaping found nothing worth moving the corners for. The second half of the
+#: body is the part that matters and is new: this ending is a statement about
+#: what was SEARCHED, never a statement that the placement is right, and a grid
+#: exactly one patch out is indistinguishable from the right answer to
+#: everything measured inside the sample boxes. So it names the one check in
+#: this window that can tell the difference, which the old wording did not.
 M_SCAN_ALIGN_NO_BETTER = _m(
     "M-SCAN-ALIGN-NO-BETTER",
     _ALIGN_KEPT,
-    "It searched, and your own placement is already the closer match, so "
-    "there was nothing to improve.")
+    "ChromIQ searched the picture for the chart, and then looked around the "
+    "four corners you placed for a better place to put the grid. Neither "
+    "found one worth moving them for \u2014 what you have is already the "
+    "closest match it can see.\n"
+    "That is not the same as saying the grid is on the right patches: a grid a "
+    "whole patch out reads every patch as its neighbour and looks just as even. "
+    "Press \u201cCheck alignment\u201d below \u2014 that reads the scan and "
+    "can tell the difference.",
+    approved=False)
 
 M_SCAN_ALIGN_DONE = _m(
     "M-SCAN-ALIGN-DONE",
@@ -1813,16 +2021,86 @@ M_SCAN_ALIGN_NO_INPUT = _m(
     "Load a scan for this page and choose the chart it was made from, then "
     "press Auto align again.")
 
+# --- PROPOSED: the photograph path (beta 8, agent L) -----------------------
+#: A camera writes JPEG and ``scanin`` reads TIFF and nothing else, so a
+#: photograph picked through the file dialog's "All files" entry decoded
+#: happily into the preview, aligned happily under the marquee, and then made
+#: Argyll exit with `Not a TIFF or MDI file, bad magic number` at the very end
+#: of the job. ChromIQ now converts it and says so, because a file the app
+#: substituted for the one that was chosen must never be a silent substitution.
+M_SCAN_CONVERTED = _m(
+    "M-SCAN-CONVERTED",
+    "This photograph was converted for reading",
+    "ArgyllCMS reads TIFF images only, and {file} is not one. ChromIQ made a "
+    "TIFF copy of it and will read that; your own file is not changed. The "
+    "copy holds the same pixels \u2014 nothing has been sharpened, resized or "
+    "colour-managed.",
+    approved=False)
+
+#: Measured on Knut's own Wolf Faust scan through a bow x camera x lens matrix
+#: of 48 conditions: a 5.5 % bow alone costs nothing, a 15-degree compound tilt
+#: alone costs nothing, and the two TOGETHER put 102 patches over 1 dE00 and 44
+#: over 3 -- read at the best quad four corners can express. The same quad
+#: moved a little, to balance the residual across the block instead of pinning
+#: its ends, reads it with none over 1 dE00.
+#: THE ONE ENDING WHERE THE REFINEMENT'S REASON IS ALL THERE IS TO SAY.
+#: Reached when the recogniser had no diagnosis of its own -- it answered only
+#: "your own placement scored as well as mine" -- and the refinement then found
+#: its best placement further away than
+#: :data:`workflow.photo_fit.CLAMP_PITCHES` allows it to move. Measured over
+#: 290 starting placements, 2 of them end here.
+#:
+#: The arithmetic in the first version of this was wrong twice over: it said
+#: "more than half a patch" of a limit that is three quarters, and "half a
+#: patch further and the grid would be reading the neighbouring patch" of a
+#: distance that is a quarter. A sentence with a number in it is a sentence
+#: somebody will check.
+M_SCAN_FIT_TOO_FAR = _m(
+    "M-SCAN-FIT-TOO-FAR",
+    _ALIGN_KEPT,
+    "ChromIQ looked around the four corners you placed for a better place to "
+    "put the grid, and the best one it found is further than three quarters of "
+    "a patch away from them. That is as far as it will move your corners by "
+    "itself: one whole patch and the grid would be reading the neighbouring "
+    "squares, which looks just as convincing and is completely wrong.\n"
+    "Drag the four corners onto the chart\u2019s patch area, as close to the "
+    "real patches as you can get them, and press Auto align again.",
+    approved=False)
+
+
+M_SCAN_ALIGN_NOT_SEATED = _m(
+    "M-SCAN-ALIGN-NOT-SEATED",
+    _ALIGN_KEPT,
+    "ChromIQ worked out where the grid would have to go, then looked at the "
+    "picture once more to check it \u2014 and the patches are not where that "
+    "placement puts them. Towards one edge of the sheet the grid would read "
+    "part of the neighbouring patch, and a profile built from that is wrong "
+    "without looking wrong. Nothing has been moved.\n\n"
+    "This is what a photograph taken at a slight angle does \u2014 the end of "
+    "the sheet further from the camera comes out smaller, so no single shape "
+    "fits both ends of it. A flatbed scan does not have the problem at all.\n\n"
+    "Scan the sheet, or photograph it square-on with the camera above the "
+    "middle of it \u2014 or drag the four corners onto the chart yourself, "
+    "which always works and is what the grid is for.",
+    approved=False)
+
+
 #: Auto align's internal refusal reasons, and the message each one is told in.
 #: The reasons stay machine-readable -- they go to the log file and the tests
 #: read them -- and this map is the ONLY place they turn into words.
 SCAN_ALIGN_REFUSALS = {
     "ambiguous-orientation": M_SCAN_ALIGN_AMBIGUOUS,
     "below-floor": M_SCAN_ALIGN_NO_MATCH,
+    "not-seated": M_SCAN_ALIGN_NOT_SEATED,
     "not-recognised": M_SCAN_ALIGN_NOT_FOUND,
     "no-usable-candidate": M_SCAN_ALIGN_NO_FIT,
     "no-chart-geometry": M_SCAN_ALIGN_NO_GEOMETRY,
     "no-better": M_SCAN_ALIGN_NO_BETTER,
+    # ...and the one ending that belongs to the second half of the operation
+    # rather than the first. It is in the same map, and answered by the same
+    # function, because from the user's side there is one button and one
+    # ending: nothing moved, and here is what to do about it.
+    "too-far": M_SCAN_FIT_TOO_FAR,
 }
 
 
@@ -1869,10 +2147,14 @@ CATALOGUE = {m.id: m for m in (
     M_CAL_REPLACE_CHART, M_CAL_REPLACE_MEASURED, M_CAL_ARCHIVED_HERE,
     M_SPOT_CLEAR, M_SPOT_UNSAVED,
     M_SCAN_REF_SHORT, M_SCAN_REF_DISAGREES, M_SCAN_CLIPPED,
+    M_SCAN_LOADED, M_SCAN_DIAGNOSTIC,
+    M_SCAN_SHOT_EMPTY, M_SCAN_TARGET_CHANGED,
+    M_SCAN_DARK, M_SCAN_FIT_UNSUPPORTED, M_SCAN_SELFCHECK_UNUSABLE,
     M_SCAN_ALIGN_AMBIGUOUS, M_SCAN_ALIGN_NO_MATCH,
     M_SCAN_ALIGN_NOT_FOUND, M_SCAN_ALIGN_NO_FIT,
-    M_SCAN_ALIGN_NO_GEOMETRY, M_SCAN_ALIGN_NO_BETTER,
+    M_SCAN_ALIGN_NO_GEOMETRY, M_SCAN_ALIGN_NO_BETTER, M_SCAN_ALIGN_NOT_SEATED,
     M_SCAN_ALIGN_DONE, M_SCAN_ALIGN_NO_INPUT,
+    M_SCAN_CONVERTED, M_SCAN_FIT_TOO_FAR,
     M_SCAN_PROFILE_ARCHIVED,
 )}
 

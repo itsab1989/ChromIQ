@@ -87,6 +87,7 @@ log = get_logger(__name__)
 from ui.styles import SPEC_AMBER, TAB_COLORS
 from core.i18n import tr
 from core.platform_paths import default_output_root
+from ui.warning_sign import inform, set_warning_icon, warn
 
 
 _TT_TITLE_PRINT = "Step 2 — Print the chart"
@@ -1502,7 +1503,7 @@ class TabPrint(QWidget):
             return False
         from PyQt6.QtWidgets import QMessageBox
         from core.measurement_target import new_run_guard_message
-        QMessageBox.information(self, tr("Choose a profile run to print"),
+        inform(self, tr("Choose a profile run to print"),
                                 new_run_guard_message("print"))
         return True
 
@@ -1539,7 +1540,7 @@ class TabPrint(QWidget):
         """Run pre-send checks + preflight once, then submit each page."""
         printer = self._printer_combo.currentData() or ""
         if not printer:
-            QMessageBox.warning(self, tr("No Printer"), tr("Please select a printer before printing."))
+            warn(self, tr("No Printer"), tr("Please select a printer before printing."))
             return
 
         if not self._printer.is_printer_reachable(printer):
@@ -1604,7 +1605,7 @@ class TabPrint(QWidget):
         """Warn that borderless scales the chart. Returns False to cancel."""
         dlg = QMessageBox(self)
         dlg.setWindowTitle(tr("Borderless Will Scale the Chart"))
-        dlg.setIcon(QMessageBox.Icon.Warning)
+        set_warning_icon(dlg)
         dlg.setText(
             tr("Borderless printing enlarges the page by a few percent so the "
             "ink reaches past the paper edges. The printer driver does this "
@@ -1634,7 +1635,7 @@ class TabPrint(QWidget):
         n = len(stuck)
         dlg = QMessageBox(self)
         dlg.setWindowTitle(tr("Stuck Print Jobs Detected"))
-        dlg.setIcon(QMessageBox.Icon.Warning)
+        set_warning_icon(dlg)
         if n == 1:
             head = tr("There is 1 stuck print job in the queue for \"{printer}\"."
                       ).format(printer=printer)
@@ -1783,7 +1784,7 @@ class TabPrint(QWidget):
         """
         printer = self._printer_combo.currentData() or ""
         if not printer:
-            QMessageBox.warning(self, tr("No Printer"), tr("Please select a printer before printing."))
+            warn(self, tr("No Printer"), tr("Please select a printer before printing."))
             return False
 
         # Extract the target frame to a temporary single-page TIFF when needed.
@@ -1854,7 +1855,7 @@ class TabPrint(QWidget):
     def _on_clear_queue(self) -> None:
         printer = self._printer_combo.currentData() or ""
         if not printer:
-            QMessageBox.warning(self, tr("No Printer"), tr("Select a printer first."))
+            warn(self, tr("No Printer"), tr("Select a printer first."))
             return
         count = self._module.cancel_all_jobs(printer)
         if count:
@@ -2037,7 +2038,7 @@ class TabPrint(QWidget):
                     # could not be checked about it.
                     submitted = True
                     log.warning("Native macOS print: %s", exc)
-                    QMessageBox.warning(
+                    warn(
                         self, tr("Colour Management Lock Not Verified"),
                         tr("The print job was sent, but ChromIQ could not verify that "
                            "the printer driver's colour management was disabled.\n\n"

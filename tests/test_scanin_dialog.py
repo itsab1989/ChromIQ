@@ -1348,3 +1348,48 @@ def test_a_failed_build_leaves_no_empty_icc(tmp_path):
         "only an EMPTY file is unambiguous; anything with bytes in it is left "
         "alone")
     _remove_empty_icc(tmp_path / "never existed.icc")     # must not raise
+
+
+def test_the_diagnostic_is_only_smoothed_when_it_is_shrunk(qapp):
+    """Zooming a diagnostic INTO a bigger view must not interpolate away the
+    pixel edges the user is being asked to judge.
+
+    Measured on the 693x490 diagnostic Knut was looking at: the sample-box edge
+    rose over 3.50 device px smoothed against 2.49 hard at his fit, and 4.86
+    against 0.00 at 4x. Below 1:1 the two are indistinguishable (2.10 vs 2.11),
+    so smoothing is kept exactly where it earns its place."""
+    import numpy as np
+    from PyQt6.QtGui import QImage, QPixmap, QColor
+    from ui.dialogs.scanin_dialog import _ZoomPanImageView
+
+    N = 100
+    src = QImage(N, N, QImage.Format.Format_RGB32)
+    src.fill(QColor("black"))
+    for x in range(N // 2, N):                    # one hard vertical edge
+        for y in range(N):
+            src.setPixelColor(x, y, QColor("white"))
+    v = _ZoomPanImageView(QPixmap.fromImage(src))
+    v.resize(400, 400)
+
+    def rendered(scale):
+        """Distinct values along a row that crosses the edge, sampled only
+        where the image is actually drawn — the drawn size changes with the
+        scale, so a fixed row would fall off the image and measure the
+        backdrop instead."""
+        v._scale = scale
+        out = QImage(v.size(), QImage.Format.Format_ARGB32_Premultiplied)
+        v.render(out)
+        b = out.constBits(); b.setsize(out.sizeInBytes())
+        a = np.frombuffer(b, dtype=np.uint8).reshape(out.height(), -1, 4)
+        w = min(int(N * scale), out.width())
+        h = min(int(N * scale), out.height())
+        assert w > 8 and h > 8, "the image is not on screen at this scale"
+        return len(np.unique(a[h // 2, :w], axis=0))
+
+    magnified = rendered(6.0)     # well above 1:1 — must stay hard
+    shrunk = rendered(0.25)       # below 1:1 — smoothing still wanted
+    assert magnified <= 3, (
+        f"the magnified diagnostic is being interpolated ({magnified} distinct "
+        f"values across a two-colour edge) — that is the evidence blurred away")
+    assert shrunk > magnified, (
+        "shrinking is no longer smoothed; that is where smoothing belongs")

@@ -49,9 +49,24 @@ _VIEWPORT = 540
 _NESTING_CHROME = 26
 _BUDGET = _VIEWPORT - _NESTING_CHROME          # 514
 
-#: As shipped after the fix the worst language (Norwegian) sits at 452, so this
-#: is not a knife-edge assertion — there are ~60 px of room for a longer string
-#: before it trips.
+#: THIS IS A KNIFE EDGE. THE NOTE THAT USED TO SIT HERE SAID THE OPPOSITE.
+#:
+#: It read "the worst language (Norwegian) sits at 452, so this is not a
+#: knife-edge assertion — there are ~60 px of room for a longer string before
+#: it trips". That was true when it was written and the panel has grown since.
+#: Re-measured 2026-09-04 on the tree this note ships with, every language,
+#: same method as the tests below:
+#:
+#:   nl 514   de 508   sv 508   pl 497   no 494   es 490   pt 490   it 489
+#:   ru 484   fr 458   en 423   ja 407   zh_CN 402
+#:
+#: Dutch is **exactly on the budget**, with German and Swedish 6 px behind it.
+#: There is no room. A change that adds a frame, a margin or a wider control to
+#: this panel has to give the width back somewhere else, and it will find out
+#: here — B8-21 §4's sub-frames cost +14 px on their first build and turned
+#: de/nl/sv red in this file before they were paid for out of the margins they
+#: replaced. RE-MEASURE THIS TABLE IN THE SAME COMMIT AS ANY CHANGE THAT MOVES
+#: IT.
 
 
 @pytest.fixture(scope="module")

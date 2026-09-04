@@ -99,13 +99,15 @@ def wait_for_build(app, tab, timeout=240) -> bool:
 
 
 def note_state(panel) -> dict:
-    w = panel.text_edge_clip_note
+    # The note moved onto the "Text distance from edge" ⓘ on 2026-09-04
+    # (Basti: *"not directly inside a section"*). Same words, new home.
+    w = panel._text_edge_tip
     return {
         "clip_box_mm": round(float(panel.text_edge_clip.value()), 2),
         "clip_border_width_mm": round(float(panel.clip_width.value()), 2),
         "row_indicators_on": bool(panel.show_row_indicators.isChecked()),
-        "note_shown": bool(w.isVisibleTo(panel)),
-        "note_text": w.text(),
+        "note_shown": bool(w.live_note()),
+        "note_text": w.live_note(),
     }
 
 

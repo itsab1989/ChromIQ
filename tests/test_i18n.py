@@ -418,10 +418,100 @@ def test_every_deliberate_exception_says_why():
 # the count rises by exactly the eight that became visible to this counter.
 # `scripts/i18n_extract.py --unwrapped` is the guard that stops the next one,
 # and `tests/test_i18n.py::test_no_user_facing_literal_skips_tr` runs it.
+#: 2026-09-04, beta 8: +7 in each of the twelve, and 0 in German. B8-01 and
+#: B8-03 added three §M-PROPOSED messages (M-SCAN-DARK,
+#: M-SCAN-FIT-UNSUPPORTED, M-SCAN-SELFCHECK-UNUSABLE) — a title and a body
+#: each, plus a singular body for the second, which is the shape both of the
+#: degenerate references reduce to. German is translated; the other twelve
+#: carry the English source, the same way every review-5 M-SCAN-* string does,
+#: because the wording is awaiting review and translating it before it is
+#: approved translates a draft.
+#: 2026-09-04, beta 8, the photograph path: +13 in each of the eleven and 0 in
+#: German. Five §M-PROPOSED messages (M-SCAN-CONVERTED and the four
+#: M-SCAN-FIT-*) plus the new button's label, its tooltip and its busy note.
+#: German is translated; the eleven carry the English source, because the
+#: wording is awaiting review and translating a draft is exactly the churn the
+#: beta rule exists to avoid.
+# 2026-09-04, B8-02: one §M-PROPOSED message, M-SCAN-ALIGN-NOT-SEATED —
+# the refusal for a photograph taken off square, whose grid would read part
+# of the neighbouring patch. German is translated; the eleven carry the
+# English source, because the wording is awaiting review.
+# +11 each, 2026-09-04, beta 8 items B8-14, B8-30, B8-31 and B8-32 (AGENT-M):
+# two §M-PROPOSED messages and their headlines (M-SCAN-SHOT-EMPTY,
+# M-SCAN-TARGET-CHANGED), the corrected "Indicator font" tooltip and the note
+# saying which control in "Strip && row labels" reaches which label, the
+# "Reading options" and "Save as Defaults" tooltips rewritten around a removed
+# control and three newly-saved ones, an empty averaging slot's entry in the
+# shot combo, the margin-raise warning's second form (the one that does not
+# advise reducing "Clip" in a state where Clip cannot move anything) and the
+# margin inspector's new "Text and label notes" box. German is translated for
+# all eleven; the other eleven languages carry the English source, which is the
+# beta convention. FOUR keys also went away with the "Correct perspective"
+# control -- all four were already translated in every language, so they cost
+# nothing here. These are each language's ACTUAL count.
+#: 2026-09-04, B8-42: minus 10 in every catalogue but German. Merging "Auto
+#: align" and "Fit to the patches" into one button retired fourteen strings —
+#: the button's label, its tooltip, its busy note, the old Auto align tooltip
+#: and the eight halves of the four messages that went with it — and added
+#: three: the new Auto align tooltip and the two rewritten refusal bodies.
+#: Thirteen of the fourteen carried the English source in these eleven
+#: catalogues, and the fourteenth ("Fit to the patches") was translated
+#: everywhere, so the arithmetic is -13 + 3. German is translated and does not
+#: move.
+# +1 each in the eleven, 0 in German, 2026-09-04, beta 8 item B8-21 §4
+# (AGENT-R): the "Strip && row labels" frame stopped explaining itself in a
+# paragraph and started explaining itself by its SHAPE. ONE key went away --
+# the forty-word reach note added under B8-14 the day before, translated in
+# German and English everywhere else -- and TWO arrived, the sub-frame titles
+# "Strip letters and row numbers" and "Strip letters only". Net -1 +2 = +1 for
+# the eleven; German is translated for both, so it does not move. The titles
+# are user-facing wording awaiting Basti's ruling (§M-PROPOSED), which is why
+# the eleven carry the English source. These are each language's ACTUAL count.
+#: 2026-09-04, AGENT-S (the buttons under the scanner preview): +2 in every
+#: catalogue but German. "⤢ Pop out for a bigger view" was the longest label in
+#: the window and cost the button block a whole row of its own; it is now
+#: "⤢ Pop out", with the four dropped words moved into a tooltip. So ONE key
+#: went away — translated in all twelve, so it costs nothing here — and TWO
+#: arrived: the short label and its tooltip. Both are new user-facing wording
+#: APPROVED by Basti, 2026-09-04 ("it is ok") — see §M-PROPOSED, "Button
+#: labels … Confirmed behaviour". The eleven still carry the English source, but
+#: for the ordinary beta reason (translation happens before a final, not during
+#: a beta), NOT because anything is still pending. German is translated for both
+#: and does not move. These are each language's ACTUAL count.
+# +1 each in the eleven, 0 in German, 2026-09-04, beta 8 item B8-52 (AGENT-T):
+# the Create Chart panel notices left their sections for the ⓘ they belong to
+# (Basti: *"the info text in create chart tab that is directly inside the
+# sections (even that that you made collapsible) - i want that gone. You can
+# fit it inside of a tooltip where it fits but not directly inside a
+# section"*). Three keys went and two arrived. "Text and label notes" — the
+# collapsible box's title, English in these eleven — simply went, -1. The
+# other two are RENAMES forced by the move, because both sentences pointed at
+# a place that no longer exists: "…tick at least one edge ABOVE" was true of a
+# label under the two tick boxes and false of an ⓘ on the row above them, and
+# the "Show markers for" help ended "ChromIQ says so UNDER THE BOXES". Both
+# were translated in these eleven and both arrive carrying the English source,
+# so that pair is +2. Net -1 +2 = +1. German is translated for both and does
+# not move. These are each language's ACTUAL count.
+#   …and +1 more on top of that, same item, same day: the "Text distance from
+#   edge" help itself ended *"the text overflows toward this line and a margin
+#   warning is shown"*. After the move nothing is SHOWN — the warning is on the
+#   ⓘ beside the measured margins — so that sentence had to be rewritten too,
+#   which retires a key translated in all twelve and adds one carrying the
+#   English source in the eleven. So the item's total is +2 in the eleven and
+#   0 in German.
 _IDENTICAL_TO_KEY = {
     "de": 152,
-    "es": 309, "fr": 329, "it": 321, "ja": 298, "nl": 338,
-    "no": 322, "pl": 313, "pt": 313, "ru": 285, "sv": 326, "zh_CN": 291,
+    "es": 341,
+    "fr": 361,
+    "it": 353,
+    "ja": 330,
+    "nl": 370,
+    "no": 354,
+    "pl": 345,
+    "pt": 345,
+    "ru": 317,
+    "sv": 358,
+    "zh_CN": 323,
 }
 
 

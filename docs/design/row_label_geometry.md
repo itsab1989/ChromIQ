@@ -127,10 +127,14 @@ Consequences, stated so they are not discovered later:
   margin box.
 * **The margin the user asked for can be raised, and never lowered.** It is
   raised only when the labels would otherwise break R1.3, **and when it happens
-  the inspector under the preview says so**, naming the margin asked for, the
-  margin used, where the labels start and how much their text needs. (Before
-  beta 7 this happened in silence: a typed 26 mm resolved to 33.03 mm, a typed
-  10 mm to 33.64 mm, and nothing on screen mentioned it.)
+  it is disclosed on the ⓘ of the "Measured from Preview" panel**, above that
+  panel's standing help — naming the margin asked for, the margin used, where
+  the labels start and how much their text needs. The notice's opening line is
+  also put into that ⓘ's hover tooltip, so an icon carrying one says so without
+  being clicked. (Before beta 7 this happened in silence: a typed 26 mm
+  resolved to 33.03 mm, a typed 10 mm to 33.64 mm, and nothing on screen
+  mentioned it. See §R6 for why the disclosure is on the ⓘ rather than printed
+  under the preview, and who approved that.)
 * **A wider left margin than the labels need is spent between the labels and
   the patches, not on the labels.** They stay where Clip put them. This is the
   behaviour change of beta 7, and it is what makes Clip a control rather than a
@@ -159,7 +163,7 @@ Consequences, stated so they are not discovered later:
 | R1.3 | Labels sat 0.51 mm from the paper edge with the Clip limit set to 15 mm. | The labels can never be closer to the edge than the floor; the margin is raised instead. |
 | R1.4 | Patch-first: patches started at 13.46 mm when 6 mm was asked for. Area-first: patches started at the margin but the labels were clamped at the page edge. | Patches start at the (possibly raised) margin in both modes; the labels sit inside that margin. |
 | R1.5 (raise) | Nothing adjusted anything; with a clip border on the same edge, the labels were printed under it and vanished. | The margin is raised so the labels land clear of the border. |
-| R1.5 (said out loud) | The raise was silent, and the only message that did fire said *"the patches will cover part of each one"* on charts where the labels printed perfectly. | The raise is reported under the preview with both numbers; the stale warning no longer fires on a chart whose margin was raised. |
+| R1.5 (said out loud) | The raise was silent, and the only message that did fire said *"the patches will cover part of each one"* on charts where the labels printed perfectly. | The raise is disclosed with both numbers on the "Measured from Preview" ⓘ (§R6); the stale warning no longer fires on a chart whose margin was raised. |
 
 ---
 
@@ -198,12 +202,69 @@ The exceptions, both deliberate:
 3. **§R2 claimed "The panel says so" about the raised left margin.** No panel
    said anything. Measured: a typed 26 mm resolved to 33.03, 10 → 33.64,
    6 → 14.38, 4 → 8.95, in silence. The message now exists, so the sentence is
-   true; it names where it appears and what it contains.
+   true; it names where it appears and what it contains. **It has since moved,
+   and this document moved with it in the same commit** — see §R6. That is the
+   whole point of this correction: the fault was a document asserting a
+   disclosure that no code made, and the way to not repeat it is to never let
+   the two drift apart, not to keep the disclosure in one particular widget.
 4. **Open point 1 framed the choice as "always raise" versus "warn and leave
    alone".** Knut's §R1.5 is neither: the raise is a *default* and *"User can
    then change the 'Clip' setting as desired."* On beta 6 there was nothing to
    change afterwards, because Clip was inert above the automatic minimum. The
    open point is rewritten below to ask the question that is actually open.
+
+---
+
+## §R6 · Where the raise is disclosed — APPROVED BY BASTI, 2026-09-04
+
+**Approved by:** Basti, 2026-09-04 — *"a tooltip will be enough"*.
+
+R1.5's raise has to be **said out loud**; §R5 correction 3 exists because this
+document once claimed a panel said so while nothing did. What §R2 did not
+settle is *which surface* says it, and on 2026-09-04 that changed.
+
+Basti, on the Create Chart tab as a whole:
+
+> *"regarding the info text in create chart tab that is directly inside the
+> sections (even that that you made collapsible) - i want that gone. You can
+> fit it inside of a tooltip where it fits but not directly inside a section"*
+
+The collapsible box he names is the one built the day before to carry exactly
+this notice (`docs/beta8_open_items.md` B8-38). Because §R2 promised the
+disclosure "under the preview", removing that box would have contradicted this
+specification — so it was **put to him as a specification question before it
+was built**, with the cost of each option stated: a notice printed under the
+preview is SEEN; a notice on an ⓘ is only READ IF ASKED FOR. He ruled:
+
+> *"a tooltip will be enough"*
+
+**So the rule is now:**
+
+* **R6.1** The automatic left-margin raise **must be disclosed**, with the
+  margin asked for, the margin used, where the labels start and how much their
+  text needs. This has not been weakened and is not optional.
+* **R6.2** It is disclosed on the **ⓘ of the "Measured from Preview" panel**
+  (`ui/margin_inspector_panel.py`, `MarginInspectorPanel._show_text_notes` →
+  `TooltipButton.set_live_note`), ahead of that panel's standing help. The same
+  ⓘ carries every other text/label notice for the chart on screen.
+* **R6.3** The notice's opening line also goes into that ⓘ's **hover tooltip**,
+  so an icon that is carrying one says so before it is clicked. Without this
+  the disclosure would depend on a click nobody has a reason to make.
+* **R6.4** Nothing about the raise is printed inside a Create Chart section.
+
+**What this costs, stated plainly, because a future reader should not have to
+re-derive it:** the raise used to be visible on the panel the moment a chart
+was generated, expanded, in warning red. It is now one hover or one click away.
+That is a real reduction in how likely a user is to learn that their typed
+margin was overruled, and it is a reduction Basti chose knowingly.
+
+**How a check can still verify it**, which is the other half of R6.1:
+`MarginInspectorPanel.text_notes()` returns what the panel is currently
+disclosing. `tests/test_the_margin_advice_is_true_of_this_chart.py::
+test_a_live_notice_reaches_the_panels_own_icon` asks for the words, in the
+dialog body and in the hover tooltip; `tests/test_the_notes_left_the_sections_
+for_the_tooltips.py` proves nothing prints them inside a section any more, and
+that the sentence is still readable where it now lives.
 
 ---
 
@@ -228,7 +289,8 @@ Open points that a reviewer should rule on:
 3. **Whether the raised margin should be written back into the recipe** (so it
    is visible in the panel's own spin box and stored) or stay a render-time
    adjustment. Built as render-time, so the number the user typed is still the
-   number they see, with the resolved number reported under the preview.
+   number they see, with the resolved number disclosed on the "Measured from
+   Preview" ⓘ (§R6).
 4. **Whether Clip should also be *defaulted* to "clip border width + 1 mm"** on
    a chart that has both a border and row indicators, as R1.5 offers. Not
    built: Clip is one setting shared with the clip-border and notes text, so

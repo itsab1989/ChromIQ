@@ -1,7 +1,7 @@
 # Unified Measurement Management — Design Specification
 
 > **Revision 2026-08-09 (e) — two approved messages carry a revised print step.**
-> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A), M-VERIFY-CREATE-NO-PROFILE and M-GAMUT-NO-PROFILE (feature B — wording agreed verbatim with Sebastian on #133, 2026-08-02, listed for the formal record), M-IMPORT-MISMATCH and M-IMPORT-DATE-TAKEN (the Measure tab's IMPORT module; its import-done window was approved by Sebastian 2026-08-10), plus the revised M-CHART-VERIFY (W5, reworked after the 2026-08-10 hardware session) and M-HOW-PRINTED (pairing 3 — the measure-time question for sheets ChromIQ did not print), plus M-ALL-STRIPS-PATCHES-LEFT (new, 2026-08-14 — every strip read while patches inside them are not, #156; both are wording only, their bug fixes are already in the code and speak through the log until these are approved), plus M-NO-INSTRUMENT-FAST (new, 2026-08-13 — Knut's ColorMunki was invisible on older hardware until "Faster instrument connection" was switched off, so that variant of the no-instrument window names the shortcut and carries its switch), plus M-ENGINE-FELL-BACK (new, 2026-08-14 — asked for by Knut on #148: ChromIQ's own measuring engine could not use the instrument, so stock chartread took over, which also silences ChromIQ's measurement sounds without saying so) — all defined in the awaiting-review section below, plus M-PATCHSET-MISSING (new, 2026-08-25 — a loaded patch set that had gone from disk wrote one line to the log and built a different chart, in silence), plus M-PROJECT-EXISTS (new, 2026-08-27 — a typed project name that already names a project on disk adopted it in silence; Knut reported it and Basti ruled on when it may appear and what it may offer, but the WORDING is new and waits here), plus M-PROJECT-REPLACE-CONFIRM and M-PROJECT-REPLACE-FAILED (new, 2026-08-27 — the second look before §S4.7's "Replace it" clears a whole project, and the window for the case where its promise cannot be kept), plus M-CR30-STOCK-READER (new, 2026-08-28, #159 — a CR30 chart carries the honest name the device reports for itself, which stock ArgyllCMS chartread refuses outright, so the window names the Preferences control that fixes it) and M-CR30-READ-ENDED (new, 2026-08-28, #159 — the same refusal seen from the other end: an engine run that fails on a CR30 chart has no second reader to fall back to, so the two existing fallback messages, one of which promises that every measured strip will be kept, must not be shown) and M-CR30-MAGNET (new, 2026-08-30, #159 — a magnet recalibrated the instrument mid-chart, which happened to Basti with a MacBook under his paper; the session now stops and offers to retake the white calibration instead of inviting another press) and M-CR30-CALIBRATE-BLACK (new, 2026-08-29, #159 — the dark reference, taken against open air with the instrument's own command, offered by an unticked per-use checkbox so it never becomes a second window on every Start) and M-CR30-CALIBRATE (new, 2026-08-28, #159 — Basti ruled that ChromIQ triggers the CR30's white calibration itself on both transports, which deliberately reverses a documented safety rule; the window's warning is about which face of the cap meets the aperture, not about magnets) and M-CR30-INSTRUMENT-GONE (new, 2026-08-28, #159 — the instrument unplugged mid-measurement and ChromIQ said nothing at all) and M-CR30-PATCH-GAVE-UP (new, 2026-08-28, #159 — one refused reading used to end a CR30 session for ever in silence; refusals are now re-armed and this is the window for when re-arming keeps failing) and M-CR30-HOW-TO-MEASURE (new, 2026-08-28, #159 — every other instrument reaches its "how to measure" window through `calibration_done`, which cannot fire when ChromIQ supplies the values itself, so a CR30 user was given a spot session with no on-screen instruction at all) and M-CR30-READ-FAILED (new, 2026-08-30, #159 — a refused reading was announced only in the log, where Basti did not see it; the behaviour was already right and only the place it was said was wrong, so this is a modeless window that closes itself when the reading arrives) and M-CR30-LEARN-TILE (new, 2026-08-30, #159 — the magnet guard recognised one unit's stored white-tile value because it was hard-coded from that unit; every other owner had no protection at all, so ChromIQ now learns it from a single capped press) and M-CR30-TRIGGER-NOT-ARMED (new, 2026-08-30, #159 — taking the reading from the keyboard is measurably steadier than pressing the instrument's button, but a reading ChromIQ asks for cannot report the magnet gate, so it is refused until that instrument's tile is known), plus M-IMPORT-REPLACE-CONFIRM, M-IMPORT-REPLACE-PROJECT-CONFIRM and M-IMPORT-REPLACED-KEPT (new, 2026-08-31 — importing a measurement or a chart under a name that is already a project asked the question in each loader's own words AND with its own consequence: one said “Overwrite existing folder” and destroyed the project outright, the other said “Replace” and archived it. Basti ruled that the consequence and the vocabulary are shared with §S4.7 while the window stays the loaders' own, because theirs carries a name box and a live “this name is taken” line that §S4.7's has no room for; the third message exists because nothing anywhere told the person where their replaced project had gone) and M-INSTRUMENT-BUSY (new, 2026-09-02, #159 — Tools ▸ Read single patches now reads a CR30 with ChromIQ's own driver, which is the first time two windows can reach for one instrument; every existing guard answers from process state and cannot see a reader that spawns no process, and the instrument hands its last reading to whoever asks, so the fault it prevents is a plausible wrong colour rather than an error), plus M-SPOT-CLEAR and M-SPOT-UNSAVED (new, 2026-09-03 — Tools ▸ Read single patches could throw a whole measuring session away in silence by two separate routes: Clear had no question and no undo, and Close, the red window button and Escape all discarded the readings without a word. Knut found the first of them by pressing the spacebar, which the Measure tab uses as the reading trigger), plus M-SCAN-REF-SHORT, M-SCAN-REF-DISAGREES, M-SCAN-CLIPPED and M-SCAN-PROFILE-ARCHIVED (new, 2026-09-03 — review 5 of Tools ▸ Build profile with scanner or camera found the app building a profile from data that is not the chart it thinks it is, with every indicator on screen green: a reference file holding a correct SUBSET of the target builds from a sixth of the sheet and scores BETTER on colprof's own self-check than the correct build, an upside-down scan passes every pre-build check, and a scan with two of every five patches clipped to white builds clean and silent. The mechanisms are in the code and can ship ahead of these words; the fourth message says where a rebuilt profile's predecessor went, now that it is archived instead of overwritten) — all defined in the awaiting-review section below.
+> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A), M-VERIFY-CREATE-NO-PROFILE and M-GAMUT-NO-PROFILE (feature B — wording agreed verbatim with Sebastian on #133, 2026-08-02, listed for the formal record), M-IMPORT-MISMATCH and M-IMPORT-DATE-TAKEN (the Measure tab's IMPORT module; its import-done window was approved by Sebastian 2026-08-10), plus the revised M-CHART-VERIFY (W5, reworked after the 2026-08-10 hardware session) and M-HOW-PRINTED (pairing 3 — the measure-time question for sheets ChromIQ did not print), plus M-ALL-STRIPS-PATCHES-LEFT (new, 2026-08-14 — every strip read while patches inside them are not, #156; both are wording only, their bug fixes are already in the code and speak through the log until these are approved), plus M-NO-INSTRUMENT-FAST (new, 2026-08-13 — Knut's ColorMunki was invisible on older hardware until "Faster instrument connection" was switched off, so that variant of the no-instrument window names the shortcut and carries its switch), plus M-ENGINE-FELL-BACK (new, 2026-08-14 — asked for by Knut on #148: ChromIQ's own measuring engine could not use the instrument, so stock chartread took over, which also silences ChromIQ's measurement sounds without saying so) — all defined in the awaiting-review section below, plus M-PATCHSET-MISSING (new, 2026-08-25 — a loaded patch set that had gone from disk wrote one line to the log and built a different chart, in silence), plus M-PROJECT-EXISTS (new, 2026-08-27 — a typed project name that already names a project on disk adopted it in silence; Knut reported it and Basti ruled on when it may appear and what it may offer, but the WORDING is new and waits here), plus M-PROJECT-REPLACE-CONFIRM and M-PROJECT-REPLACE-FAILED (new, 2026-08-27 — the second look before §S4.7's "Replace it" clears a whole project, and the window for the case where its promise cannot be kept), plus M-CR30-STOCK-READER (new, 2026-08-28, #159 — a CR30 chart carries the honest name the device reports for itself, which stock ArgyllCMS chartread refuses outright, so the window names the Preferences control that fixes it) and M-CR30-READ-ENDED (new, 2026-08-28, #159 — the same refusal seen from the other end: an engine run that fails on a CR30 chart has no second reader to fall back to, so the two existing fallback messages, one of which promises that every measured strip will be kept, must not be shown) and M-CR30-MAGNET (new, 2026-08-30, #159 — a magnet recalibrated the instrument mid-chart, which happened to Basti with a MacBook under his paper; the session now stops and offers to retake the white calibration instead of inviting another press) and M-CR30-CALIBRATE-BLACK (new, 2026-08-29, #159 — the dark reference, taken against open air with the instrument's own command, offered by an unticked per-use checkbox so it never becomes a second window on every Start) and M-CR30-CALIBRATE (new, 2026-08-28, #159 — Basti ruled that ChromIQ triggers the CR30's white calibration itself on both transports, which deliberately reverses a documented safety rule; the window's warning is about which face of the cap meets the aperture, not about magnets) and M-CR30-INSTRUMENT-GONE (new, 2026-08-28, #159 — the instrument unplugged mid-measurement and ChromIQ said nothing at all) and M-CR30-PATCH-GAVE-UP (new, 2026-08-28, #159 — one refused reading used to end a CR30 session for ever in silence; refusals are now re-armed and this is the window for when re-arming keeps failing) and M-CR30-HOW-TO-MEASURE (new, 2026-08-28, #159 — every other instrument reaches its "how to measure" window through `calibration_done`, which cannot fire when ChromIQ supplies the values itself, so a CR30 user was given a spot session with no on-screen instruction at all) and M-CR30-READ-FAILED (new, 2026-08-30, #159 — a refused reading was announced only in the log, where Basti did not see it; the behaviour was already right and only the place it was said was wrong, so this is a modeless window that closes itself when the reading arrives) and M-CR30-LEARN-TILE (new, 2026-08-30, #159 — the magnet guard recognised one unit's stored white-tile value because it was hard-coded from that unit; every other owner had no protection at all, so ChromIQ now learns it from a single capped press) and M-CR30-TRIGGER-NOT-ARMED (new, 2026-08-30, #159 — taking the reading from the keyboard is measurably steadier than pressing the instrument's button, but a reading ChromIQ asks for cannot report the magnet gate, so it is refused until that instrument's tile is known), plus M-IMPORT-REPLACE-CONFIRM, M-IMPORT-REPLACE-PROJECT-CONFIRM and M-IMPORT-REPLACED-KEPT (new, 2026-08-31 — importing a measurement or a chart under a name that is already a project asked the question in each loader's own words AND with its own consequence: one said “Overwrite existing folder” and destroyed the project outright, the other said “Replace” and archived it. Basti ruled that the consequence and the vocabulary are shared with §S4.7 while the window stays the loaders' own, because theirs carries a name box and a live “this name is taken” line that §S4.7's has no room for; the third message exists because nothing anywhere told the person where their replaced project had gone) and M-INSTRUMENT-BUSY (new, 2026-09-02, #159 — Tools ▸ Read single patches now reads a CR30 with ChromIQ's own driver, which is the first time two windows can reach for one instrument; every existing guard answers from process state and cannot see a reader that spawns no process, and the instrument hands its last reading to whoever asks, so the fault it prevents is a plausible wrong colour rather than an error), plus M-SPOT-CLEAR and M-SPOT-UNSAVED (new, 2026-09-03 — Tools ▸ Read single patches could throw a whole measuring session away in silence by two separate routes: Clear had no question and no undo, and Close, the red window button and Escape all discarded the readings without a word. Knut found the first of them by pressing the spacebar, which the Measure tab uses as the reading trigger), plus M-SCAN-REF-SHORT, M-SCAN-REF-DISAGREES, M-SCAN-CLIPPED and M-SCAN-PROFILE-ARCHIVED (new, 2026-09-03 — review 5 of Tools ▸ Build profile with scanner or camera found the app building a profile from data that is not the chart it thinks it is, with every indicator on screen green: a reference file holding a correct SUBSET of the target builds from a sixth of the sheet and scores BETTER on colprof's own self-check than the correct build, an upside-down scan passes every pre-build check, and a scan with two of every five patches clipped to white builds clean and silent. The mechanisms are in the code and can ship ahead of these words; the fourth message says where a rebuilt profile's predecessor went, now that it is archived instead of overwritten), plus M-SCAN-DARK, M-SCAN-FIT-UNSUPPORTED and M-SCAN-SELFCHECK-UNUSABLE (new, 2026-09-04 — beta 8 items B8-01 and B8-03, the two places where the same window tells the user a bad profile is a good one. Every guard in it is scale-invariant and an exposure slip is pure scale, so an under-exposed scan passes all of them in silence and builds a profile 21.7 ΔE out; and colprof's self-check is measured against the rows it was fitted to, so it is smallest exactly when there is least to fit — a one-colour reference scores a perfect 0.007 and a profile whose white point is nan is not checked at all, both ending "Install it as your scanner's input profile"), plus M-SCAN-LOADED and M-SCAN-DIAGNOSTIC (new, 2026-09-03, beta 8 items B8-16 and B8-15 — the same window said nothing at all when a scan was loaded, so a 24-patch photograph loaded under a 288-patch target left an empty log and a live Run button; and it accepted one of ArgyllCMS's own diagnostic images as a scan, which Knut did in his beta.7 log, and then reported a misplacement that was not real about a read that had been fine), plus M-SCAN-ALIGN-NO-BETTER (revised wording only, 2026-09-04, beta 8 item B8-42 — the headline is unchanged and approved; the body used to describe the recogniser alone, and the merged placement button reaches this ending only when the search AND the reshaping have both declined, so it now says both and names “Check alignment”, the one check in the window that can tell a grid one whole patch out from the right answer), plus M-SCAN-CONVERTED and M-SCAN-FIT-TOO-FAR (new, 2026-09-04, beta 8 — the photograph path, revised the same day for B8-42's merged placement button. The window offers “a scan or photo” and Argyll reads TIFF only, so a camera JPEG aligned perfectly on screen and then failed inside scanin; and a sheet that is bowed AND photographed at an angle is read wrongly at its own corners — measured over 48 bow × lens × tilt conditions, each distortion alone costs nothing and two together put 102 patches over 1 ΔE00, which is why the four corners can now be reshaped onto the patches under a bound of three quarters of a patch pitch. Four further messages written for that button on the same day are WITHDRAWN, never having been approved — they are named and accounted for in the awaiting-review section below, and they went with the button itself, which B8-42 merged into Auto align), plus M-SCAN-ALIGN-NOT-SEATED (revised wording, 2026-09-04, beta 8 items B8-02 and B8-42 — Auto align's seventh refusal, and the first one about geometry rather than colour. The quad it is able to return is always a rotated rectangle, so a sheet photographed off square gets a grid that is systematically wrong — and every check it had looks at the chart's COLOURS, which a shear does not disturb because the patches keep their brightness order while sliding onto their neighbours. Measured at 8 degrees of compound tilt: 20 of 23 targets accepted, ten of them more than half a patch out, while the window printed “agrees … to 0.98” beside its own sentence “anything below 0.80 is refused”. Its body is reworded for B8-42 because the placement it refuses may now have come from reshaping the user's own corners rather than from the recogniser, so “it found the chart, but …” would not always be true), plus M-SCAN-SHOT-EMPTY and M-SCAN-TARGET-CHANGED (new, 2026-09-04, beta 8 item B8-32 — two silences in the same window found by the regression sweep: an averaging slot left empty is dropped without a word, so the window shows “Scan 2 of 2” while the build reads one scan and averages nothing; and changing the Target type discards the loaded scan, its placement and every other shot on the page, into a log that is cleared in the same block) — all defined in the awaiting-review section below.
 > **Withdrawn, never approved:** the patch-set sibling of the message above was removed on 2026-08-26 without reaching the catalogue. Ticking “Edit patch recipe (override preset)” already opens a window saying the loaded patches will be replaced, and that box is shown for a patch set the user loaded themselves, not only for a built-in preset — so a second window at Generate time would have interrupted a decision the user had already made and acknowledged. Knut, 4.1.3-beta.17: *“there is already a message when clicking the ‘Edit patch recipe’ warning of consequences … that warning should be sufficient for a user.”* Checked against the existing text before removal.
 
 > Both were approved by Knut on 2026-08-04, but one step in each instructed *"(with colour management on)"* — a setting ChromIQ deliberately locks **off** on every print path, so the approved text told the user to do something the app prevents (established in `verification_printing_and_target.md` §1, and A0.1 of its plan). With feature A the instruction has a real control to name — the Print Chart tab's **Colour** row — so that one step is revised and the revision waits in §M-PROPOSED. Every other message in §M remains approved as before: the last, **M-BUILD-ELSEWHERE**, was accepted on 2026-08-04 — *"Message M-BUILD-ELSEWHERE accepted"* — and M-CHART-CORRUPT, M-REPLACE-UNCOUNTABLE and M-PREVIEW-PAUSED the day before. A new message goes to §M-PROPOSED first, and `tests/test_message_catalogue.py` fails if one is added to the code without it.
@@ -1182,17 +1182,6 @@ told a feature cannot work needs to know how far the trouble reaches.*
 > **Auto align left your corners exactly where they are**
 >
 > The chart definition for this target does not record where its patches sit, and that is what Auto align needs to work. Place the four corners yourself; everything else in this window works normally.
-
-### M-SCAN-ALIGN-NO-BETTER · the user's own placement is already the better one — Tools ▸ Build profile with scanner or camera
-
-*Approved by Basti, 2026-09-03. New for 4.1.5. Not a failure: Auto align only
-moves the corners when it beats where they already are by a margin, so a user
-who has already placed them well is told that, and nothing moves under their
-hands.*
-
-> **Auto align left your corners exactly where they are**
->
-> It searched, and your own placement is already the closer match, so there was nothing to improve.
 
 ### M-SCAN-ALIGN-DONE · Auto align moved the corners — Tools ▸ Build profile with scanner or camera
 
@@ -2572,6 +2561,485 @@ folder moves nothing and says nothing.*
 > **The profile that was here has moved to this folder, and nothing in it was deleted:**
 >
 > {folder}
+
+### M-SCAN-DARK · PROPOSED · the scan never reached the top of the scale — Tools ▸ Build profile with scanner or camera
+
+*New for 4.1.5, beta 8, item B8-01. The opposite twin of M-SCAN-CLIPPED, and the
+one nothing in the window could see. Every other guard here is
+**scale-invariant** and an exposure slip is **pure scale**: darkening Knut's own
+Wolf Faust sheet by 30 % leaves the reference coverage unchanged, the rank
+agreement unchanged to three decimals (+0.9839 → +0.9838) and the clipped share
+unmoved by a single patch. The build is silent from end to end, and the profile
+it produces is **21.7 ΔE** out against a correctly exposed read of the same
+sheet. At ×0.18 it is **177.9 ΔE** out, peak 335.7, and still silent.*
+
+*colprof's own self-check cannot see it either, because it is computed against
+the same dark data: across the whole ladder it moves only 1.93 → 2.59, against
+limits of 30 and 12.*
+
+*Shown as a line in the pre-build warning window, beside the clipping line it
+mirrors. `{pct}` is where the chart's own white patches landed on the device
+scale.*
+
+*The measure is the median of the **largest device channel** over the patches
+the reference calls near-white (Y within 5 % of the reference's own brightest).
+A properly exposed scan puts the chart's brightest patch near the top of the
+scale, because that is what setting the exposure means, and it is the one
+statement about level that survives a change of scanner — every encoding curve
+fixes white. Three cheaper measures were built and thrown away, each killed by a
+legitimate scan beating an under-exposed one: the **mean** device level (a
+transparency's tone scale 28.04 against ×0.70's 27.27), the **black patch above
+zero** (matte paper 14.52 against ×0.70's 5.04 — upside down), and the white
+patch's **luminance** rather than its max channel (a cool cast 66.28 against
+×0.85's 66.88).*
+
+*The floor is **60**, and it comes from 74 reads: Knut's ten real IT8 sheets on
+two targets read **72.92 – 79.82**; this session's own re-reads of his two
+full-resolution scans, 74.84 and 79.77; the app's own demo scan for all 25
+bundled and ArgyllCMS targets, **80.96 – 94.34**; nine legitimate variations
+built from his scans — a gamma-1.8 scanner, a gamma-2.6 scanner, matte paper, a
+transparency tone scale anchored at the medium's Dmin, a warm cast, a cool cast,
+a scanner running 12 % hot, 16-bit and JPEG q12 — **69.57 – 83.86**. Against
+that, ×0.85 reads 67.84, ×0.70 reads 55.85 and 52.43 on the two targets, ×0.45
+reads 35.87 and 33.71, ×0.18 reads 14.47. A floor of 60 is 9.6 points under the
+worst legitimate case measured and 12.9 under the worst that came off real
+hardware.*
+
+*It says nothing at all when the reference names no near-white patch — a low-key
+target has no exposure to judge against. Measured on a deliberately dark chart
+(every reference value scaled to 0.28 and the scan darkened to match) the level
+reads 44.1, which would be an accusation; the reference's own brightest patch
+reads Y = 22.97, and the check declines instead.*
+
+*And it deliberately lets a half-stop slip through. ×0.85 at 67.84 sits 1.7
+points under the harshest legitimate case and cannot be separated from it. That
+profile is 9.5 ΔE out, which is not free — but a window that fires on a
+legitimate scan is worse, because the same user then clicks past the ×0.70 one.*
+
+> **This scan came out darker than it should be**
+>
+> The white patches on this target came out at {pct} of your scanner’s brightness range. On a scan exposed for this target they sit just under the top of that range, and getting them there is what the brightness or exposure setting in your scanning software is for.
+
+Nothing later in ChromIQ would tell you. A dark scan is not harder to describe than a bright one: it passes every other check in this window, and the quality number you are shown at the end of the build is worked out from this same dark reading, so it comes out looking just as good. What changes is the profile itself — it would describe your scanner in a state you are unlikely to set up again, so it would not match your everyday scans.
+
+Scan the target again with the brightness or exposure turned back up in your scanner’s own software — not in ChromIQ, which never changes your scan — so that the white patches sit just below the top of the scale without touching it.
+
+One exception: if you are scanning a transparency or a negative, a low reading here can be normal for that medium. Check the exposure before you go on, but you may find nothing is wrong.
+
+### M-SCAN-FIT-UNSUPPORTED · PROPOSED · the reference gives too few colours to fit a profile to — Tools ▸ Build profile with scanner or camera
+
+*New for 4.1.5, beta 8, item B8-03, the half that can be caught before the
+build. colprof's self-check is measured against the very rows it was fitted to,
+so it is **smallest exactly when there is least to fit**. A reference whose every
+`SAMPLE_ID` reads `A1` leaves one row and scores `peak err = 0.007339, avg err =
+0.007339` — a better mark than any correct build in this document — and the log
+ends "Install it as your scanner's input profile". A reference whose every value
+reads `0.00` leaves 288 rows of ONE colour, sends colprof's Powell fit to
+`residual error = nan`, and lands a 26 KB profile whose white point is `nan nan
+nan`, with the same closing line.*
+
+*An error FLOOR cannot separate these, and the number that proves it is the
+app's own: the bundled ColorChecker demo builds at `avg err = 0.059311` — a
+legitimate, shipped case only eight times above the degenerate one, with a cLUT
+build on real data at 0.462 in between. Counting the **distinct** colours can:
+**1** for both degenerate references, against **21** for the smallest target
+ChromIQ or ArgyllCMS ships (`MLG`), 24 for a ColorChecker, 288 for Wolf Faust
+and 864 for the ISO 12641-2. The floor is **10** — under half the smallest
+legitimate case and ten times the degenerate one.*
+
+*Shown as a line in the pre-build warning window. It catches the all-zero
+reference squarely, where the existing agreement check caught it only by a
+whisker (ρ = 0.246 against a floor of 0.25), and it catches it **before** colprof
+spends two minutes converging on nan. `{support}` is the number of distinct
+colours.*
+
+> **This reference file describes too few colours to build a profile from**
+>
+> The reference file names only {support} different colours for this target. A profile describes how your scanner answers to colour, and that cannot be worked out from so few.
+
+ChromIQ can still build one, and it would pass its own quality check easily — when there is almost nothing to match against, almost any answer matches. The quality number you are shown at the end of the build would look better than a correct profile’s, and it would mean nothing at all.
+
+In the “{ref_row}” row, choose the reference file that came with your target. It lists a different colour for every patch on the sheet.
+
+*Singular, when the whole reference holds ONE colour — which is what both of
+beta 8's degenerate references reduce to:*
+
+> The reference file names the same colour for every patch it lists. A profile describes how your scanner answers to colour, and that cannot be worked out from a single one.
+
+ChromIQ can still build one, and it would pass its own quality check perfectly — when there is nothing to match against, any answer matches. The quality number you are shown at the end of the build would look better than a correct profile’s, and it would mean nothing at all.
+
+In the “{ref_row}” row, choose the reference file that came with your target. It lists a different colour for every patch on the sheet.
+
+### M-SCAN-SELFCHECK-UNUSABLE · PROPOSED · colprof's own quality check produced no number — the scanner window's log
+
+*New for 4.1.5, beta 8, item B8-03, the half that can only be caught after the
+build. `_PROFCHECK_RE` matched only digits and dots, so colprof's `avg err = nan`
+line did not match at all: `found` came back empty and the verdict returned on
+its `if not found` line. **The one case where the check had the most to say was
+the one case it could not read.** Even parsed, `0.0 <= 30.0` would have
+short-circuited the `or`. The build then wrote "[OK] Scanner profile saved" and
+"Install it as your scanner's input profile" over a profile whose white point is
+`nan nan nan`.*
+
+*Two lines in the log the build is already streaming into, in the same place as
+the existing self-check warning, and it grades the Install button the same way —
+"Install Profile Anyway", which is existing wording. `{raw}` is what colprof
+actually printed, so the log names its own evidence.*
+
+*No false-positive cost worth stating: a finite fit never reads `nan`.*
+
+> **This profile could not be checked**
+>
+> After building a profile, ChromIQ asks how closely it matches the colours it was built from, and shows you the answer as a quality number. This time no number came back at all — the answer was “{raw}”, which is what happens when the measurements handed over had nothing in them to match against.
+
+So the file on disk is a profile in name only, and nothing has confirmed that it describes your scanner. Treat it as unchecked: read the warnings above, put right what they name, and build again before you use it for anything.
+
+### M-SCAN-LOADED · PROPOSED · what has just been loaded, and that nothing has been checked yet — the scanner window's log
+
+*New for beta 8, item B8-16. Loading a scan under the wrong Target type produced
+an **empty log**, a live Run button and a 288-cell mesh drawn confidently across
+a 24-patch photograph. Pressing Run does fire two automatic guards before
+colprof — the reference-agreement test at −0.22 and the placement check at
+0.00 % — so this is **not** a silent wrong profile, and it must not be reported
+as one. What it is: for as long as the user cares to look, the window is
+authoritative about a placement that cannot be right, and it invites them
+straight past it.*
+
+*A load-time mismatch DETECTOR is not proposed, because at load time the app has
+read nothing and cannot honestly know. What it can do is stop being silent: say
+what was loaded, say what it is about to be read as, and say that nothing has
+been checked yet. The check that can answer the question is named, because it is
+the button beside it.*
+
+*Not a window: two lines in the log the window already writes into, on every
+successful load — the matching case as well as the mismatched one, because a
+line that appears only when something is wrong teaches the user nothing about
+what right looks like.*
+
+> **Scan loaded**
+>
+> {file} — {w} × {h} pixels. It will be read as “{target}”, which has {n} patches.
+> Nothing has been checked yet. Place the grid over the patch area, then press Check alignment — that reads the scan and says whether the grid is really on the patches.
+
+### M-SCAN-ALIGN-NOT-SEATED · PROPOSED · Auto align found the chart and the grid does not sit on the patches — Tools ▸ Build profile with scanner or camera
+
+*New for 4.1.5, beta 8, item B8-02. The seventh Auto align refusal, and the
+first one about GEOMETRY rather than about colour. Every other check in
+`workflow/scan_auto_align.py` scores the placement against the chart's known
+colours, and the quad Auto align is able to return is always a rotated
+rectangle — `corners_from_candidate` builds it from a rotation and two scales,
+so its two edge vectors are orthogonal by construction. A sheet photographed
+even slightly off square is a keystone, which a rectangle cannot be, so the grid
+comes out systematically wrong: right in the middle of the sheet and worst at
+one corner. **A rank correlation cannot see that**, because the patches keep
+their brightness ORDER while they slide onto their neighbours.*
+
+*Measured with a pinhole camera at three sheet-widths and a compound pitch+yaw
+tilt — what a hand holding a phone actually does. At **8 degrees**, 20 of 23
+bundled targets accepted the answer and **ten of them were more than half a
+patch pitch out**, which is the point at which a sample box reads the
+neighbouring patch; the window printed “agrees … to 0.98” beside its own
+sentence “anything below 0.80 is refused”. Knut's LaserSoft target was 0.921
+pitch out at 0.98; LaserSoftDCPro 0.426 out at **1.00**. Costed end to end on
+Knut's real Wolf Faust scan at 10 degrees: 33 of 288 patches move by more than
+3 ΔE00, six by more than 10, and the resulting scanner profile differs from the
+correct one by a median **2.23 ΔE00** with 320 of 343 device grid points over
+1 ΔE00, against a harness floor of 0.78.*
+
+*The gate is `seating_drift`: for every patch box, the offset that would seat it
+on flat colour, shrunk by how much moving it actually helped, averaged over a
+4×4 grid of chart regions, in patch pitches. Noise cancels inside a region; a
+keystone does not.*
+
+*Measured over three populations: 600 camera views of 25 targets; 216 CROSSED
+views carrying a paper bow, a lens distortion and a tilt at once; and the
+38-case challenge set at its own ground truth plus Knut's two real scans and
+nine legitimate degradations of his sheet. **328 correct placements read 0.0631
+or less** — the single worst a 24-patch half Passport at 15 degrees, with Knut's
+own scan plus heavy noise next at 0.0583 and his untouched scans at 0.0175 and
+0.0139 — while **106 placements more than half a pitch out read 0.0989 or
+more**. Every value from **0.065 to 0.095** gives the same two counts: **0 false
+refusals in 328, and 106 of 106 wrong answers refused**. The limit is **0.075**,
+1.19× above the worst correct placement and 1.32× below the worst wrong one.*
+
+*The false-refusal cost is stated rather than implied: this refuses nothing that
+Auto align places correctly today, and it refuses the barrel- and
+pincushion-distorted photographs where **no** four corners can seat the patches
+(Agent G's lens measurements: an ordinary phone lens already costs 6 patches
+over 3 ΔE at the best possible quad, a pincushion 39). Those were being accepted
+at rho 0.98 and are now refused, which is the right answer for them.*
+
+*What it does NOT catch, said plainly: about half of the placements between a
+quarter and half a patch pitch out — where the sample box overhangs its patch
+border but does not reach the neighbouring patch. 126 of 252 of those are
+refused. Nearly all the survivors are lens-distorted photographs at low tilt.*
+
+*A refusal, not a warning, and this is the one place in the scanner window where
+that is the right shape: the harm is a confidently wrong profile, the user loses
+nothing (their own corners are untouched), and dragging four corners by hand
+always works.*
+
+> **Auto align left your corners exactly where they are**
+>
+> It found the chart, but the patches in the picture do not sit where that grid would put them: towards one edge of the sheet the grid would read part of the neighbouring patch, and a profile built from that is wrong without looking wrong.
+
+This is what a photograph taken at a slight angle does — the sheet further from the camera comes out smaller, and no rectangle fits both ends of it. A flatbed scan does not have the problem at all.
+
+Scan the sheet, or photograph it square-on with the camera above the middle of it — or drag the four corners onto the chart yourself, which always works and is what the grid is for.
+
+### M-SCAN-DIAGNOSTIC · PROPOSED · a scanin diagnostic image offered as a scan — the scanner window's log
+
+*New for beta 8, item B8-15. Knut did this in his own beta.7 session
+(`chromiq.log`, 15:30): he picked `diagnosticReadLSTarget01.tif` — an output of
+`scanin -dipn`, a picture OF a read — as the scan. The app took it without a
+word, and the alignment check then reported a misplacement that was not real
+("sample boxes sit on patch edges, worst 73.80 %") about a read that had been
+fine. ChromIQ writes one of these into `cache/` beside every scan it reads, so
+it is an easy file to pick again by mistake.*
+
+*Recognised from the pixels, not from the file name: his was written by his own
+`scanin` command and is called nothing ChromIQ would write. Measured at full
+resolution over three diagnostics and twenty real scans and photographs
+(`workflow/scan_diagnostic_image.py` carries the table): a diagnostic is 60–66 %
+exactly neutral and 0.7–3.4 % Argyll's annotation colour, while no real scan in
+the set had a single pixel of that colour. Both signatures must hold, because
+the neutral fraction alone reached 45 % on a JPEG at quality 12.*
+
+*A WARNING, not a refusal. The harm is a false verdict, not a bad profile, and a
+detector measured on three files should not be able to lock a user out of their
+own scan. Written into the log at load time, so the user meets it before the
+false verdict rather than after it.*
+
+> **This looks like a diagnostic image, not a scan**
+>
+> ChromIQ writes one of these after every read: your scan turned grey, with the colour painted back only where ArgyllCMS sampled it, and the patch names drawn on top. It is a picture of a read, not something that can be read again.
+>
+> The grid cannot line up on it, and the alignment check will report a misplacement that is not real. Load the original scan of your target instead — diagnostic images live in the “cache” folder beside it and are safe to delete.
+
+### M-SCAN-CONVERTED · PROPOSED · a photograph converted so ArgyllCMS can read it — the scanner window's log
+
+*New for beta 8, agent L. The window's own subtitle offers “a scan **or photo**
+of the target”, and the file picker's “All files” entry lets a camera JPEG be
+chosen. Qt decodes it happily into the preview, the marquee aligns on it, the
+Run button goes live — and `scanin` then exits with* `Not a TIFF or MDI file,
+bad magic number` *at the very end of the job, worded as an Argyll file error.
+Measured here on a real camera JPEG.*
+
+*ChromIQ now writes a TIFF copy and reads that. Said out loud rather than
+silently, because a file the app has substituted for the one the user chose is
+not the user's file any more, and the two questions they will have — “was
+anything done to my colours?” and “was my original changed?” — are both answered
+here. A file that is already a TIFF is not copied, not re-encoded and not
+opened: that is the flatbed path and it stays exactly what it was.*
+
+> **This photograph was converted for reading**
+>
+> ArgyllCMS reads TIFF images only, and {file} is not one. ChromIQ made a TIFF copy of it and will read that; your own file is not changed. The copy holds the same pixels — nothing has been sharpened, resized or colour-managed.
+
+### WITHDRAWN on 2026-09-04, never approved — the separate “Fit to the patches” button's own four messages
+
+*B8-42 merged “Auto align” and “Fit to the patches” into one button, on the
+measurement that neither was useless and neither was a subset of the other: over
+290 starting placements there are 139 cases only the search recovers and 30 only
+the reshaping does, and one button that searches, then reshapes, then checks
+lands 244 of the 290 on the patches where pressing both landed 226. With the
+second button gone, four of the messages written for it describe states the user
+can no longer reach, and every ending the merged button HAS is told in Auto
+align's own approved words:*
+
+* **M-SCAN-FIT-DONE** — “The grid was fitted to the patches”. There is one
+  success now, M-SCAN-ALIGN-DONE, and it is approved. This one also quoted a
+  number that was true only of the reshaping step: on screen, on Knut's own Wolf
+  Faust scan, it said “moved your corners by up to 0.54 of a patch” while the
+  grid was 1.54 patches out.
+* **M-SCAN-FIT-NO-BETTER** — “The grid was left exactly where you put it”.
+  The approved M-SCAN-ALIGN-NO-BETTER says the same thing, and now covers it.
+* **M-SCAN-FIT-NOTHING** — the button pressed before there was anything to look
+  at. The approved M-SCAN-ALIGN-NO-INPUT is that state.
+* **M-SCAN-FIT-NOT-SEATED** — the reshaped answer failing the picture check.
+  There is one picture check now, at the end, on whatever placement is about to
+  be applied, and M-SCAN-ALIGN-NOT-SEATED is its refusal.
+
+### M-SCAN-ALIGN-NO-BETTER · PROPOSED (revised wording) · nothing could be improved on the corners the user placed — Tools ▸ Build profile with scanner or camera
+
+*The headline was approved by Basti on 2026-09-03 and is unchanged. The BODY is
+rewritten for B8-42 and is back in the queue for that reason.*
+
+*What changed under it: this used to be the recogniser's own ending, reached
+when its answer did not beat the placement on screen by a margin. The merged
+placement button reaches it only when BOTH halves of the operation have
+declined — the search found nothing better, and the reshaping then found
+nothing worth moving the corners for — so a body that describes only the search
+would describe half of what happened.*
+
+*The second half of the body is the part that matters, and it is new. This
+ending is a statement about what was searched and is NOT a statement that the
+placement is right: a grid exactly one patch out reads every patch as its
+neighbour and is, to everything measured inside the sample boxes, identical to
+the right answer. The wording therefore says what happened, refuses the claim it
+cannot make, and names the one check in this window that can tell the two apart
+— which the approved version did not do.*
+
+> **Auto align left your corners exactly where they are**
+>
+> ChromIQ searched the picture for the chart, and then looked around the four corners you placed for a better place to put the grid. Neither found one worth moving them for — what you have is already the closest match it can see.
+> That is not the same as saying the grid is on the right patches: a grid a whole patch out reads every patch as its neighbour and looks just as even. Press “Check alignment” below — that reads the scan and can tell the difference.
+
+### M-SCAN-FIT-TOO-FAR · PROPOSED · nothing was found, and the corners cannot be improved from where they are — the scanner window's log
+
+*Beta 8. Written for agent L's separate “Fit to the patches” button and REWRITTEN
+for the merged one (B8-42): from beta 8 the scanner window has ONE placement
+button, which searches the picture for the chart, reshapes what it finds — or,
+when nothing is found, the four corners the user placed — onto the patches, and
+checks the result before anything moves. This is the ending where the search had
+no diagnosis of its own and the reshaping then found its best placement further
+away than it is allowed to move. Measured over 290 starting placements, 2 end
+here.*
+
+*The refusal carries the safety rule, so it says what the rule is: past three
+quarters of a patch pitch the “same patch, better centred” reading of the answer
+stops being the only one, and the wrong reading looks exactly as convincing.
+Measured: from a placement 0.35 of a patch out on a sheet bowed 5.5 % and tilted
+15 degrees the reshaping wants 0.85 of a pitch, and is refused; the user moves
+the corners closer and it lands.*
+
+*The arithmetic in the first version was wrong twice over — it said “more than
+half a patch” of a limit that is three quarters, and “half a patch further and
+the grid would be reading the neighbouring patch” of a distance that is a
+quarter. The headline is now the one every other refusal from this button
+carries, because after a refusal the first thing the user needs to know is that
+they have lost nothing.*
+
+> **Auto align left your corners exactly where they are**
+>
+> ChromIQ looked around the four corners you placed for a better place to put the grid, and the best one it found is further than three quarters of a patch away from them. That is as far as it will move your corners by itself: one whole patch and the grid would be reading the neighbouring squares, which looks just as convincing and is completely wrong.
+> Drag the four corners onto the chart’s patch area, as close to the real patches as you can get them, and press Auto align again.
+
+### M-SCAN-SHOT-EMPTY · PROPOSED · an averaging slot left empty — the scanner window's log
+
+*New for beta 8, item B8-32 (regression-sweep finding F-7). Press
+**＋ Add another scan to average** and stop there. The shot bar reads
+"Scan 1 / Scan 2", `_page_ready` asks only `any(s["path"] …)` so the Run button
+stays live, and the build runs **one** `scanin`, no averaging step, and ends
+`[OK] Scanner profile saved` exactly as if one scan had been asked for. Driven
+end to end in the real window (sweep check J32): two slots, one file, one
+scanin call, and nothing said on screen or in the log.*
+
+*A sentence, not a refusal. What happens is a legitimate build from fewer scans
+— not a wrong profile — and this window's rule for that case is already set
+(B8-15: warn, never lock the user out of their own file). A Run button that
+greys out with no reason attached would be a new silence rather than the end of
+one.*
+
+*One message, not a singular and a plural: every count in it is a bare number in
+a clause that does not inflect around it.*
+
+> **An empty scan slot was skipped**
+>
+> This page has {slots} scan slots, and a file has been picked for {filled} of them. An empty slot is not read and nothing is averaged with it, so this build uses only the scans that are there.
+> If you meant to average repeated scans of this page, pick a file for each empty slot and build again. If a slot was added by mistake, “Remove this scan” takes it away.
+
+### M-SCAN-TARGET-CHANGED · PROPOSED · the scan a target-type change throws away — the scanner window's log
+
+*New for beta 8, item B8-32 (regression-sweep finding F-9). Load a scan, place
+the grid, change **Target type**: the scan, its four corners and every other
+shot on that page are dropped (`_set_std_targets` → `_reset_shots`), the preview
+goes empty, and the log — cleared in the same block, which is B8-16's fix — said
+nothing about any of it.*
+
+*The discard is correct and is not being changed. A different target has a
+different grid, so a placement made on the old one is meaningless on the new
+one, and a demo scan belongs to the target that generated it. What was missing
+was the sentence saying it happened, and where to start again.*
+
+> **Target type changed — the loaded scan was cleared**
+>
+> A scan is read through the target’s own recognition file, and a different target has a different grid, so a placement made on the old one would not mean anything on this one. The scan that was loaded, its four corners and any further scans on this page have been dropped.
+> Nothing on disk was touched. Pick the scan again — or press “Try with a demo scan” — for the target now selected.
+
+### Frame titles awaiting a ruling — Create Chart ▸ Manual ▸ Expert (B8-21 §4)
+
+**Confirmed by:** *nobody yet.* Proposed 2026-09-04 by AGENT-R. Not approved,
+and Basti rules on it.
+
+*Deliberately NOT given an `M-` identifier. §M is a catalogue of MESSAGES —
+each one a window or a log line with a headline and a body, rendered from
+`workflow/measurement_messages.py`, and `tests/test_message_catalogue.py`
+requires every `M-` heading in this document to exist there. A group-box title
+is not a message and must not be given a fake one to satisfy a parser. It is
+recorded here because it is new user-facing wording and this is where new
+user-facing wording is proposed and ruled on.*
+
+The frame **"Strip && row labels"** used to explain which of its controls
+reaches which set of labels in a paragraph. Basti, 2026-09-03: *"keep the first
+note, drop the second, and rule on sub-frames… the paragraph is the option I'd
+argue against — it's correct, and correct is not the same as clear."* So the
+frame is split in two along the line the ink drew, and the two titles ARE the
+explanation:
+
+| proposed title | what it holds | German |
+|---|---|---|
+| **Strip letters and row numbers** | Font, Size, Bold — measured at 11 086 to 126 162 pixels of row-label ink each, and Font and Size re-lay the page | Streifenbuchstaben und Zeilennummern |
+| **Strip letters only** | Underline, line thickness, line distance, rotation, Label offset — 0 row-label pixels, every time | Nur Streifenbuchstaben |
+
+*Written for somebody who has never met the words "indicator" or "band": they
+name what the reader can see on the printed sheet — the letters across the top
+and the numbers down the left — and the second says "only", which is the whole
+point of the split. Italic is in neither title: it is greyed out because
+neither bundled font has an italic face, and it drew nothing on either side.*
+
+*The other eleven catalogues carry the English source until this is ruled on,
+because translating a draft translates it twice. German is translated, as the
+beta convention has it.*
+
+### Button labels — Tools ▸ Build profile with scanner or camera (AGENT-S) — Confirmed behaviour
+
+**Confirmed by:** Basti, 2026-09-04 — *"it is ok"*, put to him as the label
+and its tooltip together and approved as proposed. Drafted the same day by
+AGENT-S.
+
+*The eleven non-German catalogues still carry the English source, and that is
+now the BETA TRANSLATION CONVENTION doing it, not a pending ruling: translation
+happens before a final, not during a beta, so that nothing is translated twice.
+Do not "finish" them here — the language sweep before the final is where they
+land.*
+
+*Deliberately NOT given an `M-` identifier, for the reason the section above
+gives: §M is a catalogue of MESSAGES, each one rendered from
+`workflow/measurement_messages.py`, and `tests/test_message_catalogue.py`
+requires every `M-` heading here to exist there. A button label is not a
+message and must not be given a fake identifier to satisfy a parser. It is
+recorded here because it is new user-facing wording and this is where new
+user-facing wording is proposed and ruled on.*
+
+Basti, 2026-09-04, looking at the running window: *"could you task an agent to
+rearrange the buttons under the preview in a way it makes sense and takes up
+less space?"* The block was four rows for six buttons, and the last row held
+one button because its label was a sentence.
+
+| proposed label | replaces | German |
+|---|---|---|
+| **⤢ Pop out** | ⤢ Pop out for a bigger view | ⤢ Ablösen |
+
+*Measured at these buttons' own metrics: the old label is the longest in the
+window — 202 px in Italian, 191 in German, against 78 for this one — and it is
+what forced a fourth row. What the four dropped words said is now said twice
+over: by the new tooltip below, and by the hint line printed under the block,
+which already ends "Rotate handles a sideways scan; Pop out gives a bigger
+view".*
+
+| proposed tooltip (the button has none today) |
+|---|
+| Open the preview in its own resizable window, much bigger, so the corners are easier to place. The placement, the zoom and the rotation all come back with it when you dock it again. |
+
+*German: "Öffnet die Vorschau in einem eigenen, frei skalierbaren Fenster – viel
+größer, damit sich die Ecken leichter setzen lassen. Platzierung, Zoom und
+Drehung kommen beim Andocken unverändert zurück."*
+
+*The other eleven catalogues carry the English source until this is ruled on,
+because translating a draft translates it twice. German is translated, as the
+beta convention has it. "⤢ Dock back", the label the button carries while the
+preview is popped out, is unchanged.*
 
 ### M-x. Which table uses which message
 

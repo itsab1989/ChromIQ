@@ -263,6 +263,80 @@ def _repair_a_leaked_qmessagebox_exec():
 
 
 @pytest.fixture(autouse=True)
+def _no_leaked_session_restore():
+    """Start every test with "restore the last session" OFF, whatever the test
+    before it left in the store.
+
+    THIS IS THE B8-43 FLAKE, AND IT TOOK THREE DAYS AND FOUR GATE RUNS.
+    `test_a_cancel_downstream_keeps_what_was_filed.py::
+    test_a_cross_tab_chart_load_takes_the_130_road` failed in roughly one full
+    parallel run in seven, passed every time alone, and named nothing: an
+    `assert [] == ['#130']` plus a teardown ERROR saying a QMessageBox had been
+    left open. Reproduced deterministically in ten seconds as
+
+        pytest tests/test_no_project_is_ever_invented.py \
+               tests/test_a_cancel_downstream_keeps_what_was_filed.py
+
+    and in that order only — the other way round, and either file alone, is
+    green.
+
+    THE MECHANISM, END TO END.
+    `test_no_project_is_ever_invented` legitimately switches
+    `restore_last_session` on and points `session_target_name` at a project that
+    is not on disk — that is what it is testing. It never puts them back, and
+    `AppSettings` is one store per WORKER PROCESS, so both keys survive into
+    every file xdist schedules onto that worker afterwards. Which files those
+    are changes from run to run under `--dist loadfile`. **That is the whole of
+    the intermittency.**
+
+    In a poisoned worker, `MainWindow.__init__` reads the key and queues
+    `QTimer.singleShot(0, self._restore_last_session)`. A fixture that then
+    opens a project runs no event loop, so the restore is still pending when
+    setup ends — and **pytest-qt's `pytest_runtest_setup` is a hook wrapper that
+    calls `QApplication.processEvents()` after its `yield`**. The restore fires
+    there, calls `set_target_name("Real-Project")` over the project the fixture
+    had just opened, finds no such project on disk, and calls `close_project()`.
+    The test then runs against a file manager holding nothing:
+    `resolve_ti2` sees no loaded project, takes the "this chart belongs to a
+    project — open it?" road instead of the #130 one, and opens a modal that
+    only the 4-second sweeper above can close.
+
+    AND IT COULD NOT BE READ OFF THE REPORT. Because that all happens in
+    pytest-qt's POST-yield wrapper, it is outside the setup phase's log capture
+    and before the call phase's — so `Target name set to`,
+    `Session restore skipped` and `Project closed` appear in no captured
+    section at all. The red report showed a project being opened and never
+    closed, which is why the cause was looked for everywhere else.
+
+    IN SETUP, DELIBERATELY, and for the same reason as
+    `_repair_a_leaked_qmessagebox_exec` above: a teardown version would race the
+    monkeypatch undo of any test that sets these keys properly. Clearing them
+    before each test leaves the one file that legitimately turns them on
+    working — it sets them in its own body, after setup — and gives every other
+    file the state `pytest_configure` created.
+
+    Eleven test files already wrote `restore_last_session = False` into their own
+    fixtures by hand. That is eleven authors finding this the hard way and
+    immunising one fixture each; the twelfth fixture is the one that failed.
+    """
+    import core.settings as _cs
+
+    # ONLY when the store has been sandboxed. `pytest_configure` replaces this
+    # name with a factory function; if it is still the real `QSettings` class
+    # something has gone wrong upstream and this must not write to the
+    # developer's own preferences to "repair" anything.
+    if isinstance(_cs.QSettings, type):
+        return
+    try:
+        qs = _cs.QSettings("ChromIQ", "ChromIQ")
+        for key in ("restore_last_session", "session_target_name",
+                    "session_project_root"):
+            qs.remove(key)         # → back to DEFAULTS, which is off/empty
+    except Exception:      # noqa: BLE001 — a repair must never fail a test
+        pass
+
+
+@pytest.fixture(autouse=True)
 def _no_real_usb_device_list(monkeypatch):
     """NO TEST MAY DEPEND ON WHAT IS PLUGGED INTO THE MACHINE RUNNING IT.
 

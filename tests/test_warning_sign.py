@@ -89,14 +89,59 @@ def test_the_message_box_gets_ours_and_not_the_platforms(qapp):
 def test_an_unknown_appearance_lands_on_dark(qapp):
     """Pinned as it BEHAVES, not as it is described.
 
-    `theme.by_mode`'s own docstring says "every caller fails loudly rather than
-    silently inheriting somebody else's value" — and its last line is
-    `.get(mode or active_mode(), dark)`, which does the opposite. That gap is
-    older than this file and belongs to whoever owns `ui/theme.py`; recording
-    it here means a future change to `by_mode` shows up as a failure with the
-    reason attached, instead of silently changing what this sign draws.
+    `theme.by_mode`'s last line is `.get(mode or active_mode(), dark)`, so an
+    appearance it has never heard of gets Dark's value and says nothing.
+    Recording it here means a future change to `by_mode` shows up as a failure
+    with the reason attached, instead of silently changing what this sign draws.
+
+    Beta 8, B8-32: both docstrings used to claim the opposite — "every caller
+    fails loudly rather than silently inheriting somebody else's value". They
+    now say what the code does, and `test_no_docstring_here_claims_a_loud_
+    failure` below keeps the two in step.
     """
     assert warning_colours("sepia") == warning_colours("dark")
+
+
+def test_no_docstring_here_claims_a_loud_failure():
+    """B8-32 / sweep finding F-10 — a comment that says the opposite of the code.
+
+    `ui/warning_sign.py` opened by asserting that resolving through
+    `theme.by_mode` meant *"a fourth appearance fails loudly here instead of
+    quietly inheriting Dark's amber"*. Measured (sweep check J33):
+    `warning_colours("chartreuse")` returns Dark's amber, silently. The claim
+    was inherited from `by_mode`'s own docstring, which made it too.
+
+    The claim is deleted rather than made true, and deliberately so. B8-33
+    established the rule for this module the hard way: `warn()` falls back to a
+    parentless box instead of raising, because a warning that throws takes the
+    message it was drawn for down with it. A sign that raised on an unfamiliar
+    appearance would do exactly that.
+
+    Checked in BOTH files, because leaving the sentence in `theme.py` is how it
+    got copied here in the first place.
+    """
+    import inspect
+
+    from ui import theme, warning_sign
+
+    texts = {"ui/warning_sign.py": warning_sign.__doc__ or "",
+             "ui/theme.py::by_mode": inspect.getdoc(theme.by_mode) or ""}
+    for where, text in texts.items():
+        assert "fails loudly here" not in text, (
+            f"{where} still asserts a loud failure that does not happen")
+        assert "every caller fails loudly" not in text, (
+            f"{where} still asserts a loud failure that does not happen")
+        assert "silence" in text or "silently" in text or "in silence" in text, (
+            f"{where} does not say that an unknown appearance is answered "
+            f"quietly, which is what it does")
+
+
+def test_that_guard_could_see_the_sentence_it_bans():
+    """Guard the guard: the exact wording that was there really is caught."""
+    offending = ("Resolved through `theme.by_mode`, so a fourth appearance "
+                 "fails loudly here instead of quietly inheriting Dark's "
+                 "amber.")
+    assert "fails loudly here" in offending
 
 
 def test_the_two_new_windows_use_it():

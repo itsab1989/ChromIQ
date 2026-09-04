@@ -112,11 +112,15 @@ def test_make_test_scan_reads_back(name, tmp_path):
     n = len(g.patches)
     expected = {b.name: [c / 2.55 for c in demo_patch_color(i, n)]  # 0..255 → 0..100
                 for i, b in enumerate(g.patches)}
-    minx = min(b.x1 for b in g.patches); maxx = max(b.x2 for b in g.patches)
-    miny = min(b.y1 for b in g.patches); maxy = max(b.y2 for b in g.patches)
-    scale = 1500.0 / max(maxx - minx, maxy - miny, 1.0); m = 80
-    W, H = (maxx - minx) * scale, (maxy - miny) * scale
-    corners = [(m, m), (m + W, m), (m + W, m + H), (m, m + H)]
+    # ASK the generator where it put the patch block; do not re-derive it.
+    # This used to recompute "the patches start at margin=80" from its own copy
+    # of make_test_scan's arithmetic, and silently became wrong the moment the
+    # demo grew a platen round the sheet — every target then read back a
+    # neighbouring patch and the test called the GENERATOR broken.
+    from workflow.standard_targets import demo_scan_layout
+    _scale, px0, py0, W, H, _W, _H, _sheet_rect, _sheet = demo_scan_layout(
+        cht_path.read_text(errors="ignore", encoding="utf-8"), g.patches)
+    corners = [(px0, py0), (px0 + W, py0), (px0 + W, py0 + H), (px0, py0 + H)]
     fstr = ",".join(f"{v:.1f}" for xy in corners for v in xy)
     # make_test_scan draws patches at their true (gapped) positions, so read with
     # the same cht — contiguous re-placement would MISread a gapped demo.

@@ -70,7 +70,23 @@ class TooltipButton(QToolButton):
         #: shifting inside it, because the circle nearly fills its own box.
         self._nudge: "tuple[float, float]" = (0.0, 0.0)
         self.setObjectName("tooltip_btn")
-        self.setToolTip(title + "\n\n" + tr("Click for details"))
+        #: A LIVE, CHART-SPECIFIC NOTE CARRIED IN FRONT OF THE STANDING HELP.
+        #:
+        #: Basti, 2026-09-04: *"regarding the info text in create chart tab
+        #: that is directly inside the sections (even that that you made
+        #: collapsible) - i want that gone. You can fit it inside of a tooltip
+        #: where it fits but not directly inside a section"*, and then, asked
+        #: where the automatic left-margin raise would then be disclosed,
+        #: *"a tooltip will be enough"*.
+        #:
+        #: So four panel notices moved in here. They are not help: they are
+        #: things that have happened to THIS chart, and they change as the
+        #: controls change. They go ABOVE the standing help in the dialog,
+        #: because a reader who opens the ⓘ while one is live wants that first
+        #: — and the first line of it also goes into the HOVER tooltip, so the
+        #: icon says there is something to read without being clicked.
+        self._live_note = ""
+        self._refresh_hover_tip()
         self.setFixedSize(QSize(_ICON_SIZE + 4, _ICON_SIZE + 4))
         self._explicitly_disabled = False
         self._set_icon()
@@ -89,7 +105,46 @@ class TooltipButton(QToolButton):
         the option that's available for the current selection)."""
         self._title = title
         self._body = body.strip()
-        self.setToolTip(title + "\n\n" + tr("Click for details"))
+        self._refresh_hover_tip()
+
+    def set_live_note(self, note: str) -> None:
+        """Carry ``note`` in front of this ⓘ's standing help, or clear it.
+
+        The note is what is true of the chart on screen right now — the left
+        margin that was widened, the “Clip” value that is not the one in force,
+        the marker edges that will print nothing. Pass ``""`` and the button is
+        exactly what it was before.
+
+        Nothing is appended to the STORED body, so this can be called on every
+        keystroke without the note accumulating; :meth:`dialog_body` joins the
+        two at the moment the dialog is built.
+        """
+        note = (note or "").strip()
+        if note == self._live_note:
+            return
+        self._live_note = note
+        self._refresh_hover_tip()
+
+    def live_note(self) -> str:
+        """The live note this ⓘ is carrying (``""`` when it has none)."""
+        return self._live_note
+
+    def dialog_body(self) -> str:
+        """What the ⓘ dialog shows: the live note first, then the help."""
+        if self._live_note:
+            return self._live_note + "\n\n" + self._body
+        return self._body
+
+    def _refresh_hover_tip(self) -> None:
+        """The hover tooltip, with the live note's opening line when there is
+        one — an ⓘ that has something to say must say so before it is clicked.
+
+        Only the first line: a hover tooltip is a strip beside the pointer, and
+        the whole notice belongs in the dialog where it can be read.
+        """
+        head = self._live_note.splitlines()[0].strip() if self._live_note else ""
+        parts = [self._title] + ([head] if head else []) + [tr("Click for details")]
+        self.setToolTip("\n\n".join(parts))
 
     def setEnabled(self, enabled: bool) -> None:
         self._explicitly_disabled = not enabled
@@ -241,7 +296,7 @@ class TooltipButton(QToolButton):
     def _show_dialog(self) -> None:
         log.debug("Tooltip dialog opened: %s", self._title)
         win = self.window()
-        dlg = _InfoDialog(self._title, self._body, win, self._min_width)
+        dlg = _InfoDialog(self._title, self.dialog_body(), win, self._min_width)
         dlg.exec()
         # macOS: when the ⓘ button lives in a dialog that is itself a child of
         # another dialog (e.g. the editor's "3D distribution…" cube, or the New

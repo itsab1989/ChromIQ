@@ -87,10 +87,12 @@ def test_the_drawn_cell_is_a_hexagon(qapp):
     neighbours, which is the whole reason to draw the true shape."""
     import inspect
     from ui.scan_grid_marquee import ScanGridMarquee
-    src = inspect.getsource(ScanGridMarquee._draw_grid)
+    # The cell corners are built in `_cell_uv` (cached per chart, then
+    # transformed as one array every paint) — `_draw_grid` only strokes them.
+    src = inspect.getsource(ScanGridMarquee._cell_uv)
     assert "self._grid.hexagonal" in src, "the mesh ignores the patch shape"
     # six points for a hexagon, four for a rectangle
-    hex_block = src[src.index("if self._grid.hexagonal"):]
+    hex_block = src[src.index("if hexed"):]
     assert hex_block.count("(cxu,") == 2, "expected the two apex points"
 
 
@@ -162,13 +164,20 @@ def test_the_target_dialog_obeys_the_setting(qapp, tmp_path, monkeypatch,
     helper's NAME passes even when the call is replaced by `if True:` — which is
     exactly the mutation that would silently ship the ungated behaviour."""
     import types
-    from PyQt6.QtWidgets import QMessageBox
+
+    import ui.dialogs.scanin_target_dialog as std
     from ui.dialogs.scanin_target_dialog import ScaninTargetDialog
 
     stem, _ = _hex_chart(tmp_path, n=30)
     shown = []
-    monkeypatch.setattr(QMessageBox, "warning",
-                        staticmethod(lambda *a, **k: shown.append(a) or 0))
+    # STUB THE FUNCTION THE CODE CALLS, not `QMessageBox.warning`.
+    # Every warning in this app now goes through `ui.warning_sign.warn` so it
+    # can carry ChromIQ's own sign, and each module imports that name into its
+    # own globals — so `<module>.warn` is the thing to replace. Stubbing the
+    # static instead lets a REAL modal open in the headless suite; the
+    # conftest watchdog catches it after 4 s and fails the test, which is how
+    # this was found.
+    monkeypatch.setattr(std, "warn", lambda *a, **k: shown.append(a) or 0)
     fake = types.SimpleNamespace(_settings=_Store(allowed))
     rejected = ScaninTargetDialog._reject_if_hexagonal(fake, stem)
     assert rejected is expect_rejected

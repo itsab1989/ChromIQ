@@ -55,7 +55,7 @@ def dlg(qapp, monkeypatch):
 
 def _run(d, *, write_raises=False, apply_result=True, apply_raises=False,
          monkeypatch=None):
-    from PyQt6.QtWidgets import QMessageBox
+    import ui.dialogs.ti2_relayout_dialog as rd
 
     def _write(staging, name):
         if write_raises:
@@ -69,8 +69,10 @@ def _run(d, *, write_raises=False, apply_result=True, apply_raises=False,
 
     d._write_chart_into = _write
     d._on_apply = _apply
-    monkeypatch.setattr(QMessageBox, "warning",
-                        staticmethod(lambda *a, **k: None))
+    # `<module>.warn`, not `QMessageBox.warning` — see the note in
+    # tests/test_hex_scanner_support.py. `d` here is a Ti2RelayoutDialog built
+    # through `__new__`, which a real QMessageBox will not take as a parent.
+    monkeypatch.setattr(rd, "warn", lambda *a, **k: None)
     d._save_and_apply()
 
 
@@ -89,7 +91,6 @@ def test_no_staging_folder_survives_any_exit(dlg, monkeypatch, kwargs, label):
 
 def test_the_host_still_receives_a_usable_chart(dlg, monkeypatch):
     """The cleanup must not run BEFORE the host has read the staged .ti1."""
-    from PyQt6.QtWidgets import QMessageBox
 
     seen = {}
 
@@ -104,7 +105,8 @@ def test_the_host_still_receives_a_usable_chart(dlg, monkeypatch):
 
     dlg._write_chart_into = _write
     dlg._on_apply = _apply
-    monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *a, **k: None))
+    import ui.dialogs.ti2_relayout_dialog as rd
+    monkeypatch.setattr(rd, "warn", lambda *a, **k: None)
     dlg._save_and_apply()
 
     assert seen["existed"] is True, "the staged chart was deleted before the host read it"

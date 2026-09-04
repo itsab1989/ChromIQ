@@ -79,7 +79,10 @@ def test_a_restore_that_cannot_run_says_so(qapp=None):
     from ui.measurement_target_bar import MeasurementTargetBar
     src = inspect.getsource(MeasurementTargetBar._on_restore_clicked)
     none_branch = src.index("if result is None:")
-    assert "QMessageBox.information" in src[none_branch:none_branch + 400]
+    assert "inform(" in src[none_branch:none_branch + 400], (
+        "the no-.cht branch no longer tells the user anything — it used to\n"
+        "call QMessageBox.information, and now calls ui.warning_sign.inform\n"
+        "so the notice wears ChromIQ's own sign")
 
 
 def test_that_message_tells_the_user_what_to_do(qapp=None):

@@ -30,6 +30,7 @@ from ui.widgets import (
     reapply_ink,
     set_ink,
 )
+from ui.warning_sign import ask, inform
 from workflow.layout_engine.presets import LayoutRecipe
 
 log = get_logger(__name__)
@@ -94,6 +95,62 @@ class LayoutOptionsPanel(QWidget):
         # Kept, not just acted on — see TabChart.set_appearance.
         self._mode = accept_mode(mode)
         reapply_ink(self, self._mode)
+        # `reapply_ink` cannot reach these: they are not `set_ink` labels,
+        # because `set_ink` hands Light and Dark the SAME literal and no single
+        # grey clears 4.5:1 on both a near-white and a near-black ground.
+        self._paint_notes(self._mode)
+
+    #: The secondary READOUTS in Expert Options — the Preview line under "Sheet
+    #: text" and the clip-area readout. THEY ARE TEXT AND THEY USED TO ASK FOR
+    #: A SHADING ROLE.
+    #:
+    #: There were four. ``_label_reach_note``, the paragraph naming each
+    #: control's reach, was retired when the frame started saying the same
+    #: thing by its shape (B8-21 §4); ``_label_style_note``, the "saved with
+    #: this chart" sentence, moved onto the ⓘ of every control in that frame on
+    #: 2026-09-04 (Basti: *"not directly inside a section"*). What is left is
+    #: not explanation at all — both of these are values measured off the chart
+    #: on screen, which is why they stayed. All four said
+    #: ``color: palette(mid)``. ``QPalette.Mid`` is what Fusion
+    #: shades a FRAME with — every appearance sets it a hair from its own
+    #: ground on purpose — so it is the one role that cannot carry a word.
+    #: Measured off the painted pixels of the running app (beta 8): the notes
+    #: came out at **1.25:1 in Light, 1.02:1 in Dark and 1.14:1 in Neutral**.
+    #: Neutral is where it was reported, and Neutral is where it is worst in
+    #: meaning as well as in number: rule 3 of ``ui/neutral_styles.py`` reserves
+    #: low contrast for "disabled" and nothing else, so a live instruction was
+    #: painted in the one value that means dead.
+    _NOTE_LABELS = ("text_preview", "clip_dims_label")
+
+    def _note_ink(self, mode: "str | None" = None) -> str:
+        """The ink a secondary note is written in, in this appearance.
+
+        ``by_mode`` and each theme's OWN token, never a fresh hex: a fourth
+        appearance then arrives as a missing argument here rather than as
+        silent inheritance.
+
+        Light takes ``LM_TEXT_MAIN`` where Dark and Neutral take their
+        secondary ink, and that asymmetry is deliberate and measured:
+        ``LM_TEXT_DIM`` reaches only **3.86:1** on the light window ground
+        (4.16:1 on the group-box surface), under the 4.5:1 that 13 px body text
+        needs. Moving ``LM_TEXT_DIM`` would move every group-box title in the
+        app and is the light theme's own decision, not this panel's — so the
+        panel takes the light ink that does read and the token is left alone.
+        """
+        from ui import light_styles, neutral_styles, styles
+        from ui.theme import by_mode
+        return by_mode(light_styles.LM_TEXT_MAIN,   # 13.64:1 on #eeece8
+                       styles.TEXT_DIM,             #  5.14:1 on #181818
+                       neutral_styles.NM_TEXT_DIM,  # 12.13:1 on #e2e2e2
+                       mode)
+
+    def _paint_notes(self, mode: "str | None" = None) -> None:
+        """Write :data:`_NOTE_LABELS` in :meth:`_note_ink`."""
+        ink = self._note_ink(mode)
+        for name in self._NOTE_LABELS:
+            lbl = getattr(self, name, None)
+            if lbl is not None:
+                lbl.setStyleSheet(f"color: {ink};")
 
     # Labels mirror the printtarg -i combobox (data/parameters.yaml) so the engine
     # and printtarg show the same instrument names (Knut). Codes stay i1/p3/CM/SS.
@@ -248,6 +305,17 @@ class LayoutOptionsPanel(QWidget):
         #: Millimetre spin boxes whose width is settled in `_fit_spin_widths()`
         #: once the style has been polished — see `small_mm`.
         self._fitted_spins: list = []
+        #: Re-runs `_fit_spin_widths` one event-loop turn after the style under
+        #: the panel changes (see `changeEvent`). A TIMER OWNED BY THE PANEL,
+        #: connected to a BOUND METHOD — never `QTimer.singleShot` with a
+        #: closure over `self`: PyQt keeps a weak reference to a bound receiver
+        #: and Qt severs the connection when the owner dies, instead of parking
+        #: a Python closure inside a C++ object that outlives it (CLAUDE.md —
+        #: the scroll-bar lambda that segfaulted the app).
+        from PyQt6.QtCore import QTimer as _QTimer
+        self._refit_timer = _QTimer(self)
+        self._refit_timer.setSingleShot(True)
+        self._refit_timer.timeout.connect(self._fit_spin_widths)
         self._spin_widths_fitted = False
         self._with_calibration = with_calibration
         self._with_selectors = with_selectors
@@ -1067,7 +1135,57 @@ class LayoutOptionsPanel(QWidget):
         # the sheet, which the frame name would suggest" — folding the labels
         # into it would make an already-misleading name wronger.
         si = QGroupBox(tr("Strip && row labels"), self)
-        sig2 = QGridLayout(si)
+        # THE FRAME ANSWERS "WHICH CONTROL REACHES WHICH LABEL" BY ITS SHAPE.
+        #
+        # It used to answer it with a paragraph (B8-14): forty words of grey
+        # prose above the controls, saying that Font, Size and Bold reach both
+        # sets of labels and the rest reach the strip letters only. The sentence
+        # was true and it was the wrong answer — Basti, 2026-09-03: *"the
+        # paragraph is the option I'd argue against — it's correct, and correct
+        # is not the same as clear."* A reader had to hold a mapping in their
+        # head while looking at the controls, in a panel already called too
+        # long, in a pane locked at 580 px that already scrolls.
+        #
+        # So the grouping IS the answer, and it is read once by looking. The
+        # division is not a guess: it was measured from the printed INK
+        # (`beta 8/04-chart-layout-ui`), one real Generate per control at a fixed
+        # seed, each variant's TIFF differenced against a baseline and the
+        # changed pixels counted in the row-label band and the strip-label band
+        # separately. Font 15 785 strip / 97 987 row px, Size 13 397 / 126 162,
+        # Bold 5 640 / 11 086 — those three reach both, and Font and Size re-lay
+        # the page as well, because the left margin follows the row numbers.
+        # Underline, line thickness, line distance, rotation and Label offset
+        # moved 0 row-label pixels in every case.
+        #
+        # Italic is greyed out by design and stays where it is: neither bundled
+        # font has an italic face, so it draws nothing on either side and must
+        # not be claimed by either sub-frame's title.
+        _si_v = QVBoxLayout(si)
+        si_both = QGroupBox(tr("Strip letters and row numbers"), si)
+        sig2 = QGridLayout(si_both)
+        si_only = QGroupBox(tr("Strip letters only"), si)
+        sig3 = QGridLayout(si_only)
+        # THE NESTING IS PAID FOR OUT OF THE MARGINS IT REPLACES, NOT ADDED TO
+        # THEM. A sub-frame costs 1 px of border plus its own layout margins on
+        # each side, and this panel had **no room at all**: measured offscreen
+        # with the app's own stylesheet, in Dutch the panel's minimum width was
+        # already 514 px against a 514 px pane, with German and Swedish at 508.
+        # Built with the obvious margins the split cost +14 px and put Dutch,
+        # German and Swedish into horizontal scrolling — the exact fault
+        # `tests/test_the_layout_panel_fits_the_pane_in_every_language.py` was
+        # written for, and it caught it.
+        #
+        # So the outer column gives up its own margins (the group box's border
+        # is the inset) and each sub-grid takes 8: 0 + 1 border + 8 = 9 px per
+        # side, which is what a plain grid on the group box used to take. The
+        # split is width-neutral by construction, not by luck.
+        _si_v.setContentsMargins(0, 0, 0, 0)
+        _si_v.setSpacing(6)
+        for _g in (sig2, sig3):
+            _g.setContentsMargins(8, 4, 8, 4)
+            _g.setVerticalSpacing(4)
+        self._label_sub_both = si_both
+        self._label_sub_strip_only = si_only
         self.indicator_font = ElidingComboBox(self)
         self._populate_font_combo(self.indicator_font)
         self.indicator_font.currentIndexChanged.connect(self._emit)
@@ -1077,16 +1195,22 @@ class LayoutOptionsPanel(QWidget):
         self.ind_bold.toggled.connect(self._emit)
         self.ind_italic = WrappingCheckBox(tr("Italic"), self)
         self.ind_italic.toggled.connect(self._emit)
-        self._add_font_rows(sig2, 1, tr("Font:"), self.indicator_font,
+        self._add_font_rows(sig2, 0, tr("Font:"), self.indicator_font,
                             self.indicator_size, self.ind_bold, self.ind_italic,
                             tip=TooltipButton(
                                 tr("Indicator font"),
-                                tr("Typeface, size and style of the strip letter "
-                                   "labels. Bundled fonts are listed first, then "
-                                   "every font installed on your system. Size "
-                                   "“auto” fits the label to the strip width; Bold "
-                                   "/ Italic grey out for fonts that don't offer "
-                                   "them."), self))
+                                tr("Typeface, size and style of BOTH sets of "
+                                   "labels — the strip letters across the top "
+                                   "and the row numbers down the left. Bundled "
+                                   "fonts are listed first, then every font "
+                                   "installed on your system. Size “auto” fits "
+                                   "the strip letters to the strip width, and "
+                                   "the row numbers follow the same size; the "
+                                   "left margin widens or narrows with them, so "
+                                   "changing the font or the size re-lays the "
+                                   "page. Bold applies to both. Italic greys "
+                                   "out for fonts that don't offer it, which "
+                                   "includes both of the bundled ones."), self))
         self.underline_mode = ElidingComboBox(self)
         for k, lbl in (("off", tr("Off")),
                        ("segments", tr("Coloured (5 segments)")),
@@ -1096,7 +1220,7 @@ class LayoutOptionsPanel(QWidget):
         self.underline_mode.currentIndexChanged.connect(self._on_underline_changed)
         self.underline_thickness = small_mm(top=5.0)
         self.underline_gap = small_mm(top=20.0)
-        add_row(sig2, 3, tr("Underline:"), self.underline_mode,
+        add_row(sig3, 0, tr("Underline:"), self.underline_mode,
                 tip=TooltipButton(
                     tr("Underline"),
                     tr("Draws a thin rule under each strip's letter label. "
@@ -1106,7 +1230,7 @@ class LayoutOptionsPanel(QWidget):
                        "per strip so neighbours read apart; Black is a plain "
                        "rule. Use the thickness and distance to taste."),
                     self))
-        add_row(sig2, 4, tr("Line thickness:"), self.underline_thickness,
+        add_row(sig3, 1, tr("Line thickness:"), self.underline_thickness,
                 tip=TooltipButton(
                     tr("Underline thickness"),
                     tr("How thick the rule under the strip labels is drawn, in "
@@ -1114,7 +1238,7 @@ class LayoutOptionsPanel(QWidget):
                        "a thinner one is more subtle. Only matters when the "
                        "Underline above is set to something other than Off."),
                     self))
-        add_row(sig2, 5, tr("Line distance:"), self.underline_gap,
+        add_row(sig3, 2, tr("Line distance:"), self.underline_gap,
                 tip=TooltipButton(
                     tr("Underline distance"),
                     tr("How far below the strip label the rule sits, in "
@@ -1140,7 +1264,7 @@ class LayoutOptionsPanel(QWidget):
             self._align_group.addButton(_cb)
             _cb.toggled.connect(self._emit)
         self.ind_align_left.setChecked(True)
-        add_row(sig2, 6, tr("Rotation:"),
+        add_row(sig3, 3, tr("Rotation:"),
                 cell(self.indicator_rotation, self.ind_align_left,
                      self.ind_align_center, self.ind_align_right),
                 tip=TooltipButton(
@@ -1165,7 +1289,7 @@ class LayoutOptionsPanel(QWidget):
         self.strip_label_offset.setSuffix(" mm")
         self.strip_label_offset.setMinimumWidth(96)
         self.strip_label_offset.valueChanged.connect(self._emit)
-        add_row(sig2, 7, tr("Label offset:"), self.strip_label_offset,
+        add_row(sig3, 4, tr("Label offset:"), self.strip_label_offset,
                 tip=TooltipButton(
                     tr("Label offset"),
                     tr("Moves the strip letters up or down without moving the "
@@ -1181,12 +1305,37 @@ class LayoutOptionsPanel(QWidget):
         # mistaken for a person answering (the app must never answer its own
         # question).
         self._label_style_grp = si
-        self._label_style_note = QLabel(
-            tr("Saved with this chart and its presets. Preferences → Chart "
-               "Layout only sets the starting values for a new chart."), self)
-        self._label_style_note.setWordWrap(True)
-        self._label_style_note.setStyleSheet("color: palette(mid);")
-        sig2.addWidget(self._label_style_note, 0, 0, 1, 3)
+        _si_v.addWidget(si_both)
+        _si_v.addWidget(si_only)
+        # WHERE THE SETTING LIVES, ON EVERY ⓘ IN THE FRAME.
+        #
+        # This used to be a paragraph printed across the top of the frame. It
+        # says the one thing a reader cannot deduce by looking, and it was
+        # added 2026-09-01 (e440c133) because label style used to be app-wide
+        # and a size set for one instrument silently followed the user to the
+        # next chart — measured on a real A4 scanner chart the row-number band
+        # went 3.95 mm to 6.08 mm and the sheet lost 49 patches, a whole strip.
+        # So it is not text that can simply go.
+        #
+        # Basti, 2026-09-04: *"the info text … directly inside the sections …
+        # i want that gone. You can fit it inside of a tooltip where it fits
+        # but not directly inside a section"*. It fits: it is true of all ten
+        # label-style fields, so it goes on the ⓘ of each control that owns
+        # one, where a reader asking about that control already is. The SAME
+        # catalogue key is reused, so no translation moves and no key goes
+        # stale — and appending it here rather than writing it into each body
+        # means a new control in this frame cannot be built without it.
+        #
+        # It costs no height and no width, which is why it is done this way
+        # rather than with a frame-level ⓘ of its own: this panel had no width
+        # slack at all when B8-48 measured it (Dutch sat exactly on its 514 px
+        # budget), and a note that has to be paid for in pixels is a note that
+        # gets removed again.
+        _where_it_lives = tr(
+            "Saved with this chart and its presets. Preferences → Chart "
+            "Layout only sets the starting values for a new chart.")
+        for _tip in si.findChildren(TooltipButton):
+            _tip.set_content(_tip._title, _tip._body + "\n\n" + _where_it_lives)
         for _w, _sig in ((self.indicator_font, "currentIndexChanged"),
                          (self.indicator_size, "valueChanged"),
                          (self.ind_bold, "toggled"),
@@ -1643,8 +1792,14 @@ class LayoutOptionsPanel(QWidget):
         # every row, so a tick box in the CONTROL column widens that column for
         # the three spin-box rows above as well. Spanning both columns on lines
         # of their own, the boxes use width the label column already has.
-        self._hm_rows.append(add_row(hmg, 4, tr("Show markers for:"), QWidget(self),
-                align_left=True, tip=TooltipButton(
+        # THE LAST SENTENCE HAD TO CHANGE WITH THE NOTICE.
+        #
+        # It read *"ChromIQ says so under the boxes if you leave it that way"*,
+        # and after 2026-09-04 nothing is written under the boxes: the notice
+        # is on this ⓘ (`_update_helper_marker_edge_warning`). A help text that
+        # sends the reader to a line that is not there is worse than one that
+        # says nothing, so the sentence now points at where the notice is.
+        self._hm_edges_tip = TooltipButton(
                     tr("Show markers for"),
                     tr("Which edges of the sheet get the dashes.\n\n"
                        "Tick “Sides” for the dashes down the left and right "
@@ -1659,9 +1814,11 @@ class LayoutOptionsPanel(QWidget):
                        "keep then reaches into the corners as well, because "
                        "there is no longer another set there to bump into.\n\n"
                        "With both unticked no dashes are printed at all — the "
-                       "same as turning the markers off. ChromIQ says so under "
-                       "the boxes if you leave it that way.\n\n"
-                       "Default: both ticked."), self)))
+                       "same as turning the markers off. Leave it that way and "
+                       "this ⓘ says so, at the top, before this help.\n\n"
+                       "Default: both ticked."), self)
+        self._hm_rows.append(add_row(hmg, 4, tr("Show markers for:"), QWidget(self),
+                align_left=True, tip=self._hm_edges_tip))
         hmg.addWidget(self.helper_markers_top_bottom, 5, 0, 1, 2)
         hmg.addWidget(self.helper_markers_sides, 6, 0, 1, 2)
         self._hm_rows[-1] = tuple(self._hm_rows[-1]) + (
@@ -1677,12 +1834,9 @@ class LayoutOptionsPanel(QWidget):
             for _w in _row:
                 if isinstance(_w, QLabel):
                     _w.setObjectName("param_label")
-        # Says so on the panel when the two tick boxes cancel the markers out.
-        self.helper_markers_edge_warning = QLabel("", self)
-        self.helper_markers_edge_warning.setWordWrap(True)
-        self.helper_markers_edge_warning.setObjectName("param_label")
-        self.helper_markers_edge_warning.setVisible(False)
-        hmg.addWidget(self.helper_markers_edge_warning, 7, 0, 1, 2)
+        # Says so ON THE ⓘ OF THE ROW that makes the contradiction, when the
+        # two tick boxes cancel the markers out. It was a label under the boxes
+        # until 2026-09-04 (Basti: *"not directly inside a section"*).
         self.helper_markers_cb.toggled.connect(self._update_helper_marker_rows)
         self.helper_markers_cb.toggled.connect(
             self._update_helper_marker_edge_warning)
@@ -1699,7 +1853,6 @@ class LayoutOptionsPanel(QWidget):
         self.insert_token_btn = self._make_insert_button(self.chart_text)
         self.text_preview = QLabel(self)
         self.text_preview.setWordWrap(True)
-        self.text_preview.setStyleSheet("color: palette(mid);")
         self.chart_text_font = ElidingComboBox(self)
         self._populate_font_combo(self.chart_text_font)
         self.chart_text_font.currentIndexChanged.connect(self._emit)
@@ -1767,7 +1920,7 @@ class LayoutOptionsPanel(QWidget):
         stg.addWidget(QLabel(tr("Text distance from edge (mm):"), self), 5, 0, 1, 2)
         _te.setContentsMargins(16, 0, 0, 0)
         stg.addWidget(_te_w, 6, 0, 1, 3)
-        stg.addWidget(TooltipButton(
+        self._text_edge_tip = TooltipButton(
             tr("Text distance from edge"),
             tr("The minimum distance from the paper edge to the text on each side "
                "that can carry text: Top = strip labels, Bottom = sheet text, "
@@ -1775,15 +1928,16 @@ class LayoutOptionsPanel(QWidget):
                "labels down the left. Increase a value if your "
                "printer clips text near that edge. These are independent of the "
                "page margins; if a margin is too small for its text, the text "
-               "overflows toward this line and a margin warning is shown.\n\n"
+               "overflows toward this line, and the ⓘ beside the measured "
+               "margins under the preview says so.\n\n"
                "If you also print the ruler helper markers (the short dashes "
                "along the page edges, switched on under the preview), a dash "
                "can land on top of this text. Nothing is hidden or moved "
                "automatically, because the dashes have to keep step with the "
                "patches to be useful. Move whichever one is in the way: give "
                "the text more room here, or shift the dashes with their own "
-               "“Distance from page edge”."), self),
-            5, 2)
+               "“Distance from page edge”."), self)
+        stg.addWidget(self._text_edge_tip, 5, 2)
         # WHEN THE NUMBER IN THE BOX IS NOT THE NUMBER THAT APPLIES.
         #
         # "Clip" is a request, not a result: the row-label band's floor is
@@ -1799,17 +1953,14 @@ class LayoutOptionsPanel(QWidget):
         # clip-border notes text and would need a settings migration); the box
         # simply stops being silent about it.
         #
-        # Sits directly under the three spin boxes, spanning the grid, and is
-        # HIDDEN whenever the typed value is the one in force — a line that is
-        # always there is a line nobody reads.
-        self.text_edge_clip_note = QLabel("", self)
-        self.text_edge_clip_note.setWordWrap(True)
-        self.text_edge_clip_note.setObjectName("param_label")
-        self.text_edge_clip_note.setVisible(False)
-        # The same 16 px indent `_te` carries, so the note lines up under the
-        # boxes it is about rather than under the group's label column.
-        self.text_edge_clip_note.setContentsMargins(16, 4, 0, 0)
-        stg.addWidget(self.text_edge_clip_note, 7, 0, 1, 3)
+        # IT IS SAID ON THE ⓘ OF THE ROW IT IS ABOUT, not under the spin boxes.
+        # It used to be a label spanning the grid, hidden whenever the typed
+        # value was the one in force. Basti, 2026-09-04: *"the info text …
+        # directly inside the sections … i want that gone. You can fit it
+        # inside of a tooltip where it fits but not directly inside a
+        # section"*. It fits, and it belongs to exactly one row — the three
+        # boxes T / B / Clip — which already has an ⓘ. See
+        # `_update_text_edge_clip_note`.
         _expert_v.addWidget(st)
         self._update_text_preview()
         self._update_text_edge_clip_note()
@@ -1867,7 +2018,6 @@ class LayoutOptionsPanel(QWidget):
         self.clip_image_browse.clicked.connect(self._browse_clip_image)
         from PyQt6.QtWidgets import QSizePolicy
         self.clip_dims_label = QLabel("", self)
-        self.clip_dims_label.setStyleSheet("color: palette(mid);")
         self.clip_dims_label.setWordWrap(True)
         self.clip_preview = QLabel(self)
         # Tall enough to show a multi-line record at a glance (Knut).
@@ -2119,6 +2269,9 @@ class LayoutOptionsPanel(QWidget):
         self._sync_instrument_widgets(
             (self.instr.currentData() if self.instr is not None else self._inst)
             or "i1")
+        # The secondary notes take the appearance's own ink. Last, because
+        # every one of them has to exist first.
+        self._paint_notes()
 
     def _browse_cal(self) -> None:
         from pathlib import Path
@@ -2447,7 +2600,7 @@ class LayoutOptionsPanel(QWidget):
         existing = self.clip_text.toPlainText().strip()
         if existing:
             from PyQt6.QtWidgets import QMessageBox
-            if QMessageBox.question(
+            if ask(
                     self, tr("Load example table?"),
                     tr("Replace the current clip-border text with the example "
                        "table?")) != QMessageBox.StandardButton.Yes:
@@ -2528,6 +2681,48 @@ class LayoutOptionsPanel(QWidget):
         if not self._spin_widths_fitted:
             self._spin_widths_fitted = True
             self._fit_spin_widths()
+
+    def changeEvent(self, event) -> None:    # noqa: N802 (Qt override)
+        """A NEW STYLE MEANS A NEW CHROME, AND THE OLD WIDTH IS NOW A LIE.
+
+        `_fit_spin_widths` pins each box to `widest + chrome + 4`, and asks the
+        STYLE what the chrome is. That answer depends on a stylesheet: measured
+        on the running app, the same query returns **20 px with no application
+        stylesheet and 51 px with one** (all three appearances write
+        `padding: 0 24px 0 6px` plus a 1 px border, so they agree exactly).
+        Fitted once at 20 and painted at 51, every box in `_fitted_spins` is
+        31 px too narrow — the editor of "Line thickness" comes out **1 px
+        wide** and the value reads as a sliver — and it stays that way for ever,
+        because the fit ran once and nothing ever asked again.
+
+        The shipped app does not reach that state: `main.py` applies the
+        appearance BEFORE it builds the window, so the chrome is already 51 the
+        first and only time the fit runs (measured on screen, all three
+        appearances and across three runtime appearance switches: nothing
+        clips). B8-45's numbers came from a driver that built the window first
+        and switched the appearance afterwards — which is the same order, and
+        the same fault, that any future code path putting a stylesheet on after
+        construction would produce.
+
+        So the fit is made re-runnable instead of once-only. It is a width
+        recomputation over ~40 spin boxes; it costs nothing and it removes the
+        assumption that the style can never change under a built panel.
+        """
+        super().changeEvent(event)
+        from PyQt6.QtCore import QEvent
+        if event.type() != QEvent.Type.StyleChange or not self._spin_widths_fitted:
+            return
+        # NEXT TURN, NOT THIS ONE — and the honest reason, because the obvious
+        # one turned out to be false. MEASURED both ways: by the time this
+        # panel is handed the StyleChange, an application-wide `setStyleSheet`
+        # has ALREADY given its spin boxes the new rules (chrome reads 51 px
+        # inside the event, not the old 24), so an inline refit would work
+        # here. The timer is kept for the two things it does buy: a repolish
+        # can deliver several StyleChange events to one widget and a single-shot
+        # timer coalesces them into one width pass over ~40 boxes, and it does
+        # not depend on an ordering between a widget and its children that Qt
+        # nowhere promises.
+        self._refit_timer.start(0)
 
     def _fit_spin_widths(self) -> None:
         """Size each millimetre box to the widest string IT can actually show.
@@ -3112,8 +3307,7 @@ class LayoutOptionsPanel(QWidget):
         `Geom.row_label_floor` and the run-up is `clip_zone - clip_area_mm()'s
         width`, which is the subtraction that produced it.
         """
-        note = getattr(self, "text_edge_clip_note", None)
-        if note is None or not hasattr(self, "text_edge_clip"):
+        if not hasattr(self, "text_edge_clip"):
             return []
         typed = float(self.text_edge_clip.value())
         lines: list[str] = []
@@ -3198,28 +3392,37 @@ class LayoutOptionsPanel(QWidget):
         return cb is not None and cb.isChecked()
 
     def _update_text_edge_clip_note(self, *_a) -> None:
-        """Show the note under "Text distance from edge", or hide it.
+        """Put the note on the "Text distance from edge" ⓘ, or take it off.
 
         Guarded exactly as `_refresh_clip_preview` is, and for the same reason:
         it builds a geometry, `set_recipe()` sets thirty fields in turn, and
         every loading window is closed by an unguarded `_emit()` with
         `_loading` back to False. If you add a fourth window, it MUST end the
         same way.
+
+        The words are unchanged — the same three sentences, the same twelve
+        catalogue entries. Only the home moved (Basti, 2026-09-04).
         """
-        note = getattr(self, "text_edge_clip_note", None)
-        if note is None:
+        tip = getattr(self, "_text_edge_tip", None)
+        if tip is None:
             return
         if getattr(self, "_loading", False) or \
                 getattr(self, "_suspend_clip_preview", False):
             return
+        tip.set_live_note(self._text_edge_clip_note_text())
+
+    def _text_edge_clip_note_text(self) -> str:
+        """The whole note as one block, or ``""`` when nothing overrules "Clip".
+
+        Split out from :meth:`_update_text_edge_clip_note` so a test can read
+        the words without going through a widget's tooltip.
+        """
         try:
             lines = self._text_edge_clip_note_lines()
         except Exception:          # noqa: BLE001 — a note is never fatal
             lines = []
         if not lines:
-            note.setText("")
-            note.setVisible(False)
-            return
+            return ""
         typed = float(self.text_edge_clip.value())
         # COUNT-AWARE, because two of these can be true at once and the reader
         # has to know there is a second line below the first.
@@ -3230,8 +3433,7 @@ class LayoutOptionsPanel(QWidget):
             head = tr("“Clip” is set to {typed:.1f} mm, and {n} things on this "
                       "chart are not placed at that distance:").format(
                           typed=typed, n=len(lines))
-        note.setText(head + "\n" + "\n".join("•  " + ln for ln in lines))
-        note.setVisible(True)
+        return head + "\n" + "\n".join("•  " + ln for ln in lines)
 
     # Undoing setFixedHeight() needs the real ceiling back, not a guess.
     _PREVIEW_MAX_H = 16777215        # Qt's QWIDGETSIZE_MAX
@@ -3395,7 +3597,7 @@ class LayoutOptionsPanel(QWidget):
         paths = raster.export_clip_template(
             base, width_px=w_px, height_px=h_px,
             width_mm=w_mm, height_mm=h_mm, dpi=dpi, content=content)
-        QMessageBox.information(
+        inform(
             self, tr("Clip template exported"),
             tr("Wrote:\n{files}").format(files="\n".join(str(p) for p in paths)))
 
@@ -3875,27 +4077,33 @@ class LayoutOptionsPanel(QWidget):
                 w.setEnabled(on)
 
     def _update_helper_marker_edge_warning(self, *_a) -> None:
-        """Say it on the panel when the markers are on but no edge is ticked.
+        """Say it when the markers are on but no edge is ticked.
 
         "Print helper markers" ticked with both edges unticked prints nothing,
         and every distance box stays live and looks armed — a contradiction the
-        user can only resolve by reading a tooltip. The preview says it too
-        (the overlay goes into its "no markers next time" state), but the
-        contradiction is made HERE, so the answer belongs here.
+        user can only resolve by asking. The preview says it too (the overlay
+        goes into its "no markers next time" state), but the contradiction is
+        made on the "Show markers for" row, so the answer rides on that row's
+        own ⓘ: same sentence, same twelve catalogue entries, no line printed
+        inside the section (Basti, 2026-09-04).
         """
-        w = getattr(self, "helper_markers_edge_warning", None)
-        if w is None:
+        tip = getattr(self, "_hm_edges_tip", None)
+        if tip is None:
             return
+        tip.set_live_note(self._helper_marker_edge_warning_text())
+
+    def _helper_marker_edge_warning_text(self) -> str:
+        """The warning, or ``""`` when at least one edge will actually print."""
         on = bool(self.helper_markers_cb.isChecked())
         none_ticked = not (self.helper_markers_top_bottom.isChecked()
                            or self.helper_markers_sides.isChecked())
         if on and none_ticked:
-            w.setText(tr("No dashes will be printed — tick at least one edge "
-                         "above, or turn the markers off."))
-            w.setVisible(True)
-        else:
-            w.setText("")
-            w.setVisible(False)
+            # "…at least one edge ABOVE" was true of a label printed under the
+            # two boxes and is false of an ⓘ that sits on the row above them.
+            # A notice that can move has to stop pointing with a finger.
+            return tr("No dashes will be printed — tick at least one of the "
+                      "two edge boxes, or turn the markers off.")
+        return ""
 
     def set_helper_markers_supported(self, supported: bool,
                                      reason: str = "") -> None:

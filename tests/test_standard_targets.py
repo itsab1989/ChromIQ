@@ -219,3 +219,73 @@ def test_a_real_change_is_still_written(tmp_path):
 
     assert json.loads(manifest.read_text(encoding="utf-8")) != {"stale": "value"}, (
         "a manifest that no longer describes the folder was left alone")
+
+
+# --- the edge lists the AUTOMATIC recogniser matches on -------------------
+#
+# `scanin -F` (four corners by hand) never reads XLIST/YLIST, so the bundled
+# files could be — and were — validated end to end through the real scanin at
+# 100/200/300/600 dpi with column 2 wrong by a factor of hundreds. Auto align
+# is the first caller that asks scanin to FIND the chart, and it got
+# `r0 = nan, r90 = nan, r180 = nan, r270 = nan`, zero candidate rotations and
+# "Pattern match wasn't good enough" on every bought target ChromIQ ships.
+#
+# ArgyllCMS `doc/cht_format.html` on that column: "the second number is used to
+# improve the correlation by representing the strength of that 'tick' relative
+# to the strongest tick which will have a value 1.0". ChromIQ's own generator
+# already obeys this (`layout_engine/cht_writer.py::_edge_list`, "normalised to
+# their maxima, the way printtarg's XLIST/YLIST are") — only the static files
+# did not.
+
+def _edge_blocks(text: str):
+    """Every XLIST/YLIST block in *text* as a list of (pos, strength, cross)."""
+    import re
+    hdr = re.compile(r"^(XLIST|YLIST)\s+\d+$")
+    blocks, cur = [], None
+    for line in text.splitlines() + [""]:
+        s = line.strip()
+        if hdr.match(s):
+            if cur:
+                blocks.append(cur)
+            cur = []
+            continue
+        if cur is None:
+            continue
+        p = s.split()
+        if len(p) == 3:
+            try:
+                cur.append(tuple(float(v) for v in p))
+                continue
+            except ValueError:
+                pass
+        if cur:
+            blocks.append(cur)
+        cur = None
+    if cur:
+        blocks.append(cur)
+    return blocks
+
+
+def test_every_bundled_edge_list_is_normalised_the_way_argyll_defines_it():
+    """Columns 2 and 3 are strengths relative to the strongest tick, so each
+    block must top out at exactly 1.0 and never exceed it. A file that puts an
+    absolute edge LENGTH there (it8Wolf shipped 385.125) makes scanin's
+    automatic recogniser return nan and find nothing."""
+    d = bundled_targets_dir()
+    checked = 0
+    for cht in sorted(d.glob("*.cht")):
+        blocks = _edge_blocks(cht.read_text(encoding="utf-8", errors="ignore"))
+        assert len(blocks) == 2, f"{cht.name}: expected an XLIST and a YLIST"
+        for block in blocks:
+            assert block, f"{cht.name}: empty edge list"
+            for col in (1, 2):
+                vals = [row[col] for row in block]
+                assert all(0.0 < v <= 1.0 for v in vals), (
+                    f"{cht.name}: column {col + 1} outside (0, 1] — "
+                    f"max {max(vals)!r}; it must be relative to the strongest "
+                    f"tick, not an absolute length")
+                assert abs(max(vals) - 1.0) < 1e-9, (
+                    f"{cht.name}: column {col + 1} never reaches 1.0 "
+                    f"(max {max(vals)!r}) — nothing is the strongest tick")
+            checked += 1
+    assert checked == 2 * len(_BUNDLED), "every bundled target must be checked"

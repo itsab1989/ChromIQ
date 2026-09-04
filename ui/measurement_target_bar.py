@@ -22,6 +22,7 @@ from core.measurement_target import (
     MeasurementTarget, coerce_run_type)
 from ui.tooltip_button import TooltipButton
 from ui.widgets import NoScrollComboBox
+from ui.warning_sign import inform, warn
 
 log = get_logger(__name__)
 
@@ -1747,7 +1748,7 @@ class MeasurementTargetBar(QWidget):
             # happened at all — no chart restored and no word about why. A
             # control that can silently do nothing is a fault whatever the
             # cause underneath, so it now says so instead of returning quietly.
-            QMessageBox.information(
+            inform(
                 self, tr("There is nothing to restore right now"),
                 tr("ChromIQ could not work out which run's stored chart to put "
                    "back, so nothing has been changed.\n\n"
@@ -1757,7 +1758,7 @@ class MeasurementTargetBar(QWidget):
                    "are exactly as they were."))
             return
         if not result.ok:
-            QMessageBox.warning(
+            warn(
                 self, tr("The chart could not be restored"),
                 tr("Nothing was changed — the chart in this run is exactly as "
                    "it was.\n\nChromIQ could not read the stored copy: "
@@ -1893,7 +1894,7 @@ class MeasurementTargetBar(QWidget):
         try:
             new_id = self._ctl.duplicate_run()
         except OSError as exc:
-            QMessageBox.warning(
+            warn(
                 self, tr("The run could not be duplicated"),
                 tr("Nothing was copied and nothing was changed — the run you "
                    "selected is exactly as it was.\n\nReason: {reason}"
@@ -2027,7 +2028,7 @@ class MeasurementTargetBar(QWidget):
         from core.trash import move_to_trash
         res = move_to_trash(root)
         if not res.ok:
-            QMessageBox.warning(
+            warn(
                 self, tr("Could not delete the project"),
                 res.reason or tr("Nothing was changed. Every file is still "
                                  "exactly where it was."))

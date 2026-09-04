@@ -172,6 +172,7 @@ from ui.tiff_preview import TiffPreview
 from core.i18n import tr
 from core.text_io import read_text
 from core.platform_paths import default_output_root
+from ui.warning_sign import inform, set_warning_icon, warn
 
 if TYPE_CHECKING:
     from core.argyll_runner import ArgyllRunner
@@ -3748,7 +3749,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         try:
             shutil.copy2(partial, run.measurement_ti3)
         except OSError as exc:
-            QMessageBox.warning(
+            warn(
                 self, tr("Could not recover the readings"),
                 tr("The readings are still safe in the backup file, and nothing "
                    "has been changed.\n\nReason: {reason}").format(reason=str(exc)))
@@ -5149,7 +5150,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             wanted = next(n for n in KNOWN_INSTRUMENTS if "i1 Pro" in n)
         if wanted is None:
             from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.warning(
+            warn(
                 self, tr("ChromIQ cannot tell which instrument this chart is for"),
                 tr("The name in the file, “{found}”, does not say which device "
                    "the chart was laid out for, and guessing would be worse than "
@@ -5172,7 +5173,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                         ).format(file=path.name, name=wanted))
         except OSError as exc:
             from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.warning(
+            warn(
                 self, tr("Could not correct the instrument name"),
                 tr("Nothing was changed.\n\nReason: {reason}").format(reason=str(exc)))
             return False
@@ -5567,7 +5568,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
 
         from PyQt6.QtWidgets import QMessageBox
         box = QMessageBox(self)
-        box.setIcon(QMessageBox.Icon.Warning)
+        set_warning_icon(box)
         # macOS does not paint a window title on a message box, so the title has
         # to be IN the window to be readable — and a window you can name is a
         # window you can report (Knut, #131 2026-07-27: "This window also is
@@ -5642,7 +5643,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         from PyQt6.QtWidgets import QMessageBox
         from core.measurement_target import chart_overwrite_message
         box = QMessageBox(self)
-        box.setIcon(QMessageBox.Icon.Warning)
+        set_warning_icon(box)
         box.setWindowTitle(tr("Stored chart differs"))
         box.setText(tr("Stored chart differs") + "\n\n" + tr(
             "Measuring here replaces the chart stored with that verification "
@@ -5851,7 +5852,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             return False
         from PyQt6.QtWidgets import QMessageBox
         from core.measurement_target import new_run_guard_message
-        QMessageBox.information(self, tr(
+        inform(self, tr(
             "Choose a profile run to measure — pick one in the Profile-run "
             "bar above, or choose “New run” to start a fresh one"),
                                 new_run_guard_message("measure"))
@@ -12894,7 +12895,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                     ti3 = cand
         if ti3 is None or not ti3.exists():
             from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.information(
+            inform(
                 self, tr("Measurement Report"),
                 tr("Measure this chart first — the report compares your "
                    "measurement against the chart's design colours."))

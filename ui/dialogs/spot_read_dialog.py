@@ -46,7 +46,7 @@ from ui.cr30_calibration import Cr30CalibrationMixin
 from ui.dialogs.tools_dialogs import _indicator_color, neutral_controls_qss
 from ui.styles import SPEC_GREEN
 from ui.tab_header import dialog_masthead
-from ui.warning_sign import set_warning_icon
+from ui.warning_sign import inform, set_warning_icon, warn
 from ui.widgets import NoScrollComboBox, set_ink, tint_dialog_primary
 from workflow.spot_read_io import SpotReading, average_readings, write_csv, write_ti3
 from workflow.spot_read_manager import SpotReadManager, SpotReadParams
@@ -1301,10 +1301,10 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
             csv_path = write_csv(artefact(base, ".csv"), self._readings)
             ti3_path = write_ti3(artefact(base, ".ti3"), self._readings)
         except OSError as exc:
-            QMessageBox.warning(self, tr("Save failed"), str(exc))
+            warn(self, tr("Save failed"), str(exc))
             return False
         self._unsaved = False
-        QMessageBox.information(
+        inform(
             self, tr("Saved"),
             tr("Readings saved to:\n{csv}\n{ti3}").format(
                 csv=csv_path.name, ti3=ti3_path.name),
@@ -1634,7 +1634,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
             return
         fast_on = bool(self._settings.get("fast_instrument_connect", True))
         box = QMessageBox(self)
-        box.setIcon(QMessageBox.Icon.Warning)
+        set_warning_icon(box)
         box.setWindowTitle(tr("No instrument detected"))
         box.setText(tr("No measuring instrument was found."))
         if fast_on:
@@ -1672,7 +1672,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
 
     def _on_device_busy(self) -> None:
         self._set_status(tr("Instrument is in use by another program."))
-        QMessageBox.warning(
+        warn(
             self, tr("Instrument busy"),
             tr("The instrument is being used by another program. Close it and try again."),
         )

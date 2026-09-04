@@ -190,17 +190,51 @@ def test_the_agreement_is_none_when_the_image_cannot_be_read(tmp_path):
                                   expected_luminance(text), 0.6) is None
 
 
-def test_expected_luminance_prefers_the_cht_and_falls_back_to_the_cie(tmp_path):
+def _cie(path, rows):
+    path.write_text("\n".join(
+        ["CGATS.17", "BEGIN_DATA_FORMAT", "SAMPLE_ID XYZ_X XYZ_Y XYZ_Z",
+         "END_DATA_FORMAT", "BEGIN_DATA"] + rows + ["END_DATA", ""]),
+        encoding="utf-8")
+    return path
+
+
+def test_the_reference_beats_the_chts_expected_block(tmp_path):
+    """The reference file is the sheet in front of the user; a `.cht`'s
+    EXPECTED block is generic and approximate — ArgyllCMS's own cht_format.html
+    says of it, in capitals, "NOTE that these are not color reference values!".
+
+    Preferring the `.cht` broke "Try with a demo scan" on every target carrying
+    an EXPECTED block: the demo image is painted in deliberately scrambled
+    colours, so it was scored against the REAL target's colours (ColorCheckerSG
+    agreement 0.049, ColorChecker orientation margin 0.03-0.07 against a 0.15
+    requirement) and Auto align refused a pixel-perfect placement."""
+    _scan, text, _truth, _box = _chart(tmp_path)
+    names = sorted(expected_luminance(text))
+    assert len(names) == 48
+    ref = _cie(tmp_path / "full.cie", [f"{n} 1 {7.0 + i} 3"
+                                       for i, n in enumerate(names)])
+    got = expected_luminance(text, ref)
+    assert got == {n: 7.0 + i for i, n in enumerate(names)}, "reference must win"
+
+
+def test_a_short_reference_never_loses_colours_the_chart_already_had(tmp_path):
+    """The EXPECTED block still wins when it describes MORE of the chart, so a
+    truncated or half-readable reference cannot throw away what the .cht knows."""
     _scan, text, _truth, _box = _chart(tmp_path)
     from_cht = expected_luminance(text)
-    assert len(from_cht) == 48
+    short = _cie(tmp_path / "short.cie", ["A01 1 42 3"])
+    assert expected_luminance(text, short) == from_cht
+
+
+def test_with_no_reference_at_all_the_chart_is_used(tmp_path):
+    _scan, text, _truth, _box = _chart(tmp_path)
+    assert len(expected_luminance(text)) == 48
+
+
+def test_a_chart_with_no_expected_block_falls_back_to_the_reference(tmp_path):
+    _scan, text, _truth, _box = _chart(tmp_path)
     stripped = text[:text.index("EXPECTED XYZ")]
-    cie = tmp_path / "r.cie"
-    cie.write_text("\n".join(
-        ["CGATS.17", "NUMBER_OF_FIELDS 4", "BEGIN_DATA_FORMAT",
-         "SAMPLE_ID XYZ_X XYZ_Y XYZ_Z", "END_DATA_FORMAT",
-         "NUMBER_OF_SETS 1", "BEGIN_DATA", "A01 1 42 3", "END_DATA", ""]),
-        encoding="utf-8")
+    cie = _cie(tmp_path / "r.cie", ["A01 1 42 3"])
     assert expected_luminance(stripped, cie) == {"A01": 42.0}
 
 
@@ -366,22 +400,69 @@ def test_a_scanin_that_never_returns_is_a_refusal_not_a_hang(tmp_path):
 # ---------------------------------------------------------------------------
 # the button
 # ---------------------------------------------------------------------------
-def test_the_button_sits_next_to_rotate_ninety(qapp, tmp_path):
-    """Basti asked for it beside Rotate 90 deg, under the preview."""
+def test_the_button_is_reachable_in_the_block_under_the_preview(qapp, tmp_path):
+    """Basti asked for it under the preview, with the other view controls.
+
+    This used to assert that Auto align is the widget immediately after
+    Rotate 90 deg. That is layout trivia: it says nothing about whether the
+    button can be found or pressed, and it went red the first time the block
+    was rearranged (beta 8, AGENT-S) even though nothing about the button had
+    changed. What matters and stays true is that the button EXISTS, carries a
+    label, is keyboard-reachable, and lives in the block of view controls
+    directly under the preview — so this checks that instead, and does not
+    care which row of it the button is on.
+    """
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtWidgets import QHBoxLayout, QVBoxLayout
     d = _dialog(qapp, tmp_path)
     assert d._auto_align_btn.text()
-    lay = _row_of(d, d._rotate_btn)
-    widgets = [lay.itemAt(i).widget() for i in range(lay.count())]
-    assert widgets[widgets.index(d._rotate_btn) + 1] is d._auto_align_btn
+    assert d._auto_align_btn.isEnabled()
+    assert d._auto_align_btn.focusPolicy() & Qt.FocusPolicy.TabFocus, (
+        "a button nobody can tab to is not reachable")
+
+    block = _the_preview_button_block(d)
+    rows = [block.itemAt(i).layout() for i in range(block.count())]
+    assert any(d._auto_align_btn is row.itemAt(j).widget()
+               for row in rows if isinstance(row, QHBoxLayout)
+               for j in range(row.count())), (
+        "Auto align is not in the button block under the preview")
+
+    # …and that block really is UNDER THE PREVIEW: same column, lower down.
+    col = _the_right_column(d)
+    items = [col.itemAt(i) for i in range(col.count())]
+    layouts = [it.layout() for it in items]
+    assert d._marquee_box in layouts and block in layouts
+    assert layouts.index(block) > layouts.index(d._marquee_box)
 
 
-def _row_of(dialog, btn):
-    from PyQt6.QtWidgets import QHBoxLayout
-    for lay in dialog.findChildren(QHBoxLayout):
+def _the_preview_button_block(d):
+    """The QVBoxLayout that holds every one of the six view-control rows."""
+    from PyQt6.QtWidgets import QHBoxLayout, QVBoxLayout
+    wanted = {d._rotate_btn, d._auto_align_btn, d._reset_btn,
+              d._reset_grid_btn, d._check_align_btn, d._popout_btn}
+    for lay in d.findChildren(QVBoxLayout):
+        found = set()
         for i in range(lay.count()):
-            if lay.itemAt(i).widget() is btn:
-                return lay
-    raise AssertionError("button not found in any row")
+            row = lay.itemAt(i).layout()
+            if isinstance(row, QHBoxLayout):
+                for j in range(row.count()):
+                    w = row.itemAt(j).widget()
+                    if w in wanted:
+                        found.add(w)
+        if found == wanted:
+            return lay
+    raise AssertionError("no single block holds all six preview buttons")
+
+
+def _the_right_column(d):
+    """The column the preview and its buttons share."""
+    from PyQt6.QtWidgets import QVBoxLayout
+    block = _the_preview_button_block(d)
+    for lay in d.findChildren(QVBoxLayout):
+        kids = [lay.itemAt(i).layout() for i in range(lay.count())]
+        if block in kids and d._marquee_box in kids:
+            return lay
+    raise AssertionError("the preview and its buttons are not in one column")
 
 
 def _dialog(qapp, tmp_path):
@@ -406,11 +487,11 @@ def test_pressing_it_with_nothing_loaded_says_so_and_moves_nothing(qapp, tmp_pat
 
 
 def test_a_refusal_leaves_the_corners_alone_and_offers_no_undo(qapp, tmp_path):
-    from workflow.scan_auto_align import AutoAlignResult
+    from workflow.scan_placement import PlacementResult
     d = _dialog(qapp, tmp_path)
     before = d._marquee.corners_image_px()
     d._align_before = list(before)
-    d._auto_align_done(AutoAlignResult(reason="below-floor", rho=0.4))
+    d._auto_align_done(PlacementResult(ending="below-floor", rho=0.4))
     assert d._marquee.corners_image_px() == before
     assert d._align_undo is None
     assert d._auto_align_btn.text() != "Undo auto align"
@@ -418,7 +499,7 @@ def test_a_refusal_leaves_the_corners_alone_and_offers_no_undo(qapp, tmp_path):
 
 def test_an_accepted_answer_moves_the_grid_and_arms_one_step_undo(qapp, tmp_path):
     from core.i18n import tr
-    from workflow.scan_auto_align import AutoAlignResult
+    from workflow.scan_placement import PlacementResult
     d = _dialog(qapp, tmp_path)
     d._marquee.set_image(Image_qimage(200, 200))
     d._marquee.set_corners([(10, 10), (100, 10), (100, 100), (10, 100)])
@@ -426,7 +507,8 @@ def test_an_accepted_answer_moves_the_grid_and_arms_one_step_undo(qapp, tmp_path
     before = d._marquee.corners_image_px()
     d._align_before = list(before)
     found = [(20.0, 20.0), (150.0, 20.0), (150.0, 150.0), (20.0, 150.0)]
-    d._auto_align_done(AutoAlignResult(corners=found, rho=0.97, source="auto"))
+    d._auto_align_done(PlacementResult(corners=found, rho=0.97, ending="placed",
+                                       found=True))
     assert d._marquee.corners_image_px() == found
     assert d._auto_align_btn.text() == tr("Undo auto align")
     # one press puts it back, exactly
@@ -444,15 +526,15 @@ def Image_qimage(w, h):
 
 def test_moving_the_grid_by_hand_ends_the_undo(qapp, tmp_path):
     from core.i18n import tr
-    from workflow.scan_auto_align import AutoAlignResult
+    from workflow.scan_placement import PlacementResult
     d = _dialog(qapp, tmp_path)
     d._marquee.set_image(Image_qimage(200, 200))
     d._marquee.set_corners([(10, 10), (100, 10), (100, 100), (10, 100)])
     d._capture_current_corners()
     d._align_before = list(d._marquee.corners_image_px())
-    d._auto_align_done(AutoAlignResult(
+    d._auto_align_done(PlacementResult(
         corners=[(20.0, 20.0), (150.0, 20.0), (150.0, 150.0), (20.0, 150.0)],
-        rho=0.97, source="auto"))
+        rho=0.97, ending="placed", found=True))
     assert d._auto_align_btn.text() == tr("Undo auto align")
     # what a drag emits (set_corners is a restore, and stays silent)
     d._marquee.changed.emit()
@@ -620,6 +702,15 @@ def _drive_align(qapp, tmp_path, monkeypatch, quad, answers):
         calls.append(k.get("search_region"))
         return answers[min(len(calls) - 1, len(answers) - 1)]
     monkeypatch.setattr(aa, "auto_align", fake)
+    # From beta 8 the button is one operation: search, then reshape, then check
+    # (`workflow.scan_placement.place_grid`). These two tests are about WHERE
+    # the search looks, and the sheet under them is a one-patch stub with no
+    # image on disk, so the two picture checks and the reference agreement are
+    # answered here rather than measured. Everything else — the window, the
+    # slot, the thread, `place_grid` itself — is the real thing.
+    import workflow.scan_placement as sp
+    monkeypatch.setattr(sp, "seated_verdict", lambda *a, **k: (True, 0.0))
+    monkeypatch.setattr(aa, "reference_agreement_at", lambda *a, **k: 0.95)
     monkeypatch.setattr("ui.dialogs.scanin_dialog.ScannerProfileDialog."
                         "_auto_align_inputs",
                         lambda self: (tmp_path / "s.tif", tmp_path / "c.cht",
@@ -733,7 +824,12 @@ def test_the_starting_quad_is_the_one_the_marquee_always_used(qapp, tmp_path):
 # own to carry one in.
 
 REASONS = {"ambiguous-orientation", "below-floor", "not-recognised",
-           "no-usable-candidate", "no-chart-geometry", "no-better"}
+           "no-usable-candidate", "no-chart-geometry", "no-better",
+           # beta 8, B8-02: the seventh, and the first one about GEOMETRY
+           # rather than about colour -- the patches in the picture do not sit
+           # where the returned grid would put them. See
+           # `tests/test_a_photograph_off_square_is_not_a_placement.py`.
+           "not-seated"}
 
 
 def _catalogue():
@@ -757,7 +853,14 @@ def test_every_reason_the_module_can_return_is_the_set_we_have_words_for():
                 and pat.match(n.value)}
     assert produced == REASONS, produced
     M = _catalogue()
-    assert set(M.SCAN_ALIGN_REFUSALS) == REASONS
+    # The map is the MERGED button's, so it carries one ending this module
+    # cannot produce on its own: "too-far" belongs to the reshaping step
+    # (`workflow.photo_fit`), and from the user's side it is the same button
+    # ending the same way. Every reason this module can return must still have
+    # words, and every ending the button can reach must still have words.
+    from workflow.scan_placement import ENDINGS
+    assert REASONS <= set(M.SCAN_ALIGN_REFUSALS)
+    assert set(M.SCAN_ALIGN_REFUSALS) == set(ENDINGS) - {"placed"}
     for r in REASONS:
         assert M.scan_align_refusal(r).id.startswith("M-SCAN-ALIGN-")
 
@@ -885,3 +988,212 @@ def test_the_row_name_reaches_the_messages_that_need_it():
                 f"{call} is rendered without ref_row, so the message would "
                 f"show the placeholder to the user")
             idx += len(call)
+
+
+# ---------------------------------------------------------------------------
+# what the reference calls a patch (Knut's LaserSoft target, beta.7)
+# ---------------------------------------------------------------------------
+def test_a_reference_that_names_patches_in_sample_loc_is_read(tmp_path):
+    """A `.cie`/`.ti3` in the shape `cxf2ti3` and `txt2ti3` produce — and the
+    shape LaserSoft's own R250715.cie comes in — numbers its rows in SAMPLE_ID
+    and puts the patch NAME in SAMPLE_LOC. Reading SAMPLE_ID unconditionally
+    paired 0 of 864 patches with the chart, every candidate scored None, and
+    Auto align refused `no-usable-candidate` while holding a placement that
+    scores 0.978. Same rule as scan_read_check.reference_patch_ids."""
+    cie = tmp_path / "loc.cie"
+    cie.write_text("\n".join(
+        ["CGATS.17", "BEGIN_DATA_FORMAT",
+         "SAMPLE_ID SAMPLE_LOC XYZ_X XYZ_Y XYZ_Z", "END_DATA_FORMAT",
+         "BEGIN_DATA", '1 "A1" 1 42 3', '2 "A2" 4 17 6', "END_DATA", ""]),
+        encoding="utf-8")
+    assert expected_luminance("", cie) == {"A1": 42.0, "A2": 17.0}
+
+
+def test_a_reference_naming_patches_in_sample_id_still_wins_when_alone(tmp_path):
+    """The old shape must keep working — a plain .cie/.txt names the patch in
+    SAMPLE_ID and has no SAMPLE_LOC column at all (Knut's Wolf Faust
+    R230122W.txt is exactly this)."""
+    cie = tmp_path / "id.cie"
+    cie.write_text("\n".join(
+        ["CGATS.17", "BEGIN_DATA_FORMAT", "SAMPLE_ID XYZ_X XYZ_Y XYZ_Z",
+         "END_DATA_FORMAT", "BEGIN_DATA", "A1 1 42 3", "END_DATA", ""]),
+        encoding="utf-8")
+    assert expected_luminance("", cie) == {"A1": 42.0}
+
+
+def test_a_reference_with_only_lab_is_read_too(tmp_path):
+    """Only the RANK of these numbers is ever used, and L* is monotone in Y,
+    so a LAB-only reference gives the identical correlation instead of no
+    answer at all."""
+    cie = tmp_path / "lab.cie"
+    cie.write_text("\n".join(
+        ["CGATS.17", "BEGIN_DATA_FORMAT", "SAMPLE_ID LAB_L LAB_A LAB_B",
+         "END_DATA_FORMAT", "BEGIN_DATA", "A1 71 2 3", "A2 19 4 5",
+         "END_DATA", ""]), encoding="utf-8")
+    assert expected_luminance("", cie) == {"A1": 71.0, "A2": 19.0}
+
+
+# ---------------------------------------------------------------------------
+# the answer is placed ONCE (beta.7: it was extrapolated twice)
+# ---------------------------------------------------------------------------
+def test_an_accepted_answer_is_not_pushed_out_to_the_fiducials(qapp, tmp_path):
+    """The recogniser answers in patch-area terms and the marquee is in
+    patch-area terms, so the answer goes in unchanged — even with "Use
+    fiducial marks" ticked, which is what a standard target defaults to.
+
+    It used to be extrapolated to the fiducial frame here as well as in
+    `_scanin_corners` at read time. Measured on the Wolf Faust scan, the grid
+    landed 53 px above the patches and the -F corners handed to scanin sat at
+    y = -4.8, off the top of the image."""
+    from workflow.scan_placement import PlacementResult
+    d = _dialog(qapp, tmp_path)
+    d._marquee.set_image(Image_qimage(200, 200))
+    d._marquee.set_corners([(10, 10), (100, 10), (100, 100), (10, 100)])
+    d._capture_current_corners()
+    d._align_before = list(d._marquee.corners_image_px())
+    # every condition that used to trigger the second extrapolation
+    d._standard_mode = lambda: True
+    d._fiducials_available = lambda: True
+    d._use_fiducials_cb.setChecked(True)
+    found = [(20.0, 20.0), (150.0, 20.0), (150.0, 150.0), (20.0, 150.0)]
+    d._auto_align_done(PlacementResult(corners=list(found), rho=0.97,
+                                       ending="placed", found=True))
+    assert d._marquee.corners_image_px() == found
+
+
+# ---------------------------------------------------------------------------
+# every bundled target, not just the two we have real scans for
+# ---------------------------------------------------------------------------
+def _synthetic_sheet(cht: Path, tmp_path: Path, target_w=1600, margin_frac=0.06):
+    """Render a chart from its OWN ``.cht`` geometry, with a luminance ramp in
+    reading order so the sheet has an unambiguous way up, and the matching
+    reference. Returns everything :func:`auto_align` needs plus the corners it
+    must find."""
+    from PIL import ImageDraw
+    from core.text_io import read_text
+    txt = read_text(cht, lenient=True)
+    boxes = parse_cht(txt).patches
+    x0 = min(b.x1 for b in boxes); x1 = max(b.x2 for b in boxes)
+    y0 = min(b.y1 for b in boxes); y1 = max(b.y2 for b in boxes)
+    s = target_w / (x1 - x0)
+    m = int(margin_frac * target_w)
+    img = Image.new("RGB", (int((x1 - x0) * s) + 2 * m,
+                            int((y1 - y0) * s) + 2 * m), (245, 245, 245))
+    d = ImageDraw.Draw(img)
+    order = sorted(boxes, key=lambda b: (round(b.y1, 3), round(b.x1, 3)))
+    lum = {}
+    for i, b in enumerate(order):
+        v = int(round(15 + 225 * i / max(1, len(order) - 1)))
+        c = [v, v, v]
+        c[(i * 37) % 3] = min(255, v + 8)      # chroma that never reorders lum
+        d.rectangle([(b.x1 - x0) * s + m, (b.y1 - y0) * s + m,
+                     (b.x2 - x0) * s + m, (b.y2 - y0) * s + m], fill=tuple(c))
+        lum[b.name] = v / 2.55
+    scan = tmp_path / f"{cht.stem}.tif"
+    img.save(scan)
+    cie = tmp_path / f"{cht.stem}.cie"
+    cie.write_text("\n".join(
+        ["CGATS.17", "BEGIN_DATA_FORMAT", "SAMPLE_ID XYZ_X XYZ_Y XYZ_Z",
+         "END_DATA_FORMAT", "BEGIN_DATA"]
+        + [f"{b.name} 20 {lum[b.name]:.3f} 20" for b in boxes]
+        + ["END_DATA", ""]), encoding="utf-8")
+    truth = [(m, m), (m + (x1 - x0) * s, m),
+             (m + (x1 - x0) * s, m + (y1 - y0) * s), (m, m + (y1 - y0) * s)]
+    return scan, cie, boxes, txt, img.size, truth, min(b.x2 - b.x1
+                                                       for b in boxes) * s
+
+
+@pytest.mark.skipif(_SCANIN is None, reason="ArgyllCMS scanin not present")
+def test_the_recogniser_finds_every_bundled_standard_target(tmp_path):
+    """Auto align must work on every target ChromIQ ships, not only the two we
+    happen to own scans of.
+
+    beta.7 shipped all eight with an absolute edge length in XLIST/YLIST
+    column 2 where ArgyllCMS defines a strength relative to the strongest tick,
+    and scanin answered `r0 = nan … 0 candidate rotations / Pattern match
+    wasn't good enough` on every one of them. Measured on this fixture: 8 of 8
+    `not-recognised` before the correction, 8 of 8 found after, worst corner
+    0.002-0.023 of a patch pitch."""
+    from workflow.standard_targets import bundled_targets_dir
+    d = bundled_targets_dir()
+    assert d is not None and d.is_dir()
+    charts = sorted(d.glob("*.cht"))
+    assert charts, "no bundled targets to check"
+    bad = []
+    for cht in charts:
+        scan, cie, boxes, txt, size, truth, pitch = _synthetic_sheet(cht, tmp_path)
+        r = auto_align(_SCANIN, scan, cht, cie, boxes,
+                       expected_luminance(txt, cie), size, timeout=300)
+        if not r.ok:
+            bad.append(f"{cht.stem}: refused ({r.reason}) {r.log_tail!r}")
+            continue
+        worst = max(math.dist(a, b) for a, b in zip(r.corners, truth))
+        if worst > 0.20 * pitch:
+            bad.append(f"{cht.stem}: {worst:.1f} px out "
+                       f"({worst / pitch:.2f} of a {pitch:.0f} px pitch)")
+    assert not bad, "targets the recogniser cannot place:\n  " + "\n  ".join(bad)
+
+
+def test_a_long_reference_naming_nothing_the_chart_knows_does_not_win(tmp_path):
+    """The choice is made on PATCHES NAMED, not on row count. LaserSoft's own
+    R250715.cie carries 864 rows numbered 1..864 with the patch name in
+    SAMPLE_LOC; read by row number it is long and useless, and counting rows
+    would let it displace a good EXPECTED block with keys no box can match."""
+    _scan, text, _truth, _box = _chart(tmp_path)
+    from_cht = expected_luminance(text)
+    numbered = _cie(tmp_path / "numbered.cie",
+                    [f"{i} 1 {i} 3" for i in range(1, 500)])
+    assert expected_luminance(text, numbered) == from_cht
+
+
+def test_the_chart_decides_which_reference_wins_not_the_expected_block(tmp_path):
+    """Coverage is judged against the CHART's own patch names when they are
+    given, because the EXPECTED block's keys can themselves be wrong.
+
+    CMP_Digital_Target-7 names its boxes "2A01" while its EXPECTED block says
+    "A1" — the block covers 534 of 570 patches, the reference covers all 570,
+    and judging the reference against the block's keys made the block win. Every
+    orientation then scored about 0.00, because the image was being compared
+    with colours belonging to other patches, and Auto align refused."""
+    _scan, text, _truth, _box = _chart(tmp_path)
+    names = sorted(expected_luminance(text))
+    assert len(names) == 48
+    # the chart's boxes: what EXPECTED names, plus 12 it does not
+    chart_ids = names + [f"Z{i}" for i in range(1, 13)]
+    ref = _cie(tmp_path / "full.cie",
+               [f"{n} 1 {7.0 + i} 3" for i, n in enumerate(chart_ids)])
+    # Judged on EXPECTED's keys alone the reference merely ties; judged on the
+    # chart's, it covers 12 more patches and must win.
+    got = expected_luminance(text, ref, chart_ids=chart_ids)
+    assert len(got) == len(chart_ids)
+    assert got["Z1"] == 7.0 + len(names)
+
+
+def test_a_refusal_records_what_it_found(qapp, tmp_path, caplog):
+    """A refusal must leave enough in the log file to tell a broken chart from
+    a recogniser that simply declined.
+
+    Knut's whole 77 KB beta.7 log could say only "auto align refused
+    (not-recognised)", nine times over — no candidate count, no score, no
+    rejection, nothing. The cause turned out to be an unreadable edge list in a
+    bundled `.cht`, and the log could not have pointed at it."""
+    import logging
+    from workflow.scan_placement import PlacementResult
+    d = _dialog(qapp, tmp_path)
+    d._marquee.set_image(Image_qimage(120, 120))
+    with caplog.at_level(logging.INFO):
+        d._auto_align_done(PlacementResult(
+            ending="below-floor", rho=0.42, rho_before=0.11,
+            find_reason="no-better", fit_reason="too-far-to-fit", moved=0.81,
+            drift=0.0123, candidates=3,
+            rejected=["auto: the grid's edges are not the chart's"],
+            log_tail="Pattern match wasn't good enough"))
+    line = "\n".join(r.getMessage() for r in caplog.records)
+    # …and, from beta 8, WHICH HALF of the merged operation said what. That
+    # never reaches a window — the user is told what happened in the picture —
+    # but a support question with only "refused" in it is the fault this test
+    # was written for, and there are two steps to account for now.
+    for must in ("below-floor", "0.42", "0.11", "3",
+                 "no-better", "too-far-to-fit", "0.81", "0.012",
+                 "edges are not the chart", "Pattern match"):
+        assert must in line, f"the refusal log does not carry {must!r}:\n{line}"

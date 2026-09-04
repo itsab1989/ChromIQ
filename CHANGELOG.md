@@ -1,5 +1,91 @@
 # Changelog
 
+## v4.1.5-beta.8
+
+**Auto align worked on 8 of the 25 bundled scanner targets. It now works on all
+25 — and the reason it failed was in files we ship, not in the recogniser.**
+
+Knut reported that auto align did not work on his charts. Basti then found it
+did not work on the test file ChromIQ ships with the app. Chasing that one
+report opened the whole scanner path, and most of this release comes out of it:
+an under-exposed scan that quietly built a bad profile and then rated it best,
+a hand-held scan tilted ten degrees accepted as correctly placed, and a
+diagnostic image that drew no outline, so a correct read looked wrong. Several
+of these had been shipping for months.
+
+### Fixed — the scanner path
+
+- **Auto align could never work on a bought target.** Every bundled `.cht`
+  carried an absolute edge length in a column that ArgyllCMS reads as *strength
+  relative to the strongest feature*, where the strongest must be 1.0 — 385.125
+  in one file, 3600.0 in another. `scanin` scored every candidate rotation as
+  `nan` and refused the match before looking at the picture. Normalised in
+  place; the geometry Knut supplied is untouched. **8 of 25 targets aligned
+  before, 25 of 25 now.**
+- **An under-exposed scan built a profile with no warning, and the app rated it
+  best.** The scan is now judged before it is trusted, and a scan too dark to
+  profile from says so instead of producing a plausible, wrong profile.
+- **A ten-degree hand-held tilt was accepted as a correct placement.** Keystone
+  is now measured against a limit rather than assumed away: 328 correct
+  placements separate cleanly from 106 wrong ones.
+- **Auto align found the right answer and threw it away.** An accepted result
+  was extrapolated to the fiducials a second time, moving it back off the
+  patches.
+- **Auto align and "Fit to the patches" are one button.** Measured over 290
+  cells: neither was a subset of the other — 139 cases only the search
+  recovered, 30 only the reshaping did, and "Fit" applied a placement that was
+  still wrong in 41 of the 118 cases it acted on. Auto align now searches,
+  reshapes, and only then submits the result to both picture checks and the
+  reference agreement. **68 % → 84 % of placements land on the patches, and
+  nothing wrong is applied.**
+- **The alignment diagnostic drew no outline**, so a correct read looked
+  misaligned; zooming it interpolated away the very edges being judged; and a
+  refusal could not be diagnosed from the log. All three now say what happened.
+- **A scan that is not the target you chose, an unreadable reference, and a
+  scanin diagnostic image loaded as a scan** each said nothing, or blamed the
+  wrong thing. Each now names what it found.
+- **The profile self-check had no floor and no NaN guard.**
+
+### Fixed — elsewhere
+
+- **A project whose name ends in an underscore and digits silently lost its
+  exports.**
+- **The ICC filename and the description embedded inside it disagreed** when no
+  description was given.
+- **"Build anyway" was drawn as "uild anywa"** — three windows built their own
+  buttons and never called the helper that has fitted them since #130.
+- **Four instruction labels were painted in the one colour that cannot carry a
+  word**: 1.25:1 in Light, 1.02:1 in Dark, against the 4.5:1 that AA asks for.
+  Now 13.6:1, 5.1:1 and 12.1:1.
+- **A self-capturing lambda on the pop-out window's `finished` signal** — the
+  same shape that crashed the app through the scroll-bar fade and is now
+  guarded there. Replaced with a bound method.
+
+### Changed
+
+- **Every warning, information and question sign in the app is ChromIQ's own.**
+  The platform's signs were still showing in 70 places across 13 files. All
+  three signs are drawn for Light, Dark and Neutral, and Neutral stays hueless.
+- **Explanation has left the Create Chart sections for the ⓘ it belongs to.**
+  Four blocks of standing text that sat inside sections now ride on the
+  information icon of the control they describe, with the first line also in the
+  hover tooltip so an icon carrying something says so without being clicked.
+  **246 px of vertical space returned in English, 262 in German**, and the panel
+  did not get wider in any of the thirteen languages.
+- **The six buttons under the scanner preview read in three rows instead of
+  four**, grouped by what each one acts on. The preview itself now takes the
+  space the window gives it — it was pinned to its 460 px minimum however large
+  the window grew, handing the rest to an empty spacer.
+
+### For developers
+
+- **The 34-check scanner-window sweep lives in the repository**, runs as
+  `./run-sweep.sh`, and drives the real window end to end rather than a harness.
+- **`docs/beta8_open_items.md` is a register the test suite enforces.** A fix
+  called FIXED must name a test that exists; a deferred item must name who
+  decided it and why; and the release gate refuses to go green while anything
+  marked as blocking release is still open.
+
 ## v4.1.5-beta.7
 
 **A third appearance called Neutral, a project with an umlaut that survives the

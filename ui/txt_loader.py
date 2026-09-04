@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING
 from ui.ti2_loader import _project_root_for, _resolve_working_dir
 from core.i18n import tr
 from core.logger import get_logger
+from ui.warning_sign import set_information_icon, set_warning_icon
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QWidget
@@ -72,7 +73,7 @@ def _say_the_replace_failed(parent, folder, reason) -> None:
             else M.M_IMPORT_REPLACE_FOLDER_FAILED)
     title, body = _msg.render(folder=str(folder), reason=str(reason))
     box = QMessageBox(parent)
-    box.setIcon(QMessageBox.Icon.Warning)
+    set_warning_icon(box)
     box.setWindowTitle(title)
     box.setText(title)
     box.setInformativeText(body)
@@ -95,7 +96,7 @@ def _say_where_the_old_project_went(parent, name, dest) -> None:
     title, body = M.M_IMPORT_REPLACED_KEPT.render(name=name,
                                                   folder=str(dest / "old"))
     box = QMessageBox(parent)
-    box.setIcon(QMessageBox.Icon.Information)
+    set_information_icon(box)
     box.setWindowTitle(title)
     box.setText(title)
     box.setInformativeText(body)

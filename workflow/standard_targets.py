@@ -335,23 +335,143 @@ def demo_patch_color(i: int, n: int) -> tuple[int, int, int]:
     return tuple(int(round(c * 255)) for c in colorsys.hsv_to_rgb(h, s, v))
 
 
+def _tick_extent(cht_text: str):
+    """``(xmin, xmax, ymin, ymax)`` of the ``.cht``'s XLIST / YLIST ticks, or None.
+
+    Those lists are ArgyllCMS's description of the edges on the PHYSICAL sheet,
+    and on most bought targets some of them are not patch edges: the sheet
+    border, a fiducial frame, a separator strip. :func:`make_test_scan` paints
+    the sheet out to them so the demo image actually contains the edges the
+    recogniser is told to look for.
+    """
+    got: dict[str, tuple[float, float]] = {}
+    lines = cht_text.splitlines()
+    for i, ln in enumerate(lines):
+        f = ln.strip().split()
+        if len(f) == 2 and f[0] in ("XLIST", "YLIST"):
+            try:
+                n = int(f[1])
+            except ValueError:
+                continue
+            vals: list[float] = []
+            for j in range(i + 1, min(i + 1 + n, len(lines))):
+                g = lines[j].split()
+                if not g:
+                    continue
+                try:
+                    vals.append(float(g[0]))
+                except ValueError:
+                    break
+            if vals:
+                got[f[0]] = (min(vals), max(vals))
+    if "XLIST" not in got or "YLIST" not in got:
+        return None
+    return got["XLIST"][0], got["XLIST"][1], got["YLIST"][0], got["YLIST"][1]
+
+
+#: Paper and platen for the demo scan. A flatbed's lid is not the paper.
+_DEMO_PAPER = (247, 246, 242)
+_DEMO_PLATEN = (96, 96, 98)
+#: Border of platen round the sheet, as a fraction of the sheet's long side, and
+#: where the sheet sits inside it (fractions of that border, 0 = centred).
+#: A demo framed EXACTLY on the patch block cannot exercise Auto align at all:
+#: the marquee seeds a quad at 90 % of the image at the patch block's aspect, so
+#: on a perfectly framed render the starting placement is already 0.014-0.090
+#: patch pitch from the truth, `rho_before` saturates at 0.99999 and no candidate
+#: can clear IMPROVEMENT_MARGIN. Measured over all 23 selectable targets: framed
+#: exactly, 3 of 23 place the grid; framed like a scan somebody made, 23 of 23.
+_DEMO_BORDER = 0.14
+_DEMO_OFFSET = (0.30, -0.25)
+
+
+def demo_scan_layout(cht_text: str, boxes):
+    """Where :func:`make_test_scan` puts the sheet and the patch block.
+
+    Returned so that nothing has to REDERIVE it. The read-back test used to
+    recompute "patches start at margin=80" from its own copy of the arithmetic,
+    which quietly became false the moment the demo grew a platen round the
+    sheet — a test that encodes the generator's internals tests the copy, not
+    the generator.
+
+    ``(scale, px0, py0, pw, ph, W, H, sheet_rect, sheet)`` — *px0/py0* is where
+    the patch bounding box starts in image pixels and *pw/ph* is its size, so
+    the four corners of the patch block are
+    ``(px0, py0), (px0+pw, py0), (px0+pw, py0+ph), (px0, py0+ph)``.
+    """
+    minx = min(b.x1 for b in boxes); maxx = max(b.x2 for b in boxes)
+    miny = min(b.y1 for b in boxes); maxy = max(b.y2 for b in boxes)
+    # The sheet: the patch block, grown to hold every XLIST/YLIST tick.
+    sx0, sy0, sx1, sy1 = minx, miny, maxx, maxy
+    te = _tick_extent(cht_text)
+    if te is not None:
+        sx0 = min(sx0, te[0]); sx1 = max(sx1, te[1])
+        sy0 = min(sy0, te[2]); sy1 = max(sy1, te[3])
+    scale = 1500.0 / max(maxx - minx, maxy - miny, 1.0); margin = 80
+    left = (minx - sx0) * scale; top = (miny - sy0) * scale
+    right = (sx1 - maxx) * scale; bot = (sy1 - maxy) * scale
+    sheet = (left > 0.5 or top > 0.5 or right > 0.5 or bot > 0.5)
+    pw = (maxx - minx) * scale
+    ph = (maxy - miny) * scale
+    SW = int(round(pw + left + right)) + 2 * margin
+    SH = int(round(ph + top + bot)) + 2 * margin
+    # The platen border is UNCONDITIONAL — it is what stops the demo being
+    # framed exactly on its own patch block, which is what makes Auto align
+    # have nothing to do. The paper/platen COLOUR split is conditional (see the
+    # MLG note in make_test_scan's docstring).
+    pad = int(round(_DEMO_BORDER * max(SW, SH)))
+    W, H = SW + 2 * pad, SH + 2 * pad
+    dx = int(round(pad * (1.0 + _DEMO_OFFSET[0])))
+    dy = int(round(pad * (1.0 + _DEMO_OFFSET[1])))
+    return (scale, dx + margin + left, dy + margin + top, pw, ph, W, H,
+            (dx + margin, dy + margin, dx + SW - margin - 1, dy + SH - margin - 1),
+            sheet)
+
+
 def make_test_scan(cht_path, out_dir):
     """Render a known-good test scan (``.tif``) + reference (``.cie``) from a
     target's ``.cht``, so the reading grid can be tried without hardware. Each
     patch is a distinct solid colour; a correctly-placed grid reads them exactly.
-    Returns ``(tif_path, cie_path)``."""
+    Returns ``(tif_path, cie_path)``.
+
+    The image is a SHEET on a platen, not a bare patch block. Two measured
+    reasons, both about the demo being a fair stand-in for a real scan:
+
+    * a ``.cht``'s XLIST/YLIST describe the edges on the physical sheet, and on
+      most bought targets some of those are the paper border rather than a patch
+      edge (``ISO12641_2_3_*``: every outermost tick; ``it8``: a weight-0.993 tick
+      at the sheet's top edge; ``QPcard_201``: two card features left of the
+      patches). Painting only the patches leaves the recogniser matching against
+      edges that were never drawn, and it refuses: measured, 3 of 23 targets
+      recognised, against **23 of 23** once the sheet is painted;
+    * a demo framed exactly on the patch block is already aligned, so Auto align
+      correctly has nothing to add and the button appears to do nothing.
+
+    The platen is drawn only when the sheet is genuinely bigger than the patch
+    block. ``MLG`` is a single column of 21 patches whose XLIST is that column's
+    own two edges, so its sheet IS its patch block; surrounding it invents an
+    edge the ``.cht`` never described and costs the match.
+    """
     from pathlib import Path as _P
     from PIL import Image
     from workflow.cht_parser import parse_cht
     cht_path = _P(cht_path); out_dir = _P(out_dir); out_dir.mkdir(parents=True, exist_ok=True)
     text = read_text(cht_path, lenient=True)
     boxes = parse_cht(text).patches
-    minx = min(b.x1 for b in boxes); maxx = max(b.x2 for b in boxes)
-    miny = min(b.y1 for b in boxes); maxy = max(b.y2 for b in boxes)
-    scale = 1500.0 / max(maxx - minx, maxy - miny, 1.0); margin = 80
-    W = int((maxx - minx) * scale + 2 * margin); H = int((maxy - miny) * scale + 2 * margin)
+    minx = min(b.x1 for b in boxes); miny = min(b.y1 for b in boxes)
+    (scale, px0, py0, _pw, _ph, W, H,
+     sheet_rect, sheet) = demo_scan_layout(text, boxes)
+
     from PIL import ImageDraw
-    img = Image.new("RGB", (W, H), (236, 236, 236)); draw = ImageDraw.Draw(img)
+    img = Image.new("RGB", (W, H), _DEMO_PLATEN)
+    draw = ImageDraw.Draw(img)
+    if sheet:
+        # The paper's edge lands EXACTLY on the outermost XLIST/YLIST tick.
+        # Measured: painting it 80 px further out (the old margin) puts a strong
+        # edge where the .cht says there is none, and `it8`'s candidates then
+        # come back a whole margin off and `border_agreement` throws them out.
+        draw.rectangle(list(sheet_rect), fill=_DEMO_PAPER)
+    else:
+        draw.rectangle(list(sheet_rect), fill=(236, 236, 236))
     # Patches are painted at the .cht's own float geometry, each edge
     # rounded to the nearest pixel — shared edges round identically, so
     # adjacent cells stay contiguous with no seams. This is the SAME
@@ -365,10 +485,10 @@ def make_test_scan(cht_path, out_dir):
            f'NUMBER_OF_SETS {len(boxes)}', 'BEGIN_DATA']
     for i, b in enumerate(boxes):
         r, g, bl = demo_patch_color(i, len(boxes))
-        x0 = round((b.x1 - minx) * scale) + margin
-        y0 = round((b.y1 - miny) * scale) + margin
-        x1 = round((b.x2 - minx) * scale) + margin
-        y1 = round((b.y2 - miny) * scale) + margin
+        x0 = round((b.x1 - minx) * scale + px0)
+        y0 = round((b.y1 - miny) * scale + py0)
+        x1 = round((b.x2 - minx) * scale + px0)
+        y1 = round((b.y2 - miny) * scale + py0)
         draw.rectangle([x0, y0, x1 - 1, y1 - 1], fill=(r, g, bl))
         # Reference Y = the rendered colour's LUMINANCE (not the green channel):
         # the alignment check rank-compares read luminance against reference Y,

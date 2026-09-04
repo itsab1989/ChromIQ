@@ -43,6 +43,19 @@ read — a rank correlation between what the boxes see and what the chart is
 known to be — and refuses when no candidate clears the floor or when the
 candidate is not better than where the user's corners already are. A refusal
 leaves the user's placement untouched.
+
+**And one check that is not about colour at all.** Look again at
+:func:`corners_from_candidate`: it builds the quad from a rotation and two
+scales, so the quad's two edge vectors are orthogonal by construction. **The
+placement this module can return is always a rotated RECTANGLE** — five degrees
+of freedom where a placement needs eight — and a sheet photographed even
+slightly off square is a keystone, which no rectangle is. Every check in the
+paragraph above is then blind to it, because a rank correlation is blind to
+shear: the patches keep their brightness ORDER while they slide onto their
+neighbours. Measured with a pinhole camera at three sheet-widths and a compound
+pitch+yaw tilt, this module accepted placements **0.921 of a patch pitch** out
+at rho 0.98 (beta 8, B8-02). :func:`seating_drift` is the answer, and it asks
+the patches rather than the colours.
 """
 from __future__ import annotations
 
@@ -58,9 +71,10 @@ from core.logger import get_logger
 log = get_logger(__name__)
 
 __all__ = ["AutoAlignResult", "auto_align", "border_agreement",
-           "orientation_scores", "plain_id",
+           "chart_pitch", "orientation_scores", "plain_id",
            "corners_from_candidate", "expected_luminance", "parse_candidates",
-           "chosen_index", "quad_is_sane", "reference_agreement_at"]
+           "chosen_index", "quad_is_sane", "reference_agreement_at",
+           "seating_drift"]
 
 # scanin -v2, scanrd.c::calc_rotation
 _CAND_RE = re.compile(
@@ -69,6 +83,14 @@ _CAND_RE = re.compile(
     r"\s*yscale\s*=\s*([-\d.eE+]+)")
 _CHOSEN_RE = re.compile(r"Chosen rotation\s+([-\d.eE+]+)\s+deg")
 _PLAIN_ID_RE = re.compile(r"([A-Za-z]+)0*(\d+)$")
+
+
+def _split_row(line: str) -> list[str]:
+    """CGATS data row -> fields, keeping a quoted field in one piece. Same
+    split as :func:`workflow.scan_read_check._split_row`, because a reference
+    read one way here and another way there would disagree about a chart
+    neither of them is wrong about."""
+    return re.findall(r'"[^"]*"|\S+', line)
 
 
 def plain_id(sid: str) -> str:
@@ -98,6 +120,58 @@ IMPROVEMENT_MARGIN = 0.02
 #: 0.15 sits in the gap, nearer the ambiguous end.
 ORIENTATION_MARGIN = 0.15
 
+#: How far, in PATCH PITCHES, the sheet's own patches may say the grid should
+#: move before the answer is refused (:func:`seating_drift`). Every other gate
+#: in this module is blind to a keystone, because the quad this module can
+#: return is always a rotated rectangle (see :func:`corners_from_candidate`)
+#: and a rank correlation is blind to shear -- the patches keep their
+#: brightness ORDER while sliding onto their neighbours.
+#:
+#: **The window, measured over three populations, none of them scored by this
+#: module's own opinion of itself.** 600 compound and single-axis camera views
+#: of 25 targets (0-20 degrees, a pinhole at three sheet-widths); 216 CROSSED
+#: views of six targets carrying a paper bow, a lens distortion and a tilt at
+#: once; the 38-case challenge set at its own ground truth, Knut's two real
+#: flatbed scans and nine legitimate degradations of his Wolf Faust sheet:
+#:
+#: * **328 placements that were CORRECT** -- worst error inside 0.113 pitch,
+#:   where the sample box begins to overhang its patch -- read at most
+#:   **0.0631**. That single worst one is a 24-patch half Passport at 15
+#:   degrees; the next is 0.0583 (Knut's own scan with sigma-14 noise added),
+#:   and his two untouched scans read 0.0175 and 0.0139.
+#: * **106 placements that were more than HALF A PITCH out** -- the point at
+#:   which a sample box reads the neighbouring patch -- read at least
+#:   **0.0989**.
+#:
+#: **Every value from 0.065 to 0.095 gives the same two counts: 0 false
+#: refusals out of 328, and 106 of 106 wrong answers refused.** 0.075 is near
+#: the middle of that range (its geometric centre is 0.079) -- 1.19x above the
+#: worst correct placement and 1.32x below the worst wrong one. It is a floor
+#: with room on both sides, not a constant tuned until a case passed.
+#:
+#: What the choice inside the window trades is the middle band -- 0.25 to 0.5
+#: pitch, where the box overhangs its patch but does not reach the neighbour.
+#: 126 of 252 of those are refused at 0.075, 112 at 0.085, 134 at 0.065. That
+#: is a judgement about how much a slightly overhanging read is worth, and it
+#: is the one number here somebody may reasonably want moved.
+SEATING_DRIFT_LIMIT = 0.075
+
+#: The smallest dispersion, on the 0-255 luminance scale every image is read
+#: on, that counts as a patch having anything to say about where it sits. One
+#: level is what an 8-bit scan quantises to, so a difference below it is
+#: arithmetic rather than evidence. It sits in the DENOMINATOR of the gain, so
+#: it damps a near-flat patch smoothly instead of cutting it off at a second
+#: threshold nobody measured.
+_DISPERSION_FLOOR = 1.0
+
+#: The share of each patch the drift measurement looks at, as an AREA -- the
+#: same reading ``cht_with_sample_area`` gives the number, so the box measured
+#: is the box ``scanin`` actually reads. Deliberately NOT the user's Sample
+#: area spinbox: the question "are the patches where this grid says they are"
+#: is a fact about the picture, and a safety gate whose sensitivity moves when
+#: a user drags a spinbox is a safety gate that can be dragged open.
+SEATING_SAMPLE_AREA = 0.60
+
 
 @dataclass
 class AutoAlignResult:
@@ -111,6 +185,10 @@ class AutoAlignResult:
     candidates: int = 0
     #: how far the winning orientation beat the runner-up
     margin: "float | None" = None
+    #: :func:`seating_drift` of the answer, in patch pitches -- recorded
+    #: whether the answer was accepted or refused for it, so the log says how
+    #: close a refusal was and a support question has a number to quote
+    drift: "float | None" = None
     log_tail: str = ""
     rejected: list[str] = field(default_factory=list)
 
@@ -341,14 +419,26 @@ def _run_scanin(runner, scanin_exe, workdir: Path, scan: Path, cht: Path,
     args = [str(scanin_exe), "-v2", "-O", "chromiq-autoalign.ti3", *extra,
             str(Path(scan).resolve()), str(Path(cht).resolve()),
             str(Path(cie).resolve())]
+    log.debug("auto-align scanin: %s", " ".join(args))
     try:
         r = runner(args, capture_output=True, text=True, encoding="utf-8",
                    errors="replace", cwd=str(workdir), timeout=timeout,
                    stdin=subprocess.DEVNULL)
     except (subprocess.TimeoutExpired, OSError) as exc:
-        log.warning("auto-align scanin failed: %s", exc)
+        log.warning("auto-align scanin failed to run: %s", exc)
         return ""
-    return (r.stdout or "") + (r.stderr or "")
+    out = (r.stdout or "") + (r.stderr or "")
+    # scanin says WHY it gave up ("Pattern match wasn't good enough"), and it
+    # says it on the way out with a non-zero code. Both used to be discarded,
+    # so a refusal reached the log file as the single word "not-recognised"
+    # and a user's report could not be told apart from a missing binary, an
+    # unreadable chart or a recogniser that simply declined. Keep the code and
+    # the last thing it said.
+    if getattr(r, "returncode", 0):
+        tail = [ln.strip() for ln in out.splitlines() if ln.strip()]
+        log.info("auto-align scanin rc=%s: %s", r.returncode,
+                 tail[-1] if tail else "(no output)")
+    return out
 
 
 def auto_align(scanin_exe: str | Path,
@@ -361,6 +451,7 @@ def auto_align(scanin_exe: str | Path,
                current_corners: Sequence[tuple[float, float]] | None = None,
                sample_frac: float = 0.6,
                floor: float = AGREEMENT_FLOOR,
+               drift_limit: float = SEATING_DRIFT_LIMIT,
                search_region: "tuple[float, float, float, float] | None" = None,
                timeout: int = 300,
                runner: Callable[..., subprocess.CompletedProcess] = subprocess.run,
@@ -370,6 +461,19 @@ def auto_align(scanin_exe: str | Path,
     *boxes* are ``.cht`` patch boxes (:mod:`workflow.cht_parser`), *expected_y*
     maps each box name to the chart's known luminance, *current_corners* is
     where the user's quad sits now.
+
+    *drift_limit* is the seating-drift limit this call refuses at, in patch
+    pitches. It exists so :func:`workflow.scan_placement.place_grid` can SUSPEND
+    the drift gate for the search and re-run it once, at the end, on the
+    placement that is actually about to be applied -- the fit runs in between
+    and a gate in the middle would throw away the very answer the fit is there
+    to rescue. Measured over 290 starting placements, suspending it here and
+    asking it last is what takes an 8-degree photograph three quarters of a
+    patch out from "no button in the window can do this" to 0.112 pitch. Every
+    caller that does not chain a fit onto the answer leaves it alone, and then
+    this is :data:`SEATING_DRIFT_LIMIT` exactly as before. The measured drift is
+    recorded on the result either way, so a suspended gate is still a number in
+    the log.
 
     *search_region* ``(x0, y0, x1, y1)`` in image pixels narrows the search to
     a rectangle the user drew loosely round the chart. It is not a different
@@ -497,19 +601,62 @@ def auto_align(scanin_exe: str | Path,
                                rho_before=rho_before, source=source,
                                candidates=len(seen), log_tail=log_tail,
                                rejected=rejected)
+    # THE LAST GATE, AND THE ONLY ONE THAT CAN SEE A KEYSTONE.
+    # Everything above scores the placement against the chart's colours, and
+    # the quad reaching this line is always a rotated rectangle
+    # (:func:`corners_from_candidate`), so on a sheet photographed off square
+    # it is wrong in a way none of those checks can express: a rank
+    # correlation is blind to shear. Measured with a pinhole camera at three
+    # sheet-widths, compound pitch+yaw, this module accepted placements
+    # **0.921 of a patch pitch** out at rho 0.98 and told the user the grid
+    # agreed with the chart "to 0.98, where anything below 0.80 is refused".
+    # Ask the patches instead. This runs once, on the winner, because every
+    # candidate is the same rectangle at a different rotation.
+    drift = None
+    try:
+        drift = seating_drift(scan, boxes, quad)
+    except Exception:  # noqa: BLE001 — a safety check must not become a crash
+        log.warning("auto align could not measure the seating drift",
+                    exc_info=True)
+    if drift is not None and drift > drift_limit:
+        rejected.append(f"{source}: the patches do not sit where this grid "
+                        f"puts them (drift {drift:.3f} pitch)")
+        return AutoAlignResult(reason="not-seated", rho=rho,
+                               rho_before=rho_before, source=source,
+                               candidates=len(seen), log_tail=log_tail,
+                               rejected=rejected, margin=best_margin,
+                               drift=drift)
     return AutoAlignResult(corners=quad, rho=rho, rho_before=rho_before,
                            source=source, candidates=len(seen),
                            log_tail=log_tail, rejected=rejected,
-                           margin=best_margin)
+                           margin=best_margin, drift=drift)
 
 
 # ---------------------------------------------------------------------------
-def expected_luminance(cht_text: str, cie: Path | None = None) -> dict[str, float]:
+def expected_luminance(cht_text: str, cie: Path | None = None,
+                       chart_ids: "Sequence[str] | None" = None) -> dict[str, float]:
     """``{patch name: reference Y}`` for the agreement check.
 
-    Prefers the ``.cht``'s own ``EXPECTED XYZ`` block (every chart ChromIQ
-    writes has one, as do Argyll's bundled targets); falls back to the ``.cie``
-    when a hand-made ``.cht`` carries none."""
+    **The reference file wins when it describes at least as much of the chart.**
+    A ``.cht``'s ``EXPECTED`` block is approximate and generic — ArgyllCMS's own
+    ``cht_format.html`` says of it, in capitals, "NOTE that these are not color
+    reference values!" — while the ``.cie`` / ``.txt`` / ``.ti3`` is the colour
+    of the sheet actually in front of the user.
+
+    This used to prefer the ``.cht`` unconditionally, and it made "Try with a
+    demo scan" fail on every target whose ``.cht`` carries an ``EXPECTED``
+    block: the demo image is painted in :func:`standard_targets.demo_patch_color`'s
+    deliberately scrambled colours, so scoring it against the REAL target's
+    colours gave rank agreements of 0.049 (ColorCheckerSG) and orientation
+    margins of 0.03-0.07 where 0.15 is needed. Auto align refused, correctly,
+    a placement that is pixel-perfect. ChromIQ's own eight bundled targets
+    carry no ``EXPECTED`` block, so they fell back to the demo's ``.cie`` and
+    passed — which is why the fault looked like "the small ColorChecker ones
+    don't work" when it is really "the ones with an EXPECTED block don't".
+
+    The ``EXPECTED`` block is still used when there is no reference, or when it
+    describes more of the chart than the reference does — a short or unreadable
+    reference must not throw away colours the chart already knows."""
     out: dict[str, float] = {}
     lines = cht_text.splitlines()
     for i, line in enumerate(lines):
@@ -527,31 +674,76 @@ def expected_luminance(cht_text: str, cie: Path | None = None) -> dict[str, floa
                     except ValueError:
                         continue
             break
-    if out or cie is None:
+    if cie is None:
         return out
+    from_cht, out = out, {}
+    from core.text_io import read_text
     try:
-        text = cie.read_text(encoding="utf-8", errors="replace")
+        text = read_text(cie, lenient=True)
     except OSError:
-        return out
+        return from_cht
     rows = text.splitlines()
     try:
         fb = next(i for i, l in enumerate(rows)
-                  if l.strip() == "BEGIN_DATA_FORMAT")
-        fields = rows[fb + 1].split()
-        li = fields.index("SAMPLE_ID")
-        yi = fields.index("XYZ_Y")
-        db = next(i for i, l in enumerate(rows) if l.strip() == "BEGIN_DATA")
-        de = next(i for i, l in enumerate(rows) if l.strip() == "END_DATA")
+                  if l.strip().upper() == "BEGIN_DATA_FORMAT")
+        fields = [f.upper() for f in _split_row(rows[fb + 1])]
+        # WHICH COLUMN CARRIES THE PATCH NAME. The same rule
+        # :func:`workflow.scan_read_check.reference_patch_ids` applies, and
+        # kept deliberately in step with it: a `.cie` / `.txt` names the patch
+        # in SAMPLE_ID, while a `.ti3` — the shape `cxf2ti3` and `txt2ti3`
+        # produce, and the shape LaserSoft's own reference comes in — numbers
+        # its rows in SAMPLE_ID and puts the name in SAMPLE_LOC. Reading
+        # SAMPLE_ID unconditionally paired 0 of 864 LaserSoft patches with the
+        # chart, so every candidate scored None and Auto align refused with a
+        # perfectly good placement in its hand.
+        if "SAMPLE_LOC" in fields:
+            li = fields.index("SAMPLE_LOC")
+        else:
+            li = fields.index("SAMPLE_ID")
+        # Y, or L* when the reference carries no XYZ. Only the RANK of these
+        # numbers is ever used (:func:`_spearman`), and L* is monotone in Y, so
+        # the two give the identical correlation — this widens what can be read
+        # without changing any answer.
+        yi = fields.index("XYZ_Y") if "XYZ_Y" in fields else fields.index("LAB_L")
+        db = next(i for i, l in enumerate(rows) if l.strip().upper() == "BEGIN_DATA")
+        de = next(i for i, l in enumerate(rows[db:], db)
+                  if l.strip().upper() == "END_DATA")
     except (StopIteration, ValueError, IndexError):
-        return out
+        return from_cht
     for line in rows[db + 1:de]:
-        t = line.split()
-        if len(t) == len(fields):
+        t = _split_row(line)
+        if len(t) > max(li, yi):
             try:
                 out[t[li].strip('"')] = float(t[yi])
             except ValueError:
                 continue
-    return out
+    # The reference wins on a tie, because it is the sheet in front of the user
+    # rather than the chart's generic idea of it; the EXPECTED block wins when
+    # it names MORE of the chart, so a short or half-read reference can never
+    # lose colours the .cht already had.
+    #
+    # Compared on HOW MANY OF THE CHART'S OWN PATCHES each side names, not on
+    # row count. A reference can be long and still name nothing the chart knows
+    # — LaserSoft's R250715.cie carries 864 rows numbered 1..864 with the name
+    # in SAMPLE_LOC — so counting rows would let it displace a good EXPECTED
+    # block with keys no box can match.
+    #
+    # *chart_ids* is the chart's real box names. Without them the EXPECTED
+    # block's own keys stand in for the chart, and that proxy can itself be
+    # wrong: CMP_Digital_Target-7 names its boxes "2A01" while its EXPECTED
+    # block says "A1", covering only 534 of 570 patches — the reference covered
+    # all 570 and still lost, and every orientation then scored ~0.00 because
+    # the demo image was being judged against colours belonging to other
+    # patches. Ask the chart rather than guessing from one of the answers.
+    # `plain_id` throughout because a .cht zero-pads ("A01") where a reference
+    # often does not ("A1").
+    known = ({plain_id(k) for k in chart_ids} if chart_ids
+             else {plain_id(k) for k in from_cht})
+
+    def _covers(m: dict) -> int:
+        return len(known & {plain_id(k) for k in m})
+
+    return out if _covers(out) >= _covers(from_cht) else from_cht
 
 
 # ---------------------------------------------------------------------------
@@ -687,3 +879,221 @@ def border_agreement(image_path: Path, boxes: Sequence,
         return None
     return good >= min(sides_needed, seen)
 
+
+
+# ---------------------------------------------------------------------------
+def _sampler_sq(image_path: Path, max_side: int = 2000):
+    """(sum, sum-of-squares, w, h, scale) for one scan.
+
+    :func:`_sampler`'s sibling. It carries the second integral image, which is
+    what turns a per-box mean into a per-box standard deviation in constant
+    time, and it is separate rather than folded in because every other caller
+    in this module wants means only and would pay twice for nothing.
+    """
+    import numpy as np
+    from PIL import Image
+    try:
+        img = Image.open(image_path)
+        img.load()
+    except Exception:  # noqa: BLE001
+        return None
+    if img.mode not in ("RGB", "L"):
+        img = img.convert("RGB")
+    scale = min(1.0, max_side / max(img.size))
+    if scale < 1.0:
+        img = img.resize((max(1, int(img.width * scale)),
+                          max(1, int(img.height * scale))), Image.BILINEAR)
+    arr = np.asarray(img, dtype=np.float64)
+    lum = ((0.2126 * arr[..., 0] + 0.7152 * arr[..., 1] + 0.0722 * arr[..., 2])
+           if arr.ndim == 3 else arr)
+    h, w = lum.shape
+    i1 = np.zeros((h + 1, w + 1))
+    i2 = np.zeros((h + 1, w + 1))
+    i1[1:, 1:] = np.cumsum(np.cumsum(lum, axis=0), axis=1)
+    i2[1:, 1:] = np.cumsum(np.cumsum(lum * lum, axis=0), axis=1)
+    return i1, i2, w, h, scale
+
+
+def chart_pitch(boxes: Sequence) -> tuple[float, float]:
+    """(pitch x, pitch y) in the ``.cht``'s own units — the smallest step from
+    one box's edge to the next one's. Falls back to the median box size on a
+    chart with a single column or row."""
+    import numpy as np
+    xs = sorted({round(b.x1, 3) for b in boxes})
+    ys = sorted({round(b.y1, 3) for b in boxes})
+    dx = min((xs[i + 1] - xs[i] for i in range(len(xs) - 1)), default=0.0)
+    dy = min((ys[i + 1] - ys[i] for i in range(len(ys) - 1)), default=0.0)
+    if dx <= 0:
+        dx = float(np.median([b.x2 - b.x1 for b in boxes]))
+    if dy <= 0:
+        dy = float(np.median([b.y2 - b.y1 for b in boxes]))
+    return float(dx or 1.0), float(dy or 1.0)
+
+
+def seating_drift(image_path: Path, boxes: Sequence,
+                  corners: Sequence[tuple[float, float]],
+                  sample_frac: float = SEATING_SAMPLE_AREA,
+                  max_side: int = 2000,
+                  reach: float = 0.5, step: float = 0.0625) -> "float | None":
+    """How far the sheet's own patches say this grid should move, in PITCHES.
+
+    **Why anything new is needed.** Look at what :func:`corners_from_candidate`
+    builds out of the five numbers ``scanin`` prints::
+
+        t1 = xscale*cos   t2 = yscale*sin
+        t4 = -xscale*sin  t5 = yscale*cos
+
+    The quad's two edge vectors are ``xscale*(cos, -sin)`` and
+    ``yscale*(sin, cos)``, whose dot product is exactly zero. **The quad this
+    module can return is always a rotated rectangle** — five degrees of freedom
+    where a placement needs eight. It cannot express a keystone at any tilt, so
+    on a photograph taken even slightly off square the returned grid is
+    systematically wrong, worst at one corner and right in the middle. And
+    every gate above lets it through: a rank correlation is blind to shear,
+    because the patches keep their brightness ORDER while they slide onto their
+    neighbours, and :func:`border_agreement` only looks at the sheet's outer
+    boundary, which a small keystone barely moves.
+
+    **What this measures instead.** A sample box that sits on its patch sees
+    one flat colour and cannot be improved by moving. A box straddling a border
+    sees two, and its dispersion drops sharply as soon as it is moved onto
+    either side. So for every box in the ``.cht``, search a grid of offsets in
+    CHART coordinates for the one that minimises the dispersion inside it, and
+    shrink each answer by how much moving actually helped, so a patch whose
+    neighbours happen to be the same colour — where the argmin is noise —
+    contributes nothing and no "is this box voting" threshold has to be
+    guessed.
+
+    Then average those shrunk offsets over regions of the chart and take the
+    largest region's magnitude. Noise cancels inside a region; a keystone does
+    not, because its error field is smooth and grows towards one corner.
+
+    Returns the drift in patch pitches, or ``None`` when the image cannot be
+    read or the chart is too small to divide into regions — and ``None`` means
+    *"no evidence either way"*, never *"refuse"*.
+
+    **Two honest limits.** It saturates: a patch more than half a pitch out has
+    locked onto its neighbour and reports a small offset, so the number stops
+    growing past about 0.27 and is not an estimate of the corner error. And it
+    is blind where the chart is: a region whose patches are all the same colour
+    has nothing to say.
+    """
+    import numpy as np
+    got = _sampler_sq(image_path, max_side)
+    if got is None or not boxes or len(boxes) < 12:
+        return None
+    i1, i2, w, h, scale = got
+    side = math.sqrt(max(1e-9, min(1.0, float(sample_frac))))
+    minx = min(b.x1 for b in boxes)
+    maxx = max(b.x2 for b in boxes)
+    miny = min(b.y1 for b in boxes)
+    maxy = max(b.y2 for b in boxes)
+    src = [(minx, miny), (maxx, miny), (maxx, maxy), (minx, maxy)]
+    dst = [(x * scale, y * scale) for x, y in corners]
+    a = []
+    for (x, y), (u, v) in zip(src, dst):
+        a.append([x, y, 1, 0, 0, 0, -u * x, -u * y, -u])
+        a.append([0, 0, 0, x, y, 1, -v * x, -v * y, -v])
+    try:
+        _, _, vt = np.linalg.svd(np.asarray(a, dtype=float))
+    except np.linalg.LinAlgError:
+        return None
+    hm = vt[-1].reshape(3, 3)
+    if not np.isfinite(hm).all() or hm[2, 2] == 0:
+        return None
+    hm = hm / hm[2, 2]
+
+    def warp(x, y):
+        d = hm[2, 0] * x + hm[2, 1] * y + hm[2, 2]
+        with np.errstate(divide="ignore", invalid="ignore"):
+            return ((hm[0, 0] * x + hm[0, 1] * y + hm[0, 2]) / d,
+                    (hm[1, 0] * x + hm[1, 1] * y + hm[1, 2]) / d)
+
+    px, py = chart_pitch(boxes)
+    cx = np.array([(b.x1 + b.x2) / 2.0 for b in boxes])
+    cy = np.array([(b.y1 + b.y2) / 2.0 for b in boxes])
+    hx = np.array([(b.x2 - b.x1) * side / 2.0 for b in boxes])
+    hy = np.array([(b.y2 - b.y1) * side / 2.0 for b in boxes])
+
+    ns = max(1, int(round(reach / step)))
+    offs = np.arange(-ns, ns + 1) * step
+    du, dv = np.meshgrid(offs, offs, indexing="ij")
+    du = du.ravel() * px
+    dv = dv.ravel() * py
+    ux = cx[:, None] + du[None, :]
+    uy = cy[:, None] + dv[None, :]
+    xs = np.stack([ux - hx[:, None], ux + hx[:, None],
+                   ux + hx[:, None], ux - hx[:, None]], axis=0)
+    ys = np.stack([uy - hy[:, None], uy - hy[:, None],
+                   uy + hy[:, None], uy + hy[:, None]], axis=0)
+    wx, wy = warp(xs, ys)
+    finite = np.isfinite(wx).all(axis=0) & np.isfinite(wy).all(axis=0)
+    with np.errstate(invalid="ignore"):
+        x0 = np.floor(np.nanmin(wx, axis=0))
+        x1 = np.ceil(np.nanmax(wx, axis=0))
+        y0 = np.floor(np.nanmin(wy, axis=0))
+        y1 = np.ceil(np.nanmax(wy, axis=0))
+    inside = (finite & (x0 >= 0) & (y0 >= 0) & (x1 <= w) & (y1 <= h)
+              & (x1 - x0 >= 3) & (y1 - y0 >= 3))
+    x0 = np.clip(np.nan_to_num(x0), 0, w).astype(np.int64)
+    x1 = np.clip(np.nan_to_num(x1), 0, w).astype(np.int64)
+    y0 = np.clip(np.nan_to_num(y0), 0, h).astype(np.int64)
+    y1 = np.clip(np.nan_to_num(y1), 0, h).astype(np.int64)
+    n = np.maximum(1, (x1 - x0) * (y1 - y0))
+    s1 = i1[y1, x1] - i1[y0, x1] - i1[y1, x0] + i1[y0, x0]
+    s2 = i2[y1, x1] - i2[y0, x1] - i2[y1, x0] + i2[y0, x0]
+    std = np.sqrt(np.maximum(0.0, s2 / n - (s1 / n) ** 2))
+    std = np.where(inside, std, np.inf)
+    zero = du.size // 2
+    std0 = std[:, zero]
+    best = np.argmin(std, axis=1)
+    stdbest = std[np.arange(len(boxes)), best]
+    usable = np.isfinite(std0) & np.isfinite(stdbest)
+    if int(usable.sum()) < 12:
+        return None
+    # HOW MUCH MOVING ACTUALLY HELPED, with a floor under the denominator.
+    # `(std0 - stdbest) / std0` alone is a trap: a patch that is perfectly flat
+    # at the placement has std0 = 0, every offset ties, and the ratio reports a
+    # confident 1.0 about pure tie-breaking. Measured on a synthetic chart
+    # drawn in exact flat colours, that put a CORRECT placement at 0.088 -- a
+    # false refusal from a chart with nothing wrong with it. One luminance
+    # level out of 255 is the smallest difference an 8-bit scan can even carry,
+    # so anything under it is not evidence.
+    safe0 = np.where(usable, std0, 0.0)
+    safeb = np.where(usable, stdbest, 0.0)
+    gain = np.clip((safe0 - safeb) / (safe0 + _DISPERSION_FLOOR), 0.0, 1.0)
+    su = (du[best] / px) * gain
+    sv = (dv[best] / py) * gain
+
+    # Regions, sized so each holds enough patches for its mean to mean
+    # something. A 500-patch IT8 gets 4x4; a 24-patch ColorChecker gets 2x2,
+    # and a chart with fewer than four patches to a region is not divided.
+    #
+    # THE CAP IS 4 AND IT WAS MEASURED, not chosen. A region is averaged over,
+    # so a region that spans a third of the sheet dilutes an error that grows
+    # towards one corner -- which is exactly what a lens distortion does, since
+    # it grows radially and continuously. Re-scored at every cap from one set
+    # of offsets: worst correct placement / lowest wrong one =
+    # 0.0631 / 0.0647 at 2 (no window at all), 0.0631 / 0.0888 at 3,
+    # **0.0631 / 0.1469 at 4**, 0.0755 / 0.1542 at 5, 0.0924 / 0.1542 at 6.
+    # Four is the widest window, and it is the first cap that sees the
+    # lens-distortion cases at all: at 3 it caught 0 of the 19 crossed
+    # bow+lens+tilt placements sitting 0.25-0.5 pitch out, at 4 it catches 12.
+    fx = (cx - cx.min()) / max(1e-9, cx.max() - cx.min())
+    fy = (cy - cy.min()) / max(1e-9, cy.max() - cy.min())
+    grid = max(1, min(4, int(math.sqrt(int(usable.sum()) / 6.0))))
+    worst = 0.0
+    seen = 0
+    for i in range(grid):
+        for j in range(grid):
+            m = (usable
+                 & (fx >= i / grid) & (fx <= (i + 1) / grid)
+                 & (fy >= j / grid) & (fy <= (j + 1) / grid))
+            if int(m.sum()) < 4:
+                continue
+            seen += 1
+            worst = max(worst, math.hypot(float(su[m].mean()),
+                                          float(sv[m].mean())))
+    if seen == 0:
+        return None
+    return float(worst)

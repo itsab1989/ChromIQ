@@ -270,7 +270,81 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  "M-SCAN-REF-SHORT",
                                  "M-SCAN-REF-DISAGREES",
                                  "M-SCAN-CLIPPED",
-                                 "M-SCAN-PROFILE-ARCHIVED"}
+                                 "M-SCAN-PROFILE-ARCHIVED",
+                                 # 2026-09-04, beta 8 items B8-01 and B8-03 —
+                                 # the two places where that same window tells
+                                 # the user a bad profile is a good one. Every
+                                 # guard in it is scale-invariant and an
+                                 # exposure slip is pure scale, so a scan
+                                 # darkened 30 % passes all of them in silence
+                                 # and builds a profile 21.7 dE out; and
+                                 # colprof's self-check is measured against the
+                                 # rows it was fitted to, so a one-colour
+                                 # reference scores a perfect 0.007 and a
+                                 # profile whose white point is nan is not
+                                 # checked at all.
+                                 "M-SCAN-DARK",
+                                 "M-SCAN-FIT-UNSUPPORTED",
+                                 "M-SCAN-SELFCHECK-UNUSABLE",
+                                 # beta 8, 2026-09-03, items B8-16 and B8-15. The same
+                                 # window says nothing at all when a scan is loaded — a
+                                 # 24-patch photograph under a 288-patch target left an
+                                 # empty log and a live Run button — and it accepted one of
+                                 # ArgyllCMS's own diagnostic images as a scan, which Knut
+                                 # did in his own beta.7 log, then reported a misplacement
+                                 # that was not real about a read that had been fine.
+                                 "M-SCAN-LOADED",
+                                 # beta 8, agent L: the photograph path. Argyll
+                                 # reads TIFF only and a camera writes JPEG, so
+                                 # a photograph aligned perfectly on screen and
+                                 # then failed inside scanin; and a sheet that
+                                 # is bowed AND photographed at an angle is read
+                                 # wrongly at its own corners (measured: each
+                                 # distortion alone costs nothing, the two
+                                 # together put 102 patches over 1 dE00).
+                                 "M-SCAN-CONVERTED",
+                                 # ...and the one of that button's own five
+                                 # refusals that survived B8-42's merge, with
+                                 # its arithmetic corrected: it said "more than
+                                 # half a patch" of a limit that is three
+                                 # quarters. M-SCAN-FIT-DONE, -NO-BETTER,
+                                 # -NOTHING and -NOT-SEATED were WITHDRAWN on
+                                 # 2026-09-04 without ever being approved --
+                                 # the separate "Fit to the patches" button is
+                                 # gone, and every ending the merged button has
+                                 # is told in Auto align's own approved words.
+                                 "M-SCAN-FIT-TOO-FAR",
+                                 # ...and one APPROVED message whose body B8-42
+                                 # rewrote, so it is back in the queue with its
+                                 # approved headline unchanged. It used to be
+                                 # the recogniser's own ending; the merged
+                                 # button reaches it only when the search AND
+                                 # the reshaping have both declined, and it now
+                                 # names "Check alignment" -- the one check
+                                 # that can see a grid a whole patch out, which
+                                 # this ending cannot.
+                                 "M-SCAN-ALIGN-NO-BETTER",
+                                 "M-SCAN-DIAGNOSTIC",
+                                 # 2026-09-04, beta 8 item B8-02: Auto
+                                 # align's seventh refusal, and the first
+                                 # about GEOMETRY rather than colour — the
+                                 # quad it can return is always a rotated
+                                 # rectangle, so a sheet photographed off
+                                 # square gets a grid that is systematically
+                                 # wrong while every colour check passes it.
+                                 "M-SCAN-ALIGN-NOT-SEATED",
+                                 # beta 8, 2026-09-04, item B8-32. Two silences
+                                 # in the scanner window that the regression
+                                 # sweep drove into the open: an averaging slot
+                                 # left empty is dropped without a word, so the
+                                 # shot bar reads "Scan 2 of 2" while the build
+                                 # reads one scan and averages nothing; and
+                                 # changing the Target type discards the loaded
+                                 # scan, its placement and every other shot on
+                                 # the page, into a log cleared in the same
+                                 # block.
+                                 "M-SCAN-SHOT-EMPTY",
+                                 "M-SCAN-TARGET-CHANGED"}
 # Round 2 of the import-door review added four and Basti approved all four on
 # 2026-09-02, so they never sat in this set for longer than one branch:
 # M-IMPORT-NOT-OPENED, M-IMPORT-FOLDER-EXISTS, M-IMPORT-REPLACE-FOLDER-CONFIRM
@@ -471,6 +545,9 @@ def test_no_message_reaches_the_screen_with_a_placeholder_left():
         M.M_CAL_ARCHIVED_HERE.render(folder="/x/cal/old/2026-09-02_120000"),
         M.M_SCAN_ALIGN_DONE.render(rho="0.97"),
         M.M_SCAN_ALIGN_NO_INPUT.render(),
+        M.M_SCAN_DIAGNOSTIC.render(),
+        M.M_SCAN_LOADED.render(file="scan.tif", w=2078, h=1470,
+                               target="Wolf Faust IT8", n=288),
     ] + [m.render(ref_row="Target reference data", chart_row="Target type")
          for m in M.SCAN_ALIGN_REFUSALS.values()]
     for title, body in rendered:

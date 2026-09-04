@@ -414,7 +414,7 @@ def measure_margins(
     if ti2_path is not None:
         try:
             passes = parse_passes_per_page(ti2_path)
-            page_ix = _page_index_of(tif_path)
+            page_ix = _page_index_of(tif_path, len(passes))
             if passes and 0 <= page_ix < len(passes):
                 block_w_mm = (x1 - x0 + 1) * px2mm
                 strip_width_mm = _estimate_patch_width_mm(block_w_mm, passes[page_ix])
@@ -553,10 +553,20 @@ def _steps_in_pass(ti2_path: "Path | str") -> int | None:
     return int(m.group(1)) if m else None
 
 
-def _page_index_of(tif_path: Path) -> int:
-    """0-based page index from a ``<stem>_NN.tif`` filename (single page → 0)."""
+def _page_index_of(tif_path: Path, n_pages: int = 0) -> int:
+    """0-based page index from a ``<stem>_NN.tif`` filename (single page → 0).
+
+    *n_pages* is how many pages the chart really has, from its ``.ti2``. It is
+    load-bearing: printtarg writes a ONE-page chart as ``<stem>.tif`` with no
+    number, so the trailing ``_240`` of a chart called "Moab_Satin_240" is part
+    of the name and not a page. Read as a page it gave index 239, which fell
+    outside `passes` and dropped the patch width out of the margin report with
+    nothing said. A chart with one page has exactly one page index, so say so.
+    """
     import re
 
+    if n_pages <= 1:
+        return 0
     m = re.search(r"_(\d+)$", tif_path.stem)
     if not m:
         return 0

@@ -386,6 +386,33 @@ DEFAULTS: dict[str, Any] = {
     "scanner_min_coverage":      0.97,
     "scanner_min_agreement":     0.25,
     "scanner_max_clipped":       0.15,
+    # Beta 8 added two more, for the two ways the same window told the user a
+    # bad profile was a good one (B8-01, B8-03).
+    #   min_highlight — where the chart's OWN white landed on the device scale,
+    #     0-100, as the median of the largest device channel over the patches
+    #     the reference calls near-white. Everything above is scale-invariant
+    #     and an exposure slip is pure scale: Knut's own Wolf Faust sheet
+    #     darkened 30 % leaves coverage unchanged, agreement +0.9839 → +0.9838
+    #     and the clipped share unmoved by one patch, so the build is silent
+    #     while the profile is 21.7 ΔE out (×0.18: 177.9 ΔE, still silent).
+    #     Measured over 74 reads — Knut's ten real IT8 sheets 72.92–79.82, the
+    #     app's own demo for all 25 bundled and Argyll targets 80.96–94.34, and
+    #     nine legitimate variations (γ1.8, γ2.6, matte paper, a transparency
+    #     tone scale, a warm and a cool cast, a scanner running hot, 16-bit,
+    #     JPEG q12) 69.57–83.86 — against ×0.85 at 67.84, ×0.70 at 55.85/52.43
+    #     and ×0.18 at 14.47. 60 is 9.6 points under the worst legitimate case
+    #     and 12.9 under the worst that came off real hardware. It declines
+    #     entirely when the reference names no near-white patch.
+    #   min_fit_support — DISTINCT reference colours the profile is fitted to.
+    #     colprof's self-check is measured against the rows it was fitted to,
+    #     so it is smallest exactly when there is least to fit: a reference
+    #     whose every id reads A1 scores a perfect 0.007, better than any
+    #     correct build. An error floor cannot separate that — the app's own
+    #     ColorChecker demo builds at 0.059 — but a count can: 1 for both
+    #     degenerate references measured, 21 for the smallest target anybody
+    #     ships (MLG), 24 ColorChecker, 288 Wolf Faust, 864 ISO 12641-2.
+    "scanner_min_highlight":     60.0,
+    "scanner_min_fit_support":   10,
     # Flank override (Knut's derivative design): patch borders are LINES of
     # high spatial gradient (centred, two scales — symmetric in all 8
     # directions); a box is ON an edge when 3+ CONNECTED sub-cells of its

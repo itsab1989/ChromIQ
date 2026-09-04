@@ -414,7 +414,10 @@ def test_the_panel_warns_only_when_nothing_will_print(qapp, markers, tb, sides,
     p.helper_markers_cb.setChecked(markers)
     p.helper_markers_top_bottom.setChecked(tb)
     p.helper_markers_sides.setChecked(sides)
-    shown = p.helper_markers_edge_warning.isVisibleTo(p)
+    # The warning moved from a label under the two boxes onto the "Show
+    # markers for" ⓘ on 2026-09-04 (Basti: *"not directly inside a section"*).
+    # Same sentence, same trigger; only the home changed.
+    shown = bool(p._hm_edges_tip.live_note())
     assert shown is warn, (
         f"markers={markers} top/bottom={tb} sides={sides}: warning "
         f"{'shown' if shown else 'hidden'}, expected the opposite")

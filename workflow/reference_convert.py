@@ -61,6 +61,71 @@ def classify_reference(path: str | Path) -> ReferenceKind:
             else ReferenceKind.SPECTRAL_TXT)
 
 
+#: Byte-order marks that say "this file is not UTF-8". ArgyllCMS's CGATS reader
+#: has no idea what to do with either: a UTF-16 file reaches it as text with a
+#: NUL after every character and it reports ``cgats.add_kword(), keyword '"'
+#: is illegal`` — which reached the user, before beta 8, as "check the files
+#: exist and the folder is writable" (B8-17).
+_NOT_UTF8_BOMS = (b"\xff\xfe", b"\xfe\xff", b"\xff\xfe\x00\x00",
+                  b"\x00\x00\xfe\xff")
+
+
+def is_not_utf8_text(path: str | Path) -> bool:
+    """True when *path* opens with a UTF-16/UTF-32 byte-order mark.
+
+    Only the BOM, deliberately. A heuristic on NUL bytes would also fire on a
+    binary file somebody renamed to ``.txt``, and telling that user their
+    reference is "saved in UTF-16" would be a second wrong answer on top of the
+    one this fixes. A BOM is the file stating its own encoding.
+    """
+    try:
+        # `read_bytes` rather than `open("rb").read(4)`: a bare open leaks the
+        # handle, and a BOM sniff has no encoding to name because the whole
+        # point is that the encoding is not yet known.
+        head = Path(path).read_bytes()[:4]
+    except OSError:
+        return False
+    return any(head.startswith(b) for b in _NOT_UTF8_BOMS)
+
+
+def utf8_reference(path: str | Path, out_dir: str | Path) -> "tuple[Path, bool]":
+    """(*a file ArgyllCMS can read*, *did we have to rewrite it*).
+
+    A reference exported from a Windows tool as UTF-16 is an ordinary way to
+    end up with one — and ChromIQ already knew: ``core.text_io`` logs "byte-order
+    mark says UTF-16 or UTF-32, not UTF-8" while reading it, the window then
+    said "✓ Ready — 288 patches, reference loaded", and the failure only arrived
+    minutes later inside ``scanin``, phrased as a permissions problem. The
+    knowledge was in the process the whole time.
+
+    THE COPY IS NEVER NAMED WHAT THE ORIGINAL IS NAMED. ``_execute`` drops the
+    reference next to the scan under ``self._std_ref.name``, so a transcoded
+    copy keeping the original ``.txt`` name would overwrite the user's own file
+    the moment the two sat in one folder. ``-utf8`` on the stem makes that
+    impossible.
+    """
+    p = Path(path)
+    if not is_not_utf8_text(p):
+        return p, False
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    dst = out_dir / f"{p.stem}-utf8{p.suffix or '.txt'}"
+    try:
+        # EVERY U+FEFF GOES, NOT JUST THE ONE AT THE FRONT. Found by driving
+        # the real window rather than by reading the code: the transcoded file
+        # came out byte-identical to a reference that works, except for a
+        # single ``\ufeff`` after END_DATA — and ArgyllCMS answered "Input file
+        # '…' field XYZ_X is wrong type", which names a column 300 lines
+        # earlier and has nothing to do with it. Strip that one character and
+        # scanin reads the file. A byte-order mark is a fact about an encoding,
+        # never content, so removing it anywhere is safe.
+        dst.write_text(read_text(p, lenient=True).replace("\ufeff", ""),
+                       encoding="utf-8")
+    except (OSError, UnicodeError):
+        return p, False        # nothing lost: the old failure path still runs
+    return dst, True
+
+
 def needs_conversion(path: str | Path) -> bool:
     return classify_reference(path) is not ReferenceKind.DIRECT
 

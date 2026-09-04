@@ -71,6 +71,7 @@ from ui.builtin_preset_popup import BuiltinPresetButton, BuiltinPresetPopup
 from ui.tiff_preview import TiffPreview
 from ui.tooltip_button import InfoDialog, TooltipButton
 from ui.widgets import add_log_row, fit_log_height, CollapsibleGroupBox, NoScrollComboBox, NoScrollSpinBox, PatchGridButton, PrefixLockedLineEdit, icc_profile_paths, load_magenta_folder_icon, make_browse_button, open_file_dialog, reapply_ink, set_folder_icon, set_ink, set_preset_icon
+from ui.warning_sign import inform, set_information_icon, set_question_icon
 from core.i18n import count_phrase, tr
 from core.text_io import read_text
 from core.platform_paths import default_output_root
@@ -3337,7 +3338,7 @@ class TabChart(QWidget):
             body += "\n\n" + tr(
                 "On the CR30 the same setting is the “Patch shape” row of the "
                 "layout options: choose “Rectangular” there.")
-        QMessageBox.information(self, tr("Hexagonal patches — a heads-up"), body)
+        inform(self, tr("Hexagonal patches — a heads-up"), body)
 
     # ------------------------------------------------------------------
     # Guided panel
@@ -9841,7 +9842,7 @@ class TabChart(QWidget):
         Returns True to overwrite, False to cancel (the user can retry with a
         different name)."""
         box = QMessageBox(self)
-        box.setIcon(QMessageBox.Icon.Question)
+        set_question_icon(box)
         box.setWindowTitle(tr("Preset already exists"))
         box.setText(tr("A preset named “{name}” already exists. Overwrite it, "
                        "or cancel and choose a different name.").format(name=name))
@@ -16708,11 +16709,12 @@ class TabChart(QWidget):
         # File stem is fixed by the folder layout ("chart" / "calibration").
         # Derive it from the actual page bitmaps so it's correct regardless of
         # which flow produced them; fall back to "chart" when none exist.
-        if tiffs:
-            m = re.match(r"(.+?)_\d+$", tiffs[0].stem)
-            stem = m.group(1) if m else tiffs[0].stem
-        else:
-            stem = "chart"
+        # NOT a regex on the name: `<stem>.tif` and `<stem>_01.tif` are both
+        # printtarg output, so a project called "Moab_Satin_240" had its own
+        # `_240` read as a page number and everything downstream was built from
+        # "Moab_Satin" — see `chart_stem_from_pages`, which asks the disk.
+        from core.file_manager import chart_stem_from_pages
+        stem = chart_stem_from_pages(tiffs) if tiffs else "chart"
 
         # #130: when the user chose Run type = Verification, move the just-
         # generated chart into the run's verifications/ folder as its shared
@@ -17290,7 +17292,26 @@ class TabChart(QWidget):
             _got_l = float(getattr(geom, "margin_l", 0.0) or 0.0)
             _floor_l = float(getattr(geom, "row_label_floor", 0.0) or 0.0)
             _raised_l = bool(geom.rlwi > 0 and _got_l > _asked_l + 0.05)
-            if _raised_l:
+            # …AND THE ADVICE HAS TO BE TRUE OF THIS CHART.
+            #
+            # This message used to end "…or reduce “Clip”" in every
+            # state, including the one it is most often seen in. `floor` is
+            # `max(Clip, the clip border's width, the instrument's own left
+            # furniture)`, so on a chart with a clip border wider than Clip —
+            # Knut's own 26 mm preset, and the state Agent B reproduced on
+            # screen — reducing Clip moves nothing at all. The black note under
+            # "Text distance from edge" said so at the same moment, four inches
+            # away: *"“Clip” starts moving them again once you set it above
+            # 26.0 mm."* Two messages contradicting each other on one screen
+            # (beta 8, B8-14 / Agent B's F-5).
+            #
+            # `docs/design/row_label_geometry.md` §R2 states the same fact as a
+            # consequence of R1.3 — *"Below the width of a clip border, Clip has
+            # no visible effect"* — so this is the code being brought back to
+            # the specification, not a change to it.
+            _clip_l = float(getattr(geom, "text_edge_clip_mm", 0.0) or 0.0)
+            _clip_is_the_anchor = _clip_l >= _floor_l - 0.05
+            if _raised_l and _clip_is_the_anchor:
                 warns.append(tr(
                     "⚠ The left margin was widened from {asked:.1f} mm to "
                     "{got:.1f} mm to fit the row indicators. The labels start "
@@ -17301,6 +17322,18 @@ class TabChart(QWidget):
                     "use a smaller label size, or reduce “Clip”.").format(
                         asked=_asked_l, got=_got_l, floor=_floor_l,
                         band=geom.rlwi))
+            elif _raised_l:
+                warns.append(tr(
+                    "⚠ The left margin was widened from {asked:.1f} mm to "
+                    "{got:.1f} mm to fit the row indicators. The labels start "
+                    "{floor:.1f} mm in from the page edge and their text needs "
+                    "{band:.1f} mm. “Clip” is set to {clip:.1f} mm and is "
+                    "not what is holding them out there, so lowering it moves "
+                    "nothing — the note under “Text distance from edge” "
+                    "names what is. To get that paper back, switch “Show row "
+                    "indicators” off or use a smaller label size.").format(
+                        asked=_asked_l, got=_got_l, floor=_floor_l,
+                        band=geom.rlwi, clip=_clip_l))
             # The text-overflow warning only applies in "margins are law" mode,
             # which is now AREA-FIRST (Knut #93): there the label/text lives inside
             # the margin, so a too-small margin overflows toward the page edge. In
@@ -18341,7 +18374,7 @@ class TabChart(QWidget):
         try:
             from PyQt6.QtWidgets import QMessageBox
             box = QMessageBox(self)
-            box.setIcon(QMessageBox.Icon.Information)
+            set_information_icon(box)
             box.setWindowTitle(tr("There's a little room left on the last page"))
             box.setText(tr(
                 "Your patch set doesn't quite fill the last page — there's space "

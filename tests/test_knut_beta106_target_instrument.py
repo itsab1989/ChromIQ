@@ -191,8 +191,11 @@ def test_a_name_that_says_nothing_is_not_guessed_at(qapp, tmp_path, monkeypatch)
     ti2 = tmp_path / "odd.ti2"
     _ti2(ti2, "Some Other Spectro 9000")
     warned = {}
-    monkeypatch.setattr(QMessageBox, "warning",
-                        lambda *a, **k: warned.setdefault("said", a[2]))
+    # `<module>.warn`, not `QMessageBox.warning` — see the note in
+    # tests/test_hex_scanner_support.py. The argument positions are the same
+    # (parent, title, text), so the capture is unchanged.
+    import ui.tabs.tab_measure as tm
+    monkeypatch.setattr(tm, "warn", lambda *a, **k: warned.setdefault("said", a[2]))
 
     assert tab._repair_target_instrument(ti2, "Some Other Spectro 9000") is False
     assert read_target_instrument(ti2) == "Some Other Spectro 9000", \

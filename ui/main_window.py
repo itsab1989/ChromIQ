@@ -33,6 +33,7 @@ from ui.tabs.tab_print import TabPrint
 from ui.tabs.tab_profile import TabProfile
 from core.i18n import tr
 from core.measurement_target import RUN_TYPE_PROFILING
+from ui.warning_sign import inform, warn
 
 log = get_logger(__name__)
 
@@ -1994,7 +1995,7 @@ class MainWindow(QMainWindow):
         try:
             Path(path).write_text(text, encoding="utf-8")
         except Exception as exc:                    # noqa: BLE001
-            QMessageBox.warning(self, tr("CR30 Bluetooth report"),
+            warn(self, tr("CR30 Bluetooth report"),
                                 tr("The report could not be saved: {error}"
                                    ).format(error=exc))
             return
@@ -2217,7 +2218,7 @@ class MainWindow(QMainWindow):
         # project() materialises a project.json as a side effect, so guard on the
         # manifest existing first — exactly as session restore does.
         if not self._file_mgr.has_project():
-            QMessageBox.information(self, tr("Show patch distribution (3D)"), no_chart)
+            inform(self, tr("Show patch distribution (3D)"), no_chart)
             return
 
         # THE SAME FAULT THE PATCH SET EDITOR HAD, IN ITS SIBLING.
@@ -2236,7 +2237,7 @@ class MainWindow(QMainWindow):
             run = self._file_mgr.project().current_run()
             chart = run.chart_ti2 if run.chart_ti2.exists() else run.chart_ti1
         if not chart.exists():
-            QMessageBox.information(self, tr("Show patch distribution (3D)"), no_chart)
+            inform(self, tr("Show patch distribution (3D)"), no_chart)
             return
 
         from workflow.ti2_relayout import load_rgb_program
@@ -2248,10 +2249,10 @@ class MainWindow(QMainWindow):
             # as the display-RGB projection of the ink values.
             if self._show_nchannel_cube(chart):
                 return
-            QMessageBox.information(self, tr("Show patch distribution (3D)"), str(exc))
+            inform(self, tr("Show patch distribution (3D)"), str(exc))
             return
         if not program:
-            QMessageBox.information(self, tr("Show patch distribution (3D)"), no_chart)
+            inform(self, tr("Show patch distribution (3D)"), no_chart)
             return
 
         from ui.dialogs.patch_cube_dialog import PatchCubeDialog
@@ -2843,7 +2844,7 @@ class MainWindow(QMainWindow):
             # found where this build expects them — tell the user plainly
             # instead of half-working (#127).
             from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.information(
+            inform(
                 self, tr("Project from a newer ChromIQ"),
                 tr("The project “{name}” was last used with a newer "
                    "version of ChromIQ, which organises the project folder "

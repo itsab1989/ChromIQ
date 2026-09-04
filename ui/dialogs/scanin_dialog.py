@@ -2,12 +2,12 @@
 
 Workflow: pick a **measured** ChromIQ chart and a **scan** of the printed chart,
 drag the four corners over the patch area (a live grid confirms the fit), and
-ChromIQ runs ``scanin`` (manual ``-F`` registration + perspective) to read the
-scan against the chart's measured colours, then ``colprof`` to build the scanner
-ICC. Multi-page charts get a scan (or several) placed per page; several scans of
-a page are averaged, then the pages are combined before profiling. It can also
-profile from a standard target the user owns (IT8, ColorChecker, …) via its
-Argyll ``.cht`` + the target's own reference file.
+ChromIQ runs ``scanin`` (manual ``-F`` registration, from those four corners) to
+read the scan against the chart's measured colours, then ``colprof`` to build
+the scanner ICC. Multi-page charts get a scan (or several) placed per page;
+several scans of a page are averaged, then the pages are combined before
+profiling. It can also profile from a standard target the user owns (IT8,
+ColorChecker, …) via its Argyll ``.cht`` + the target's own reference file.
 
 Needs the chart's ``.cht`` + ``.cie`` (built by "Create scanner target" / the
 measure-tab checkbox); this tool builds them on the fly if they're missing but
@@ -20,6 +20,7 @@ import sys as _sys
 
 from core.stem_paths import artefact
 
+import math
 import re
 from pathlib import Path
 
@@ -42,8 +43,8 @@ from ui.theme import APPEARANCE_NEUTRAL, accent_for, resolve_mode
 from ui.tooltip_button import TooltipButton
 from ui.widgets import (CollapsibleGroupBox, ElidingComboBox, NoScrollSpinBox,
                         ValueWidthComboBox, disabled_primary_qss,
-                        make_browse_button, primary_hover, primary_label,
-                        open_file_dialog)
+                        fit_message_box_buttons, make_browse_button,
+                        primary_hover, primary_label, open_file_dialog)
 from workflow.profile_builder import ProfileBuilder, ProfileParams
 from workflow.scanin_runner import ScaninParams, ScaninRunner
 from workflow.ti3_average import Ti3AverageError, average_scanner_ti3
@@ -52,6 +53,7 @@ from workflow.scanin_target import (
 from workflow.standard_targets import (StandardTarget, ensure_user_targets_dir,
                                        grouped_standard_targets,
                                        user_targets_dir)
+from ui.warning_sign import set_warning_icon, warn
 
 log = get_logger(__name__)
 
@@ -59,7 +61,13 @@ _TI3_FILTER = "Measured chart (*.ti3);;All files (*)"
 # Printer mode reads the chart's device + aim values from its .ti2, so a chart you
 # only PRINTED (never measured) is fine — accept either file.
 _CHART_FILTER = "Chart you printed (*.ti2);;All files (*)"
-_SCAN_FILTER = "Scans (*.tif *.tiff);;All files (*)"
+# A camera writes JPEG. The window has always offered "a scan or photo" and
+# the filter has always named TIFF alone, so a photograph could only be
+# picked through "All files" — and then failed inside scanin at the end of
+# the job. It is converted now (workflow/photo_fit.as_tiff), so the picker
+# may as well say so. A .tif still travels the same path it always did.
+_SCAN_FILTER = ("Scans and photographs (*.tif *.tiff *.jpg *.jpeg *.png);;"
+                "Scans (*.tif *.tiff);;All files (*)")
 _CHT_FILTER = "Chart recognition (*.cht);;All files (*)"
 _REF_FILTER = "Target reference (*.cie *.txt *.ti3 *.cxf);;All files (*)"
 # Compact button — a per-widget rule beats the app-wide 28px min-height.
@@ -217,7 +225,13 @@ class _ZoomPanImageView(QWidget):
         p = QPainter(self)
         p.fillRect(self.rect(), self.palette().window())
         s = self._scale or self._fit_scale()
-        p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        # Smooth only when SHRINKING. Zooming a diagnostic INTO a bigger view
+        # interpolates away the pixel edges the user is being asked to judge —
+        # measured on the 693x490 diag Knut was looking at, the sample-box edge
+        # rose over 3.50 device px smoothed against 2.49 hard, and 4.86 against
+        # 0.00 at 4x. Below 1:1 the two are indistinguishable (2.10 vs 2.11),
+        # so this costs nothing where smoothing was actually earning its place.
+        p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, s < 1.0)
         p.translate(-self._off[0] * s, -self._off[1] * s)
         p.scale(s, s)
         p.drawPixmap(0, 0, self._pm)
@@ -263,8 +277,18 @@ def _chart_base(ti3: Path) -> Path:
     return ti3.with_name(stem)
 
 
+#: colprof's own fit line. The number pattern is deliberately wider than the
+#: digits-and-dots it used to be: when the data it was given had nothing in it
+#: to fit, colprof prints "avg err = nan" — and beta 8 found that the one line
+#: the check most needed to read was the one line it could not match, so `found`
+#: came back empty and `_selfcheck_verdict` returned silently on its "if not
+#: found" branch. Measured on a reference whose every value reads 0.00:
+#: "Profile check complete, peak err = 0.000000, avg err = nan", over a profile
+#: whose white point is nan nan nan.
+_PROFCHECK_NUM = r"[-+]?(?:\d+(?:\.\d*)?(?:[eE][-+]?\d+)?|\.\d+(?:[eE][-+]?\d+)?|nan|inf(?:inity)?)"
 _PROFCHECK_RE = re.compile(
-    r"Profile check complete, peak err = ([\d.]+), avg err = ([\d.]+)")
+    rf"Profile check complete, peak err = ({_PROFCHECK_NUM}), "
+    rf"avg err = ({_PROFCHECK_NUM})", re.IGNORECASE)
 
 
 def _plain_id(sid: str) -> str:
@@ -684,6 +708,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         # built above is untouched.
         self._build_inputs()
         self._build_two_panel_layout()
+        self._order_the_preview_buttons()
         self._run_btn.setObjectName("primary")
         # "Reveal profile" — shown after a successful build so the .icc is easy to
         # find (ChromIQ doesn't auto-install scanner profiles). Hidden until then.
@@ -1213,7 +1238,8 @@ class ScannerProfileDialog(_ToolDialogBase):
         """Show the current shot's scan + placement in the marquee."""
         shot = self._cur_shot()
         scan = shot["path"]
-        self._scan_field.setText(str(scan) if scan else "")
+        shown = shot.get("source") or scan
+        self._scan_field.setText(str(shown) if shown else "")
         if scan and Path(scan).is_file():
             self._marquee.set_image(_load_scan_qimage(scan))
             self._apply_shot_corners(shot)
@@ -1226,8 +1252,13 @@ class ScannerProfileDialog(_ToolDialogBase):
         shots = self._page_shots()
         self._shot_combo.blockSignals(True)
         self._shot_combo.clear()
-        for i in range(len(shots)):
-            self._shot_combo.addItem(tr("Scan {n}").format(n=i + 1), i)
+        for i, sh in enumerate(shots):
+            # AN EMPTY SLOT SAYS SO (beta 8, B8-32). "Scan 2" beside "Scan 1"
+            # reads as two scans; the build reads whatever has a file, and this
+            # is the only place the difference is visible before it happens.
+            self._shot_combo.addItem(
+                tr("Scan {n}").format(n=i + 1) if sh.get("path") else
+                tr("Scan {n} (no file yet)").format(n=i + 1), i)
         self._shot_combo.setCurrentIndex(min(self._shot_idx, len(shots) - 1))
         self._shot_combo.blockSignals(False)
         multi = len(shots) > 1
@@ -1278,7 +1309,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         # Page selector directly above the scan it switches (Knut, #108).
         form.addWidget(self._page_widget)
         form.addLayout(self._labelled(
-            tr("Scan or photo of the target (TIFF):"), tr("Scan or photo"),
+            tr("Scan or photo of the target:"), tr("Scan or photo"),
             tr("Your capture of the target on the device you want to profile: a "
             "scan from a scanner, or a photo from a camera. Save it as a plain "
             "RGB TIFF, with the device's own colour correction turned off — the "
@@ -1329,12 +1360,23 @@ class ScannerProfileDialog(_ToolDialogBase):
         # workflow/scan_auto_align.py.
         self._auto_align_btn = QPushButton(tr("Auto align"), self)
         self._auto_align_btn.setToolTip(tr(
-            "Put the grid on the patches automatically. ChromIQ hands the "
-            "scan to ArgyllCMS's chart recogniser, checks the answer against "
-            "this chart's own reference, and only moves the corners if the "
-            "check passes. If it cannot find the patches with confidence it "
-            "says so and leaves your corners exactly where they are. Press "
-            "the button again to undo."))
+            "Put the reading grid on the chart\u2019s patches for you.\n\n"
+            "ChromIQ searches the whole picture for the chart, so your corners "
+            "do not have to be anywhere near right to start with. It then "
+            "reshapes what it finds so the grid sits squarely on the patches "
+            "\u2014 and that second part is what a photograph needs, because a "
+            "sheet photographed even slightly off square is no longer a "
+            "rectangle: the end further from the camera comes out smaller. The "
+            "grid is allowed to lean the same way, but never far enough to "
+            "reach the next patch along.\n\n"
+            "If it cannot find the chart by itself it works from the four "
+            "corners you placed instead, so dragging them roughly around the "
+            "chart first always helps.\n\n"
+            "Nothing moves until the answer has been checked against the "
+            "picture and against this chart\u2019s own reference. If it is not "
+            "confident it says so below and leaves your corners exactly where "
+            "they are. Press the button again straight afterwards to put them "
+            "back."))
         self._auto_align_btn.clicked.connect(self._on_auto_align)
         self._align_undo: list | None = None
         self._align_before: list = []
@@ -1348,7 +1390,18 @@ class ScannerProfileDialog(_ToolDialogBase):
             "it if the grid has drifted off-screen (e.g. after loading an image at a "
             "different resolution)."))
         self._reset_grid_btn.clicked.connect(self._marquee.reset_selection_grid)
-        self._popout_btn = QPushButton(tr("⤢ Pop out for a bigger view"), self)
+        # "⤢ Pop out", not "⤢ Pop out for a bigger view" (beta 8, AGENT-S).
+        # It was the longest label in the window — 202 px in Italian against
+        # 78 for this one — and it was long enough to need a line of its own,
+        # which is a whole row of the block spent on one button. What the four
+        # dropped words said is said twice over already: by the tooltip below,
+        # and by the hint line under this block, which ends "Pop out gives a
+        # bigger view".
+        self._popout_btn = QPushButton(tr("⤢ Pop out"), self)
+        self._popout_btn.setToolTip(tr(
+            "Open the preview in its own resizable window, much bigger, so the "
+            "corners are easier to place. The placement, the zoom and the "
+            "rotation all come back with it when you dock it again."))
         self._popout_btn.clicked.connect(self._toggle_popout)
         for _b in (self._rotate_btn, self._auto_align_btn, self._reset_btn,
                    self._reset_grid_btn, self._popout_btn):
@@ -1364,29 +1417,54 @@ class ScannerProfileDialog(_ToolDialogBase):
             "deleted when you close the result — your files stay untouched."))
         self._check_align_btn.setStyleSheet(_COMPACT_BTN)
         self._check_align_btn.clicked.connect(self._on_check_alignment)
-        # THREE lines, 2 + 2 + 2, and the third line is what Auto align cost.
-        # Six buttons in one row need 840 px in German, and with the preview
-        # beside a fixed left pane that alone puts the window's floor above a
-        # 1440 screen, so one line is not available at any size this window is
-        # meant for. The old 3 + 2 was the narrowest order-preserving split of
-        # five buttons; adding a sixth to it takes German's worst line from 390
-        # to 474 px and pushes the whole window past the 1280-screen budget
-        # (measured: 1276 against a 1220 ceiling, and es/it/ru with it).
-        # 2 + 2 + 2 measures at or BELOW the old worst line in all twelve
-        # catalogues (German 330 vs 390, Russian 369 vs 371, Chinese 186 vs
-        # 252) and keeps the grouping: the two that place the grid, the two
-        # that put the view back, then the check and "Pop out" on its own.
+        # THREE LINES, TWO BUTTONS EACH, AND EACH LINE IS ONE QUESTION.
+        # Grouped by WHAT EACH BUTTON ACTS ON, which is the one thing the user
+        # can see: the picture, then the grid, then the check. Rotate and Reset
+        # view belong on the same line because Rotate literally calls
+        # `_reset_view` (ScanGridMarquee.rotate_90); Auto align and Reset grid
+        # are the two ways the grid gets somewhere; Check alignment and Pop out
+        # are the two ways to judge where it got — by the numbers, or by eye.
+        #
+        # The block used to be four lines for six buttons (2 + 2 + 1 + 1),
+        # grouped by WHEN you press them, with the longest label in the window
+        # alone on the last one. Measured the same way as that arrangement was,
+        # at these buttons' own `_COMPACT_BTN` metrics over all twelve
+        # catalogues plus English (beta 8, `21-preview-buttons`):
+        #
+        #   this shape          269 px worst line (Spanish), 321 px popped out
+        #   the 2 + 2 + 1 + 1   288 px worst line (German)
+        #
+        # A LINE'S WIDTH IS NOT THE BINDING CONSTRAINT, THOUGH, AND THE OLD
+        # NOTE HERE IMPLIED IT WAS. `showEvent` pins the right pane at
+        # `max(360, right_pane.minimumSizeHint().width()) + _PANE_GAP`, and
+        # that minimum is the pane's WIDEST ROW plus 28 px of margins — which
+        # is the "Save a diagnostic image" / "Use fiducial marks" checkbox grid
+        # (370 px in German, 421 in Russian), or the marquee's own 360 px
+        # floor. Measured on the real window, the buttons had 72 to 165 px of
+        # headroom they were not using, in every one of the thirteen. So what a
+        # rearrangement must not do is exceed THIS LANGUAGE'S widest other row;
+        # the global worst line is only a proxy for it.
+        #
+        # TWO LINES IS NOT AVAILABLE. Brute-forced: every partition of the six
+        # into two rows, against each language's own budget, with the label
+        # full, shortened and icon-only. Not one 3 + 3 fits thirteen languages
+        # — the honest grouping (grid | view) overruns in six of them, worst
+        # Spanish +51 px, which is the window's minimum width growing from
+        # 1071 to 1122. Only an icon-only Pop out fits at all, in exactly one
+        # partition, and that partition groups nothing. Three rows: 39
+        # partitions fit, this one with 94 px to spare in the tightest
+        # language.
         ctl.addWidget(self._rotate_btn)
-        ctl.addWidget(self._auto_align_btn)
+        ctl.addWidget(self._reset_btn)
         ctl.addStretch(1)
         ctl2 = QHBoxLayout()
-        ctl2.addWidget(self._reset_btn)
+        ctl2.addWidget(self._auto_align_btn)
         ctl2.addWidget(self._reset_grid_btn)
         ctl2.addStretch(1)
         ctl3 = QHBoxLayout()
         ctl3.addWidget(self._check_align_btn)
-        ctl3.addStretch(1)
         ctl3.addWidget(self._popout_btn)
+        ctl3.addStretch(1)
         two = QVBoxLayout()
         two.setContentsMargins(0, 0, 0, 0)
         two.setSpacing(6)
@@ -1472,28 +1550,36 @@ class ScannerProfileDialog(_ToolDialogBase):
         opts = QGridLayout()
         opts.setHorizontalSpacing(24)
         opts.setVerticalSpacing(6)
-        self._perspective = QCheckBox(tr("Correct perspective (slightly skewed scan)"), self)
-        self._perspective.setChecked(True)
+        # "CORRECT PERSPECTIVE" USED TO SIT HERE, TICKED, AND DID NOTHING.
+        # `scanin_args` appends `-p` only when `corners is None`, and every one
+        # of this window's four scanin call sites passes
+        # `corners=self._scanin_corners(...)` — the marquee always has a quad
+        # once a scan is loaded. Measured, not deduced (beta 8, B8-30 / sweep
+        # check J10): ticked and unticked, Check alignment and the real build
+        # all send the same argv, `-F` present and `-p` absent in every one.
+        #
+        # It is REMOVED rather than disabled, because there is no configuration
+        # in which ticking it would help and two measured populations in which
+        # it hurts. `workflow/scanin_runner.py` carries the first: with corners
+        # given, `-p` is dead work that ran calc_perspective before the corners
+        # were ever read, 23.3 % of hexagonal reads FAILED with it, 0 % without,
+        # and 42 conditions came out bit-identical. Agent K measured the second
+        # on Auto align, which is the one path that could still pass
+        # `corners=None`: `-p` is worse at every tilt (on it8Wolf 0.020 → 0.037
+        # at 0°, 1.469 → 4.492 at 15°). A control that cannot act must not look
+        # as if it can.
         self._diag = QCheckBox(tr("Save a diagnostic image of what was read"), self)
-        # The three reading options in ONE column, not two across and one
-        # under. Side by side this row is the widest thing in the right pane in
-        # five of the twelve languages — 814 px in Russian, 746 in French,
-        # against 447 for the button row — so it, and not the buttons, would
-        # set the window's floor. Stacked it is 416 px at its worst, and three
-        # related switches read better as a list than as a 2 + 1 block.
-        opts.addWidget(self._perspective, 0, 0)
-        opts.addWidget(self._diag, 1, 0)
+        # The reading options in ONE column, not side by side. Side by side this
+        # row is the widest thing in the right pane in five of the twelve
+        # languages — 814 px in Russian, 746 in French, against 447 for the
+        # button row — so it, and not the buttons, would set the window's floor.
+        # Stacked it is 416 px at its worst, and related switches read better as
+        # a list than as a block.
+        opts.addWidget(self._diag, 0, 0)
         opts.setColumnStretch(2, 1)
         opts.addWidget(self._tip(
             tr("Reading options"),
             tr("How ChromIQ reads the patches from your scan.\n\n"
-            "• Correct perspective — leave this on (it's on by default). Almost "
-            "every scan or photo is very slightly skewed, and this lets ChromIQ "
-            "read the patch area as a gently four-cornered shape instead of "
-            "insisting on a perfect rectangle. That way the grid still lands on "
-            "the patches even if the sheet wasn't perfectly square to the scanner "
-            "or camera. There's no downside to leaving it on — only turn it off if "
-            "you're certain the scan is geometrically perfect.\n\n"
             "• Save a diagnostic image — after reading, ChromIQ writes a copy of "
             "your scan with the patches it actually read drawn on top, right next "
             "to the scan file. Open that image to check the grid landed correctly: "
@@ -1510,7 +1596,7 @@ class ScannerProfileDialog(_ToolDialogBase):
             "(so you still just line up the patches). It puts the grid in exactly "
             "the same spot, so turn it on only if you find the marks handy to see. "
             "It hides automatically for ChromIQ-made charts, which print no marks.")),
-            0, 3, 3, 1, Qt.AlignmentFlag.AlignVCenter)
+            0, 3, 2, 1, Qt.AlignmentFlag.AlignVCenter)
 
         self._use_fiducials_cb = QCheckBox(
             tr("Use fiducial marks in the .cht as reference"), self)
@@ -1530,7 +1616,7 @@ class ScannerProfileDialog(_ToolDialogBase):
             "The box turns itself off (with a quick flash) for targets that don't "
             "have separate fiducial marks — there's nothing extra to show."))
         self._use_fiducials_cb.toggled.connect(self._on_fiducial_toggled)
-        opts.addWidget(self._use_fiducials_cb, 2, 0)
+        opts.addWidget(self._use_fiducials_cb, 1, 0)
         form.addLayout(opts)
         # …and ends here, with the last of the reading options. Everything
         # below is a profile setting and belongs on the left.
@@ -1601,14 +1687,18 @@ class ScannerProfileDialog(_ToolDialogBase):
         # on, and PLACED in the bottom button row (see showEvent).
         self._save_defaults_btn = QPushButton(tr("Save as Defaults"), self)
         self._save_defaults_btn.setToolTip(
-            tr("Store everything you've set here — the profile type, quality, the "
-               "description, and every option under Advanced — as your defaults. "
-               "Next time you open this window they'll already be filled in, so "
-               "you don't have to set them up again.\n\n"
+            tr("Store everything you've set here — the patch sample area, the "
+               "two reading options, the profile type, quality, the description, "
+               "and every option under Advanced — as your defaults. Next time "
+               "you open this window they'll already be filled in, so you don't "
+               "have to set them up again.\n\n"
                "Each kind of profile is remembered on its own: this saves the "
-               "settings for whatever you're building right now (a printer "
-               "profile, a scanner/camera profile from a ChromIQ chart, or one "
-               "from a standard target), and leaves the other kinds untouched.\n\n"
+               "profile settings for whatever you're building right now (a "
+               "printer profile, a scanner/camera profile from a ChromIQ chart, "
+               "or one from a standard target), and leaves the other kinds "
+               "untouched. The reading options are shared by all three, because "
+               "they describe how the scan is read rather than what is built "
+               "from it.\n\n"
                "Your choices are only remembered when you click this. Closing the "
                "window without saving leaves your saved defaults untouched, and "
                "“Restore factory defaults” in Preferences clears them again."))
@@ -1685,6 +1775,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._prof_name.textChanged.connect(self._update_command_preview)
         self._active_ctx = self._colprof_context()
         self._load_context(self._active_ctx)
+        self._apply_read_vals(self._settings.get(self._READ_KEY, {}) or {})
         self._on_colprof_changed()
         self._mark_default_combos()
         # One shared label column → the spinbox, combos and name field all
@@ -1710,6 +1801,27 @@ class ScannerProfileDialog(_ToolDialogBase):
     # on the left and against the ⓘ column on the right: they read as one
     # smudged edge, and the top ⓘ looks like part of the bar.
     _BAR_GAP = 12
+
+    def _order_the_preview_buttons(self) -> None:
+        """Tab through the block under the preview in the order it is READ.
+
+        AFTER `_build_two_panel_layout`, never before: adding a layout to
+        another layout reparents every widget in it, and a reparent takes the
+        widget out of the old focus chain and appends it to the new one — so a
+        tab order set in `_build_inputs` is thrown away a few lines later.
+
+        It was wrong before this block was rearranged, and not because of the
+        rearrangement: the chain is creation order unless somebody says
+        otherwise, and "Check alignment" is built LAST because it arrived last
+        (#108). Tabbing therefore reached "Pop out" before the button above
+        it. Six buttons, one line of code each, and the block now tabs the way
+        it reads.
+        """
+        chain = (self._rotate_btn, self._reset_btn,
+                 self._auto_align_btn, self._reset_grid_btn,
+                 self._check_align_btn, self._popout_btn)
+        for first, second in zip(chain, chain[1:]):
+            self.setTabOrder(first, second)
 
     def _build_two_panel_layout(self) -> None:
         from PyQt6.QtWidgets import QFrame, QScrollArea
@@ -1750,7 +1862,16 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._adv_inline = self._build_inline_advanced()
         left_lay.insertWidget(left_lay.count() - 1, self._adv_inline)
         left_lay.addStretch(1)
-        right_lay.addStretch(1)
+        # THE PREVIEW TAKES THE SPARE HEIGHT, NOT A SPACER. Measured before
+        # this line existed: a 1500x1000 window left the marquee at exactly its
+        # `setMinimumHeight(460)` and gave the other 350 px to the stretch at
+        # the bottom of this column — so a taller window bought the one thing
+        # in it that gains from height nothing at all, and removing a row of
+        # buttons would have bought it nothing either. The trailing stretch
+        # stays at 0 so it only fills what is left when the preview is already
+        # as tall as the pane allows.
+        right_lay.addStretch(0)
+        right_lay.setStretchFactor(self._marquee_box, 1)
 
         # The existing scroll area keeps the LEFT column; the right gets its own,
         # so the preview scrolls without dragging the settings out of view.
@@ -2215,6 +2336,11 @@ class ScannerProfileDialog(_ToolDialogBase):
         if i >= 0:
             self._pq.setCurrentIndex(i)
         self._prof_name.clear()
+        # The read options go back with them. They are on this window and this
+        # button says "Restore defaults", not "Restore some defaults" — and they
+        # are only stored at all because "Save as Defaults" now keeps them
+        # (B8-31), so the two buttons have to be each other's inverse.
+        self._apply_read_vals({})
         self._update_command_preview()
 
     # ------------------------------------------------------------------
@@ -2291,6 +2417,55 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._on_colprof_changed()          # refresh cLUT-enable + command preview
         self._mark_default_combos()
 
+    # ------------------------------------------------------------------
+    # The READ options (beta 8, B8-31)
+    # ------------------------------------------------------------------
+    #: What the three read options are when nobody has saved any. These are the
+    #: values the widgets were built with before this key existed, so a user who
+    #: never presses "Save as Defaults" sees exactly what they saw before — no
+    #: settings migration is needed, and none is added.
+    _READ_DEFAULTS = {"sample_area": 60, "fiducials": False, "diagnostic": False}
+
+    #: ONE key, not one per context. The colprof settings are bucketed per
+    #: context because a printer profile and a scanner profile are different
+    #: things (#121); these three describe how the SCAN is read, which does not
+    #: change when the profile being built does — and a sample area that moved
+    #: when the printer box was ticked would be a new surprise, not a fix.
+    _READ_KEY = "scanner_read_options"
+
+    def _current_read_vals(self) -> dict:
+        return {"sample_area": int(self._sample_area.value()),
+                "fiducials": bool(self._use_fiducials_cb.isChecked()),
+                "diagnostic": bool(self._diag.isChecked())}
+
+    def _apply_read_vals(self, vals: dict) -> None:
+        """Put stored read options into the widgets.
+
+        "Use fiducial marks" is set with its signal BLOCKED. `_on_fiducial_toggled`
+        refuses the tick and blinks the box when the current target has no
+        fiducial marks — and at construction there is no target yet, so an honest
+        stored `True` would be thrown away with a flash before the user had even
+        chosen what to read. `_set_std_targets` already unticks it for a target
+        that has none, so the reconciliation happens where the answer is
+        actually known — but blocking the signal also blocks the one line that
+        slot exists to run, so the marquee is told explicitly below.
+        """
+        d = {**self._READ_DEFAULTS, **(vals if isinstance(vals, dict) else {})}
+        try:
+            self._sample_area.setValue(int(d["sample_area"]))
+        except (TypeError, ValueError):
+            pass
+        self._use_fiducials_cb.blockSignals(True)
+        self._use_fiducials_cb.setChecked(bool(d["fiducials"]))
+        self._use_fiducials_cb.blockSignals(False)
+        # …and the marquee is told, because blocking the signal also blocked
+        # the one line `_on_fiducial_toggled` exists to run. Without this,
+        # "Restore defaults" unticks the box while the crosses stay drawn, and
+        # a window opened with a stored `True` shows a ticked box over a grid
+        # with no crosses on it. The checkbox and the picture must agree.
+        self._marquee.set_show_fiducials(self._use_fiducials_cb.isChecked())
+        self._diag.setChecked(bool(d["diagnostic"]))
+
     def _save_defaults_clicked(self) -> None:
         # Save the CURRENT context's settings only — each bucket is independent,
         # so unsaved edits made in another context aren't persisted here.
@@ -2299,6 +2474,13 @@ class ScannerProfileDialog(_ToolDialogBase):
         stored = dict(stored) if isinstance(stored, dict) else {}
         stored[self._active_ctx] = self._ctx_cfg[self._active_ctx]
         self._settings.set("scanner_colprof_configs", stored)
+        # …AND THE READ OPTIONS, WHICH SURVIVED NOTHING (beta 8, B8-31).
+        # Sample area, "Use fiducial marks" and "Save a diagnostic image" were
+        # re-defaulted on every open: this window wrote exactly one key and it
+        # was not this one. Knut has fiducials ticked in both of his beta.7
+        # screenshots and had to tick it again every session, while the button's
+        # own tooltip opened "Store everything you've set here".
+        self._settings.set(self._READ_KEY, self._current_read_vals())
         if getattr(self, "_log", None) is not None:
             self._log.appendPlainText(tr("Profile settings saved as defaults."))
         # Brief in-place confirmation on the button itself.
@@ -2377,7 +2559,33 @@ class ScannerProfileDialog(_ToolDialogBase):
             return None
         return _re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", raw).strip(". ") or None
 
-    def _archive_previous_profile(self, ti3: Path) -> "Path | None":
+    def _default_profile_name(self, base: Path) -> str:
+        """The one name a scanner profile gets when the user typed none.
+
+        THE FILE AND THE DESCRIPTION ARE THE SAME STRING, ALWAYS. They used to
+        be built separately from the same `base.name` and then diverge: the file
+        got colprof's ``.ti3`` stem — ``ScannedIT8LSTarget01-p1s1-scanner.icc``
+        — while the description read ``ScannedIT8LSTarget01 scanner`` (Knut,
+        beta.7). With "Profile description (-D)" filled the ``-p1s1-scanner``
+        segment vanished entirely, so which of two naming schemes a user got
+        depended on whether one text box was empty.
+
+        There is one scheme now, and it is the one the ``-D`` path already
+        used: the name the user would type if they typed one. `-p{n}s{k}` is
+        kept where it does its job — the per-shot reads of a multi-page or
+        averaged set — and is gone from the ordinary single-scan case, where it
+        was always literally ``p1s1`` and explained nowhere.
+
+        Sanitised the same way a typed name is, so a scan whose file name
+        carries a character the filesystem refuses cannot break the build.
+        """
+        import re as _re
+        raw = f"{base.name} scanner"
+        return _re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", raw).strip(". ") or "scanner"
+
+    def _archive_previous_profile(self, ti3: Path,
+                                  default_stem: "str | None" = None) -> "Path | None":
+
         """Move a profile this build is about to write over into
         ``old/<date>/`` first, and return the folder it went to.
 
@@ -2398,7 +2606,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         wrote is never archived: it is this build's input, and it is derived
         from the scan anyway.
         """
-        stem = self._custom_profile_stem() or ti3.stem
+        stem = self._custom_profile_stem() or default_stem or ti3.stem
         folder = ti3.parent
         doomed = [folder / (stem + ext) for ext in (".icc", ".icm")]
         named_ti3 = folder / (stem + ".ti3")
@@ -2448,12 +2656,19 @@ class ScannerProfileDialog(_ToolDialogBase):
         except OSError:
             log.warning("could not put the archived profile back", exc_info=True)
 
-    def _apply_profile_name(self, ti3: Path) -> tuple[Path, str | None]:
+    def _apply_profile_name(self, ti3: Path,
+                            default_stem: "str | None" = None
+                            ) -> tuple[Path, str | None]:
         """Honour the optional profile name (Nelson): colprof names the .icc
         after its .ti3, so copy *ti3* to ``<name>.ti3`` and return it together
-        with the description to embed. Returns (*ti3*, None) when no name was
-        given — the caller keeps its defaults."""
-        stem = self._custom_profile_stem()
+        with the description to embed.
+
+        *default_stem* is the name to use when the user typed none — see
+        `_default_profile_name`. Passing it makes the typed and untyped cases
+        one code path, which is what stopped the file name and the embedded
+        description drifting apart. Returns (*ti3*, None) only when there is no
+        default either (the printer builder, which names itself)."""
+        stem = self._custom_profile_stem() or default_stem
         if not stem:
             return ti3, None
         named = ti3.with_name(stem + ".ti3")
@@ -2464,9 +2679,9 @@ class ScannerProfileDialog(_ToolDialogBase):
             except OSError as exc:
                 self._log.appendPlainText(
                     f"[WARN] {tr('Could not apply the profile name: {e}').format(e=exc)}")
-                return ti3, self._prof_name.text().strip()
+                return ti3, self._prof_name.text().strip() or default_stem
             ti3 = named
-        return ti3, self._prof_name.text().strip()
+        return ti3, self._prof_name.text().strip() or default_stem
 
     # ------------------------------------------------------------------ chart
     def _reject_chart(self, reason: str) -> None:
@@ -2516,7 +2731,7 @@ class ScannerProfileDialog(_ToolDialogBase):
                                           hex_scanner_message)
         if chart_is_hexagonal(base) and not hex_scanner_allowed(self._settings):
             from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.warning(self, tr("Hexagonal chart"),
+            warn(self, tr("Hexagonal chart"),
                                 hex_scanner_message())
             return
         # `base` is a chart STEM (`_chart_base`), which for a dotted project
@@ -3099,8 +3314,17 @@ class ScannerProfileDialog(_ToolDialogBase):
         _remember_dir(self._settings, self.TOOL_KEY, p.parent)
         from workflow.reference_convert import (
             ReferenceConvertError, ReferenceKind, classify_reference,
-            convert_reference)
+            convert_reference, utf8_reference)
         self._ref_converted_note = ""
+        # BEFORE ANYTHING ELSE READS IT. A reference saved as UTF-16 — an
+        # ordinary export from Windows software — is read leniently everywhere
+        # inside ChromIQ and not at all by ArgyllCMS, so the window said
+        # "✓ Ready — 288 patches, reference loaded" and the failure arrived
+        # minutes later inside scanin, worded as a permissions problem
+        # (beta 8, B8-17). Rewriting it as UTF-8 here is the same rescue the
+        # window already performs for a .cxf or a spectral .txt, and it uses
+        # that rescue's own approved sentence.
+        p, transcoded = utf8_reference(p, self._convert_dir())
         if classify_reference(p) is ReferenceKind.DIRECT:
             self._std_ref = p
         else:
@@ -3119,7 +3343,11 @@ class ScannerProfileDialog(_ToolDialogBase):
                 return
             self._ref_converted_note = tr(
                 "Converted “{name}” to a reference ChromIQ can read.").format(name=p.name)
-        self._ref_field.setText(str(p))
+        if transcoded and not self._ref_converted_note:
+            self._ref_converted_note = tr(
+                "Converted “{name}” to a reference ChromIQ can read."
+            ).format(name=Path(path).name)
+        self._ref_field.setText(str(path))
         self._update_std_note()
         self._refresh()
         cov = self._reference_shortfall()
@@ -3150,10 +3378,28 @@ class ScannerProfileDialog(_ToolDialogBase):
             # are meaningless on it, and any DEMO scans belong to the previous
             # target outright (Knut: switching types kept showing the old grid,
             # clearest with Try-a-demo between types). Clear every page.
+            #
+            # COUNTED BEFORE IT IS THROWN AWAY (beta 8, B8-32 / sweep F-9): the
+            # discard is right, the silence was not. Nothing is said when there
+            # was nothing loaded — a notice about a scan the user never picked
+            # would be its own small lie.
+            dropped = sum(1 for pg_shots in self._shots.values()
+                          for sh in pg_shots if sh.get("path"))
             self._reset_shots()
             demo_dir = user_targets_dir(self._settings)
             self._scan_field.setText("")
             self._marquee.set_image(QImage())
+            # …AND THE LOG, which is about the scan that has just been dropped.
+            # Switching away from a demo left "This is a synthetic image ChromIQ
+            # drew from the target's recognition file…" on screen with no scan
+            # loaded at all, describing a picture that had been cleared two
+            # lines above (beta 8, B8-16; Agent B measured it in the window).
+            self._log.clear()
+            if dropped:
+                from workflow import measurement_messages as M
+                title, body = M.M_SCAN_TARGET_CHANGED.render()
+                self._log.appendPlainText(title)
+                self._log.appendPlainText(body)
             if self._std_ref and demo_dir in Path(self._std_ref).parents:
                 self._std_ref = None
                 self._ref_field.setText("")
@@ -3329,11 +3575,12 @@ class ScannerProfileDialog(_ToolDialogBase):
         from PyQt6.QtWidgets import QMessageBox
         title, body = self._short_reference_message(cov)
         box = QMessageBox(self)
-        box.setIcon(QMessageBox.Icon.Warning)
+        set_warning_icon(box)
         box.setWindowTitle(title)
         box.setText(title)
         box.setInformativeText(body)
         box.addButton(QMessageBox.StandardButton.Ok)
+        fit_message_box_buttons(box)
         box.exec()
 
     def _update_std_note(self) -> None:
@@ -3434,7 +3681,16 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._reset_btn.setEnabled(False)
         self._reset_grid_btn.setEnabled(False)
         self._popout.resize(1200, 940)
-        self._popout.finished.connect(lambda _=0: self._dock_marquee())
+        # A BOUND METHOD, never a lambda capturing `self`. This is the shape
+        # CLAUDE.md records as faulting PyQt6 6.11: a Python closure holding
+        # `self` parked inside a C++ object that `self` owns, on a signal that
+        # object emits. `ui/fade_scroll.py` crashed the process this way —
+        # SIGSEGV, a Py_INCREF on a pointer read from NULL+0x20 — and the fix
+        # there was the same: PyQt keeps a WEAK reference to a bound receiver
+        # and lets Qt sever the connection when it dies, instead of closing the
+        # cycle across the language boundary. `finished` carries an int and
+        # `_dock_marquee` takes none, which PyQt handles.
+        self._popout.finished.connect(self._dock_marquee)
         self._popout.show()
         self._popout.raise_()
         self._popout.activateWindow()
@@ -3447,7 +3703,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._marquee.set_wheel_zoom(False)
         self._marquee_box.insertWidget(0, self._marquee)
         self._marquee_placeholder.setVisible(False)
-        self._popout_btn.setText(tr("⤢ Pop out for a bigger view"))
+        self._popout_btn.setText(tr("⤢ Pop out"))
         self._rotate_btn.setEnabled(True)
         self._reset_btn.setEnabled(True)
         self._reset_grid_btn.setEnabled(True)
@@ -3496,9 +3752,39 @@ class ScannerProfileDialog(_ToolDialogBase):
                                 declutter_settings=self._settings)
         if not path:
             return
-        self._cur_shot()["path"] = Path(path)
-        self._scan_field.setText(path)
-        _remember_dir(self._settings, self.TOOL_KEY, Path(path).parent)
+        # ARGYLL READS TIFF AND NOTHING ELSE, and a camera writes JPEG. The
+        # picker's "All files" entry lets one through, Qt decodes it into the
+        # preview happily and the marquee aligns on it — and then `scanin`
+        # exits with "Not a TIFF or MDI file, bad magic number" at the very end
+        # of the job. A photograph is converted here instead, and said out
+        # loud. A file that is ALREADY a TIFF is not touched, not copied and
+        # not re-encoded: that is the flatbed path, and it must stay what it
+        # was, byte for byte.
+        picked = Path(path)
+        use, converted = picked, False
+        from workflow.photo_fit import as_tiff
+        for where in (picked.parent, self._convert_dir()):
+            # Beside the photograph, so the .ti3, the .icc, the diagnostic and
+            # the file they were read from all sit in one folder — scanin names
+            # its output next to the image it read, so a working copy in a
+            # temporary folder takes the finished profile with it. A read-only
+            # folder (a camera card) falls back to the window's own scratch
+            # directory, which keeps the run working and only costs the tidiness.
+            try:
+                use, converted = as_tiff(picked, where)
+                break
+            except Exception:  # noqa: BLE001 — a failed convert is not a crash
+                log.warning("could not convert %s to TIFF in %s", picked, where,
+                            exc_info=True)
+        self._cur_shot()["path"] = use
+        self._cur_shot()["source"] = picked
+        self._scan_field.setText(str(picked))
+        _remember_dir(self._settings, self.TOOL_KEY, picked.parent)
+        if converted:
+            from workflow import measurement_messages as M
+            title, body = M.M_SCAN_CONVERTED.render(file=picked.name)
+            self._log.appendPlainText(title)
+            self._log.appendPlainText(body)
         img = _load_scan_qimage(path)
         self._marquee.set_image(img)
         if img.isNull():
@@ -3508,6 +3794,8 @@ class ScannerProfileDialog(_ToolDialogBase):
                 "⚠ This scan couldn't be decoded for the preview, so the grid "
                 "can't be aligned on it. Re-save the scan as an 8-bit TIFF (or "
                 "PNG) and pick it again."))
+        else:
+            self._say_what_was_loaded(picked, img)
         if self._cur_shot()["corners"]:
             self._apply_shot_corners(self._cur_shot())
         elif self._restore_placement():          # reuse last session's placement
@@ -3516,6 +3804,67 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._refresh_shot_bar()
         self._refresh()
 
+    def _say_what_was_loaded(self, path: Path, img) -> None:
+        """Say what has just been loaded, and whether it can be a scan at all.
+
+        THE WINDOW USED TO SAY NOTHING HERE — and silence reads as approval.
+        Loading a 24-patch photograph under the 288-patch Wolf Faust type left
+        the log empty, the Run button live and a 288-cell mesh drawn across 24
+        patches (beta 8, B8-16). Pressing Run does fire two guards, so it never
+        became a silent wrong profile; but nothing said so, and nothing said
+        what the scan was about to be read as.
+
+        Two things go in the log, in the order they matter:
+
+        1. A scanin DIAGNOSTIC image offered as a scan. It is not a scan and
+           cannot be read — see `workflow/scan_diagnostic_image`, and Knut's
+           beta.7 log, where the alignment check then reported a misplacement
+           that was not real. A warning rather than a refusal: the harm is a
+           false verdict, not a bad profile, and a detector measured on three
+           diagnostics should not be able to lock anyone out of their own file.
+        2. What was loaded, what it will be read AS, and that nothing has been
+           checked yet.
+        """
+        from workflow import measurement_messages as M
+        from workflow.scan_diagnostic_image import verdict_for_qimage
+        try:
+            verdict = verdict_for_qimage(img)
+        except Exception:      # noqa: BLE001 — a guess must never block a load
+            log.debug("could not judge whether this is a diagnostic image",
+                      exc_info=True)
+            verdict = None
+        if verdict is not None and verdict.is_diagnostic:
+            log.info("diagnostic-image check: %.1f %% neutral, %.3f %% marker",
+                     verdict.neutral_fraction * 100, verdict.marker_fraction * 100)
+            title, body = M.M_SCAN_DIAGNOSTIC.render()
+            self._log.appendPlainText("⚠ " + title)
+            self._log.appendPlainText(body)
+        title, body = M.M_SCAN_LOADED.render(
+            file=path.name, w=img.width(), h=img.height(),
+            target=self._loaded_target_name(),
+            n=len(self._std_grid.rects) if self._std_grid else 0)
+        self._log.appendPlainText(title)
+        self._log.appendPlainText(body)
+        self._log.ensureCursorVisible()
+
+    def _loaded_target_name(self) -> str:
+        """What the scan will be read AS, in the words on screen — but WITHOUT
+        the patch count the combo appends to every entry.
+
+        Measured in the window: the combo reads "SpyderChecker 24  ·  24
+        patches", so the message came out as ``read as "SpyderChecker 24 · 24
+        patches", which has 24 patches``. The count in the message is the one
+        that matters — it comes from the grid that was actually built, not from
+        the combo's label — so the label gives up its copy."""
+        if self._standard_mode():
+            key = self._target_combo.currentData()
+            target = self._std_targets.get(key) if key else None
+            if target is not None:
+                return target.name
+            return self._target_combo.currentText().split("  ·  ")[0]
+        chart = self._ti3_field.text() if hasattr(self, "_ti3_field") else ""
+        return (Path(chart).name if chart
+                else self._target_combo.currentText().split("  ·  ")[0])
     # ------------------------------------------------------------------ run
     def _can_run(self) -> bool:
         if self._standard_mode():
@@ -3669,7 +4018,13 @@ class ScannerProfileDialog(_ToolDialogBase):
         method = self._avg_method.currentData() or "mean"
         if self._standard_mode():
             pages = self._pages
-            first = next(s["path"] for pg in pages
+            # The user's OWN file names the outputs, not the working copy.
+            # A photograph is converted to TIFF into a temporary folder that
+            # goes when the window does, so naming the run after it put the
+            # finished .ti3 and .icc somewhere that no longer exists a moment
+            # later. `source` is the file that was picked; `path` is what
+            # scanin reads, and for a scan they are the same object.
+            first = next(s.get("source") or s["path"] for pg in pages
                          for s in self._page_shots(pg) if s["path"])
             base = first.parent / first.stem
             # Keep the result folder self-contained: drop the reference .cie (a
@@ -3710,6 +4065,7 @@ class ScannerProfileDialog(_ToolDialogBase):
             ).format(n=len(tidied)))
 
         frac = self._sample_area.value() / 100.0
+        self._say_about_empty_shot_slots(pages)
         if self._printer_mode():
             self._execute_printer(base, frac)
             return
@@ -3736,11 +4092,22 @@ class ScannerProfileDialog(_ToolDialogBase):
                         if self._diag.isChecked() else None)
                 if diag is not None:
                     self._run_diags.append(diag)
+                # ONE NAME, OR A NAME THAT DISAMBIGUATES — NEVER BOTH.
+                # `-p1s1-` exists so several pages and several repeat scans of
+                # one page cannot overwrite each other. With one page and one
+                # shot it disambiguates nothing, and because colprof names the
+                # .icc after the .ti3 it reads, it ended up on the profile: the
+                # file said "…-p1s1-scanner.icc" and the description inside it
+                # said "… scanner" (Knut, beta.7). The ordinary case now writes
+                # the read under the profile's own name, so the file, the
+                # measurement and the embedded description are one string.
                 params = ScaninParams(
                     scan, cht, cie,
                     corners=self._scanin_corners(s["corners"], orig_cht),
-                    perspective=self._perspective.isChecked(), diag=diag,
-                    out_name=f"{base.name}-p{pg + 1}s{k + 1}-scanner.ti3")
+                    diag=diag,
+                    out_name=(f"{self._default_profile_name(base)}.ti3"
+                              if len(pages) == 1 and len(shots) == 1 else
+                              f"{base.name}-p{pg + 1}s{k + 1}-scanner.ti3"))
                 shot_ti3s.append(params.out_ti3)
                 self._jobs.append({"kind": "scanin", "params": params,
                                    "page": pg + 1, "shot": k + 1,
@@ -3758,6 +4125,38 @@ class ScannerProfileDialog(_ToolDialogBase):
                 page_ti3s.append(shot_ti3s[0])
         self._jobs.append({"kind": "colprof", "ti3s": page_ti3s, "base": base})
         self._run_job(0)
+
+    def _say_about_empty_shot_slots(self, pages: "list[int]") -> None:
+        """Name every averaging slot this build is about to walk past.
+
+        THE BUILD USED TO DROP THEM IN SILENCE (beta 8, B8-32, sweep finding
+        F-7). `_page_ready` asks only ``any(s["path"] …)``, so pressing
+        "＋ Add another scan to average" and stopping there leaves the Run
+        button live, the shot bar reading "Scan 1 / Scan 2", and the build
+        running ONE `scanin` with no averaging step and no word about it —
+        driven end to end in the real window, sweep check J32.
+
+        Said, not refused: a build from fewer scans is legitimate, and this
+        window's rule for that case is already settled (B8-15 — warn, never
+        lock somebody out of their own file). Said BEFORE the read starts, so
+        it is at the top of the log rather than buried under scanin's output.
+
+        The page is named only when there is more than one, and the page label
+        is the same string the page selector uses, so nothing new is invented
+        for it.
+        """
+        from workflow import measurement_messages as M
+        for pg in pages:
+            shots = self._page_shots(pg)
+            filled = sum(1 for sh in shots if sh.get("path"))
+            if len(shots) <= filled:
+                continue
+            title, body = M.M_SCAN_SHOT_EMPTY.render(slots=len(shots),
+                                                     filled=filled)
+            head = (f"{tr('Page {n}').format(n=pg + 1)} — {title}"
+                    if len(pages) > 1 else title)
+            self._log.appendPlainText("⚠ " + head)
+            self._log.appendPlainText(body)
 
     def _run_job(self, i: int) -> None:
         if i >= len(self._jobs):
@@ -3880,7 +4279,7 @@ class ScannerProfileDialog(_ToolDialogBase):
             params = ScaninParams(
                 s["path"], cht,
                 corners=self._scanin_corners(s["corners"], orig_cht),
-                perspective=self._perspective.isChecked(), diag=diag,
+                diag=diag,
                 scan_profile=self._printer_scan_profile, pbase=pbase,
                 accumulate=not first_page)
             self._jobs.append({"kind": "scanin", "params": params,
@@ -3986,6 +4385,15 @@ class ScannerProfileDialog(_ToolDialogBase):
                     "scanner_max_clipped", 0.15)):
                 out.append("⚠ " + M.M_SCAN_CLIPPED.render(
                     pct=f"{got.clipped * 100:.0f} %")[0])
+            if got.underexposed(float(self._settings.get(
+                    "scanner_min_highlight", 60.0))):
+                out.append("⚠ " + M.M_SCAN_DARK.render(
+                    pct=f"{got.highlight:.0f} %")[0])
+            if got.fit_is_unsupported(int(self._settings.get(
+                    "scanner_min_fit_support", 10))):
+                out.append("⚠ " + M.M_SCAN_FIT_UNSUPPORTED.render(
+                    support=got.support,
+                    ref_row=self._align_reference_row())[0])
         except Exception:  # noqa: BLE001 — a sanity check must never block
             log.warning("read sanity check failed", exc_info=True)
         return out
@@ -4052,6 +4460,32 @@ class ScannerProfileDialog(_ToolDialogBase):
             if got.clipped > cap:
                 t, b = M.M_SCAN_CLIPPED.render(
                     pct=f"{got.clipped * 100:.0f} %")
+                if t not in seen:
+                    self._read_findings.append((t, b))
+
+            # (4) The scan never reached the top of the scale (B8-01). The
+            # mirror of (3), and the gap all three of the checks above share:
+            # every one of them is scale-invariant, and an exposure slip is
+            # pure scale. Measured on Knut's own Wolf Faust sheet darkened
+            # 30 %: coverage unchanged, agreement +0.9839 -> +0.9838, clipped
+            # share unmoved by a patch — and the profile 21.7 dE out.
+            if got.underexposed(float(self._settings.get(
+                    "scanner_min_highlight", 60.0))):
+                t, b = M.M_SCAN_DARK.render(pct=f"{got.highlight:.0f} %")
+                if t not in seen:
+                    self._read_findings.append((t, b))
+
+            # (5) There are too few distinct colours here for a profile to be
+            # determined (B8-03). Asked before the build, because colprof's own
+            # quality number cannot answer it: that number is measured against
+            # the rows it was fitted to, so it is SMALLEST when there is least
+            # to fit — a one-colour reference scores 0.007, better than any
+            # correct build.
+            if got.fit_is_unsupported(int(self._settings.get(
+                    "scanner_min_fit_support", 10))):
+                t, b = M.M_SCAN_FIT_UNSUPPORTED.render(
+                    support=got.support,
+                    ref_row=self._align_reference_row())
                 if t not in seen:
                     self._read_findings.append((t, b))
         except Exception:  # noqa: BLE001 — a sanity check must never block
@@ -4133,14 +4567,32 @@ class ScannerProfileDialog(_ToolDialogBase):
         return Path(shot["path"]), Path(cht), Path(cie)
 
     def _on_auto_align(self) -> None:
-        """Ask ArgyllCMS's recogniser where the patches are, check the answer,
-        and either place the grid on it or say nothing could be found. A second
-        press puts the corners back exactly as they were."""
+        """Put the reading grid on the patches, and say so or say why not.
+
+        ONE BUTTON, THREE STEPS, AND THE USER IS TOLD ABOUT NONE OF THEM.
+        ChromIQ searches the picture for the chart, reshapes the answer onto
+        the patches, and checks the result before anything moves
+        (:func:`workflow.scan_placement.place_grid`). Until beta 8 the first
+        two of those were separate buttons and Basti's objection was the right
+        one: *"i don't want to have two options where one is useless."* They
+        were not useless -- measured over 290 starting placements there are 139
+        cases only the search recovers and 30 only the reshaping does -- but
+        choosing between them was never the user's job, and doing both in this
+        order lands 244 of the 290 on the patches where pressing both buttons
+        landed 226 and either alone 196 and 87.
+
+        From here the whole thing is ONE action, which is what makes the
+        one-step undo below still a one-step undo: the corners are read once
+        before it starts and written once at the end, so the press that undoes
+        it returns the placement the user could see, never a half-finished
+        stage they never saw and could not name.
+        """
         from PyQt6.QtCore import QObject, QThread
         from core.resource_path import argyll_binary
         from workflow import measurement_messages as M
         from workflow.cht_parser import ChtParseError, parse_cht
-        from workflow.scan_auto_align import auto_align, expected_luminance
+        from workflow.scan_auto_align import expected_luminance
+        from workflow.scan_placement import place_grid, search_region_for
 
         if self._align_thread is not None:
             return
@@ -4166,7 +4618,8 @@ class ScannerProfileDialog(_ToolDialogBase):
             # message.
             self._say_align(M.scan_align_refusal("no-chart-geometry"))
             return
-        expected = expected_luminance(text, cie)
+        expected = expected_luminance(text, cie,
+                                      chart_ids=[b.name for b in boxes])
         size = self._marquee.image_size()
         self._capture_current_corners()
         before = list(self._cur_shot().get("corners") or [])
@@ -4183,32 +4636,42 @@ class ScannerProfileDialog(_ToolDialogBase):
         # the same recogniser on a crop, so it cannot be less safe; it only
         # removes what was never the chart. Measured over seven photographs it
         # rescued the cluttered-desk case and turned no refusal into a wrong
-        # answer (AUTO-ALIGN/exp/run_photos.py).
-        region = None
-        if before and size[0] and size[1]:
-            xs = [p[0] for p in before]
-            ys = [p[1] for p in before]
-            area = (max(xs) - min(xs)) * (max(ys) - min(ys))
-            if 0 < area < 0.70 * size[0] * size[1]:
-                pad = 0.06 * max(max(xs) - min(xs), max(ys) - min(ys))
-                region = (min(xs) - pad, min(ys) - pad,
-                          max(xs) + pad, max(ys) + pad)
+        # answer (AUTO-ALIGN/exp/run_photos.py). The rule itself lives in
+        # `scan_placement` so that the window and every measurement OF the
+        # window run the same arithmetic rather than two copies of it.
+        region = search_region_for(before, size)
+
+        # ONLY A PLACEMENT SOMEBODY MADE MAY VETO THE RECOGNISER.
+        # `auto_align`'s `no-better` rule compares its candidate with the quad
+        # on screen and keeps the quad unless the candidate is
+        # IMPROVEMENT_MARGIN better. That is right about a placement the user
+        # worked at and wrong about `_seed_corners`' opening rectangle, which
+        # the app drew itself. Measured on Knut's own 4157x2939 Wolf Faust
+        # scan: the seed scores 0.9799 and the recogniser's correct answer
+        # 0.9839 — 0.004 apart, inside the 0.02 margin — so Auto align kept the
+        # seed and said "your own placement is already the closer match", about
+        # a placement he had not made. Check alignment then scored that seed at
+        # worst 0.00 % and the answer it had just thrown away at 96.63 %.
+        # A rank correlation over 288 patch luminances cannot resolve half a
+        # patch pitch; the placement probe can. So the fix is not a different
+        # threshold — it is to stop treating the app's own guess as an answer.
+        veto = before or None
+        if not self._marquee.is_placed():
+            veto = None
 
         class _Worker(QObject):
             done = pyqtSignal(object)
 
             def run(self) -> None:
+                # All three steps happen HERE, off the GUI thread. The
+                # reshaping used to run in the slot with the window frozen for
+                # its 1-2 seconds; more importantly, doing it here is what
+                # keeps the operation a single action with a single result to
+                # apply, and the undo below a single snapshot.
                 try:
-                    r = auto_align(exe, scan, cht, cie, boxes, expected, size,
-                                   current_corners=before or None,
-                                   sample_frac=frac)
-                    if r is not None and not r.ok and region is not None:
-                        narrowed = auto_align(
-                            exe, scan, cht, cie, boxes, expected, size,
-                            current_corners=before or None, sample_frac=frac,
-                            search_region=region)
-                        if narrowed.ok:
-                            r = narrowed
+                    r = place_grid(exe, scan, cht, cie, boxes, expected, size,
+                                   current_corners=veto, sample_frac=frac,
+                                   search_region=region)
                 except Exception:  # noqa: BLE001 — a probe must not kill the tool
                     log.warning("auto align failed", exc_info=True)
                     r = None
@@ -4277,32 +4740,78 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._align_before = []
         self._set_busy(False)
         self._auto_align_btn.setEnabled(True)
+        # `place_grid` refuses rather than apply a placement it could not score
+        # against the chart's reference, so a placed result always carries the
+        # number this message quotes. Belt and braces, because the alternative
+        # to a guard here is a TypeError inside a slot: an answer with no score
+        # is treated as the refusal it would have been.
+        if result is not None and result.ok and result.rho is None:
+            result.corners = None
+            result.ending = "below-floor"
         if result is None or not result.ok:
-            why = getattr(result, "reason", "") or "not-recognised"
+            why = getattr(result, "ending", "") or "not-recognised"
             # The reason stays machine-readable and stays OFF the screen: it
             # goes to the log file, where a support question can find it, and
             # `scan_align_refusal` is the only place it turns into words.
-            log.info("auto align refused (%s)", why)
+            #
+            # Everything the probe learned goes with it. This line used to
+            # carry the reason alone, and a tester's whole 77 KB log could then
+            # say only "not-recognised" nine times over — no candidate count,
+            # no score, no rejection, nothing to tell a broken chart file from
+            # a recogniser that had simply declined. The numbers below are what
+            # the answer would have been judged on.
+            log.info(
+                "auto align refused (%s): found=%s/%s fitted=%s/%s moved=%.3f "
+                "candidates=%s rho=%s rho_before=%s drift=%s rejected=%s "
+                "| scanin: %s",
+                why,
+                getattr(result, "found", "?"),
+                getattr(result, "find_reason", "") or "-",
+                getattr(result, "fitted", "?"),
+                getattr(result, "fit_reason", "") or "-",
+                getattr(result, "moved", 0.0) or 0.0,
+                getattr(result, "candidates", "?"),
+                getattr(result, "rho", None),
+                getattr(result, "rho_before", None),
+                getattr(result, "drift", None),
+                getattr(result, "rejected", None) or [],
+                (getattr(result, "log_tail", "") or "-").replace("\n", " / "))
             self._say_align(M.scan_align_refusal(why))
             return
+        # The recogniser answers in patch-area terms and the marquee IS in
+        # patch-area terms — `_rebuild_std_grid` builds it round the patch
+        # block and `_on_fiducial_toggled` only draws the marks, it never moves
+        # the grid. So the answer goes straight in.
+        #
+        # This used to extrapolate the quad out to the fiducial frame first,
+        # on the belief that "the marquee is on the fiducial marks in this
+        # mode". It is not, and `_scanin_corners` already does that one
+        # extrapolation at read time — so with "Use fiducial marks" ticked the
+        # quad was pushed out TWICE. Measured on the Wolf Faust scan: the grid
+        # landed 53 px above the patches and the `-F` corners scanin was then
+        # given sat at y = -4.8, off the top of the image (148 px out on the
+        # LaserSoft). Unticked, both steps were 0.0 px, which is why it was
+        # never seen: the fault only fires in the mode a standard target
+        # defaults to, and only once Auto align returns an answer at all.
         corners = result.corners
-        if (self._standard_mode() and self._fiducials_available()
-                and self._use_fiducials_cb.isChecked()):
-            # The marquee is on the fiducial marks in this mode; the recogniser
-            # answers in patch-area terms, so push the quad back out the same
-            # way the read does.
-            from ui.scan_grid_marquee import extrapolate_to_fiducials
-            try:
-                out = extrapolate_to_fiducials(
-                    corners, read_text(self._std_cht, lenient=True))
-            except OSError:
-                out = None
-            corners = out or corners
+        log.info("auto align placed the grid: found=%s fitted=%s moved=%.3f "
+                 "pitch rho=%.4f rho_before=%s drift=%s",
+                 result.found, result.fitted, result.moved or 0.0, result.rho,
+                 result.rho_before, result.drift)
+        # ONE snapshot, taken before the operation started, restored by one
+        # press. The operation has three steps and the user pressed one button,
+        # so the placement the undo returns is the placement they were looking
+        # at when they pressed it — not the recogniser's raw answer from
+        # between the steps, which they never saw and could not name.
         self._align_undo = [tuple(p) for p in before] if before else None
         self._marquee.set_corners([tuple(p) for p in corners])
         self._capture_current_corners()
         if self._align_undo:
             self._auto_align_btn.setText(tr("Undo auto align"))
+        # The agreement quoted here is measured AT THESE CORNERS, not at the
+        # answer the search gave before the reshaping moved it — see
+        # `place_grid`. It is never None when the grid was placed: an agreement
+        # that cannot be measured is a refusal there.
         self._say_align(M.M_SCAN_ALIGN_DONE, rho=f"{result.rho:.2f}")
 
     def _on_check_alignment(self) -> None:
@@ -4351,13 +4860,13 @@ class ScannerProfileDialog(_ToolDialogBase):
                 params = ScaninParams(
                     scan, cht,
                     corners=self._scanin_corners(corners, orig_cht),
-                    perspective=self._perspective.isChecked(), diag=diag,
+                    diag=diag,
                     scan_profile=self._printer_scan_profile, pbase=pbase)
             else:
                 params = ScaninParams(
                     scan, cht, cie,
                     corners=self._scanin_corners(corners, orig_cht),
-                    perspective=self._perspective.isChecked(), diag=diag,
+                    diag=diag,
                     out_name="aligncheck-scanner.ti3")
         except OSError as exc:
             shutil.rmtree(tmp, ignore_errors=True)
@@ -4677,13 +5186,14 @@ class ScannerProfileDialog(_ToolDialogBase):
         title, first = self._read_findings[0]
         rest = [b for _t, b in self._read_findings[1:]]
         box = QMessageBox(self)
-        box.setIcon(QMessageBox.Icon.Warning)
+        set_warning_icon(box)
         box.setWindowTitle(title)
         box.setText(title)
         box.setInformativeText("\n\n".join([first] + rest))
         stop = box.addButton(tr("Stop"), QMessageBox.ButtonRole.RejectRole)
         box.addButton(tr("Build anyway"), QMessageBox.ButtonRole.AcceptRole)
         box.setDefaultButton(stop)
+        fit_message_box_buttons(box)
         box.exec()
         if box.clickedButton() is stop:
             self._stop_before_colprof()
@@ -4696,7 +5206,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         overlooked (#108). Returns True to build anyway."""
         from PyQt6.QtWidgets import QMessageBox
         box = QMessageBox(self)
-        box.setIcon(QMessageBox.Icon.Warning)
+        set_warning_icon(box)
         box.setWindowTitle(tr("Scan doesn't match the chart"))
         box.setText(tr("The alignment check failed:"))
         box.setInformativeText(
@@ -4707,6 +5217,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         stop = box.addButton(tr("Stop"), QMessageBox.ButtonRole.RejectRole)
         box.addButton(tr("Build anyway"), QMessageBox.ButtonRole.AcceptRole)
         box.setDefaultButton(stop)
+        fit_message_box_buttons(box)
         box.exec()
         if box.clickedButton() is stop:
             self._stop_before_colprof()
@@ -4744,6 +5255,20 @@ class ScannerProfileDialog(_ToolDialogBase):
         if not found:
             return False
         peak, avg = found[-1]
+        # B8-03: colprof answered, and its answer is not a number. That is not
+        # a small fit error — it is no fit at all, and the two sentences this
+        # method sits between ("[OK] … profile saved" and "Install it as your
+        # scanner's input profile") are then both wrong. Measured on a
+        # reference whose every value reads 0.00: "peak err = 0.000000, avg err
+        # = nan", over a 26 KB profile whose white point is nan nan nan. Nothing
+        # legitimate reads nan, so there is no false-positive cost to weigh.
+        if not (math.isfinite(peak) and math.isfinite(avg)):
+            from workflow import measurement_messages as M
+            raw = ", ".join(f"{v:g}" for v in (peak, avg))
+            title, body = M.M_SCAN_SELFCHECK_UNUSABLE.render(raw=raw)
+            self._log.appendPlainText("\u26a0 " + title)
+            self._log.appendPlainText(body)
+            return True
         peak_lim = float(self._settings.get("scanner_selfcheck_peak", 30.0))
         avg_lim = float(self._settings.get("scanner_selfcheck_avg", 12.0))
         if peak <= peak_lim or avg <= avg_lim:
@@ -4865,9 +5390,10 @@ class ScannerProfileDialog(_ToolDialogBase):
             return
         self._remember_accepted_placement()
         self._log.appendPlainText(tr("Building the scanner profile…"))
-        stash = self._archive_previous_profile(combined)
-        combined, custom = self._apply_profile_name(combined)
-        desc = custom or f"{base.name} scanner"
+        default_name = self._default_profile_name(base)
+        stash = self._archive_previous_profile(combined, default_name)
+        combined, custom = self._apply_profile_name(combined, default_name)
+        desc = custom or default_name
         params = scanner_colprof.make_profile_params(       # #121: main + advanced
             combined, desc, self._current_main_vals(), self._effective_adv())
 
@@ -4907,12 +5433,18 @@ class ScannerProfileDialog(_ToolDialogBase):
 
     def _combine_ti3(self, page_ti3s: list[Path], base: Path) -> Path:
         """Single page → use it directly; multi-page → concatenate the data rows
-        into one scanner ``.ti3`` for colprof (same DEVICE_CLASS/format)."""
+        into one scanner ``.ti3`` for colprof (same DEVICE_CLASS/format).
+
+        The merged file carries the profile's own name (``<scan> scanner``),
+        because colprof names the ``.icc`` after the ``.ti3`` it reads — see
+        `_default_profile_name`. It still cannot collide with the chart's own
+        ``<stem>.ti3`` / printer profile, which was why the old ``-scanner``
+        tail existed."""
         if len(page_ti3s) == 1:
             return page_ti3s[0]
         # "-scanner" so the combined read / built profile can never collide with
         # the chart's own <stem>.ti3 / <stem>.icc (the printer profile).
-        merged = base.with_name(base.name + "-scanner.ti3")
+        merged = base.with_name(self._default_profile_name(base) + ".ti3")
         header, rows = None, []
         for tp in page_ti3s:
             text = read_text(tp)

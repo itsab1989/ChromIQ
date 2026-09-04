@@ -374,8 +374,17 @@ def by_mode(light, dark, neutral, mode: "str | None" = None):
     The shape that replaces ``X if mode == "light" else Y`` — a fold with room
     for two answers that files a third appearance under Dark, which is how a
     dark-theme constant ends up painted on a light-grey ground. Adding a fourth
-    appearance is adding an argument here, and every caller fails loudly rather
-    than silently inheriting somebody else's value.
+    appearance is adding an argument here.
+
+    **An appearance this function has never heard of gets Dark's value, in
+    silence.** This paragraph used to claim the opposite — "every caller fails
+    loudly rather than silently inheriting somebody else's value" — while the
+    last line has always been ``.get(mode or active_mode(), dark)``. Measured in
+    the beta-8 regression sweep (check J33): ``by_mode(..., "chartreuse")``
+    returns the Dark value and says nothing. The claim was copied from here into
+    ``ui/warning_sign.py``, where it was read as a safety property that did not
+    exist. It is stated as it behaves now, in both places; raising instead is a
+    change to a helper 29 sites call and belongs to whoever owns this module.
     """
     return {APPEARANCE_LIGHT: light,
             APPEARANCE_DARK: dark,

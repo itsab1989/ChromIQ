@@ -59,7 +59,13 @@ def test_diag_adds_flag_and_trailing_path(tmp_path):
     diag = tmp_path / "diag.tif"
     args = scanin_args(tmp_path / "s.tif", tmp_path / "c.cht", tmp_path / "c.cie",
                        diag=diag)
-    assert "-dipn" in args
+    # `o` = "diag - sample box outlines" (ArgyllCMS `scanin --help`). Without it
+    # the diagnostic draws NO boundary: the only visible edge is the
+    # colour-vs-greyscale step at the sample area, and the patch edge the user
+    # must judge it against is invisible on a third of edges — a picture with
+    # nothing in it to be aligned with. Knut read a correct placement as
+    # "clearly misaligned" from exactly that image.
+    assert "-dipon" in args
     assert args[-1] == str(diag)          # diag is the trailing positional
     # cht/cie still precede the diag image
     assert args[-2] == str(tmp_path / "c.cie")
@@ -129,7 +135,12 @@ def test_reference_mismatch_messages():
 
 
 def test_reference_io_and_oom_messages():
-    assert _first_key("CGATS file 'x.cie' read error : unexpected EOF") == "reference_io"
+    # A READ failure and a WRITE failure are two different problems, and they
+    # used to share one message that named only the write one — "check the
+    # files exist and the folder is writable" (beta 8, B8-17). A read error
+    # names the file and repeats ArgyllCMS's own reason instead.
+    assert _first_key("CGATS file 'x.cie' read error : unexpected EOF") \
+        == "reference_unreadable"
     assert _first_key("Write error to 'out.ti3' : disk full") == "reference_io"
     assert _first_key("Unable to allocate scanrd object") == "out_of_memory"
     assert _first_key("Malloc failed!") == "out_of_memory"

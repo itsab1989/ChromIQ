@@ -42,6 +42,7 @@ from ui.tab_header import dialog_masthead
 from ui.theme import resolve_mode
 from ui.widgets import confirm, NoScrollComboBox, open_file_dialog, save_file_dialog
 from workflow import i18n_roundtrip as rt
+from ui.warning_sign import inform, warn
 
 try:
     from core.version import APP_VERSION
@@ -307,7 +308,7 @@ class TranslationDialog(QDialog):
             return
 
         self._status.setText(tr("Saved to {path}.").format(path=str(out)))
-        QMessageBox.information(
+        inform(
             self, tr("Import translation"),
             tr(
                 "Translation saved. Restart ChromIQ and choose “{code}” under "
@@ -379,4 +380,4 @@ class TranslationDialog(QDialog):
         return "\n".join(lines)
 
     def _warn(self, text: str) -> None:
-        QMessageBox.warning(self, tr("Translate / edit language"), text)
+        warn(self, tr("Translate / edit language"), text)

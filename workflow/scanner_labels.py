@@ -179,10 +179,23 @@ def expand_rectarg_cht(text: str) -> str:
     out += [f"  X {n} {n} _ _ {w:g} {h:g} {x:g} {y:g} 0 0"
             for n, w, h, x, y in boxes]
     out.append(f"BOX_SHRINK {shrink:g}")
+    # Column 2 is the tick's strength RELATIVE TO THE STRONGEST TICK, which
+    # ArgyllCMS's `doc/cht_format.html` says "will have a value 1.0" — not the
+    # length of the edge. Every tick here spans the same page dimension, so the
+    # normalised value is 1.0 for all of them.
+    #
+    # This wrote `ph` and `pw` — the page height and width — which is the fault
+    # B8-05 spent a release finding: with an absolute length in that column,
+    # scanrd's match term `llf = 1 - |rlen - len|` comes out around -384 per
+    # tick and the recogniser is actively poisoned. It was excused here because
+    # nothing calls this generator yet. "No caller" is the wrong reason to
+    # leave a generator writing a number a hundred times too large; the eight
+    # bundled files had no caller for this column either, right up until Auto
+    # align became one.
     out.append(f"XLIST {len(xset)}")
-    out += [f"  {x:g} {ph:g} 1.0" for x in xset]
+    out += [f"  {x:g} 1.0 1.0" for x in xset]
     out.append(f"YLIST {len(yset)}")
-    out += [f"  {y:g} {pw:g} 1.0" for y in yset]
+    out += [f"  {y:g} 1.0 1.0" for y in yset]
     out.append("")
     return "\n".join(out)
 

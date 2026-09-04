@@ -71,6 +71,7 @@ from workflow.profcheck_runner import (
 )
 from core.i18n import tr
 from core.platform_paths import default_output_root
+from ui.warning_sign import set_warning_icon, warn
 
 
 def _scanner_tip_on_dark() -> bool:
@@ -1400,7 +1401,7 @@ class TabCheckRefine(QWidget):
         self._update_run_btn()
         self._gamut_panel.set_icc_path(None)
         from PyQt6.QtWidgets import QMessageBox
-        QMessageBox.warning(
+        warn(
             self,
             tr("Profile Not Found"),
             tr("No matching .icc or .icm file was found in:\n{folder}\n\n"
@@ -1458,7 +1459,7 @@ class TabCheckRefine(QWidget):
         from workflow import measurement_messages as M
         title, body = M.M_CM_PROFCHECK_CONVERTED.render()
         dlg = QMessageBox(self)
-        dlg.setIcon(QMessageBox.Icon.Warning)
+        set_warning_icon(dlg)
         dlg.setWindowTitle(title)
         # House pattern (every other §M window): the title as the bold
         # setText line, the body as informative text — this window had the

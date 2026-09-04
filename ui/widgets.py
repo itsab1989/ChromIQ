@@ -1248,6 +1248,7 @@ def confirm(
     box.setStandardButtons(buttons)
     if default is not None:
         box.setDefaultButton(default)
+    fit_message_box_buttons(box)
     box.exec()
     return box.standardButton(box.clickedButton())
 

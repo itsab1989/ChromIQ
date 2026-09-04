@@ -163,8 +163,15 @@ def test_changing_threshold_moves_preview_guides(qapp, tmp_path):
 
 
 def test_panel_shows_text_overflow_warning(qapp):
-    """A 'margin too small for its text band' warning shows in the status (red),
-    alongside / instead of the green Margins-OK (#93, Knut)."""
+    """A 'margin too small for its text band' warning shows in red, and never
+    under a green Margins-OK (#93, Knut).
+
+    Beta 8: it now lives in its own collapsible "Text and label notes" box
+    rather than joined to the margin violations with a newline inside one
+    label (Basti's ask). The box must arrive EXPANDED — `row_label_geometry.md`
+    §R2 requires the raise to be said — and must go away entirely when there is
+    nothing to report.
+    """
     from ui.margin_inspector_panel import MarginInspectorPanel
     from workflow.margin_inspector import MarginReport
     panel = MarginInspectorPanel()
@@ -174,10 +181,20 @@ def test_panel_shows_text_overflow_warning(qapp):
     # No threshold violations, but a text-overflow warning is passed in.
     panel.update_report(report, [], thresholds_defined=True, notify=True,
                         text_warnings=["⚠ Top margin is too small for the strip labels."])
-    assert "too small for the strip labels" in panel._status.text()
-    assert "e0564b" in panel._status.styleSheet()        # warning (red), not green
-    # With no warnings and no violations it's back to green OK.
+    # The notices moved onto the panel's own ⓘ on 2026-09-04 (Basti: *"the
+    # info text … directly inside the sections … i want that gone"*, and, on
+    # where the §R1.5 raise is then disclosed, *"a tooltip will be enough"*).
+    # There is no ink of their own to check any more — the ⓘ dialog paints its
+    # body in the live palette's text colour, which
+    # tests/test_the_notes_left_the_sections_for_the_tooltips.py measures.
+    assert "too small for the strip labels" in panel.text_notes()
+    assert panel._panel_tip.live_note() == panel.text_notes()
+    # …and the hover tooltip says there is something, before it is clicked.
+    assert "too small for the strip labels" in panel._panel_tip.toolTip()
+    assert panel._status.text() == ""                    # and no green OK over it
+    # With no warnings and no violations it's back to green OK, box gone.
     panel.update_report(report, [], thresholds_defined=True, notify=True,
                         text_warnings=[])
     assert panel._status.text() == "Margins: OK"
+    assert panel.text_notes() == ""
     panel.deleteLater()

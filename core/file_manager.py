@@ -363,6 +363,53 @@ def glob_escape(name: str) -> str:
     return _GLOB_META.sub(r"[\1]", name)
 
 
+# printtarg writes ONE page as ``<stem>.tif`` and SEVERAL as ``<stem>_01.tif``,
+# ``<stem>_02.tif``, … so a trailing ``_<digits>`` on a page bitmap may be a page
+# number or may be the last thing the user typed. See `chart_stem_from_pages`.
+_PAGE_TAIL_RE = re.compile(r"(.+?)_\d+$")
+
+# The tables a chart is known by. `.ti2` is printtarg's own output and the file
+# every downstream step opens; `.ti1` covers a chart handed to printtarg from a
+# prebuilt patch set, and `.cht` a scanner-target build.
+_CHART_TABLE_EXTS = (".ti2", ".ti1", ".cht")
+
+
+def chart_stem_from_pages(tiffs: "list[Path] | tuple[Path, ...]",
+                          fallback: str = "chart") -> str:
+    """The chart's file stem, given its page bitmaps.
+
+    THE NAME ALONE CANNOT ANSWER THIS, AND GUESSING FROM IT LOSES USER WORK.
+    A single-page chart is ``<stem>.tif``; a multi-page one is ``<stem>_01.tif``.
+    So ``Moab_Satin_240.tif`` is either page 240 of a chart called "Moab_Satin"
+    or the whole of a chart called "Moab_Satin_240" — and "Moab Entrada 240" is
+    an ordinary thing to call a paper. Stripping the tail unconditionally (which
+    is what `_on_generate_finished` did) built every downstream path from
+    ``Moab_Satin``: the hand-off sidecars were written off a ``.ti1`` that does
+    not exist and vanished into a `log.warning` the user never sees, meta.json
+    was never stamped, a phantom ``Moab_Satin.channels.json`` was left behind,
+    and a non-existent ``.ti2`` was handed to `chart_finished` and on into the
+    Measure tab. The only visible symptom was three missing lines in the log.
+
+    So ask the disk instead of the name: the stem is whichever candidate the
+    chart's own tables are actually called. `Path.exists` is used rather than a
+    glob because APFS matches accent spellings and `Path.glob` does not (see
+    :func:`files_matching`), and because these are exact names, not patterns.
+
+    Falls back to the old name-only reading when no table is on disk yet, so a
+    caller in a flow that has not written one is no worse off than before.
+    """
+    if not tiffs:
+        return fallback
+    first = Path(tiffs[0])
+    folder, full = first.parent, first.stem
+    m = _PAGE_TAIL_RE.match(full)
+    trunc = m.group(1) if m else None
+    for cand in ((full, trunc) if trunc else (full,)):
+        if any((folder / f"{cand}{ext}").exists() for ext in _CHART_TABLE_EXTS):
+            return cand
+    return trunc or full
+
+
 def stem_files(folder: "Path | str | None", stem: str,
                *tails: str) -> list[Path]:
     """The files in *folder* called *stem* + one of *tails*.

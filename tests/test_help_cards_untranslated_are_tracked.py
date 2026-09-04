@@ -177,10 +177,93 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # were displaying. German carries all eight and does not move, because none of
 # them is the same wording in German. 161 is again fr's ACTUAL count, not a
 # round ceiling.
+# 2026-09-04, beta 8 items B8-01 and B8-03: +6 for the eleven and +0 for
+# German. Three §M-PROPOSED messages arrived — the under-exposed scan, the
+# reference with too few distinct colours, and the profile whose self-check
+# came back as no number at all. German is translated, as always, because it is
+# the language the owner reads. The eleven carry the English source deliberately
+# and not by neglect: the WORDING is awaiting review, and translating a draft
+# means translating it twice. 167 is es's ACTUAL count, not a round ceiling.
+# 2026-09-04, beta 8 items B8-04/13/15/16/17: two more §M-PROPOSED messages
+# (M-SCAN-LOADED, M-SCAN-DIAGNOSTIC). German is translated; the eleven carry
+# the English source, because the wording is awaiting review and translating
+# a draft translates it twice. These are each language's ACTUAL count.
+#: 2026-09-04, beta 8, the photograph path: +9 substantial strings in each of
+#: the eleven, +0 in German. Five §M-PROPOSED messages and a button's tooltip;
+#: the short labels fall under this file's own length filter. The wording is
+#: awaiting review, so the eleven carry the English source rather than a
+#: translated draft — the same rule every M-SCAN-* string of review 5 follows.
+# 2026-09-04, B8-02: one §M-PROPOSED message, M-SCAN-ALIGN-NOT-SEATED —
+# the refusal for a photograph taken off square, whose grid would read part
+# of the neighbouring patch. German is translated; the eleven carry the
+# English source, because the wording is awaiting review.
+# 2026-09-04, beta 8 items B8-14, B8-30, B8-31 and B8-32 (AGENT-M): +9 for the
+# eleven and +0 for German. Eleven new keys, of which nine are long enough to be
+# counted here -- two §M-PROPOSED messages (M-SCAN-SHOT-EMPTY,
+# M-SCAN-TARGET-CHANGED) and their headlines, the corrected "Indicator font"
+# tooltip and the note saying which control in "Strip && row labels" reaches
+# which label, the "Reading options" and "Save as Defaults" tooltips rewritten
+# around a removed control and three newly-saved ones, and the margin-raise
+# warning's second form. German is translated; the eleven carry the English
+# source, because the wording is awaiting review and translating a draft
+# translates it twice. The four keys that went away with the "Correct
+# perspective" control were already translated everywhere, so removing them
+# moves nothing here. These are each language's ACTUAL count.
+#: 2026-09-04, B8-42: minus 9 in every catalogue but German. The merged
+#: placement button retired fifteen English echoes — the separate button's
+#: label, tooltip and busy note, the old Auto align tooltip, and the eight
+#: halves of the four messages withdrawn with it, plus the two rewritten
+#: bodies — and added six, of which all but one open with "ChromIQ" and are
+#: therefore not counted here at all.
+# 2026-09-04, beta 8 item B8-21 §4 (AGENT-R): NO MOVEMENT, and the arithmetic
+# is recorded so the zero is not mistaken for "nobody looked". The forty-word
+# reach note went away (-1 in the eleven, 0 in German) and the sub-frame title
+# "Strip letters and row numbers" arrived untranslated in the eleven (+1);
+# "Strip letters only" is 18 characters and this detector only counts strings
+# of 25 or more, so it is invisible here on purpose. Net 0.
+#: 2026-09-04, AGENT-S (the buttons under the scanner preview): +1 in every
+#: catalogue but German. The Pop-out button's label was shortened from a
+#: sentence to "⤢ Pop out" and the four dropped words moved into a TOOLTIP,
+#: which is new user-facing wording APPROVED by Basti, 2026-09-04 ("it is
+#: ok") — §M-PROPOSED, "Button labels … Confirmed behaviour". It carries the
+#: English source in the eleven for the ordinary beta reason (translation
+#: happens before a final), not because anything is pending. The label itself is 9 characters and this detector only
+#: counts 25 or more, so it is invisible here on purpose; the label it replaced
+#: was translated everywhere, so removing it moves nothing. Net +1.
+# 2026-09-04, beta 8 item B8-52 (AGENT-T): +2 in the eleven, 0 in German. The
+# Create Chart notices moved out of their sections onto the ⓘ of the control
+# each belongs to (Basti: *"the info text in create chart tab that is directly
+# inside the sections (even that that you made collapsible) - i want that
+# gone"*). Two sentences had to be REWRITTEN by the move rather than merely
+# relocated, because both pointed at a place that no longer exists — "…tick at
+# least one edge ABOVE" was true of a label under the two tick boxes and false
+# of an ⓘ on the row above them, and the "Show markers for" help ended
+# "ChromIQ says so UNDER THE BOXES". Both were translated in these eleven and
+# both arrive carrying the English source, so +2; German is translated for
+# both. The third key retired by the move, the collapsible box's title "Text
+# and label notes", is 20 characters and this detector only counts strings of
+# 25 or more, so it is invisible here on purpose. These are each language's
+# ACTUAL count.
+#   …and +1 more on top of that, same item, same day: the "Text distance from
+#   edge" help itself ended *"the text overflows toward this line and a margin
+#   warning is shown"*. After the move nothing is SHOWN — the warning is on the
+#   ⓘ beside the measured margins — so that sentence had to be rewritten too,
+#   which retires a key translated in all twelve and adds one carrying the
+#   English source in the eleven. So the item's total is +3 in the eleven and
+#   0 in German.
 _BUDGET = {
-    "de": 35,
-    "es": 161, "fr": 161, "it": 161, "ja": 161, "nl": 161,
-    "no": 161, "pl": 161, "pt": 161, "ru": 161, "sv": 161, "zh_CN": 161,
+    "de": 31,
+    "es": 183,
+    "fr": 184,
+    "it": 183,
+    "ja": 183,
+    "nl": 183,
+    "no": 183,
+    "pl": 183,
+    "pt": 183,
+    "ru": 182,
+    "sv": 183,
+    "zh_CN": 182,
 }
 
 

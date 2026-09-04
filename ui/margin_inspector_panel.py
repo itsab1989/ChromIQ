@@ -25,7 +25,7 @@ from core.i18n import tr
 from ui import neutral_styles
 from ui.theme import by_mode
 from ui.tooltip_button import TooltipButton
-from ui.widgets import NoScrollDoubleSpinBox, WrappingCheckBox, set_ink
+from ui.widgets import (NoScrollDoubleSpinBox, WrappingCheckBox, set_ink)
 from workflow.margin_inspector import MarginReport, Violation
 
 # Frame, text margin, the up/down buttons and the theme's padding around a spin
@@ -153,7 +153,7 @@ class MarginInspectorPanel(QGroupBox):
         # while actually explaining the whole panel. Now that each tick box
         # answers for itself (#164), this one belongs with the table — top
         # right, on the header row.
-        grid.addWidget(TooltipButton(
+        self._panel_tip = TooltipButton(
             tr("About the margin inspector"),
             tr("This little panel checks that the chart you just made will be "
                "easy to measure.\n\n"
@@ -192,8 +192,9 @@ class MarginInspectorPanel(QGroupBox):
                "to your own ruler). They're only a helpful warning — you can "
                "always go ahead and print anyway.\n\n"
                "The three tick boxes below draw these numbers onto the preview "
-               "in different ways; each has its own ⓘ."), self),
-            0, 4, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+               "in different ways; each has its own ⓘ."), self)
+        grid.addWidget(self._panel_tip, 0, 4,
+                       Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         v.addWidget(self._table)
 
         # Large pass/fail status, one or more lines.
@@ -201,6 +202,31 @@ class MarginInspectorPanel(QGroupBox):
         self._status.setWordWrap(True)
         self._status.setAlignment(Qt.AlignmentFlag.AlignHCenter)
         v.addWidget(self._status)
+
+        # THE TEXT NOTICES ARE NOT PRINTED IN THIS PANEL. They are carried by
+        # `self._panel_tip`, the ⓘ on the numbers they are about — see
+        # `_show_text_notes`.
+        #
+        # They have had three homes in three days. They were joined to the
+        # margin violations with "\n" inside `self._status`; on 2026-09-03 they
+        # were split into a framed, collapsible "Text and label notes" box
+        # (B8-38; Basti: *"Maybe put a frame around it like other sections and
+        # make it a collapsible info section"*, which Knut agreed to); and on
+        # 2026-09-04 Basti ruled that box out with everything like it —
+        # *"regarding the info text in create chart tab that is directly inside
+        # the sections (even that that you made collapsible) - i want that
+        # gone. You can fit it inside of a tooltip where it fits but not
+        # directly inside a section"*.
+        #
+        # `docs/design/row_label_geometry.md` §R2 required the automatic
+        # left-margin raise to be REPORTED, and §R5 correction 3 exists because
+        # an earlier version of that document claimed a panel said so while
+        # nothing did. So this was not a change to make quietly: it was put to
+        # Basti as a specification question and he answered it — *"a tooltip
+        # will be enough"* (2026-09-04) — and §R1.5 and §R2 were rewritten in
+        # the same commit to name the ⓘ as the place the raise is disclosed.
+        # The disclosure still exists and is still checked by a test; what it
+        # costs is that it is now read on demand rather than seen.
 
         # Bottom row: the guide-lines checkbox, with the ⓘ help button tucked in
         # the corner so it doesn't take space at the top (#86).
@@ -353,11 +379,33 @@ class MarginInspectorPanel(QGroupBox):
     def set_coords_checked(self, on: bool) -> None:
         self._coord_check.setChecked(bool(on))
 
+    def _show_text_notes(self, warnings: "list[str]") -> None:
+        """Hand the notices to the panel's ⓘ, or take them off it.
+
+        Every one of them already opens with ⚠ and names its own numbers, so
+        they need no heading of their own: joined with a blank line they read
+        as what they are, in front of the standing help about the table they
+        are about. The first of them also reaches the ⓘ's HOVER tooltip
+        (`TooltipButton._refresh_hover_tip`), which is the only thing that
+        tells a user there is anything to open.
+        """
+        self._panel_tip.set_live_note("\n\n".join(warnings) if warnings else "")
+
+    def text_notes(self) -> str:
+        """What this panel is currently disclosing about text and labels.
+
+        The notices left the panel's surface on 2026-09-04 and a caller (or a
+        test) must still be able to ask what it is saying without reaching into
+        a tooltip's private state.
+        """
+        return self._panel_tip.live_note()
+
     def show_placeholder(self) -> None:
         """No preview yet (or measurement failed) — hide the numbers."""
         self._placeholder.setVisible(True)
         self._table.setVisible(False)
         self._status.setVisible(False)
+        self._show_text_notes([])
 
     def update_report(
         self,
@@ -472,9 +520,12 @@ class MarginInspectorPanel(QGroupBox):
                               "text_warnings": list(text_warnings or [])})
         if not notify:
             self._status.setVisible(False)
+            self._show_text_notes([])
             return
         self._status.setVisible(True)
         text_warnings = list(text_warnings or [])
+        # The text notices go to the panel's ⓘ, in front of its standing help.
+        self._show_text_notes(text_warnings)
         # Name WHICH minimum was missed (Knut, #130 2026-07-27): the
         # instrument's, or the margins this chart was laid out to. Saying only
         # "the minimum" left him reading instrument figures into a chart that
@@ -509,11 +560,19 @@ class MarginInspectorPanel(QGroupBox):
         # than leaving the last one baked in. The owner found the green one by
         # generating a chart: this panel is empty until one exists, which is
         # why every pixel census before this walked straight past it.
-        lines = margin_lines + text_warnings
-        if lines:                                       # something to warn about
-            self._status.setText("\n".join(lines))
+        if margin_lines:                                # something to warn about
+            self._status.setText("\n".join(margin_lines))
             set_ink(self._status, "#e0564b",
                     " font-size: 14px; font-weight: 700;", level="main")
+            return
+        if text_warnings:
+            # NO GREEN "Margins: OK" WHILE A TEXT NOTICE IS LIVE. The margins
+            # really are within their thresholds, so the verdict would not be
+            # untrue — but a green headline over a red notice reads as approval
+            # of the thing the notice is about, and suppressing it here is what
+            # the single joined label did before the split.
+            self._status.setText("")
+            self._status.setVisible(False)
             return
         if not thresholds_defined:
             self._status.setText(tr(
