@@ -193,8 +193,11 @@ def usb_installer_text(devices, wdi_available: bool) -> "tuple[str, str | None]"
     if not devices:
         return (
             "<b>No colorimeter detected.</b><br><br>"
+            # "Refresh" was this button's name until the window grew a second
+            # section; it is called "Check again" now, and a message naming a
+            # button that is not there is worse than no message.
             "Make sure your device is plugged in via USB, "
-            "then click <b>Refresh</b>.",
+            "then click <b>Check again</b>.",
             None,
         )
 
@@ -491,6 +494,38 @@ def serial_section_text(states, *, offer_anyway: bool = False
         "listed</b> and ChromIQ will offer you the driver anyway.")
     return ("<br><br>".join([head, explain_bridge, tail]),
             None, not_listed)
+
+
+def serial_unknown_arch_text() -> str:
+    """ChromIQ cannot tell what processor this is, so it will not install.
+
+    `core.ch34x_driver.machine_arch()` returns "" for 32-bit x86, for an
+    architecture it does not recognise, and off Windows — and "" means refuse,
+    never guess. It is a real state with a real cause, not an error, so it gets
+    a real explanation and the route that still works.
+    """
+    return "<br><br>".join([
+        tr("<b>ChromIQ cannot tell what kind of processor this computer has, "
+           "so it is not going to install a driver here.</b>"),
+        tr("That sounds like a small thing to stop for, and it is not. A driver "
+           "package has to match the processor, and the only way to be sure it "
+           "does is to read what the package says about itself and compare it "
+           "with what this computer actually is. Without the second half of "
+           "that comparison there is nothing to check against, and installing "
+           "a driver nobody has checked is precisely the failure this window "
+           "exists to prevent."),
+        tr("You can still do it yourself, and it is not difficult. Open "
+           "<b>{url}</b> and download the CH341SER <b>ZIP</b> package — the "
+           "ZIP, not the .EXE installer. Unpack it somewhere you will find "
+           "again. Then right-click the Start button and choose <b>Device "
+           "Manager</b>, find the adapter — it may be under <i>Ports (COM "
+           "&amp; LPT)</i>, or under <i>Other devices</i> with a warning mark "
+           "beside it — right-click it, choose <b>Update driver</b>, then "
+           "<b>Browse my computer for drivers</b>, and point the browse box at "
+           "the folder you unpacked. Windows will choose the right part of the "
+           "package for itself."
+           ).format(url=WCH_PACKAGE_PAGE),
+    ])
 
 
 def serial_install_intro_text(folder: str, arch: str) -> str:
@@ -798,10 +833,19 @@ class SettingsDialog(QDialog):
         btn_row.addWidget(dl_btn)
 
         if _sys.platform == "win32":
-            driver_btn = QPushButton(tr("Install USB Driver…"), self)
+            # NOT "Install USB Driver…" any more. The window behind it now
+            # covers two unrelated kinds of driver — WinUSB for the instruments
+            # ArgyllCMS reads over raw USB, and a serial driver for the ones
+            # reached through a COM port — and it can now report that nothing
+            # needs installing at all. A button that says "Install" is wrong
+            # twice over: about what it does, and about whether it will do it.
+            driver_btn = QPushButton(tr("Instrument drivers…"), self)
             driver_btn.setToolTip(
-                tr("Install the WinUSB driver for your colorimeter — "
-                "no test-signing mode required, works on x64 and ARM64")
+                tr("Check whether Windows has the driver each of your "
+                   "instruments needs, and install it if it does not — the "
+                   "WinUSB driver for the instruments ArgyllCMS reads over "
+                   "USB, and the serial driver for the ones reached through a "
+                   "COM port, such as the CR30.")
             )
             driver_btn.clicked.connect(self._show_usb_installer)
             btn_row.addWidget(driver_btn)
@@ -4803,16 +4847,30 @@ class SettingsDialog(QDialog):
             return []
 
     def _serial_machine_arch(self) -> str:
+        """This machine's processor family, or "" when it cannot be told.
+
+        `core.ch34x_driver.machine_arch()` returns "" on 32-bit x86, on an
+        architecture it does not know, and off Windows — and "" means REFUSE,
+        never guess. On 32-bit the correct INF section really is the bare `NT`
+        one that the package gate rejects everywhere else, so there is no honest
+        answer to give and no safe install to offer.
+        """
         try:
             from core import ch34x_driver
-            return ch34x_driver.machine_arch()
+            return ch34x_driver.machine_arch() or ""
         except Exception:   # noqa: BLE001
-            return tr("unknown")
+            return ""
 
     def _serial_get_driver(self) -> None:
         """Download WCH's package, check it, install it, and prove it bound."""
         from datetime import datetime, timezone
         from PyQt6.QtWidgets import QProgressDialog
+
+        arch = self._serial_machine_arch()
+        if not arch:
+            self._driver_notice(tr("Instrument drivers"),
+                                serial_unknown_arch_text())
+            return
 
         stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
         dest = driver_staging_root() / stamp
@@ -4823,7 +4881,7 @@ class SettingsDialog(QDialog):
         # what ChromIQ cannot promise, while there is still nothing to undo.
         if not self._driver_notice(
                 tr("Before ChromIQ starts"),
-                serial_install_intro_text(str(dest), self._serial_machine_arch()),
+                serial_install_intro_text(str(dest), arch),
                 tr("Download and install")):
             return
 
@@ -4872,6 +4930,11 @@ class SettingsDialog(QDialog):
     def _serial_from_folder(self) -> None:
         """The route for a package the user fetched themselves."""
         from ui.widgets import open_dir_dialog
+
+        if not self._serial_machine_arch():
+            self._driver_notice(tr("Instrument drivers"),
+                                serial_unknown_arch_text())
+            return
 
         chosen = open_dir_dialog(
             self, tr("Choose the folder that holds the driver files"))

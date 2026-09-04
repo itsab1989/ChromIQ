@@ -42,9 +42,18 @@ def test_nothing_attached_asks_for_a_cable_and_offers_no_primary_button():
     assert msg == (
         "<b>No colorimeter detected.</b><br><br>"
         "Make sure your device is plugged in via USB, "
-        "then click <b>Refresh</b>."
+        "then click <b>Check again</b>."
     )
     assert btn is None, "there is nothing to install for, so no primary button"
+
+
+def test_the_only_button_the_first_section_names_is_one_that_exists():
+    """The button used to be called Refresh. It is called Check again now, and
+    a message pointing at a button that is not on the screen is worse than no
+    message at all."""
+    msg, _btn = sd.usb_installer_text([], wdi_available=True)
+    assert "Refresh" not in msg
+    assert "Check again" in msg
 
 
 def test_nothing_attached_says_the_same_without_wdi_simple():
@@ -920,3 +929,131 @@ def test_the_guard_is_the_first_thing_the_driver_helper_does():
     assert guard < enumerate_call, (
         "the driver helper touches the hardware before it checks whether a "
         "measurement is running")
+
+
+# ---------------------------------------------------------------------------
+# "ChromIQ cannot tell what CPU this is"
+# ---------------------------------------------------------------------------
+#
+# `core.ch34x_driver.machine_arch()` returns "" for 32-bit x86, for an
+# architecture it does not recognise, and off Windows, and "" means REFUSE, not
+# "guess". On 32-bit the correct INF section really is the bare `NT` one that
+# the package gate rejects everywhere else, so there is no honest answer and no
+# safe install to offer. That is a state with a cause, not an error.
+
+def test_the_unknown_processor_state_refuses_and_says_why():
+    text = sd.serial_unknown_arch_text()
+    assert text.startswith(
+        "<b>ChromIQ cannot tell what kind of processor this computer has, so "
+        "it is not going to install a driver here.</b>")
+    assert "A driver package has to match the processor" in text
+    assert "installing a driver nobody has checked" in text
+
+
+def test_the_unknown_processor_state_still_offers_a_way_through():
+    """Refusing is right; leaving the user with nothing is not."""
+    text = sd.serial_unknown_arch_text()
+    assert sd.WCH_PACKAGE_PAGE in text
+    assert "the ZIP, not the .EXE installer" in text
+    assert "Device Manager" in text
+    assert "Browse my computer for drivers" in text
+
+
+def test_the_unknown_processor_state_never_mentions_roll_back_driver():
+    assert "roll back" not in sd.serial_unknown_arch_text().lower()
+
+
+def test_the_unknown_processor_state_ships_no_bracketed_plural():
+    text = sd.serial_unknown_arch_text()
+    for bad in ("device(s)", "driver(s)", "instrument(s)", "port(s)"):
+        assert bad not in text
+
+
+def test_the_arch_helper_reports_an_empty_string_rather_than_guessing(monkeypatch):
+    """Pinned because the tempting bug is to substitute a friendly placeholder
+    for "", which would turn a refusal into an install against an unknown CPU."""
+    import inspect
+    src = inspect.getsource(sd.SettingsDialog._serial_machine_arch)
+    assert "machine_arch() or \"\"" in src
+    assert 'tr("unknown")' not in src
+
+
+def test_both_serial_entry_points_check_the_processor_first():
+    """Proved from the source: an install must not begin — not even a download
+    — on a machine whose CPU ChromIQ could not identify."""
+    import inspect
+    for method in (sd.SettingsDialog._serial_get_driver,
+                   sd.SettingsDialog._serial_from_folder):
+        src = inspect.getsource(method)
+        assert "serial_unknown_arch_text" in src, (
+            f"{method.__name__} does not handle an unknown processor")
+
+
+# ---------------------------------------------------------------------------
+# Never accuse the user's download of being malicious
+# ---------------------------------------------------------------------------
+#
+# Two measured facts make a confident "this file has been tampered with"
+# indefensible: the documented WTD_SAFER_FLAG breaks driver verification on a
+# genuinely WHQL-signed catalogue, and WCH's catalogue is SHA-1, so a SHA-256
+# check fails in a way indistinguishable from tampering. Both are handled in
+# core — but if a verification ever does fail, the honest line is that ChromIQ
+# could not confirm the package is genuine, not that somebody attacked you.
+
+@pytest.mark.parametrize("stage", ALL_STAGES)
+def test_no_outcome_accuses_the_user_of_a_tampered_download(stage):
+    text, _ = sd.serial_outcome_text(stage=stage, detail="", folder="f",
+                                     ports="COM5")
+    lowered = text.lower()
+    for accusation in ("tampered", "tamper", "malicious", "malware", "virus",
+                       "has been altered", "attack"):
+        assert accusation not in lowered, (
+            f"the {stage} window accuses the user's download: {accusation!r}")
+
+
+def test_the_section_and_the_announcement_do_not_accuse_either():
+    texts = [sd.serial_section_text([bridge()])[0],
+             sd.serial_section_text([])[0],
+             sd.serial_install_intro_text("f", "ARM64"),
+             sd.serial_unknown_arch_text(),
+             sd.serial_manual_route_text("f")]
+    for text in texts:
+        lowered = text.lower()
+        for accusation in ("tampered", "malicious", "malware", "virus"):
+            assert accusation not in lowered
+
+
+# ---------------------------------------------------------------------------
+# The button that opens all of this
+# ---------------------------------------------------------------------------
+
+def test_the_button_no_longer_promises_an_install():
+    """It opens a window that covers two unrelated kinds of driver and can
+    report that nothing needs installing at all. "Install USB Driver…" was
+    wrong twice over: about what it does, and about whether it will do it."""
+    import inspect
+    src = inspect.getsource(sd.SettingsDialog._build_ui)
+    assert 'tr("Instrument drivers…")' in src
+    # the old label may still be named in a comment explaining the change;
+    # what must not survive is a tr() call carrying it to the screen.
+    assert 'tr("Install USB Driver' not in src
+
+
+def test_the_rename_reached_every_catalogue():
+    """The gate this commit had to satisfy. `test_catalog_is_complete` and
+    `test_catalog_has_no_stale_keys` are parametrised over twelve catalogues,
+    so a renamed key has to move in all twelve at once or twenty-four tests go
+    red. Pinned here as well, because the failure mode when it is missed is a
+    button that silently reverts to English in eleven languages."""
+    import json
+    from pathlib import Path
+    root = Path(sd.__file__).resolve().parent.parent.parent / "data" / "i18n"
+    codes = sorted(p.stem for p in root.glob("*.json"))
+    assert len(codes) == 12, codes
+    for code in codes:
+        cat = json.loads(root.joinpath(f"{code}.json").read_text(encoding="utf-8"))
+        assert "Instrument drivers…" in cat, f"[{code}] the button lost its key"
+        assert cat["Instrument drivers…"] != "Instrument drivers…", (
+            f"[{code}] the button is still English")
+        assert "Install USB Driver…" not in cat, (
+            f"[{code}] the old key was left behind and is now stale")
