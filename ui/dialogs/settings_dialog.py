@@ -659,6 +659,59 @@ def serial_outcome_text(*, stage: str, detail: str = "", folder: str = "",
     ]), True)
 
 
+# ---------------------------------------------------------------------------
+# Not while a measurement is running
+# ---------------------------------------------------------------------------
+#
+# Preferences itself stays open during a measurement, and that is deliberate
+# policy (`ui/main_window.py:1150-1155`) which this does not overturn. Only the
+# driver helper is blocked, because only the driver helper can end the
+# measurement: installing a driver restarts the device stack, and the open COM
+# handle goes with it.
+#
+# The signal is `core.instrument_lease.holder()`, NOT `ArgyllRunner.is_running`.
+# That module exists precisely because process state is blind to a CR30 session
+# that spawns no process (see its docstring). The other two are ORed in because
+# they are cheap and they cover the ArgyllCMS instruments, which the lease
+# deliberately does not claim.
+
+def measurement_in_progress(parent=None) -> "str | None":
+    """Where the instrument is being read, or None when nothing is running."""
+    try:
+        from core import instrument_lease
+        held = instrument_lease.holder()
+        if held is not None:
+            return instrument_lease.where_label(held)
+    except Exception:   # noqa: BLE001 — a guard must never be the thing that fails
+        log.warning("could not read the instrument lease", exc_info=True)
+
+    win = parent
+    seen = 0
+    while win is not None and seen < 20:
+        if getattr(win, "_measuring", False):
+            from core.instrument_lease import MEASURE_TAB, where_label
+            return where_label(MEASURE_TAB)
+        win = win.parent() if hasattr(win, "parent") else None
+        seen += 1
+    return None
+
+
+def measurement_block_text(where: str) -> str:
+    """Why the driver helper will not open right now."""
+    return "<br><br>".join([
+        tr("<b>Not while a measurement is running.</b>"),
+        tr("Your instrument is being read right now, from {where}. Installing "
+           "a driver restarts the connection Windows holds to the instrument, "
+           "and doing that in the middle of a reading would cut it off: the "
+           "patches measured so far would be lost, and the instrument would "
+           "very likely need unplugging and plugging back in before it could "
+           "be used again."
+           ).format(where=where),
+        tr("Let the measurement finish, or stop it, and this window will open "
+           "normally. Everything else in Preferences stays available in the "
+           "meantime — it is only the driver helper that is held back."),
+    ])
+
 
 class SettingsDialog(QDialog):
     def __init__(self, settings: "AppSettings", parent: QWidget | None = None,
@@ -4870,6 +4923,18 @@ class SettingsDialog(QDialog):
 
     def _show_usb_installer(self) -> None:
         if _sys.platform != "win32":
+            return
+        # THE ONLY THING BLOCKED IS THE DRIVER HELPER. Preferences itself stays
+        # open during a measurement, and that is deliberate policy
+        # (ui/main_window.py:1150-1155) which this does not overturn. But
+        # installing a driver restarts the connection Windows holds to the
+        # instrument, and the open COM handle goes with it — so this one window
+        # can end a measurement, and it is the only one here that can.
+        where = measurement_in_progress(self)
+        if where is not None:
+            log.info("driver helper refused: the instrument is in use by %s", where)
+            self._driver_notice(tr("Instrument drivers"),
+                                measurement_block_text(where))
             return
         from PyQt6.QtWidgets import (
             QDialog, QDialogButtonBox, QGroupBox, QHBoxLayout, QLabel, QVBoxLayout,
