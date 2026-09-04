@@ -98,11 +98,28 @@ def xyz_grid_axes(grid: int) -> np.ndarray:
 def lab_grid_axes(grid: int) -> tuple[np.ndarray, np.ndarray]:
     """The Lab values a ``grid``-point B2A/gamt CLUT axis actually spans.
 
-    Returns ``(L_axis, ab_axis)`` — the L axis runs 0..:data:`LAB16_MAX_L`,
-    the a/b axes −128..:data:`LAB16_MAX_AB` (legacy-encoding endpoints).
+    Returns ``(L_axis, ab_axis)`` — the L axis runs 0..100 (the B2A input
+    table maps the legacy L code 0xFF00 onto the last row, see
+    :func:`lab_b2a_in_tables`), the a/b axes −128..:data:`LAB16_MAX_AB`
+    (legacy-encoding endpoints).
     """
-    return (np.linspace(0.0, LAB16_MAX_L, grid),
+    return (np.linspace(0.0, 100.0, grid),
             np.linspace(LAB16_MIN_AB, LAB16_MAX_AB, grid))
+
+
+def lab_b2a_in_tables(entries: int) -> np.ndarray:
+    """B2A/gamt input tables for a Lab PCS: the L* axis is scaled by
+    0xFFFF/0xFF00 so the legacy code for L*=100 (0xFF00) lands on the LAST
+    grid row and the codes above it clip there — exactly colprof's B2A
+    input curve (measured on its profiles: ratio 1.0039 on L, identity on
+    a/b). Without it L*=100 sat 3 % of a cell below the top row and the
+    interpolation with the row below sent paper white to RGB ≈ 0.996 (ink
+    in the paper white) even with the model's white pinned. a/b stay
+    identity: with an odd grid the a=b=0 code is already a node."""
+    ident = np.linspace(0.0, 1.0, entries)
+    l_tab = np.clip(ident * (0xFFFF / 0xFF00), 0.0, 1.0)
+    rows = np.stack([l_tab, ident, ident])
+    return np.clip(rows * 0xFFFF, 0, 0xFFFF).round().astype(">u2")
 
 
 def s15fixed16(v: float) -> int:

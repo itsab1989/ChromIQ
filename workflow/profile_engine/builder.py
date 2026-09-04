@@ -101,6 +101,7 @@ class BuildSettings:
     manufacturer: str = ""                   # colprof -A → dmnd
     model: str = ""                          # colprof -M → dmdd
     ink_limit: float | None = None           # percent; None = from the .ti3
+    black_ink_limit: float | None = None     # colprof -L, percent; None = .ti3
     smoothing: float = 0.5                   # colprof -r avgdev (percent)
     curve_rounds: int = 2
     no_input_shaper: bool = False            # colprof -ni / -np
@@ -363,11 +364,10 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         if wy > 100.0:
             meas.xyz = meas.xyz * (100.0 / wy)
             _invalidate_bases(meas)
-    if settings.wp_scale is not None:
-        # colprof -u <scale>: scale the media white point.
-        meas.xyz = meas.xyz.copy()
-        meas.xyz[meas.white_index] *= float(settings.wp_scale)
-        _invalidate_bases(meas)
+    # colprof -u <scale> is applied to the FITTED white below (as xfit.c
+    # does), not to one measured row: scaling a single duplicate white
+    # patch was then out-voted by its unscaled twins when the white index
+    # was recomputed (fast) or averaged away (accurate) — measured 2026-09-04.
 
     accurate = settings.gammap_mode == "accurate"
     # #123 candidates only ever modify the maximum-accuracy pipeline.
@@ -427,11 +427,15 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             gp="gp" in candidates,
             progress=lambda m: _emit(settings, m))
         if len(outliers):
-            ids = ", ".join(str(i + 1) for i in outliers[:8])
+            # Name the patches the way the SHEET names them (SAMPLE_LOC):
+            # "rows 757, 811" only coincided with the printed IDs on a
+            # targen chart; on an imported or merged chart a data-row
+            # number sends the user to the wrong patch.
+            ids = ", ".join(meas.patch_label(int(i)) for i in outliers[:8])
             more = "" if len(outliers) <= 8 else f" (+{len(outliers) - 8})"
             _emit(settings,
                   f"{len(outliers)} patch(es) disagree strongly with the "
-                  f"model and were down-weighted — rows {ids}{more}. "
+                  f"model and were down-weighted — {ids}{more}. "
                   f"Consider remeasuring them.")
     else:
         model = fit_forward_model(meas.device, meas.lab_relative,
@@ -449,12 +453,36 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         if challenge is not None:
             model, verdict = challenge
             _emit(settings, verdict)
+        elif settings.spectral_physics:
+            # A ticked option that leaves no trace looks broken (B-11).
+            why = ("this is an RGB-driver chart (the inks are hidden)"
+                   if meas.is_additive else
+                   "the chart has no spectral data" if meas.spectral is None
+                   else "the chart is too small for a held-out check")
+            _emit(settings, f"Spectral physics model: not applicable — {why}. "
+                            f"Standard model kept.")
+    # THE PAPER WHITE IS PINNED TO THE PCS WHITE. A least-squares surface
+    # passes near the white patches, not through them: on a real 924-patch
+    # chart the fitted device white came out at L* 99.76 (fast) / 99.94
+    # (accurate), so relative-colorimetric B2A sent L*=100 to RGB ≈ 0.996 —
+    # ink in every paper-white area of a print. Argyll re-adapts the whole
+    # grid so device white lands exactly on D50 (xfit.c, "White point fine
+    # tune") and records that FITTED white as the profile's white point;
+    # this does the same, and applies -u to that white.
+    wtpt_abs = _pin_media_white(model, meas, settings)
     fit_res = np.linalg.norm(model.predict(meas.device) - meas.lab_relative,
                              axis=1)
 
     _emit(settings, f"Inverting the model (B2A grid {b2a_grid})…")
     ink_limit = settings.ink_limit if settings.ink_limit is not None \
         else meas.ink_limit
+    # colprof -L / BLACK_INK_LIMIT: a ceiling on the K channel alone. Used
+    # to be folded into the TOTAL limit by the extra-options parser (a
+    # hand-typed "-L 90" capped all inks at 90 %) — found 2026-09-04.
+    channel_max = _channel_ceilings(meas, settings)
+    if channel_max is not None:
+        k_pct = float(channel_max[meas.channel_letters.index("K")] * 100.0)
+        _emit(settings, f"Black ink limited to {k_pct:g}%.")
     # Multi-ink: anchor the neutral rendering + K separation in colprof's
     # behaviour via a synthetic CMYK proxy (colprof can build THAT).
     anchor = None
@@ -473,7 +501,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         is_additive=meas.is_additive, ink_limit=ink_limit,
         node_lab=node_lab, k_prior=anchor, accurate=accurate,
         extra_hues=extra_hues, black_l=black_l, k_gen=k_gen,
-        ucs=use_ucs, progress=lambda m: _emit(settings, m))
+        ucs=use_ucs, channel_max=channel_max,
+        progress=lambda m: _emit(settings, m))
     # refine_b2a_clut returns *curve-space* values — written straight into
     # the CLUT, with the inverse shaper curves as B2A output tables.
     if n > 3 and "joint-sep" in candidates:
@@ -503,7 +532,26 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             channel_letters=meas.channel_letters,
             node_lab=node_lab, lab_to01=codec.lab_to01, k_prior=anchor,
             accurate=accurate, extra_hues=extra_hues, black_l=black_l,
-            k_gen=k_gen, ucs=use_ucs, progress=lambda m: _emit(settings, m))
+            k_gen=k_gen, ucs=use_ucs, channel_max=channel_max,
+            progress=lambda m: _emit(settings, m))
+    if channel_max is not None:
+        # The smooth refit is a least-squares field over samples that all
+        # respect the ceiling; between them it can overshoot (measured: K
+        # 0.65 for a 60 % limit). Nodes are what the CMM interpolates, so a
+        # ceiling on the nodes is a ceiling on the table. Curve space here.
+        top = model.shape_device(channel_max[None, :])
+        dev_clut_shaped = np.minimum(dev_clut_shaped, top)
+    # The B2A half of the white pin (see _pin_media_white for the A2B half),
+    # and the black corner: L*=0 → the chart's deepest measured black.
+    dev_clut_shaped = b2a_mod.pin_white_node(dev_clut_shaped, node_lab,
+                                             meas.is_additive)
+    device_black = np.zeros(n) if meas.is_additive \
+        else meas.device[meas.black_index].copy()
+    if channel_max is not None:
+        device_black = np.minimum(device_black, channel_max)
+    dev_clut_shaped = b2a_mod.pin_black_node(
+        dev_clut_shaped, node_lab,
+        model.shape_device(device_black[None, :])[0])
     in_gamut = residual <= 1.0
 
     _emit(settings, "Writing the profile…")
@@ -550,7 +598,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             channel_letters=meas.channel_letters,
             is_additive=meas.is_additive, ink_limit=ink_limit,
             entries=entries_b2a, codec=codec, settings=settings,
-            a2b_grid=a2b_grid, a2b_entries=entries_a2b, anchor=anchor)
+            a2b_grid=a2b_grid, a2b_entries=entries_a2b, anchor=anchor,
+            channel_max=channel_max)
         luts.update(mapped)
         perceptual_distinct = "B2A0" in mapped
     if "B2A0" not in luts:
@@ -569,7 +618,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         copyright=settings.copyright,
         manufacturer=settings.manufacturer,
         model=settings.model,
-        wtpt=tuple(meas.media_white_xyz / 100.0),
+        wtpt=tuple(wtpt_abs / 100.0),
         bkpt=tuple(meas.black_xyz / 100.0),
         targ=meas.text if settings.embed_ti3 else None,
         pcs=codec.signature,
@@ -586,7 +635,11 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         # header and metadata types differ.
         from dataclasses import replace
         twin = out.with_name(out.stem + "-v4.icc")
-        icw.write_profile(twin, replace(spec, version=(4, 4)), luts)
+        # Its own name: two entries called the same thing in a profile
+        # menu cannot be told apart (critic N12).
+        icw.write_profile(twin, replace(spec, version=(4, 4),
+                                        description=spec.description + " (v4)"),
+                          luts)
         _emit(settings, f"Also wrote the ICC v4 twin: {twin.name}")
 
     gam_res = residual[in_gamut]
@@ -612,6 +665,72 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         fit_median_de00=float(np.median(fit_res00)),
         fit_p95_de00=float(np.percentile(fit_res00, 95)),
         outlier_rows=tuple(int(i) for i in outliers))
+
+
+def _channel_ceilings(meas: Ti3Measurement,
+                      settings: BuildSettings) -> np.ndarray | None:
+    """Per-channel device ceilings for the inversion: 1.0 everywhere except
+    a K channel under a black ink limit (settings -L, else the chart's
+    BLACK_INK_LIMIT). None when no limit applies — additive devices, no K,
+    or a limit ≥ 100 %."""
+    if meas.is_additive or "K" not in meas.channel_letters:
+        return None
+    limit = settings.black_ink_limit
+    if limit is None:
+        limit = meas.black_ink_limit
+    if limit is None or not (0.0 < limit < 100.0):
+        return None
+    top = np.ones(meas.n_channels)
+    top[meas.channel_letters.index("K")] = limit / 100.0
+    return top
+
+
+def _pin_media_white(model: ForwardModel, meas: Ti3Measurement,
+                     settings: BuildSettings) -> np.ndarray:
+    """Re-adapt the fitted grid so device white maps exactly to D50, and
+    return the profile's absolute media white (Y=100 scale).
+
+    Mirrors ArgyllCMS ``xfit.c`` (XFIT_OUT_WP_REL): look the device white up
+    through the fitted model, build the Bradford matrix from that fitted
+    white to D50, push every grid node through it, and take the fitted
+    white — expressed back in the measured basis — as ``wtpt``. Device white
+    sits on a grid CORNER (the shaper curves are pinned at 0 and 1), so the
+    corner node becomes (100, 0, 0) exactly, and the relative tables agree
+    with the white-point tag by construction. ``-u <scale>`` then scales the
+    relative grid by 1/scale and the white point by scale, exactly as
+    colprof does for output profiles.
+    """
+    from workflow.profile_engine.icc_writer import BRADFORD
+    from workflow.profile_engine.ti3_data import (D50_XYZ100, lab_to_xyz,
+                                                   xyz_to_lab)
+    dev_white = np.full((1, meas.n_channels),
+                        1.0 if meas.is_additive else 0.0)
+    lab_w = model.predict(dev_white)
+    xyz_w = lab_to_xyz(lab_w)[0]                      # D50-relative, Y≈100
+    if not np.all(np.isfinite(xyz_w)) or xyz_w[1] <= 1.0:
+        _emit(settings, "Paper white could not be anchored (the model's "
+                        "white is not a usable colour); leaving the tables "
+                        "unadapted.")
+        return meas.media_white_xyz.copy()
+    # Absolute white = the fitted white in the measured basis (before the
+    # correction, so the absolute response of the profile is unchanged).
+    wtpt_abs = meas.relative_to_absolute_xyz(xyz_w)[0]
+    cone_fit = BRADFORD @ (xyz_w / 100.0)
+    cone_d50 = BRADFORD @ (D50_XYZ100 / 100.0)
+    adapt = np.linalg.inv(BRADFORD) @ np.diag(cone_d50 / cone_fit) @ BRADFORD
+    scale = float(settings.wp_scale) if settings.wp_scale else 1.0
+    if scale <= 0.0:
+        scale = 1.0
+    nodes_xyz = lab_to_xyz(model.nodes)
+    nodes_xyz = (adapt @ nodes_xyz.T).T / scale
+    model.nodes = xyz_to_lab(nodes_xyz)
+    wtpt_abs = wtpt_abs * scale
+    corner = model.predict(dev_white)[0]
+    _emit(settings, f"Paper white anchored: the model's white read L* "
+                    f"{lab_w[0, 0]:.2f}, now {corner[0]:.2f} — the profile's "
+                    f"white point is the fitted paper (Y {wtpt_abs[1]:.2f})"
+                    + (f", scaled by {scale:g}." if scale != 1.0 else "."))
+    return wtpt_abs
 
 
 def _invalidate_bases(meas: Ti3Measurement) -> None:

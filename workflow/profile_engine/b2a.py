@@ -167,8 +167,13 @@ def _gauss_newton(model: ForwardModel, target: np.ndarray, seed: np.ndarray,
                   boundary_fd: bool = False,
                   tac_projection: bool = False,
                   err_weights: np.ndarray | None = None,
+                  channel_max: np.ndarray | None = None,
                   progress=None, progress_label: str = "") -> np.ndarray:
     """Batched damped Gauss–Newton on the free channels.
+
+    ``channel_max``: per-channel upper bound (device fraction) — the black
+    ink limit (colprof ``-L`` / BLACK_INK_LIMIT) is a box constraint on the
+    K channel, applied at every clip like the 0..1 cube itself.
 
     ``prior``/``prior_w``: optional per-channel soft targets over the free
     channels (the ink policy). They enter as extra least-squares rows, so
@@ -216,7 +221,8 @@ def _gauss_newton(model: ForwardModel, target: np.ndarray, seed: np.ndarray,
                     jtr += prior_w * (prior - d[:, free])
                 step = np.linalg.solve(jtj, jtr[..., None])[..., 0]
                 step[bad] = 0.0
-        d[:, free] = np.clip(d[:, free] + step, 0.0, 1.0)
+        hi = 1.0 if channel_max is None else channel_max[free]
+        d[:, free] = np.clip(d[:, free] + step, 0.0, hi)
         if ink_limit is not None:
             if tac_projection:
                 d = project_tac(d, ink_limit)
@@ -228,11 +234,12 @@ def _gauss_newton(model: ForwardModel, target: np.ndarray, seed: np.ndarray,
     return d
 
 
-def _seed_nearest(model: ForwardModel, target: np.ndarray, seed_res: int
-                  ) -> np.ndarray:
+def _seed_nearest(model: ForwardModel, target: np.ndarray, seed_res: int,
+                  channel_max: np.ndarray | None = None) -> np.ndarray:
     """Seed each target with the nearest point of a coarse device mesh."""
     n = model.n_channels
-    axes = [np.linspace(0.0, 1.0, seed_res)] * n
+    top = np.ones(n) if channel_max is None else np.asarray(channel_max)
+    axes = [np.linspace(0.0, float(top[c]), seed_res) for c in range(n)]
     mesh = np.stack(np.meshgrid(*axes, indexing="ij"), -1).reshape(-1, n)
     mesh_lab = model.predict(mesh)
     out = np.empty((len(target), n))
@@ -396,10 +403,14 @@ def invert_to_device(model: ForwardModel, target: np.ndarray, *,
                      black_l: float | None = None,
                      k_gen: dict | None = None,
                      ucs: bool = False,
+                     channel_max: np.ndarray | None = None,
                      progress=None,
                      progress_label: str = "Inverting the model",
                      ) -> tuple[np.ndarray, np.ndarray]:
     """Invert the forward model at ``target`` Lab points.
+
+    ``channel_max``: per-channel device ceiling (the black ink limit on K);
+    None = the plain 0..1 cube.
 
     Returns ``(device, residual_de)`` — residual is the remaining ΔE76 after
     convergence, i.e. ~0 in gamut and the clamp distance outside (this array
@@ -428,8 +439,11 @@ def invert_to_device(model: ForwardModel, target: np.ndarray, *,
         gn_model = _UcsView(model, _space)
         gn_target = _space.lab_to_ucs(target)
     if seed is None:
-        seed = _seed_nearest(gn_model, gn_target, seed_res if n <= 4 else 5)
+        seed = _seed_nearest(gn_model, gn_target, seed_res if n <= 4 else 5,
+                             channel_max=channel_max)
     d = seed.copy()
+    if channel_max is not None:
+        d = np.minimum(d, channel_max[None, :])
 
     free = np.arange(n)
     prior = prior_w = None
@@ -441,7 +455,7 @@ def invert_to_device(model: ForwardModel, target: np.ndarray, *,
         d[:, 3:] = prior[:, 3:]
 
     gn_kw = dict(boundary_fd=accurate, tac_projection=accurate,
-                 progress=progress)
+                 channel_max=channel_max, progress=progress)
     d = _gauss_newton(gn_model, gn_target, d, free, iters=iters,
                       damping=damping,
                       ink_limit=limit, prior=prior, prior_w=prior_w,
@@ -456,11 +470,7 @@ def invert_to_device(model: ForwardModel, target: np.ndarray, *,
     retry = residual > 0.5
     if retry.any():
         rng = np.random.default_rng(1234)
-        cloud = rng.uniform(0.0, 1.0, (min(40000, 6000 * n), n))
-        if limit is not None:
-            total = cloud.sum(1)
-            over = total > limit
-            cloud[over] *= (limit / total[over])[:, None]
+        cloud = _device_cloud(n, limit, channel_max, rng)
         cloud_lab = gn_model.predict(cloud)
         sub = gn_target[retry]
         seeds2 = np.empty((len(sub), n))
@@ -490,19 +500,39 @@ def invert_to_device(model: ForwardModel, target: np.ndarray, *,
         # The *residual* keeps the nearest-clip distance from above: the
         # ``gamt`` tag encodes distance-from-gamut and must stay metric.
         oog = residual > 1.0
+        chroma_t = np.hypot(target[:, 1], target[:, 2])
+        oog &= chroma_t >= 5.0          # neutrals keep the nearest clip
         if oog.any():
-            # In UCS the metric is already perceptual — only the deliberate
-            # hue emphasis remains; in Lab the full local-ΔE2000 weights.
-            wm = _ucs_hue_weight_matrices(gn_target[oog]) if ucs \
-                else _hue_weight_matrices(target[oog])
-            d[oog] = _gauss_newton(
-                gn_model, gn_target[oog], d[oog], free, iters=8,
-                damping=damping,
-                ink_limit=limit, err_weights=wm,
-                prior=None if prior is None else prior[oog],
-                prior_w=None if prior_w is None else prior_w[oog],
-                progress_label=f"{progress_label}: hue-preserving clip",
-                **gn_kw)
+            # Seed every out-of-gamut node from a printable colour of the
+            # SAME HUE (angle-gated), then polish under the hue-weighted
+            # norm; a polish that drifts in hue or gains chroma is dropped.
+            rng2 = np.random.default_rng(4321)
+            cloud2 = _device_cloud(n, limit, channel_max, rng2)
+            cloud2_lab = model.predict(cloud2)
+            seeds_h, found = _hue_gated_seeds(target[oog], cloud2, cloud2_lab)
+            sub_idx = np.flatnonzero(oog)[found]
+            if len(sub_idx):
+                wm = _ucs_hue_weight_matrices(gn_target[sub_idx]) if ucs \
+                    else _hue_weight_matrices(target[sub_idx])
+                d_pol = _gauss_newton(
+                    gn_model, gn_target[sub_idx], seeds_h[found], free,
+                    iters=4, damping=damping,
+                    ink_limit=limit, err_weights=wm,
+                    prior=None if prior is None else prior[sub_idx],
+                    prior_w=None if prior_w is None else prior_w[sub_idx],
+                    progress_label=f"{progress_label}: hue-preserving clip",
+                    **gn_kw)
+                lab_pol = model.predict(d_pol)
+                lab_seed = model.predict(seeds_h[found])
+                t_sub = target[sub_idx]
+                t_h = np.degrees(np.arctan2(t_sub[:, 2], t_sub[:, 1]))
+                p_h = np.degrees(np.arctan2(lab_pol[:, 2], lab_pol[:, 1]))
+                dh = np.abs((p_h - t_h + 180.0) % 360.0 - 180.0)
+                gained = (np.hypot(lab_pol[:, 1], lab_pol[:, 2])
+                          > np.hypot(t_sub[:, 1], t_sub[:, 2]) + 3.0)
+                keep = (dh <= 10.0) & ~gained
+                d_pol[~keep] = seeds_h[found][~keep]
+                d[sub_idx] = d_pol
     return d, residual
 
 
@@ -516,6 +546,7 @@ def build_b2a_clut(model: ForwardModel, grid: int, *,
                    black_l: float | None = None,
                    k_gen: dict | None = None,
                    ucs: bool = False,
+                   channel_max: np.ndarray | None = None,
                    progress=None,
                    ) -> tuple[np.ndarray, np.ndarray]:
     """Full B2A CLUT: (grid³, n) device fractions + (grid³,) OOG distance.
@@ -528,7 +559,8 @@ def build_b2a_clut(model: ForwardModel, grid: int, *,
                             is_additive=is_additive, ink_limit=ink_limit,
                             k_prior=k_prior, accurate=accurate,
                             extra_hues=extra_hues, black_l=black_l,
-                            k_gen=k_gen, ucs=ucs, progress=progress)
+                            k_gen=k_gen, ucs=ucs, channel_max=channel_max,
+                            progress=progress)
 
 
 def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
@@ -546,6 +578,7 @@ def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
                     black_l: float | None = None,
                     k_gen: dict | None = None,
                     ucs: bool = False,
+                    channel_max: np.ndarray | None = None,
                     progress=None) -> np.ndarray:
     """Refit the B2A CLUT as one smooth field over exact inverse samples.
 
@@ -575,6 +608,8 @@ def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
         faces[np.arange(nf), rng.integers(0, n, nf)] = \
             rng.integers(0, 2, nf).astype(float)
         dev_s = np.vstack([dev_s, faces])
+        if channel_max is not None:
+            dev_s *= channel_max[None, :]
         if limit is not None:
             total = dev_s.sum(1)
             over = total > limit
@@ -587,6 +622,8 @@ def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
         # Sample *reachable* Lab targets instead and invert them through the
         # same policy the per-node pass used; those pairs are consistent.
         probe_dev = rng.uniform(0.0, 1.0, (samples // 3, n))
+        if channel_max is not None:
+            probe_dev *= channel_max[None, :]
         if limit is not None:
             total = probe_dev.sum(1)
             over = total > limit
@@ -596,7 +633,7 @@ def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
             model, lab_targets, channel_letters=channel_letters or [],
             is_additive=is_additive, ink_limit=ink_limit, k_prior=k_prior,
             accurate=accurate, extra_hues=extra_hues, black_l=black_l,
-            k_gen=k_gen, ucs=ucs, progress=progress,
+            k_gen=k_gen, ucs=ucs, channel_max=channel_max, progress=progress,
             progress_label="Inverting the model: sampling the separation")
         keep = res_s < 1.0
         dev_s, lab_s = dev_s[keep], lab_targets[keep]
@@ -664,6 +701,102 @@ def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
             raw[over] *= (limit / total[over])[:, None]
         refined[over] = model.shape_device(raw[over])
     return refined
+
+
+def pin_white_node(dev_clut: np.ndarray, node_lab: np.ndarray,
+                   is_additive: bool, tol: float = 1.0) -> np.ndarray:
+    """Force the B2A node(s) that stand for the PCS white to DEVICE white.
+
+    The colorimetric table is refitted as one smooth field
+    (:func:`refine_b2a_clut`) and the mapped tables come from a per-node
+    inversion of a mapped target; both leave the white corner a fitted
+    value — measured 2026-09-04 on a synthetic CMYK chart: C 0.6 %, M 1.3 %,
+    Y 3.5 % at L*=100 (ink in the paper white), with the forward model's
+    white already pinned. Argyll's ICX_SET_WHITE makes the white exact on
+    both sides; this is the B2A half. Works in device space and in the
+    curve (shaped) space alike, because the shaper curves are pinned at 0
+    and 1. Only nodes within ``tol`` ΔE76 of (100, 0, 0) qualify — the top
+    row's a=b≈0 node, never its coloured neighbours."""
+    d = np.linalg.norm(node_lab - np.array([100.0, 0.0, 0.0]), axis=1)
+    hit = d <= tol
+    if not hit.any():
+        return dev_clut
+    out = dev_clut.copy()
+    out[hit] = 1.0 if is_additive else 0.0
+    return out
+
+
+def pin_black_node(dev_clut: np.ndarray, node_lab: np.ndarray,
+                   device_black: np.ndarray, tol: float = 1.0) -> np.ndarray:
+    """Force the B2A node(s) that stand for L*=0 to the printer's DEEPEST
+    black. The Lab grid's black corner lies only ~3 ΔE76 outside a real
+    printer's gamut, so the smooth refit treated it as a weak anchor and
+    extrapolated — measured 2026-09-05 on a real chart: L*=0 printed as
+    RGB 3/4/18 (fast, a blue cast, L* 6.2) and 3/0/4 (accurate, magenta)
+    while colprof gives 0/0/0. Every "pure black" pixel carries L*=0.
+    ``device_black`` is given in the same space as ``dev_clut`` (device or
+    curve space) — the caller shapes it."""
+    d = np.linalg.norm(node_lab, axis=1)
+    hit = d <= tol
+    if not hit.any():
+        return dev_clut
+    out = dev_clut.copy()
+    out[hit] = np.asarray(device_black, float)[None, :]
+    return out
+
+
+def _device_cloud(n: int, limit: float | None,
+                  channel_max: np.ndarray | None,
+                  rng: np.random.Generator) -> np.ndarray:
+    cloud = rng.uniform(0.0, 1.0, (min(40000, 6000 * n), n))
+    if channel_max is not None:
+        cloud *= channel_max[None, :]
+    if limit is not None:
+        total = cloud.sum(1)
+        over = total > limit
+        cloud[over] *= (limit / total[over])[:, None]
+    return cloud
+
+
+def _hue_gated_seeds(target: np.ndarray, cloud: np.ndarray,
+                     cloud_lab: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """For out-of-gamut targets: the printable colour of the SAME HUE that
+    loses chroma rather than lightness. Returns ``(seeds, found)``.
+
+    A first-order hue metric (the previous clip) cannot tell a colour from
+    its complement — both lie on one line through the neutral axis, so the
+    "hue error" of the opposite hue is zero — and the solver walked round
+    the hue circle for far-out targets (measured: 5.7 % of out-of-gamut
+    nodes printed the complementary hue in accurate mode; colprof 0 %).
+    Gating candidates by hue ANGLE first makes the flip impossible."""
+    n_t = len(target)
+    out = np.zeros((n_t, cloud.shape[1]))
+    found = np.zeros(n_t, bool)
+    c_l, c_c = cloud_lab[:, 0], np.hypot(cloud_lab[:, 1], cloud_lab[:, 2])
+    c_h = np.degrees(np.arctan2(cloud_lab[:, 2], cloud_lab[:, 1]))
+    t_l, t_c = target[:, 0], np.hypot(target[:, 1], target[:, 2])
+    t_h = np.degrees(np.arctan2(target[:, 2], target[:, 1]))
+    for lo in range(0, n_t, 256):
+        sl = slice(lo, lo + 256)
+        dh = np.abs((c_h[None, :] - t_h[sl, None] + 180.0) % 360.0 - 180.0)
+        # Lightness is worth keeping more than chroma: score = (2·ΔL)² + ΔC²
+        score = (4.0 * (c_l[None, :] - t_l[sl, None]) ** 2
+                 + (c_c[None, :] - t_c[sl, None]) ** 2)
+        chosen = np.full(dh.shape[0], -1)
+        for gate in (6.0, 12.0, 25.0):
+            ok = dh <= gate
+            need = chosen < 0
+            if not need.any():
+                break
+            masked = np.where(ok, score, np.inf)
+            best = np.argmin(masked, 1)
+            have = np.isfinite(masked[np.arange(len(best)), best]) & need
+            chosen[have] = best[have]
+        got = chosen >= 0
+        idx = np.flatnonzero(got) + lo
+        out[idx] = cloud[chosen[got]]
+        found[idx] = True
+    return out, found
 
 
 def inverse_curves(curves: np.ndarray, knots: int = 256) -> np.ndarray:

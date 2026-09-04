@@ -99,10 +99,21 @@ def test_lab16_roundtrip():
     assert np.abs(back - lab).max() < 0.01
 
 
-def test_lab_grid_axes_span_legacy_range():
+def test_lab_grid_axes_end_at_white_and_span_the_legacy_ab_range():
+    """The B2A L axis ends at L*=100, not at the legacy code ceiling 100.39:
+    this test used to pin 100.39, which is what put paper white 3 % of a cell
+    below the top grid row (ink in the paper white, 2026-09-04). The input
+    table now carries colprof's 0xFFFF/0xFF00 scaling instead."""
     ls, ab = icw.lab_grid_axes(33)
-    assert ls[0] == 0.0 and abs(ls[-1] - 100.390625) < 1e-9
+    assert ls[0] == 0.0 and abs(ls[-1] - 100.0) < 1e-9
     assert ab[0] == -128.0 and abs(ab[-1] - 127.99609375) < 1e-9
+    tab = icw.lab_b2a_in_tables(1024)
+    assert tab.shape == (3, 1024)
+    l_code_100 = int(round(0xFF00 / 0xFFFF * 1023))
+    assert tab[0, l_code_100] >= 0xFFFE          # L*=100 → the last row
+    assert tab[0, -1] == 0xFFFF
+    ident = icw._identity_table(1024)
+    assert (tab[1] == ident).all() and (tab[2] == ident).all()   # a/b identity
 
 
 def test_device_space_sigs():

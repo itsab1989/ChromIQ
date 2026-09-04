@@ -60,6 +60,21 @@ class Ti3Measurement:
     text: str                         # full file text (embedded as 'targ')
     spectral: np.ndarray | None = None      # (N, bands) reflectance
     wavelengths: np.ndarray | None = None   # (bands,) nm
+    sample_ids: list[str] | None = None     # SAMPLE_ID column, if present
+    sample_locs: list[str] | None = None    # SAMPLE_LOC column (sheet cell)
+
+    def patch_label(self, row: int) -> str:
+        """How a person finds patch ``row`` (0-based) on the printed sheet:
+        the SAMPLE_LOC cell first (that is what is printed next to the
+        patch), the SAMPLE_ID in brackets, the data row as a last resort.
+        A data-row number is meaningless on an imported or merged chart."""
+        loc = self.sample_locs[row] if self.sample_locs else ""
+        sid = self.sample_ids[row] if self.sample_ids else ""
+        if loc and sid and loc != sid:
+            return f"{loc} (ID {sid})"
+        if loc or sid:
+            return loc or sid
+        return f"row {row + 1}"
 
     @property
     def n_channels(self) -> int:
@@ -74,6 +89,16 @@ class Ti3Measurement:
     def ink_limit(self) -> float | None:
         """TOTAL_INK_LIMIT keyword in percent, if stamped."""
         v = self.keywords.get("TOTAL_INK_LIMIT")
+        try:
+            return float(v) if v is not None else None
+        except ValueError:
+            return None
+
+    @property
+    def black_ink_limit(self) -> float | None:
+        """BLACK_INK_LIMIT keyword in percent, if stamped (targen -L; colprof
+        reads it as the default black ink limit, colprof.c)."""
+        v = self.keywords.get("BLACK_INK_LIMIT")
         try:
             return float(v) if v is not None else None
         except ValueError:
@@ -172,6 +197,17 @@ class Ti3Measurement:
     def lab_relative(self) -> np.ndarray:
         return xyz_to_lab(self.xyz_relative)
 
+    def relative_to_absolute_xyz(self, xyz_rel: np.ndarray) -> np.ndarray:
+        """Undo :attr:`xyz_relative`'s adaptation: D50-relative XYZ (Y=100
+        scale) → the measured, media-white basis. The exact inverse of the
+        Bradford scaling the relative basis was built with."""
+        xyz_rel = np.atleast_2d(np.asarray(xyz_rel, float))
+        cone = BRADFORD @ (xyz_rel.T / 100.0)
+        cone_w = BRADFORD @ (self.media_white_xyz / 100.0)
+        cone_d50 = BRADFORD @ (D50_XYZ100 / 100.0)
+        back = np.linalg.inv(BRADFORD) @ (cone * (cone_w / cone_d50)[:, None])
+        return back.T * 100.0
+
     @cached_property
     def lab_absolute(self) -> np.ndarray:
         return xyz_to_lab(self.xyz)
@@ -258,6 +294,27 @@ def read_ti3(path: Path | str) -> Ti3Measurement:
     else:
         raise Ti3Error(f"{p.name}: no XYZ or Lab columns in the measurement.")
 
+    def column(name: str) -> list[str] | None:
+        if name not in idx:
+            return None
+        return [r[idx[name]].strip('"') for r in rows]
+
+    sample_ids, sample_locs = column("SAMPLE_ID"), column("SAMPLE_LOC")
+    bad = ~(np.isfinite(device).all(1) & np.isfinite(xyz).all(1))
+    if bad.any():
+        probe = Ti3Measurement(path=p, color_rep=color_rep,
+                               device_rep=device_rep, channel_letters=letters,
+                               device=device, xyz=xyz, keywords=keywords,
+                               text="", sample_ids=sample_ids,
+                               sample_locs=sample_locs)
+        rows_bad = np.flatnonzero(bad)
+        names = ", ".join(probe.patch_label(int(i)) for i in rows_bad[:8])
+        more = "" if len(rows_bad) <= 8 else f" (+{len(rows_bad) - 8} more)"
+        raise Ti3Error(
+            f"{p.name}: {len(rows_bad)} patch(es) have no usable reading "
+            f"(nan/inf) — {names}{more}. Re-measure them, or remove those "
+            f"rows, before building a profile.")
+
     spectral = wavelengths = None
     spec_cols = [i for i, f in enumerate(fields) if f.startswith("SPEC_")]
     if len(spec_cols) >= 3 and "SPECTRAL_BANDS" in keywords:
@@ -275,4 +332,5 @@ def read_ti3(path: Path | str) -> Ti3Measurement:
     return Ti3Measurement(path=p, color_rep=color_rep, device_rep=device_rep,
                           channel_letters=letters, device=device, xyz=xyz,
                           keywords=keywords, text=text,
-                          spectral=spectral, wavelengths=wavelengths)
+                          spectral=spectral, wavelengths=wavelengths,
+                          sample_ids=sample_ids, sample_locs=sample_locs)

@@ -54,6 +54,15 @@ def is_multi_ink(ti3_path: Path | str) -> bool:
     return bool(rep) and rep not in _COLPROF_REPS
 
 
+# colprof's own errors for input-profile options on output data (colprof.c).
+_WP_MODE_ERRORS = {
+    "u": "Input auto WP scale mode isn't applicable to an output device",
+    "ua": "Force absolute colorimetric isn't applicable to an output device",
+    "uc": "Input cLUT clipping above WP mode isn't applicable to an output "
+          "device",
+}
+
+
 class ExtraArgsError(ValueError):
     """An extra command-line flag the engine parser doesn't know."""
 
@@ -81,8 +90,11 @@ def _apply_extra_args(extra: str, s: BuildSettings) -> None:
         t = toks[i]
         if t == "-v":
             pass
-        elif t.startswith("-l") or t.startswith("-L"):
-            s.ink_limit = float(val(t, t[:2]))
+        elif t.startswith("-l"):
+            s.ink_limit = float(val(t, "-l"))
+        elif t.startswith("-L"):
+            # colprof: -L klimit = BLACK ink limit (0-100 %), not the total.
+            s.black_ink_limit = float(val(t, "-L"))
         elif t.startswith("-r"):
             s.smoothing = float(val(t, "-r"))
         elif t.startswith("-V"):
@@ -161,19 +173,14 @@ def _apply_extra_args(extra: str, s: BuildSettings) -> None:
         elif t == "-R":
             s.clip_primaries = True
         elif t.startswith("-u"):
-            s.wp_scale = float(val(t, "-u"))
+            # colprof 3.5.0 refuses every -u form on printer data
+            # ("Input auto WP scale mode isn't applicable to an output
+            # device" — run 2026-09-04 with -u 1.1 and -u1.1); the engine
+            # gives the same answer instead of quietly scaling the white.
+            raise ValueError(_WP_MODE_ERRORS["u"])
         else:
             raise ExtraArgsError(t)
         i += 1
-
-
-# colprof's own errors for input-profile options on output data (colprof.c).
-_WP_MODE_ERRORS = {
-    "u": "Input auto WP scale mode isn't applicable to an output device",
-    "ua": "Force absolute colorimetric isn't applicable to an output device",
-    "uc": "Input cLUT clipping above WP mode isn't applicable to an output "
-          "device",
-}
 
 
 def settings_from_params(params: "ProfileParams") -> BuildSettings:

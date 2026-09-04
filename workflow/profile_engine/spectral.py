@@ -27,6 +27,12 @@ _OBSERVERS = {
     "": sd.OBS_1931_2,
     "1931_2": sd.OBS_1931_2,
     "1964_10": sd.OBS_1964_10,
+    # The two 2015 observers the Build Profile tab has offered since #121 —
+    # the engine refused them at build time ("Unknown observer") while
+    # engine_support said it could build, so the user got a failure
+    # dialog instead of the promised colprof fallback (2026-09-04).
+    "2015_2": sd.OBS_2015_2,
+    "2015_10": sd.OBS_2015_10,
 }
 
 _ILLUMS = {
@@ -64,8 +70,8 @@ def observer_cmf(name: str, lam: np.ndarray) -> np.ndarray:
     key = (name or "1931_2").strip()
     if key not in _OBSERVERS:
         raise SpectralError(
-            f"Unknown observer {name!r} (the engine knows 1931_2 and "
-            "1964_10).")
+            f"Unknown observer {name!r} (the engine knows 1931_2, 1964_10, "
+            "2015_2 and 2015_10).")
     t = _OBSERVERS[key]
     grid = np.linspace(t["lo"], t["hi"], t["vals"].shape[1])
     return np.stack([np.interp(lam, grid, t["vals"][i], left=0.0, right=0.0)

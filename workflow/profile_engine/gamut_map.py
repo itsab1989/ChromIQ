@@ -449,6 +449,27 @@ class WarpMapper:
         return lab + (w[:, :, None] * self._nodes[cols]).sum(1)
 
 
+# Budgets for the Argyll subprocesses (CLAUDE.md: "Anything that shells out
+# to Argyll needs a timeout=" — a wedged colprof was a build that never ended
+# and could not be cancelled). Generous, for a loaded machine: colprof at -qh
+# on a large chart is minutes, never tens of minutes.
+COLPROF_TIMEOUT_S = 1800
+XICCLU_TIMEOUT_S = 600
+
+
+def _run_argyll(cmd, **kw):
+    """``run_text`` that turns a timeout into :class:`OracleUnavailable`
+    naming the tool and the budget, instead of a bare ``TimeoutExpired``
+    that reads like a crash."""
+    import subprocess
+    try:
+        return run_text(cmd, **kw)
+    except subprocess.TimeoutExpired as exc:
+        raise OracleUnavailable(
+            f"{Path(str(cmd[0])).name} did not finish within "
+            f"{int(kw.get('timeout', 0)) // 60} minutes") from exc
+
+
 class OracleUnavailable(RuntimeError):
     """colprof can't provide the mapping oracle for this build."""
 
@@ -573,7 +594,7 @@ def fit_colprof_mappers(meas: Ti3Measurement, source_gamut: Path | str,
             args.append(f"-f{settings.fwa_illum}" if settings.fwa_illum
                         else "-f")
         args += _k_args(settings)
-        r = run_text(args + [str(base)], capture_output=True)
+        r = _run_argyll(args + [str(base)], capture_output=True, timeout=COLPROF_TIMEOUT_S)
         icc = base.with_suffix(".icc")
         if r.returncode != 0 or not icc.exists():
             raise OracleUnavailable(
@@ -591,12 +612,12 @@ def fit_colprof_mappers(meas: Ti3Measurement, source_gamut: Path | str,
 
         def realized(intent: str) -> np.ndarray:
             inp = "\n".join(f"{a:.4f} {b:.4f} {c:.4f}" for a, b, c in train)
-            r1 = run_text([str(xicclu), "-fb", f"-i{intent}", "-pl",
-                           str(icc)], input=inp, capture_output=True)
+            r1 = _run_argyll([str(xicclu), "-fb", f"-i{intent}", "-pl",
+                           str(icc)], input=inp, capture_output=True, timeout=XICCLU_TIMEOUT_S)
             dev = [" ".join(ln.rsplit("->", 1)[1].split()[:meas.n_channels])
                    for ln in r1.stdout.splitlines() if "->" in ln]
-            r2 = run_text([str(xicclu), "-ff", "-ir", "-pl", str(icc)],
-                          input="\n".join(dev), capture_output=True)
+            r2 = _run_argyll([str(xicclu), "-ff", "-ir", "-pl", str(icc)],
+                          input="\n".join(dev), capture_output=True, timeout=XICCLU_TIMEOUT_S)
             out = np.array([[float(v) for v in
                              ln.rsplit("->", 1)[1].split()[:3]]
                             for ln in r2.stdout.splitlines() if "->" in ln])
@@ -628,12 +649,12 @@ def _realized_at(xicclu: Path, icc: Path, lab: np.ndarray, intent: str,
                  n_channels: int) -> np.ndarray:
     import subprocess
     inp = "\n".join(f"{a:.4f} {b:.4f} {c:.4f}" for a, b, c in lab)
-    r1 = run_text([str(xicclu), "-fb", f"-i{intent}", "-pl", str(icc)],
-                  input=inp, capture_output=True)
+    r1 = _run_argyll([str(xicclu), "-fb", f"-i{intent}", "-pl", str(icc)],
+                  input=inp, capture_output=True, timeout=XICCLU_TIMEOUT_S)
     dev = [" ".join(ln.rsplit("->", 1)[1].split()[:n_channels])
            for ln in r1.stdout.splitlines() if "->" in ln]
-    r2 = run_text([str(xicclu), "-ff", "-ir", "-pl", str(icc)],
-                  input="\n".join(dev), capture_output=True)
+    r2 = _run_argyll([str(xicclu), "-ff", "-ir", "-pl", str(icc)],
+                  input="\n".join(dev), capture_output=True, timeout=XICCLU_TIMEOUT_S)
     out = np.array([[float(v) for v in ln.rsplit("->", 1)[1].split()[:3]]
                     for ln in r2.stdout.splitlines() if "->" in ln])
     if len(out) != len(lab):
@@ -753,9 +774,9 @@ def fit_multiink_anchor(model: ForwardModel, meas: Ti3Measurement,
                          + " ".join(f"{v:.4f}" for v in x))
         lines.append("END_DATA")
         base.with_suffix(".ti3").write_text("\n".join(lines), encoding="utf-8")
-        r = run_text([str(colprof), "-qm", "-S", str(source_gamut),
+        r = _run_argyll([str(colprof), "-qm", "-S", str(source_gamut),
                       *_k_args(settings), str(base)],
-                     capture_output=True)
+                     capture_output=True, timeout=COLPROF_TIMEOUT_S)
         icc = base.with_suffix(".icc")
         if r.returncode != 0 or not icc.exists():
             raise OracleUnavailable(
@@ -764,13 +785,13 @@ def fit_multiink_anchor(model: ForwardModel, meas: Ti3Measurement,
         # Neutral rendering table: realized perceptual along the L axis.
         ls = np.linspace(0.0, 100.0, 41)
         inp = "\n".join(f"{v:.3f} 0 0" for v in ls)
-        r1 = run_text([str(xicclu), "-fb", "-ip", "-pl", str(icc)],
-                      input=inp, capture_output=True)
+        r1 = _run_argyll([str(xicclu), "-fb", "-ip", "-pl", str(icc)],
+                      input=inp, capture_output=True, timeout=XICCLU_TIMEOUT_S)
         dev4 = [ln.rsplit("->", 1)[1].split()[:4]
                 for ln in r1.stdout.splitlines() if "->" in ln]
-        r2 = run_text([str(xicclu), "-ff", "-ir", "-pl", str(icc)],
+        r2 = _run_argyll([str(xicclu), "-ff", "-ir", "-pl", str(icc)],
                       input="\n".join(" ".join(d) for d in dev4),
-                      capture_output=True)
+                      capture_output=True, timeout=XICCLU_TIMEOUT_S)
         neutral = np.array([[float(v) for v in ln.rsplit("->", 1)[1]
                              .split()[:3]]
                             for ln in r2.stdout.splitlines() if "->" in ln])
@@ -805,7 +826,8 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                      entries: int, codec=None, settings=None,
                      a2b_grid: int | None = None,
                      a2b_entries: int | None = None,
-                     anchor: dict | None = None) -> dict:
+                     anchor: dict | None = None,
+                     channel_max: np.ndarray | None = None) -> dict:
     """Mapped tables per intent → dict of mft2 tags/aliases for the writer.
 
     Returns entries for ``B2A0``/``B2A2`` (bytes or the alias string
@@ -874,8 +896,9 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                and not getattr(settings, "perc_intent", "")
                and not getattr(settings, "sat_intent", ""))
     if render2 and progress:
-        progress("Gamut mapping (maximum accuracy): bijective CAM16-UCS "
-                 "rendering intents (candidate).")
+        progress("Gamut mapping (maximum accuracy): ChromIQ bijective "
+                 "rendering (CAM16-UCS) for the perceptual and saturation "
+                 "tables.")
     if settings is not None and model is not None and not _bitexact_le4 \
             and not render2:
         try:
@@ -889,7 +912,7 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
             if progress:
                 progress(f"Ported gammap unavailable ({exc}) — "
                          "matching colprof's rendering instead.")
-    elif _bitexact_le4 and progress:
+    elif _bitexact_le4 and progress and not render2:
         progress("Gamut mapping (maximum accuracy): rendering intents "
                  "matched to ArgyllCMS colprof."
                  if accurate else
@@ -948,9 +971,14 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
             k_gen=k_gen,
             ucs=accurate and "ucs" in getattr(settings, "engine_candidates",
                                               frozenset()),
+            channel_max=channel_max,
             progress=progress,
             progress_label="Gamut mapping: building the final colour table")
         shaped = model.shape_device(dev)
+        # Perceptual/saturation white is device white by definition
+        # (source white → destination white); the inversion of the mapped
+        # target lands a fitted value there, so pin it (b2a.pin_white_node).
+        shaped = b2a_mod.pin_white_node(shaped, node_lab, is_additive)
         out[tag] = icw.make_mft2(
             3, model.n_channels, grid, icw.device_to_u16(shaped),
             in_tables=codec.b2a_in_tables(entries),

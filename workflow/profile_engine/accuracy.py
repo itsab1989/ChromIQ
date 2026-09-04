@@ -132,12 +132,21 @@ def fit_forward_model_accurate(
                      f"±{floors[l_star >= 65.0].max(initial=0):.2f} ΔE).")
 
     if npts >= _HOLDOUT_MIN_PATCHES:
-        rng = np.random.default_rng(4242)
-        idx = rng.permutation(npts)
+        # Several hold-out splits, not one: on a real 924-patch chart the
+        # single-split criterion spread only 0.01–0.1 ΔE00 across the whole
+        # ladder while the same factor moved 0.1 between splits, so the
+        # "choice" was the split's noise — ×0.25 on the full chart, ×4 on
+        # 90 % of it, and the stiffer profile generalised WORSE than the
+        # plain fit (measured 2026-09-05). A factor now has to beat the
+        # standard smoothing by more than the criterion's own scatter.
         nho = max(30, npts // 10)
-        ho, trn = idx[:nho], idx[nho:]
+        folds = 3 if device.shape[1] <= 4 else 1
+        splits = []
+        for k in range(folds):
+            idx = np.random.default_rng(4242 + k).permutation(npts)
+            splits.append((idx[:nho], idx[nho:]))
 
-        def cv_err(lam_try: float) -> float:
+        def cv_err(lam_try: float, ho: np.ndarray, trn: np.ndarray) -> float:
             m = fit_forward_model(device[trn], lab[trn], grid=grid,
                                   lam=lam_try, cg_iters=350,
                                   curve_rounds=min(curve_rounds, 1),
@@ -147,14 +156,35 @@ def fit_forward_model_accurate(
                 r = r / sigma[ho]      # whitened: a true z-score criterion
             return float(np.median(r))
 
-        best_err, best_lam = np.inf, base_lam
+        errs: dict[float, list[float]] = {}
         for ci, f in enumerate(_LAMBDA_FACTORS):
             if progress is not None:
                 progress(f"Fitting the printer model: smoothing search "
                          f"{ci + 1}/{len(_LAMBDA_FACTORS)}…")
-            err = cv_err(base_lam * f)
-            if err < best_err:
-                best_err, best_lam = err, base_lam * f
+            errs[f] = [cv_err(base_lam * f, ho, trn) for ho, trn in splits]
+        mean = {f: float(np.mean(v)) for f, v in errs.items()}
+        std_at_1 = float(np.std(errs[1.0])) if folds > 1 else 0.0
+        noise = max(0.05 * mean[1.0], std_at_1)
+        cand = min(mean, key=mean.get)
+        if cand != 1.0 and mean[cand] < mean[1.0] - noise:
+            best_f = cand
+        else:
+            best_f = 1.0
+        best_err, best_lam = mean[best_f], base_lam * best_f
+        unit_ = "× the instrument noise" if sigma is not None else "ΔE2000"
+        if progress is not None:
+            if best_f == 1.0:
+                progress(f"Smoothing: no candidate beat the standard value "
+                         f"by more than the test's own scatter (±{noise:.2f} "
+                         f"{unit_}) — keeping the standard smoothing.")
+            else:
+                at_end = best_f in (_LAMBDA_FACTORS[0], _LAMBDA_FACTORS[-1])
+                progress(f"Smoothing chosen by cross-validation: ×{best_f:g} "
+                         f"of the standard value (held-out median "
+                         f"{best_err:.2f} vs {mean[1.0]:.2f} {unit_} at the "
+                         f"standard value)"
+                         + (" — the end of the search range." if at_end
+                            else "."))
         if gp:
             # Hill-climb refinement in half-octave steps (pragmatic v1 of
             # the GP marginal-likelihood optimisation): the optimum is no
@@ -171,20 +201,15 @@ def fit_forward_model_accurate(
                     if progress is not None:
                         progress(f"Fitting the printer model: smoothing "
                                  f"refine {ri + 1}/4…")
-                    err = cv_err(lam_try)
-                    if err < best_err - 1e-9:
+                    err = float(np.mean([cv_err(lam_try, ho, trn)
+                                         for ho, trn in splits]))
+                    if err < best_err - noise:
                         best_err, best_lam = err, lam_try
                         moved = True
                         break
                 if not moved:
                     break
         lam = best_lam
-        if progress is not None:
-            unit = "× the instrument noise" if sigma is not None \
-                else "ΔE2000"
-            progress(f"Smoothing chosen by cross-validation: "
-                     f"×{lam / base_lam:g} of the standard value "
-                     f"(held-out median {best_err:.2f} {unit}).")
 
     # Robust weights from the stiff scan. Huber (1 inside the scale,
     # scale/r beyond), scale = Huber's k = 1.345 × the MAD estimate of σ,

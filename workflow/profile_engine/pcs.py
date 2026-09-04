@@ -39,8 +39,9 @@ class LabPcs:
 
     @staticmethod
     def b2a_in_tables(entries: int) -> np.ndarray:
-        """B2A/gamt input shaper tables (PCS value → grid coordinate)."""
-        return np.tile(icw._identity_table(entries), (3, 1))
+        """B2A/gamt input shaper tables (PCS value → grid coordinate):
+        colprof's L*-axis scaling, so L*=100 is the top grid row."""
+        return icw.lab_b2a_in_tables(entries)
 
 
 class XyzPcs:
@@ -62,7 +63,9 @@ class XyzPcs:
     def encode(lab: np.ndarray) -> np.ndarray:
         return icw.xyz_to_u16(lab_to_xyz(lab) / 100.0)
 
-    b2a_in_tables = LabPcs.b2a_in_tables
+    @staticmethod
+    def b2a_in_tables(entries: int) -> np.ndarray:
+        return np.tile(icw._identity_table(entries), (3, 1))
 
 
 class XyzPcsShaped(XyzPcs):
