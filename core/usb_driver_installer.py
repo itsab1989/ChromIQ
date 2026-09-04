@@ -88,8 +88,29 @@ KNOWN_COLORIMETERS: dict[tuple[str, str], str] = {
 # serial devices — Arduinos, cheap adapters, lab gear. Its presence NEVER means
 # "a CR30 is attached". Identification stays behavioural (open the port and ask
 # the device what it is), which is why nothing here may auto-install anything.
+# ⚠ THE WHOLE CH34x FAMILY, NOT JUST THE CR30's CHIP. Read from WCH's own
+# CH341SER.INF (4.0.2026.02) as installed on Windows, [ControlFlags]:
+#
+#     ExcludeFromSelect = USB\VID_1A86&PID_7523
+#     ExcludeFromSelect = USB\VID_1A86&PID_5523
+#     ExcludeFromSelect = USB\VID_1A86&PID_7522
+#     ExcludeFromSelect = USB\VID_1A86&PID_E523
+#     ExcludeFromSelect = USB\VID_4348&PID_5523
+#     ExcludeFromSelect = USB\VID_4348&PID_5523&REV_0250   <- same chip, REV-qualified
+#
+# Six hardware IDs, FIVE distinct VID/PID pairs. This table used to hold one of
+# them, so `is_vendor_serial()` said False for four serial bridges that WinUSB
+# would destroy exactly as thoroughly as it destroys the CR30's. That was
+# harmless only for as long as nothing else consumed the list; `core.ch34x_driver`
+# now derives CH34X_IDS from it, so the set that decides "offer driver help for
+# this adapter" and the set that decides "never give this adapter WinUSB" are
+# literally the same object and cannot drift apart.
 VENDOR_SERIAL_DEVICES: dict[tuple[str, str], str] = {
     ("1a86", "7523"): "USB-serial bridge (CH340) — used by the CR30",
+    ("1a86", "5523"): "USB-serial bridge (CH341A)",
+    ("1a86", "7522"): "USB-serial bridge (CH340K)",
+    ("1a86", "e523"): "USB-serial bridge (CH330)",
+    ("4348", "5523"): "USB-serial bridge (CH341)",
 }
 
 
