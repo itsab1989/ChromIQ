@@ -1279,14 +1279,17 @@ def install(inf_path: Path) -> tuple[bool, str]:
     if sys.platform != "win32":
         return False, "Drivers can only be installed on Windows."
 
-    if not inf_path.is_file():
-        return False, (f"ChromIQ cannot find \u201c{inf_path}\u201d any more. Nothing "
-                       f"was changed.")
+    # The quoting check comes FIRST and does not care whether the file exists:
+    # a path that cannot be handed to an elevated process safely is refused as a
+    # path, not as a missing file.
     if '"' in str(inf_path):
         return False, ("That folder's name contains a quotation mark, which "
                        "Windows' driver installer cannot be given safely. "
                        "Please move the driver folder somewhere with a simpler "
                        "name and try again.")
+    if not inf_path.is_file():
+        return False, (f"ChromIQ cannot find \u201c{inf_path}\u201d any more. Nothing "
+                       f"was changed.")
 
     verdict = inspect_package(inf_path.parent)
     if not verdict.ok:
