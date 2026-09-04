@@ -274,3 +274,119 @@ def test_the_text_functions_need_no_qt_and_no_windows(monkeypatch):
     assert sd.usb_install_outcome(
         wdi_available=True, ran_ok=True, still_unbound_names=[],
         zadig_status=None)[1] is False
+
+
+# ---------------------------------------------------------------------------
+# The ghost devices
+# ---------------------------------------------------------------------------
+#
+# Measured on the ARM64 machine, 2026-09-04, with no colorimeter attached at
+# all: `enumerate_connected()` returned `X-Rite i1 Studio`, because it reads
+# HKLM\SYSTEM\CurrentControlSet\Enum\USB, which remembers every USB device the
+# machine has ever seen. The window then said "Connected colorimeter: X-Rite i1
+# Studio" about hardware that was not in the building.
+
+PRESENT_LIST = [
+    r"USB\ROOT_HUB30\5&32007b01&0&0",
+    r"USB\VID_0765&PID_6008\7&2a0c73b9&0&0002",
+    r"USB\VID_1A86&PID_7523\7&3b74c78&0&1",
+    r"USB\VID_0E0F&PID_000B&MI_00\7&2a0c73b9&0&0000",
+]
+
+
+@pytest.mark.parametrize("instance_id, expected", [
+    (r"USB\VID_1A86&PID_7523\7&3b74c78&0&1", ("1a86", "7523")),
+    (r"USB\VID_0765&PID_6008\7&2a0c73b9&0&0002", ("0765", "6008")),
+    # a composite child carries a third token and must still resolve
+    (r"USB\VID_0E0F&PID_000B&MI_00\7&2a0c73b9&0&0000", ("0e0f", "000b")),
+    # hubs have no VID at all
+    (r"USB\ROOT_HUB30\5&32007b01&0&0", None),
+    (r"USB\ROOT_HUB20\4&2ec99baf&0", None),
+    # malformed input must not raise
+    ("", None),
+    ("USB", None),
+    (r"USB\NOT_A_DEVICE", None),
+    (r"USB\VID_1A86\7&3b74c78&0&1", None),      # VID without PID
+])
+def test_the_ids_are_read_out_of_a_pnp_instance_id(instance_id, expected):
+    assert sd.usb_ids_in_instance(instance_id) == expected
+
+
+def test_the_ids_come_back_lower_case_whatever_case_windows_used():
+    """`enumerate_connected` lower-cases what it reads, so the two sides of the
+    comparison have to agree — Windows writes these IDs upper-case."""
+    assert sd.usb_ids_in_instance(
+        r"usb\vid_1a86&pid_7523\7&3b74c78&0&1") == ("1a86", "7523")
+
+
+def _ghost():
+    """A device Windows remembers and no longer has."""
+    return SimpleNamespace(vid="0765", pid="6008", name="X-Rite i1 Studio",
+                           has_winusb=True)
+
+
+def _real():
+    return SimpleNamespace(vid="0971", pid="2000", name=I1PRO, has_winusb=False)
+
+
+def test_a_remembered_device_that_is_not_attached_is_dropped():
+    present = {("0971", "2000")}
+    assert sd.attached_only([_ghost(), _real()], present) == [_real()]
+
+
+def test_an_attached_device_survives_the_filter():
+    present = {("0765", "6008")}
+    kept = sd.attached_only([_ghost()], present)
+    assert [d.name for d in kept] == ["X-Rite i1 Studio"]
+
+
+def test_the_filter_is_case_insensitive_on_both_sides():
+    dev_upper = SimpleNamespace(vid="0765", pid="6008", name="x", has_winusb=True)
+    assert sd.attached_only([dev_upper], {("0765", "6008")}) == [dev_upper]
+
+
+def test_nothing_present_means_nothing_reported():
+    assert sd.attached_only([_ghost(), _real()], set()) == []
+
+
+def test_when_windows_cannot_be_asked_everything_is_shown():
+    """The failure direction is chosen deliberately: a ghost is a lie the user
+    can see and ignore, a filtered-out real instrument is a feature that
+    silently refuses to help. Only the first is survivable."""
+    devices = [_ghost(), _real()]
+    assert sd.attached_only(devices, None) == devices
+
+
+def test_the_filter_returns_a_new_list_and_does_not_mutate_the_input():
+    devices = [_ghost(), _real()]
+    out = sd.attached_only(devices, None)
+    assert out is not devices
+    assert len(devices) == 2
+
+
+def test_present_usb_ids_says_it_cannot_ask_off_windows(monkeypatch):
+    monkeypatch.setattr(sd, "_sys", SimpleNamespace(platform="linux"))
+    assert sd.present_usb_ids() is None
+
+
+def test_present_usb_ids_survives_a_missing_cfgmgr32(monkeypatch):
+    """A ctypes failure must not take the Preferences window down with it."""
+    import ctypes
+
+    def boom(*_a, **_kw):
+        raise OSError("cfgmgr32 is not here")
+
+    monkeypatch.setattr(sd, "_sys", SimpleNamespace(platform="win32"))
+    monkeypatch.setattr(ctypes, "WinDLL", boom, raising=False)
+    assert sd.present_usb_ids() is None
+
+
+def test_the_whole_chain_turns_a_ghost_into_no_colorimeter_detected():
+    """The bug, end to end, in the words the user reads."""
+    remembered = [_ghost()]
+    present = {("1a86", "7523")}       # only the serial bridge is attached
+    msg, btn = sd.usb_installer_text(
+        sd.attached_only(remembered, present), wdi_available=True)
+    assert msg.startswith("<b>No colorimeter detected.</b>")
+    assert "i1 Studio" not in msg
+    assert btn is None
