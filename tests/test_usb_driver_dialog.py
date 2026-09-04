@@ -390,3 +390,395 @@ def test_the_whole_chain_turns_a_ghost_into_no_colorimeter_detected():
     assert msg.startswith("<b>No colorimeter detected.</b>")
     assert "i1 Studio" not in msg
     assert btn is None
+
+
+# ---------------------------------------------------------------------------
+# The COM-port section (the CR30's kind of driver)
+# ---------------------------------------------------------------------------
+
+def bridge(port=None):
+    """A `core.ch34x_driver.DeviceState` as far as the text functions care."""
+    return SimpleNamespace(instance_id=r"USB\VID_1A86&PID_7523\7&x&0&1",
+                           vid="1a86", pid="7523", port=port)
+
+
+def _serial(states, **kw):
+    return sd.serial_section_text(states, **kw)
+
+
+# --- the promise that must never break -------------------------------------
+
+@pytest.mark.parametrize("states, kw", [
+    ([], {}),
+    ([bridge()], {}),
+    ([bridge("COM5")], {}),
+    ([bridge("COM5"), bridge()], {}),
+    ([bridge("COM3"), bridge("COM5")], {}),
+    ([], {"offer_anyway": True}),
+    ([bridge("COM5")], {"offer_anyway": True}),
+])
+def test_no_state_ever_claims_a_cr30_was_detected(states, kw):
+    """1a86:7523 is a generic bridge sitting inside millions of Arduinos.
+    Windows can say a bridge is attached; it can never say what is on the far
+    end of it. The word "detected" next to "CR30" would be a lie in every one
+    of these states."""
+    msg, _p, _s = _serial(states, **kw)
+    lowered = msg.lower()
+    for lie in ("cr30 detected", "cr30 is connected", "cr30 is attached",
+                "found your cr30", "cr30 found"):
+        assert lie not in lowered, f"the section claims to have found a CR30: {lie!r}"
+
+
+@pytest.mark.parametrize("states, kw", [
+    ([], {}), ([bridge()], {}), ([bridge("COM5")], {}),
+    ([bridge("COM5"), bridge()], {}), ([], {"offer_anyway": True}),
+])
+def test_the_section_never_ships_a_bracketed_plural(states, kw):
+    msg, _p, _s = _serial(states, **kw)
+    for bad in ("device(s)", "colorimeter(s)", "instrument(s)", "driver(s)",
+                "bridge(s)", "port(s)"):
+        assert bad not in msg
+
+
+@pytest.mark.parametrize("states, kw", [
+    ([], {}), ([bridge()], {}), ([bridge("COM5")], {}),
+    ([bridge("COM5"), bridge()], {}), ([], {"offer_anyway": True}),
+])
+def test_there_is_always_a_way_in(states, kw):
+    """Basti's Q3: always reachable, never auto-triggered. A driverless CH340
+    reports "no problem" to Windows and an instrument too broken to enumerate
+    reports nothing at all, so a section that only spoke when it had something
+    to say would be silent for exactly the person who needs it."""
+    _msg, primary, secondary = _serial(states, **kw)
+    assert primary or secondary, "the section offered no route at all"
+
+
+# --- nothing attached -------------------------------------------------------
+
+def test_nothing_attached_says_so_and_offers_the_not_listed_route():
+    msg, primary, secondary = _serial([])
+    assert msg.startswith(
+        "<b>ChromIQ cannot see a USB-to-serial bridge on this computer at the "
+        "moment.</b>")
+    assert primary is None, "nothing is attached, so nothing is offered yet"
+    assert secondary == "My instrument is not listed…"
+    assert "cable" in msg and "socket" in msg
+
+
+def test_nothing_attached_explains_what_the_bridge_is_for():
+    msg, _p, _s = _serial([])
+    assert "turn the USB cable into a COM port" in msg
+    assert "no port appears" in msg
+
+
+# --- attached and working ---------------------------------------------------
+
+def test_a_working_bridge_is_offered_nothing():
+    """Decision 3, in as many words: never offer anything for a device that
+    already works. There is nothing to fix and an install could only break it."""
+    msg, primary, secondary = _serial([bridge("COM5")])
+    assert primary is None
+    assert secondary == "My instrument is not listed…"
+    assert msg.startswith(
+        "<b>A USB-to-serial bridge is connected, and Windows already has a "
+        "working driver for it.</b> It has been given COM5, and there is "
+        "nothing for ChromIQ to install.")
+
+
+def test_two_working_bridges_use_the_plural_and_name_both_ports():
+    msg, primary, _s = _serial([bridge("COM7"), bridge("COM3")])
+    assert primary is None
+    assert msg.startswith(
+        "<b>Several USB-to-serial bridges are connected, and Windows already "
+        "has a working driver for every one of them.</b> They have been given "
+        "COM3, COM7,")
+    assert "COM3, COM7" in msg, "ports are sorted so the sentence is stable"
+
+
+def test_a_working_bridge_still_says_chromiq_cannot_identify_it():
+    msg, _p, _s = _serial([bridge("COM5")])
+    assert "ChromIQ cannot tell you that this is your CR30" in msg
+
+
+# --- attached with no driver: the state the feature exists for --------------
+
+def test_a_driverless_bridge_gets_the_offer_and_both_buttons():
+    msg, primary, secondary = _serial([bridge()])
+    assert msg.startswith(
+        "<b>A USB-to-serial bridge is connected, and Windows has no working "
+        "driver for it.</b>")
+    assert primary == "Get the driver…"
+    assert secondary == "I already have the folder…"
+
+
+def test_the_driverless_wording_says_what_the_consequence_is():
+    msg, _p, _s = _serial([bridge()])
+    assert "No COM port has appeared for it" in msg
+    assert "nothing on this computer can talk to it" in msg
+    assert "The CR30 is reached through a bridge of exactly this kind" in msg
+
+
+def test_the_offer_promises_the_checks_and_the_permission_prompt():
+    msg, _p, _s = _serial([bridge()])
+    assert "check what arrived" in msg
+    assert "permission prompt" in msg
+    assert "nothing is removed" in msg
+
+
+def test_one_broken_bridge_beside_a_working_one_still_offers_the_install():
+    """A user with an Arduino on COM3 and a dead CR30 must not be told
+    everything is fine because *something* has a port."""
+    msg, primary, _s = _serial([bridge("COM3"), bridge()])
+    assert primary == "Get the driver…"
+    assert "has no working driver for it" in msg
+
+
+# --- "my instrument is not listed" -----------------------------------------
+
+def test_the_not_listed_route_offers_without_claiming_to_have_found_anything():
+    msg, primary, secondary = _serial([], offer_anyway=True)
+    assert primary == "Get the driver…"
+    assert secondary == "I already have the folder…"
+    assert msg.startswith(
+        "<b>You told ChromIQ your instrument is not in the list above.</b>")
+    assert "A USB-to-serial bridge is connected" not in msg
+
+
+def test_the_not_listed_route_works_even_when_a_bridge_is_present_and_fine():
+    """The exposed case: an Arduino holds COM3, the CR30 does not enumerate at
+    all, so the automatic reading says "everything is fine" and is useless."""
+    _msg, primary, _s = _serial([bridge("COM3")], offer_anyway=True)
+    assert primary == "Get the driver…"
+
+
+# ---------------------------------------------------------------------------
+# The announcement that comes before the Windows permission prompt
+# ---------------------------------------------------------------------------
+
+def test_the_uac_prompt_is_announced_before_it_appears():
+    text = sd.serial_install_intro_text(r"C:\x\drivers\2026", "ARM64")
+    assert "Windows will ask your permission at step 4" in text
+    assert "blue border" in text
+    assert "comes from Windows itself, not from ChromIQ" in text
+    assert "Choosing No stops the installation there with nothing changed" in text
+
+
+def test_the_announcement_names_the_folder_and_the_processor():
+    text = sd.serial_install_intro_text(r"C:\x\drivers\2026", "ARM64")
+    assert r"C:\x\drivers\2026" in text
+    assert "(ARM64)" in text
+
+
+def test_the_announcement_admits_the_download_cannot_be_pinned():
+    """Decision 9: no checksum, no versioned link, HTTP 200 for an error. The
+    UI may promise "we checked what arrived" and never "we know what we asked
+    for"."""
+    text = sd.serial_install_intro_text("f", "ARM64")
+    assert "no checksum and no fixed link to a particular version" in text
+    assert "a check on what did arrive, never a guarantee of what was asked for" in text
+
+
+def test_the_announcement_promises_nothing_is_removed():
+    text = sd.serial_install_intro_text("f", "ARM64")
+    assert "nothing here removes or replaces a driver" in text
+
+
+def test_the_announcement_says_the_port_is_checked_afterwards():
+    text = sd.serial_install_intro_text("f", "ARM64")
+    assert "a driver can install perfectly and still not attach itself" in text
+
+
+# ---------------------------------------------------------------------------
+# The outcomes
+# ---------------------------------------------------------------------------
+
+ALL_STAGES = ["bound", "not_bound", "install_failed", "cancelled",
+              "package_rejected", "download_failed"]
+
+
+@pytest.mark.parametrize("stage", ALL_STAGES)
+def test_no_outcome_ever_mentions_roll_back_driver(stage):
+    """Decision 10, and required change 18. *Roll Back Driver* is greyed out
+    unless the device already had a working driver once — and the person
+    reading any of these is by definition the person whose instrument never
+    had one. Sending them to a greyed-out button is worse than saying nothing.
+    """
+    text, _ = sd.serial_outcome_text(stage=stage, detail="d", folder="f",
+                                     ports="COM5")
+    lowered = text.lower()
+    assert "roll back" not in lowered
+    assert "rollback" not in lowered
+
+
+@pytest.mark.parametrize("stage", ALL_STAGES)
+def test_no_outcome_ships_a_bracketed_plural(stage):
+    text, _ = sd.serial_outcome_text(stage=stage, detail="d", folder="f",
+                                     ports="COM5")
+    for bad in ("device(s)", "driver(s)", "instrument(s)", "port(s)"):
+        assert bad not in text
+
+
+@pytest.mark.parametrize("stage", ["not_bound", "install_failed", "cancelled",
+                                   "package_rejected", "download_failed"])
+def test_every_failure_says_nothing_was_changed(stage):
+    """Non-negotiable 1: ChromIQ never removes or overwrites a driver, and the
+    user must be told that, because "the install failed" otherwise reads as
+    "my computer is now in an unknown state"."""
+    text, _ = sd.serial_outcome_text(stage=stage, detail="d", folder="f")
+    lowered = text.lower()
+    assert ("nothing" in lowered
+            and ("changed" in lowered or "removed" in lowered
+                 or "installed" in lowered))
+
+
+def test_success_names_the_port_and_explains_why_that_is_the_test():
+    text, offer = sd.serial_outcome_text(stage="bound", ports="COM5")
+    assert text.startswith(
+        "<b>It worked.</b> Windows installed the driver, and a COM port has "
+        "appeared for the adapter: COM5.")
+    assert "does not take the installer's word for it" in text
+    assert "Measure tab" in text
+    assert offer is False
+
+
+def test_the_hard_case_says_plainly_what_was_tried():
+    """Decision 10: everything right, still not bound. Say what was done, and
+    offer routes that are not greyed out."""
+    text, offer = sd.serial_outcome_text(stage="not_bound", detail="ignored",
+                                         folder=r"C:\pkg")
+    assert text.startswith(
+        "<b>Everything ChromIQ could check passed, and there is still no COM "
+        "port.</b>")
+    assert "downloaded and unpacked" in text
+    assert "signature was verified" in text
+    assert "reported the installation as finished" in text
+    # the three routes that are actually available to this user
+    assert "Unplug the instrument" in text
+    assert "Device Manager" in text
+    assert r"C:\pkg" in text
+    assert "a cable that carries power but not data" in text
+    assert offer is False
+
+
+def test_the_hard_case_ends_by_saying_there_is_nothing_to_undo():
+    text, _ = sd.serial_outcome_text(stage="not_bound", folder="f")
+    assert text.endswith(
+        "Nothing has been removed or replaced, so there is nothing to undo. "
+        "Whatever your computer had before, it still has.")
+
+
+def test_a_cancelled_install_is_not_treated_as_a_failure():
+    text, offer = sd.serial_outcome_text(stage="cancelled", folder=r"C:\pkg")
+    assert text.startswith(
+        "<b>The installation was stopped at the Windows permission prompt.</b>")
+    assert "exactly what choosing No there is supposed to do" in text
+    assert r"C:\pkg" in text
+    assert "Device Manager" not in text, (
+        "someone who deliberately said No does not need a wall of recovery advice")
+    assert offer is False
+
+
+def test_a_failed_install_carries_the_reason_and_the_manual_route():
+    text, offer = sd.serial_outcome_text(
+        stage="install_failed",
+        detail="Windows refused the change.", folder=r"C:\pkg")
+    assert "Windows refused the change." in text
+    assert "Device Manager" in text
+    assert "Browse my computer for drivers" in text
+    assert r"C:\pkg" in text
+    assert offer is False
+
+
+def test_a_rejected_package_explains_why_the_refusal_is_the_point():
+    text, offer = sd.serial_outcome_text(
+        stage="package_rejected",
+        detail="It declares NT, NTamd64 — not this computer's ARM64.",
+        folder=r"C:\pkg")
+    assert "It declares NT, NTamd64" in text
+    assert "installs without a single complaint and then simply never works" in text
+    assert "ARM-based computers only appears in the newer releases" in text
+    assert offer is True, "the user must be able to point at a different folder"
+
+
+def test_a_failed_download_offers_the_do_it_yourself_route():
+    text, offer = sd.serial_outcome_text(
+        stage="download_failed", detail="The connection timed out.")
+    assert "The connection timed out." in text
+    assert "company network that inspects encrypted traffic" in text
+    assert sd.WCH_PACKAGE_PAGE in text
+    assert offer is True
+
+
+def test_the_do_it_yourself_route_points_at_the_zip_and_warns_off_the_exe():
+    """The .EXE installs 3.5.2019.1, which has no ARM64 support — it is the
+    installer that left this project's own machine driverless."""
+    text, _ = sd.serial_outcome_text(stage="download_failed", detail="d")
+    assert "the ZIP, not the .EXE installer" in text
+    assert "cannot work on ARM-based computers" in text
+
+
+def test_the_download_page_is_the_zip_page():
+    assert sd.WCH_PACKAGE_PAGE.endswith("CH341SER_ZIP.html")
+
+
+def test_an_unknown_stage_falls_back_to_the_download_wording():
+    text, _ = sd.serial_outcome_text(stage="something-new", detail="d")
+    assert text.startswith("<b>ChromIQ could not get a usable driver package.</b>")
+
+
+# ---------------------------------------------------------------------------
+# The manual route, on its own
+# ---------------------------------------------------------------------------
+
+def test_the_manual_route_names_every_click_by_the_words_on_screen():
+    text = sd.serial_manual_route_text(r"C:\pkg\WIN 1X")
+    for label in ("Device Manager", "Update driver",
+                  "Browse my computer for drivers", "Ports (COM &amp; LPT)",
+                  "Other devices"):
+        assert label in text
+    assert r"C:\pkg\WIN 1X" in text
+
+
+def test_the_manual_route_never_says_roll_back_driver():
+    text = sd.serial_manual_route_text("f")
+    assert "roll back" not in text.lower()
+
+
+# ---------------------------------------------------------------------------
+# Where the download lands
+# ---------------------------------------------------------------------------
+
+def test_the_staging_folder_is_under_the_apps_own_name(monkeypatch):
+    monkeypatch.setenv("LOCALAPPDATA", r"C:\Users\x\AppData\Local")
+    root = sd.driver_staging_root()
+    assert root.parts[-2:] == ("ChromIQ", "drivers")
+
+
+def test_the_staging_folder_falls_back_to_the_home_directory(monkeypatch):
+    monkeypatch.delenv("LOCALAPPDATA", raising=False)
+    assert sd.driver_staging_root().parts[-2:] == ("ChromIQ", "drivers")
+
+
+# ---------------------------------------------------------------------------
+# The one place this file reaches into the other agent's module
+# ---------------------------------------------------------------------------
+
+def test_cancelled_is_recognised_from_the_sentence_core_actually_writes():
+    """`core.ch34x_driver.install()` returns `(bool, str)` with no
+    machine-readable code, so the dialog has to recognise "the user said No"
+    from the prose. That is fragile by construction — this test is the tripwire
+    that goes red the day the sentence is reworded, instead of the user quietly
+    getting a wall of recovery advice for a button they pressed on purpose."""
+    ch34x = pytest.importorskip("core.ch34x_driver")
+    outcomes = getattr(ch34x, "_PNPUTIL_OUTCOMES", None)
+    if outcomes is None or 1223 not in outcomes:
+        pytest.skip("core.ch34x_driver does not expose the exit-code table")
+    _ok, sentence = outcomes[1223]
+    assert sd._install_was_cancelled(sentence), (
+        "core reworded its cancelled message; ui/dialogs/settings_dialog.py's "
+        f"_CANCELLED_PREFIX no longer matches it: {sentence!r}")
+
+
+def test_a_genuine_failure_is_not_mistaken_for_a_cancellation():
+    assert not sd._install_was_cancelled("Windows refused the change.")
+    assert not sd._install_was_cancelled("")
