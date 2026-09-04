@@ -318,6 +318,348 @@ def usb_install_outcome(*, wdi_available: bool, ran_ok: bool,
     )
 
 
+# ---------------------------------------------------------------------------
+# Instruments that are reached through a COM port (the CR30)
+# ---------------------------------------------------------------------------
+#
+# A DIFFERENT KIND OF DRIVER, BEHIND THE SAME BUTTON. Everything above this
+# point is about WinUSB: the driver ArgyllCMS's instruments need in order to be
+# spoken to over raw USB. The CR30 needs the opposite — a serial driver that
+# CREATES a COM port. Giving a CR30's bridge the WinUSB driver does not install
+# anything; it destroys the port, and the instrument disappears from ChromIQ and
+# from every other program on the machine. The two paths share a window and
+# nothing else.
+#
+# WHY NOTHING HERE EVER SAYS "CR30 DETECTED". The chip is a CH340, and its USB
+# identity (1a86:7523) is stamped into millions of unrelated products —
+# Arduino boards, cheap adapters, laboratory equipment. Windows can tell us a
+# bridge is attached and whether it has a working driver. It cannot tell us what
+# is on the other end of it. So the wording is always "a USB-to-serial bridge",
+# with "the CR30 uses this kind of bridge" as the reason it is being mentioned
+# at all.
+#
+# WHY THE SECTION IS ALWAYS THERE. The state this feature exists for — a
+# driverless CH340 — reports "Status: OK, no problem" to Windows, so there is no
+# error anywhere to trigger on. And an instrument broken badly enough not to
+# enumerate at all shows up as nothing whatsoever. A section that appeared only
+# when it had something to say would be silent for exactly the person who needs
+# it, which is why there is always a way in through "My instrument is not
+# listed".
+
+#: The accent this window's primary buttons are tinted with. It was written
+#: inline before the window grew a second section and a second flow.
+_DRIVER_ACCENT = "#56d6a5"
+
+#: How `core.ch34x_driver.install()` opens its sentence when the user answered
+#: No at the Windows permission prompt — from both places that can produce it
+#: (the 1223 exit code, and ShellExecuteExW returning ERROR_CANCELLED).
+#:
+#: ⚠ THIS IS A STRING MATCH ON ANOTHER MODULE'S PROSE, and it is here because
+#: the agreed interface returns `(bool, str)` with no machine-readable code. A
+#: cancelled install is not a failed one — the user chose it, nothing is wrong,
+#: and answering them with a wall of recovery advice would be rude and
+#: confusing. `tests/test_usb_driver_dialog.py` asserts that the real module
+#: still says this, so the day it is reworded, a test says so rather than the
+#: user quietly getting the wrong window.
+_CANCELLED_PREFIX = "You said No to the Windows permission prompt"
+
+
+def _install_was_cancelled(reason: str) -> bool:
+    """Did the user stop the install at the Windows prompt, rather than it failing?"""
+    return str(reason).startswith(_CANCELLED_PREFIX)
+
+
+#: WCH's own page for the ZIP package. Deliberately the ZIP page and NOT the
+#: .EXE one: the .EXE installs 3.5.2019.1, which has no ARM64 support at all,
+#: and it is the installer that left this project's own machine driverless.
+WCH_PACKAGE_PAGE = "https://www.wch-ic.com/downloads/CH341SER_ZIP.html"
+
+
+def driver_staging_root() -> Path:
+    """Where downloaded driver packages are kept.
+
+    Named after the app so a user who goes looking can recognise it, and under
+    LOCALAPPDATA rather than %TEMP% so it is not swept away between the download
+    and the manual retry the failure text offers.
+    """
+    base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+    return Path(base) / "ChromIQ" / "drivers"
+
+
+def serial_section_text(states, *, offer_anyway: bool = False
+                        ) -> "tuple[str, str | None, str | None]":
+    """The COM-port section: its message and its two buttons.
+
+    *states* is any sequence of objects with a ``.port`` attribute — in the app,
+    ``core.ch34x_driver.DeviceState``. A bridge with a port works; one without
+    does not. Returns ``(message_html, primary_label, secondary_label)``, either
+    label being None when that button is not offered.
+
+    *offer_anyway* is the "my instrument is not listed" route: the user has told
+    us the thing they are trying to fix is not in the list, so the offer is made
+    without ChromIQ claiming to have found anything.
+    """
+    working = [s for s in states if getattr(s, "port", None)]
+    broken = [s for s in states if not getattr(s, "port", None)]
+
+    explain_bridge = tr(
+        "The CR30 does not speak to Windows directly. Inside it sits a small "
+        "chip — a USB-to-serial bridge — whose whole job is to turn the USB "
+        "cable into a COM port, and ChromIQ reads the instrument through that "
+        "port. When Windows has no driver for the bridge, no port appears, and "
+        "the instrument is invisible to ChromIQ and to every other program on "
+        "the computer.")
+
+    explain_generic = tr(
+        "ChromIQ cannot tell you that this is your CR30, and will never claim "
+        "to. The chip is a generic one, used in millions of unrelated "
+        "products, so all Windows can report is that a bridge is attached and "
+        "what state it is in. Which instrument is on the other end of it is "
+        "something only opening the port can answer.")
+
+    offer = tr(
+        "<b>What ChromIQ can do about it.</b> WCH, the company that makes the "
+        "chip, publishes the driver for it. ChromIQ can fetch that package, "
+        "check what arrived — that it is signed, that it genuinely contains "
+        "support for this computer's kind of processor, and that none of the "
+        "files it needs are missing — and then ask Windows to install it. "
+        "Windows shows its own permission prompt before anything is "
+        "installed, and saying No there stops everything with nothing changed. "
+        "ChromIQ only ever adds a driver: nothing is removed, and nothing you "
+        "already have is overwritten.")
+
+    get_it = tr("Get the driver…")
+    have_folder = tr("I already have the folder…")
+    not_listed = tr("My instrument is not listed…")
+
+    if offer_anyway:
+        head = tr(
+            "<b>You told ChromIQ your instrument is not in the list above.</b> "
+            "That is worth taking seriously: a bridge whose driver has never "
+            "been installed can still report itself to Windows as perfectly "
+            "healthy, and one that is failing to start up at all may not "
+            "appear anywhere.")
+        return ("<br><br>".join([head, explain_bridge, offer]),
+                get_it, have_folder)
+
+    if broken:
+        head = tr(
+            "<b>A USB-to-serial bridge is connected, and Windows has no "
+            "working driver for it.</b> No COM port has appeared for it, which "
+            "means nothing on this computer can talk to it — ChromIQ included. "
+            "The CR30 is reached through a bridge of exactly this kind, so if "
+            "your CR30 is plugged in and you cannot measure with it, this is "
+            "very likely the reason.")
+        return ("<br><br>".join([head, explain_bridge, explain_generic, offer]),
+                get_it, have_folder)
+
+    if working:
+        ports = ", ".join(sorted(str(s.port) for s in working))
+        if len(working) == 1:
+            head = tr(
+                "<b>A USB-to-serial bridge is connected, and Windows already "
+                "has a working driver for it.</b> It has been given {ports}, "
+                "and there is nothing for ChromIQ to install."
+            ).format(ports=ports)
+        else:
+            head = tr(
+                "<b>Several USB-to-serial bridges are connected, and Windows "
+                "already has a working driver for every one of them.</b> They "
+                "have been given {ports}, and there is nothing for ChromIQ to "
+                "install."
+            ).format(ports=ports)
+        tail = tr(
+            "If your CR30 is one of these, everything it needs from Windows is "
+            "in place; choose it in the Measure tab and it will find its port "
+            "on its own. If you are here because a CR30 still will not "
+            "measure, the trouble is somewhere other than the driver — and if "
+            "the instrument you are trying to fix is not among the ports "
+            "above at all, use <b>My instrument is not listed</b>.")
+        return ("<br><br>".join([head, explain_generic, tail]),
+                None, not_listed)
+
+    head = tr(
+        "<b>ChromIQ cannot see a USB-to-serial bridge on this computer at the "
+        "moment.</b> If nothing of that kind is plugged in, that is exactly "
+        "what you would expect and there is nothing to do here.")
+    tail = tr(
+        "If your CR30 <i>is</i> plugged in and switched on and you are still "
+        "reading this, its bridge may not be starting up at all — a cable that "
+        "only carries power rather than data will do it, and so will a socket "
+        "that has stopped working. Try a different cable and a different "
+        "socket first. If that changes nothing, use <b>My instrument is not "
+        "listed</b> and ChromIQ will offer you the driver anyway.")
+    return ("<br><br>".join([head, explain_bridge, tail]),
+            None, not_listed)
+
+
+def serial_install_intro_text(folder: str, arch: str) -> str:
+    """What is about to happen, said BEFORE the Windows permission prompt.
+
+    An unexpected security prompt is the one users cancel, and cancelling it is
+    indistinguishable from the install failing. So it is announced, in order,
+    with the two things ChromIQ cannot promise said out loud.
+    """
+    return "<br><br>".join([
+        tr("<b>Here is exactly what is about to happen, step by step.</b>"),
+        tr("<b>1.</b> ChromIQ downloads the driver package published by WCH, "
+           "the company that makes the chip, over an encrypted connection.<br>"
+           "<b>2.</b> It unpacks the package into a folder of its own, which "
+           "stays on your computer afterwards:<br>&nbsp;&nbsp;{folder}<br>"
+           "<b>3.</b> It checks what arrived: that the files carry a valid "
+           "signature, that the package really does contain support for this "
+           "computer's kind of processor ({arch}), and that every file the "
+           "installer refers to is actually there.<br>"
+           "<b>4.</b> Only if all of that passes does it ask Windows to "
+           "install the package.<br>"
+           "<b>5.</b> Afterwards it checks whether a COM port has really "
+           "appeared, because a driver can install perfectly and still not "
+           "attach itself to your instrument."
+           ).format(folder=folder, arch=arch),
+        tr("<b>Windows will ask your permission at step 4.</b> A prompt with a "
+           "blue border will appear, the screen will dim behind it, and it "
+           "will ask whether you want to allow changes to your device. That "
+           "prompt comes from Windows itself, not from ChromIQ, and it is "
+           "expected. Choosing No stops the installation there with nothing "
+           "changed."),
+        tr("<b>Two things ChromIQ cannot promise, and would rather say so.</b> "
+           "WCH publishes no checksum and no fixed link to a particular "
+           "version, so there is no way to know in advance which version of "
+           "the package will arrive. Every check above is a check on what did "
+           "arrive, never a guarantee of what was asked for. And nothing here "
+           "removes or replaces a driver — the package is added alongside "
+           "whatever Windows already has, so there is nothing to undo "
+           "afterwards."),
+    ])
+
+
+def serial_manual_route_text(folder: str) -> str:
+    """The way to install the very same package by hand.
+
+    Deliberately NOT "use Roll Back Driver". Roll Back is greyed out unless the
+    device already had a working driver once, and the person reading this is by
+    definition the person whose instrument never had one. Sending them to a
+    greyed-out button is worse than saying nothing.
+    """
+    return tr(
+        "The package ChromIQ downloaded and checked is still on your computer, "
+        "so you can hand it to Windows yourself:<br>&nbsp;&nbsp;{folder}<br><br>"
+        "Right-click the Start button and choose <b>Device Manager</b>. Find "
+        "the adapter — it may be under <i>Ports (COM &amp; LPT)</i>, or under "
+        "<i>Other devices</i> with a warning mark beside it. Right-click it, "
+        "choose <b>Update driver</b>, then <b>Browse my computer for "
+        "drivers</b>, and point the browse box at the folder above."
+    ).format(folder=folder)
+
+
+def serial_outcome_text(*, stage: str, detail: str = "", folder: str = "",
+                        ports: str = "") -> "tuple[str, bool]":
+    """What the attempt came to, and whether to offer the folder route again.
+
+    *stage* is one of ``bound``, ``not_bound``, ``install_failed``,
+    ``cancelled``, ``package_rejected``, ``download_failed``. *detail* is the
+    plain-language reason from ``core.ch34x_driver``.
+    """
+    if stage == "bound":
+        return ("<br><br>".join([
+            tr("<b>It worked.</b> Windows installed the driver, and a COM port "
+               "has appeared for the adapter: {ports}."
+               ).format(ports=ports),
+            tr("That last part is the check that matters, and it is the one "
+               "that was missing before. A driver can install perfectly and "
+               "still fail to attach itself to the hardware, so ChromIQ does "
+               "not take the installer's word for it — it looks for the port "
+               "afterwards. The port is there."),
+            tr("If the instrument on that port is your CR30, you can close "
+               "this window and measure. Choose the CR30 in the Measure tab "
+               "and it will find the port on its own."),
+        ]), False)
+
+    if stage == "not_bound":
+        return ("<br><br>".join([
+            tr("<b>Everything ChromIQ could check passed, and there is still "
+               "no COM port.</b>"),
+            tr("This is what was done, and every step of it succeeded: the "
+               "package was downloaded and unpacked; its signature was "
+               "verified; it was confirmed to contain support for this "
+               "computer's kind of processor; and Windows accepted it and "
+               "reported the installation as finished. Then ChromIQ looked for "
+               "a COM port for the adapter, and there is none. So the driver "
+               "is on the machine, and Windows has simply not attached it to "
+               "your instrument."),
+            tr("<b>Three things are worth trying, in this order.</b>"),
+            tr("<b>1. Unplug the instrument, wait a few seconds, and plug it "
+               "back in.</b> Windows decides which driver to attach at the "
+               "moment a device arrives, and a device that was already sitting "
+               "there while the driver was being installed will often keep its "
+               "old answer until it is asked again. Then use <b>Check "
+               "again</b>."),
+            tr("<b>2. Point Windows at the folder by hand.</b>") + "<br>"
+            + serial_manual_route_text(folder),
+            tr("<b>3. If Device Manager shows no such adapter at all</b>, the "
+               "trouble is before the driver: a cable that carries power but "
+               "not data, a socket that has stopped working, or the instrument "
+               "being switched off. Try a different cable and a different "
+               "socket."),
+            tr("Nothing has been removed or replaced, so there is nothing to "
+               "undo. Whatever your computer had before, it still has."),
+        ]), False)
+
+    if stage == "install_failed":
+        return ("<br><br>".join([
+            tr("<b>Windows did not install the package.</b>"),
+            detail,
+            tr("Nothing on your computer was changed."),
+            serial_manual_route_text(folder),
+        ]), False)
+
+    if stage == "cancelled":
+        return ("<br><br>".join([
+            tr("<b>The installation was stopped at the Windows permission "
+               "prompt.</b> Nothing was installed and nothing on your computer "
+               "was changed — which is exactly what choosing No there is "
+               "supposed to do."),
+            tr("The package ChromIQ downloaded is still here, so starting "
+               "again costs nothing but the click:<br>&nbsp;&nbsp;{folder}"
+               ).format(folder=folder),
+        ]), False)
+
+    if stage == "package_rejected":
+        return ("<br><br>".join([
+            tr("<b>ChromIQ will not install that package.</b>"),
+            detail,
+            tr("Nothing has been installed and nothing on your computer has "
+               "changed. This check is the entire point of the exercise: a "
+               "package that does not contain support for this computer's kind "
+               "of processor installs without a single complaint and then "
+               "simply never works, and that silent failure is what this "
+               "window exists to prevent."),
+            tr("If you chose the folder yourself, two things are worth "
+               "checking. Make sure you picked the folder that actually holds "
+               "the driver files rather than the folder above it. And make "
+               "sure it is a recent version — support for ARM-based computers "
+               "only appears in the newer releases, so an old copy downloaded "
+               "years ago cannot work here however healthy it looks."),
+        ]), True)
+
+    return ("<br><br>".join([
+        tr("<b>ChromIQ could not get a usable driver package.</b>"),
+        detail,
+        tr("This happens for ordinary reasons: no internet connection at the "
+           "moment, a company network that inspects encrypted traffic, or the "
+           "manufacturer's website being down or rearranged. Nothing was "
+           "installed and nothing on your computer was changed."),
+        tr("You can also fetch it yourself and hand it over. Open "
+           "<b>{url}</b>, download the CH341SER <b>ZIP</b> package — the ZIP, "
+           "not the .EXE installer, which contains an older version that "
+           "cannot work on ARM-based computers — unpack it anywhere you like, "
+           "and then use <b>I already have the folder…</b>. ChromIQ runs "
+           "exactly the same checks on your copy as it would on its own."
+           ).format(url=WCH_PACKAGE_PAGE),
+    ]), True)
+
+
+
 class SettingsDialog(QDialog):
     def __init__(self, settings: "AppSettings", parent: QWidget | None = None,
                  *, margin_combo: "tuple[str, str, str] | None" = None,
@@ -4360,10 +4702,178 @@ class SettingsDialog(QDialog):
         )
         QDesktopServices.openUrl(QUrl(argyll_download_page()))
 
+    def _driver_notice(self, title: str, text: str,
+                       extra_label: "str | None" = None) -> bool:
+        """A read-only window with OK, and optionally one extra action button.
+
+        Returns True when the extra button was the one pressed.
+        """
+        from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout
+        from ui.widgets import tint_dialog_primary
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle(title)
+        dlg.setMinimumWidth(560)
+        lay = QVBoxLayout(dlg)
+        lay.setContentsMargins(24, 20, 24, 20)
+        lay.setSpacing(14)
+        lbl = QLabel(text, dlg)
+        lbl.setWordWrap(True)
+        lbl.setTextFormat(Qt.TextFormat.RichText)
+        lay.addWidget(lbl)
+        box = QDialogButtonBox()
+        if extra_label:
+            extra = box.addButton(extra_label, QDialogButtonBox.ButtonRole.AcceptRole)
+            extra.setObjectName("primary")
+        box.addButton(QDialogButtonBox.StandardButton.Ok)
+        box.accepted.connect(dlg.accept)
+        box.rejected.connect(dlg.reject)
+        lay.addWidget(box)
+        tint_dialog_primary(dlg, _DRIVER_ACCENT)
+        return bool(extra_label) and dlg.exec() == QDialog.DialogCode.Accepted
+
+    # ---- the COM-port half ------------------------------------------------
+
+    def _serial_states(self) -> list:
+        """Every CH34x bridge attached right now, or an empty list.
+
+        Imported lazily and defensively: `core.ch34x_driver` is Windows-only in
+        what it does, and a machine where the enumeration cannot be performed
+        must still get the window, the explanation, and the way in through
+        "My instrument is not listed".
+        """
+        try:
+            from core import ch34x_driver
+            return list(ch34x_driver.devices())
+        except Exception:   # noqa: BLE001 — never let the window fail to open
+            log.warning("could not enumerate USB-to-serial bridges", exc_info=True)
+            return []
+
+    def _serial_machine_arch(self) -> str:
+        try:
+            from core import ch34x_driver
+            return ch34x_driver.machine_arch()
+        except Exception:   # noqa: BLE001
+            return tr("unknown")
+
+    def _serial_get_driver(self) -> None:
+        """Download WCH's package, check it, install it, and prove it bound."""
+        from datetime import datetime, timezone
+        from PyQt6.QtWidgets import QProgressDialog
+
+        stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
+        dest = driver_staging_root() / stamp
+
+        # THE PROMPT IS ANNOUNCED BEFORE IT APPEARS. An unexpected security
+        # prompt is the one people cancel, and a cancelled prompt is
+        # indistinguishable from a failure — so say what is coming, and say
+        # what ChromIQ cannot promise, while there is still nothing to undo.
+        if not self._driver_notice(
+                tr("Before ChromIQ starts"),
+                serial_install_intro_text(str(dest), self._serial_machine_arch()),
+                tr("Download and install")):
+            return
+
+        try:
+            from core import ch34x_driver
+        except Exception as exc:   # noqa: BLE001
+            log.error("core.ch34x_driver unavailable: %s", exc)
+            text, _ = serial_outcome_text(
+                stage="download_failed",
+                detail=tr("This build of ChromIQ cannot install serial drivers."))
+            self._driver_notice(tr("Instrument drivers"), text)
+            return
+
+        before = self._serial_states()
+
+        progress = QProgressDialog(
+            tr("Downloading the driver package…"), tr("Cancel"), 0, 0, self)
+        progress.setWindowTitle(tr("Instrument drivers"))
+        progress.setMinimumDuration(0)
+        progress.setAutoClose(False)
+        progress.setValue(0)
+        QApplication.processEvents()
+
+        def _tick(received: int) -> None:
+            progress.setLabelText(
+                tr("Downloading the driver package… {kb} kB so far."
+                   ).format(kb=received // 1024))
+            QApplication.processEvents()
+
+        try:
+            ok, folder, reason = ch34x_driver.download_package(dest, progress=_tick)
+        finally:
+            progress.close()
+
+        if not ok or folder is None:
+            text, offer_folder = serial_outcome_text(
+                stage="download_failed", detail=reason)
+            if self._driver_notice(tr("Instrument drivers"), text,
+                                   tr("I already have the folder…")
+                                   if offer_folder else None):
+                self._serial_from_folder()
+            return
+
+        self._serial_check_and_install(Path(folder), before)
+
+    def _serial_from_folder(self) -> None:
+        """The route for a package the user fetched themselves."""
+        from ui.widgets import open_dir_dialog
+
+        chosen = open_dir_dialog(
+            self, tr("Choose the folder that holds the driver files"))
+        if not chosen:
+            return
+        self._serial_check_and_install(Path(chosen), self._serial_states())
+
+    def _serial_check_and_install(self, folder: Path, before: list) -> None:
+        """Inspect a package, install it if it passes, then prove it bound.
+
+        The order matters and is the whole safety story: a package that does not
+        declare this machine's processor installs without a complaint and then
+        never works, so it is refused BEFORE anything is elevated. And the only
+        success test is a COM port that was not there before.
+        """
+        from core import ch34x_driver
+
+        verdict = ch34x_driver.inspect_package(folder)
+        if not verdict.ok or verdict.inf_path is None:
+            text, offer_folder = serial_outcome_text(
+                stage="package_rejected", detail=verdict.reason,
+                folder=str(folder))
+            if self._driver_notice(tr("Instrument drivers"), text,
+                                   tr("Choose a different folder…")
+                                   if offer_folder else None):
+                self._serial_from_folder()
+            return
+
+        ok, reason = ch34x_driver.install(verdict.inf_path)
+        if not ok:
+            stage = "cancelled" if _install_was_cancelled(reason) else "install_failed"
+            text, _ = serial_outcome_text(stage=stage, detail=reason,
+                                          folder=str(folder))
+            self._driver_notice(tr("Instrument drivers"), text)
+            return
+
+        bound, detail = ch34x_driver.verify_bound(before)
+        if bound:
+            was_unbound = {d.instance_id for d in before if d.port is None}
+            ports = ", ".join(sorted(
+                d.port for d in ch34x_driver.devices()
+                if d.port and d.instance_id in was_unbound))
+            text, _ = serial_outcome_text(stage="bound", ports=ports,
+                                          folder=str(folder))
+        else:
+            text, _ = serial_outcome_text(stage="not_bound", detail=detail,
+                                          folder=str(folder))
+        self._driver_notice(tr("Instrument drivers"), text)
+
     def _show_usb_installer(self) -> None:
         if _sys.platform != "win32":
             return
-        from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout
+        from PyQt6.QtWidgets import (
+            QDialog, QDialogButtonBox, QGroupBox, QHBoxLayout, QLabel, QVBoxLayout,
+        )
         from core.usb_driver_installer import (
             enumerate_connected, install_winusb, launch_zadig, unbound_targets,
         )
@@ -4372,8 +4882,13 @@ class SettingsDialog(QDialog):
 
         _wdi_available = _rp("assets/wdi_simple.exe").exists()
 
-        _COLOR = "#56d6a5"
-        _REFRESH = 2   # custom dlg.done() code, distinct from Accepted(1)/Rejected(0)
+        _REFRESH = 2       # custom dlg.done() codes, distinct from
+        _WINUSB = 3        # Accepted(1) / Rejected(0)
+        _SERIAL_GET = 4
+        _SERIAL_FOLDER = 5
+        _SERIAL_NOT_LISTED = 6
+
+        offer_anyway = False
 
         while True:
             # enumerate_connected() reads a registry key that remembers every
@@ -4382,42 +4897,94 @@ class SettingsDialog(QDialog):
             # the user does not own.
             devices = attached_only(enumerate_connected(), present_usb_ids())
             needs_install = [d for d in devices if not d.has_winusb]
+            states = self._serial_states()
 
             dlg = QDialog(self)
-            dlg.setWindowTitle(tr("Install USB Driver"))
-            dlg.setMinimumWidth(500)
+            dlg.setWindowTitle(tr("Instrument drivers"))
+            dlg.setMinimumWidth(620)
             layout = QVBoxLayout(dlg)
             layout.setSpacing(14)
             layout.setContentsMargins(24, 20, 24, 20)
 
+            # --- the WinUSB half, word for word as it always was ------------
+            usb_grp = QGroupBox(
+                tr("Instruments that ArgyllCMS reads over USB"), dlg)
+            usb_lay = QVBoxLayout(usb_grp)
+            usb_lay.setSpacing(12)
             msg_text, btn_label = usb_installer_text(devices, _wdi_available)
-
-            msg = QLabel(msg_text, dlg)
+            msg = QLabel(msg_text, usb_grp)
             msg.setWordWrap(True)
-            layout.addWidget(msg)
+            msg.setTextFormat(Qt.TextFormat.RichText)
+            usb_lay.addWidget(msg)
+            if btn_label is not None:
+                row = QHBoxLayout()
+                row.addStretch()
+                install_btn = QPushButton(btn_label, usb_grp)
+                install_btn.setObjectName("primary")
+                install_btn.clicked.connect(
+                    lambda _c=False, d=dlg: d.done(_WINUSB))
+                row.addWidget(install_btn)
+                usb_lay.addLayout(row)
+            layout.addWidget(usb_grp)
+
+            # --- the COM-port half ------------------------------------------
+            serial_grp = QGroupBox(
+                tr("Instruments that are read through a COM port"), dlg)
+            serial_lay = QVBoxLayout(serial_grp)
+            serial_lay.setSpacing(12)
+            serial_text, primary_label, secondary_label = serial_section_text(
+                states, offer_anyway=offer_anyway)
+            serial_msg = QLabel(serial_text, serial_grp)
+            serial_msg.setWordWrap(True)
+            serial_msg.setTextFormat(Qt.TextFormat.RichText)
+            serial_lay.addWidget(serial_msg)
+            if primary_label or secondary_label:
+                row = QHBoxLayout()
+                row.addStretch()
+                if secondary_label:
+                    sec = QPushButton(secondary_label, serial_grp)
+                    code = (_SERIAL_FOLDER if primary_label
+                            else _SERIAL_NOT_LISTED)
+                    sec.clicked.connect(
+                        lambda _c=False, d=dlg, k=code: d.done(k))
+                    row.addWidget(sec)
+                if primary_label:
+                    pri = QPushButton(primary_label, serial_grp)
+                    pri.setObjectName("primary")
+                    pri.clicked.connect(
+                        lambda _c=False, d=dlg: d.done(_SERIAL_GET))
+                    row.addWidget(pri)
+                serial_lay.addLayout(row)
+            layout.addWidget(serial_grp)
 
             btn_box = QDialogButtonBox()
-            if btn_label is not None:
-                install_btn = btn_box.addButton(btn_label, QDialogButtonBox.ButtonRole.AcceptRole)
-                install_btn.setObjectName("primary")
-            refresh_btn = btn_box.addButton(tr("Refresh"), QDialogButtonBox.ButtonRole.ResetRole)
+            refresh_btn = btn_box.addButton(tr("Check again"),
+                                            QDialogButtonBox.ButtonRole.ResetRole)
             refresh_btn.clicked.connect(lambda checked=False, d=dlg: d.done(_REFRESH))
             btn_box.addButton(QDialogButtonBox.StandardButton.Close)
-            # The install/reinstall/Open-Zadig button uses AcceptRole, which
-            # fires QDialogButtonBox.accepted — wire it to the dialog's accept()
-            # or clicking it does nothing (the dialog never returns Accepted).
-            btn_box.accepted.connect(dlg.accept)
             btn_box.rejected.connect(dlg.reject)
             layout.addWidget(btn_box)
-            tint_dialog_primary(dlg, _COLOR)
+            tint_dialog_primary(dlg, _DRIVER_ACCENT)
 
             result = dlg.exec()
 
             if result == _REFRESH:
-                continue   # rebuild with fresh device list
+                continue   # rebuild with fresh device state
 
-            if result != QDialog.DialogCode.Accepted or not devices:
-                break   # Close button or nothing connected
+            if result == _SERIAL_NOT_LISTED:
+                offer_anyway = True
+                continue
+
+            if result == _SERIAL_GET:
+                self._serial_get_driver()
+                continue
+
+            if result == _SERIAL_FOLDER:
+                self._serial_from_folder()
+                continue
+
+            if result != _WINUSB or not devices:
+                break   # Close button, or nothing to act on
 
             # ---- run installation ----
             # "Reinstall Driver" (no device needs install) repairs every detected
@@ -4429,10 +4996,11 @@ class SettingsDialog(QDialog):
                 # the driver to the live device — a stale ghost instance from a
                 # previous USB port can misdirect it. Verify by re-enumerating
                 # before claiming success, and fall back to Zadig if it didn't bind.
-                # unbound_targets() re-enumerates through the same
-                # remembering registry key, so the same filter applies:
-                # a ghost with no driver would otherwise be reported as
-                # "the install did not bind" on a perfectly good install.
+                #
+                # unbound_targets() re-enumerates through the same remembering
+                # registry key, so the same presence filter applies: a ghost with
+                # no driver would otherwise be reported as "the install did not
+                # bind" on a perfectly good install.
                 still_unbound = attached_only(unbound_targets(targets),
                                               present_usb_ids())
                 outcome_text, offer_zadig = usb_install_outcome(
@@ -4447,25 +5015,9 @@ class SettingsDialog(QDialog):
                     zadig_status=launch_zadig(),
                 )
 
-            outcome_dlg = QDialog(self)
-            outcome_dlg.setWindowTitle(tr("Driver Installation"))
-            outcome_dlg.setMinimumWidth(420)
-            ol = QVBoxLayout(outcome_dlg)
-            ol.setContentsMargins(24, 20, 24, 20)
-            ol.setSpacing(14)
-            lbl = QLabel(outcome_text, outcome_dlg)
-            lbl.setWordWrap(True)
-            ol.addWidget(lbl)
-            obox = QDialogButtonBox()
-            if offer_zadig:
-                zadig_btn = obox.addButton(tr("Try Zadig"), QDialogButtonBox.ButtonRole.AcceptRole)
-                zadig_btn.setObjectName("primary")
-                zadig_btn.clicked.connect(lambda: launch_zadig())
-            obox.addButton(QDialogButtonBox.StandardButton.Ok)
-            obox.accepted.connect(outcome_dlg.accept)
-            obox.rejected.connect(outcome_dlg.reject)
-            ol.addWidget(obox)
-            outcome_dlg.exec()
+            if self._driver_notice(tr("Driver Installation"), outcome_text,
+                                   tr("Try Zadig") if offer_zadig else None):
+                launch_zadig()
             break
 
     def _restore_defaults(self) -> None:
