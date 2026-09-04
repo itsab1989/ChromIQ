@@ -164,6 +164,109 @@ def attached_only(devices, present_ids: "set[tuple[str, str]] | None"):
 
 
 # ---------------------------------------------------------------------------
+# The buttons this half of the window can show
+# ---------------------------------------------------------------------------
+#
+# ONE FUNCTION PER BUTTON, AND THE PROSE CALLS THE SAME FUNCTION. A paragraph
+# that tells the user to click something must never carry that something as an
+# English literal. The button is built with `tr()`, so on a German machine it
+# reads ERNEUT PRÜFEN while an English literal in the prose still says "Check
+# again" — and the user hunts for a control that is not on the screen. That is
+# exactly the fault this window shipped with (round 1 translated the titles,
+# the second section and the buttons and left the WinUSB body in English, which
+# turned a consistent gap into a broken-looking one).
+#
+# Interpolating the button's own label makes the two impossible to separate:
+# rename the button and every sentence pointing at it follows, in all twelve
+# languages, for free. `tests/test_usb_driver_dialog.py` pins the invariant in
+# every language rather than in the source, so it holds however it is spelled.
+#
+# NOT EVERY NAME IN HERE IS OURS, and the difference decides the treatment:
+#
+#   ours          -> interpolate the tr() label      (these functions)
+#   Windows's     -> translate inside the sentence   ("click Yes" at the UAC
+#                    prompt; German Windows says "Ja", so the German string
+#                    should too)
+#   Zadig's       -> leave in English, always        (Zadig ships one English
+#                    UI and nothing else; "Optionen -> Alle Geräte auflisten"
+#                    would be the same fault, inverted)
+#
+# The three-way split is not academic: our button and Zadig's button are BOTH
+# called "Install Driver", so a blanket substitution would translate Zadig's.
+
+def _label_check_again() -> str:
+    return tr("Check again")
+
+
+def _label_install_driver() -> str:
+    return tr("Install Driver")
+
+
+def _label_reinstall_driver() -> str:
+    return tr("Reinstall Driver")
+
+
+def _label_open_zadig() -> str:
+    return tr("Open Zadig")
+
+
+def _label_try_zadig() -> str:
+    return tr("Try Zadig")
+
+
+# The COM-port half's buttons, under the same rule. These four were spelled out
+# inside four paragraphs until the German screenshot showed what that costs;
+# `My instrument is not listed` was even a SECOND catalogue key, differing from
+# the button's own by the trailing ellipsis, so the two could be translated
+# differently by construction.
+def _in_prose(label: str) -> str:
+    """A button's label as it reads inside a sentence.
+
+    A trailing "…" is the convention for "this button opens something", and it
+    belongs on the control, not in the middle of a paragraph — there it meets
+    the sentence's full stop and renders "…." (caught in the German screenshot,
+    where the button reads MEIN INSTRUMENT STEHT NICHT IN DER LISTE… and the
+    sentence ended "…in der Liste….").
+
+    Stripping it HERE, rather than keeping a second ellipsis-less catalogue key,
+    is the whole point of the exercise: one key per button. The ellipsis is
+    punctuation, not part of the button's name, so removing it takes nothing
+    away from "the prose gets the name from the button".
+    """
+    return label.rstrip("…").rstrip()
+
+
+def _label_get_driver() -> str:
+    return tr("Get the driver…")
+
+
+def _label_have_folder() -> str:
+    return tr("I already have the folder…")
+
+
+def _label_not_listed() -> str:
+    return tr("My instrument is not listed…")
+
+
+ZADIG_SITE = "https://zadig.akeo.ie"
+
+
+def _cr30_zadig_warning() -> str:
+    """The warning that must accompany every steer towards Zadig.
+
+    Three outcomes used to carry their own copy of this paragraph, word for
+    word. One key, used three times: a translator writes it once, and the three
+    windows cannot drift apart. `WinUSB` and `CH340` are product and chip names
+    and stay as they are in every language.
+    """
+    return tr(
+        "<br><br><b>If you own a CR30:</b> do not pick the USB-serial "
+        "device (CH340) in Zadig. That instrument is reached "
+        "through its COM port, and giving it WinUSB would stop "
+        "ChromIQ finding it at all.")
+
+
+# ---------------------------------------------------------------------------
 # The driver helper's words, as pure functions
 # ---------------------------------------------------------------------------
 #
@@ -178,7 +281,8 @@ def attached_only(devices, present_ids: "set[tuple[str, str]] | None"):
 # plain data, return plain strings, touch no widget and no registry, and
 # tests/test_usb_driver_dialog.py pins every branch of them. Extract first,
 # change second: that ordering is the only reason "unchanged for Argyll users"
-# means anything.
+# means anything — and it is what made the `tr()` pass below safe, because the
+# English rendering is asserted character for character and did not move.
 
 def usb_installer_text(devices, wdi_available: bool) -> "tuple[str, str | None]":
     """The first window's message and its primary button.
@@ -192,18 +296,25 @@ def usb_installer_text(devices, wdi_available: bool) -> "tuple[str, str | None]"
 
     if not devices:
         return (
-            "<b>No colorimeter detected.</b><br><br>"
             # "Refresh" was this button's name until the window grew a second
-            # section; it is called "Check again" now, and a message naming a
-            # button that is not there is worse than no message.
-            "Make sure your device is plugged in via USB, "
-            "then click <b>Check again</b>.",
+            # section; it is called "Check again" now. Naming it through
+            # `_label_check_again()` rather than in the sentence is what keeps
+            # that true in German as well as in English.
+            tr("<b>No colorimeter detected.</b><br><br>"
+               "Make sure your device is plugged in via USB, "
+               "then click <b>{check_again}</b>.").format(
+                   check_again=_label_check_again()),
             None,
         )
 
+    # "WinUSB ✓" is a Microsoft product name and a tick; there is nothing in it
+    # to translate, and a key whose value must equal its key in all twelve
+    # languages fails `test_untranslated_values_do_not_creep_in_unseen`.
     lines = [
-        f"&nbsp;&nbsp;• {d.name} — "
-        f"<i>{'WinUSB ✓' if d.has_winusb else 'driver not installed'}</i>"
+        "&nbsp;&nbsp;• {name} — <i>{state}</i>".format(
+            name=d.name,
+            state=("WinUSB ✓" if d.has_winusb
+                   else tr("driver not installed")))
         for d in devices
     ]
     if not needs_install:
@@ -212,22 +323,37 @@ def usb_installer_text(devices, wdi_available: bool) -> "tuple[str, str | None]"
         # button for; explain that and still offer a manual repair
         # path (forum #148275: dialog mentioned Zadig but had no
         # button when the device reported the driver as installed).
+        #
+        # THE BUTTON IS NOT ALWAYS "Reinstall Driver" HERE — without
+        # wdi-simple it is "Open Zadig", and this sentence used to say
+        # "Reinstall Driver" in both cases, naming a control that was not on
+        # the screen. It now names whichever button is actually built, which
+        # is the same bug as the German one and was hiding in plain English.
+        btn_label = (_label_reinstall_driver() if wdi_available
+                     else _label_open_zadig())
+        # Two complete sentences rather than a spliced fragment: CLAUDE.md
+        # requires explicit singular and plural variants, and a translator
+        # cannot reorder around a splice.
         action_text = (
-            "The driver is already installed for the "
-            + ("device above. " if len(lines) == 1
-               else "devices above. ") +
-            "If ChromIQ or Argyll still can't open your instrument, click "
-            "<b>Reinstall Driver</b> to run the installer again."
-        )
-        btn_label = "Reinstall Driver" if wdi_available else "Open Zadig"
+            tr("The driver is already installed for the device above. "
+               "If ChromIQ or Argyll still can't open your instrument, click "
+               "<b>{button}</b> to run the installer again.")
+            if len(lines) == 1 else
+            tr("The driver is already installed for the devices above. "
+               "If ChromIQ or Argyll still can't open your instrument, click "
+               "<b>{button}</b> to run the installer again.")
+        ).format(button=btn_label)
     elif wdi_available:
-        action_text = (
-            "Click <b>Install Driver</b> to install the Microsoft WinUSB driver "
+        # "click Yes" is the Windows permission prompt's button, and Windows
+        # IS translated — German Windows says "Ja". It belongs inside the key,
+        # for the translator to render, not interpolated from anything of ours.
+        action_text = tr(
+            "Click <b>{button}</b> to install the Microsoft WinUSB driver "
             "automatically. A Windows security prompt will appear — click Yes to "
             "continue.<br><br>"
             "<i>No test-signing mode required. Works on x64 and ARM64.</i>"
-        )
-        btn_label = "Install Driver"
+        ).format(button=_label_install_driver())
+        btn_label = _label_install_driver()
     else:
         # THE WARNING IS NOT OPTIONAL ON A MACHINE THAT MAY HAVE
         # A CR30. "Find your colorimeter and give it WinUSB" is
@@ -236,23 +362,26 @@ def usb_installer_text(devices, wdi_available: bool) -> "tuple[str, str | None]"
         # through a COM port, and WinUSB removes it. Nothing in the
         # app can steer the user there — but this text can, and a
         # user with driver trouble is exactly who follows it.
-        action_text = (
-            "Click <b>Open Zadig</b> and ChromIQ will launch <b>Zadig</b>, a free "
+        #
+        # `Options → List All Devices`, `WinUSB` and the `Install Driver` in
+        # step 3 are ZADIG'S controls, not ours. Zadig has one English UI, so
+        # they stay English in every language — translating them would send the
+        # user hunting for a control Zadig does not have. Only `{button}` is
+        # ours. That our button and Zadig's step-3 button share a name is
+        # precisely why this is interpolated one at a time and not swept.
+        action_text = tr(
+            "Click <b>{button}</b> and ChromIQ will launch <b>Zadig</b>, a free "
             "USB driver tool. In Zadig:<br>"
             "&nbsp;&nbsp;1. Click <b>Options → List All Devices</b><br>"
             "&nbsp;&nbsp;2. Find your colorimeter in the dropdown<br>"
             "&nbsp;&nbsp;3. Select <b>WinUSB</b> as the driver and click "
             "<b>Install Driver</b>"
-            "<br><br><b>If you own a CR30:</b> do not pick the USB-serial "
-            "device (CH340) in Zadig. That instrument is reached "
-            "through its COM port, and giving it WinUSB would stop "
-            "ChromIQ finding it at all."
-        )
-        btn_label = "Open Zadig"
+        ).format(button=_label_open_zadig()) + _cr30_zadig_warning()
+        btn_label = _label_open_zadig()
 
     msg_text = (
-        ("<b>Connected colorimeter:</b><br>" if len(lines) == 1
-         else "<b>Connected colorimeters:</b><br>")
+        (tr("<b>Connected colorimeter:</b><br>") if len(lines) == 1
+         else tr("<b>Connected colorimeters:</b><br>"))
         + "<br>".join(lines)
         + "<br><br>"
         + action_text
@@ -272,51 +401,50 @@ def usb_install_outcome(*, wdi_available: bool, ran_ok: bool,
     """
     if wdi_available:
         if ran_ok and not still_unbound_names:
-            return "WinUSB driver installed successfully.", False
+            return tr("WinUSB driver installed successfully."), False
         if not ran_ok:
             return (
-                "Automatic installation failed or was cancelled.<br>"
-                "Click <b>Try Zadig</b> to install it manually using the guided tool.",
+                tr("Automatic installation failed or was cancelled.<br>"
+                   "Click <b>{button}</b> to install it manually using the "
+                   "guided tool.").format(button=_label_try_zadig()),
                 True,
             )
-        names = ", ".join(still_unbound_names) or "the instrument"
+        names = ", ".join(still_unbound_names) or tr("the instrument")
+        # `Replace Driver` and the `WinUSB` / `libusb-win32` choices are
+        # Zadig's; `{button}` is ours. See the note above usb_installer_text.
         return (
-            "Windows reported the install finished, but the driver still "
-            f"isn't bound to {names}. This often happens when the device "
-            "was previously plugged into a different USB port.<br><br>"
-            "Click <b>Try Zadig</b> to install it reliably: pick your "
-            "instrument in Zadig, choose <b>WinUSB</b> (or libusb-win32), "
-            "then click <b>Replace Driver</b>. Unplugging and replugging the "
-            "instrument first can also help.",
+            tr("Windows reported the install finished, but the driver still "
+               "isn't bound to {names}. This often happens when the device "
+               "was previously plugged into a different USB port.<br><br>"
+               "Click <b>{button}</b> to install it reliably: pick your "
+               "instrument in Zadig, choose <b>WinUSB</b> (or libusb-win32), "
+               "then click <b>Replace Driver</b>. Unplugging and replugging the "
+               "instrument first can also help.").format(
+                   names=names, button=_label_try_zadig()),
             True,
         )
 
     if zadig_status == "launched":
         return (
-            "Zadig is open. Select your colorimeter, choose WinUSB, "
-            "then click Install Driver."
-            "<br><br><b>If you own a CR30:</b> do not pick the USB-serial "
-            "device (CH340) in Zadig. That instrument is reached "
-            "through its COM port, and giving it WinUSB would stop "
-            "ChromIQ finding it at all.",
+            tr("Zadig is open. Select your colorimeter, choose WinUSB, "
+               "then click Install Driver.") + _cr30_zadig_warning(),
             False,
         )
     if zadig_status == "download_page":
         return (
-            "Zadig isn't bundled with this build, so its download page "
-            "has been opened in your browser.<br>"
-            "Download and run <b>Zadig</b>, then: Options → List All Devices → "
-            "select your colorimeter → choose WinUSB → Install Driver."
-            "<br><br><b>If you own a CR30:</b> do not pick the USB-serial "
-            "device (CH340) in Zadig. That instrument is reached "
-            "through its COM port, and giving it WinUSB would stop "
-            "ChromIQ finding it at all.",
+            tr("Zadig isn't bundled with this build, so its download page "
+               "has been opened in your browser.<br>"
+               "Download and run <b>Zadig</b>, then: Options → List All Devices → "
+               "select your colorimeter → choose WinUSB → Install Driver."
+               ) + _cr30_zadig_warning(),
             False,
         )
+    # The address is interpolated rather than left in the key: a URL that a
+    # translator retypes is a URL that can acquire a typo in one language only.
     return (
-        "Could not open Zadig or its download page. Visit "
-        "<b>https://zadig.akeo.ie</b> manually, or try running ChromIQ "
-        "as Administrator.",
+        tr("Could not open Zadig or its download page. Visit "
+           "<b>{url}</b> manually, or try running ChromIQ "
+           "as Administrator.").format(url=ZADIG_SITE),
         False,
     )
 
@@ -431,9 +559,9 @@ def serial_section_text(states, *, offer_anyway: bool = False
         "ChromIQ only ever adds a driver: nothing is removed, and nothing you "
         "already have is overwritten.")
 
-    get_it = tr("Get the driver…")
-    have_folder = tr("I already have the folder…")
-    not_listed = tr("My instrument is not listed…")
+    get_it = _label_get_driver()
+    have_folder = _label_have_folder()
+    not_listed = _label_not_listed()
 
     if offer_anyway:
         head = tr(
@@ -477,7 +605,8 @@ def serial_section_text(states, *, offer_anyway: bool = False
             "on its own. If you are here because a CR30 still will not "
             "measure, the trouble is somewhere other than the driver — and if "
             "the instrument you are trying to fix is not among the ports "
-            "above at all, use <b>My instrument is not listed</b>.")
+            "above at all, use <b>{button}</b>.").format(
+            button=_in_prose(not_listed))
         return ("<br><br>".join([head, explain_generic, tail]),
                 None, not_listed)
 
@@ -490,8 +619,9 @@ def serial_section_text(states, *, offer_anyway: bool = False
         "reading this, its bridge may not be starting up at all — a cable that "
         "only carries power rather than data will do it, and so will a socket "
         "that has stopped working. Try a different cable and a different "
-        "socket first. If that changes nothing, use <b>My instrument is not "
-        "listed</b> and ChromIQ will offer you the driver anyway.")
+        "socket first. If that changes nothing, use <b>{button}</b> and "
+        "ChromIQ will offer you the driver anyway.").format(
+            button=_in_prose(not_listed))
     return ("<br><br>".join([head, explain_bridge, tail]),
             None, not_listed)
 
@@ -627,8 +757,9 @@ def serial_outcome_text(*, stage: str, detail: str = "", folder: str = "",
                "back in.</b> Windows decides which driver to attach at the "
                "moment a device arrives, and a device that was already sitting "
                "there while the driver was being installed will often keep its "
-               "old answer until it is asked again. Then use <b>Check "
-               "again</b>."),
+               "old answer until it is asked again. Then use "
+               "<b>{button}</b>.").format(
+                   button=_in_prose(_label_check_again())),
             tr("<b>2. Point Windows at the folder by hand.</b>") + "<br>"
             + serial_manual_route_text(folder),
             tr("<b>3. If Device Manager shows no such adapter at all</b>, the "
@@ -688,9 +819,10 @@ def serial_outcome_text(*, stage: str, detail: str = "", folder: str = "",
            "<b>{url}</b>, download the CH341SER <b>ZIP</b> package — the ZIP, "
            "not the .EXE installer, which contains an older version that "
            "cannot work on ARM-based computers — unpack it anywhere you like, "
-           "and then use <b>I already have the folder…</b>. ChromIQ runs "
+           "and then use <b>{button}</b>. ChromIQ runs "
            "exactly the same checks on your copy as it would on its own."
-           ).format(url=WCH_PACKAGE_PAGE),
+           ).format(url=WCH_PACKAGE_PAGE,
+                    button=_in_prose(_label_have_folder())),
     ]), True)
 
 
