@@ -2079,3 +2079,54 @@ came back to it.
   entry ("Lab cLUT: best accuracy for printer profiles… Recommended") is
   ArgyllCMS's own position and is unaffected.
 - evidence: —
+
+### B8-59 · The file dialog's back / forward / up arrows are invisible in Neutral
+- blocks release: no
+- status: FIXED
+- found by: Basti, on screen in Neutral (2026-09-05) — *"in file opening /
+  saving dialogs in the neutral color scheme the back forward and up button
+  icons are not really visible because of low contrast"*
+- detail: `ui/widgets._style_file_dialog_toolbar` recolours the three nav
+  buttons itself (`backButton` / `forwardButton` / `toParentButton`, from the
+  Qt standard pixmaps, filled SourceIn by `_nav_icon`). It chose the colour
+  with a two-answer fold — `QColor("#1C1B18" if mode == APPEARANCE_LIGHT else
+  "#e0e0e0")` — so **Neutral, not being Light, took the DARK branch**:
+  `#e0e0e0` arrows on Neutral's `#e2e2e2` toolbar. Measured on screen through
+  the real `open_file_dialog` (Fusion, `dlg.grab()`), identical for all three
+  buttons: normal **1.03:1**, hover **1.14:1**, pressed **1.18:1**, disabled
+  **1.02:1**. There was no state in which they came back. It is the same shape
+  `ui.theme.by_mode` exists to replace, and the same one CLAUDE.md records
+  costing a third appearance its assets elsewhere. Worse than the fold alone:
+  the mode came from the SETTINGS (`resolve_mode(AppSettings().get(...))`), not
+  from the dialog, so a dialog wearing a palette that disagreed with the
+  setting got the wrong ink too.
+- fix: `ui/widgets.nav_arrow_ink(dlg)` — the ink is READ from the dialog's own
+  palette (`Active` / `ButtonText`) and never chosen per appearance. Not a
+  third literal and not a hard-coded black: Neutral's ButtonText *is*
+  `NM_TEXT_MAIN` (`#101010`), hueless because the whole Neutral token table
+  is; Light's is `LM_TEXT_MAIN`, Dark's is `TEXT_MAIN`. A fourth appearance is
+  right the day its palette exists, with no edit here. All four dialog helpers
+  (`open_file_dialog`, `open_files_dialog`, `save_file_dialog`,
+  `open_dir_dialog`) already funnel through the one styling call, so the fix
+  reaches every file dialog in the app; the native-dialog preference is
+  untouched and out of reach either way (an OS dialog draws its own arrows).
+  Measured after, same method: Neutral **14.69 / 15.82 / 12.21 / 4.24**
+  (normal / hover / pressed / disabled) — 14.69:1 is exactly `neutral_styles`'
+  own documented figure for `NM_TEXT_MAIN` on the panel. Light 13.64 / 15.94 /
+  11.28 / 3.96 and Dark 14.23 / 12.44 / 13.80 / 10.40, both unchanged in
+  character (Light moves ~1 point because the arrows now use Light's own
+  declared text ink instead of a slightly darker one-off; still 3x AA).
+  Disabled is exempt from WCAG AA as an inactive component, and the shape
+  still reads in all three.
+- evidence: test_every_file_dialog_helper_styles_its_toolbar,
+  test_the_nav_arrow_ink_is_the_dialogs_own_button_text,
+  test_the_nav_arrows_clear_wcag_aa_on_every_appearances_toolbar,
+  test_the_nav_arrow_icon_is_actually_painted_in_that_ink,
+  test_the_arrow_colour_is_not_chosen_by_a_two_answer_appearance_fold
+  — 5 mutations applied one at a time, each anchor proved unique and each edit
+  re-read from disk before running, each turning a guard red: the original fold
+  restored (6 red, naming Neutral by name), one helper stopped styling its
+  toolbar (1 red), the ink back to a literal (4 red), the ink never reaching
+  the icon (4 red), the ink read from the Disabled colour group (6 red). Ledger
+  in `beta 8/_progress/agentAG.md`; before/after screenshots and per-state
+  numbers in `beta 8/27-file-dialog-arrows/`.

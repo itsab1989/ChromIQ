@@ -2813,14 +2813,40 @@ def _nav_icon(icon: QIcon, color: QColor) -> QIcon:
     return QIcon(canvas)
 
 
-def _style_file_dialog_toolbar(dlg: QFileDialog) -> None:
-    from core.settings import AppSettings
-    from ui.theme import APPEARANCE_LIGHT, resolve_mode
+def nav_arrow_ink(dlg: QFileDialog) -> QColor:
+    """The colour the file dialog's back / forward / up arrows are painted in.
 
-    # Light mode's pale toolbar washes out the light arrows that read fine on
-    # Dark mode's dark toolbar — use a near-black arrow there instead.
-    mode = resolve_mode(AppSettings().get("appearance", "auto"))
-    arrow_color = QColor("#1C1B18" if mode == APPEARANCE_LIGHT else "#e0e0e0")
+    **THE DIALOG'S OWN ``ButtonText``, not a per-appearance literal.** This used
+    to read::
+
+        mode = resolve_mode(AppSettings().get("appearance", "auto"))
+        arrow_color = QColor("#1C1B18" if mode == APPEARANCE_LIGHT else "#e0e0e0")
+
+    — the two-answer fold :func:`ui.theme.by_mode` exists to replace. Neutral is
+    not Light, so it took the *dark* branch and painted ``#e0e0e0`` arrows on
+    Neutral's ``#e2e2e2`` toolbar: **1.03:1**, three ghosts where the navigation
+    should be (Basti, 2026-09-05). Hover was 1.14:1 and pressed 1.18:1, so there
+    was no state in which they came back.
+
+    A palette role cannot make that mistake. Every appearance already declares
+    the ink it wants on its own buttons — ``LM_TEXT_MAIN``, ``TEXT_MAIN``,
+    ``NM_TEXT_MAIN`` — and a fourth appearance is right on the day it is added
+    without an edit here. It is also why the answer is not a hard-coded black:
+    Neutral's ButtonText is ``NM_TEXT_MAIN`` (``#101010``), which is hueless
+    because Neutral's whole token table is, and Dark's is light ink because
+    Dark's ground is dark.
+
+    Only the *enabled* icon is set. Qt derives the disabled one from it
+    (``QCommonStyle::generatedIconPixmap``), which keeps the disabled arrows
+    reading as disabled rather than as a second colour we would have to keep in
+    step with three palettes.
+    """
+    return dlg.palette().color(QPalette.ColorGroup.Active,
+                               QPalette.ColorRole.ButtonText)
+
+
+def _style_file_dialog_toolbar(dlg: QFileDialog) -> None:
+    arrow_color = nav_arrow_ink(dlg)
     style = dlg.style()
     for name, sp in _NAV_BUTTONS.items():
         btn = dlg.findChild(QToolButton, name)
