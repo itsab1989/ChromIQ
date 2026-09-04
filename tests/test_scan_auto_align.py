@@ -413,7 +413,6 @@ def test_the_button_is_reachable_in_the_block_under_the_preview(qapp, tmp_path):
     care which row of it the button is on.
     """
     from PyQt6.QtCore import Qt
-    from PyQt6.QtWidgets import QHBoxLayout, QVBoxLayout
     d = _dialog(qapp, tmp_path)
     assert d._auto_align_btn.text()
     assert d._auto_align_btn.isEnabled()
@@ -421,34 +420,34 @@ def test_the_button_is_reachable_in_the_block_under_the_preview(qapp, tmp_path):
         "a button nobody can tab to is not reachable")
 
     block = _the_preview_button_block(d)
-    rows = [block.itemAt(i).layout() for i in range(block.count())]
-    assert any(d._auto_align_btn is row.itemAt(j).widget()
-               for row in rows if isinstance(row, QHBoxLayout)
-               for j in range(row.count())), (
+    assert any(d._auto_align_btn is block.itemAt(i).widget()
+               for i in range(block.count())), (
         "Auto align is not in the button block under the preview")
 
     # …and that block really is UNDER THE PREVIEW: same column, lower down.
     col = _the_right_column(d)
-    items = [col.itemAt(i) for i in range(col.count())]
-    layouts = [it.layout() for it in items]
-    assert d._marquee_box in layouts and block in layouts
-    assert layouts.index(block) > layouts.index(d._marquee_box)
+    host = block.parentWidget()
+    slots = [(col.itemAt(i).widget(), col.itemAt(i).layout())
+             for i in range(col.count())]
+    widgets = [w for w, _ in slots]
+    layouts = [ly for _, ly in slots]
+    assert d._marquee_box in layouts and host in widgets
+    assert widgets.index(host) > layouts.index(d._marquee_box)
 
 
 def _the_preview_button_block(d):
-    """The QVBoxLayout that holds every one of the six view-control rows."""
-    from PyQt6.QtWidgets import QHBoxLayout, QVBoxLayout
+    """The layout that holds every one of the six view-control buttons.
+
+    ONE WRAPPING ROW since Knut asked the block to use the width available
+    (beta 8, `23-buttons-flow`) — not the three fixed rows of two before it,
+    and not the four rows of six before that. Found from the buttons, so the
+    next rearrangement does not send this helper hunting again.
+    """
+    from PyQt6.QtWidgets import QLayout
     wanted = {d._rotate_btn, d._auto_align_btn, d._reset_btn,
               d._reset_grid_btn, d._check_align_btn, d._popout_btn}
-    for lay in d.findChildren(QVBoxLayout):
-        found = set()
-        for i in range(lay.count()):
-            row = lay.itemAt(i).layout()
-            if isinstance(row, QHBoxLayout):
-                for j in range(row.count()):
-                    w = row.itemAt(j).widget()
-                    if w in wanted:
-                        found.add(w)
+    for lay in d.findChildren(QLayout):
+        found = {lay.itemAt(i).widget() for i in range(lay.count())} & wanted
         if found == wanted:
             return lay
     raise AssertionError("no single block holds all six preview buttons")
@@ -458,9 +457,11 @@ def _the_right_column(d):
     """The column the preview and its buttons share."""
     from PyQt6.QtWidgets import QVBoxLayout
     block = _the_preview_button_block(d)
+    host = block.parentWidget()
     for lay in d.findChildren(QVBoxLayout):
         kids = [lay.itemAt(i).layout() for i in range(lay.count())]
-        if block in kids and d._marquee_box in kids:
+        widgets = [lay.itemAt(i).widget() for i in range(lay.count())]
+        if host in widgets and d._marquee_box in kids:
             return lay
     raise AssertionError("the preview and its buttons are not in one column")
 

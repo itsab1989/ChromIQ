@@ -499,19 +499,52 @@ def test_every_deliberate_exception_says_why():
 #   which retires a key translated in all twelve and adds one carrying the
 #   English source in the eleven. So the item's total is +2 in the eleven and
 #   0 in German.
+#: 2026-09-04, the #182 spin-off (AGENT-AE): +6 in each of the eleven, 0 in
+#: German. Two are M-REPORT-NOT-SAVED's headline and body — the dated report
+#: ChromIQ saves after every measurement could fail and say nothing on screen,
+#: while a report that SUCCEEDED announced itself in the measurement log, so
+#: the two outcomes looked identical. One is the "[Report] Technical detail:"
+#: line that carries the exception OUT of the message: Basti's standing rule is
+#: "friendly, extensive, easy to understand and correct", and an errno with a
+#: path in it is none of the first three. The other three are the Measurement
+#: Report window's provenance lines — the sentence under a run's accuracy table
+#: saying its verdict was recorded when the report was saved (and that the spin
+#: boxes no longer move it), the sentence for a report saved before ChromIQ
+#: recorded one, and the footnote under Report Results saying that a column
+#: reading "not recorded" is not a fault. German is translated for all six and
+#: moves by nothing, because none of them is the same wording in German. The
+#: eleven carry the English source: M-REPORT-NOT-SAVED is §M-PROPOSED, and the
+#: rest is new wording in a beta, which is exactly what "translate before the
+#: final, not during a beta" covers. These are each language's ACTUAL count.
+# +22 each in the eleven, 0 in German, 2026-09-04, beta 8 item B8-19 / B8-54
+# (AGENT-AF): the Profile type help in Tools ▸ Build profile with scanner or
+# camera. The one key that went away said the two cLUTs were interchangeable and
+# that Lab "sometimes gives slightly smoother neutrals" — nothing measured that,
+# and B8-19 measured the opposite kind of difference (a Lab cLUT cannot encode
+# anything above its chart's white). It was translated in all twelve, so
+# retiring it costs nothing here. In its place the help is built from paragraphs
+# and is MODE-AWARE, because a scanner input profile and a printer output
+# profile want different types and this window already marks a different
+# "(default)" for each: 21 paragraph/label keys plus the combo's new
+# "(recommended cLUT)" marker and three live notes — 22 arriving, each carrying
+# the English source in the eleven for the ordinary beta reason (translation
+# happens before a final, not during a beta) AND because the wording is still
+# PROPOSED. German is translated for all 22 and does not move. See §M-PROPOSED,
+# "⏳ Awaiting confirmation — Profile type help text". These are each language's
+# ACTUAL count.
 _IDENTICAL_TO_KEY = {
     "de": 152,
-    "es": 341,
-    "fr": 361,
-    "it": 353,
-    "ja": 330,
-    "nl": 370,
-    "no": 354,
-    "pl": 345,
-    "pt": 345,
-    "ru": 317,
-    "sv": 358,
-    "zh_CN": 323,
+    "es": 369,
+    "fr": 389,
+    "it": 381,
+    "ja": 358,
+    "nl": 398,
+    "no": 382,
+    "pl": 373,
+    "pt": 373,
+    "ru": 345,
+    "sv": 386,
+    "zh_CN": 351,
 }
 
 

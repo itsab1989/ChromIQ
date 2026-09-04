@@ -911,6 +911,126 @@ def accuracy_verdict(de00: dict, avg_thr: float, max_thr: float) -> "tuple[list,
     return rows, all_pass
 
 
+# ---------------------------------------------------------------------------
+# A saved report keeps the verdict it was given
+# ---------------------------------------------------------------------------
+#
+# The thresholds are a GLOBAL setting (`core/settings.py`,
+# `report_pass_threshold_avg` / `_max`), read afresh every time the report
+# window is built. Until this was fixed, a saved report stored neither the
+# thresholds it had been judged with nor the verdict it was given, and the
+# window re-derived Pass and Fail from today's numbers — so nudging one spin
+# box silently re-graded every historical report the user had ever made, and a
+# dated record that changes its own verdict after the fact is not a record.
+#
+# Knut, #182, 2026-09-04: *"Verdict should be saved for each dated run."*
+#
+# So the report carries two more keys, written once, at the moment it is saved:
+#
+#   "pass_thresholds": {"avg": 2.0, "max": 3.0}
+#   "verdict": {"rows": [...], "all_pass": true, "source": "gamut_in",
+#               "graded": true}
+#
+# `rows` is stored as well as the thresholds, rather than instead of them,
+# because the two answer different questions. The thresholds say what the user
+# asked of this print; the rows say what ChromIQ actually concluded — which
+# stays true even if a later version changes ACCURACY_METRICS or the in-gamut
+# rule underneath it. A record has to survive its own software.
+#
+# NOTHING IS BUMPED AND NOTHING IS REWRITTEN. `REPORT_SCHEMA` stays at 7: the
+# window treats a report with an older schema as stale and rebuilds it from the
+# run's .ti3, so a bump would silently re-derive every report on disk — the
+# exact thing this fix exists to stop. Both keys are optional; a report saved by
+# an earlier ChromIQ simply does not have them, is detected by their ABSENCE,
+# and is left exactly as it lies on disk.
+
+#: The verdict's ``source``: which delta-E block it was passed on.
+VERDICT_SOURCE_IN_GAMUT = "gamut_in"
+VERDICT_SOURCE_ALL = "de00"
+VERDICT_SOURCE_NONE = "none"
+
+
+def is_drift_check(report: dict) -> bool:
+    """True for a recorded-raw verification sheet judged against the design.
+
+    Its job is drift, not accuracy: Pass/Fail against the profile thresholds
+    would fail a healthy printer for ever (Knut, 2026-08-11). Unrecorded sheets
+    keep the ordinary grading — nobody knows how they were printed.
+
+    Lives here rather than in the report window because the STORED verdict and
+    the DISPLAYED one have to agree about which sheets are graded at all, and
+    two copies of that rule would eventually disagree.
+    """
+    report = report or {}
+    return bool(report.get("is_verification")
+                and report.get("reference_source") in ("design", "device")
+                and (report.get("printing") or {}).get("colour") == "raw")
+
+
+def graded_de00(report: dict) -> "tuple[dict, str]":
+    """``(the delta-E block the verdict is passed on, its source name)``.
+
+    A run with the in/out-of-gamut split is judged on its WITHIN-gamut figures:
+    colours outside the gamut were never printable, so grading them against the
+    thresholds would fail a healthy profile for its paper (Knut, 2026-08-10).
+    Runs without a split are judged on all patches.
+    """
+    report = report or {}
+    d_in = (report.get("gamut_split") or {}).get("de00_in")
+    if d_in:
+        return dict(d_in), VERDICT_SOURCE_IN_GAMUT
+    de = report.get("de00")
+    if de:
+        return dict(de), VERDICT_SOURCE_ALL
+    return {}, VERDICT_SOURCE_NONE
+
+
+def stamp_verdict(report: dict, avg_thr: float, max_thr: float) -> dict:
+    """Record the thresholds and the verdict ON the report, and return it.
+
+    Called once, by whoever is about to :func:`save_report` — never at display
+    time. Mutates and returns *report* so it reads as one step at the call site.
+    """
+    de, source = graded_de00(report)
+    graded = not is_drift_check(report)
+    rows, all_pass = accuracy_verdict(de, avg_thr, max_thr)
+    report["pass_thresholds"] = {"avg": float(avg_thr), "max": float(max_thr)}
+    report["verdict"] = {
+        "rows": rows,
+        # A drift check is not graded at all, and `None` says so without
+        # pretending the sheet passed or failed.
+        "all_pass": (all_pass if graded and source != VERDICT_SOURCE_NONE
+                     else None),
+        "source": source,
+        "graded": graded,
+    }
+    return report
+
+
+def recorded_verdict(report: dict) -> "dict | None":
+    """The verdict this report was SAVED with, or None if it carries none.
+
+    None means "saved by a ChromIQ that did not record one" — never "it
+    failed". The caller must say which of the two it is showing.
+    """
+    v = (report or {}).get("verdict")
+    if not isinstance(v, dict) or not isinstance(v.get("rows"), list):
+        return None
+    return v
+
+
+def recorded_thresholds(report: dict) -> "tuple[float, float] | None":
+    """The ``(average, maximum)`` thresholds this report was judged with, or
+    None when it was saved before ChromIQ recorded them."""
+    t = (report or {}).get("pass_thresholds")
+    if not isinstance(t, dict):
+        return None
+    try:
+        return float(t["avg"]), float(t["max"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
 def _run_label(r: dict) -> str:
     """A run's ``Profile @ date`` label for warning lists (no quotes)."""
     return f'{r.get("chart") or "?"} @ {str(r.get("created") or "")[:19]}'

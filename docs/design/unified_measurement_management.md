@@ -1203,6 +1203,60 @@ inviting a build.*
 >
 > Load a scan for this page and choose the chart it was made from, then press Auto align again.
 
+### M-REPORT-NOT-SAVED · the dated report after a measurement could not be written — Measure
+
+*New message (#182 spin-off, 2026-09-04). "Save measurement report" is on by
+default, and after every measurement ChromIQ builds a dated accuracy report and
+writes it into the run's `reports/` folder, so a printer's reports accrue and
+can be trended. When that failed, `_maybe_save_measurement_report` sent the
+exception to `log.warning` and appended NOTHING to the screen.*
+
+*The silence was worse than an omission, because the SUCCESS is announced: a
+good run prints "[Report] Measurement report saved: …" into the measurement log.
+So a failure did not merely fail to inform — the window that had just written no
+report was indistinguishable from the window that had, and the only evidence
+lived in a log file the user never opens.*
+
+*It is the log and the status line, not a window.* This is the shape
+`_on_cr30_dropped_reading` already uses in the same tab, and the reason Basti
+gave for wanting a pop-up on M-CR30-READ-FAILED — *"instead of ruining a whole
+measurement session when this is unnoticed"* — does not reach here. There the
+session stalls with the instrument waiting. Here the measurement is over and
+safe: the `.ti3` is the record, the report is derived from it, and the
+**Measurement report** button rebuilds it on demand. Nothing is interrupted,
+nothing is lost, and there is nothing to do at that instant — so a modal after
+every failed report would cost more than it says.
+
+*The message carries NO placeholder and no exception text, and that is
+deliberate.* Basti's standing rule for user-facing text is *"friendly,
+extensive, easy to understand and correct"*, and an errno with a path in it
+fails three of those four: it blames, it is not plain language, and — because
+the same `except` catches a failure to BUILD the report and a failure to WRITE
+it — a sentence built around it would state a cause nobody has established. So
+the message says what happened, what it costs and what to do, names the usual
+reasons as things to check rather than as a diagnosis, and points at the
+technical line that follows it in the log. That line is
+`[Report] Technical detail: <class>: <message>`, and it is not part of §M — it
+is a log line, not an explanation.
+
+*The first paragraph is the most valuable one in the message.* A user who reads
+"the report failed" and concludes their measurement is gone has been badly
+served by a technically accurate sentence, so the message opens by saying what
+was NOT lost, before it says what was.
+
+> **The measurement report could not be created**
+>
+> Your measurement is safe. It was read, checked and written to disk exactly as it always is, and nothing about it has changed. This is only the dated accuracy report ChromIQ normally saves beside it, and nothing in your chart, your measurement or your profile depends on that report.
+>
+> What did not happen: ChromIQ was not able to work out and save this measurement's report just now, so there is no new dated entry for it in the run's reports folder.
+>
+> You do not need to measure anything again. The report is worked out from the measurement file itself, so you can open it whenever you like with the Measurement report button, and save it from there.
+>
+> If you would like to look into it, the technical detail is on the line below this message and in ChromIQ's log file. The usual reasons are a run folder that has been moved, renamed or deleted since the measurement began, a disk with no room left on it, or a folder ChromIQ is not allowed to write into. If this keeps happening and you would rather not be asked about it, you can switch the automatic report off in Preferences, under Reports.
+
+**Confirmed by:** Basti, 2026-09-04 — *"i approve it"*, on the wording as
+written, after reading it in full.
+
 ## M-PROPOSED. Messages awaiting review
 
 *This section is where a new or revised message goes: add it to
@@ -3040,6 +3094,226 @@ Drehung kommen beim Andocken unverändert zurück."*
 because translating a draft translates it twice. German is translated, as the
 beta convention has it. "⤢ Dock back", the label the button carries while the
 preview is popped out, is unchanged.*
+
+### Profile type help text, Tools ▸ Build profile with scanner or camera (AGENT-AD, AGENT-AF) — Confirmed behaviour
+
+**Confirmed by:** Basti, 2026-09-04 — *"i approve it"*, given after he read the
+text in full and asked whether it was "friendly, extensive, easy to understand".
+Approved as written: the help itself, the "(recommended cLUT)" marker in scanner
+mode, and the patch-count hint. Drafted 2026-09-04 by AGENT-AD, revised the same
+day by AGENT-AF when Basti ruled that the measurement must be reflected in the
+app rather than only in a reply to Knut. Knut asked for it: *"Maybe the help text for the profile type should give
+recommendations for when to use the LUT types, such as when one has large
+targets with many patches… or whatever…."*
+
+**The wording below is what the app now shows.** It is written into
+`ui/dialogs/scanner_colprof.py` (`ptype_help`, `ptype_advice`) and reproduced
+here verbatim so a ruling can be made on the exact words. If a word changes
+there it changes here in the same commit —
+`tests/test_the_profile_type_says_which_clut.py` pins the claims and
+`tests/test_i18n.py` pins the catalogues.
+
+*Deliberately NOT given an `M-` identifier, for the reason the sections above
+give: §M is a catalogue of MESSAGES rendered from
+`workflow/measurement_messages.py`, and `tests/test_message_catalogue.py`
+requires every `M-` heading here to exist there. A tooltip is not a message and
+must not be given a fake identifier to satisfy a parser.*
+
+**Every recommendation is a measurement, not colour-management lore.** The
+numbers come from cross-validated builds on two REAL scans — a Wolf Faust IT8
+(288 patches) and a LaserSoft DCPro (864) — fitted on part of the patch set and
+scored, in CIEDE2000, only on patches the fit never saw. The evidence is in
+`beta 8/24-scanner-profile-default/`, the harness is `cv_profile_type.py`, and
+the register entries are B8-19 and B8-56.
+
+**It differs by MODE, because the advice does.** The same row builds a scanner /
+camera INPUT profile and, with "Profile my printer from this scan" ticked, a
+printer OUTPUT profile — and the window already marks a different "(default)"
+for each. The XYZ recommendation is about capturing something lighter than the
+chart's white; ArgyllCMS's `colprof.html` makes that claim of INPUT devices
+specifically, AGENT-AD measured input profiles only, and nothing a printer
+prints is lighter than the paper it prints on. So it is made on the scanner side
+and NOT on the printer side. One text covering both would have to contradict one
+of the two "(default)" markers.
+
+#### 1 · The ⓘ beside "Profile type (-a):" — scanner or camera mode
+
+> How the scanner or camera profile models colour.
+>
+> Profile type (-a) — the shape of the maths inside the profile, and how it describes what your device does with colour. All four choices build a working profile. What separates them is how many measured patches they need before they are any good, and how they behave on colours your target did not contain.
+>
+> That makes the size of your target the first thing to look at, and you do not have to count anything: the patch count is printed beside each target's name in the list above, and again in the green “✓ … patches” line once a target or a chart is loaded.
+>
+> • Shaper + matrix — the default here, and a small, sturdy profile: one gentle tone curve for each of red, green and blue, plus a 3×3 matrix, which is a fixed recipe for mixing those three into a finished colour. It is a formula rather than a stored table, so it needs very little data to work well, and it carries on sensibly beyond the lightest and darkest patch your target contains. Take it for targets up to about a hundred patches — a ColorChecker (24 patches), a SpyderChecker (48), a QPcard (49) — and whenever a scan is noisy or you would rather not think about it. On real scanned targets it was the most accurate of the four at 24 and at 48 patches.
+>
+> • cLUT — XYZ table — “cLUT” means a look-up table. Instead of a formula, the profile stores your measurements and interpolates between them, so it can follow a device that does not behave like tidy maths. That freedom has to be paid for in patches: with too few of them there is nothing much to interpolate between, and the table will happily fit the noise in a scan rather than the colour. Take it when your target has roughly two hundred patches or more — a full IT8 has 288, a three-page ISO 12641-2 set has 864 — and the scan is clean and correctly exposed. At that size it measured about a third more accurate than Shaper + matrix on a real IT8 scan. “XYZ” is simply the internal form the table keeps colour in, and it is the one to use here — the next entry says why.
+>
+> • cLUT — Lab table — the same kind of look-up table, keeping colour in a different internal form. On the colours your target actually contains, the two tables measured close together, with neither of them consistently ahead of the other. The difference is at the top end. A Lab table cannot describe anything lighter than your target's own white patch — and a target's white board is not very white: on a real IT8 scan it reached only about 80 out of the scanner's 100. So everything brighter than that, which includes most bright photo paper, arrives at exactly the lightness of the target's white patch, with the differences between those tones flattened away. Shaper + matrix and the XYZ table both keep going past it. That is the whole reason the XYZ table is the one to take if you want a table profile. If you would rather stay with Lab, set Advanced… ▸ White point handling to “Auto-scale to avoid clipping (-u)”, which lifts the ceiling.
+>
+> • Matrix only — the 3×3 mix and nothing else, with no tone curves in front of it. It suits a device that is already perfectly linear, such as a camera shooting RAW. On an ordinary scanner it measured several times less accurate than any of the other three at every size tested, so it is not the one to reach for here.
+>
+> Right around a hundred patches the first three land within a whisker of one another and the choice barely matters; it is above and below that the difference shows. And whichever you pick, changing the paper or the target you scan moves the result a great deal further than the profile type does.
+>
+> Quality (-q) — the look-up table's grid resolution: higher is finer but slower, and needs better data to be worth it. It applies only to the two cLUT types and is greyed out for the other two. Medium is a good default, Low is a quick test, and High and Ultra are for large, clean charts.
+>
+> If you tick “Profile my printer from this scan”, this same control builds the printer profile instead — a different kind of device, with different advice. The type then defaults to “cLUT — Lab table”; open this ⓘ again with the box ticked and it will explain why. Either way you won't find a working space (like sRGB) or a rendering intent here; a rendering intent is something you choose when you print, not when you build a profile from measurements.
+>
+> None of the recommendations above is received wisdom. Profiles were built from part of two real scanned targets and then scored only on the patches the fit had never seen, which is the only way the numbers mean anything — a profile marked against its own measurements flatters a look-up table badly.
+
+*German:*
+
+> Wie das Scanner- oder Kameraprofil Farbe modelliert.
+>
+> Profiltyp (-a) – die Form der Mathematik im Inneren des Profils, also wie es beschreibt, was dein Gerät mit Farbe macht. Alle vier Möglichkeiten erzeugen ein funktionierendes Profil. Sie unterscheiden sich darin, wie viele gemessene Felder sie brauchen, bevor sie wirklich gut sind, und wie sie sich bei Farben verhalten, die dein Target gar nicht enthielt.
+>
+> Damit ist die Größe deines Targets das Erste, worauf du schauen solltest – und zählen musst du nichts: Die Feldanzahl steht in der Liste oben neben dem Namen jedes Targets und noch einmal in der grünen Bereitschaftszeile mit dem Häkchen, sobald ein Target oder eine Testkarte geladen ist.
+>
+> • Shaper + Matrix – hier die Voreinstellung und ein kleines, robustes Profil: je eine sanfte Tonwertkurve für Rot, Grün und Blau, dazu eine 3×3-Matrix, also ein festes Rezept, das diese drei zu einer fertigen Farbe mischt. Es ist eine Formel und keine gespeicherte Tabelle, braucht deshalb sehr wenig Daten, um gut zu arbeiten, und verhält sich auch jenseits des hellsten und des dunkelsten Feldes deines Targets noch vernünftig. Nimm es für Targets bis etwa hundert Felder – ein ColorChecker (24 Felder), ein SpyderChecker (48), eine QPcard (49) – und immer dann, wenn ein Scan verrauscht ist oder du dir darüber lieber keine Gedanken machen möchtest. Bei echten gescannten Targets war es bei 24 und bei 48 Feldern das genaueste der vier.
+>
+> • cLUT — XYZ-Tabelle – „cLUT“ heißt Nachschlagetabelle. Statt einer Formel speichert das Profil deine Messwerte und interpoliert dazwischen, kann also einem Gerät folgen, das sich nicht wie saubere Mathematik verhält. Diese Freiheit muss in Feldern bezahlt werden: Sind es zu wenige, gibt es kaum etwas, wozwischen sich interpolieren ließe, und die Tabelle bildet bereitwillig das Rauschen im Scan ab statt der Farbe. Nimm sie, wenn dein Target ungefähr zweihundert Felder oder mehr hat – ein volles IT8 hat 288, ein dreiseitiges ISO-12641-2-Set 864 – und der Scan sauber und richtig belichtet ist. In dieser Größe war sie bei einem echten IT8-Scan rund ein Drittel genauer als Shaper + Matrix. „XYZ“ ist einfach die interne Form, in der die Tabelle Farbe hält, und sie ist hier die richtige – warum, sagt der nächste Punkt.
+>
+> • cLUT — Lab-Tabelle – dieselbe Art Nachschlagetabelle, die Farbe nur in einer anderen internen Form hält. Auf den Farben, die dein Target tatsächlich enthält, lagen die beiden Tabellen dicht beieinander, keine von beiden durchgehend vorn. Der Unterschied liegt am oberen Ende. Eine Lab-Tabelle kann nichts beschreiben, was heller ist als das eigene Weißfeld deines Targets – und das Weiß eines Targets ist gar nicht so weiß: Bei einem echten IT8-Scan erreichte es nur etwa 80 von den 100 des Scanners. Alles Hellere, und dazu gehört das meiste helle Fotopapier, kommt deshalb genau mit der Helligkeit des Weißfeldes heraus; die Unterschiede zwischen diesen Tönen sind eingeebnet. Shaper + Matrix und die XYZ-Tabelle laufen beide darüber hinaus weiter. Genau das ist der Grund, die XYZ-Tabelle zu nehmen, wenn du ein Tabellenprofil willst. Wenn du lieber bei Lab bleibst, stelle Erweitert… ▸ Weißpunkt-Behandlung auf „Automatisch skalieren, um Beschnitt zu vermeiden (-u)“ – das hebt die Grenze auf.
+>
+> • Nur Matrix – die 3×3-Mischung und sonst nichts, ohne jede Tonwertkurve davor. Sie passt zu einem Gerät, das bereits perfekt linear ist, etwa einer Kamera im RAW-Modus. Bei einem gewöhnlichen Scanner war sie in jeder getesteten Größe um ein Vielfaches ungenauer als alle drei anderen und ist hier deshalb nicht die richtige Wahl.
+>
+> Genau um die hundert Felder herum liegen die ersten drei so dicht beieinander, dass die Wahl kaum eine Rolle spielt; erst darüber und darunter zeigt sich der Unterschied. Und was du auch nimmst: Ein anderes Papier oder ein anderes Target zu scannen verschiebt das Ergebnis weit stärker als der Profiltyp.
+>
+> Qualität (-q) – die Gitterauflösung der Nachschlagetabelle: höher ist feiner, aber langsamer und braucht bessere Daten, damit es sich lohnt. Sie gilt nur für die beiden cLUT-Typen und ist für die anderen beiden ausgegraut. Mittel ist ein guter Standard, Niedrig ein schneller Test, und Hoch und Ultra sind für große, saubere Testkarten.
+>
+> Wenn du „Meinen Drucker aus diesem Scan profilieren“ ankreuzt, baut genau dieses Bedienelement stattdessen das Druckerprofil – ein anderes Gerät, eine andere Empfehlung. Der Typ ist dann auf „cLUT — Lab-Tabelle“ voreingestellt; öffne dieses ⓘ mit gesetztem Haken noch einmal, dann erklärt es dir warum. So oder so findest du hier keinen Arbeitsfarbraum (etwa sRGB) und kein Rendering-Intent; ein Rendering-Intent wählst du beim Drucken, nicht beim Erstellen eines Profils aus Messwerten.
+>
+> Nichts von alledem ist überliefertes Halbwissen. Die Profile wurden aus einem Teil zweier echter gescannter Targets gebaut und danach nur an den Feldern bewertet, die die Anpassung nie gesehen hatte – nur so bedeuten die Zahlen überhaupt etwas: Ein Profil, das an seinen eigenen Messwerten gemessen wird, schmeichelt einer Nachschlagetabelle erheblich.
+
+#### 2 · The same ⓘ with "Profile my printer from this scan" ticked
+
+> How the printer profile models colour.
+>
+> “Profile my printer from this scan” is ticked, so this window is building a PRINTER profile: your scanner is the measuring instrument, and the chart it reads is the one you printed. That changes what to choose here, so this is not the same advice you get for a scanner or camera profile.
+>
+> Profile type (-a) — the shape of the maths inside the profile, and how it describes what your printer does with colour. All four choices build a working profile.
+>
+> • cLUT — Lab table — the default here, and what a printer profile should normally be. “cLUT” means a look-up table: instead of reducing your printer to a formula, the profile stores your measurements and interpolates between them. It also carries something the formula types cannot — the perceptual and saturation rendering intents, which are what decide how colours your printer cannot reach are eased inwards when you print a photograph. Everything under Advanced… ▸ Gamut Mapping describes those two intents, so it has nothing to act on unless the profile is a table. “Lab” is simply the internal form the table keeps colour in; it is ArgyllCMS's own default for this job, and it is what ChromIQ's Build Profile tab builds as well.
+>
+> • cLUT — XYZ table — the same kind of table, keeping colour in the other internal form. It is worth knowing why this window points at the XYZ table on the scanner side and not here. A Lab table cannot describe anything lighter than the white patch of the chart it was built from, and a scanner meets paper brighter than a scanning target's white board all the time. A printer never does — nothing it prints is lighter than the paper it prints on — so that reason does not apply here, and the Lab default stands.
+>
+> • Shaper + matrix, and Matrix only — a formula instead of a table: one gentle tone curve per colour channel plus a 3×3 matrix, which is a fixed recipe for mixing red, green and blue into a finished colour, or that mix on its own. They are small and undemanding, and they are offered here because this one control also serves the scanner side of the window. For a printer they have a real drawback: by the way the ICC format works, a matrix-based profile cannot carry a perceptual or a saturation intent at all, so it has nothing to fall back on when a colour is out of the printer's reach. Leave them be unless you know you want one.
+>
+> Quality (-q) — the look-up table's grid resolution: higher is finer but slower, and needs better data to be worth it. It applies only to the two cLUT types and is greyed out for the other two. Medium is a good default, Low is a quick test, and High and Ultra are for large, clean charts.
+>
+> Untick “Profile my printer from this scan” and this control goes back to building a scanner or camera profile, where the default is “Shaper + matrix” and the advice is different — open this ⓘ again and it will tell you that story instead. Either way you won't find a working space (like sRGB) or a rendering intent in this row: the working space the gamut mapping uses is under Advanced… ▸ Gamut Mapping, and a rendering intent is something you choose when you print, not when you build a profile from measurements.
+
+*German:*
+
+> Wie das Druckerprofil Farbe modelliert.
+>
+> „Meinen Drucker aus diesem Scan profilieren“ ist angehakt, dieses Fenster baut also ein DRUCKERPROFIL: Dein Scanner ist das Messgerät, und die Testkarte, die er liest, ist die, die du gedruckt hast. Das ändert, was du hier wählen solltest – es ist deshalb nicht dieselbe Empfehlung wie für ein Scanner- oder Kameraprofil.
+>
+> Profiltyp (-a) – die Form der Mathematik im Inneren des Profils, also wie es beschreibt, was dein Drucker mit Farbe macht. Alle vier Möglichkeiten erzeugen ein funktionierendes Profil.
+>
+> • cLUT — Lab-Tabelle – hier die Voreinstellung und normalerweise das, was ein Druckerprofil sein sollte. „cLUT“ heißt Nachschlagetabelle: Statt deinen Drucker auf eine Formel zu reduzieren, speichert das Profil deine Messwerte und interpoliert dazwischen. Es trägt außerdem etwas, das die Formel-Typen nicht können – die Rendering-Intents Perzeptiv und Sättigung, die darüber entscheiden, wie Farben, die dein Drucker nicht erreicht, beim Druck eines Fotos sanft nach innen geführt werden. Alles unter Erweitert… ▸ Gamut-Mapping beschreibt genau diese beiden Intents und hat deshalb nichts, worauf es wirken könnte, wenn das Profil keine Tabelle ist. „Lab“ ist einfach die interne Form, in der die Tabelle Farbe hält; es ist die eigene Voreinstellung von ArgyllCMS für diese Aufgabe und auch das, was der Reiter „Profil erstellen“ von ChromIQ baut.
+>
+> • cLUT — XYZ-Tabelle – dieselbe Art Tabelle, die Farbe nur in der anderen internen Form hält. Es lohnt sich zu wissen, warum dieses Fenster auf der Scanner-Seite zur XYZ-Tabelle rät und hier nicht. Eine Lab-Tabelle kann nichts beschreiben, was heller ist als das Weißfeld der Testkarte, aus der sie gebaut wurde, und ein Scanner bekommt ständig Papier zu sehen, das heller ist als das Weiß eines Scan-Targets. Ein Drucker nie – nichts, was er druckt, ist heller als das Papier, auf das er druckt –, deshalb greift dieser Grund hier nicht und die Lab-Voreinstellung bleibt richtig.
+>
+> • Shaper + Matrix und Nur Matrix – eine Formel statt einer Tabelle: je eine sanfte Tonwertkurve pro Farbkanal plus eine 3×3-Matrix, also ein festes Rezept, das Rot, Grün und Blau zu einer fertigen Farbe mischt – oder diese Mischung allein. Sie sind klein und anspruchslos und stehen hier, weil dasselbe Bedienelement auch die Scanner-Seite dieses Fensters bedient. Für einen Drucker haben sie einen echten Nachteil: So wie das ICC-Format funktioniert, kann ein matrixbasiertes Profil überhaupt kein perzeptives Intent und kein Sättigungs-Intent tragen und hat damit nichts, worauf es zurückgreifen kann, wenn eine Farbe außerhalb der Reichweite des Druckers liegt. Lass sie hier stehen, außer du weißt, dass du eine davon willst.
+>
+> Qualität (-q) – die Gitterauflösung der Nachschlagetabelle: höher ist feiner, aber langsamer und braucht bessere Daten, damit es sich lohnt. Sie gilt nur für die beiden cLUT-Typen und ist für die anderen beiden ausgegraut. Mittel ist ein guter Standard, Niedrig ein schneller Test, und Hoch und Ultra sind für große, saubere Testkarten.
+>
+> Nimm den Haken bei „Meinen Drucker aus diesem Scan profilieren“ heraus, dann baut dieses Bedienelement wieder ein Scanner- oder Kameraprofil, wo die Voreinstellung „Shaper + Matrix“ heißt und die Empfehlung eine andere ist – öffne dieses ⓘ dann noch einmal, es erzählt dir stattdessen jene Geschichte. So oder so findest du in dieser Zeile keinen Arbeitsfarbraum (etwa sRGB) und kein Rendering-Intent: Der Arbeitsfarbraum, den das Gamut-Mapping benutzt, steht unter Erweitert… ▸ Gamut-Mapping, und ein Rendering-Intent wählst du beim Drucken, nicht beim Erstellen eines Profils aus Messwerten.
+
+#### 3 · The dropdown's second marker
+
+The factory default already carries "(default)", and that is unchanged. A
+SECOND marker names which of the two cLUTs to take if you want one — **in
+scanner / camera mode only** (`PTYPE_RECOMMENDED_CLUT = {False: "x", True:
+None}`). The Lab option is NOT removed, NOT disabled and NOT relabelled: Knut
+likes its results, it stays a legitimate choice, and picking it still emits
+`-al` unchanged. The two markers can never land on the same item, and a
+recommendation identical to that mode's default is refused by a test.
+
+| mode | what the dropdown reads |
+|---|---|
+| scanner / camera | Shaper + matrix **(default)** · Matrix only · cLUT — XYZ table **(recommended cLUT)** · cLUT — Lab table |
+| printer | Shaper + matrix · Matrix only · cLUT — XYZ table · cLUT — Lab table **(default)** |
+
+| proposed marker | German |
+|---|---|
+| **{option} (recommended cLUT)** | {option} (empfohlene cLUT) |
+
+#### 4 · Three live notes, carried inside that same ⓘ
+
+Not a new control, and nothing new on the face of the window:
+`TooltipButton.set_live_note`, the mechanism Basti asked for on 2026-09-04
+(*"a tooltip will be enough"*), which puts a note in FRONT of the standing help
+and lifts only its first line into the hover tooltip. It changes no setting, and
+it disappears on its own when it stops being true.
+
+**An automatic switch was considered and REJECTED** (B8-19): the window learns
+the patch count only after a chart or target is loaded, while the type is set
+before it, so an automatic default would move the user's control under them —
+and the crossover is shallow. A note is the proportionate form of the same
+information.
+
+Each one requires a KNOWN patch count, and none of them fires in printer mode,
+where nothing was measured.
+
+| when | note |
+|---|---|
+| Shaper + matrix chosen, and the target has 200 patches or more | (a) |
+| either cLUT chosen, and the target has fewer than 100 patches | (b) |
+| cLUT — Lab chosen, and (b) did not already fire | (c) |
+| anywhere between, or the count not yet known, or printer mode | *nothing* |
+
+
+**(a)** — shown here with a 288-patch target:
+
+> A note on the profile type: your target has 288 patches, which is big enough for a look-up table to be worth it.
+>
+> Above about a hundred patches, a cLUT measured about a third more accurate than “Shaper + matrix” on real scanned targets, and “cLUT — XYZ table” is the one to take. “Shaper + matrix” is still a perfectly good, safe profile and it will not clip your highlights — this is a suggestion, not a warning, and nothing has been changed for you.
+
+*German:*
+
+> Ein Hinweis zum Profiltyp: Dein Target hat 288 Felder – groß genug, dass sich eine Nachschlagetabelle lohnt.
+>
+> Oberhalb von etwa hundert Feldern war eine cLUT bei echten gescannten Targets rund ein Drittel genauer als „Shaper + Matrix“, und die richtige davon ist „cLUT — XYZ-Tabelle“. „Shaper + Matrix“ bleibt trotzdem ein völlig brauchbares, sicheres Profil und beschneidet deine Lichter nicht – das hier ist ein Vorschlag, keine Warnung, und es wurde nichts für dich geändert.
+
+**(b)** — shown here with a 48-patch target:
+
+> A note on the profile type: your target has 48 patches, which is on the small side for a look-up table.
+>
+> Below about a hundred patches, “Shaper + matrix” measured more accurate than either cLUT on real scanned targets — a table needs plenty of well-spread patches before it has anything to interpolate between, and with fewer it starts fitting the noise in the scan. Your choice stands; this is only a suggestion, and nothing here has been changed for you.
+
+*German:*
+
+> Ein Hinweis zum Profiltyp: Dein Target hat 48 Felder, das ist für eine Nachschlagetabelle eher wenig.
+>
+> Unterhalb von etwa hundert Feldern war „Shaper + Matrix“ bei echten gescannten Targets genauer als beide cLUTs – eine Tabelle braucht reichlich gut verteilte Felder, bevor sie überhaupt etwas zum Interpolieren hat, und mit weniger bildet sie das Rauschen im Scan ab. Deine Wahl bleibt bestehen; das hier ist nur ein Vorschlag, und es wurde nichts für dich geändert.
+
+**(c)** — shown here with a 288-patch target:
+
+> A note on the profile type: “cLUT — Lab table” cannot describe anything lighter than your target's own white patch.
+>
+> A scanning target's white board is not very white — on a real IT8 scan it reached only about 80 out of the scanner's 100 — so everything brighter, which includes most bright photo paper, comes out at exactly the lightness of that white patch with the differences between those tones flattened away. “cLUT — XYZ table” is the same kind of table without that ceiling, and it measured just as accurate on the colours your target does contain. If you would rather stay with Lab, Advanced… ▸ White point handling ▸ “Auto-scale to avoid clipping (-u)” lifts the ceiling. Your choice stands either way.
+
+*German:*
+
+> Ein Hinweis zum Profiltyp: „cLUT — Lab-Tabelle“ kann nichts beschreiben, was heller ist als das eigene Weißfeld deines Targets.
+>
+> Das Weiß eines Scan-Targets ist gar nicht so weiß – bei einem echten IT8-Scan erreichte es nur etwa 80 von den 100 des Scanners –, deshalb kommt alles Hellere, und dazu gehört das meiste helle Fotopapier, genau mit der Helligkeit dieses Weißfeldes heraus; die Unterschiede zwischen diesen Tönen sind eingeebnet. „cLUT — XYZ-Tabelle“ ist dieselbe Art Tabelle ohne diese Grenze und war auf den Farben, die dein Target enthält, genauso genau. Wenn du lieber bei Lab bleibst, hebt Erweitert… ▸ Weißpunkt-Behandlung ▸ „Automatisch skalieren, um Beschnitt zu vermeiden (-u)“ die Grenze auf. Deine Wahl bleibt so oder so bestehen.
+
+*The other eleven catalogues carry the English source until this is ruled on,
+because translating a draft translates it twice. German is translated, as the
+beta convention has it. 22 keys arrive and 1 is retired — the retired one is the
+sentence this item exists to remove, "XYZ and Lab are just how the table stores
+colour inside; both are accurate, and Lab sometimes gives slightly smoother
+neutrals", which nothing measured either way.*
+
+*The dropdown's "(default)" markers are unchanged in BOTH modes: the
+measurements support keeping **Shaper + matrix** as the scanner default (B8-19)
+and say nothing against **cLUT — Lab** as the printer one, which is also
+ArgyllCMS's own default and ChromIQ's own in tab 4
+(`workflow/profile_builder.py`, `data/parameters.yaml`). If either default were
+ever moved, the marker, the help and the recommendation would have to move in
+the same commit or the window would contradict itself.*
 
 ### M-x. Which table uses which message
 

@@ -459,6 +459,11 @@ WINDOW_SOURCES = [
     # sentence with an internal reason code formatted into the middle of it.
     ("ui.dialogs.scanin_dialog", "ScannerProfileDialog", "_on_auto_align"),
     ("ui.dialogs.scanin_dialog", "ScannerProfileDialog", "_auto_align_done"),
+    # The dated report that could not be saved. Also not a modal — the Measure
+    # tab's own log and its status line, which is where the SUCCESS of the same
+    # operation is already announced. Same two rules: the catalogue's text, and
+    # no prose of its own.
+    ("ui.tabs.tab_measure", "TabMeasure", "_say_report_not_saved"),
 ]
 
 #: Measurement windows that are NOT yet in §M, listed so the gap is visible.
@@ -545,6 +550,7 @@ def test_no_message_reaches_the_screen_with_a_placeholder_left():
         M.M_CAL_ARCHIVED_HERE.render(folder="/x/cal/old/2026-09-02_120000"),
         M.M_SCAN_ALIGN_DONE.render(rho="0.97"),
         M.M_SCAN_ALIGN_NO_INPUT.render(),
+        M.M_REPORT_NOT_SAVED.render(),
         M.M_SCAN_DIAGNOSTIC.render(),
         M.M_SCAN_LOADED.render(file="scan.tif", w=2078, h=1470,
                                target="Wolf Faust IT8", n=288),

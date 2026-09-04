@@ -415,13 +415,120 @@ came back to it.
 - blocks release: no
 - status: DEFERRED
 - decided by: Basti
-- because: researched and answered from ArgyllCMS's own Scenarios.html, which
-  names the IT8.7/2 explicitly as the case where shaper+matrix is best — so the
-  current default is right. What is open is a FEATURE, not a defect: measure the
-  fit after a build (Argyll's yardstick is average dE <= 5, max <= 15, and
-  profcheck already runs) and advise cLUT XYZ when shaper+matrix fits poorly.
-  Written up in `03-scanner-naming-defaults/PROFILE-TYPE-DEFAULT.md`.
-- evidence: —
+- found by: Knut — *"Did you ask claude to verify if the shaper + matrix is the
+  best default for the scanner window?"*, then *"I get very nice profiles just by
+  changing to cLUT - Lab table"*, *"I guess it is desired that the profile for a
+  scanner is not limited to the colors it was profiled with"*, and *"Maybe the
+  help text for the profile type should give recommendations for when to use the
+  LUT types"*. Measured by AGENT-AD, 2026-09-04.
+- because: the question is now MEASURED and the default is confirmed — see the
+  detail below. What is left is a design ruling that is Basti's: the replacement
+  help text, drafted from these numbers and awaiting confirmation in
+  `docs/design/unified_measurement_management.md`. No behaviour is proposed for
+  change, so nothing is blocked on this.
+- detail: **MEASURED, on two REAL scans, and the answer is YES — keep it, but
+  the help text is wrong and one sibling option has a hard defect.**
+  Method: 80/20 seeded split of a Wolf Faust IT8 (288 patches, real Epson scan)
+  and a LaserSoft DCPro (864, real scan); profile fitted on a sample of the
+  80 %, every ΔE00 taken on the 20 % the fit never saw
+  (`profcheck -k -I a`); the self-check on the fit data recorded beside it. The
+  self-check is not evidence — B8-03's trap reproduced here on real material:
+  at 24 patches `-al` reads **0.28** against itself and **2.59** on held-out
+  data, nine times worse than it claims.
+  Hold-out avg ΔE00, Wolf Faust IT8, mean of five seeded splits:
+
+  | fit patches | -as shaper+matrix | -am matrix | -ax cLUT XYZ | -al cLUT Lab |
+  |---|---|---|---|---|
+  | 24  | **1.49** | 9.79 | 2.93 | 2.59 |
+  | 48  | **1.25** | 8.97 | 1.68 | 1.68 |
+  | 96  | 1.14 | 9.00 | **1.06** | 1.13 |
+  | 192 | 1.07 | 8.83 | **0.69** | 0.79 |
+  | 230 | 1.08 | 8.82 | **0.64** | 0.75 |
+
+  and the same method on the 864-patch LaserSoft DCPro, also five seeded splits:
+
+  | fit patches | -as shaper+matrix | -am matrix | -ax cLUT XYZ | -al cLUT Lab |
+  |---|---|---|---|---|
+  | 24  | **1.29** | 8.70 | 2.65 | 2.06 |
+  | 48  | **1.07** | 8.09 | 1.71 | 1.24 |
+  | 96  | 0.98 | 7.81 | 1.00 | **0.97** |
+  | 192 | 0.96 | 7.81 | **0.65** | 0.75 |
+  | 691 | 0.93 | 7.80 | **0.52** | **0.52** |
+
+  So the crossover sits near **100 patches**: below it shaper+matrix wins, above
+  it a cLUT wins by roughly a third, and at a genuinely large target it is
+  **nearly twice as accurate** (0.52 against 0.93). **Knut is right** that a cLUT gives him
+  better profiles on a full IT8 — that is a held-out result, not a self-check
+  artefact. Matrix-only is never competitive and returns L* = −90.7 for device
+  blue; it is not a safe option.
+  **But his other requirement rules out the option he picked.** He wants the
+  scanner's hardware to be the limit, not the profile. The IT8's own white is
+  only device RGB ≈ 80/79/82 of 100, so the top ~18 % of the scanner's range is
+  extrapolation. Measured through `xicclu -ff -ir -pl`, neutral device ramp:
+  `-as` runs L* 101 → 119.6 and `-ax` 101 → 119.5, monotonic, while **`-al`
+  clamps at L* 100.39 from device 82 upward** — every value brighter than the
+  chart's white collapses to one lightness. ArgyllCMS documents exactly this
+  (`colprof.html`, `-u`), and `-ax` is the type its own Scenarios page
+  recommends for input devices. `-al -u` restores the range (85.9 → 100.0), and
+  ChromIQ already exposes `-u` under Advanced ▸ white point, defaulting to none.
+  Two more things worth keeping: on the grey scale held out as a block (GS00–23
+  removed from the fit) the cLUTs are ~25 % better than shaper+matrix
+  (0.78 / 0.82 against 1.07 avg ΔE00, worst patch GS23 for all three); and
+  across a DIFFERENT target the three usable types are indistinguishable
+  (3.76–4.11 avg ΔE00), so changing media costs four units where the profile
+  type costs a few tenths.
+  **Conclusion: the factory default stays Shaper + matrix.** It is the most
+  accurate type below ~100 patches, within 0.4 ΔE00 of the best above it, never
+  clips the highlights, and is the only type that is never badly wrong. What is
+  actually wrong is the guidance: the shipped tooltip claims Lab "sometimes
+  gives slightly smoother neutrals", and on neutrals the two cLUTs are inside
+  each other's noise in both directions (0.67 Lab against 0.66 XYZ on the 192-
+  patch hold-out, 0.89 against 0.71 on the maximin arm, 0.78 against 0.82 on the
+  block-held-out grey scale) — so it is a claim the data does not carry either
+  way. The tooltip also says nothing about the lightness ceiling, which is the
+  one difference between the two that IS reliably measurable, and it gives the
+  user no rule for when to switch away from the default at all.
+- prepared: a replacement tooltip, written from these numbers and translated
+  into German, is drafted in `docs/design/unified_measurement_management.md`,
+  section "⏳ Awaiting confirmation — Profile type help text…".
+  **Basti rules on the wording.** Nothing else is proposed: no default is
+  changed, so no settings migration is needed.
+- then: **Basti ruled that the answer must be reflected in the APP**, not only
+  in a reply to Knut. That is B8-56, which builds it — the rewritten help, the
+  "(recommended cLUT)" marker and the live patch-count note. The wording is in
+  the app but is still **PROPOSED, not approved**; this item stays DEFERRED on
+  exactly one thing, which is Basti's ruling on the words themselves.
+- evidence: `beta 8/24-scanner-profile-default/` — `cv_profile_type.py`
+  (the harness), `cv/results.json` (every run), `summarise.py`,
+  `HOW-TO-RERUN.md` (the commands), and `beta 8/_progress/agentAD.md` §04–§09.
+
+### B8-53 · Knut: the green colprof command frame does not change with profile type
+- blocks release: no
+- status: OPEN
+- found by: Knut — *"Also, the green frame showing the colprof command does not
+  change when I change settings like profile type."* Investigated by AGENT-AD,
+  2026-09-04.
+- detail: **NOT REPRODUCED on beta 8, and the frame is not lying about the
+  run.** Drove the real `ScannerProfileDialog` on screen. Changing Profile type
+  moves the frame through `-as → -am → -ax → -al` in scanner mode and again in
+  printer mode; Quality moves `-qm → -ql/-qh/-qu`; the description moves
+  `-D`/`-M`; and 6 of 6 inline Advanced controls that add a flag move it too
+  (`-ni -no -np -nc -R` and the white-point `-u`). The three that did not are
+  the metadata gates with their text fields empty, which legitimately add
+  nothing. Preview and the real build share ONE argument builder
+  (`scanner_colprof.make_profile_params` → `ProfileBuilder._build_args`,
+  `scanin_dialog.py:2546` for the preview, `:5315` and `:5397` for the two build
+  paths) — captured the argv the live dialog handed `ArgyllRunner` and it
+  matches the frame letter for letter. That also explains why switching type
+  really does change his profiles. The wiring is byte-identical in
+  `v4.1.5-beta.7`, so it should not have failed there either.
+- next: ask Knut which version and platform he saw it on and what the frame
+  said, rather than closing this as fixed. Beta 8 rebuilt this window (Advanced
+  became an inline section), so a beta.7 or earlier report cannot be dismissed
+  from a beta 8 run alone.
+- evidence: `beta 8/25-preview-does-not-change/` — `drive_preview.py`,
+  `drive_run_vs_preview.py`, `drive.log`, `shots/`. Existing guard:
+  test_profile_type_clut_lab_high_maps_and_previews.
 
 ### B8-20 · The diagnostic always renders into a fixed 920x560 view
 - blocks release: no
@@ -1425,13 +1532,14 @@ came back to it.
   label is not a message, and must not be given a fake one to satisfy a parser). German is
   translated, the eleven carry the English source. The old key is retired in all
   twelve catalogues; "⤢ Dock back" is unchanged.
-- evidence: test_three_rows_of_two_grouped_by_what_each_button_acts_on,
-  test_the_block_is_one_row_shorter_than_it_was,
-  test_tab_follows_the_visual_order,
-  test_the_pop_out_label_is_a_label_and_not_a_sentence,
-  test_the_preview_takes_the_height_the_fourth_row_gave_back,
+- **superseded by B8-58**, which is where this block lives now. The three fixed
+  rows are gone; the guards below were renamed with them, and the ones that
+  still guard something this item claimed are named here in their current form.
+- evidence: test_the_pop_out_label_is_a_label_and_not_a_sentence,
+  test_the_preview_takes_the_height_the_wrapped_rows_gave_back,
   test_the_button_block_never_decides_how_narrow_the_window_can_be,
-  test_the_button_is_reachable_in_the_block_under_the_preview
+  test_the_button_is_reachable_in_the_block_under_the_preview,
+  test_tab_follows_the_visual_order_at_every_width
 
 ### B8-50 · A self-capturing lambda on the pop-out's `finished` signal
 - blocks release: no
@@ -1572,3 +1680,402 @@ came back to it.
   sections", and that text is not inside one. AGENT-T was right to hand it back
   instead of taking the tidier-looking option, and the same reasoning applies to
   any other note found sitting outside a section later.
+
+
+### B8-58 · The buttons under the scanner preview wrap to the width available
+- blocks release: no
+- status: FIXED
+- asked by: Knut, 2026-09-04, on B8-49's three fixed rows of two — *"All the
+  buttons, including the Auto Align are clumped together though… They could be
+  aligned better across the width available."* and, told the block used to be
+  four rows: *"I mean, that much space is not needed. The buttons could wrap
+  down to next line when no space in width. If you want consistency in
+  position, I get it, but at least 3 buttons per line should be possible."*
+- detail: the block is no longer a shape at all. It is **one wrapping row** —
+  the six buttons in one fixed reading order, laid out in as few lines as the
+  panel allows, every line justified to the panel's width. Same six buttons,
+  same actions, same enable rules, same signals; a layout change and an order.
+- **it dissolves the problem B8-49 was built around rather than arguing with
+  it.** That item's brute force was right: NOT ONE fixed 3 + 3 fits all
+  thirteen catalogues, and German, Spanish and Norwegian cannot do 3 + 3 at
+  this window's own floor. A fixed grid has to be the worst language's grid at
+  every width. A wrapping one does not — it is 2 + 2 + 2 exactly where 2 + 2 +
+  2 is all that fits, and 3 + 3 everywhere else.
+- **nothing was written from scratch.** `ui/widgets.py::WrappingButtonRow`
+  already existed, for Create Chart ▸ Manual's preset bar. It gains one option,
+  `balanced=True` (default off, so that bar is untouched): greedy packing fills
+  each line to the brim and dumps the remainder on the last one, and since
+  every line is justified that remainder is DRAWN AT THE FULL WIDTH OF THE
+  PANEL. Measured over every block width from each language's real window
+  floor and the next 1200 px, greedy strands **"Check alignment" alone on a
+  full-width line in ALL THIRTEEN languages** — a band 103 px wide in Chinese,
+  195 in Russian — and cuts a one-button line at the window's OWN FLOOR in
+  eleven of the thirteen (3 + 2 + 1, and 2 + 3 + 1 in French). Balanced packing
+  keeps greedy's line COUNT and re-cuts the lines so the fullest holds the
+  fewest, which gives 3 + 3 and 2 + 2 + 2 in the same number of lines.
+- **the order changed too, and it was Basti's suggestion**: *"maybe auto align
+  should be next to check alignment"* — one action and its verification. Beta 8
+  grouped in PAIRS because it had three rows of two to fill; a wrapping block's
+  unit is a RUN, and its commonest shape is 3 + 3, so the same principle at the
+  granularity the layout uses gives two runs of three:
+
+  | line | buttons | what it acts on |
+  |---|---|---|
+  | 1 | ⟳ Rotate 90° · Reset view · ⤢ Pop out | what you LOOK at |
+  | 2 | Reset grid · Auto align · Check alignment | where the GRID IS |
+
+  Rotate stays beside Reset view (`rotate_90` calls `_reset_view` itself), Pop
+  out joins the view controls instead of being the odd one out, and nothing is
+  left over.
+- **the pairing survives the wrap, and that was measured, not assumed.** A flow
+  never reorders, so adjacency in the sequence always holds; a LINE BREAK can
+  still fall between two neighbours. It never falls between Auto align and
+  Check alignment: swept every block width from each language's real window
+  floor over the next 1200 px — **thirteen languages, 15,600 widths, zero
+  splits**. Structurally, balanced packing gives 6 → 3 + 3 → 2 + 2 + 2 (plus a
+  10 px 4 + 2 band in Portuguese) and every one of those breaks after item 3 or
+  item 4; only 5 + 1 and 3 + 2 + 1 break after item 5, and balancing exists to
+  prevent those. Turning `balanced` off makes that guard go red.
+- **nesting the pair as an unbreakable unit was considered and rejected**: it
+  would make the block's minimum the SUM of the pair rather than its widest
+  single button, putting the block back within reach of setting the window's
+  floor, and at 3 + 3 it would justify a line of two items across a
+  three-button width.
+- **tab order.** One fixed chain, and it is right at every width — a flow lays
+  its items out in order and chooses only where the lines break, so the reading
+  order IS the item order however it wraps. Re-pointed at the new sequence.
+- measured, before → after, **window minimum width UNCHANGED in all thirteen
+  languages, to the pixel**: 1048 / 1104 / 1126 / 1154 / 1101 / 1135 / 1048 /
+  1115 / 1133 / 1178 / 1057 / 1048 / 1048 (en de fr es it nl no pl pt ru sv ja
+  zh). It could not have risen: a `QHBoxLayout`'s minimum is the SUM of a row
+  (313 px at worst, Spanish) and a wrapping row's is its widest SINGLE button
+  (190 px at worst, Russian) — both under the 360 px the marquee itself asks
+  for, so the block does not reach the window at all. Confirmed a second time
+  on screen: en 1048 → 1048, de 1104 → 1104, es 1154 → 1154 (dark 1100 → 1100,
+  1142 → 1142).
+- measured, block height **72 → 46 px at 3 + 3 and → 20 px on one line** (ja/zh
+  76 → 50 → 22; dark 69 → 44 → 19). The preview takes the difference — the
+  stretch factor B8-49 put on `_marquee_box` was already there.
+- measured, ON SCREEN, the width at which each language reaches 3 + 3 and then
+  one line of six (`23-buttons-flow/onscreen-thresholds.jsonl`): en 1048 /
+  1338 · zh 1048 / 1298 · ja 1056 / 1374 · sv 1101 / 1427 · no 1128 / 1476 ·
+  pl 1129 / 1473 · pt 1159 / 1473 · it 1173 / 1525 · de 1174 / 1562 · fr 1178 /
+  1564 · nl 1189 / 1575 · ru 1216 / 1598 · **es 1250 / 1602**. The window opens
+  at 1240, so twelve of the thirteen get 3 + 3 the moment it opens; **Spanish
+  needs ten pixels more** and is 2 + 2 + 2 until the user touches the edge.
+  Said plainly rather than rounded away.
+- evidence: test_the_six_buttons_are_one_wrapping_block_in_one_reading_order,
+  test_the_block_is_two_runs_of_three_and_they_are_in_that_order,
+  test_auto_align_and_check_alignment_share_a_line_at_every_width,
+  test_it_uses_the_width_it_is_given_and_wraps_when_it_is_not,
+  test_three_to_a_line_as_soon_as_three_fit,
+  test_it_never_leaves_a_button_alone_on_a_line_it_did_not_have_to,
+  test_the_block_cannot_widen_the_window,
+  test_tab_follows_the_visual_order_at_every_width,
+  test_the_block_on_screen_is_the_block_the_packer_describes,
+  test_the_preview_takes_the_height_the_wrapped_rows_gave_back,
+  test_balanced_mode_is_what_stops_a_button_being_stranded,
+  test_balanced_mode_is_off_unless_it_is_asked_for,
+  test_a_plain_row_would_widen_this_window,
+  test_the_button_block_never_decides_how_narrow_the_window_can_be,
+  test_the_button_is_reachable_in_the_block_under_the_preview
+  — 4 mutations applied one at a time, each printed as it landed and each shown
+  to turn the guard it attacks red: `balanced=False` (4 red), a plain
+  `QHBoxLayout` back (7 red), the tab chain not set (1 red), Auto align moved
+  away from Check alignment (8 red).
+- **still open, for Basti or Knut to judge on screen**: the buttons on a line
+  share the slack EQUALLY, so a longer label stays a wider button and the
+  columns do not line up exactly between one line and the next. Giving every
+  button on a line the same width would align them, at the cost of a
+  water-filling allocation (a short label must never squeeze a long one) and a
+  change to a layout Create Chart also uses. Not done; nobody asked for it.
+
+### B8-54 · A measurement report that could not be saved said nothing on screen, and looked like a success
+- blocks release: no
+- status: FIXED
+- found by: AGENT-AE, from the #182 design work; authorised by Basti, 2026-09-04
+- detail: `TabMeasure._maybe_save_measurement_report` ends every failure in
+  `except Exception as exc: log.warning("measurement report failed: %s", exc)`
+  and appends **nothing** to the screen. "Save measurement report" is ON by
+  default, so this runs after every measurement — and the SUCCESS of the same
+  operation announces itself in the measurement log ("[Report] Measurement
+  report saved: …"). So the window that had just written no report was
+  indistinguishable from the window that had. The silence was not a missing
+  message; it was a wrong one. The only evidence lived in a log file the user
+  never opens.
+- fix: `TabMeasure._say_report_not_saved` — the measurement log, headline first,
+  plus a ten-second status flash under the buttons. `log.warning` is untouched;
+  the on-screen path is an ADDITION, and a test pins that the support log still
+  records the exception.
+- **the log and the status line, NOT a window, and that was a decision.** The
+  shape is the one `_on_cr30_dropped_reading` already uses in this same tab.
+  Basti asked for a pop-up on M-CR30-READ-FAILED for a stated reason — *"instead
+  of ruining a whole measurement session when this is unnoticed"* — and that
+  reason does not reach here: the measurement is over and safe, the `.ti3` is
+  the record, the report is derived from it, and the **Measurement report…**
+  button rebuilds it on demand. Nothing is interrupted and there is nothing to
+  do at that instant. If Basti wants a window instead, it is one call.
+- wording is **§M-PROPOSED and unapproved**: M-REPORT-NOT-SAVED, in
+  `workflow/measurement_messages.py` with `approved=False`, defined in
+  §M-PROPOSED of `unified_measurement_management.md`, named in that document's
+  "Awaiting review" line, and listed in `AWAITING_APPROVAL` in
+  `tests/test_message_catalogue.py`. The method is registered in that file's
+  `WINDOW_SOURCES`, so it is held to the same two rules as every window: the
+  text is the catalogue's, and the method writes no prose of its own.
+  `_IDENTICAL_TO_KEY` and `_BUDGET` +6 in the eleven for this item and B8-54
+  together, 0 in German, both with dated notes.
+- **held to Basti's standing rule for user-facing text** — *"friendly,
+  extensive, easy to understand and correct"* — which changed the message after
+  it was first written, in four ways, each with a guard:
+  - **the exception came OUT of the message.** The first draft ended
+    *"ChromIQ could not write it: {reason}"*, with `str(exc)` — an errno and a
+    path — and `type(exc).__name__` when the exception carried no message. That
+    blames, it is not plain language, and it is not even correct: the same
+    `except` catches a failure to BUILD the report and a failure to WRITE it,
+    so a sentence built around it states a cause nobody has established. The
+    message now carries **no placeholder at all**; the technical line follows
+    it, named as such, as `[Report] Technical detail: <class>: <message>`, and
+    the message points the reader at it.
+  - **the headline says what is true of both endings**: "could not be
+    **created**", not "could not be saved".
+  - **the first paragraph is the reassurance**, before anything about the
+    failure: *"Your measurement is safe. It was read, checked and written to
+    disk exactly as it always is, and nothing about it has changed."* A user
+    who reads "the report failed" and concludes their measurement is gone has
+    been badly served by a technically accurate sentence.
+  - **the usual reasons are offered as things to check, never as a diagnosis**
+    — a moved folder, a full disk, a folder ChromIQ may not write into — and it
+    says nothing needs measuring again, where the report can be opened from,
+    and where the automatic report is switched off.
+- **driven on screen, with a REAL failure, not a stub**: the run folder is made
+  read-only, so `save_report`'s `reports/` mkdir raises the operating system's
+  own `PermissionError` — `scripts/drive_report_defects_onscreen.py`, shots
+  `01-measure-tab-report-failed.png` and `02-measure-tab-report-saved.png` in
+  `~/Desktop/beta 8/25-report-defects/`. Settings sandboxed with
+  `CHROMIQ_SETTINGS_FILE`; `defaults read com.chromiq.ChromIQ
+  custom_output_path` unchanged (`""`) afterwards.
+- one mutation, proved to land before it was run: `self._say_report_not_saved(exc)`
+  replaced by `pass  # MUTATION` (grepped in the file at line 12886), five of the
+  eight guards went red, and the three that did not are the good-path,
+  option-off and support-log guards the mutation does not touch.
+- evidence: test_a_report_that_cannot_be_built_is_reported_on_screen,
+  test_a_report_that_cannot_be_written_is_reported_on_screen,
+  test_the_status_line_says_it_too,
+  test_the_whole_body_reaches_the_user_not_just_the_headline,
+  test_an_exception_with_no_message_still_names_something,
+  test_a_report_that_saves_says_only_that,
+  test_the_option_being_off_is_still_silent,
+  test_the_python_log_line_was_not_traded_away,
+  test_the_message_says_first_what_was_not_lost,
+  test_the_message_carries_no_exception_text_of_its_own,
+  test_the_message_claims_no_cause_it_cannot_know,
+  test_the_message_says_what_to_do_and_that_nothing_needs_redoing,
+  test_the_message_is_approved_and_the_ruling_is_recorded
+
+### B8-55 · Saved measurement reports were silently re-graded by whatever the thresholds say today
+- blocks release: no
+- status: FIXED
+- found by: AGENT-AE, from the #182 design work
+- ruled by: Knut, #182, 2026-09-04 — *"Verdict should be saved for each dated
+  run."* Authorised by Basti, 2026-09-04.
+- detail: the Pass thresholds are a GLOBAL setting
+  (`report_pass_threshold_avg` / `_max`, `core/settings.py`), re-read on every
+  construction of the report window, and a saved report stored **neither** the
+  thresholds it was judged with **nor** the verdict it was given —
+  `accuracy_verdict` ran at DISPLAY time. So nudging one spin box silently
+  re-graded every historical report the user had ever made: a run recorded as
+  Pass in March read Fail in September, with nothing on the page to say that
+  anything had changed. A dated record that changes its own verdict after the
+  fact is not a record.
+- fix: two optional keys, written once, at the moment the report is saved —
+  `pass_thresholds: {avg, max}` and `verdict: {rows, all_pass, source, graded}`,
+  stamped by `workflow.measurement_report.stamp_verdict` from
+  `TabMeasure._maybe_save_measurement_report` BEFORE `save_report`. The window
+  reads them back through `recorded_verdict` / `recorded_thresholds` and shows
+  those, in the Report Results grid and in each run's own accuracy table. The
+  rows are stored as well as the thresholds because the two answer different
+  questions: the thresholds say what the user asked of this print, the rows say
+  what ChromIQ concluded — which stays true even if a later version changes
+  `ACCURACY_METRICS` or the in-gamut rule under it.
+- **scoped deliberately to the ruling.** The wider #182 design — a separate
+  thresholds window, compliance presets, thresholds bound to a verification run
+  — is still being designed and NONE of it is here.
+- **nothing on disk is bumped, rewritten or destroyed.** `REPORT_SCHEMA` stays
+  at **7**: the window treats an older schema as stale and rebuilds it from the
+  run's `.ti3`, so a bump would silently re-derive every report on disk — the
+  exact fault this fixes, done wholesale. Both keys are optional and a report
+  that lacks them is detected by their ABSENCE. A test opens an old report, reads
+  it and asserts the bytes on disk are unchanged.
+- **what an OLD report shows, and why.** It has no recorded verdict, so it is
+  still graded live by the window's thresholds — blanking it would delete a
+  working feature from every report the user owns — but it **says so**: the
+  Report Results grid grew a "Pass thresholds" row reading `2.0 / 3.0` for a
+  recorded column and *"not recorded"* for an unrecorded one, with a footnote,
+  and each run's accuracy table carries one sentence naming where its Pass and
+  Fail came from. What it may never do is claim in silence to have been judged
+  by numbers set years later.
+- **the stale-rebuild hole was found and closed**: `_gather_runs` rebuilds a
+  report whose schema predates the current one, keeping only its date. That
+  rebuild recomputes today's STATISTICS, which is right, and must not recompute
+  the JUDGEMENT — it now carries `pass_thresholds` and `verdict` across
+  untouched, driven through the real gather rather than read off the source.
+- **driven on screen**: two dated reports of one project, one saved WITH its
+  verdict at 2.0/3.0 and one exactly as every report already on disk looks; the
+  window opened, the thresholds loosened to 9.0/9.0. The unrecorded column
+  flipped to five Passes, the recorded one did not move a single cell —
+  `scripts/drive_report_defects_onscreen.py`, shots `03b-…`, `04-…`, `05-…` and
+  `06-…` in `~/Desktop/beta 8/25-report-defects/`.
+- **held to the same standing rule**, and it changed the wording twice. An old
+  report reading *"not recorded"* must not look like an error, and must not
+  look like a fresh verdict either — so the grid footnote now opens *"A column
+  whose thresholds read “not recorded” is not a fault, and nothing is missing
+  from it"*, and the run's own note opens *"Nothing is wrong with this
+  report"*, says which version of ChromIQ saved it, and says plainly that the
+  numbers above are today's and that moving the thresholds moves them.
+- **a second, smaller fault was found while doing that and is fixed here**: the
+  Report Results footnote block ASSIGNED where it should have appended, so a
+  report holding a raw-drift sheet AND a column with no recorded verdict lost
+  one of the two notes without a trace. Guarded by
+  `test_both_footnotes_survive_each_other`.
+- four mutations, each proved to land before it was run: `_verdict_rows`
+  ignoring the recorded verdict (3 red), the `stamp_verdict` call removed from
+  the Measure tab (2 red), `kept = {}` in the stale rebuild (1 red), and the
+  footnote `+=` put back to `=` (1 red).
+- evidence: test_stamping_records_the_thresholds_and_the_verdict,
+  test_the_verdict_is_stamped_before_it_is_saved_not_after,
+  test_the_thresholds_come_from_the_settings_not_the_module_defaults,
+  test_a_gamut_split_is_judged_on_its_within_gamut_figures,
+  test_a_raw_drift_check_records_no_pass_or_fail,
+  test_a_report_with_no_reference_records_no_verdict_either,
+  test_a_stamped_report_survives_a_round_trip_through_json,
+  test_the_schema_is_not_bumped,
+  test_an_old_report_is_read_without_being_rewritten,
+  test_a_damaged_verdict_block_reads_as_no_verdict_not_as_a_crash,
+  test_the_window_shows_the_recorded_verdict_not_todays,
+  test_moving_a_spin_box_does_not_move_a_recorded_verdict,
+  test_a_report_with_no_recorded_verdict_is_still_graded_and_says_so,
+  test_an_old_report_is_re_graded_when_a_spin_box_moves,
+  test_the_recorded_thresholds_are_the_ones_printed_in_the_detail_table,
+  test_a_stale_rebuild_carries_the_recorded_verdict_across,
+  test_the_window_and_the_record_share_one_drift_rule,
+  test_an_unrecorded_verdict_does_not_read_as_a_fault,
+  test_a_recorded_verdict_says_plainly_that_the_spin_boxes_cannot_move_it,
+  test_both_footnotes_survive_each_other
+- **found and NOT changed, reported instead** — three siblings of B8-54's shape
+  in the same tab, each governed by a design specification, so CLAUDE.md's
+  binding-specification rule says report before fixing:
+  `tab_measure.py:1287` *"Could not save the target's Measure settings"* and
+  `:1304` its read (governed by `per_target_settings.md`),
+  `:5703` / `:5755` *"Could not snapshot the verification/profiling chart"*
+  (governed by `unified_measurement_management.md` §4a — the snapshot is what
+  ties a dated verification to the sheet it was measured with), and
+  `:3664` *"Could not offer the existing measurement"* (§5 — the window that
+  does not appear is the one asking before a measurement is replaced). All
+  three are log-only today. The report window's trend-chart threshold guide
+  lines are still drawn from the live spin boxes, deliberately: they are a
+  guide on a chart of many dates, not a verdict on one.
+
+### B8-56 · The Profile type control said something nothing measured, and treated the two cLUTs as equals
+- blocks release: no
+- status: FIXED
+- found by: B8-19's measurement (AGENT-AD), implemented by AGENT-AF on Basti's
+  ruling that *the answer must be reflected in the app*, not only in a reply.
+- detail: three separate faults in one row of `Tools ▸ Build profile with
+  scanner or camera`.
+  **(1) The help asserted something unmeasured.** *"XYZ and Lab are just how the
+  table stores colour inside; both are accurate, and Lab sometimes gives
+  slightly smoother neutrals."* Nothing measured that, in either direction —
+  B8-19's held-out neutrals are 0.78 Lab against 0.82 XYZ, inside each other's
+  noise — and the sentence said nothing about the one difference that IS
+  reliably measurable.
+  **(2) The two cLUTs were offered as interchangeable.** They are not: a Lab
+  cLUT cannot encode anything above its chart's white, so a neutral ramp through
+  one reads L* 100.4 flat from device 82 upward where the XYZ table and
+  shaper+matrix both run on to L* ~119.5 (deterministic — no seeds — and
+  reproduced at `-qh`). An IT8's own white is only ~80 of 100 on a real scan, so
+  that ceiling sits inside the range a scanner uses every day.
+  **(3) The help gave no rule for when to leave the default at all**, which is
+  what Knut asked for: *"Maybe the help text for the profile type should give
+  recommendations for when to use the LUT types, such as when one has large
+  targets with many patches…"*
+- fix: `ui/dialogs/scanner_colprof.py` gains `ptype_help(printer)`,
+  `ptype_advice(printer, ptype, n)` and `PTYPE_RECOMMENDED_CLUT`, beside the
+  `PTYPE_DEFAULT` they have to agree with; `scanin_dialog.py` keeps the ⓘ as
+  `_ptype_tip`, adds `_known_patch_count()` and `_sync_profile_type_advice()`,
+  and calls the latter from `_on_colprof_changed` and a `_refresh` override.
+  Three things reach the user:
+  * **the help is rewritten and is MODE-AWARE.** It names the sizes at which
+    each type is worth choosing (a ColorChecker's 24, a full IT8's 288, an ISO
+    12641-2 set's 864), says where the user can read their own count (beside
+    each target's name in the Target list, and in the green "✓ … patches"
+    line), and states the lightness ceiling in what it MEANS — highlights above
+    the target's white arrive at one lightness — never as "L* 100.4". It differs
+    by mode because the advice does: `colprof.html` makes the XYZ claim of
+    INPUT devices, AGENT-AD measured input profiles only, and nothing a printer
+    prints is lighter than the paper it prints on, so **no recommendation is
+    made on the printer side** and the Lab "(default)" there stands alone.
+  * **the dropdown marks the cLUT to take**, in scanner/camera mode only:
+    "cLUT — XYZ table (recommended cLUT)", written by the same method that
+    already writes "(default)". **The Lab option is not removed, not disabled
+    and not relabelled** — Knut likes its results, it stays a legitimate choice,
+    and picking it still emits `-al` unchanged.
+  * **a live note appears inside that ⓘ once the patch count is known**
+    (`TooltipButton.set_live_note`, so no new widget and nothing on the face of
+    the window): a big target with shaper+matrix chosen, a small target with a
+    cLUT chosen, or Lab chosen at all. It changes no setting, never fires with
+    the count unknown, never fires in printer mode, and clears itself. The
+    AUTOMATIC switch B8-19 rejected is still rejected — this is the
+    proportionate form of the same information.
+  Wording is **PROPOSED, not approved**: it is reproduced verbatim, English and
+  German, in `docs/design/unified_measurement_management.md` ▸ "⏳ Awaiting
+  confirmation — Profile type help text", carrying `**Confirmed by:** *nobody
+  yet.*` i18n: 22 keys added, 1 retired; German translated, the other eleven
+  carry the English source per the beta convention, and `_IDENTICAL_TO_KEY` in
+  `tests/test_i18n.py` is updated with its reason.
+- evidence: test_no_user_facing_string_anywhere_still_makes_the_claim,
+  test_the_help_the_window_actually_shows_does_not_make_the_claim,
+  test_the_unsupported_neutrals_claim_is_gone_from_every_catalogue,
+  test_the_recommended_clut_is_xyz_for_a_scanner_and_nothing_for_a_printer,
+  test_the_dropdown_points_at_the_xyz_clut_in_scanner_mode,
+  test_a_recommendation_is_never_the_default_and_is_never_swallowed,
+  test_printer_mode_recommends_nothing_and_keeps_the_lab_default,
+  test_the_help_is_mode_aware_and_each_mode_names_its_own_default,
+  test_the_help_follows_the_printer_tick_in_the_real_window,
+  test_the_live_note_fires_only_where_the_measurement_is_unambiguous,
+  test_the_note_reaches_the_tooltip_and_leaves_again,
+  test_the_note_never_changes_a_setting,
+  test_a_multipage_target_is_counted_whole,
+  test_profile_type_clut_lab_high_maps_and_previews,
+  test_window_title_and_defaults_are_mode_aware,
+  test_catalog_is_complete, test_catalog_has_no_stale_keys,
+  test_untranslated_values_do_not_creep_in_unseen
+  — 11 mutations applied one at a time, each proved to land (anchor asserted
+  unique, presence re-read after writing) and each proved to turn a guard red;
+  table in `beta 8/_progress/agentAF-mutations.txt`. One of them, M3, showed a
+  test of my own was weaker than it read and it was rewritten: setting the
+  printer recommendation EQUAL to the printer default is silently swallowed by
+  `_mark_default_combos` rather than double-marking an item, so the invariant
+  now pinned is the pair — a recommendation must differ from that mode's
+  default AND be on screen exactly once.
+
+### B8-57 · The same unmeasured "smoother neutrals" claim is also in tab 4's -a tooltip
+- blocks release: no
+- status: OPEN
+- found by: AGENT-AF while removing it from the scanner window (B8-56).
+- detail: `data/parameters.yaml`, the `colprof` `-a` entry, `tooltip_body`:
+  *"XYZ cLUT (-ax): Similar to Lab but in XYZ space. **Sometimes produces
+  smoother neutral gradients.**"* It is the same unmeasured sentence as the one
+  B8-56 removed, with the two options swapped over, and it reaches tab 4 ▸ Build
+  profile ▸ Manual.
+- why it is not fixed here: B8-19 measured SCANNER input profiles. This claim is
+  about a PRINTER output profile and nothing has been measured about those, so
+  replacing it would swap one unmeasured sentence for another — the exact fault
+  B8-56 exists to remove. Deleting the sentence outright needs no measurement
+  and is a one-line edit, but it is new user-facing wording (a §M-PROPOSED
+  matter, Basti's ruling) and the sentence is translated in all twelve
+  `data/i18n/parameters.*.yaml` overlays, so it is a small change with a
+  paperwork tail rather than a drive-by.
+- suggested: delete the sentence and say nothing in its place; the rest of the
+  entry ("Lab cLUT: best accuracy for printer profiles… Recommended") is
+  ArgyllCMS's own position and is unaffected.
+- evidence: —

@@ -12856,19 +12856,73 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         if not bool(self._settings.get("save_measurement_report", False)):
             return
         try:
-            from workflow.measurement_report import build_report, save_report
+            from workflow.measurement_report import (
+                DEFAULT_PASS_AVG, DEFAULT_PASS_MAX, build_report, save_report,
+                stamp_verdict)
             from pathlib import Path as _P
             ti3 = _P(ti3)
             if ti3.suffix.lower() != ".ti3" or not ti3.exists():
                 return
             report = build_report(
                 ti3, argyll_bin=str(self._settings.get("argyll_bin_path", "") or ""))
+            # #182, Knut 2026-09-04: *"Verdict should be saved for each dated
+            # run."* The thresholds are a GLOBAL setting, so a report that
+            # stored neither them nor its verdict was re-graded by whatever the
+            # spin boxes said the next time anybody opened the window. Stamped
+            # HERE, with the thresholds in force at the moment of the
+            # measurement, and never again afterwards.
+            stamp_verdict(
+                report,
+                float(self._settings.get("report_pass_threshold_avg",
+                                         DEFAULT_PASS_AVG)),
+                float(self._settings.get("report_pass_threshold_max",
+                                         DEFAULT_PASS_MAX)))
             path = save_report(report, ti3.parent)
             self._log.appendPlainText(
                 tr("[Report] Measurement report saved: {name}").format(
                     name=path.name))
         except Exception as exc:  # noqa: BLE001
             log.warning("measurement report failed: %s", exc)
+            self._say_report_not_saved(exc)
+
+    def _say_report_not_saved(self, exc: Exception) -> None:
+        """Tell the user, on screen, that the report they asked for is not there.
+
+        M-REPORT-NOT-SAVED (§M-PROPOSED). Until this existed the failure went to
+        `log.warning` and nowhere else: the measurement finished, the window
+        looked exactly as it does on a good run, and the only trace was a line
+        in a file the user never opens. A success says so in this same log —
+        so a silent failure did not merely fail to inform, it read as a success.
+
+        THE LOG AND THE STATUS FLASH, NOT A WINDOW. The shape is the one
+        `_on_cr30_dropped_reading` already uses in this tab. Basti asked for a
+        pop-up on M-CR30-READ-FAILED for a stated reason — *"instead of ruining
+        a whole measurement session when this is unnoticed"* — and that reason
+        does not reach here: the measurement is already over and safe on disk,
+        the .ti3 is the record, and `Measurement report…` rebuilds this report
+        from it whenever the user likes. There is nothing to interrupt and
+        nothing to do at that instant, so a modal would cost more than it says.
+        """
+        from workflow import measurement_messages as M
+        title, body = M.M_REPORT_NOT_SAVED.render()
+        self._log.appendPlainText("")
+        self._log.appendPlainText(title)
+        self._log.appendPlainText(body)
+        # THE EXCEPTION IS NOT PART OF THE MESSAGE. Basti's standing rule for
+        # user-facing text is "friendly, extensive, easy to understand and
+        # correct", and an errno with a path in it fails three of the four: it
+        # blames, it is not plain language, and — because this method cannot
+        # tell a failure to BUILD the report from a failure to WRITE it — a
+        # sentence built around it would state a cause nobody has established.
+        # So the message says what happened and what it costs, and the
+        # technical line follows it, named as such, on the line the message
+        # itself points at. `str(exc)` is empty for a bare `RuntimeError()`,
+        # which is the one case where the class name is the only thing there is.
+        self._log.appendPlainText(tr("[Report] Technical detail: {detail}").format(
+            detail=f"{type(exc).__name__}: {exc}" if str(exc)
+            else type(exc).__name__))
+        self._log.ensureCursorVisible()
+        self._flash_status(title, duration_ms=10000)
 
     def _open_measurement_report(self) -> None:
         """Open the measurement-report viewer for the current chart's .ti3."""

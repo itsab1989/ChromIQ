@@ -208,10 +208,28 @@ def test_printer_mode_switches_default_profile_type(_app, _out_dir):
 def test_profile_type_clut_lab_high_maps_and_previews(_app, _out_dir):
     """#121: cLUT — Lab + High → -al -qh, quality becomes active, and the command
     preview follows. Persistence is now explicit (the Save-as-Defaults button),
-    not silent-on-change (Basti)."""
+    not silent-on-change (Basti).
+
+    B8-19 extends this rather than replacing it, because the point of that item
+    is that NOTHING about the build changes: Lab is still a real, unrestricted
+    choice — Knut likes its results — and the only thing added is that the ⓘ
+    now says what a Lab table cannot hold. If this ever stops emitting -al, the
+    advice has turned into a decision, which is exactly what was rejected.
+    """
     dlg = _dialog(_app, _out_dir)
     try:
         dlg._ptype.setCurrentIndex(dlg._ptype.findData("l"))   # cLUT — Lab
+        # …and picking it is not punished: the option keeps its plain label, no
+        # setting moves, and the ⓘ carries the ceiling note only once the
+        # window knows there is a target to say it about.
+        assert "cLUT — Lab table" in [dlg._ptype.itemText(i)
+                                      for i in range(dlg._ptype.count())]
+        assert dlg._ptype_tip.live_note() == ""      # no chart picked yet
+        dlg._layout = {"patches": [{"page": 0} for _ in range(288)]}
+        dlg._refresh()
+        assert "cannot describe anything lighter" in dlg._ptype_tip.live_note()
+        assert dlg._ptype.currentData() == "l"       # still the user's choice
+        dlg._layout = None
         dlg._pq.setCurrentIndex(dlg._pq.findData("h"))
         assert dlg._pq.isEnabled()
         assert dlg._current_main_vals() == {"ptype": "l", "quality": "h"}
