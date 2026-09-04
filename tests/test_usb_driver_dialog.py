@@ -782,3 +782,141 @@ def test_cancelled_is_recognised_from_the_sentence_core_actually_writes():
 def test_a_genuine_failure_is_not_mistaken_for_a_cancellation():
     assert not sd._install_was_cancelled("Windows refused the change.")
     assert not sd._install_was_cancelled("")
+
+
+# ---------------------------------------------------------------------------
+# Not while a measurement is running (Basti's Q11)
+# ---------------------------------------------------------------------------
+#
+# Only the driver helper is blocked. Preferences itself stays open during a
+# measurement, which `ui/main_window.py:1150-1155` calls deliberate policy, and
+# nothing here overturns it — the driver helper is singled out because it is the
+# one window in Preferences that can END a measurement.
+
+class _Holder:
+    """The lease keeps its owner by weak reference, and `SimpleNamespace` does
+    not support one — so the stand-in for a window needs to be a real class."""
+
+
+def test_nothing_running_means_nothing_is_blocked():
+    from core import instrument_lease
+    assert instrument_lease.holder() is None, "a previous test leaked a claim"
+    assert sd.measurement_in_progress() is None
+
+
+def test_the_lease_is_the_signal_not_the_process_state():
+    """`core/instrument_lease.py` exists precisely because
+    `ArgyllRunner.is_running` answers from PROCESS state, and a CR30 session
+    driven through `DeviceReader` spawns no process at all. Tools > Read single
+    patches takes the lease and starts nothing — so the lease is the only signal
+    that sees it."""
+    from core import instrument_lease
+
+    owner = _Holder()          # a stand-in for the window holding it
+    assert instrument_lease.acquire(owner, instrument_lease.SPOT_TOOL)
+    try:
+        where = sd.measurement_in_progress()
+        assert where is not None
+        assert where == instrument_lease.where_label(instrument_lease.SPOT_TOOL)
+    finally:
+        instrument_lease.release(owner)
+    assert sd.measurement_in_progress() is None
+
+
+def test_the_measure_tab_holding_the_lease_is_named_too():
+    from core import instrument_lease
+
+    owner = _Holder()
+    assert instrument_lease.acquire(owner, instrument_lease.MEASURE_TAB)
+    try:
+        assert sd.measurement_in_progress() == instrument_lease.where_label(
+            instrument_lease.MEASURE_TAB)
+    finally:
+        instrument_lease.release(owner)
+
+
+def test_the_main_windows_own_measuring_flag_is_read_through_the_parent_chain():
+    """The ArgyllCMS instruments do not take the lease — that is deliberate, and
+    documented in `core/instrument_lease.py`. `_measuring` on the main window is
+    what covers a chartread session, and the dialog reaches it by walking up
+    from itself."""
+    from core import instrument_lease
+
+    class FakeWindow:
+        _measuring = True
+
+        def parent(self):
+            return None
+
+    class FakeDialog:
+        def __init__(self, win):
+            self._win = win
+
+        def parent(self):
+            return self._win
+
+    win = FakeWindow()
+    assert sd.measurement_in_progress(FakeDialog(win)) == (
+        instrument_lease.where_label(instrument_lease.MEASURE_TAB))
+    win._measuring = False
+    assert sd.measurement_in_progress(FakeDialog(win)) is None
+
+
+def test_a_parent_chain_that_loops_does_not_hang_the_app():
+    """A guard must never be the thing that breaks. A cycle in the parent chain
+    would be a Qt bug, but an infinite loop inside Preferences would be ours."""
+    class Loop:
+        def parent(self):
+            return self
+
+    assert sd.measurement_in_progress(Loop()) is None
+
+
+def test_a_broken_lease_module_does_not_take_preferences_down(monkeypatch):
+    from core import instrument_lease
+
+    def boom():
+        raise RuntimeError("the lease exploded")
+
+    monkeypatch.setattr(instrument_lease, "holder", boom)
+    assert sd.measurement_in_progress() is None
+
+
+def test_the_refusal_explains_the_consequence_not_just_the_rule():
+    text = sd.measurement_block_text("the Measure tab")
+    assert text.startswith("<b>Not while a measurement is running.</b>")
+    assert "the Measure tab" in text
+    assert "restarts the connection Windows holds to the instrument" in text
+    assert "the patches measured so far would be lost" in text
+
+
+def test_the_refusal_says_how_to_get_past_it():
+    text = sd.measurement_block_text("the Measure tab")
+    assert "Let the measurement finish, or stop it" in text
+
+
+def test_the_refusal_says_the_rest_of_preferences_is_untouched():
+    """Because it is. Widening the block to all of Preferences would overturn a
+    policy `ui/main_window.py:1150-1155` calls deliberate, and this PR does not
+    do that."""
+    text = sd.measurement_block_text("the Measure tab")
+    assert "Everything else in Preferences stays available" in text
+
+
+def test_the_refusal_ships_no_bracketed_plural():
+    text = sd.measurement_block_text("the Measure tab")
+    for bad in ("device(s)", "driver(s)", "instrument(s)", "patch(es)"):
+        assert bad not in text
+
+
+def test_the_guard_is_the_first_thing_the_driver_helper_does():
+    """Proved from the source rather than assumed: if the refusal came after
+    the device enumeration, a measurement could be interrupted by the very act
+    of opening the window."""
+    import inspect
+    src = inspect.getsource(sd.SettingsDialog._show_usb_installer)
+    guard = src.index("measurement_in_progress")
+    enumerate_call = src.index("enumerate_connected(")
+    assert guard < enumerate_call, (
+        "the driver helper touches the hardware before it checks whether a "
+        "measurement is running")
