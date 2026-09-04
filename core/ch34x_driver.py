@@ -1037,7 +1037,12 @@ def stream_to_file(
     total = 0
     head = b""
     try:
-        with target.open("wb") as handle:
+        # `open(target, "wb")`, not `target.open("wb")`: binary needs no
+        # encoding either way, but tests/test_encoding_is_named.py cannot tell
+        # a mode from a filename on an unknown receiver, so the bound-method
+        # spelling reads as an unencoded text open. The builtin form is
+        # mode-aware and skips binary.
+        with open(target, "wb") as handle:
             while True:
                 if now() - started > deadline_s:
                     return False, (
