@@ -946,7 +946,7 @@ def test_a_stale_extraction_is_removed_not_replaced(tmp_path, monkeypatch):
     """
     stale = tmp_path / "dl" / "package"
     stale.mkdir(parents=True)
-    (stale / "leftover.txt").write_text("old")
+    (stale / "leftover.txt").write_text("old", encoding="utf-8")
     payload = _zip_bytes({"CH341SER/CH341SER.INF": b"[Version]"})
     monkeypatch.setattr(ch, "_open_url", lambda url: _Reader([payload]))
     ok, folder, why = ch.download_package(tmp_path / "dl")
