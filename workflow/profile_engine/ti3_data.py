@@ -155,6 +155,51 @@ class Ti3Measurement:
         """XYZ of the darkest patch (the ``bkpt`` tag content)."""
         return self.xyz[self.black_index].copy()
 
+    def collapse_duplicates(self) -> tuple[int, int]:
+        """Average every group of exactly repeated device values into one
+        row (XYZ and spectra; the first row's SAMPLE_ID/LOC is kept).
+
+        Returns ``(groups, rows_removed)``. Fitting THROUGH k repeats is
+        only equivalent to averaging them under equal weights, and it makes
+        the robust loop read the between-read scatter of identical patches
+        as misreads — measured on the noisy battery printer: 205 patches
+        "flagged" with three stacked reads vs 62 pre-averaged, and the
+        pre-averaged build won on every ground-truth metric (A-18)."""
+        order = np.lexsort(self.device.T)
+        groups: list[list[int]] = []
+        cur = [int(order[0])]
+        for prev, nxt in zip(order[:-1], order[1:]):
+            if np.abs(self.device[nxt] - self.device[prev]).max() <= 1e-9:
+                cur.append(int(nxt))
+            else:
+                groups.append(cur)
+                cur = [int(nxt)]
+        groups.append(cur)
+        multi = [g for g in groups if len(g) > 1]
+        if not multi:
+            return 0, 0
+        keep = sorted(min(g) for g in groups)
+        xyz = self.xyz.copy()
+        spec = None if self.spectral is None else self.spectral.copy()
+        for g in multi:
+            xyz[min(g)] = self.xyz[g].mean(0)
+            if spec is not None:
+                spec[min(g)] = self.spectral[g].mean(0)
+        removed = len(self.device) - len(keep)
+        self.device = self.device[keep]
+        self.xyz = xyz[keep]
+        if spec is not None:
+            self.spectral = spec[keep]
+        if self.sample_ids is not None:
+            self.sample_ids = [self.sample_ids[i] for i in keep]
+        if self.sample_locs is not None:
+            self.sample_locs = [self.sample_locs[i] for i in keep]
+        for attr in ("xyz_relative", "lab_relative", "lab_absolute",
+                     "media_white_xyz", "white_index", "black_index",
+                     "black_xyz"):
+            self.__dict__.pop(attr, None)
+        return len(multi), removed
+
     def extra_ink_hues(self) -> dict[str, float]:
         """Measured Lab hue angle per extra ink (channels beyond CMYK).
 

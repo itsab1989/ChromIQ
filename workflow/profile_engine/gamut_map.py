@@ -41,7 +41,6 @@ from workflow.profile_engine import b2a as b2a_mod
 from workflow.profile_engine import icc_writer as icw
 from workflow.profile_engine.forward_model import ForwardModel
 from workflow.profile_engine.ti3_data import Ti3Measurement, xyz_to_lab
-from core.proc_text import run_text
 
 # Bradford D65→D50 adaptation (both analytic sources are D65-white).
 _MB = np.array([[0.8951, 0.2664, -0.1614],
@@ -457,17 +456,58 @@ COLPROF_TIMEOUT_S = 1800
 XICCLU_TIMEOUT_S = 600
 
 
+# Argyll children the engine has running right now, so a quit can end them.
+# Closing the window mid-build used to orphan the oracle colprof for ~50 s
+# and leave its temp folder behind (B-25).
+_LIVE_CHILDREN: set = set()
+
+
+def terminate_argyll_children() -> int:
+    """Kill every Argyll subprocess the engine still has running; returns
+    how many were killed. Safe to call from any thread and when none run."""
+    n = 0
+    for proc in list(_LIVE_CHILDREN):
+        try:
+            if proc.poll() is None:
+                proc.kill()
+                n += 1
+        except OSError:
+            pass
+        _LIVE_CHILDREN.discard(proc)
+    return n
+
+
 def _run_argyll(cmd, **kw):
-    """``run_text`` that turns a timeout into :class:`OracleUnavailable`
+    """``run_text``-equivalent that (a) registers the child so a quit can
+    kill it, and (b) turns a timeout into :class:`OracleUnavailable`
     naming the tool and the budget, instead of a bare ``TimeoutExpired``
     that reads like a crash."""
     import subprocess
+    from core.proc_text import decode_output
+    timeout = kw.pop("timeout", None)
+    kw.pop("capture_output", None)
+    inp = kw.pop("input", None)
+    if isinstance(inp, str):
+        inp = inp.encode("utf-8")
+    proc = subprocess.Popen([str(c) for c in cmd], stdin=subprocess.PIPE,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    _LIVE_CHILDREN.add(proc)
+    what = Path(str(cmd[0])).name
     try:
-        return run_text(cmd, **kw)
+        out, err = proc.communicate(input=inp, timeout=timeout)
     except subprocess.TimeoutExpired as exc:
+        proc.kill()
+        proc.communicate()
         raise OracleUnavailable(
-            f"{Path(str(cmd[0])).name} did not finish within "
-            f"{int(kw.get('timeout', 0)) // 60} minutes") from exc
+            f"{what} did not finish within "
+            f"{int(timeout or 0) // 60} minutes") from exc
+    finally:
+        _LIVE_CHILDREN.discard(proc)
+    if proc.returncode is not None and proc.returncode < 0:
+        raise OracleUnavailable(f"{what} was stopped")
+    return subprocess.CompletedProcess(
+        cmd, proc.returncode, decode_output(out, what=what),
+        decode_output(err, what=what))
 
 
 class OracleUnavailable(RuntimeError):
@@ -570,9 +610,10 @@ def fit_colprof_mappers(meas: Ti3Measurement, source_gamut: Path | str,
         q = settings.quality if settings.quality in ("l", "m", "h") else "h"
         args = [str(colprof), f"-q{q}"]
         # Same source/intent/viewing surface the engine build was asked for.
-        flag = "-s" if (getattr(settings, "perc_src_colorimetric", False)
-                        and getattr(settings, "sat_src_colorimetric", False)
-                        ) else "-S"
+        # -s = perceptual only (colprof aliases saturation to it), -S =
+        # both; -nP/-nS say which SOURCE gamut each uses and never collapse
+        # the saturation table into the perceptual one (A-12).
+        flag = "-S" if getattr(settings, "sat_gamut", True) else "-s"
         args += [flag, str(source_gamut)]
         if getattr(settings, "perc_intent", ""):
             args.append(f"-t{settings.perc_intent}")
@@ -863,6 +904,8 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
         dst = np.vstack([dst, meas.lab_relative])
     node_lab = codec.node_lab(grid)
     inv_curves = b2a_mod.inverse_curves(model.curves)
+    no_out_shaper = bool(getattr(settings, "no_output_shaper", False))
+    sat_gamut = bool(getattr(settings, "sat_gamut", True))
     out: dict[str, bytes | str] = {}
     mappers: dict[str, object] = {}
     mapped_by_tag: dict[str, np.ndarray] = {}
@@ -935,6 +978,11 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
             ("B2A0", getattr(settings, "perc_intent", ""), perc_int, {}),
             ("B2A2", getattr(settings, "sat_intent", ""), sat_int,
              _SAT_DEFAULT)):
+        if tag == "B2A2" and not sat_gamut:
+            # colprof -s: "the saturation intent will use the same table as
+            # the perceptual intent" (colprof.html).
+            out[tag] = "B2A0"
+            continue
         if intent in _COLORIMETRIC_INTENTS:
             out[tag] = "B2A1"          # colorimetric-family intent: exact
             continue
@@ -974,7 +1022,9 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
             channel_max=channel_max,
             progress=progress,
             progress_label="Gamut mapping: building the final colour table")
-        shaped = model.shape_device(dev)
+        # colprof -no applies to EVERY B2A table (A-17): identity output
+        # tables with unshaped device values in the CLUT.
+        shaped = dev if no_out_shaper else model.shape_device(dev)
         # Perceptual/saturation white is device white by definition
         # (source white → destination white); the inversion of the mapped
         # target lands a fitted value there, so pin it (b2a.pin_white_node).
@@ -982,7 +1032,9 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
         out[tag] = icw.make_mft2(
             3, model.n_channels, grid, icw.device_to_u16(shaped),
             in_tables=codec.b2a_in_tables(entries),
-            out_tables=icw.curves_to_tables(inv_curves, entries))
+            out_tables=(np.tile(icw._identity_table(entries),
+                                (model.n_channels, 1)) if no_out_shaper
+                        else icw.curves_to_tables(inv_curves, entries)))
 
     if getattr(settings, "inverse_gamut_a2b", False) and mappers \
             and a2b_grid is not None:

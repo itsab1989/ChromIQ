@@ -37,6 +37,10 @@ from workflow.profile_engine.metrics import delta_e_2000
 # λ search ladder, as factors on the parity table's value (settings -r
 # included — it scales the base before the search).
 _LAMBDA_FACTORS = (0.25, 0.5, 1.0, 2.0, 4.0)
+_CV_FOLDS = 3                  # hold-out splits for ≤ 4-ink charts
+_CV_MARGIN_FRACTION = 0.05     # a factor must beat ×1 by this much (or by
+#                                the across-split scatter, whichever is larger)
+_NAME_SCALE_FACTOR = 6.0       # "remeasure" threshold in robust-scale units
 _HOLDOUT_MIN_PATCHES = 120     # below this a CV split starves the fit
 _CG_RTOL = 1e-12               # squared-residual scale → ~1e-6 relative
 
@@ -87,8 +91,9 @@ def fit_forward_model_accurate(
         sigma, (n_floor, n_dark) = patch_noise_sigma(device, lab_orig,
                                                      space=space)
         if progress is not None:
-            progress(f"Measurement-noise model from duplicate patches: "
-                     f"σ = {n_floor:.3f} + {n_dark:.3f}·exp(−Y/10).")
+            progress(f"Estimated reading noise from the repeated patches: "
+                     f"±{n_floor:.2f} XYZ on light patches, "
+                     f"±{n_floor + n_dark:.2f} near black.")
 
     # Outlier scan on a deliberately STIFF fit: a smudge cannot hide from
     # the residuals of a stiff surface, whereas a low cross-validated λ can
@@ -125,11 +130,12 @@ def fit_forward_model_accurate(
             floors[band] = np.sqrt(max(
                 mad_b ** 2 - float(np.median(sigma[band])) ** 2, 0.0))
         sigma = np.sqrt(sigma ** 2 + floors ** 2)
-        if progress is not None:
-            progress(f"Model-error floor folded into the noise budget "
-                     f"(shadows ±{floors[l_star < 30.0].max(initial=0):.2f} "
-                     f"ΔE, highlights "
-                     f"±{floors[l_star >= 65.0].max(initial=0):.2f} ΔE).")
+        sh = float(floors[l_star < 30.0].max(initial=0))
+        hi = float(floors[l_star >= 65.0].max(initial=0))
+        if progress is not None and max(sh, hi) >= 0.005:
+            progress(f"The model's own resolution limit is added to that "
+                     f"budget (shadows ±{sh:.2f} ΔE, highlights ±{hi:.2f} "
+                     f"ΔE).")
 
     if npts >= _HOLDOUT_MIN_PATCHES:
         # Several hold-out splits, not one: on a real 924-patch chart the
@@ -140,7 +146,7 @@ def fit_forward_model_accurate(
         # plain fit (measured 2026-09-05). A factor now has to beat the
         # standard smoothing by more than the criterion's own scatter.
         nho = max(30, npts // 10)
-        folds = 3 if device.shape[1] <= 4 else 1
+        folds = _CV_FOLDS if device.shape[1] <= 4 else 1
         splits = []
         for k in range(folds):
             idx = np.random.default_rng(4242 + k).permutation(npts)
@@ -164,7 +170,7 @@ def fit_forward_model_accurate(
             errs[f] = [cv_err(base_lam * f, ho, trn) for ho, trn in splits]
         mean = {f: float(np.mean(v)) for f, v in errs.items()}
         std_at_1 = float(np.std(errs[1.0])) if folds > 1 else 0.0
-        noise = max(0.05 * mean[1.0], std_at_1)
+        noise = max(_CV_MARGIN_FRACTION * mean[1.0], std_at_1)
         cand = min(mean, key=mean.get)
         if cand != 1.0 and mean[cand] < mean[1.0] - noise:
             best_f = cand
@@ -179,7 +185,7 @@ def fit_forward_model_accurate(
                          f"{unit_}) — keeping the standard smoothing.")
             else:
                 at_end = best_f in (_LAMBDA_FACTORS[0], _LAMBDA_FACTORS[-1])
-                progress(f"Smoothing chosen by cross-validation: ×{best_f:g} "
+                progress(f"Smoothing chosen by cross-validation: ×{best_f:.2g} "
                          f"of the standard value (held-out median "
                          f"{best_err:.2f} vs {mean[1.0]:.2f} {unit_} at the "
                          f"standard value)"
@@ -270,19 +276,24 @@ def fit_forward_model_accurate(
     # model a patch must be *visibly wrong AND statistically anomalous*
     # (a misread is both; a light patch's model-error tail is only the
     # latter, a noisy dark patch only the former — neither is a misread).
+    # The naming threshold scales with the chart's own scatter: on a chart
+    # measured at 3× a healthy instrument's noise a fixed 3 ΔE00 named 61
+    # patches of which one was a misread (A-15); 4× the robust scale keeps
+    # a clean chart's threshold where it was (scale floors at 0.35).
     named = res_w > max(6.0 * float(np.median(res_w)),
-                        3.0 if sigma is None else 3.0 * scale)
+                        3.0 if sigma is None else 3.0 * scale,
+                        _NAME_SCALE_FACTOR * scale)
     if sigma is not None:
         named &= res > 3.0
-        # A misread is an ISOLATED anomaly — its device-space neighbours
-        # read fine. A patch merely sitting in a hard-to-fit region has
-        # equally-poor neighbours and is the model's problem, not the
-        # user's: don't send them remeasuring the whole shadow end.
-        for i in np.flatnonzero(named):
-            d2 = ((device - device[i]) ** 2).sum(1)
-            nn = np.argsort(d2)[1:9]
-            if res[i] < 3.0 * float(np.median(res[nn])) + 1.0:
-                named[i] = False
+    # A misread is an ISOLATED anomaly — its device-space neighbours read
+    # fine. A patch merely sitting in a hard-to-fit region has equally-poor
+    # neighbours and is the model's problem, not the user's: don't send
+    # them remeasuring the whole shadow end.
+    for i in np.flatnonzero(named):
+        d2 = ((device - device[i]) ** 2).sum(1)
+        nn = np.argsort(d2)[1:9]
+        if res[i] < 3.0 * float(np.median(res[nn])) + 1.0:
+            named[i] = False
     if sigma is None:
         outliers = np.flatnonzero(named | (w_rob == 0.0))
     else:
@@ -329,11 +340,14 @@ def fit_forward_model_accurate_challenged(
     win = ratio >= 2.0
     if progress is not None:
         if win:
-            progress(f"Repeated patches scatter {ratio:.1f}× the healthy-"
-                     f"instrument level — noise handling engaged.")
+            progress(f"The repeated white and black patches differ by "
+                     f"{ratio:.1f}× more than a spectrophotometer's own "
+                     f"repeatability (paper or print unevenness across the "
+                     f"sheet counts here) — readings will be weighted by "
+                     f"their reliability.")
         else:
-            progress("Measurement noise is low on this chart — keeping "
-                     "the standard fit (noise handling stands aside).")
+            progress("The repeated patches agree closely — the readings are "
+                     "trusted equally (noise handling stands aside).")
     model, outliers, lam = fit_forward_model_accurate(
         device, lab, grid=grid, base_lam=base_lam,
         curve_rounds=curve_rounds, ucs=ucs, gp=win, progress=progress)

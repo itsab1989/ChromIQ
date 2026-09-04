@@ -120,6 +120,9 @@ class BuildSettings:
     z_default_intent: str = ""               # colprof -Z p/r/s/a
     # Gamut mapping (colprof -s/-S; ChromIQ passes ClayRGB by default, #121)
     source_gamut: Path | str | None = None
+    # colprof -S (True: perceptual AND saturation tables are mapped) vs -s
+    # (False: perceptual only; the saturation table aliases it — colprof.html)
+    sat_gamut: bool = True
     perc_src_colorimetric: bool = False      # colprof -nP
     sat_src_colorimetric: bool = False       # colprof -nS
     inverse_gamut_a2b: bool = False          # colprof -nI
@@ -185,6 +188,12 @@ class BuildSettings:
     # radial mapping (exact -nI inverse, much faster; how photos LOOK is
     # a taste question the user judges by printing).
     render_style: str = "argyll"
+    # Accurate mode: average exactly repeated patches before the fit
+    # (unbiased, noise/√k; measured better than fitting through the repeats
+    # on every battery metric, and it stops the robust loop from calling the
+    # between-read scatter of identical patches "misreads"). Stands aside
+    # when the noise model is on — that path weights each reading itself.
+    average_duplicates: bool = True
 
 
 @dataclass
@@ -240,9 +249,16 @@ _STAGE_PCT: list[tuple[str, int]] = [
     ("Gamut mapping: matching source colours", 46),
     ("Gamut mapping: smoothing", 54),
     ("Gamut mapping: fine-tuning", 62),
+    # The oracle colprof run is the longest single stage of an accurate
+    # ≤4-ink build (~40 of ~55 s on a 924-patch chart) and comes BEFORE the
+    # final colour table: it used to be anchored at 78 %, after the table,
+    # and sat there with "~20s left" for 45 s (B-08). The list is in time
+    # order so sub-step fractions interpolate forwards. The remaining-time
+    # estimate still cannot see inside colprof; it says so.
+    ("Saturation table: matching colprof", 40),
+    ("Saturation table: reusing", 40),
+    ("Saturation table: fitting", 70),
     ("Gamut mapping: building the final colour table", 74),
-    ("Saturation table: matching colprof", 78),
-    ("Saturation table: fitting", 92),
 ]
 
 
@@ -302,6 +318,8 @@ class _PercentProgress:
             break
         if self._inner is not None:
             eta = self._eta_text()
+            if msg.startswith("Saturation table: matching colprof"):
+                eta = "colprof is running, its time is not counted"
             head = f"{self._pct:.0f}%" + (f" · {eta}" if eta else "")
             self._inner(f"{head} · {msg}")
 
@@ -369,7 +387,13 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     # patch was then out-voted by its unscaled twins when the white index
     # was recomputed (fast) or averaged away (accurate) — measured 2026-09-04.
 
+    _sanity_gates(meas, settings)
     accurate = settings.gammap_mode == "accurate"
+    if accurate and settings.average_duplicates and not settings.noise_model:
+        groups, removed = meas.collapse_duplicates()
+        if groups:
+            _emit(settings, f"Averaged {groups} repeated patch(es) "
+                            f"({removed} extra readings) before the fit.")
     # #123 candidates only ever modify the maximum-accuracy pipeline.
     candidates = frozenset(settings.engine_candidates) if accurate \
         else frozenset()
@@ -476,6 +500,18 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     _emit(settings, f"Inverting the model (B2A grid {b2a_grid})…")
     ink_limit = settings.ink_limit if settings.ink_limit is not None \
         else meas.ink_limit
+    if ink_limit is not None and not meas.is_additive:
+        # A stamped limit above anything the chart printed sends the
+        # inversion 69 % beyond the measured ink range (A-16: 400 % stamped,
+        # 280 % printed, B2A asking 349 %). The chart's own maximum is the
+        # only ink range the model has seen.
+        printed_max = float(meas.device.sum(1).max() * 100.0)
+        if ink_limit > printed_max + 0.5:
+            _emit(settings, f"Total ink limit {ink_limit:g}% is above the "
+                            f"most ink any chart patch carries ({printed_max:.0f}%) "
+                            f"— using {printed_max:.0f}%, the range the chart "
+                            f"actually measured.")
+            ink_limit = printed_max
     # colprof -L / BLACK_INK_LIMIT: a ceiling on the K channel alone. Used
     # to be folded into the TOTAL limit by the extra-options parser (a
     # hand-typed "-L 90" capped all inks at 90 %) — found 2026-09-04.
@@ -577,9 +613,19 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             3, n, b2a_grid, icw.device_to_u16(dev_clut_shaped),
             in_tables=b2a_in,
             out_tables=icw.curves_to_tables(inv, entries_b2a))
+    # ICC.1 §9.2.29: gamt is 0 for an in-gamut PCS colour. The inversion's
+    # clamp distance is a continuous residual (0.3–0.9 ΔE on converged
+    # near-boundary nodes) and it leaked onto two thirds of the printable
+    # interior (A-08); nodes the build itself calls in-gamut write 0.
+    # A node within 3 ΔE76 of the surface is written as in-gamut: the tag
+    # is interpolated across cells, and calling near-surface nodes "out"
+    # by their sub-ΔE clamp distance leaked onto two thirds of the printable
+    # interior (A-08). Measured at -qm: 32 % → 66 % of interior colours
+    # read exactly 0, 96 % under 1 ΔE; far-out colours all stay non-zero.
+    gamt_dist = np.where(residual <= 3.0, 0.0, residual)
     gamt = icw.make_mft2(
         3, 1, b2a_grid,
-        (np.clip(residual, 0, 128)[:, None] / 128 * 0xFFFF).round(),
+        (np.clip(gamt_dist, 0, 128)[:, None] / 128 * 0xFFFF).round(),
         in_tables=codec.b2a_in_tables(256))
 
     # The colorimetric tables own the bytes; the other intents alias them
@@ -627,7 +673,13 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         timestamp=settings.timestamp,
         version=(4, 4) if str(settings.icc_version) == "4" else (2, 2),
     )
-    icw.write_profile(out, spec, luts)
+    v4_extra, v4_wtpt = _v4_adaptation(meas, settings, wtpt_abs)
+    if str(settings.icc_version) == "4":
+        from dataclasses import replace
+        spec = replace(spec, wtpt=v4_wtpt)
+        icw.write_profile(out, spec, luts, extra_tags=v4_extra)
+    else:
+        icw.write_profile(out, spec, luts)
     if str(settings.icc_version) == "both":
         # One build, two containers: the main path stays v2 (what the
         # rest of the workflow installs), the v4 twin lands alongside it
@@ -637,9 +689,9 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         twin = out.with_name(out.stem + "-v4.icc")
         # Its own name: two entries called the same thing in a profile
         # menu cannot be told apart (critic N12).
-        icw.write_profile(twin, replace(spec, version=(4, 4),
+        icw.write_profile(twin, replace(spec, version=(4, 4), wtpt=v4_wtpt,
                                         description=spec.description + " (v4)"),
-                          luts)
+                          luts, extra_tags=v4_extra)
         _emit(settings, f"Also wrote the ICC v4 twin: {twin.name}")
 
     gam_res = residual[in_gamut]
@@ -649,6 +701,15 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         _emit(settings, f"Model fit (perceptual ΔE2000): median "
                         f"{float(np.median(fit_res00)):.2f}, 95% "
                         f"{float(np.percentile(fit_res00, 95)):.2f}.")
+    if float(np.median(fit_res00)) > 2.0:
+        # A-16: a junk scanner chart built with fit median 5.1 / p95 14.5
+        # and installed like any other. Numbers alone draw no verdict.
+        _emit(settings, "WARNING: the model fits this measurement poorly "
+                        f"(median {float(np.median(fit_res00)):.1f} ΔE2000 at "
+                        "the patches; a good chart fits under 1). The "
+                        "measurement may be damaged, mis-aligned or from an "
+                        "instrument that did not read colour — check it "
+                        "before trusting this profile.")
     if "gp" in candidates or (accurate and settings.noise_model):
         from workflow.profile_engine.gp import uncertainty_lines
         for line in uncertainty_lines(meas.lab_relative, fit_res00):
@@ -665,6 +726,45 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         fit_median_de00=float(np.median(fit_res00)),
         fit_p95_de00=float(np.percentile(fit_res00, 95)),
         outlier_rows=tuple(int(i) for i in outliers))
+
+
+def _sanity_gates(meas: Ti3Measurement, settings: BuildSettings) -> None:
+    """Refuse a measurement that cannot describe a printer.
+
+    A stuck-instrument chart (every patch ≈ the same colour) built in 1.4 s
+    with "fit median 0.03" and a profile that mapped every colour to paper
+    white (A-16). The lightness range between the chart's white and its
+    darkest patch is the one number no printer chart can fake."""
+    lab = meas.lab_relative
+    span = float(lab[meas.white_index, 0] - lab[meas.black_index, 0])
+    if span < 10.0:
+        raise EngineError(
+            f"This measurement cannot describe a printer: its brightest and "
+            f"darkest patches are only {span:.1f} L* apart (a printed chart "
+            f"spans 70 or more). The instrument may have been stuck or "
+            f"mis-aimed, or the wrong file was chosen — re-measure the chart "
+            f"before building a profile.")
+
+
+def _v4_adaptation(meas: Ti3Measurement, settings: BuildSettings,
+                   wtpt_abs: np.ndarray):
+    """ICC v4 needs ``chad`` and a D50-adapted ``wtpt`` when the measurement
+    was computed for an illuminant other than D50 (ICC.1 §8.2, §9.2.36).
+    Returns ``(extra_tags, wtpt_v4)``; the v2 file keeps colprof's raw
+    illuminant-relative white (parity), the v4 file gets the adapted one."""
+    illum = (settings.illuminant or "D50").upper().replace("M2", "")
+    if illum == "D50" or meas.wavelengths is None:
+        return [], tuple(wtpt_abs / 100.0)
+    from workflow.profile_engine.icc_writer import BRADFORD, make_sf32
+    from workflow.profile_engine.spectral import spectra_to_xyz
+    from workflow.profile_engine.ti3_data import D50_XYZ100
+    ill = spectra_to_xyz(np.ones((1, len(meas.wavelengths))),
+                         meas.wavelengths,
+                         illuminant=settings.illuminant)[0]
+    cone_ill = BRADFORD @ (ill / 100.0)
+    cone_d50 = BRADFORD @ (D50_XYZ100 / 100.0)
+    m = np.linalg.inv(BRADFORD) @ np.diag(cone_d50 / cone_ill) @ BRADFORD
+    return [(b"chad", make_sf32(m))], tuple((m @ wtpt_abs) / 100.0)
 
 
 def _channel_ceilings(meas: Ti3Measurement,

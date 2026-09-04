@@ -169,6 +169,7 @@ def _apply_extra_args(extra: str, s: BuildSettings) -> None:
         elif t.startswith("-D"):
             s.description = val(t, "-D")
         elif t.startswith("-s") or t.startswith("-S"):
+            s.sat_gamut = t.startswith("-S")
             s.source_gamut = val(t, t[:2])
         elif t == "-R":
             s.clip_primaries = True
@@ -225,6 +226,7 @@ def settings_from_params(params: "ProfileParams") -> BuildSettings:
             params.z_color_mode])),
         z_default_intent=params.z_default_intent,
         source_gamut=params.gamut_src or params.gamut_sat_src or None,
+        sat_gamut=bool(params.gamut_sat_src),      # -S; -s = perceptual only
         perc_src_colorimetric=params.no_perc_gamut,
         sat_src_colorimetric=params.no_sat_gamut,
         inverse_gamut_a2b=params.inv_gamut_map,
