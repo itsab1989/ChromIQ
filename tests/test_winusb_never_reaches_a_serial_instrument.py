@@ -85,15 +85,50 @@ def test_every_zadig_instruction_warns_about_the_serial_device():
     Each place the app steers someone to Zadig says "find your colorimeter and
     choose WinUSB". On a machine with a CR30 attached, that sentence applied to
     the CH340 row is the damage. Every one of them must carry the warning.
+
+    THIS USED TO COUNT PHRASES IN THE SOURCE, and that is why it is being
+    rewritten rather than deleted. The three outcomes each carried their own
+    copy of the warning paragraph; factoring the copies into one `tr()` key —
+    so a translator writes it once and the three windows cannot drift apart —
+    dropped the source count from three to one and turned this test red, on a
+    change that made the guarantee *stronger*. A test that fails when the thing
+    it protects improves is measuring the wrong thing.
+
+    So it now asks the question of the rendered text: every branch of the two
+    message functions that mentions Zadig must also carry the CR30 warning. That
+    holds however the string is assembled, and it is what the user actually
+    reads.
     """
-    from ui.dialogs import settings_dialog
-    src = inspect.getsource(settings_dialog)
-    steers = src.count("List All Devices") + src.count(
-        "Select your colorimeter, choose WinUSB")
-    warns = src.count("If you own a CR30")
-    assert warns >= steers, (
-        f"{steers} places steer the user to Zadig but only {warns} warn about "
-        "the CR30's serial bridge")
+    from ui.dialogs.settings_dialog import (usb_installer_text,
+                                            usb_install_outcome)
+    from types import SimpleNamespace
+
+    def dev(has_winusb):
+        return SimpleNamespace(name="GretagMacbeth i1 Pro / i1 Pro 2",
+                               has_winusb=has_winusb)
+
+    rendered = []
+    for wdi in (True, False):
+        for devices in ([], [dev(True)], [dev(False)], [dev(True), dev(False)]):
+            rendered.append(usb_installer_text(devices, wdi_available=wdi)[0])
+    for status in ("launched", "download_page", "failed", None):
+        rendered.append(usb_install_outcome(
+            wdi_available=False, ran_ok=False, still_unbound_names=[],
+            zadig_status=status)[0])
+    for ran_ok in (True, False):
+        for unbound in ([], ["GretagMacbeth i1 Pro / i1 Pro 2"]):
+            rendered.append(usb_install_outcome(
+                wdi_available=True, ran_ok=ran_ok,
+                still_unbound_names=unbound, zadig_status=None)[0])
+
+    steers = [t for t in rendered
+              if "List All Devices" in t
+              or "Select your colorimeter, choose WinUSB" in t]
+    assert steers, "no branch steers the user to Zadig any more — has the "                    "wording moved somewhere this test cannot see?"
+    unwarned = [t for t in steers if "If you own a CR30" not in t]
+    assert not unwarned, (
+        f"{len(unwarned)} of {len(steers)} Zadig instructions do not warn "
+        f"about the CR30's serial bridge: {unwarned}")
 
 
 def test_the_driver_dialog_does_not_ship_s_in_brackets():

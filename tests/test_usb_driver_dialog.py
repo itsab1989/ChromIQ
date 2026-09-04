@@ -17,6 +17,7 @@ what notices.
 """
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -1057,3 +1058,321 @@ def test_the_rename_reached_every_catalogue():
             f"[{code}] the button is still English")
         assert "Install USB Driver…" not in cat, (
             f"[{code}] the old key was left behind and is now stale")
+
+
+# ---------------------------------------------------------------------------
+# A message that names a button must get the name FROM the button
+# ---------------------------------------------------------------------------
+#
+# THE FAULT THIS PREVENTS, in the words of the screenshot it was found in: the
+# window's title and buttons were translated and one paragraph was not, so a
+# German user read "then click Check again" under a button labelled ERNEUT
+# PRÜFEN and went looking for a control that is not on the screen.
+#
+# Wrapping the paragraph in tr() is only half a fix. If the button's name stays
+# an English literal INSIDE the translated sentence, the sentence and the button
+# are two independent keys, and the next person to translate them — or to rename
+# the button — separates them again. The paragraph must interpolate the button's
+# own label, so that there is only one string to get right.
+#
+# These tests ask the question in every language ChromIQ ships, of the rendered
+# output rather than of the source, so the invariant holds however it is spelled.
+
+ALL_CODES = [p.stem for p in
+             (Path(sd.__file__).resolve().parent.parent.parent
+              / "data" / "i18n").glob("*.json")]
+
+
+@pytest.fixture
+def in_language():
+    """Render in one language, and always come back to English.
+
+    The characterisation tests above assert English character for character, so
+    a language left set here would fail them in whatever order pytest happens to
+    run. The reset is in a fixture, not at the end of each test, because a
+    failing assertion would skip it.
+    """
+    from core import i18n
+
+    def _set(code):
+        i18n.set_language(code)
+        return code
+    yield _set
+    i18n.set_language("en")
+
+
+@pytest.mark.parametrize("code", ALL_CODES)
+def test_the_no_device_message_names_the_button_that_is_really_there(
+        code, in_language):
+    """`Check again` is built with tr(), so in German the button reads ERNEUT
+    PRÜFEN. The sentence pointing at it has to say the same thing."""
+    in_language(code)
+    msg, _btn = sd.usb_installer_text([], wdi_available=True)
+    assert sd._label_check_again() in msg, (
+        f"[{code}] the message does not name the button as it is labelled")
+
+
+@pytest.mark.parametrize("code", ALL_CODES)
+def test_the_install_message_names_the_install_button(code, in_language):
+    in_language(code)
+    msg, btn = sd.usb_installer_text([dev(I1PRO, False)], wdi_available=True)
+    assert btn in msg, f"[{code}] {btn!r} is not named in its own message"
+
+
+@pytest.mark.parametrize("code", ALL_CODES)
+def test_the_zadig_message_names_the_zadig_button(code, in_language):
+    in_language(code)
+    msg, btn = sd.usb_installer_text([dev(I1PRO, False)], wdi_available=False)
+    assert btn in msg, f"[{code}] {btn!r} is not named in its own message"
+
+
+@pytest.mark.parametrize("code", ALL_CODES)
+@pytest.mark.parametrize("wdi", [True, False])
+def test_the_already_installed_message_names_whichever_button_it_gets(
+        code, wdi, in_language):
+    in_language(code)
+    msg, btn = sd.usb_installer_text([dev(I1PRO, True)], wdi_available=wdi)
+    assert btn in msg, f"[{code}] wdi={wdi}: {btn!r} is not named in its message"
+
+
+@pytest.mark.parametrize("code", ALL_CODES)
+def test_the_outcomes_that_offer_zadig_name_the_zadig_button(code, in_language):
+    """`Try Zadig` is the label `_show_usb_installer` passes to
+    `_driver_notice`, so it is what the user sees on the button."""
+    in_language(code)
+    for ran_ok, unbound in ((False, []), (True, [I1PRO])):
+        text, offer = sd.usb_install_outcome(
+            wdi_available=True, ran_ok=ran_ok,
+            still_unbound_names=unbound, zadig_status=None)
+        assert offer is True
+        assert sd._label_try_zadig() in text, (
+            f"[{code}] the outcome offers a button it does not name")
+
+
+def test_the_labels_come_from_tr_and_not_from_a_literal():
+    """The mechanism, pinned from the source. Every one of these is a single
+    tr() call, which is what makes interpolating them worth anything: a label
+    assembled some other way could drift from the catalogue."""
+    import inspect
+    for fn in (sd._label_check_again, sd._label_install_driver,
+               sd._label_reinstall_driver, sd._label_open_zadig,
+               sd._label_try_zadig):
+        src = inspect.getsource(fn)
+        assert src.count("tr(") == 1, f"{fn.__name__} is not one tr() call"
+        assert "return tr(" in src
+
+
+def test_no_message_hard_codes_a_button_name_in_english():
+    """The source-level half of the invariant.
+
+    Interpolation is the fix; this is the tripwire for someone adding a new
+    sentence the easy way. Every message built by these two functions must
+    reach a button's name through `{button}` / `{check_again}`, never by
+    spelling it out.
+    """
+    import inspect
+    OURS = ("Check again", "Reinstall Driver", "Open Zadig", "Try Zadig")
+    for fn in (sd.usb_installer_text, sd.usb_install_outcome):
+        src = inspect.getsource(fn)
+        # drop comments: they discuss the labels by name, on purpose
+        body = "\n".join(l for l in src.split("\n")
+                         if not l.strip().startswith("#"))
+        for label in OURS:
+            assert f"<b>{label}</b>" not in body, (
+                f"{fn.__name__} spells out {label!r} instead of interpolating "
+                "the button's own tr() label")
+
+
+# ---------------------------------------------------------------------------
+# The names that must NOT be translated
+# ---------------------------------------------------------------------------
+#
+# The mirror image of the rule above, and it bites in the opposite direction.
+# Zadig ships one user interface and it is English. Translating "Options → List
+# All Devices" into German would send the user hunting through a menu that does
+# not contain those words — the same fault as naming a button that is not there,
+# arrived at from the other side.
+#
+# Windows is different: it IS translated, so "click Yes" belongs inside the key
+# for the translator to render as "Ja". That is why this list is Zadig's
+# controls only, and not every foreign word in the window.
+
+ZADIG_CONTROLS = ("Options → List All Devices", "Install Driver",
+                  "Replace Driver", "WinUSB", "libusb-win32")
+
+
+@pytest.mark.parametrize("code", ALL_CODES)
+def test_zadigs_own_controls_are_never_translated(code, in_language):
+    """Zadig's menu items must survive verbatim into every language."""
+    in_language(code)
+    steps, _btn = sd.usb_installer_text([dev(I1PRO, False)], wdi_available=False)
+    for control in ("Options → List All Devices", "WinUSB", "Install Driver"):
+        assert control in steps, (
+            f"[{code}] Zadig's {control!r} was translated — the user will look "
+            "for it in Zadig's English interface and not find it")
+
+    launched, _ = sd.usb_install_outcome(
+        wdi_available=False, ran_ok=False, still_unbound_names=[],
+        zadig_status="launched")
+    assert "WinUSB" in launched and "Install Driver" in launched
+
+    unbound, _ = sd.usb_install_outcome(
+        wdi_available=True, ran_ok=True, still_unbound_names=[I1PRO],
+        zadig_status=None)
+    for control in ("WinUSB", "libusb-win32", "Replace Driver"):
+        assert control in unbound, f"[{code}] Zadig's {control!r} was translated"
+
+
+@pytest.mark.parametrize("code", ALL_CODES)
+def test_the_zadig_address_survives_every_language(code, in_language):
+    """A URL a translator retypes is a URL that can acquire a typo in one
+    language only, so it is interpolated rather than left inside the key."""
+    in_language(code)
+    text, _ = sd.usb_install_outcome(
+        wdi_available=False, ran_ok=False, still_unbound_names=[],
+        zadig_status="failed")
+    assert sd.ZADIG_SITE in text
+    assert sd.ZADIG_SITE == "https://zadig.akeo.ie"
+
+
+# ---------------------------------------------------------------------------
+# The English fault that was hiding underneath the German one
+# ---------------------------------------------------------------------------
+
+def test_a_working_device_without_wdi_simple_names_open_zadig_not_reinstall():
+    """FIXED HERE. The "already installed" paragraph said "click <b>Reinstall
+    Driver</b>" in both branches, but without wdi-simple the button built
+    underneath it is `Open Zadig`. So this window has been naming a
+    non-existent button in ENGLISH, on every build without the bundled
+    installer, since long before the German section existed —
+    `test_a_working_device_without_wdi_simple_still_says_open_zadig` asserted
+    the button and never read the sentence.
+
+    Interpolating the label fixes it for the same reason it fixes the German
+    one: there is now only one name, and the button owns it.
+    """
+    msg, btn = sd.usb_installer_text([dev(I1PRO, True)], wdi_available=False)
+    assert btn == "Open Zadig"
+    assert "<b>Open Zadig</b>" in msg
+    assert "Reinstall Driver" not in msg, (
+        "the message still names the button from the other branch")
+
+
+def test_the_whole_window_is_one_language_or_the_other(in_language):
+    """The defect, stated as one assertion.
+
+    Round 1 translated this window's titles, its second section and its buttons
+    and left the WinUSB body in English, which reads worse than leaving all of
+    it English: German, English, German, German looks broken rather than
+    untranslated. Every string the window builds must move together.
+    """
+    in_language("de")
+    msg, _btn = sd.usb_installer_text([], wdi_available=True)
+    assert "No colorimeter detected" not in msg
+    assert "Make sure your device is plugged in" not in msg
+    assert "Kein Farbmessgerät gefunden" in msg
+
+    listed, _btn = sd.usb_installer_text([dev(I1PRO, False)], wdi_available=True)
+    assert "Connected colorimeter" not in listed
+    assert "driver not installed" not in listed
+
+    ok, _ = sd.usb_install_outcome(wdi_available=True, ran_ok=True,
+                                   still_unbound_names=[], zadig_status=None)
+    assert "installed successfully" not in ok
+
+
+# ---------------------------------------------------------------------------
+# The same rule, over the COM-port half
+# ---------------------------------------------------------------------------
+#
+# Four sentences in this half spelled a button out in English too, and one of
+# them was worse than the WinUSB cases: `<b>My instrument is not listed</b>` was
+# a SECOND catalogue key, differing from the button's own
+# `My instrument is not listed…` by the trailing ellipsis. Two keys for one
+# control is drift waiting to happen — a translator sees them in different
+# places, months apart, and has no way to know they must agree.
+
+@pytest.mark.parametrize("code", ALL_CODES)
+def test_the_working_bridge_names_the_not_listed_button(code, in_language):
+    in_language(code)
+    text, primary, secondary = sd.serial_section_text([bridge("COM5")])
+    assert primary is None, "a bridge that works must not be offered an install"
+    assert secondary == sd._label_not_listed()
+    assert sd._in_prose(secondary) in text, (
+        f"[{code}] the message does not name its button")
+
+
+@pytest.mark.parametrize("code", ALL_CODES)
+def test_the_no_bridge_message_names_the_not_listed_button(code, in_language):
+    in_language(code)
+    text, _primary, secondary = sd.serial_section_text([])
+    assert sd._in_prose(secondary) in text, (
+        f"[{code}] the message does not name its button")
+
+
+@pytest.mark.parametrize("code", ALL_CODES)
+def test_the_failed_install_advice_names_the_check_again_button(
+        code, in_language):
+    in_language(code)
+    text, _ = sd.serial_outcome_text(stage="not_bound", folder="F")
+    assert sd._label_check_again() in text, (
+        f"[{code}] step 1 tells the user to press something that is not there")
+
+
+@pytest.mark.parametrize("code", ALL_CODES)
+def test_the_download_failure_names_the_folder_button(code, in_language):
+    in_language(code)
+    text, _ = sd.serial_outcome_text(stage="download_failed", detail="x")
+    assert sd._in_prose(sd._label_have_folder()) in text, (
+        f"[{code}] the do-it-yourself route names a button that is not there")
+
+
+def test_there_is_only_one_key_per_button():
+    """`My instrument is not listed` and `My instrument is not listed…` were
+    two keys for one control. Pinned so a near-duplicate cannot come back."""
+    import json
+    root = Path(sd.__file__).resolve().parent.parent.parent / "data" / "i18n"
+    for code in ALL_CODES:
+        cat = json.loads(root.joinpath(f"{code}.json").read_text(encoding="utf-8"))
+        assert "My instrument is not listed" not in cat, (
+            f"[{code}] the ellipsis-less near-duplicate is back")
+
+
+def test_no_serial_message_hard_codes_a_button_name_in_english():
+    """The tripwire, over this half of the window."""
+    import inspect
+    OURS = ("Check again", "Get the driver…", "I already have the folder…",
+            "My instrument is not listed…", "My instrument is not listed")
+    for fn in (sd.serial_section_text, sd.serial_outcome_text,
+               sd.serial_install_intro_text, sd.serial_manual_route_text,
+               sd.serial_unknown_arch_text, sd.measurement_block_text):
+        src = inspect.getsource(fn)
+        body = "\n".join(l for l in src.split("\n")
+                         if not l.strip().startswith("#"))
+        flat = body.replace('"\n', "").replace('"', "")
+        for label in OURS:
+            assert f"<b>{label}</b>" not in flat, (
+                f"{fn.__name__} spells out {label!r} instead of interpolating "
+                "the button's own tr() label")
+
+
+def test_a_button_name_in_prose_does_not_collide_with_the_full_stop(in_language):
+    """The cosmetic half of the fix, and it only showed up on screen.
+
+    Interpolating the label put the button's trailing ellipsis into the middle
+    of a sentence, so the German window read "…in der Liste….". The ellipsis is
+    punctuation on the control, not part of its name.
+    """
+    for code in ALL_CODES + ["en"]:
+        in_language(code)
+        for states in ([], [bridge("COM5")]):
+            text, _p, _s = sd.serial_section_text(states)
+            assert "…." not in text, f"[{code}] ellipsis collides with full stop"
+        failed, _ = sd.serial_outcome_text(stage="download_failed", detail="x")
+        assert "…." not in failed, f"[{code}] ellipsis collides with full stop"
+
+
+def test_stripping_the_ellipsis_leaves_the_name_alone():
+    assert sd._in_prose("My instrument is not listed…") ==         "My instrument is not listed"
+    assert sd._in_prose("Check again") == "Check again"
+    assert sd._in_prose("I already have the folder…") ==         "I already have the folder"
