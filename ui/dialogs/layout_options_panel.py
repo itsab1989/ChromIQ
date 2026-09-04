@@ -1175,14 +1175,24 @@ class LayoutOptionsPanel(QWidget):
         # `tests/test_the_layout_panel_fits_the_pane_in_every_language.py` was
         # written for, and it caught it.
         #
-        # So the outer column gives up its own margins (the group box's border
-        # is the inset) and each sub-grid takes 8: 0 + 1 border + 8 = 9 px per
-        # side, which is what a plain grid on the group box used to take. The
-        # split is width-neutral by construction, not by luck.
-        _si_v.setContentsMargins(0, 0, 0, 0)
+        # So the 9 px per side that a plain grid on the group box used to take
+        # is SPLIT, not spent twice: 4 px of outer column margin + the
+        # sub-frame's 1 px border + 4 px of sub-grid margin. The split is
+        # width-neutral by construction, not by luck — the total inset from the
+        # outer frame to the first control is the same 9 px it always was.
+        #
+        # The outer margins used to be 0, which put each sub-frame's border
+        # flush against the outer frame's. Knut, 4.1.5-beta.9: *"The frames
+        # around the options in the Strip & row labels frame need some pixels
+        # space, so they do not hug each other on left and right side."* Those
+        # pixels come out of the sub-grids (8 → 4), because there are none
+        # spare: Dutch sits exactly on the 514 px budget in
+        # `tests/test_the_layout_panel_fits_the_pane_in_every_language.py`, and
+        # this frame is the widest thing in the panel.
+        _si_v.setContentsMargins(4, 0, 4, 0)
         _si_v.setSpacing(6)
         for _g in (sig2, sig3):
-            _g.setContentsMargins(8, 4, 8, 4)
+            _g.setContentsMargins(4, 4, 4, 4)
             _g.setVerticalSpacing(4)
         self._label_sub_both = si_both
         self._label_sub_strip_only = si_only
