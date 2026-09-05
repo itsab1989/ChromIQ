@@ -48,6 +48,39 @@ def split_rep_letters(device_rep: str) -> list[str]:
     return letters
 
 
+def light_ink_parents(channel_letters: list[str]) -> dict[int, int]:
+    """Light-ink channel index → the index of the ink it dilutes.
+
+    Argyll's COLOR_REP letters: a lowercase letter is the light version of
+    its uppercase parent (``c`` of ``C``), ``2c``/``2m``/``2y``/``2k`` are
+    medium inks of the same parent, ``1k`` is the light-light black. A
+    light ink is not a spot colour — it is the parent's dye at a lower
+    density, bought for smooth highlights and neutrals — so the ink policy
+    treats it as a light/dark pair with its parent (:mod:`b2a`), never as a
+    hue-gated extra ink. A medium ink stands between: ``c`` dilutes ``2c``
+    when the printer has one, ``2c`` dilutes ``C``; ``1k`` dilutes ``k``,
+    else ``K``. Letters whose parent is missing are left alone (they are
+    whatever the chart says they are).
+    """
+    index = {letter: i for i, letter in enumerate(channel_letters)}
+    parents: dict[int, int] = {}
+    for i, letter in enumerate(channel_letters):
+        chain: list[str]
+        if letter == "1k":
+            chain = ["k", "K"]
+        elif len(letter) == 2 and letter[0] == "2":
+            chain = [letter[1].upper()]
+        elif letter in ("c", "m", "y", "k"):
+            chain = ["2" + letter, letter.upper()]
+        else:
+            continue
+        for parent in chain:
+            if parent in index:
+                parents[i] = index[parent]
+                break
+    return parents
+
+
 @dataclass
 class Ti3Measurement:
     path: Path
@@ -89,6 +122,11 @@ class Ti3Measurement:
     def is_additive(self) -> bool:
         """True when device 100% = white (RGB-like), False for ink counts."""
         return self.device_rep in ("RGB", "W")
+
+    @property
+    def light_ink_parents(self) -> dict[int, int]:
+        """Light-ink channel → parent channel (see :func:`light_ink_parents`)."""
+        return light_ink_parents(self.channel_letters)
 
     @property
     def ink_limit(self) -> float | None:
@@ -217,6 +255,10 @@ class Ti3Measurement:
         printer whose orange leans red still gets its hue gate centred on
         the ink it actually has. Channels without a usable solid patch are
         absent from the result (callers fall back to the anchor table).
+        A light ink (``c``/``m``/``1k``…, :attr:`light_ink_parents`) is read
+        like any other extra ink here — its solid becomes "a cyan hue" for
+        the hue gate, which is A-20 (still open, see
+        ``docs/dev_profile_engine_accuracy_challenge.md``).
         """
         hues: dict[str, float] = {}
         if self.n_channels <= 4:

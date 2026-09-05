@@ -102,6 +102,34 @@ smoothness unchanged; battery B2A medians within ±1.1 %, every ink
 printer's p95 2–4 % better, RGB printers untouched.
 `tests/test_engine_accurate_black_reaches_its_ink_limit_depth.py`.
 
+## Light inks (agent E, 2026-09-05) — measured, the separation NOT landed
+
+S7 (CMYKcm, light cyan/magenta at 40 % of the parent dye) joined the
+battery, with two referees every printer now reports: `highlight` (a
+dedicated ≤ 40 %-coverage sample above L* 70 — the main grid holds 3
+points in 6,000 up there on six inks, so A-20's "L* > 75 median" stood on
+a handful) and `light_ink` (light-first fraction, ramp step; README).
+`ti3_data.light_ink_parents` maps every light letter to the ink it
+dilutes. The light/dark curve itself (`LightInkPolicy`, a per-iteration
+prior that splits each pair's demand — light alone up to its peak, a
+rounded handover, demand conserved — inert for every rep without light
+inks, S1/S3/S5/S6 Fast bytes identical) does exactly what A-20 asked on
+the ramp: light-first 0.01 → 0.98, C = M = 0 from L* 95 to ≈ 45, step
+0.066, and it loses at the print: S7 B2A 1.02 → 1.42, highlight B2A
+2.20 → 4.47 (`reports/agent-E/`, `light-ink-policy.patch`). The reason,
+measured on the builder's own `-qm` model: it is 0.1 ΔE00 off at the
+chart's c and m ramps and 0.14 on the CMYK face, and **5–8 ΔE00 between
+them** — c+m alone 5.4, c+Y 6.5, the light corner C=M=K≈0 8.3 — because a
+900-patch uniform fill puts ≈ 1 patch where C, M and K are all under
+10 % and the multilinear grid extrapolates additively onto a halftone
+face. HEAD's separation happens to live on the CMYK face the chart's
+corners, ramps and grey support. A chart spanning all 2⁶ corners plus a
+light-grey ramp does not close it (policy 3.57, HEAD on that chart
+2.11), and no separation change can move the A2B half of the gate. The
+next step is the model: fit a light channel as its parent's dye at a
+lower density (two dilution curves on a four-ink grid), so the light
+faces are supported by the parent's data — then re-apply the patch.
+
 ## Verdict on the mode itself (Agent A, A-06/A-07, unchanged by the fixes)
 
 Maximum accuracy fits the chart patches tighter than colprof (median 0.05 vs
@@ -114,7 +142,9 @@ battery is the place to prove one.
 ## Still open (recorded, not fixed)
 
 * A-20 light inks (CMYKcm): the hue gate zeroes light cyan/magenta on
-  neutrals and highlights — needs its own design and a light-ink battery printer.
+  neutrals and highlights. The battery printer exists now (S7) and the
+  design was built and measured — see the section below; the wall is the
+  forward model, not the separation.
 * B-32: the engine's build log is English in every UI language (the
   progress-prefix matching in `builder._STAGE_PCT` is on the English text).
 * B-08: the remaining-time estimate cannot see inside colprof; it now says so.
