@@ -50,7 +50,7 @@ def _parse_reply(raw: bytes, allow_dark: bool = False):
             probe = Measurement(a.wavelengths(), [round(x, 6) for x in v],
                                 lab=[round(x, 4) for x in l])
             probe.validate()
-            if not allow_dark and probe.zero_run() >= 3:
+            if not allow_dark and probe.truncation_reason():
                 continue
         except Exception:            # noqa: BLE001 — not usable yet, keep polling
             continue
@@ -721,10 +721,14 @@ class CR30:
                                 lab=[round(x, 4) for x in l])
             try:
                 probe.validate()
-                if not allow_dark and probe.zero_run() >= 3:
-                    raise MeasurementError(
-                        f"candidate at {i} has {probe.zero_run()} zero bands "
-                        "(truncated reply)")
+                # NOT a zero-run threshold. A saturated ink on glossy paper
+                # really does read exactly 0.0 %R where it absorbs, and the
+                # old `zero_run() >= 3` refused those patches six times over
+                # and then stopped the chart. See `Measurement.truncation_
+                # reason`, which asks whether the REPLY is complete instead.
+                incomplete = None if allow_dark else probe.truncation_reason()
+                if incomplete:
+                    raise MeasurementError(f"candidate at {i}: {incomplete}")
             except MeasurementError as e:
                 last_err = str(e); continue
             chosen, axis, vals, lab = i, a, v, l

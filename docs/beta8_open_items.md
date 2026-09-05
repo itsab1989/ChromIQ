@@ -2212,3 +2212,82 @@ came back to it.
   through `files_matching`/`nfc` rather than a bare `Path.exists()`, and give
   the three `main_window` branches the same treatment. Only a Windows machine
   can prove the fix; nothing here can.
+
+### B8-62 · The CR30 refused the most saturated patches on glossy paper, and called a real reading a truncated reply
+- blocks release: yes
+- status: FIXED
+- found by: **nertog**, printerknowledge.com post #622 (2026-09-05), with the
+  screenshot `1788581562184.png`. His own reading of it — *"I believe this is
+  not a real error, and that the 0-bands might just be coming from a very
+  saturated colorimetric value"* — was **correct**, and it is the clue that
+  found this. Canon iP8770, OEM inks, latest beta, CR30 over Bluetooth.
+- detail: the window said *"That reading did not come through … candidate at 0
+  has **3** zero bands (truncated reply)"*. Three is exactly the threshold
+  `Measurement.zero_run() >= 3` refused on, and every truncated reply this
+  project has ever recorded had a run of **5, 16 or 31** — never 3. The
+  threshold's premise, written into `zero_run`'s own docstring as *"a real dark
+  patch reads a few percent, never exactly 0.0 across a run"*, is contradicted
+  by this project's own captures: the firmware CLAMPS, so a signal at or below
+  the stored dark reference comes back as exactly 0.00000 %R — EXP-022 on open
+  air (`device.read_measurement` docstring), EXP-020 phase A *"0.00000 exactly,
+  all 31 bands, ALL FIVE readings"* and phase C's `0.000` among real numbers
+  (`docs/cr30_reports/20_blackcal.md:76-80`), and again on the owner's own unit
+  2026-09-05 (31 bands, every one exactly 0.0). The paper dependence he reported
+  is the mechanism speaking: ink on glossy sits on the surface and reaches
+  roughly 0.2–0.4 %R where it absorbs, against 1.3–2.5 %R for the same ink soaked
+  into matte, and the CR30 has no black tile — its dark reference is taken
+  against open air and can sit high by ~0.15 %R (EXP-020 phase C;
+  `20_blackcal.md` F5 works the arithmetic). So glossy crosses the floor and
+  matte does not. **The cost was not one refused reading**:
+  `measure_bridge.MAX_READ_RETRIES` re-arms the patch five times and then gives
+  up on it (`M-CR30-PATCH-GAVE-UP`), and the cause is deterministic, so resuming
+  with `-r` meets the same refusal — the chart could never be finished. Nothing
+  measured was lost; nothing further could be measured.
+- verified: reproduced verbatim through the real read path. A 200-byte BLE reply
+  carrying an ordinary saturated-blue spectrum (24.1 %R at 400 nm falling to the
+  floor from ~600 nm, three bands clamped at 640/650/660 nm) and a real device
+  Lab, fed to `CR30.read_measurement()` on master `1b9cad54`, produced
+  *"no usable reply among the only candidate in 200 bytes; last reason: candidate
+  at 0 has 3 zero bands (truncated reply)"* — byte-for-byte the sentence in the
+  screenshot. With the fix the same reply is accepted, spectrum and Lab intact.
+  The new test file run against unfixed master: **8 failed, 4 passed**; with the
+  fix, **12 passed**. Six mutations, each proved to land by a file hash before
+  the run, each caught (`M1`–`M6`).
+- fix: `Measurement.truncation_reason()` replaces the zero-run threshold in
+  `check_usable`, and at both call sites in `device.py` (`_parse_reply`'s polling
+  predicate and the candidate scan). It is exact rather than a threshold, and it
+  covers every truncation on record: (1) **every band exactly 0.0** — no reading
+  in the reply at all, which is the recorded 31- and 16-band not-ready buffers
+  and is what `allow_dark` exists to permit for the black calibration; (2)
+  **reflectance in the spectrum but a Lab of pure black** — those cannot both be
+  true, and it is a proof rather than a guess, because `SPECTRUM_AT` (8–131)
+  sits BEFORE `LAB_AT` (184–195), so a reply truncated anywhere inside the
+  spectrum has necessarily lost its Lab as well. `zero_run()` is kept but demoted
+  to a diagnostic and pinned as one; `clamped_bands()` is new, and an accepted
+  reading with clamped bands now writes a `log.info` line saying so, because
+  those bands are a floor rather than a measurement. **No user-facing catalogue
+  text changed** — `M-CR30-READ-FAILED` is unaltered and only its technical
+  `{reason}` slot reads differently, which the catalogue's own note reserves for
+  the instrument's words.
+- evidence: test_the_field_report_reading_is_accepted_not_refused,
+  test_the_words_from_the_field_report_can_no_longer_be_produced,
+  test_the_polling_predicate_stops_on_a_saturated_patch,
+  test_a_clamped_reading_passes_the_full_gate_on_the_usb_path,
+  test_a_run_of_zeros_is_no_longer_a_reason_on_its_own,
+  test_the_number_of_clamped_bands_is_reported,
+  test_a_wholly_zero_filled_reply_is_still_refused,
+  test_a_half_written_reply_is_still_refused,
+  test_the_truncated_half_of_a_double_reply_still_loses_to_the_complete_one,
+  test_the_black_calibration_read_back_still_gets_its_answer,
+  test_no_zero_run_threshold_decides_a_reading_any_more
+  (all in `tests/test_the_field_report_reading_is_accepted_not_refused.py`), plus the
+  older guards that must not move:
+  test_the_truncated_half_of_a_double_reply_is_rejected,
+  test_a_partial_reply_is_not_enough_to_stop_on,
+  test_nothing_at_all_is_not_a_reply
+  (`tests/test_the_polling_predicate_stops_on_a_saturated_patch.py`)
+- still open, for Basti to decide, NOT fixed here: a reading whose bands are
+  clamped is at the instrument's floor, so a profile built from it is slightly
+  optimistic in that ink's darkest region. Today that is a log line only. Whether
+  the user should be TOLD — and in what words — is a new §M message and therefore
+  his call, not an agent's.

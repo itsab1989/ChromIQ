@@ -136,11 +136,18 @@ def test_the_dark_read_back_asks_for_a_reading_air_can_actually_give(monkeypatch
 
         candidate at 0 has 31 zero bands (truncated reply)
 
-    and the check silently did nothing. The guard is right about patches — a
-    real dark patch reads a few percent, never exactly 0.0 — but the dark
-    reference is taken against OPEN AIR, and air reads exactly 0.00000 %R on
-    this instrument (EXP-022, before and after). The expected answer and the
-    fault are byte-identical, so the check could never pass.
+    and the check silently did nothing. The dark reference is taken against
+    OPEN AIR, and air reads exactly 0.00000 %R on this instrument (EXP-022,
+    before and after) — the expected answer and the fault are byte-identical,
+    so the check could never pass.
+
+    ⚠ This docstring used to add "the guard is right about patches — a real
+    dark patch reads a few percent, never exactly 0.0". **That was wrong, and
+    it was the whole bug**: the firmware clamps, so a saturated ink on glossy
+    paper reads exactly 0.0 where it absorbs, and the guard refused those
+    patches until 2026-09-05. See
+    `tests/test_a_saturated_patch_is_not_a_truncated_reply.py`. What is left of
+    the argument is the part that never depended on it, below.
 
     Admitting it is safe because the check is one-sided: it warns when the dark
     reference reads too HIGH, and a truncated reply reads zero — the passing

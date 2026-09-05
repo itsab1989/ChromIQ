@@ -18,9 +18,12 @@ reading of a run. Prefer it; the two behavioural checks are the fallback.
 """
 from __future__ import annotations
 
+import logging
 import math
 import statistics
 from dataclasses import dataclass, field
+
+log = logging.getLogger(__name__)
 
 
 class MeasurementError(Exception):
@@ -231,27 +234,116 @@ class Measurement:
                 + ("this instrument's own learned tile value exactly."
                    if learned_tile else
                    "the built-in tile value."))
-        if self.zero_run() >= 3:
-            raise MeasurementError(
-                f"{self.zero_run()} consecutive bands are exactly 0.0 %R. That is "
-                "a truncated or zero-filled reply, not a dark sample -- a real "
-                "dark patch still reads a few percent.")
+        incomplete = self.truncation_reason()
+        if incomplete:
+            raise MeasurementError(incomplete)
         if self.identical_to(previous):
             raise MeasurementError(
                 "the instrument returned exactly the same numbers as last "
                 "time, down to the last digit. Real readings always differ a "
                 "little, so no new measurement was taken.")
+        # An ACCEPTED reading that sits on the instrument's floor in some
+        # bands. Ordinary for a saturated ink on glossy paper, and worth a line
+        # in the log rather than a window: those bands are a floor, not a
+        # measurement, so a profile built from them is slightly optimistic
+        # there. It was this shape of reading that the old zero-run guard
+        # refused outright, so a support log should now say when one arrives.
+        clamped = self.clamped_bands()
+        if clamped:
+            log.info("CR30: reading accepted with %d of %d bands at exactly "
+                     "0.0 %%R -- the sample is at or below this instrument's "
+                     "zero point there", clamped, len(self.values))
 
-    def zero_run(self, n: int = 3) -> int:
-        """Longest run of EXACTLY 0.0 bands.
+    def truncation_reason(self) -> "str | None":
+        """Why this reply is INCOMPLETE, or None if it is a reading.
 
         A truncated, zero-filled reply looks structurally perfect: right header,
-        right length, valid checksum. The vendor's own 410-byte BLE stream is a
-        truncated reply followed by a complete one, and a naive first-match scan
-        takes the truncated one -- five bands of 0.0 %R and a Lab of pure black,
-        which every other check accepts.
+        right length, valid checksum. So something has to tell it from a real
+        reading, and this is it.
 
-        A real dark patch reads a few percent, never exactly 0.0 across a run.
+        ⚠ IT USED TO BE `zero_run() >= 3`, AND THAT REFUSED REAL MEASUREMENTS.
+        Reported from the field 2026-09-05: the most saturated patches of a
+        chart could not be read at all on GLOSSY or SATIN paper, while the same
+        patches on MATTE read first time. The window said "candidate at 0 has
+        **3** zero bands (truncated reply)" -- exactly the threshold -- and the
+        patch was refused six times over and then given up on, which stops the
+        chart for good.
+
+        The premise was wrong. It was written as "a real dark patch reads a few
+        percent, never exactly 0.0 across a run", and this project's own
+        captures say otherwise: the firmware CLAMPS, so a signal at or below the
+        stored dark reference comes back as exactly 0.00000 %R.
+
+        * EXP-022 (`device.read_measurement`): open air reads "exactly 0.00000
+          %R on this instrument -- measured before and after".
+        * EXP-020 phase A (`docs/cr30_reports/20_blackcal.md`): "0.00000
+          exactly, all 31 bands, ALL FIVE readings"; phase C returned 0.034,
+          0.151, 0.090, **0.000**, 0.0007.
+        * Confirmed again on the owner's unit 2026-09-05: a stored buffer of 31
+          bands, every one of them exactly 0.0.
+
+        And the physics matches the paper dependence exactly. Ink on GLOSSY sits
+        on the surface and reaches a far higher density than the same ink soaked
+        into MATTE -- roughly 0.2..0.4 %R against 1.3..2.5 %R in the band the
+        ink absorbs. The dark reference is taken against open air and may sit
+        high by ~0.15 %R (EXP-020 phase C, and `20_blackcal.md` F5 works the
+        arithmetic through), so on glossy the difference goes to or below zero
+        and clamps, and on matte it never does. Three neighbouring bands is one
+        30 nm window at an ink's absorption peak: entirely ordinary.
+
+        WHAT REPLACES IT IS EXACT, NOT A THRESHOLD, and it covers every
+        truncation this project has ever recorded (runs of 5, 16 and 31 zero
+        bands -- never 3):
+
+        1. **Every band exactly 0.0.** No signal at all; there is no reading in
+           there to keep, whatever caused it. This is the device's not-ready
+           buffer (the calibration read-back that failed with "16 zero bands"
+           and the Bluetooth one with 31), and it is why the black calibration
+           -- which points at open air and expects precisely this -- has to ask
+           for it with `allow_dark`.
+        2. **Reflectance in the spectrum but a Lab of pure black.** Those two
+           cannot both be true: a spectrum with any reflectance in it has
+           L* > 0. This is a proof rather than a guess, because of where the
+           fields sit in the reply -- the spectrum occupies `SPECTRUM_AT`
+           (8) to 131 and the Lab `LAB_AT` (184) to 195, so **a reply truncated
+           anywhere inside the spectrum has necessarily lost its Lab as well.**
+           That is the vendor capture's 5-zero-band candidate, and the 16-band
+           one, without either needing a number chosen for it.
+
+        The one shape this cannot see is a reply cut off between the end of the
+        spectrum and the Lab: complete spectrum, empty Lab. It is refused too
+        (rule 2), which costs one more poll and nothing else -- the chart is
+        profiled from `values`, never from the device's Lab
+        (`measure_bridge._xyz` -> `spectrum_to_xyz(m.values)`).
+        """
+        if not self.values:
+            return "the reply carried no spectrum at all"
+        if all(v == 0.0 for v in self.values):
+            return (f"all {len(self.values)} bands came back exactly 0.0 %R, "
+                    "so there is no reading in the reply at all")
+        if self.lab is not None and not any(self.lab):
+            return ("the reply carries reflectance but a Lab of pure black, "
+                    "which cannot both be true -- the Lab sits after the "
+                    "spectrum in the reply, so it is the part still unwritten")
+        return None
+
+    def clamped_bands(self) -> int:
+        """How many bands came back at exactly 0.0 %R.
+
+        Not a fault. It means the sample is at or below this instrument's zero
+        point in those bands -- routine for a saturated ink on glossy paper --
+        and the value there is a floor rather than a measurement. Reported so a
+        support log says so; never a reason to refuse a reading. See
+        :meth:`truncation_reason`.
+        """
+        return sum(1 for v in self.values if v == 0.0)
+
+    def zero_run(self, n: int = 3) -> int:
+        """Longest run of consecutive bands at EXACTLY 0.0.
+
+        Diagnostic only since 2026-09-05. It is NOT a validity test and must not
+        become one again: see :meth:`truncation_reason` for why a real reading
+        contains exact zeros.
         """
         best = run = 0
         for v in self.values:
