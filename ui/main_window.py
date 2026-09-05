@@ -2933,6 +2933,36 @@ class MainWindow(QMainWindow):
             log.warning("the quit guard failed; closing anyway", exc_info=True)
             return True
 
+    def _ask_before_quitting_on_a_build(self) -> bool:
+        """A profile build in the ChromIQ engine cannot be resumed: quitting
+        throws the minutes away and, until B-25, also orphaned the Argyll
+        child the engine had running. Ask, the way a measurement asks.
+        True = the quit may proceed. Never raises."""
+        try:
+            tab = getattr(self, "_tab_profile", None)
+            builder = getattr(tab, "_engine_builder", None)
+            if builder is None or not builder.is_running:
+                return True
+            from PyQt6.QtWidgets import QMessageBox
+            from ui.widgets import fit_message_box_buttons
+            box = QMessageBox(self)
+            box.setWindowTitle(tr("A profile is being built"))
+            box.setText(tr(
+                "ChromIQ is still building a profile. If you quit now, the "
+                "build is thrown away — nothing is saved until it finishes.\n\n"
+                "Keep building, or quit anyway?"))
+            keep = box.addButton(tr("Keep building"),
+                                 QMessageBox.ButtonRole.RejectRole)
+            box.addButton(tr("Quit anyway"), QMessageBox.ButtonRole.AcceptRole)
+            box.setDefaultButton(keep)
+            fit_message_box_buttons(box)
+            box.exec()
+            return box.clickedButton() is not keep
+        except Exception:              # noqa: BLE001 — never trap the user
+            log.warning("the build quit guard failed; closing anyway",
+                        exc_info=True)
+            return True
+
     def closeEvent(self, event) -> None:
         # ASK FIRST, BEFORE ANYTHING HERE IS DONE OR UNDONE.
         #
@@ -2948,6 +2978,10 @@ class MainWindow(QMainWindow):
         self._closing = True
         if not self._ask_before_quitting_on_a_measurement():
             self._closing = False      # the user is still working
+            event.ignore()
+            return
+        if not self._ask_before_quitting_on_a_build():
+            self._closing = False
             event.ignore()
             return
         # §3 W6 — QUITTING COUNTS AS LEAVING THE VISIBLE TAB.
@@ -2985,6 +3019,16 @@ class MainWindow(QMainWindow):
         # this ending was the user quitting, not a failure. See
         # MeasureManager.note_app_quitting.
         self._mark_quit_on_the_measurement()
+        # The engine's Argyll children are not QProcesses: closing the window
+        # mid-build used to leave the oracle colprof running for ~50 s and its
+        # temp folder behind (B-25).
+        try:
+            from workflow.profile_engine.gamut_map import \
+                terminate_argyll_children
+            terminate_argyll_children()
+        except Exception:              # noqa: BLE001 — never trap the user
+            log.warning("could not stop the engine's Argyll children",
+                        exc_info=True)
         self._runner.cleanup()
         # LAST, and while the event loop is still alive: main._hard_exit calls
         # os._exit, which skips the flush QSettings would otherwise do on

@@ -478,6 +478,7 @@ def _rows():
             ("preconditioning.ti3 / .icc", "runs/runN", tr("Copies of a previous run's measurement + profile, used to aim the next chart better."), tr("Refine")),
             ("merged.ti3 / merged.icc", "runs/runN", tr("The build-time merge of your new measurement with the pre-conditioning one. The installed profile still gets the clean {name}.icc name."), tr("Build Profile (refinement)")),
             ("calibrated.icc", "runs/runN", tr("Your profile with calibration curves baked in (applycal), when the calibration workflow is on."), tr("Build Profile")),
+            ("{name}-v4.icc", "runs/runN", tr("The ICC version 4 twin of your profile — written only when the ChromIQ engine's Maximum accuracy mode is set to \"Both (v2 + v4)\". Same colour tables, newer container; Install and the rest of ChromIQ keep using {name}.icc."), tr("Build Profile (ChromIQ engine)")),
             ("*.x3d.html + x3dom.css / x3dom.js", "runs/runN", tr("The 3D difference map from a profile verification, next to the measurement it belongs to (the three files reference each other)."), tr("Verify profile (Tools)")),
         ]),
         (tr("Verification runs — checking a finished profile over time"), [

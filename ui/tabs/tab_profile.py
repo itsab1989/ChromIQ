@@ -626,7 +626,18 @@ class TabProfile(QWidget):
         show, so a Settings change takes effect on the next visit."""
         w = getattr(self, "_m_engine_rows_widget", None)
         if w is not None:
-            w.setVisible(self._accurate_engine_active())
+            want = self._accurate_engine_active()
+            appeared = want and w.isHidden()
+            w.setVisible(want)
+            scroll = getattr(self, "_m_scroll", None)
+            if appeared and scroll is not None and self.isVisible() \
+                    and self._current_mode() == "manual":
+                # They appear below the fold, unannounced (B-02): bring them
+                # into view when Preferences just switched them on.
+                try:
+                    scroll.ensureWidgetVisible(w, 0, 40)
+                except RuntimeError:
+                    pass
 
     def showEvent(self, event) -> None:  # noqa: N802 (Qt override)
         super().showEvent(event)
@@ -1910,6 +1921,7 @@ class TabProfile(QWidget):
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(scroll.Shape.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._m_scroll = scroll          # _refresh_engine_rows scrolls to the rows
 
         inner = QWidget()
         layout = QVBoxLayout(inner)
@@ -2796,6 +2808,12 @@ class TabProfile(QWidget):
         eng_col = QVBoxLayout(self._m_engine_rows_widget)
         eng_col.setContentsMargins(0, 0, 0, 0)
         eng_col.setSpacing(6)
+        # A heading of their own: these four rows come and go with
+        # Preferences → Beta → Accuracy, and sat unlabelled between "Black
+        # generation (-k)" and "Source viewing (-c)" (B-05).
+        eng_head = QLabel(tr("Maximum accuracy (ChromIQ engine only):"), grp)
+        eng_head.setObjectName("engine_rows_heading")
+        eng_col.addWidget(eng_head)
 
         spec_row = QHBoxLayout()
         self._m_spectral_cb = QCheckBox(tr("Spectral physics model"), grp)
@@ -5016,6 +5034,41 @@ class TabProfile(QWidget):
         self._archive_superseded_profile(run)
         return True
 
+    def _archive_previous_build(self, params) -> None:
+        """Never overwrite a profile the user built: a plain rebuild into the
+        same run replaced ``<name>.icc`` (and the ``-v4.icc`` twin) in place
+        with no ``old/`` and no line in the log — the archive only ran behind
+        the verification question (B-09/B-20, 2026-09-05). Same destination
+        as that path (``runs/runN/old/<timestamp>/``); the twin goes with it.
+        A failure here never stops the build."""
+        icc = params.ti3_path.with_suffix(".icc")
+        twin = icc.with_name(icc.stem + "-v4.icc")
+        present = [p for p in (icc, twin) if p.is_file()]
+        if not present:
+            return
+        run = self._run_being_built_into()
+        if run is None or not hasattr(run, "archive_to_old"):
+            return
+        # The verification question archives the profile itself; do not do
+        # it twice within one build.
+        try:
+            if run.built_profile_icc() not in present:
+                present.append(run.built_profile_icc())
+                present = [p for p in present if p.is_file()]
+        except Exception:                 # noqa: BLE001
+            pass
+        from datetime import datetime
+        try:
+            dest = run.archive_to_old(present, datetime.now())
+        except Exception as exc:          # noqa: BLE001
+            self._log.appendPlainText(tr(
+                "[WARNING] Could not move the previous profile out of the "
+                "way: {error}").format(error=exc))
+            return
+        if dest is not None:
+            self._log.appendPlainText(tr(
+                "The previous profile was moved to: {folder}").format(folder=dest))
+
     def _archive_superseded_profile(self, run) -> None:
         """“Build here anyway”: move the profile being replaced and the dated
         verification measurements that describe it out of the way (§6).
@@ -5078,6 +5131,7 @@ class TabProfile(QWidget):
         self._active_params = params
         self._log.clear()
         engine = self._resolve_engine(params)
+        self._archive_previous_build(params)
         if engine == "blocked":
             self._show_tool_failure_dialog(
                 tr("Multi-ink measurement"),
@@ -5106,9 +5160,15 @@ class TabProfile(QWidget):
         self._save_defaults_btn.setEnabled(False)
         self._file_grp.setEnabled(False)
         self._stack.setEnabled(False)
+        # Name the MODE, not just the builder: Guided has no engine rows, so
+        # this label and the first log line are the only places a Guided
+        # user learns that "Maximum accuracy" built the profile (B-06).
+        from workflow.engine_builder import accuracy_mode_label
         self._progress_bar.set_label(
             tr("Building"),
-            "colprof" if engine == "colprof" else "ChromIQ engine")
+            "colprof" if engine == "colprof" else tr(
+                "ChromIQ engine · {mode}").format(mode=accuracy_mode_label(
+                    self._settings.get("gammap_mode", "fast"))))
         self._progress_bar.set_value(None)
         self._progress_bar.start()
         self.profile_active.emit(True)
@@ -5351,13 +5411,7 @@ class TabProfile(QWidget):
         layout.addWidget(check_desc)
 
         precond_desc = QLabel(
-            tr("<b>Use as pre-conditioning profile</b> — start a second profiling pass that "
-            "uses this profile to place the new test patches more intelligently. "
-            "The next chart will sample more in the colour regions your printer "
-            "reproduces least accurately, producing a noticeably better profile on "
-            "the second round. Your existing chart files are preserved (renamed "
-            "with a <code>pre_</code> prefix) so nothing is lost. "
-            "Recommended once you've already built a working profile for this paper."),
+            tr("<b>Use as pre-conditioning profile</b> — start a second profiling pass that uses this profile to place the new test patches more intelligently. The next chart will sample more in the colour regions your printer reproduces least accurately, producing a noticeably better profile on the second round. This profile and its measurements are kept intact in their own run folder so nothing is lost. Recommended once you've confirmed a working profile for this paper."),
             dlg,
         )
         precond_desc.setWordWrap(True)
@@ -5798,5 +5852,20 @@ class TabProfile(QWidget):
         self._m_no_output_cb.setChecked(bool(s.get("manual2_colprof_no_output_shaper", False)))
         self._m_no_grid_pos_cb.setChecked(bool(s.get("manual2_colprof_no_grid_pos",   False)))
         self._m_no_embedded_cb.setChecked(bool(s.get("manual2_colprof_no_embedded",   False)))
+        # The four engine-only rows (#123) were missing here, so on the first
+        # switch to a run with nothing stored every other Manual control fell
+        # back to the saved defaults while these four kept the PREVIOUS run's
+        # values and were then written into the new run's meta.json as if
+        # chosen (B-18, 2026-09-05) — the §4 S4–S7 leak, for four new controls.
+        _set_m_combo(self._m_kgen_combo,          "manual2_colprof_kgen_rule", "")
+        self._m_kgen_locus_cb.setChecked(bool(s.get("manual2_colprof_kgen_locus", False)))
+        for key, dflt in (("stle", 0.0), ("stpo", 0.1), ("enpo", 0.9),
+                          ("enle", 1.0), ("shape", 1.0)):
+            self._m_kgen_spins[key].setValue(
+                float(s.get(f"manual2_colprof_kgen_{key}", dflt)))
+        self._m_spectral_cb.setChecked(bool(s.get("manual2_colprof_spectral", False)))
+        _set_m_combo(self._m_iccver_combo,        "manual2_colprof_iccver",   "2")
+        self._m_noise_cb.setChecked(bool(s.get("manual2_colprof_noise", False)))
+        _set_m_combo(self._m_render_combo,        "manual2_colprof_render",   "argyll")
         presets = self._m_load_presets()
         self._m_populate_preset_combo(presets)
