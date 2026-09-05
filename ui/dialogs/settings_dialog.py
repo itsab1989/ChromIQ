@@ -1039,10 +1039,18 @@ def serial_outcome_text(*, stage: str, detail: str = "", folder: str = "",
                "accepted — but until the computer restarts, Windows will not "
                "finish attaching it, so no COM port appears and ChromIQ still "
                "cannot reach the instrument."),
+            # NOT "come back to THIS window and use Check again": this window
+            # has one button and it says OK. `Check again` lives on the driver
+            # helper behind it, which is reached by opening `Instrument
+            # drivers…` in Preferences — so the sentence names BOTH controls,
+            # from their own keys. Naming a button that is not on the screen is
+            # the fault `3c3ba01b` fixed, and it nearly shipped again here.
             tr("<b>Restart the computer, then plug the instrument back in.</b> "
-               "After that, come back to this window and use <b>{button}</b>: "
-               "ChromIQ will look for the COM port and tell you whether it is "
-               "there.").format(button=_in_prose(_label_check_again())),
+               "Then open <b>{opener}</b> in Preferences again and use "
+               "<b>{button}</b>: ChromIQ will look for the COM port and tell "
+               "you whether it is there.").format(
+                   opener=_in_prose(tr("Instrument drivers…")),
+                   button=_in_prose(_label_check_again())),
             tr("Nothing was removed or replaced, so there is nothing to undo — "
                "whether you restart now or later."),
         ]), False)

@@ -2867,3 +2867,36 @@ def test_the_german_guard_window_names_the_spot_tool_grammatically(
     assert "aus dem Fenster „Werkzeuge ▸ Einzelne Felder messen“ gelesen" in said
     assert "aus Werkzeuge ▸" not in said
     assert "USB-to-serial bridge" not in said
+
+
+# ---------------------------------------------------------------------------
+# The reboot window must not name a button that is not on it
+# ---------------------------------------------------------------------------
+#
+# Caught on the REAL window, in German, before it shipped. The first draft read
+# "…come back to THIS window and use Erneut prüfen" — and this window has one
+# button, which says OK. `Check again` lives on the driver helper behind it,
+# which is reached by opening `Instrument drivers…` in Preferences. Naming a
+# control that is not on the screen is exactly the fault `3c3ba01b` fixed on the
+# WinUSB half ("half of this window was German … and it named a button that was
+# not there"), and it nearly shipped again on this one.
+
+
+def test_the_reboot_window_does_not_point_at_a_button_on_itself():
+    text, _ = sd.serial_outcome_text(stage="reboot", folder="f")
+    assert "this window" not in text.lower(), (
+        "the reboot window sends the user to a button it does not have")
+
+
+@pytest.mark.parametrize("code", ALL_CODES)
+def test_the_reboot_window_names_both_controls_it_points_at(code, in_language):
+    """Both names come from the buttons' own keys, so they cannot drift from
+    the controls in any of the twelve languages."""
+    from core.i18n import tr
+    in_language(code)
+    text, _ = sd.serial_outcome_text(stage="reboot", folder="f")
+    assert sd._in_prose(sd._label_check_again()) in text, (
+        f"[{code}] the reboot window does not name the Check again button")
+    assert sd._in_prose(tr("Instrument drivers…")) in text, (
+        f"[{code}] the reboot window does not name the control that reopens "
+        f"the driver helper")
