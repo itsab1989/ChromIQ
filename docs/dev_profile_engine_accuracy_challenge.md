@@ -56,6 +56,31 @@ Tried and withdrawn: averaging repeated patches before the fit
 three-read chart but lost on the battery, whose charts repeat only white and
 black.
 
+## The smoothing choice, second round (agent C, 2026-09-05) — measured, nothing landed
+
+The λ search in `accuracy.py` is still the shipped one. A candidate that
+scored the fit it will actually use (the fold fits carrying the robust
+weights), held every patch out once (5/3/1 folds by grid size), ran the
+final fit's shaper rounds in the folds and judged by the root-mean-square
+instead of the median was measured on the battery and failed the gate:
+S4 −4 % on both medians but +4 % on A2B p95, S3 +3 % on the A2B median, S5
+B2A +28 % with A2B flat, S3/S4 build time over 2×. The reason, in numbers
+(`benchmarks/lambda_sweep.py` and `lambda_criteria.py`, new, and the proof
+folder `reports/agent-C/`): on S4 the held-out mean square is 5.90 at ×2
+and 5.95 at ×1 and ×4 — the bias the search looks for is 0.03 of it, the
+rest is the reading noise's λ-independent constant, whose standard error
+over 900 patches is ≈ 0.28. Adjacent ladder rungs differ by 1–5 % in the
+truth on S3/S4, below what any statistic of 900 noisy patches resolves;
+every criterion measured (median, RMS, p90, GCV, discrepancy, 1/5/10
+folds) calls them near ties and settles them by its own noise, which the
+2 % gate then reads as a loss on one printer and a win on another. Three
+further facts for the next attempt: the ladder itself is nearly flat on
+S1/S2/S3/S5 (A2B), so S2's loss to colprof (0.22 vs 0.14) is model
+capacity, not λ; the RGB printers' B2A rows are owned by the B2A table's
+interpolation (written profile 0.29/0.68 vs the inverted model 0.08/0.21);
+and S5's B2A moves 28 % across factors its A2B cannot tell apart, so a
+criterion for it has to look at the inversion, not the A2B residual.
+
 ## Verdict on the mode itself (Agent A, A-06/A-07, unchanged by the fixes)
 
 Maximum accuracy fits the chart patches tighter than colprof (median 0.05 vs
