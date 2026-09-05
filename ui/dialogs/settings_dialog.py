@@ -6,19 +6,21 @@ import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtCore import QSize, Qt, QUrl
 from PyQt6.QtGui import QDesktopServices, QFontMetrics
 from PyQt6.QtWidgets import (
     QApplication,
     QCheckBox,
     QDialog,
     QDialogButtonBox,
+    QFrame,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QPushButton,
+    QScrollArea,
     QSizePolicy,
     QTabWidget,
     QVBoxLayout,
@@ -495,6 +497,51 @@ _DRIVER_ACCENT = "#56d6a5"
 _CANCELLED_PREFIX = "You said No to the Windows permission prompt"
 
 
+def _let_paths_wrap(text: str) -> str:
+    """Give a Windows path somewhere to break, so it cannot clip the window.
+
+    A word-wrapped QLabel cannot break inside an unbroken run of
+    characters, and `setWidgetResizable(True)` then widens it past the
+    viewport — which CHOPPED EVERY LINE IN THE WINDOW at the right edge,
+    silently: measured `hbar_max = 99` with the horizontal scrollbar forced
+    off. The exposed route is the folder the USER picks, where the path is
+    not ChromIQ’s to keep short.
+
+    A zero-width space after each separator is a break OPPORTUNITY, not a
+    break: Qt’s line-breaking honours U+200B, so a path that fits stays on
+    one line and one that does not wraps at a backslash instead of running
+    off the edge. It adds nothing visible and nothing selectable-looking,
+    and it is done here rather than in the text functions so that what those
+    functions return — pinned character for character — is unchanged.
+
+    The horizontal scrollbar stays enabled behind this as the safety net
+    for whatever else turns out to be unbreakable.
+    """
+    return text.replace("\\", "\\\u200b")   # backslash + ZERO WIDTH SPACE
+
+
+def _make_the_safe_button_the_default(dlg, safe) -> None:
+    """Make *safe* the button `Enter` presses, and nothing else.
+
+    A `QPushButton` on a `QDialog` is `autoDefault` by default, and Qt promotes
+    the FIRST such button to the dialog's default. In these windows the first
+    button is the one that acts — `Download and install`, `Open Zadig`,
+    `Install Driver` — so `Return` performed an elevated, machine-changing
+    install on a window built for informed consent. `OK`, `Esc` and the
+    title-bar `X` were all made to decline; `Enter` was not, and it is the key
+    people press to make a window go away.
+
+    Every button loses `autoDefault` first, because Qt's promotion is by order,
+    not by role — and then only the dismissing one gets it back.
+    """
+    for btn in dlg.findChildren(QPushButton):
+        btn.setAutoDefault(False)
+        btn.setDefault(False)
+    if safe is not None:
+        safe.setAutoDefault(True)
+        safe.setDefault(True)
+
+
 def _install_was_cancelled(reason: str) -> bool:
     """Did the user stop the install at the Windows prompt, rather than it failing?"""
     return str(reason).startswith(_CANCELLED_PREFIX)
@@ -698,6 +745,53 @@ def serial_install_intro_text(folder: str, arch: str) -> str:
     ])
 
 
+def serial_folder_install_intro_text(folder: str, arch: str) -> str:
+    """The same announcement, for the package the user fetched themselves.
+
+    **THE FOLDER ROUTE REACHED AN ELEVATED INSTALL IN TWO CLICKS AND SAID
+    NOTHING.** `My instrument is not listed…` -> `I already have the folder…`
+    -> a folder picker -> `pnputil`, with Windows' own UAC prompt as the first
+    and only warning. The download route four screens up says why that is
+    wrong, in its own comment: an unexpected security prompt is the one people
+    cancel, and a cancelled prompt is indistinguishable from a failure. Picking
+    a folder is not consent to elevate; it is consent to be asked.
+
+    It is not `serial_install_intro_text` with a word changed, because that
+    text promises things this route cannot: steps 1 and 2 there describe
+    ChromIQ downloading and unpacking the package over an encrypted connection.
+    Here the files are the user's, ChromIQ did not fetch them, and saying so is
+    the whole point.
+    """
+    return "<br><br>".join([
+        tr("<b>Here is exactly what is about to happen, step by step.</b>"),
+        tr("<b>1.</b> ChromIQ looks at the folder you chose:<br>"
+           "&nbsp;&nbsp;{folder}<br>"
+           "<b>2.</b> It checks what is in it: that the files carry a valid "
+           "signature, that the package really does contain support for this "
+           "computer's kind of processor ({arch}), and that every file the "
+           "installer refers to is actually there.<br>"
+           "<b>3.</b> Only if all of that passes does it ask Windows to "
+           "install the package.<br>"
+           "<b>4.</b> Afterwards it checks whether a COM port has really "
+           "appeared, because a driver can install perfectly and still not "
+           "attach itself to your instrument."
+           ).format(folder=folder, arch=arch),
+        tr("<b>Windows will ask your permission at step 3.</b> A prompt with a "
+           "blue border will appear, the screen will dim behind it, and it "
+           "will ask whether you want to allow changes to your device. That "
+           "prompt comes from Windows itself, not from ChromIQ, and it is "
+           "expected. Choosing No stops the installation there with nothing "
+           "changed."),
+        tr("<b>Two things ChromIQ cannot promise, and would rather say so.</b> "
+           "These files are yours, not ChromIQ's — it did not fetch them and "
+           "cannot tell you where they came from, so every check above is a "
+           "check on what is in that folder and never a statement about where "
+           "it was obtained. And nothing here removes or replaces a driver — "
+           "the package is added alongside whatever Windows already has, so "
+           "there is nothing to undo afterwards."),
+    ])
+
+
 def serial_manual_route_text(folder: str) -> str:
     """The way to install the very same package by hand.
 
@@ -893,6 +987,77 @@ def measurement_block_text(where: str) -> str:
            "normally. Everything else in Preferences stays available in the "
            "meantime — it is only the driver helper that is held back."),
     ])
+
+
+class ContentHeightScrollArea(QScrollArea):
+    """A QScrollArea that asks for the height its content actually wants.
+
+    **THIS EXISTS BECAUSE THE SCROLL AREA ADDED TO STOP TRUNCATION BECAME THE
+    TRUNCATION.** `QScrollArea::sizeHint()` returns the inner widget's hint
+    `boundedTo(QSize(36 * h, 24 * h))` with `h = fontMetrics().height()`. On
+    this project's Windows machine `h = 16`, so a scroll area reports **384 px
+    tall whatever it holds** — and `SettingsDialog._fit_to_screen` then pinned
+    that with `resize()`. Measured 2026-08-30, German, the worst natural case:
+    the driver helper opened **620 x 480 on a 1032 px screen** with 774 px of
+    content, 390 px of it hidden, `Treiber holen…` — the button the window
+    exists to offer — **303 px below the bottom edge**, and nothing on screen to
+    say it was there. The committed evidence gallery contains a photograph of
+    it.
+
+    So `sizeHint()` reports the real content height instead. The height of
+    wrapped prose depends on the width it is wrapped at, and a scroll area is
+    asked for its hint long before anybody has decided how wide the window will
+    be — so `_fit_to_screen` settles the width first and tells the area what it
+    will get, through `assume_width()`.
+
+    **`heightForWidth()` IS DELIBERATELY NOT OVERRIDDEN, and that is not an
+    oversight.** It is the more Qt-ish mechanism and it was tried first: a
+    QScrollArea whose `hasHeightForWidth()` is true makes the window IGNORE ITS
+    OWN `maximumHeight()`. Measured on the real screen, `maximumHeight() = 928`,
+    `minimumHeight() = 140`, and the shown window **2000 px tall on a 1032 px
+    display** — the defect this class exists to kill, wearing the opposite
+    sign. `sizeHint()` alone does not do that: same content, same window,
+    928 px, scrollbar carrying the rest.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._assumed_width = 0
+
+    def assume_width(self, width: int) -> None:
+        """Say how wide this area is about to be, before anything is shown."""
+        self._assumed_width = max(0, int(width))
+        self.updateGeometry()
+
+    # ---- geometry --------------------------------------------------------
+    def _content_height(self, width: int) -> int:
+        """How tall the inner widget is when wrapped into *width*, or -1."""
+        inner = self.widget()
+        if inner is None:
+            return -1
+        inner_w = max(1, width - 2 * self.frameWidth())
+        height = inner.heightForWidth(inner_w) if inner.hasHeightForWidth() else -1
+        if height <= 0:
+            height = inner.sizeHint().height()
+        if height <= 0:
+            return -1
+        extra = 2 * self.frameWidth()
+        # A horizontal scrollbar eats height, and it appears exactly when the
+        # content cannot be narrowed to fit — a folder path the user picked.
+        bar = self.horizontalScrollBar()
+        if (bar is not None
+                and self.horizontalScrollBarPolicy()
+                != Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+                and inner.minimumSizeHint().width() > inner_w):
+            extra += bar.sizeHint().height()
+        return height + extra
+
+    def sizeHint(self) -> QSize:   # noqa: N802 — Qt's spelling
+        base = super().sizeHint()
+        width = self._assumed_width or base.width()
+        height = self._content_height(width)
+        return QSize(base.width(), max(base.height(), height))
+
 
 
 class SettingsDialog(QDialog):
@@ -4958,32 +5123,70 @@ class SettingsDialog(QDialog):
 
         The scroll area is frameless and transparent, so when the content fits
         (the common case) nothing about the window looks different.
+
+        TWO THINGS HERE ARE SCARS. `ContentHeightScrollArea` exists because a
+        plain `QScrollArea` reports a height of `24 * fontMetrics().height()`
+        whatever it holds, which shrank this window to 480 px on a 1032 px
+        screen and put its own primary button below the fold. And the
+        horizontal scrollbar is `ScrollBarAsNeeded`, not `AlwaysOff`, because
+        `setWidgetResizable(True)` widens the inner label to its minimum size
+        hint: one unbroken 80-character run — a folder path the user picked, and
+        every real one looks like
+        `C:\\Users\\…\\AppData\\Local\\ChromIQ\\drivers\\2026-09-05_00-14-02\\CH341SER`
+        —
+        widened it past the viewport and CHOPPED EVERY LINE IN THE WINDOW at the
+        right edge, with no scrollbar and no ellipsis. Measured `hbar_max = 99`,
+        `hbar_visible = False`. That is the very defect this wrapper was added to
+        prevent, reintroduced at right angles to it. Wrapped prose never reaches
+        the threshold, so the bar stays away in every ordinary case.
         """
-        from PyQt6.QtWidgets import QFrame, QScrollArea
-        area = QScrollArea(parent)
+        area = ContentHeightScrollArea(parent)
         area.setWidgetResizable(True)
         area.setFrameShape(QFrame.Shape.NoFrame)
         area.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        area.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         area.viewport().setAutoFillBackground(False)
         inner.setParent(area)
         area.setWidget(inner)
         return area
 
     def _fit_to_screen(self, dlg) -> None:
-        """Let the dialog ask for its natural height, but never past the screen.
+        """Open the dialog at the size its content wants, capped by the screen.
 
-        Without the cap Qt clamps the window itself and the content is cut; with
-        it, the scroll area from `_scrollable` takes over and everything stays
-        reachable.
+        The height has to be asked for at the width the window will actually
+        have, or the answer is wrong in both directions: a word-wrapped
+        paragraph is taller when narrower, and `dlg.sizeHint()` is computed at
+        the layout's own preferred width, not at `minimumWidth()`. So the width
+        is settled first, and `heightForWidth()` — which
+        `ContentHeightScrollArea` forwards to the real content — answers for
+        that width.
+
+        The 90 %-of-screen cap is the ONLY thing that shortens the window. When
+        it bites, the scroll area takes over and everything stays reachable;
+        when it does not, nothing is hidden at all.
         """
         screen = dlg.screen() or self.screen()
         if screen is None:
             return
         avail = screen.availableGeometry()
         dlg.setMaximumHeight(max(320, int(avail.height() * 0.9)))
-        dlg.resize(dlg.width(),
-                   min(dlg.sizeHint().height(), dlg.maximumHeight()))
+        dlg.setMaximumWidth(max(480, int(avail.width() * 0.9)))
+
+        width = max(dlg.sizeHint().width(), dlg.minimumWidth())
+        width = min(width, dlg.maximumWidth())
+
+        # Now that the width is known, tell every scroll area what it will get,
+        # so its sizeHint can answer for THAT width rather than for the
+        # placeholder Qt would otherwise use.
+        margins = dlg.layout().contentsMargins() if dlg.layout() else None
+        side = (margins.left() + margins.right()) if margins is not None else 0
+        for area in dlg.findChildren(ContentHeightScrollArea):
+            area.assume_width(width - side)
+
+        wanted = max(dlg.sizeHint().height(), dlg.minimumSizeHint().height())
+        dlg.resize(width, min(wanted, dlg.maximumHeight()))
 
     def _driver_notice(self, title: str, text: str,
                        extra_label: "str | None" = None) -> bool:
@@ -5022,7 +5225,7 @@ class SettingsDialog(QDialog):
         lay = QVBoxLayout(dlg)
         lay.setContentsMargins(24, 20, 24, 20)
         lay.setSpacing(14)
-        lbl = QLabel(text)
+        lbl = QLabel(_let_paths_wrap(text))
         lbl.setWordWrap(True)
         lbl.setTextFormat(Qt.TextFormat.RichText)
         lay.addWidget(self._scrollable(lbl, dlg))
@@ -5045,7 +5248,18 @@ class SettingsDialog(QDialog):
         # for Ok too, which is how OK came to mean "yes, install".
         ok.clicked.connect(dlg.reject)
         box.rejected.connect(dlg.reject)
+        # AND SO DOES ENTER. The affirmative button is added first, so Qt made
+        # it the dialog's default and `Return` — the key most people press to
+        # get rid of a window — DOWNLOADED AND INSTALLED AN ELEVATED DRIVER.
+        # Measured true in all six theme/language runs of the window whose only
+        # purpose is informed consent. The safe button is the default here; the
+        # one that changes the machine has to be aimed at. AFTER the box is in
+        # the layout: `QPushButton::setDefault` only registers with the dialog
+        # once the button's `window()` IS that dialog, and a `QDialogButtonBox`
+        # promotes its first AcceptRole button on show unless another already
+        # holds default. Called a line earlier this silently did nothing.
         lay.addWidget(box)
+        _make_the_safe_button_the_default(dlg, ok)
         tint_dialog_primary(dlg, _DRIVER_ACCENT)
         self._fit_to_screen(dlg)
         dlg.exec()
@@ -5150,10 +5364,18 @@ class SettingsDialog(QDialog):
         self._serial_check_and_install(Path(folder), before)
 
     def _serial_from_folder(self) -> None:
-        """The route for a package the user fetched themselves."""
+        """The route for a package the user fetched themselves.
+
+        THIS ROUTE ALSO ANNOUNCES THE PROMPT BEFORE IT APPEARS, and did not
+        used to: picking a folder ran straight into `pnputil` and Windows'
+        permission prompt was the first the user heard of it. Two clicks from
+        the helper window, against the rule the download route states in its
+        own comment.
+        """
         from ui.widgets import open_dir_dialog
 
-        if not self._serial_machine_arch():
+        arch = self._serial_machine_arch()
+        if not arch:
             self._driver_notice(tr("Instrument drivers"),
                                 serial_unknown_arch_text())
             return
@@ -5161,6 +5383,11 @@ class SettingsDialog(QDialog):
         chosen = open_dir_dialog(
             self, tr("Choose the folder that holds the driver files"))
         if not chosen:
+            return
+        if not self._driver_notice(
+                tr("Before ChromIQ starts"),
+                serial_folder_install_intro_text(str(chosen), arch),
+                tr("Check and install")):
             return
         self._serial_check_and_install(Path(chosen), self._serial_states())
 
@@ -5324,9 +5551,12 @@ class SettingsDialog(QDialog):
             refresh_btn = btn_box.addButton(tr("Check again"),
                                             QDialogButtonBox.ButtonRole.ResetRole)
             refresh_btn.clicked.connect(lambda checked=False, d=dlg: d.done(_REFRESH))
-            btn_box.addButton(QDialogButtonBox.StandardButton.Close)
+            close_btn = btn_box.addButton(QDialogButtonBox.StandardButton.Close)
             btn_box.rejected.connect(dlg.reject)
             layout.addWidget(btn_box)
+            # Enter closes. It used to press `Open Zadig` / `Install Driver` /
+            # `Get the driver…`, whichever happened to be built first.
+            _make_the_safe_button_the_default(dlg, close_btn)
             tint_dialog_primary(dlg, _DRIVER_ACCENT)
             self._fit_to_screen(dlg)
 
