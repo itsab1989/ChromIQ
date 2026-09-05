@@ -1919,6 +1919,7 @@ def test_the_not_bound_window_is_unchanged_when_core_says_nothing():
 
 def _geometry_of(w):
     """Everything these tests need, read while the window is still alive."""
+    from PyQt6.QtCore import Qt
     from PyQt6.QtWidgets import QPushButton, QScrollArea
     area = w.findChildren(QScrollArea)[0]
     vbar, hbar = area.verticalScrollBar(), area.horizontalScrollBar()
@@ -1941,6 +1942,8 @@ def _geometry_of(w):
         "vbar_visible": vbar.isVisible(),
         "hbar_max": hbar.maximum(),
         "hbar_visible": hbar.isVisible(),
+        "hbar_policy_is_always_off": (area.horizontalScrollBarPolicy()
+                                     == Qt.ScrollBarPolicy.ScrollBarAlwaysOff),
         "buttons_below_the_bottom_edge": off,
         "screen_h": (w.screen().availableGeometry().height()
                      if w.screen() is not None else 0),
@@ -2051,6 +2054,37 @@ def test_a_notice_taller_than_the_screen_scrolls_and_stops_at_the_screen(
         % (found["height"], found["cap"]))
 
 
+def test_a_notice_that_fits_the_screen_hides_none_of_itself(dialog):
+    """The same relation for `_driver_notice`, which is the NARROW window.
+
+    A notice is 560 px wide where the helper is 620, and a word-wrapped
+    paragraph is TALLER when it is narrower — so a height worked out at the
+    wrong width is short here even when it is right there. Not hypothetical:
+    `QScrollArea::sizeHint()` answers at its own placeholder width
+    (36 * fontMetrics().height()), which is wider than this window’s viewport,
+    and taking that answer leaves the last paragraph below the fold on a screen
+    with room to spare. `_fit_to_screen` settles the width first and tells the
+    area what it will get; this test is what says so.
+    """
+    found = {}
+
+    def _look(w):
+        found.update(_geometry_of(w))
+        _ok_button(w).click()
+
+    with ModalDriver(_look):
+        dialog._driver_notice(
+            "T", sd.serial_install_intro_text(
+                r"C:\Users\x\AppData\Local\ChromIQ\drivers\2026-09-05_01-42-17", "ARM64"))
+    chrome = found["height"] - found["viewport_h"]
+    assert abs(found["height"]
+               - min(chrome + found["inner_h"], found["cap"])) <= 2
+    assert found["hidden"] == 0 or found["height"] == found["cap"], (
+        "%d px of the consent text is below the fold in a %d px window that "
+        "could have been %d px"
+        % (found["hidden"], found["height"], found["cap"]))
+
+
 def test_the_screen_cap_is_the_only_thing_that_shortens_a_notice(dialog):
     """M7: deleting `_fit_to_screen` leaves `maximumHeight` at QWIDGETSIZE_MAX."""
     found = {}
@@ -2098,6 +2132,10 @@ def test_a_long_folder_path_does_not_clip_the_window(dialog):
     assert found["inner_minhint_w"] <= found["viewport_w"], (
         "the path still cannot be broken: it needs %d px in a %d px viewport"
         % (found["inner_minhint_w"], found["viewport_w"]))
+    assert found["hbar_policy_is_always_off"] is False, (
+        "the break opportunity handles the paths we can foresee; the scrollbar "
+        "is what handles the ones we cannot, and forcing it off is how this "
+        "shipped")
 
 
 def test_the_path_break_opportunity_is_invisible():
