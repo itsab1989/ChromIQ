@@ -101,11 +101,20 @@ def archive_run_for_replace(run: Run, *, verification: bool) -> "Path | None":
                              if p.is_file()
                              and p.name not in CHART_SIDE_FILES]
         return run.archive_to_old(paths, into=run.verifications_old_dir)
-    s = run.stem
-    paths = [run.dir / f"{s}.ti1", run.dir / f"{s}.ti2"]
-    paths += [run.dir / f"{s}{ext}" for ext in _CHART_EXTS]
+    # `run.artefact`, NOT an f-string. A Replace archives what it displaces and
+    # then the new chart is written beside it — so a chain this list cannot see
+    # is a chain that stays. On a project restored from a Mac OS Extended
+    # backup the whole old chart survived the Replace: the new `.ti2` landed
+    # next to the old `.cht`, and `run.chart_cht` — which resolves — then handed
+    # the scanner the OLD chart's recognition file for the NEW chart. A silent
+    # wrong result, and "two charts under one name", which this change is
+    # supposed to make impossible. `chart_tiffs`, `measurement_ti3` and
+    # `profile_icc` already resolved; these did not, which is what made the two
+    # halves disagree (review round 2, defect 2).
+    paths = [run.artefact(".ti1"), run.artefact(".ti2")]
+    paths += [run.artefact(ext) for ext in _CHART_EXTS]
     paths += run.chart_tiffs()
-    paths += [run.measurement_ti3, run.profile_icc, run.dir / f"{s}.icm"]
+    paths += [run.measurement_ti3, run.profile_icc, run.artefact(".icm")]
     # Every sub-folder except old/ itself — the chart they belonged to is going.
     paths += [d for d in run.dir.iterdir() if d.is_dir() and d.name != "old"] \
         if run.dir.exists() else []

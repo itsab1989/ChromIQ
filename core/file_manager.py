@@ -285,6 +285,31 @@ def nfc(name: str) -> str:
     return unicodedata.normalize("NFC", name)
 
 
+def _has_no_other_spelling(name: str) -> bool:
+    """Whether *name* is the only string that can name this file.
+
+    A name has an alternative spelling only when it is one member of a Unicode
+    canonical-equivalence class with more than one member. Two things put it in
+    such a class, and nothing else does: a character that HAS a canonical
+    decomposition (``ü`` -> ``u`` + U+0308, and every Hangul syllable), or two
+    combining marks that could be written in another order. So a name with no
+    combining marks that NFD leaves alone is alone in its class, and a directory
+    listing could not possibly turn up another spelling of it.
+
+    THIS REPLACED ``str.isascii()``, WHICH WAS THE WRONG QUESTION. It is the
+    right answer for ASCII, but it made every non-ASCII name pay for a listing
+    — and Greek, Turkish, Cyrillic, CJK and emoji names have no other spelling
+    either, so they paid for a scan that could never match (review round 2).
+    ASCII is still checked first because it is a single flag test on the str
+    object, and it is the overwhelming majority.
+    """
+    if name.isascii():
+        return True
+    if any(unicodedata.combining(ch) for ch in name):
+        return False                         # marks: they can be reordered
+    return unicodedata.normalize("NFD", name) == name
+
+
 def resolve_existing(path: Path) -> Path:
     """*path* as this volume really spells it — the accent spelling, and only that.
 
@@ -319,37 +344,52 @@ def resolve_existing(path: Path) -> Path:
     decomposed file IS there, a writer overwrites *it* rather than laying a
     second, identical-looking chart beside it.
 
-    ACCENTS ONLY — case is deliberately untouched. Windows and a default APFS
-    volume are case-insensitive, so ``path.exists()`` has already said yes for a
-    name typed in another case; on a case-SENSITIVE volume two names differing
-    by case are two real files and folding them here would make one stand in for
-    the other. That is :func:`_existing_folder_spelling`'s job, and it does it
-    for folders only, for the same reason.
+    CASE IS FOLDED EXACTLY WHERE THE FILESYSTEM FOLDS IT, and nowhere else —
+    ``_NAME_CASEFOLD``, the same flag :func:`files_matching` uses eighty lines
+    above, so the two cannot drift apart. They did, and it mattered: rename a
+    restored project's folder to another case and the stem arrives upper-case
+    while the file is lower-case AND decomposed. NTFS folds the case but not the
+    accents, so ``exists()`` says no; a comparison that folds the accents but
+    not the case says no as well; and ``stem_files``, which folds both, went on
+    finding the file. The listing saw a chart the accessor did not — this fix
+    switched itself off (review round 2, A-1). Folding here can never conflate
+    two real files, because on the one platform where it is done the filesystem
+    itself refuses to hold two names differing only by case. On Linux, and on a
+    case-SENSITIVE APFS volume, ``_NAME_CASEFOLD`` is False and two such names
+    stay two files.
 
     IT COSTS ONE ``stat`` IN EVERY CASE THAT WORKS TODAY. The hit path is the
     ``exists()`` that was already being paid. The directory listing happens only
-    when the file is genuinely absent under the given spelling AND the name is
-    non-ASCII — an ASCII name has no other spelling to find, because no ASCII
-    character has a canonical decomposition. So on macOS, on Linux, and for
-    every ASCII project name on Windows, this adds one ``str.isascii()`` call
-    and nothing else.
+    when the file is genuinely absent under the given spelling AND the name
+    could have another spelling at all — which is decided by
+    :func:`_has_no_other_spelling`, not by ``str.isascii()``. That mattered: a
+    Greek, Turkish, Cyrillic, CJK or emoji project name is not ASCII and paid
+    for a listing that could never match.
     """
     if path.exists():
         return path                          # the spelling asked for is there
     name = path.name
-    if name.isascii():
-        return path                          # no other spelling can exist
+    if _has_no_other_spelling(name):
+        return path                          # nothing else could be on disk
     want = nfc(name)
+    if _NAME_CASEFOLD:
+        want = want.lower()
     try:
         with os.scandir(str(path.parent)) as entries:
-            same = sorted(e.path for e in entries if nfc(e.name) == want)
+            same = sorted(
+                e.path for e in entries
+                if (nfc(e.name).lower() if _NAME_CASEFOLD else nfc(e.name)) == want)
     except (OSError, ValueError):
         return path                          # unreadable parent: nothing to add
     if not same:
         return path
     if len(same) > 1:
         # Canonically equivalent yet distinct names (combining marks in another
-        # order). Deterministic rather than "whichever the volume listed first".
+        # order). SORTED, so the answer is the same on every call and on every
+        # volume — not "whichever one the directory happened to list first",
+        # which is an ordering neither Python nor the filesystem promises.
+        # `tests/…::test_which_of_several_spellings_wins_is_not_the_listing_order`
+        # feeds the entries in reverse to prove the sort is what decides.
         log.warning("More than one spelling of %s on disk: %s — using %s",
                     name, [Path(p).name for p in same], Path(same[0]).name)
     return Path(same[0])
@@ -378,6 +418,33 @@ def _existing_folder_spelling(parent: Path, name: str) -> str:
     mark, so the two spellings do not compare equal and the loop walks past.
     An explicit NFC guard stood here as well and was removed, because no
     mutation of it could be made to change any outcome.
+
+    AND THE ACCENT CASE IS THEREFORE NOT HANDLED HERE — DELIBERATELY, WITH A
+    KNOWN COST. On a normalisation-sensitive volume (NTFS, ext4) a project whose
+    folder arrived decomposed is NOT found by the composed name the user types
+    into the Create Chart name box, so `working_dir()` points at a folder that
+    does not exist and the next `project()` call CREATES it: two project folders,
+    side by side, spelled differently and drawn identically by every font on the
+    machine. Reproduced on NTFS (review round 2, E-1) and pinned by
+    ``tests/test_a_decomposed_name_finds_its_files.py::
+    test_a_typed_composed_name_does_not_yet_find_a_decomposed_project_folder``
+    so it is a measured fact rather than a surprise.
+
+    Adopting the folder's accent spelling here would fix it and would break
+    something load-bearing: `_sanitise` normalises to NFC (
+    ``test_the_folder_name_is_always_nfc``) and `working_dir` RE-CLEANS the
+    stored target name on every call and compares it to what it stored — so a
+    decomposed `_target_name` would not survive its own round trip, the way a
+    differently-CASED one does (`_sanitise` preserves case, so case is a fixed
+    point and an accent spelling is not). Making it work means changing either
+    the NFC invariant or that compare, and both are pinned behaviour with a
+    documented reason. That is a decision to be taken and reviewed, not one to
+    slip into a bug fix — so it is named here and left.
+
+    Note what this does NOT affect: every route that reaches a project through
+    the FOLDER rather than a typed name — the project picker, `open_project_at`,
+    session restore — takes the folder's own spelling and works today. It is the
+    name box alone.
     """
     if not name:
         return name
@@ -1065,7 +1132,7 @@ class Calibration:
     @property
     def dir(self) -> Path:                    return self._root / "cal"
 
-    def _artefact(self, ext: str) -> Path:
+    def artefact(self, ext: str) -> Path:
         """``cal/<stem><ext>`` as the volume spells it — see
         :func:`resolve_existing`. A calibration restored from a Mac OS Extended
         backup has decomposed file names, and on NTFS a composed path does not
@@ -1073,21 +1140,21 @@ class Calibration:
         return resolve_existing(self.dir / f"{self.stem}{ext}")
 
     @property
-    def cal_path(self) -> Path:               return self._artefact(".cal")
+    def cal_path(self) -> Path:               return self.artefact(".cal")
     @property
-    def ti1(self) -> Path:                    return self._artefact(".ti1")
+    def ti1(self) -> Path:                    return self.artefact(".ti1")
     @property
-    def ti2(self) -> Path:                    return self._artefact(".ti2")
+    def ti2(self) -> Path:                    return self.artefact(".ti2")
     @property
-    def ti3(self) -> Path:                    return self._artefact(".ti3")
+    def ti3(self) -> Path:                    return self.artefact(".ti3")
     @property
-    def icc(self) -> Path:                    return self._artefact(".icc")
+    def icc(self) -> Path:                    return self.artefact(".icc")
     @property
-    def cht(self) -> Path:                    return self._artefact(".cht")
+    def cht(self) -> Path:                    return self.artefact(".cht")
     @property
-    def ps(self) -> Path:                     return self._artefact(".ps")
+    def ps(self) -> Path:                     return self.artefact(".ps")
     @property
-    def channels_json(self) -> Path:          return self._artefact(".channels.json")
+    def channels_json(self) -> Path:          return self.artefact(".channels.json")
     @property
     def meta_path(self) -> Path:              return self.dir / "meta.json"
 
@@ -1631,8 +1698,18 @@ class Run:
     # <stem>.icc), so the whole chart chain shares the project-name stem. The
     # per-run folder removes the need for prefixes/suffixes; reads/ and the
     # role files (merged/preconditioning/calibrated) stay role-named.
-    def _artefact(self, ext: str) -> Path:
+    def artefact(self, ext: str) -> Path:
         """``<run dir>/<stem><ext>`` AS THE VOLUME SPELLS IT.
+
+        PUBLIC, because the fix was incomplete while it was not. A guard that
+        learned to resolve in front of work that still built its own names with
+        an f-string is worse than a guard that stayed shut: it ACTIVATES a code
+        path that was dead, and the path then acts on files that are not there.
+        Two of those shipped in round 1 — `adopt_run_chart_as_verify` orphaned a
+        single-page TIFF, and `workflow.chart_import.archive_run_for_replace`
+        left a whole chart chain unarchived so `chart_cht` answered with the OLD
+        chart's recognition file for the NEW `.ti2`. Anything outside this class
+        that needs `<stem><ext>` asks for it here.
 
         Every named artefact this run owns goes through here, so the accent
         spelling is dealt with once rather than at each of the ~155 places that
@@ -1651,15 +1728,15 @@ class Run:
         return resolve_existing(self.dir / f"{self.stem}{ext}")
 
     @property
-    def chart_ti1(self) -> Path:              return self._artefact(".ti1")
+    def chart_ti1(self) -> Path:              return self.artefact(".ti1")
     @property
-    def chart_ti2(self) -> Path:              return self._artefact(".ti2")
+    def chart_ti2(self) -> Path:              return self.artefact(".ti2")
     @property
-    def chart_cht(self) -> Path:              return self._artefact(".cht")
+    def chart_cht(self) -> Path:              return self.artefact(".cht")
     @property
-    def chart_ps(self) -> Path:               return self._artefact(".ps")
+    def chart_ps(self) -> Path:               return self.artefact(".ps")
     @property
-    def chart_channels_json(self) -> Path:    return self._artefact(".channels.json")
+    def chart_channels_json(self) -> Path:    return self.artefact(".channels.json")
 
     def chart_tiffs(self) -> list[Path]:
         """All chart page bitmaps in this run, sorted.
@@ -1696,7 +1773,7 @@ class Run:
     # (reading ``<stem>.ti2`` produces ``<stem>.ti3``). Per-read averaging
     # snapshots live in reads/readN.ti3 and are averaged back into <stem>.ti3.
     @property
-    def measurement_ti3(self) -> Path:        return self._artefact(".ti3")
+    def measurement_ti3(self) -> Path:        return self.artefact(".ti3")
     @property
     def reads_dir(self) -> Path:              return self.dir / "reads"
 
@@ -1775,7 +1852,7 @@ class Run:
         each site, so it can never be forgotten by one of them — which is how it
         came to be left behind when a re-generation archived the .ti3 it belongs
         to (Knut, #130 2026-07-30)."""
-        return self._artefact(".ti3.engine-partial")
+        return self.artefact(".ti3.engine-partial")
 
     def recoverable_partial_ti3(self) -> "Path | None":
         """The partial measurement when it is the ONLY record of those readings —
@@ -1809,7 +1886,7 @@ class Run:
     # colprof reading <stem>.ti3 writes <stem>.icc (stem-coupled). When a merge
     # ran, the deliverable is merged.icc instead — see built_profile_icc().
     @property
-    def profile_icc(self) -> Path:            return self._artefact(".icc")
+    def profile_icc(self) -> Path:            return self.artefact(".icc")
 
     def built_profile_icc(self) -> Path:
         """The profile a user should treat as the run's output.
@@ -1850,7 +1927,7 @@ class Run:
 
     def _verify_artefact(self, ext: str) -> Path:
         """``verifications/<verify stem><ext>``, spelled as the volume has it —
-        the same rule as :meth:`_artefact`, for the other folder and stem."""
+        the same rule as :meth:`artefact`, for the other folder and stem."""
         return resolve_existing(
             self.verifications_dir / f"{self.verify_stem}{ext}")
 
@@ -1927,7 +2004,7 @@ class Run:
             # path would find none of them — so the chart would be cleared for
             # a move that then moved nothing. The DESTINATION stays composed;
             # it is a name being written, and composed is ChromIQ's spelling.
-            src = self._artefact(ext)
+            src = self.artefact(ext)
             if src.exists():
                 dst = self.verifications_dir / f"{new}{ext}"
                 shutil.move(str(src), str(dst))
@@ -1938,17 +2015,21 @@ class Run:
         # `str.replace` would find nothing and move the page to verifications/
         # still carrying the PROFILING stem — a verify chart with a page the
         # verify glob cannot see.
-        for tif in self.stem_files(old, "_*.tif"):
+        #
+        # BOTH TAILS IN ONE LOOP, AND BOTH THROUGH `stem_files`. A single-page
+        # chart's TIFF has no "_NN" — it is just "<stem>.tif" — and that case
+        # used to be a second block built from a raw f-string. Once the guard at
+        # the top of this method learned to resolve, that block was reached for
+        # the first time on a restored project and could not see the file: the
+        # chart moved into verifications/ and its only page stayed ORPHANED in
+        # the run root, leaving exactly the "pages but no .ti2" contradiction
+        # this change removes everywhere else, and a verify chart that never
+        # previews (Knut #130: "Run type = Verification shows no preview").
+        # Measured, review round 2, defect 1.
+        for tif in self.stem_files(old, "_*.tif", ".tif", ".TIF"):
             dst = self.verifications_dir / nfc(tif.name).replace(nfc(old),
                                                                 nfc(new), 1)
             shutil.move(str(tif), str(dst))
-        # A single-page chart's TIFF has no "_NN" suffix — it's just "<stem>.tif"
-        # — so the glob above misses it. Move that too, or a single-page verify
-        # chart lands in verifications/ with no page bitmap and never previews
-        # (Knut #130: "Run type = Verification shows no preview").
-        single_tif = self.dir / f"{old}.tif"
-        if single_tif.exists():
-            shutil.move(str(single_tif), str(self.verifications_dir / f"{new}.tif"))
         # The chart's hand-off sidecars (exports/) belong with the verify chart.
         exp = self.exports_dir
         if exp.exists():
@@ -2116,7 +2197,11 @@ class Run:
         one-page `.ti2`.
         """
         def _leftovers():
-            return ([self.dir / n for n in self.chart_artefact_names()]
+            # `resolve_existing`, for the same reason as the drop loop in
+            # `reset_chart_artefacts`: a leftover spelled the other way is a
+            # leftover, and this is the sweep that is supposed to catch it.
+            return ([resolve_existing(self.dir / n)
+                     for n in self.chart_artefact_names()]
                     + list(self.chart_tiffs()))
         settle_chart_stash(self.dir, stash, built=built, leftovers=_leftovers)
 
@@ -2161,9 +2246,14 @@ class Run:
         # document them) to old/<timestamp>/ first. Chart files (below) are
         # regenerated, so they may be dropped. Only archives when results exist,
         # so iterating on a not-yet-measured chart doesn't spawn old/ folders.
-        results = [self.dir / f"{s}.ti3", self.partial_ti3,
-                   self.dir / f"{s}.icc",
-                   self.dir / f"{s}.icm", self.dir / "merged.ti3",
+        # THROUGH `artefact`, not an f-string. `partial_ti3` beside these
+        # already resolved, so a restored project archived the engine partial
+        # and left the measurement it belongs to unarchived — and then the drop
+        # loop below could not see it either, so the next build wrote a second
+        # `.ti3` beside it. Same shape as review round 2's two defects.
+        results = [self.artefact(".ti3"), self.partial_ti3,
+                   self.artefact(".icc"),
+                   self.artefact(".icm"), self.dir / "merged.ti3",
                    self.dir / "merged.icc", self.dir / "calibrated.icc"]
         if keep_results:
             results = []
@@ -2211,19 +2301,27 @@ class Run:
             except OSError as exc:
                 log.warning("Could not delete %s: %s", p, exc)
 
-        for name in (
-            f"{s}.ti1", f"{s}.ti2", f"{s}.cht", f"{s}.cie", f"{s}.ps",
-            f"{s}.pdf",                  # vector-PDF export (was left stale, Basti)
-            f"{s}.channels.json", f"{s}.strips.json",
-            f"{s}.print.json",           # how the chart that is GOING was printed
+        # STEM-NAMED ONES THROUGH `artefact`, ROLE-NAMED ONES AS THEY ARE. The
+        # stem side has to resolve or a regenerate leaves the restored chart in
+        # the folder and writes a second one beside it under a name that looks
+        # identical on screen — "two charts under one name", which is the state
+        # `files_matching`'s docstring was written about.
+        stem_exts = (
+            ".ti1", ".ti2", ".cht", ".cie", ".ps",
+            ".pdf",                      # vector-PDF export (was left stale, Basti)
+            ".channels.json", ".strips.json",
+            ".print.json",               # how the chart that is GOING was printed
         ) + ((
-            f"{s}.ti3",                  # the measurement (chartread output)
-            f"{s}.ti3.engine-partial",   # …and the engine partial beside it
-            f"{s}.icc",                  # the profile (colprof output)
+            ".ti3",                      # the measurement (chartread output)
+            ".ti3.engine-partial",       # …and the engine partial beside it
+            ".icc",                      # the profile (colprof output)
+        ) if not keep_results else ())
+        role_named = () if keep_results else (
             "merged.ti3", "merged.icc",  # build-time refinement merge outputs
             "calibrated.icc",            # applycal output
-        ) if not keep_results else ()):
-            p = self.dir / name
+        )
+        for p in ([self.artefact(ext) for ext in stem_exts]
+                  + [self.dir / n for n in role_named]):
             if p.exists():
                 _drop(p)
         for tiff in self.chart_tiffs():
@@ -2683,14 +2781,14 @@ class Project:
             d.name for d in self.runs_root.glob("run*") if d.is_dir()]
         for rid in rids:
             run = Run(self, rid)
-            legacy = run.dir / f"{run.stem}-verify.ti3"
+            legacy = run.artefact("-verify.ti3")
             if not legacy.is_file():
                 continue
             when = datetime.fromtimestamp(legacy.stat().st_mtime)
             v = run.new_verification(when)
             v.ensure_dir()
             self._migrate_move(legacy, v.dir)
-            legacy_ti2 = run.dir / f"{run.stem}-verify.ti2"
+            legacy_ti2 = run.artefact("-verify.ti2")
             if legacy_ti2.is_file():
                 self._migrate_move(legacy_ti2, run.verifications_dir)
 
