@@ -1426,6 +1426,7 @@ class TabCheckRefine(QWidget):
 
         params = self._collect_params()
         self._log.clear()
+        self._note_profile_provenance()
         self._last_result = None
         self._run_btn.setEnabled(False)
 
@@ -1434,6 +1435,56 @@ class TabCheckRefine(QWidget):
             on_line=self._on_log_line,
             on_finish=self._on_done,
         )
+
+    def _note_profile_provenance(self) -> None:
+        """Say so when the profile was not built from the measurement below it.
+
+        §6c of `docs/design/unified_measurement_management.md` states what
+        profcheck compares: *"a profile against the data it was built from"*.
+        The grade and the strip list are read as statements about the profile,
+        and they only mean that when the pairing holds.
+
+        THE CHECK & REFINE ROUND TRIP BREAKS THAT PAIRING, SILENTLY. Guided
+        refinement re-reads a strip with `chartread -r`, which rewrites the
+        run's .ti3 in place; nothing rebuilds the profile (the window that
+        follows offers to *open* the Build Profile tab, and its own tooltip
+        says the profile is not built yet). The session-restore path then
+        re-arms this tab with the NEW .ti3 and the OLD .icc.
+
+        Measured on a real 924-patch chart (2026-09-05): the same re-reads,
+        rebuilt, take the average dE from 0.770 to 0.753 — and NOT rebuilt,
+        from 0.770 to 0.835 with the peak going 5.99 to 10.23. Same readings,
+        opposite verdicts, and until now nothing said which had happened.
+
+        The answer needs no timestamps: colprof embeds the whole .ti3 it was
+        built from in the profile's `targ` tag, so the profile carries its own
+        source data. See `workflow/profile_provenance.py`.
+
+        A LOG LINE, NOT A WINDOW — deliberately. The window this deserves is
+        new user-facing text, and §M's rule is that it goes to §M-PROPOSED and
+        is not written into a tab until it is approved (M-CHECK-STALE-PROFILE).
+        The detection ships now and speaks through the log until then, exactly
+        as M-ALL-STRIPS-PATCHES-LEFT did.
+        """
+        if not (self._ti3_path and self._icc_path):
+            return
+        try:
+            from workflow.profile_provenance import check
+            result = check(self._icc_path, self._ti3_path)
+        except Exception:      # noqa: BLE001 - a note must never block a check
+            log.warning("Could not read the profile's source data", exc_info=True)
+            return
+        if not result.stale:
+            return
+        self._log.appendPlainText(
+            f"[WARNING] This profile was not built from this measurement: "
+            f"{result.differing} of {result.total} patches in "
+            f"'{self._ti3_path.name}' differ from the readings stored inside "
+            f"'{self._icc_path.name}'. profcheck compares a profile with the "
+            f"data it was built from, so the figures below say how far the "
+            f"measurement has moved since the profile was made - not how good "
+            f"the profile is. Build the profile again from this measurement "
+            f"first, then run the check.")
 
     def _warn_converted_measurement(self) -> bool:
         """The §2b trap of verification_printing_and_target.md (test T13).
