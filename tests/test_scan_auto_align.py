@@ -10,6 +10,7 @@ import json
 import math
 import os
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -725,11 +726,31 @@ def _drive_align(qapp, tmp_path, monkeypatch, quad, answers):
     d._marquee.set_corners(quad)
     d._capture_current_corners()
     d._on_auto_align()
-    for _ in range(400):
+    # WAIT ON A CLOCK, NOT ON A COUNT.
+    #
+    # This used to be `for _ in range(400): qapp.processEvents()` with no
+    # sleep, which on a loaded machine is over in microseconds — long before
+    # the worker QThread is scheduled at all. Two things then happened, and
+    # the second one is why the whole gate died:
+    #
+    #   * the assertions below saw `calls == []` and failed, because the
+    #     recogniser had not been reached yet;
+    #   * this function returned with `d._align_thread` still live, and `d`
+    #     — the QThread's PARENT, with no parent of its own here — was
+    #     dropped when the test frame went away. Destroying a QThread that is
+    #     still running makes Qt fail-fast the PROCESS (0xC0000409 on
+    #     Windows), which bypasses SEH and faulthandler, so the xdist worker
+    #     died with no traceback and no "Fatal Python error" anywhere:
+    #     `[gw0] node down: Not properly terminated`.
+    #
+    # The deadline-and-sleep loop below is the same one
+    # `tests/test_one_button_places_the_grid.py::_press` already uses.
+    deadline = time.monotonic() + 120.0
+    while d._align_thread is not None and time.monotonic() < deadline:
         qapp.processEvents()
-        if d._align_thread is None:
-            break
+        time.sleep(0.005)
     qapp.processEvents()
+    assert d._align_thread is None, "the placement never finished"
     _ = AutoAlignResult
     return calls, d
 

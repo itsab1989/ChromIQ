@@ -43,6 +43,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 import unicodedata as ud
 from pathlib import Path
 
@@ -50,6 +51,14 @@ import pytest
 
 from core.file_manager import FileManager, Project, Run, files_matching, nfc
 from core.settings import AppSettings
+
+#: `os.uname()` DOES NOT EXIST ON WINDOWS, and the skipif below is evaluated
+#: while the decorator is built — at import — so asking that question the old
+#: way did not skip a macOS-only test, it made the whole FILE fail to collect
+#: with `AttributeError: module 'os' has no attribute 'uname'`. `sys.platform`
+#: is defined on every platform Python runs on, which is the only reason a
+#: guard against a platform may use it.
+IS_MACOS = sys.platform == "darwin"
 
 NAME = ud.normalize("NFC", "Müller-Prüfdruck")
 NFD = ud.normalize("NFD", "Müller-Prüfdruck")
@@ -75,7 +84,7 @@ def test_the_two_spellings_are_different_strings_and_the_same_file(tmp_path):
     assert NAME != NFD                      # different strings…
     assert nfc(NFD) == NAME                 # …one composed spelling
     (tmp_path / f"{NFD}.ti2").write_text("x", encoding="utf-8")
-    if os.uname().sysname == "Darwin":      # APFS/HFS+ fold the two spellings
+    if IS_MACOS:                            # APFS/HFS+ fold the two spellings
         assert (tmp_path / f"{NAME}.ti2").exists(), (
             "the premise of the bug: existence is normalisation-insensitive")
     # …and a glob is not, on any platform.
@@ -203,7 +212,13 @@ def test_run_chart_tiffs_finds_a_decomposed_chart(tmp_path):
     _decomposed_run(run_dir)
     run = Run.for_dir(run_dir)
     assert run.stem == NAME
-    assert run.chart_ti2.exists()
+    if IS_MACOS:
+        # The PREMISE, not the fix: only a normalisation-INSENSITIVE volume
+        # answers True here, which is exactly why the bug was invisible on a
+        # Mac. NTFS is normalisation-sensitive, so on Windows the composed
+        # spelling simply is not there — and `files_matching` below is what
+        # has to find it on every platform.
+        assert run.chart_ti2.exists()
     assert len(run.chart_tiffs()) == 4, [p.name for p in run.chart_tiffs()]
 
 
@@ -289,7 +304,7 @@ def test_the_project_rename_walk_carries_the_accented_files(tmp_path):
 # The route the bug actually travels, with a real HFS+ volume
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skipif(os.uname().sysname != "Darwin", reason="hdiutil is macOS")
+@pytest.mark.skipif(not IS_MACOS, reason="hdiutil is macOS")
 def test_a_real_hfs_plus_round_trip_produces_the_decomposed_spelling(tmp_path):
     """The measurement behind the whole fix, done for real once.
 
@@ -349,5 +364,6 @@ def test_the_app_finds_the_chart_after_that_round_trip(tmp_path, monkeypatch):
     fm = FileManager(settings)
     fm.set_target_name(NAME)
     found = fm.project().current_run()
-    assert found.chart_ti2.exists()
+    if IS_MACOS:                             # the premise — see above
+        assert found.chart_ti2.exists()
     assert len(found.chart_tiffs()) == 4, [p.name for p in found.chart_tiffs()]

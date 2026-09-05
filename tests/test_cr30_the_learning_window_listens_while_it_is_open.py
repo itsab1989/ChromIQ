@@ -41,12 +41,55 @@ class _Reader:
                 "provenance": "two identical readings"}
 
 
+#: Every host these tests build, so the fixture below can see the learner
+#: thread each one is still holding.
+_HOSTS: "list[QWidget]" = []
+
+
 def _host(qtbot):
     host = QWidget()
     qtbot.addWidget(host)
     host._log = QPlainTextEdit(host)
     host._flash_status = lambda *a, **k: None
+    _HOSTS.append(host)
     return host
+
+
+@pytest.fixture(autouse=True)
+def _the_learner_never_outlives_its_test():
+    """NO TEST HERE MAY END WITH THE LEARNER THREAD STILL RUNNING.
+
+    `ui/cr30_calibration.py` keeps `self._learn_thread` referenced until the
+    thread really ends, because "dropping the last reference to a RUNNING
+    QThread takes the process with it". In these tests `self` is the throwaway
+    host, and the host dies with the test function — so a test that rejects
+    the window and returns while the reader is still inside its 0.3 s sleep
+    hands that exact situation to the NEXT test's garbage collection.
+
+    Qt answers it by fail-fasting the process: exit 0xC0000409, which bypasses
+    SEH, so faulthandler prints nothing and pytest-xdist reports only
+    `[gw0] node down: Not properly terminated` with no traceback anywhere.
+    That is the whole of the unexplained gate crash — measured on master,
+    2026-09-05, 8 runs out of 8 of this file alone.
+
+    Dismissing the window already sets the stop flag, so the reader notices on
+    its next poll (about 10 ms) and this wait is short.
+    """
+    _HOSTS.clear()
+    yield
+    deadline = time.monotonic() + 10.0
+    for host in _HOSTS:
+        thread = getattr(host, "_learn_thread", None)
+        if thread is None:
+            continue
+        thread.quit()
+        while thread.isRunning() and time.monotonic() < deadline:
+            QApplication.processEvents()
+            thread.wait(20)
+        assert not thread.isRunning(), (
+            "the learner thread outlived its test — dropping the host now "
+            "would take the whole process down")
+    _HOSTS.clear()
 
 
 def _live_dialog():
