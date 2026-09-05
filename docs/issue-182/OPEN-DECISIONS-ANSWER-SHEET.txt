@@ -6,8 +6,11 @@
 HOW TO USE THIS FILE
 
   1. Save it, open it in any text editor (or any notes app on a phone).
-  2. For each decision, type your choice on the ANSWER line - usually the
-     letter of an option, or "yes" / "no" / "agreed".
+  2. For each decision, type your choice after the word ANSWER: - usually
+     the letter of an option, or "yes" / "no" / "agreed". Every line you
+     fill in starts with ANSWER: or NOTES:, and the blanks are short on
+     purpose so they do not wrap on a phone. Write past the end of a blank
+     if you need to; nothing here depends on the layout.
   3. Use NOTES for anything you want to say about it. Short is fine.
      "Agreed" on its own is a complete answer.
   4. You do not have to answer all 23. Answer what you can; leave the rest
@@ -27,7 +30,8 @@ HOW TO USE THIS FILE
   left long.
 
 --------------------------------------------------------------------------------
-  FILLED IN BY: ______________________________     DATE: ____________________
+  FILLED IN BY: ______________________
+  DATE:         ______________________
 --------------------------------------------------------------------------------
 
 
@@ -54,10 +58,10 @@ HOW TO USE THIS FILE
   "we ship it" later is easy if a licence is obtained; going the other way after
   a release is a recall, not a change.
 
-  ANSWER: _____________________________________________________________________
+  ANSWER: ______________________________
 
-  NOTES:  _____________________________________________________________________
-          _____________________________________________________________________
+  NOTES:  ______________________________
+          ______________________________
 
 
 --------------------------------------------------------------------------------
@@ -87,10 +91,10 @@ HOW TO USE THIS FILE
   currently masked as "*,**") can ever be published unmasked; and whether a
   "Copy as text" button may exist at all.
 
-  ANSWER: _____________________________________________________________________
+  ANSWER: ______________________________
 
-  NOTES:  _____________________________________________________________________
-          _____________________________________________________________________
+  NOTES:  ______________________________
+          ______________________________
 
 
 --------------------------------------------------------------------------------
@@ -114,10 +118,10 @@ HOW TO USE THIS FILE
   own and repairs a live fault; commit to CMYK as the next block of work. If
   (b), the ISO columns must say in words why they are not selectable yet.
 
-  ANSWER: _____________________________________________________________________
+  ANSWER: ______________________________
 
-  NOTES:  _____________________________________________________________________
-          _____________________________________________________________________
+  NOTES:  ______________________________
+          ______________________________
 
 
 --------------------------------------------------------------------------------
@@ -136,17 +140,21 @@ HOW TO USE THIS FILE
     (a) Buy both now.
     (b) Buy them at the point ISO sets become buildable - i.e. once A1 and A3
         are settled.
-    (c) Never buy them, and ship ISO-named sets built only from the previews.
+    (c) Never buy them, and ship ISO-named sets built only from the extracts
+        we already have.
 
   We recommend: (b). Not urgent while A1 is open; blocking the moment A1 and A3
   close. (c) should be rejected - naming a standard while being unable to
   identify the patches its limits are written for is the kind of claim this
-  thread has avoided everywhere else.
+  thread has avoided everywhere else. Note also that the extracts in hand are
+  NOT ISO's own free previews: every page of both carries a commercial
+  reseller's watermark. We hold no licensed copy of either standard, and the
+  letter to ISO now says so.
 
-  ANSWER: _____________________________________________________________________
+  ANSWER: ______________________________
 
-  NOTES:  _____________________________________________________________________
-          _____________________________________________________________________
+  NOTES:  ______________________________
+          ______________________________
 
 
 --------------------------------------------------------------------------------
@@ -154,22 +162,28 @@ HOW TO USE THIS FILE
        OWNER: SEBASTIAN          Cheap, fully reversible
 --------------------------------------------------------------------------------
 
-  Nobody ever has. A short letter to Fogra asking whether ChromIQ may bundle
-  their characterization data, and one to ISO asking whether the tolerance
-  values may be built in as defaults. (A third, to the CGATS Secretariat at
-  APTech, is now also drafted - see the letters comment.) A human has to sign
-  them; it cannot be delegated.
+  Nobody ever has. Drafted and waiting for a signature: two short informal
+  emails - to the author of ArgyllCMS, who has shipped reference data under
+  these constraints for twenty years, and to the ICC, who host the CRPC data
+  with no terms attached - and four formal letters, to Fogra, to ISO, to the
+  CGATS Secretariat at APTech and to Idealliance. The two emails go first and
+  ask a question rather than requesting a favour; the four letters wait for
+  their answers, because a five-line reply that settles it is worth more than
+  four formal approaches, and asking four organisations for permission we may
+  not need is its own cost. A human has to sign all of it; it cannot be
+  delegated.
 
-    (a) Send them.
-    (b) Do not send them.
+    (a) Send them - emails first, letters after their answers.
+    (b) Send the emails only, and decide about the letters afterwards.
+    (c) Send none of it.
 
-  We recommend: send them. It costs an afternoon, it has no downside, and it is
-  the only item on this list that can REMOVE items from it.
+  We recommend: (a). It costs an afternoon, it has no downside, and it is the
+  only item on this list that can REMOVE items from it.
 
-  ANSWER: _____________________________________________________________________
+  ANSWER: ______________________________
 
-  NOTES:  _____________________________________________________________________
-          _____________________________________________________________________
+  NOTES:  ______________________________
+          ______________________________
 
 
 --------------------------------------------------------------------------------
@@ -189,12 +203,12 @@ HOW TO USE THIS FILE
   printing CONDITIONS, not verification criteria, so they belong in the
   reference chooser, not in the compliance pulldown.
 
-  ANSWER (accept the four columns as listed, or change the list):
+  (Accept the four columns as listed, or change the list.)
 
-  ANSWER: _____________________________________________________________________
+  ANSWER: ______________________________
 
-  NOTES:  _____________________________________________________________________
-          _____________________________________________________________________
+  NOTES:  ______________________________
+          ______________________________
 
 
 --------------------------------------------------------------------------------
@@ -218,12 +232,12 @@ HOW TO USE THIS FILE
   The route that does work: use the dataset's own Lab column as the aim, discard
   its device column, and get the RGB from the user's own printer profile.
 
-  ANSWER (accept the finding, or push back):
+  (Accept the finding, or push back.)
 
-  ANSWER: _____________________________________________________________________
+  ANSWER: ______________________________
 
-  NOTES:  _____________________________________________________________________
-          _____________________________________________________________________
+  NOTES:  ______________________________
+          ______________________________
 
 
 ================================================================================
@@ -252,10 +266,10 @@ HOW TO USE THIS FILE
     (a) Yes, the full table lives in its own window.
     (b) No - keep it inside the Preferences tab (and say what should give way).
 
-  ANSWER: _____________________________________________________________________
+  ANSWER: ______________________________
 
-  NOTES:  _____________________________________________________________________
-          _____________________________________________________________________
+  NOTES:  ______________________________
+          ______________________________
 
 
 --------------------------------------------------------------------------------
@@ -290,12 +304,14 @@ HOW TO USE THIS FILE
   measurement does not contain those patches". That is a property of a
   measurement and stays in the thresholds window.
 
-  ANSWER (a) three states: ____________________________________________________
+  (a) Three states?
+  ANSWER: ______________________________
 
-  ANSWER (b) rows leave / rows stay: __________________________________________
+  (b) Rows leave, or rows stay?
+  ANSWER: ______________________________
 
-  NOTES:  _____________________________________________________________________
-          _____________________________________________________________________
+  NOTES:  ______________________________
+          ______________________________
 
 
 --------------------------------------------------------------------------------
@@ -326,14 +342,17 @@ HOW TO USE THIS FILE
   We recommend: five boxes. It is the only item here that repairs something
   users are living with today.
 
-  ANSWER (Knut, the shape): ___________________________________________________
+  Knut - the shape:
+  ANSWER: ______________________________
 
-  ANSWER (Sebastian, the migration): __________________________________________
+  Sebastian - the migration:
+  ANSWER: ______________________________
 
-  ANSWER (Knut, the two average numbers if five): _____________________________
+  Knut - the two average numbers, if five:
+  ANSWER: ______________________________
 
-  NOTES:  _____________________________________________________________________
-          _____________________________________________________________________
+  NOTES:  ______________________________
+          ______________________________
 
 
 --------------------------------------------------------------------------------
@@ -362,10 +381,10 @@ HOW TO USE THIS FILE
   We recommend: (b). It would also tell us whether the shipped 2,0 / 3,0 is
   itself the right pair.
 
-  ANSWER: _____________________________________________________________________
+  ANSWER: ______________________________
 
-  NOTES:  _____________________________________________________________________
-          _____________________________________________________________________
+  NOTES:  ______________________________
+          ______________________________
 
 
 --------------------------------------------------------------------------------
@@ -378,10 +397,10 @@ HOW TO USE THIS FILE
   belongs in the thresholds window, per report; Preferences at most holds "my
   saved custom default". Correct?
 
-  ANSWER: _____________________________________________________________________
+  ANSWER: ______________________________
 
-  NOTES:  _____________________________________________________________________
-          _____________________________________________________________________
+  NOTES:  ______________________________
+          ______________________________
 
 
 --------------------------------------------------------------------------------
@@ -403,12 +422,12 @@ HOW TO USE THIS FILE
   user's value and say "factory value changed from X to Y in this release" with
   a one-click restore, rather than silently adopting the new number.
 
-  ANSWER (confirm the three tiers, or change them):
+  (Confirm the three tiers, or change them.)
 
-  ANSWER: _____________________________________________________________________
+  ANSWER: ______________________________
 
-  NOTES:  _____________________________________________________________________
-          _____________________________________________________________________
+  NOTES:  ______________________________
+          ______________________________
 
 
 --------------------------------------------------------------------------------
@@ -426,10 +445,10 @@ HOW TO USE THIS FILE
 
   We recommend: (a).
 
-  ANSWER: _____________________________________________________________________
+  ANSWER: ______________________________
 
-  NOTES:  _____________________________________________________________________
-          _____________________________________________________________________
+  NOTES:  ______________________________
+          ______________________________
 
 
 --------------------------------------------------------------------------------
@@ -462,10 +481,10 @@ HOW TO USE THIS FILE
   computed through a profile, so that a user who needs the real dataset knows to
   go and get it.
 
-  ANSWER: _____________________________________________________________________
+  ANSWER: ______________________________
 
-  NOTES:  _____________________________________________________________________
-          _____________________________________________________________________
+  NOTES:  ______________________________
+          ______________________________
 
 
 --------------------------------------------------------------------------------
@@ -481,12 +500,12 @@ HOW TO USE THIS FILE
   by writing code that disagrees with it. It needs your sign-off on the wording
   before B6 is implemented.
 
-  ANSWER (approve the spec change / ask to see the wording first / other):
+  (Approve the spec change, ask to see the wording first, or say what else.)
 
-  ANSWER: _____________________________________________________________________
+  ANSWER: ______________________________
 
-  NOTES:  _____________________________________________________________________
-          _____________________________________________________________________
+  NOTES:  ______________________________
+          ______________________________
 
 
 --------------------------------------------------------------------------------
@@ -504,10 +523,10 @@ HOW TO USE THIS FILE
 
   We recommend: (a).
 
-  ANSWER: _____________________________________________________________________
+  ANSWER: ______________________________
 
-  NOTES:  _____________________________________________________________________
-          _____________________________________________________________________
+  NOTES:  ______________________________
+          ______________________________
 
 
 ================================================================================
@@ -529,10 +548,10 @@ HOW TO USE THIS FILE
     (a) In.
     (b) Out.
 
-  ANSWER: _____________________________________________________________________
+  ANSWER: ______________________________
 
-  NOTES:  _____________________________________________________________________
-          _____________________________________________________________________
+  NOTES:  ______________________________
+          ______________________________
 
 
 --------------------------------------------------------------------------------
@@ -558,10 +577,10 @@ HOW TO USE THIS FILE
   We recommend: (c), and the report must print which was used. It changes no
   existing ChromIQ number, so nobody's saved report shifts.
 
-  ANSWER: _____________________________________________________________________
+  ANSWER: ______________________________
 
-  NOTES:  _____________________________________________________________________
-          _____________________________________________________________________
+  NOTES:  ______________________________
+          ______________________________
 
 
 --------------------------------------------------------------------------------
@@ -575,12 +594,12 @@ HOW TO USE THIS FILE
   the first set ships, because it cannot be applied to runs created before the
   rule exists.
 
-  ANSWER (confirm, or say what should happen instead):
+  (Confirm, or say what should happen instead.)
 
-  ANSWER: _____________________________________________________________________
+  ANSWER: ______________________________
 
-  NOTES:  _____________________________________________________________________
-          _____________________________________________________________________
+  NOTES:  ______________________________
+          ______________________________
 
 
 --------------------------------------------------------------------------------
@@ -594,10 +613,10 @@ HOW TO USE THIS FILE
     (a) ISO 12647-8 first.
     (b) ISO 12647-7 first.
 
-  ANSWER: _____________________________________________________________________
+  ANSWER: ______________________________
 
-  NOTES:  _____________________________________________________________________
-          _____________________________________________________________________
+  NOTES:  ______________________________
+          ______________________________
 
 
 --------------------------------------------------------------------------------
@@ -611,10 +630,10 @@ HOW TO USE THIS FILE
   the measurement report should be marked filled or hollow for one of the
   selection types. It should be answered before these new outputs are placed.
 
-  ANSWER: _____________________________________________________________________
+  ANSWER: ______________________________
 
-  NOTES:  _____________________________________________________________________
-          _____________________________________________________________________
+  NOTES:  ______________________________
+          ______________________________
 
 
 --------------------------------------------------------------------------------
@@ -627,10 +646,10 @@ HOW TO USE THIS FILE
   binding-specification rule that is a contradiction to be reviewed and approved
   rather than quietly left. Does it need revising, and by whom?
 
-  ANSWER: _____________________________________________________________________
+  ANSWER: ______________________________
 
-  NOTES:  _____________________________________________________________________
-          _____________________________________________________________________
+  NOTES:  ______________________________
+          ______________________________
 
 
 ================================================================================
@@ -657,13 +676,10 @@ HOW TO USE THIS FILE
   ANYTHING ELSE
 ================================================================================
 
-  _____________________________________________________________________________
-
-  _____________________________________________________________________________
-
-  _____________________________________________________________________________
-
-  _____________________________________________________________________________
+  ANSWER: ______________________________
+          ______________________________
+          ______________________________
+          ______________________________
 
 
 ================================================================================
