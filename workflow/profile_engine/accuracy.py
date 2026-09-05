@@ -37,8 +37,9 @@ from workflow.profile_engine.metrics import delta_e_2000
 # λ search ladder, as factors on the parity table's value (settings -r
 # included — it scales the base before the search).
 _LAMBDA_FACTORS = (0.25, 0.5, 1.0, 2.0, 4.0)
-_CV_FOLDS = 3                  # hold-out splits for ≤ 4-ink charts
-_CV_MARGIN_FRACTION = 0.05     # a factor must beat ×1 by this much (or by
+_CV_FOLDS = 3                  # hold-out splits (1 when a fit is very large)
+_CV_FOLD_MAX_NODES = 250_000   # grid**n above which one split has to do
+_CV_MARGIN_FRACTION = 0.02     # a factor must beat ×1 by this much (or by
 #                                the across-split scatter, whichever is larger)
 _NAME_SCALE_FACTOR = 6.0       # "remeasure" threshold in robust-scale units
 _HOLDOUT_MIN_PATCHES = 120     # below this a CV split starves the fit
@@ -146,7 +147,8 @@ def fit_forward_model_accurate(
         # plain fit (measured 2026-09-05). A factor now has to beat the
         # standard smoothing by more than the criterion's own scatter.
         nho = max(30, npts // 10)
-        folds = _CV_FOLDS if device.shape[1] <= 4 else 1
+        folds = _CV_FOLDS if grid ** device.shape[1] <= _CV_FOLD_MAX_NODES \
+            else 1
         splits = []
         for k in range(folds):
             idx = np.random.default_rng(4242 + k).permutation(npts)

@@ -244,6 +244,37 @@ def settings_from_params(params: "ProfileParams") -> BuildSettings:
     return s
 
 
+def accuracy_mode_label(gammap_mode: str) -> str:
+    """The Preferences → Beta → Accuracy wording for a mode token, so every
+    window that names the builder names the mode too (B-06)."""
+    return {"accurate": tr("Maximum accuracy"), "argyll": tr("Bit-exact"),
+            }.get(str(gammap_mode), tr("Fast"))
+
+
+def choose_builder(settings, params: "ProfileParams") -> tuple[str, str]:
+    """Which builder a window should use for ``params`` under the current
+    Preferences: ``("engine", "")`` or ``("colprof", why)``.
+
+    The same decision the Build Profile tab makes (`_resolve_engine`), for
+    any window that builds a printer profile — the scanner/camera tool used
+    to ignore the Beta switch entirely and always ran colprof (B-26):
+    multi-ink → engine; beta off → colprof; Bit-exact on ≤ 4 inks → colprof
+    itself (identical to Argyll); Fast/Maximum accuracy → the engine unless
+    :func:`engine_support` names something only colprof has.
+    """
+    beta = bool(settings.get("profile_engine_beta", False))
+    if is_multi_ink(params.ti3_path):
+        return ("engine", "") if beta else ("colprof", tr(
+            "the ChromIQ profile engine is switched off"))
+    if not beta:
+        return "colprof", ""
+    if str(settings.get("gammap_mode", "fast")) == "argyll":
+        return "colprof", tr("Bit-exact on a standard (≤4-ink) measurement "
+                             "is Argyll colprof itself")
+    ok, why = engine_support(params)
+    return ("engine", "") if ok else ("colprof", why)
+
+
 def engine_support(params: "ProfileParams") -> tuple[bool, str]:
     """Can the engine run this exact build?
 
@@ -294,6 +325,12 @@ class _EngineThread(QThread):
             "Model fit at the measured patches: median {med:.2f} ΔE, "
             "95% {p95:.2f} ΔE.").format(med=res.fit_median_de,
                                         p95=res.fit_p95_de))
+        # colprof's fit-check line, verbatim in shape: the scanner tool's
+        # misalignment verdict (#108) is built on it, and it now builds
+        # printer profiles through this engine as well.
+        self.line.emit(f"Profile check complete, peak err = "
+                       f"{res.fit_max_de:.6f}, avg err = "
+                       f"{res.fit_mean_de:.6f}")
         if res.perceptual_distinct:
             self.line.emit(tr(
                 "Perceptual and saturation tables built from the gamut "
@@ -375,12 +412,19 @@ class EngineProfileBuilder:
         # which Qt emits after run() has returned.
         t.finished.connect(_released)
         t.finished.connect(t.deleteLater)
-        on_line(tr("Building with the ChromIQ profile engine (beta)…"))
+        on_line(tr("Building with the ChromIQ profile engine (beta) — "
+                   "{mode}…").format(mode=accuracy_mode_label(
+                       settings.gammap_mode)))
         t.start()
 
     # ProfileBuilder-parity helpers the finish path may consult ------------
     def primary_failure(self) -> tuple[str, str] | None:
         return ("engine", self._last_error) if self._last_error else None
+
+    def last_output(self) -> str:
+        """What the colprof builder returns as the tool's raw output; the
+        engine has no separate stream, so its last error stands in."""
+        return self._last_error
 
     def captured_warnings(self) -> list[tuple[str, str]]:
         return []

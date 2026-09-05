@@ -213,6 +213,11 @@ class BuildResult:
     # ΔE2000 companions to the ΔE76 fit statistics (perceptually weighted).
     fit_median_de00: float = 0.0
     fit_p95_de00: float = 0.0
+    # colprof's own "Profile check complete, peak err = …, avg err = …" pair
+    # (ΔE76 max and mean at the patches), so a window that watches for that
+    # line — the scanner tool's misalignment check — reads the engine too.
+    fit_max_de: float = 0.0
+    fit_mean_de: float = 0.0
     # Patch rows flagged as likely misreads (accurate mode; 0-based).
     outlier_rows: tuple = ()
 
@@ -417,8 +422,16 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     a2b_grid = (_A2B_GRID_34 if n >= 4 else _A2B_GRID_23)[q]
     b2a_grid = _B2A_GRID[qb]
     # Keep very high-dimensional grids inside sane memory: grid**n nodes.
+    asked_grid = a2b_grid
     while a2b_grid ** n > 2_000_000 and a2b_grid > 3:
         a2b_grid -= 2
+    if a2b_grid != asked_grid:
+        # 6 inks: High and Ultra both land on grid 11 (A-21); say so, or the
+        # user pays 25 minutes for a quality step that changed nothing.
+        _emit(settings, f"Colour table grid reduced from {asked_grid} to "
+                        f"{a2b_grid} per axis: {n} ink channels at this "
+                        f"quality would need {asked_grid ** n:,} nodes. "
+                        f"Higher quality settings give the same table here.")
 
     _emit(settings, f"Fitting the printer model ({len(meas.device)} patches, "
                     f"grid {a2b_grid})…")
@@ -725,6 +738,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         model=model, measurement=meas,
         fit_median_de00=float(np.median(fit_res00)),
         fit_p95_de00=float(np.percentile(fit_res00, 95)),
+        fit_max_de=float(fit_res.max()), fit_mean_de=float(fit_res.mean()),
         outlier_rows=tuple(int(i) for i in outliers))
 
 
@@ -790,15 +804,19 @@ def _pin_media_white(model: ForwardModel, meas: Ti3Measurement,
     """Re-adapt the fitted grid so device white maps exactly to D50, and
     return the profile's absolute media white (Y=100 scale).
 
-    Mirrors ArgyllCMS ``xfit.c`` (XFIT_OUT_WP_REL): look the device white up
-    through the fitted model, build the Bradford matrix from that fitted
-    white to D50, push every grid node through it, and take the fitted
-    white — expressed back in the measured basis — as ``wtpt``. Device white
-    sits on a grid CORNER (the shaper curves are pinned at 0 and 1), so the
-    corner node becomes (100, 0, 0) exactly, and the relative tables agree
-    with the white-point tag by construction. ``-u <scale>`` then scales the
-    relative grid by 1/scale and the white point by scale, exactly as
-    colprof does for output profiles.
+    Argyll's ``xfit.c`` (XFIT_OUT_WP_REL) looks the device white up through
+    the fitted model and re-adapts the WHOLE grid so it lands on D50. That
+    global move costs interior accuracy by the white-fit error — measured on
+    the synthetic battery: A2B median S2 0.241 → 0.318, S3 0.238 → 0.319 —
+    so here the correction is LOCAL: the fitted white's error is added in
+    full at the white corner and fades out below L* 60 and beyond chroma
+    40, leaving the interior exactly as fitted. Device white sits on a grid
+    CORNER (the shaper curves are pinned at 0 and 1), so that node becomes
+    (100, 0, 0) exactly and the relative tables agree with the white-point
+    tag, which is the fitted white expressed back in the measured basis.
+    ``wp_scale`` (xfit semantics: grid ×1/scale, white ×scale) stays a global
+    operation — colprof refuses it on printer data and the tab cannot reach
+    it; kept for an input-class future.
     """
     from workflow.profile_engine.icc_writer import BRADFORD
     from workflow.profile_engine.ti3_data import (D50_XYZ100, lab_to_xyz,
@@ -815,15 +833,16 @@ def _pin_media_white(model: ForwardModel, meas: Ti3Measurement,
     # Absolute white = the fitted white in the measured basis (before the
     # correction, so the absolute response of the profile is unchanged).
     wtpt_abs = meas.relative_to_absolute_xyz(xyz_w)[0]
-    cone_fit = BRADFORD @ (xyz_w / 100.0)
-    cone_d50 = BRADFORD @ (D50_XYZ100 / 100.0)
-    adapt = np.linalg.inv(BRADFORD) @ np.diag(cone_d50 / cone_fit) @ BRADFORD
+    delta = np.array([100.0, 0.0, 0.0]) - lab_w[0]
+    nodes = model.nodes
+    l_w = np.clip((nodes[:, 0] - 60.0) / 40.0, 0.0, 1.0) ** 2
+    c_w = np.clip(1.0 - np.hypot(nodes[:, 1], nodes[:, 2]) / 40.0, 0.0, 1.0)
+    model.nodes = nodes + delta[None, :] * (l_w * c_w)[:, None]
     scale = float(settings.wp_scale) if settings.wp_scale else 1.0
     if scale <= 0.0:
         scale = 1.0
-    nodes_xyz = lab_to_xyz(model.nodes)
-    nodes_xyz = (adapt @ nodes_xyz.T).T / scale
-    model.nodes = xyz_to_lab(nodes_xyz)
+    if scale != 1.0:
+        model.nodes = xyz_to_lab(lab_to_xyz(model.nodes) / scale)
     wtpt_abs = wtpt_abs * scale
     corner = model.predict(dev_white)[0]
     _emit(settings, f"Paper white anchored: the model's white read L* "
