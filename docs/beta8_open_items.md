@@ -2191,7 +2191,7 @@ came back to it.
 - blocks release: no
 - found by: the Windows ARM64 session's challenge of PR #188
   (`beta 9/staging/12_drift_challenge.md`), re-read here while landing that PR.
-- status: OPEN
+- status: FIXED
 - detail: `tests/test_a_decomposed_name_finds_its_files.py` had never run on
   Windows at all — it called `os.uname()` inside a `skipif`, which is evaluated
   when the decorator is BUILT, so on Windows the whole file failed to collect
@@ -2218,10 +2218,82 @@ came back to it.
   hold a release; but it is a wrong print, not a cosmetic fallback. The other
   two branches are cosmetic: `:2238` falls back to a `.ti1` that shares the
   same defeated stem, so the user gets an honest "no chart".
-- next step: decide whether `Run.chart_ti2` (and its siblings) should resolve
-  through `files_matching`/`nfc` rather than a bare `Path.exists()`, and give
-  the three `main_window` branches the same treatment. Only a Windows machine
-  can prove the fix; nothing here can.
+- fix: **PR #189**, `core.file_manager.resolve_existing(path)` — at the
+  ACCESSOR, not at the three call sites. It returns the spelling the volume
+  really holds, so the path both answers `exists()` and OPENS; a call-site
+  `.exists()` fix would have moved the failure to the `open()` two lines later
+  (`load_rgb_program`, `shutil.copy2`, `note_generated_chart` all USE it).
+  Every stem-named artefact of a `Run`, a `Calibration` and a `Verification`
+  goes through it via the now-public `Run.artefact(ext)` /
+  `Calibration.artefact(ext)`, because ~155 places ask a `Run` for a file and
+  the next one is not written yet. The exact spelling is asked for FIRST, so
+  nothing is ever swapped for a neighbour; an absent file comes back unchanged,
+  so writers still create the composed name; case folds only where
+  `_NAME_CASEFOLD` says the filesystem folds it, the same flag `files_matching`
+  uses eighty lines above. Making the guard truthful then RAN code that had
+  never run on such a project, and two of those paths still built names with
+  f-strings — `adopt_run_chart_as_verify` orphaned a one-page chart's only
+  TIFF in the run root, and `workflow.chart_import.archive_run_for_replace`
+  archived half a chart so `run.chart_cht` handed the scanner the OLD chart's
+  recognition file for the NEW `.ti2`. Both fixed, and the same shape swept for
+  and fixed in six further places (`reset_chart_artefacts`,
+  `settle_chart_stash`'s leftovers, the v3 verification migration,
+  `TabChart._reflect_loaded_project`, the profiling-chart snapshot, and
+  `run_delete`'s `.icm` probe).
+- deliberately NOT fixed, and pinned rather than left unknown: a composed name
+  TYPED into the Create Chart box still does not find a decomposed project
+  FOLDER, so a second, empty, identically-drawn folder is created beside it.
+  Fixing it means changing either the "a folder name is always NFC" invariant
+  or `working_dir`'s re-clean-and-compare, both pinned behaviour with a
+  documented reason — a decision to be taken and reviewed, not slipped into a
+  bug fix. Every route that reaches a project through the FOLDER (the picker,
+  `open_project_at`, session restore) is unaffected and works today.
+- evidence: test_a_named_artefact_resolves_to_the_spelling_that_is_on_disk,
+  test_the_mirror_shape_resolves_too,
+  test_the_ti1_is_not_quietly_substituted_for_a_ti2_that_is_there,
+  test_the_exact_spelling_always_wins_when_both_are_on_disk,
+  test_an_absent_artefact_keeps_its_composed_name_so_a_writer_creates_that,
+  test_a_rewrite_overwrites_the_chart_instead_of_laying_a_second_beside_it,
+  test_case_is_never_folded_by_the_resolver,
+  test_the_whole_chart_chain_and_the_verify_chart_resolve,
+  test_a_calibration_finds_its_own_restored_chart,
+  test_the_ui_resolves_the_restored_chart_and_not_its_ti1,
+  test_a_single_page_verify_chart_takes_its_page_with_it,
+  test_the_multi_page_case_still_works_and_is_not_double_moved,
+  test_a_replace_archives_the_whole_restored_chart_chain,
+  test_a_regenerate_does_not_leave_a_second_chart_under_one_name,
+  test_the_accessor_finds_whatever_the_listing_finds,
+  test_which_of_several_spellings_wins_is_not_the_listing_order,
+  test_a_name_with_no_other_spelling_never_lists_the_directory,
+  test_a_name_that_really_has_another_spelling_is_still_looked_for,
+  test_a_typed_composed_name_does_not_yet_find_a_decomposed_project_folder,
+  test_every_per_chart_sidecar_is_on_both_lists.
+- **the NTFS half is Windows evidence and stays Windows evidence.** The fault,
+  the before/after table (`:2238` resolving `.ti1` 180 patches -> `.ti2` 462
+  patches) and the German on-screen run were produced on the Windows 11 ARM64
+  VM. An independent macOS review (agent BK, 2026-09-05) could not reproduce
+  any of it and did not try to claim otherwise: **macOS cannot hold two
+  canonically equivalent file names in one folder at all** — measured on three
+  disk images made for the purpose, APFS case-insensitive, "Case-sensitive
+  APFS" and macOS's exFAT driver, every one of which folds the pair onto one
+  file. What that review established instead is that the change is a **pure
+  no-op on macOS**: `resolve_existing` was called **6,257 times across a whole
+  `--runslow` gate and returned a path different from the one it was asked for
+  exactly 0 times**, because `Path.exists()` on APFS answers True for the other
+  spelling and the fast path returns before the directory is ever listed. The
+  release gate went 11,213 passed (master) -> 11,246 passed, 0 new failures;
+  the 34-check scanner sweep gave verdict-for-verdict identical results before
+  and after; and driving the real window through chart creation, the Create
+  Chart tab's current-chart panel and the Print tab on both trees produced two
+  borrowed projects byte-identical in all 25 files, `.ti1` and both page TIFFs
+  of a freshly built chart byte-identical, and a `.ti2` differing only in
+  printtarg's `CREATED` timestamp and random `CHART_ID`.
+- one defect was found and fixed IN the PR while landing it:
+  `test_the_exact_spelling_always_wins_when_both_are_on_disk` asserted on the
+  CONTENT of two files that macOS folds into one, so the release gate was red
+  on macOS while green on the machine the branch was written on. The guarantee
+  (the NAME that comes back is the one asked for) is now asserted on every
+  volume and the content check is asked only where there are two files.
 
 ### B8-62 · The CR30 refused the most saturated patches on glossy paper, and called a real reading a truncated reply
 - blocks release: yes
