@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ctypes
 import ctypes.wintypes as wt
+import os
 import sys
 from pathlib import Path
 from typing import NamedTuple
@@ -410,11 +411,43 @@ def install_winusb(device: UsbDevice) -> bool:
         log.error("wdi-simple not found or empty at %s", wdi)
         return False
 
+    # `--driver` IS NOT AN OPTION OF wdi-simple, AND NEVER WAS. This read
+    # `--driver WinUSB` until 2026-09-06, and wdi-simple answers an unknown
+    # long option by printing its usage and exiting ZERO — which this function
+    # returned as success. Measured against a real driverless i1Studio: the
+    # app reported the install had succeeded, and `setupapi.dev.log` recorded
+    # nothing whatever. It had never installed a driver for any instrument.
+    #
+    # The real option is `-t/--type <n>`: 0=WinUSB, 1=libusb-win32, 2=libusbK,
+    # 3=usbser, 4=custom. We ask for 1 because that is the driver ArgyllCMS
+    # installs itself — `usb/ArgyllCMS.inf` binds `AddService = libusb0` for
+    # all 28 of the devices it supports — so this puts the instrument in the
+    # configuration Argyll ships and tests. Argyll works with WinUSB.sys too
+    # (its own changelog says so), so 0 is defensible; 1 is what is proven.
+    # AND `--dest` IS NOT OPTIONAL EITHER, though it looks it. wdi-simple's
+    # default extraction directory is the RELATIVE path `usb_driver`, so the
+    # driver files land wherever the elevated process happens to be started
+    # from — a directory this code does not choose and cannot predict.
+    # Measured on the bench: it resolved to `C:\Users\<user>\usb_driver`, a
+    # stale x64-only tree left by another tool months earlier, and wdi-simple
+    # died with `check_dir: Unable to create directory 'usb_driver'
+    # (0x000000B7 ERROR_ALREADY_EXISTS)`, then `Extracting driver files...
+    # Access denied` — WDI_ERROR_ACCESS. From inside the app, whose working
+    # directory differs again, the same cause surfaced as WDI_ERROR_RESOURCE,
+    # because the arm64 files it needed were not in that x64-only tree.
+    #
+    # %SystemRoot%\Temp is chosen over a user-writable directory on purpose:
+    # these files are extracted and then installed as a driver by an ELEVATED
+    # process, and a destination an unprivileged user can write to is a place
+    # to swap them in between. Windows\Temp is administrators-only, so the
+    # package that gets installed is the package that was extracted.
+    dest = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "Temp" / "chromiq-wdi"
+
     args = (
         f'--vid 0x{device.vid} --pid 0x{device.pid} '
-        f'--name "{device.name}" --driver WinUSB'
+        f'--name "{device.name}" --type 1 --dest "{dest}"'
     )
-    log.info("Installing WinUSB: %s %s", wdi.name, args)
+    log.info("Installing libusb-win32: %s %s", wdi.name, args)
 
     # ShellExecuteExW with "runas" → UAC elevation for wdi-simple only,
     # without re-launching the full ChromIQ process as admin.
