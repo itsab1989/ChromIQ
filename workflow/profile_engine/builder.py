@@ -372,7 +372,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     # Accurate mode gets the shadow-resolving shaped XYZ-PCS layout; the
     # parity modes keep colprof's identity layout.
     codec = codec_for(settings.algorithm,
-                      accurate=settings.gammap_mode == "accurate")
+                      accurate=settings.gammap_mode == "accurate",
+                      entries=_B2A_ENTRIES[qb])
 
     _emit(settings, "Reading the measurement…")
     meas = read_ti3(ti3_path)

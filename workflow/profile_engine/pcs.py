@@ -48,34 +48,36 @@ _D50 = np.array(icw.D50_XYZ, dtype=float)      # the PCS white, u1.15 scale
 
 
 class XyzPcs:
-    """XYZ PCS. The B2A/gamt grid runs 0..D50 on each axis, with the input
-    tables mapping the u1.15 code range onto it (clipping above the PCS
-    white). A reflective colour never exceeds the media white on any of
+    """XYZ PCS. The B2A/gamt grid runs 0..``_TOP`` on each axis (the PCS
+    white, or one input-table step below it — see :func:`codec_for`), with
+    the input tables mapping the u1.15 code range onto it and clipping
+    above. A reflective colour never exceeds the media white on any of
     X, Y, Z, so nothing printable is lost — and the corner node IS the
     white, which the white pin needs (reviewer R1b: with a uniform
     0..1.99997 grid no node sat at D50 and an ``-a x`` profile printed
     5 % CMY into paper white)."""
     signature = b"XYZ "
+    _TOP = _D50
 
-    @staticmethod
-    def node_lab(grid: int) -> np.ndarray:
-        axes = [np.linspace(0.0, _D50[c], grid) for c in range(3)]
+    @classmethod
+    def node_lab(cls, grid: int) -> np.ndarray:
+        axes = [np.linspace(0.0, cls._TOP[c], grid) for c in range(3)]
         xyz1 = np.stack(np.meshgrid(*axes, indexing="ij"), -1).reshape(-1, 3)
         return xyz_to_lab(xyz1 * 100.0)
 
-    @staticmethod
-    def lab_to01(lab: np.ndarray) -> np.ndarray:
+    @classmethod
+    def lab_to01(cls, lab: np.ndarray) -> np.ndarray:
         xyz1 = lab_to_xyz(lab) / 100.0
-        return np.clip(xyz1 / _D50[None, :], 0.0, 1.0)
+        return np.clip(xyz1 / cls._TOP[None, :], 0.0, 1.0)
 
     @staticmethod
     def encode(lab: np.ndarray) -> np.ndarray:
         return icw.xyz_to_u16(lab_to_xyz(lab) / 100.0)
 
-    @staticmethod
-    def b2a_in_tables(entries: int) -> np.ndarray:
+    @classmethod
+    def b2a_in_tables(cls, entries: int) -> np.ndarray:
         codes = np.linspace(0.0, icw.XYZ16_MAX, entries)
-        rows = [np.clip(codes / _D50[c], 0.0, 1.0) for c in range(3)]
+        rows = [np.clip(codes / cls._TOP[c], 0.0, 1.0) for c in range(3)]
         return np.clip(np.stack(rows) * 0xFFFF, 0, 0xFFFF).round().astype(">u2")
 
 
@@ -92,27 +94,40 @@ class XyzPcsShaped(XyzPcs):
     *encoding* must stay u1.15 XYZ per the spec).
     """
 
-    @staticmethod
-    def node_lab(grid: int) -> np.ndarray:
+    @classmethod
+    def node_lab(cls, grid: int) -> np.ndarray:
         u = np.linspace(0.0, 1.0, grid)
-        axes = [_D50[c] * u ** 3 for c in range(3)]   # u ↦ PCS value u³·white
+        axes = [cls._TOP[c] * u ** 3 for c in range(3)]   # u ↦ PCS value u³·top
         xyz1 = np.stack(np.meshgrid(*axes, indexing="ij"), -1).reshape(-1, 3)
         return xyz_to_lab(xyz1 * 100.0)
 
-    @staticmethod
-    def lab_to01(lab: np.ndarray) -> np.ndarray:
+    @classmethod
+    def lab_to01(cls, lab: np.ndarray) -> np.ndarray:
         xyz1 = lab_to_xyz(lab) / 100.0
-        return np.clip(np.cbrt(np.clip(xyz1 / _D50[None, :], 0.0, None)),
+        return np.clip(np.cbrt(np.clip(xyz1 / cls._TOP[None, :], 0.0, None)),
                        0.0, 1.0)
 
-    @staticmethod
-    def b2a_in_tables(entries: int) -> np.ndarray:
+    @classmethod
+    def b2a_in_tables(cls, entries: int) -> np.ndarray:
         codes = np.linspace(0.0, icw.XYZ16_MAX, entries)
-        rows = [np.cbrt(np.clip(codes / _D50[c], 0.0, 1.0)) for c in range(3)]
+        rows = [np.cbrt(np.clip(codes / cls._TOP[c], 0.0, 1.0)) for c in range(3)]
         return np.clip(np.stack(rows) * 0xFFFF, 0, 0xFFFF).round().astype(">u2")
 
 
-def codec_for(algorithm: str, accurate: bool = False):
-    if algorithm == "x":
-        return XyzPcsShaped if accurate else XyzPcs
-    return LabPcs
+def codec_for(algorithm: str, accurate: bool = False,
+              entries: int | None = None):
+    """The PCS codec for a build. ``entries`` (the B2A input-table length)
+    lets an XYZ codec put its grid top one table step BELOW the PCS white:
+    the white's code is never exactly an entry, so with the top at D50 the
+    interpolated white landed 0.3 % short of the corner (one 8-bit step of
+    ink in the paper white); one step lower, both entries around the white
+    read 1.0 and the corner is hit exactly. Colours within that step of the
+    white (about L* 99.9) share the corner — below anything 8 bits resolve."""
+    if algorithm != "x":
+        return LabPcs
+    base = XyzPcsShaped if accurate else XyzPcs
+    if not entries:
+        return base
+    step = icw.XYZ16_MAX / (entries - 1)
+    top = _D50 - step
+    return type(base.__name__ + "Top", (base,), {"_TOP": top})

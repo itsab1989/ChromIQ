@@ -84,7 +84,8 @@ def test_device_white_lands_exactly_on_the_pcs_white(tmp_path, rep, fields,
     # exactly on the corner (the code for the white is not an entry), so
     # the interpolated white lands 0.3 % short — one 8-bit step, the same
     # size as littleCMS's own rounding — where it was 4–10 % ink before.
-    tol = 2e-3 if algorithm == "l" else 5e-3
+    tol = 2e-3                      # XYZ too: the grid top sits one table
+    #                                 step under the white (codec_for)
     for tag in ("B2A0", "B2A1", "B2A2"):
         dev = icc.b2a_device(np.array([[100.0, 0.0, 0.0]]), tag)[0]
         assert np.allclose(dev, white[0], atol=tol), (tag, dev)
