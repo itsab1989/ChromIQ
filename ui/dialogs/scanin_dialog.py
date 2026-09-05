@@ -2616,7 +2616,22 @@ class ScannerProfileDialog(_ToolDialogBase):
                 Path("<measurements>.ti3"), desc,
                 self._current_main_vals(), self._effective_adv())
             args = self._profiler._build_args(params)
-            self._cmd_preview.setText("colprof " + " ".join(args))
+            from workflow.engine_builder import (accuracy_mode_label,
+                                                 choose_builder)
+            which = "colprof"
+            if self._printer_mode():
+                which, _why = choose_builder(self._settings, params)
+            if which == "engine":
+                # Say which builder these settings will actually run through
+                # (Preferences → Beta), and what colprof would have been.
+                self._cmd_preview.setText(tr(
+                    "ChromIQ profile engine · {mode} — instead of: "
+                    "colprof {args}").format(
+                        mode=accuracy_mode_label(
+                            self._settings.get("gammap_mode", "fast")),
+                        args=" ".join(args)))
+            else:
+                self._cmd_preview.setText("colprof " + " ".join(args))
         except Exception:                       # never let the preview break the UI
             self._cmd_preview.setText("colprof …")
 
@@ -5383,17 +5398,18 @@ class ScannerProfileDialog(_ToolDialogBase):
         desc = custom or f"{base.name} (scanner-measured)"
         params = scanner_colprof.make_profile_params(       # #121: same settings
             ti3, desc, self._current_main_vals(), self._effective_adv())
+        builder = self._printer_profile_builder(params)
 
         def _done(code: int) -> None:
-            icc = self._profiler.expected_icc_path(params)
+            icc = builder.expected_icc_path(params)
             if not (icc.exists() and icc.stat().st_size > 1000):
                 _remove_empty_icc(icc)
                 self._restore_archived_profile(stash)
-                fail = self._profiler.primary_failure()
+                fail = builder.primary_failure()
                 if fail:
                     self._log.appendPlainText(f"[ERROR] {fail[1]}")
                 else:
-                    raw = self._profiler.last_output()
+                    raw = builder.last_output()
                     self._log.appendPlainText(
                         f"[ERROR] {tr('Building the profile failed. colprof said:')}")
                     self._log.appendPlainText(raw or tr("(colprof produced no output)"))
@@ -5415,7 +5431,30 @@ class ScannerProfileDialog(_ToolDialogBase):
             self._finish(True)
 
         on_line, _check = self._watch_profile_check()
-        self._profiler.build(params, on_line=on_line, on_finish=_done)
+        builder.build(params, on_line=on_line, on_finish=_done)
+
+    def _printer_profile_builder(self, params):
+        """The builder for a PRINTER profile from this scan — the same choice
+        the Build Profile tab makes under Preferences → Beta. This window used
+        to be hard-wired to colprof, so with the engine switched on the same
+        measurement was built by two different builders depending on which
+        window the user pressed the button in (B-26, 2026-09-05). The
+        sanitiser (nan/inf) has already run on the .ti3 by the time this is
+        called, and the engine gets the same ProfileParams colprof would.
+        """
+        from workflow.engine_builder import (EngineProfileBuilder,
+                                             accuracy_mode_label,
+                                             choose_builder)
+        which, why = choose_builder(self._settings, params)
+        if which == "engine":
+            # Keep the reference: the engine runs in a QThread that must
+            # outlive this method (the Build Profile tab holds its own).
+            self._engine_profiler = EngineProfileBuilder(self._settings)
+            return self._engine_profiler
+        if why and bool(self._settings.get("profile_engine_beta", False)):
+            self._log.appendPlainText(tr(
+                "Building with Argyll colprof: {why}.").format(why=why))
+        return self._profiler
 
     def _sanitize_scanner_ti3(self, ti3: Path) -> None:
         """Fix nan/inf values scanin can write for degenerate patches, which would
