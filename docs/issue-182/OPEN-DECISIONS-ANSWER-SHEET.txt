@@ -1,0 +1,672 @@
+================================================================================
+  ChromIQ - issue #182
+  ANSWER SHEET for the 23 open decisions
+================================================================================
+
+HOW TO USE THIS FILE
+
+  1. Save it, open it in any text editor (or any notes app on a phone).
+  2. For each decision, type your choice on the ANSWER line - usually the
+     letter of an option, or "yes" / "no" / "agreed".
+  3. Use NOTES for anything you want to say about it. Short is fine.
+     "Agreed" on its own is a complete answer.
+  4. You do not have to answer all 23. Answer what you can; leave the rest
+     blank and we will come back to them.
+  5. Send the file back, or paste it into the issue.
+
+  Group A blocks everything else - those seven are the ones worth doing first.
+  Group B shapes the design. Group C can wait.
+
+  Each item shows its OWNER (whose call it is) and how hard it is to reverse
+  once shipped. The full reasoning for every item is in the "Everything in this
+  issue that is waiting on a human" comment on issue #182 - this file is the
+  short form, so nothing is repeated here that is only background.
+
+  Nothing in this file has been shortened in a way that changes what is being
+  asked. Where a question could not be compressed without losing it, it is
+  left long.
+
+--------------------------------------------------------------------------------
+  FILLED IN BY: ______________________________     DATE: ____________________
+--------------------------------------------------------------------------------
+
+
+================================================================================
+  GROUP A - THESE BLOCK EVERYTHING ELSE
+================================================================================
+
+
+--------------------------------------------------------------------------------
+  A1.  Does ChromIQ ship any reference data at all, or only links to it?
+       OWNER: SEBASTIAN          Not cheap to reverse in one direction
+--------------------------------------------------------------------------------
+
+  Reference datasets (Fogra's characterization data, the ISO CRPC files) are
+  free to download. Does ChromIQ include copies of those files, or does it link
+  to them and the user downloads them once themselves?
+
+    (a) Ship nothing; link instead. ChromIQ records exactly which file was used
+        - name, internal descriptor, date, patch count, measurement condition,
+        checksum - and the report prints that.
+    (b) Ship the files.
+
+  We recommend: (a), confirmed as a standing rule. Going from "links only" to
+  "we ship it" later is easy if a licence is obtained; going the other way after
+  a release is a recall, not a change.
+
+  ANSWER: _____________________________________________________________________
+
+  NOTES:  _____________________________________________________________________
+          _____________________________________________________________________
+
+
+--------------------------------------------------------------------------------
+  A2.  May ChromIQ ship the ISO tolerance NUMBERS as built-in defaults, and
+       show them on screen?
+       OWNER: SEBASTIAN          Not cheap to reverse
+--------------------------------------------------------------------------------
+
+  Not the same as A1. A1 is about files of measured colours. A2 is about the
+  pass/fail limits themselves - the handful of numbers each standard sets, taken
+  from the free official previews, each carrying the clause it came from. May
+  they be built into ChromIQ as factory defaults for a named set and displayed
+  in the table?
+
+    (a) Ship the values as defaults, show them in the app with the clause named
+        next to each, and offer no bulk copy or export.
+    (b) Ship no numbers; the user types their own into a Custom set, and ChromIQ
+        names the standard only in help text.
+    (c) Ask ISO in writing first, and hold the feature until an answer comes.
+
+  We recommend: (a) with attribution and no bulk export, and send the letter
+  (A5) in parallel. Do NOT build a "Copy as text" button - it turns a display
+  into a distribution and buys almost nothing.
+
+  Three things ride on this answer: whether the table's cells can show real
+  numbers or only labels; whether the mockups in this thread (ISO limits
+  currently masked as "*,**") can ever be published unmasked; and whether a
+  "Copy as text" button may exist at all.
+
+  ANSWER: _____________________________________________________________________
+
+  NOTES:  _____________________________________________________________________
+          _____________________________________________________________________
+
+
+--------------------------------------------------------------------------------
+  A3.  Does the Measurement Report get a CMYK path?
+       OWNER: SEBASTIAN          Expensive, but not irreversible
+--------------------------------------------------------------------------------
+
+  ChromIQ can already build, print and profile a CMYK chart. What refuses CMYK
+  is one measurement reader - and with it the Measurement Report, the
+  cube-corner check, the patch-identity check and measurement import. Every
+  reference dataset for a real printing condition is CMYK, so every ISO row in
+  the table waits on this.
+
+    (a) Do it now, with the demo projects Knut describes (charts, measurements,
+        profiles, so it can be verified without owning a CMYK printer).
+    (b) Ship the RGB half first - ChromIQ's own compliance set, the five
+        metrics, the table - and add CMYK afterwards.
+    (c) Do not do it.
+
+  We recommend: (b) then (a). Ship the RGB half first because it stands on its
+  own and repairs a live fault; commit to CMYK as the next block of work. If
+  (b), the ISO columns must say in words why they are not selectable yet.
+
+  ANSWER: _____________________________________________________________________
+
+  NOTES:  _____________________________________________________________________
+          _____________________________________________________________________
+
+
+--------------------------------------------------------------------------------
+  A4.  Does anybody buy ISO 12647-7:2016 and ISO 12647-8:2021?
+       OWNER: SEBASTIAN          Money, low risk
+--------------------------------------------------------------------------------
+
+  All the work so far used the free official previews. They contain the
+  tolerance tables; they stop before the pages that say WHICH patches the limits
+  apply to. Without a purchased copy these stay NOT ESTABLISHED: clause 5.2
+  (what the control strip contains - five tolerance rows depend on it), the
+  outer-gamut and surface-gamut patch lists, the mandated measurement condition,
+  the uniformity test object, and whether the substrate fluorescence figure is a
+  ratio or a difference.
+
+    (a) Buy both now.
+    (b) Buy them at the point ISO sets become buildable - i.e. once A1 and A3
+        are settled.
+    (c) Never buy them, and ship ISO-named sets built only from the previews.
+
+  We recommend: (b). Not urgent while A1 is open; blocking the moment A1 and A3
+  close. (c) should be rejected - naming a standard while being unable to
+  identify the patches its limits are written for is the kind of claim this
+  thread has avoided everywhere else.
+
+  ANSWER: _____________________________________________________________________
+
+  NOTES:  _____________________________________________________________________
+          _____________________________________________________________________
+
+
+--------------------------------------------------------------------------------
+  A5.  Does anybody write to Fogra, and to ISO?
+       OWNER: SEBASTIAN          Cheap, fully reversible
+--------------------------------------------------------------------------------
+
+  Nobody ever has. A short letter to Fogra asking whether ChromIQ may bundle
+  their characterization data, and one to ISO asking whether the tolerance
+  values may be built in as defaults. (A third, to the CGATS Secretariat at
+  APTech, is now also drafted - see the letters comment.) A human has to sign
+  them; it cannot be delegated.
+
+    (a) Send them.
+    (b) Do not send them.
+
+  We recommend: send them. It costs an afternoon, it has no downside, and it is
+  the only item on this list that can REMOVE items from it.
+
+  ANSWER: _____________________________________________________________________
+
+  NOTES:  _____________________________________________________________________
+          _____________________________________________________________________
+
+
+--------------------------------------------------------------------------------
+  A6.  Which columns ship in the table?
+       OWNER: KNUT               Adding a column later is cheap; removing one is not
+--------------------------------------------------------------------------------
+
+  Proposed: ChromIQ Profile Check (today's shipped 2,0 / 3,0), ISO 12647-7:2016,
+  ISO 12647-8:2021, Custom. Plus "ChromIQ tight" / "Quick check" only if B4 says
+  yes.
+
+  Excluded, with reasons: no G7 column (its two metrics are a weighted dL*
+  against an NPDC aim and a weighted dCh over channels an RGB printer does not
+  have, and a G7 Master result is issued by an auditor on physical samples);
+  no Fogra PSD / ISO 15311-2 column (neither document could be read); no SWOP /
+  GRACoL / FOGRA columns - per your own 4 September comment these are reference
+  printing CONDITIONS, not verification criteria, so they belong in the
+  reference chooser, not in the compliance pulldown.
+
+  ANSWER (accept the four columns as listed, or change the list):
+
+  ANSWER: _____________________________________________________________________
+
+  NOTES:  _____________________________________________________________________
+          _____________________________________________________________________
+
+
+--------------------------------------------------------------------------------
+  A7.  The CMYK -> RGB conversion, and the 10^-6 step - accept or push back
+       OWNER: KNUT               Cheap
+--------------------------------------------------------------------------------
+
+  Measured on your own FOGRA51 file, 1 617 patches, through ChromIQ's own colour
+  code: the textbook subtractive->additive conversion is out by 12,10 dE00 on
+  average, with 7 patches of 1 617 (0,4 %) landing within 2,5. The paper patch
+  alone misses by more than twice the tolerance the standards allow for paper.
+  It cannot be repaired with a better formula, because CMYK in a
+  characterization file is a control signal for one specific press, not a
+  colour.
+
+  The 10^-6 perturbation does not change the file: FOGRA51 carries Lab to two
+  decimals, so adding a millionth and writing back at the file's own precision
+  produces a byte-identical file - and the protection on a measured dataset does
+  not turn on byte comparison.
+
+  The route that does work: use the dataset's own Lab column as the aim, discard
+  its device column, and get the RGB from the user's own printer profile.
+
+  ANSWER (accept the finding, or push back):
+
+  ANSWER: _____________________________________________________________________
+
+  NOTES:  _____________________________________________________________________
+          _____________________________________________________________________
+
+
+================================================================================
+  GROUP B - THESE SHAPE THE DESIGN
+================================================================================
+
+
+--------------------------------------------------------------------------------
+  B1.  The table moves out of the Preferences tab into a window opened from
+       that frame
+       OWNER: KNUT               Cheap now, expensive after it is built
+--------------------------------------------------------------------------------
+
+  Measured, not estimated: the table needs 1081 x 1093 px in English in a pane
+  that has 966 x 670, and about 1330 px at measured Russian label widths.
+  Replacing "Not Available" with a one-character marker measures exactly the
+  same width. Dropping the never-measurable rows fixes the height and leaves the
+  width unchanged. The overflow is structural.
+
+  Proposal: the Preferences frame keeps the five metrics x ChromIQ's own sets,
+  every cell an input box, with a "Restore factory" button under each column as
+  you asked; a button in that same frame opens the full table as its own window
+  - all rows, all sets, resizable, with a legend. The window SHOWS; it does not
+  edit, so there is never a question of which copy won.
+
+    (a) Yes, the full table lives in its own window.
+    (b) No - keep it inside the Preferences tab (and say what should give way).
+
+  ANSWER: _____________________________________________________________________
+
+  NOTES:  _____________________________________________________________________
+          _____________________________________________________________________
+
+
+--------------------------------------------------------------------------------
+  B2.  "Not Available" becomes three distinguishable states - and do the
+       never-measurable rows leave the table?
+       OWNER: KNUT               Cheap
+--------------------------------------------------------------------------------
+
+  Two questions.
+
+  (a) A non-numeric cell is one of three things and a user must be able to tell
+      them apart:
+        "-"  the set defines no limit here (111 of 175 cells);
+        "X"  the set requires it and ChromIQ cannot measure it - nine-location
+             uniformity, gloss class, fluorescence class, the M condition. OUR
+             limitation, and the thing that makes a verdict Incomplete;
+        "?"  the set requires it and the number is in a clause we have not
+             licensed, where nothing may be invented.
+      One word for all three tells a user that a limitation of ours is a
+      property of the standard.
+
+  (b) Your own round-2 ruling was "'Never' leaves the control; 'not yet' stays
+      live. Nothing greyed anywhere." Does that reach this table? If it does,
+      the 17 "X" rows leave the table and appear in the set's note named by
+      clause; the table drops to 18 rows and 610 px.
+
+  We recommend the note, because the ruling is yours and it is the only change
+  that makes the height fit - but the note must then be complete and
+  clause-named, not a footnote.
+
+  There is a fourth state that cannot live in Preferences at all - "this
+  measurement does not contain those patches". That is a property of a
+  measurement and stays in the thresholds window.
+
+  ANSWER (a) three states: ____________________________________________________
+
+  ANSWER (b) rows leave / rows stay: __________________________________________
+
+  NOTES:  _____________________________________________________________________
+          _____________________________________________________________________
+
+
+--------------------------------------------------------------------------------
+  B3.  Five threshold boxes, or two?
+       OWNER: KNUT on the shape / SEBASTIAN on the migration
+       NOT cheap to reverse
+--------------------------------------------------------------------------------
+
+  The finding: of the five quality numbers the report shows, three share one
+  "average" threshold and two share one "maximum". A run therefore passes
+  exactly when the average of the worst 5 % clears the average limit and the
+  single worst patch clears the maximum. The other three cannot change a
+  verdict. A user who moves the box labelled "Average" believes they are
+  relaxing the mean; they are relaxing the harshest statistic in the report.
+
+  If five, the two average rows - "all patches" and "worst 5 %" - need DIFFERENT
+  numbers, and those numbers are Knut's to set.
+
+  What it costs (Sebastian): new settings keys, so a migration written in the
+  same change; and some existing reports would come out with a different verdict
+  than today. That is the fix, but it must be deliberate, announced in the
+  changelog, and it must not retroactively re-grade reports already saved (B6
+  already prevents that).
+
+    (a) Five boxes.
+    (b) Keep two.
+
+  We recommend: five boxes. It is the only item here that repairs something
+  users are living with today.
+
+  ANSWER (Knut, the shape): ___________________________________________________
+
+  ANSWER (Sebastian, the migration): __________________________________________
+
+  ANSWER (Knut, the two average numbers if five): _____________________________
+
+  NOTES:  _____________________________________________________________________
+          _____________________________________________________________________
+
+
+--------------------------------------------------------------------------------
+  B4.  Do "ChromIQ tight" and "Quick check" exist, and with what numbers?
+       OWNER: KNUT on whether / SEBASTIAN on whether it ships now
+       Cheap only if deferred
+--------------------------------------------------------------------------------
+
+  Proposed as tight = half the shipped defaults, quick = double. There IS a
+  cited precedent for halving - ISO 12647-7:2016 Table 2's own note recommends
+  halving the tolerances when the same instrument measured both sets - but note
+  the two conditions: it halves ISO's numbers, not ours, and it requires one
+  instrument to have measured BOTH sets, which is exactly not true of ChromIQ's
+  present default reference, where nothing was measured at all.
+
+  And the number nobody has is the one that would settle it: nobody has measured
+  what a healthy, calibrated printer scores against that same reference. The 49
+  reports on record (10,6 to 48,0 dE00, median 14,0) are development and probe
+  runs.
+
+    (a) Ship both sets now, at half and double.
+    (b) Defer, and get the measurement first - a handful of ordinary
+        verification runs on a printer known to be in good shape. No new code.
+    (c) Never; ChromIQ ships one set of its own.
+
+  We recommend: (b). It would also tell us whether the shipped 2,0 / 3,0 is
+  itself the right pair.
+
+  ANSWER: _____________________________________________________________________
+
+  NOTES:  _____________________________________________________________________
+          _____________________________________________________________________
+
+
+--------------------------------------------------------------------------------
+  B5.  Where does "Custom" live?
+       OWNER: KNUT               Cheap
+--------------------------------------------------------------------------------
+
+  Custom stays - you asked for it. But Custom has no FACTORY default by
+  definition, so it has nothing to put in a defaults table. Our reading: Custom
+  belongs in the thresholds window, per report; Preferences at most holds "my
+  saved custom default". Correct?
+
+  ANSWER: _____________________________________________________________________
+
+  NOTES:  _____________________________________________________________________
+          _____________________________________________________________________
+
+
+--------------------------------------------------------------------------------
+  B6.  Is this the settings model? Preferences is a stencil, not a control.
+       OWNER: KNUT (it extends a ruling you have already given)
+       NOT cheap to reverse
+--------------------------------------------------------------------------------
+
+  Three tiers: FACTORY (shipped constants, immutable) -> MY DEFAULT
+  (Preferences) -> THIS RUN'S VALUES (copied from Preferences once, the first
+  time a set is chosen for that run). From that moment the run owns its numbers
+  and nothing in Preferences can reach them - not editing, not Restore Factory
+  Defaults, not an upgrade.
+
+  Two consequences worth stating out loud: two runs in one project can
+  legitimately hold different values for the same metric because they were
+  started on different days, so the report must print the set and the values it
+  used, per run; and an upgrade that changes a factory value must keep the
+  user's value and say "factory value changed from X to Y in this release" with
+  a one-click restore, rather than silently adopting the new number.
+
+  ANSWER (confirm the three tiers, or change them):
+
+  ANSWER: _____________________________________________________________________
+
+  NOTES:  _____________________________________________________________________
+          _____________________________________________________________________
+
+
+--------------------------------------------------------------------------------
+  B7.  Does the Settings window's global "Restore Factory Defaults" button stay?
+       OWNER: KNUT               Cheap
+--------------------------------------------------------------------------------
+
+  There would then be two restores at different scopes on one page - the global
+  one at the bottom of Settings, and the new per-set ones in the frame.
+
+    (a) Keep both, and make each say its scope: "Restore factory values" in
+        Preferences, "Back to my defaults for this set" in the thresholds
+        window.
+    (b) Keep only one (say which).
+
+  We recommend: (a).
+
+  ANSWER: _____________________________________________________________________
+
+  NOTES:  _____________________________________________________________________
+          _____________________________________________________________________
+
+
+--------------------------------------------------------------------------------
+  B8.  Do we bundle the Idealliance reference ICC profiles, and compute aims
+       through them?
+       OWNER: SEBASTIAN          Adding is cheap; users then depend on it
+--------------------------------------------------------------------------------
+
+  Two related things. First, may ChromIQ include the Idealliance / X-Rite
+  reference ICC profiles? Their licence is the one explicit grant in this whole
+  family: "may be used, embedded, exchanged, and shared without restriction. It
+  may not be altered, or sold without written permission." Second, ChromIQ could
+  CALCULATE the aim colours for GRACoL2013, SWOP2013 and CRPC 1-7 through one of
+  those bundled profiles - putting those reference conditions in the app without
+  redistributing anybody's dataset. The machinery already exists in ChromIQ.
+
+  The catch, and it is permanent: an ICC profile is a fitted, smoothed MODEL of
+  the characterization data, not the data. Its own fitting error sits on top of
+  a tolerance whose practical floor ISO itself calls impractical to go below. So
+  aims computed this way are close, not equal.
+
+    (a) Bundle the profiles and offer computed aims, clearly named - "aims
+        computed through the GRACoL2013 reference profile" - never as the silent
+        default.
+    (b) Bundle the profiles for colour conversion only, and do not compute aims
+        from them.
+    (c) Bundle nothing.
+
+  We recommend: (a), on those exact terms. The label must say the aims were
+  computed through a profile, so that a user who needs the real dataset knows to
+  go and get it.
+
+  ANSWER: _____________________________________________________________________
+
+  NOTES:  _____________________________________________________________________
+          _____________________________________________________________________
+
+
+--------------------------------------------------------------------------------
+  B9.  Thresholds belong to the run - but the binding specification has no key
+       for it
+       OWNER: KNUT               Cheap to decide, expensive to get wrong
+--------------------------------------------------------------------------------
+
+  You ruled that the report type and thresholds belong to the verification run.
+  docs/design/per_target_settings.md is a binding specification and contains NO
+  threshold key at all - checked. So this is a SPECIFICATION CHANGE, and under
+  this project's own rule a specification is amended by review and approval, not
+  by writing code that disagrees with it. It needs your sign-off on the wording
+  before B6 is implemented.
+
+  ANSWER (approve the spec change / ask to see the wording first / other):
+
+  ANSWER: _____________________________________________________________________
+
+  NOTES:  _____________________________________________________________________
+          _____________________________________________________________________
+
+
+--------------------------------------------------------------------------------
+  B10. Is "Production control" a compliance set, or Custom with a better name?
+       OWNER: KNUT               Cheap
+--------------------------------------------------------------------------------
+
+  Every limit in your guide section 17.8 is sourced to "the exact production
+  standard" or to the customer. A set with no numbers of its own is Custom
+  wearing a title.
+
+    (a) Not a separate column - if the title is wanted, it is a NAME a user can
+        save a Custom set under.
+    (b) It is a real set with its own numbers (say which).
+
+  We recommend: (a).
+
+  ANSWER: _____________________________________________________________________
+
+  NOTES:  _____________________________________________________________________
+          _____________________________________________________________________
+
+
+================================================================================
+  GROUP C - THESE CAN WAIT
+================================================================================
+
+
+--------------------------------------------------------------------------------
+  C1.  Is ISO 12647-8's tonality requirement in or out of the first named set?
+       OWNER: KNUT               Cheap
+--------------------------------------------------------------------------------
+
+  Clause 4.2.7 sets an absolute L* difference limit on the single-colour ramps
+  between 30 % and 70 % against the reference characterization data. It is a
+  "should", not a "shall". It was in nobody's list until this round. It is
+  computable - but it is defined over CMYK ramps, so in practice it lands behind
+  A3.
+
+    (a) In.
+    (b) Out.
+
+  ANSWER: _____________________________________________________________________
+
+  NOTES:  _____________________________________________________________________
+          _____________________________________________________________________
+
+
+--------------------------------------------------------------------------------
+  C2.  The 95th-percentile estimator - round or ceil?
+       OWNER: SEBASTIAN (it changes a shipped number), with KNUT on which
+       belongs on an ISO row          NOT cheap to reverse
+--------------------------------------------------------------------------------
+
+  "The 95th percentile" means "ignore the worst 5 % of patches and report the
+  worst of what's left". There are two standard ways to pick where the cut
+  falls, and they differ by one patch. ChromIQ rounds; the textbook nearest-rank
+  method rounds up. On a 918-patch chart that is patch 872 versus 873; on a
+  72-patch wedge, one rank can be the difference between a pass and a fail. Both
+  ISO tables specify a 95th percentile and NEITHER names an estimator, so there
+  is no right answer to look up. Whichever is chosen becomes a published
+  property of every report ChromIQ produces.
+
+    (a) Keep ChromIQ's current method everywhere.
+    (b) Change to nearest-rank everywhere.
+    (c) Keep ChromIQ's for ChromIQ's own sets; use nearest-rank for any row
+        labelled with a standard's name.
+
+  We recommend: (c), and the report must print which was used. It changes no
+  existing ChromIQ number, so nobody's saved report shifts.
+
+  ANSWER: _____________________________________________________________________
+
+  NOTES:  _____________________________________________________________________
+          _____________________________________________________________________
+
+
+--------------------------------------------------------------------------------
+  C3.  What happens to a run whose compliance set is removed or renamed in a
+       later release?
+       OWNER: KNUT               Cheap to decide now; cannot be retrofitted later
+--------------------------------------------------------------------------------
+
+  Proposal: the run keeps its stored values and its verdict, and the report
+  shows the set as HISTORICAL rather than re-judging it. Worth deciding before
+  the first set ships, because it cannot be applied to runs created before the
+  rule exists.
+
+  ANSWER (confirm, or say what should happen instead):
+
+  ANSWER: _____________________________________________________________________
+
+  NOTES:  _____________________________________________________________________
+          _____________________________________________________________________
+
+
+--------------------------------------------------------------------------------
+  C4.  Which named set ships first - ISO 12647-8 before ISO 12647-7?
+       OWNER: KNUT               Cheap
+--------------------------------------------------------------------------------
+
+  An inkjet printing to a reference condition is producing a validation print,
+  not a contract proof, which points at ISO 12647-8 first.
+
+    (a) ISO 12647-8 first.
+    (b) ISO 12647-7 first.
+
+  ANSWER: _____________________________________________________________________
+
+  NOTES:  _____________________________________________________________________
+          _____________________________________________________________________
+
+
+--------------------------------------------------------------------------------
+  C5.  Which cells does docs/design/tool_availability.md need?
+       OWNER: KNUT               Cheap
+--------------------------------------------------------------------------------
+
+  This design adds a reference measurement file under the run's verification
+  folder, and reports that carry compliance verdicts. That specification is a
+  DRAFT confirmed by nobody, and its own open question 3 already asks whether
+  the measurement report should be marked filled or hollow for one of the
+  selection types. It should be answered before these new outputs are placed.
+
+  ANSWER: _____________________________________________________________________
+
+  NOTES:  _____________________________________________________________________
+          _____________________________________________________________________
+
+
+--------------------------------------------------------------------------------
+  C6.  Does docs/design/verification_printing_and_target.md need revising?
+       OWNER: KNUT               Cheap
+--------------------------------------------------------------------------------
+
+  Its section 1 states that no ICC or ISO standards were consulted for the
+  existing design. This work consults them throughout. Under the
+  binding-specification rule that is a contradiction to be reviewed and approved
+  rather than quietly left. Does it need revising, and by whom?
+
+  ANSWER: _____________________________________________________________________
+
+  NOTES:  _____________________________________________________________________
+          _____________________________________________________________________
+
+
+================================================================================
+  ALREADY SETTLED - PLEASE DO NOT REOPEN
+  (listed so the count stays at 23; no answer needed)
+================================================================================
+
+  * The two pass-threshold spin boxes leave the Measurement Report window - and
+    only those; the measurement selection, the checkmarks and the PDF controls
+    stay exactly as they are.
+  * Report type and compliance set are two separate controls.
+  * The compliance set belongs to the verification run; later dated
+    verifications on the same run follow the first.
+  * A verdict is saved per dated run and is never re-judged by today's
+    thresholds.
+  * The three never-measurable criteria are a note, not a block - the report is
+    still produced and a verdict still given.
+  * Preset names never become the project name; the naming scheme, the three
+    group names and the wedge layout table are agreed.
+  * Links to reference data are offered next to the "Change reference" button.
+
+
+================================================================================
+  ANYTHING ELSE
+================================================================================
+
+  _____________________________________________________________________________
+
+  _____________________________________________________________________________
+
+  _____________________________________________________________________________
+
+  _____________________________________________________________________________
+
+
+================================================================================
+  End of answer sheet. 23 decisions: A1-A7, B1-B10, C1-C6.
+  Owners: Knut 14, Sebastian 6, both 3.
+================================================================================
