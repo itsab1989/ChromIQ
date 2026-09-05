@@ -4858,5 +4858,7 @@
   "A profile is being built": "プロファイルを作成中です",
   "ChromIQ is still building a profile. If you quit now, the build is thrown away — nothing is saved until it finishes.\n\nKeep building, or quit anyway?": "ChromIQ はまだプロファイルを作成中です。今終了すると作成内容は破棄されます — 完了するまで何も保存されません。\n\n作成を続けますか、それとも終了しますか？",
   "Keep building": "作成を続ける",
-  "Quit anyway": "終了する"
+  "Quit anyway": "終了する",
+  "[WARNING] Could not put the previous profile back: {error}": "[警告] 以前のプロファイルを元に戻せませんでした: {error}",
+  "The previous profile was put back: {names}": "以前のプロファイルを元に戻しました: {names}"
 }

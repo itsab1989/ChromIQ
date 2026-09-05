@@ -2939,9 +2939,8 @@ class MainWindow(QMainWindow):
         child the engine had running. Ask, the way a measurement asks.
         True = the quit may proceed. Never raises."""
         try:
-            tab = getattr(self, "_tab_profile", None)
-            builder = getattr(tab, "_engine_builder", None)
-            if builder is None or not builder.is_running:
+            from workflow.engine_builder import EngineProfileBuilder
+            if not EngineProfileBuilder.any_running():
                 return True
             from PyQt6.QtWidgets import QMessageBox
             from ui.widgets import fit_message_box_buttons

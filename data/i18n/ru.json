@@ -4858,5 +4858,7 @@
   "A profile is being built": "Идёт сборка профиля",
   "ChromIQ is still building a profile. If you quit now, the build is thrown away — nothing is saved until it finishes.\n\nKeep building, or quit anyway?": "ChromIQ ещё собирает профиль. Если выйти сейчас, сборка будет потеряна — ничего не сохраняется, пока она не завершится.\n\nПродолжить сборку или всё же выйти?",
   "Keep building": "Продолжить сборку",
-  "Quit anyway": "Всё же выйти"
+  "Quit anyway": "Всё же выйти",
+  "[WARNING] Could not put the previous profile back: {error}": "[ПРЕДУПРЕЖДЕНИЕ] Не удалось вернуть предыдущий профиль на место: {error}",
+  "The previous profile was put back: {names}": "Предыдущий профиль возвращён на место: {names}"
 }

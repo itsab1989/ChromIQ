@@ -4858,5 +4858,7 @@
   "A profile is being built": "正在构建配置文件",
   "ChromIQ is still building a profile. If you quit now, the build is thrown away — nothing is saved until it finishes.\n\nKeep building, or quit anyway?": "ChromIQ 仍在构建配置文件。如果现在退出，本次构建将被丢弃——完成前不会保存任何内容。\n\n继续构建，还是仍要退出？",
   "Keep building": "继续构建",
-  "Quit anyway": "仍要退出"
+  "Quit anyway": "仍要退出",
+  "[WARNING] Could not put the previous profile back: {error}": "[警告] 无法把之前的配置文件放回原处: {error}",
+  "The previous profile was put back: {names}": "之前的配置文件已放回原处: {names}"
 }

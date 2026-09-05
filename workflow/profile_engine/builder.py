@@ -295,16 +295,28 @@ class _PercentProgress:
         self._pct = 0.0
         self._clock = clock or time.monotonic
         self._t0 = self._clock()
-        self._eta = None
+        self._deadline: float | None = None
 
     def _eta_text(self) -> str:
-        elapsed = self._clock() - self._t0
+        """The remaining-time estimate is a DEADLINE that only ever moves
+        earlier. elapsed·(100−p)/p re-evaluated on every line grew whenever
+        the percentage stalled on a long stage while the clock ran — the
+        number went UP between lines (B-08; Basti saw it too). Now lines
+        within a stage count down; a new stage may shorten the deadline,
+        never lengthen it; and when a stage overruns, the log says so
+        instead of printing a bigger number, then re-estimates."""
+        now = self._clock()
+        elapsed = now - self._t0
         if self._pct < 10.0 or elapsed < 3.0:
             return ""
         raw = elapsed * (100.0 - self._pct) / max(self._pct, 1e-6)
-        self._eta = raw if self._eta is None else \
-            0.6 * self._eta + 0.4 * raw
-        secs = self._eta
+        cand = now + raw
+        if self._deadline is None or cand < self._deadline:
+            self._deadline = cand
+        secs = self._deadline - now
+        if secs <= 0.0:
+            self._deadline = cand
+            return "taking longer than estimated"
         if secs < 5.0:
             return "almost done"
         if secs < 90.0:
@@ -528,7 +540,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             _emit(settings, f"Total ink limit {ink_limit:g}% is above the "
                             f"most ink any chart patch carries ({printed_max:.0f}%) "
                             f"— using {printed_max:.0f}%, the range the chart "
-                            f"actually measured.")
+                            f"actually measured (colprof would use the "
+                            f"stamped value minus 10%).")
             ink_limit = printed_max
     # colprof -L / BLACK_INK_LIMIT: a ceiling on the K channel alone. Used
     # to be folded into the TOTAL limit by the extra-options parser (a
@@ -642,12 +655,19 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     # clamp distance is a continuous residual (0.3–0.9 ΔE on converged
     # near-boundary nodes) and it leaked onto two thirds of the printable
     # interior (A-08); nodes the build itself calls in-gamut write 0.
-    # A node within 3 ΔE76 of the surface is written as in-gamut: the tag
-    # is interpolated across cells, and calling near-surface nodes "out"
-    # by their sub-ΔE clamp distance leaked onto two thirds of the printable
-    # interior (A-08). Measured at -qm: 32 % → 66 % of interior colours
-    # read exactly 0, 96 % under 1 ΔE; far-out colours all stay non-zero.
-    gamt_dist = np.where(residual <= 3.0, 0.0, residual)
+    # ICC.1 §9.2.29: gamt is 0 for an in-gamut colour. The table is
+    # interpolated across cells 16 ΔE wide (a/b at grid 17), so a node's
+    # value leaks into the cell around it: with the raw clamp distance two
+    # thirds of the printable interior read non-zero (A-08), and with a
+    # 3 ΔE node tolerance a band 5–10 ΔE INSIDE the surface still did
+    # (reviewer R10). colprof's tag behaves as if it subtracted a margin of
+    # a few ΔE from the distance (86 % zeros 2 ΔE inside, 59 % zeros 2 ΔE
+    # outside); a 6 ΔE margin here shrinks the leak to what a soft-proof
+    # warning can live with — measured on battery S1 at -qm: printable
+    # interior exactly 0 for 86 % (was 32 %), every point 5 ΔE inside the
+    # true surface under 1 ΔE, and 96 % of points 5 ΔE outside still
+    # non-zero. The distance far outside is understated by the margin.
+    gamt_dist = np.maximum(residual - 6.0, 0.0)
     gamt = icw.make_mft2(
         3, 1, b2a_grid,
         (np.clip(gamt_dist, 0, 128)[:, None] / 128 * 0xFFFF).round(),
@@ -726,14 +746,19 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         _emit(settings, f"Model fit (perceptual ΔE2000): median "
                         f"{float(np.median(fit_res00)):.2f}, 95% "
                         f"{float(np.percentile(fit_res00, 95)):.2f}.")
-    if float(np.median(fit_res00)) > 2.0:
-        # A-16: a junk scanner chart built with fit median 5.1 / p95 14.5
-        # and installed like any other. Numbers alone draw no verdict.
+    # A-16: a junk scanner chart built with fit median 5.1 / p95 14.5 and
+    # installed like any other. Numbers alone draw no verdict. A chart read
+    # by a scanner or camera (no TARGET_INSTRUMENT stamp — scanin writes
+    # none) legitimately fits at 2–4 ΔE2000 (reviewer R7), so its bar is 4.
+    spectro = bool(meas.keywords.get("TARGET_INSTRUMENT"))
+    bar = 2.0 if spectro else 4.0
+    if float(np.median(fit_res00)) > bar:
         _emit(settings, "WARNING: the model fits this measurement poorly "
                         f"(median {float(np.median(fit_res00)):.1f} ΔE2000 at "
-                        "the patches; a good chart fits under 1). The "
-                        "measurement may be damaged, mis-aligned or from an "
-                        "instrument that did not read colour — check it "
+                        "the patches; a spectrophotometer chart fits under "
+                        "1, a scanner- or camera-measured chart under 4). "
+                        "The measurement may be damaged, mis-aligned or from "
+                        "an instrument that did not read colour — check it "
                         "before trusting this profile.")
     if "gp" in candidates or (accurate and settings.noise_model):
         from workflow.profile_engine.gp import uncertainty_lines
@@ -750,7 +775,13 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         model=model, measurement=meas,
         fit_median_de00=float(np.median(fit_res00)),
         fit_p95_de00=float(np.percentile(fit_res00, 95)),
-        fit_max_de=float(fit_res.max()), fit_mean_de=float(fit_res.mean()),
+        # "peak err" over the patches the model was asked to fit: the robust
+        # loop deliberately leaves the misreads it names unfitted, and their
+        # residual doubled the peak the scanner tool judges (reviewer R13).
+        fit_max_de=float(np.delete(fit_res, outliers).max()
+                         if len(outliers) < len(fit_res) else fit_res.max()),
+        fit_mean_de=float(np.delete(fit_res, outliers).mean()
+                          if len(outliers) < len(fit_res) else fit_res.mean()),
         outlier_rows=tuple(int(i) for i in outliers))
 
 
@@ -850,6 +881,15 @@ def _pin_media_white(model: ForwardModel, meas: Ti3Measurement,
     l_w = np.clip((nodes[:, 0] - 60.0) / 40.0, 0.0, 1.0) ** 2
     c_w = np.clip(1.0 - np.hypot(nodes[:, 1], nodes[:, 2]) / 40.0, 0.0, 1.0)
     model.nodes = nodes + delta[None, :] * (l_w * c_w)[:, None]
+    # The weights above are evaluated at each node's own fitted Lab, so the
+    # corner's weight is ((L_w−60)/40)² < 1 and the pin fell short by
+    # δ·(1−w) — 97.7 instead of 100 on a heavily smoothed matte chart
+    # (reviewer R1). Device white IS the corner node: set it exactly.
+    n_ch = meas.n_channels
+    corner = np.ravel_multi_index(
+        tuple([model.grid - 1 if meas.is_additive else 0] * n_ch),
+        (model.grid,) * n_ch)
+    model.nodes[corner] = np.array([100.0, 0.0, 0.0])
     scale = float(settings.wp_scale) if settings.wp_scale else 1.0
     if scale <= 0.0:
         scale = 1.0

@@ -37,7 +37,7 @@ purpose. They are smoke inputs and robustness cases only, never a referee.
 | finding | before | after |
 |---|---|---|
 | Paper white not pinned (both modes): A2B1(device white) L* 99.76/99.94, B2A1(L*=100) → RGB 0.996 — ink in every paper-white area | | A2B white 100.00 ±0.001, B2A 0.99999 (colprof 0.99996); local correction, B2A L axis ends at L*=100 like colprof's input curve, white node pinned |
-| L*=0 printed RGB 3/4/18 (blue cast) | | black node pinned (device black for RGB, the inversion's own policy value for inks) |
+| L*=0 printed RGB 3/4/18 (blue cast) | | black node pinned (device black for RGB, the inversion's own policy value for inks); the white corner node is set exactly (reviewer R1: the weighted correction fell short at heavy smoothing) and the XYZ-PCS grids now end at D50 so `-a x` profiles pin white too (reviewer R1b: 5 % CMY in paper white before) |
 | Far out-of-gamut relative clip printed the COMPLEMENTARY hue on 5.7 % of nodes (colprof 0 %) | | hue-angle-gated seeds: 0.000 above 30° in every distance bin (colprof 0.014 in the far bin) |
 | The cross-validated smoothing was a coin toss (×0.25 on the chart, ×4 on 90 % of it) and reported as a decision | | the SELECTION is unchanged — three alternatives (three splits, a keep-×1 margin, duplicate-aware splits) each helped one battery printer and cost another by 8–21 %, so none met the gate; the log now calls a win inside the test's scatter a near tie and names a pick at the ladder's end. A criterion that sees the print is open work |
 | `-L` capped the TOTAL ink (colprof: black limit); no black limit at all | | `BuildSettings.black_ink_limit`, `BLACK_INK_LIMIT` from the chart, plumbed through every inversion pass and the written nodes |
@@ -45,10 +45,10 @@ purpose. They are smoke inputs and robustness cases only, never a referee.
 | `-u <scale>` half-applied what colprof refuses | | refused with colprof's own message |
 | Outliers named by data row; nan/inf rows crashed with a numpy error; a stuck-instrument chart built a "successful" profile; a junk chart drew no verdict | | SAMPLE_LOC names; nan/inf refused naming the patches; white−black < 10 L* refused; fit median > 2 ΔE00 warns |
 | `-s` mapped both tables; `-nP -nS` copied the perceptual table into saturation | | `sat_gamut`: with `-s` B2A2 aliases B2A0 (colprof.html) |
-| gamut tag flagged two thirds of printable colours | | nodes within 3 ΔE of the surface write 0 (interior zeros 32 % → 66 % at -qm) |
+| gamut tag flagged two thirds of printable colours, and a 5–10 ΔE band inside the surface | | the tag subtracts a 6 ΔE margin like colprof's behaves (interior exactly 0: 32 % → 86 %; every point 5 ΔE inside under 1 ΔE); the distance far outside is understated by the margin |
 | Every Argyll subprocess without a timeout; a quit mid-build orphaned colprof | | `_run_argyll` (timeouts, child registry, `terminate_argyll_children`), a quit question while a build runs |
 | The scanner/camera tool always ran colprof, whatever Preferences said | | `engine_builder.choose_builder` shared by the tab and the tool; the engine prints colprof's "Profile check complete" line so the tool's misalignment verdict keeps working |
-| The four engine rows leaked into a fresh run; Guided never named the mode; rebuilds overwrote the profile and its v4 twin in place | | `_restore_defaults` resets them; the bar says "ChromIQ engine · Maximum accuracy"; every rebuild archives to `old/` |
+| The four engine rows leaked into a fresh run; Guided never named the mode; rebuilds overwrote the profile and its v4 twin in place | | `_restore_defaults` resets them; the bar says "ChromIQ engine · Maximum accuracy"; every rebuild archives to `old/` after the refusal checks and a failed build puts the previous profile back (reviewer R14) |
 | Tooltip timings were inverted (fast "seconds", accurate "minutes longer") | | measured sentences (fast ~2 min, bit-exact ~1 min, accurate ~1 min at Medium on a 900-patch chart) |
 
 Tried and withdrawn: averaging repeated patches before the fit

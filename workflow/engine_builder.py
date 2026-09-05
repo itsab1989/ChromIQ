@@ -341,6 +341,15 @@ class _EngineThread(QThread):
 class EngineProfileBuilder:
     """ProfileBuilder-compatible front end for the in-process engine."""
 
+    #: Every builder with a live thread — the Build Profile tab's and the
+    #: scanner tool's alike — so the quit guard asks for any of them
+    #: (reviewer R13: a build started from the scanner tool got no question).
+    _RUNNING: set = set()
+
+    @classmethod
+    def any_running(cls) -> bool:
+        return any(b.is_running for b in list(cls._RUNNING))
+
     def __init__(self, settings=None) -> None:
         self._thread: _EngineThread | None = None
         self._last_error: str = ""
@@ -400,6 +409,7 @@ class EngineProfileBuilder:
         def _released() -> None:
             """Drop our reference only once the thread has really stopped."""
             self._thread = None
+            EngineProfileBuilder._RUNNING.discard(self)
 
         t.done.connect(_finished)
         # ``done`` is emitted from inside the thread's run(), so the QThread is
@@ -415,6 +425,7 @@ class EngineProfileBuilder:
         on_line(tr("Building with the ChromIQ profile engine (beta) — "
                    "{mode}…").format(mode=accuracy_mode_label(
                        settings.gammap_mode)))
+        EngineProfileBuilder._RUNNING.add(self)
         t.start()
 
     # ProfileBuilder-parity helpers the finish path may consult ------------

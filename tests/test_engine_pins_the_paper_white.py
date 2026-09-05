@@ -61,9 +61,17 @@ def _build(tmp_path: Path, rep, fields, additive, mode, **kw) -> Path:
 
 @pytest.mark.parametrize("rep,fields,additive", _CASES)
 @pytest.mark.parametrize("mode", ["fast", "accurate"])
+@pytest.mark.parametrize("algorithm,smoothing", [
+    ("l", 0.5), ("x", 0.5), ("l", 12.0)])
 def test_device_white_lands_exactly_on_the_pcs_white(tmp_path, rep, fields,
-                                                     additive, mode):
-    out = _build(tmp_path, rep, fields, additive, mode)
+                                                     additive, mode, algorithm,
+                                                     smoothing):
+    """Lab and XYZ PCS (reviewer R1b: the XYZ grid had no node at D50, so an
+    ``-a x`` profile printed 5 % CMY into paper white), and a heavily
+    smoothed fit (reviewer R1: the local correction's weight was evaluated
+    at the node's own L and fell short — 97.7 instead of 100 at -r 12)."""
+    out = _build(tmp_path, rep, fields, additive, mode, algorithm=algorithm,
+                 smoothing=smoothing)
     icc = IccProfile(out)
     n = len(fields)
     white = np.full((1, n), 1.0 if additive else 0.0)
@@ -72,9 +80,14 @@ def test_device_white_lands_exactly_on_the_pcs_white(tmp_path, rep, fields,
         # Lab16 quantisation is 100/65280 in L and 255/65280 in a/b.
         assert abs(lab[0] - 100.0) < 0.02, (tag, lab)
         assert abs(lab[1]) < 0.02 and abs(lab[2]) < 0.02, (tag, lab)
+    # An XYZ-PCS profile's 512–2048-entry input table cannot place D50
+    # exactly on the corner (the code for the white is not an entry), so
+    # the interpolated white lands 0.3 % short — one 8-bit step, the same
+    # size as littleCMS's own rounding — where it was 4–10 % ink before.
+    tol = 2e-3 if algorithm == "l" else 5e-3
     for tag in ("B2A0", "B2A1", "B2A2"):
         dev = icc.b2a_device(np.array([[100.0, 0.0, 0.0]]), tag)[0]
-        assert np.allclose(dev, white[0], atol=2e-3), (tag, dev)
+        assert np.allclose(dev, white[0], atol=tol), (tag, dev)
 
 
 @pytest.mark.parametrize("mode", ["fast", "accurate"])

@@ -4858,5 +4858,7 @@
   "A profile is being built": "Ein Profil wird gerade erstellt",
   "ChromIQ is still building a profile. If you quit now, the build is thrown away — nothing is saved until it finishes.\n\nKeep building, or quit anyway?": "ChromIQ erstellt gerade noch ein Profil. Wenn du jetzt beendest, geht der Build verloren — gespeichert wird erst, wenn er fertig ist.\n\nWeiter erstellen oder trotzdem beenden?",
   "Keep building": "Weiter erstellen",
-  "Quit anyway": "Trotzdem beenden"
+  "Quit anyway": "Trotzdem beenden",
+  "[WARNING] Could not put the previous profile back: {error}": "[WARNUNG] Das bisherige Profil konnte nicht zurückgelegt werden: {error}",
+  "The previous profile was put back: {names}": "Das bisherige Profil wurde zurückgelegt: {names}"
 }

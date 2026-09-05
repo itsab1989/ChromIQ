@@ -44,20 +44,29 @@ class LabPcs:
         return icw.lab_b2a_in_tables(entries)
 
 
+_D50 = np.array(icw.D50_XYZ, dtype=float)      # the PCS white, u1.15 scale
+
+
 class XyzPcs:
+    """XYZ PCS. The B2A/gamt grid runs 0..D50 on each axis, with the input
+    tables mapping the u1.15 code range onto it (clipping above the PCS
+    white). A reflective colour never exceeds the media white on any of
+    X, Y, Z, so nothing printable is lost — and the corner node IS the
+    white, which the white pin needs (reviewer R1b: with a uniform
+    0..1.99997 grid no node sat at D50 and an ``-a x`` profile printed
+    5 % CMY into paper white)."""
     signature = b"XYZ "
 
     @staticmethod
     def node_lab(grid: int) -> np.ndarray:
-        ax = icw.xyz_grid_axes(grid)
-        xyz1 = np.stack(np.meshgrid(ax, ax, ax, indexing="ij"),
-                        -1).reshape(-1, 3)
+        axes = [np.linspace(0.0, _D50[c], grid) for c in range(3)]
+        xyz1 = np.stack(np.meshgrid(*axes, indexing="ij"), -1).reshape(-1, 3)
         return xyz_to_lab(xyz1 * 100.0)
 
     @staticmethod
     def lab_to01(lab: np.ndarray) -> np.ndarray:
         xyz1 = lab_to_xyz(lab) / 100.0
-        return np.clip(xyz1 / icw.XYZ16_MAX, 0.0, 1.0)
+        return np.clip(xyz1 / _D50[None, :], 0.0, 1.0)
 
     @staticmethod
     def encode(lab: np.ndarray) -> np.ndarray:
@@ -65,7 +74,9 @@ class XyzPcs:
 
     @staticmethod
     def b2a_in_tables(entries: int) -> np.ndarray:
-        return np.tile(icw._identity_table(entries), (3, 1))
+        codes = np.linspace(0.0, icw.XYZ16_MAX, entries)
+        rows = [np.clip(codes / _D50[c], 0.0, 1.0) for c in range(3)]
+        return np.clip(np.stack(rows) * 0xFFFF, 0, 0xFFFF).round().astype(">u2")
 
 
 class XyzPcsShaped(XyzPcs):
@@ -84,21 +95,21 @@ class XyzPcsShaped(XyzPcs):
     @staticmethod
     def node_lab(grid: int) -> np.ndarray:
         u = np.linspace(0.0, 1.0, grid)
-        ax = icw.XYZ16_MAX * u ** 3          # grid coord u ↦ PCS value u³
-        xyz1 = np.stack(np.meshgrid(ax, ax, ax, indexing="ij"),
-                        -1).reshape(-1, 3)
+        axes = [_D50[c] * u ** 3 for c in range(3)]   # u ↦ PCS value u³·white
+        xyz1 = np.stack(np.meshgrid(*axes, indexing="ij"), -1).reshape(-1, 3)
         return xyz_to_lab(xyz1 * 100.0)
 
     @staticmethod
     def lab_to01(lab: np.ndarray) -> np.ndarray:
         xyz1 = lab_to_xyz(lab) / 100.0
-        return np.clip(np.cbrt(xyz1 / icw.XYZ16_MAX), 0.0, 1.0)
+        return np.clip(np.cbrt(np.clip(xyz1 / _D50[None, :], 0.0, None)),
+                       0.0, 1.0)
 
     @staticmethod
     def b2a_in_tables(entries: int) -> np.ndarray:
-        u = np.cbrt(np.linspace(0.0, 1.0, entries))
-        table = np.clip(u * 0xFFFF, 0, 0xFFFF).round().astype(">u2")
-        return np.tile(table, (3, 1))
+        codes = np.linspace(0.0, icw.XYZ16_MAX, entries)
+        rows = [np.cbrt(np.clip(codes / _D50[c], 0.0, 1.0)) for c in range(3)]
+        return np.clip(np.stack(rows) * 0xFFFF, 0, 0xFFFF).round().astype(">u2")
 
 
 def codec_for(algorithm: str, accurate: bool = False):

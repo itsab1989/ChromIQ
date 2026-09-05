@@ -88,18 +88,43 @@ def test_choose_builder_follows_the_beta_switch(tmp_path):
 
 
 def test_scanner_tool_builds_the_printer_profile_with_the_chosen_builder(tmp_path):
-    """The dialog's chooser is the shared one: with the beta on it hands an
-    EngineProfileBuilder back, with it off the colprof builder."""
-    import inspect
-
+    """The dialog hands back an EngineProfileBuilder when Preferences say
+    engine, and its colprof builder otherwise — behaviour, not source text
+    (reviewer R18: the text assertion passed with the chooser forced to
+    colprof)."""
     from ui.dialogs import scanin_dialog
-    src = inspect.getsource(scanin_dialog.ScannerProfileDialog._printer_profile_builder)
-    assert "choose_builder(self._settings, params)" in src
-    assert "EngineProfileBuilder(self._settings)" in src
-    build_src = inspect.getsource(scanin_dialog.ScannerProfileDialog._build_printer_profile)
-    assert "builder = self._printer_profile_builder(params)" in build_src
-    assert "builder.build(params" in build_src
+    from workflow.engine_builder import EngineProfileBuilder
+
+    class S(dict):
+        def get(self, k, d=None):
+            return dict.get(self, k, d)
+
+    class Log:
+        def __init__(self):
+            self.lines = []
+
+        def appendPlainText(self, t):
+            self.lines.append(t)
+
+    class Stand:                      # the method only reads these three
+        pass
+
+    dlg = Stand()
+    dlg._profiler = object()
+    dlg._log = Log()
+    choose = scanin_dialog.ScannerProfileDialog._printer_profile_builder
+    params = ProfileParams(ti3_path=_rgb_ti3(tmp_path / "s.ti3"))
+    dlg._settings = S()
+    assert choose(dlg, params) is dlg._profiler
+    dlg._settings = S(profile_engine_beta=True, gammap_mode="accurate")
+    b = choose(dlg, params)
+    assert isinstance(b, EngineProfileBuilder) and dlg._engine_profiler is b
+    dlg._settings = S(profile_engine_beta=True, gammap_mode="argyll")
+    assert choose(dlg, params) is dlg._profiler
+    assert any("Building with Argyll colprof" in ln for ln in dlg._log.lines)
     # The sanitiser still runs before any builder sees the file.
+    import inspect
+    build_src = inspect.getsource(scanin_dialog.ScannerProfileDialog._build_printer_profile)
     assert build_src.index("_sanitize_scanner_ti3") < build_src.index(
         "_printer_profile_builder(params)")
 
@@ -124,3 +149,36 @@ def test_rebuild_archives_the_previous_profile_and_its_twin(tmp_path, qtbot):
     moved = sorted(p.name for p in old.rglob("*.icc"))
     assert moved == ["Arch-v4.icc", "Arch.icc"], moved
     assert "The previous profile was moved to" in tab._log.toPlainText()
+    # A build that fails puts them back (reviewer R14: a failed rebuild used
+    # to leave the run with NO profile).
+    tab._restore_archived_build()
+    assert icc.exists() and twin.exists()
+    assert not list(old.rglob("*.icc"))
+    assert "put back" in tab._log.toPlainText()
+    # …and only once: a second call is a no-op.
+    tab._restore_archived_build()
+    assert icc.exists()
+
+
+def test_quit_guard_sees_every_engine_builder():
+    from workflow.engine_builder import EngineProfileBuilder
+
+    class Fake(EngineProfileBuilder):
+        def __init__(self, running):
+            self._running = running
+            self._thread = None
+            self._last_error = ""
+            self._app_settings = None
+
+        @property
+        def is_running(self):
+            return self._running
+
+    EngineProfileBuilder._RUNNING.clear()
+    assert not EngineProfileBuilder.any_running()
+    b = Fake(True)
+    EngineProfileBuilder._RUNNING.add(b)
+    assert EngineProfileBuilder.any_running()
+    b._running = False
+    assert not EngineProfileBuilder.any_running()
+    EngineProfileBuilder._RUNNING.discard(b)

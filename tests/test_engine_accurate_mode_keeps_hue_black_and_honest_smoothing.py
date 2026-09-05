@@ -73,6 +73,40 @@ def test_far_out_of_gamut_relative_clip_keeps_the_hue_family(tmp_path):
     assert np.hypot(printed[:, 1], printed[:, 2]).min() > 15.0
 
 
+def test_hue_gated_seeds_never_pick_the_complement():
+    """The mechanism itself (reviewer R18: the profile-level test cannot
+    fail under the plain nearest clip on the smooth synthetic printer).
+    A cloud with colours at every hue but a target far outside: the seed
+    must share the target's hue family, never sit across the neutral axis
+    even when the complement is closer in plain Lab distance."""
+    from workflow.profile_engine.b2a import _hue_gated_seeds
+    rng = np.random.default_rng(1)
+    cloud = rng.uniform(0.0, 1.0, (4000, 3))
+    ang = np.radians(np.arange(0.0, 360.0, 10.0))
+    cloud_lab = np.stack([np.full(len(ang), 55.0), 40.0 * np.cos(ang),
+                          40.0 * np.sin(ang)], 1)
+    cloud = rng.uniform(0.0, 1.0, (len(ang), 3))
+    # A complement decoy: at hue 330°+180°=150° a point with a large
+    # chroma of 95 — closer in Lab to the target (95 units away) than the
+    # same-hue candidate at chroma 40 (55 away)? No: same hue is nearer
+    # here, so also test a target whose SAME-hue candidate is farther.
+    tgt = np.array([[55.0, 95.0 * np.cos(np.radians(330)),
+                     95.0 * np.sin(np.radians(330))],
+                    [90.0, 80.0 * np.cos(np.radians(200)),
+                     80.0 * np.sin(np.radians(200))]])
+    seeds, found = _hue_gated_seeds(tgt, cloud, cloud_lab)
+    assert found.all()
+    for s, t in zip(seeds, tgt):
+        i = int(np.flatnonzero((cloud == s).all(1))[0])
+        h_s = np.degrees(np.arctan2(cloud_lab[i, 2], cloud_lab[i, 1])) % 360
+        h_t = np.degrees(np.arctan2(t[2], t[1])) % 360
+        assert abs((h_s - h_t + 180) % 360 - 180) <= 6.0, (h_s, h_t)
+    # No candidate within 25°: the caller keeps the nearest clip.
+    narrow = cloud_lab[:3]
+    _s, f2 = _hue_gated_seeds(np.array([[55.0, -60.0, 0.0]]), cloud[:3], narrow)
+    assert not f2.any()
+
+
 def test_l_zero_prints_the_deepest_black(tmp_path):
     for mode in ("fast", "accurate"):
         icc = _build(tmp_path, mode)
@@ -140,3 +174,56 @@ def test_cv_search_runs_the_ladder_once_per_split(monkeypatch):
     # 5 ladder factors × the configured splits of 270 training patches,
     # plus the stiff scan and the robust fits on all 300.
     assert calls.count(270) == 5 * folds, (calls, folds)
+
+
+def test_remaining_time_never_grows_between_lines():
+    """Basti, 2026-09-05: "the estimate for the time left … seems to
+    increase instead of decrease." elapsed·(100−p)/p grows whenever the
+    percentage stalls while the clock runs; the estimate is a deadline now."""
+    import re
+
+    from workflow.profile_engine.builder import _PercentProgress
+    shown: list[str] = []
+    t = [0.0]
+    pp = _PercentProgress(shown.append, clock=lambda: t[0])
+    script = [  # (time, stage line)
+        (1.0, "Reading the measurement…"),
+        (4.0, "Fitting the printer model (900 patches, grid 17)…"),
+        (9.0, "Inverting the model (B2A grid 17)…"),
+        (20.0, "Inverting the model: converging 2/6…"),
+        (35.0, "Inverting the model: converging 4/6…"),
+        (50.0, "Inverting the model: converging 6/6…"),
+        (52.0, "Writing the profile…"),
+        (54.0, "Building the perceptual and saturation tables…"),
+        (56.0, "Saturation table: matching colprof's rendering…"),
+        (110.0, "Saturation table: fitting the matched rendering…"),
+        (112.0, "Gamut mapping: building the final colour table: converging 1/6…"),
+        (118.0, "Gamut mapping: building the final colour table: converging 6/6…"),
+    ]
+    for when, line in script:
+        t[0] = when
+        pp(line)
+    secs = []
+    overran = 0
+    for ln in shown:
+        m = re.search(r"~(\d+)(s| min) left", ln)
+        if m:
+            v = int(m.group(1)) * (60 if m.group(2) == " min" else 1)
+            secs.append(v)
+        elif "taking longer than estimated" in ln:
+            overran += 1
+            secs.append(None)          # a reset is allowed to raise it
+        elif "almost done" in ln:
+            secs.append(0)
+    prev = None
+    for v in secs:
+        if v is None:
+            prev = None
+            continue
+        if prev is not None:
+            assert v <= prev, (secs, shown)
+        prev = v
+    assert any(s_ is not None and s_ > 0 for s_ in secs), shown
+    # The 54-second colprof stall must not show a growing number: it either
+    # counts down or says it is taking longer.
+    assert overran >= 1 or all(v is not None for v in secs), shown

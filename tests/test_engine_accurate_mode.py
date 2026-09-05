@@ -400,10 +400,15 @@ def test_shaped_xyz_pcs_codec_roundtrips_and_resolves_shadows():
     expect = np.stack(np.meshgrid(axes, axes, axes, indexing="ij"),
                       -1).reshape(-1, 3)
     assert np.allclose(u, expect, atol=1e-4)   # Lab↔XYZ float roundtrip
-    # the input tables encode the same cube root, monotonically.
+    # the input tables encode the same cube root of (code / PCS white),
+    # monotonically, saturating at the white (the grid ends at D50 so the
+    # corner node IS the paper white — reviewer R1b, 2026-09-05).
     t = XyzPcsShaped.b2a_in_tables(2048).astype(float) / 0xFFFF
     assert (np.diff(t, axis=1) >= 0).all()
-    assert t[0, 1024] == pytest.approx(np.cbrt(1024 / 2047), abs=1e-3)
+    code = 1024 / 2047 * icw.XYZ16_MAX
+    assert t[0, 1024] == pytest.approx(np.cbrt(min(code / 0.9642, 1.0)), abs=1e-3)
+    assert t[1, -1] == 1.0 and t[2, 1024] == pytest.approx(
+        np.cbrt(min(code / 0.8249, 1.0)), abs=1e-3)
     # shadow resolution: the darkest grid step covers a small L* span now
     # (L* rides on the Y axis — the middle meshgrid dimension).
     l_axis_shaped = XyzPcsShaped.node_lab(33)[0:33 * 33:33, 0]

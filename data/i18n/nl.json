@@ -4858,5 +4858,7 @@
   "A profile is being built": "Er wordt een profiel gebouwd",
   "ChromIQ is still building a profile. If you quit now, the build is thrown away — nothing is saved until it finishes.\n\nKeep building, or quit anyway?": "ChromIQ is nog een profiel aan het bouwen. Als je nu afsluit, gaat het bouwen verloren — er wordt niets opgeslagen tot het klaar is.\n\nDoorgaan met bouwen, of toch afsluiten?",
   "Keep building": "Doorgaan met bouwen",
-  "Quit anyway": "Toch afsluiten"
+  "Quit anyway": "Toch afsluiten",
+  "[WARNING] Could not put the previous profile back: {error}": "[WAARSCHUWING] Het vorige profiel kon niet worden teruggezet: {error}",
+  "The previous profile was put back: {names}": "Het vorige profiel is teruggezet: {names}"
 }

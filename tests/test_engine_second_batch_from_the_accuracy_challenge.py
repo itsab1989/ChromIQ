@@ -88,9 +88,20 @@ def test_gamut_tag_is_zero_for_printable_colours(tmp_path):
     g = icc.gamut_distance(lab)
     # The tag interpolates across cells, so a hard 100 % is out of reach for
     # any grid (colprof's own figure is 72 %); before the fix 32 % read 0.
-    assert (g == 0).mean() >= 0.60, (g == 0).mean()
-    assert (g < 1.0).mean() >= 0.95, (g < 1.0).mean()
+    assert (g == 0).mean() >= 0.80, (g == 0).mean()
+    assert (g < 1.0).mean() >= 0.99, (g < 1.0).mean()
     assert np.median(g) == 0.0
+    # Reviewer R10: no band inside the surface either — colours on the
+    # printer's own faces pulled 5 ΔE inward read under 1 ΔE.
+    faces = rng.uniform(0.0, 1.0, (1500, 3))
+    faces[np.arange(1500), rng.integers(0, 3, 1500)] = rng.integers(0, 2, 1500)
+    lab_f = icc.a2b_lab(faces, "A2B1")
+    chroma = np.hypot(lab_f[:, 1], lab_f[:, 2])
+    keep = chroma > 15.0
+    f = (chroma[keep] - 5.0) / chroma[keep]
+    inside = np.stack([lab_f[keep, 0], lab_f[keep, 1] * f, lab_f[keep, 2] * f], 1)
+    gi = icc.gamut_distance(inside)
+    assert (gi < 1.0).mean() >= 0.95, (gi < 1.0).mean()
     far = np.array([[50.0, 120.0, 0.0], [50.0, 0.0, -120.0], [5.0, -80, 60]])
     assert (icc.gamut_distance(far) > 0).all()
 

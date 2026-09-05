@@ -5041,9 +5041,11 @@ class TabProfile(QWidget):
         the verification question (B-09/B-20, 2026-09-05). Same destination
         as that path (``runs/runN/old/<timestamp>/``); the twin goes with it.
         A failure here never stops the build."""
+        self._archived_build = None
         icc = params.ti3_path.with_suffix(".icc")
         twin = icc.with_name(icc.stem + "-v4.icc")
-        present = [p for p in (icc, twin) if p.is_file()]
+        calibrated = icc.with_name("calibrated.icc")
+        present = [p for p in (icc, twin, calibrated) if p.is_file()]
         if not present:
             return
         run = self._run_being_built_into()
@@ -5066,8 +5068,42 @@ class TabProfile(QWidget):
                 "way: {error}").format(error=exc))
             return
         if dest is not None:
+            self._archived_build = (Path(dest), [p.name for p in present],
+                                    icc.parent)
             self._log.appendPlainText(tr(
                 "The previous profile was moved to: {folder}").format(folder=dest))
+
+    def _restore_archived_build(self) -> None:
+        """A build that failed (or never started) puts the previous profile
+        back where it was — never destroy user work, and never leave a run
+        without the profile it had (reviewer R14)."""
+        rec = getattr(self, "_archived_build", None)
+        self._archived_build = None
+        if not rec:
+            return
+        dest, names, run_dir = rec
+        import shutil
+        restored = []
+        for name in names:
+            src = Path(dest) / name
+            back = Path(run_dir) / name
+            if src.is_file() and not back.exists():
+                try:
+                    shutil.move(str(src), str(back))
+                    restored.append(name)
+                except OSError as exc:
+                    self._log.appendPlainText(tr(
+                        "[WARNING] Could not put the previous profile back: "
+                        "{error}").format(error=exc))
+        try:
+            if Path(dest).is_dir() and not any(Path(dest).iterdir()):
+                Path(dest).rmdir()
+        except OSError:
+            pass
+        if restored:
+            self._log.appendPlainText(tr(
+                "The previous profile was put back: {names}").format(
+                    names=", ".join(restored)))
 
     def _archive_superseded_profile(self, run) -> None:
         """“Build here anyway”: move the profile being replaced and the dated
@@ -5131,7 +5167,6 @@ class TabProfile(QWidget):
         self._active_params = params
         self._log.clear()
         engine = self._resolve_engine(params)
-        self._archive_previous_build(params)
         if engine == "blocked":
             self._show_tool_failure_dialog(
                 tr("Multi-ink measurement"),
@@ -5141,6 +5176,11 @@ class TabProfile(QWidget):
                    "Settings and build again — the engine handles multi-ink "
                    "measurements."))
             return
+        # Only now — after every question and the multi-ink refusal — is the
+        # previous profile moved out of the way; a build that never starts
+        # or fails puts it back (reviewer R14: the archive ran before the
+        # "blocked" check and a failed rebuild left the run with no profile).
+        self._archive_previous_build(params)
         # THE BUSY HEADLINE, through the same door as the idle one. This was
         # a raw `setText` with the colour already substituted, which is
         # exactly what the comment in `_restore_build_box` warns against a few
@@ -5226,6 +5266,7 @@ class TabProfile(QWidget):
         """Finish path for ChromIQ-engine builds (#122)."""
         self._reset_build_ui()
         if code != 0:
+            self._restore_archived_build()
             failure = self._engine_builder.primary_failure()
             self._show_tool_failure_dialog(
                 tr("Profile Build Failed"),
@@ -5235,9 +5276,11 @@ class TabProfile(QWidget):
         params = self._active_params or self._collect_params()
         self._icc_path = self._engine_builder.expected_icc_path(params)
         if not (self._icc_path and self._icc_path.exists()):
+            self._restore_archived_build()
             self._log.appendPlainText("\n[ERROR] Profile file was not created.")
             self._log.ensureCursorVisible()
             return
+        self._archived_build = None          # the new profile is in place
         self._install_btn.setEnabled(True)
         self._log.appendPlainText(f"\n[OK] Profile saved: {self._icc_path}")
         self._log.ensureCursorVisible()
@@ -5274,6 +5317,7 @@ class TabProfile(QWidget):
         self._reset_build_ui()
 
         if code != 0:
+            self._restore_archived_build()
             self._log.appendPlainText(f"\n[ERROR] colprof exited with code {code}.")
             self._log.ensureCursorVisible()
             # THE TOOL NEVER RAN AT ALL. There is no output to diagnose, so
@@ -5301,10 +5345,12 @@ class TabProfile(QWidget):
         issues = self._builder.sanity_check(self._icc_path)
 
         if not (self._icc_path and self._icc_path.exists()):
+            self._restore_archived_build()
             self._log.appendPlainText("\n[ERROR] Profile file was not created.")
             self._log.ensureCursorVisible()
             return
 
+        self._archived_build = None          # the new profile is in place
         self._install_btn.setEnabled(True)
         self._log.appendPlainText(f"\n[OK] Profile saved: {self._icc_path}")
         self._log.ensureCursorVisible()
