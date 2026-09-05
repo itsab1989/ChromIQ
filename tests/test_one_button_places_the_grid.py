@@ -442,30 +442,29 @@ def test_the_window_has_one_placement_button_and_it_runs_the_whole_operation(
 
 
 def test_the_button_block_never_decides_how_narrow_the_window_can_be(dlg):
-    """Removing or moving a button must not cost this window width.
+    """Removing, moving or rearranging a button must not cost this window width.
 
-    THE ROWS ARE READ OFF THE LAYOUT, NOT LISTED HERE. The previous version of
-    this test wrote the four rows down as a list of lists, so the next
-    rearrangement (beta 8, AGENT-S: four rows of six buttons became three of
-    two) made it fail for describing the old shape rather than for anything
-    being wrong. Its INTENT — the block must not get wider — is kept, and
-    sharpened into the constraint that actually binds.
+    THE BLOCK IS READ OFF THE LAYOUT, NOT LISTED HERE. Two earlier versions of
+    this test wrote the shape down — four rows, then three — and each was made
+    to fail by the next rearrangement rather than by anything being wrong. Its
+    INTENT is what survives: the block must not be what decides how narrow this
+    window can be.
 
-    Two claims:
+    And the question is now asked of the right number. The block is ONE
+    WRAPPING ROW (Knut, beta 8 `23-buttons-flow`), so its lines are as wide as
+    the panel by design — a line's width says nothing. What reaches the window
+    is the layout's own MINIMUM, and for a wrapping row that is its widest
+    SINGLE button (190 px in Russian, the widest of the thirteen) rather than
+    the sum of a row (313 px in Spanish, when the block was a plain row).
 
-    * the block's worst line is no wider than the 288 px the 2 + 2 + 1 + 1
-      block needed at ITS worst (German). Measured over all thirteen
-      catalogues, this one's worst is 269 px (Spanish) and 202 in English,
-      which is the language this test runs in;
-    * and the load-bearing one: that line still fits inside the width the
-      right pane ALREADY needs for its other rows. `showEvent` pins the pane
-      at `max(360, right_pane.minimumSizeHint().width()) + _PANE_GAP`, and
-      that minimum is the pane's widest row — the diagnostic/fiducial checkbox
-      grid, or the marquee's own 360 px floor. A block wider than every other
-      row in the pane is a block that has widened the WINDOW, in every
-      language at once, and the block's own worst line never says so.
+    `showEvent` pins the pane at
+    `max(360, right_pane.minimumSizeHint().width()) + _PANE_GAP`, and that
+    minimum is the pane's widest row — the diagnostic/fiducial checkbox grid,
+    or the marquee's own 360 px floor. A block that asks for more than every
+    other row in the pane is a block that has widened the WINDOW, in every
+    language at once.
     """
-    from PyQt6.QtWidgets import QHBoxLayout, QPushButton, QVBoxLayout
+    from PyQt6.QtWidgets import QLayout, QPushButton
     btns = {dlg._rotate_btn, dlg._auto_align_btn, dlg._reset_btn,
             dlg._reset_grid_btn, dlg._check_align_btn, dlg._popout_btn}
     for b in btns:
@@ -473,40 +472,32 @@ def test_the_button_block_never_decides_how_narrow_the_window_can_be(dlg):
         b.ensurePolished()
 
     block = None
-    for lay in dlg.findChildren(QVBoxLayout):
-        rows, found = [], set()
-        for i in range(lay.count()):
-            row = lay.itemAt(i).layout()
-            if not isinstance(row, QHBoxLayout):
-                continue
-            widgets = [row.itemAt(j).widget() for j in range(row.count())]
-            widgets = [w for w in widgets if w in btns]
-            if widgets:
-                rows.append(widgets)
-                found |= set(widgets)
-        if found == btns:
-            block, block_rows = lay, rows
+    for lay in dlg.findChildren(QLayout):
+        held = {lay.itemAt(i).widget() for i in range(lay.count())} & btns
+        if held == btns:
+            block = lay
             break
     assert block is not None, "the six preview buttons are not in one block"
 
-    worst = max(sum(b.sizeHint().width() for b in row) + 6 * (len(row) - 1)
-                for row in block_rows)
-    assert worst <= 288, (
-        f"the button block's worst line is {worst} px, wider than the "
-        f"2 + 2 + 1 + 1 block it replaces needed at its worst")
+    need = block.minimumSize().width()
+    widest_button = max(b.minimumSizeHint().width() for b in btns)
+    assert need <= widest_button + 8, (
+        f"the block asks for {need} px where its widest single button needs "
+        f"{widest_button} — it is not wrapping, it is asking for a whole row")
 
     # …and the pane's own floor, read off every OTHER row in the right column.
     col = dlg._right_pane_w.layout()
+    host = block.parentWidget()
     other = 360                                   # the marquee's own minimum
     for i in range(col.count()):
         it = col.itemAt(i)
-        if it.layout() is block:
+        if it.widget() is host:
             continue
         if it.widget() is not None:
             other = max(other, it.widget().minimumSizeHint().width())
         elif it.layout() is not None:
             other = max(other, it.layout().totalMinimumSize().width())
-    assert worst <= other, (
-        f"the button block needs {worst} px and the widest other row in the "
+    assert need <= other, (
+        f"the button block needs {need} px and the widest other row in the "
         f"pane needs {other} px — the block is now what sets this window's "
         f"minimum width, in every language at once")

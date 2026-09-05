@@ -1000,8 +1000,10 @@ class MeasurementTargetBar(QWidget):
                "back from there until you empty it. Nothing is kept in an "
                "“old” folder inside the project. The button is "
                "greyed whenever there is nothing specific to delete — during a "
-               "measurement, or when the selection says “New run” or “New "
-               "verification”, which name nothing on disk yet.").format(trash=trash_name()),
+               "measurement, or when the selection says “{new_run}” or "
+               "“{new_verification}”, which name nothing on disk yet."
+               ).format(trash=trash_name(), new_run=tr("New run"),
+                        new_verification=tr("New verification")),
             self)
         row.addWidget(self._delete_tip)
 

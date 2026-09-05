@@ -473,6 +473,31 @@ M_INSTRUMENT_BUSY = _m(
     approved=False)
 
 
+# --- PROPOSED: the dated report after a measurement could not be written ---
+M_REPORT_NOT_SAVED = _m(
+    "M-REPORT-NOT-SAVED",
+    "The measurement report could not be created",
+    "Your measurement is safe. It was read, checked and written to disk "
+    "exactly as it always is, and nothing about it has changed. This is only "
+    "the dated accuracy report ChromIQ normally saves beside it, and nothing "
+    "in your chart, your measurement or your profile depends on that "
+    "report.\n\n"
+    "What did not happen: ChromIQ was not able to work out and save this "
+    "measurement's report just now, so there is no new dated entry for it in "
+    "the run's reports folder.\n\n"
+    "You do not need to measure anything again. The report is worked out "
+    "from the measurement file itself, so you can open it whenever you like "
+    "with the Measurement report button, and save it from there.\n\n"
+    "If you would like to look into it, the technical detail is on the line "
+    "below this message and in ChromIQ's log file. The usual reasons are a "
+    "run folder that has been moved, renamed or deleted since the "
+    "measurement began, a disk with no room left on it, or a folder ChromIQ "
+    "is not allowed to write into. If this keeps happening and you would "
+    "rather not be asked about it, you can switch the automatic report off "
+    "in Preferences, under Reports.",
+    approved=True)
+
+
 # ---------------------------------------------------------------------------
 # §5 — starting a measurement over an existing one
 # ---------------------------------------------------------------------------
@@ -2144,6 +2169,7 @@ CATALOGUE = {m.id: m for m in (
     M_CR30_HOW_TO_MEASURE, M_CR30_READ_FAILED,
     M_CR30_LEARN_TILE, M_CR30_TRIGGER_NOT_ARMED,
     M_INSTRUMENT_BUSY,
+    M_REPORT_NOT_SAVED,
     M_CAL_REPLACE_CHART, M_CAL_REPLACE_MEASURED, M_CAL_ARCHIVED_HERE,
     M_SPOT_CLEAR, M_SPOT_UNSAVED,
     M_SCAN_REF_SHORT, M_SCAN_REF_DISAGREES, M_SCAN_CLIPPED,

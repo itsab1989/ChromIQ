@@ -73,6 +73,33 @@ def test_the_register_exists_and_has_items():
     assert len(_items()) >= 20, "the register has lost most of its items"
 
 
+def test_no_two_items_share_an_identifier():
+    """Two items with the same id is a register that quietly loses one of them.
+
+    It happened: three agents worked in parallel on 2026-09-04, two of them
+    claimed **B8-53**, and nothing noticed — not the suite, not the review. The
+    id is how every other document, every evidence list and every cross-
+    reference points at an item, so a duplicate does not merely look untidy: a
+    sentence saying "superseded by B8-53" stops having one meaning, and the
+    later block silently inherits the earlier one's references.
+
+    The fix is cheap and the failure mode is expensive, which is exactly the
+    kind of thing this file exists for.
+    """
+    seen: dict[str, str] = {}
+    dupes = []
+    for ident, title, _body in _items():
+        if ident in seen:
+            dupes.append(f"{ident} used twice: {seen[ident]!r} and {title!r}")
+        else:
+            seen[ident] = title
+    assert not dupes, (
+        "\n  " + "\n  ".join(dupes)
+        + "\n\nGive the LATER item the next free id and update anything that "
+          "points at it. Do not renumber the earlier one — other documents may "
+          "already cite it.")
+
+
 def test_every_item_has_a_status_we_understand():
     bad = []
     for ident, title, body in _items():

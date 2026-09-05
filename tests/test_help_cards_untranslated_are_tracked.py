@@ -251,19 +251,53 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 #   which retires a key translated in all twelve and adds one carrying the
 #   English source in the eleven. So the item's total is +3 in the eleven and
 #   0 in German.
+#: 2026-09-04, the #182 spin-off (AGENT-AE): +6 in each of the eleven, 0 in
+#: German. Two are M-REPORT-NOT-SAVED's headline and body — the dated report
+#: ChromIQ saves after every measurement could fail and say nothing on screen,
+#: while a report that SUCCEEDED announced itself in the measurement log, so
+#: the two outcomes looked identical. One is the "[Report] Technical detail:"
+#: line that carries the exception OUT of the message: Basti's standing rule is
+#: "friendly, extensive, easy to understand and correct", and an errno with a
+#: path in it is none of the first three. The other three are the Measurement
+#: Report window's provenance lines — the sentence under a run's accuracy table
+#: saying its verdict was recorded when the report was saved (and that the spin
+#: boxes no longer move it), the sentence for a report saved before ChromIQ
+#: recorded one, and the footnote under Report Results saying that a column
+#: reading "not recorded" is not a fault. German is translated for all six and
+#: moves by nothing, because none of them is the same wording in German. The
+#: eleven carry the English source: M-REPORT-NOT-SAVED is §M-PROPOSED, and the
+#: rest is new wording in a beta, which is exactly what "translate before the
+#: final, not during a beta" covers. These are each language's ACTUAL count.
+# 2026-09-04, beta 8 item B8-54 (AGENT-AF): +22 in the eleven, 0 in German. The
+# Profile type help in Tools ▸ Build profile with scanner or camera was one
+# paragraph-blob that told the user the two cLUTs were interchangeable and that
+# Lab "sometimes gives slightly smoother neutrals". Nothing measured that;
+# B8-19 measured a different difference entirely (a Lab cLUT cannot encode
+# anything above its chart's white). It is now built from paragraphs and is
+# MODE-AWARE, because a scanner input profile and a printer output profile want
+# different types and this window already marks a different "(default)" for
+# each: 21 paragraph/label keys, the combo's "(recommended cLUT)" marker and
+# three live notes. All 22 are 25 characters or more, so all 22 are visible to
+# this detector — none of it is hiding under the threshold. The one key retired
+# was translated in all twelve, so it moves nothing here. The eleven carry the
+# English source for the ordinary beta reason (translation happens before a
+# final, not during a beta) AND because the wording is still PROPOSED — see
+# §M-PROPOSED, "⏳ Awaiting confirmation — Profile type help text". German is
+# translated for all 22 and does not move. These are each language's ACTUAL
+# count.
 _BUDGET = {
     "de": 31,
-    "es": 183,
-    "fr": 184,
-    "it": 183,
-    "ja": 183,
-    "nl": 183,
-    "no": 183,
-    "pl": 183,
-    "pt": 183,
-    "ru": 182,
-    "sv": 183,
-    "zh_CN": 182,
+    "es": 211,
+    "fr": 212,
+    "it": 211,
+    "ja": 211,
+    "nl": 211,
+    "no": 211,
+    "pl": 211,
+    "pt": 211,
+    "ru": 210,
+    "sv": 211,
+    "zh_CN": 210,
 }
 
 

@@ -1351,7 +1351,6 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._marquee_box.addWidget(self._marquee_placeholder)
         form.addLayout(self._marquee_box)
 
-        ctl = QHBoxLayout()
         self._rotate_btn = QPushButton(tr("⟳ Rotate 90°"), self)
         self._rotate_btn.clicked.connect(self._marquee.rotate_90)
         # Auto align (Basti): let ArgyllCMS's own chart recogniser place the
@@ -1417,61 +1416,86 @@ class ScannerProfileDialog(_ToolDialogBase):
             "deleted when you close the result — your files stay untouched."))
         self._check_align_btn.setStyleSheet(_COMPACT_BTN)
         self._check_align_btn.clicked.connect(self._on_check_alignment)
-        # THREE LINES, TWO BUTTONS EACH, AND EACH LINE IS ONE QUESTION.
-        # Grouped by WHAT EACH BUTTON ACTS ON, which is the one thing the user
-        # can see: the picture, then the grid, then the check. Rotate and Reset
-        # view belong on the same line because Rotate literally calls
-        # `_reset_view` (ScanGridMarquee.rotate_90); Auto align and Reset grid
-        # are the two ways the grid gets somewhere; Check alignment and Pop out
-        # are the two ways to judge where it got — by the numbers, or by eye.
+        # SIX BUTTONS THAT WRAP, IN ONE FIXED READING ORDER, GROUPED IN PAIRS.
+        # Knut, beta 8: *"All the buttons, including the Auto Align are clumped
+        # together though… They could be aligned better across the width
+        # available."* and, told the block used to be four rows: *"I mean, that
+        # much space is not needed. The buttons could wrap down to next line
+        # when no space in width. If you want consistency in position, I get
+        # it, but at least 3 buttons per line should be possible."*
         #
-        # The block used to be four lines for six buttons (2 + 2 + 1 + 1),
-        # grouped by WHEN you press them, with the longest label in the window
-        # alone on the last one. Measured the same way as that arrangement was,
-        # at these buttons' own `_COMPACT_BTN` metrics over all twelve
-        # catalogues plus English (beta 8, `21-preview-buttons`):
+        # He is right, and it also dissolves the problem the fixed 2 + 2 + 2
+        # was built around. That shape was measured, not chosen: brute-forced
+        # over all thirteen catalogues, NOT ONE fixed 3 + 3 fits them all —
+        # German, Spanish and Norwegian cannot even do 3 + 3 at this window's
+        # own floor, and French cannot do better than 2 + 2 + 2 there. A fixed
+        # grid has to be the worst language's grid at every width. A layout
+        # that wraps does not: it is 2 + 2 + 2 exactly where 2 + 2 + 2 is all
+        # that fits, 3 + 3 as soon as three fit, and one line of six above
+        # that. Measured on screen — the window width at which each language
+        # reaches 3 + 3, then one line of six: en 1048/1338 · zh 1048/1298 ·
+        # ja 1056/1374 · sv 1101/1427 · no 1128/1476 · pl 1129/1473 ·
+        # pt 1159/1473 · it 1173/1525 · de 1174/1562 · fr 1178/1564 ·
+        # nl 1189/1575 · ru 1216/1598 · es 1250/1602. The window OPENS at
+        # 1240, so twelve of the thirteen are 3 + 3 the moment it opens and
+        # SPANISH NEEDS TEN PIXELS MORE — said rather than rounded away.
         #
-        #   this shape          269 px worst line (Spanish), 321 px popped out
-        #   the 2 + 2 + 1 + 1   288 px worst line (German)
+        # THE ORDER IS TWO RUNS OF THREE, AND IT CHANGED WITH THE LAYOUT.
+        # Basti, on this rearrangement: *"maybe auto align should be next to
+        # check alignment"* — one action and its verification. He is right, and
+        # taking it re-cuts the whole block along a better line than beta 8's:
         #
-        # A LINE'S WIDTH IS NOT THE BINDING CONSTRAINT, THOUGH, AND THE OLD
-        # NOTE HERE IMPLIED IT WAS. `showEvent` pins the right pane at
-        # `max(360, right_pane.minimumSizeHint().width()) + _PANE_GAP`, and
-        # that minimum is the pane's WIDEST ROW plus 28 px of margins — which
-        # is the "Save a diagnostic image" / "Use fiducial marks" checkbox grid
-        # (370 px in German, 421 in Russian), or the marquee's own 360 px
-        # floor. Measured on the real window, the buttons had 72 to 165 px of
-        # headroom they were not using, in every one of the thirteen. So what a
-        # rearrangement must not do is exceed THIS LANGUAGE'S widest other row;
-        # the global worst line is only a proxy for it.
+        #   ⟳ Rotate 90°   Reset view   ⤢ Pop out       what you LOOK at
+        #   Reset grid     Auto align   Check alignment  where the GRID IS
         #
-        # TWO LINES IS NOT AVAILABLE. Brute-forced: every partition of the six
-        # into two rows, against each language's own budget, with the label
-        # full, shortened and icon-only. Not one 3 + 3 fits thirteen languages
-        # — the honest grouping (grid | view) overruns in six of them, worst
-        # Spanish +51 px, which is the window's minimum width growing from
-        # 1071 to 1122. Only an icon-only Pop out fits at all, in exactly one
-        # partition, and that partition groups nothing. Three rows: 39
-        # partitions fit, this one with 94 px to spare in the tightest
-        # language.
-        ctl.addWidget(self._rotate_btn)
-        ctl.addWidget(self._reset_btn)
-        ctl.addStretch(1)
-        ctl2 = QHBoxLayout()
-        ctl2.addWidget(self._auto_align_btn)
-        ctl2.addWidget(self._reset_grid_btn)
-        ctl2.addStretch(1)
-        ctl3 = QHBoxLayout()
-        ctl3.addWidget(self._check_align_btn)
-        ctl3.addWidget(self._popout_btn)
-        ctl3.addStretch(1)
-        two = QVBoxLayout()
-        two.setContentsMargins(0, 0, 0, 0)
-        two.setSpacing(6)
-        two.addLayout(ctl)
-        two.addLayout(ctl2)
-        two.addLayout(ctl3)
-        form.addLayout(two)
+        # Beta 8 grouped in PAIRS because it had three fixed rows of two to
+        # fill. A block that wraps has no rows to fill; its natural unit is a
+        # RUN, and its commonest shape — measured, at any ordinary window width
+        # in all thirteen languages — is 3 + 3. So the same organising
+        # principle (what each button acts on) at the granularity the layout
+        # actually uses puts one line on the picture and one on the grid, and
+        # Auto align lands beside Check alignment where Basti wanted it.
+        # Rotate stays beside Reset view, which matters because `rotate_90`
+        # calls `_reset_view` itself.
+        #
+        # A WRAPPING LAYOUT LAYS ITS ITEMS OUT IN ORDER and only chooses where
+        # the lines break, so the block reads left-to-right, top-to-bottom in
+        # this one order AT EVERY WIDTH — which is what makes
+        # `_order_the_preview_buttons` a single fixed chain and keeps tab order
+        # matching the visual order however it wraps.
+        #
+        # ADJACENCY IN THE SEQUENCE ALWAYS HOLDS; a LINE BREAK can still fall
+        # between two neighbours, and for the pair Basti named it never does at
+        # any width this window can be dragged to. Balanced packing gives 6,
+        # then 3 + 3, then 2 + 2 + 2 as the panel narrows, and the break falls
+        # after item 3 or after item 4 — never after item 5. It could only fall
+        # there in shapes balancing exists to prevent (3 + 2 + 1, 5 + 1) or
+        # below the window's own floor. Swept over every width from the floor
+        # up, in all thirteen languages, by
+        # `test_auto_align_and_check_alignment_share_a_line_at_every_width`.
+        #
+        # WrappingButtonRow, NOT a hand-rolled flow layout: the app already has
+        # one, for Create Chart ▸ Manual's preset bar (ui/tabs/tab_chart.py).
+        # `balanced=True` is new and is why the wrap is even rather than
+        # bottom-heavy — see WrappingButtonRow._balance.
+        #
+        # AND IT CANNOT WIDEN THE WINDOW. `showEvent` pins the right pane at
+        # `max(360, right_pane.minimumSizeHint().width()) + _PANE_GAP`, so what
+        # this block costs the window is its own minimum width. A QHBoxLayout
+        # answers "the sum of my buttons" — 313 px in Spanish; this layout
+        # answers "my widest SINGLE button", 190 px in Russian. Both are under
+        # the marquee's own 360 px floor, so the window's minimum is unchanged
+        # in all thirteen; measured before and after, `23-buttons-flow`.
+        from ui.widgets import WrappingButtonRow
+        self._preview_btn_row = QWidget(self)
+        _btn_flow = WrappingButtonRow(self._preview_btn_row, balanced=True)
+        _btn_flow.setContentsMargins(0, 0, 0, 0)
+        _btn_flow.setSpacing(6)
+        for _b in (self._rotate_btn, self._reset_btn, self._popout_btn,
+                   self._reset_grid_btn, self._auto_align_btn,
+                   self._check_align_btn):
+            _btn_flow.addWidget(_b)
+        form.addWidget(self._preview_btn_row)
 
         form.addWidget(self._hint_label(tr(
             "Drag the four corners onto the target's patch area until the green "
@@ -1634,36 +1658,14 @@ class ScannerProfileDialog(_ToolDialogBase):
         for data, label in scanner_colprof.PTYPE_CHOICES:
             self._ptype.addItem(label, data)
         row3.addWidget(self._ptype, 1)
-        row3.addWidget(self._tip(
-            tr("Profile type and quality"),
-            tr("How the scanner or camera profile models colour.\n\n"
-               "Profile type (-a):\n"
-               "• Shaper + matrix — a small, robust profile (per-channel curves "
-               "plus a 3×3 matrix). The usual choice for scanners: forgiving of "
-               "noise and a modest number of patches, and enough for faithful "
-               "colour. Recommended.\n"
-               "• Matrix only — even simpler; use it if a chart has very few "
-               "patches or the shaper curves misbehave.\n"
-               "• cLUT — XYZ table / cLUT — Lab table — a full look-up table that "
-               "can follow the device more closely. XYZ and Lab are just how the "
-               "table stores colour inside; both are accurate, and Lab sometimes "
-               "gives slightly smoother neutrals. A cLUT is worth it only with a "
-               "large chart and clean, repeatable scans; with noisy data it just "
-               "fits the noise.\n\n"
-               "Quality (-q): the cLUT's grid resolution — higher is finer but "
-               "slower, and needs better data to be worth it. It applies only to "
-               "the two cLUT types (greyed for the matrix types). Medium is a "
-               "good default; Low is a quick test, High/Ultra for large, clean "
-               "charts.\n\n"
-               "These settings build whichever profile this window makes. If you "
-               "tick “Profile my printer from this scan”, the same type, quality "
-               "and Advanced options build the printer profile instead — and "
-               "because a printer is best modelled by a table, the type then "
-               "defaults to “cLUT — Lab” (it's “Shaper + matrix” for a scanner or "
-               "camera). You still won't find a working-space (like sRGB) or "
-               "rendering-intent choice here; those aren't part of building a "
-               "profile from measurements.")),
-            0, Qt.AlignmentFlag.AlignVCenter)
+        # The help is MODE-AWARE and the body is not written here: a scanner
+        # input profile and a printer output profile want different types, and
+        # this window already marks a different "(default)" for each, so one
+        # text for both would have to contradict one of those markers. The
+        # wording — and the live note that can be carried in front of it — live
+        # beside the choices themselves in `scanner_colprof` (B8-19).
+        self._ptype_tip = self._tip(*scanner_colprof.ptype_help(False))
+        row3.addWidget(self._ptype_tip, 0, Qt.AlignmentFlag.AlignVCenter)
         form.addLayout(row3)
 
         # Quality (cLUT only) + the Advanced button, on their own row so the type
@@ -1816,10 +1818,15 @@ class ScannerProfileDialog(_ToolDialogBase):
         (#108). Tabbing therefore reached "Pop out" before the button above
         it. Six buttons, one line of code each, and the block now tabs the way
         it reads.
+
+        ONE chain is enough even though the block WRAPS. A wrapping layout
+        lays its items out in order and chooses only where the lines break, so
+        the reading order is the item order at every width — there is no width
+        at which this chain is the wrong one.
         """
-        chain = (self._rotate_btn, self._reset_btn,
-                 self._auto_align_btn, self._reset_grid_btn,
-                 self._check_align_btn, self._popout_btn)
+        chain = (self._rotate_btn, self._reset_btn, self._popout_btn,
+                 self._reset_grid_btn, self._auto_align_btn,
+                 self._check_align_btn)
         for first, second in zip(chain, chain[1:]):
             self.setTabOrder(first, second)
 
@@ -2517,6 +2524,57 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._q_label.setEnabled(is_clut)      # quality only applies to a cLUT
         self._pq.setEnabled(is_clut)
         self._update_command_preview()         # persistence is now explicit (Save button)
+        self._sync_profile_type_advice()
+
+    # ------------------------------------------------------------------
+    # B8-19: the profile type, once the window knows how big the target is
+    # ------------------------------------------------------------------
+    def _known_patch_count(self) -> "int | None":
+        """How many patches the profile will be fitted from, or None while the
+        window does not know — nothing is picked yet, or the geometry did not
+        parse. Read-only: it asks the state the window already keeps.
+
+        The count is what decides the profile type (B8-19), so it is worth
+        being exact about which one this is: the WHOLE target, every page of a
+        multi-page set included, because one profile is built from all of them.
+        """
+        if self._standard_mode():
+            key = self._target_combo.currentData()
+            target = self._std_targets.get(key) if key else None
+            if target is not None and target.patch_counts:
+                return sum(target.patch_counts) or None
+            # "Other…" — a .cht the user browsed to, so the grid is the count
+            # we have, and it is one page by construction.
+            if self._std_grid is not None and self._std_grid.rects:
+                return len(self._std_grid.rects)
+            return None
+        layout = self._layout or {}
+        if layout.get("patches"):                       # engine chart
+            return len(layout["patches"]) or None
+        return len(layout.get("locs") or []) or None    # printtarg chart
+
+    def _sync_profile_type_advice(self) -> None:
+        """Point the Profile type ⓘ at this mode's help, and carry a live note
+        in front of it when the patch count says something about the type.
+
+        Nothing on the face of the window changes: the note goes inside the ⓘ
+        (`TooltipButton.set_live_note`), with only its first line reaching the
+        hover tooltip, so it can say its piece without nagging. It never
+        changes a setting, and it disappears on its own when it stops applying.
+        """
+        tip = getattr(self, "_ptype_tip", None)
+        if tip is None:                     # called during the build, before the row
+            return
+        printer = self._printer_mode()
+        tip.set_content(*scanner_colprof.ptype_help(printer))
+        tip.set_live_note(scanner_colprof.ptype_advice(
+            printer, self._ptype.currentData() or "", self._known_patch_count()))
+
+    def _refresh(self) -> None:
+        # The patch count changes when a chart or target is picked, not when a
+        # combo moves, and every one of those paths already ends here.
+        super()._refresh()
+        self._sync_profile_type_advice()
 
     def _mark_default_combos(self) -> None:
         """Label the factory-default option in each dropdown "(default)" so the
@@ -2525,13 +2583,24 @@ class ScannerProfileDialog(_ToolDialogBase):
         scanner — so this is re-run whenever the printer tick changes."""
         printer = self._printer_mode()
         ptype_default = scanner_colprof.PTYPE_DEFAULT[printer]
+        # …and, on the scanner/camera side only, which of the two cLUTs to take
+        # if you want one (B8-19). It is a SECOND marker and not a second
+        # default: the default marker still sits on Shaper + matrix, and the
+        # two never land on the same item. In printer mode this is None, so the
+        # dropdown is exactly what it was — Argyll's own default for an output
+        # profile is the Lab cLUT, the measurement behind the scanner
+        # recommendation is about capturing above a chart's white, and nothing
+        # a printer prints is lighter than its own paper.
+        recommended_clut = scanner_colprof.PTYPE_RECOMMENDED_CLUT[printer]
         for combo, choices, default in (
                 (self._ptype, scanner_colprof.PTYPE_CHOICES, ptype_default),
                 (self._pq, scanner_colprof.QUALITY_CHOICES, "m")):
             for i, (data, label) in enumerate(choices):
-                combo.setItemText(
-                    i, tr("{option} (default)").format(option=label)
-                    if data == default else label)
+                if data == default:
+                    label = tr("{option} (default)").format(option=label)
+                elif combo is self._ptype and data == recommended_clut:
+                    label = tr("{option} (recommended cLUT)").format(option=label)
+                combo.setItemText(i, label)
 
     def _effective_adv(self) -> dict:
         """Advanced values for the current mode: printer mode preselects the

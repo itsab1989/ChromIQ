@@ -52,6 +52,35 @@ QUALITY_CHOICES = [
 ]
 CLUT_ALGOS = ("x", "l")            # the -a letters for which -q quality applies
 
+# Of the two cLUTs, the one ChromIQ recommends — keyed by printer-mode, exactly
+# like PTYPE_DEFAULT above, because the recommendation is NOT the same on both
+# sides of this window and a single answer would make it contradict itself.
+#
+# SCANNER / CAMERA (False) -> "x". Measured (B8-19, AGENT-AD, two real scans,
+# every figure scored on patches the fit never saw): on the colours a target
+# contains the two tables land close together with neither consistently ahead,
+# but a Lab cLUT cannot encode anything above its chart's white — a neutral ramp
+# through it reads L* 100.4 flat from device 82 upward, where the XYZ table and
+# shaper+matrix both run on to L* ~119.5. An IT8's own white is only ~80 of 100
+# on a real scan, so that ceiling sits inside the range a scanner uses daily.
+# ArgyllCMS says the same in colprof.html, and says it of INPUT devices.
+#
+# PRINTER (True) -> None, deliberately. The clipping argument is about capturing
+# something lighter than the chart's white, and nothing a printer prints is
+# lighter than the paper it prints on; Argyll's own default for an output
+# profile is -al ("the most robust and accurate results", and the only kind that
+# carries the perceptual and saturation intents), which is what PTYPE_DEFAULT
+# already selects and what the "(default)" marker already says. Nothing was
+# measured about printer profiles here, so nothing is claimed about them.
+PTYPE_RECOMMENDED_CLUT: dict[bool, "str | None"] = {False: "x", True: None}
+
+#: Where the live profile-type note switches sides. Both are round numbers just
+#: outside the measured crossover (~100 fit patches), so a note only ever fires
+#: where the measurement is unambiguous and never in the shallow middle.
+PTYPE_BIG_TARGET = 200        # at 192 fit patches: cLUT-XYZ 0.69 vs shaper 1.07
+PTYPE_SMALL_TARGET = 100      # at 48: shaper 1.25 vs 1.68 / 1.68 for the cLUTs
+
+
 # Gamut-source mode (colprof -s / -S). Same three choices, wording and order as
 # tab 4's Manual module so the two windows read identically.
 GAMUT_SOURCE_CHOICES = [
@@ -88,6 +117,219 @@ WP_MODE_CHOICES = [
     ("uc", tr("Clip highlights above white (-uc)")),
     ("scale", tr("Manual white-point scale (-u)")),
 ]
+
+
+# ----------------------------------------------------------------------------
+# The Profile type / Quality help, and the live note that goes in front of it
+# ----------------------------------------------------------------------------
+# B8-19. The shipped help said the two cLUTs were interchangeable and that Lab
+# "sometimes gives slightly smoother neutrals" — a claim nothing measured, and
+# the reason this text was rewritten. Everything asserted below is a held-out
+# measurement from `beta 8/24-scanner-profile-default/` or a quotation from
+# ArgyllCMS's own colprof.html; where the measurements say a difference is small
+# the text says it is small, and where nothing was measured nothing is said.
+#
+# The help is MODE-AWARE because the advice is: a scanner/camera input profile
+# and a printer output profile want different types, the window already marks
+# different defaults for the two, and one text covering both would have to
+# contradict one of those markers.
+
+def ptype_help(printer: bool) -> "tuple[str, str]":
+    """The ⓘ title and body for the Profile type / Quality row.
+
+    *printer* is the state of "Profile my printer from this scan", i.e. the same
+    key `PTYPE_DEFAULT` and `PTYPE_RECOMMENDED_CLUT` are keyed by, so the three
+    can never drift apart.
+    """
+    title = tr("Profile type and quality")
+    quality = tr(
+        "Quality (-q) — the look-up table's grid resolution: higher is finer "
+        "but slower, and needs better data to be worth it. It applies only to "
+        "the two cLUT types and is greyed out for the other two. Medium is a "
+        "good default, Low is a quick test, and High and Ultra are for large, "
+        "clean charts.")
+    if printer:
+        return title, "\n\n".join((
+            tr("How the printer profile models colour."),
+            tr("“Profile my printer from this scan” is ticked, so this window "
+               "is building a PRINTER profile: your scanner is the measuring "
+               "instrument, and the chart it reads is the one you printed. "
+               "That changes what to choose here, so this is not the same "
+               "advice you get for a scanner or camera profile."),
+            tr("Profile type (-a) — the shape of the maths inside the "
+               "profile, and how it describes what your printer does with "
+               "colour. All four choices build a working profile."),
+            tr("• cLUT — Lab table — the default here, and what a printer "
+               "profile should normally be. “cLUT” means a look-up table: "
+               "instead of reducing your printer to a formula, the profile "
+               "stores your measurements and interpolates between them. It "
+               "also carries something the formula types cannot — the "
+               "perceptual and saturation rendering intents, which are what "
+               "decide how colours your printer cannot reach are eased inwards "
+               "when you print a photograph. Everything under Advanced… ▸ "
+               "Gamut Mapping describes those two intents, so it has nothing "
+               "to act on unless the profile is a table. “Lab” is simply the "
+               "internal form the table keeps colour in; it is ArgyllCMS's own "
+               "default for this job, and it is what ChromIQ's Build Profile "
+               "tab builds as well."),
+            tr("• cLUT — XYZ table — the same kind of table, keeping colour in "
+               "the other internal form. It is worth knowing why this window "
+               "points at the XYZ table on the scanner side and not here. A "
+               "Lab table cannot describe anything lighter than the white "
+               "patch of the chart it was built from, and a scanner meets "
+               "paper brighter than a scanning target's white board all the "
+               "time. A printer never does — nothing it prints is lighter than "
+               "the paper it prints on — so that reason does not apply here, "
+               "and the Lab default stands."),
+            tr("• Shaper + matrix, and Matrix only — a formula instead of a "
+               "table: one gentle tone curve per colour channel plus a 3×3 "
+               "matrix, which is a fixed recipe for mixing red, green and blue "
+               "into a finished colour, or that mix on its own. They are small "
+               "and undemanding, and they are offered here because this one "
+               "control also serves the scanner side of the window. For a "
+               "printer they have a real drawback: by the way the ICC format "
+               "works, a matrix-based profile cannot carry a perceptual or a "
+               "saturation intent at all, so it has nothing to fall back on "
+               "when a colour is out of the printer's reach. Leave them be "
+               "unless you know you want one."),
+            quality,
+            tr("Untick “Profile my printer from this scan” and this control "
+               "goes back to building a scanner or camera profile, where the "
+               "default is “Shaper + matrix” and the advice is different — "
+               "open this ⓘ again and it will tell you that story instead. "
+               "Either way you won't find a working space (like sRGB) or a "
+               "rendering intent in this row: the working space the gamut "
+               "mapping uses is under Advanced… ▸ Gamut Mapping, and a "
+               "rendering intent is something you choose when you print, not "
+               "when you build a profile from measurements."),
+        ))
+    return title, "\n\n".join((
+        tr("How the scanner or camera profile models colour."),
+        tr("Profile type (-a) — the shape of the maths inside the profile, and "
+           "how it describes what your device does with colour. All four "
+           "choices build a working profile. What separates them is how many "
+           "measured patches they need before they are any good, and how they "
+           "behave on colours your target did not contain."),
+        tr("That makes the size of your target the first thing to look at, and "
+           "you do not have to count anything: the patch count is printed "
+           "beside each target's name in the list above, and again in the "
+           "green “✓ … patches” line once a target or a chart is loaded."),
+        tr("• Shaper + matrix — the default here, and a small, sturdy profile: "
+           "one gentle tone curve for each of red, green and blue, plus a 3×3 "
+           "matrix, which is a fixed recipe for mixing those three into a "
+           "finished colour. It is a formula rather than a stored table, so it "
+           "needs very little data to work well, and it carries on sensibly "
+           "beyond the lightest and darkest patch your target contains. Take "
+           "it for targets up to about a hundred patches — a ColorChecker (24 "
+           "patches), a SpyderChecker (48), a QPcard (49) — and whenever a "
+           "scan is noisy or you would rather not think about it. On real "
+           "scanned targets it was the most accurate of the four at 24 and at "
+           "48 patches."),
+        tr("• cLUT — XYZ table — “cLUT” means a look-up table. Instead of a "
+           "formula, the profile stores your measurements and interpolates "
+           "between them, so it can follow a device that does not behave like "
+           "tidy maths. That freedom has to be paid for in patches: with too "
+           "few of them there is nothing much to interpolate between, and the "
+           "table will happily fit the noise in a scan rather than the colour. "
+           "Take it when your target has roughly two hundred patches or more — "
+           "a full IT8 has 288, a three-page ISO 12641-2 set has 864 — and the "
+           "scan is clean and correctly exposed. At that size it measured "
+           "about a third more accurate than Shaper + matrix on a real IT8 "
+           "scan. “XYZ” is simply the internal form the table keeps colour in, "
+           "and it is the one to use here — the next entry says why."),
+        tr("• cLUT — Lab table — the same kind of look-up table, keeping "
+           "colour in a different internal form. On the colours your target "
+           "actually contains, the two tables measured close together, with "
+           "neither of them consistently ahead of the other. The difference is "
+           "at the top end. A Lab table cannot describe anything lighter than "
+           "your target's own white patch — and a target's white board is not "
+           "very white: on a real IT8 scan it reached only about 80 out of the "
+           "scanner's 100. So everything brighter than that, which includes "
+           "most bright photo paper, arrives at exactly the lightness of the "
+           "target's white patch, with the differences between those tones "
+           "flattened away. Shaper + matrix and the XYZ table both keep going "
+           "past it. That is the whole reason the XYZ table is the one to take "
+           "if you want a table profile. If you would rather stay with Lab, "
+           "set Advanced… ▸ White point handling to “Auto-scale to avoid "
+           "clipping (-u)”, which lifts the ceiling."),
+        tr("• Matrix only — the 3×3 mix and nothing else, with no tone curves "
+           "in front of it. It suits a device that is already perfectly "
+           "linear, such as a camera shooting RAW. On an ordinary scanner it "
+           "measured several times less accurate than any of the other three "
+           "at every size tested, so it is not the one to reach for here."),
+        tr("Right around a hundred patches the first three land within a "
+           "whisker of one another and the choice barely matters; it is above "
+           "and below that the difference shows. And whichever you pick, "
+           "changing the paper or the target you scan moves the result a great "
+           "deal further than the profile type does."),
+        quality,
+        tr("If you tick “Profile my printer from this scan”, this same control "
+           "builds the printer profile instead — a different kind of device, "
+           "with different advice. The type then defaults to “cLUT — Lab "
+           "table”; open this ⓘ again with the box ticked and it will explain "
+           "why. Either way you won't find a working space (like sRGB) or a "
+           "rendering intent here; a rendering intent is something you choose "
+           "when you print, not when you build a profile from measurements."),
+        tr("None of the recommendations above is received wisdom. Profiles "
+           "were built from part of two real scanned targets and then scored "
+           "only on the patches the fit had never seen, which is the only way "
+           "the numbers mean anything — a profile marked against its own "
+           "measurements flatters a look-up table badly."),
+    ))
+
+
+def ptype_advice(printer: bool, ptype: str, n_patches: "int | None") -> str:
+    """A live note for the Profile type ⓘ, or ``""`` when there is nothing to say.
+
+    It is a SUGGESTION and never an instruction: it changes no setting, it lives
+    inside the ⓘ (only its first line reaches the hover tooltip), and it goes
+    away by itself as soon as it stops being true.
+
+    Three rules, and all three require a KNOWN patch count — the window learns
+    that only once a target or chart is loaded, and a note about a size nobody
+    has chosen yet would be noise. Nothing is said in printer mode: B8-19
+    measured input profiles, and an unmeasured nudge is the fault this text was
+    written to remove.
+    """
+    if printer or not n_patches or n_patches < 2:
+        return ""
+    if ptype in CLUT_ALGOS and n_patches < PTYPE_SMALL_TARGET:
+        return tr(
+            "A note on the profile type: your target has {n} patches, which is "
+            "on the small side for a look-up table.\n\n"
+            "Below about a hundred patches, “Shaper + matrix” measured more "
+            "accurate than either cLUT on real scanned targets — a table needs "
+            "plenty of well-spread patches before it has anything to "
+            "interpolate between, and with fewer it starts fitting the noise "
+            "in the scan. Your choice stands; this is only a suggestion, and "
+            "nothing here has been changed for you."
+        ).format(n=n_patches)
+    if ptype == "l":
+        return tr(
+            "A note on the profile type: “cLUT — Lab table” cannot describe "
+            "anything lighter than your target's own white patch.\n\n"
+            "A scanning target's white board is not very white — on a real IT8 "
+            "scan it reached only about 80 out of the scanner's 100 — so "
+            "everything brighter, which includes most bright photo paper, "
+            "comes out at exactly the lightness of that white patch with the "
+            "differences between those tones flattened away. “cLUT — XYZ "
+            "table” is the same kind of table without that ceiling, and it "
+            "measured just as accurate on the colours your target does "
+            "contain. If you would rather stay with Lab, Advanced… ▸ White "
+            "point handling ▸ “Auto-scale to avoid clipping (-u)” lifts the "
+            "ceiling. Your choice stands either way.")
+    if ptype == "s" and n_patches >= PTYPE_BIG_TARGET:
+        return tr(
+            "A note on the profile type: your target has {n} patches, which is "
+            "big enough for a look-up table to be worth it.\n\n"
+            "Above about a hundred patches, a cLUT measured about a third more "
+            "accurate than “Shaper + matrix” on real scanned targets, and "
+            "“cLUT — XYZ table” is the one to take. “Shaper + matrix” is still "
+            "a perfectly good, safe profile and it will not clip your "
+            "highlights — this is a suggestion, not a warning, and nothing has "
+            "been changed for you."
+        ).format(n=n_patches)
+    return ""
 
 # Shared tooltip bodies — copied verbatim from tab 4's Manual module so the two
 # windows explain each option in exactly the same words (and share translations).

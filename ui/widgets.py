@@ -1815,11 +1815,25 @@ class WrappingButtonRow(QLayout):
     purpose: Italian needs 157 + 141 + 188 = 498 px and fits on one line, while
     three columns of its widest button would need 576 and would have wrapped it
     for no reason.
+
+    BALANCED MODE (``balanced=True``)
+    ---------------------------------
+    Greedy fills each line to the brim, so the remainder lands on the last one
+    — and because every line is justified, a remainder of one button is drawn
+    at the full width of the panel. With six buttons that shows everywhere:
+    the scanner window's preview block comes out 5 + 1 in ALL THIRTEEN
+    languages, and 3 + 2 + 1 at the window's own floor in eleven of them,
+    where 3 + 3 and 2 + 2 + 2 fit in the very same number of lines. In
+    balanced mode the greedy pass still decides how MANY lines there are and
+    :meth:`_balance` decides where the cuts fall. Order is never changed
+    either way.
     """
 
-    def __init__(self, parent=None, spacing: int = 6) -> None:
+    def __init__(self, parent=None, spacing: int = 6,
+                 balanced: bool = False) -> None:
         super().__init__(parent)
         self._items: list = []
+        self._balanced = bool(balanced)
         self.setSpacing(spacing)
 
     # ---- QLayout plumbing -------------------------------------------------
@@ -1850,7 +1864,12 @@ class WrappingButtonRow(QLayout):
         return out
 
     def _pack(self, width: int) -> list[list]:
-        """Greedy line breaking at *width* (the layout's own outer width)."""
+        """Line breaking at *width* (the layout's own outer width).
+
+        Greedy by default. In ``balanced`` mode the greedy answer only decides
+        HOW MANY lines there are, and :meth:`_balance` then re-cuts the same
+        items into that many lines as evenly as it can — see there for why.
+        """
         m = self.contentsMargins()
         avail = max(1, width - m.left() - m.right())
         sp = self.spacing()
@@ -1867,7 +1886,80 @@ class WrappingButtonRow(QLayout):
                 cur, cur_w = cur + [it], grown
         if cur:
             lines.append(cur)
+        if self._balanced:
+            return self._balance(lines, avail, sp)
         return lines
+
+    def _balance(self, lines: list[list], avail: int, sp: int) -> list[list]:
+        """Re-cut *lines* into the SAME number of lines, as evenly as possible.
+
+        WHY, measured on the scanner window's six preview buttons (beta 8,
+        `23-buttons-flow`). Greedy fills each line to the brim and dumps the
+        remainder on the last one, and every line here is JUSTIFIED — so the
+        remainder is drawn at the full width of the panel. Measured over
+        every block width from each language's real window floor and the next
+        1200 px: greedy leaves **"Check alignment" alone on a full-width line
+        in all thirteen languages**, over a band 103 px wide in Chinese and
+        195 in Russian, and cuts a one-button line at the window's OWN FLOOR
+        in eleven of the thirteen (3 + 2 + 1, and 2 + 3 + 1 in French).
+        Neither is what the space allows: the same six buttons fit 3 + 3 and
+        2 + 2 + 2 in exactly the same number of lines.
+
+        So: the greedy pass decides the line COUNT — first-fit in order is
+        optimal for that — and this pass decides where the cuts go. It walks
+        every way of cutting the sequence into that many contiguous lines that
+        all fit, and takes the one whose fullest line holds the fewest items,
+        breaking ties on the widest line. Order is never changed, so the block
+        still reads and tabs in one fixed sequence at every width.
+
+        Off by default: the layout-engine preset bar in Create Chart has three
+        buttons and cannot benefit, and its shape is measured where it stands.
+        """
+        items = [it for line in lines for it in line]
+        n = len(lines)
+        if n <= 1 or len(items) <= n:
+            return lines
+        widths = [it.minimumSize().width() for it in items]
+        k = len(items)
+        prefix = [0]
+        for w in widths:
+            prefix.append(prefix[-1] + w)
+
+        def line_width(i: int, j: int) -> int:
+            return prefix[j] - prefix[i] + sp * (j - i - 1)
+
+        # dp[l][i] = the best (fullest line, widest line) for items[i:] laid
+        # out over exactly l lines; cut[l][i] is where that answer's first
+        # line ends.
+        big = (1 << 30, 1 << 30)
+        dp = [[big] * (k + 1) for _ in range(n + 1)]
+        cut = [[0] * (k + 1) for _ in range(n + 1)]
+        dp[0][k] = (0, 0)
+        for line_no in range(1, n + 1):
+            for i in range(k - 1, -1, -1):
+                for j in range(i + 1, k + 1):
+                    w = line_width(i, j)
+                    # A single item wider than the panel still gets its own
+                    # line — greedy does the same, and there is nothing else
+                    # to do with it.
+                    if w > avail and j > i + 1:
+                        break
+                    rest = dp[line_no - 1][j]
+                    if rest == big:
+                        continue
+                    cand = (max(rest[0], j - i), max(rest[1], w))
+                    if cand < dp[line_no][i]:
+                        dp[line_no][i] = cand
+                        cut[line_no][i] = j
+        if dp[n][0] == big:
+            return lines                      # nothing fits; keep greedy's
+        out: list[list] = []
+        i = 0
+        for line_no in range(n, 0, -1):
+            j = cut[line_no][i]
+            out.append(items[i:j])
+            i = j
+        return out
 
     def _line_height(self, line: list) -> int:
         return max((it.sizeHint().height() for it in line), default=0)
@@ -2721,14 +2813,40 @@ def _nav_icon(icon: QIcon, color: QColor) -> QIcon:
     return QIcon(canvas)
 
 
-def _style_file_dialog_toolbar(dlg: QFileDialog) -> None:
-    from core.settings import AppSettings
-    from ui.theme import APPEARANCE_LIGHT, resolve_mode
+def nav_arrow_ink(dlg: QFileDialog) -> QColor:
+    """The colour the file dialog's back / forward / up arrows are painted in.
 
-    # Light mode's pale toolbar washes out the light arrows that read fine on
-    # Dark mode's dark toolbar — use a near-black arrow there instead.
-    mode = resolve_mode(AppSettings().get("appearance", "auto"))
-    arrow_color = QColor("#1C1B18" if mode == APPEARANCE_LIGHT else "#e0e0e0")
+    **THE DIALOG'S OWN ``ButtonText``, not a per-appearance literal.** This used
+    to read::
+
+        mode = resolve_mode(AppSettings().get("appearance", "auto"))
+        arrow_color = QColor("#1C1B18" if mode == APPEARANCE_LIGHT else "#e0e0e0")
+
+    — the two-answer fold :func:`ui.theme.by_mode` exists to replace. Neutral is
+    not Light, so it took the *dark* branch and painted ``#e0e0e0`` arrows on
+    Neutral's ``#e2e2e2`` toolbar: **1.03:1**, three ghosts where the navigation
+    should be (Basti, 2026-09-05). Hover was 1.14:1 and pressed 1.18:1, so there
+    was no state in which they came back.
+
+    A palette role cannot make that mistake. Every appearance already declares
+    the ink it wants on its own buttons — ``LM_TEXT_MAIN``, ``TEXT_MAIN``,
+    ``NM_TEXT_MAIN`` — and a fourth appearance is right on the day it is added
+    without an edit here. It is also why the answer is not a hard-coded black:
+    Neutral's ButtonText is ``NM_TEXT_MAIN`` (``#101010``), which is hueless
+    because Neutral's whole token table is, and Dark's is light ink because
+    Dark's ground is dark.
+
+    Only the *enabled* icon is set. Qt derives the disabled one from it
+    (``QCommonStyle::generatedIconPixmap``), which keeps the disabled arrows
+    reading as disabled rather than as a second colour we would have to keep in
+    step with three palettes.
+    """
+    return dlg.palette().color(QPalette.ColorGroup.Active,
+                               QPalette.ColorRole.ButtonText)
+
+
+def _style_file_dialog_toolbar(dlg: QFileDialog) -> None:
+    arrow_color = nav_arrow_ink(dlg)
     style = dlg.style()
     for name, sp in _NAV_BUTTONS.items():
         btn = dlg.findChild(QToolButton, name)

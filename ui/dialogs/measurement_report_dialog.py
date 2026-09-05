@@ -192,10 +192,14 @@ def _is_raw_drift(r: dict) -> bool:
     """A recorded-raw verification sheet judged against the design: its job is
     drift, not accuracy — Pass/Fail against the profile thresholds would fail
     a healthy printer forever (Knut, 2026-08-11). Unrecorded sheets keep the
-    old grading: nobody knows how they were printed."""
-    return bool(r.get("is_verification")
-                and r.get("reference_source") in ("design", "device")
-                and (r.get("printing") or {}).get("colour") == "raw")
+    old grading: nobody knows how they were printed.
+
+    The rule itself moved to `workflow.measurement_report.is_drift_check` when
+    the verdict started being SAVED (#182): the verdict written into a report
+    and the verdict drawn in this window have to agree about which sheets are
+    graded at all, and a second copy of the rule would eventually not."""
+    from workflow.measurement_report import is_drift_check
+    return is_drift_check(r)
 
 
 # The table/heading pagination moved to ui/pdf_layout.py in #164, so the printed
@@ -990,9 +994,17 @@ class MeasurementReportDialog(QDialog):
                 if run_ti3.is_file():
                     try:
                         created = rep.get("created")
+                        # The verdict this report was SAVED with is a RECORD,
+                        # not a derived figure — a rebuild recomputes today's
+                        # statistics from the same measurement, and must carry
+                        # the old judgement across untouched or the rebuild
+                        # becomes the very re-grading #182 is about.
+                        kept = {k: rep[k] for k in
+                                ("pass_thresholds", "verdict") if k in rep}
                         rep = build_report(run_ti3, argyll_bin=self._argyll_bin())
                         if created:
                             rep["created"] = created
+                        rep.update(kept)
                     except Exception:  # noqa: BLE001
                         pass
             # Session-only: where this run lives on disk. Saved reports carry
@@ -1594,6 +1606,78 @@ class MeasurementReportDialog(QDialog):
         return (float(avg.value()) if avg is not None else DEFAULT_PASS_AVG,
                 float(mx.value()) if mx is not None else DEFAULT_PASS_MAX)
 
+    # ---- the verdict a report was SAVED with, not the one today's spin
+    # ---- boxes would give it (#182) ------------------------------------
+    #
+    # The thresholds are a GLOBAL setting, re-read every time this window is
+    # built, and until 4.1.5-beta.9 a saved report stored neither them nor the
+    # verdict it was given. So nudging one spin box silently re-graded every
+    # historical report the user had ever made, and a dated record that
+    # changes its own verdict after the fact is not a record.
+    #
+    # Knut, #182, 2026-09-04: *"Verdict should be saved for each dated run."*
+    #
+    # A report that carries a recorded verdict shows THAT, and the spin boxes
+    # cannot move it. A report saved before this existed has none, so it is
+    # still judged live — blanking it would delete a working feature from every
+    # report on disk — but it says so, in the row the grid grew for it and in
+    # the note under its own accuracy table. What it must never do is claim in
+    # silence to have been judged by numbers that were set years later.
+
+    def _recorded(self, r: dict) -> "dict | None":
+        """The verdict *r* was saved with, or None if it carries none."""
+        from workflow.measurement_report import recorded_verdict
+        return recorded_verdict(r)
+
+    def _verdict_rows(self, r: dict) -> "tuple[list, bool]":
+        """``(rows, recorded)`` for one run's colour-accuracy verdict.
+
+        *recorded* is True when the rows come off the saved report and False
+        when they were worked out just now from the window's thresholds. The
+        rows are copied, because callers blank them for a drift check.
+        """
+        rec = self._recorded(r)
+        if rec is not None:
+            return [dict(x) for x in rec["rows"]], True
+        from workflow.measurement_report import accuracy_verdict, graded_de00
+        avg_thr, max_thr = self._thresholds()
+        return accuracy_verdict(graded_de00(r)[0], avg_thr, max_thr)[0], False
+
+    def _verdict_provenance(self, r: dict, recorded: bool) -> str:
+        """The sentence under one run's accuracy table saying where its Pass
+        and Fail came from — the saved record, or this window, now."""
+        from workflow.measurement_report import recorded_thresholds
+        thr = recorded_thresholds(r)
+        if recorded and thr:
+            return tr(
+                "This verdict was recorded when the report was saved, against "
+                "an average threshold of {avg} ΔE00 and a maximum of {max}. It "
+                "is what this measurement was judged to be at the time, so the "
+                "thresholds set at the top of this window do not change it."
+            ).format(avg=f"{thr[0]:.1f}", max=f"{thr[1]:.1f}")
+        avg_thr, max_thr = self._thresholds()
+        return tr(
+            "Nothing is wrong with this report. It was saved by a version of "
+            "ChromIQ that did not yet keep the verdict together with the "
+            "measurements, so no Pass or Fail of its own was stored for it. "
+            "The results above are therefore worked out now, against the "
+            "thresholds set at the top of this window ({avg} and {max} "
+            "ΔE00): they are not the verdict this sheet was given on the day "
+            "it was measured, and changing those thresholds will change them."
+        ).format(avg=f"{avg_thr:.1f}", max=f"{max_thr:.1f}")
+
+    def _thresholds_cell(self, r: dict) -> str:
+        """The Report Results row that says what a column was judged against."""
+        from workflow.measurement_report import recorded_thresholds
+        if _is_raw_drift(r):
+            txt = "—"
+        else:
+            thr = recorded_thresholds(r)
+            txt = (f"{thr[0]:.1f} / {thr[1]:.1f}" if thr
+                   else tr("not recorded"))
+        return (f"<td align='center' style='color:{_C['faint']};"
+                f"font-size:10px'>{html.escape(txt)}</td>")
+
     def _runs_for_report(self) -> list:
         """Every saved run of the loaded printer(s) when 'Show all measurement
         runs' is on, else just the loaded one. The same list drives the window
@@ -1872,17 +1956,8 @@ class MeasurementReportDialog(QDialog):
         """Report Results: a Pass/Fail grid, rows = the five threshold metrics,
         columns = dated runs (≤6 per table, continuing below). Pass green, Fail
         red (Knut)."""
-        from workflow.measurement_report import accuracy_verdict
         avg_thr, max_thr = self._thresholds()
-        # A run with the in/out-of-gamut split is judged on its WITHIN-gamut
-        # figures: colours outside the gamut were never printable, so grading
-        # them against the thresholds would fail a healthy profile for its
-        # paper (Knut, 2026-08-10). Runs without a split keep the old verdict.
-        verd = {id(r): {x["key"]: x["pass"]
-                        for x in accuracy_verdict(
-                            ((r.get("gamut_split") or {}).get("de00_in"))
-                            or r.get("de00") or {},
-                            avg_thr, max_thr)[0]}
+        verd = {id(r): {x["key"]: x["pass"] for x in self._verdict_rows(r)[0]}
                 for r in runs}
 
         def pf(r, key):
@@ -1921,17 +1996,35 @@ class MeasurementReportDialog(QDialog):
                 "counted against it.")
         # Always start Report Results on a fresh page — the how-to-read section
         # can be long, so it reads cleaner on its own page (Knut).
+        # One row saying what each column was judged against, so a recorded
+        # verdict and a live one can never be read as the same thing (#182).
+        row_getters.append((tr("Pass thresholds"), self._thresholds_cell))
+        note_css = f"color:{_C['faint']};font-size:10px;margin-top:2px"
         drift_note = ""
         if any(_is_raw_drift(r) for r in runs):
             drift_note = (
-                f"<div style='color:{_C['faint']};font-size:10px;"
-                "margin-top:2px'>" + html.escape(tr(
+                f"<div style='{note_css}'>" + html.escape(tr(
                     "Columns marked “drift” are sheets printed raw, without "
                     "the profile — they are not expected to match the design "
                     "closely, so Pass and Fail would be unfair to a "
                     "perfectly healthy printer. For those sheets the "
                     "detailed chapter shows how far the printer has moved "
                     "since the previous raw check instead.")) + "</div>")
+        # APPENDED, never assigned: a report can hold a raw-drift sheet AND a
+        # column with no recorded verdict, and the first draft of this block
+        # overwrote the drift note whenever it did.
+        if any(self._recorded(r) is None and not _is_raw_drift(r) for r in runs):
+            drift_note += (
+                f"<div style='{note_css}'>" + html.escape(tr(
+                    "A column whose thresholds read “not recorded” is not a "
+                    "fault, and nothing is missing from it. That report was "
+                    "saved by a version of ChromIQ that did not yet keep the "
+                    "verdict together with the measurements, so its Pass and "
+                    "Fail are worked out now, against the thresholds set in "
+                    "this window — and moving those thresholds will change "
+                    "them. Every report saved from now on keeps the verdict "
+                    "it was given on the day, and the thresholds above no "
+                    "longer change it.")) + "</div>")
         return (_h2(tr("Report Results"), page_break=True) + _gap()
                 + f"<div style='color:{_C['dim']};margin-bottom:4px'>" + html.escape(intro)
                 + "</div>" + _gap()
@@ -2290,8 +2383,6 @@ class MeasurementReportDialog(QDialog):
         if produced:
             parts.append(produced)
         if de.get("avg_all") is not None:
-            from workflow.measurement_report import accuracy_verdict
-            avg_thr, max_thr = self._thresholds()
             split = r.get("gamut_split")
             d_in = (split or {}).get("de00_in") or {}
             d_out = (split or {}).get("de00_out") or {}
@@ -2300,7 +2391,10 @@ class MeasurementReportDialog(QDialog):
             # a property of the gamut, not an error of the profile (Knut,
             # 2026-08-10). In the detailed chapter the groups may sit
             # side-by-side as columns (his layout ruling).
-            rows, _ = accuracy_verdict(d_in if split else de, avg_thr, max_thr)
+            #
+            # #182: a report saved with its verdict shows THAT verdict and the
+            # thresholds it was given, whatever the spin boxes say today.
+            rows, recorded = self._verdict_rows(r)
             raw_drift = _is_raw_drift(r)
             if raw_drift:
                 # A drift check is never graded against the profile
@@ -2359,6 +2453,11 @@ class MeasurementReportDialog(QDialog):
             parts.append("<table cellpadding='5' cellspacing='0' "
                          "style='border-collapse:collapse;font-size:11px'>"
                          + "".join(trs) + "</table>")
+            if not raw_drift:
+                parts.append(
+                    f"<p style='color:{_C['faint']};font-size:10px'>"
+                    + html.escape(self._verdict_provenance(r, recorded))
+                    + "</p>")
             if raw_drift:
                 rd = r.get("raw_drift") or {}
                 if rd.get("baseline"):
