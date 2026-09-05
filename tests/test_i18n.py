@@ -542,19 +542,30 @@ def test_every_deliberate_exception_says_why():
 # entries under that one flag. German is translated for all four and does not
 # move. The eleven carry the English source: new wording in a beta, and it is
 # PROPOSED wording besides. These are each language's ACTUAL count.
+# +10 each in the eleven, 0 in German, 2026-09-05 (AGENT BJ, second commit):
+# the -ua help. Eleven keys arrive and five retire — the printer-mode help, the
+# scanner-profile help, the "Which source?" help, the white-point help, the
+# "Restrict" help, three new help-card steps, the standard-mode explanation of
+# why "Profile my printer from this scan" is not offered there, and the visible
+# line in the printer box. Knut, beta 9: *"this is really an important detail
+# that the workflow steps in help cards and help descriptions must be clear
+# about"* — he wrote his own colprof command with -ua in it and still had to
+# relearn why. German is translated for all eleven and does not move. The
+# eleven catalogues carry the English source: new wording in a beta, and
+# PROPOSED wording besides. These are each language's ACTUAL count.
 _IDENTICAL_TO_KEY = {
     "de": 152,
-    "es": 373,
-    "fr": 393,
-    "it": 385,
-    "ja": 362,
-    "nl": 402,
-    "no": 386,
-    "pl": 377,
-    "pt": 377,
-    "ru": 349,
-    "sv": 390,
-    "zh_CN": 355,
+    "es": 383,
+    "fr": 403,
+    "it": 395,
+    "ja": 372,
+    "nl": 412,
+    "no": 396,
+    "pl": 387,
+    "pt": 387,
+    "ru": 359,
+    "sv": 400,
+    "zh_CN": 365,
 }
 
 

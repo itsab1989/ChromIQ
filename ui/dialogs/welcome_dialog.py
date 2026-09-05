@@ -671,6 +671,18 @@ WORKFLOWS: list[dict] = [
                 "colour-managed prints, print a fresh chart through your normal "
                 "print workflow, measure THAT sheet, and profile from it — its "
                 "colours then match what you actually scan."), True),
+            (3, tr("Building this profile to MEASURE with — to use the scanner "
+                "in place of a spectrophotometer, as “Profile my printer with "
+                "a flatbed scanner” does? Then it needs different settings from "
+                "the ones above: Profile type “cLUT — XYZ table”, Quality "
+                "“High”, and Advanced… ▸ White Point Handling on “Force "
+                "Absolute Colorimetric (-ua)”, which makes the profile report "
+                "the colour that is really there rather than colour relative to "
+                "your target's white patch. Keep it as a separate file: a "
+                "profile built for measuring makes everyday scans look dark and "
+                "slightly tinted, and a profile built for everyday scanning "
+                "quietly clips everything brighter than the target's white "
+                "board when you measure with it."), True),
         ],
     },
     {
@@ -684,6 +696,43 @@ WORKFLOWS: list[dict] = [
                 "camera” workflow once (from a measured ChromIQ chart or a "
                 "standard target you own); the scanner profile is reused for "
                 "every printer profile you build this way.")),
+            # KNUT, beta 9: he wrote his own reference colprof command with
+            # `-ua` in it and annotated why, and still said *"I totally forgot
+            # all this, and had to relearn all of it now, so this is really an
+            # important detail that the workflow steps in help cards and help
+            # descriptions must be clear about"*. It was in no card at all.
+            (3, tr("Build that scanner profile FOR MEASURING, which is not the "
+                "same as building one to make scans look right — this is the "
+                "step people miss, and nothing later can repair it. In Tools ▸ "
+                "Build profile with scanner or camera set Profile type to "
+                "“cLUT — XYZ table” (about twice as accurate as the default "
+                "“Shaper + matrix”: 0.48 against 0.91 average ΔE00 on a real "
+                "IT8 scan), Quality to “High” (worth about 30 % on its own — "
+                "the biggest single gain there is), and, under Advanced…, "
+                "White Point Handling to “Force Absolute Colorimetric (-ua)”. "
+                "That last one tells the profile to report the colour that is "
+                "really there, measured against a perfect white surface, "
+                "instead of reporting it relative to the white patch of the "
+                "target you scanned — which is what a measuring instrument has "
+                "to do. ArgyllCMS asks for the same flag whenever an input "
+                "profile is used “as a substitute for a colorimeter”.")),
+            (3, tr("Why it matters, in one sentence: your target's white board "
+                "is not as white as your paper — a photographic IT8 measures "
+                "about 84 % reflectance, most inkjet and office paper is "
+                "brighter — so a profile that calls the target's white “white” "
+                "has no room left to describe your paper. With a “cLUT — Lab "
+                "table” profile that is fatal: your paper white and every "
+                "light tint on the sheet are measured as one and the same "
+                "colour. With the “cLUT — XYZ table” recommended above it is "
+                "much milder, because ChromIQ already reads your scan through "
+                "the profile absolutely — but set the flag anyway. It costs "
+                "nothing, and it makes the profile say what it is for.")),
+            (3, tr("Keep that measuring profile as a separate file, with a "
+                "name that says so. Built this way it makes ordinary scans arrive "
+                "darker and keeps the slight tint of your target's paper — "
+                "right for measuring, wrong for photographs — so it is not the "
+                "profile you want your scanning software to use day to day."),
+             True),
             (1, tr("On the Create Chart tab, create a chart for your printer "
                 "and paper. A ChromIQ layout-engine chart is ideal — its patch "
                 "geometry travels with the chart, so the reading grid knows "

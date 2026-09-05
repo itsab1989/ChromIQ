@@ -543,6 +543,30 @@ def _remove_empty_icc(icc: Path) -> None:
         log.warning("could not remove the empty %s left by a failed build", icc)
 
 
+class _WrapHint(QLabel):
+    """A word-wrapped hint that actually claims the height its text needs.
+
+    A QLabel's ``sizeHint`` for wrapped text is a heuristic, not
+    ``heightForWidth`` — and this window's left column is a FIXED-WIDTH pane
+    inside a scroll area, so nothing downstream corrects the guess. Measured on
+    screen 2026-09-05, with a three-line hint added under the scanner-profile
+    field: the label was allotted **39 px** where its own ``heightForWidth``
+    said **51**, painted 12 px of itself straight across the field above it,
+    and squeezed the rows below until "Chart geometry" lost 13 px to the label
+    under it. Two overlapping widgets where the same window had none.
+
+    Re-claiming the height on every resize makes the column grow instead. The
+    guard matters: ``setMinimumHeight`` invalidates the layout, and setting it
+    unconditionally inside ``resizeEvent`` is a loop.
+    """
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        want = self.heightForWidth(self.width())
+        if want > 0 and want != self.minimumHeight():
+            self.setMinimumHeight(want)
+
+
 class ScannerProfileDialog(_ToolDialogBase):
     TOOL_KEY    = "scanner_profile"
     TITLE       = tr("Build profile with scanner or camera")
@@ -787,6 +811,17 @@ class ScannerProfileDialog(_ToolDialogBase):
         lbl.setStyleSheet(f"color:{self._hint}; font-size:12px;")
         return lbl
 
+    def _tall_hint_label(self, text: str) -> QLabel:
+        """`_hint_label` for a hint long enough to wrap — see `_WrapHint`.
+
+        The plain one is kept for the short notes that were already on screen
+        and already fit: changing every hint in the window would move rows the
+        regression sweep measures, for no fault anyone has reported."""
+        lbl = _WrapHint(text, self)
+        lbl.setWordWrap(True)
+        lbl.setStyleSheet(f"color:{self._hint}; font-size:12px;")
+        return lbl
+
     def _standard_mode(self) -> bool:
         return self._mode_standard.isChecked()
 
@@ -826,13 +861,31 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._mode_group.addButton(self._mode_standard)
         tip = self._tip(
             tr("Which source?"),
-            tr("Two ways to profile a scanner:\n\n"
-            "• A chart I made in ChromIQ — print and measure a chart, then scan "
-            "the print. ChromIQ already knows its exact patch colours.\n\n"
-            "• A standard target I own — a bought reflective target such as a "
-            "Wolf Faust IT8, LaserSoft or X-Rite ColorChecker. Pick its type and "
-            "the reference data file that came with your target (.cie / .txt), "
-            "then scan it. No printing or measuring needed."))
+            tr("Two ways to profile a scanner or camera — and only one of them "
+            "can also profile your printer.\n\n"
+            "• A chart you printed yourself — the option labelled “A chart I "
+            "made in ChromIQ”. Print and measure a chart, then scan the print; "
+            "ChromIQ already knows its exact patch colours.\n"
+            "Despite that label, this option is not limited to ChromIQ's own "
+            "charts. ANY chart you printed yourself belongs here, including one "
+            "made in another program — i1Profiler, ProfileMaker, or ArgyllCMS's "
+            "printtarg on the command line. Pick its .ti2 and, if there is no "
+            "ChromIQ layout file beside it, ChromIQ asks you for the .cht page "
+            "files that came with it instead.\n"
+            "This is also the only option that can build a profile for your "
+            "PRINTER, and the reason is the .ti2: that file lists the exact "
+            "colour values that were sent to the printer, and a printer profile "
+            "is built by comparing those values with what actually came out on "
+            "paper. Without it there is nothing to compare the scan against.\n\n"
+            "• A target you bought — the option labelled “A standard target I "
+            "own”. A reflective target such as a Wolf Faust IT8, a LaserSoft "
+            "target or an X-Rite ColorChecker. Pick its type and the reference "
+            "data file that came with it (.cie / .txt), then scan it. No "
+            "printing or measuring needed.\n"
+            "This profiles your SCANNER or CAMERA only. The target was printed "
+            "and measured by its manufacturer, not by your printer, so nothing "
+            "about it can describe how your printer behaves — which is why "
+            "“Profile my printer from this scan” is not offered on this side."))
         # The two options go on their own lines UNDER the question rather than
         # trailing after it. On one line the row has to be as wide as the label
         # plus BOTH options — 717 px in German — and it sits in the fixed-width
@@ -855,6 +908,23 @@ class ScannerProfileDialog(_ToolDialogBase):
             line.addWidget(_r)
             line.addStretch(1)
             col.addLayout(line)
+        # WHY THE PRINTER OPTION VANISHES, said out loud (Knut, beta 9).
+        # Switching to a standard target hid "Profile my printer from this
+        # scan" with no word of explanation, in a window whose own subtitle —
+        # still on screen in that mode — promises "…or, from a scan of a chart
+        # you printed, a profile for your printer". He read that as the option
+        # being missing rather than inapplicable, and asked for it to be
+        # available for both. It cannot be: a bought target carries no record
+        # of what was sent to a printer. So say so, and say where to go.
+        self._mode_note = self._tall_hint_label(tr(
+            "“Profile my printer from this scan” is not offered for a bought "
+            "target: nobody printed it on your printer, so there is no record "
+            "of the colour values that went in, and nothing to compare the "
+            "scan against. For that, choose “A chart I made in ChromIQ” above "
+            "— which also accepts a chart made in another program, as long as "
+            "you have its .ti2 and its .cht page files."))
+        self._mode_note.setVisible(False)
+        col.addWidget(self._mode_note)
         form.addLayout(col)
         self._mode_chromiq.toggled.connect(self._on_mode_changed)
 
@@ -878,11 +948,51 @@ class ScannerProfileDialog(_ToolDialogBase):
             "and ChromIQ reads the patches and measures their colour through a "
             "scanner profile you made earlier. That gives colprof what it needs to "
             "build a printer profile — no spectrophotometer required.\n\n"
-            "What you need first: a profile for THIS scanner. Build one in the normal "
-            "scanner mode from a bought target (an IT8 or LaserSoft sheet). The "
-            "printer profile is only as good as that scanner profile, so make a solid "
-            "one first — and note the chicken-and-egg: profile the scanner off a "
-            "bought target, then use it to profile the printer.\n\n"
+            "What you need first: a profile for THIS scanner — and it has to be "
+            "built FOR THIS JOB, which is not the same as one built to make scans "
+            "look right. Build it in this window's ordinary scanner mode, from a "
+            "bought target (an IT8 or LaserSoft sheet), and set three things "
+            "before you press Build:\n\n"
+            "• Profile type: “cLUT — XYZ table”. A cLUT (colour look-up table) is "
+            "the detailed kind of profile — instead of one curve and a 3×3 matrix "
+            "it stores a whole grid of measured colours. Measured on a real IT8 "
+            "scan it is about twice as accurate as the “Shaper + matrix” type this "
+            "window offers by default: 0.48 against 0.91 average ΔE00. Do NOT pick "
+            "“cLUT — Lab table” for this: a Lab table cannot record anything "
+            "lighter than your target's own white patch, so every patch on your "
+            "print brighter than that is measured as the same colour.\n\n"
+            "• Quality: “High”. This is the single biggest improvement available "
+            "— on that same scan it cut the average error by about 30 % (0.48 to "
+            "0.34 ΔE00), more than any white-point setting. It costs a few extra "
+            "minutes of build time and nothing else.\n\n"
+            "• Advanced… ▸ White Point Handling: “Force Absolute Colorimetric "
+            "(-ua)”. Absolute colorimetric means the profile reports the colour "
+            "that is really there, measured against a perfect white surface, "
+            "instead of reporting it relative to your target's own white patch. "
+            "That is what you want from an instrument. Left on the default, the "
+            "profile calls your target's white “white” — and a photographic IT8's "
+            "board measures only about 84 % reflectance, so most inkjet and office "
+            "paper is brighter than it. ArgyllCMS says the same in its own "
+            "documentation: “If the purpose of the input profile is to use it as a "
+            "substitute for a colorimeter, then the -ua flag should be used to "
+            "force Absolute Colorimetric intent, and avoid clipping colors above "
+            "the test chart white point.”\n"
+            "Honest about the size of it: with the XYZ table above, ChromIQ's own "
+            "reading of your scan already asks the profile for absolute colour, so "
+            "-ua changes what ChromIQ measures only a little (about 0.5 ΔE00 over "
+            "a test grid, measured here). With the Lab table it is the difference "
+            "between a usable measurement and a ruined one, and in any other "
+            "program it is the difference between a profile that reports colour "
+            "and one that reports colour relative to a chart. It costs nothing. "
+            "Set it.\n\n"
+            "A scanner profile built this way is a different thing from one built "
+            "to open scans that already look finished: it makes ordinary scans "
+            "arrive darker and keeps the slight tint of your target's paper. That "
+            "is correct for measuring and wrong for looking at, so keep it as a "
+            "separate file with a name that says what it is for.\n\n"
+            "The printer profile is only as good as that scanner profile — and "
+            "note the chicken-and-egg: profile the scanner off a bought target "
+            "first, then use it to profile the printer.\n\n"
             "Honest expectations: a scanner-based printer profile is great for "
             "clearing colour casts and making everyday prints look better, but it "
             "won't match a profile made with a real spectrophotometer. For critical "
@@ -916,9 +1026,26 @@ class ScannerProfileDialog(_ToolDialogBase):
             "You built this earlier in the normal scanner mode: scan a bought target "
             "(an IT8 or LaserSoft sheet), press Build, and you get a scanner .icc. "
             "Pick that file here.\n\n"
-            "Without it, the scan would be raw scanner colour — carrying the "
-            "scanner's own cast — and the printer profile would come out wrong. "
-            "That's why it's required for this mode.")))
+            "Not every scanner profile is a good instrument, though, and ChromIQ's "
+            "own defaults are tuned for making scans look right rather than for "
+            "measuring. A profile meant for this job should have been built with "
+            "Profile type “cLUT — XYZ table”, Quality “High”, and Advanced… ▸ "
+            "White Point Handling set to “Force Absolute Colorimetric (-ua)” — the "
+            "setting that makes the profile report the colour that is really "
+            "there, against a perfect white surface, instead of reporting it "
+            "relative to the white patch of the target you scanned. ArgyllCMS asks "
+            "for that flag whenever an input profile is used “as a substitute for "
+            "a colorimeter”. The ⓘ beside “Profile my printer from this scan” "
+            "above explains all three, and what each is worth.\n\n"
+            "If the profile you pick here was built the ordinary way it will still "
+            "work — it is not rejected, and with a “cLUT — XYZ table” profile "
+            "the difference is small. It is a “cLUT — Lab table” profile built "
+            "the ordinary way that does real damage: it cannot record anything "
+            "lighter than the target's own white patch, so your paper white and "
+            "the lightest tints all read as one colour.\n\n"
+            "Without any profile at all, the scan would be raw scanner colour — "
+            "carrying the scanner's own cast — and the printer profile would come "
+            "out wrong. That's why it's required for this mode.")))
         prow = QHBoxLayout()
         self._printer_prof_field = QLineEdit(self)
         self._printer_prof_field.setReadOnly(True)
@@ -3216,8 +3343,13 @@ class ScannerProfileDialog(_ToolDialogBase):
                 self._load_page_grid()
             else:
                 self._marquee.set_grid(GridSpec([]))
-        # Printer mode is only meaningful with a ChromIQ chart (needs its .ti2).
+        # Printer mode needs the chart's .ti2 — the device values that were sent
+        # to the printer — and a bought standard target has none: it was printed
+        # and measured by its manufacturer. The gate stays; what changed (Knut,
+        # beta 9) is that hiding the tick in silence read as a missing feature,
+        # so `_mode_note` now says why and where to go instead.
         self._printer_cb.setVisible(not std)
+        self._mode_note.setVisible(std)
         if std:
             self._printer_cb.setChecked(False)
         # A standard-target scanner profile and a ChromIQ-chart scanner profile
@@ -3233,8 +3365,51 @@ class ScannerProfileDialog(_ToolDialogBase):
         instrument) — only offered for a ChromIQ chart, which carries the .ti2."""
         return not self._standard_mode() and self._printer_cb.isChecked()
 
+    #: Said in the LOG the moment printer mode is switched on — Knut, beta 9:
+    #: *"the workflow steps in help cards and help descriptions must be clear
+    #: about"* the -ua requirement. He wrote his own reference colprof command
+    #: with `-ua` in it, annotated why, and still had to relearn it; help
+    #: nobody opens is help nobody has, so this is said without being asked.
+    #:
+    #: IT IS A LOG LINE AND NOT A LABEL IN THE PANEL, AND THAT IS MEASURED.
+    #: The left column has no vertical room left on a 1079-px screen: the
+    #: dialog is already capped at 934, `_chromiq_box` gets 708 px against a
+    #: 734-px sizeHint, and the moment ANY widget is added the layout falls
+    #: back to minimums its sub-boxes under-report — `_printer_box` was drawn
+    #: 35 px tall where its own minimumSizeHint is 76, putting the scanner
+    #: profile field straight through the text under it (2026-09-05: two
+    #: overlapping widget pairs, against none on the same window without the
+    #: label; even a single 17-px line did it). That under-reporting is
+    #: pre-existing and is reported separately; nothing here should wait on it.
     def _on_printer_toggled(self, checked: bool) -> None:
         self._printer_box.setVisible(checked)
+        if checked:
+            # KNUT, beta 9: *"the workflow steps in help cards and help
+            # descriptions must be clear about"* the -ua requirement. He wrote
+            # his own reference colprof command with `-ua` in it, annotated
+            # why, and still had to relearn it — so ChromIQ says it unasked,
+            # the moment the tick goes on, rather than waiting to be clicked.
+            #
+            # IT IS A LOG LINE AND NOT A LABEL IN THE PANEL, AND THAT IS
+            # MEASURED, not a preference. The left column has no vertical room
+            # left on a 1079-px screen: the window is already capped at 934 px
+            # and `_chromiq_box` gets 696 px against a 709-px sizeHint, so
+            # adding a wrapping hint under the scanner-profile field put it
+            # through the field above and through the label below — three
+            # overlapping widget pairs against none without it (2026-09-05,
+            # geometry read off the live window). Making the column fit
+            # another row is a layout change this window's regression sweep
+            # measures, and it is not what Knut asked for.
+            #
+            # `tr()` goes around the LITERAL: the extractor only sees literals,
+            # and a body it cannot see would ship untranslated.
+            self._log.appendPlainText(tr(
+                "Note — the scanner profile you pick has to have been built as "
+                "a measuring instrument, which is not ChromIQ's default: "
+                "Profile type “cLUT — XYZ table”, Quality “High”, and "
+                "Advanced… ▸ White Point Handling on “Force Absolute "
+                "Colorimetric (-ua)”. The ⓘ beside the tick explains what each "
+                "is worth, and what happens without them."))
         # The Chart-geometry (.cht) row only matters in printer mode (#105).
         self._byo_row_w.setVisible(checked)
         self._refresh_shot_bar()   # averaging affordances hide in printer mode

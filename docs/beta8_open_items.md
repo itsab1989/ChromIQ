@@ -2602,3 +2602,144 @@ came back to it.
   wording is Basti's ruling and a proposed message costs a translation in
   thirteen languages.
 - evidence: test_a_check_knows_the_profile_it_judges.py
+
+### B8-68 · The white-point help told the user that a scale of 1.00 changes nothing, and it changes everything
+- blocks release: no
+- status: FIXED
+- found by: Knut, beta 9, by following the instruction and building a profile he
+  did not intend; root-caused by AGENT BG (`beta 9/knut-whitepoint/REPORT.md`)
+- what was wrong: `ui/dialogs/scanner_colprof.py` said, of the manual
+  white-point scale, *"1.00 makes no change."* ArgyllCMS sets `autowpsc = 1`
+  **before** it reads the number (`colprof.c:494`) and defaults the scale to 1.0
+  anyway (`xfit.c:2753`), so `-u 1` builds byte-for-byte the same profile as a
+  bare `-u`. Built both from a real IT8 scan: `wtpt 1.591736 1.624054 1.343185`,
+  identical. The worked example under it was inverted too — it offered 0.90 as
+  the way to keep a slightly darker white white, and `-u 0.9` measures a white
+  point of Y **1.461655**, a scan about **44 % darker**. And the list itself had
+  **two entries labelled "(-u)"**: "Auto-scale to avoid clipping (-u)" and
+  "Manual white-point scale (-u)", one flag with a number after it.
+- fix: the corrected tooltip says what a scale of 1.00 really is (the automatic
+  scaling, unaltered — i.e. "Auto-scale to avoid clipping"), names the option
+  that really does leave white alone, and gives the measured 0.90 figure as a
+  warning rather than a recipe. The second entry is now "(-u scale)".
+- **shipped as its own commit, ahead of the wider rewrite**, because a knowingly
+  false sentence should not wait behind a wording discussion.
+- evidence: 8 tests in `the_white_point_help_states_a_true_fact.py` —
+  `test_the_help_no_longer_says_a_scale_of_one_changes_nothing`,
+  `test_the_help_says_what_a_scale_of_one_really_is`,
+  `test_the_inverted_worked_example_is_gone`,
+  `test_no_two_white_point_options_are_labelled_with_the_same_flag` and
+  `test_the_manual_scale_option_says_it_takes_a_number`. Four mutations, each
+  proved present on disk before the run: restoring the false sentence, the
+  duplicate label, the false bullet, or dropping the i18n anchors each turns it
+  red.
+
+### B8-69 · Nothing anywhere said a scanner profile used as a measuring instrument has to be BUILT as one
+- blocks release: no
+- status: FIXED
+- found by: Knut, beta 9 — *"the scanner profile help … does not mention that
+  the profile to be selected must have been created using the -ua attribute
+  before using it for profiling a printer. This also goes for the help cards"*,
+  and then: *"I totally forgot all this, and had to relearn all of it now, so
+  this is really an important detail that the workflow steps in help cards and
+  help descriptions must be clear about"*
+- why it matters: he wrote his own reference `colprof` command with `-ua` in it
+  and annotated why. He still forgot. Nobody else has a chance.
+- **measured before a word of it was written**, because `scanin` reads the
+  scanner ICC with `icAbsoluteColorimetric`, hard-coded (`scanin.c:1029`), so
+  "does `-ua` matter for ChromIQ's own path?" is an empirical question. Six
+  profiles from Knut's 864-patch scan, each looked up the way scanin looks them
+  up (`xicclu -ff -ia -px`), in `beta 9/printer-from-scan/measure/`:
+  * **cLUT — Lab table, default white point: the table FLATTENS.** Device 0.76 /
+    0.80 / 0.85 / 0.90 / 1.00 all read Y 0.833 — one colour. With `-ua`:
+    0.915 / 0.973 / 1.009 / 1.009 / 1.009. Everything on a printed sheet
+    brighter than the target's own white board is measured as the same colour.
+  * **cLUT — XYZ table: no flattening** (0.917 → 1.624); `-ua` moves what
+    ChromIQ measures by about 0.5 ΔE00 over a test grid.
+  * accuracy: `-ax -qm` 0.484 ΔE00 vs `-as -qm` 0.913; `-ax -qh` 0.337. **Quality
+    High is the biggest single lever**, and ChromIQ's scanner defaults are
+    shaper+matrix at Medium — neither right for this job.
+- fix: the three settings (type, quality, white point) are now named in the
+  printer-mode ⓘ, in the ⓘ beside the scanner-profile field, in **both** help
+  cards, and — unasked — in the log the moment the tick goes on. `_TIP_WP` and
+  `_TIP_R` are rewritten on the same measurements, including that "Restrict
+  white, black and primaries" cannot restrict primaries on a cLUT and does
+  nothing at all beside `-ua` (identical transforms, measured).
+- **all of this wording is PROPOSED, not approved.** Basti rules on it.
+- one thing it is NOT: a label in the panel. The left column measurably has no
+  room — on a 1079-px screen the window is capped at 934 and `_chromiq_box` gets
+  696 px against a 709-px sizeHint, so a wrapping hint under the scanner-profile
+  field was drawn through the field above and the label below (three overlapping
+  widget pairs, against none without it). Worth a separate look; not a regression.
+- evidence: `the_scanner_profile_must_be_built_for_measuring.py` —
+  `test_the_three_settings_are_named_the_way_the_window_spells_them`,
+  `test_the_printer_mode_help_names_all_three_settings`,
+  `test_the_printer_mode_help_warns_about_the_lab_table`,
+  `test_the_printer_mode_help_quotes_argylls_own_instruction`,
+  `test_the_scanner_profile_help_repeats_the_requirement`,
+  `test_ticking_the_box_says_the_requirement_without_being_asked`,
+  `test_the_printer_from_scan_card_names_all_three_settings`,
+  `test_the_scanner_profile_card_points_at_the_measuring_settings`.
+  Twelve mutations, each proved on disk, each red.
+
+### B8-70 · "Profile my printer from this scan" is gated on the chart's origin — the gate is right, its silence was not
+- blocks release: no
+- status: FIXED
+- found by: Knut, beta 9 — *"the option 'Profile my printer from this scan' is
+  only available when 'A chart I made in ChromIQ' is selected. This should be
+  possible to do whatever target a user has"*
+- **verdict: the gate is technically justified and stays.** Printer mode is
+  `scanin -c <scan> <cht> <scanner.icc> <pbase>` and reads `<pbase>.ti2` — the
+  table of device values that were sent to the printer. A bought standard target
+  has no such table: it was printed and measured by its manufacturer, and its
+  reference file (.cie/.txt/.ti3/.cxf) says what the target *is*, never what any
+  printer was asked to make. The standard-target branch has no device-value input
+  at all, by construction.
+- what WAS wrong: switching to a standard target made the tick vanish with no
+  word, in a window whose own subtitle — still on screen in that mode — promises
+  *"…or, from a scan of a chart you printed, a profile for your printer"*.
+  Verified on screen: 31 visible labels in standard mode, not one explaining it.
+- and the thing Knut actually needs **already exists and is undiscoverable**: the
+  radio says "A chart I made in ChromIQ", but #105's bring-your-own-`.cht` path
+  accepts a chart made in **any** program, given its `.ti2` and printtarg's
+  `.cht` pages. Standard mode now says both — why the option is not there, and
+  that the other side is not ChromIQ-only.
+- the redesign Knut proposed on top of this is B8-71.
+- evidence: `the_printer_option_says_why_it_is_gone.py` —
+  `test_the_gate_itself_is_unchanged`,
+  `test_standard_mode_now_says_why_the_printer_option_is_not_there`,
+  `test_the_explanation_and_the_tick_are_never_both_shown_or_both_hidden`,
+  `test_the_source_help_says_a_chart_from_another_program_belongs_there`
+
+### B8-71 · "Usage Scenario:" — let the user say what the profile is for and let the window set it up
+- blocks release: no
+- status: DEFERRED
+- proposed by: Knut, beta 9 — *"I think we could make the 'Profile my printer
+  from this scan' option a part of several user cases, maybe called 'Usage
+  Scenario:' as a heading … (this option pre-selects the -ua attribute … and
+  user does not need to specifically remember to select it)"*
+- why it is the stronger answer to B8-69: that fix makes the `-ua` requirement
+  visible. This makes it unnecessary to remember. Knut, who wrote his own
+  annotated `colprof` commands, forgot it anyway — a design that removes the
+  need to remember beats a sentence explaining it.
+- **designed, not built**: `beta 9/printer-from-scan/USAGE-SCENARIO-DESIGN.md`,
+  with five mockups driven from the real window. It answers: the taxonomy holds
+  with one correction (scenarios 2 and 3 are step one and step two of one job
+  and must read that way, or a user picks 3 first and is stuck); scenario 1
+  pre-selects **today's defaults unchanged** — deliberately, since moving
+  everyday scanning to a cLUT is a separate decision with a migration behind it;
+  scenario 2 pre-selects cLUT — XYZ / Quality High / `-ua`, all three measured,
+  and NOT "Restrict white, black and primaries", which is a measured no-op
+  beside `-ua`; scenario 3 changes no setting at all. Pre-select, never lock,
+  and name the divergence when the user overrides it. The B8-70 gate becomes a
+  greyed option with its reason beside it instead of a vanishing control.
+- decided by: AGENT BJ referred it to Basti, 2026-09-05
+- because: it is a new control carrying new user-facing wording, which is
+  Basti's ruling and not an agent's; it costs about 15 i18n keys across thirteen
+  catalogues and a rewrite of both help cards; it needs a stored-setting
+  migration whose one hard rule is that an existing target must NOT have a
+  scenario applied on first open, or its next profile silently changes; and it
+  has a layout prerequisite, because the left pane of this window does not
+  scroll when it runs out of room, it overlaps (measured under B8-69). Building
+  it before any of that is settled would ship a control that moves people's
+  settings without asking.

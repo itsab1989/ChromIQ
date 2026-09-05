@@ -293,19 +293,26 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 #: substantial strings; German is translated, the eleven carry the English
 #: source under the beta convention (translation happens before a final, not
 #: during a beta). Raised on purpose, and this note is the purpose.
+#: 2026-09-05, the -ua help: **+10 more in every catalogue but German**. Nothing
+#: in ChromIQ said that a scanner profile used as a measuring instrument must be
+#: built for that purpose, so a user following our own steps built one that
+#: flattens its top range and never learned why. Measured through the path
+#: `scanin` actually uses: a cLUT-Lab profile on the default white point returns
+#: ONE colour for device 0.76 / 0.80 / 0.85 / 0.90 / 1.00. German translated,
+#: the eleven carry English under the beta convention. Raised on purpose.
 _BUDGET = {
     "de": 31,
-    "es": 215,
-    "fr": 216,
-    "it": 215,
-    "ja": 215,
-    "nl": 215,
-    "no": 215,
-    "pl": 215,
-    "pt": 215,
-    "ru": 214,
-    "sv": 215,
-    "zh_CN": 214,
+    "es": 225,
+    "fr": 226,
+    "it": 225,
+    "ja": 225,
+    "nl": 225,
+    "no": 225,
+    "pl": 225,
+    "pt": 225,
+    "ru": 224,
+    "sv": 225,
+    "zh_CN": 224,
 }
 
 

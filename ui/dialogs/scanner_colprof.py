@@ -456,40 +456,70 @@ _TIP_NC = (
     "larger.\n\n"
     "Tick this to leave the measurement data out and produce a smaller profile. "
     "Most people can leave it unchecked.")
+# Every claim below is a measurement from `beta 9/knut-whitepoint/REPORT.md` or
+# `beta 9/printer-from-scan/measure/`, or a quotation from ArgyllCMS's own
+# colprof.html. The text this replaced was accurate about `-u` and `-uc` and
+# wrong about the manual scale; it also read as though the five options were
+# five flavours of the same small adjustment, when two of them move every tone
+# in the scan by about a stop.
 _TIP_WP = (
-    "A scanner or camera profile normally maps the white patch of your test "
-    "chart to perfect white. That's usually what you want — but if you later "
-    "scan or photograph something lighter than the chart's white (a brighter "
-    "paper, or a slightly under-exposed chart), a look-up-table profile has to "
-    "clip those brighter values. These options change how that white is "
-    "handled.\n\n"
-    "• Map chart white to white — the standard behaviour; leave it here for "
-    "normal IT8 / ColorChecker profiling.\n"
-    "• Auto-scale to avoid clipping (-u) — automatically scales the media white "
-    "point so brighter-than-chart values aren't clipped, while still correcting "
-    "the hue. Handy when the chart white doesn't match the media you'll "
-    "actually use.\n"
-    "• Force Absolute Colorimetric (-ua) — tags the profile with a fixed D50 "
-    "white so it acts as an absolute colorimeter — useful when you're using the "
-    "scanner as a simple measuring device. It keeps colours brighter than the "
-    "chart white but doesn't hue-correct white.\n"
-    "• Clip highlights above white (-uc) — forces anything brighter than the "
-    "white point to land exactly on white. Only affects look-up-table (cLUT) "
-    "profile types.\n"
+    "Your scanner does not measure colour. It produces three numbers per pixel "
+    "that depend on its lamp, its sensor and the software that saved the file "
+    "— the same original scanned by different software gives different "
+    "numbers. The profile is what turns those numbers into colour, and this "
+    "setting chooses WHAT THE PROFILE CALLS WHITE.\n\n"
+    "• Map chart white to white (default) — the white patch of your test chart "
+    "becomes pure white, and every other colour is measured against it. This "
+    "is the standard behaviour for a scanner profile and what photo "
+    "applications expect: a scan opens looking finished. The cost is that "
+    "anything lighter than your chart's white patch — a brighter paper, say — "
+    "is clipped to white when the scan is converted into a working space such "
+    "as sRGB, and that detail cannot be recovered afterwards.\n\n"
+    "• Auto-scale to avoid clipping (-u) — the profile is scaled so that the "
+    "scanner's MAXIMUM value becomes white, so nothing can ever clip. Your "
+    "chart's white sits well below that maximum, so every tone in the scan "
+    "then arrives about a stop darker and you are expected to set the white "
+    "yourself afterwards. Use it only if something later in your workflow "
+    "does that.\n\n"
+    "• Force Absolute Colorimetric (-ua) — the profile reports colour as it "
+    "actually is, measured against a perfect white surface, instead of "
+    "relative to your chart's white. (“Absolute colorimetric” is the rendering "
+    "intent that means exactly that: report what is there, adapt nothing.) "
+    "Both intents then give the same answer, so no application can pick the "
+    "wrong one. This is the setting for using the scanner as a measuring "
+    "instrument — see “Profile my printer from this scan” in the main window. "
+    "Two costs: your scans arrive darker, because your chart's white patch is "
+    "not a perfect white; and the profile no longer neutralises the colour of "
+    "your chart's paper, so whites keep their real slight tint. Correct as a "
+    "measurement, unfinished-looking as a picture.\n\n"
+    "• Clip highlights above white (-uc) — anything brighter than the chart's "
+    "white is forced exactly onto white. Only affects look-up-table (cLUT) "
+    "profile types, and it costs accuracy in the lightest colours.\n\n"
     "• Manual white-point scale (-u scale) — this is “Auto-scale” above with "
     "your own number applied on top of it, not a scale on its own. A value of "
     "1.00 is therefore the same thing as “Auto-scale to avoid clipping”, not "
     "“no change”; see the box below.\n\n"
-    "Leave it on the first option unless you have a specific white-point "
-    "mismatch to fix. Only applies to a scanner/camera input profile.")
-# THE SENTENCE THIS REPLACED WAS FALSE, AND IT COST A TESTER A PROFILE.
-# It said "1.00 makes no change", and Knut reasonably built a profile on that.
-# In ArgyllCMS `colprof.c:494` sets `autowpsc = 1` BEFORE it ever reads the
-# number, and `xfit.c:2753` makes the default scale 1.0 anyway, so `-u 1` is
-# byte-for-byte `-u`. Built both from his own scan to be sure: identical wtpt
-# (1.591736 1.624054 1.343185). The worked example was inverted too — the text
-# offered 0.90 as the way to keep a slightly darker white white, and 0.90
-# measures a white point of Y 1.461655, a scan about 44 % darker.
+    "Which to choose. Scanning photographs to look at, on paper like your "
+    "chart's: leave it on the first option. Scanning originals on brighter or "
+    "varied paper, and you care about the highlights: “Manual white-point "
+    "scale” with “Restrict white, black and primaries” ticked puts white at a "
+    "perfect white surface, so nothing physically possible clips — expect "
+    "whites to arrive at about L* 93 and to need one levels step. Using the "
+    "scanner to MEASURE rather than to photograph: “Force Absolute "
+    "Colorimetric”.\n\n"
+    "A note on “Restrict white, black and primaries”. On a look-up-table "
+    "profile (cLUT — XYZ or cLUT — Lab) it can only limit the white and black "
+    "points; a look-up table has no primaries to restrict. Combined with "
+    "“Force Absolute Colorimetric” it does nothing at all — measured, the two "
+    "profiles transform identically — because that option already puts white "
+    "exactly where the restriction would. It has a real effect only alongside "
+    "“Manual white-point scale”, where it is what brings the white point back "
+    "to a perfect white, and on the two matrix profile types, where it clamps "
+    "the fit and costs accuracy.\n\n"
+    "Worth more than any of this: the Quality setting. On a real IT8 scan, "
+    "moving Quality from Medium to High cut the average error by about 30 % — "
+    "more than every white-point option in this list put together.\n\n"
+    "Only applies to a scanner/camera input profile.")
 _TIP_WP_SCALE = (
     "The number that “Manual white-point scale” above uses — and it is applied "
     "ON TOP OF that option's automatic scaling, not instead of it.\n\n"
@@ -508,13 +538,39 @@ _TIP_WP_SCALE = (
     "surface — nothing a reflective original can be is then clipped.\n\n"
     "This box only has an effect when the handling above is set to “Manual "
     "white-point scale”.")
+# What it does depends on the PROFILE TYPE, and the old text said neither.
+# `profin.c:794` (matrix path) sets ICX_CLIP_WB | ICX_CLIP_PRIMS; `profin.c:1070`
+# (cLUT path) sets ICX_CLIP_WB only, and ICX_CLIP_PRIMS is consumed nowhere
+# outside xicc/xmatrix.c — so on a cLUT the word "primaries" in the label is
+# inert. Measured on a real IT8 scan: alone it is a complete no-op (identical
+# tags), with "Force Absolute Colorimetric" it is a no-op too (identical
+# transform), with "Manual white-point scale" it rescales the whole table, and
+# on a matrix profile it costs accuracy — 7.877 to 9.028 dE00.
 _TIP_R = (
-    "Keeps the profile physically sensible by holding white to no brighter than "
-    "full white, and forcing black and the pure primary colours to stay "
-    "positive (never negative). This can tidy up a profile built from noisy or "
-    "slightly out-of-range measurements.\n\n"
-    "Leave it unchecked for normal profiling; tick it only if a profile misbehaves "
-    "near white, black or the pure primaries.")
+    "Holds white to no brighter than full white, and — on the two matrix "
+    "profile types only — forces black and the pure primary colours to stay "
+    "positive rather than negative. Some programs are unhappy with a profile "
+    "whose white point is brighter than white or whose corners go negative, "
+    "and this makes such a profile acceptable to them.\n\n"
+    "What it actually does depends on the profile type, and it is worth "
+    "knowing before you tick it:\n\n"
+    "• On a look-up-table profile (cLUT — XYZ or cLUT — Lab) it can only "
+    "clamp the white and black points. A look-up table has no primaries, so "
+    "that half of the label does nothing here.\n"
+    "• On its own, with the white point left at its default, it usually "
+    "changes nothing at all — measured on a real IT8 scan, the profile came "
+    "out identical.\n"
+    "• Together with “Manual white-point scale” it is not a tidy-up: it "
+    "rescales the whole colour table, and that pairing is the recommended way "
+    "to put white at a perfect white surface.\n"
+    "• With “Force Absolute Colorimetric” it does nothing, because that "
+    "option has already put white where the clamp would put it.\n"
+    "• On “Shaper + matrix” or “Matrix only” it clamps the fit and costs real "
+    "accuracy. ArgyllCMS says so itself: “this will reduce the accuracy of "
+    "the profile”.\n\n"
+    "Leave it unchecked for normal profiling; tick it when a program refuses "
+    "or misreads your profile, or when you are pairing it with “Manual "
+    "white-point scale”.")
 
 
 # Keys of the values dict this module round-trips. Resolved colprof flags
