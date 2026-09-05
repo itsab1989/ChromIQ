@@ -1,10 +1,21 @@
 """The driver helper's words, pinned.
 
-`SettingsDialog._show_usb_installer` is a `while True:` around `dlg.exec()`, so
-it cannot be driven from a test — CLAUDE.md warns that a modal `.exec()` makes
-the whole suite look like it has hung. Until now the only thing guarding what it
-says was `tests/test_winusb_never_reaches_a_serial_instrument.py`, which counts
-phrases in the *source text* and so cannot tell you what a user would read.
+`SettingsDialog._show_usb_installer` is a `while True:` around `dlg.exec()`.
+Until now the only thing guarding what it says was
+`tests/test_winusb_never_reaches_a_serial_instrument.py`, which counts phrases in
+the *source text* and so cannot tell you what a user would read.
+
+**THIS FILE USED TO SAY THE WINDOW "CANNOT BE DRIVEN FROM A TEST". THAT WAS
+FALSE, AND IT COST THREE BLOCKERS.** What is true is that calling `exec()` and
+then doing nothing hangs the suite, which is the warning CLAUDE.md actually
+gives. A modal is driven from *inside* its own event loop: arm a QTimer before
+the call, and `QApplication.activeModalWidget()` hands back the live dialog. See
+"DRIVING THE REAL DIALOG" at the end of this file — a verifier did it in under an
+hour and found that this window was frequently not being shown at all, while
+every string it could produce was pinned here in twelve languages.
+
+Both halves are needed and neither substitutes for the other: the pure-function
+tests say what the words are, the driving tests say that anyone sees them.
 
 `ui.dialogs.settings_dialog.usb_installer_text` and `usb_install_outcome` are
 that message-building lifted out into pure functions. This file asserts their
@@ -1376,3 +1387,485 @@ def test_stripping_the_ellipsis_leaves_the_name_alone():
     assert sd._in_prose("My instrument is not listed…") ==         "My instrument is not listed"
     assert sd._in_prose("Check again") == "Check again"
     assert sd._in_prose("I already have the folder…") ==         "I already have the folder"
+
+
+# ===========================================================================
+# DRIVING THE REAL DIALOG
+# ===========================================================================
+#
+# THE HEADER OF THIS FILE USED TO SAY THE WINDOW "CANNOT BE DRIVEN FROM A TEST",
+# AND THAT CLAIM COST THREE BLOCKERS.
+#
+# It is true that calling `_show_usb_installer()` from a test and then doing
+# nothing hangs the suite: `dlg.exec()` spins its own event loop and waits for a
+# human. What does not follow is "so do not test it". A modal can be driven from
+# inside its own loop — arm a QTimer BEFORE the call, and when the loop starts
+# the timer fires, `QApplication.activeModalWidget()` hands back the live
+# dialog, and its real buttons can be clicked.
+#
+# That is all it takes, and it is what the pure-function tests above could never
+# do. They pin every string this window can produce, character for character, in
+# twelve languages — while the window itself was not being shown at all:
+#
+#   * `return bool(extra_label) and dlg.exec() == ...` short-circuits, so every
+#     notice without a second button was built, laid out, tinted and dropped.
+#     The measurement guard refused with nothing on screen.
+#   * `box.accepted` fires for `StandardButton.Ok` too, so OK on the consent
+#     window started an elevated driver install.
+#   * The WinUSB outcome window, an unconditional `outcome_dlg.exec()` on
+#     master, stopped appearing on any build without a bundled wdi-simple —
+#     taking `_cr30_zadig_warning()` with it, the warning this branch
+#     consolidated on purpose.
+#
+# Every test below fails against the code as it was shipped.
+
+_TICK_MS = 5
+_MAX_TICKS = 400          # ~2 s, then force everything shut: a stuck modal must
+                          # fail the test, never hang the suite.
+
+
+def _plain(widget) -> str:
+    """Everything a user can read on this dialog, markup stripped."""
+    import re
+    from PyQt6.QtWidgets import QLabel
+    return "\n".join(re.sub(r"<[^>]+>", "", lbl.text())
+                     for lbl in widget.findChildren(QLabel))
+
+
+def _button(widget, text: str):
+    """The button whose visible label is *text*, or None."""
+    from PyQt6.QtWidgets import QAbstractButton
+    for b in widget.findChildren(QAbstractButton):
+        if b.text().replace("&", "") == text:
+            return b
+    return None
+
+
+def _ok_button(widget):
+    from PyQt6.QtWidgets import QDialogButtonBox
+    for box in widget.findChildren(QDialogButtonBox):
+        btn = box.button(QDialogButtonBox.StandardButton.Ok)
+        if btn is not None:
+            return btn
+    return None
+
+
+class ModalDriver:
+    """Act on each modal dialog as it appears, from inside its own event loop.
+
+    *steps* are called in order, one per NEW modal window; anything that appears
+    after they run out is dismissed. `self.seen` records what was on screen each
+    time, so a test can assert about a window that has already closed — and an
+    empty `seen` is itself the proof that nothing was ever shown.
+    """
+
+    def __init__(self, *steps):
+        from PyQt6.QtCore import QTimer
+        self._steps = list(steps)
+        self._handled: set = set()
+        self.seen: list = []
+        self.ticks = 0
+        self.timed_out = False
+        self._timer = QTimer()
+        self._timer.setInterval(_TICK_MS)
+        self._timer.timeout.connect(self._tick)
+
+    def __enter__(self):
+        self._timer.start()
+        return self
+
+    def __exit__(self, *exc):
+        self._timer.stop()
+        return False
+
+    def _tick(self) -> None:
+        from PyQt6.QtWidgets import QApplication
+        self.ticks += 1
+        if self.ticks > _MAX_TICKS:
+            self.timed_out = True
+            w = QApplication.activeModalWidget()
+            while w is not None:
+                w.reject()
+                nxt = QApplication.activeModalWidget()
+                if nxt is w:
+                    break
+                w = nxt
+            self._timer.stop()
+            return
+        w = QApplication.activeModalWidget()
+        if w is None or id(w) in self._handled:
+            return
+        self._handled.add(id(w))
+        self.seen.append((w.windowTitle(), _plain(w)))
+        if self._steps:
+            self._steps.pop(0)(w)
+        else:
+            w.reject()
+
+    @property
+    def modal_count(self) -> int:
+        return len(self.seen)
+
+    def text_of(self, n: int) -> str:
+        return self.seen[n][1]
+
+
+@pytest.fixture(scope="module")
+def qapp_for_driving():
+    from PyQt6.QtWidgets import QApplication
+    # tests/conftest.py pins one QApplication per worker. Never build a second
+    # one and never tear this down: destroying a QApplication sip-deletes every
+    # remaining QObject in the process (CLAUDE.md).
+    return QApplication.instance() or QApplication([])
+
+
+@pytest.fixture
+def dialog(qapp_for_driving):
+    """A real SettingsDialog on settings that are never written back."""
+    from core.settings import DEFAULTS
+    from ui.dialogs.settings_dialog import SettingsDialog
+
+    class _Fake:
+        def __init__(self):
+            self._s = dict(DEFAULTS)
+
+        def get(self, k, d=None):
+            return self._s.get(k, d)
+
+        def set(self, k, v):
+            self._s[k] = v
+
+        def migrate(self):
+            pass
+
+        def reset_to_defaults(self):
+            pass
+
+    dlg = SettingsDialog(_Fake())
+    yield dlg
+    dlg.deleteLater()
+
+
+@pytest.fixture
+def on_windows(monkeypatch):
+    """`_show_usb_installer` returns immediately off win32.
+
+    Its only use of `_sys` is `_sys.platform` (six times, nothing else), so a
+    namespace carrying that one attribute is a complete stand-in — and these
+    tests then run on every platform instead of skipping on the two where CI
+    actually lives.
+    """
+    from types import SimpleNamespace
+    monkeypatch.setattr(sd, "_sys", SimpleNamespace(platform="win32"))
+
+
+def _fixed_hardware(monkeypatch, devices, wdi: bool):
+    """Point the window at a known device list and wdi-simple state."""
+    import core.resource_path as rp
+    import core.usb_driver_installer as inst
+    monkeypatch.setattr(inst, "enumerate_connected", lambda: list(devices))
+    monkeypatch.setattr(inst, "unbound_targets", lambda t: [])
+    monkeypatch.setattr(inst, "install_winusb", lambda d: True)
+    monkeypatch.setattr(sd, "present_usb_ids", lambda: None)
+    monkeypatch.setattr(sd.SettingsDialog, "_serial_states", lambda self: [])
+
+    class _P:
+        def exists(self):
+            return wdi
+
+    monkeypatch.setattr(rp, "resource_path", lambda p: _P())
+
+
+# --- the window appears at all ---------------------------------------------
+
+def test_a_notice_with_no_extra_button_is_actually_shown(dialog):
+    """BLOCKER 1, pinned.
+
+    `return bool(extra_label) and dlg.exec() == ...` never reached `exec()` when
+    there was no extra button, so this window did not exist for the user. When
+    it is not shown no modal is ever active, so the driver never fires and
+    `seen` stays empty.
+    """
+    with ModalDriver(lambda w: _ok_button(w).click()) as drv:
+        took = dialog._driver_notice("Instrument drivers", "<b>Something.</b>")
+    assert drv.modal_count == 1, "no modal window was ever shown"
+    assert took is False
+    assert "Something." in drv.text_of(0)
+
+
+def test_a_notice_with_an_extra_button_is_shown_too(dialog):
+    with ModalDriver(lambda w: _ok_button(w).click()) as drv:
+        dialog._driver_notice("T", "<b>Body.</b>", "Do the thing")
+    assert drv.modal_count == 1
+    assert "Body." in drv.text_of(0)
+
+
+@pytest.mark.parametrize("extra", [None, "Do the thing"])
+def test_the_notice_is_genuinely_modal(dialog, extra):
+    """`activeModalWidget()` is what proves an event loop was entered, rather
+    than a widget having been built and thrown away."""
+    seen = {}
+
+    def _look(w):
+        from PyQt6.QtWidgets import QApplication
+        seen["active"] = QApplication.activeModalWidget()
+        seen["visible"] = w.isVisible()
+        _ok_button(w).click()
+
+    with ModalDriver(_look):
+        dialog._driver_notice("T", "Body", extra)
+    assert seen.get("active") is not None
+    assert seen.get("visible") is True
+
+
+# --- OK means dismiss, never "yes, install" --------------------------------
+
+def test_ok_dismisses_and_does_not_take_the_action(dialog):
+    """BLOCKER 2, pinned.
+
+    On the before-UAC consent window the two buttons were `Download and
+    install` and `OK`, and both started the install. The only decline was Esc.
+    """
+    with ModalDriver(lambda w: _ok_button(w).click()) as drv:
+        took = dialog._driver_notice("T", "Body", "Download and install")
+    assert drv.modal_count == 1
+    assert took is False, "OK started the action it was there to decline"
+
+
+def test_the_extra_button_takes_the_action(dialog):
+    with ModalDriver(lambda w: _button(w, "Download and install").click()):
+        took = dialog._driver_notice("T", "Body", "Download and install")
+    assert took is True
+
+
+def test_escape_dismisses(dialog):
+    def _esc(w):
+        w.reject()          # what Esc is wired to on a QDialog
+
+    with ModalDriver(_esc):
+        took = dialog._driver_notice("T", "Body", "Download and install")
+    assert took is False
+
+
+def test_closing_the_window_dismisses(dialog):
+    with ModalDriver(lambda w: w.close()):
+        took = dialog._driver_notice("T", "Body", "Download and install")
+    assert took is False
+
+
+def test_the_affirmative_button_is_the_tinted_one(dialog):
+    """The action must not be the button that merely closes the window."""
+    names = {}
+
+    def _look(w):
+        names["extra"] = _button(w, "Download and install").objectName()
+        names["ok"] = _ok_button(w).objectName()
+        _ok_button(w).click()
+
+    with ModalDriver(_look):
+        dialog._driver_notice("T", "Body", "Download and install")
+    assert names["extra"] == "primary"
+    assert names["ok"] != "primary"
+
+
+# --- the measurement guard, this branch's headline safety feature -----------
+
+def test_the_measurement_guard_actually_puts_its_refusal_on_screen(
+        dialog, on_windows, monkeypatch):
+    """BLOCKER 1 where it costs the most: the guard fired, `_driver_notice` was
+    called, and nothing appeared. A silent refusal is the exact failure the
+    guard was written to prevent."""
+    monkeypatch.setattr(sd, "measurement_in_progress",
+                        lambda parent=None: "the Measure tab")
+    with ModalDriver(lambda w: _ok_button(w).click()) as drv:
+        dialog._show_usb_installer()
+    assert drv.modal_count == 1, "the guard refused without showing anything"
+    assert "Not while a measurement is running" in drv.text_of(0)
+    assert "the Measure tab" in drv.text_of(0)
+
+
+def test_the_guard_shows_its_refusal_instead_of_the_driver_window(
+        dialog, on_windows, monkeypatch):
+    monkeypatch.setattr(sd, "measurement_in_progress",
+                        lambda parent=None: "the Measure tab")
+    with ModalDriver(lambda w: _ok_button(w).click()) as drv:
+        dialog._show_usb_installer()
+    assert drv.modal_count == 1
+    assert "USB-to-serial bridge" not in drv.text_of(0)
+
+
+# --- the WinUSB outcome window, and the CR30 warning it carries -------------
+
+def test_the_winusb_outcome_window_appears_when_zadig_was_launched(
+        dialog, on_windows, monkeypatch):
+    """BLOCKER 3, pinned.
+
+    `assets/wdi_simple.exe` is not in this repo, so this is the DEFAULT path.
+    On master the outcome dialog was an unconditional `outcome_dlg.exec()`.
+    """
+    import core.usb_driver_installer as inst
+    _fixed_hardware(monkeypatch, [dev(I1PRO, False)], wdi=False)
+    monkeypatch.setattr(inst, "launch_zadig", lambda: "launched")
+    with ModalDriver(lambda w: _button(w, "Open Zadig").click(),
+                     lambda w: _ok_button(w).click()) as drv:
+        dialog._show_usb_installer()
+    assert drv.modal_count == 2, (
+        "the install ran and its outcome window never appeared")
+    assert "Zadig is open" in drv.text_of(1)
+
+
+def test_the_cr30_warning_reaches_the_screen_after_zadig_is_launched(
+        dialog, on_windows, monkeypatch):
+    """The warning this branch consolidated into one key was being shown to
+    nobody on the default build, while the test guarding it stayed green
+    because it asserts on the string the function returns."""
+    import core.usb_driver_installer as inst
+    _fixed_hardware(monkeypatch, [dev(I1PRO, False)], wdi=False)
+    monkeypatch.setattr(inst, "launch_zadig", lambda: "launched")
+    with ModalDriver(lambda w: _button(w, "Open Zadig").click(),
+                     lambda w: _ok_button(w).click()) as drv:
+        dialog._show_usb_installer()
+    assert drv.modal_count == 2
+    assert "If you own a CR30" in drv.text_of(1)
+    assert "do not pick the USB-serial" in drv.text_of(1)
+
+
+def test_the_download_page_outcome_is_shown_and_warns_too(
+        dialog, on_windows, monkeypatch):
+    import core.usb_driver_installer as inst
+    _fixed_hardware(monkeypatch, [dev(I1PRO, False)], wdi=False)
+    monkeypatch.setattr(inst, "launch_zadig", lambda: "download_page")
+    with ModalDriver(lambda w: _button(w, "Open Zadig").click(),
+                     lambda w: _ok_button(w).click()) as drv:
+        dialog._show_usb_installer()
+    assert drv.modal_count == 2
+    assert "If you own a CR30" in drv.text_of(1)
+
+
+def test_the_zadig_failure_outcome_is_shown(dialog, on_windows, monkeypatch):
+    import core.usb_driver_installer as inst
+    _fixed_hardware(monkeypatch, [dev(I1PRO, False)], wdi=False)
+    monkeypatch.setattr(inst, "launch_zadig", lambda: "failed")
+    with ModalDriver(lambda w: _button(w, "Open Zadig").click(),
+                     lambda w: _ok_button(w).click()) as drv:
+        dialog._show_usb_installer()
+    assert drv.modal_count == 2
+    assert "zadig.akeo.ie" in drv.text_of(1)
+
+
+def test_ok_on_the_outcome_window_does_not_launch_zadig(
+        dialog, on_windows, monkeypatch):
+    """On master `Try Zadig` had its own handler and OK merely closed. The
+    branch made OK launch Zadig too."""
+    import core.usb_driver_installer as inst
+    _fixed_hardware(monkeypatch, [dev(I1PRO, True)], wdi=True)
+    monkeypatch.setattr(inst, "unbound_targets", lambda t: list(t))
+    launches = []
+    monkeypatch.setattr(inst, "launch_zadig",
+                        lambda: (launches.append(1), "launched")[1])
+    with ModalDriver(lambda w: _button(w, "Reinstall Driver").click(),
+                     lambda w: _ok_button(w).click()) as drv:
+        dialog._show_usb_installer()
+    assert drv.modal_count == 2
+    assert launches == [], "OK launched Zadig"
+
+
+def test_try_zadig_on_the_outcome_window_does_launch_zadig(
+        dialog, on_windows, monkeypatch):
+    import core.usb_driver_installer as inst
+    _fixed_hardware(monkeypatch, [dev(I1PRO, True)], wdi=True)
+    monkeypatch.setattr(inst, "unbound_targets", lambda t: list(t))
+    launches = []
+    monkeypatch.setattr(inst, "launch_zadig",
+                        lambda: (launches.append(1), "launched")[1])
+    with ModalDriver(lambda w: _button(w, "Reinstall Driver").click(),
+                     lambda w: _button(w, "Try Zadig").click()) as drv:
+        dialog._show_usb_installer()
+    assert drv.modal_count == 2
+    assert launches == [1]
+
+
+# --- the driver window itself ----------------------------------------------
+
+def test_the_driver_window_appears(dialog, on_windows, monkeypatch):
+    _fixed_hardware(monkeypatch, [], wdi=False)
+    with ModalDriver(lambda w: _button(w, "Close").click()) as drv:
+        dialog._show_usb_installer()
+    assert drv.modal_count == 1
+    assert "No colorimeter detected" in drv.text_of(0)
+
+
+def test_long_prose_scrolls_instead_of_being_cut_off(dialog):
+    """The window wanted 934 px; a 1080p laptop at 150% has about 672. Past its
+    height a word-wrapped QLabel is truncated with no scrollbar and no sign that
+    anything is missing, so the paragraph justifying the install button was
+    simply gone."""
+    from PyQt6.QtWidgets import QScrollArea
+    found = {}
+
+    def _look(w):
+        # Read the properties HERE, not after the call: once `exec()` returns
+        # the dialog is gone and the wrappers raise "C/C++ object has been
+        # deleted". Anything a test wants to assert about a live widget has to
+        # be taken while the window is on screen.
+        areas = w.findChildren(QScrollArea)
+        found["count"] = len(areas)
+        found["resizable"] = [a.widgetResizable() for a in areas]
+        _ok_button(w).click()
+
+    with ModalDriver(_look):
+        dialog._driver_notice("T", "<br><br>".join(["A long paragraph."] * 60))
+    assert found["count"], "no scroll area — long text is silently truncated"
+    assert found["resizable"][0] is True
+
+
+def test_the_driver_window_scrolls_too(dialog, on_windows, monkeypatch):
+    from PyQt6.QtWidgets import QScrollArea
+    _fixed_hardware(monkeypatch, [], wdi=False)
+    found = {}
+
+    def _look(w):
+        found["count"] = len(w.findChildren(QScrollArea))
+        _button(w, "Close").click()
+
+    with ModalDriver(_look) as drv:
+        dialog._show_usb_installer()
+    assert drv.modal_count == 1
+    assert found["count"], "the driver window cannot scroll"
+
+
+def test_the_buttons_stay_outside_the_scroll_area(dialog, on_windows,
+                                                  monkeypatch):
+    """Check again / Close must never scroll out of reach."""
+    from PyQt6.QtWidgets import QScrollArea
+    _fixed_hardware(monkeypatch, [], wdi=False)
+    found = {}
+
+    def _look(w):
+        area = w.findChildren(QScrollArea)[0]
+        close = _button(w, "Close")
+        found["inside"] = area.isAncestorOf(close)
+        close.click()
+
+    with ModalDriver(_look):
+        dialog._show_usb_installer()
+    assert found["inside"] is False
+
+
+# --- what core learned is not thrown away ----------------------------------
+
+def test_the_not_bound_window_repeats_what_core_actually_found():
+    """`detail` was accepted and dropped, so exit 3010's "Windows accepted the
+    driver and needs a restart to finish switching it on" was replaced by three
+    pieces of advice, none of which is "restart"."""
+    restart = ("Windows accepted the driver and needs a restart to finish "
+               "switching it on.")
+    text, _ = sd.serial_outcome_text(stage="not_bound", detail=restart,
+                                     folder="F")
+    assert restart in text
+
+
+def test_the_not_bound_window_is_unchanged_when_core_says_nothing():
+    text, _ = sd.serial_outcome_text(stage="not_bound", detail="", folder="F")
+    assert "Everything ChromIQ could check passed" in text
+    assert "<br><br><br>" not in text
