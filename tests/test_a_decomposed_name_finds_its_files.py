@@ -474,11 +474,30 @@ def test_the_exact_spelling_always_wins_when_both_are_on_disk(tmp_path):
     On a normalisation-sensitive volume these are two genuinely different
     files. The resolver asks for the path it was GIVEN first, so the answer is
     the one the caller named, exactly as before the fix.
+
+    THE TWO HALVES ARE SPLIT BECAUSE ONE OF THEM CANNOT BE ASKED EVERYWHERE.
+    The NAME that comes back is the guarantee — nothing is swapped for a
+    neighbour — and that is asserted on every volume. The CONTENT can only
+    tell the two files apart where the volume can hold two files: macOS
+    cannot. Measured on three images made for this review — APFS
+    case-insensitive, "Case-sensitive APFS" and exFAT — all three fold the
+    pair onto one file, so the second `write_text` lands on the first and no
+    content assertion here can pass. Written as a single content check, this
+    test was red on macOS in the release gate while green on the NTFS machine
+    it was authored on. Recorded rather than skipped, the way
+    `test_a_typed_composed_name_does_not_yet_find_a_decomposed_project_folder`
+    records the same volume difference — which volume ran it is the
+    interesting half.
     """
     run = _run_at(tmp_path, NAME)
     (run.dir / f"{NAME}.ti2").write_text("composed", encoding="utf-8")
     (run.dir / f"{NFD}.ti2").write_text("decomposed", encoding="utf-8")
     on_disk = [n for n in os.listdir(run.dir) if n.endswith(".ti2")]
+    assert run.chart_ti2.name == f"{NAME}.ti2", (
+        f"the resolver answered with {run.chart_ti2.name!r}, not the spelling "
+        f"it was asked for; {len(on_disk)} .ti2 on disk")
+    if len(on_disk) == 1:
+        return                      # this volume folds; there is no second file
     assert run.chart_ti2.read_text(encoding="utf-8") == "composed", (
         f"the requested spelling must win; {len(on_disk)} .ti2 on disk")
 
@@ -887,7 +906,8 @@ def test_which_of_several_spellings_wins_is_not_the_listing_order(tmp_path,
         (tmp_path / f"{v}.ti2").write_text(v.encode("unicode_escape").decode(),
                                            encoding="utf-8")
     if len([p for p in tmp_path.iterdir() if p.suffix == ".ti2"]) != 2:
-        pytest.skip("this volume folds the two orderings into one file")
+        pytest.skip("this volume folds the two orderings into one file — "
+                    "APFS/HFS+ on macOS does, NTFS does not")
 
     real = fmod.os.scandir
 
