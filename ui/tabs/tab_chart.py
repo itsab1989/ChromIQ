@@ -16128,8 +16128,13 @@ class TabChart(QWidget):
             else:
                 ti2, ti1 = run.chart_ti2, run.chart_ti1
                 tiffs = run.stem_files(run.stem, "_*.tif")
-                if not tiffs and (run.dir / f"{run.stem}.tif").is_file():
-                    tiffs = [run.dir / f"{run.stem}.tif"]
+                if not tiffs:
+                    # printtarg writes a ONE-page chart as `<stem>.tif`, with no
+                    # `_NN`. Through `stem_files` rather than an f-string, so a
+                    # single-page chart restored from a Mac OS Extended volume
+                    # is found too — the raw path here was composed and the file
+                    # on disk decomposed, and the tab said there was no chart.
+                    tiffs = run.stem_files(run.stem, ".tif", ".TIF")
             if ti2.is_file() and tiffs:
                 return ti2, list(tiffs), ti1
         except Exception as exc:  # noqa: BLE001 — never break the tab on this

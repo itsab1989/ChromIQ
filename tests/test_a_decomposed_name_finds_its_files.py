@@ -367,3 +367,330 @@ def test_the_app_finds_the_chart_after_that_round_trip(tmp_path, monkeypatch):
     if IS_MACOS:                             # the premise — see above
         assert found.chart_ti2.exists()
     assert len(found.chart_tiffs()) == 4, [p.name for p in found.chart_tiffs()]
+
+
+# ===========================================================================
+# B8-61 — THE NAMED ARTEFACT, which a listing cannot answer
+# ===========================================================================
+#
+# Everything above is about a LISTING: "which files in this folder are pages of
+# that chart". `files_matching` answers that on the composed spelling of both
+# sides, and has done since the HFS+ round trip was measured.
+#
+# `<stem>.ti2` is not a listing. It is one file, asked for by name, through
+# `Path.exists()` — and `Path.exists()` is the FILESYSTEM's answer, so it
+# differs by filesystem. APFS/HFS+ fold the two spellings, which is why the
+# tests above guard their premise behind `IS_MACOS`. **NTFS does not**, and
+# neither does an ordinary Linux volume: measured on a Windows 11 ARM64 NTFS
+# machine, `run.chart_ti2.exists()` answered False with the chart in the folder,
+# and `ui/main_window.py:2238` then silently used the `.ti1` instead — a
+# different chart, with no message of any kind.
+#
+# `core.file_manager.resolve_existing` is the fix, and every `Run` /
+# `Calibration` / `Verification` artefact goes through it. These tests are
+# written so they MEAN SOMETHING ON WINDOWS: not one is guarded by platform, and
+# on a normalisation-insensitive volume each still asserts a true thing (it
+# passes for the filesystem's reason rather than the resolver's).
+
+
+def _volume_folds_spellings(tmp_path) -> bool:
+    """Whether THIS volume answers `exists()` across the two spellings.
+
+    Measured, never assumed from `sys.platform`: an APFS volume folds, an NTFS
+    one does not, and ChromIQ runs on external volumes of both kinds.
+    """
+    probe = tmp_path / f"{NFD}.probe"
+    probe.write_text("x", encoding="utf-8")
+    try:
+        return (tmp_path / f"{NAME}.probe").exists()
+    finally:
+        probe.unlink()
+
+
+def _run_at(root: Path, folder_name: str) -> Run:
+    """A `Run` under `<root>/<folder_name>/runs/run1`, folder created."""
+    d = root / folder_name / "runs" / "run1"
+    d.mkdir(parents=True, exist_ok=True)
+    return Run.for_dir(d)
+
+
+def test_a_named_artefact_resolves_to_the_spelling_that_is_on_disk(tmp_path):
+    """The fault, at the accessor: a composed stem and a decomposed file.
+
+    This is a project ChromIQ created (composed folder) into which a chart was
+    restored from a Mac OS Extended backup (decomposed files) — the ordinary
+    way a chart comes home, and the shape measured on NTFS.
+    """
+    run = _run_at(tmp_path, NAME)                                      # stem NFC
+    (run.dir / f"{NFD}.ti2").write_text("the .ti2", encoding="utf-8")  # file NFD
+    assert run.stem == NAME
+
+    assert run.chart_ti2.exists(), (
+        "the chart is in the folder and the app cannot see it")
+    assert run.chart_ti2.is_file()
+    # AND IT OPENS. An accessor that says "yes it is there" and hands back a
+    # spelling `open()` refuses would move the failure, not fix it.
+    assert run.chart_ti2.read_text(encoding="utf-8") == "the .ti2"
+
+
+def test_the_mirror_shape_resolves_too(tmp_path):
+    """A DECOMPOSED folder holding files ChromIQ or a zip wrote composed.
+
+    The stem comes from the folder, so this is the same fault with the two
+    spellings swapped — the shape a Windows user hits after copying a project
+    folder off a Mac and importing a chart into it.
+    """
+    run = _run_at(tmp_path, NFD)
+    (run.dir / f"{NAME}.ti2").write_text("the .ti2", encoding="utf-8")
+    assert run.stem == NFD
+    assert run.chart_ti2.read_text(encoding="utf-8") == "the .ti2"
+
+
+def test_the_ti1_is_not_quietly_substituted_for_a_ti2_that_is_there(tmp_path):
+    """`ui/main_window.py:2238`, which is why this is a data fault:
+
+        chart = run.chart_ti2 if run.chart_ti2.exists() else run.chart_ti1
+
+    It does not refuse and it does not warn. On NTFS the `.ti2` "did not
+    exist", so the user got the `.ti1` — a different, unlaid-out chart —
+    presented as the current one. Both files are put on disk here, spelled
+    differently, so a substitution is DETECTABLE rather than inferred.
+    """
+    run = _run_at(tmp_path, NFD)
+    (run.dir / f"{NFD}.ti1").write_text("the .ti1 — the WRONG chart",
+                                        encoding="utf-8")
+    (run.dir / f"{NAME}.ti2").write_text("the .ti2 — the right chart",
+                                         encoding="utf-8")
+
+    chart = run.chart_ti2 if run.chart_ti2.exists() else run.chart_ti1
+    assert chart.name.endswith(".ti2"), (
+        f"the app used {chart.name!r} — a different chart, silently")
+    assert chart.read_text(encoding="utf-8").endswith("the right chart")
+
+
+def test_the_exact_spelling_always_wins_when_both_are_on_disk(tmp_path):
+    """Two files, two spellings, one requested — nothing is swapped.
+
+    On a normalisation-sensitive volume these are two genuinely different
+    files. The resolver asks for the path it was GIVEN first, so the answer is
+    the one the caller named, exactly as before the fix.
+    """
+    run = _run_at(tmp_path, NAME)
+    (run.dir / f"{NAME}.ti2").write_text("composed", encoding="utf-8")
+    (run.dir / f"{NFD}.ti2").write_text("decomposed", encoding="utf-8")
+    on_disk = [n for n in os.listdir(run.dir) if n.endswith(".ti2")]
+    assert run.chart_ti2.read_text(encoding="utf-8") == "composed", (
+        f"the requested spelling must win; {len(on_disk)} .ti2 on disk")
+
+
+def test_an_absent_artefact_keeps_its_composed_name_so_a_writer_creates_that(
+        tmp_path):
+    """Nothing on disk: the path comes back untouched.
+
+    That is what keeps ChromIQ writing the composed spelling on a fresh run —
+    the fix must not become "normalise names at creation time", which would
+    leave every project already on disk spelled the old way.
+    """
+    run = _run_at(tmp_path, NAME)
+    assert run.chart_ti2 == run.dir / f"{NAME}.ti2"
+    assert run.chart_ti1 == run.dir / f"{NAME}.ti1"
+    assert run.profile_icc == run.dir / f"{NAME}.icc"
+
+
+def test_a_rewrite_overwrites_the_chart_instead_of_laying_a_second_beside_it(
+        tmp_path):
+    """The write side, and the reason resolving beats "check at the call site".
+
+    Writing through an unresolved composed path onto a folder holding the
+    decomposed one leaves TWO .ti2 files with names that look identical on
+    screen — "two charts under one name", the state `files_matching`'s
+    docstring was written about.
+    """
+    run = _run_at(tmp_path, NAME)
+    (run.dir / f"{NFD}.ti2").write_text("v1", encoding="utf-8")
+    run.chart_ti2.write_text("v2", encoding="utf-8")
+    ti2s = [n for n in os.listdir(run.dir) if n.endswith(".ti2")]
+    assert len(ti2s) == 1, f"a second chart was laid beside the first: {ti2s}"
+    assert run.chart_ti2.read_text(encoding="utf-8") == "v2"
+
+
+def test_case_is_never_folded_by_the_resolver(tmp_path):
+    """Accents only. Two names differing by case are two files on a
+    case-sensitive volume, and folding them here would make one stand in for
+    the other — the fault `_existing_folder_spelling` is careful to avoid for
+    folders, for the same reason."""
+    from core.file_manager import resolve_existing
+
+    (tmp_path / "Chart.ti2").write_text("upper", encoding="utf-8")
+    got = resolve_existing(tmp_path / "chart.ti2")
+    assert got.name == "chart.ti2", (
+        "the resolver adopted another case; only the accent spelling is its "
+        "business")
+
+
+def test_an_ascii_name_never_lists_the_directory(tmp_path, monkeypatch):
+    """The cost guarantee, asserted rather than claimed.
+
+    No ASCII character has a canonical decomposition, so an ASCII name has no
+    other spelling to look for. Every project name in this suite, and the
+    overwhelming majority of real ones, takes one `stat` and stops — which is
+    exactly what it cost before the fix.
+    """
+    import core.file_manager as fmod
+
+    def _explode(*a, **k):
+        raise AssertionError("scandir called for an ASCII name")
+
+    monkeypatch.setattr(fmod.os, "scandir", _explode)
+    missing = tmp_path / "Canon-PRO-300.ti2"
+    assert fmod.resolve_existing(missing) == missing
+
+
+def test_a_hit_never_lists_the_directory_either(tmp_path, monkeypatch):
+    """An accented name whose exact spelling IS on disk — the macOS case, and
+    every chart ChromIQ wrote itself — also stops at the first `stat`."""
+    import core.file_manager as fmod
+
+    (tmp_path / f"{NAME}.ti2").write_text("x", encoding="utf-8")
+
+    def _explode(*a, **k):
+        raise AssertionError("scandir called when the exact spelling was there")
+
+    monkeypatch.setattr(fmod.os, "scandir", _explode)
+    assert fmod.resolve_existing(tmp_path / f"{NAME}.ti2").is_file()
+
+
+def test_an_unreadable_parent_is_the_path_unchanged_not_an_exception(tmp_path):
+    """A resolver that raises where `exists()` used to answer False would turn
+    a missing chart into a crash."""
+    from core.file_manager import resolve_existing
+
+    p = tmp_path / "nowhere" / f"{NAME}.ti2"
+    assert resolve_existing(p) == p
+    a_file = tmp_path / "a-file"
+    a_file.write_text("x", encoding="utf-8")
+    q = a_file / f"{NAME}.ti2"
+    assert resolve_existing(q) == q
+
+
+def test_the_whole_chart_chain_and_the_verify_chart_resolve(tmp_path):
+    """Not just the `.ti2`. A run whose `.ti2` is found and whose `.cht` is not
+    is a run that half works — scanin would refuse a chart the tab shows."""
+    run = _run_at(tmp_path, NAME)
+    for ext in (".ti1", ".ti2", ".cht", ".ps", ".channels.json", ".ti3", ".icc"):
+        (run.dir / f"{NFD}{ext}").write_text(ext, encoding="utf-8")
+    for got in (run.chart_ti1, run.chart_ti2, run.chart_cht, run.chart_ps,
+                run.chart_channels_json, run.measurement_ti3, run.profile_icc):
+        assert got.is_file(), f"{got.name} not found"
+
+    vdir = run.verifications_dir
+    vdir.mkdir(parents=True)
+    vstem = ud.normalize("NFD", run.verify_stem)
+    for ext in (".ti1", ".ti2", ".cht"):
+        (vdir / f"{vstem}{ext}").write_text(ext, encoding="utf-8")
+    assert run.has_verify_chart(), "the verify chart is there and unseen"
+    assert run.verify_chart_ti2.is_file() and run.verify_chart_ti1.is_file()
+    assert run.verify_chart_cht.is_file()
+
+
+def test_a_calibration_finds_its_own_restored_chart(tmp_path):
+    """`cal/` is stem-named too, and a calibration comes home from the same
+    backup as the project it belongs to."""
+    proj = Project.create(tmp_path / NAME, NAME)
+    cal = proj.calibration
+    cal.dir.mkdir(parents=True, exist_ok=True)
+    cstem = ud.normalize("NFD", cal.stem)
+    for ext in (".ti1", ".ti2", ".ti3", ".cal", ".icc"):
+        (cal.dir / f"{cstem}{ext}").write_text(ext, encoding="utf-8")
+    for got in (cal.ti1, cal.ti2, cal.ti3, cal.cal_path, cal.icc):
+        assert got.is_file(), f"{got.name} not found"
+
+
+def test_adopting_a_restored_chart_as_a_verify_chart_moves_it(tmp_path):
+    """The guard and the move have to agree.
+
+    `adopt_run_chart_as_verify` clears the old verify chart and THEN moves the
+    new one. Its guard is `chart_ti2.exists()`; the move was a raw f-string. A
+    guard that now passes over a move that still cannot see the files would
+    clear a chart for a move that moves nothing.
+    """
+    run = _run_at(tmp_path, NAME)
+    for ext in (".ti1", ".ti2", ".cht"):
+        (run.dir / f"{NFD}{ext}").write_text(ext, encoding="utf-8")
+    moved = run.adopt_run_chart_as_verify()
+    assert moved is not None and moved.is_file(), (
+        "the guard passed and the move moved nothing")
+    assert moved.read_text(encoding="utf-8") == ".ti2"
+    assert run.verify_chart_ti1.is_file() and run.verify_chart_cht.is_file()
+    left = [n for n in os.listdir(run.dir)
+            if n.endswith((".ti1", ".ti2", ".cht"))]
+    assert left == [], f"left behind under the profiling stem: {left}"
+
+
+def test_the_volume_this_ran_on_is_recorded_rather_than_assumed(tmp_path):
+    """Not an assertion about the fix — a RECORD of which filesystem ran it.
+
+    On a folding volume the tests above pass for the filesystem's reason; on a
+    sensitive one they pass for the resolver's. Which it was is worth knowing
+    when a failure is read months later, so it is measured and printed rather
+    than inferred from `sys.platform`.
+    """
+    folds = _volume_folds_spellings(tmp_path)
+    if IS_MACOS:
+        assert folds, "a Mac volume that does not fold spellings — say so"
+    print(f"\nnormalisation-insensitive volume: {folds} "
+          f"(sys.platform={sys.platform})")
+
+
+# ---------------------------------------------------------------------------
+# Through the real UI resolution — the path `ui/main_window.py:2238` takes
+# ---------------------------------------------------------------------------
+
+def test_the_ui_resolves_the_restored_chart_and_not_its_ti1(cal_settings, qapp):
+    """`TabChart._resolve_target_chart`, which is what `:2238` asks.
+
+    The offscreen GUARD for the on-screen proof: an NFD-named project whose
+    `.ti2` is spelled composed and whose `.ti1` is spelled like the folder, so
+    the substitution has somewhere to go. A `MainWindow` cannot be built under
+    `QT_QPA_PLATFORM=offscreen` without segfaulting, so this drives the real
+    `TabChart` + `FileManager` through the same duck-typed host
+    `tests/test_patch_set_editor_opens_the_selected_target.py` uses.
+    """
+    from core.argyll_runner import ArgyllRunner
+    from core.measurement_target import RUN_TYPE_PROFILING
+    from ui.main_window import MainWindow
+    from ui.measurement_target_bar import MeasurementTargetController
+    from ui.tabs.tab_chart import TabChart
+
+    class _Host:
+        def __init__(self, fm, tab):
+            self._file_mgr, self._tab_chart = fm, tab
+
+    fm = FileManager(cal_settings)
+    fm.open_project_at(Path(cal_settings.get("custom_output_path")) / NFD)
+    proj = fm.project()
+    run = proj.current_run()
+    assert run.stem == NFD, run.stem
+
+    (run.dir / f"{NFD}.ti1").write_text("the .ti1 — the WRONG chart",
+                                        encoding="utf-8")
+    (run.dir / f"{NAME}.ti2").write_text("the .ti2 — the right chart",
+                                         encoding="utf-8")
+    (run.dir / f"{NAME}_01.tif").write_text("page", encoding="utf-8")
+
+    tab = TabChart(ArgyllRunner(cal_settings), fm, cal_settings)
+    ctl = MeasurementTargetController(fm)
+    tab.set_target_controller(ctl)
+    ctl.set_run_type(RUN_TYPE_PROFILING)
+    ctl.set_profile_run(run.id)
+
+    resolved = tab._resolve_target_chart()
+    assert resolved is not None, (
+        "the tab found no chart at all — 'No chart for this profile run yet' "
+        "with the chart in the folder")
+    ti2, tiffs, ti1 = resolved
+    chart = ti2 if ti2.exists() else ti1          # the `:2238` expression
+    assert chart.read_text(encoding="utf-8").endswith("the right chart"), (
+        f"the patch cube would draw {chart.name!r}")
+    assert len(tiffs) == 1
+    assert MainWindow._current_chart_ti2(_Host(fm, tab)) == ti2
