@@ -300,19 +300,26 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 #: `scanin` actually uses: a cLUT-Lab profile on the default white point returns
 #: ONE colour for device 0.76 / 0.80 / 0.85 / 0.90 / 1.00. German translated,
 #: the eleven carry English under the beta convention. Raised on purpose.
+# +2 each in the eleven, 0 in German, 2026-09-05 (AGENT BQ): the scanner
+# white-point default moved to "Scale white to a perfect white surface" (-u -R).
+# Two of the eight keys it brings are long enough to count as substantial —
+# M-SCAN-WP-DEFAULT's body, the one-time note saying the default moved, and the
+# profile-type help's Lab-cLUT bullet, whose ceiling is a different height under
+# the new default. Both are new wording in a beta and both are PROPOSED besides,
+# so the eleven carry the English source and German is translated.
 _BUDGET = {
     "de": 31,
-    "es": 225,
-    "fr": 226,
-    "it": 225,
-    "ja": 225,
-    "nl": 225,
-    "no": 225,
-    "pl": 225,
-    "pt": 225,
-    "ru": 224,
-    "sv": 225,
-    "zh_CN": 224,
+    "es": 227,
+    "fr": 228,
+    "it": 227,
+    "ja": 227,
+    "nl": 227,
+    "no": 227,
+    "pl": 227,
+    "pt": 227,
+    "ru": 226,
+    "sv": 227,
+    "zh_CN": 226,
 }
 
 

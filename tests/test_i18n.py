@@ -590,19 +590,30 @@ def test_every_deliberate_exception_says_why():
 # above accounts for, most of them §M-PROPOSED wording nobody has ruled on. A
 # ranked list of them, by the harm of reading them in English, is in the
 # AGENT BP report. These are each language's ACTUAL count.
+# +4 each in the eleven, 0 in German, 2026-09-05 (AGENT BQ): the scanner
+# white-point default moved to "Scale white to a perfect white surface" (-u -R).
+# Eight keys arrive and five retire — the two shortened combo labels, the new
+# one, the three help bodies that had to move with the default (white-point
+# handling, the manual scale, and "Restrict white, black and primaries"), the
+# profile-type help's Lab-cLUT bullet, whose ceiling is a different height under
+# the new default, and the two halves of M-SCAN-WP-DEFAULT, the one-time note
+# saying the default moved and took the user's remembered setting with it.
+# German is translated for all eight and does not move. The eleven catalogues
+# carry the English source: new wording in a beta, and PROPOSED wording besides.
+# These are each language's ACTUAL count.
 _IDENTICAL_TO_KEY = {
     "de": 117,
-    "es": 382,
-    "fr": 402,
-    "it": 394,
-    "ja": 371,
-    "nl": 411,
-    "no": 395,
-    "pl": 386,
-    "pt": 386,
-    "ru": 358,
-    "sv": 399,
-    "zh_CN": 364,
+    "es": 386,
+    "fr": 406,
+    "it": 398,
+    "ja": 375,
+    "nl": 415,
+    "no": 399,
+    "pl": 390,
+    "pt": 390,
+    "ru": 362,
+    "sv": 403,
+    "zh_CN": 368,
 }
 
 

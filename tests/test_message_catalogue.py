@@ -267,6 +267,16 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # where a rebuilt profile's predecessor
                                  # went, now that it is archived rather
                                  # than overwritten in place.
+                                 # 2026-09-05, AGENT BQ. The scanner
+                                 # white-point default moved to "Scale white
+                                 # to a perfect white surface" (-u -R) and
+                                 # Basti ruled that existing remembered
+                                 # settings adopt it. The migration announces
+                                 # itself once, in the log, because a change
+                                 # of meaning nobody is told about is the
+                                 # thing CLAUDE.md's principle 10 exists to
+                                 # prevent. The WORDING waits here.
+                                 "M-SCAN-WP-DEFAULT",
                                  "M-SCAN-REF-SHORT",
                                  "M-SCAN-REF-DISAGREES",
                                  "M-SCAN-CLIPPED",

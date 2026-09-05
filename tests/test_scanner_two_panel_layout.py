@@ -494,9 +494,13 @@ def test_an_option_combo_can_show_the_value_it_is_set_to(_app, _out_dir):
                     checked += 1
         finally:
             dlg.deleteLater()
-    # 5 white-point + 3 gamut-source + 12 + 12 intent + 5 B2A. A guard, not a
+    # 6 white-point + 3 gamut-source + 12 + 12 intent + 5 B2A. A guard, not a
     # detail: the loop above is vacuously true over an empty combo list.
-    assert checked == 37, f"{checked} values were looked at, not 37"
+    # White point handling gained a sixth entry on 2026-09-05 — "Scale white to
+    # a perfect white surface (-u -R)", the new default — and it is the longest
+    # of the six, so the per-value assertion above is the one that matters for
+    # it, and it passes.
+    assert checked == 38, f"{checked} values were looked at, not 38"
 
 
 def test_a_value_too_long_to_fit_says_so_and_offers_the_full_text(_app, _out_dir):

@@ -177,12 +177,25 @@ def test_the_help_is_mode_aware_and_each_mode_names_its_own_default():
     assert "288" in scanner and "864" in scanner
     assert "patch count is printed beside each target's name" in scanner
     # The lightness ceiling in plain words, never as "L* 100.4".
-    assert "lighter than your target's own white patch" in scanner
+    #
+    # This used to assert the phrase "lighter than your target's own white
+    # patch", and that sentence stopped being true on 2026-09-05: the scanner
+    # white-point default moved to "Scale white to a perfect white surface"
+    # (-u -R), which lifts a Lab cLUT's ceiling from about 94 % reflectance to
+    # about 114 % — above anything a reflective original can be. The ceiling is
+    # still the reason the XYZ table is the one to take, and the help must
+    # still say so in plain words, but it now has to say WHERE the ceiling sits
+    # and that the White point handling control decides it. Left as it was,
+    # this assertion would have held the help to a claim the app had stopped
+    # making true.
+    assert "a hard ceiling" in scanner
+    assert "Scale white to a perfect white surface" in scanner
+    assert "reflectance" in scanner
     assert "L*" not in scanner and "PCS" not in scanner
     assert "L*" not in printer and "PCS" not in printer
     # The printer body must not carry the scanner recommendation.
     assert "the Lab default stands" in printer
-    assert "the XYZ table is the one to take" in scanner
+    assert "the safer of the two" in scanner
 
 
 def test_the_help_follows_the_printer_tick_in_the_real_window(_app, tmp_path):

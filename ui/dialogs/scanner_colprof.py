@@ -110,13 +110,62 @@ B2A_CHOICES = [
 ]
 # White-point handling for a scanner/camera INPUT profile — the colprof -u family
 # (#121, Knut). Data values map to ProfileParams.wp_mode.
+#
+# "uR" is `-u -R`, and it is the DEFAULT (Basti, 2026-09-05). It is one entry
+# rather than the two controls it drives because it is one decision; the
+# "Restrict white, black and primaries" switch in Expert Options stays where it
+# was and stays unticked, so nothing about it changed except that this entry no
+# longer needs it to be found.
+#
+# `-u 1 -R` is what was measured, and `-u 1` is byte-for-byte a bare `-u`:
+# `colprof.c:494` sets `autowpsc = 1` before it reads the number and
+# `xfit.c:2753` defaults the scale to 1.0. Re-measured 2026-09-05 on the same
+# IT8 scan at `-ax -qh`: `-u 1 -R` and `-u -R` produce the same A2B0, B2A0,
+# wtpt and bkpt — every colour tag identical, only `desc` differing because
+# that is the file name. So the default carries no scale value at all.
 WP_MODE_CHOICES = [
-    ("", tr("Map chart white to white (default)")),
+    ("uR", tr("Scale white to a perfect white surface (-u -R)")),
+    ("", tr("Map chart white to white")),
     ("u", tr("Auto-scale to avoid clipping (-u)")),
     ("ua", tr("Force Absolute Colorimetric (-ua)")),
     ("uc", tr("Clip highlights above white (-uc)")),
     ("scale", tr("Manual white-point scale (-u scale)")),
 ]
+#: The factory default, in ONE place. The combo marks whichever entry this
+#: names "(default)" the same way the main window marks its own two, so the
+#: label and the default cannot drift apart — the previous default said
+#: "(default)" inside its own translated string, in thirteen catalogues.
+#:
+#: WHY IT MOVED, measured 2026-09-05 on the 864-patch IT8 scan behind
+#: `beta 9/knut-whitepoint/REPORT.md`, at `-ax -qh`:
+#:   * the old default puts the chart's own white board at PCS white, and that
+#:     board is only 84.286 % reflectance. Every reflective original brighter
+#:     than it lands above L* 100 — measured 101.12 (84.1 %), 103.47 (89.3 %),
+#:     106.08 (95.2 %) and 108.06 (a perfect diffuser) — and all four arrive at
+#:     sRGB 255/255/255. That is four different whites collapsed onto one, and
+#:     it cannot be undone afterwards.
+#:   * `-u -R` puts PCS white at a perfect diffuse reflector instead, so the
+#:     same four land at L* 93.50 / 95.69 / 98.12 / 99.98 and none of them
+#:     clips. Nothing physically possible ever does.
+#:   * it costs no accuracy: profcheck -k -Ia gives avg ΔE00 0.336709 against
+#:     the old default's 0.336727 (max 3.657 against 3.636).
+#:   * and it stays neutral, which is what separates it from `-ua`. The board
+#:     reads a* −0.83 / b* −0.50 under `-u -R` against the old default's
+#:     −0.89 / −0.53 — the same chromaticity — where `-ua` reports the chart's
+#:     real cast, a* +1.49 rising to +2.50 on a perfect diffuser. Right for an
+#:     instrument, wrong for a picture, so `-ua` is not the default.
+WP_MODE_DEFAULT = "uR"
+#: What the default was before 2026-09-05. A stored configuration carrying this
+#: value AND no schema stamp predates the change and is migrated to
+#: `WP_MODE_DEFAULT`; see `migrate_stored_configs`.
+WP_MODE_LEGACY_DEFAULT = ""
+
+#: Stored-configuration schema for the scanner window's Advanced values. Bumped
+#: when a stored configuration has to be REINTERPRETED rather than merely read
+#: — which is exactly what a changed default means for a value that was written
+#: because it was the default, not because it was chosen.
+ADV_SCHEMA_KEY = "adv_schema"
+ADV_SCHEMA_VERSION = 2
 
 
 # ----------------------------------------------------------------------------
@@ -241,17 +290,19 @@ def ptype_help(printer: bool) -> "tuple[str, str]":
            "colour in a different internal form. On the colours your target "
            "actually contains, the two tables measured close together, with "
            "neither of them consistently ahead of the other. The difference is "
-           "at the top end. A Lab table cannot describe anything lighter than "
-           "your target's own white patch — and a target's white board is not "
-           "very white: on a real IT8 scan it reached only about 80 out of the "
-           "scanner's 100. So everything brighter than that, which includes "
-           "most bright photo paper, arrives at exactly the lightness of the "
-           "target's white patch, with the differences between those tones "
-           "flattened away. Shaper + matrix and the XYZ table both keep going "
-           "past it. That is the whole reason the XYZ table is the one to take "
-           "if you want a table profile. If you would rather stay with Lab, "
-           "set Advanced… ▸ White point handling to “Auto-scale to avoid "
-           "clipping (-u)”, which lifts the ceiling."),
+           "at the top end: a Lab table has a hard ceiling and stops dead at "
+           "it, flattening every tone above onto one value, where Shaper + "
+           "matrix and the XYZ table both carry on. How high that ceiling sits "
+           "is decided by Advanced… ▸ White point handling. On the default "
+           "there, “Scale white to a perfect white surface”, it sits at about "
+           "114 % reflectance — brighter than a perfect white surface, so "
+           "nothing you can put on the glass will reach it. Change that "
+           "control to “Map chart white to white” and the ceiling drops to "
+           "about 94 % reflectance, which ordinary bright paper does reach, "
+           "and everything above it arrives flattened. (Both figures measured "
+           "on a real IT8 scan, so your own will differ a little.) The XYZ "
+           "table has no ceiling at all under any of those settings, which is "
+           "why it is the safer of the two and why it costs nothing to take."),
         tr("• Matrix only — the 3×3 mix and nothing else, with no tone curves "
            "in front of it. It suits a device that is already perfectly "
            "linear, such as a camera shooting RAW. On an ordinary scanner it "
@@ -468,19 +519,33 @@ _TIP_WP = (
     "— the same original scanned by different software gives different "
     "numbers. The profile is what turns those numbers into colour, and this "
     "setting chooses WHAT THE PROFILE CALLS WHITE.\n\n"
-    "• Map chart white to white (default) — the white patch of your test chart "
-    "becomes pure white, and every other colour is measured against it. This "
-    "is the standard behaviour for a scanner profile and what photo "
-    "applications expect: a scan opens looking finished. The cost is that "
-    "anything lighter than your chart's white patch — a brighter paper, say — "
-    "is clipped to white when the scan is converted into a working space such "
-    "as sRGB, and that detail cannot be recovered afterwards.\n\n"
+    "• Scale white to a perfect white surface (-u -R) — the default. White is "
+    "put where a perfect white surface would be, which is the brightest thing "
+    "a reflective original can physically be, so nothing you ever put on the "
+    "glass is brighter than the profile's white and nothing is clipped. Your "
+    "chart's white board is dimmer than that, so it arrives at about L* 93 "
+    "instead of 100 and a scan opens looking very slightly grey: one levels "
+    "step, with every tone still there to work with. It costs no accuracy — "
+    "measured on a real IT8 scan, it and the entry below both average 0.34 "
+    "ΔE00 — and it keeps whites as neutral as that entry does.\n\n"
+    "• Map chart white to white — the white patch of your test chart becomes "
+    "pure white, and every other colour is measured against it. A scan opens "
+    "looking finished, with no levels step to make, which is why photo "
+    "applications expect it. The cost is that anything lighter than your "
+    "chart's white patch is clipped to white when the scan is converted into "
+    "a working space such as sRGB, and that detail cannot be recovered "
+    "afterwards. Measured on a real IT8 scan whose white board is 84 % "
+    "reflectance: that board, a brighter paper at 89 %, a very bright paper "
+    "at 95 % and a perfect white surface all arrive at exactly the same "
+    "255/255/255. Take it when the originals you scan are on paper like your "
+    "chart's, and you would rather not make that levels step.\n\n"
     "• Auto-scale to avoid clipping (-u) — the profile is scaled so that the "
-    "scanner's MAXIMUM value becomes white, so nothing can ever clip. Your "
-    "chart's white sits well below that maximum, so every tone in the scan "
-    "then arrives about a stop darker and you are expected to set the white "
-    "yourself afterwards. Use it only if something later in your workflow "
-    "does that.\n\n"
+    "scanner's MAXIMUM value becomes white. Nothing can clip, but it goes far "
+    "further than it needs to: that maximum is around 160 % reflectance, half "
+    "as bright again as anything that can physically exist on paper, so every "
+    "tone in the scan arrives much darker than with the default and you are "
+    "expected to set the white yourself afterwards. Use it only if something "
+    "later in your workflow does that.\n\n"
     "• Force Absolute Colorimetric (-ua) — the profile reports colour as it "
     "actually is, measured against a perfect white surface, instead of "
     "relative to your chart's white. (“Absolute colorimetric” is the rendering "
@@ -499,23 +564,22 @@ _TIP_WP = (
     "your own number applied on top of it, not a scale on its own. A value of "
     "1.00 is therefore the same thing as “Auto-scale to avoid clipping”, not "
     "“no change”; see the box below.\n\n"
-    "Which to choose. Scanning photographs to look at, on paper like your "
-    "chart's: leave it on the first option. Scanning originals on brighter or "
-    "varied paper, and you care about the highlights: “Manual white-point "
-    "scale” with “Restrict white, black and primaries” ticked puts white at a "
-    "perfect white surface, so nothing physically possible clips — expect "
-    "whites to arrive at about L* 93 and to need one levels step. Using the "
-    "scanner to MEASURE rather than to photograph: “Force Absolute "
+    "Which to choose. Leave it on the default unless one of these fits you "
+    "better. Scanning photographs on paper like your chart's, and you want "
+    "the scan finished the moment it opens: “Map chart white to white”. Using "
+    "the scanner to MEASURE rather than to photograph: “Force Absolute "
     "Colorimetric”.\n\n"
-    "A note on “Restrict white, black and primaries”. On a look-up-table "
-    "profile (cLUT — XYZ or cLUT — Lab) it can only limit the white and black "
-    "points; a look-up table has no primaries to restrict. Combined with "
-    "“Force Absolute Colorimetric” it does nothing at all — measured, the two "
-    "profiles transform identically — because that option already puts white "
-    "exactly where the restriction would. It has a real effect only alongside "
-    "“Manual white-point scale”, where it is what brings the white point back "
-    "to a perfect white, and on the two matrix profile types, where it clamps "
-    "the fit and costs accuracy.\n\n"
+    "A note on “Restrict white, black and primaries”, the switch under Expert "
+    "Options. It is the “-R” half of the default above, and the default "
+    "already applies it — you do not need to tick it as well, and while the "
+    "default is selected ticking it changes nothing. Elsewhere: on a "
+    "look-up-table profile (cLUT — XYZ or cLUT — Lab) it can only limit the "
+    "white and black points, because a look-up table has no primaries to "
+    "restrict; with “Map chart white to white” it usually does nothing at "
+    "all; with “Force Absolute Colorimetric” it does nothing either — "
+    "measured, the two profiles transform identically — because that option "
+    "has already put white where the clamp would; and on the two matrix "
+    "profile types it clamps the fit and costs accuracy.\n\n"
     "Worth more than any of this: the Quality setting. On a real IT8 scan, "
     "moving Quality from Medium to High cut the average error by about 30 % — "
     "more than every white-point option in this list put together.\n\n"
@@ -532,10 +596,12 @@ _TIP_WP_SCALE = (
     "that same scan, 0.90 still left the white point at about 1.46 instead of "
     "1.00, and every tone in the scan about 44 % darker than the default. "
     "Numbers above 1.00 scale further still.\n\n"
-    "Reach for this only when you already know the factor you want. Its one "
-    "everyday use is with “Restrict white, black and primaries” ticked "
-    "alongside it, which brings the white point back to a perfect white "
-    "surface — nothing a reflective original can be is then clipped.\n\n"
+    "Reach for this only when you already know the factor you want. The one "
+    "everyday thing it used to be needed for — a scale of 1.00 with “Restrict "
+    "white, black and primaries” ticked alongside it, to bring the white "
+    "point back to a perfect white surface — is now the first entry in the "
+    "list above and the default, so you no longer have to build it out of two "
+    "controls.\n\n"
     "This box only has an effect when the handling above is set to “Manual "
     "white-point scale”.")
 # What it does depends on the PROFILE TYPE, and the old text said neither.
@@ -557,20 +623,23 @@ _TIP_R = (
     "• On a look-up-table profile (cLUT — XYZ or cLUT — Lab) it can only "
     "clamp the white and black points. A look-up table has no primaries, so "
     "that half of the label does nothing here.\n"
-    "• On its own, with the white point left at its default, it usually "
-    "changes nothing at all — measured on a real IT8 scan, the profile came "
-    "out identical.\n"
+    "• With the default white point handling, “Scale white to a perfect white "
+    "surface”, it is ALREADY APPLIED — that entry is this switch and “-u” "
+    "together — so ticking it here as well changes nothing.\n"
+    "• On its own, with “Map chart white to white”, it usually changes "
+    "nothing at all — measured on a real IT8 scan, the profile came out "
+    "identical.\n"
     "• Together with “Manual white-point scale” it is not a tidy-up: it "
-    "rescales the whole colour table, and that pairing is the recommended way "
-    "to put white at a perfect white surface.\n"
+    "rescales the whole colour table, and it is what puts white at a perfect "
+    "white surface.\n"
     "• With “Force Absolute Colorimetric” it does nothing, because that "
     "option has already put white where the clamp would put it.\n"
     "• On “Shaper + matrix” or “Matrix only” it clamps the fit and costs real "
     "accuracy. ArgyllCMS says so itself: “this will reduce the accuracy of "
     "the profile”.\n\n"
-    "Leave it unchecked for normal profiling; tick it when a program refuses "
-    "or misreads your profile, or when you are pairing it with “Manual "
-    "white-point scale”.")
+    "So you can leave it unchecked: the one setting that needs it has it. "
+    "Tick it when a program refuses or misreads your profile, or when you are "
+    "pairing it with “Manual white-point scale”.")
 
 
 # Keys of the values dict this module round-trips. Resolved colprof flags
@@ -623,7 +692,59 @@ def effective_adv_vals(adv_vals: dict[str, Any], printer: bool, ref_dir) -> dict
     else:
         for k in OUTPUT_ONLY_KEYS:
             v.pop(k, None)
+        # A bucket nobody has saved has no wp_mode at all, and an ABSENT key is
+        # not the same thing as a stored "". `setdefault`, so a user who has
+        # deliberately chosen "Map chart white to white" keeps it.
+        v.setdefault("wp_mode", WP_MODE_DEFAULT)
     return v
+
+
+def migrate_stored_configs(raw: Any) -> "tuple[dict, list[str]]":
+    """Bring stored scanner-window configurations up to `ADV_SCHEMA_VERSION`.
+
+    Returns ``(configs, migrated)`` — the configurations to use, and the names
+    of the buckets whose white-point handling this call CHANGED. An empty list
+    means nothing moved, and the caller has nothing to write and nothing to say.
+
+    The one migration so far is the white-point default (Basti, 2026-09-05:
+    *"our user base is not very big at the moment so i want the better
+    default"*). A configuration written before this change stores
+    ``wp_mode = ""`` — but "" was what the window WROTE for everybody, whether
+    or not anybody chose it, so on its own it cannot be read as a decision.
+    The schema stamp is what tells the two apart: a configuration with no stamp
+    was written by a version in which "" was the default, so its "" is adopted
+    into the new default; every configuration this version writes carries the
+    stamp, so a "" chosen deliberately from here on is left exactly alone.
+
+    Nothing else in the configuration is touched, and no profile, measurement
+    or file on disk is read or written by this — it is one remembered dropdown
+    position, and the option it used to name is still in the same dropdown.
+    """
+    out: dict[str, Any] = dict(raw) if isinstance(raw, dict) else {}
+    migrated: list[str] = []
+    for ctx, cfg in list(out.items()):
+        if not isinstance(cfg, dict):
+            continue
+        adv = cfg.get("adv")
+        if not isinstance(adv, dict) or not adv:
+            continue                       # never saved: it takes the default
+        try:
+            stamped = int(adv.get(ADV_SCHEMA_KEY, 1))
+        except (TypeError, ValueError):
+            stamped = 1
+        if stamped >= ADV_SCHEMA_VERSION:
+            continue
+        adv = dict(adv)
+        # `in`, not `.get(...) == ""` — a PRINTER bucket has no wp_mode at all
+        # (`values()` writes it only in scanner mode, and `effective_adv_vals`
+        # strips it), and giving one an input-profile setting would put a flag
+        # colprof refuses on an output build into a config that never had it.
+        if adv.get("wp_mode", object()) == WP_MODE_LEGACY_DEFAULT:
+            adv["wp_mode"] = WP_MODE_DEFAULT
+            migrated.append(ctx)
+        adv[ADV_SCHEMA_KEY] = ADV_SCHEMA_VERSION
+        out[ctx] = {**cfg, "adv": adv}
+    return out, migrated
 
 
 def make_profile_params(ti3, description: str, main_vals: dict[str, Any],
@@ -858,6 +979,13 @@ class ScannerAdvancedDialog(QDialog):
 
         self._wp_mode = _option_combo(grp)
         for data, lbl in WP_MODE_CHOICES:
+            # The "(default)" marker is applied HERE, from WP_MODE_DEFAULT, not
+            # written into one entry's own translated string. The window's other
+            # two dropdowns are marked the same way and with the same key
+            # (`scanin_dialog._mark_default_combos`), so moving the default is
+            # one constant and never thirteen catalogues out of step.
+            if data == WP_MODE_DEFAULT:
+                lbl = tr("{option} (default)").format(option=lbl)
             self._wp_mode.addItem(lbl, data)
         _option_rows(g, QLabel(tr("White point handling:"), grp), self._wp_mode,
                      _green_tip("White Point Handling (-u / -ua / -uc)",
@@ -1060,7 +1188,11 @@ class ScannerAdvancedDialog(QDialog):
                     self._b2a_check.setChecked(True)
 
         if self._wp_mode is not None:              # scanner: white-point handling
-            k = self._wp_mode.findData(str(values.get("wp_mode", "") or ""))
+            # `WP_MODE_DEFAULT` as the fallback, not "": since 2026-09-05 "" is
+            # a real entry a user can choose ("Map chart white to white"), so a
+            # missing key and a stored "" mean different things and only the
+            # missing one may be re-defaulted.
+            k = self._wp_mode.findData(str(values.get("wp_mode", WP_MODE_DEFAULT)))
             self._wp_mode.setCurrentIndex(k if k >= 0 else 0)
             self._wp_scale.setValue(_num("wp_scale", 1.0))
 
@@ -1105,7 +1237,8 @@ class ScannerAdvancedDialog(QDialog):
                 self._b2a_check.setChecked(False)
                 self._b2a_combo.setCurrentIndex(1)      # Medium
         if self._wp_mode is not None:
-            self._wp_mode.setCurrentIndex(0)            # Map chart white to white
+            k = self._wp_mode.findData(WP_MODE_DEFAULT)
+            self._wp_mode.setCurrentIndex(k if k >= 0 else 0)
             self._wp_scale.setValue(1.0)
         for check, edit in self._meta.values():
             check.setChecked(False)
@@ -1154,4 +1287,9 @@ class ScannerAdvancedDialog(QDialog):
 
         for flag, cb in self._flags.items():
             out[flag] = cb.isChecked()
+        # Anything this version writes is current by definition. Without the
+        # stamp a deliberate "Map chart white to white" would be read as a
+        # pre-2026-09-05 leftover on the next open and silently re-defaulted —
+        # a migration that fired for ever instead of once.
+        out[ADV_SCHEMA_KEY] = ADV_SCHEMA_VERSION
         return out

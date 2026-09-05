@@ -1850,6 +1850,54 @@ M_SCAN_PROFILE_ARCHIVED = _m(
     approved=False)
 
 
+# --- PROPOSED: the scanner white-point default moved, and said so ----------
+#: 2026-09-05, Basti. The white-point handling a scanner/camera profile is
+#: built with moved from "Map chart white to white" to "Scale white to a
+#: perfect white surface" (colprof `-u -R`), and he ruled that EXISTING
+#: remembered settings adopt it too: *"our user base is not very big at the
+#: moment so i want the better default"*. That is the right call and it is also
+#: a change of meaning nothing else in the app would explain — somebody who
+#: re-profiles a scanner they have profiled before gets a visibly different
+#: profile. So the migration says so, once, the first time the window opens
+#: after it has happened.
+#:
+#: It is announced in the LOG, not a window: §M's rule is that wording which
+#: has not been reviewed speaks through the log until it is approved, and
+#: nobody asked for a window here.
+M_SCAN_WP_DEFAULT = _m(
+    "M-SCAN-WP-DEFAULT",
+    "The white point setting for new scanner profiles has changed",
+    "ChromIQ used to build scanner and camera profiles so that the white "
+    "patch of your test chart became pure white. It now scales white to a "
+    "perfect white surface instead — the entry “Scale white to a perfect "
+    "white surface (-u -R)” under Advanced… ▸ White Point ▸ White point "
+    "handling. Your remembered settings for this window have been moved to "
+    "it, which is why you are reading this.\n\n"
+    "Why it moved. Under the old setting, anything you scanned that was "
+    "lighter than your chart's own white board came out as flat white with "
+    "no detail left in it, and no amount of editing afterwards could bring "
+    "that detail back. A test chart's white board is not very white: on the "
+    "scan this was measured from it is 84 % as bright as a perfect white "
+    "surface, so that board, a brighter paper, a very bright paper and a "
+    "perfect white surface all came out as exactly the same white. The new "
+    "setting keeps them apart. It is just as accurate as the old one, and it "
+    "keeps whites just as neutral.\n\n"
+    "What this does not change. Every profile you have already built is a "
+    "file on disk and is untouched. So is every measurement, every chart and "
+    "every project. Nothing has been rebuilt, converted, moved or deleted, "
+    "and no profile changes unless you build it again.\n\n"
+    "What you will notice. A profile you build from now on makes scans open a "
+    "little darker — a white board lands at about 93 out of 100 in lightness "
+    "rather than at 100 — so a scan wants one levels or curves step to "
+    "finish. Nothing has been lost by that: the highlight detail that used to "
+    "be flattened is now there for you to work with.\n\n"
+    "If you preferred the old behaviour, it has not gone anywhere. Open "
+    "Advanced…, and under White Point set “White point handling” back to "
+    "“Map chart white to white”. That is exactly what ChromIQ did before. "
+    "Press “Save as Defaults” and it will stay that way.",
+    approved=False)
+
+
 # --- PROPOSED: the window said nothing at all when a scan was loaded -------
 #: beta 8, B8-16 (Agent B, reproduced by Agent I). Loading a scan under the
 #: wrong Target type produced an EMPTY log, a live Run button and a 288-cell
@@ -2182,6 +2230,7 @@ CATALOGUE = {m.id: m for m in (
     M_SCAN_ALIGN_DONE, M_SCAN_ALIGN_NO_INPUT,
     M_SCAN_CONVERTED, M_SCAN_FIT_TOO_FAR,
     M_SCAN_PROFILE_ARCHIVED,
+    M_SCAN_WP_DEFAULT,
 )}
 
 #: Paragraphs appended to another message rather than shown on their own.

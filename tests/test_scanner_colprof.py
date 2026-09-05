@@ -190,10 +190,12 @@ def test_scanner_white_point_options_wire_and_round_trip(_app):
             sc.make_profile_params(Path("x.ti3"), "S",
                                    {"ptype": "l", "quality": "h"}, out)))
         assert "-ua" in cmd.split() and "-R" in cmd.split()
-        # restore-defaults clears them
+        # restore-defaults puts them back to the factory default, which since
+        # 2026-09-05 is "uR" (-u -R) rather than "" — and never leaves the -R
+        # switch ticked, because "uR" carries its own -R.
         ds.restore_defaults()
         out2 = ds.values()
-        assert out2["wp_mode"] == "" and out2["-R"] is False
+        assert out2["wp_mode"] == sc.WP_MODE_DEFAULT and out2["-R"] is False
     finally:
         ds.deleteLater()
     # manual scale → -u <value>

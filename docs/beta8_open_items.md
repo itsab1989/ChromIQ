@@ -2928,3 +2928,95 @@ came back to it.
 - decided by: AGENT BM referred it to Basti, 2026-09-05
 - because: resolving a conflict between two of his own rulings by picking one
   is exactly the thing CLAUDE.md's binding-specification rule forbids.
+
+### B8-75 · The scanner white-point default clipped every original brighter than the test chart's own white board
+- blocks release: no
+- status: FIXED
+- reported by: measured under B8-69 / the `knut-whitepoint` investigation, and
+  ruled on by Basti, 2026-09-05
+- what was wrong: Tools ▸ Build profile with scanner or camera built every
+  scanner and camera profile with "Map chart white to white", which puts the
+  test chart's own white board at PCS white. A photographic IT8's board is
+  **84.286 % reflectance** (colprof's own log on the scan behind this:
+  `Approximate White point XYZ = 0.82462 0.84286 0.70454`), and most photo and
+  office paper is brighter than that. Everything brighter therefore exceeded
+  PCS white and was flattened, irreversibly, at the first conversion into any
+  RGB working space. Re-measured on 2026-09-05 at `colprof -ax -qh`,
+  media-relative: 84.1 % reflectance arrives at L\* 101.12, 89.3 % at 103.47,
+  95.2 % at 106.08 and a perfect diffuse reflector at 108.06, and all four come
+  out of an sRGB conversion as exactly **255 255 255**. Four physically
+  different whites, one number, with nothing to recover afterwards.
+- what it is now: the default is **"Scale white to a perfect white surface
+  (-u -R)"**, a new single entry in the same dropdown that carries both flags.
+  The same four originals land at L\* 93.50 / 95.69 / 98.12 / 99.98 and nothing
+  physically possible clips. It costs no accuracy — `profcheck -k -Ia` gives
+  avg ΔE00 **0.336709** against the old default's **0.336727** — and it keeps
+  whites neutral: the board reads a\* −0.83 / b\* −0.50 against the old
+  default's −0.89 / −0.53. `-ua` is fractionally more accurate again (0.332197)
+  and was NOT chosen, because it reports the chart's real cast (a\* +1.49 on
+  the board, +2.50 on a perfect diffuser) — right for an instrument, wrong as a
+  global default for pictures.
+- what was measured and where: `beta 9/wp-default/measure/` holds the five
+  `-ax -qh` rebuilds, their logs and the lookups; the case they confirm is
+  `beta 9/knut-whitepoint/REPORT.md`. Two facts worth keeping: `-u 1 -R` (what
+  Knut built and what the report measured) is `-u -R`, proved by rebuilding
+  both and comparing tags — identical A2B0, B2A0, wtpt and bkpt, only `desc`
+  differing because that is the file name; and a Lab cLUT's ceiling moves with
+  this setting, from about **94 %** reflectance under the old default to about
+  **114 %** under the new one, which is why the profile-type help had to change
+  with it.
+- the migration, RULED BY BASTI: existing remembered settings adopt the new
+  default. His words: *"our user base is not very big at the moment so i want
+  the better default"*. So a stored `""` moves, and there is deliberately no
+  per-target escape hatch pinning old settings to the old value. A schema stamp
+  in the stored configuration separates a `""` that was written because it was
+  the default from one chosen deliberately afterwards, so the migration fires
+  once and never again.
+- and it is announced, not silent: **M-SCAN-WP-DEFAULT**, said once in the
+  window's log the first time it opens after the migration has actually moved
+  something. It says what changed, that every existing profile, measurement and
+  project is untouched, and that the old behaviour is still one entry in the
+  same dropdown. **The WORDING is §M-PROPOSED and unapproved** — it is Basti's
+  to approve, which is why it speaks through the log rather than a window.
+- what did NOT change: the printer-mode default, which is a separate question;
+  `ProfileParams.wp_mode`, which stays `""` because every other caller builds
+  an output profile; and both consumers of a scanner profile inside ChromIQ —
+  `scanin -c` reads one with `icAbsoluteColorimetric` hard-coded in Argyll and
+  is indifferent to this setting, and `workflow/cctiff_apply.py` still converts
+  with `-i r`, which is the intent this default is chosen for.
+- guarded by: `tests/test_the_white_point_default_cannot_clip_a_real_original.py`
+- evidence: test_the_default_is_the_one_that_cannot_clip,
+  test_a_fresh_scanner_build_asks_colprof_for_u_and_R,
+  test_the_R_switch_and_the_default_do_not_stack_into_two_flags,
+  test_the_old_behaviour_is_still_one_entry_in_the_same_dropdown,
+  test_a_printer_build_is_untouched_by_any_of_this,
+  test_the_dataclass_default_did_not_move_with_it,
+  test_the_window_marks_the_default_entry_and_only_that_one,
+  test_restore_defaults_goes_to_the_new_default_and_leaves_R_alone,
+  test_a_missing_key_takes_the_default_and_a_stored_one_does_not,
+  test_what_the_window_writes_carries_the_schema_stamp,
+  test_a_setting_saved_before_the_change_adopts_the_new_default,
+  test_the_migration_happens_once_and_not_on_every_open,
+  test_a_choice_made_after_the_change_is_never_re_defaulted,
+  test_a_setting_somebody_actually_chose_is_left_where_it_is,
+  test_a_printer_bucket_never_gains_an_input_profile_setting,
+  test_a_bucket_nobody_ever_saved_is_not_reported_as_migrated,
+  test_rubbish_in_the_store_does_not_take_the_window_down,
+  test_the_change_has_a_message_and_it_is_not_approved_yet,
+  test_the_window_says_it_once_and_only_when_something_moved,
+  test_showing_the_window_is_what_says_it,
+  test_the_two_consumers_of_a_scanner_profile_still_read_it_as_they_did,
+  test_the_help_calls_the_new_default_the_default_and_the_old_one_not,
+  test_the_help_says_the_R_switch_is_already_in_the_default,
+  test_the_help_still_says_what_the_default_costs. Nineteen mutations of the
+  shipped code were each proved to land on disk before the run; every one is
+  caught, and the one that survived the first pass (deleting the single line in
+  `showEvent` that announces the migration) is why
+  test_showing_the_window_is_what_says_it drives the real window instead of
+  calling the method.
+- note for B8-71: the "Usage Scenario" design says scenario 1 pre-selects
+  "today's defaults unchanged". That is still exactly what it should do — but
+  "today's default" is now this entry, so the table in
+  `beta 9/printer-from-scan/USAGE-SCENARIO-DESIGN.md` names the wrong one and
+  should be read with this item beside it. Scenario 2 is unaffected: it presets
+  `-ua`, which is untouched and still its own entry.

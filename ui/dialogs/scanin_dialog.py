@@ -2205,6 +2205,10 @@ class ScannerProfileDialog(_ToolDialogBase):
         # 1084. The window then lets itself be dragged to half its own content.
         self._refresh_min_width()
         self._refit_height()
+        # …and, on the first show only, the one-time note about the white-point
+        # default having moved. Here rather than in `__init__` because the log
+        # widget has to exist and be on screen for anybody to read it.
+        self._announce_wp_default_migration()
 
     def _measure_advanced_width(self) -> None:
         """How wide the fixed left pane has to be with Advanced OPEN.
@@ -2590,11 +2594,41 @@ class ScannerProfileDialog(_ToolDialogBase):
 
     def _load_ctx_configs(self) -> dict[str, dict]:
         raw = self._settings.get("scanner_colprof_configs", {}) or {}
+        # Bring a stored configuration up to the current schema BEFORE anything
+        # reads it, and write the result back so the migration happens once
+        # rather than on every open. `migrated` names the buckets whose
+        # white-point handling this actually changed — empty for a user who has
+        # never pressed "Save as Defaults", and empty on every later open.
+        raw, migrated = scanner_colprof.migrate_stored_configs(raw)
+        if migrated:
+            self._settings.set("scanner_colprof_configs", raw)
+        #: Buckets whose white-point handling the migration moved, waiting to be
+        #: announced on first show. A change of meaning nobody is told about is
+        #: exactly what CLAUDE.md's principle 10 forbids.
+        self._wp_default_migrated: list[str] = migrated
         out: dict[str, dict] = {}
         for ctx in self._CONTEXTS:
             c = raw.get(ctx) if isinstance(raw, dict) else None
             out[ctx] = dict(c) if isinstance(c, dict) else {}
         return out
+
+    def _announce_wp_default_migration(self) -> None:
+        """Say, once, that the white-point default moved and took the user's
+        remembered settings with it (M-SCAN-WP-DEFAULT).
+
+        In the LOG, not a window: §M's rule is that wording which has not been
+        reviewed speaks through the log until it is approved, and nobody has
+        asked for a window here. It is said only when the migration actually
+        changed something, so a user who never saved any settings — and every
+        user on every later open — sees nothing.
+        """
+        if not getattr(self, "_wp_default_migrated", None):
+            return
+        self._wp_default_migrated = []
+        from workflow import measurement_messages as M
+        title, body = M.M_SCAN_WP_DEFAULT.render()
+        self._log.appendPlainText(title)
+        self._log.appendPlainText(body)
 
     def _current_main_vals(self) -> dict:
         return {

@@ -146,8 +146,14 @@ class ProfileParams:
     # Curve / embedding flags
     no_grid_pos: bool = False
     no_embedded_data: bool = False
-    # Input-profile white-point handling (#121): wp_mode ∈ {"", "u", "ua", "uc",
-    # "scale"} → -u / -ua / -uc / -u <wp_scale>; clip_primaries → -R.
+    # Input-profile white-point handling (#121): wp_mode ∈ {"", "u", "uR", "ua",
+    # "uc", "scale"} → nothing / -u / -u -R / -ua / -uc / -u <wp_scale>;
+    # clip_primaries → -R on its own.
+    #
+    # "" stays "no flag" here, and stays this dataclass's default, because every
+    # caller that is not the scanner window builds an OUTPUT profile, where the
+    # -u family is not applicable at all. The scanner window's own default is
+    # "uR" and lives in `ui/dialogs/scanner_colprof.WP_MODE_DEFAULT`.
     wp_mode: str = ""
     wp_scale: float = 0.0
     clip_primaries: bool = False
@@ -466,7 +472,7 @@ class ProfileBuilder:
             args.append("-no")
         # Input-profile white-point handling (-u / -ua / -uc / -u <scale>) and the
         # general primary clamp (-R). Mutually-exclusive -u modes (#121, Knut).
-        if p.wp_mode == "u":
+        if p.wp_mode in ("u", "uR"):
             args.append("-u")
         elif p.wp_mode == "ua":
             args.append("-ua")
@@ -474,7 +480,11 @@ class ProfileBuilder:
             args.append("-uc")
         elif p.wp_mode == "scale" and p.wp_scale > 0:
             args += ["-u", f"{p.wp_scale:g}"]
-        if p.clip_primaries:
+        # -R, from either the "uR" white-point mode (which IS -u -R) or the
+        # switch on its own — ONCE, however both arrive. colprof takes the flag
+        # twice without complaining, but the command ChromIQ shows the user is
+        # the command it runs, and "-u -R -R" is not a command anybody wrote.
+        if p.clip_primaries or p.wp_mode == "uR":
             args.append("-R")
         if p.extra_args:
             args += shlex.split(p.extra_args)
