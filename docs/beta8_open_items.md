@@ -2130,3 +2130,59 @@ came back to it.
   the icon (4 red), the ink read from the Disabled colour group (6 red). Ledger
   in `beta 8/_progress/agentAG.md`; before/after screenshots and per-state
   numbers in `beta 8/27-file-dialog-arrows/`.
+
+### B8-60 · Two more tests could destroy a running QThread, in a file the crash report marked clean
+- blocks release: no
+- found by: Agent BA, verifying PR #188 on macOS with a detector written for it
+  (`scratchpad/qthread_detector.py` — it replaces `PyQt6.QtCore.QThread` with a
+  registering subclass BEFORE conftest loads, keeps a strong reference so it
+  reports rather than reproduces, and asks the registry twice: when the test
+  FUNCTION returned, and after teardown finished). Grepping for `QThread` and
+  running each file alone cannot find this — the destruction happens in a LATER
+  test, which is the whole property of the bug. The Windows session's own
+  challenge (`beta 9/staging/12_drift_challenge.md`) had named the class open
+  and predicted seven sites.
+- status: FIXED
+- detail: PR #188 root-caused the gate's silent worker death to a test ending
+  with a live QThread and fixed two sites. Over the whole everyday tier on the
+  rebased branch (10,492 passed) the detector finds **eight** tests that return
+  while a QThread they made is still running, and none survives to session end.
+  Four are in the file the PR fixed and are joined by its new autouse fixture —
+  which is the positive control that the detector can see what it is looking
+  for. What matters is the OWNERSHIP of the other four, not the count:
+    * `tests/test_cr30_spot_read.py` (2) — **safe, and deliberately so.**
+      `workflow/cr30_spot_manager.py:_start_loop` creates its read thread
+      UNPARENTED and `_keep_until_finished` holds it in the module global
+      `_LIVE` until `isFinished()`, with a comment saying exactly why. Nothing
+      can destroy those while they run.
+    * `tests/test_cr30_measure_bridge.py::test_a_reading_for_a_patch_we_are_no_longer_on_is_dropped`
+      and `tests/test_cr30_a_press_before_the_read_opens_is_kept.py::test_a_refused_read_does_not_hand_its_press_to_the_retry`
+      — **real.** `workflow/cr30/measure_bridge.py:_start_read` was the one
+      place in the CR30 stack that still wrote `QThread(self)`, so the bridge
+      OWNED the thread; and the bridge, `_threads`, the thread, its `finished`
+      connection and the lambda that closes back onto the bridge form a
+      reference cycle, freed at an arbitrary later moment.
+  Measured on this machine, one seven-line script run against the two versions
+  of the module — bridge dropped while a read is held open, interpreter allowed
+  to end: `QThread(self)` gives `QThread: Destroyed while thread '' is still
+  running`, **Abort trap: 6, exit 134**; `QThread()` gives **exit 0**. Qt 6.11 /
+  PyQt 6.11. On Windows that same `qFatal` is the fail-fast `0xC0000409` the PR
+  describes, which is why the gate logs carry no traceback.
+  Product risk is nil and was checked rather than assumed: the app's bridge is
+  owned by the Measure tab, and `main.py` ends on `os._exit`, so the widget tree
+  is never destroyed at quit. This is a test-run crash, which is precisely what
+  makes it expensive — it reads as somebody's regression.
+- fix: `workflow/cr30/measure_bridge.py` now does what its sibling module
+  already did: the read thread is created UNPARENTED and the last reference is
+  held in a module-level `_LIVE` until the thread reports itself finished
+  (pruned in `_reap`, and defensively on each new read). Nothing else moves;
+  `self._threads` still governs the bridge's own view of what is in flight.
+- evidence: test_the_read_thread_is_not_the_bridge_s_to_destroy,
+  test_the_worker_is_kept_referenced_until_it_finishes
+  — 2 mutations applied one at a time, each anchor proved unique and each edit
+  re-read from disk before running: re-parenting the thread (`QThread(self)`)
+  turns it red on the parent assertion AND prints Qt's own "Destroyed while
+  thread is still running"; dropping the `_LIVE.append` turns it red on the
+  keep-alive assertion. Restored, green again. An abort cannot be asserted on —
+  it takes the assertion with it — so the guard is the invariant, and the abort
+  is the measurement quoted above.
