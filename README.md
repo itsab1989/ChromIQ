@@ -676,6 +676,10 @@ and pycups), so the combined application is, and remains, free and open source.
 ArgyllCMS (AGPLv3) is used at arm's length as a separate command-line program and
 is not bundled or modified, so its copyleft does not extend to ChromIQ's own code.
 
+Everything ChromIQ *ships* that somebody else wrote — colour profiles, fonts, the
+plotly bundle, sounds, the test image — is listed with its terms in
+[`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
+
 ---
 
 ## Acknowledgements

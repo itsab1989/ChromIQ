@@ -3020,3 +3020,83 @@ came back to it.
   `beta 9/printer-from-scan/USAGE-SCENARIO-DESIGN.md` names the wrong one and
   should be read with this item beside it. Scenario 2 is unaffected: it presets
   `-ua`, which is untouched and still its own entry.
+
+---
+
+### B8-76 · A profile Adobe's licence forbade us to bundle shipped in every release since v2.3.0
+- blocks release: yes
+- status: FIXED
+- found by: Agent BZ, on a standing question about `assets/USWebCoatedSWOP.icc`
+- detail: 557,168 bytes, ICC `desc` *"U.S. Web Coated (SWOP) v2"*, ICC `cprt`
+  *"Copyright 2000 Adobe Systems, Inc."*, md5 `79d7e984ea3ac74eed7cc92bf6b22a0d`.
+  Added in one line of an eight-file commit — `a4c7c53f`, *"assets: bundle
+  USWebCoatedSWOP.icc so ICC conversion works on all Macs"* — by an earlier
+  session of this assistant, with no licence file, no attribution, and nothing
+  anywhere recording that anyone had asked whether we were permitted to copy it.
+  It then shipped in every release for four months. **This is our error, not the
+  owner's.**
+
+  Adobe's terms are ESTABLISHED, from Adobe, and quoted in full in
+  `THIRD-PARTY-NOTICES.md`. There are two agreements over byte-identical files.
+  The end-user one (`adobe.com/support/downloads/iccprofiles/icc_eula_win_end.html`,
+  live, and unchanged in Wayback captures from 2008 and 2012) says at §2:
+  *"No other distribution of the Software is allowed; including, without
+  limitation, distribution of the Software when incorporated into or bundled
+  with any application software."* The bundling agreement
+  (`…/icc_eula_win_dist.html`) permits *"(d) as bundled with your own application
+  software"* and names "U.S. Web Coated (SWOP) v2" in Exhibit A. Nothing in this
+  repo or its history records the file being taken under the second one. **We
+  were not compliant.**
+
+  Two facts correct the way this was originally framed. First, the search order:
+  `_get_cmyk_transform` built `candidates = [resource_path("assets/USWebCoatedSWOP.icc")] + _extra`
+  — the **bundled** copy was tried FIRST on every platform, so it was not a rare
+  last resort, it was what every user's CMYK preview went through. Second,
+  nothing breaks without a profile: the preview falls back to a naive
+  subtractive composite, measured at a mean 16.9 ΔE76 (p95 47.0) from a profiled
+  conversion, painting 100 % cyan as `#00FFFF`.
+- fix: replaced with `assets/profiles/cmyk.icm` — ArgyllCMS 3.5.0's `ref/cmyk.icm`,
+  copied byte for byte (md5 `6de8c139e9c1a54afd513d03efb7501f`), whose own `cprt`
+  tag reads *"Created by Graeme W. Gill. Released into the public domain. No
+  Warranty, Use at your own risk."* Public domain removes the question instead of
+  answering it, and it is already the house pattern: the four profiles already in
+  `assets/profiles/` are byte-identical Argyll ref copies carrying the same
+  dedication. The Adobe bundling agreement was considered and rejected — its §3
+  requires *"first obtaining the agreement of the end user"* and its §7 makes the
+  grant terminable, neither of which survives GPLv3's irrevocable grant to every
+  downstream redistributor. Cost, measured over a 6⁴ CMYK grid: mean **5.2 ΔE76**
+  (p95 11.0) against the Adobe profile, in a path the app already badges
+  *"Approximate colours — the ink values in the file are exact"*.
+
+  The same sweep added `assets/fonts/OFL.txt` — six OFL 1.1 fonts shipped with no
+  copy of the licence anywhere in the tree, which OFL §2 requires — reproduced
+  plotly.js's MIT permission notice, and wrote `THIRD-PARTY-NOTICES.md` stating
+  the terms of every bundled third-party asset.
+- evidence: test_the_adobe_profile_is_gone_and_nothing_points_at_a_bundled_copy,
+  test_no_profile_we_ship_carries_a_bare_third_party_copyright,
+  test_the_cmyk_preview_still_has_a_profile_to_use,
+  test_the_notices_file_exists_and_states_the_rule,
+  test_every_bundled_profile_and_font_is_named_in_the_notices,
+  test_the_notices_file_names_nothing_that_has_been_deleted,
+  test_every_licence_file_the_notices_promise_is_actually_present,
+  test_the_ofl_fonts_ship_with_the_ofl,
+  test_the_vendored_javascript_carries_its_permission_notice.
+  Twelve mutations were each proved to land before the run: re-adding the Adobe
+  file, restoring the old `resource_path` line, deleting `cmyk.icm`, pointing the
+  preview at an RGB profile, deleting `OFL.txt`, truncating it, dropping one
+  font's copyright line from it, dropping `cmyk.icm` from the notices, removing
+  the MIT permission notice, naming a nonexistent file, and deleting the rule
+  sentence — each turns the matching test red; the twelfth (a nonexistent file on
+  a line that says it is absent) correctly stays green. On screen:
+  `scripts/drive_bz_cmyk_preview_profile.py` drives the real `MainWindow` and its
+  own preview on a real Argyll CMYK chart, run once on this tree and once on a
+  38ed485d worktree that still has the Adobe file — 10.1 % of preview pixels move
+  by more than 1 ΔE (mean 6.17 among those), and the two pictures are
+  indistinguishable by eye.
+- note: two things this sweep found are NOT fixed here because they are not this
+  assistant's to decide, and both are written up in `THIRD-PARTY-NOTICES.md`
+  under "Still open": `data/scanner_targets/` states GPLv3 for files its own
+  README calls derived from **AGPLv3** ArgyllCMS (and, three lines later, "mere
+  aggregation" — they cannot be both); and
+  `assets/plotly-gl3d.min.js.LICENSE.txt`, which the bundle's own header points
+  at, has never been in this repo.

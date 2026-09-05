@@ -14,6 +14,11 @@ from __future__ import annotations
 # (0–1). Values calibrated against the US Web Coated SWOP v2 ICC profile's
 # full-ink response. The canonical table — ui.tiff_preview composites its
 # separated-view previews from this same data.
+#
+# Provenance note: these are a handful of full-ink sRGB triples read off that
+# profile, kept because they are what the numbers below were fitted to. The
+# profile itself is no longer bundled (see THIRD-PARTY-NOTICES.md); ChromIQ
+# ships ArgyllCMS's public-domain ref/cmyk.icm instead.
 _INK_ABSORPTION: dict[str, tuple[float, float, float]] = {
     # CMYK primaries (calibrated from SWOP full-ink response on white paper)
     "c":   (1.00, 0.32, 0.06),   # Cyan:    R=0, G=174, B=239 at full ink on white
