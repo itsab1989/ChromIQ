@@ -741,9 +741,24 @@ def serial_outcome_text(*, stage: str, detail: str = "", folder: str = "",
         ]), False)
 
     if stage == "not_bound":
-        return ("<br><br>".join([
+        # `detail` is what core actually learned, and it used to be accepted as
+        # a parameter here and then dropped on the floor — so exit 3010's
+        # "Windows accepted the driver and needs a restart to finish switching
+        # it on" and verify_bound's "the adapter was unplugged while ChromIQ was
+        # working" were both replaced by three pieces of generic advice, none of
+        # which is the one thing that would have worked. It leads now, before
+        # the general steps, because it is the more specific answer.
+        #
+        # The ROUTING is still wrong for 3010 and this does not fix that:
+        # `describe_exit_code(3010).ok` is True, so the flow goes on to
+        # `verify_bound`, which of course finds no port for a driver that is
+        # staged rather than live, and lands here. Telling those apart needs the
+        # machine-readable outcome from core that 07 asked for; matching on
+        # core's English prose is the fragility this branch already carries once.
+        return ("<br><br>".join([x for x in [
             tr("<b>Everything ChromIQ could check passed, and there is still "
                "no COM port.</b>"),
+            detail,
             tr("This is what was done, and every step of it succeeded: the "
                "package was downloaded and unpacked; its signature was "
                "verified; it was confirmed to contain support for this "
@@ -769,7 +784,7 @@ def serial_outcome_text(*, stage: str, detail: str = "", folder: str = "",
                "socket."),
             tr("Nothing has been removed or replaced, so there is nothing to "
                "undo. Whatever your computer had before, it still has."),
-        ]), False)
+        ] if x]), False)
 
     if stage == "install_failed":
         return ("<br><br>".join([
@@ -4931,11 +4946,72 @@ class SettingsDialog(QDialog):
         )
         QDesktopServices.openUrl(QUrl(argyll_download_page()))
 
+    def _scrollable(self, inner, parent):
+        """Wrap *inner* so long prose scrolls instead of being cut off.
+
+        These windows carry several paragraphs and the longest of them wants
+        934 px, while a QDialog is clamped to the available screen. Below that
+        height a word-wrapped QLabel is simply TRUNCATED — no scrollbar, no
+        ellipsis, no sign that anything is missing. It was measured cutting the
+        second paragraph mid-sentence, taking the paragraph that justifies the
+        install button with it, on a 1080p laptop at 150%.
+
+        The scroll area is frameless and transparent, so when the content fits
+        (the common case) nothing about the window looks different.
+        """
+        from PyQt6.QtWidgets import QFrame, QScrollArea
+        area = QScrollArea(parent)
+        area.setWidgetResizable(True)
+        area.setFrameShape(QFrame.Shape.NoFrame)
+        area.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        area.viewport().setAutoFillBackground(False)
+        inner.setParent(area)
+        area.setWidget(inner)
+        return area
+
+    def _fit_to_screen(self, dlg) -> None:
+        """Let the dialog ask for its natural height, but never past the screen.
+
+        Without the cap Qt clamps the window itself and the content is cut; with
+        it, the scroll area from `_scrollable` takes over and everything stays
+        reachable.
+        """
+        screen = dlg.screen() or self.screen()
+        if screen is None:
+            return
+        avail = screen.availableGeometry()
+        dlg.setMaximumHeight(max(320, int(avail.height() * 0.9)))
+        dlg.resize(dlg.width(),
+                   min(dlg.sizeHint().height(), dlg.maximumHeight()))
+
     def _driver_notice(self, title: str, text: str,
                        extra_label: "str | None" = None) -> bool:
-        """A read-only window with OK, and optionally one extra action button.
+        """Show a read-only window, and report whether the extra action was taken.
 
-        Returns True when the extra button was the one pressed.
+        ALWAYS shows the window. Returns True only when *extra_label*'s button
+        was the one pressed; OK, Esc and the title-bar X all return False.
+
+        BOTH HALVES OF THAT SENTENCE ARE FIXES, and both were shipped broken:
+
+        1. This used to end `return bool(extra_label) and dlg.exec() == ...`.
+           Python short-circuits `and`, so with no extra button `dlg.exec()` was
+           NEVER CALLED: the dialog was built, laid out, tinted and dropped on
+           the floor. Every notice without an extra button was invisible — the
+           measurement guard, "it worked", "the install failed", "you cancelled
+           at the permission prompt", "the package was rejected", the unknown
+           processor, and the WinUSB outcome. A driver install could elevate,
+           change the machine and say nothing at all. Whether a window has a
+           second button must never decide whether the user sees anything.
+
+        2. `box.accepted` fires for ANY AcceptRole button, and
+           `StandardButton.Ok` is AcceptRole — so OK and the extra button did
+           the same thing. On the before-UAC consent window that meant the only
+           visible dismissing button STARTED AN ELEVATED DRIVER INSTALL, and the
+           only way to decline was Esc. On the WinUSB outcome it launched Zadig,
+           which OK never did on master. The affirmative button now carries its
+           own handler and OK is wired to `reject`, so consent has to be given
+           deliberately or not at all.
         """
         from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout
         from ui.widgets import tint_dialog_primary
@@ -4946,20 +5022,34 @@ class SettingsDialog(QDialog):
         lay = QVBoxLayout(dlg)
         lay.setContentsMargins(24, 20, 24, 20)
         lay.setSpacing(14)
-        lbl = QLabel(text, dlg)
+        lbl = QLabel(text)
         lbl.setWordWrap(True)
         lbl.setTextFormat(Qt.TextFormat.RichText)
-        lay.addWidget(lbl)
+        lay.addWidget(self._scrollable(lbl, dlg))
+
+        took_the_action: list = []
+
         box = QDialogButtonBox()
         if extra_label:
-            extra = box.addButton(extra_label, QDialogButtonBox.ButtonRole.AcceptRole)
+            extra = box.addButton(extra_label,
+                                  QDialogButtonBox.ButtonRole.AcceptRole)
             extra.setObjectName("primary")
-        box.addButton(QDialogButtonBox.StandardButton.Ok)
-        box.accepted.connect(dlg.accept)
+
+            def _accept_the_action() -> None:
+                took_the_action.append(True)
+                dlg.accept()
+
+            extra.clicked.connect(_accept_the_action)
+        ok = box.addButton(QDialogButtonBox.StandardButton.Ok)
+        # OK DISMISSES. `box.accepted` is deliberately not connected: it fires
+        # for Ok too, which is how OK came to mean "yes, install".
+        ok.clicked.connect(dlg.reject)
         box.rejected.connect(dlg.reject)
         lay.addWidget(box)
         tint_dialog_primary(dlg, _DRIVER_ACCENT)
-        return bool(extra_label) and dlg.exec() == QDialog.DialogCode.Accepted
+        self._fit_to_screen(dlg)
+        dlg.exec()
+        return bool(took_the_action)
 
     # ---- the COM-port half ------------------------------------------------
 
@@ -5133,6 +5223,7 @@ class SettingsDialog(QDialog):
             return
         from PyQt6.QtWidgets import (
             QDialog, QDialogButtonBox, QGroupBox, QHBoxLayout, QLabel, QVBoxLayout,
+            QWidget,
         )
         from core.usb_driver_installer import (
             enumerate_connected, install_winusb, launch_zadig, unbound_targets,
@@ -5166,6 +5257,16 @@ class SettingsDialog(QDialog):
             layout.setSpacing(14)
             layout.setContentsMargins(24, 20, 24, 20)
 
+            # The two sections go inside a scroll area and the buttons stay
+            # outside it, so a window taller than the screen scrolls rather
+            # than hiding its own text — and `Check again` / `Close` are always
+            # reachable. Both sections populated wants 934 px; a 1080p laptop
+            # at 150% has about 672 px to give.
+            body = QWidget()
+            body_lay = QVBoxLayout(body)
+            body_lay.setSpacing(14)
+            body_lay.setContentsMargins(0, 0, 0, 0)
+
             # --- the WinUSB half, word for word as it always was ------------
             usb_grp = QGroupBox(
                 tr("Instruments that ArgyllCMS reads over USB"), dlg)
@@ -5185,7 +5286,7 @@ class SettingsDialog(QDialog):
                     lambda _c=False, d=dlg: d.done(_WINUSB))
                 row.addWidget(install_btn)
                 usb_lay.addLayout(row)
-            layout.addWidget(usb_grp)
+            body_lay.addWidget(usb_grp)
 
             # --- the COM-port half ------------------------------------------
             serial_grp = QGroupBox(
@@ -5215,7 +5316,9 @@ class SettingsDialog(QDialog):
                         lambda _c=False, d=dlg: d.done(_SERIAL_GET))
                     row.addWidget(pri)
                 serial_lay.addLayout(row)
-            layout.addWidget(serial_grp)
+            body_lay.addWidget(serial_grp)
+            body_lay.addStretch()
+            layout.addWidget(self._scrollable(body, dlg))
 
             btn_box = QDialogButtonBox()
             refresh_btn = btn_box.addButton(tr("Check again"),
@@ -5225,6 +5328,7 @@ class SettingsDialog(QDialog):
             btn_box.rejected.connect(dlg.reject)
             layout.addWidget(btn_box)
             tint_dialog_primary(dlg, _DRIVER_ACCENT)
+            self._fit_to_screen(dlg)
 
             result = dlg.exec()
 
