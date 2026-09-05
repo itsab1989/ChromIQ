@@ -2186,3 +2186,29 @@ came back to it.
   keep-alive assertion. Restored, green again. An abort cannot be asserted on —
   it takes the assertion with it — so the guard is the invariant, and the abort
   is the measurement quoted above.
+
+### B8-61 · `Run.chart_ti2.exists()` is False on NTFS for a decomposed name, and three windows branch on it
+- blocks release: no
+- found by: the Windows ARM64 session's challenge of PR #188
+  (`beta 9/staging/12_drift_challenge.md`), re-read here while landing that PR.
+- status: OPEN
+- detail: `tests/test_a_decomposed_name_finds_its_files.py` had never run on
+  Windows at all — it called `os.uname()` inside a `skipif`, which is evaluated
+  when the decorator is BUILT, so on Windows the whole file failed to collect
+  with `AttributeError`. PR #188 fixed that with `sys.platform`, and collecting
+  the file for the first time exposed a premise that is TRUE ONLY ON APFS/HFS+:
+  a path spelled NFC finds a file written NFD. NTFS is normalisation-sensitive,
+  so `run.chart_ti2.exists()` is False there for a project whose name carries an
+  umlaut and travelled from a Mac. The PR guarded those two assertions behind
+  `IS_MACOS`, which is right for the TEST — the thing each test is about,
+  `files_matching` finding all four page TIFFs, is still asserted on every
+  platform — but it leaves the PRODUCT question open and now unguarded:
+  `ui/main_window.py:1577`, `:2238` and `:2866` all branch on
+  `chart_ti2.exists()`, so on Windows the app can decide a chart is absent that
+  is sitting in the folder. Related to, but not the same as, the deferred
+  "umlauts go cryptic on Windows" zip finding: this one needs no zip, only a
+  name that was ever normalised the Mac way.
+- next step: decide whether `Run.chart_ti2` (and its siblings) should resolve
+  through `files_matching`/`nfc` rather than a bare `Path.exists()`, and give
+  the three `main_window` branches the same treatment. Only a Windows machine
+  can prove the fix; nothing here can.
