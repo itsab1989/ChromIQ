@@ -245,6 +245,19 @@ def _strip_outlier_fence(des: "list[float]") -> float:
     return q3 + 1.5 * (q3 - q1)
 
 
+def _save_partial_name() -> str:
+    """The Save Partial & Quit button's label, as HTML.
+
+    Qt reads `&&` in a button label as one literal ampersand; HTML wants
+    `&amp;`. Naming the button in a message therefore needs this one
+    substitution — and doing it here, from the button's OWN key, is what stops
+    the message and the button becoming two separately translated strings. They
+    already had: German called the button „Teilweise speichern && beenden" and
+    every message that named it „Teil speichern &amp; beenden".
+    """
+    return tr("Save Partial && Quit").replace("&&", "&amp;")
+
+
 def _xyz_d50_to_srgb8(xyz: "list[float]") -> tuple[int, int, int]:
     """D50 XYZ (0..100) → display sRGB 0..255 (Bradford to D65). Preview
     colouring only — never feeds back into measurement data (#126)."""
@@ -6767,11 +6780,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "first patch), so every patch is filed one position out and the last "
             "one reads the empty paper.<br><br>Nothing else is affected — your "
             "other strips and everything read so far are saved. It is only this "
-            "one strip.<br><br>&nbsp;&nbsp;<b>Re-measure this strip</b> — jump "
+            "one strip.<br><br>&nbsp;&nbsp;<b>{remeasure}</b> — jump "
             "back to strip {strip} and scan it again (recommended).<br><br>"
-            "&nbsp;&nbsp;<b>Keep it</b> — accept this reading as it is.<br><br>"
-            "&nbsp;&nbsp;<b>Stop</b> — stop measuring for now."
-        ).format(strip=strip, patches=patches, base=base_de, best=best_de), dlg)
+            "&nbsp;&nbsp;<b>{keep}</b> — accept this reading as it is.<br><br>"
+            "&nbsp;&nbsp;<b>{stop}</b> — stop measuring for now."
+        ).format(strip=strip, patches=patches, base=base_de, best=best_de,
+                 remeasure=tr("Re-measure this strip"), keep=tr("Keep it"),
+                 stop=tr("Stop")), dlg)
         msg.setWordWrap(True)
         layout.addWidget(msg)
 
@@ -6956,7 +6971,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         layout.setContentsMargins(24, 20, 24, 20)
 
         msg = QLabel(
-            tr("<b>This reading looks like strip {read}, but strip {expected} was expected.</b><br><br>This usually means the instrument was placed on the wrong row — or two rows simply look very similar. You have three options:<br><br>&nbsp;&nbsp;<b>Use Anyway</b> — keep this reading and save it as strip {expected} (the row you were asked to scan). Only choose this if you are sure the instrument really was on strip {expected} and the warning is a false alarm — the reading is always filed under {expected}, not {read}.<br><br>&nbsp;&nbsp;<b>Retry</b> — discard this reading and try again. Place your instrument on strip {expected} and re-scan.<br><br>&nbsp;&nbsp;<b>Give Up</b> — stop the measurement without saving.").format(read=read, expected=expected),
+            tr("<b>This reading looks like strip {read}, but strip {expected} was expected.</b><br><br>This usually means the instrument was placed on the wrong row — or two rows simply look very similar. You have three options:<br><br>&nbsp;&nbsp;<b>{use_anyway}</b> — keep this reading and save it as strip {expected} (the row you were asked to scan). Only choose this if you are sure the instrument really was on strip {expected} and the warning is a false alarm — the reading is always filed under {expected}, not {read}.<br><br>&nbsp;&nbsp;<b>{retry}</b> — discard this reading and try again. Place your instrument on strip {expected} and re-scan.<br><br>&nbsp;&nbsp;<b>{give_up}</b> — stop the measurement without saving.").format(read=read, expected=expected,
+                    use_anyway=tr("Use Anyway"), retry=tr("Retry"),
+                    give_up=tr("Give Up")),
             dlg,
         )
         msg.setWordWrap(True)
@@ -7028,7 +7045,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         layout.setContentsMargins(24, 20, 24, 20)
 
         msg = QLabel(
-            tr("<b>An unexpected color response was detected (ΔE {delta_e}).</b><br><br>This usually means the instrument was not aligned correctly with the strip, was moved during the scan, or the wrong strip was read. A ΔE this high indicates the measured colors are very far from what is expected.<br><br>&nbsp;&nbsp;<b>Use Anyway</b> — accept the reading and continue. Only use this if you are sure the scan was correct.<br><br>&nbsp;&nbsp;<b>Retry</b> — discard this reading, re-position your instrument carefully on the correct strip, and try again.<br><br>&nbsp;&nbsp;<b>Give Up</b> — stop the measurement without saving.").format(delta_e=delta_e),
+            tr("<b>An unexpected color response was detected (ΔE {delta_e}).</b><br><br>This usually means the instrument was not aligned correctly with the strip, was moved during the scan, or the wrong strip was read. A ΔE this high indicates the measured colors are very far from what is expected.<br><br>&nbsp;&nbsp;<b>{use_anyway}</b> — accept the reading and continue. Only use this if you are sure the scan was correct.<br><br>&nbsp;&nbsp;<b>{retry}</b> — discard this reading, re-position your instrument carefully on the correct strip, and try again.<br><br>&nbsp;&nbsp;<b>{give_up}</b> — stop the measurement without saving.").format(delta_e=delta_e,
+                    use_anyway=tr("Use Anyway"), retry=tr("Retry"),
+                    give_up=tr("Give Up")),
             dlg,
         )
         msg.setWordWrap(True)
@@ -7140,9 +7159,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             tr("<b>The strip read was stopped before it finished.</b><br><br>"
             "This usually happens if the instrument switch is pressed mid-scan "
             "or if scanning is interrupted by another process.<br><br>"
-            "&nbsp;&nbsp;<b>Resume</b> — chartread is still waiting; "
+            "&nbsp;&nbsp;<b>{resume}</b> — chartread is still waiting; "
             "re-position the instrument at the start of the current strip and continue.<br><br>"
-            "&nbsp;&nbsp;<b>Give Up</b> — stop the measurement without saving."),
+            "&nbsp;&nbsp;<b>{give_up}</b> — stop the measurement without saving."
+            ).format(resume=tr("Resume"), give_up=tr("Give Up")),
             dlg,
         )
         msg.setWordWrap(True)
@@ -7312,7 +7332,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
 
         # Show the friendly message first, with the technical detail as a smaller line.
         msg = QLabel(
-            tr("<b>{friendly}</b><br><span style='color:#888;'>({technical})</span><br><br>&nbsp;&nbsp;<b>Retry</b> — try the operation again.<br><br>&nbsp;&nbsp;<b>Give Up</b> — stop the measurement without saving.").format(friendly=friendly, technical=technical),
+            tr("<b>{friendly}</b><br><span style='color:#888;'>({technical})</span><br><br>&nbsp;&nbsp;<b>{retry}</b> — try the operation again.<br><br>&nbsp;&nbsp;<b>{give_up}</b> — stop the measurement without saving.").format(friendly=friendly, technical=technical,
+                    retry=tr("Retry"), give_up=tr("Give Up")),
             dlg,
         )
         msg.setWordWrap(True)
@@ -7909,9 +7930,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # shape of every fault this area has had.
         self._log.appendPlainText(tr(
             "This measurement cannot carry on: there is no patch waiting to "
-            "be read. Start the measurement again with “Refine / resume "
-            "existing measurement (-r)” ticked and ChromIQ will offer you only "
-            "the patches that are still missing."))
+            "be read. Start the measurement again with “{refine}” ticked and "
+            "ChromIQ will offer you only the patches that are still missing."
+            ).format(refine=tr("Refine / resume existing measurement (-r)")))
         self._log.ensureCursorVisible()
 
     def _on_cr30_gave_up(self, loc: str, message: str) -> None:
@@ -8059,7 +8080,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         layout.setSpacing(16)
         layout.setContentsMargins(24, 20, 24, 20)
         msg = QLabel(
-            tr("<b>Place sheet {sheet_n} of {total} on the XY table.</b><br><br>Press <b>Continue</b> when the sheet is positioned, or <b>Give Up</b> to stop without saving.").format(sheet_n=sheet_n, total=total),
+            tr("<b>Place sheet {sheet_n} of {total} on the XY table.</b><br><br>Press <b>{continue_}</b> when the sheet is positioned, or <b>{give_up}</b> to stop without saving.").format(sheet_n=sheet_n, total=total,
+                    continue_=tr("Continue"), give_up=tr("Give Up")),
             dlg,
         )
         msg.setWordWrap(True)
@@ -8359,8 +8381,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 "<b>Note:</b> saving needs one last response from the instrument. "
                 "Unplug the USB cable and plug it back in — directly into the "
                 "computer if possible, not through a hub — and only then click "
-                "<i>Save Partial &amp; Quit</i>. If the instrument stays silent, "
-                "the readings from this session cannot be saved.") + "<br><br>"
+                "<i>{save_partial}</i>. If the instrument stays silent, "
+                "the readings from this session cannot be saved."
+            ).format(save_partial=_save_partial_name()) + "<br><br>"
         elif bool(getattr(self, "_spot_session", False)):
             # Reading one patch at a time there is no swipe, so swipe advice is
             # not merely unhelpful — it describes an action the user is not
@@ -8390,43 +8413,50 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             # question the user has to answer for no reason (Knut, #131
             # 2026-07-28). What it explained is now said by the remaining one.
             choices = tr(
-                "&nbsp;&nbsp;<b>Retry</b> — read this same patch again.<br>")
+                "&nbsp;&nbsp;<b>{retry}</b> — read this same patch again.<br>"
+            ).format(retry=tr("Retry"))
         elif last_one:
             choices = tr(
-                "&nbsp;&nbsp;<b>Retry</b> — read this same strip again.<br>")
+                "&nbsp;&nbsp;<b>{retry}</b> — read this same strip again.<br>"
+            ).format(retry=tr("Retry"))
         elif _spot:
             choices = tr(
-                "&nbsp;&nbsp;<b>Retry</b> — read this same patch again.<br>"
-                "&nbsp;&nbsp;<b>Skip Patch</b> — leave this patch unread and move "
+                "&nbsp;&nbsp;<b>{retry}</b> — read this same patch again.<br>"
+                "&nbsp;&nbsp;<b>{skip}</b> — leave this patch unread and move "
                 "on to the next one. You can come back to it later in this "
                 "session; the chart is not finished until every patch has a "
-                "reading.<br>")
+                "reading.<br>"
+            ).format(retry=tr("Retry"), skip=tr("Skip Patch"))
         else:
             choices = tr(
-                "&nbsp;&nbsp;<b>Retry</b> — read this same strip again.<br>"
-                "&nbsp;&nbsp;<b>Skip Strip</b> — leave this strip unread for now "
+                "&nbsp;&nbsp;<b>{retry}</b> — read this same strip again.<br>"
+                "&nbsp;&nbsp;<b>{skip}</b> — leave this strip unread for now "
                 "and jump to the next unread one. You can come back to it later in "
-                "this session.<br>")
+                "this session.<br>"
+            ).format(retry=tr("Retry"), skip=tr("Skip Strip"))
         # Describe only what is on screen: no "nowhere to skip to", because
         # there is no Skip button in this case to refer to (Knut's standing
         # rule, restated #131 2026-07-28).
         if last_one and _spot:
             save_text = tr(
-                "&nbsp;&nbsp;<b>Save Partial &amp; Quit</b> — ends the measurement "
+                "&nbsp;&nbsp;<b>{save_partial}</b> — ends the measurement "
                 "and saves every patch you have read. This patch stays unread, "
                 "and nothing else is lost. Next time you load this chart, "
-                "<i>Continue Measurement</i> picks up from here.")
+                "<i>Continue Measurement</i> picks up from here."
+            ).format(save_partial=_save_partial_name())
         elif last_one:
             save_text = tr(
-                "&nbsp;&nbsp;<b>Save Partial &amp; Quit</b> — ends the measurement "
+                "&nbsp;&nbsp;<b>{save_partial}</b> — ends the measurement "
                 "and saves every strip you have read. This strip stays unread, "
                 "and nothing else is lost. Next time you load this chart, "
-                "<i>Continue Measurement</i> picks up from here.")
+                "<i>Continue Measurement</i> picks up from here."
+            ).format(save_partial=_save_partial_name())
         else:
             save_text = tr(
-                "&nbsp;&nbsp;<b>Save Partial &amp; Quit</b> — stop here and save what "
+                "&nbsp;&nbsp;<b>{save_partial}</b> — stop here and save what "
                 "you have read so far. Next time you load this chart, "
-                "<i>Continue Measurement</i> will pick up where you left off.")
+                "<i>Continue Measurement</i> will pick up where you left off."
+            ).format(save_partial=_save_partial_name())
         msg = QLabel(advice + choices + save_text, dlg)
         msg.setWordWrap(True)
         layout.addWidget(msg)
@@ -9349,31 +9379,32 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 "noise and can improve profile accuracy.<br><br>"
                 "&nbsp;&nbsp;•&nbsp; <b>Average all reads &amp; build</b> — combine all "
                 "{n} reads into one measurement, then continue to Build Profile.<br>"
-                "&nbsp;&nbsp;•&nbsp; <b>Measure again to average</b> — read the whole "
+                "&nbsp;&nbsp;•&nbsp; <b>{measure_again}</b> — read the whole "
                 "chart once more and add it to the set.<br>"
                 "&nbsp;&nbsp;•&nbsp; <b>Use last read only</b> — build from this most "
                 "recent read and ignore the others.<br><br>"
-                "<span style='color:#909090;'>After <b>Measure again to average</b> the "
+                "<span style='color:#909090;'>After <b>{measure_again}</b> the "
                 "instrument is set up again — this can take a few seconds and may ask you "
                 "to recalibrate before the next read starts, so a brief pause here is "
                 "normal.</span>"
-            ).format(n=n_total)
+            ).format(n=n_total,
+                     measure_again=tr("Measure again to average"))
         else:
             body = tr(
                 "<b>All strips have been read successfully.</b><br><br>"
                 "&nbsp;&nbsp;•&nbsp; <b>Build Profile</b> — finalise the measurement and "
                 "go to the Build Profile tab.<br>"
-                "&nbsp;&nbsp;•&nbsp; <b>Measure again to average</b> — read the whole chart "
+                "&nbsp;&nbsp;•&nbsp; <b>{measure_again}</b> — read the whole chart "
                 "once more; the reads are averaged together to reduce instrument noise "
                 "(saved as …_average).<br>"
                 "&nbsp;&nbsp;•&nbsp; <b>Re-read Individual Strips</b> — re-read individual strips into "
                 "this same measurement. Use <b>f</b>&nbsp;/&nbsp;<b>b</b> to move, "
                 "<b>n</b> for the next unread strip, and <b>d</b> when done.<br><br>"
-                "<span style='color:#909090;'>After <b>Measure again to average</b> the "
+                "<span style='color:#909090;'>After <b>{measure_again}</b> the "
                 "instrument is set up again — this can take a few seconds and may ask you "
                 "to recalibrate before the next read starts, so a brief pause here is "
                 "normal.</span>"
-            )
+            ).format(measure_again=tr("Measure again to average"))
         msg = QLabel(body, dlg)
         msg.setWordWrap(True)
         layout.addWidget(msg)
@@ -10804,11 +10835,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 "&nbsp;&nbsp;•&nbsp; <b>Go to {tab} Tab</b> — use this single "
                 "measurement as it is, and open the {tab} tab. The profile "
                 "is built there, when you press <i>Build Profile</i>.<br>"
-                "&nbsp;&nbsp;•&nbsp; <b>Measure again to average</b> — read the same "
+                "&nbsp;&nbsp;•&nbsp; <b>{measure_again}</b> — read the same "
                 "chart once more; the results will be averaged together.<br>"
                 "&nbsp;&nbsp;•&nbsp; <b>Close</b> — keep this measurement and go "
                 "nowhere; you can build the profile whenever you like."
-            ).format(tab=self._profile_tab_name())
+            ).format(tab=self._profile_tab_name(),
+                     measure_again=tr("Measure again to average"))
         msg = QLabel(body, dlg)
         msg.setWordWrap(True)
         layout.addWidget(msg)

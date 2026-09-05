@@ -108,11 +108,11 @@ WORKFLOWS: list[dict] = [
                 "system-wide from there, or jump to Check & Refine to "
                 "verify its accuracy and start guided refinement (the steps "
                 "below) for a noticeably more accurate profile.")),
-            (5, tr("Optional — On the Check & Refine tab click “Analyse Profile Quality”. "
+            (5, tr("Optional — On the Check & Refine tab click “{analyse}”. "
                 "ChromIQ runs profcheck and flags any patches whose ΔE is "
                 "above your refinement threshold (2.0 is a sensible starting "
                 "point). If outliers are found, ChromIQ offers to send you "
-                "back to the Measure tab to re-read only the affected strips."),
+                "back to the Measure tab to re-read only the affected strips.").format(analyse=tr('Analyse Profile Quality')),
                 True),
             (3, tr("Optional — Re-measure the strips ChromIQ marks. The new "
                 "readings are merged into the .ti3; patches that were already "
@@ -121,10 +121,10 @@ WORKFLOWS: list[dict] = [
             (4, tr("Optional — Click “Build Profile” again. The refined .ti3 "
                 "produces a more accurate profile."),
                 True),
-            (5, tr("Optional — Run “Analyse Profile Quality” one more time to confirm the "
+            (5, tr("Optional — Run “{analyse}” one more time to confirm the "
                 "worst outliers are now below threshold. Repeat the refine "
                 "loop as often as you like — each pass should reduce ΔE "
-                "further."),
+                "further.").format(analyse=tr('Analyse Profile Quality')),
                 True),
         ],
     },
@@ -195,11 +195,11 @@ WORKFLOWS: list[dict] = [
                 "noticeably more accurate than the first-pass profile "
                 "because targen could place patches where they actually "
                 "mattered. This is the profile to install.")),
-            (5, tr("Optional — On the Check & Refine tab click “Analyse Profile Quality”. "
+            (5, tr("Optional — On the Check & Refine tab click “{analyse}”. "
                 "ChromIQ runs profcheck and flags any patches whose ΔE is "
                 "above your refinement threshold. After a clean 2-pass build "
                 "the result is often already good enough; the steps below "
-                "are for squeezing out the last few outliers."),
+                "are for squeezing out the last few outliers.").format(analyse=tr('Analyse Profile Quality')),
                 True),
             (3, tr("Optional — Re-measure the strips ChromIQ marks. The new "
                 "readings are merged into the .ti3; patches that were already "
@@ -208,10 +208,10 @@ WORKFLOWS: list[dict] = [
             (4, tr("Optional — Click “Build Profile” again. The refined .ti3 "
                 "produces a more accurate profile."),
                 True),
-            (5, tr("Optional — Run “Analyse Profile Quality” one more time to confirm the "
+            (5, tr("Optional — Run “{analyse}” one more time to confirm the "
                 "worst outliers are now below threshold. Repeat the refine "
                 "loop as often as you like — each pass should reduce ΔE "
-                "further."),
+                "further.").format(analyse=tr('Analyse Profile Quality')),
                 True),
         ],
     },
@@ -258,11 +258,11 @@ WORKFLOWS: list[dict] = [
                 "the seed profile because ChromIQ placed patches where they "
                 "mattered. Install it from the popup, or jump to Check & "
                 "Refine to verify it before installing.")),
-            (5, tr("Optional — On the Check & Refine tab click “Analyse Profile Quality”. "
+            (5, tr("Optional — On the Check & Refine tab click “{analyse}”. "
                 "ChromIQ runs profcheck and flags any patches whose ΔE is "
                 "above your refinement threshold (2.0 is a sensible starting "
                 "point). If outliers are found, ChromIQ offers to send you "
-                "back to the Measure tab to re-read only the affected strips."),
+                "back to the Measure tab to re-read only the affected strips.").format(analyse=tr('Analyse Profile Quality')),
                 True),
             (3, tr("Optional — Re-measure the strips ChromIQ marks. The new "
                 "readings are merged into the .ti3; patches that were already "
@@ -271,10 +271,10 @@ WORKFLOWS: list[dict] = [
             (4, tr("Optional — Click “Build Profile” again. The refined .ti3 "
                 "produces a more accurate profile."),
                 True),
-            (5, tr("Optional — Run “Analyse Profile Quality” one more time to confirm the "
+            (5, tr("Optional — Run “{analyse}” one more time to confirm the "
                 "worst outliers are now below threshold. Repeat the refine "
                 "loop as often as you like — each pass should reduce ΔE "
-                "further."),
+                "further.").format(analyse=tr('Analyse Profile Quality')),
                 True),
         ],
     },
@@ -315,11 +315,11 @@ WORKFLOWS: list[dict] = [
                 "wide from there, or jump to Check & Refine to verify its "
                 "accuracy and start guided refinement (the steps below) for "
                 "a noticeably more accurate profile.")),
-            (5, tr("Optional — On the Check & Refine tab click “Analyse Profile Quality”. "
+            (5, tr("Optional — On the Check & Refine tab click “{analyse}”. "
                 "ChromIQ runs profcheck and flags any patches whose ΔE is "
                 "above your refinement threshold (2.0 is a sensible starting "
                 "point). If outliers are found, ChromIQ offers to send you "
-                "back to the Measure tab to re-read only the affected strips."),
+                "back to the Measure tab to re-read only the affected strips.").format(analyse=tr('Analyse Profile Quality')),
                 True),
             (3, tr("Optional — Re-measure the strips ChromIQ marks. The new "
                 "readings are merged into the .ti3; patches that were already "
@@ -328,10 +328,10 @@ WORKFLOWS: list[dict] = [
             (4, tr("Optional — Click “Build Profile” again. The refined .ti3 "
                 "produces a more accurate profile."),
                 True),
-            (5, tr("Optional — Run “Analyse Profile Quality” one more time to confirm the "
+            (5, tr("Optional — Run “{analyse}” one more time to confirm the "
                 "worst outliers are now below threshold. Repeat the refine "
                 "loop as often as you like — each pass should reduce ΔE "
-                "further."),
+                "further.").format(analyse=tr('Analyse Profile Quality')),
                 True),
         ],
     },
@@ -375,11 +375,11 @@ WORKFLOWS: list[dict] = [
                 "wide from there, or jump to Check & Refine to verify its "
                 "accuracy and start guided refinement (the steps below) for "
                 "a noticeably more accurate profile.")),
-            (5, tr("Optional — On the Check & Refine tab click “Analyse Profile Quality”. "
+            (5, tr("Optional — On the Check & Refine tab click “{analyse}”. "
                 "ChromIQ runs profcheck and flags any patches whose ΔE is "
                 "above your refinement threshold (2.0 is a sensible starting "
                 "point). If outliers are found, ChromIQ offers to send you "
-                "back to the Measure tab to re-read only the affected strips."),
+                "back to the Measure tab to re-read only the affected strips.").format(analyse=tr('Analyse Profile Quality')),
                 True),
             (3, tr("Optional — Re-measure the strips ChromIQ marks. The new "
                 "readings are merged into the .ti3; patches that were already "
@@ -388,10 +388,10 @@ WORKFLOWS: list[dict] = [
             (4, tr("Optional — Click “Build Profile” again. The refined .ti3 "
                 "produces a more accurate profile."),
                 True),
-            (5, tr("Optional — Run “Analyse Profile Quality” one more time to confirm the "
+            (5, tr("Optional — Run “{analyse}” one more time to confirm the "
                 "worst outliers are now below threshold. Repeat the refine "
                 "loop as often as you like — each pass should reduce ΔE "
-                "further."),
+                "further.").format(analyse=tr('Analyse Profile Quality')),
                 True),
         ],
     },
@@ -417,11 +417,11 @@ WORKFLOWS: list[dict] = [
                 "Refine to inspect its accuracy, or feed it back as a "
                 "pre-conditioning profile (workflow 2). You can dismiss "
                 "the popup and come back to any of these later.")),
-            (5, tr("Optional — On the Check & Refine tab click “Analyse Profile Quality”. "
+            (5, tr("Optional — On the Check & Refine tab click “{analyse}”. "
                 "ChromIQ runs profcheck and flags any patches whose ΔE is "
                 "above your refinement threshold (2.0 is a sensible starting "
                 "point). If outliers are found, ChromIQ offers to send you "
-                "back to the Measure tab to re-read only the affected strips."),
+                "back to the Measure tab to re-read only the affected strips.").format(analyse=tr('Analyse Profile Quality')),
                 True),
             (3, tr("Optional — Re-measure the strips ChromIQ marks. The new "
                 "readings are merged into the .ti3; patches that were already "
@@ -430,10 +430,10 @@ WORKFLOWS: list[dict] = [
             (4, tr("Optional — Click “Build Profile” again. The refined .ti3 "
                 "produces a more accurate profile."),
                 True),
-            (5, tr("Optional — Run “Analyse Profile Quality” one more time to confirm the "
+            (5, tr("Optional — Run “{analyse}” one more time to confirm the "
                 "worst outliers are now below threshold. Repeat the refine "
                 "loop as often as you like — each pass should reduce ΔE "
-                "further."),
+                "further.").format(analyse=tr('Analyse Profile Quality')),
                 True),
         ],
     },
@@ -446,10 +446,10 @@ WORKFLOWS: list[dict] = [
                 "test data file:” and click the folder button beside it, "
                 "then open the measurement of the profile you want to "
                 "improve. The matching .icc loads automatically.")),
-            (5, tr("Click “Analyse Profile Quality”. ChromIQ runs profcheck and looks for "
+            (5, tr("Click “{analyse}”. ChromIQ runs profcheck and looks for "
                 "patches whose ΔE is above your refinement threshold "
                 "(configurable in the panel — 2.0 is a sensible "
-                "starting point).")),
+                "starting point).").format(analyse=tr('Analyse Profile Quality'))),
             (5, tr("If outlier patches are found, ChromIQ offers to send you "
                 "back to the Measure tab to re-read only the affected "
                 "strips — much faster than reprinting and re-measuring "
