@@ -2779,3 +2779,91 @@ def test_every_reason_sentence_is_translated_in_every_language(
             ch.DriverResult(ch.Outcome.FAILED, r)) == english[r]]
     assert untranslated == [], (
         f"[{code}] these reason sentences are still English: {untranslated}")
+
+
+# ---------------------------------------------------------------------------
+# The measurement guard, in German, for BOTH holders
+# ---------------------------------------------------------------------------
+#
+# **THE GERMAN SENTENCE WAS RE-WORDED FOR ONE HOLDER AND BROKEN FOR THE OTHER.**
+# `f7a565ad` changed the guard from "Dein Instrument wird gerade gelesen, von
+# {where} aus." to "…wird gerade aus {where} gelesen.", and its write-up claimed
+# the new form "works for the spot-read holder too". It does not. There are two
+# holders (`core/instrument_lease.py`), and the German labels are already
+# case-inflected to fit the preposition:
+#
+#     MEASURE_TAB  -> "dem Tab „Messen“"                      ✔ "aus dem Tab …"
+#     SPOT_TOOL    -> "Werkzeuge ▸ Einzelne Felder messen"    ✘ "aus Werkzeuge ▸ …"
+#
+# `tests/test_i18n.py` cannot see it — the placeholder is present and the key is
+# translated — and nothing rendered the `SPOT_TOOL` branch, so a wrong sentence
+# had no way of being noticed except by somebody reading it. These tests render
+# it.
+#
+# The fix is the LABEL, not the sentence: two different messages interpolate
+# `{where}` (this guard, and `M_INSTRUMENT_BUSY`'s "ChromIQ misst gerade in
+# {where}"), so a label that only fits one preposition would break the other.
+# A dative noun phrase fits both, which is exactly the shape `MEASURE_TAB`
+# already had.
+
+
+def test_the_spot_tool_label_names_the_route_that_really_opens_it():
+    """The claim in the label, checked against the code that opens the window.
+
+    `Tools ▸ Read single patches` has to be a route a user can walk: the
+    masthead's Tools button (`ui/main_window.py`) opens `ui.tools_popup`, whose
+    first group is `Measurements`, and its `spot_read` row is what reaches
+    `open_tool_dialog("spot_read")` -> `SpotReadDialog`.
+    """
+    from core import instrument_lease as lease
+    from ui.tools_popup import _ENTRIES, _GROUPS
+
+    assert lease.SPOT_TOOL.startswith("Tools ▸ ")
+    assert "spot_read" in {e.key for e in _ENTRIES}, (
+        "the label names a Tools entry the Tools popup does not have")
+    holder = [header for header, entries in _GROUPS
+              if any(e.key == "spot_read" for e in entries)]
+    assert holder, "spot_read is not in any group"
+    assert holder[0] == _GROUPS[0][0], (
+        "the entry moved out of the popup's first group; the label may need "
+        "to name the group it is in now")
+
+
+@pytest.mark.parametrize("holder", ["MEASURE_TAB", "SPOT_TOOL"])
+def test_the_german_guard_reads_as_a_sentence_for_either_holder(
+        in_language, holder):
+    from core import instrument_lease as lease
+    in_language("de")
+    where = lease.where_label(getattr(lease, holder))
+    # The invariant, said directly: in German both labels are dative noun
+    # phrases, because both of the sentences that interpolate them need one.
+    assert where.split()[0] in {"dem", "der", "den"}, (
+        f"{holder}'s German label is not a dative noun phrase: {where!r} — "
+        f"'aus {where} gelesen' is not a German sentence")
+    said = sd.measurement_block_text(where)
+    assert f"aus {where} gelesen" in said
+    assert "aus Werkzeuge ▸" not in said, (
+        "the bare menu path is back in the middle of the sentence")
+
+
+def test_the_german_guard_window_names_the_spot_tool_grammatically(
+        dialog, on_windows, monkeypatch, in_language):
+    """The defect where it is actually read: on the screen, in German.
+
+    The guard is this branch's headline safety feature — installing a driver
+    restarts the device stack and takes an open COM handle with it — so the one
+    window it ever shows has to be a sentence.
+    """
+    from core import instrument_lease as lease
+    in_language("de")
+    monkeypatch.setattr(
+        sd, "measurement_in_progress",
+        lambda parent=None: lease.where_label(lease.SPOT_TOOL))
+    with ModalDriver(lambda w: _ok_button(w).click()) as drv:
+        dialog._show_usb_installer()
+    assert drv.timed_out is False
+    assert drv.modal_count == 1, "the guard refused without showing anything"
+    said = drv.text_of(0)
+    assert "aus dem Fenster „Werkzeuge ▸ Einzelne Felder messen“ gelesen" in said
+    assert "aus Werkzeuge ▸" not in said
+    assert "USB-to-serial bridge" not in said
