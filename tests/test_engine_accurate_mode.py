@@ -435,8 +435,14 @@ def test_accurate_xyz_build_carries_shaped_tables(tmp_path):
     nie, _ = struct.unpack(">HH", data[off + 48:off + 52])
     table = np.frombuffer(data, dtype=">u2", count=nie,
                           offset=off + 52).astype(float) / 0xFFFF
-    # cube-root input curve, not identity.
-    assert table[nie // 2] == pytest.approx(np.cbrt(0.5), abs=0.01)
+    # cube-root input curve, not identity — of (code / PCS white), saturating
+    # at the white: the grid ends at D50 since 2026-09-05 (reviewer R1b), so
+    # the mid entry (code ≈ 1.0 ≥ the white's X) reads 1.0 and a quarter of
+    # the way in the curve is still the cube root.
+    from workflow.profile_engine import icc_writer as _icw
+    assert table[nie // 2] == pytest.approx(1.0, abs=0.01)
+    code_q = 0.25 * _icw.XYZ16_MAX
+    assert table[nie // 4] == pytest.approx(np.cbrt(code_q / 0.9642), abs=0.02)
 
 
 def test_percent_progress_interpolates_substeps():

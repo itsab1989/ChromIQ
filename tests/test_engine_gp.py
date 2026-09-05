@@ -79,7 +79,7 @@ def test_gp_fit_flags_misread_not_clean(tmp_path):
     assert 300 in out
     # Hygiene: few false flags on an otherwise clean chart.
     assert len(set(out) - {300} - set(int(i) for i in mis)) <= 8
-    assert any("noise model" in x for x in msgs)
+    assert any("reading noise" in x for x in msgs)      # the σ line, reworded
     assert any("cross-validation" in x for x in msgs)
 
 
