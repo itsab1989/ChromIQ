@@ -285,19 +285,27 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # §M-PROPOSED, "⏳ Awaiting confirmation — Profile type help text". German is
 # translated for all 22 and does not move. These are each language's ACTUAL
 # count.
+#: 2026-09-05, the white-point help correction: **+4 in every catalogue but
+#: German**. The tooltip stated "1.00 makes no change", which is false — in
+#: ArgyllCMS `colprof.c:494` sets autowpsc BEFORE reading the argument and
+#: `xfit.c:2753` defaults the scale to 1.0, so `-u 1` is byte-for-byte `-u`.
+#: Knut built a profile on that sentence. Correcting it takes four new
+#: substantial strings; German is translated, the eleven carry the English
+#: source under the beta convention (translation happens before a final, not
+#: during a beta). Raised on purpose, and this note is the purpose.
 _BUDGET = {
     "de": 31,
-    "es": 211,
-    "fr": 212,
-    "it": 211,
-    "ja": 211,
-    "nl": 211,
-    "no": 211,
-    "pl": 211,
-    "pt": 211,
-    "ru": 210,
-    "sv": 211,
-    "zh_CN": 210,
+    "es": 215,
+    "fr": 216,
+    "it": 215,
+    "ja": 215,
+    "nl": 215,
+    "no": 215,
+    "pl": 215,
+    "pt": 215,
+    "ru": 214,
+    "sv": 215,
+    "zh_CN": 214,
 }
 
 

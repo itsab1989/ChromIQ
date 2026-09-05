@@ -115,7 +115,7 @@ WP_MODE_CHOICES = [
     ("u", tr("Auto-scale to avoid clipping (-u)")),
     ("ua", tr("Force Absolute Colorimetric (-ua)")),
     ("uc", tr("Clip highlights above white (-uc)")),
-    ("scale", tr("Manual white-point scale (-u)")),
+    ("scale", tr("Manual white-point scale (-u scale)")),
 ]
 
 
@@ -476,17 +476,36 @@ _TIP_WP = (
     "• Clip highlights above white (-uc) — forces anything brighter than the "
     "white point to land exactly on white. Only affects look-up-table (cLUT) "
     "profile types.\n"
-    "• Manual white-point scale (-u) — you set the scale yourself in the box "
-    "below.\n\n"
+    "• Manual white-point scale (-u scale) — this is “Auto-scale” above with "
+    "your own number applied on top of it, not a scale on its own. A value of "
+    "1.00 is therefore the same thing as “Auto-scale to avoid clipping”, not "
+    "“no change”; see the box below.\n\n"
     "Leave it on the first option unless you have a specific white-point "
     "mismatch to fix. Only applies to a scanner/camera input profile.")
+# THE SENTENCE THIS REPLACED WAS FALSE, AND IT COST A TESTER A PROFILE.
+# It said "1.00 makes no change", and Knut reasonably built a profile on that.
+# In ArgyllCMS `colprof.c:494` sets `autowpsc = 1` BEFORE it ever reads the
+# number, and `xfit.c:2753` makes the default scale 1.0 anyway, so `-u 1` is
+# byte-for-byte `-u`. Built both from his own scan to be sure: identical wtpt
+# (1.591736 1.624054 1.343185). The worked example was inverted too — the text
+# offered 0.90 as the way to keep a slightly darker white white, and 0.90
+# measures a white point of Y 1.461655, a scan about 44 % darker.
 _TIP_WP_SCALE = (
-    "The white-point scale factor used by “Manual white-point scale” above. "
-    "1.00 makes no change.\n\n"
-    "If the thing you're scanning or photographing is a little darker than the "
-    "test chart's white, use a value slightly below 1.0 (try 0.90) so its white "
-    "still comes out as white. If it's a little lighter and the highlights are "
-    "blowing out, try a value slightly above 1.0 (try 1.10).\n\n"
+    "The number that “Manual white-point scale” above uses — and it is applied "
+    "ON TOP OF that option's automatic scaling, not instead of it.\n\n"
+    "So 1.00 does not mean “no change”. It means “the automatic scaling, "
+    "unaltered”, which makes it identical to “Auto-scale to avoid clipping” "
+    "— measured on a real IT8 scan, the two build the same profile. If what "
+    "you want is to leave the white alone, that is the FIRST entry in the list "
+    "above, “Map chart white to white”, not a scale of 1.00.\n\n"
+    "Numbers below 1.00 reduce the automatic scaling without undoing it. On "
+    "that same scan, 0.90 still left the white point at about 1.46 instead of "
+    "1.00, and every tone in the scan about 44 % darker than the default. "
+    "Numbers above 1.00 scale further still.\n\n"
+    "Reach for this only when you already know the factor you want. Its one "
+    "everyday use is with “Restrict white, black and primaries” ticked "
+    "alongside it, which brings the white point back to a perfect white "
+    "surface — nothing a reflective original can be is then clipped.\n\n"
     "This box only has an effect when the handling above is set to “Manual "
     "white-point scale”.")
 _TIP_R = (
@@ -675,7 +694,7 @@ def _i18n_tooltip_anchors():
             tr(_TIP_NP), tr(_TIP_NC), tr(_TIP_WP), tr(_TIP_WP_SCALE), tr(_TIP_R),
             # tip TITLES unique to this module (not shared with tab 4's literals):
             tr("White Point Handling (-u / -ua / -uc)"),
-            tr("Manual White-point Scale (-u)"),
+            tr("Manual White-point Scale (-u scale)"),
             tr("Restrict White, Black & Primaries (-R)"))
 
 
@@ -798,7 +817,7 @@ class ScannerAdvancedDialog(QDialog):
         self._wp_scale.setValue(1.00)
         srow.addWidget(self._wp_scale)
         srow.addStretch()
-        srow.addWidget(_green_tip("Manual White-point Scale (-u)", _TIP_WP_SCALE, grp))
+        srow.addWidget(_green_tip("Manual White-point Scale (-u scale)", _TIP_WP_SCALE, grp))
         g.addLayout(srow)
 
         def _on_wp() -> None:

@@ -532,19 +532,29 @@ def test_every_deliberate_exception_says_why():
 # PROPOSED. German is translated for all 22 and does not move. See §M-PROPOSED,
 # "⏳ Awaiting confirmation — Profile type help text". These are each language's
 # ACTUAL count.
+# +4 each in the eleven, 0 in German, 2026-09-05 (AGENT BJ): the white-point
+# help in Tools ▸ Build profile with scanner or camera ▸ Advanced. The sentence
+# that went away — "1.00 makes no change" — was FALSE: ArgyllCMS sets
+# `autowpsc = 1` before it reads the number (`colprof.c:494`) and defaults the
+# scale to 1.0 anyway (`xfit.c:2753`), so `-u 1` builds the same profile as a
+# bare `-u`. Two keys are the corrected tooltip bodies, two are the combo label
+# and tip title, which stopped saying "(-u)" — the list had TWO different
+# entries under that one flag. German is translated for all four and does not
+# move. The eleven carry the English source: new wording in a beta, and it is
+# PROPOSED wording besides. These are each language's ACTUAL count.
 _IDENTICAL_TO_KEY = {
     "de": 152,
-    "es": 369,
-    "fr": 389,
-    "it": 381,
-    "ja": 358,
-    "nl": 398,
-    "no": 382,
-    "pl": 373,
-    "pt": 373,
-    "ru": 345,
-    "sv": 386,
-    "zh_CN": 351,
+    "es": 373,
+    "fr": 393,
+    "it": 385,
+    "ja": 362,
+    "nl": 402,
+    "no": 386,
+    "pl": 377,
+    "pt": 377,
+    "ru": 349,
+    "sv": 390,
+    "zh_CN": 355,
 }
 
 
