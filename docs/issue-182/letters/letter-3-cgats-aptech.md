@@ -69,10 +69,12 @@ permission granted to us alone — to "ChromIQ", or to its authors — would be 
 practical use: the first person to redistribute the software, which the licence permits
 anyone to do, would fall outside it, and we would have to remove the files again. What
 would work is a permission that travels with the files to everyone who receives the
-software. The same point applies to any condition of the form "may not be sold": GPLv3
-expressly permits a recipient to charge for a copy, so we cannot pass such a condition
-on, and a permission carrying it would not let us bundle the file even though it sounds
-permissive.
+software. The same point may apply to any condition of the form "may not be sold":
+GPLv3 expressly permits a recipient to charge for a copy. Whether that actually
+conflicts depends on whether a data file shipped beside a program is part of it or
+merely aggregated with it, and that is not a question we are going to answer in our own
+favour — so if you are minded to attach such a condition, it is worth telling us,
+because it may make the permission unusable.
 
 **We have shipped none of it.** No released version of ChromIQ contains any CGATS data,
 and none is in our source repository. Nothing here asks you to bless something already
@@ -111,10 +113,13 @@ report.
 **The attribution we would propose.** So that you do not have to invent wording for us,
 here is what we would display, and we would of course use yours instead if you prefer:
 
-> *Reference data: CGATS21-2 CRPC6, © Association for Print Technologies / CGATS,
-> included with permission. Aim formulae after CGATS/Idealliance TR 015-2022. Neither
-> CGATS nor APTech endorses, certifies or approves this software or any result it
-> produces.*
+> *Reference data: CGATS21-2 CRPC6, published by CGATS / the Association for Print
+> Technologies, included with permission and unaltered. Aim formulae after
+> CGATS/Idealliance TR 015-2022. Neither CGATS nor APTech endorses, certifies or
+> approves this software or any result it produces.*
+
+We have written it as "published by" rather than "©" because we do not know who holds
+the copyright in the data, and would rather you told us than guess.
 
 **A separate question about the names, which is not a copyright question.**
 "CGATS21-2", "CRPC6" and "G7" are names as well as things, and names can be protected in

@@ -72,9 +72,9 @@ HOW TO USE THIS FILE
 
   Not the same as A1. A1 is about files of measured colours. A2 is about the
   pass/fail limits themselves - the handful of numbers each standard sets, taken
-  from the free official previews, each carrying the clause it came from. May
-  they be built into ChromIQ as factory defaults for a named set and displayed
-  in the table?
+  from the extracts we hold, which are NOT ISO's own previews (see A4), each
+  carrying the clause it came from. May they be built into ChromIQ as factory
+  defaults for a named set and displayed in the table?
 
     (a) Ship the values as defaults, show them in the app with the clause named
         next to each, and offer no bulk copy or export.
@@ -82,9 +82,15 @@ HOW TO USE THIS FILE
         names the standard only in help text.
     (c) Ask ISO in writing first, and hold the feature until an answer comes.
 
-  We recommend: (a) with attribution and no bulk export, and send the letter
-  (A5) in parallel. Do NOT build a "Copy as text" button - it turns a display
-  into a distribution and buys almost nothing.
+  We recommend: (a) IN DESIGN, but not in a release until ISO answers or the
+  reply-by date passes. The letter (A5) tells ISO in as many words that we will
+  read silence as a no and ship nothing from the standard; shipping the values
+  while that letter is unanswered would make the letter untrue. Build it behind
+  the answer. Do NOT build a "Copy as text" button in any case - it turns a
+  display into a distribution and buys almost nothing.
+
+  If you would rather ship in parallel, that is your call to make - but then the
+  letter's silence clause has to be changed FIRST, not afterwards.
 
   Three things ride on this answer: whether the table's cells can show real
   numbers or only labels; whether the mockups in this thread (ISO limits
@@ -129,13 +135,14 @@ HOW TO USE THIS FILE
        OWNER: SEBASTIAN          Money, low risk
 --------------------------------------------------------------------------------
 
-  All the work so far used the free official previews. They contain the
-  tolerance tables; they stop before the pages that say WHICH patches the limits
-  apply to. Without a purchased copy these stay NOT ESTABLISHED: clause 5.2
-  (what the control strip contains - five tolerance rows depend on it), the
-  outer-gamut and surface-gamut patch lists, the mandated measurement condition,
-  the uniformity test object, and whether the substrate fluorescence figure is a
-  ratio or a difference.
+  All the work so far used extracts that circulate freely. They are NOT ISO's
+  own previews: every page of both carries a commercial reseller's watermark.
+  They contain the tolerance tables; they stop before the pages that say WHICH
+  patches the limits apply to. Without a purchased copy these stay NOT
+  ESTABLISHED: clause 5.2 (what the control strip contains - five tolerance rows
+  depend on it), the outer-gamut and surface-gamut patch lists, the mandated
+  measurement condition, the uniformity test object, and whether the substrate
+  fluorescence figure is a ratio or a difference.
 
     (a) Buy both now.
     (b) Buy them at the point ISO sets become buildable - i.e. once A1 and A3
@@ -146,10 +153,8 @@ HOW TO USE THIS FILE
   We recommend: (b). Not urgent while A1 is open; blocking the moment A1 and A3
   close. (c) should be rejected - naming a standard while being unable to
   identify the patches its limits are written for is the kind of claim this
-  thread has avoided everywhere else. Note also that the extracts in hand are
-  NOT ISO's own free previews: every page of both carries a commercial
-  reseller's watermark. We hold no licensed copy of either standard, and the
-  letter to ISO now says so.
+  thread has avoided everywhere else. We hold no licensed copy of either
+  standard, and the letter to ISO now says so.
 
   ANSWER: ______________________________
 
@@ -163,22 +168,27 @@ HOW TO USE THIS FILE
 --------------------------------------------------------------------------------
 
   Nobody ever has. Drafted and waiting for a signature: two short informal
-  emails - to the author of ArgyllCMS, who has shipped reference data under
-  these constraints for twenty years, and to the ICC, who host the CRPC data
+  emails - to the author of ArgyllCMS, who has been distributing colour
+  reference files under his own licence for twenty years and has had to decide
+  what to do about other people's, and to the ICC, who host the CRPC data
   with no terms attached - and four formal letters, to Fogra, to ISO, to the
   CGATS Secretariat at APTech and to Idealliance. The two emails go first and
-  ask a question rather than requesting a favour; the four letters wait for
-  their answers, because a five-line reply that settles it is worth more than
-  four formal approaches, and asking four organisations for permission we may
-  not need is its own cost. A human has to sign all of it; it cannot be
+  ask a question rather than requesting a favour. The ICC one may genuinely
+  shorten letter 3 - the ICC serves the CRPC files, so it can say what terms it
+  understands to apply and who holds them. The ArgyllCMS one cannot remove
+  anything: he holds no rights in Fogra's data, ISO's tables, CGATS's data or
+  Idealliance's profiles, so nothing he says can dispose of a letter - it can
+  only make one better informed. A human has to sign all of it; it cannot be
   delegated.
 
-    (a) Send them - emails first, letters after their answers.
+    (a) Send them - the emails now, the letters as soon as they can be signed.
     (b) Send the emails only, and decide about the letters afterwards.
     (c) Send none of it.
 
   We recommend: (a). It costs an afternoon, it has no downside, and it is the
-  only item on this list that can REMOVE items from it.
+  only item on this list that can REMOVE items from it - which is also why the
+  letters should not wait on the emails. Every week this waits is a week the
+  rest of this list stays open.
 
   ANSWER: ______________________________
 
@@ -470,6 +480,18 @@ HOW TO USE THIS FILE
   a tolerance whose practical floor ISO itself calls impractical to go below. So
   aims computed this way are close, not equal.
 
+  There is now a third thing, and it may block both. ChromIQ is GPLv3. GPLv3
+  section 4 lets anyone who receives the software charge for a copy, and section
+  10 forbids us to add restrictions on the people who receive it. The grant says
+  the profile "may not be ... sold without written permission of IDEAlliance".
+  Whether that bites depends on whether a profile shipped beside the program is
+  part of the program or merely aggregated with it - GPLv3 section 5 says the
+  licence does not reach the other parts of an aggregate - and we are
+  deliberately not deciding that for ourselves. Letter 4 asks Idealliance. Note
+  that this is the second limb of the grant: an earlier note said the condition
+  was "easy to honour: ship them unchanged", which answers "may not be altered"
+  and says nothing about "or sold".
+
     (a) Bundle the profiles and offer computed aims, clearly named - "aims
         computed through the GRACoL2013 reference profile" - never as the silent
         default.
@@ -477,9 +499,16 @@ HOW TO USE THIS FILE
         from them.
     (c) Bundle nothing.
 
-  We recommend: (a), on those exact terms. The label must say the aims were
-  computed through a profile, so that a user who needs the real dataset knows to
-  go and get it.
+  We recommend: HOLD (a) until Idealliance answers. (b) and (c) are available
+  today and neither depends on the answer. If the answer comes back permissive,
+  (a) on the exact terms above - the label must say the aims were computed
+  through a profile, so that a user who needs the real dataset knows to go and
+  get it.
+
+  Note on A1: A1's standing rule ("ship nothing; link instead") is about
+  DATASETS of measured colours. An ICC profile is a different object with a
+  different licence, which is why it is asked separately here rather than
+  decided by A1.
 
   ANSWER: ______________________________
 
@@ -609,6 +638,11 @@ HOW TO USE THIS FILE
 
   An inkjet printing to a reference condition is producing a validation print,
   not a contract proof, which points at ISO 12647-8 first.
+
+  The drafted letter to ISO asks about ISO 12647-8:2021 only, so it already
+  ASSUMES (a). That assumption is stated in the letter's sender notes rather
+  than buried. If you answer (b), the letter is redrafted before anybody signs
+  it. This is your call, not the draft's.
 
     (a) ISO 12647-8 first.
     (b) ISO 12647-7 first.

@@ -56,7 +56,8 @@ anderes Format.
    an unsere Anwender. **Dafür bitten wir um Ihre Erlaubnis.**
 3. **Anwendung der Daten, also die Berechnung eines Urteils daraus.** Unsere
    Software würde Ihre Werte nicht nur anzeigen. Das Programm zieht die Messung
-   eines Anwenders davon ab und gibt ein Bestanden oder ein Nicht-bestanden aus.
+   eines Anwenders davon ab und weist das Ergebnis als bestanden oder nicht
+   bestanden aus.
    Wir führen das gesondert auf, weil es etwas anderes ist als das bloße Anzeigen
    einer Zahl, und weil wir möchten, dass Sie den tatsächlichen Vorgang beurteilen.
 4. **Veränderung der Daten.** Darum bitten wir nicht, und wir würden es nicht tun.
@@ -72,8 +73,8 @@ bestimmt.** ChromIQ wird unter der GNU General Public License Version 3
 weitergegeben. Diese Lizenz verlangt, dass jeder, der die Software erhält, dieselben
 Rechte erhält, die auch wir haben; und sie erlaubt es uns nicht, eine Beschränkung,
 der wir selbst zugestimmt haben, an die Empfänger weiterzureichen. Eine Erlaubnis,
-die allein uns erteilt würde – „ChromIQ“ oder seinen Autoren –, wäre deshalb
-praktisch nicht verwertbar: Wer die Software weitergibt, und das darf nach dieser
+die allein uns erteilt würde – also „ChromIQ“ als solchem oder seinen Autoren –,
+wäre deshalb praktisch nicht verwertbar: Wer die Software weitergibt, und das darf nach dieser
 Lizenz jeder, stünde außerhalb dieser Erlaubnis, und wir müssten die Datei wieder
 entfernen. Brauchbar wäre eine Erlaubnis, die mit der Datei auf jeden Empfänger der
 Software übergeht. Sollte das mehr sein, als Sie einräumen möchten, ist auch eine
@@ -82,7 +83,7 @@ Variante in der letzten Frage weiterhin zulassen.
 
 **Ausgeliefert haben wir davon bisher nichts.** In keiner veröffentlichten Fassung
 von ChromIQ befinden sich Fogra-Daten, und im Quellcode-Repository ebenso wenig.
-Dieser Brief bittet also nicht um die nachträgliche Billigung von etwas bereits
+Diese Anfrage bittet also nicht um die nachträgliche Billigung von etwas bereits
 Geschehenem.
 
 **Warum wir fragen, statt anzunehmen.** Wir haben zuerst nach Nutzungsbedingungen

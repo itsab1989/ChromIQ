@@ -35,9 +35,8 @@ data **as you package it** — that is, the FOGRA51/FOGRA52 download in the firs
 instance, and by that we mean all three files it contains, `FOGRA51.txt`,
 `FOGRA51_Spectral.txt` and `FOGRA52.txt`, **including the spectral file**; and
 possibly the Fogra MediaWedge subsets later — **unaltered**, inside the ChromIQ
-application, so that a user
-can select "FOGRA51" as the reference for their verification without first having
-to find and download the file. The application would name Fogra as the source
+application, so that a user can select "FOGRA51" as the reference for their
+verification without first having to find and download the file. The application would name Fogra as the source
 wherever the data is used, and would carry the file exactly as you publish it: no
 modification, no re-derivation, no repackaging into another format.
 

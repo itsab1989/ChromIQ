@@ -12,9 +12,9 @@ placeholders in square brackets are role names standing in for individuals.
 
 Dear ISO Copyright Office,
 
-I am writing to ask for permission for a specific and narrow use of two of your
-standards. If the answer is no, a plain no is genuinely useful to us, and we would
-rather have it than keep inferring one.
+I am writing to ask for permission for a specific and narrow use of one of your
+standards, ISO 12647-8:2021. If the answer is no, a plain no is genuinely useful to
+us, and we would rather have it than keep inferring one.
 
 **Who we are.** ChromIQ is a free desktop application for making ICC colour
 profiles for printers. It is published as open source under the GNU General Public
@@ -31,12 +31,32 @@ so that a report can say which limits it was judged against.
 
 Concretely, we would like to store, inside the software, the **numerical tolerance
 values** given in the tables of **ISO 12647-8:2021** as the factory default pass/fail
-limits of a named setting; to display those numbers on
-screen and in the report; and to **compute a verdict from them** — that is, to
-subtract a measurement from a value, compare the difference with the tolerance, and
-print a pass or a fail. Each value would be shown together with the designation of
-the standard and the number of the clause and table it comes from, so that its
-origin is stated rather than absorbed. The user can edit any of them.
+limits of a named setting; to display those numbers on screen and in the report; and
+to **compute a verdict from them** — that is, to subtract a measurement from a value,
+compare the difference with the tolerance, and print a pass or a fail. Each value
+would be shown together with the designation of the standard and the number of the
+clause and table it comes from, so that its origin is stated rather than absorbed.
+The user can edit any of them.
+
+**This request is about ISO 12647-8:2021 only, and that is deliberate.** An earlier
+draft of this letter asked about ISO 12647-7:2016 as well, as an equal. It should not
+have, for two reasons.
+
+The first is that -8 is the document our users need. They print from digital data on
+inkjet and toner devices, which is to say they make validation and design prints — what
+-8 addresses. ISO 12647-7:2016 governs contract proofing, which far fewer of them do.
+
+The second is that we could not use a permission for -7 today even if you granted it.
+It sets requirements for substrate properties, uniformity, permanence and durability
+that ChromIQ has no way to measure — we have no gloss input, no fluorescence input, no
+multi-location workflow and no ageing test — and by our own count only one of its
+requirements is something the software already does. It would be wrong to ask you for
+something we cannot use, and it would be worse than wrong tactically: a single refusal
+covering both documents would take the one we can use down with the one we cannot.
+
+So: **ISO 12647-8:2021 now.** If ChromIQ ever grows the measurements that -7 requires,
+we will write again about -7, separately, and that letter will be able to say what the
+software actually does with it.
 
 **What we are asking about, and what we are not.** It matters to us that these are
 kept apart, so I will state all five:
@@ -54,13 +74,13 @@ kept apart, so I will state all five:
    because we would rather you judged the real one: the numbers are not decoration
    in our software, they are the rule the software applies.
 4. **Redistributing a document or a dataset.** We are **not** asking to reproduce,
-   quote or distribute the text of either standard, in whole or in part, and the
-   software would contain no copy of either document. Nor would it offer any means
+   quote or distribute the text of the standard, in whole or in part, and the
+   software would contain no copy of the document. Nor would it offer any means
    of copying or exporting the tolerance tables as a block: no "copy all", no export
    of the table, and no file in the installation holding the tables in a form that
    could simply be lifted out.
 5. **Claiming conformance.** We are **not** asking to certify anything, and the
-   software will not say that any print "conforms to" or "is certified to" either
+   software will not say that any print "conforms to" or "is certified to" the
    standard. Its wording would be of the form *"measured against the tolerance
    values of ISO 12647-8:2021, Table N"*. Conformity assessment is not ours to
    assert and we do not intend to imply it. We would add, in the report itself,
@@ -80,15 +100,15 @@ letter, because it decides between two quite different designs rather than betwe
 a feature and nothing.
 
 **We have shipped none of it.** No released version of ChromIQ contains any value
-taken from either standard, and none is in our source repository. Nothing here asks
+taken from that standard, and none is in our source repository. Nothing here asks
 you to bless something already done.
 
-**How we have read the standards so far, stated plainly.** We do **not** hold a
-licensed copy of either document. What we have worked from is extracts that
+**How we have read the standard so far, stated plainly.** We do **not** hold a
+licensed copy of ISO 12647-8:2021. What we have worked from is extracts that
 circulate freely on the internet and third-party summaries of the tables. We are
 telling you this rather than letting you assume otherwise, because it bears on your
-answer: if the honest first step is to buy both standards under an ordinary licence,
-we will do that. It is also why the second question below matters to us.
+answer: if the honest first step is to buy the standard under an ordinary licence, we
+will do that. It is also why the second question below matters to us.
 
 **Why we are asking rather than assuming.** We have read your Copyright page, your
 Terms and Conditions and End Customer Licence Agreement, and the guide *How to best
@@ -151,28 +171,6 @@ its report solely to identify what a measurement was compared with? We would use
 as a plain identifier and never as a mark of approval. We ask separately because a
 "no" on the values need not be a "no" on the designation, and that second answer
 decides whether a reduced version of this feature can exist at all.
-
-**This request is about ISO 12647-8:2021 only, and that is deliberate.** An earlier
-draft of this letter asked about ISO 12647-7:2016 as well, as an equal. It should not
-have, for two reasons.
-
-The first is that -8 is the document our users need. They print from digital data on
-inkjet and toner devices, which is to say they make validation and design prints — what
--8 addresses. ISO 12647-7:2016 governs contract proofing, which far fewer of them do.
-
-The second is that we could not use a permission for -7 today even if you granted it.
-Of the twelve requirements of ISO 12647-7:2016 we have been able to identify, **ten are
-things our software cannot evaluate at all** — substrate gloss class, substrate
-fluorescence class, within-format uniformity over nine locations, permanence under four
-storage regimes, rub resistance, and so on: we have no gloss input, no fluorescence
-input, no nine-location workflow and no permanence test. An eleventh we can do only in
-part. It would be wrong to ask you for something we cannot yet use, and it would be
-worse than wrong tactically: a single refusal covering both documents would take the one
-we can use down with the one we cannot.
-
-So: **ISO 12647-8:2021 now.** If ChromIQ ever grows the measurements that -7 requires,
-we will write again about -7, separately, and that letter will be able to say what the
-software actually does with it.
 
 **Four practical questions, so that we can act on your answer.**
 
