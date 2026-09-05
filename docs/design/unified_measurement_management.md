@@ -3315,6 +3315,109 @@ ArgyllCMS's own default and ChromIQ's own in tab 4
 ever moved, the marker, the help and the recommendation would have to move in
 the same commit or the window would contradict itself.*
 
+### Button label — the driver consent window's decline button (AGENT-BD) — ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.* Proposed 2026-09-05 by AGENT-BD. Basti approved
+the CHANGE — *"fix the ok button and the grammar, then land it"* — but not a
+particular phrase, so the phrase is here for him to correct.
+
+*Deliberately NOT given an `M-` identifier, for the reason the two sections above
+give: §M is a catalogue of MESSAGES, each one rendered from
+`workflow/measurement_messages.py`, and `tests/test_message_catalogue.py`
+requires every `M-` heading in this document to exist there. A button label is
+not a message and must not be given a fake identifier to satisfy a parser. It is
+recorded here because it is user-facing wording and this is where user-facing
+wording is proposed and ruled on.*
+
+`ui/dialogs/settings_dialog.py::_driver_notice` shows two kinds of window. With
+no second button it is a NOTICE — it asks nothing, and **OK** is exactly the
+right word for acknowledging one. With a second button it is an OFFER, and then
+the plain button is the **DECLINE**: `ok.clicked.connect(dlg.reject)`,
+deliberately, because `box.accepted` fires for OK too and that is how OK once
+came to start an elevated driver install (`f7a565ad`).
+
+The behaviour has been right since that commit and a mutation kills seven tests
+if it is undone. **The WORD was still wrong.** On "Before ChromIQ starts" —
+the one window in ChromIQ whose entire purpose is informed consent — the row
+read `Herunterladen und installieren` and `OK`, and OK is the word most people
+read as "yes". Somebody skimming clicks it meaning to agree and gets the
+opposite of what they intended, which is the single mistake that window exists
+to prevent.
+
+| proposed label | replaces | German | where it appears |
+|---|---|---|---|
+| **Not now** | OK | Jetzt nicht | the dismissing button of any driver window that OFFERS something |
+
+*It is not new vocabulary. `ui/cr30_calibration.py` already builds a button
+labelled **Not now** for exactly this meaning — declining an offered action in a
+window that can be opened again — so this reuses that key rather than adding a
+thirteenth way to say no, and German is already translated. **Zero new
+translation keys.***
+
+*It is correct on all five offers this window makes — `Download and install`,
+`Check and install`, `I already have the folder…`, `Choose a different folder…`
+and `Try Zadig` — and nothing is lost by pressing it: every one of these windows
+is reachable again from Preferences ▸ Instrument drivers…. A label naming the
+action ("Don't install") would be correct on two of the five and wrong on three.*
+
+*The alternative considered and not chosen was Qt's **Cancel** / `Abbrechen`,
+which is equally unmistakable and also costs no new keys. It was rejected
+because there is nothing in flight to cancel on three of the five windows — the
+user is declining an offer, not aborting an operation — and because "Not now" is
+already the house word for that.*
+
+*Only the button's TEXT changes. It stays a `StandardButton.Ok`, so its role,
+its place in the row and its identity to everything that looks it up are
+unchanged, and it remains the dialog's default — the key most people press to
+get rid of a window still declines. Measured in all thirteen languages, in the
+dark appearance's wider button font, on a screen tall enough that the window is
+not at its cap: the row fits, nothing is clipped, nothing runs past the edge
+(`tests/test_usb_driver_dialog.py::test_the_consent_buttons_fit_the_row_in_every_language`).*
+
+### The measurement guard's "{where}" — a preposition glued to a translated noun (AGENT-BD) — ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.* Recorded 2026-09-05 by AGENT-BD. **No wording is
+being proposed here** — every sentence below is the wording that already
+shipped, re-cut so that each language can inflect it. It is recorded because
+part of it is a §M concern and because the sibling defect named at the end is
+one somebody has to rule on.
+
+ChromIQ's driver helper refuses to open during a measurement and says why. That
+paragraph used to be built by formatting `core.instrument_lease.where_label()`'s
+noun phrase into `"…is being read right now, from {where}."` English survives
+that, and German survives it only because both labels were hand-inflected into
+the dative to fit. Rendered from the shipped catalogues, four languages did not:
+
+| | what it produced | what the language needs |
+|---|---|---|
+| it | da la scheda Misura | **dalla** scheda Misura |
+| pt | a partir de o separador Medir | a partir **do** separador Medir |
+| pl | z karcie Pomiar | z **karty** Pomiar (genitive) |
+| ru | из вкладке «Измерение» | из **вкладки** «Измерение» (genitive) |
+
+*Nothing in the project could see it. `tests/test_i18n.py` sees a key that is
+present, translated, and whose placeholder matches. `scripts/i18n_extract.py`
+sees nothing at all — the broken sentences exist nowhere as literals, they are
+assembled at run time, so no translator was ever shown one.*
+
+*Hand-inflecting the label was the German fix (`8d5b8430`) and it cannot
+generalise: two different sentences interpolate the same label with two
+different prepositions, and a language with cases needs a different form of the
+noun in each. So the WHOLE SENTENCE is the translatable unit now — one complete
+sentence per holder, with nothing formatted into it — and each language writes
+its own preposition, article and case. It is also its own paragraph rather than
+glued to the next with a space, because ja and zh join sentences with 。and no
+space: even joining two translated sentences is a decision the code must not
+make on a translator's behalf.*
+
+**The sibling, which is NOT fixed and needs a ruling.** `M-INSTRUMENT-BUSY`
+("ChromIQ is measuring in {where}") is fed by the same `where_label()` and has
+the identical fault — "in la scheda Misura", "in o separador Medir", "in karcie
+Pomiar", "in вкладке «Измерение»" — and it is worse, because that sentence is
+still the English source in eleven of the twelve catalogues. It is a §M message,
+so its wording is not an implementer's to change; it is raised here and left
+alone.
+
 ### M-x. Which table uses which message
 
 **Calibration replacement** (`docs/design/calibration_run_type_plan.md` Table C,

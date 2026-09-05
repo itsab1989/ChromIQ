@@ -2291,3 +2291,93 @@ came back to it.
   optimistic in that ink's darkest region. Today that is a log line only. Whether
   the user should be TOLD — and in what words — is a new §M message and therefore
   his call, not an agent's.
+
+### B8-63 · The driver consent window's DECLINE button said "OK"
+- blocks release: no
+- status: FIXED
+- found by: Agent BB's review of PR #187 (F20), `beta 9/_progress/agentBB.md`;
+  ruled on by Basti — *"fix the ok button and the grammar, then land it"*.
+- detail: `ui/dialogs/settings_dialog.py::_driver_notice` shows two kinds of
+  window. With no second button it is a NOTICE and OK is the right word for
+  acknowledging one. With a second button it is an OFFER, and the plain button
+  is the DECLINE — `ok.clicked.connect(dlg.reject)`, deliberately, because
+  `box.accepted` fires for OK too and that is how OK once came to start an
+  elevated driver install (`f7a565ad`). That behaviour is right and a mutation
+  against it kills seven tests. **The WORD was still wrong.** On "Before ChromIQ
+  starts" — the one window in ChromIQ whose entire purpose is informed consent —
+  the row read `Herunterladen und installieren` and `OK`, and OK is the word
+  most people read as "yes". Somebody skimming clicks it meaning to agree and
+  gets the opposite of what they intended.
+- fix: (guards live in `tests/test_usb_driver_dialog.py`) the dismissing button says what dismissing does — **`Not now`** /
+  **`Jetzt nicht`** — and only when there is something to decline; a plain
+  notice still says OK. It is not new vocabulary and it is **zero new
+  translation keys**: `ui/cr30_calibration.py` already builds a `Not now` button
+  for exactly this meaning, so the two share one key and German is already
+  translated. Only `setText` changes — the button stays a `StandardButton.Ok`,
+  keeping its role, its place in the row, its identity to `_ok_button()` and its
+  status as the dialog's default, so `Return` still declines. The WORDING is
+  §M-PROPOSED and unapproved: see "Button label — the driver consent window's
+  decline button" in `docs/design/unified_measurement_management.md`, ⏳ awaiting
+  confirmation, with the rejected alternative (`Cancel`) recorded beside it.
+- evidence: test_the_consent_window_does_not_call_its_decline_button_ok,
+  test_the_decline_button_is_still_the_one_enter_presses,
+  test_a_notice_with_nothing_to_decline_still_says_ok,
+  test_the_decline_label_is_the_apps_own_word_for_declining,
+  test_the_consent_buttons_fit_the_row_in_every_language
+  — all in the driver-dialog file named under `fix` above. The last one runs in
+  all THIRTEEN languages and in the dark appearance's wider button font, and it
+  asserts `height < cap` FIRST — BB's vacuity trap: the offscreen screen is
+  800x800, so the cap is 720 and the German window sits AT it, where a geometry
+  assertion passes without asking anything.
+
+### B8-64 · "da la scheda", "a partir de o separador", "z karcie", "из вкладке" — a preposition glued to a translated noun
+- blocks release: no
+- status: FIXED
+- found by: Agent BB's review of PR #187 (F4), by RENDERING the sentence in all
+  twelve languages; ruled on by Basti in the same instruction as B8-63.
+- detail: the driver helper refuses to open during a measurement and says why.
+  That paragraph formatted `core.instrument_lease.where_label()`'s noun phrase
+  into "…is being read right now, from {where}." English survives it, and German
+  survives it only because `8d5b8430` hand-inflected both labels into the
+  dative. Four languages did not: it "da la scheda Misura" (needs *dalla*), pt
+  "a partir de o separador Medir" (needs *do*), pl "z karcie Pomiar" (needs the
+  genitive *karty*), ru "из вкладке «Измерение»" (needs the genitive *вкладки*).
+  **Nothing in the project could see it.** `tests/test_i18n.py` sees a key that
+  is present, translated, and whose placeholder matches;
+  `scripts/i18n_extract.py` sees nothing at all, because the broken sentences
+  exist nowhere as literals — they are assembled at run time, so no translator
+  was ever shown one.
+- fix: structural, not four string edits. Hand-inflecting one label cannot work
+  when two sentences interpolate it with two different prepositions and the
+  language has cases. So `measurement_in_progress()` now returns the lease's
+  IDENTIFIER — which `core/instrument_lease.py` documents those constants as —
+  and `measurement_block_text()` picks a COMPLETE SENTENCE per holder through
+  the new `_read_right_now_sentence()`, with nothing formatted into it. Each
+  language writes its own preposition, article and case. It is its own paragraph
+  rather than glued to the next with a space, because ja and zh join sentences
+  with 。and no space: even joining two translated sentences is a decision the
+  code must not make for a translator. Every value is the old sentence split at
+  its own full stop, except the four corrections — no approved wording was
+  re-invented. i18n: -1 key, +4 x 12; `--missing` 0 of 4969 and `--stale` 0 in
+  all twelve, and "0 missing" is NOT the evidence — the corrections were proved
+  by rendering them.
+- evidence: test_the_guard_is_a_sentence_in_the_four_that_inflect,
+  test_the_guard_never_formats_a_label_into_a_sentence_again,
+  test_the_guard_is_handed_an_identifier_not_a_label,
+  test_the_german_guard_reads_as_a_sentence_for_either_holder,
+  test_the_german_guard_window_names_the_spot_tool_grammatically
+  — all in the same driver-dialog file. The first renders the four languages
+  that were wrong, for both holders, and asserts both the correct form and the
+  absence of the glued one; the second pins the STRUCTURE in all twelve, so no
+  future wording can go back to formatting a label into a sentence.
+- still open, for Basti to decide, NOT fixed here: **`M-INSTRUMENT-BUSY` has the
+  identical fault** — "ChromIQ is measuring in {where}", fed by the same
+  `where_label()`, from `ui/dialogs/spot_read_dialog.py` and
+  `ui/tabs/tab_measure.py`, producing "in la scheda Misura", "in o separador
+  Medir", "in karcie Pomiar", "in вкладке «Измерение»". It is worse, because
+  that sentence is still the English source in eleven of the twelve catalogues.
+  It is a §M message, so its wording is his call and not an implementer's; an
+  AST sweep of `ui/`, `workflow/` and `core/` for a translated value formatted
+  into a translated sentence found 93 sites and this is the ONLY other one with
+  the glued-preposition shape — every other is a button or file name inside
+  `<b>…</b>` or „…“, which inflects nothing around it.

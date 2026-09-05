@@ -2800,11 +2800,24 @@ def test_every_reason_sentence_is_translated_in_every_language(
 # had no way of being noticed except by somebody reading it. These tests render
 # it.
 #
-# The fix is the LABEL, not the sentence: two different messages interpolate
-# `{where}` (this guard, and `M_INSTRUMENT_BUSY`'s "ChromIQ misst gerade in
-# {where}"), so a label that only fits one preposition would break the other.
-# A dative noun phrase fits both, which is exactly the shape `MEASURE_TAB`
-# already had.
+# The first fix was the LABEL — a dative noun phrase, which fits both of the
+# German sentences that interpolate it. **AND IT DOES NOT GENERALISE, which the
+# review found by rendering the same sentence in the other eleven languages:**
+#
+#     it   "da la scheda Misura"            must contract to "dalla scheda"
+#     pt   "a partir de o separador Medir"  must contract to "a partir do"
+#     pl   "z karcie Pomiar"                needs the genitive "z karty"
+#     ru   "из вкладке «Измерение»"         needs the genitive "из вкладки"
+#
+# You cannot inflect one label to fit two prepositions in two sentences in a
+# language with cases. So `measurement_block_text` no longer interpolates
+# anything: it picks a WHOLE SENTENCE per holder, and each language writes its
+# own preposition, article and case. The tests below are the German ones plus
+# the four that were wrong, and they render rather than read.
+#
+# `M_INSTRUMENT_BUSY` still glues "in {where}" and still has the same fault. It
+# is a §M message, its wording is not ours to change, and it is not this
+# branch's — it is reported, not fixed here.
 
 
 def test_the_spot_tool_label_names_the_route_that_really_opens_it():
@@ -2834,14 +2847,10 @@ def test_the_german_guard_reads_as_a_sentence_for_either_holder(
         in_language, holder):
     from core import instrument_lease as lease
     in_language("de")
+    said = sd.measurement_block_text(getattr(lease, holder))
     where = lease.where_label(getattr(lease, holder))
-    # The invariant, said directly: in German both labels are dative noun
-    # phrases, because both of the sentences that interpolate them need one.
-    assert where.split()[0] in {"dem", "der", "den"}, (
-        f"{holder}'s German label is not a dative noun phrase: {where!r} — "
-        f"'aus {where} gelesen' is not a German sentence")
-    said = sd.measurement_block_text(where)
-    assert f"aus {where} gelesen" in said
+    assert f"aus {where} gelesen" in said, (
+        f"the German guard does not read as a sentence for {holder}: {said!r}")
     assert "aus Werkzeuge ▸" not in said, (
         "the bare menu path is back in the middle of the sentence")
 
@@ -2856,9 +2865,8 @@ def test_the_german_guard_window_names_the_spot_tool_grammatically(
     """
     from core import instrument_lease as lease
     in_language("de")
-    monkeypatch.setattr(
-        sd, "measurement_in_progress",
-        lambda parent=None: lease.where_label(lease.SPOT_TOOL))
+    monkeypatch.setattr(sd, "measurement_in_progress",
+                        lambda parent=None: lease.SPOT_TOOL)
     with ModalDriver(lambda w: _ok_button(w).click()) as drv:
         dialog._show_usb_installer()
     assert drv.timed_out is False
@@ -2867,6 +2875,91 @@ def test_the_german_guard_window_names_the_spot_tool_grammatically(
     assert "aus dem Fenster „Werkzeuge ▸ Einzelne Felder messen“ gelesen" in said
     assert "aus Werkzeuge ▸" not in said
     assert "USB-to-serial bridge" not in said
+
+
+# --- the four languages the label trick could not reach ---------------------
+#
+# Each entry is (code, holder, the fragment that MUST be there, the glued form
+# that must NOT). The wrong forms are the ones the shipped catalogues really
+# produced before this change — copied from the rendering, not imagined.
+_GRAMMAR = [
+    ("it", "MEASURE_TAB", "dalla scheda Misura", "da la scheda"),
+    ("it", "SPOT_TOOL", "dalla finestra Strumenti ▸", "da la "),
+    ("pt", "MEASURE_TAB", "a partir do separador Medir", "a partir de o "),
+    ("pt", "SPOT_TOOL", "a partir da janela Ferramentas ▸", "a partir de a "),
+    ("pl", "MEASURE_TAB", "z karty Pomiar", "z karcie"),
+    ("pl", "SPOT_TOOL", "z okna Narzędzia ▸", "z Narzędzia ▸"),
+    ("ru", "MEASURE_TAB", "из вкладки «Измерение»",
+     "из вкладке"),
+    ("ru", "SPOT_TOOL", "из окна «Инструменты",
+     "из Инструменты"),
+]
+
+
+@pytest.mark.parametrize("code,holder,must,must_not", _GRAMMAR)
+def test_the_guard_is_a_sentence_in_the_four_that_inflect(
+        in_language, code, holder, must, must_not):
+    """Rendered, not read. This is the only thing that could have caught it.
+
+    `tests/test_i18n.py` sees a present, translated key whose placeholder
+    matches; `scripts/i18n_extract.py` sees nothing at all, because the broken
+    sentence exists nowhere as a literal — it was assembled at run time. So the
+    check has to be the rendering itself.
+    """
+    from core import instrument_lease as lease
+    in_language(code)
+    said = sd.measurement_block_text(getattr(lease, holder))
+    assert must in said, f"[{code}/{holder}] expected {must!r} in:\n{said}"
+    assert must_not not in said, (
+        f"[{code}/{holder}] the glued preposition is back: {must_not!r}")
+
+
+@pytest.mark.parametrize("code", ALL_CODES)
+def test_the_guard_never_formats_a_label_into_a_sentence_again(code,
+                                                               in_language):
+    """The structural rule, in every language ChromIQ ships.
+
+    Whatever the wording becomes, no holder's sentence may be built by dropping
+    `where_label()` into a slot — that is the shape that cannot be made correct
+    in a language with cases, and it is the shape that shipped.
+    """
+    import inspect
+    from core import instrument_lease as lease
+    in_language(code)
+    for holder in (lease.MEASURE_TAB, lease.SPOT_TOOL, "something else"):
+        said = sd.measurement_block_text(holder)
+        assert "{" not in said and "}" not in said, (code, holder, said)
+    src = inspect.getsource(sd.measurement_block_text) + \
+        inspect.getsource(sd._read_right_now_sentence)
+    assert "where_label" not in src, (
+        "measurement_block_text is interpolating the holder's LABEL again; the "
+        "whole sentence has to be the translatable unit")
+    assert ".format(" not in src, (
+        "a sentence in this guard is being assembled from parts again")
+
+
+def test_the_guard_is_handed_an_identifier_not_a_label():
+    """`measurement_in_progress` answers with the lease's identifier.
+
+    English hides this completely — `where_label(SPOT_TOOL)` returns the
+    identifier itself — so the assertion is made in German, where the two are
+    different strings.
+    """
+    from core import i18n
+    from core import instrument_lease as lease
+
+    owner = _Holder()
+    assert lease.acquire(owner, lease.SPOT_TOOL)
+    try:
+        i18n.set_language("de")
+        got = sd.measurement_in_progress()
+        assert got == lease.SPOT_TOOL, (
+            f"expected the identifier, got {got!r} — a translated label cannot "
+            "be handed to a sentence that has to inflect around it")
+        assert got != lease.where_label(lease.SPOT_TOOL)
+    finally:
+        i18n.set_language("en")
+        lease.release(owner)
 
 
 # ---------------------------------------------------------------------------
@@ -3044,3 +3137,211 @@ def test_the_driver_helper_shows_nothing_when_the_platform_is_not_windows(
     assert drv.modal_count == 0, (
         "the Windows driver helper opened on %r: %r"
         % ("darwin", [t for t, _ in drv.seen]))
+
+
+
+# ===========================================================================
+# THE BUTTON THAT DECLINES MUST NOT SAY "OK"
+# ===========================================================================
+#
+# On the consent window "Before ChromIQ starts" the green button reads
+# `Download and install` and the other one read **OK** — and OK is the DECLINE
+# (`ok.clicked.connect(dlg.reject)`, deliberately, because `box.accepted` fires
+# for OK too and that is how OK once started an elevated driver install). The
+# behaviour is right and mutation-tested; the WORD was the fault, on the one
+# window in this app whose entire purpose is informed consent. Somebody skimming
+# clicks OK meaning "yes" and gets the opposite of what they intended.
+#
+# `Not now` is already the app's own word for this — `ui/cr30_calibration.py`
+# builds a button with that exact label for declining an offered action — so
+# these tests also pin that the two stay ONE key, and that a window with nothing
+# to decline goes on saying OK, which is what a notice's button should say.
+
+ALL_LANGUAGES = ["en"] + sorted(ALL_CODES)
+
+#: The dark stylesheet's button font (`ui/styles.py`). Menlo is monospaced and
+#: much wider than Inter, so Dark is the appearance where a button row runs out
+#: of window — and it is applied to the DIALOG here, never to the application:
+#: `qapp.setStyleSheet()` re-polishes every widget the suite has alive and costs
+#: half a minute of gate time (CLAUDE.md).
+_DARK_BUTTON_FONT = 'QPushButton { font-family: "Menlo"; }'
+
+
+def _dismiss_button(widget):
+    """The dismissing button, whatever it now says on it."""
+    from PyQt6.QtWidgets import QDialogButtonBox
+    for box in widget.findChildren(QDialogButtonBox):
+        btn = box.button(QDialogButtonBox.StandardButton.Ok)
+        if btn is not None:
+            return btn
+    return None
+
+
+def _button_row(widget):
+    """The dialog's button box, and how each visible button fits."""
+    from PyQt6.QtWidgets import QDialogButtonBox
+    boxes = widget.findChildren(QDialogButtonBox)
+    assert boxes, "the window has no button box"
+    box = boxes[-1]
+    out = []
+    for b in box.buttons():
+        if not b.isVisible():
+            continue
+        out.append({
+            "text": b.text().replace("&", ""),
+            "width": b.width(),
+            "wants": b.sizeHint().width(),
+            "right": b.mapTo(widget, b.rect().topRight()).x(),
+        })
+    return box, out
+
+
+def _consent_window(dialog, look):
+    """Drive the REAL consent window — `_driver_notice` with an offer on it."""
+    from core.i18n import tr
+    with ModalDriver(look) as drv:
+        took = dialog._driver_notice(
+            tr("Before ChromIQ starts"),
+            sd.serial_install_intro_text(
+                r"C:\Users\x\AppData\Local\ChromIQ\drivers\2026-09-05_01-42-17",
+                "ARM64"),
+            tr("Download and install"))
+    assert drv.timed_out is False
+    return took
+
+
+def test_the_consent_window_does_not_call_its_decline_button_ok(
+        dialog, in_language):
+    in_language("en")
+    seen = {}
+
+    def _look(w):
+        btn = _dismiss_button(w)
+        seen["label"] = btn.text().replace("&", "")
+        seen["labels"] = [b["text"] for b in _button_row(w)[1]]
+        btn.click()
+
+    took = _consent_window(dialog, _look)
+    assert took is False, "the dismissing button must decline, not accept"
+    assert seen["label"] != "OK", (
+        "the button that DECLINES an elevated driver install still says OK")
+    assert seen["label"] == sd._label_not_now()
+    assert seen["labels"] == ["Download and install", "Not now"], seen["labels"]
+
+
+def test_the_decline_button_is_still_the_one_enter_presses(dialog, in_language):
+    """Relabelling must not have moved the default off the safe button.
+
+    `f7a565ad` found `Return` — the key most people press to get rid of a
+    window — DOWNLOADING AND INSTALLING AN ELEVATED DRIVER, because Qt promotes
+    a button box's first AcceptRole button. The new label keeps the button's
+    role and its identity, and this is the assertion that says so.
+    """
+    in_language("en")
+    seen = {}
+
+    def _look(w):
+        btn = _dismiss_button(w)
+        seen["default"] = btn.isDefault()
+        seen["others"] = [b.text().replace("&", "")
+                          for b in w.findChildren(type(btn))
+                          if b is not btn and b.isDefault()]
+        btn.click()
+
+    _consent_window(dialog, _look)
+    assert seen["default"] is True, "the safe button is no longer the default"
+    assert seen["others"] == [], seen["others"]
+
+
+def test_a_notice_with_nothing_to_decline_still_says_ok(dialog, in_language):
+    """The other half. A window that asks nothing is acknowledged, not declined,
+    and OK is exactly the right word for that."""
+    from core.i18n import tr
+    in_language("en")
+    seen = {}
+
+    def _look(w):
+        seen["labels"] = [b["text"] for b in _button_row(w)[1]]
+        _dismiss_button(w).click()
+
+    with ModalDriver(_look) as drv:
+        dialog._driver_notice(tr("Instrument drivers"),
+                              sd.serial_unknown_arch_text())
+    assert drv.timed_out is False
+    assert seen["labels"] == ["OK"], seen["labels"]
+
+
+def test_the_decline_label_is_the_apps_own_word_for_declining():
+    """One key, not two. `Not now` is already a button in the CR30 calibration
+    window for the same meaning, and a near-duplicate key is exactly how twelve
+    translations get lost at once — see
+    `test_there_is_only_one_key_per_button` above.
+    """
+    import inspect
+    import json
+    import ui.cr30_calibration as cal
+    assert 'tr("Not now")' in inspect.getsource(cal), (
+        "the CR30 window no longer uses this label; check the two have not "
+        "drifted into two keys")
+    root = Path(sd.__file__).resolve().parent.parent.parent / "data" / "i18n"
+    for code in ALL_CODES:
+        cat = json.loads(root.joinpath(f"{code}.json").read_text(
+            encoding="utf-8"))
+        assert "Not now" in cat, f"[{code}] the decline label is not a key"
+        for near in ("Not now…", "not now", "Not Now"):
+            assert near not in cat, f"[{code}] near-duplicate key {near!r}"
+
+
+@pytest.mark.parametrize("code", ALL_LANGUAGES)
+def test_the_consent_buttons_fit_the_row_in_every_language(
+        dialog, on_a_tall_screen, in_language, code):
+    """The button row, measured, in all thirteen — and in the wider font.
+
+    THE PRECONDITION IS THE POINT, and it is BB's finding: `_fit_to_screen` caps
+    the window at 0.9 of the screen, the offscreen platform reports 800 x 800,
+    and the German window sits AT that cap — where a geometry assertion passes
+    without ever asking the question. `on_a_tall_screen` lifts the cap out of
+    the way and `height < cap` is asserted FIRST.
+    """
+    in_language(code)
+    found = {}
+
+    def _look(w):
+        found["geom"] = _geometry_of(w)
+        box, row = _button_row(w)
+        found["row"] = row
+        found["win_w"] = w.width()
+        # The dark appearance's button font, on this dialog only. It is the
+        # widest this row ever gets.
+        w.setStyleSheet(_DARK_BUTTON_FONT)
+        box.layout().invalidate()
+        box.layout().activate()
+        found["dark_box_needs"] = box.sizeHint().width()
+        found["dark_row"] = [
+            {"text": b.text().replace("&", ""),
+             "wants": b.sizeHint().width()} for b in box.buttons()]
+        w.setStyleSheet("")
+        _dismiss_button(w).click()
+
+    _consent_window(dialog, _look)
+
+    g, row = found["geom"], found["row"]
+    assert g["height"] < g["cap"], (
+        "[%s] the window is at the screen cap (%d px), so this test asked "
+        "nothing — see `on_a_tall_screen`" % (code, g["cap"]))
+    assert len(row) == 2, (code, row)
+    for b in row:
+        assert b["width"] >= b["wants"], (
+            "[%s] %r is %d px wide and wants %d — the label is clipped"
+            % (code, b["text"], b["width"], b["wants"]))
+        assert 0 < b["right"] <= found["win_w"], (
+            "[%s] %r ends %d px outside a %d px window"
+            % (code, b["text"], b["right"], found["win_w"]))
+    assert g["hbar_max"] == 0 and not g["hbar_visible"], (
+        "[%s] the consent window scrolls sideways" % code)
+    assert g["buttons_below_the_bottom_edge"] == [], (
+        "[%s] %r" % (code, g["buttons_below_the_bottom_edge"]))
+    assert found["dark_box_needs"] <= found["win_w"], (
+        "[%s] in the dark appearance's font the button row wants %d px in a "
+        "%d px window: %r"
+        % (code, found["dark_box_needs"], found["win_w"], found["dark_row"]))
