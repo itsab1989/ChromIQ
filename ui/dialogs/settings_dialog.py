@@ -216,6 +216,30 @@ def _label_try_zadig() -> str:
     return tr("Try Zadig")
 
 
+# THE BUTTON THAT DECLINES MUST NOT SAY "OK".
+#
+# `_driver_notice` shows two kinds of window. Without an extra button it is a
+# notice, nothing is being asked, and OK is exactly the right word for it. WITH
+# one it is an OFFER — "Download and install", "Check and install", "Try Zadig",
+# "I already have the folder…", "Choose a different folder…" — and then the
+# second button is the DECLINE: `ok.clicked.connect(dlg.reject)`, deliberately,
+# because `box.accepted` fires for OK too and that is how OK once came to start
+# an elevated driver install.
+#
+# The behaviour was fixed (f7a565ad) and is guarded. The WORD was not. On the
+# consent window "Before ChromIQ starts", whose entire purpose is informed
+# consent, the two buttons read `Herunterladen und installieren` and `OK` — and
+# OK is the word most people read as "yes". Somebody skimming clicks it meaning
+# to agree and gets the opposite of what they intended, which is the one
+# mistake this window exists to prevent.
+#
+# So the dismissing button says what dismissing does. "Not now" is correct on
+# all five offers, and nothing is lost by it: every one of these windows can be
+# reached again from Preferences ▸ Instrument drivers….
+def _label_not_now() -> str:
+    return tr("Not now")
+
+
 # The COM-port half's buttons, under the same rule. These four were spelled out
 # inside four paragraphs until the German screenshot showed what that costs;
 # `My instrument is not listed` was even a SECOND catalogue key, differing from
@@ -1201,12 +1225,19 @@ def serial_outcome_text(*, stage: str, detail: str = "", folder: str = "",
 # deliberately does not claim.
 
 def measurement_in_progress(parent=None) -> "str | None":
-    """Where the instrument is being read, or None when nothing is running."""
+    """WHICH HOLDER has the instrument, or None when nothing is running.
+
+    Returns the lease's own IDENTIFIER — `MEASURE_TAB` / `SPOT_TOOL`, the
+    constants `core/instrument_lease.py` documents as identifiers — and not the
+    translated label. The label is a noun phrase, and a noun phrase cannot be
+    dropped into a sentence in a language that inflects; see
+    `measurement_block_text` below, which is why this changed.
+    """
     try:
         from core import instrument_lease
         held = instrument_lease.holder()
         if held is not None:
-            return instrument_lease.where_label(held)
+            return held
     except Exception:   # noqa: BLE001 — a guard must never be the thing that fails
         log.warning("could not read the instrument lease", exc_info=True)
 
@@ -1214,24 +1245,78 @@ def measurement_in_progress(parent=None) -> "str | None":
     seen = 0
     while win is not None and seen < 20:
         if getattr(win, "_measuring", False):
-            from core.instrument_lease import MEASURE_TAB, where_label
-            return where_label(MEASURE_TAB)
+            from core.instrument_lease import MEASURE_TAB
+            return MEASURE_TAB
         win = win.parent() if hasattr(win, "parent") else None
         seen += 1
     return None
 
 
-def measurement_block_text(where: str) -> str:
-    """Why the driver helper will not open right now."""
+# A PREPOSITION GLUED TO A TRANSLATED NOUN IS NOT A SENTENCE IN HALF OF THESE
+# LANGUAGES, AND NO TEST WE HAVE COULD SEE IT.
+#
+# This paragraph used to read "…from {where}." with `where_label()`'s noun
+# phrase formatted into it. English and German survive that — German only
+# because both labels were hand-inflected into the dative to fit — and four
+# languages do not. Rendered from the shipped catalogues, before this change:
+#
+#     it   "da la scheda Misura"           -> must contract to "dalla scheda"
+#     pt   "a partir de o separador Medir" -> must contract to "a partir do"
+#     pl   "z karcie Pomiar"               -> needs the genitive "z karty"
+#     ru   "из вкладке «Измерение»"        -> needs the genitive "из вкладки"
+#
+# `tests/test_i18n.py` cannot see any of it: the key is present, translated, and
+# its placeholder matches. `scripts/i18n_extract.py` cannot either — the broken
+# sentences exist NOWHERE as literals, they are assembled at runtime, so no
+# translator was ever shown one. It took somebody rendering the SPOT_TOOL branch
+# in Italian to find it.
+#
+# Hand-inflecting the label was the fix German got (8d5b8430) and it does not
+# generalise: it cannot survive two sentences wanting two cases (this one and
+# `M_INSTRUMENT_BUSY`'s "in {where}"), and Polish and Russian would need a
+# different form of the same label in each. So the WHOLE SENTENCE is the
+# translatable unit now — one per holder, complete, with nothing formatted into
+# it. Every language writes its own preposition, its own article and its own
+# case, and a translator reads a finished sentence instead of a fragment.
+#
+# It is also its own paragraph rather than glued to the next one with a space:
+# ja and zh join sentences with 。and no space, so even joining two translated
+# sentences is a decision the code must not make for them.
+
+def _read_right_now_sentence(holder: "str | None") -> str:
+    """One WHOLE sentence naming where the instrument is being read.
+
+    *holder* is a `core.instrument_lease` IDENTIFIER, not a label — and the
+    sentence is picked, never assembled, which is the entire point of it.
+    """
+    from core.instrument_lease import MEASURE_TAB, SPOT_TOOL
+    if holder == MEASURE_TAB:
+        return tr("Your instrument is being read right now, from the Measure "
+                  "tab.")
+    if holder == SPOT_TOOL:
+        return tr("Your instrument is being read right now, from the "
+                  "Tools ▸ Read single patches window.")
+    # Nothing reaches this today — the lease is only ever taken with one of the
+    # two constants above — but a guard must have an answer for every input it
+    # can be handed, and "somewhere else in ChromIQ" is true of all of them.
+    log.warning("the instrument lease is held by an unknown holder: %r", holder)
+    return tr("Your instrument is being read right now, in another part of "
+              "ChromIQ.")
+
+
+def measurement_block_text(holder: "str | None") -> str:
+    """Why the driver helper will not open right now.
+
+    *holder* is the identifier `measurement_in_progress()` returns.
+    """
     return "<br><br>".join([
         tr("<b>Not while a measurement is running.</b>"),
-        tr("Your instrument is being read right now, from {where}. Installing "
-           "a driver restarts the connection Windows holds to the instrument, "
-           "and doing that in the middle of a reading would cut it off: the "
-           "patches measured so far would be lost, and the instrument would "
-           "very likely need unplugging and plugging back in before it could "
-           "be used again."
-           ).format(where=where),
+        _read_right_now_sentence(holder),
+        tr("Installing a driver restarts the connection Windows holds to the "
+           "instrument, and doing that in the middle of a reading would cut "
+           "it off: the patches measured so far would be lost, and the "
+           "instrument would very likely need unplugging and plugging back in "
+           "before it could be used again."),
         tr("Let the measurement finish, or stop it, and this window will open "
            "normally. Everything else in Preferences stays available in the "
            "meantime — it is only the driver helper that is held back."),
@@ -5510,6 +5595,14 @@ class SettingsDialog(QDialog):
 
             extra.clicked.connect(_accept_the_action)
         ok = box.addButton(QDialogButtonBox.StandardButton.Ok)
+        if extra_label:
+            # AND WHEN THERE IS SOMETHING TO DECLINE, IT SAYS SO. Only the
+            # text changes: the button stays `StandardButton.Ok` so it keeps
+            # its role, its place in the row and its identity to everything
+            # that looks it up. On a window with no offer it keeps saying OK,
+            # which is what a notice's button should say. See
+            # `_label_not_now()` for why this matters on the consent window.
+            ok.setText(_label_not_now())
         # OK DISMISSES. `box.accepted` is deliberately not connected: it fires
         # for Ok too, which is how OK came to mean "yes, install".
         ok.clicked.connect(dlg.reject)
@@ -5739,11 +5832,15 @@ class SettingsDialog(QDialog):
         # installing a driver restarts the connection Windows holds to the
         # instrument, and the open COM handle goes with it — so this one window
         # can end a measurement, and it is the only one here that can.
-        where = measurement_in_progress(self)
-        if where is not None:
-            log.info("driver helper refused: the instrument is in use by %s", where)
+        holder = measurement_in_progress(self)
+        if holder is not None:
+            # The lease's IDENTIFIER, which is what belongs in a log: it is
+            # English, it is stable, and it is not whatever the user's language
+            # happens to render it as.
+            log.info("driver helper refused: the instrument is in use by %s",
+                     holder)
             self._driver_notice(tr("Instrument drivers"),
-                                measurement_block_text(where))
+                                measurement_block_text(holder))
             return
         from PyQt6.QtWidgets import (
             QDialog, QDialogButtonBox, QGroupBox, QHBoxLayout, QLabel, QVBoxLayout,
