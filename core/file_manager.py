@@ -285,6 +285,76 @@ def nfc(name: str) -> str:
     return unicodedata.normalize("NFC", name)
 
 
+def resolve_existing(path: Path) -> Path:
+    """*path* as this volume really spells it — the accent spelling, and only that.
+
+    WHY A PATH HAS TO BE RESOLVED AT ALL
+    ------------------------------------
+    ``Path.exists()`` is the filesystem's answer, and the filesystems disagree.
+    macOS (APFS/HFS+) is normalisation-INSENSITIVE, so
+    ``(run.dir / "Müller.ti2").exists()`` is True whether the name on disk is
+    composed or decomposed. **NTFS is normalisation-SENSITIVE, and so is every
+    ordinary Linux volume**: the two spellings are two different names, and one
+    does not find the other. A project that came home from a Mac OS Extended
+    backup therefore holds decomposed file names, and on Windows
+    ``chart_ti2.exists()`` answers False with the chart sitting in the folder —
+    measured on NTFS, not reasoned (``tests/test_a_decomposed_name_finds_its_files.py``).
+
+    :func:`files_matching` already solves this for LISTINGS. This solves it for
+    the single named artefact, which a listing cannot: ``<stem>.ti2`` is one
+    file, asked for by name.
+
+    IT RETURNS A PATH THAT OPENS, WHICH IS THE WHOLE POINT. Answering "yes it
+    is there" and handing back a spelling that ``open()`` then refuses would
+    move the failure rather than fix it, so the *existing* spelling is what
+    comes back — ready to be read, copied or written through.
+
+    THE EXACT SPELLING ALWAYS WINS. The first thing this does is ask for the
+    path it was given; only when that is not there does it look for a name that
+    differs from it by normalisation alone. So when BOTH spellings exist — two
+    genuinely different files on a sensitive volume — the caller gets the one it
+    named, exactly as before, and nothing is ever silently swapped for a
+    neighbour. When neither exists, the path is returned unchanged, so writers
+    still create the canonical (composed) spelling on a fresh run; when a
+    decomposed file IS there, a writer overwrites *it* rather than laying a
+    second, identical-looking chart beside it.
+
+    ACCENTS ONLY — case is deliberately untouched. Windows and a default APFS
+    volume are case-insensitive, so ``path.exists()`` has already said yes for a
+    name typed in another case; on a case-SENSITIVE volume two names differing
+    by case are two real files and folding them here would make one stand in for
+    the other. That is :func:`_existing_folder_spelling`'s job, and it does it
+    for folders only, for the same reason.
+
+    IT COSTS ONE ``stat`` IN EVERY CASE THAT WORKS TODAY. The hit path is the
+    ``exists()`` that was already being paid. The directory listing happens only
+    when the file is genuinely absent under the given spelling AND the name is
+    non-ASCII — an ASCII name has no other spelling to find, because no ASCII
+    character has a canonical decomposition. So on macOS, on Linux, and for
+    every ASCII project name on Windows, this adds one ``str.isascii()`` call
+    and nothing else.
+    """
+    if path.exists():
+        return path                          # the spelling asked for is there
+    name = path.name
+    if name.isascii():
+        return path                          # no other spelling can exist
+    want = nfc(name)
+    try:
+        with os.scandir(str(path.parent)) as entries:
+            same = sorted(e.path for e in entries if nfc(e.name) == want)
+    except (OSError, ValueError):
+        return path                          # unreadable parent: nothing to add
+    if not same:
+        return path
+    if len(same) > 1:
+        # Canonically equivalent yet distinct names (combining marks in another
+        # order). Deterministic rather than "whichever the volume listed first".
+        log.warning("More than one spelling of %s on disk: %s — using %s",
+                    name, [Path(p).name for p in same], Path(same[0]).name)
+    return Path(same[0])
+
+
 def _existing_folder_spelling(parent: Path, name: str) -> str:
     """The name *parent* really holds for *name*, when the two are one folder.
 
@@ -994,22 +1064,30 @@ class Calibration:
 
     @property
     def dir(self) -> Path:                    return self._root / "cal"
+
+    def _artefact(self, ext: str) -> Path:
+        """``cal/<stem><ext>`` as the volume spells it — see
+        :func:`resolve_existing`. A calibration restored from a Mac OS Extended
+        backup has decomposed file names, and on NTFS a composed path does not
+        find them."""
+        return resolve_existing(self.dir / f"{self.stem}{ext}")
+
     @property
-    def cal_path(self) -> Path:               return self.dir / f"{self.stem}.cal"
+    def cal_path(self) -> Path:               return self._artefact(".cal")
     @property
-    def ti1(self) -> Path:                    return self.dir / f"{self.stem}.ti1"
+    def ti1(self) -> Path:                    return self._artefact(".ti1")
     @property
-    def ti2(self) -> Path:                    return self.dir / f"{self.stem}.ti2"
+    def ti2(self) -> Path:                    return self._artefact(".ti2")
     @property
-    def ti3(self) -> Path:                    return self.dir / f"{self.stem}.ti3"
+    def ti3(self) -> Path:                    return self._artefact(".ti3")
     @property
-    def icc(self) -> Path:                    return self.dir / f"{self.stem}.icc"
+    def icc(self) -> Path:                    return self._artefact(".icc")
     @property
-    def cht(self) -> Path:                    return self.dir / f"{self.stem}.cht"
+    def cht(self) -> Path:                    return self._artefact(".cht")
     @property
-    def ps(self) -> Path:                     return self.dir / f"{self.stem}.ps"
+    def ps(self) -> Path:                     return self._artefact(".ps")
     @property
-    def channels_json(self) -> Path:          return self.dir / f"{self.stem}.channels.json"
+    def channels_json(self) -> Path:          return self._artefact(".channels.json")
     @property
     def meta_path(self) -> Path:              return self.dir / "meta.json"
 
@@ -1553,16 +1631,35 @@ class Run:
     # <stem>.icc), so the whole chart chain shares the project-name stem. The
     # per-run folder removes the need for prefixes/suffixes; reads/ and the
     # role files (merged/preconditioning/calibrated) stay role-named.
+    def _artefact(self, ext: str) -> Path:
+        """``<run dir>/<stem><ext>`` AS THE VOLUME SPELLS IT.
+
+        Every named artefact this run owns goes through here, so the accent
+        spelling is dealt with once rather than at each of the ~155 places that
+        ask a ``Run`` for a file. See :func:`resolve_existing`: the exact
+        spelling always wins, an absent file comes back unchanged (so a writer
+        still creates the composed name), and a name normalisation cannot
+        change — every ASCII one — costs a single ``str.isascii()``.
+
+        WHY HERE AND NOT AT THE CALL SITE. ``if run.chart_ti2.exists()`` reads
+        as a question about a file and is one; making every caller ask it a
+        longer way fixes the call sites that exist and not the next one somebody
+        writes — the same argument this module already makes for patterns (see
+        :func:`stem_files`). ``ui/main_window.py:2238`` is why it matters: it
+        did not refuse, it quietly used the ``.ti1`` instead.
+        """
+        return resolve_existing(self.dir / f"{self.stem}{ext}")
+
     @property
-    def chart_ti1(self) -> Path:              return self.dir / f"{self.stem}.ti1"
+    def chart_ti1(self) -> Path:              return self._artefact(".ti1")
     @property
-    def chart_ti2(self) -> Path:              return self.dir / f"{self.stem}.ti2"
+    def chart_ti2(self) -> Path:              return self._artefact(".ti2")
     @property
-    def chart_cht(self) -> Path:              return self.dir / f"{self.stem}.cht"
+    def chart_cht(self) -> Path:              return self._artefact(".cht")
     @property
-    def chart_ps(self) -> Path:               return self.dir / f"{self.stem}.ps"
+    def chart_ps(self) -> Path:               return self._artefact(".ps")
     @property
-    def chart_channels_json(self) -> Path:    return self.dir / f"{self.stem}.channels.json"
+    def chart_channels_json(self) -> Path:    return self._artefact(".channels.json")
 
     def chart_tiffs(self) -> list[Path]:
         """All chart page bitmaps in this run, sorted.
@@ -1599,7 +1696,7 @@ class Run:
     # (reading ``<stem>.ti2`` produces ``<stem>.ti3``). Per-read averaging
     # snapshots live in reads/readN.ti3 and are averaged back into <stem>.ti3.
     @property
-    def measurement_ti3(self) -> Path:        return self.dir / f"{self.stem}.ti3"
+    def measurement_ti3(self) -> Path:        return self._artefact(".ti3")
     @property
     def reads_dir(self) -> Path:              return self.dir / "reads"
 
@@ -1678,7 +1775,7 @@ class Run:
         each site, so it can never be forgotten by one of them — which is how it
         came to be left behind when a re-generation archived the .ti3 it belongs
         to (Knut, #130 2026-07-30)."""
-        return self.dir / f"{self.stem}.ti3.engine-partial"
+        return self._artefact(".ti3.engine-partial")
 
     def recoverable_partial_ti3(self) -> "Path | None":
         """The partial measurement when it is the ONLY record of those readings —
@@ -1712,7 +1809,7 @@ class Run:
     # colprof reading <stem>.ti3 writes <stem>.icc (stem-coupled). When a merge
     # ran, the deliverable is merged.icc instead — see built_profile_icc().
     @property
-    def profile_icc(self) -> Path:            return self.dir / f"{self.stem}.icc"
+    def profile_icc(self) -> Path:            return self._artefact(".icc")
 
     def built_profile_icc(self) -> Path:
         """The profile a user should treat as the run's output.
@@ -1750,17 +1847,24 @@ class Run:
     def verifications_dir(self) -> Path:      return self.dir / VERIFICATIONS_DIRNAME
     @property
     def verify_stem(self) -> str:             return f"{self.stem}-verify"
+
+    def _verify_artefact(self, ext: str) -> Path:
+        """``verifications/<verify stem><ext>``, spelled as the volume has it —
+        the same rule as :meth:`_artefact`, for the other folder and stem."""
+        return resolve_existing(
+            self.verifications_dir / f"{self.verify_stem}{ext}")
+
     @property
-    def verify_chart_ti1(self) -> Path:       return self.verifications_dir / f"{self.verify_stem}.ti1"
+    def verify_chart_ti1(self) -> Path:       return self._verify_artefact(".ti1")
     @property
-    def verify_chart_ti2(self) -> Path:       return self.verifications_dir / f"{self.verify_stem}.ti2"
+    def verify_chart_ti2(self) -> Path:       return self._verify_artefact(".ti2")
     @property
-    def verify_chart_cht(self) -> Path:       return self.verifications_dir / f"{self.verify_stem}.cht"
+    def verify_chart_cht(self) -> Path:       return self._verify_artefact(".cht")
     @property
-    def verify_chart_ps(self) -> Path:        return self.verifications_dir / f"{self.verify_stem}.ps"
+    def verify_chart_ps(self) -> Path:        return self._verify_artefact(".ps")
     @property
     def verify_chart_channels_json(self) -> Path:
-        return self.verifications_dir / f"{self.verify_stem}.channels.json"
+        return self._verify_artefact(".channels.json")
 
     def verify_chart_tiffs(self) -> list[Path]:
         return stem_files(self.verifications_dir, self.verify_stem, "*.tif")
@@ -1818,7 +1922,12 @@ class Run:
         old, new = self.stem, self.verify_stem
         moved_ti2: "Path | None" = None
         for ext in self._CHART_EXTS:
-            src = self.dir / f"{old}{ext}"
+            # `_artefact`, not an f-string: the guard above now passes for a
+            # chart whose files came off an HFS+ volume, and a raw composed
+            # path would find none of them — so the chart would be cleared for
+            # a move that then moved nothing. The DESTINATION stays composed;
+            # it is a name being written, and composed is ChromIQ's spelling.
+            src = self._artefact(ext)
             if src.exists():
                 dst = self.verifications_dir / f"{new}{ext}"
                 shutil.move(str(src), str(dst))
@@ -2160,7 +2269,7 @@ class Verification:
     @property
     def stem(self) -> str:                    return self._run.verify_stem
     @property
-    def measurement_ti3(self) -> Path:        return self.dir / f"{self.stem}.ti3"
+    def measurement_ti3(self) -> Path:        return resolve_existing(self.dir / f"{self.stem}.ti3")
     @property
     def reads_dir(self) -> Path:              return self.dir / "reads"
     @property

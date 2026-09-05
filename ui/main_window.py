@@ -1574,6 +1574,10 @@ class MainWindow(QMainWindow):
                 return
             run = proj.run(run_id)
             tiffs = run.chart_tiffs()
+            # `chart_tiffs()` has always matched on the composed spelling of
+            # both sides; `chart_ti2.exists()` did not, so on NTFS this returned
+            # early with four page bitmaps in hand and refused to show the
+            # duplicate it had just made. Both halves agree now (B8-61).
             if not run.chart_ti2.exists() or not tiffs:
                 return              # nothing to show; the copy is still real
             source_id = (run.load_meta().duplicated_from or "")
@@ -2229,6 +2233,16 @@ class MainWindow(QMainWindow):
         # building Knut's tool-availability table, which is exactly the kind of
         # thing that table is meant to surface. Resolve through the one method
         # that knows all three run types, and fall back to the .ti1 as before.
+        # THE `.ti1` FALLBACK IS A SUBSTITUTION, SO THE `.exists()` HAS TO BE
+        # TRUE. This branch does not refuse and does not warn — it quietly draws
+        # a different chart's cube under the label "Current chart". On NTFS that
+        # made it wrong for real: a project restored from a Mac OS Extended
+        # backup has decomposed file names, `<stem>.ti2` composed is not there
+        # as far as NTFS is concerned, and the `.ti1` it fell back to was not
+        # there either (measured on this machine, B8-61). `Run.chart_ti2` now
+        # answers with the spelling the volume actually holds — see
+        # `core.file_manager.resolve_existing` — so `.exists()` here is the
+        # question it always read as, and the path it returns opens.
         resolved = self._tab_chart._resolve_target_chart()
         if resolved:
             ti2, _tiffs, ti1 = resolved
@@ -2862,7 +2876,10 @@ class MainWindow(QMainWindow):
             self._tab_print.load_tiffs(tiffs)
             # A LOADED chart must carry its .ti2 into the Print tab too —
             # an already-converted chart forces Raw only if the tab knows
-            # which chart it is holding (§3.1a; Basti, 2026-08-10).
+            # which chart it is holding (§3.1a; Basti, 2026-08-10). The pages
+            # above are found by spelling-insensitive matching, so this had to
+            # be as well or a restored project printed its chart as if nobody
+            # knew what it was (B8-61).
             if run.chart_ti2.exists():
                 self._tab_print.note_generated_chart(run.chart_ti2)
 
