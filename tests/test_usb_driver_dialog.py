@@ -1476,6 +1476,21 @@ class ModalDriver:
 
     def __exit__(self, *exc):
         self._timer.stop()
+        if exc[0] is None:
+            # THIS ASSERT IS THE POINT OF THE FLAG, and for one release it did
+            # not exist. `timed_out` was recorded and never read by any of the
+            # 33 driving tests, so deleting `dlg.accept()` from the affirmative
+            # button's handler left all 310 GREEN: the window never closed, the
+            # driver force-`reject()`ed it after 400 ticks, and the test then
+            # asserted on the flag the handler had already set. What the user
+            # got was a window that would not go away and, once they pressed OK
+            # or Esc to be rid of it, the elevated install they had just asked
+            # the suite to prove could not happen that way. A harness that can
+            # see a stuck modal and does not look is worse than no harness: it
+            # reads as coverage.
+            assert not self.timed_out, (
+                "a modal window never closed — the driver had to force it shut "
+                "after %d ticks; seen: %r" % (self.ticks, [t for t, _ in self.seen]))
         return False
 
     def _tick(self) -> None:
@@ -1869,3 +1884,488 @@ def test_the_not_bound_window_is_unchanged_when_core_says_nothing():
     text, _ = sd.serial_outcome_text(stage="not_bound", detail="", folder="F")
     assert "Everything ChromIQ could check passed" in text
     assert "<br><br><br>" not in text
+
+
+# ---------------------------------------------------------------------------
+# The window has to FIT, and its own buttons have to be on it
+# ---------------------------------------------------------------------------
+#
+# The scroll area added to stop text being truncated became the truncation.
+# `QScrollArea::sizeHint()` is the inner widget's hint `boundedTo(36h, 24h)`
+# with `h = fontMetrics().height()`, so it reports the same height whatever it
+# holds — and `_fit_to_screen` pinned that with `resize()`. Measured on the
+# owner's machine, German, the worst natural case: **620 x 480 on a 1032 px
+# screen**, 774 px of content, 390 px hidden, `Treiber holen…` — the button the
+# whole window exists to offer — 303 px BELOW THE BOTTOM EDGE, with nothing on
+# screen to say it was there. It was photographed into the committed evidence
+# gallery and nobody noticed.
+#
+# What made that survivable for a whole release is that the only assertions
+# about the fix were "a QScrollArea exists" and "widgetResizable() is True".
+# Three separate mutations left all 310 tests green:
+#
+#   M6  vertical scrollbar policy -> ScrollBarAlwaysOff  (silent truncation, again)
+#   M7  delete both `_fit_to_screen` calls               (the screen cap does nothing)
+#   M8  `area.setMaximumHeight(40)` on the scroll area   (two lines above a green button)
+#
+# The tests below are written against the RELATION rather than against pixel
+# counts, so they say the same thing on a 4K desktop and on a CI worker with an
+# 800 px offscreen screen:
+#
+#     window height == min(what the content wants, 90 % of the screen)
+#
+# and, when the cap is what bit, everything is still reachable by scrolling.
+
+
+def _geometry_of(w):
+    """Everything these tests need, read while the window is still alive."""
+    from PyQt6.QtWidgets import QPushButton, QScrollArea
+    area = w.findChildren(QScrollArea)[0]
+    vbar, hbar = area.verticalScrollBar(), area.horizontalScrollBar()
+    inner = area.widget()
+    off = []
+    for b in w.findChildren(QPushButton):
+        if not b.isVisible():
+            continue
+        bottom = b.mapTo(w, b.rect().bottomRight()).y()
+        if bottom > w.height():
+            off.append(b.text().replace("&", ""))
+    return {
+        "height": w.height(),
+        "cap": w.maximumHeight(),
+        "viewport_h": area.viewport().height(),
+        "viewport_w": area.viewport().width(),
+        "inner_h": inner.height(),
+        "inner_minhint_w": inner.minimumSizeHint().width(),
+        "hidden": vbar.maximum(),
+        "vbar_visible": vbar.isVisible(),
+        "hbar_max": hbar.maximum(),
+        "hbar_visible": hbar.isVisible(),
+        "buttons_below_the_bottom_edge": off,
+        "screen_h": (w.screen().availableGeometry().height()
+                     if w.screen() is not None else 0),
+    }
+
+
+def _worst_case_hardware(monkeypatch):
+    """A colorimeter with no WinUSB driver AND a driverless CH34x bridge.
+
+    Both halves populated is the tallest the window ever gets, and it is the
+    case the shipped build cut in half.
+    """
+    from types import SimpleNamespace
+    _fixed_hardware(monkeypatch, [dev(I1PRO, False)], wdi=False)
+    bridge = SimpleNamespace(instance_id=r"USB\VID_1A86&PID_7523\X",
+                             vid="1a86", pid="7523", port=None,
+                             status=None)
+    monkeypatch.setattr(sd.SettingsDialog, "_serial_states",
+                        lambda self: [bridge])
+
+
+def test_the_driver_window_opens_at_the_height_its_content_wants(
+        dialog, on_windows, monkeypatch):
+    """M6/M7/M8, and the shipped 620 x 480.
+
+    `chrome` is everything that is not the scroll area's viewport — the
+    margins, the spacing and the button row — so `chrome + inner_h` is the
+    height the window would need to show everything. Anything that shrinks the
+    viewport without shrinking the window (the `boundedTo` clamp, a
+    `setMaximumHeight` on the area) breaks the equality; deleting the screen cap
+    breaks it too, because then `cap` is `QWIDGETSIZE_MAX` and the window is
+    still 480.
+    """
+    _worst_case_hardware(monkeypatch)
+    found = {}
+
+    def _look(w):
+        found.update(_geometry_of(w))
+        _button(w, "Close").click()
+
+    with ModalDriver(_look) as drv:
+        dialog._show_usb_installer()
+    assert drv.modal_count == 1
+    chrome = found["height"] - found["viewport_h"]
+    wanted = chrome + found["inner_h"]
+    assert abs(found["height"] - min(wanted, found["cap"])) <= 2, (
+        "the window opened %d px tall for %d px of content on a %d px cap"
+        % (found["height"], wanted, found["cap"]))
+
+
+def test_the_driver_window_shows_every_button_it_offers(
+        dialog, on_windows, monkeypatch):
+    """`Get the driver…` and `I already have the folder…` start ON the window.
+
+    Shipped, they started 303 px past the bottom edge on a screen with 448 px
+    of headroom going spare, and the paragraph that names them ended 249 px
+    past it. The user could not see the action the window exists to offer.
+    """
+    _worst_case_hardware(monkeypatch)
+    found = {}
+
+    def _look(w):
+        from PyQt6.QtWidgets import QPushButton
+        found.update(_geometry_of(w))
+        found["labels"] = [b.text().replace("&", "")
+                           for b in w.findChildren(QPushButton) if b.isVisible()]
+        _button(w, "Close").click()
+
+    with ModalDriver(_look):
+        dialog._show_usb_installer()
+    assert "Get the driver…" in found["labels"]
+    assert "I already have the folder…" in found["labels"]
+    # A button may only start below the bottom edge when the SCREEN is what
+    # ran out — never when the window merely decided to be short. Shipped:
+    # height 480, cap 928, two buttons below the edge. On a CI worker with an
+    # 800 px offscreen screen the worst case genuinely does not fit, the window
+    # is at the cap, and scrolling is then the correct answer; the assertion
+    # stays honest either way instead of being skipped.
+    assert (found["buttons_below_the_bottom_edge"] == []
+            or found["height"] == found["cap"]), (
+        "%r start below the bottom edge of a %d px window that could have been "
+        "%d px" % (found["buttons_below_the_bottom_edge"],
+                   found["height"], found["cap"]))
+
+
+def test_a_notice_taller_than_the_screen_scrolls_and_stops_at_the_screen(
+        dialog):
+    """M6 and M8 again, from the other end: when the cap DOES bite.
+
+    Everything below the fold must still be reachable, and the window must stop
+    at the screen rather than at whatever the scroll area felt like reporting.
+    """
+    found = {}
+
+    def _look(w):
+        found.update(_geometry_of(w))
+        _ok_button(w).click()
+
+    with ModalDriver(_look):
+        dialog._driver_notice("T", "<br><br>".join(["A long paragraph."] * 300))
+    assert found["hidden"] > 0, "300 paragraphs fitted on the screen?"
+    assert found["vbar_visible"], (
+        "text is below the fold and there is no scrollbar to reach it")
+    assert found["viewport_h"] + found["hidden"] == found["inner_h"], (
+        "the scrollbar does not reach the end of the content")
+    assert found["height"] == found["cap"], (
+        "the window stopped %d px short of the screen cap %d"
+        % (found["height"], found["cap"]))
+
+
+def test_the_screen_cap_is_the_only_thing_that_shortens_a_notice(dialog):
+    """M7: deleting `_fit_to_screen` leaves `maximumHeight` at QWIDGETSIZE_MAX."""
+    found = {}
+
+    def _look(w):
+        found.update(_geometry_of(w))
+        _ok_button(w).click()
+
+    with ModalDriver(_look):
+        dialog._driver_notice("T", "<br><br>".join(["A long paragraph."] * 300))
+    assert 320 <= found["cap"] <= int(found["screen_h"] * 0.9) + 1, (
+        "maximumHeight is %d on a %d px screen — _fit_to_screen did not run"
+        % (found["cap"], found["screen_h"]))
+
+
+def test_a_long_folder_path_does_not_clip_the_window(dialog):
+    """The same fault on the other axis, and it shipped too.
+
+    `setWidgetResizable(True)` sizes the inner label to at least its minimum
+    size hint, and a word-wrapped QLabel cannot break inside an unbroken run —
+    so one 80-character folder path widened the label past the viewport and
+    CHOPPED EVERY LINE IN THE WINDOW at the right edge. Measured
+    `hbar_max = 99`, `hbar_visible = False`: no scrollbar, no ellipsis, nothing
+    to say a word was missing. The path the user picks is not ChromIQ's to keep
+    short — `Downloads\\CH341SER_LINUX_WINDOWS_ARM64_2026_09_05\\DRIVER` is an
+    ordinary one.
+    """
+    long_path = (r"C:\Users\sebastian.sandberg\Downloads"
+                 r"\CH341SER_LINUX_WINDOWS_ARM64_2026_09_05\DRIVER\CH341SER")
+    text, _ = sd.serial_outcome_text(stage="install_failed",
+                                     detail="Windows refused the change.",
+                                     folder=long_path)
+    assert long_path in text, "the fixture no longer puts the path on screen"
+    found = {}
+
+    def _look(w):
+        found.update(_geometry_of(w))
+        _ok_button(w).click()
+
+    with ModalDriver(_look):
+        dialog._driver_notice("T", text)
+    assert not (found["hbar_max"] > 0 and not found["hbar_visible"]), (
+        "%d px of the window is off the right edge with no scrollbar"
+        % found["hbar_max"])
+    assert found["inner_minhint_w"] <= found["viewport_w"], (
+        "the path still cannot be broken: it needs %d px in a %d px viewport"
+        % (found["inner_minhint_w"], found["viewport_w"]))
+
+
+def test_the_path_break_opportunity_is_invisible():
+    """Nothing is added that a user could see, select or paste wrongly."""
+    out = sd._let_paths_wrap(r"C:\Users\x\CH341SER")
+    assert out.replace("\u200b", "") == r"C:\Users\x\CH341SER"
+    assert out.count("\u200b") == 3
+    assert sd._let_paths_wrap("no separators here") == "no separators here"
+
+
+# ---------------------------------------------------------------------------
+# Enter must not install
+# ---------------------------------------------------------------------------
+#
+# OK, Esc and the title-bar X were all made to decline. Enter was not, and Enter
+# is the key people press to make a window go away: `QDialogButtonBox` promotes
+# its first AcceptRole button to the dialog's default, and the affirmative one
+# is added first, so `Return` on the before-UAC consent window DOWNLOADED AND
+# INSTALLED AN ELEVATED DRIVER. Measured true in all six theme/language runs of
+# the one window that exists for informed consent, and no test covered it.
+
+
+def _press(w, key):
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtTest import QTest
+    QTest.keyClick(w, getattr(Qt.Key, key))
+
+
+@pytest.mark.parametrize("key", ["Key_Return", "Key_Enter"])
+def test_enter_dismisses_and_does_not_take_the_action(dialog, key):
+    with ModalDriver(lambda w: _press(w, key)) as drv:
+        took = dialog._driver_notice("T", "Body", "Download and install")
+    assert drv.modal_count == 1
+    assert took is False, "Enter started an elevated driver install"
+
+
+def test_the_dismissing_button_is_the_default_one(dialog):
+    """Belt as well as braces: the behaviour above, said as a property.
+
+    Qt's promotion is by construction order and not by role, so every button
+    has to lose `autoDefault` before the safe one gets it back — otherwise the
+    next button added to this window silently becomes what Enter presses.
+    """
+    found = {}
+
+    def _look(w):
+        found["extra"] = _button(w, "Download and install").isDefault()
+        found["ok"] = _ok_button(w).isDefault()
+        _ok_button(w).click()
+
+    with ModalDriver(_look):
+        dialog._driver_notice("T", "Body", "Download and install")
+    assert found["ok"] is True
+    assert found["extra"] is False
+
+
+def test_enter_on_the_driver_window_closes_it_and_installs_nothing(
+        dialog, on_windows, monkeypatch):
+    """Same mechanism on the helper window, where Enter pressed `Open Zadig`."""
+    import core.usb_driver_installer as inst
+    _fixed_hardware(monkeypatch, [dev(I1PRO, False)], wdi=False)
+    launches = []
+    monkeypatch.setattr(inst, "launch_zadig",
+                        lambda: (launches.append(1), "launched")[1])
+    found = {}
+
+    def _look(w):
+        found["zadig_default"] = _button(w, "Open Zadig").isDefault()
+        found["close_default"] = _button(w, "Close").isDefault()
+        _press(w, "Key_Return")
+
+    with ModalDriver(_look) as drv:
+        dialog._show_usb_installer()
+    assert drv.modal_count == 1, "Enter opened a second window"
+    assert launches == [], "Enter started the WinUSB install"
+    assert found["zadig_default"] is False
+    assert found["close_default"] is True
+
+
+# ---------------------------------------------------------------------------
+# The serial half's five outcome windows: that anyone SEES them
+# ---------------------------------------------------------------------------
+#
+# The guard and the WinUSB outcome each have a driving test, so deleting their
+# `_driver_notice` call goes red. The serial half's outcomes had none: deleting
+# the call at the end of `_serial_check_and_install` killed BOTH "it worked" and
+# "still no COM port" with 317 tests green, and deleting the one in the
+# install-failure branch killed BOTH "the install failed" and "you cancelled at
+# the permission prompt", also green. Their text is pinned character for
+# character above; that anybody ever sees it was not.
+#
+# `install` is never the real one here — every test in this section replaces it,
+# so nothing can elevate, and a call with an unexpected argument fails loudly
+# rather than reaching pnputil.
+
+
+def _fake_core(monkeypatch, *, inspect_ok=True, install_result=(True, ""),
+               bound=(True, ""), ports=("COM7",)):
+    """Point `_serial_check_and_install` at a scripted core, never the real one."""
+    from pathlib import Path
+    from types import SimpleNamespace
+    import core.ch34x_driver as ch
+
+    calls = {"installed": []}
+
+    def _inspect(folder):
+        return SimpleNamespace(
+            ok=inspect_ok,
+            inf_path=Path(folder) / "CH341SER.INF" if inspect_ok else None,
+            reason="" if inspect_ok else "the INF is for other hardware.",
+            arch_section="NTARM64", service_binary="CH341SER.SYS")
+
+    def _install(inf_path):
+        calls["installed"].append(str(inf_path))
+        return install_result
+
+    monkeypatch.setattr(ch, "inspect_package", _inspect)
+    monkeypatch.setattr(ch, "install", _install)
+    monkeypatch.setattr(ch, "verify_bound", lambda before: bound)
+    monkeypatch.setattr(ch, "devices", lambda: [
+        SimpleNamespace(instance_id="ID%d" % i, vid="1a86", pid="7523",
+                        port=p, status=None)
+        for i, p in enumerate(ports)])
+    return calls
+
+
+def _unbound_before():
+    from types import SimpleNamespace
+    return [SimpleNamespace(instance_id="ID0", vid="1a86", pid="7523",
+                            port=None, status=None)]
+
+
+def test_the_it_worked_window_reaches_the_screen(dialog, monkeypatch, tmp_path):
+    calls = _fake_core(monkeypatch, bound=(True, ""))
+    with ModalDriver(lambda w: _ok_button(w).click()) as drv:
+        dialog._serial_check_and_install(tmp_path, _unbound_before())
+    assert calls["installed"], "nothing was installed, so this proves nothing"
+    assert drv.modal_count == 1, (
+        "the driver was installed and the user was told nothing")
+    assert "It worked." in drv.text_of(0)
+    assert "COM7" in drv.text_of(0)
+
+
+def test_the_still_no_com_port_window_reaches_the_screen(
+        dialog, monkeypatch, tmp_path):
+    _fake_core(monkeypatch,
+               bound=(False, "Windows accepted the driver and needs a restart "
+                              "to finish switching it on."))
+    with ModalDriver(lambda w: _ok_button(w).click()) as drv:
+        dialog._serial_check_and_install(tmp_path, _unbound_before())
+    assert drv.modal_count == 1, (
+        "the install left no COM port and the user was told nothing")
+    assert "there is still no COM port" in drv.text_of(0)
+    assert "needs a restart" in drv.text_of(0), (
+        "what core actually found was dropped on the way to the screen")
+
+
+def test_the_install_failed_window_reaches_the_screen(
+        dialog, monkeypatch, tmp_path):
+    _fake_core(monkeypatch, install_result=(False, "pnputil exited with 259."))
+    with ModalDriver(lambda w: _ok_button(w).click()) as drv:
+        dialog._serial_check_and_install(tmp_path, _unbound_before())
+    assert drv.modal_count == 1, (
+        "an elevated install failed and the user was told nothing")
+    assert "Windows did not install the package." in drv.text_of(0)
+
+
+def test_the_you_cancelled_window_reaches_the_screen(
+        dialog, monkeypatch, tmp_path):
+    """Cancelling the UAC prompt is indistinguishable from a failure unless the
+    window says so, and this is the one outcome with no screenshot in the
+    evidence pack — all the more reason for a test."""
+    _fake_core(monkeypatch,
+               install_result=(False, sd._CANCELLED_PREFIX + ", so nothing ran."))
+    with ModalDriver(lambda w: _ok_button(w).click()) as drv:
+        dialog._serial_check_and_install(tmp_path, _unbound_before())
+    assert drv.modal_count == 1
+    assert "stopped at the Windows permission prompt" in drv.text_of(0)
+    assert "Windows did not install the package." not in drv.text_of(0)
+
+
+def test_the_package_rejected_window_reaches_the_screen(
+        dialog, monkeypatch, tmp_path):
+    calls = _fake_core(monkeypatch, inspect_ok=False)
+    with ModalDriver(lambda w: _ok_button(w).click()) as drv:
+        dialog._serial_check_and_install(tmp_path, _unbound_before())
+    assert calls["installed"] == [], "a rejected package was installed anyway"
+    assert drv.modal_count == 1
+    assert "will not install that package" in drv.text_of(0)
+
+
+# ---------------------------------------------------------------------------
+# The folder route announces the permission prompt before it appears
+# ---------------------------------------------------------------------------
+#
+# `My instrument is not listed…` -> `I already have the folder…` -> a folder
+# picker -> `pnputil`. Two clicks to an elevated install, and Windows' own UAC
+# prompt was the first the user heard of it — against the rule the download
+# route states four screens up in its own comment: "an unexpected security
+# prompt is the one people cancel … so say what is coming, and say what ChromIQ
+# cannot promise, while there is still nothing to undo."
+
+
+@pytest.fixture
+def folder_route(monkeypatch, tmp_path):
+    """`_serial_from_folder` with a chosen folder and the install stubbed out."""
+    import ui.widgets as w
+    monkeypatch.setattr(sd.SettingsDialog, "_serial_machine_arch",
+                        lambda self: "ARM64")
+    monkeypatch.setattr(sd.SettingsDialog, "_serial_states", lambda self: [])
+    monkeypatch.setattr(w, "open_dir_dialog",
+                        lambda *a, **k: str(tmp_path / "CH341SER"))
+    reached = []
+    monkeypatch.setattr(
+        sd.SettingsDialog, "_serial_check_and_install",
+        lambda self, folder, before: reached.append(str(folder)))
+    return reached
+
+
+def test_the_folder_route_announces_the_prompt_before_anything_elevates(
+        dialog, folder_route):
+    with ModalDriver(lambda w: _button(w, "Check and install").click()) as drv:
+        dialog._serial_from_folder()
+    assert drv.modal_count == 1, (
+        "the folder route reached an elevated install with no announcement")
+    said = drv.text_of(0)
+    assert "Here is exactly what is about to happen" in said
+    assert "Windows will ask your permission" in said
+    assert "cannot promise" in said
+    assert folder_route, "consent was given and nothing happened"
+
+
+def test_the_folder_route_does_not_promise_a_download_it_never_makes(
+        dialog, folder_route):
+    """It is not the download route's text with a word changed: on this route
+    ChromIQ did not fetch the files and says so."""
+    with ModalDriver(lambda w: _ok_button(w).click()) as drv:
+        dialog._serial_from_folder()
+    said = drv.text_of(0)
+    assert "downloads the driver package" not in said
+    assert "encrypted connection" not in said
+    assert "These files are yours" in said
+
+
+@pytest.mark.parametrize("dismiss", ["ok", "escape", "enter"])
+def test_declining_the_folder_consent_installs_nothing(
+        dialog, folder_route, dismiss):
+    def _act(w):
+        if dismiss == "ok":
+            _ok_button(w).click()
+        elif dismiss == "escape":
+            w.reject()
+        else:
+            _press(w, "Key_Return")
+
+    with ModalDriver(_act) as drv:
+        dialog._serial_from_folder()
+    assert drv.modal_count == 1
+    assert folder_route == [], "%s went ahead with the install" % dismiss
+
+
+def test_the_folder_route_still_refuses_an_unknown_processor(
+        dialog, folder_route, monkeypatch):
+    """The arch check has to stay in front of everything, consent included."""
+    monkeypatch.setattr(sd.SettingsDialog, "_serial_machine_arch",
+                        lambda self: "")
+    with ModalDriver(lambda w: _ok_button(w).click()) as drv:
+        dialog._serial_from_folder()
+    assert drv.modal_count == 1
+    assert "kind of processor" in drv.text_of(0)
+    assert folder_route == []
