@@ -528,21 +528,32 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                              axis=1)
 
     _emit(settings, f"Inverting the model (B2A grid {b2a_grid})…")
-    ink_limit = settings.ink_limit if settings.ink_limit is not None \
-        else meas.ink_limit
+    user_limit = settings.ink_limit is not None
+    ink_limit = settings.ink_limit if user_limit else meas.ink_limit
     if ink_limit is not None and not meas.is_additive:
         # A stamped limit above anything the chart printed sends the
         # inversion 69 % beyond the measured ink range (A-16: 400 % stamped,
         # 280 % printed, B2A asking 349 %). The chart's own maximum is the
-        # only ink range the model has seen.
+        # only ink range the model has seen — so a STAMPED limit is capped
+        # there; a limit the user typed is theirs to keep, with the same
+        # warning colprof gives (reviewer R8, colprof.c: it warns and keeps
+        # the user's value; for a stamp it uses the stamp minus 10 %).
         printed_max = float(meas.device.sum(1).max() * 100.0)
         if ink_limit > printed_max + 0.5:
-            _emit(settings, f"Total ink limit {ink_limit:g}% is above the "
-                            f"most ink any chart patch carries ({printed_max:.0f}%) "
-                            f"— using {printed_max:.0f}%, the range the chart "
-                            f"actually measured (colprof would use the "
-                            f"stamped value minus 10%).")
-            ink_limit = printed_max
+            if user_limit:
+                _emit(settings, f"WARNING: your total ink limit {ink_limit:g}% "
+                                f"is above the most ink any chart patch "
+                                f"carries ({printed_max:.0f}%) — the model "
+                                f"extrapolates beyond what was measured "
+                                f"there. Kept as you asked.")
+            else:
+                _emit(settings, f"Total ink limit {ink_limit:g}% (stamped on "
+                                f"the chart) is above the most ink any chart "
+                                f"patch carries ({printed_max:.0f}%) — using "
+                                f"{printed_max:.0f}%, the range the chart "
+                                f"actually measured (colprof would use the "
+                                f"stamp minus 10%).")
+                ink_limit = printed_max
     # colprof -L / BLACK_INK_LIMIT: a ceiling on the K channel alone. Used
     # to be folded into the TOTAL limit by the extra-options parser (a
     # hand-typed "-L 90" capped all inks at 90 %) — found 2026-09-04.

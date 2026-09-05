@@ -175,6 +175,14 @@ def test_ink_limit_above_the_chart_is_capped_with_a_line(tmp_path):
                   BuildSettings(quality="l", timestamp=_TS, progress=log.append))
     said = [ln for ln in log if "Total ink limit 400%" in ln]
     assert said and f"using {printed:.0f}%" in said[0], log[:6]
+    # A limit the USER typed is kept with a warning, as colprof does.
+    log2: list[str] = []
+    build_profile(ti3, tmp_path / "c2.icc",
+                  BuildSettings(quality="l", timestamp=_TS, ink_limit=390.0,
+                                progress=log2.append))
+    said2 = [ln for ln in log2 if "your total ink limit 390%" in ln]
+    assert said2 and "Kept as you asked" in said2[0], log2[:6]
+    assert not any("using" in ln and "actually measured" in ln for ln in log2)
 
 
 def test_repeated_patches_can_be_averaged_in_accurate_mode(tmp_path):
