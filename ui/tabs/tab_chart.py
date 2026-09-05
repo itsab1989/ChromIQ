@@ -6218,8 +6218,11 @@ class TabChart(QWidget):
             run = self._file_mgr.project().current_run()
             ti2 = run.chart_ti2
             tiffs = run.stem_files(run.stem, "_*.tif")
-            if not tiffs and (run.dir / f"{run.stem}.tif").is_file():
-                tiffs = [run.dir / f"{run.stem}.tif"]
+            if not tiffs:
+                # The one-page chart, through `stem_files` — a raw composed
+                # path finds nothing in a project restored from a Mac backup,
+                # and `ti2` beside it resolves, so the pair disagreed.
+                tiffs = run.stem_files(run.stem, ".tif", ".TIF")
         except Exception as exc:  # noqa: BLE001 — never block on a malformed run
             log.warning("Could not read loaded project's current run: %s", exc)
             ti2, tiffs = None, []
@@ -6227,7 +6230,7 @@ class TabChart(QWidget):
         self._log.appendPlainText(
             tr("Loaded profile “{name}”.").format(name=self._last_target_name))
         if tiffs:
-            ti1 = run.dir / f"{run.stem}.ti1"
+            ti1 = run.chart_ti1          # resolves; `ti2` above already does
             self._display_run_chart(ti2, tiffs, ti1)
         else:
             self._preview.clear()
@@ -15921,8 +15924,14 @@ class TabChart(QWidget):
             run = self._file_mgr.project().current_run()
         except Exception:      # noqa: BLE001
             return None
+        # THE SAFETY NET HAS TO SEE THE FILES IT IS SAVING. Built from a raw
+        # f-string, this snapshot silently found nothing for a chart restored
+        # from a Mac backup — and it is what puts the profiling chart back after
+        # a verification build has archived it. Now that
+        # `adopt_run_chart_as_verify` actually moves such a chart, an empty
+        # snapshot would mean the run really did lose its profile.
         stem = run.stem
-        srcs = [run.dir / f"{stem}{ext}" for ext in
+        srcs = [run.artefact(ext) for ext in
                 (".ti1", ".ti2", ".cht", ".channels.json", ".strips.json",
                  ".tif", ".ti3", ".icc", ".icm")]
         srcs += run.stem_files(stem, "_*.tif")
