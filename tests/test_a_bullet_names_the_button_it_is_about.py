@@ -118,48 +118,33 @@ def test_there_are_bullets_naming_controls_to_check():
     assert len(named) >= 2, named
 
 
-#: THE BACKLOG THIS TEST FOUND ON ITS FIRST RUN, and did not fix.
+#: THE BACKLOG THIS TEST FOUND ON ITS FIRST RUN IS EMPTY, 2026-09-05 (AGENT BP).
 #:
-#: Twenty-one more of the same fault, in eleven languages, in windows this
-#: branch was not asked to touch — Create Chart's patch editor, the build-
-#: anyway windows, the Delete window. They are pinned by (language, English
-#: control) rather than silenced, so that a NEW one fails immediately while
-#: these wait for a translator. Every entry here is a message telling somebody
-#: to press a button that is not there.
+#: It held twenty-one entries in eleven languages, in windows the branch that
+#: wrote this test was not asked to touch — Create Chart's patch editor, the
+#: build-anyway windows, the Delete window — pinned by (language, English
+#: control) so a NEW one failed immediately while these waited for a
+#: translator. All twenty-one are now fixed, in twenty-four message values:
+#: the bullet was rewritten to the string the button actually carries in that
+#: language. Nothing here was a NEW translation, which is what let this run
+#: during a beta at all — every one was an existing translation of the same
+#: words disagreeing with itself two lines apart (Dutch "Toch hier bouwen"
+#: against a button reading "Toch hier maken"), and the Russian pair was the
+#: sharpest of them: a bullet naming Latin "OK" beside a button carrying
+#: Cyrillic "ОК" — indistinguishable on paper and a different string to every
+#: check in this repo.
 #:
 #: Fixing one = correct the catalogue VALUE so the bullet names the control,
 #: and delete its line. The list may only shrink; `test_the_backlog_only_
-#: shrinks` is what makes that true.
-KNOWN_DRIFTS: "set[tuple[str, str]]" = {
-    ('de', 'Add a single colour'),
-    ('de', 'Build anyway'),
-    ('de', 'Cancel and keep the current chart files'),
-    ('de', 'Delete the whole project'),
-    ('de', 'Generate colour sets'),
-    ('es', 'Delete the whole project'),
-    ('it', 'Build here anyway'),
-    ('it', 'Delete the whole project'),
-    ('ja', 'Generate colour sets'),
-    ('nl', 'Build anyway'),
-    ('nl', 'Build here anyway'),
-    ('no', 'Add a single colour'),
-    ('pl', 'Add a single colour'),
-    ('pl', 'Build anyway'),
-    ('pt', 'Add a single colour'),
-    ('pt', 'Delete the whole project'),
-    ('pt', 'Generate colour sets'),
-    ('ru', 'Generate colour sets'),
-    # Latin "OK" where the button carries Cyrillic "ОК" — invisible on paper
-    # and a different string to every check we have.
-    ('ru', 'OK'),
-    ('sv', 'Generate colour sets'),
-    ('zh_CN', 'Add a single colour'),
-}
+#: shrinks` is what makes that true, and it is now pinned at zero: a drift may
+#: not be pinned here again, it has to be fixed.
+KNOWN_DRIFTS: "set[tuple[str, str]]" = set()
 
 
 def test_the_backlog_only_shrinks():
-    """A pinned drift is a debt, not a licence. 21 on 2026-09-05."""
-    assert len(KNOWN_DRIFTS) <= 21, (
+    """A pinned drift is a debt, not a licence. 21 on 2026-09-05, then 0 the
+    same day — the budget moves DOWN with the fixes and never back up."""
+    assert len(KNOWN_DRIFTS) <= 0, (
         "a drift was pinned rather than fixed — correct the catalogue value "
         "so the bullet names the control, instead of adding a line here")
 

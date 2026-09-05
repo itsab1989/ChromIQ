@@ -553,19 +553,56 @@ def test_every_deliberate_exception_says_why():
 # relearn why. German is translated for all eleven and does not move. The
 # eleven catalogues carry the English source: new wording in a beta, and
 # PROPOSED wording besides. These are each language's ACTUAL count.
+# -1 in each of the eleven and -35 in German, 2026-09-05 (AGENT BP). THE
+# BUDGET MOVES DOWN, WHICH IS THE ONLY DIRECTION IT MAY MOVE.
+#
+# The eleven lose ONE key: "Not now" (W-06). It is the DECLINE button of the
+# driver-consent window "Before ChromIQ starts", the one window in ChromIQ
+# whose entire purpose is informed consent before an elevated driver install,
+# and it read the English "Not now" in every language but German. This is a
+# deliberate exception to "translate before the final, not during a beta" and
+# it is worth stating why, so the next agent does not read it as a licence:
+# the key is NOT new beta wording. `ui/cr30_calibration.py` has shipped a
+# button carrying it since the CR30 work, German has carried "Jetzt nicht"
+# throughout, and §M's entry for it says in as many words "zero new
+# translation keys". Nothing about it is a draft. What the beta rule protects
+# against is re-translating wording that is still moving; it was never meant
+# to leave the word "no" in English on a consent button.
+#
+# German loses THIRTY-FIVE, and that is the more interesting half. German is
+# recorded here at 152 and ACTUALLY sat at 139, so the ratchet had thirteen of
+# slack and could not fire for German at all — and inside those 139 were 22
+# strings of real German-facing PROSE still in English, every one of them from
+# the CR30 sprint of 2026-08-28 → 2026-09-01 (`22f005aa`, `8ecac82f`,
+# `e7eb81f9`, `18867d76`, `1bbc2211`). Among them: "ChromIQ has lost contact
+# with your CR30 while measuring patch {loc}", both windows of the white and
+# dark calibration, the magnet give-up window, and the two longest pieces of
+# Chart Layout help in the app. The standing convention every note above this
+# one repeats is that German is carried in German BECAUSE IT IS THE LANGUAGE
+# THE OWNER READS; those 22 are that convention having quietly slipped, not an
+# instance of it. All 22 are now German. The remaining four "prose-shaped"
+# identity values in German are file-path and format templates
+# ("reports/Verify_Reference_N_{name}.txt", "{name}.ti1 / {name}.ti2") and are
+# correctly English. 139 - 22 = 117.
+#
+# The 262 keys that are identity in ALL ELEVEN while German has a translation
+# are NOT touched and are NOT a leak: they are the tracked deferral every note
+# above accounts for, most of them §M-PROPOSED wording nobody has ruled on. A
+# ranked list of them, by the harm of reading them in English, is in the
+# AGENT BP report. These are each language's ACTUAL count.
 _IDENTICAL_TO_KEY = {
-    "de": 152,
-    "es": 383,
-    "fr": 403,
-    "it": 395,
-    "ja": 372,
-    "nl": 412,
-    "no": 396,
-    "pl": 387,
-    "pt": 387,
-    "ru": 359,
-    "sv": 400,
-    "zh_CN": 365,
+    "de": 117,
+    "es": 382,
+    "fr": 402,
+    "it": 394,
+    "ja": 371,
+    "nl": 411,
+    "no": 395,
+    "pl": 386,
+    "pt": 386,
+    "ru": 358,
+    "sv": 399,
+    "zh_CN": 364,
 }
 
 

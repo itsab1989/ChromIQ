@@ -2234,7 +2234,7 @@
  "Not enough patches": "Pas assez de plages",
  "Not enough samples per patch - Slow Down!": "Pas assez d'échantillons par plage - ralentis !",
  "Not for a verification run.\n\nA verification measures the profile this run already has — it checks how the profile is doing, and it never builds one. Building here would overwrite the very profile you are checking.\n\nTo build or rebuild a profile, set “Run type” back to “Profiling” in the bar above.": "Pas pour une exécution de vérification.\n\nUne vérification mesure le profil que cette exécution possède déjà — elle contrôle comment le profil se comporte, et elle n'en crée jamais. Créer ici écraserait justement le profil que tu es en train de contrôler.\n\nPour créer ou recréer un profil, remets « Type d'exécution » sur « Profilage » dans la barre ci-dessus.",
- "Not now": "Not now",
+ "Not now": "Pas maintenant",
  "Not on this sheet yet": "Pas encore sur la feuille",
  "Not set (profile default)": "Non défini (défaut du profil)",
  "Not sure": "Je ne sais pas",
