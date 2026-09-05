@@ -667,7 +667,11 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     # interior exactly 0 for 86 % (was 32 %), every point 5 ΔE inside the
     # true surface under 1 ΔE, and 96 % of points 5 ΔE outside still
     # non-zero. The distance far outside is understated by the margin.
-    gamt_dist = np.maximum(residual - 6.0, 0.0)
+    # …and the margin fades out again beyond 12 ΔE, so a colour far outside
+    # keeps its true distance (a soft-proof reads the magnitude; understating
+    # it by 6 was the price of the margin until Basti asked for better).
+    knee = np.clip((residual - 6.0) / 6.0, 0.0, 1.0)      # 0 at 6, 1 at 12
+    gamt_dist = np.maximum(residual - 6.0 * (1.0 - knee), 0.0)
     gamt = icw.make_mft2(
         3, 1, b2a_grid,
         (np.clip(gamt_dist, 0, 128)[:, None] / 128 * 0xFFFF).round(),
