@@ -16,13 +16,27 @@ from pathlib import Path
 
 ROOT = Path(os.environ.get("CHROMIQ_TREE", "/Users/Basti/develop/ChromIQ"))
 sys.path.insert(0, str(ROOT))
-WORK = Path("/private/tmp/agentJ")
-OUT = WORK / "out"; OUT.mkdir(parents=True, exist_ok=True)
-SHOTS = Path("/Users/Basti/Desktop/beta 8/11-regression-sweep/shots")
-SHOTS.mkdir(parents=True, exist_ok=True)
+#: NOTHING HERE IS CREATED AT IMPORT TIME, and every root is overridable.
+#: These are macOS absolute paths; on Windows a leading slash is *drive*-
+#: relative, so merely importing this module used to try `mkdir C:\Users\Basti`
+#: (`PermissionError: [WinError 5]`) and take the five tests in
+#: `tests/test_the_sweep_is_runnable.py` down as ERRORs at fixture setup —
+#: while quietly leaving `C:\private\tmp\agentJ\out` behind on the way. Those
+#: tests import this module only to inspect `CHECKS`; a module that cannot be
+#: imported without write access to somebody's Desktop cannot be tested.
+#: The directories are made by whoever writes into them (`_ensure_dirs`).
+#: `.get(NAME) or default`, never `.get(NAME, default)`: a variable that is
+#: SET BUT EMPTY returns "", and `Path("")` is `.` — so `AGENTJ_WORK=`
+#: would make OUT the relative path `out`, and run-sweep.sh has already
+#: `cd`-ed into the repo by then. The sweep would write its results into
+#: the checkout it is testing, which is the one thing the header above
+#: promises it never does.
+WORK = Path(os.environ.get("AGENTJ_WORK") or "/private/tmp/agentJ")
+OUT = WORK / "out"
+_DESK = Path(os.environ.get("AGENTJ_DESK") or "/Users/Basti/Desktop/beta 8")
+SHOTS = _DESK / "11-regression-sweep" / "shots"
 _TAG = os.environ.get("AGENTJ_TAG", "base")
-_PROGRESS_DIR = Path("/Users/Basti/Desktop/beta 8/_progress")
-_PROGRESS_DIR.mkdir(parents=True, exist_ok=True)
+_PROGRESS_DIR = _DESK / "_progress"
 #: ONE FILE PER RUN, never a fixed name. This used to be a constant
 #: `agentJ.md`, so the second sweep silently overwrote the first one's log —
 #: the evidence for one finding replaced by the evidence for a later run on a
@@ -59,7 +73,47 @@ if RESULTS.is_file():
 BOXES: list[tuple[str, str]] = []      # (kind, text) of every QMessageBox shown
 
 
+def _ensure_dirs():
+    """Create the output roots. Called by `main()` before the first check, and
+    again by `out_file` / `shot_path` / `record` at each write, never at import
+    — see WORK above."""
+    for d in (OUT, SHOTS, _PROGRESS_DIR):
+        d.mkdir(parents=True, exist_ok=True)
+
+
+def out_file(name):
+    """The one door to OUT. Writers say `out_file("J02-targets.json")`, not
+    `OUT / "J02-targets.json"`, so that no writer silently depends on `main()`
+    having run `_ensure_dirs()` first — which is exactly the coupling this
+    module was changed to drop."""
+    OUT.mkdir(parents=True, exist_ok=True)
+    return OUT / name
+
+
+def shot_path(name):
+    """The one door to SHOTS. See `out_file`."""
+    SHOTS.mkdir(parents=True, exist_ok=True)
+    return SHOTS / name
+
+
+def save_shot(paintable, name):
+    """Save a QImage/QPixmap into SHOTS and return its path, RAISING if Qt
+    could not write it.
+
+    `QImage.save()` into a directory that does not exist returns False and
+    raises nothing. A screenshot would then never be written while `record()`
+    filed its path as `evidence=` regardless — a sweep citing a picture that
+    does not exist. A check that raises here is recorded as FAIL by `main()`,
+    which is the honest outcome."""
+    p = shot_path(name)
+    if not paintable.save(str(p)):
+        raise OSError("Qt could not write the screenshot %s" % p)
+    return str(p)
+
+
 def record(cid, name, status, note, evidence=""):
+    RESULTS.parent.mkdir(parents=True, exist_ok=True)
+    PROGRESS.parent.mkdir(parents=True, exist_ok=True)
     row = {"id": cid, "name": name, "status": status, "note": note,
            "evidence": evidence, "when": time.strftime("%H:%M:%S")}
     _results[:] = [r for r in _results if r["id"] != cid] + [row]
@@ -90,9 +144,7 @@ def click(btn):
 
 
 def shot(w, name):
-    p = SHOTS / name
-    w.grab().save(str(p))
-    return str(p)
+    return save_shot(w.grab(), name)
 
 
 # ---- QMessageBox: never block. Record every one, answer the default. -------
@@ -259,7 +311,7 @@ def j02(c):
         rows.append((label, key, nrects, npages))
         if nrects == 0:
             bad.append(f"{label} ({key}): grid has no cells")
-    (OUT / "J02-targets.json").write_text(json.dumps(rows, indent=1, default=str), encoding="utf-8")
+    out_file("J02-targets.json").write_text(json.dumps(rows, indent=1, default=str), encoding="utf-8")
     record("J02", "Target combo — every entry builds a grid",
            "FAIL" if bad else "PASS",
            f"{len(rows)} entries; multi-page sets: "
@@ -1182,7 +1234,7 @@ def j28(c):
                      verdict[:220]))
         if not (on_patches and good):
             bad.append(key)
-    (OUT / "J28-targets.json").write_text(json.dumps(rows, indent=1), encoding="utf-8")
+    out_file("J28-targets.json").write_text(json.dumps(rows, indent=1), encoding="utf-8")
     record("J28", "Demo -> Auto align -> Check alignment",
            "FAIL" if bad else "PASS",
            "; ".join(f"{r[0]}: {r[1]} [{r[2]}] {r[3]}" for r in rows))
@@ -1256,7 +1308,7 @@ def j29(c):
                     cache = cache_state(d._marquee)
                     if cache == "STALE":
                         bad.append(tag + " STALE CACHE")
-    (OUT / "J29-cross.json").write_text(json.dumps(rows, indent=1), encoding="utf-8")
+    out_file("J29-cross.json").write_text(json.dumps(rows, indent=1), encoding="utf-8")
     record("J29", "Crossed: fiducials x sample area x page",
            "FAIL" if bad else "PASS",
            f"{len(rows)} combinations driven end to end (Auto align + Check "
@@ -1427,7 +1479,7 @@ def j33(c):
                 if img.pixelColor(x, y).alpha() > 200}
         rows.append((mode, fill, mark, f"{opaque}/{total} opaque",
                      f"{len(cols)} distinct colours"))
-        img.save(str(SHOTS / f"J33-warning-sign-{mode}.png"))
+        save_shot(img, f"J33-warning-sign-{mode}.png")
         if opaque < 0.25 * total:
             bad.append(f"{mode}: the sign is nearly transparent")
         if len(cols) < 2:
@@ -1472,7 +1524,7 @@ def j34(c):
         pump(700)
         name = f"J34-warning-{tag[0]}.png"
         tag[0] += 1
-        self.grab().save(str(SHOTS / name))
+        save_shot(self.grab(), name)
         icon_ok = not self.iconPixmap().isNull()
         btns = [b.text() for b in self.buttons()]
         dflt = self.defaultButton().text() if self.defaultButton() else ""
@@ -1556,6 +1608,7 @@ def j35(c):
 
 # ==========================================================================
 def main():
+    _ensure_dirs()
     want = sys.argv[1:]
     c = Ctx()
     ids = want or sorted(CHECKS)

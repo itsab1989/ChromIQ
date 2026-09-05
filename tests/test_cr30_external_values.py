@@ -185,8 +185,25 @@ class Reader:
         # close. An earlier attempt at this fix closed first and did nothing.
         if self.p.poll() is None:
             try:
-                os.killpg(os.getpgid(self.p.pid), signal.SIGKILL)
-            except (ProcessLookupError, PermissionError):
+                # One `hasattr` for all three POSIX-only names — `os.killpg`,
+                # `os.getpgid` and `signal.SIGKILL` arrive together or not at
+                # all, and on Windows it is not at all. The AttributeError used
+                # to escape this fixture as an ERROR at teardown on eight
+                # otherwise-passing tests, AND it raised before anything was
+                # killed: master leaks one orphan chromiq-chartread.exe per
+                # test. `start_new_session=True` above is silently ignored on
+                # Windows (CPython names the parameter `unused_start_new_
+                # session`), so there is no group there to signal anyway —
+                # terminate the helper itself. It spawns nothing.
+                if hasattr(os, "killpg"):
+                    os.killpg(os.getpgid(self.p.pid), signal.SIGKILL)
+                else:
+                    self.p.kill()
+            # OSError joins the tuple for `Popen.kill()` on Windows, which can
+            # raise it when the process is between poll() and here. It subsumes
+            # the other two members; they stay because they are what the POSIX
+            # branch means to tolerate, and deleting them would hide that.
+            except (ProcessLookupError, PermissionError, OSError):
                 pass
         try:
             self.p.wait(timeout=5)
