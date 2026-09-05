@@ -296,6 +296,7 @@ class _PercentProgress:
         self._clock = clock or time.monotonic
         self._t0 = self._clock()
         self._deadline: float | None = None
+        self._paused_at: float | None = None
 
     def _eta_text(self) -> str:
         """The remaining-time estimate is a DEADLINE that only ever moves
@@ -306,7 +307,20 @@ class _PercentProgress:
         never lengthen it; and when a stage overruns, the log says so
         instead of printing a bigger number, then re-estimates."""
         now = self._clock()
+        if self._paused_at is not None:
+            # The colprof stage was not in the budget: the time it took is
+            # added to the deadline and taken out of the pace, so the
+            # estimate neither drains during it nor counts it afterwards
+            # (the challenger's C5: "~20s" at 26 % with 47 s to go, then
+            # "taking longer than estimated" on 27 lines).
+            gap = now - self._paused_at
+            self._paused_at = None
+            self._t0 += gap
+            if self._deadline is not None:
+                self._deadline += gap
         elapsed = now - self._t0
+        if self._pct >= 99.0:
+            return "almost done"
         if self._pct < 10.0 or elapsed < 3.0:
             return ""
         raw = elapsed * (100.0 - self._pct) / max(self._pct, 1e-6)
@@ -340,6 +354,7 @@ class _PercentProgress:
             eta = self._eta_text()
             if msg.startswith("Saturation table: matching colprof"):
                 eta = "colprof is running, its time is not counted"
+                self._paused_at = self._clock()
             head = f"{self._pct:.0f}%" + (f" · {eta}" if eta else "")
             self._inner(f"{head} · {msg}")
 

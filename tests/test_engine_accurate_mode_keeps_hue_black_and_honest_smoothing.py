@@ -224,6 +224,9 @@ def test_remaining_time_never_grows_between_lines():
             assert v <= prev, (secs, shown)
         prev = v
     assert any(s_ is not None and s_ > 0 for s_ in secs), shown
-    # The 54-second colprof stall must not show a growing number: it either
-    # counts down or says it is taking longer.
-    assert overran >= 1 or all(v is not None for v in secs), shown
+    # The 54-second colprof stall is taken out of the budget (challenger
+    # C5): after it the estimate must NOT already be overrun, and the build's
+    # last lines say "almost done", never "taking longer than estimated".
+    after = [ln for ln in shown if "Saturation table: fitting" in ln][0]
+    assert "taking longer" not in after, after
+    assert "almost done" in shown[-1], shown[-1]
