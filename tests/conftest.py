@@ -157,6 +157,25 @@ def _one_qapplication_per_worker():
     from PyQt6.QtWidgets import QApplication
 
     _PINNED_QAPP = QApplication.instance() or QApplication([])
+    # REGISTER THE FONTS THE APP BUNDLES, in the same position `main()` does
+    # (main.py:143, immediately before `setStyle`). Under
+    # `QT_QPA_PLATFORM=offscreen` on Windows `QFontDatabase.families()` is
+    # EMPTY, so every family the stylesheet asks for (`ui/styles.py` asks for
+    # Inter everywhere) draws as a tofu box of `pixelSize`: w('i') == w('W').
+    # "Manuelle Einstellungen" then measures 286 px against 144 px of real
+    # Inter — a 1.99x overestimate under every widget on the screen.
+    # ORDER MATTERS ON macOS: once anything has populated the CoreText font
+    # database, `addApplicationFont` returns -1 for a family that is already
+    # there. Registering here, before the first `families()` call any test
+    # makes, is the only position where it takes.
+    try:
+        import os as _os
+        _repo = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+        from PyQt6.QtGui import QFontDatabase as _QFD
+        for _f in sorted(pathlib.Path(_repo, "assets", "fonts").glob("*.ttf")):
+            _QFD.addApplicationFont(str(_f))
+    except Exception:                                    # pragma: no cover
+        pass          # fonts dir missing — the suite falls back as main() does
     try:
         _PINNED_QAPP.setStyle("Fusion")
     except Exception:                                    # pragma: no cover
