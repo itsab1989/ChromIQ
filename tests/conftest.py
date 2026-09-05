@@ -157,6 +157,35 @@ def _one_qapplication_per_worker():
     from PyQt6.QtWidgets import QApplication
 
     _PINNED_QAPP = QApplication.instance() or QApplication([])
+
+    # ...AND ON THE FONTS THE APP SHIPS, for the same reason and from the same
+    # place: this is `main()`'s very next statement after the QApplication, one
+    # line above its `setStyle`. Registering them here is not a test fixture
+    # inventing an environment — it is the suite finally doing what the program
+    # does before it draws anything.
+    #
+    # WITHOUT IT THE GEOMETRY ASSERTIONS MEASURE A FONT THAT DOES NOT EXIST.
+    # Under `QT_QPA_PLATFORM=offscreen` on Windows/ARM64, Qt 6.11,
+    # `QFontDatabase.families()` returns an EMPTY LIST — the plugin exposes no
+    # font whatever — and Qt then measures every glyph as a square box of
+    # pixelSize: `w("i") == w("W") == 13`. "Manuelle Einstellungen" comes out
+    # 286 px as tofu against 144 px in real Inter, a 1.99x overestimate, and
+    # `ui/styles.py` asks for "Inter" on every widget. Any test that asserts a
+    # label fits, a panel does not scroll sideways, or a sheet paginates, is on
+    # that plugin asserting against a fiction — in both directions: it cannot
+    # catch a real clipping fault and it reports ones that are not there.
+    #
+    # It is also a source of ORDER-DEPENDENT FLAKES rather than steady failure,
+    # because whether a worker has fonts depends on whether some earlier test in
+    # it happened to register them.
+    try:
+        from core.resource_path import resource_path
+        from PyQt6.QtGui import QFontDatabase
+        for _font_path in resource_path("assets/fonts").glob("*.ttf"):
+            QFontDatabase.addApplicationFont(str(_font_path))
+    except Exception:                                    # pragma: no cover
+        pass          # exactly as main.py does: fonts dir missing is not fatal
+
     try:
         _PINNED_QAPP.setStyle("Fusion")
     except Exception:                                    # pragma: no cover
