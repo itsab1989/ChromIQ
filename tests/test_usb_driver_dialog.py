@@ -613,22 +613,40 @@ def test_the_announcement_says_the_port_is_checked_afterwards():
 # The outcomes
 # ---------------------------------------------------------------------------
 
-ALL_STAGES = ["bound", "not_bound", "install_failed", "cancelled",
-              "package_rejected", "download_failed"]
+#: `reboot`, `cannot_tell` and `nothing_applied` are the three windows the 3010
+#: fix added. They are in this list because every rule below is a rule about
+#: every outcome window, and a stage that is not in it is a stage nothing
+#: checks — which is how the contradiction window survived a green suite.
+ALL_STAGES = ["bound", "reboot", "not_bound", "cannot_tell", "nothing_applied",
+              "install_failed", "cancelled", "package_rejected",
+              "download_failed"]
 
 
 @pytest.mark.parametrize("stage", ALL_STAGES)
-def test_no_outcome_ever_mentions_roll_back_driver(stage):
+def test_no_outcome_ever_sends_the_user_to_roll_back_driver(stage):
     """Decision 10, and required change 18. *Roll Back Driver* is greyed out
     unless the device already had a working driver once — and the person
     reading any of these is by definition the person whose instrument never
     had one. Sending them to a greyed-out button is worse than saying nothing.
+
+    **THIS USED TO BAN THE PHRASE AND IT WAS BANNING THE WRONG THING.** The
+    `not_bound` window has always ended by warning the user OFF Roll Back —
+    "it is greyed out for a device that never had a driver to roll back to" —
+    and it passed because that sentence arrived through `detail`, from
+    `core.ch34x_driver.verify_bound`, which this test stubs out with `"d"`. So
+    the ban only ever covered the template, the sentence it was written to
+    prevent was never in the template, and moving core's words into the UI
+    (where they can be translated) made a green test go red without anything a
+    user reads having changed. The rule is about STEERING, so that is what it
+    now says: name the dead end if you like, but only to say it is one.
     """
     text, _ = sd.serial_outcome_text(stage=stage, detail="d", folder="f",
                                      ports="COM5")
     lowered = text.lower()
-    assert "roll back" not in lowered
-    assert "rollback" not in lowered
+    if "roll back" in lowered or "rollback" in lowered:
+        assert "will not help" in lowered, (
+            "the %s window names Roll Back Driver without saying it is a dead "
+            "end" % stage)
 
 
 @pytest.mark.parametrize("stage", ALL_STAGES)
@@ -639,8 +657,10 @@ def test_no_outcome_ships_a_bracketed_plural(stage):
         assert bad not in text
 
 
-@pytest.mark.parametrize("stage", ["not_bound", "install_failed", "cancelled",
-                                   "package_rejected", "download_failed"])
+@pytest.mark.parametrize("stage", ["not_bound", "cannot_tell",
+                                   "nothing_applied", "install_failed",
+                                   "cancelled", "package_rejected",
+                                   "download_failed"])
 def test_every_failure_says_nothing_was_changed(stage):
     """Non-negotiable 1: ChromIQ never removes or overwrites a driver, and the
     user must be told that, because "the install failed" otherwise reads as
@@ -682,10 +702,19 @@ def test_the_hard_case_says_plainly_what_was_tried():
 
 
 def test_the_hard_case_ends_by_saying_there_is_nothing_to_undo():
+    """...and by naming the dead end, which is the last thing this user needs
+    told before they go looking for one.
+
+    Both sentences shipped; the second arrived through `detail` from
+    `core.ch34x_driver.verify_bound` and is now part of the window, where it
+    can be translated. See `test_no_outcome_ever_sends_the_user_to_roll_back_driver`.
+    """
     text, _ = sd.serial_outcome_text(stage="not_bound", folder="f")
+    assert ("Nothing has been removed or replaced, so there is nothing to "
+            "undo. Whatever your computer had before, it still has." in text)
     assert text.endswith(
-        "Nothing has been removed or replaced, so there is nothing to undo. "
-        "Whatever your computer had before, it still has.")
+        "Device Manager's <b>Roll Back Driver</b> will not help here — it is "
+        "greyed out for a device that never had a driver to roll back to.")
 
 
 def test_a_cancelled_install_is_not_treated_as_a_failure():
@@ -781,28 +810,98 @@ def test_the_staging_folder_falls_back_to_the_home_directory(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# The one place this file reaches into the other agent's module
+# The boundary: core says WHAT happened, this file says it in words
 # ---------------------------------------------------------------------------
-
-def test_cancelled_is_recognised_from_the_sentence_core_actually_writes():
-    """`core.ch34x_driver.install()` returns `(bool, str)` with no
-    machine-readable code, so the dialog has to recognise "the user said No"
-    from the prose. That is fragile by construction — this test is the tripwire
-    that goes red the day the sentence is reworded, instead of the user quietly
-    getting a wall of recovery advice for a button they pressed on purpose."""
-    ch34x = pytest.importorskip("core.ch34x_driver")
-    outcomes = getattr(ch34x, "_PNPUTIL_OUTCOMES", None)
-    if outcomes is None or 1223 not in outcomes:
-        pytest.skip("core.ch34x_driver does not expose the exit-code table")
-    _ok, sentence = outcomes[1223]
-    assert sd._install_was_cancelled(sentence), (
-        "core reworded its cancelled message; ui/dialogs/settings_dialog.py's "
-        f"_CANCELLED_PREFIX no longer matches it: {sentence!r}")
+#
+# This is where the two halves of the feature meet, and it used to meet on
+# PROSE. `install()` returned `(bool, str)` and the dialog told "the user
+# pressed No at the Windows permission prompt" from "the install failed" by
+# comparing the first words of core's English against `_CANCELLED_PREFIX`. The
+# tests that used to sit here were the tripwire for that: they asserted core
+# still WROTE the sentence the dialog was matching on. Translating core would
+# have broken the match — and translating core is the whole of defect 2.
+#
+# So the contract is now data, and these tests assert the data.
 
 
-def test_a_genuine_failure_is_not_mistaken_for_a_cancellation():
-    assert not sd._install_was_cancelled("Windows refused the change.")
-    assert not sd._install_was_cancelled("")
+def test_the_prose_string_match_is_gone():
+    """`_CANCELLED_PREFIX` / `_install_was_cancelled` must not come back.
+
+    Not a source-text assertion for its own sake: while either of these exists,
+    somebody can route a window on English again, and the routing tests below
+    would still pass because they exercise the outcomes those helpers *agree*
+    with today.
+    """
+    assert not hasattr(sd, "_CANCELLED_PREFIX")
+    assert not hasattr(sd, "_install_was_cancelled")
+
+
+def test_the_exit_code_table_is_outcomes_and_not_sentences():
+    """Every `pnputil` code the feature knows maps to (Outcome, Reason)."""
+    ch = pytest.importorskip("core.ch34x_driver")
+    table = ch._PNPUTIL_OUTCOMES
+    for code, pair in table.items():
+        outcome, reason = pair
+        assert isinstance(outcome, ch.Outcome), code
+        assert isinstance(reason, ch.Reason), code
+    assert table[1223] == (ch.Outcome.USER_CANCELLED,
+                           ch.Reason.CANCELLED_AT_PROMPT)
+    assert table[5] == (ch.Outcome.ACCESS_DENIED, ch.Reason.NO_PERMISSION)
+
+
+def test_3010_is_its_own_outcome_and_is_not_a_success():
+    """THE 3010 FAULT, at its root.
+
+    `describe_exit_code(3010)` used to return `(True, "…needs a restart…")`.
+    The `True` sent the flow on to `verify_bound`, which cannot find a COM port
+    for a driver that is staged and not yet live — so the restart sentence was
+    printed under the heading "Everything ChromIQ could check passed, and there
+    is still no COM port". `REBOOT_REQUIRED` is deliberately falsy so that
+    nothing can treat it as success by accident again.
+    """
+    ch = pytest.importorskip("core.ch34x_driver")
+    got = ch.describe_exit_code(3010)
+    assert got.outcome is ch.Outcome.REBOOT_REQUIRED
+    assert got.reason is ch.Reason.REBOOT_TO_FINISH
+    assert got.ok is False and bool(got) is False
+    assert got.code == 3010
+
+
+def test_every_reason_either_has_a_sentence_or_a_window_of_its_own():
+    """A `Reason` nobody can render is a `Reason` that shows an empty paragraph.
+
+    Core owns the vocabulary and this file owns the words, so the mapping has to
+    be TOTAL in both directions: a member added to core with nothing to say
+    fails here, and a name left behind in `_REASONS_WITH_THEIR_OWN_WINDOW`
+    after core drops it fails here too.
+    """
+    ch = pytest.importorskip("core.ch34x_driver")
+    own_window = set(sd._REASONS_WITH_THEIR_OWN_WINDOW)
+    assert own_window <= {r.name for r in ch.Reason}, (
+        "these names are not Reasons any more: %r"
+        % sorted(own_window - {r.name for r in ch.Reason}))
+    silent = []
+    for reason in ch.Reason:
+        said = sd.serial_reason_text(
+            ch.DriverResult(ch.Outcome.FAILED, reason, code=1, name="COM7",
+                            count=2, detail="because", path=Path("F")))
+        if reason.name in own_window:
+            assert said == "", (
+                "%s has a window of its own AND a sentence — one of them is "
+                "said twice" % reason.name)
+        elif not said:
+            silent.append(reason.name)
+    assert silent == [], "these reasons can reach a window with nothing to say: %r" % silent
+
+
+def test_no_reason_sentence_leaves_a_placeholder_unfilled():
+    """`{code}` on screen is the failure mode of interpolating by hand."""
+    ch = pytest.importorskip("core.ch34x_driver")
+    for reason in ch.Reason:
+        said = sd.serial_reason_text(
+            ch.DriverResult(ch.Outcome.FAILED, reason, code=87, name="COM7",
+                            count=300, detail="disk full", path=Path("F")))
+        assert "{" not in said and "}" not in said, (reason.name, said)
 
 
 # ---------------------------------------------------------------------------
@@ -2256,12 +2355,31 @@ def test_enter_on_the_driver_window_closes_it_and_installs_nothing(
 # rather than reaching pnputil.
 
 
-def _fake_core(monkeypatch, *, inspect_ok=True, install_result=(True, ""),
-               bound=(True, ""), ports=("COM7",)):
-    """Point `_serial_check_and_install` at a scripted core, never the real one."""
+def _result(outcome_name, reason_name, **kw):
+    """A real `DriverResult` — the type the dialog is coded against."""
+    import core.ch34x_driver as ch
+    return ch.DriverResult(getattr(ch.Outcome, outcome_name),
+                           getattr(ch.Reason, reason_name), **kw)
+
+
+def _fake_core(monkeypatch, *, inspect_ok=True,
+               install_result=("OK", "DRIVER_ACCEPTED"),
+               bound=("OK", "PORT_APPEARED"), ports=("COM7",)):
+    """Point `_serial_check_and_install` at a scripted core, never the real one.
+
+    `install_result` and `bound` are `(Outcome name, Reason name)` pairs, or a
+    ready-made `DriverResult`. THEY ARE NOT PROSE ANY MORE, and that is the
+    point of the change these tests cover: the dialog picks its window from the
+    outcome, so a test that wants a particular window has to name one.
+    """
     from pathlib import Path
     from types import SimpleNamespace
     import core.ch34x_driver as ch
+
+    def _as_result(spec, **extra):
+        if isinstance(spec, ch.DriverResult):
+            return spec
+        return _result(spec[0], spec[1], **extra)
 
     calls = {"installed": []}
 
@@ -2274,11 +2392,13 @@ def _fake_core(monkeypatch, *, inspect_ok=True, install_result=(True, ""),
 
     def _install(inf_path):
         calls["installed"].append(str(inf_path))
-        return install_result
+        return _as_result(install_result)
 
     monkeypatch.setattr(ch, "inspect_package", _inspect)
     monkeypatch.setattr(ch, "install", _install)
-    monkeypatch.setattr(ch, "verify_bound", lambda before: bound)
+    monkeypatch.setattr(
+        ch, "verify_bound",
+        lambda before: _as_result(bound, name=", ".join(ports)))
     monkeypatch.setattr(ch, "devices", lambda: [
         SimpleNamespace(instance_id="ID%d" % i, vid="1a86", pid="7523",
                         port=p, status=None)
@@ -2293,7 +2413,7 @@ def _unbound_before():
 
 
 def test_the_it_worked_window_reaches_the_screen(dialog, monkeypatch, tmp_path):
-    calls = _fake_core(monkeypatch, bound=(True, ""))
+    calls = _fake_core(monkeypatch, bound=("OK", "PORT_APPEARED"))
     with ModalDriver(lambda w: _ok_button(w).click()) as drv:
         dialog._serial_check_and_install(tmp_path, _unbound_before())
     assert calls["installed"], "nothing was installed, so this proves nothing"
@@ -2305,26 +2425,36 @@ def test_the_it_worked_window_reaches_the_screen(dialog, monkeypatch, tmp_path):
 
 def test_the_still_no_com_port_window_reaches_the_screen(
         dialog, monkeypatch, tmp_path):
-    _fake_core(monkeypatch,
-               bound=(False, "Windows accepted the driver and needs a restart "
-                              "to finish switching it on."))
+    """pnputil said 0, the checks all passed, and Windows has still not
+    attached the driver. The hard case this whole feature exists for."""
+    _fake_core(monkeypatch, install_result=("OK", "DRIVER_ACCEPTED"),
+               bound=("FAILED", "STILL_NO_PORT"))
     with ModalDriver(lambda w: _ok_button(w).click()) as drv:
         dialog._serial_check_and_install(tmp_path, _unbound_before())
+    assert drv.timed_out is False
     assert drv.modal_count == 1, (
         "the install left no COM port and the user was told nothing")
-    assert "there is still no COM port" in drv.text_of(0)
-    assert "needs a restart" in drv.text_of(0), (
-        "what core actually found was dropped on the way to the screen")
+    said = drv.text_of(0)
+    assert "there is still no COM port" in said
+    assert "Unplug the instrument" in said
+    # AND IT NO LONGER CARRIES A SENTENCE THAT CONTRADICTS ITS OWN HEADING.
+    # 3010's "needs a restart to finish switching it on" used to be printed
+    # here, under "Everything ChromIQ could check passed".
+    assert "restart to finish" not in said
 
 
 def test_the_install_failed_window_reaches_the_screen(
         dialog, monkeypatch, tmp_path):
-    _fake_core(monkeypatch, install_result=(False, "pnputil exited with 259."))
+    _fake_core(monkeypatch, install_result=("FAILED", "PACKAGE_INVALID"))
     with ModalDriver(lambda w: _ok_button(w).click()) as drv:
         dialog._serial_check_and_install(tmp_path, _unbound_before())
+    assert drv.timed_out is False
     assert drv.modal_count == 1, (
         "an elevated install failed and the user was told nothing")
-    assert "Windows did not install the package." in drv.text_of(0)
+    said = drv.text_of(0)
+    assert "Windows did not install the package." in said
+    assert "rejected the driver package as invalid" in said, (
+        "what core actually found was dropped on the way to the screen")
 
 
 def test_the_you_cancelled_window_reaches_the_screen(
@@ -2333,9 +2463,10 @@ def test_the_you_cancelled_window_reaches_the_screen(
     window says so, and this is the one outcome with no screenshot in the
     evidence pack — all the more reason for a test."""
     _fake_core(monkeypatch,
-               install_result=(False, sd._CANCELLED_PREFIX + ", so nothing ran."))
+               install_result=("USER_CANCELLED", "CANCELLED_AT_PROMPT"))
     with ModalDriver(lambda w: _ok_button(w).click()) as drv:
         dialog._serial_check_and_install(tmp_path, _unbound_before())
+    assert drv.timed_out is False
     assert drv.modal_count == 1
     assert "stopped at the Windows permission prompt" in drv.text_of(0)
     assert "Windows did not install the package." not in drv.text_of(0)
@@ -2431,3 +2562,220 @@ def test_the_folder_route_still_refuses_an_unknown_processor(
     assert drv.modal_count == 1
     assert "kind of processor" in drv.text_of(0)
     assert folder_route == []
+
+
+# ---------------------------------------------------------------------------
+# ONE OUTCOME, ONE WINDOW — and 3010 gets its own
+# ---------------------------------------------------------------------------
+#
+# **THE WINDOW THAT CONTRADICTED ITSELF.** `pnputil` exit 3010 means "the driver
+# is accepted; restart to finish switching it on". Core used to answer that as
+# `(True, "…needs a restart…")`, so the flow read the `True` and went on to
+# `verify_bound` — which cannot find a COM port for a driver that is staged and
+# not yet live — and printed core's restart sentence UNDERNEATH the heading
+# *"Everything ChromIQ could check passed, and there is still no COM port."*
+# Two incompatible statements in one window, on the one code that means the
+# install actually worked.
+#
+# The tests below drive the real dialog for every outcome the install can end
+# in and read what is on the screen. They are the reason `install()` returning a
+# `DriverResult` is worth the churn: each of them fails against the shipped
+# code, and each of them names a window rather than a sentence.
+
+
+def _serial_window(dialog, monkeypatch, tmp_path, **core):
+    """Run one install through the real dialog and hand back what was on screen."""
+    _fake_core(monkeypatch, **core)
+    with ModalDriver(lambda w: _ok_button(w).click()) as drv:
+        dialog._serial_check_and_install(tmp_path, _unbound_before())
+    assert drv.timed_out is False, "a window would not close"
+    assert drv.modal_count == 1, "an install ended and the user was told nothing"
+    return drv.text_of(0)
+
+
+def test_3010_says_restart_and_not_that_nothing_worked(
+        dialog, monkeypatch, tmp_path):
+    """DEFECT 1, on screen.
+
+    `verify_bound` is deliberately still consulted and deliberately still finds
+    nothing — that is exactly the state 3010 leaves the machine in — and the
+    window must nonetheless be about restarting.
+    """
+    said = _serial_window(
+        dialog, monkeypatch, tmp_path,
+        install_result=("REBOOT_REQUIRED", "REBOOT_TO_FINISH"),
+        bound=("FAILED", "STILL_NO_PORT"))
+    assert "needs a restart to finish switching it on" in said
+    assert "Restart the computer" in said
+    assert "Everything ChromIQ could check passed" not in said, (
+        "the 3010 window still leads with the heading that contradicts it")
+    assert "there is still no COM port" not in said
+    assert "Windows did not install the package" not in said
+
+
+def test_3010_that_did_bind_anyway_still_says_it_worked(
+        dialog, monkeypatch, tmp_path):
+    """A restart is not always needed for the port to appear. When one HAS
+    appeared, saying "restart to finish" would be the same fault the other way
+    round — so the COM port still decides."""
+    said = _serial_window(
+        dialog, monkeypatch, tmp_path,
+        install_result=("REBOOT_REQUIRED", "REBOOT_TO_FINISH"),
+        bound=("OK", "PORT_APPEARED"), ports=("COM7",))
+    assert "It worked." in said
+    assert "COM7" in said
+    assert "Restart the computer" not in said
+
+
+def test_a_refused_elevation_is_not_reported_as_a_cancellation(
+        dialog, monkeypatch, tmp_path):
+    """`ConsentPromptBehaviorUser = 0` is an ordinary managed-desktop setting:
+    Windows fails the elevation with NO prompt at all. Telling that user "you
+    said No at the permission prompt" describes a prompt they never saw."""
+    said = _serial_window(
+        dialog, monkeypatch, tmp_path,
+        install_result=("ACCESS_DENIED", "ELEVATION_REFUSED"))
+    assert "Windows did not install the package." in said
+    assert "refused to ask for your permission" in said
+    assert "stopped at the Windows permission prompt" not in said
+
+
+def test_no_permission_lands_on_the_failure_window_with_its_own_reason(
+        dialog, monkeypatch, tmp_path):
+    said = _serial_window(dialog, monkeypatch, tmp_path,
+                          install_result=("ACCESS_DENIED", "NO_PERMISSION"))
+    assert "Windows did not install the package." in said
+    assert "this account may not install drivers" in said
+
+
+def test_259_says_windows_took_it_and_found_nothing_to_use_it_on(
+        dialog, monkeypatch, tmp_path):
+    """`pnputil` 259 added the package and matched no device. "Windows did not
+    install the package" would be untrue, and "there is still no COM port"
+    would be the 3010 mistake wearing a different exit code."""
+    said = _serial_window(dialog, monkeypatch, tmp_path,
+                          install_result=("NO_OP", "NOTHING_TO_APPLY"))
+    assert "did not attach it to anything" in said
+    assert "found no device to use it on" in said
+    assert "Everything ChromIQ could check passed" not in said
+    assert "Windows did not install the package." not in said
+
+
+def test_an_adapter_unplugged_mid_flow_is_not_reported_as_a_failure(
+        dialog, monkeypatch, tmp_path):
+    """`verify_bound` says NO_OP, not FAILED: nothing could be judged. The
+    "everything passed and there is still no COM port" window would be a third
+    self-contradiction — the adapter was not there to be given one."""
+    said = _serial_window(dialog, monkeypatch, tmp_path,
+                          install_result=("OK", "DRIVER_ACCEPTED"),
+                          bound=("NO_OP", "UNPLUGGED_MID_FLOW"))
+    assert "cannot tell you whether that worked" in said
+    assert "unplugged while ChromIQ was working" in said
+    assert "Everything ChromIQ could check passed" not in said
+
+
+def test_nothing_was_unbound_to_begin_with_says_so(
+        dialog, monkeypatch, tmp_path):
+    said = _serial_window(dialog, monkeypatch, tmp_path,
+                          install_result=("OK", "DRIVER_ACCEPTED"),
+                          bound=("NO_OP", "NOTHING_TO_CHECK"), ports=("COM5",))
+    assert "cannot tell you whether that worked" in said
+    assert "COM5" in said
+    assert "Everything ChromIQ could check passed" not in said
+
+
+@pytest.mark.parametrize("outcome,reason,heading", [
+    ("REBOOT_REQUIRED", "REBOOT_TO_FINISH", "restart"),
+    ("USER_CANCELLED", "CANCELLED_AT_PROMPT", "permission prompt"),
+    ("ACCESS_DENIED", "NO_PERMISSION", "did not install"),
+    ("NO_OP", "NOTHING_TO_APPLY", "did not attach"),
+    ("FAILED", "PACKAGE_UNREADABLE", "did not install"),
+])
+def test_every_install_outcome_reaches_a_window_of_its_own(
+        dialog, monkeypatch, tmp_path, outcome, reason, heading):
+    """Five outcomes, five windows, and none of them silent. The parametrisation
+    is the point: adding an `Outcome` that falls through the routing shows up
+    here as an empty window rather than as a user's confusion."""
+    said = _serial_window(dialog, monkeypatch, tmp_path,
+                          install_result=(outcome, reason),
+                          bound=("FAILED", "STILL_NO_PORT"))
+    assert heading in said
+
+
+# ---------------------------------------------------------------------------
+# ...and every word of it is in the reader's language
+# ---------------------------------------------------------------------------
+#
+# **DEFECT 2.** Core's sentences were composed in English in a module with no
+# `tr()` in it, and the dialog printed them verbatim — so the German window read
+# five paragraphs of German and then *"Windows refused the change. This normally
+# means the account does not have permission to install drivers…"*. There was no
+# key to translate it under; the sentence did not exist in any catalogue.
+
+
+@pytest.mark.parametrize("outcome,reason", [
+    ("REBOOT_REQUIRED", "REBOOT_TO_FINISH"),
+    ("ACCESS_DENIED", "NO_PERMISSION"),
+    ("ACCESS_DENIED", "ELEVATION_REFUSED"),
+    ("NO_OP", "NOTHING_TO_APPLY"),
+    ("FAILED", "PACKAGE_INVALID"),
+    ("FAILED", "UNKNOWN_EXIT"),
+])
+def test_the_german_outcome_window_has_no_english_left_in_it(
+        dialog, monkeypatch, tmp_path, in_language, outcome, reason):
+    in_language("de")
+    said = _serial_window(dialog, monkeypatch, tmp_path,
+                          install_result=(outcome, reason),
+                          bound=("FAILED", "STILL_NO_PORT"))
+    for english in ("Windows refused the change",
+                    "Windows accepted the driver",
+                    "needs a restart to finish switching it on",
+                    "Nothing was changed",
+                    "rejected the driver package as invalid",
+                    "found no device to use it on",
+                    "refused to ask for your permission",
+                    "stopped with an error"):
+        assert english not in said, (
+            f"{reason}: core's English is still on the German window: "
+            f"{english!r}")
+    assert "Windows" in said or "ChromIQ" in said, (
+        "the window rendered empty, which would pass the assertions above for "
+        "the wrong reason")
+
+
+def test_the_german_3010_window_is_german_all_the_way_down(
+        dialog, monkeypatch, tmp_path, in_language):
+    """The headline window of this fix, in the language it was found broken in."""
+    in_language("de")
+    said = _serial_window(
+        dialog, monkeypatch, tmp_path,
+        install_result=("REBOOT_REQUIRED", "REBOOT_TO_FINISH"),
+        bound=("FAILED", "STILL_NO_PORT"))
+    assert "Neustart" in said, "the 3010 window is not translated"
+    assert "restart" not in said.lower().replace("neustart", "")
+    assert "COM-Anschluss" in said or "COM-Port" in said
+
+
+@pytest.mark.parametrize("code", ALL_CODES)
+def test_every_reason_sentence_is_translated_in_every_language(
+        code, in_language):
+    """A reason with no catalogue entry falls back to English silently — which
+    is the defect, one sentence at a time, in whichever language nobody checked.
+    """
+    ch = pytest.importorskip("core.ch34x_driver")
+    if code == "en":
+        return
+    in_language(code)
+    english = {}
+    from core import i18n
+    i18n.set_language("en")
+    for reason in ch.Reason:
+        english[reason] = sd.serial_reason_text(
+            ch.DriverResult(ch.Outcome.FAILED, reason))
+    in_language(code)
+    untranslated = [
+        r.name for r in ch.Reason
+        if english[r] and sd.serial_reason_text(
+            ch.DriverResult(ch.Outcome.FAILED, r)) == english[r]]
+    assert untranslated == [], (
+        f"[{code}] these reason sentences are still English: {untranslated}")

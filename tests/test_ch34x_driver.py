@@ -79,14 +79,44 @@ def test_the_interface_is_exactly_what_was_agreed():
     """Renaming or re-shaping any of this breaks the other half of the feature."""
     for name in ("CH34X_IDS", "Status", "DeviceState", "devices", "machine_arch",
                  "PackageVerdict", "inspect_package", "download_package",
-                 "install", "verify_bound"):
+                 "install", "verify_bound",
+                 "Outcome", "Reason", "DriverResult", "describe_exit_code"):
         assert hasattr(ch, name), f"the agreed interface is missing {name}"
 
     assert {s.name for s in ch.Status} == {"NO_DEVICE", "WORKING", "NO_DRIVER"}
+    assert {o.name for o in ch.Outcome} == {
+        "OK", "REBOOT_REQUIRED", "USER_CANCELLED", "ACCESS_DENIED", "NO_OP",
+        "FAILED"}
+    assert [f for f in ch.DriverResult.__dataclass_fields__] == [
+        "outcome", "reason", "code", "path", "name", "count", "detail"]
     assert [f for f in ch.DeviceState.__dataclass_fields__] == [
         "instance_id", "vid", "pid", "port", "status"]
     assert [f for f in ch.PackageVerdict.__dataclass_fields__] == [
         "ok", "inf_path", "reason", "arch_section", "service_binary"]
+
+
+def test_this_module_composes_no_user_facing_prose():
+    """**THE FAULT THIS WHOLE INTERFACE EXISTS TO PREVENT.**
+
+    Every entry point used to return `(bool, str)` where the `str` was an
+    English paragraph the dialog printed verbatim. Three things came out of
+    that, all of them visible to a user: a window that contradicted itself on
+    exit 3010, English paragraphs inside the German window, and the dialog
+    telling "cancelled" from "failed" by string-matching this module's prose.
+
+    A sentence here is a sentence that cannot be translated: this module has no
+    `tr()` and is not in any catalogue. So the results carry an `Outcome`, a
+    `Reason` and values — and nothing else.
+    """
+    import dataclasses
+    for entry in (ch.describe_exit_code(0), ch.describe_exit_code(3010),
+                  ch.describe_exit_code(5), ch.describe_exit_code(99)):
+        assert isinstance(entry, ch.DriverResult)
+        for field in dataclasses.fields(entry):
+            value = getattr(entry, field.name)
+            if isinstance(value, str):
+                assert " " not in value, (
+                    f"{field.name} carries prose: {value!r}")
 
 
 def test_measurement_in_progress_is_not_ours_to_provide():
@@ -722,9 +752,9 @@ def test_a_json_error_body_is_not_a_zip(tmp_path):
     application/json and a Java exception. "The request succeeded" proves
     nothing about what arrived.
     """
-    ok, why = ch.stream_to_file(_Reader([_SPRING_ERROR]), tmp_path / "a.part")
-    assert not ok
-    assert ".zip" in why
+    got = ch.stream_to_file(_Reader([_SPRING_ERROR]), tmp_path / "a.part")
+    assert not got.ok
+    assert got.reason is ch.Reason.NOT_A_ZIP
 
 
 def test_a_body_that_is_not_a_zip_is_abandoned_at_once(tmp_path):
@@ -738,22 +768,22 @@ def test_a_body_that_is_not_a_zip_is_abandoned_at_once(tmp_path):
             yield b"x" * 65536
 
     reader = _Reader(endless_html())
-    ok, why = ch.stream_to_file(reader, tmp_path / "a.part")
-    assert not ok
+    got = ch.stream_to_file(reader, tmp_path / "a.part")
+    assert not got.ok and got.reason is ch.Reason.NOT_A_ZIP
     assert reader.reads == 1, (
         "the body was still being read after the first two bytes disproved it")
     assert (tmp_path / "a.part").stat().st_size == 0
 
 
 def test_an_html_page_is_not_a_zip(tmp_path):
-    ok, why = ch.stream_to_file(
+    got = ch.stream_to_file(
         _Reader([b"<!DOCTYPE html><html><body>Sign in"]), tmp_path / "a.part")
-    assert not ok
+    assert not got.ok and got.reason is ch.Reason.NOT_A_ZIP
 
 
 def test_an_empty_body_is_not_a_zip(tmp_path):
-    ok, _ = ch.stream_to_file(_Reader([]), tmp_path / "a.part")
-    assert not ok
+    got = ch.stream_to_file(_Reader([]), tmp_path / "a.part")
+    assert not got.ok and got.reason is ch.Reason.EMPTY_RESPONSE
 
 
 def test_the_byte_cap_stops_an_endless_body(tmp_path):
@@ -774,11 +804,12 @@ def test_the_byte_cap_stops_an_endless_body(tmp_path):
         while True:
             yield b"\0" * 65536
 
-    ok, why = ch.stream_to_file(_Reader(endless()), tmp_path / "a.part",
-                                max_bytes=256 * 1024, deadline_s=20,
-                                now=lambda: next(clock))
-    assert not ok
-    assert "bigger" in why, "the cap must stop it before the deadline does"
+    got = ch.stream_to_file(_Reader(endless()), tmp_path / "a.part",
+                            max_bytes=256 * 1024, deadline_s=20,
+                            now=lambda: next(clock))
+    assert not got.ok
+    assert got.reason is ch.Reason.DOWNLOAD_TOO_BIG, (
+        "the cap must stop it before the deadline does")
     assert (tmp_path / "a.part").stat().st_size <= 256 * 1024 + 65536
 
 
@@ -793,17 +824,18 @@ def test_the_deadline_stops_a_dribbling_server(tmp_path):
         while True:
             yield b"\0"
 
-    ok, why = ch.stream_to_file(_Reader(endless()), tmp_path / "a.part",
-                                deadline_s=30, now=lambda: next(clock))
-    assert not ok
-    assert "too long" in why
+    got = ch.stream_to_file(_Reader(endless()), tmp_path / "a.part",
+                            deadline_s=30, now=lambda: next(clock))
+    assert not got.ok
+    assert got.reason is ch.Reason.DOWNLOAD_TOO_SLOW
 
 
 def test_a_real_looking_zip_streams_through(tmp_path):
     payload = _zip_bytes({"CH341SER/CH341SER.INF": b"[Version]"})
-    ok, why = ch.stream_to_file(_Reader([payload[:10], payload[10:]]),
-                                tmp_path / "a.part")
-    assert ok, why
+    got = ch.stream_to_file(_Reader([payload[:10], payload[10:]]),
+                            tmp_path / "a.part")
+    assert got.ok, got
+    assert got.reason is ch.Reason.DOWNLOADED and got.count == len(payload)
     assert (tmp_path / "a.part").read_bytes() == payload
 
 
@@ -837,8 +869,9 @@ def _write_zip(tmp_path: Path, entries, **kw) -> Path:
 def test_a_good_archive_unpacks(tmp_path):
     src = _write_zip(tmp_path, {"CH341SER/CH341SER.INF": b"[Version]",
                                 "CH341SER/WIN 1X/CH341SER.INF": b"[Version]"})
-    ok, why = ch.unpack_archive(src, tmp_path / "out")
-    assert ok, why
+    got = ch.unpack_archive(src, tmp_path / "out")
+    assert got.ok, got
+    assert got.reason is ch.Reason.UNPACKED
     assert (tmp_path / "out" / "CH341SER" / "WIN 1X" / "CH341SER.INF").is_file()
 
 
@@ -854,8 +887,10 @@ def test_zip_slip_is_refused(tmp_path, name):
     aborts the whole archive rather than being silently rewritten.
     """
     src = _write_zip(tmp_path, {name: b"x", "CH341SER/CH341SER.INF": b"y"})
-    ok, why = ch.unpack_archive(src, tmp_path / "out")
-    assert not ok, f"{name} was accepted"
+    got = ch.unpack_archive(src, tmp_path / "out")
+    assert not got.ok, f"{name} was accepted"
+    assert got.reason in (ch.Reason.ARCHIVE_UNSAFE_PATH,
+                          ch.Reason.ARCHIVE_ESCAPES)
     assert not (tmp_path / "out").exists() or not list(
         (tmp_path / "out").rglob("evil.inf"))
 
@@ -863,33 +898,35 @@ def test_zip_slip_is_refused(tmp_path, name):
 def test_a_symlink_entry_is_refused(tmp_path):
     src = _write_zip(tmp_path, {"CH341SER/link": b"/etc/passwd"},
                      symlink="CH341SER/link")
-    ok, why = ch.unpack_archive(src, tmp_path / "out")
-    assert not ok
-    assert "link" in why
+    got = ch.unpack_archive(src, tmp_path / "out")
+    assert not got.ok
+    assert got.reason is ch.Reason.ARCHIVE_SYMLINK
+    assert got.name == "CH341SER/link", (
+        "the offending entry has to reach the window that names it")
 
 
 def test_too_many_entries_is_refused(tmp_path):
     src = _write_zip(tmp_path, {f"f{i}.txt": b"x"
                                 for i in range(ch._MAX_ENTRIES + 5)})
-    ok, why = ch.unpack_archive(src, tmp_path / "out")
-    assert not ok
-    assert "items" in why
+    got = ch.unpack_archive(src, tmp_path / "out")
+    assert not got.ok
+    assert got.reason is ch.Reason.ARCHIVE_TOO_MANY_ENTRIES
+    assert got.count == ch._MAX_ENTRIES + 5
 
 
 def test_an_over_large_expansion_is_refused(tmp_path, monkeypatch):
     monkeypatch.setattr(ch, "_MAX_UNPACKED_BYTES", 1024)
     src = _write_zip(tmp_path, {"big.bin": b"\0" * 4096})
-    ok, why = ch.unpack_archive(src, tmp_path / "out")
-    assert not ok
+    got = ch.unpack_archive(src, tmp_path / "out")
+    assert not got.ok and got.reason is ch.Reason.ARCHIVE_TOO_BIG
 
 
 def test_a_truncated_zip_is_refused(tmp_path):
     payload = _zip_bytes({"CH341SER/CH341SER.INF": b"[Version]" * 50})
     path = tmp_path / "pkg.zip"
     path.write_bytes(payload[: len(payload) // 2])
-    ok, why = ch.unpack_archive(path, tmp_path / "out")
-    assert not ok
-    assert ".zip" in why
+    got = ch.unpack_archive(path, tmp_path / "out")
+    assert not got.ok and got.reason is ch.Reason.ARCHIVE_UNREADABLE
 
 
 def test_a_corrupt_member_is_caught_by_testzip(tmp_path):
@@ -899,14 +936,15 @@ def test_a_corrupt_member_is_caught_by_testzip(tmp_path):
     payload[index:index + 4] = b"BBBB"
     path = tmp_path / "pkg.zip"
     path.write_bytes(bytes(payload))
-    ok, why = ch.unpack_archive(path, tmp_path / "out")
-    assert not ok
-    assert "damaged" in why
+    got = ch.unpack_archive(path, tmp_path / "out")
+    assert not got.ok and got.reason is ch.Reason.ARCHIVE_DAMAGED
+    assert got.name == "CH341SER/a.sys"
 
 
 def test_an_empty_archive_is_refused(tmp_path):
     src = _write_zip(tmp_path, {})
-    assert not ch.unpack_archive(src, tmp_path / "out")[0]
+    got = ch.unpack_archive(src, tmp_path / "out")
+    assert not got.ok and got.reason is ch.Reason.ARCHIVE_EMPTY
 
 
 # ---------------------------------------------------------------------------
@@ -916,9 +954,10 @@ def test_download_package_unpacks_and_leaves_the_folder(tmp_path, monkeypatch):
     payload = _zip_bytes({"CH341SER/CH341SER.INF": b"[Version]",
                           "CH341SER/CH341SER.CAT": b"cat"})
     monkeypatch.setattr(ch, "_open_url", lambda url: _Reader([payload]))
-    ok, folder, why = ch.download_package(tmp_path / "dl")
-    assert ok, why
-    assert (folder / "CH341SER" / "CH341SER.INF").is_file()
+    got = ch.download_package(tmp_path / "dl")
+    assert got.ok, got
+    assert got.reason is ch.Reason.PACKAGE_READY
+    assert (got.path / "CH341SER" / "CH341SER.INF").is_file()
     assert not (tmp_path / "dl" / "CH341SER.zip.part").exists()
 
 
@@ -926,17 +965,24 @@ def test_download_package_promises_only_what_it_checked(tmp_path, monkeypatch):
     """No `Content-Length`, no `ETag`, no `Last-Modified`, no checksum, no
     versioned URL. ChromIQ can say "we checked what arrived" and never "we know
     what we asked for".
+
+    `PACKAGE_READY` is named for exactly that and is NOT `PACKAGE_VERIFIED`:
+    the promise the window makes lives in `ui/dialogs/settings_dialog.py`,
+    where it can be translated, and this result carries only the folder to
+    point `inspect_package` at.
     """
     payload = _zip_bytes({"CH341SER/CH341SER.INF": b"[Version]"})
     monkeypatch.setattr(ch, "_open_url", lambda url: _Reader([payload]))
-    _, _, why = ch.download_package(tmp_path / "dl")
-    assert "not yet checked whether it is the right driver" in why
+    got = ch.download_package(tmp_path / "dl")
+    assert got.reason is ch.Reason.PACKAGE_READY
+    assert got.path is not None and got.path.is_dir()
 
 
 def test_a_failed_download_leaves_nothing_behind(tmp_path, monkeypatch):
     monkeypatch.setattr(ch, "_open_url", lambda url: _Reader([_SPRING_ERROR]))
-    ok, folder, why = ch.download_package(tmp_path / "dl")
-    assert not ok and folder is None
+    got = ch.download_package(tmp_path / "dl")
+    assert not got.ok and got.path is None
+    assert got.reason is ch.Reason.NOT_A_ZIP
     assert list((tmp_path / "dl").iterdir()) == []
 
 
@@ -949,9 +995,9 @@ def test_a_stale_extraction_is_removed_not_replaced(tmp_path, monkeypatch):
     (stale / "leftover.txt").write_text("old", encoding="utf-8")
     payload = _zip_bytes({"CH341SER/CH341SER.INF": b"[Version]"})
     monkeypatch.setattr(ch, "_open_url", lambda url: _Reader([payload]))
-    ok, folder, why = ch.download_package(tmp_path / "dl")
-    assert ok, why
-    assert not (folder / "leftover.txt").exists()
+    got = ch.download_package(tmp_path / "dl")
+    assert got.ok, got
+    assert not (got.path / "leftover.txt").exists()
 
 
 def test_a_tls_failure_says_why_and_offers_the_manual_route(tmp_path, monkeypatch):
@@ -963,20 +1009,25 @@ def test_a_tls_failure_says_why_and_offers_the_manual_route(tmp_path, monkeypatc
         raise OSError("CERTIFICATE_VERIFY_FAILED: unable to get local issuer")
 
     monkeypatch.setattr(ch, "_open_url", boom)
-    ok, folder, why = ch.download_package(tmp_path / "dl")
-    assert not ok
-    assert "company or school network" in why
-    assert "in your browser" in why
+    got = ch.download_package(tmp_path / "dl")
+    assert not got.ok
+    assert got.reason is ch.Reason.TLS_UNTRUSTED, (
+        "a MITM proxy must not be reported as an unreachable network")
+    assert "CERTIFICATE_VERIFY_FAILED" in got.detail
 
 
-def test_a_network_failure_still_offers_the_manual_route(tmp_path, monkeypatch):
+def test_a_network_failure_is_told_apart_from_an_inspected_connection(
+        tmp_path, monkeypatch):
+    """Both offer the do-it-yourself route; only one of them is worth telling
+    the user their network is the reason."""
     def boom(url):
         raise OSError("getaddrinfo failed")
 
     monkeypatch.setattr(ch, "_open_url", boom)
-    ok, _, why = ch.download_package(tmp_path / "dl")
-    assert not ok
-    assert "download" in why.lower() and "in your browser" in why
+    got = ch.download_package(tmp_path / "dl")
+    assert not got.ok
+    assert got.reason is ch.Reason.UNREACHABLE
+    assert "getaddrinfo" in got.detail
 
 
 def test_the_updater_fetch_helper_is_not_reused():
@@ -991,27 +1042,38 @@ def test_the_updater_fetch_helper_is_not_reused():
 # ---------------------------------------------------------------------------
 # pnputil: exit codes only
 # ---------------------------------------------------------------------------
-@pytest.mark.parametrize("code,ok,must_say", [
-    (0, True, "accepted"),
-    (3010, True, "restart"),
-    (1223, False, "No"),
-    (5, False, "permission"),
-    (2, False, "could not read"),
-    (87, False, "invalid"),
-    (259, False, "unplug"),
-    (12345, False, "12345"),
+@pytest.mark.parametrize("code,outcome,reason", [
+    (0, "OK", "DRIVER_ACCEPTED"),
+    (3010, "REBOOT_REQUIRED", "REBOOT_TO_FINISH"),
+    (1223, "USER_CANCELLED", "CANCELLED_AT_PROMPT"),
+    (5, "ACCESS_DENIED", "NO_PERMISSION"),
+    (2, "FAILED", "PACKAGE_UNREADABLE"),
+    (87, "FAILED", "PACKAGE_INVALID"),
+    (259, "NO_OP", "NOTHING_TO_APPLY"),
+    (12345, "FAILED", "UNKNOWN_EXIT"),
 ])
-def test_every_exit_code_gets_its_own_answer(code, ok, must_say):
-    """Five states used to collapse into "failed or was cancelled"."""
-    got_ok, text = ch.describe_exit_code(code)
-    assert got_ok is ok
-    assert must_say in text
+def test_every_exit_code_gets_its_own_answer(code, outcome, reason):
+    """Five states used to collapse into "failed or was cancelled", and then
+    into a `(bool, str)` where 3010's `True` sent the flow off to look for a COM
+    port that could not be there yet."""
+    got = ch.describe_exit_code(code)
+    assert got.outcome is getattr(ch.Outcome, outcome)
+    assert got.reason is getattr(ch.Reason, reason)
+    assert got.code == code
 
 
 def test_the_exit_code_answers_are_all_different():
-    texts = [ch.describe_exit_code(c)[1]
-             for c in (0, 3010, 1223, 5, 2, 87, 259)]
-    assert len(set(texts)) == len(texts)
+    reasons = [ch.describe_exit_code(c).reason
+               for c in (0, 3010, 1223, 5, 2, 87, 259)]
+    assert len(set(reasons)) == len(reasons)
+
+
+def test_only_exit_zero_is_a_plain_success():
+    """`bool(result)` is `Outcome.OK` and nothing else. 3010 being truthy is
+    what put the restart sentence under "there is still no COM port"."""
+    assert bool(ch.describe_exit_code(0))
+    for code in (3010, 1223, 5, 2, 87, 259, 12345):
+        assert not ch.describe_exit_code(code), code
 
 
 def test_no_pnputil_output_is_ever_parsed():
@@ -1044,9 +1106,12 @@ def windows_install(monkeypatch, tmp_path):
     calls: list[tuple[Path, str]] = []
     monkeypatch.setattr(sys, "platform", "win32")
     monkeypatch.setattr(ch, "_pnputil_path", lambda: Path(r"C:\Windows\System32\pnputil.exe"))
-    monkeypatch.setattr(ch, "_run_elevated",
-                        lambda tool, params, **kw: (calls.append((tool, params)),
-                                                    (True, "ok"))[1])
+    monkeypatch.setattr(
+        ch, "_run_elevated",
+        lambda tool, params, **kw: (
+            calls.append((tool, params)),
+            ch.DriverResult(ch.Outcome.OK, ch.Reason.DRIVER_ACCEPTED, code=0),
+        )[1])
     return calls
 
 
@@ -1060,8 +1125,8 @@ def test_a_path_with_a_space_is_quoted(tmp_path, monkeypatch, windows_install):
                         lambda folder: ch.PackageVerdict(
                             True, inf, "fine", "CH341SER_Inst.NTARM64",
                             "CH341M64.SYS"))
-    ok, why = ch.install(inf)
-    assert ok, why
+    got = ch.install(inf)
+    assert got.ok, got
     (_tool, params), = windows_install
     assert params == f'/add-driver "{inf}" /install'
     assert "WIN 1X" in params
@@ -1077,9 +1142,11 @@ def test_the_package_is_re_verified_immediately_before_elevating(
     monkeypatch.setattr(ch, "inspect_package",
                         lambda folder: ch.PackageVerdict(
                             False, inf, "it changed under us", None, None))
-    ok, why = ch.install(inf)
-    assert not ok
-    assert "it changed under us" in why
+    got = ch.install(inf)
+    assert not got.ok
+    assert got.reason is ch.Reason.PACKAGE_REJECTED
+    assert "it changed under us" in got.detail, (
+        "the verdict's own words have to reach the window that quotes them")
     assert windows_install == [], "nothing may be elevated after a failed re-check"
 
 
@@ -1092,8 +1159,9 @@ def test_installing_an_inf_the_check_did_not_approve_is_refused(
     monkeypatch.setattr(ch, "inspect_package",
                         lambda folder: ch.PackageVerdict(
                             True, good, "fine", "x", "y"))
-    ok, why = ch.install(bad)
-    assert not ok
+    got = ch.install(bad)
+    assert not got.ok
+    assert got.reason is ch.Reason.INF_MISMATCH
     assert windows_install == []
 
 
@@ -1102,23 +1170,23 @@ def test_a_quotation_mark_in_the_path_is_refused(tmp_path, monkeypatch,
     """One `"` in a folder name would end the quoted argument early and hand
     pnputil something else entirely.
     """
-    ok, why = ch.install(tmp_path / 'we"ird' / "CH341SER.INF")
-    assert not ok
-    assert "quotation mark" in why
+    got = ch.install(tmp_path / 'we"ird' / "CH341SER.INF")
+    assert not got.ok
+    assert got.reason is ch.Reason.PATH_HAS_QUOTE
     assert windows_install == []
 
 
 def test_a_vanished_inf_is_refused(tmp_path, monkeypatch, windows_install):
-    ok, why = ch.install(tmp_path / "gone" / "CH341SER.INF")
-    assert not ok
-    assert "Nothing was changed" in why
+    got = ch.install(tmp_path / "gone" / "CH341SER.INF")
+    assert not got.ok
+    assert got.reason is ch.Reason.INF_MISSING
     assert windows_install == []
 
 
 def test_install_refuses_off_windows(monkeypatch, tmp_path):
     monkeypatch.setattr(sys, "platform", "linux")
-    ok, why = ch.install(tmp_path / "x.inf")
-    assert not ok and "Windows" in why
+    got = ch.install(tmp_path / "x.inf")
+    assert not got.ok and got.reason is ch.Reason.NOT_WINDOWS
 
 
 def test_elevation_is_shellexecuteexw_not_powershell():
@@ -1140,14 +1208,17 @@ def test_the_wait_result_is_not_discarded():
     assert "wait != WAIT_OBJECT_0" in src
 
 
-def test_the_three_elevation_refusals_are_three_different_sentences():
+def test_the_three_elevation_refusals_are_three_different_outcomes():
     """`ConsentPromptBehaviorUser = 0` — a normal managed-desktop setting —
-    means ShellExecuteExW fails with no prompt at all. "Failed or was
-    cancelled" describes three different situations.
+    means ShellExecuteExW fails with NO PROMPT AT ALL. "Failed or was
+    cancelled" describes three different situations, and they used to be told
+    apart by three different English sentences.
     """
     src = inspect.getsource(ch._run_elevated)
     assert "ERROR_CANCELLED" in src and "ERROR_ACCESS_DENIED" in src
-    assert src.count("Nothing was changed") >= 2
+    assert "Reason.CANCELLED_AT_PROMPT" in src
+    assert "Reason.ELEVATION_REFUSED" in src
+    assert "Reason.ELEVATION_FAILED" in src
 
 
 # ---------------------------------------------------------------------------
@@ -1156,9 +1227,10 @@ def test_the_three_elevation_refusals_are_three_different_sentences():
 def test_a_port_appearing_for_an_unbound_instance_is_success(monkeypatch):
     before = [ch.DeviceState(CR30, "1a86", "7523", None, ch.Status.NO_DRIVER)]
     _fake_devices(monkeypatch, {CR30: "COM5"})
-    ok, why = ch.verify_bound(before)
-    assert ok
-    assert "COM5" in why
+    got = ch.verify_bound(before)
+    assert got.ok
+    assert got.reason is ch.Reason.PORT_APPEARED
+    assert got.name == "COM5", "the window has to be able to name the port"
 
 
 def test_a_port_that_was_already_there_is_not_success(monkeypatch):
@@ -1168,9 +1240,12 @@ def test_a_port_that_was_already_there_is_not_success(monkeypatch):
     """
     before = [ch.DeviceState(CR30, "1a86", "7523", "COM5", ch.Status.WORKING)]
     _fake_devices(monkeypatch, {CR30: "COM5"})
-    ok, why = ch.verify_bound(before)
-    assert not ok
-    assert "Nothing needed fixing" in why
+    got = ch.verify_bound(before)
+    assert not got.ok
+    assert got.reason is ch.Reason.NOTHING_TO_CHECK
+    assert got.outcome is ch.Outcome.NO_OP, (
+        "nothing to judge is not the same as a failed install")
+    assert got.name == "COM5"
 
 
 def test_a_working_second_device_cannot_disguise_a_failure(monkeypatch):
@@ -1182,42 +1257,48 @@ def test_a_working_second_device_cannot_disguise_a_failure(monkeypatch):
         ch.DeviceState(CR30, "1a86", "7523", None, ch.Status.NO_DRIVER),
     ]
     _fake_devices(monkeypatch, {OTHER: "COM3", CR30: None})
-    ok, why = ch.verify_bound(before)
-    assert not ok
+    got = ch.verify_bound(before)
+    assert not got.ok
+    assert got.reason is ch.Reason.STILL_NO_PORT
 
 
 def test_it_still_fails_when_the_driver_installed_but_did_not_bind(monkeypatch):
     """The original bug: a driver can install and not bind."""
     before = [ch.DeviceState(CR30, "1a86", "7523", None, ch.Status.NO_DRIVER)]
     _fake_devices(monkeypatch, {CR30: None})
-    ok, why = ch.verify_bound(before)
-    assert not ok
-    assert "unplug" in why and "restart" in why
+    got = ch.verify_bound(before)
+    assert not got.ok
+    assert got.outcome is ch.Outcome.FAILED
+    assert got.reason is ch.Reason.STILL_NO_PORT
 
 
 def test_unplugged_mid_flow_says_so_rather_than_claiming_failure(monkeypatch):
     before = [ch.DeviceState(CR30, "1a86", "7523", None, ch.Status.NO_DRIVER)]
     _fake_devices(monkeypatch, {})
-    ok, why = ch.verify_bound(before)
-    assert not ok
-    assert "unplugged" in why
-    assert "nothing was removed or replaced" in why.lower()
+    got = ch.verify_bound(before)
+    assert not got.ok
+    assert got.reason is ch.Reason.UNPLUGGED_MID_FLOW
+    assert got.outcome is ch.Outcome.NO_OP, (
+        "an adapter that left is not a driver that failed")
 
 
 def test_nothing_attached_at_all(monkeypatch):
     _fake_devices(monkeypatch, {})
-    ok, why = ch.verify_bound([])
-    assert not ok
-    assert "Plug the instrument in" in why
+    got = ch.verify_bound([])
+    assert not got.ok
+    assert got.reason is ch.Reason.NOTHING_ATTACHED
+    assert got.outcome is ch.Outcome.NO_OP
 
 
 def test_the_failure_message_does_not_send_the_user_to_roll_back_driver():
     """Roll Back Driver is GREYED OUT for a device that never had a driver, and
     that device is this feature's entire user.
     """
-    src = inspect.getsource(ch.verify_bound)
-    assert "Roll Back" in src, "the dead end must be named, so nobody chases it"
-    assert "will not help" in src
+    from ui.dialogs import settings_dialog as sd
+    text, _ = sd.serial_outcome_text(stage="not_bound", folder="F")
+    assert "Roll Back" in text, (
+        "the dead end must be named, so nobody chases it")
+    assert "will not help" in text
 
 
 def test_no_message_ever_claims_a_cr30_is_attached():
@@ -1239,7 +1320,7 @@ def test_every_entry_point_is_safe_off_windows(monkeypatch, tmp_path):
     assert ch.machine_arch() == ""
     assert ch._port_for_instance(CR30) is None
     assert ch._present_usb_instance_ids() == []
-    assert not ch.install(tmp_path / "x.inf")[0]
+    assert not ch.install(tmp_path / "x.inf").ok
     assert not ch.verify_catalog(tmp_path / "x.cat", [])[0]
     verdict = ch.inspect_package(tmp_path)
     assert not verdict.ok

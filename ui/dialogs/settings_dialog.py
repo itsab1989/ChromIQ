@@ -483,20 +483,6 @@ def usb_install_outcome(*, wdi_available: bool, ran_ok: bool,
 #: inline before the window grew a second section and a second flow.
 _DRIVER_ACCENT = "#56d6a5"
 
-#: How `core.ch34x_driver.install()` opens its sentence when the user answered
-#: No at the Windows permission prompt — from both places that can produce it
-#: (the 1223 exit code, and ShellExecuteExW returning ERROR_CANCELLED).
-#:
-#: ⚠ THIS IS A STRING MATCH ON ANOTHER MODULE'S PROSE, and it is here because
-#: the agreed interface returns `(bool, str)` with no machine-readable code. A
-#: cancelled install is not a failed one — the user chose it, nothing is wrong,
-#: and answering them with a wall of recovery advice would be rude and
-#: confusing. `tests/test_usb_driver_dialog.py` asserts that the real module
-#: still says this, so the day it is reworded, a test says so rather than the
-#: user quietly getting the wrong window.
-_CANCELLED_PREFIX = "You said No to the Windows permission prompt"
-
-
 def _let_paths_wrap(text: str) -> str:
     """Give a Windows path somewhere to break, so it cannot clip the window.
 
@@ -540,11 +526,6 @@ def _make_the_safe_button_the_default(dlg, safe) -> None:
     if safe is not None:
         safe.setAutoDefault(True)
         safe.setDefault(True)
-
-
-def _install_was_cancelled(reason: str) -> bool:
-    """Did the user stop the install at the Windows prompt, rather than it failing?"""
-    return str(reason).startswith(_CANCELLED_PREFIX)
 
 
 #: WCH's own page for the ZIP package. Deliberately the ZIP page and NOT the
@@ -811,13 +792,220 @@ def serial_manual_route_text(folder: str) -> str:
     ).format(folder=folder)
 
 
+# ---------------------------------------------------------------------------
+# Core says WHAT happened; this file says it in words
+# ---------------------------------------------------------------------------
+#
+# **THE PROSE USED TO COME OUT OF `core/ch34x_driver.py` AND BE PRINTED HERE
+# VERBATIM.** That one decision produced three faults, all of them visible:
+#
+# 1. **A window that contradicted itself.** `pnputil` exit 3010 means "accepted,
+#    restart to finish". Core said so — in a `(True, "…restart…")` pair — so the
+#    flow read the `True`, went on to `verify_bound`, found no COM port (there
+#    cannot be one for a driver that is staged and not yet live) and printed
+#    core's restart sentence UNDERNEATH the heading *"Everything ChromIQ could
+#    check passed, and there is still no COM port."* Two incompatible statements
+#    in one window. 3010 now has its own window and its own heading.
+# 2. **English inside the German window.** Five German paragraphs and then
+#    *"Windows refused the change. This normally means the account does not have
+#    permission…"*. A sentence composed in core cannot be translated: it is in no
+#    catalogue and there is no key to translate it under.
+# 3. **A string match on another module's prose.** `_CANCELLED_PREFIX` compared
+#    the first words of core's English to tell "the user pressed No at the UAC
+#    prompt" from "the install failed". Rewording core changed which window a
+#    user got; translating core would have broken it outright. It is gone, and
+#    nothing in this file branches on English text any more.
+#
+# `core.ch34x_driver` now returns a `DriverResult` — an `Outcome`, a `Reason`,
+# and the few values a sentence needs. The outcome picks the heading; the reason
+# picks the body; every word of both is `tr()`-ed here.
+
+
+#: Reasons that have a WINDOW of their own rather than a sentence inside one.
+#: `Reason.PORT_APPEARED` is the whole `bound` window, `STILL_NO_PORT` is the
+#: `not_bound` window's heading, `CANCELLED_AT_PROMPT` is the `cancelled`
+#: window, `REBOOT_TO_FINISH` is the `reboot` window — printing their sentence
+#: as well would say the same thing twice, which is how the 3010 window came to
+#: contradict itself in the first place. The rest never reach a user at all:
+#: they are the intermediate successes of a flow that carries on.
+#:
+#: `tests/test_usb_driver_dialog.py` asserts that this set plus the sentences
+#: below cover `Reason` EXACTLY, so a member added to core with nothing to say
+#: fails a test instead of showing the user an empty paragraph.
+_REASONS_WITH_THEIR_OWN_WINDOW = frozenset({
+    "DOWNLOADED", "UNPACKED", "PACKAGE_READY", "DRIVER_ACCEPTED",
+    "REBOOT_TO_FINISH", "PORT_APPEARED", "STILL_NO_PORT",
+    "CANCELLED_AT_PROMPT",
+})
+
+
+def serial_reason_text(result) -> str:
+    """The one sentence that says WHICH thing happened, in the reader's language.
+
+    *result* is a `core.ch34x_driver.DriverResult`, or anything carrying the
+    same `reason` / `code` / `path` / `name` / `count` / `detail` fields. The
+    return is "" for a reason that has its own window (see above) and for
+    anything unrecognised — never a fallback sentence, because a fallback is how
+    a wrong explanation reaches a user quietly.
+
+    `detail` is quoted rather than paraphrased: it holds words ChromIQ did not
+    compose — an `OSError`, a Windows error text, or (for `PACKAGE_REJECTED`)
+    `PackageVerdict.reason`, which is the one prose surface this refactor did
+    not reach. See the note in `_serial_check_and_install`.
+    """
+    name = getattr(result, "reason", None)
+    key = getattr(name, "name", "")
+    code = getattr(result, "code", None)
+    path = str(getattr(result, "path", "") or "")
+    label = str(getattr(result, "name", "") or "")
+    count = getattr(result, "count", 0) or 0
+    detail = str(getattr(result, "detail", "") or "")
+    check_again = _in_prose(_label_check_again())
+
+    if key in _REASONS_WITH_THEIR_OWN_WINDOW:
+        return ""
+
+    # --- getting the package ---------------------------------------------
+    if key == "STAGING_UNWRITABLE":
+        return tr("ChromIQ could not create the folder it wanted to download "
+                  "into ({folder}): {error}").format(folder=path, error=detail)
+    if key == "TLS_UNTRUSTED":
+        return tr("ChromIQ could not confirm it was really talking to WCH's "
+                  "website. That normally happens on a company or school "
+                  "network that inspects secure connections.")
+    if key == "UNREACHABLE":
+        return tr("ChromIQ could not reach WCH's website ({error}).").format(
+            error=detail)
+    if key == "DOWNLOAD_TOO_SLOW":
+        return tr("The download was taking too long, so ChromIQ stopped it. "
+                  "Please check your internet connection and try again.")
+    if key == "DOWNLOAD_TOO_BIG":
+        return tr("What the website sent back is far bigger than WCH's driver "
+                  "package, so ChromIQ stopped the download instead of saving "
+                  "it.")
+    if key == "NOT_A_ZIP":
+        return tr("The website did not send a .zip file. That usually means a "
+                  "sign-in page or a proxy answered instead of WCH.")
+    if key == "EMPTY_RESPONSE":
+        return tr("The website sent nothing that looks like a .zip file.")
+    if key == "SAVE_FAILED":
+        return tr("The download could not be saved: {error}").format(
+            error=detail)
+
+    # --- what was in the archive -----------------------------------------
+    if key == "ARCHIVE_DAMAGED":
+        return tr("The downloaded file is damaged — “{name}” inside it is "
+                  "corrupt. Please try again.").format(name=label)
+    if key == "ARCHIVE_UNREADABLE":
+        return tr("The downloaded file is not a readable .zip.")
+    if key == "ARCHIVE_TOO_MANY_ENTRIES":
+        return tr("That .zip contains {count} items, far more than a driver "
+                  "package. ChromIQ did not unpack it.").format(count=count)
+    if key == "ARCHIVE_UNSAFE_PATH":
+        return tr("That .zip contains an item with an unsafe path (“{name}”). "
+                  "ChromIQ did not unpack it.").format(name=label)
+    if key == "ARCHIVE_SYMLINK":
+        return tr("That .zip contains a symbolic link (“{name}”), which a "
+                  "driver package never needs. ChromIQ did not unpack "
+                  "it.").format(name=label)
+    if key == "ARCHIVE_ESCAPES":
+        return tr("That .zip tries to write outside the folder ChromIQ chose "
+                  "(“{name}”). It was not unpacked.").format(name=label)
+    if key == "ARCHIVE_TOO_BIG":
+        return tr("That .zip unpacks to far more than a driver package. "
+                  "ChromIQ did not unpack it.")
+    if key == "ARCHIVE_EMPTY":
+        return tr("That .zip is empty.")
+    if key == "UNPACK_FAILED":
+        return tr("The download could not be unpacked: {error}").format(
+            error=detail)
+
+    # --- refused before anything was elevated -----------------------------
+    if key == "NOT_WINDOWS":
+        return tr("Drivers can only be installed on Windows.")
+    if key == "PATH_HAS_QUOTE":
+        return tr("That folder's name contains a quotation mark, which "
+                  "Windows' driver installer cannot be given safely. Please "
+                  "move the driver folder somewhere with a simpler name and "
+                  "try again.")
+    if key == "INF_MISSING":
+        return tr("ChromIQ cannot find “{path}” any more.").format(path=path)
+    if key == "PACKAGE_REJECTED":
+        return tr("ChromIQ re-checked the driver package immediately before "
+                  "installing it and no longer trusts it: {detail}").format(
+                      detail=detail)
+    if key == "INF_MISMATCH":
+        return tr("ChromIQ re-checked the driver package immediately before "
+                  "installing it, and the file it approved is not the one it "
+                  "was asked to install.")
+    if key == "NO_PNPUTIL":
+        return tr("Windows' driver installer (pnputil.exe) is not on this "
+                  "computer, so ChromIQ cannot install the driver.")
+
+    # --- the elevation itself ---------------------------------------------
+    if key == "ELEVATION_FAILED":
+        return tr("Windows could not start its driver installer (error "
+                  "{code}).").format(code=code)
+    if key == "ELEVATION_REFUSED":
+        return tr("Windows refused to ask for your permission at all. On a "
+                  "managed computer that usually means an administrator has "
+                  "switched that prompt off, so please ask whoever looks after "
+                  "this computer to install the driver.")
+    if key == "STILL_RUNNING":
+        return tr("Windows' driver installer is still working after {seconds} "
+                  "seconds. ChromIQ has stopped waiting, but it has "
+                  "<b>not</b> stopped the installation — nothing was undone. "
+                  "Give it a moment, then use <b>{button}</b>.").format(
+                      seconds=count, button=check_again)
+    if key == "LOST_TRACK":
+        return tr("ChromIQ lost track of Windows' driver installer, so it "
+                  "cannot say what happened. Use <b>{button}</b> to find "
+                  "out.").format(button=check_again)
+
+    # --- what pnputil answered --------------------------------------------
+    if key == "NOTHING_TO_APPLY":
+        return tr("Windows took the driver package but found no device to use "
+                  "it on. If the instrument is plugged in, unplug it, wait a "
+                  "few seconds and plug it back in.")
+    if key == "NO_PERMISSION":
+        return tr("Windows refused the change. That normally means this "
+                  "account may not install drivers, or a company policy "
+                  "forbids it.")
+    if key == "PACKAGE_UNREADABLE":
+        return tr("Windows could not read the driver package.")
+    if key == "PACKAGE_INVALID":
+        return tr("Windows rejected the driver package as invalid.")
+    if key == "UNKNOWN_EXIT":
+        return tr("Windows' driver installer stopped with an error (code "
+                  "{code}).").format(code=code)
+
+    # --- looking for the COM port afterwards ------------------------------
+    if key == "UNPLUGGED_MID_FLOW":
+        return tr("The adapter was unplugged while ChromIQ was working, so "
+                  "there is nothing to look at. Plug it back in and use "
+                  "<b>{button}</b>.").format(button=check_again)
+    if key == "NOTHING_TO_CHECK":
+        return tr("Every USB-to-serial adapter ChromIQ can see already had a "
+                  "COM port before this started ({ports}), so there is no "
+                  "change for ChromIQ to point at.").format(ports=label)
+    if key == "NOTHING_ATTACHED":
+        return tr("ChromIQ cannot see any USB-to-serial adapter at all, so "
+                  "there is nothing to look at. Plug the instrument in and use "
+                  "<b>{button}</b>.").format(button=check_again)
+
+    return ""
+
+
 def serial_outcome_text(*, stage: str, detail: str = "", folder: str = "",
                         ports: str = "") -> "tuple[str, bool]":
     """What the attempt came to, and whether to offer the folder route again.
 
-    *stage* is one of ``bound``, ``not_bound``, ``install_failed``,
-    ``cancelled``, ``package_rejected``, ``download_failed``. *detail* is the
-    plain-language reason from ``core.ch34x_driver``.
+    *stage* is one of ``bound``, ``reboot``, ``not_bound``, ``cannot_tell``,
+    ``nothing_applied``, ``install_failed``, ``cancelled``,
+    ``package_rejected``, ``download_failed`` — and it is chosen from
+    ``DriverResult.outcome``, never from what a sentence happens to say.
+    *detail* is `serial_reason_text(result)`: one already-translated sentence,
+    or "" when the stage's own heading is that sentence.
     """
     if stage == "bound":
         return ("<br><br>".join([
@@ -834,21 +1022,64 @@ def serial_outcome_text(*, stage: str, detail: str = "", folder: str = "",
                "and it will find the port on its own."),
         ]), False)
 
+    if stage == "reboot":
+        # **3010 GETS ITS OWN WINDOW, AND THAT IS THE WHOLE POINT.** It used to
+        # land in `not_bound` below — because core answered "restart required"
+        # as a TRUTHY (bool, str) pair, the flow read the bool, went on to look
+        # for a COM port that cannot exist yet, and printed core's sentence
+        # about restarting underneath the heading "Everything ChromIQ could
+        # check passed, and there is still no COM port." The user was told two
+        # incompatible things in one window and given three pieces of advice,
+        # none of which was the one that works.
+        return ("<br><br>".join([
+            tr("<b>Windows has accepted the driver and needs a restart to "
+               "finish switching it on.</b>"),
+            tr("That is an ordinary answer from Windows, not a fault. The "
+               "driver is on the computer and the package was checked and "
+               "accepted — but until the computer restarts, Windows will not "
+               "finish attaching it, so no COM port appears and ChromIQ still "
+               "cannot reach the instrument."),
+            tr("<b>Restart the computer, then plug the instrument back in.</b> "
+               "After that, come back to this window and use <b>{button}</b>: "
+               "ChromIQ will look for the COM port and tell you whether it is "
+               "there.").format(button=_in_prose(_label_check_again())),
+            tr("Nothing was removed or replaced, so there is nothing to undo — "
+               "whether you restart now or later."),
+        ]), False)
+
+    if stage == "cannot_tell":
+        # Windows accepted the driver and there was nothing for ChromIQ to
+        # judge: the adapter was unplugged mid-flow, or nothing was unbound to
+        # begin with. Saying "everything passed and there is still no COM port"
+        # about that would be a second self-contradicting window.
+        return ("<br><br>".join([x for x in [
+            tr("<b>ChromIQ cannot tell you whether that worked.</b>"),
+            detail,
+            tr("Windows accepted the driver, and nothing on your computer was "
+               "removed or replaced. Plug the instrument in, then use "
+               "<b>{button}</b> — ChromIQ will look for its COM port and say "
+               "what it finds.").format(button=_in_prose(_label_check_again())),
+        ] if x]), False)
+
+    if stage == "nothing_applied":
+        # pnputil 259: the package went into the driver store and Windows found
+        # no device to apply it to. "Windows did not install the package" would
+        # be wrong — it did — and "there is still no COM port" would be the
+        # 3010 mistake again.
+        return ("<br><br>".join([x for x in [
+            tr("<b>Windows added the driver package but did not attach it to "
+               "anything.</b>"),
+            detail,
+            tr("Nothing on your computer was changed."),
+            serial_manual_route_text(folder),
+        ] if x]), False)
+
     if stage == "not_bound":
-        # `detail` is what core actually learned, and it used to be accepted as
-        # a parameter here and then dropped on the floor — so exit 3010's
-        # "Windows accepted the driver and needs a restart to finish switching
-        # it on" and verify_bound's "the adapter was unplugged while ChromIQ was
-        # working" were both replaced by three pieces of generic advice, none of
-        # which is the one thing that would have worked. It leads now, before
-        # the general steps, because it is the more specific answer.
-        #
-        # The ROUTING is still wrong for 3010 and this does not fix that:
-        # `describe_exit_code(3010).ok` is True, so the flow goes on to
-        # `verify_bound`, which of course finds no port for a driver that is
-        # staged rather than live, and lands here. Telling those apart needs the
-        # machine-readable outcome from core that 07 asked for; matching on
-        # core's English prose is the fragility this branch already carries once.
+        # `detail` is whatever ELSE ChromIQ learned. It is usually "" now: the
+        # cases that had something specific to say — a restart is needed, the
+        # adapter was unplugged, there was nothing to judge — are their own
+        # windows above, and repeating this window's heading in its own body is
+        # what the 3010 window did.
         return ("<br><br>".join([x for x in [
             tr("<b>Everything ChromIQ could check passed, and there is still "
                "no COM port.</b>"),
@@ -878,6 +1109,16 @@ def serial_outcome_text(*, stage: str, detail: str = "", folder: str = "",
                "socket."),
             tr("Nothing has been removed or replaced, so there is nothing to "
                "undo. Whatever your computer had before, it still has."),
+            # THE DEAD END, NAMED SO NOBODY CHASES IT. Device Manager's Roll
+            # Back Driver is greyed out unless the device already had a working
+            # driver once — and the person reading this is by definition the
+            # person whose instrument never had one. This sentence used to live
+            # in `core.ch34x_driver.verify_bound`'s prose, which is why it is
+            # here now: it is a thing to SAY, and saying things is this file's
+            # job. `tests/test_ch34x_driver.py` asks this window for it.
+            tr("Device Manager's <b>Roll Back Driver</b> will not help here — "
+               "it is greyed out for a device that never had a driver to roll "
+               "back to."),
         ] if x]), False)
 
     if stage == "install_failed":
@@ -5365,20 +5606,20 @@ class SettingsDialog(QDialog):
             QApplication.processEvents()
 
         try:
-            ok, folder, reason = ch34x_driver.download_package(dest, progress=_tick)
+            got = ch34x_driver.download_package(dest, progress=_tick)
         finally:
             progress.close()
 
-        if not ok or folder is None:
+        if not got.ok or got.path is None:
             text, offer_folder = serial_outcome_text(
-                stage="download_failed", detail=reason)
+                stage="download_failed", detail=serial_reason_text(got))
             if self._driver_notice(tr("Instrument drivers"), text,
                                    tr("I already have the folder…")
                                    if offer_folder else None):
                 self._serial_from_folder()
             return
 
-        self._serial_check_and_install(Path(folder), before)
+        self._serial_check_and_install(Path(got.path), before)
 
     def _serial_from_folder(self) -> None:
         """The route for a package the user fetched themselves.
@@ -5415,11 +5656,31 @@ class SettingsDialog(QDialog):
         declare this machine's processor installs without a complaint and then
         never works, so it is refused BEFORE anything is elevated. And the only
         success test is a COM port that was not there before.
+
+        **THE WINDOW IS CHOSEN FROM `DriverResult.outcome`, NEVER FROM WHAT A
+        SENTENCE SAYS.** This used to read
+        `"cancelled" if _install_was_cancelled(reason) else "install_failed"`,
+        where `_install_was_cancelled` compared the first words of core's
+        English prose — so "you pressed No at the Windows prompt" and "the
+        install failed" were told apart by a string match that any rewording,
+        and any translation, would have broken silently. And 3010 ("accepted,
+        restart to finish") arrived as a TRUTHY pair, so it fell through to
+        `verify_bound` — which cannot find a port for a driver that is staged
+        rather than live — and landed on "everything passed and there is still
+        no COM port", with core's restart sentence printed underneath it.
         """
+        from core.ch34x_driver import Outcome, Reason
         from core import ch34x_driver
 
         verdict = ch34x_driver.inspect_package(folder)
         if not verdict.ok or verdict.inf_path is None:
+            # ⚠ `PackageVerdict.reason` is the one prose surface still composed
+            # in core, and it is therefore still English in a German window.
+            # It is a separate ~25-sentence catalogue of its own (every INF
+            # gate, plus WinVerifyTrust's seven trust errors) and was left out
+            # of this change deliberately rather than half-done. Nothing
+            # BRANCHES on it — it is carried as `detail` and quoted — so the
+            # fragility this commit removed is gone either way.
             text, offer_folder = serial_outcome_text(
                 stage="package_rejected", detail=verdict.reason,
                 folder=str(folder))
@@ -5429,25 +5690,36 @@ class SettingsDialog(QDialog):
                 self._serial_from_folder()
             return
 
-        ok, reason = ch34x_driver.install(verdict.inf_path)
-        if not ok:
-            stage = "cancelled" if _install_was_cancelled(reason) else "install_failed"
-            text, _ = serial_outcome_text(stage=stage, detail=reason,
-                                          folder=str(folder))
-            self._driver_notice(tr("Instrument drivers"), text)
-            return
+        done = ch34x_driver.install(verdict.inf_path)
 
-        bound, detail = ch34x_driver.verify_bound(before)
-        if bound:
-            was_unbound = {d.instance_id for d in before if d.port is None}
-            ports = ", ".join(sorted(
-                d.port for d in ch34x_driver.devices()
-                if d.port and d.instance_id in was_unbound))
-            text, _ = serial_outcome_text(stage="bound", ports=ports,
-                                          folder=str(folder))
+        if done.outcome is Outcome.USER_CANCELLED:
+            stage, detail = "cancelled", ""
+        elif done.outcome is Outcome.NO_OP:
+            stage, detail = "nothing_applied", serial_reason_text(done)
+        elif done.outcome in (Outcome.FAILED, Outcome.ACCESS_DENIED):
+            stage, detail = "install_failed", serial_reason_text(done)
         else:
-            text, _ = serial_outcome_text(stage="not_bound", detail=detail,
-                                          folder=str(folder))
+            # OK or REBOOT_REQUIRED: something was installed, so the question
+            # is now the only one that matters — is there a COM port?
+            check = ch34x_driver.verify_bound(before)
+            if check.ok:
+                text, _ = serial_outcome_text(
+                    stage="bound", ports=check.name, folder=str(folder))
+                self._driver_notice(tr("Instrument drivers"), text)
+                return
+            if done.outcome is Outcome.REBOOT_REQUIRED:
+                # A restart is the thing that will fix it; no other advice
+                # comes first.
+                stage, detail = "reboot", ""
+            elif check.reason is Reason.STILL_NO_PORT:
+                # The hard case this whole feature exists for: installed,
+                # checked, accepted — and Windows still has not attached it.
+                stage, detail = "not_bound", ""
+            else:
+                stage, detail = "cannot_tell", serial_reason_text(check)
+
+        text, _ = serial_outcome_text(stage=stage, detail=detail,
+                                      folder=str(folder))
         self._driver_notice(tr("Instrument drivers"), text)
 
     def _show_usb_installer(self) -> None:
