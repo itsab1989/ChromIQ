@@ -389,6 +389,96 @@ def enumerate_connected() -> list[UsbDevice]:
     return attached_devices(_registry_usb_entries(), present_usb_instance_ids())
 
 
+# ---------------------------------------------------------------------------
+# The command line, built where a test can read it
+# ---------------------------------------------------------------------------
+#
+# `--driver` IS NOT AN OPTION OF wdi-simple, AND NEVER WAS. This read
+# `--driver WinUSB` until 2026-09-06, and wdi-simple answers an unknown long
+# option by printing its usage and exiting ZERO — which `install_winusb()`
+# returned as success. Measured against a real driverless i1Studio: the app
+# reported the install had succeeded, and `setupapi.dev.log` recorded nothing
+# whatever. It had never installed a driver for any instrument, on any
+# architecture, for as long as the feature had existed.
+#
+# It survived because nothing asserted on the command line. Every test either
+# monkeypatched `install_winusb` whole or exercised the serial refusal, so the
+# string was the one part of this file no oracle could see. That is why it is
+# a named function now:
+# `tests/test_the_driver_installer_speaks_wdi_simples_language.py` checks every
+# option it emits against wdi-simple's OWN usage text, so an option libwdi does
+# not have cannot survive a run.
+
+#: wdi-simple's `-t/--type` numbering, quoted from its usage text:
+#: "(0=WinUSB, 1=libusb-win32, 2=libusbK, 3=usbser, 4=custom)".
+#:
+#: 1, AND THE ALTERNATIVE IS NOT MERELY WORSE — IT DOES NOT WORK. ArgyllCMS
+#: reaches a USB instrument on Windows by opening the kernel device object
+#: `\\.\libusb0-%04d`, which only libusb-win32's libusb0.sys creates: that
+#: format string is the ONLY device path in `spotread.exe`, which imports no
+#: `WinUsb_*` symbol at all. Argyll's own changelog dates the switch — V1.5.0,
+#: 2013: "No longer using libusb for USB access, using native USB access
+#: instead. MSWin uses the libusb-win32 kernel driver." — and `usb/ArgyllCMS.inf`
+#: still binds `AddService = libusb0` for all 28 devices it supports. A WinUSB
+#: binding would leave `spotread` printing "** No ports found **" while Device
+#: Manager showed a healthy driver.
+#:
+#: (The two WinUSB lines in Argyll's changelog are from V1.2.0 and V1.3.3,
+#: 2010-2011, and describe the FORKED libusb-1.0 back end Argyll abandoned in
+#: V1.5.0. They do not say the shipping code speaks WinUSB. It does not.)
+WDI_DRIVER_TYPE = 1
+
+
+def driver_extraction_dir() -> Path:
+    r"""Where wdi-simple should unpack the driver package before installing it.
+
+    `--dest` IS NOT OPTIONAL, though it looks it. wdi-simple's default is the
+    RELATIVE path `usb_driver`, so the files land wherever the elevated process
+    happens to be started from — a directory this code neither chooses nor can
+    predict. Measured on the bench it resolved to `C:\Users\<user>\usb_driver`,
+    a stale x64-only tree another tool had left months earlier, and wdi-simple
+    died with `check_dir: Unable to create directory 'usb_driver'
+    (0x000000B7 ERROR_ALREADY_EXISTS)` then `Extracting driver files...
+    Access denied` (WDI_ERROR_ACCESS). Run from inside the app, whose working
+    directory differs again, the same cause surfaced as WDI_ERROR_RESOURCE,
+    because the arm64 files it needed were not in that x64-only tree.
+
+    So the value must be ABSOLUTE and must not depend on a working directory.
+    `%SystemRoot%\Temp` is that: it exists on every Windows install, it is the
+    same path for the elevated child as for us, and it does not roam.
+
+    ⚠ IT IS NOT A SECURITY BOUNDARY, WHATEVER IT LOOKS LIKE. This was first
+    written believing `Windows\Temp` was administrators-only. It is not.
+    Measured on the ARM64 bench with an unprivileged token: an ordinary user
+    can create a directory here, and the ACL the new directory inherits is
+    `BUILTIN\Users:(I)(CI)(S,WD,AD,X)` plus CREATOR OWNER full control — so
+    whoever creates `chromiq-wdi` OWNS everything wdi-simple later extracts
+    into it, including the `installer_x64.exe` / `installer_arm64.exe` that the
+    ELEVATED process then runs. Both were openable for writing from a normal
+    shell. A user-writable destination and this one are equally exposed; do not
+    add a check here and think the gap is closed. See A8_wdi_hardening.md.
+    """
+    return Path(os.environ.get("SystemRoot", r"C:\Windows")) / "Temp" / "chromiq-wdi"
+
+
+def wdi_simple_args(device: UsbDevice) -> str:
+    """The exact command line `install_winusb()` hands to wdi-simple.
+
+    Split out so the arguments can be asserted on without launching anything —
+    see the note above for what the absence of that assertion cost.
+
+    `--vid` / `--pid` carry the `0x` prefix wdi-simple's usage demands ("use 0x
+    prefix for hex"): without it 0765 is read as decimal 765 and the installer
+    binds a driver to a device that does not exist. `--name` is quoted because
+    every name in `KNOWN_COLORIMETERS` contains spaces.
+    """
+    return (
+        f'--vid 0x{device.vid} --pid 0x{device.pid} '
+        f'--name "{device.name}" '
+        f'--type {WDI_DRIVER_TYPE} --dest "{driver_extraction_dir()}"'
+    )
+
+
 def install_winusb(device: UsbDevice) -> bool:
     """Install the WinUSB driver for *device* via wdi-simple (elevated UAC).
 
@@ -411,42 +501,7 @@ def install_winusb(device: UsbDevice) -> bool:
         log.error("wdi-simple not found or empty at %s", wdi)
         return False
 
-    # `--driver` IS NOT AN OPTION OF wdi-simple, AND NEVER WAS. This read
-    # `--driver WinUSB` until 2026-09-06, and wdi-simple answers an unknown
-    # long option by printing its usage and exiting ZERO — which this function
-    # returned as success. Measured against a real driverless i1Studio: the
-    # app reported the install had succeeded, and `setupapi.dev.log` recorded
-    # nothing whatever. It had never installed a driver for any instrument.
-    #
-    # The real option is `-t/--type <n>`: 0=WinUSB, 1=libusb-win32, 2=libusbK,
-    # 3=usbser, 4=custom. We ask for 1 because that is the driver ArgyllCMS
-    # installs itself — `usb/ArgyllCMS.inf` binds `AddService = libusb0` for
-    # all 28 of the devices it supports — so this puts the instrument in the
-    # configuration Argyll ships and tests. Argyll works with WinUSB.sys too
-    # (its own changelog says so), so 0 is defensible; 1 is what is proven.
-    # AND `--dest` IS NOT OPTIONAL EITHER, though it looks it. wdi-simple's
-    # default extraction directory is the RELATIVE path `usb_driver`, so the
-    # driver files land wherever the elevated process happens to be started
-    # from — a directory this code does not choose and cannot predict.
-    # Measured on the bench: it resolved to `C:\Users\<user>\usb_driver`, a
-    # stale x64-only tree left by another tool months earlier, and wdi-simple
-    # died with `check_dir: Unable to create directory 'usb_driver'
-    # (0x000000B7 ERROR_ALREADY_EXISTS)`, then `Extracting driver files...
-    # Access denied` — WDI_ERROR_ACCESS. From inside the app, whose working
-    # directory differs again, the same cause surfaced as WDI_ERROR_RESOURCE,
-    # because the arm64 files it needed were not in that x64-only tree.
-    #
-    # %SystemRoot%\Temp is chosen over a user-writable directory on purpose:
-    # these files are extracted and then installed as a driver by an ELEVATED
-    # process, and a destination an unprivileged user can write to is a place
-    # to swap them in between. Windows\Temp is administrators-only, so the
-    # package that gets installed is the package that was extracted.
-    dest = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "Temp" / "chromiq-wdi"
-
-    args = (
-        f'--vid 0x{device.vid} --pid 0x{device.pid} '
-        f'--name "{device.name}" --type 1 --dest "{dest}"'
-    )
+    args = wdi_simple_args(device)
     log.info("Installing libusb-win32: %s %s", wdi.name, args)
 
     # ShellExecuteExW with "runas" → UAC elevation for wdi-simple only,

@@ -1067,6 +1067,15 @@ _SKIP_BUCKETS: tuple = (
         "argyll", "targen", "printtarg", "colprof", "scanin", "colverify",
         "ref/",
     )),
+    # BEFORE the platform bucket, which would swallow it: the reason has to
+    # name Windows to explain why an .exe cannot be run, and "windows" is a
+    # needle down there. This one is its own line because what it costs is
+    # specific — the checked-in usage snapshot in tests/golden/ is still the
+    # oracle every option check uses, so nothing about the command line goes
+    # unchecked; only the snapshot's agreement with the real binary does.
+    ("wdi-simple is not here - the checked-in usage snapshot was used", (
+        "wdi_simple.exe", "wdi-simple is not",
+    )),
     ("the platform cannot show it", (
         "offscreen", "windows", "macos", "symlink", "case-insensitive",
         "webengine", "freetype", "font", "no print queue", "hdiutil",
