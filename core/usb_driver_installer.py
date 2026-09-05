@@ -131,26 +131,157 @@ def _wdi_simple_path() -> Path:
     return resource_path("assets/wdi_simple.exe")
 
 
-def enumerate_connected() -> list[UsbDevice]:
-    """Return connected USB devices that match the known colorimeter list."""
-    if sys.platform != "win32":
-        return []
-    import winreg
-    found: list[UsbDevice] = []
-    try:
-        base = winreg.OpenKey(
-            winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Enum\USB"
-        )
-    except OSError:
-        return []
+# ---------------------------------------------------------------------------
+# Which of the remembered devices is actually attached
+# ---------------------------------------------------------------------------
+#
+# `HKLM\SYSTEM\CurrentControlSet\Enum\USB` is a MEMORY, NOT A CENSUS. Windows
+# keeps a subkey for every USB device the machine has ever seen, for ever, and
+# for every port each one was ever plugged into. A plain walk of it therefore
+# answers "what has this machine known?", which is not the question anyone here
+# is asking.
+#
+# Measured on the ARM64 box, 2026-09-05: the registry remembered 6 vid:pid,
+# cfgmgr32 said 5 were present; and the ONE attached instrument had two instance
+# keys, only one of which was live. Both halves of that matter, and they fail
+# differently:
+#
+#   • a remembered vid:pid that is gone  -> a device reported as connected when
+#     it is not in the building. `unbound_targets()` then says "the driver did
+#     not bind" about hardware that cannot bind anything.
+#   • a remembered INSTANCE that is gone -> its stale `Service` value is OR-ed
+#     into `has_winusb`. Move the instrument to another USB port and the old
+#     ghost's `libusb0` masks the new instance's missing driver, so
+#     `unbound_targets()` returns empty and the app claims an install that never
+#     happened. That is precisely the failure `unbound_targets()` exists to
+#     catch, so the check must not be built on the thing it is checking.
+#
+# `CM_Get_Device_ID_ListW` with `CM_GETIDLIST_FILTER_PRESENT` answers the real
+# question, at instance granularity, with no extra dependency.
+#
+# ONE IMPLEMENTATION, DELIBERATELY. This used to live in
+# `ui/dialogs/settings_dialog.py`, where it filtered the dialog's own call and
+# left `unbound_targets()` — the other caller, and the one whose entire job is
+# to not be fooled — reading ghosts. A filter that lives beside one caller is a
+# filter the next caller will not know about. It belongs where the ghosts come
+# from, so that no consumer of `enumerate_connected()` has to remember anything.
+#
+# NOTE ON THE FAILURE DIRECTION. When the question cannot be asked at all — not
+# Windows, no cfgmgr32, the call fails — `present_usb_instance_ids()` returns
+# None and NOTHING is filtered. A ghost in the list is a lie the user can see
+# and ignore. A real instrument filtered OUT is a working feature that silently
+# refuses to help. Of the two, only the first is survivable, so the fallback is
+# deliberately the noisy one.
 
-    i = 0
-    while True:
-        try:
-            combo = winreg.EnumKey(base, i)   # e.g. "VID_0765&PID_5020"
-        except OSError:
-            break
-        i += 1
+#: `CM_GETIDLIST_FILTER_ENUMERATOR` — restrict to the "USB" enumerator.
+_CM_GETIDLIST_FILTER_ENUMERATOR = 0x00000001
+#: `CM_GETIDLIST_FILTER_PRESENT` — the whole point: attached right now.
+_CM_GETIDLIST_FILTER_PRESENT = 0x00000100
+_CR_SUCCESS = 0
+
+
+def usb_ids_in_instance(instance_id: str) -> "tuple[str, str] | None":
+    r"""The (vid, pid) inside a PnP instance ID, lower-case, or None.
+
+    ``USB\VID_1A86&PID_7523\7&3b74c78&0&1`` → ``("1a86", "7523")``.
+    Composite children carry a third token (``&MI_00``) and hubs carry no VID
+    at all (``USB\ROOT_HUB30\…``); both are handled by looking for the tokens
+    rather than counting them.
+
+    Lower-case out, because the registry side of the comparison is lower-cased
+    too and the two have to agree — Windows writes these IDs upper-case.
+    """
+    parts = instance_id.split("\\")
+    if len(parts) < 2:
+        return None
+    vid = pid = None
+    for token in parts[1].upper().split("&"):
+        if token.startswith("VID_"):
+            vid = token[4:].lower()
+        elif token.startswith("PID_"):
+            pid = token[4:].lower()
+    if vid is None or pid is None:
+        return None
+    return vid, pid
+
+
+def present_usb_instance_ids() -> "set[str] | None":
+    """Every USB device-instance ID attached right now, UPPER-CASE.
+
+    None means the question could not be asked — see the note above: callers
+    must then filter nothing rather than hide anything. An empty set is a real
+    answer ("nothing is attached") and is NOT the same as None.
+    """
+    if sys.platform != "win32":
+        return None
+    try:
+        cfgmgr = ctypes.WinDLL("cfgmgr32")
+        flags = ctypes.c_ulong(
+            _CM_GETIDLIST_FILTER_ENUMERATOR | _CM_GETIDLIST_FILTER_PRESENT)
+        enumerator = ctypes.c_wchar_p("USB")
+        size = ctypes.c_ulong(0)
+        if cfgmgr.CM_Get_Device_ID_List_SizeW(
+                ctypes.byref(size), enumerator, flags) != _CR_SUCCESS:
+            return None
+        buf = ctypes.create_unicode_buffer(size.value)
+        if cfgmgr.CM_Get_Device_ID_ListW(
+                enumerator, buf, size, flags) != _CR_SUCCESS:
+            return None
+        raw = buf[:size.value]
+    except Exception as exc:   # noqa: BLE001 — a missing DLL must not kill the caller
+        log.warning("could not ask Windows which USB devices are present: %s", exc)
+        return None
+    return {one.upper() for one in raw.split("\0") if one}
+
+
+def present_usb_ids() -> "set[tuple[str, str]] | None":
+    """Every (vid, pid) attached to this machine right now, or None.
+
+    Derived from `present_usb_instance_ids()`, so this module asks cfgmgr32
+    exactly once and cannot hold two answers that disagree.
+    """
+    instances = present_usb_instance_ids()
+    if instances is None:
+        return None
+    return {ids for one in instances
+            if (ids := usb_ids_in_instance(one)) is not None}
+
+
+def _instance_id(combo: str, instance: str) -> str:
+    r"""Rebuild the PnP instance ID a registry path stands for, UPPER-CASE.
+
+    ``VID_0765&PID_6008`` + ``7&3b74c78&0&1``
+    → ``USB\VID_0765&PID_6008\7&3B74C78&0&1``.
+
+    The registry's key names reproduce the middle token of the instance ID
+    exactly, composite ``&MI_00`` children included, so this compares character
+    for character against cfgmgr32's list once both are upper-cased.
+    """
+    return ("USB\\" + combo + "\\" + instance).upper()
+
+
+def attached_devices(
+    entries: "list[tuple[str, list[tuple[str, str]]]]",
+    present_instances: "set[str] | None",
+) -> list[UsbDevice]:
+    """The known colorimeters among *entries* that are attached right now.
+
+    *entries* is what the registry holds, already read out:
+    ``[(combo_key, [(instance_key, service), …]), …]`` — e.g.
+    ``("VID_0765&PID_6008", [("7&3b74c78&0&1", "libusb0")])``. A service that
+    could not be read is ``""``.
+
+    *present_instances* is `present_usb_instance_ids()`: upper-case instance
+    IDs, or None for "could not ask", in which case nothing is filtered.
+
+    Pure — no registry, no ctypes — so it runs and is tested on every OS.
+    """
+    present_pairs = (None if present_instances is None
+                     else {ids for one in present_instances
+                           if (ids := usb_ids_in_instance(one)) is not None})
+
+    found: list[UsbDevice] = []
+    for combo, instances in entries:
         parts = combo.upper().split("&")
         if len(parts) < 2:
             continue
@@ -160,27 +291,31 @@ def enumerate_connected() -> list[UsbDevice]:
         if name is None:
             continue
 
-        # Check if any instance already has WinUSB as its service driver.
-        has_winusb = False
-        try:
-            dev_key = winreg.OpenKey(base, combo)
-            j = 0
-            while True:
-                try:
-                    inst = winreg.EnumKey(dev_key, j)
-                    inst_key = winreg.OpenKey(dev_key, inst)
-                    try:
-                        svc, _ = winreg.QueryValueEx(inst_key, "Service")
-                        if str(svc).lower() in ("winusb", "libusb0"):
-                            has_winusb = True
-                    except OSError:
-                        pass
-                    j += 1
-                except OSError:
-                    break
-        except OSError:
-            pass
+        # GUARD 1 — remembered, but gone. Drop it here: nothing downstream
+        # should ever be handed a device that is not attached.
+        if present_pairs is not None and (vid, pid) not in present_pairs:
+            log.debug("skipping %s:%s (%s): remembered by the registry, "
+                      "not attached", vid, pid, name)
+            continue
 
+        # GUARD 2 — remembered INSTANCES of a device that IS attached. Only the
+        # live ones may speak for the driver state; a ghost instance's stale
+        # `Service` is exactly what fools the post-install check.
+        live = instances
+        if present_instances is not None:
+            live = [pair for pair in instances
+                    if _instance_id(combo, pair[0]) in present_instances]
+            if not live:
+                # cfgmgr32 says this vid:pid IS here but no instance ID matched.
+                # Presence is not in doubt, only which node it is, so fall back
+                # rather than hide a real instrument — see the note on the
+                # failure direction above.
+                log.debug("no instance of %s:%s matched the present list; "
+                          "falling back to every remembered instance", vid, pid)
+                live = instances
+
+        has_winusb = any(
+            str(service).lower() in ("winusb", "libusb0") for _, service in live)
         found.append(UsbDevice(vid=vid, pid=pid, name=name, has_winusb=has_winusb))
 
     # Composite USB devices register multiple keys per VID/PID (parent + MI_xx
@@ -193,6 +328,64 @@ def enumerate_connected() -> list[UsbDevice]:
             seen.add(key)
             unique.append(dev)
     return unique
+
+
+def _registry_usb_entries() -> "list[tuple[str, list[tuple[str, str]]]]":
+    r"""Read ``Enum\USB`` into the plain data `attached_devices()` consumes.
+
+    Everything this returns is REMEMBERED, not present. The filtering is
+    `attached_devices()`'s job and happens in exactly one place.
+    """
+    import winreg
+    try:
+        base = winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Enum\USB"
+        )
+    except OSError:
+        return []
+
+    entries: "list[tuple[str, list[tuple[str, str]]]]" = []
+    i = 0
+    while True:
+        try:
+            combo = winreg.EnumKey(base, i)   # e.g. "VID_0765&PID_5020"
+        except OSError:
+            break
+        i += 1
+
+        instances: "list[tuple[str, str]]" = []
+        try:
+            dev_key = winreg.OpenKey(base, combo)
+            j = 0
+            while True:
+                try:
+                    inst = winreg.EnumKey(dev_key, j)
+                except OSError:
+                    break
+                j += 1
+                try:
+                    svc, _ = winreg.QueryValueEx(
+                        winreg.OpenKey(dev_key, inst), "Service")
+                except OSError:
+                    svc = ""
+                instances.append((inst, str(svc)))
+        except OSError:
+            pass
+        entries.append((combo, instances))
+    return entries
+
+
+def enumerate_connected() -> list[UsbDevice]:
+    """Return the known colorimeters ATTACHED RIGHT NOW, with their driver state.
+
+    "Connected" is meant literally: devices the registry merely remembers are
+    filtered out here, once, so that no caller has to know the registry
+    remembers anything. See the long note above for why, and for what happens
+    when Windows cannot be asked.
+    """
+    if sys.platform != "win32":
+        return []
+    return attached_devices(_registry_usb_entries(), present_usb_instance_ids())
 
 
 def install_winusb(device: UsbDevice) -> bool:

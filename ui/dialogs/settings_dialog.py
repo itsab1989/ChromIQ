@@ -65,104 +65,18 @@ from core.i18n import tr
 # Which of those devices is actually plugged in
 # ---------------------------------------------------------------------------
 #
-# `core.usb_driver_installer.enumerate_connected()` reads
-# HKLM\SYSTEM\CurrentControlSet\Enum\USB, and that key is a MEMORY, not a
-# census: Windows keeps a subkey for every USB device the machine has ever
-# seen, for ever. So the dialog has been saying "Connected colorimeter: X-Rite
-# i1 Studio" on a machine with nothing whatsoever plugged into it — measured on
-# this ARM64 box on 2026-09-04, where the only USB devices present were the
-# virtual-machine's own and one CH340.
+# THE PRESENCE FILTER USED TO LIVE HERE, AND THAT WAS THE BUG.
+# `HKLM\SYSTEM\CurrentControlSet\Enum\USB` remembers every USB device this
+# machine has ever seen, so this window once said "Connected colorimeter:
+# X-Rite i1 Studio" with nothing plugged in. The fix filtered the answer here,
+# beside this one caller — which left `unbound_targets()`, the OTHER caller of
+# `enumerate_connected()` and the one whose whole job is to not be fooled,
+# still reading ghosts.
 #
-# That is not a cosmetic wart. The whole point of the window is to tell you what
-# state your instrument is in; a box that names hardware you do not own poisons
-# every sentence under it, including the new ones.
-#
-# The fix is to ask configuration manager which device nodes are PRESENT, which
-# is a different question from which are remembered. `CM_Get_Device_ID_ListW`
-# with CM_GETIDLIST_FILTER_PRESENT answers it directly, and it is the same
-# presence source `core/ch34x_driver.py` uses for the serial side, so the two
-# halves of this window cannot disagree about what "attached" means.
-#
-# NOTE ON THE FAILURE DIRECTION. When the question cannot be asked at all — not
-# Windows, no cfgmgr32, the call fails — `present_usb_ids()` returns None and
-# the filter lets everything through. A ghost in the list is a lie the user can
-# see and ignore. A real instrument filtered OUT of the list is a working
-# feature that silently refuses to help. Of the two, only the first is
-# survivable, so the fallback is deliberately the noisy one.
-
-#: `CM_GETIDLIST_FILTER_ENUMERATOR` — restrict to the "USB" enumerator.
-_CM_GETIDLIST_FILTER_ENUMERATOR = 0x00000001
-#: `CM_GETIDLIST_FILTER_PRESENT` — the whole point: attached right now.
-_CM_GETIDLIST_FILTER_PRESENT = 0x00000100
-_CR_SUCCESS = 0
-
-
-def usb_ids_in_instance(instance_id: str) -> "tuple[str, str] | None":
-    r"""The (vid, pid) inside a PnP instance ID, lower-case, or None.
-
-    ``USB\VID_1A86&PID_7523\7&3b74c78&0&1`` → ``("1a86", "7523")``.
-    Composite children carry a third token (``&MI_00``) and hubs carry no VID
-    at all (``USB\ROOT_HUB30\…``); both are handled by looking for the tokens
-    rather than counting them.
-    """
-    parts = instance_id.split("\\")
-    if len(parts) < 2:
-        return None
-    vid = pid = None
-    for token in parts[1].upper().split("&"):
-        if token.startswith("VID_"):
-            vid = token[4:].lower()
-        elif token.startswith("PID_"):
-            pid = token[4:].lower()
-    if vid is None or pid is None:
-        return None
-    return vid, pid
-
-
-def present_usb_ids() -> "set[tuple[str, str]] | None":
-    """Every (vid, pid) attached to this machine right now.
-
-    None means the question could not be asked — see the note above: callers
-    must then show everything rather than hide anything.
-    """
-    if _sys.platform != "win32":
-        return None
-    try:
-        import ctypes
-        cfgmgr = ctypes.WinDLL("cfgmgr32")
-        flags = ctypes.c_ulong(
-            _CM_GETIDLIST_FILTER_ENUMERATOR | _CM_GETIDLIST_FILTER_PRESENT)
-        enumerator = ctypes.c_wchar_p("USB")
-        size = ctypes.c_ulong(0)
-        if cfgmgr.CM_Get_Device_ID_List_SizeW(
-                ctypes.byref(size), enumerator, flags) != _CR_SUCCESS:
-            return None
-        buf = ctypes.create_unicode_buffer(size.value)
-        if cfgmgr.CM_Get_Device_ID_ListW(
-                enumerator, buf, size, flags) != _CR_SUCCESS:
-            return None
-        raw = buf[:size.value]
-    except Exception as exc:   # noqa: BLE001 — a missing DLL must not kill the window
-        log.warning("could not ask Windows which USB devices are present: %s", exc)
-        return None
-
-    found: set[tuple[str, str]] = set()
-    for instance_id in raw.split("\0"):
-        if not instance_id:
-            continue
-        ids = usb_ids_in_instance(instance_id)
-        if ids is not None:
-            found.add(ids)
-    return found
-
-
-def attached_only(devices, present_ids: "set[tuple[str, str]] | None"):
-    """Drop the devices Windows remembers but no longer has."""
-    if present_ids is None:
-        return list(devices)
-    return [d for d in devices
-            if (str(d.vid).lower(), str(d.pid).lower()) in present_ids]
-
+# It now lives in `core.usb_driver_installer`, inside `enumerate_connected()`
+# itself, at instance granularity. `enumerate_connected()` means connected.
+# There is nothing left for this window to filter, and deliberately no second
+# copy here that could drift away from the first.
 
 
 # ---------------------------------------------------------------------------
@@ -5863,11 +5777,10 @@ class SettingsDialog(QDialog):
         offer_anyway = False
 
         while True:
-            # enumerate_connected() reads a registry key that remembers every
-            # USB device this machine has EVER seen, so it must be filtered
-            # against what is attached right now or the window names hardware
-            # the user does not own.
-            devices = attached_only(enumerate_connected(), present_usb_ids())
+            # enumerate_connected() returns what is ATTACHED, not what the
+            # registry remembers — it filters against cfgmgr32's PRESENT list
+            # itself, so this window names no hardware the user does not own.
+            devices = enumerate_connected()
             needs_install = [d for d in devices if not d.has_winusb]
             states = self._serial_states()
 
@@ -5985,12 +5898,11 @@ class SettingsDialog(QDialog):
                 # previous USB port can misdirect it. Verify by re-enumerating
                 # before claiming success, and fall back to Zadig if it didn't bind.
                 #
-                # unbound_targets() re-enumerates through the same remembering
-                # registry key, so the same presence filter applies: a ghost with
-                # no driver would otherwise be reported as "the install did not
-                # bind" on a perfectly good install.
-                still_unbound = attached_only(unbound_targets(targets),
-                                              present_usb_ids())
+                # unbound_targets() re-enumerates through enumerate_connected(),
+                # which is now presence-filtered at instance level, so a ghost
+                # can neither be reported as "the install did not bind" nor lend
+                # its stale driver to a device that did not bind at all.
+                still_unbound = unbound_targets(targets)
                 outcome_text, offer_zadig = usb_install_outcome(
                     wdi_available=True,
                     ran_ok=ran_ok,
