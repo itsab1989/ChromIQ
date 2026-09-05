@@ -88,6 +88,34 @@ def project_tac(d: np.ndarray, limit: float) -> np.ndarray:
     return d
 
 
+def _tac_face_step(jtj: np.ndarray, jtr: np.ndarray, cvec: np.ndarray,
+                   e: np.ndarray) -> np.ndarray:
+    """Batched Gauss–Newton step on the total-ink face.
+
+    Solves ``min ½ sᵀ A s − bᵀ s  s.t.  cᵀ s = e`` per row (A = ``jtj``,
+    b = ``jtr``, c = 1 over the channels that may move, e = the ink still
+    to be added to land exactly on the limit): ``s = A⁻¹(b + μc)`` with
+    ``μ = (e − cᵀA⁻¹b) / (cᵀA⁻¹c)``.
+
+    A projection AFTER the step subtracts a common amount from every
+    channel, so a dark target that drives C, M, Y and K all onto the 1.0
+    face comes back as equal parts of each — and the K prior's pull is
+    undone every iteration. Measured 2026-09-05 on the battery's CMYK
+    printer: the objective's own optimum at L*=0 under a 280 % limit is
+    (0.66, 0.59, 0.55, K 1.0), true L* 9.9; the projected step delivered
+    (0.75, 0.56, 0.75, 0.75), L* 14.8, and fast mode's proportional
+    scaling L* 13.5. On the face the solver trades ink BETWEEN channels
+    and the colour and the priors decide the split.
+    """
+    rhs = np.stack([jtr, cvec], -1)                     # (N, k, 2)
+    sol = np.linalg.solve(jtj, rhs)
+    ab, ac = sol[..., 0], sol[..., 1]
+    cab = (cvec * ab).sum(1)
+    cac = (cvec * ac).sum(1)
+    mu = np.where(cac > 1e-12, (e - cab) / np.maximum(cac, 1e-12), 0.0)
+    return ab + mu[:, None] * ac
+
+
 # Hue-preservation factor on top of the ΔE2000 metric for clipping: gamut-
 # mapping practice (hue-preserving minimum-ΔE clipping, Morovič) deliberately
 # weights hue beyond the plain metric — a clipped saturated colour should
@@ -201,6 +229,7 @@ def _gauss_newton(model: ForwardModel, target: np.ndarray, seed: np.ndarray,
             jtj += np.einsum("nk,kl->nkl", prior_w, eye)
             jtr += prior_w * (prior - d[:, free])
         step = np.linalg.solve(jtj, jtr[..., None])[..., 0]
+        bad = None
         if boundary_fd:
             # Active-set guard: with the boundary-aware Jacobian a pinned
             # channel keeps a live column, so an *unreachable* target keeps
@@ -222,6 +251,23 @@ def _gauss_newton(model: ForwardModel, target: np.ndarray, seed: np.ndarray,
                 step = np.linalg.solve(jtj, jtr[..., None])[..., 0]
                 step[bad] = 0.0
         hi = 1.0 if channel_max is None else channel_max[free]
+        if ink_limit is not None and tac_projection:
+            # Rows whose move would cross the total ink limit take the same
+            # least-squares step ON the limit's face instead (the
+            # projection below then only tidies clip rounding). Pinned
+            # columns stay out of the constraint — their step is zero.
+            trial = np.clip(d[:, free] + step, 0.0, hi)
+            others = d.sum(1) - d[:, free].sum(1)
+            over = trial.sum(1) + others > ink_limit + 1e-9
+            if over.any():
+                cvec = np.ones((int(over.sum()), len(free)))
+                if bad is not None:
+                    cvec[bad[over]] = 0.0
+                e = (ink_limit - others[over]) - d[over][:, free].sum(1)
+                s_face = _tac_face_step(jtj[over], jtr[over], cvec, e)
+                if bad is not None:
+                    s_face[bad[over]] = 0.0
+                step[over] = s_face
         d[:, free] = np.clip(d[:, free] + step, 0.0, hi)
         if ink_limit is not None:
             if tac_projection:

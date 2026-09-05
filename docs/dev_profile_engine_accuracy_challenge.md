@@ -81,6 +81,27 @@ interpolation (written profile 0.29/0.68 vs the inverted model 0.08/0.21);
 and S5's B2A moves 28 % across factors its A2B cannot tell apart, so a
 criterion for it has to look at the inversion, not the A2B residual.
 
+## The black depth (agent D, 2026-09-05) — landed
+
+The challenger's C3: Maximum accuracy's CMYK black was 1.5 L* lighter than
+Fast's on the same chart, both exactly on the total ink limit. Measured on
+the battery's CMYK printer (`reports/agent-D/`): the inversion's own
+objective at L*=0 has its optimum at (0.66, 0.59, 0.55, K 1.0), true L*
+9.9, and the solver delivered (0.75, 0.56, 0.75, 0.75), L* 14.8 — neither
+the Euclidean-vs-proportional shape of the limit, `black_l` nor the K locus
+(each worth ≤ 0.02 L*), but the limit being enforced by a projection AFTER
+every Gauss–Newton step: a dark target drives every channel onto the 1.0
+face, the projection subtracts a common amount from all of them, and the K
+prior's pull is undone each iteration. `b2a._tac_face_step` now solves the
+step ON the limit's face for the rows that would cross it (an equality-
+constrained least-squares step; pinned columns stay out). Accurate mode
+only (`tac_projection`); Fast is bit-identical (S1/S3/S5 hashes). Result:
+S3 B2A1(0,0,0) L* 14.8 → 9.8 (Fast 13.5), S5 8.7 (Fast 11.2), the neutral
+ramp below L* 20 monotone (it printed L*=0 lighter than L*=6), neutral-K
+smoothness unchanged; battery B2A medians within ±1.1 %, every ink
+printer's p95 2–4 % better, RGB printers untouched.
+`tests/test_engine_accurate_black_reaches_its_ink_limit_depth.py`.
+
 ## Verdict on the mode itself (Agent A, A-06/A-07, unchanged by the fixes)
 
 Maximum accuracy fits the chart patches tighter than colprof (median 0.05 vs
