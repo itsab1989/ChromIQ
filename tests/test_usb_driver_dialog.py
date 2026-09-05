@@ -2900,3 +2900,147 @@ def test_the_reboot_window_names_both_controls_it_points_at(code, in_language):
     assert sd._in_prose(tr("Instrument drivers…")) in text, (
         f"[{code}] the reboot window does not name the control that reopens "
         f"the driver helper")
+
+
+# ===========================================================================
+# THE GEOMETRY TESTS WERE ALL WRITTEN IN ENGLISH, AND THE DEFECT IS GERMAN
+# ===========================================================================
+#
+# `d5d49696` ("the consent window came out 14px short whenever the text nearly
+# filled it") is the reserve of the vertical scrollbar's width inside
+# `ContentHeightScrollArea._content_height`. Every test above that could notice
+# it renders in ENGLISH — and English is not the case that fails.
+#
+# Measured, on the real windows, with that one reserve removed and nothing else
+# changed:
+#
+#   window                    shipped              without the reserve
+#   "Before ChromIQ starts"   607 x 496, 0 hidden  607 x 496, 0 hidden   (en)
+#   "Bevor ChromIQ beginnt"   608 x 528, 0 hidden  608 x 512, 16 HIDDEN  (de)
+#   "Instrument drivers"      624 x 774, 0 hidden  624 x 774, 0 hidden   (en)
+#   "Instrumententreiber"     624 x 838, 0 hidden  624 x 822, 16 HIDDEN  (de)
+#
+# 513 tests stayed green through that. German prose is ~8 % longer, so it is
+# German that lands on the marginal line where 18 px of width costs a line of
+# height — the exact case the reserve exists for. So these two tests are the
+# English ones again, in the language the fault actually occurs in.
+
+_LONGEST_LANGUAGES = ["en", "de"]
+
+
+@pytest.fixture
+def on_a_tall_screen(monkeypatch):
+    """Ask the geometry question on a screen with room, whatever the host has.
+
+    THE SCREEN IS NOT A CONSTANT AND THESE ASSERTIONS ARE ABOUT HEIGHT. The
+    offscreen platform reports 800 x 800, so the cap is 720 and the German
+    helper window — which wants 838 — is AT the cap: `hidden == 0 or
+    height == cap` then passes without ever asking the question, and the M6
+    mutation that this test exists to kill goes green. (This is also why the
+    Windows gate has a flaky 704-vs-718 geometry failure: the same assertion,
+    the same cap, a different font.) A screen tall enough that the cap cannot
+    bite makes the answer the same on every host.
+    """
+    from PyQt6.QtCore import QRect
+    real = sd.SettingsDialog._fit_to_screen
+
+    class _TallScreen:
+        def availableGeometry(self):
+            return QRect(0, 0, 1920, 2000)
+
+    def _fit(self, dlg):
+        dlg.screen = lambda: _TallScreen()
+        return real(self, dlg)
+
+    monkeypatch.setattr(sd.SettingsDialog, "_fit_to_screen", _fit)
+
+
+@pytest.mark.parametrize("code", _LONGEST_LANGUAGES)
+def test_the_consent_window_hides_none_of_itself_in_german_too(
+        dialog, on_a_tall_screen, in_language, code):
+    """`_driver_notice` at the width it really gets, in the longest language."""
+    in_language(code)
+    found = {}
+
+    def _look(w):
+        found.update(_geometry_of(w))
+        _ok_button(w).click()
+
+    with ModalDriver(_look):
+        dialog._driver_notice(
+            "T", sd.serial_install_intro_text(
+                r"C:\Users\x\AppData\Local\ChromIQ\drivers\2026-09-05_01-42-17",
+                "ARM64"))
+    assert found["height"] < found["cap"], (
+        "[%s] the window is at the screen cap (%d px), so the question this "
+        "test asks was never put — see `on_a_tall_screen`"
+        % (code, found["cap"]))
+    assert found["hidden"] == 0, (
+        "[%s] %d px of the consent text is below the fold in a %d px window "
+        "that could have been %d px"
+        % (code, found["hidden"], found["height"], found["cap"]))
+
+
+@pytest.mark.parametrize("code", _LONGEST_LANGUAGES)
+def test_the_driver_helper_hides_none_of_itself_in_german_too(
+        dialog, on_windows, on_a_tall_screen, monkeypatch, in_language, code):
+    """The same relation for the helper window, whose German is 64 px taller."""
+    in_language(code)
+    _worst_case_hardware(monkeypatch)
+    found = {}
+
+    def _look(w):
+        found.update(_geometry_of(w))
+        _button(w, sd._label_check_again()).click()
+
+    with ModalDriver(_look):
+        dialog._show_usb_installer()
+    assert found["height"] < found["cap"], (
+        "[%s] the window is at the screen cap (%d px), so the question this "
+        "test asks was never put — see `on_a_tall_screen`"
+        % (code, found["cap"]))
+    assert found["hidden"] == 0, (
+        "[%s] %d px of the helper window is below the fold in a %d px window "
+        "that could have been %d px"
+        % (code, found["hidden"], found["height"], found["cap"]))
+
+
+# ---------------------------------------------------------------------------
+# A WINDOWS FEATURE MUST STAY ON WINDOWS
+# ---------------------------------------------------------------------------
+#
+# Both guards below survived a deliberate mutation against all 24 test files
+# that touch `settings_dialog` — 983 tests, all green with the Preferences
+# button built on every platform and with `_show_usb_installer`'s own
+# early-return deleted. Nothing in the suite could see a Windows-only window
+# arriving on macOS and Linux, where `pnputil` does not exist and every
+# sentence in it is untrue.
+#
+# They cannot be written with the `on_windows` fixture, which is what every
+# other driving test uses: that fixture pins `_sys.platform` TO win32, and
+# these two are about what happens when it is not.
+
+def test_the_preferences_button_is_built_on_windows_and_nowhere_else():
+    from types import SimpleNamespace
+    import inspect
+    src = inspect.getsource(sd.SettingsDialog._build_ui)
+    guard = 'if _sys.platform == "win32":'
+    assert guard in src, (
+        "the Preferences driver button lost its platform guard — it would "
+        "appear on macOS and Linux, where there is no pnputil to run")
+    # ...and the guard is the one the button is inside, not some other line.
+    after = src.split(guard, 1)[1].split("\n        if ", 1)[0]
+    assert 'tr("Instrument drivers…")' in after, (
+        "the driver button is no longer inside the win32 guard")
+
+
+def test_the_driver_helper_shows_nothing_when_the_platform_is_not_windows(
+        dialog, monkeypatch):
+    """Belt as well as braces: the method refuses even if it is called."""
+    from types import SimpleNamespace
+    monkeypatch.setattr(sd, "_sys", SimpleNamespace(platform="darwin"))
+    with ModalDriver() as drv:
+        dialog._show_usb_installer()
+    assert drv.modal_count == 0, (
+        "the Windows driver helper opened on %r: %r"
+        % ("darwin", [t for t, _ in drv.seen]))
