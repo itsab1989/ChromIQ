@@ -129,7 +129,8 @@ def test_argyll_reads_the_same_white(tmp_path, mode):
 
     def look(flags: list[str], text: str) -> np.ndarray:
         res = subprocess.run([str(_XICCLU), *flags, str(out)], input=text,
-                             capture_output=True, text=True, timeout=60)
+                             capture_output=True, text=True,
+                             encoding="utf-8", timeout=60)
         last = res.stdout.strip().splitlines()[-1]
         # "1.000000 1.000000 1.000000 [RGB] -> Lut -> 100.000 0.000 0.000 [Lab]"
         return np.array(last.split("->")[-1].split("[")[0].split(), float)
