@@ -2208,6 +2208,16 @@ came back to it.
   is sitting in the folder. Related to, but not the same as, the deferred
   "umlauts go cryptic on Windows" zip finding: this one needs no zip, only a
   name that was ever normalised the Mac way.
+- **priority raised by the beta 9 release check, though still not blocking**:
+  the entry above understates `ui/main_window.py:2866`. That branch skips
+  `note_generated_chart`, so for a verification target the Print tab leaves
+  "Through the profile" live for a chart that has already been converted —
+  §3.1a exists to force Raw precisely there — and the sheet is printed twice
+  through the profile. It needs Windows AND a non-ASCII name AND a Mac-created
+  folder AND session restore AND a verification run, which is why it does not
+  hold a release; but it is a wrong print, not a cosmetic fallback. The other
+  two branches are cosmetic: `:2238` falls back to a `.ti1` that shares the
+  same defeated stem, so the user gets an honest "no chart".
 - next step: decide whether `Run.chart_ti2` (and its siblings) should resolve
   through `files_matching`/`nfc` rather than a bare `Path.exists()`, and give
   the three `main_window` branches the same treatment. Only a Windows machine
@@ -2381,3 +2391,22 @@ came back to it.
   into a translated sentence found 93 sites and this is the ONLY other one with
   the glued-preposition shape — every other is a button or file name inside
   `<b>…</b>` or „…“, which inflects nothing around it.
+
+### B8-65 · The CR30 truncation proof is one-sided on the USB path
+- blocks release: no
+- found by: the beta 9 release check (AGENT-BE), reading B8-62's fix rather
+  than trusting it
+- status: OPEN
+- detail: `truncation_reason()`'s second rule — reflectance present while Lab is
+  exactly (0,0,0), which cannot both be true — needs a Lab to reason about, and
+  `workflow/cr30/usb_measure.py:166` builds its `Measurement` **without one**.
+  Proved on shipped code: the recorded 16-zero-band truncation shape is refused
+  when a Lab is present and **accepted when it is not**. This is deliberate and
+  the tests say so, and it is strictly narrower than the fault it replaced — the
+  old threshold refused real readings, this one lets one rare shape through on
+  one transport — so it is not a blocker. But the docstring claims a coverage it
+  only has on BLE, and a docstring that overstates its own guard is how the
+  three-zero-band rule came to be trusted in the first place.
+- next step: either give the USB path a Lab to check against, or state the
+  limit in the docstring and name the transport. Do not widen the rule back
+  into a threshold.
