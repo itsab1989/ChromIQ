@@ -222,7 +222,7 @@ def plan_for(project, target, *, measuring: bool = False
     return DeletePlan(
         kind=KIND_RUN, path=run.dir, run_id=run_id, project_name=name,
         has_measurement=run.measurement_ti3.exists(),
-        has_profile=run.profile_icc.exists() or (run.dir / f"{run.stem}.icm").exists(),
+        has_profile=run.profile_icc.exists() or run.artefact(".icm").exists(),
         archived_measurements=_arch_m, archived_profiles=_arch_p,
         has_chart_snapshot=_has_snapshot(run),
         has_preconditioning=_has_precond(run),

@@ -694,3 +694,329 @@ def test_the_ui_resolves_the_restored_chart_and_not_its_ti1(cal_settings, qapp):
         f"the patch cube would draw {chart.name!r}")
     assert len(tiffs) == 1
     assert MainWindow._current_chart_ti2(_Host(fm, tab)) == ti2
+
+
+# ===========================================================================
+# ROUND 2 — WHAT THE FIRST FIX ACTIVATED
+# ===========================================================================
+#
+# THE SHAPE OF THE WHOLE SECTION, because it is one fault wearing four hats:
+# **the guard learned to resolve and the work behind it did not.** Before
+# `resolve_existing`, `chart_ti2.exists()` was False on NTFS for a restored
+# project, so everything behind that guard was DEAD CODE. Making the guard
+# truthful runs that code for the first time — and it was still building its own
+# names with f-strings and asking bare `.exists()`, so it acts on files that are
+# not there. Fixing a broken guard is exactly when previously-unreachable code
+# runs for the first time, and it is the moment to go and read it.
+#
+# Two of these shipped in round 1 and were found by review, not by me.
+
+
+def _restored_chart(run: Run, *exts: str, pages: int = 0,
+                    single_page: bool = False) -> None:
+    """A chart in *run* spelled the way a Mac OS Extended backup hands it back."""
+    for ext in exts:
+        (run.dir / f"{NFD}{ext}").write_text(f"OLD{ext}", encoding="utf-8")
+    for i in range(1, pages + 1):
+        (run.dir / f"{NFD}_{i:02d}.tif").write_text("page", encoding="utf-8")
+    if single_page:
+        (run.dir / f"{NFD}.tif").write_text("the only page", encoding="utf-8")
+
+
+# ---- DEFECT 1: the single page that stayed behind -------------------------
+
+def test_a_single_page_verify_chart_takes_its_page_with_it(tmp_path):
+    """`adopt_run_chart_as_verify` moved the chart and ORPHANED its only page.
+
+    A one-page chart's TIFF is `<stem>.tif` with no `_NN`, so the `_*.tif` glob
+    misses it and a second block used to catch it — built from a raw f-string,
+    which finds nothing when the file came off an HFS+ volume. On master the
+    outer guard was False and the method did nothing at all; the moment the
+    guard started resolving, this ran for the first time, moved the chart into
+    `verifications/` and left the page in the run root.
+
+    Two things go wrong at once, and both are asserted: the verify chart has no
+    page and never previews (Knut #130, "Run type = Verification shows no
+    preview"), and the run root is left holding a page with no `.ti2` — the very
+    contradiction this whole change removes everywhere else.
+    """
+    run = _run_at(tmp_path, NAME)
+    _restored_chart(run, ".ti1", ".ti2", ".cht", single_page=True)
+
+    moved = run.adopt_run_chart_as_verify()
+    assert moved is not None and moved.is_file()
+
+    assert len(run.verify_chart_tiffs()) == 1, (
+        "the verify chart has no page bitmap, so it never previews")
+    left = [p.name for p in run.dir.iterdir()
+            if p.is_file() and p.name.lower().endswith(".tif")]
+    assert left == [], f"the page was orphaned in the run root: {left}"
+    assert run.chart_tiffs() == [] and not run.chart_ti2.exists(), (
+        "the run root is left in the 'pages but no chart' state")
+
+
+def test_the_multi_page_case_still_works_and_is_not_double_moved(tmp_path):
+    """The `_NN` pages kept working throughout; merging the two blocks into one
+    `stem_files` call must not have changed that, or moved anything twice."""
+    run = _run_at(tmp_path, NAME)
+    _restored_chart(run, ".ti1", ".ti2", pages=3)
+    run.adopt_run_chart_as_verify()
+    assert len(run.verify_chart_tiffs()) == 3
+    assert [p.name for p in run.dir.iterdir() if p.is_file()] == []
+
+
+# ---- DEFECT 2: the chart chain a Replace did not archive ------------------
+
+def test_a_replace_archives_the_whole_restored_chart_chain(tmp_path):
+    """`workflow.chart_import.archive_run_for_replace`, and the worst of the two.
+
+    The `.ti3`, `.icc` and the page TIFFs went through resolving accessors; the
+    `.ti1`, `.ti2` and every `_CHART_EXTS` sidecar were raw f-strings. So a
+    Replace archived half a chart, the new one landed beside what was left, and
+    `run.chart_cht` — which resolves — handed the scanner the OLD chart's
+    recognition file for the NEW `.ti2`. A silent wrong result, and "two charts
+    under one name" produced by the very commit that claims to prevent it.
+    """
+    from workflow.chart_import import archive_run_for_replace
+
+    run = _run_at(tmp_path, NAME)
+    _restored_chart(run, ".ti1", ".ti2", ".cht", ".channels.json", ".cie",
+                    pages=1)
+    (run.dir / f"{NFD}.ti3").write_text("OLD ti3", encoding="utf-8")
+
+    archive = archive_run_for_replace(run, verification=False)
+    assert archive is not None
+    left = sorted(p.name for p in run.dir.iterdir() if p.is_file())
+    assert left == [], f"the Replace left the old chart in place: {left}"
+
+    archived = sorted(p.suffix for p in archive.rglob("*") if p.is_file())
+    for ext in (".ti1", ".ti2", ".cht", ".cie", ".ti3", ".tif"):
+        assert ext in archived, f"{ext} was not archived: {archived}"
+
+    # …and now the new chart is written, composed, as ChromIQ writes it.
+    run.chart_ti2.write_text("NEW ti2", encoding="utf-8")
+    assert not run.chart_cht.exists(), (
+        "chart_cht answers with the OLD chart's recognition file for the NEW "
+        ".ti2 — the scanner would read the wrong chart and say nothing")
+
+
+def test_a_regenerate_does_not_leave_a_second_chart_under_one_name(tmp_path):
+    """`reset_chart_artefacts`, the same shape inside `Run`.
+
+    `partial_ti3` beside these already resolved, so a restored run archived the
+    engine partial and left the measurement it belongs to — and the drop loop
+    could not see the chart either, so the next build wrote a second one.
+    """
+    run = _run_at(tmp_path, NAME)
+    _restored_chart(run, ".ti1", ".ti2", ".cht", ".channels.json", pages=2)
+    (run.dir / f"{NFD}.ti3").write_text("the measurement", encoding="utf-8")
+    (run.dir / f"{NFD}.icc").write_text("the profile", encoding="utf-8")
+
+    run.reset_chart_artefacts()
+    left = sorted(p.name for p in run.dir.iterdir() if p.is_file())
+    assert left == [], f"a regenerate would write beside these: {left}"
+    old = list((run.dir / "old").rglob("*")) if (run.dir / "old").is_dir() else []
+    kept = sorted(p.suffix for p in old if p.is_file())
+    assert ".ti3" in kept and ".icc" in kept, (
+        f"the measurement and the profile must be archived, not dropped: {kept}")
+
+
+# ---- A-1: the resolver and the listing must agree on case -----------------
+
+def test_the_accessor_finds_whatever_the_listing_finds(tmp_path):
+    """The fix must not switch itself off when a folder is renamed by case.
+
+    `files_matching` folds case on Windows (`_NAME_CASEFOLD`) because NTFS does;
+    the resolver did not. So an upper-cased folder over decomposed files left
+    `stem_files` finding the chart and `chart_ti2.exists()` denying it —
+    the fix off, silently, on the platform it was written for.
+
+    ONE-WAY, and deliberately: the accessor may find MORE than the listing (on a
+    case-insensitive APFS volume `exists()` folds case where `Path.glob` does
+    not, and that is the filesystem's answer, not ours). It may never find less.
+    """
+    run = _run_at(tmp_path, NAME.upper())
+    (run.dir / f"{NFD}.ti2").write_text("the chart", encoding="utf-8")
+    if run.stem_files(run.stem, ".ti2"):
+        assert run.chart_ti2.is_file(), (
+            "the listing sees a chart the accessor denies")
+        assert run.chart_ti2.read_text(encoding="utf-8") == "the chart"
+
+
+def test_case_folding_is_still_not_invented_where_the_volume_has_none(tmp_path):
+    """On a case-SENSITIVE volume two names differing by case are two files.
+
+    Asked which it is by writing both and counting, rather than by asking
+    `sys.platform`.
+    """
+    from core.file_manager import resolve_existing
+
+    (tmp_path / "Chart.ti2").write_text("upper", encoding="utf-8")
+    (tmp_path / "chart.ti2").write_text("lower", encoding="utf-8")
+    if len([p for p in tmp_path.iterdir() if p.suffix == ".ti2"]) == 2:
+        assert resolve_existing(tmp_path / "chart.ti2").read_text(
+            encoding="utf-8") == "lower"
+        assert resolve_existing(tmp_path / "Chart.ti2").read_text(
+            encoding="utf-8") == "upper"
+
+
+# ---- M5: the tie-break is the sort, not the directory order ---------------
+
+#: Three spellings of one name, all canonically equivalent, all distinct
+#: strings: the composed form, the decomposed form, and the decomposed form
+#: with its two combining marks written in the other order.
+_TIED = ("ǭ", "ǭ")          # macron-first, ogonek-first
+_TIED_NFC = "ǭ"                                 # ǭ
+
+
+def test_which_of_several_spellings_wins_is_not_the_listing_order(tmp_path,
+                                                                  monkeypatch):
+    """`sorted` is what decides, and dropping it must fail.
+
+    The docstring promises a deterministic answer when a folder holds more than
+    one canonically equivalent spelling. Without this the promise was untested:
+    the entries usually arrive in sorted order anyway, so removing `sorted` left
+    every test green. `os.scandir` is made to hand them back REVERSED, so a
+    version that takes "the first one listed" gets the other file.
+    """
+    import core.file_manager as fmod
+
+    assert all(nfc(v) == _TIED_NFC for v in _TIED), "the premise of this test"
+    assert len(set(_TIED)) == 2
+    for v in _TIED:
+        (tmp_path / f"{v}.ti2").write_text(v.encode("unicode_escape").decode(),
+                                           encoding="utf-8")
+    if len([p for p in tmp_path.iterdir() if p.suffix == ".ti2"]) != 2:
+        pytest.skip("this volume folds the two orderings into one file")
+
+    real = fmod.os.scandir
+
+    class _Reversed:
+        def __init__(self, path):
+            self._entries = list(real(path))[::-1]
+
+        def __enter__(self):
+            return iter(self._entries)
+
+        def __exit__(self, *exc):
+            return False
+
+    monkeypatch.setattr(fmod.os, "scandir", _Reversed)
+    got = fmod.resolve_existing(tmp_path / f"{_TIED_NFC}.ti2")
+    assert got.name == f"{min(_TIED)}.ti2", (
+        f"the listing order decided, not the sort: got {got.name!r}")
+    # …and it is the same answer every time it is asked.
+    assert {fmod.resolve_existing(tmp_path / f"{_TIED_NFC}.ti2").name
+            for _ in range(5)} == {got.name}
+
+
+# ---- the cheap exit is about spellings, not about ASCII -------------------
+
+@pytest.mark.parametrize("stem", [
+    "Δοκιμη-χαρτι",   # Greek, unaccented
+    "Проба-печати",        # Cyrillic, no marks
+    "テスト-用紙",           # Japanese
+    "打印测试",             # Chinese
+    "Test-📄-chart",        # emoji
+    "Yazıcı-testi",        # Turkish dotless i
+])
+def test_a_name_with_no_other_spelling_never_lists_the_directory(
+        tmp_path, monkeypatch, stem):
+    """`str.isascii()` was the wrong question.
+
+    It is the right ANSWER for ASCII, but it made every non-ASCII name pay for
+    a directory scan that could not possibly match — a name has another spelling
+    only if something in it decomposes or if two combining marks could be
+    reordered, and none of these has either.
+    """
+    import core.file_manager as fmod
+
+    assert not stem.isascii(), "this test is about the non-ASCII fast exit"
+
+    def _explode(*a, **k):
+        raise AssertionError(f"scandir called for {stem!r}, which has no "
+                             "other spelling")
+
+    monkeypatch.setattr(fmod.os, "scandir", _explode)
+    missing = tmp_path / f"{stem}.ti2"
+    assert fmod.resolve_existing(missing) == missing
+
+
+@pytest.mark.parametrize("stem", [
+    NAME,                        # composes: ü -> u + U+0308
+    NFD,                         # already decomposed
+    "한글-chart",        # Hangul: every syllable decomposes
+    "ǭ-chart",       # two marks that could be reordered
+    # Greek WITH accents: ή is U+03AE and decomposes to η + U+0301. This test
+    # is where it belongs — the first version of the list above had it as a
+    # name with "no other spelling", and the assertion caught that, which is
+    # the whole reason the pair of tests exists.
+    "Δοκιμή-χαρτί",
+])
+def test_a_name_that_really_has_another_spelling_is_still_looked_for(
+        tmp_path, monkeypatch, stem):
+    """The other half, or the cheap exit would silently switch the fix off.
+
+    A guard that skips too much is the same bug wearing the opposite sign, so
+    the scan is asserted to HAPPEN for every name that could have a twin.
+    """
+    import core.file_manager as fmod
+
+    seen: list[str] = []
+    real = fmod.os.scandir
+
+    def _noted(path):
+        seen.append(str(path))
+        return real(path)
+
+    monkeypatch.setattr(fmod.os, "scandir", _noted)
+    fmod.resolve_existing(tmp_path / f"{stem}.ti2")
+    assert seen, f"{stem!r} has another spelling and was not looked for"
+
+
+# ---- E-1: named, measured, and NOT fixed here ----------------------------
+
+def test_a_typed_composed_name_does_not_yet_find_a_decomposed_project_folder(
+        tmp_path, monkeypatch):
+    """A KNOWN GAP, PINNED SO IT IS A FACT RATHER THAN A SURPRISE.
+
+    Every route that reaches a project through the FOLDER — the picker,
+    `open_project_at`, session restore — takes the folder's own spelling and
+    works. The Create Chart NAME BOX does not: `_sanitise` normalises to NFC,
+    `_existing_folder_spelling` adopts a differently-CASED folder but
+    deliberately not a differently-ACCENTED one, and on NTFS the composed path
+    simply is not there — so `project()` creates a SECOND, empty folder that is
+    drawn identically to the first by every font on the machine.
+
+    It is not fixed here because fixing it means changing either the "a folder
+    name is always NFC" invariant or `working_dir`'s re-clean-and-compare, both
+    of which are pinned behaviour with a documented reason
+    (`test_project_name_keeps_its_accents`). See `_existing_folder_spelling`'s
+    docstring. **This test asserts what ChromIQ does today, not what it should
+    do** — when that decision is taken, this test is the one to change.
+    """
+    from core.file_manager import FileManager
+    from core.settings import AppSettings
+
+    monkeypatch.setenv("CHROMIQ_SETTINGS_FILE", str(tmp_path / "s.ini"))
+    work = tmp_path / "work"
+    work.mkdir()
+    Project.create(work / NFD, NFD)
+
+    s = AppSettings()
+    s.set("custom_output_path", str(work))
+    fm = FileManager(s)
+    fm.set_target_name(NAME)                 # the user TYPES the composed name
+    fm.project()
+
+    folders = sorted(p.name for p in work.iterdir() if p.is_dir())
+    if len(folders) == 1:
+        # A normalisation-INSENSITIVE volume (APFS) folds the two spellings
+        # into one folder, so the gap cannot happen there. Recorded, not
+        # skipped — which volume ran this is the interesting half.
+        assert nfc(folders[0]) == NAME
+        return
+    assert set(folders) == {NFD, NAME}, folders
+    assert list((work / NAME).glob("**/*.ti2")) == [], (
+        "the new folder is the empty one — the user's chart is in the "
+        "other, and the two are drawn identically by every font")
