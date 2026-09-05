@@ -139,6 +139,208 @@ class DeviceState:
     status: Status
 
 
+# ---------------------------------------------------------------------------
+# What happened, as data
+# ---------------------------------------------------------------------------
+#
+# **THIS MODULE USED TO RETURN ENGLISH PROSE AND THE DIALOG PRINTED IT.** Three
+# faults came out of that one decision, and all three reached a user:
+#
+# * **A window that contradicted itself.** `pnputil` exiting 3010 means
+#   "accepted, restart to finish", and `describe_exit_code(3010)` said so — but
+#   its first element was `True`, so the flow went on to `verify_bound`, which
+#   of course finds no COM port for a driver that is staged rather than live.
+#   The sentence about restarting was then printed underneath the heading
+#   *"Everything ChromIQ could check passed, and there is still no COM port"*.
+#   Two incompatible statements in one window.
+# * **English inside the German window.** Five paragraphs of German and then
+#   *"Windows refused the change. This normally means the account does not have
+#   permission…"* — because a sentence built here can never be translated: it
+#   is not in a catalogue and there is no key to translate it under.
+# * **A string match on prose.** The dialog told "the user pressed No at the
+#   Windows permission prompt" from "the install failed" by comparing the first
+#   words of this module's English against a constant in the other file.
+#   Rewording a sentence here silently changed which window a user got, and
+#   translating one would have broken the match outright.
+#
+# So nothing user-facing is composed here any more. Every entry point returns a
+# `DriverResult`: an `Outcome` saying what CLASS of thing happened, a `Reason`
+# naming WHICH one, and the few values a sentence about it needs — a number, a
+# path, a file name. The UI owns every word, and picks the heading from the
+# outcome and the body from the reason.
+#
+# `detail` is the one place a string still crosses this boundary, and it is
+# deliberately narrow: it carries an operating-system message (an `OSError`, a
+# Windows error text) that ChromIQ did not write and cannot translate. It is
+# shown quoted, as the system's own words, never as ChromIQ's — and nothing
+# ever branches on it.
+
+
+class Outcome(enum.Enum):
+    """The CLASS of thing that happened. The UI picks its heading from this."""
+
+    #: It did what was asked, and it has taken effect.
+    OK = "ok"
+    #: Windows accepted the driver and needs a restart to finish switching it
+    #: on (`pnputil` 3010). NOT a failure, and NOT `OK` — a window that treats
+    #: it as either one tells the user something untrue.
+    REBOOT_REQUIRED = "reboot_required"
+    #: The user answered No at the Windows permission prompt. Nothing is wrong.
+    USER_CANCELLED = "user_cancelled"
+    #: Windows would not allow it — no rights, or a policy. Nothing changed.
+    ACCESS_DENIED = "access_denied"
+    #: Nothing needed doing, or nothing could be judged. Not an error.
+    NO_OP = "no_op"
+    #: It did not work.
+    FAILED = "failed"
+
+
+class Reason(enum.Enum):
+    """WHICH outcome of its class this is — one sentence's worth of meaning.
+
+    The UI maps each of these to a translated sentence, and
+    `tests/test_usb_driver_dialog.py` checks the mapping is TOTAL: a member no
+    window can render is a member that shows the user nothing.
+    """
+
+    # -- download ---------------------------------------------------------
+    #: The staging folder could not be created. `path`, `detail`.
+    STAGING_UNWRITABLE = "staging_unwritable"
+    #: certifi's bundle does not trust what answered — the signature of a
+    #: network that inspects encrypted traffic.
+    TLS_UNTRUSTED = "tls_untrusted"
+    #: The website could not be reached at all. `detail`.
+    UNREACHABLE = "unreachable"
+    #: The total deadline ran out mid-transfer.
+    DOWNLOAD_TOO_SLOW = "download_too_slow"
+    #: More bytes arrived than a driver package could possibly be.
+    DOWNLOAD_TOO_BIG = "download_too_big"
+    #: What arrived does not begin `PK` — a sign-in page, a proxy, or the JSON
+    #: error body this endpoint serves with HTTP 200.
+    NOT_A_ZIP = "not_a_zip"
+    #: Nothing arrived at all.
+    EMPTY_RESPONSE = "empty_response"
+    #: The bytes could not be written to disk. `detail`.
+    SAVE_FAILED = "save_failed"
+    #: The transfer finished and what arrived is a plausible .zip. `count`.
+    DOWNLOADED = "downloaded"
+
+    # -- the archive ------------------------------------------------------
+    #: `testzip()` found a corrupt member. `name`.
+    ARCHIVE_DAMAGED = "archive_damaged"
+    #: Not a readable .zip at all.
+    ARCHIVE_UNREADABLE = "archive_unreadable"
+    #: Far more entries than a driver package has. `count`.
+    ARCHIVE_TOO_MANY_ENTRIES = "archive_too_many_entries"
+    #: An entry with an absolute or drive-qualified path. `name`.
+    ARCHIVE_UNSAFE_PATH = "archive_unsafe_path"
+    #: A symbolic link, which a driver package never needs. `name`.
+    ARCHIVE_SYMLINK = "archive_symlink"
+    #: An entry that resolves outside the folder ChromIQ chose. `name`.
+    ARCHIVE_ESCAPES = "archive_escapes"
+    #: It unpacks to far more than a driver package.
+    ARCHIVE_TOO_BIG = "archive_too_big"
+    #: There is nothing in it.
+    ARCHIVE_EMPTY = "archive_empty"
+    #: Extraction failed on the filesystem. `detail`.
+    UNPACK_FAILED = "unpack_failed"
+    #: Unpacked into the target folder.
+    UNPACKED = "unpacked"
+    #: Downloaded, unpacked, and shaped like a driver package. `path` is what
+    #: `inspect_package` should be pointed at. This is NOT "verified".
+    PACKAGE_READY = "package_ready"
+
+    # -- install ----------------------------------------------------------
+    #: Drivers can only be installed on Windows.
+    NOT_WINDOWS = "not_windows"
+    #: The path holds a quotation mark and cannot be quoted safely.
+    PATH_HAS_QUOTE = "path_has_quote"
+    #: The INF is not there any more. `path`.
+    INF_MISSING = "inf_missing"
+    #: The re-check immediately before elevating no longer trusts the package.
+    #: `detail` is `PackageVerdict.reason`.
+    PACKAGE_REJECTED = "package_rejected"
+    #: The re-check approved a DIFFERENT file from the one it was asked for.
+    INF_MISMATCH = "inf_mismatch"
+    #: `pnputil.exe` is not on this computer.
+    NO_PNPUTIL = "no_pnputil"
+    #: `ShellExecuteExW` failed before any prompt appeared. `code`.
+    ELEVATION_FAILED = "elevation_failed"
+    #: Windows refused to ask for permission at all — the managed-desktop
+    #: `ConsentPromptBehaviorUser = 0`.
+    ELEVATION_REFUSED = "elevation_refused"
+    #: The user answered No at the permission prompt.
+    CANCELLED_AT_PROMPT = "cancelled_at_prompt"
+    #: Still running after the wait ran out. NOT stopped, and NOT undone.
+    #: `count` is the number of seconds waited.
+    STILL_RUNNING = "still_running"
+    #: The wait ended in a way that says nothing about the install.
+    LOST_TRACK = "lost_track"
+
+    # -- what pnputil said ------------------------------------------------
+    #: Exit 0.
+    DRIVER_ACCEPTED = "driver_accepted"
+    #: Exit 3010.
+    REBOOT_TO_FINISH = "reboot_to_finish"
+    #: Exit 259 — accepted, but there was nothing to apply it to.
+    NOTHING_TO_APPLY = "nothing_to_apply"
+    #: Exit 5.
+    NO_PERMISSION = "no_permission"
+    #: Exit 2.
+    PACKAGE_UNREADABLE = "package_unreadable"
+    #: Exit 87.
+    PACKAGE_INVALID = "package_invalid"
+    #: Anything else. `code`.
+    UNKNOWN_EXIT = "unknown_exit"
+
+    # -- did a COM port appear? -------------------------------------------
+    #: A port appeared for an instance that did not have one. `name` is the
+    #: comma-separated list. THE ONLY SUCCESS.
+    PORT_APPEARED = "port_appeared"
+    #: The driver is on the machine and Windows has not attached it.
+    STILL_NO_PORT = "still_no_port"
+    #: Every unbound instance vanished — unplugged while ChromIQ worked.
+    UNPLUGGED_MID_FLOW = "unplugged_mid_flow"
+    #: Nothing was unbound to begin with, so there was nothing to judge.
+    #: `name` is the ports that were already there.
+    NOTHING_TO_CHECK = "nothing_to_check"
+    #: No bridge is attached at all.
+    NOTHING_ATTACHED = "nothing_attached"
+
+
+@dataclass(frozen=True)
+class DriverResult:
+    """What one operation came to, in a form the UI can compose words from.
+
+    `bool(result)` and `result.ok` both mean `Outcome.OK` and ONLY that.
+    `REBOOT_REQUIRED` is deliberately falsy here — the whole 3010 fault was a
+    truthy "success" flowing on into a check that could not possibly pass — so
+    a caller that wants to treat it as progress has to say so by name.
+    """
+
+    outcome: Outcome
+    reason: Reason
+    #: A `pnputil` exit code or a Windows error number, when there is one.
+    code: "int | None" = None
+    #: A folder or file the sentence needs to name.
+    path: "Path | None" = None
+    #: A file name, an archive member, a list of COM ports.
+    name: str = ""
+    #: A byte count, an entry count, a number of seconds.
+    count: int = 0
+    #: THE OPERATING SYSTEM'S OWN WORDS, never ChromIQ's, and never branched
+    #: on. Windows is translated; an `OSError` is not, and neither is
+    #: translatable by us — so it is shown quoted, as what the system said.
+    detail: str = ""
+
+    @property
+    def ok(self) -> bool:
+        return self.outcome is Outcome.OK
+
+    def __bool__(self) -> bool:
+        return self.ok
+
+
 def _vid_pid_from_instance_id(instance_id: str) -> tuple[str, str] | None:
     """``USB\\VID_1A86&PID_7523\\7&…`` -> ``("1a86", "7523")``."""
     parts = instance_id.upper().split("\\")
@@ -1020,7 +1222,7 @@ def stream_to_file(
     deadline_s: float = _TOTAL_DEADLINE_S,
     progress: Callable[[int], None] | None = None,
     now: Callable[[], float] = time.monotonic,
-) -> tuple[bool, str]:
+) -> DriverResult:
     """Stream *reader* into *target*, refusing to be fed for ever.
 
     Three independent gates, because the endpoint gives us nothing to pre-flight
@@ -1045,126 +1247,120 @@ def stream_to_file(
         with open(target, "wb") as handle:
             while True:
                 if now() - started > deadline_s:
-                    return False, (
-                        "The download was taking too long, so ChromIQ stopped "
-                        "it. Please check your internet connection and try "
-                        "again.")
+                    return DriverResult(Outcome.FAILED,
+                                        Reason.DOWNLOAD_TOO_SLOW, count=total)
                 chunk = reader.read(64 * 1024)
                 if not chunk:
                     break
                 total += len(chunk)
                 if total > max_bytes:
-                    return False, (
-                        "What the website sent back is far bigger than WCH's "
-                        "driver package, so ChromIQ stopped the download "
-                        "instead of saving it.")
+                    return DriverResult(Outcome.FAILED,
+                                        Reason.DOWNLOAD_TOO_BIG, count=total)
                 if len(head) < 2:
                     head = (head + chunk)[:2]
                     if len(head) >= 2 and head != b"PK":
-                        return False, (
-                            "The website did not send a .zip file. That usually "
-                            "means a sign-in page or a proxy answered instead "
-                            "of WCH. You can download CH341SER.ZIP yourself and "
-                            "point ChromIQ at the unpacked folder.")
+                        return DriverResult(Outcome.FAILED, Reason.NOT_A_ZIP)
                 handle.write(chunk)
                 if progress is not None:
                     progress(total)
     except OSError as exc:
-        return False, f"The download could not be saved: {exc}"
+        return DriverResult(Outcome.FAILED, Reason.SAVE_FAILED, detail=str(exc))
 
     if total == 0 or head != b"PK":
-        return False, ("The website sent nothing that looks like a .zip file. "
-                       "You can download CH341SER.ZIP yourself and point "
-                       "ChromIQ at the unpacked folder.")
-    return True, f"Downloaded {total} bytes."
+        return DriverResult(Outcome.FAILED, Reason.EMPTY_RESPONSE)
+    return DriverResult(Outcome.OK, Reason.DOWNLOADED, count=total)
 
 
-def _safe_members(archive: zipfile.ZipFile, target: Path) -> tuple[list[zipfile.ZipInfo], str]:
-    """Entries that are safe to write under *target*, or an explanation.
+def _safe_members(archive: zipfile.ZipFile,
+                  target: Path) -> "tuple[list[zipfile.ZipInfo], DriverResult | None]":
+    """Entries that are safe to write under *target*, or why none are.
 
     Zip-slip guard. ``extractall`` sanitises leading slashes and ``..`` on its
     own, but this tree is about to be handed to an ELEVATED process, so the
     check is explicit and a violation aborts the whole archive rather than being
     silently rewritten.
+
+    Returns ``(members, None)`` or ``([], DriverResult)``.
     """
     root = target.resolve()
     members: list[zipfile.ZipInfo] = []
     unpacked = 0
     infos = archive.infolist()
     if len(infos) > _MAX_ENTRIES:
-        return [], (f"That .zip contains {len(infos)} items, far more than a "
-                    f"driver package. ChromIQ did not unpack it.")
+        return [], DriverResult(Outcome.FAILED,
+                                Reason.ARCHIVE_TOO_MANY_ENTRIES,
+                                count=len(infos))
     for info in infos:
         name = info.filename
         if name.startswith("/") or name.startswith("\\") or ":" in name:
-            return [], (f"That .zip contains an item with an unsafe path "
-                        f"(\u201c{name}\u201d). ChromIQ did not unpack it.")
+            return [], DriverResult(Outcome.FAILED, Reason.ARCHIVE_UNSAFE_PATH,
+                                    name=name)
         if (info.external_attr >> 16) & 0xF000 == 0xA000:
-            return [], (f"That .zip contains a symbolic link (\u201c{name}\u201d), "
-                        f"which a driver package never needs. ChromIQ did not "
-                        f"unpack it.")
+            return [], DriverResult(Outcome.FAILED, Reason.ARCHIVE_SYMLINK,
+                                    name=name)
         resolved = (root / name).resolve()
         if resolved != root and root not in resolved.parents:
-            return [], (f"That .zip tries to write outside the folder ChromIQ "
-                        f"chose (\u201c{name}\u201d). It was not unpacked.")
+            return [], DriverResult(Outcome.FAILED, Reason.ARCHIVE_ESCAPES,
+                                    name=name)
         if info.is_dir():
             continue
         unpacked += info.file_size
         if unpacked > _MAX_UNPACKED_BYTES:
-            return [], ("That .zip unpacks to far more than a driver package. "
-                        "ChromIQ did not unpack it.")
+            return [], DriverResult(Outcome.FAILED, Reason.ARCHIVE_TOO_BIG,
+                                    count=unpacked)
         members.append(info)
     if not members:
-        return [], "That .zip is empty."
-    return members, ""
+        return [], DriverResult(Outcome.FAILED, Reason.ARCHIVE_EMPTY)
+    return members, None
 
 
-def unpack_archive(zip_path: Path, target: Path) -> tuple[bool, str]:
+def unpack_archive(zip_path: Path, target: Path) -> DriverResult:
     """``testzip()`` then a guarded extraction into *target*."""
     try:
         with zipfile.ZipFile(zip_path) as archive:
             broken = archive.testzip()
             if broken is not None:
-                return False, (f"The downloaded file is damaged \u2014 "
-                               f"\u201c{broken}\u201d inside it is corrupt. Please try "
-                               f"again.")
-            members, why = _safe_members(archive, target)
-            if not members:
-                return False, why
+                return DriverResult(Outcome.FAILED, Reason.ARCHIVE_DAMAGED,
+                                    name=broken)
+            members, refusal = _safe_members(archive, target)
+            if refusal is not None:
+                return refusal
             target.mkdir(parents=True, exist_ok=True)
             for info in members:
                 archive.extract(info, target)
     except zipfile.BadZipFile:
-        return False, ("The downloaded file is not a readable .zip. You can "
-                       "download CH341SER.ZIP yourself and point ChromIQ at "
-                       "the unpacked folder.")
+        return DriverResult(Outcome.FAILED, Reason.ARCHIVE_UNREADABLE)
     except OSError as exc:
-        return False, f"The download could not be unpacked: {exc}"
-    return True, "Unpacked."
+        return DriverResult(Outcome.FAILED, Reason.UNPACK_FAILED,
+                            detail=str(exc))
+    return DriverResult(Outcome.OK, Reason.UNPACKED, path=target)
 
 
 def download_package(
     dest: Path,
     *,
     progress: Callable[[int], None] | None = None,
-) -> tuple[bool, Path | None, str]:
+) -> DriverResult:
     """Fetch and unpack WCH's CH341SER package into *dest*.
 
-    Returns ``(ok, unpacked_folder, plain-language reason)``. The folder is what
-    ``inspect_package`` should be pointed at; this function deliberately does
-    NOT verify signatures, because everything above must survive garbage first.
+    On success the result is ``Outcome.OK`` / ``Reason.PACKAGE_READY`` with
+    ``path`` set to the unpacked folder — what ``inspect_package`` should be
+    pointed at. This function deliberately does NOT verify signatures, because
+    everything above must survive garbage first.
 
     There is no way to pin what arrives: the endpoint publishes no
     ``Content-Length``, no ``ETag``, no ``Last-Modified`` and no checksum, has no
     versioned URL, and answers a malformed request with ``HTTP 200`` and a Java
     exception in JSON. ChromIQ can promise "we checked what arrived"; it can
-    never promise "we know what we asked for".
+    never promise "we know what we asked for" — and the window says so, in the
+    reader's own language, because that sentence lives in the UI now.
     """
     dest = Path(dest)
     try:
         dest.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
-        return False, None, f"ChromIQ could not create \u201c{dest}\u201d: {exc}"
+        return DriverResult(Outcome.FAILED, Reason.STAGING_UNWRITABLE,
+                            path=dest, detail=str(exc))
 
     part = dest / "CH341SER.zip.part"
     final = dest / "CH341SER.zip"
@@ -1174,34 +1370,33 @@ def download_package(
         response = _open_url(PACKAGE_URL)
     except Exception as exc:            # noqa: BLE001 - urllib raises many kinds
         name = type(exc).__name__
+        # certifi's bundle does not carry a corporate MITM proxy's root, which
+        # lives in the Windows store — so this fails on exactly the networks
+        # where fetching it in a browser also tends to be blocked, and the
+        # window has to say THAT rather than "network unreachable".
         if "CERTIFICATE" in str(exc).upper() or "SSL" in name.upper():
-            return False, None, (
-                "ChromIQ could not confirm it was really talking to WCH's "
-                "website. That normally happens on a company or school network "
-                "that inspects secure connections. You can download "
-                "CH341SER.ZIP in your browser and point ChromIQ at the "
-                "unpacked folder instead.")
-        return False, None, (
-            f"ChromIQ could not reach WCH's website ({exc}). You can download "
-            f"CH341SER.ZIP in your browser and point ChromIQ at the unpacked "
-            f"folder instead.")
+            return DriverResult(Outcome.FAILED, Reason.TLS_UNTRUSTED,
+                                detail=str(exc))
+        return DriverResult(Outcome.FAILED, Reason.UNREACHABLE,
+                            detail=str(exc))
 
     try:
-        ok, why = stream_to_file(response, part, progress=progress)
+        result = stream_to_file(response, part, progress=progress)
     finally:
         try:
             response.close()
         except Exception:               # noqa: BLE001 - closing must never raise
             pass
-    if not ok:
+    if not result.ok:
         part.unlink(missing_ok=True)
-        return False, None, why
+        return result
 
     try:
         os.replace(part, final)
     except OSError as exc:
         part.unlink(missing_ok=True)
-        return False, None, f"The download could not be saved: {exc}"
+        return DriverResult(Outcome.FAILED, Reason.SAVE_FAILED,
+                            detail=str(exc))
 
     # os.replace cannot replace a DIRECTORY on Windows (this project has been
     # bitten once already, in the demo-project cache), so a stale extraction is
@@ -1209,40 +1404,33 @@ def download_package(
     if unpacked.exists():
         shutil.rmtree(unpacked, ignore_errors=True)
 
-    ok, why = unpack_archive(final, unpacked)
-    if not ok:
-        return False, None, why
-    return True, unpacked, (
-        "Downloaded WCH's driver package and unpacked it. ChromIQ has checked "
-        "that it really is a .zip and that nothing inside it points outside "
-        "this folder; it has not yet checked whether it is the right driver "
-        "for this computer.")
+    result = unpack_archive(final, unpacked)
+    if not result.ok:
+        return result
+    return DriverResult(Outcome.OK, Reason.PACKAGE_READY, path=unpacked)
 
 
 # ---------------------------------------------------------------------------
 # Install
 # ---------------------------------------------------------------------------
-#: pnputil exit codes -> (installed_something, plain-language sentence).
-#: NOTHING here reads pnputil's stdout. It is German on this machine and
-#: 10.0.26200 has no ``/format json``; the published ``oem`` name is not stable
-#: either (it moved from oem10 to oem9 during one experiment).
-_PNPUTIL_OUTCOMES: dict[int, tuple[bool, str]] = {
-    0: (True, "Windows accepted the driver."),
-    3010: (True, "Windows accepted the driver and needs a restart to finish "
-                 "switching it on. Please restart the computer, then plug the "
-                 "instrument in again."),
-    259: (False, "Windows accepted the driver package but found nothing to use "
-                 "it on. If the instrument is plugged in, unplug it, wait a few "
-                 "seconds, plug it back in and check again."),
-    1223: (False, "You said No to the Windows permission prompt, so nothing was "
-                  "changed."),
-    5: (False, "Windows refused the change. This normally means the account "
-               "does not have permission to install drivers, or a company "
-               "policy blocks it. Nothing was changed."),
-    2: (False, "Windows could not read the driver package. Nothing was "
-               "changed."),
-    87: (False, "Windows rejected the driver package as invalid. Nothing was "
-                "changed."),
+#: ``pnputil`` exit codes -> (outcome, reason). NOTHING here reads pnputil's
+#: output. It is German on this machine and 10.0.26200 has no ``/format json``;
+#: the published ``oem`` name is not stable either (it moved from oem10 to oem9
+#: during one experiment).
+#:
+#: **3010 IS ITS OWN OUTCOME AND THAT IS THE POINT.** It used to be
+#: ``(True, "…needs a restart…")``, so the flow read the ``True`` and went on to
+#: ``verify_bound`` — which cannot find a port for a driver that is staged and
+#: not yet live — and the user was shown "everything passed and there is still
+#: no COM port" with the sentence about restarting printed underneath it.
+_PNPUTIL_OUTCOMES: "dict[int, tuple[Outcome, Reason]]" = {
+    0: (Outcome.OK, Reason.DRIVER_ACCEPTED),
+    3010: (Outcome.REBOOT_REQUIRED, Reason.REBOOT_TO_FINISH),
+    259: (Outcome.NO_OP, Reason.NOTHING_TO_APPLY),
+    1223: (Outcome.USER_CANCELLED, Reason.CANCELLED_AT_PROMPT),
+    5: (Outcome.ACCESS_DENIED, Reason.NO_PERMISSION),
+    2: (Outcome.FAILED, Reason.PACKAGE_UNREADABLE),
+    87: (Outcome.FAILED, Reason.PACKAGE_INVALID),
 }
 
 
@@ -1264,7 +1452,7 @@ def _pnputil_path() -> Path | None:
     return candidate if candidate.exists() else None
 
 
-def install(inf_path: Path) -> tuple[bool, str]:
+def install(inf_path: Path) -> DriverResult:
     """Hand *inf_path* to an elevated ``pnputil /add-driver … /install``.
 
     Only ever ADDS. ChromIQ never deletes or replaces a driver.
@@ -1282,36 +1470,28 @@ def install(inf_path: Path) -> tuple[bool, str]:
     """
     inf_path = Path(inf_path)
     if sys.platform != "win32":
-        return False, "Drivers can only be installed on Windows."
+        return DriverResult(Outcome.FAILED, Reason.NOT_WINDOWS)
 
     # The quoting check comes FIRST and does not care whether the file exists:
     # a path that cannot be handed to an elevated process safely is refused as a
     # path, not as a missing file.
     if '"' in str(inf_path):
-        return False, ("That folder's name contains a quotation mark, which "
-                       "Windows' driver installer cannot be given safely. "
-                       "Please move the driver folder somewhere with a simpler "
-                       "name and try again.")
+        return DriverResult(Outcome.FAILED, Reason.PATH_HAS_QUOTE,
+                            path=inf_path)
     if not inf_path.is_file():
-        return False, (f"ChromIQ cannot find \u201c{inf_path}\u201d any more. Nothing "
-                       f"was changed.")
+        return DriverResult(Outcome.FAILED, Reason.INF_MISSING, path=inf_path)
 
     verdict = inspect_package(inf_path.parent)
     if not verdict.ok:
-        return False, ("ChromIQ re-checked the driver package just before "
-                       "installing it and no longer trusts it, so nothing was "
-                       f"changed. {verdict.reason}")
+        return DriverResult(Outcome.FAILED, Reason.PACKAGE_REJECTED,
+                            path=inf_path, detail=verdict.reason)
     if verdict.inf_path is not None and \
             verdict.inf_path.resolve() != inf_path.resolve():
-        return False, ("ChromIQ re-checked the driver package just before "
-                       "installing it and the file it approved is not the one "
-                       "it was asked to install, so nothing was changed.")
+        return DriverResult(Outcome.FAILED, Reason.INF_MISMATCH, path=inf_path)
 
     tool = _pnputil_path()
     if tool is None:
-        return False, ("Windows' driver installer (pnputil.exe) is not on this "
-                       "computer, so ChromIQ cannot install the driver. Nothing "
-                       "was changed.")
+        return DriverResult(Outcome.FAILED, Reason.NO_PNPUTIL)
 
     parameters = f'/add-driver "{inf_path}" /install'
     log.info("ch34x: elevating %s %s", tool, parameters)
@@ -1319,7 +1499,7 @@ def install(inf_path: Path) -> tuple[bool, str]:
 
 
 def _run_elevated(tool: Path, parameters: str,
-                  timeout_ms: int = 300_000) -> tuple[bool, str]:
+                  timeout_ms: int = 300_000) -> DriverResult:
     import ctypes  # noqa: PLC0415
     import ctypes.wintypes as wt  # noqa: PLC0415
 
@@ -1355,34 +1535,28 @@ def _run_elevated(tool: Path, parameters: str,
 
     if not shell32.ShellExecuteExW(ctypes.byref(sei)):
         err = ctypes.get_last_error()
-        # Three states the old code collapsed into one "failed or cancelled".
+        # THREE STATES THE OLD CODE COLLAPSED INTO ONE "failed or cancelled",
+        # and they are three different things to be told:
+        # `ConsentPromptBehaviorUser = 0` — an ordinary managed-desktop setting
+        # — makes this fail with NO PROMPT AT ALL, which is not the same as a
+        # user declining one.
         if err == ERROR_CANCELLED:
-            return False, ("You said No to the Windows permission prompt, so "
-                           "nothing was changed. Installing a driver needs "
-                           "administrator permission; nothing else about "
-                           "ChromIQ is affected.")
+            return DriverResult(Outcome.USER_CANCELLED,
+                                Reason.CANCELLED_AT_PROMPT, code=err)
         if err == ERROR_ACCESS_DENIED:
-            return False, ("Windows refused to ask for permission at all. On a "
-                           "managed computer this usually means an "
-                           "administrator has switched that prompt off. "
-                           "Nothing was changed \u2014 please ask whoever looks "
-                           "after this computer to install the driver.")
-        return False, (f"Windows could not start its driver installer (error "
-                       f"{err}). Nothing was changed.")
+            return DriverResult(Outcome.ACCESS_DENIED,
+                                Reason.ELEVATION_REFUSED, code=err)
+        return DriverResult(Outcome.FAILED, Reason.ELEVATION_FAILED, code=err)
 
     try:
         wait = kernel32.WaitForSingleObject(sei.hProcess, timeout_ms)
         if wait == WAIT_TIMEOUT:
             # The old pattern discarded this and then read STILL_ACTIVE (259) as
             # an exit code, reporting failure while the install was mid-flight.
-            return False, (
-                "Windows' driver installer is still working after "
-                f"{timeout_ms // 1000} seconds. ChromIQ has stopped waiting, "
-                "but it has NOT stopped the installation \u2014 nothing was "
-                "undone. Give it a moment, then use Check again.")
+            return DriverResult(Outcome.FAILED, Reason.STILL_RUNNING,
+                                count=timeout_ms // 1000)
         if wait != WAIT_OBJECT_0:
-            return False, ("ChromIQ lost track of Windows' driver installer. "
-                           "Use Check again to see what actually happened.")
+            return DriverResult(Outcome.FAILED, Reason.LOST_TRACK)
         code = wt.DWORD()
         kernel32.GetExitCodeProcess(sei.hProcess, ctypes.byref(code))
     finally:
@@ -1392,19 +1566,18 @@ def _run_elevated(tool: Path, parameters: str,
     return describe_exit_code(code.value)
 
 
-def describe_exit_code(code: int) -> tuple[bool, str]:
-    """Map a ``pnputil`` exit code to an outcome. Never its stdout."""
+def describe_exit_code(code: int) -> DriverResult:
+    """Map a ``pnputil`` exit code to an outcome. Never its output."""
     if code in _PNPUTIL_OUTCOMES:
-        return _PNPUTIL_OUTCOMES[code]
-    return False, (f"Windows' driver installer stopped with an error "
-                   f"(code {code}). Nothing ChromIQ did removed or replaced any "
-                   f"driver you already had.")
+        outcome, reason = _PNPUTIL_OUTCOMES[code]
+        return DriverResult(outcome, reason, code=code)
+    return DriverResult(Outcome.FAILED, Reason.UNKNOWN_EXIT, code=code)
 
 
 # ---------------------------------------------------------------------------
 # Verification
 # ---------------------------------------------------------------------------
-def verify_bound(before: list[DeviceState]) -> tuple[bool, str]:
+def verify_bound(before: list[DeviceState]) -> DriverResult:
     """Did a COM port appear for an instance that did not have one?
 
     The ONLY success test. A driver can install and not bind — that is the
@@ -1414,6 +1587,11 @@ def verify_bound(before: list[DeviceState]) -> tuple[bool, str]:
 
     Judged per instance, so a second, already-working CH340 elsewhere on the
     machine cannot make a failure look like a success.
+
+    A failure here is not necessarily a fault: ``NOTHING_TO_CHECK`` and
+    ``NOTHING_ATTACHED`` are ``NO_OP`` — there was nothing to judge — and
+    ``UNPLUGGED_MID_FLOW`` says the adapter left, not that the driver is bad.
+    Only ``STILL_NO_PORT`` is the hard case this feature exists for.
     """
     was_unbound = {d.instance_id for d in before if d.port is None}
     now = {d.instance_id: d for d in devices()}
@@ -1421,35 +1599,17 @@ def verify_bound(before: list[DeviceState]) -> tuple[bool, str]:
     if not was_unbound:
         if now:
             ports = ", ".join(sorted(d.port for d in now.values() if d.port))
-            return False, (
-                f"Nothing needed fixing: every USB-to-serial adapter ChromIQ "
-                f"can see already had a COM port ({ports}). ChromIQ cannot tell "
-                f"you whether this install changed anything, because there was "
-                f"nothing to change.")
-        return False, ("ChromIQ cannot see any USB-to-serial adapter, so there "
-                       "is nothing to check. Plug the instrument in and use "
-                       "Check again.")
+            return DriverResult(Outcome.NO_OP, Reason.NOTHING_TO_CHECK,
+                                name=ports)
+        return DriverResult(Outcome.NO_OP, Reason.NOTHING_ATTACHED)
 
     bound = [now[i] for i in was_unbound if i in now and now[i].port]
     if bound:
         ports = ", ".join(sorted(d.port for d in bound if d.port))
-        return True, (
-            f"It worked. The adapter now has a COM port ({ports}) and ChromIQ "
-            f"can talk to it. Go to the Measure tab and connect your "
-            f"instrument.")
+        return DriverResult(Outcome.OK, Reason.PORT_APPEARED, name=ports)
 
     gone = [i for i in was_unbound if i not in now]
     if gone and len(gone) == len(was_unbound):
-        return False, ("The adapter was unplugged while ChromIQ was working, so "
-                       "there is nothing to check. Plug it back in and use "
-                       "Check again \u2014 nothing was removed or replaced.")
+        return DriverResult(Outcome.NO_OP, Reason.UNPLUGGED_MID_FLOW)
 
-    return False, (
-        "The driver installed, but Windows has not given the adapter a COM port "
-        "yet, so ChromIQ still cannot reach it. Three things are worth trying, "
-        "in this order: unplug the adapter, wait a few seconds and plug it back "
-        "in; then use Check again; then restart the computer, because some "
-        "driver changes only take effect after a restart. Nothing you had "
-        "before was removed or replaced. (Device Manager's \u201cRoll Back "
-        "Driver\u201d will not help here \u2014 it is greyed out for a device that never "
-        "had a driver to roll back to.)")
+    return DriverResult(Outcome.FAILED, Reason.STILL_NO_PORT)
