@@ -1113,7 +1113,10 @@ class LayoutOptionsPanel(QWidget):
                "layout is reproduced every build (handy for re-printing an "
                "identical chart), otherwise a fresh seed is drawn each time. "
                "Press New seed to draw one now; it's saved with the chart so you "
-               "can always recreate it."), self), 2, 2)
+               "can always recreate it. After every build the Seed box shows the "
+               "number the chart on screen was shuffled with, even while the box "
+               "is greyed out — tick “Use a fixed seed” to build that exact "
+               "layout again."), self), 2, 2)
         _basic_v.addWidget(rg)
         self._on_randomize_toggled(True)
 
@@ -3619,6 +3622,42 @@ class LayoutOptionsPanel(QWidget):
         from workflow.layout_engine.permutation import pick_seed
         self.fixed_seed_cb.setChecked(True)   # a drawn seed is a reproducible one
         self.seed_spin.setValue(pick_seed())
+
+    def show_built_seed(self, seed: "int | None") -> None:
+        """Put the seed the chart on screen was ACTUALLY built with in the box.
+
+        Basti, 4.1.5-beta.9: *"on initial generation the seed number there is
+        always 0 at first or stuck at any other number even when i generate
+        again. i think that even when this field is greyed it should reflect the
+        seed number of the chart on screen"*. He was right, and the box was
+        worse than empty: with "Use a fixed seed" unticked the recipe asks the
+        engine for ``seed=None``, the engine draws one
+        (:func:`workflow.layout_engine.chart.build_chart`) and nothing ever
+        carried it back here — so the box read **0**, a number that was never
+        used for anything, while the sheet on the printer had been shuffled with
+        something else entirely.
+
+        DISPLAY ONLY, and deliberately so. It does not tick "Use a fixed seed",
+        so :meth:`get_recipe` still answers ``seed=None`` and the next build
+        still draws a fresh one — the randomisation behaviour is untouched; only
+        the reporting of it changed. The write goes in with the spin box's
+        signals blocked for the same reason: this is not the user editing a
+        setting, and ``valueChanged`` drives the live preview and the helper-
+        marker memory, neither of which should move because a build finished.
+        """
+        if seed is None or not self.randomize_cb.isChecked():
+            return
+        try:
+            value = int(seed)
+        except (TypeError, ValueError):
+            return
+        if not (self.seed_spin.minimum() <= value <= self.seed_spin.maximum()):
+            return
+        was = self.seed_spin.blockSignals(True)
+        try:
+            self.seed_spin.setValue(value)
+        finally:
+            self.seed_spin.blockSignals(was)
 
     def _make_insert_button(self, target, *, multiline: bool = False):
         """A compact "Insert ▾" token menu that inserts into *target* (a QLineEdit

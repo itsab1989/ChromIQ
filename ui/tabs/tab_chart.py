@@ -16860,6 +16860,11 @@ class TabChart(QWidget):
             # doesn't needlessly reload (#130).
             self._shown_chart_ti2 = ti2
             self._shown_chart_stamp = self._chart_stamp(ti2)
+            # …and let the Seed box say which shuffle produced the sheet that is
+            # now on screen (Basti, 4.1.5-beta.9). AFTER `_last_auto_sig` is
+            # baselined above, so that even a future signature that did read the
+            # spin cannot make this look like a settings change and re-render.
+            self._show_built_seed_in_panel(ti2)
             # #130: default the shared bar to the run we just built into, so a
             # plain re-Generate OVERWRITES it instead of spuriously creating a new
             # run (the bar's empty default reads as "New run").
@@ -18039,6 +18044,38 @@ class TabChart(QWidget):
             ).exec()
         else:
             self._auto_preview_timer.stop()
+
+    def _show_built_seed_in_panel(self, ti2: "Path | None") -> None:
+        """Show the seed the just-built chart was shuffled with in the Seed box.
+
+        Basti, 4.1.5-beta.9: *"there is no way to see which seed number was
+        used it seems […] on initial generation the seed number there is always
+        0"*. The number was never missing from the PRODUCT — the engine writes
+        ``RANDOM_START "<seed>"`` into the ``.ti2`` and ``layout.seed`` into the
+        chart's ``channels.json`` — it was only missing from the screen.
+
+        The chart's own sidecar is the source, not ``result.seed`` handed down
+        the call chain, because this one point serves every route that ends in
+        :meth:`_on_generate_finished`: a fresh build, a rebuild from a ``.ti1``,
+        the gamut route, and a verification chart that has just been MOVED into
+        ``verifications/`` under a different stem. Reading the file that ended up
+        beside the chart cannot disagree with the chart.
+
+        Silent no-op for a printtarg chart (no ``chromiq`` layout block) and for
+        a chart laid out in fixed order (``randomize`` off), where a seed number
+        would describe nothing on the sheet.
+        """
+        panel = getattr(self, "_manual_layout_panel", None)
+        if panel is None or ti2 is None:
+            return
+        try:
+            from workflow.layout_engine.presets import LayoutRecipe
+            rec = LayoutRecipe.from_channels_json(
+                Path(ti2).with_suffix(".channels.json"))
+            if rec is not None and rec.randomize:
+                panel.show_built_seed(rec.seed)
+        except Exception:  # noqa: BLE001 — never let a display detail end a build
+            log.warning("could not show the built seed", exc_info=True)
 
     def _layout_signature(self) -> "str | None":
         """A cheap fingerprint of the current layout settings, so the auto-preview

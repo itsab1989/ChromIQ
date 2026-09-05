@@ -2526,7 +2526,7 @@
   "Patches && spacers": "パッチとスペーサー",
   "Patches (this page)": "パッチ（このページ）",
   "Patches Still Unread": "未読のパッチがあります",
-  "Patches are shuffled across the sheet so a streak of similar colours can't bias a strip — leave this on. The seed is the number that drives the shuffle: with a fixed seed the exact same layout is reproduced every build (handy for re-printing an identical chart), otherwise a fresh seed is drawn each time. Press New seed to draw one now; it's saved with the chart so you can always recreate it.": "似た色の連続が1本のストリップを偏らせないよう、パッチはシート全体でシャッフルされます — これはオンのままにしてください。シードはシャッフルを決める数値です。固定シードなら毎回まったく同じレイアウトが再現され（同一チャートの再印刷に便利）、そうでなければ毎回新しいシードが引かれます。「新しいシード」で今すぐ引けます。チャートと一緒に保存されるので、いつでも再作成できます。",
+  "Patches are shuffled across the sheet so a streak of similar colours can't bias a strip — leave this on. The seed is the number that drives the shuffle: with a fixed seed the exact same layout is reproduced every build (handy for re-printing an identical chart), otherwise a fresh seed is drawn each time. Press New seed to draw one now; it's saved with the chart so you can always recreate it. After every build the Seed box shows the number the chart on screen was shuffled with, even while the box is greyed out — tick “Use a fixed seed” to build that exact layout again.": "似た色の連続が1本のストリップを偏らせないよう、パッチはシート全体でシャッフルされます — これはオンのままにしてください。シードはシャッフルを決める数値です。固定シードなら毎回まったく同じレイアウトが再現され（同一チャートの再印刷に便利）、そうでなければ毎回新しいシードが引かれます。「新しいシード」で今すぐ引けます。チャートと一緒に保存されるので、いつでも再作成できます。 生成のたびに、シード欄には画面上のチャートが実際にシャッフルされた数値が表示されます（灰色で入力できないときも同じです）。「固定シードを使用」にチェックを入れると、まったく同じレイアウトをもう一度生成できます。",
   "Patches per strip": "ストリップあたりのパッチ数",
   "Patches per strip (rows)": "ストリップあたりのパッチ数（行）",
   "Patches per strip (rows):": "ストリップあたりのパッチ数（行）:",

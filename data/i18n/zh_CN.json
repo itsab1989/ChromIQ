@@ -2526,7 +2526,7 @@
   "Patches && spacers": "色块与间隔条",
   "Patches (this page)": "色块（本页）",
   "Patches Still Unread": "仍有色块未读",
-  "Patches are shuffled across the sheet so a streak of similar colours can't bias a strip — leave this on. The seed is the number that drives the shuffle: with a fixed seed the exact same layout is reproduced every build (handy for re-printing an identical chart), otherwise a fresh seed is drawn each time. Press New seed to draw one now; it's saved with the chart so you can always recreate it.": "色块会在纸面上打乱，使一串相似颜色不会使某条色条产生偏差——请保持开启。种子是驱动打乱的数字：使用固定种子时每次构建都重现完全相同的布局（便于重新打印相同的色卡），否则每次都会抽取新的种子。按「新建种子」立即抽取一个；它会随色卡一同保存，因此你随时可以重现它。",
+  "Patches are shuffled across the sheet so a streak of similar colours can't bias a strip — leave this on. The seed is the number that drives the shuffle: with a fixed seed the exact same layout is reproduced every build (handy for re-printing an identical chart), otherwise a fresh seed is drawn each time. Press New seed to draw one now; it's saved with the chart so you can always recreate it. After every build the Seed box shows the number the chart on screen was shuffled with, even while the box is greyed out — tick “Use a fixed seed” to build that exact layout again.": "色块会在纸面上打乱，使一串相似颜色不会使某条色条产生偏差——请保持开启。种子是驱动打乱的数字：使用固定种子时每次构建都重现完全相同的布局（便于重新打印相同的色卡），否则每次都会抽取新的种子。按「新建种子」立即抽取一个；它会随色卡一同保存，因此你随时可以重现它。 每次构建后，「种子」框都会显示屏幕上这张色卡实际使用的打乱数字，即使该框是灰色的也一样；勾选「使用固定种子」即可再次构建完全相同的布局。",
   "Patches per strip": "每条色条的色块数",
   "Patches per strip (rows)": "每条色条的色块数（行）",
   "Patches per strip (rows):": "每条色条的色块数（行）:",

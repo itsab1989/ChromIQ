@@ -2410,3 +2410,66 @@ came back to it.
 - next step: either give the USB path a Lab to check against, or state the
   limit in the docstring and name the transport. Do not widen the rule back
   into a threshold.
+
+### B8-66 · The Seed box read 0 while the chart on screen had been shuffled with something else
+- blocks release: no
+- found by: Basti, 4.1.5-beta.9 — *"when creating a chart with the layout engine
+  and in the randomisation section 'randomise patch order' is active (which is on
+  by default) then there is no way to see which seed number was used it seems.
+  when i click the new seed button then the seed number field gets a number that
+  is reflecting the seed but on initial generation the seed number there is
+  always 0 at first or stuck at any other number even when i generate again. i
+  think that even when this field is greyed it should reflect the seed number of
+  the chart on screen"*
+- detail: reproduced on screen exactly as reported, twice
+  (`scripts/drive_seed_field_shows_the_chart.py`, shots in
+  `Desktop/beta 9/seed-field/`): two consecutive builds were shuffled with
+  1004140342 and 1778456217 while the box read **0** both times, and only "New
+  seed" ever moved it. With "Use a fixed seed" unticked
+  `layout_options_panel.get_recipe()` sets `seed=None`
+  (`ui/dialogs/layout_options_panel.py:4501`), `chart.build_chart` draws its own
+  (`workflow/layout_engine/chart.py:247`), and nothing carried the drawn number
+  back to the widget. **0 is not a blank** — it is a valid seed producing a real,
+  different shuffle — so the box was not silent, it was wrong.
+- what was NOT broken, established while in there: the seed is persisted twice
+  over — `RANDOM_START "<seed>"` in the `.ti2`
+  (`workflow/layout_engine/ti2_writer.py:70,88`) and `layout.seed` in the
+  chart's `channels.json` (`workflow/chart_creator.py:1418`) — the two agreed on
+  every build driven; the same seed reproduces the same patch order (driven,
+  step 6); and reloading the chart brings its seed back into the box with "Use a
+  fixed seed" ticked (driven, step 7). The defect was reporting, not
+  reproducibility.
+- fix: `LayoutOptionsPanel.show_built_seed`, called from
+  `TabChart._on_generate_finished` via `TabChart._show_built_seed_in_panel`,
+  which reads the seed out of the finished chart's own `channels.json` rather
+  than from a variable carried down the call chain — so it is right for every
+  route that ends there, including a verification chart that has just been moved
+  into `verifications/` under a different stem. DISPLAY ONLY: it does not tick
+  "Use a fixed seed", `get_recipe()` still answers `seed=None`, the next build
+  still draws a fresh seed, and the write goes in with the spin box's signals
+  blocked so the live preview and the helper-marker memory do not move because a
+  build finished. Proved unchanged: the same `.ti1` + the same recipe builds a
+  byte-identical `.ti1`, `.ti2`, `.strips.json` and page TIFF on this tree and on
+  `635a4dd8`, with an identical patch order.
+- text: the Randomisation ⓘ gained one sentence saying that the box reports the
+  chart on screen even while greyed, translated into all twelve catalogues. It
+  is a tooltip, not a message window, so it is outside the §M catalogue.
+- evidence: test_zero_is_a_real_seed_and_not_a_placeholder,
+  test_a_normal_build_asks_the_engine_for_no_seed_at_all,
+  test_the_built_seed_reaches_the_box,
+  test_it_shows_even_while_the_box_is_greyed,
+  test_showing_a_seed_does_not_tick_use_a_fixed_seed,
+  test_a_typed_seed_still_survives_the_display,
+  test_the_display_fires_no_change_signal,
+  test_a_fixed_order_chart_gets_no_seed_in_the_box,
+  test_a_seed_it_cannot_show_leaves_the_box_alone,
+  test_the_tab_reads_the_seed_out_of_the_finished_chart,
+  test_a_fixed_order_chart_on_disk_is_not_reported_as_shuffled,
+  test_a_printtarg_chart_leaves_the_box_alone,
+  test_a_chart_with_no_sidecar_at_all_is_survivable,
+  test_every_finished_build_goes_through_it,
+  test_it_is_read_from_the_chart_and_not_from_a_carried_variable
+  — all in the seed-box file under `tests/`, whose name is the first test's
+  subject. Eight mutations were applied to disk, each verified present in the
+  file before the run, and every one turned that file red.
+- status: FIXED
