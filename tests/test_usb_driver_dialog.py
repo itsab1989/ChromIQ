@@ -1937,7 +1937,13 @@ def _geometry_of(w):
         "viewport_h": area.viewport().height(),
         "viewport_w": area.viewport().width(),
         "inner_h": inner.height(),
+        # How tall the content really is at the width it really got — which is
+        # not `inner_h`, because `setWidgetResizable(True)` stretches the inner
+        # widget to fill the viewport. The difference is wasted window.
+        "inner_needed_h": (inner.heightForWidth(area.viewport().width())
+                           if inner.hasHeightForWidth() else inner.height()),
         "inner_minhint_w": inner.minimumSizeHint().width(),
+        "assumed_w": getattr(area, "_assumed_width", None),
         "hidden": vbar.maximum(),
         "vbar_visible": vbar.isVisible(),
         "hbar_max": hbar.maximum(),
@@ -2083,6 +2089,24 @@ def test_a_notice_that_fits_the_screen_hides_none_of_itself(dialog):
         "%d px of the consent text is below the fold in a %d px window that "
         "could have been %d px"
         % (found["hidden"], found["height"], found["cap"]))
+    # ...and it is not needlessly TALL either, which is the other half of
+    # "the height its content wants". A height worked out at the wrong width
+    # errs in whichever direction that width was wrong: too narrow an estimate
+    # opens a window with a band of empty space under the last paragraph, too
+    # wide an estimate leaves the last paragraph below the fold. One line of
+    # slack is expected and deliberate — the vertical scrollbar's width is
+    # reserved in the estimate so that a marginal fit cannot come out short.
+    slack = found["viewport_h"] - found["inner_needed_h"]
+    assert slack <= 40, (
+        "%d px of empty space under the text — the height was worked out at "
+        "the wrong width" % slack)
+    # And the mechanism, said directly, because the symptom above is only a
+    # few lines of slack and a threshold that could tell 14 px from 30 px would
+    # be a threshold that breaks on the next font: the area is TOLD the width
+    # it is about to have, and that width is the one it gets.
+    assert found["assumed_w"] == found["viewport_w"], (
+        "the scroll area worked its height out for %s px and was given %d"
+        % (found["assumed_w"], found["viewport_w"]))
 
 
 def test_the_screen_cap_is_the_only_thing_that_shortens_a_notice(dialog):
