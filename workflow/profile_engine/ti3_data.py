@@ -62,6 +62,11 @@ class Ti3Measurement:
     wavelengths: np.ndarray | None = None   # (bands,) nm
     sample_ids: list[str] | None = None     # SAMPLE_ID column, if present
     sample_locs: list[str] | None = None    # SAMPLE_LOC column (sheet cell)
+    # After collapse_duplicates(): how many readings each row stands for.
+    # An averaged row must keep its repeats' weight in the fit — dropping it
+    # loosened the white/black anchoring and cost interior accuracy on the
+    # battery (S2 A2B 0.220 → 0.241, S5 neutral-K smoothness 0.13 → 0.38).
+    row_weights: np.ndarray | None = None
 
     def patch_label(self, row: int) -> str:
         """How a person finds patch ``row`` (0-based) on the printed sheet:
@@ -186,6 +191,10 @@ class Ti3Measurement:
             if spec is not None:
                 spec[min(g)] = self.spectral[g].mean(0)
         removed = len(self.device) - len(keep)
+        counts = np.ones(len(self.device))
+        for g in groups:
+            counts[min(g)] = len(g)
+        self.row_weights = counts[keep]
         self.device = self.device[keep]
         self.xyz = xyz[keep]
         if spec is not None:

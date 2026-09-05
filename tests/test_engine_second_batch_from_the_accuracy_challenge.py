@@ -166,7 +166,9 @@ def test_ink_limit_above_the_chart_is_capped_with_a_line(tmp_path):
     assert said and f"using {printed:.0f}%" in said[0], log[:6]
 
 
-def test_repeated_patches_are_averaged_in_accurate_mode(tmp_path):
+def test_repeated_patches_can_be_averaged_in_accurate_mode(tmp_path):
+    """Opt-in (BuildSettings.average_duplicates): the battery, whose charts
+    repeat only white and black, measured a net loss with it on by default."""
     rng = np.random.default_rng(9)
     base = rng.uniform(0, 1, (200, 3))
     base[0] = 1.0
@@ -189,7 +191,8 @@ def test_repeated_patches_are_averaged_in_accurate_mode(tmp_path):
     log: list[str] = []
     res = build_profile(ti3, tmp_path / "rep.icc",
                         BuildSettings(quality="l", gammap_mode="accurate",
-                                      timestamp=_TS, progress=log.append))
+                                      timestamp=_TS, progress=log.append,
+                                      average_duplicates=True))
     assert any("Averaged 40 repeated patch(es) (80 extra readings)" in ln
                for ln in log), log[:8]
     # Fitting THROUGH the repeats reads their scatter as misreads.

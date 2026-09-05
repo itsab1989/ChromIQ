@@ -188,12 +188,15 @@ class BuildSettings:
     # radial mapping (exact -nI inverse, much faster; how photos LOOK is
     # a taste question the user judges by printing).
     render_style: str = "argyll"
-    # Accurate mode: average exactly repeated patches before the fit
-    # (unbiased, noise/√k; measured better than fitting through the repeats
-    # on every battery metric, and it stops the robust loop from calling the
-    # between-read scatter of identical patches "misreads"). Stands aside
-    # when the noise model is on — that path weights each reading itself.
-    average_duplicates: bool = True
+    # Accurate mode, opt-in: average exactly repeated patches before the fit
+    # (each averaged row keeps its repeats' weight). It won on a chart whose
+    # every patch was read three times (A-18), but on the synthetic battery,
+    # whose charts repeat only white and black, it lost interior accuracy
+    # (S2 A2B 0.220 → 0.241) and neutral-K smoothness (S5 0.13 → 0.38 → 0.15
+    # weighted) — the robust loop's scale is estimated from fewer, cleaner
+    # rows. Off until the battery says otherwise; ChromIQ's own averaging
+    # feature (ti3_average) already averages whole reads before the engine.
+    average_duplicates: bool = False
 
 
 @dataclass
@@ -455,14 +458,16 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             fit_forward_model_accurate_challenged(
                 meas.device, meas.lab_relative, grid=a2b_grid,
                 base_lam=lam, curve_rounds=curve_rounds, ucs=use_ucs,
-                progress=lambda m: _emit(settings, m))
+                progress=lambda m: _emit(settings, m),
+                row_weights=meas.row_weights)
     elif accurate:
         from workflow.profile_engine.accuracy import fit_forward_model_accurate
         model, outliers, _lam_used = fit_forward_model_accurate(
             meas.device, meas.lab_relative, grid=a2b_grid, base_lam=lam,
             curve_rounds=curve_rounds, ucs=use_ucs,
             gp="gp" in candidates,
-            progress=lambda m: _emit(settings, m))
+            progress=lambda m: _emit(settings, m),
+            row_weights=meas.row_weights)
         if len(outliers):
             # Name the patches the way the SHEET names them (SAMPLE_LOC):
             # "rows 757, 811" only coincided with the printed IDs on a
@@ -594,8 +599,15 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     # and the black corner: L*=0 → the chart's deepest measured black.
     dev_clut_shaped = b2a_mod.pin_white_node(dev_clut_shaped, node_lab,
                                              meas.is_additive)
-    device_black = np.zeros(n) if meas.is_additive \
-        else meas.device[meas.black_index].copy()
+    if meas.is_additive:
+        device_black = np.zeros(n)
+    else:
+        # Ink devices: the per-node inversion's OWN answer for the black
+        # corner respects the ink policy (K locus, TAC, priors); the darkest
+        # measured patch is an arbitrary ink mix and made the neutral K
+        # curve jump at the bottom (battery S5: TV excess 0.10 → 0.38).
+        black_node = int(np.argmin(np.linalg.norm(node_lab, axis=1)))
+        device_black = dev_clut[black_node].copy()
     if channel_max is not None:
         device_black = np.minimum(device_black, channel_max)
     dev_clut_shaped = b2a_mod.pin_black_node(

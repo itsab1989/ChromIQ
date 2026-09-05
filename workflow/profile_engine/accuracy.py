@@ -52,8 +52,13 @@ def fit_forward_model_accurate(
         progress: Callable[[str], None] | None = None,
         ucs: bool = False,
         gp: bool = False,
+        row_weights: np.ndarray | None = None,
         ) -> tuple[ForwardModel, np.ndarray, float]:
     """Cross-validated, outlier-robust forward fit.
+
+    ``row_weights``: per-row multiplicity (an averaged duplicate group
+    stands for k readings) — multiplied into every least-squares weight so
+    the fit is the one the k separate rows would have given.
 
     Returns ``(model, outlier_indices, lam_used)`` — outliers are patch row
     indices whose residual stayed far above the bulk even after the robust
@@ -103,10 +108,11 @@ def fit_forward_model_accurate(
     if progress is not None:
         progress("Fitting the printer model: scanning for misread "
                  "patches…")
+    rw = None if row_weights is None else np.asarray(row_weights, float)
     scan = fit_forward_model(device, lab, grid=grid,
                              lam=4.0 * base_lam,
                              curve_rounds=min(curve_rounds, 1),
-                             cg_iters=350, cg_rtol=_CG_RTOL)
+                             cg_iters=350, cg_rtol=_CG_RTOL, weights=rw)
     res_scan = dist(scan.predict(device), lab)
 
     if sigma is not None:
@@ -158,7 +164,8 @@ def fit_forward_model_accurate(
             m = fit_forward_model(device[trn], lab[trn], grid=grid,
                                   lam=lam_try, cg_iters=350,
                                   curve_rounds=min(curve_rounds, 1),
-                                  cg_rtol=_CG_RTOL)
+                                  cg_rtol=_CG_RTOL,
+                                  weights=None if rw is None else rw[trn])
             r = dist(m.predict(device[ho]), lab[ho])
             if sigma is not None:
                 r = r / sigma[ho]      # whitened: a true z-score criterion
@@ -246,7 +253,8 @@ def fit_forward_model_accurate(
                           0.2, 5.0)
 
     def _total(wr: np.ndarray) -> np.ndarray:
-        return wr if w_noise is None else wr * w_noise
+        out = wr if w_noise is None else wr * w_noise
+        return out if rw is None else out * rw
 
     if progress is not None:
         progress("Fitting the printer model: robust fit 1/2…")
@@ -254,7 +262,8 @@ def fit_forward_model_accurate(
     model = fit_forward_model(device, lab, grid=grid, lam=lam,
                               curve_rounds=curve_rounds,
                               weights=w if ((w < 0.999).any()
-                                            or w_noise is not None) else None,
+                                            or w_noise is not None
+                                            or rw is not None) else None,
                               cg_rtol=_CG_RTOL)
     res = dist(model.predict(device), lab)
     res_w = res / sigma if sigma is not None else res
@@ -316,6 +325,7 @@ def fit_forward_model_accurate_challenged(
         device: np.ndarray, lab: np.ndarray, *, grid: int, base_lam: float,
         curve_rounds: int = 2, ucs: bool = False,
         progress: Callable[[str], None] | None = None,
+        row_weights: np.ndarray | None = None,
         ) -> tuple[ForwardModel, np.ndarray, float, str]:
     """Noise-aware fitting behind a noise DETECTOR (issue #123).
 
@@ -352,5 +362,6 @@ def fit_forward_model_accurate_challenged(
                      "trusted equally (noise handling stands aside).")
     model, outliers, lam = fit_forward_model_accurate(
         device, lab, grid=grid, base_lam=base_lam,
-        curve_rounds=curve_rounds, ucs=ucs, gp=win, progress=progress)
+        curve_rounds=curve_rounds, ucs=ucs, gp=win, progress=progress,
+        row_weights=row_weights)
     return model, outliers, lam, ("noise" if win else "standard")
