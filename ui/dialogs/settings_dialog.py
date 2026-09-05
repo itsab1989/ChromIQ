@@ -1024,6 +1024,14 @@ class ContentHeightScrollArea(QScrollArea):
         super().__init__(parent)
         self._assumed_width = 0
 
+    def _bar_reserve(self) -> int:
+        """The vertical scrollbar's width, unless it can never be shown."""
+        bar = self.verticalScrollBar()
+        if (bar is None or self.verticalScrollBarPolicy()
+                == Qt.ScrollBarPolicy.ScrollBarAlwaysOff):
+            return 0
+        return bar.sizeHint().width()
+
     def assume_width(self, width: int) -> None:
         """Say how wide this area is about to be, before anything is shown."""
         self._assumed_width = max(0, int(width))
@@ -1035,7 +1043,16 @@ class ContentHeightScrollArea(QScrollArea):
         inner = self.widget()
         if inner is None:
             return -1
-        inner_w = max(1, width - 2 * self.frameWidth())
+        # THE SCROLLBAR'S OWN WIDTH IS RESERVED EVEN WHEN IT WILL NOT APPEAR,
+        # because the answer changes the question: content that comes out one
+        # line taller than the viewport raises a vertical scrollbar, the bar
+        # takes 14 px of width, the text re-wraps TALLER STILL, and a window
+        # worked out to fit exactly ends up 14 px short with a scrollbar nobody
+        # needed. Measured, on a marginal fit. Answering at the narrower width
+        # costs at most one line of height — invisible, because
+        # `setWidgetResizable(True)` stretches the inner widget to the viewport
+        # — and it cannot ever be short.
+        inner_w = max(1, width - 2 * self.frameWidth() - self._bar_reserve())
         height = inner.heightForWidth(inner_w) if inner.hasHeightForWidth() else -1
         if height <= 0:
             height = inner.sizeHint().height()
