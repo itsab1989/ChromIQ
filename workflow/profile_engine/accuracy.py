@@ -37,11 +37,21 @@ from workflow.profile_engine.metrics import delta_e_2000
 # λ search ladder, as factors on the parity table's value (settings -r
 # included — it scales the base before the search).
 _LAMBDA_FACTORS = (0.25, 0.5, 1.0, 2.0, 4.0)
-_CV_FOLDS = 3                  # hold-out splits (1 when a fit is very large)
-_CV_FOLD_MAX_NODES = 250_000   # grid**n above which one split has to do
-_CV_MARGIN_FRACTION = 0.02     # a factor must beat ×1 by this much (or by
-#                                the across-split scatter, whichever is larger)
+# THE SMOOTHING SEARCH IS THE SHIPPED ONE, ON PURPOSE. The 2026-09 challenge
+# showed the held-out criterion is split-sensitive (the same chart picked
+# ×0.25 whole and ×4 at 90 %), and three alternatives were measured on the
+# synthetic battery — the referee — against the shipped rule: three splits
+# (S6 −21 %), a "keep ×1 on a near tie" margin (S6 −21 %), and duplicate-
+# group-aware splits (S3 −8 %, S6 back to par). Each helped one printer and
+# cost another; none met the gate. So the selection stays, and the LOG became
+# honest: a win inside the test's scatter is called a near tie, a pick at
+# either end of the ladder is named. A criterion that sees the print (B2A
+# round trip, neutral smoothness) is the open piece of work.
+_CV_FOLDS = 1
+_CV_FOLD_MAX_NODES = 250_000   # (kept for the folds-by-size rule)
+_CV_MARGIN_FRACTION = 0.05     # the "near tie" label only; no decision
 _NAME_SCALE_FACTOR = 6.0       # "remeasure" threshold in robust-scale units
+_CV_PREFER_STANDARD_ON_TIE = False
 _HOLDOUT_MIN_PATCHES = 120     # below this a CV split starves the fit
 _CG_RTOL = 1e-12               # squared-residual scale → ~1e-6 relative
 
@@ -180,26 +190,30 @@ def fit_forward_model_accurate(
         mean = {f: float(np.mean(v)) for f, v in errs.items()}
         std_at_1 = float(np.std(errs[1.0])) if folds > 1 else 0.0
         noise = max(_CV_MARGIN_FRACTION * mean[1.0], std_at_1)
-        cand = min(mean, key=mean.get)
-        if cand != 1.0 and mean[cand] < mean[1.0] - noise:
-            best_f = cand
-        else:
+        # The best MEAN across the splits wins. A conservative "keep ×1
+        # unless beaten by the scatter" rule was tried and cost the 5-ink
+        # battery printer 21 % A2B accuracy (S6 0.447 → 0.542); the honest
+        # part is the LOG: a win inside the scatter is called a near tie.
+        best_f = min(mean, key=mean.get)
+        near_tie = best_f != 1.0 and (mean[1.0] - mean[best_f]) < noise
+        if near_tie and _CV_PREFER_STANDARD_ON_TIE:
             best_f = 1.0
         best_err, best_lam = mean[best_f], base_lam * best_f
         unit_ = "× the instrument noise" if sigma is not None else "ΔE2000"
         if progress is not None:
-            if best_f == 1.0:
-                progress(f"Smoothing: no candidate beat the standard value "
-                         f"by more than the test's own scatter (±{noise:.2f} "
-                         f"{unit_}) — keeping the standard smoothing.")
-            else:
-                at_end = best_f in (_LAMBDA_FACTORS[0], _LAMBDA_FACTORS[-1])
-                progress(f"Smoothing chosen by cross-validation: ×{best_f:.2g} "
-                         f"of the standard value (held-out median "
-                         f"{best_err:.2f} vs {mean[1.0]:.2f} {unit_} at the "
-                         f"standard value)"
-                         + (" — the end of the search range." if at_end
-                            else "."))
+            at_end = best_f in (_LAMBDA_FACTORS[0], _LAMBDA_FACTORS[-1])
+            progress(f"Smoothing chosen by cross-validation: ×{best_f:.2g} "
+                     f"of the standard value (held-out median "
+                     f"{best_err:.2f} vs {mean[1.0]:.2f} {unit_} at the "
+                     f"standard value"
+                     + (f"; within the test's own scatter of ±{noise:.2f}, "
+                        f"a near tie — the standard value is kept"
+                        if near_tie and best_f == 1.0 else
+                        f"; within the test's own scatter of ±{noise:.2f}, "
+                        f"a near tie" if near_tie else "")
+                     + ")"
+                     + (" — the end of the search range." if at_end
+                        else "."))
         if gp:
             # Hill-climb refinement in half-octave steps (pragmatic v1 of
             # the GP marginal-likelihood optimisation): the optimum is no
