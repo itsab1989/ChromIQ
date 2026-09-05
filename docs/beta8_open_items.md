@@ -2739,7 +2739,192 @@ came back to it.
   catalogues and a rewrite of both help cards; it needs a stored-setting
   migration whose one hard rule is that an existing target must NOT have a
   scenario applied on first open, or its next profile silently changes; and it
-  has a layout prerequisite, because the left pane of this window does not
-  scroll when it runs out of room, it overlaps (measured under B8-69). Building
-  it before any of that is settled would ship a control that moves people's
-  settings without asking.
+  had a layout prerequisite, because the left pane of this window did not
+  scroll when it ran out of room, it overlapped (measured under B8-69).
+  Building it before any of that is settled would ship a control that moves
+  people's settings without asking.
+- **the layout prerequisite is closed**: B8-73. The pane's rows can no longer
+  be stacked at any height, and the correction worth carrying over is that it
+  was never the settings COLUMN — that scrolls correctly in all thirteen
+  languages — but the pane the column sits in. What remains here is wording,
+  i18n and the stored-setting migration, all of which are Basti's.
+
+### B8-72 · The scanner/camera window opens below the usable area on Windows, hiding three controls
+- blocks release: no
+- status: FIXED
+- found by: the Windows ARM64 VM, `Desktop/HANDOVER-to-macos-3.md` item W-07 —
+  *"the scanner window opens 67 logical px below the usable area, hiding three
+  controls completely: add scan for averaging, save diagnostic image, and use
+  .cht registration marks. It is the POSITION, not the size — moved to y=0,
+  everything fits."*
+- detail: the report's hypothesis was right in substance and wrong in one
+  detail. The placement maths does not ignore the work area — Qt's own
+  `QDialog::adjustPosition` clamps against `availableGeometry` — but it runs
+  from `QDialog::showEvent`, **with the size the window has at that moment**,
+  and `_ToolDialogBase.showEvent` resizes the window a few lines later, once
+  its rows are real and its wrapped labels have claimed their height. The
+  clamp is stale before it matters. Traced on the live window (German, macOS
+  with the Dock shown, work area 994 px tall):
+
+      base.showEvent on entry     y = -28, h = 744
+      base.showEvent on exit      y = 137, h = 860
+      just after show()           y = 110, h = 894
+      settled                     y = 110, h = 922
+
+  — 178 px of growth after the position was chosen.
+- **it reproduces on macOS, and macOS hides it.** Cocoa's
+  `constrainFrameRect:toScreen:` shoves the window up again on every growth
+  step, which is why the frame lands with its bottom EXACTLY on the work
+  area's edge in all thirteen languages and nothing is visible. Windows has no
+  such rescue. The state the Windows report describes is reproducible here
+  under `QT_QPA_PLATFORM=offscreen`, which also has no window manager: before
+  the fix the frame was `[0, 88, 1244, 724]` on an 800 px screen, **12 px
+  below the work area**; after it, `[0, 76, ...]`, bottom exactly on the edge.
+- one thing the Dock DID show on macOS: with the Dock visible the work area
+  drops from 1079 to 994 px, the window's 90 % cap takes it from 964 to 922,
+  and the same three controls — *＋ Add another scan to average*, *Save a
+  diagnostic image of what was read*, *Use fiducial marks in the .cht as
+  reference* — go below the fold of the RIGHT pane. There they are reachable
+  by scrolling, which is the difference between the two platforms in one
+  sentence.
+- **AND THE POSITION IS ONLY HALF OF IT** — corrected by the Windows VM's
+  round-4 handover (B8-39), and confirmed here rather than taken on trust. The
+  earlier *"moved to y=0, everything fits"* is wrong: at the top of the work
+  area the right pane's own content still runs past the bottom. Measured on
+  macOS with the Dock shown (work area 994 px), how far the right pane's
+  content falls below its viewport as the window opens, and how many of the
+  three controls are past the work area:
+
+  | | before | after |
+  |---|---|---|
+  | English | 49 px, 2 controls | **7 px, 0 controls** |
+  | German | 95 px, 3 | **37 px, 1** |
+  | Russian | 95 px, 3 | **53 px, 2** |
+  | Spanish | 136 px, 3 | **78 px, 3** |
+
+  Two of the VM's corrections check out here to the letter: **Russian** needs
+  the widest window (1178 px against German's 1104) and **Spanish** is the
+  worst vertical case, not German.
+- the second cause is `cap_h`. `_ToolDialogBase` opened at
+  `min(hint, 0.9 * available.height())`, and the missing tenth is not spare —
+  it is the bottom of the right pane. On the VM's 1032 px work area that is
+  **41 px (DE) / 25 px (EN) less than the window's own sizeHint with 75 px of
+  screen unused**; here, with the Dock shown, it opened at 894 px against a
+  952 px hint, i.e. 58 px. `MAX_FLOOR_H` in `scanin_dialog.py` already reasons
+  the honest way — screen, minus taskbar, minus caption — and `_work_area_cap`
+  is now that same arithmetic with the caption READ off the window.
+- fix, both halves, in `_ToolDialogBase` so every tool dialog gets them:
+  * `_keep_inside_the_work_area`, run after every `self.resize(...)` the class
+    performs (`showEvent` and `_refit_height`). It clamps the FRAME — caption
+    and border included — against `availableGeometry`, never against
+    `geometry()`, and never pushes a window that is too tall off the TOP to
+    make its bottom fit. It also brings a frame TALLER than the work area down
+    to it, which is what lets the cap below be optimistic before the window is
+    mapped and the caption's height is known.
+  * `_work_area_cap`, replacing the nine-tenths rule.
+- **what it does NOT close, stated plainly.** Spanish still has 78 px of right
+  pane below the fold as the window opens, because the window's `sizeHint` does
+  not include the right pane's content at all — `_scroll_right` is a
+  QScrollArea and reports a generic hint (the same reason its minimum is 44 px,
+  which `_fit_floor_to_the_smallest_screen` already documents). What HAS changed
+  is that scrolling now works: **after scrolling the right pane to the bottom,
+  none of the three controls is past the work area in any of the four languages
+  measured**, where the VM found that on Windows scrolling to maximum still
+  left both checkboxes inside the reserved taskbar strip. Making the window ask
+  for its right pane's real height — `ContentHeightScrollArea` in
+  `settings_dialog.py` is the existing mechanism — changes the opening size of
+  this window in every language, which is a design decision and not a defect
+  fix. Left for Basti, with the numbers above.
+- evidence: `tests/`, file `a_tool_window_opens_inside_the_work_area.py` —
+  test_the_window_opens_with_its_bottom_inside_the_work_area,
+  test_the_clamp_brings_a_window_back_from_under_the_taskbar,
+  test_the_clamp_never_pushes_the_title_bar_off_the_top,
+  test_a_window_that_already_fits_is_left_where_the_user_put_it,
+  test_every_resize_the_base_class_performs_is_followed_by_the_clamp,
+  test_the_opening_height_is_capped_by_the_work_area_not_nine_tenths_of_it,
+  test_a_frame_taller_than_the_work_area_is_brought_down_to_it,
+  test_no_tool_dialog_still_sizes_itself_to_a_fraction_of_the_screen
+- mutation, proved to land, four of them: removing the two clamp call sites
+  turns test_the_window_opens_with_its_bottom_inside_the_work_area and
+  test_every_resize_the_base_class_performs_is_followed_by_the_clamp red;
+  emptying the clamp turns the first and
+  test_the_clamp_brings_a_window_back_from_under_the_taskbar red; putting the
+  nine-tenths rule back turns
+  test_the_opening_height_is_capped_by_the_work_area_not_nine_tenths_of_it and
+  test_no_tool_dialog_still_sizes_itself_to_a_fraction_of_the_screen red;
+  removing the shrink step turns
+  test_a_frame_taller_than_the_work_area_is_brought_down_to_it red.
+
+### B8-73 · The left pane of the scanner/camera window stacks its rows instead of scrolling
+- blocks release: no
+- status: FIXED
+- found by: B8-69's own note, and named as the layout prerequisite of B8-71
+  ("Usage Scenario:") — *"the left pane of this window does not scroll when it
+  runs out of room, it overlaps"*
+- detail: **it is the PANE, not the column, and that correction matters** —
+  the pane is where a new control has to go. The settings scroll area itself
+  was measured clean: thirteen languages × three source modes × Advanced open
+  and closed × five window heights, with a wrapped hint added under the
+  scanner-profile field and again inside a row layout, and in every one of
+  those the column was handed its full `heightForWidth`, no wrapped label was
+  short of its own `heightForWidth`, and no two controls shared pixels.
+  What stacks is the pane one level up. It holds four rows — the settings
+  scroll area, the spectrum busy bar, the four big buttons, the log — and
+  three of them cannot give: `fit_log_height` pins the log at min == max, the
+  buttons are two rows of real buttons, the bar is a fixed strip. The fourth,
+  the only one that scrolls, held a hard `minimumHeight` of 120–136 px and
+  refused. A QVBoxLayout that is over-subscribed does not clip and does not
+  scroll: it lays its rows on top of one another. Measured on the live window
+  (German, the window forced under its own floor):
+
+      pane 367 px (its minimum is 447)   the spectrum bar 12 px into the
+                                         settings area
+      pane 287 px                        40 px
+      pane 207 px                        the bar 46 px in, and the button grid
+                                         a further 13 px on top of that
+
+  The pane is handed less than its minimum only when the WINDOW is, which is
+  finding C of the Windows verification — a floor of 675 logical pixels on a
+  laptop that has 672 — and it is what a new row in this column does the
+  moment `MIN_LEFT_SCROLL_H` is already the binding constraint.
+- fix: `ScannerProfileDialog._let_the_settings_pane_give`, called from a new
+  `resizeEvent` and from `_fit_floor_to_the_smallest_screen`. The settings
+  area keeps the comfortable height that function decides
+  (`_settings_pane_floor`) whenever the pane has room for it, and gives up
+  whatever it must below that. A version that also re-pinned the window's
+  minimum was built and thrown away: it read the floor through a QSplitter
+  that had not been settled and pinned 720 px where the floor is 640, so the
+  window bounced UP by 80 px on a drag that should have been refused at 640.
+  The ratchet it was guarding against cannot start from a drag, because a drag
+  stops at the window's minimum, at which the pane is exactly at its own.
+- **it costs the ordinary window nothing**, and that is measured rather than
+  assumed: in all thirteen languages the minimum width (1048–1178), the
+  minimum height (640) and the opening size (1240×922) are identical before
+  and after, and the 34-check scanner sweep has the same result on both trees.
+- evidence: `tests/`, file `the_scanner_left_pane_scrolls_instead_of_overlapping.py` —
+  test_the_left_panes_rows_never_sit_on_top_of_each_other,
+  test_the_settings_area_gives_only_what_the_pane_cannot_hold,
+  test_a_second_pass_moves_nothing,
+  test_the_window_floor_is_unchanged_by_any_of_this
+- mutation, proved to land: making the area never give
+  (`give = want`) turns the first two red; removing the `resizeEvent` hook
+  turns three of the four red.
+
+### B8-74 · An empty averaging slot elides to "Scan 2 (no…" instead of saying it is empty
+- blocks release: no
+- status: OPEN
+- found by: the Windows ARM64 VM, `HANDOVER-to-macos-4.md` §3 — flagged as a
+  conflict for judgement rather than a fault, and it is one.
+- detail: `ElidingComboBox` shortens the averaging slot's label to
+  `Scan 2 (no…` in German, by design, with the full text on a tooltip. B8-32's
+  whole point is that a slot with no file in it must SAY it is empty — a
+  tooltip is not saying it, because nothing tells the user to hover. The two
+  behaviours are individually right and together wrong.
+- **not resolved here on purpose.** It is a wording-and-behaviour decision
+  about a control the owner has already ruled on once (B8-32), and the
+  alternatives — a shorter phrase, a different order so the word that matters
+  survives the elision, a separate marker beside the combo — are choices, not
+  fixes. Basti's.
+- decided by: AGENT BM referred it to Basti, 2026-09-05
+- because: resolving a conflict between two of his own rulings by picking one
+  is exactly the thing CLAUDE.md's binding-specification rule forbids.

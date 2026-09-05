@@ -2268,10 +2268,85 @@ class ScannerProfileDialog(_ToolDialogBase):
         cur = self._scroll.minimumHeight()
         over = (lay.minimumSize().height() - cur + base) - self.MAX_FLOOR_H
         want = max(self.MIN_LEFT_SCROLL_H, base - over) if over > 0 else base
+        # The COMFORTABLE height, recorded before it is applied: what actually
+        # reaches the pane may be less when there is not room for it, and the
+        # room is a different question — `_let_the_settings_pane_give`.
+        self._settings_pane_floor = want
         if want == cur:
             return
-        self._scroll.setMinimumHeight(want)
-        self._settle_the_splitter()
+        if self._let_the_settings_pane_give():
+            self._settle_the_splitter()
+
+    #: The comfortable height the settings area is entitled to, as decided by
+    #: `_fit_floor_to_the_smallest_screen` — and therefore the height the
+    #: window's own floor is computed from. `_let_the_settings_pane_give` hands
+    #: the area LESS than this when the pane has no room for it, which is the
+    #: only state in which the two numbers differ. The class default matches
+    #: `_ToolDialogBase`'s own `setMinimumHeight(200)` on the same area, so it
+    #: is right before the first fit as well as after it.
+    _settings_pane_floor: int = 200
+
+    def _let_the_settings_pane_give(self) -> bool:
+        """The settings area is the only row in the left pane that can shrink.
+
+        **A QVBoxLayout THAT RUNS OUT OF ROOM DOES NOT CLIP AND DOES NOT
+        SCROLL — IT STACKS.** The left pane holds four things: the settings
+        scroll area, the spectrum bar, the four big buttons and the log. Three
+        of them cannot give — `fit_log_height` pins the log at min == max, the
+        buttons are two rows of real buttons, the bar is a fixed strip — and
+        the fourth held a hard `minimumHeight` of 120-136 px. So when the pane
+        was shorter than the sum of those minimums, Qt laid the rows on top of
+        one another. Measured on the live window (agent BM, 2026-09-05, German,
+        the window forced under its own floor):
+
+            pane 367 px (min 447)   the spectrum bar painted 12 px into the
+                                    settings area
+            pane 287 px             40 px
+            pane 207 px             the bar 46 px in, and the button grid a
+                                    further 13 px on top of that
+
+        The pane is only handed less than its minimum when the WINDOW is —
+        which is the Windows VM's finding C, a floor of 675 logical px on a
+        laptop that has 672 — and it is what a new row in this column would do
+        the moment `MIN_LEFT_SCROLL_H` is already the binding constraint. A
+        scroll area that refuses to shrink is not protecting anything: it is
+        choosing to be painted over instead of scrolling.
+
+        So the area follows the room. It keeps `_settings_pane_floor` whenever
+        the pane has room for it — which is every ordinary window on every
+        screen, so nothing moves in normal use — and gives up whatever it must
+        below that, down to nothing.
+
+        IT DOES NOT NEED TO HOLD THE WINDOW'S FLOOR UP, AND TRYING TO DO SO
+        MADE THINGS WORSE. The obvious worry is a ratchet: the squeeze lowers
+        the layout's minimum, which lowers the window's, which allows the next
+        drag. It cannot start from a drag — a drag stops at the window's
+        minimum, at which the pane is exactly at its own, so `give == want` and
+        nothing here fires. It fires only when something OTHER than the user
+        made the window short (a window manager placing a window on a screen
+        that cannot hold its floor), and it hands the room straight back when
+        the window grows again, because it always works from `want`. A version
+        that re-pinned the window's minimum from the layout was measured
+        instead: it read the floor through a QSplitter that had not been
+        settled and pinned **720 px where the floor is 640**, so the window
+        bounced UP by 80 px on a drag that should have been refused at 640.
+        A guard that is wrong is worse than the ratchet it was guarding.
+        """
+        scroll = self._scroll
+        pane = getattr(self, "_left_pane_w", None)
+        if scroll is None or pane is None or pane.layout() is None:
+            return False
+        lay = pane.layout()
+        want = self._settings_pane_floor
+        # What the pane needs for everything EXCEPT the settings area. The
+        # subtraction is the same arithmetic `_fit_floor_to_the_smallest_screen`
+        # relies on: the area's minimum adds linearly to the pane's.
+        fixed = lay.minimumSize().height() - scroll.minimumHeight()
+        give = max(0, min(want, pane.height() - fixed))
+        if give == scroll.minimumHeight():
+            return False
+        scroll.setMinimumHeight(give)
+        return True
 
     def _settle_the_splitter(self) -> None:
         """Make the window's layout tell the truth about its minimum.
@@ -2326,6 +2401,27 @@ class ScannerProfileDialog(_ToolDialogBase):
             finally:
                 self._fitting_floor = False
         return handled
+
+    def resizeEvent(self, event):                          # noqa: N802 — Qt's
+        """Let the settings area follow the pane's height on every drag.
+
+        `event()` above catches a layout that CHANGED; this catches a window
+        that was merely made shorter, which posts no `LayoutRequest` at all
+        and is the whole of how the left pane runs out of room. See
+        `_let_the_settings_pane_give`.
+
+        The guard is the same one `event()` uses, and for the same reason:
+        changing the settings area's minimum invalidates the layout, and a
+        layout that resizes the window lands back here.
+        """
+        super().resizeEvent(event)
+        if not self._sized_once or getattr(self, "_fitting_floor", False):
+            return
+        self._fitting_floor = True
+        try:
+            self._let_the_settings_pane_give()
+        finally:
+            self._fitting_floor = False
 
     def _refit_height(self) -> None:
         """The base class's "the layout changed, sit the window on it again",
