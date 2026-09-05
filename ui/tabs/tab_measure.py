@@ -5604,15 +5604,27 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "measurement always describes a sheet you still have. The chart "
             "loaded now is a different one.\n\n"
             "What each choice does:\n\n"
-            "•  Replace stored chart — the copy is updated to the chart you "
+            "•  {replace} — the copy is updated to the chart you "
             "are about to measure. Use this when the new chart is the one this "
             "run should keep.\n\n"
-            "•  Keep stored chart — the copy is left exactly as it is, and the "
+            "•  {keep} — the copy is left exactly as it is, and the "
             "measurement still goes ahead. Use this to try a chart out. The "
             "copy will then describe an earlier measurement, and ChromIQ says "
-            "so on the “Restore Used Chart” button.\n\n"
+            "so on the “{restore}” button.\n\n"
             "•  Cancel — nothing is written and no measurement starts."
-        ).format(run=self._pretty_run_name(run)) + extra)
+            # The three bullets name three controls, and a name TYPED here is a
+            # name that drifts: German called these buttons „Gespeichertes
+            # Chart ersetzen/behalten" while they read „Gesichertes
+            # ersetzen/behalten", and Italian had the same pair twice over.
+            # Each bullet now interpolates the button's OWN tr() key, so the
+            # two cannot disagree in any language. (This window is NOT in §M —
+            # it has no M- id and is in neither of test_message_catalogue's
+            # allow-lists — so the English may move; §M's own M-END window a
+            # few hundred lines below is fixed in the catalogue instead.)
+        ).format(run=self._pretty_run_name(run),
+                 replace=tr("Replace stored chart"),
+                 keep=tr("Keep stored chart"),
+                 restore=tr("Restore Used Chart")) + extra)
         replace = box.addButton(tr("Replace stored chart"),
                                 QMessageBox.ButtonRole.DestructiveRole)
         keep = box.addButton(tr("Keep stored chart"),
