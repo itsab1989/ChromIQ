@@ -1,5 +1,76 @@
 # Changelog
 
+## v4.1.5-beta.9
+
+**Windows can now get the driver its instrument needs without leaving ChromIQ,
+a colorimeter stopped refusing the most saturated patches on glossy paper, and
+a measurement report that failed to save no longer looks exactly like one that
+worked.**
+
+Twenty-eight changes, from three directions at once: a Windows machine that
+built and hardware-tested the driver helper, a beta tester's review of beta 8,
+and a bug reported on a public forum that turned out to be ours.
+
+### New
+
+- **Windows: one place to get an instrument driver.** For ArgyllCMS's supported
+  devices and for the CR30's USB bridge. ChromIQ checks what is bound, offers
+  the right package, asks for consent before anything elevated happens, and
+  says what it did. Proven end to end on real hardware: from a driverless
+  device to a working COM port, with the instrument identifying in 92 ms.
+
+### Fixed
+
+- **A CR30 refused the most saturated patches on glossy and satin paper, and
+  blamed the instrument.** A guard rejected any reading with three consecutive
+  bands at exactly zero, on the premise that "a real dark patch reads a few
+  percent, never exactly 0.0". The instrument's firmware clamps, so real ink
+  does read exactly 0.0 — and glossy paper crosses that floor where matte never
+  does, which is exactly the pattern the reporter described. It refused a vivid
+  mid-tone green, and it stopped the session for good: five retries, and
+  resuming met the same wall, so the chart could never be finished. Reproduced
+  on our own instrument afterwards — three of five ordinary chart patches
+  contain exact zeros, and two more sat one band from refusal.
+  **Reported by nertog, whose diagnosis was right.**
+- **A measurement report that could not be saved said nothing at all**, while a
+  report that saved announced itself — so the failure looked identical to
+  success. It now says so, and says first that the measurement itself is safe.
+- **Saved measurement reports were re-graded by whatever the thresholds say
+  today.** A report is a record of a judgement made on a day; it now keeps the
+  thresholds it was judged with and the verdict it was given.
+- **The file dialog's back, forward and up arrows were invisible in Neutral** —
+  measured at 1.03:1 against the toolbar behind them, now 14.69:1. Light and
+  Dark improve as well.
+- **A test worker died with no traceback and no log**, which made every gate on
+  Windows unreadable. A test ended with a thread still running; Qt aborts the
+  process for that, and on Windows the abort defeats the crash handler.
+- **Fourteen German sentences named buttons that do not exist**, including all
+  three buttons of the window that decides whether your measurement is kept.
+- **Four languages could not say where a measurement was running.** Italian,
+  Portuguese, Polish and Russian glued a preposition to a translated label and
+  produced ungrammatical text. Each language now supplies the whole sentence.
+- **The button that declines an elevated driver install said "OK".** It says
+  "Not now".
+
+### Changed
+
+- **The six buttons under the scanner preview wrap to the width available**,
+  three to a line where they fit, with Auto align beside Check alignment —
+  the action and the check that judges it. Asked for by Knut.
+- **The scanner's Profile type control no longer says something nothing
+  measured.** Four hundred profile builds on two targets, scored only on
+  patches the fit never saw, settled where each type wins: shaper+matrix below
+  about a hundred patches, a lookup table above it. The help text says so, and
+  points at where you can read your own patch count. The Lab table clips
+  anything lighter than the chart's own white, so the XYZ one is marked as the
+  recommended lookup table.
+
+### For developers
+
+- The register in `docs/beta8_open_items.md` now refuses duplicate item ids, a
+  fix called FIXED that names a test which does not exist, and a deferred item
+  with nobody's name against it.
+
 ## v4.1.5-beta.8
 
 **Auto align worked on 8 of the 25 bundled scanner targets. It now works on all
