@@ -500,10 +500,10 @@ class Cr30CalibrationMixin:
             "measured against this reference, and a wrong one shifts them all "
             "by an amount nothing afterwards can see.\n\n"
             "Hold the instrument with the opening pointing DOWNWARD into open "
-            "space, with nothing in front of it, then press “Take it again”.\n\n"
+            "space, with nothing in front of it, then press “{take_again}”.\n\n"
             "If you would rather carry on, you can — your white calibration "
             "is unaffected either way."
-            ).format(zero=zero))
+            ).format(zero=zero, take_again=tr("Take it again")))
         again = box.addButton(tr("Take it again"),
                               QMessageBox.ButtonRole.AcceptRole)
         box.addButton(tr("Carry on anyway"),
