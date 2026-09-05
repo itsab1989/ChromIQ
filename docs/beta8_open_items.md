@@ -2473,3 +2473,60 @@ came back to it.
   subject. Eight mutations were applied to disk, each verified present in the
   file before the run, and every one turned that file red.
 - status: FIXED
+
+### B8-67 · Check & Refine judges a profile against a measurement it was not built from
+- blocks release: no
+- status: DEFERRED
+- decided by: Basti, 2026-09-05 — *"fix is defered for now. can you store it
+  somewhere?"* The work is complete, gated and pushed; it is held, not dropped.
+- because: the fix is ready but the *interesting* half of the finding is not a
+  fix at all — it is three design questions that are his to rule on, and landing
+  the mechanical part first would make them look answered when they are not.
+  Deferring keeps the whole thing on one desk instead of half-shipping it.
+- found by: a user report relayed on 2026-09-05 — a profile that got worse every
+  refinement round and then advised him to reprint and start again. Three of his
+  four observations turned out to be the app telling the truth.
+- detail: the quality check compares a profile against the readings it was BUILT
+  FROM (`unified_measurement_management.md` §6c says exactly that). A guided
+  re-read rewrites the measurement in place; **nothing rebuilds the profile**
+  (`tab_profile.py:531` is the only caller of `_on_build`); `measure_finished`
+  clears Check & Refine (`main_window.py:388`) and the session-restore path
+  re-arms it with the NEW `.ti3` and the OLD `.icc`
+  (`main_window.py:2869-2876`). So the second check answers "how far has my
+  measurement moved since the profile was made", under the heading "Profile
+  Quality Assessment", in silence.
+
+  Measured on screen on beta 9, a real 924-patch chart, the same re-reads
+  throughout and only the rebuild differing:
+
+  | | avg ΔE | peak | strips flagged |
+  |---|---|---|---|
+  | before | 0.363139 | 2.946109 | 2 |
+  | re-read, not rebuilt | 0.364849 | 2.314044 | 1 |
+  | re-read, rebuilt | 0.363479 | **1.924213** | **none** |
+
+  Data corruption was ruled out, not assumed: five rounds of byte-identical
+  re-reads moved the numbers by not one digit.
+
+  **The half that is not a fix, and is why this is deferred:**
+  * the strip list is computed from profile FIT RESIDUAL, not measurement error
+    — with zero noise it still flags 13 of 47 strips, patches holding no reading
+    error a re-read can remove, so the flow can send a user to re-measure strips
+    that are fine and can never reach "nothing left";
+  * the reprint advice fires on `n_flagged/n_strips > 0.75` and one bad patch
+    condemns a 20-patch strip: 105 bad patches of 924 (11.4 %) produced "39 of
+    47 strips (83 %) need re-measuring";
+  * whether a WORSE re-read may silently overwrite a better one is unruled.
+  * `(!! ALL ROWS READ !!)` is chartread's own `-r` banner, true from the first
+    instant of every refinement and printed at every strip prompt. Technically
+    true, reads as the opposite of what the app is asking for.
+- where the work is: branch **`deferred/check-and-refine-stale-profile`**,
+  pushed. `workflow/profile_provenance.py` (colprof embeds the whole `.ti3` in
+  the ICC's `targ` tag, so the profile carries its own source data and the
+  question needs no timestamps), one log line in `tab_check_refine.py::_on_run`,
+  and 8 tests. Release gate on that tree 11203 passed / exit 0 against beta 9's
+  11195; scanner sweep 32 PASS / 0 FAIL on both. A window for this is drafted as
+  M-CHECK-STALE-PROFILE and deliberately NOT written into §M-PROPOSED — the
+  wording is Basti's ruling and a proposed message costs a translation in
+  thirteen languages.
+- evidence: test_a_check_knows_the_profile_it_judges.py
