@@ -1,5 +1,394 @@
 # Changelog
 
+## v4.2.0
+
+**ChromIQ can now measure a chart with a CR30, the first instrument it drives
+itself instead of handing to ArgyllCMS. The scanner and camera window asks what
+the profile is for and sets itself up for that job. There is a third appearance,
+Neutral, for anyone who would rather the app did not use colour to say things.
+And a long list of faults that had been shipping for months is gone: a
+measurement lost when you quit, an under-exposed scan that built a bad profile
+and then rated it best of the run, a Windows driver installer that had never
+installed a driver, and a "Save As" in the patch editor that handed back a
+different chart.**
+
+Eleven betas, folded into one list. Everything below is measured against 4.1.4.
+
+### New
+
+- **ChromIQ measures a chart with a CR30.** It is a low-cost spectrophotometer
+  with no ArgyllCMS support of any kind, so finding it, identifying it,
+  calibrating it and reading a patch are all ChromIQ's own work, over USB and
+  over Bluetooth. It calibrates the instrument for you, showing both steps as a
+  picture with the current one marked, and offers the dark reference as a tick
+  box because a CR30 has no black tile. It also says plainly what it cannot do:
+  a white calibration cannot be checked by software, because the instrument
+  reports the same value whatever is under the cap. Read single patches works
+  with a CR30 too. The instrument was reverse engineered on real hardware, and
+  the protocol notes, the captures and the experiments that turned out wrong are
+  public at https://github.com/itsab1989/chromiq-cr30-research. Used so far on
+  macOS over USB and over Bluetooth and on Windows on ARM over USB, each with a
+  real instrument and a real chart; Linux, and Bluetooth on Windows, should work
+  and nobody has tried them.
+- **A magnet at the measuring opening can no longer spoil a reading in
+  silence.** A magnet makes a CR30 take a white calibration instead of a
+  measurement and hand back its stored white-tile value, which looks like an
+  ordinary patch colour, and a laptop lid, a fridge door or the instrument's own
+  cap will do it straight through a sheet of paper. ChromIQ learns your own
+  instrument's tile value (one press with the cap on over USB, two over
+  Bluetooth), files it against that instrument so a second CR30 never inherits
+  the first one's, then refuses such a reading, stops the measurement and offers
+  to recalibrate on the spot. Everything measured before that moment is already
+  saved. Over Bluetooth there is no equivalent signal, so use the cable if you
+  have it.
+- **Space, or Enter, takes the reading**, once your instrument's tile is
+  learned. That is not only convenience: pressing the instrument's own button
+  moves it by about ten times its own measurement noise, 0.5 %R against
+  0.05 %R, both measured, so keeping it still is measurably more accurate.
+- **See where the instrument will sit.** A CR30's 33 mm body hides the patch the
+  moment you lower it, so the measurement preview now draws that body to scale,
+  dashed, on the patch you are being asked for: line it up on screen, note which
+  neighbours it covers, and put the instrument down so those same neighbours are
+  evenly covered. A second, much smaller circle appears only when there is a
+  problem, the 4 mm measuring opening, shown when the patch is too small for it.
+  Both figures come from the manufacturer's own specification.
+- **A Bluetooth report, for when the instrument will not connect.** Tools ▸
+  Instruments. It separates the three cases (your computer's Bluetooth sees
+  nothing, something is offering the service a CR30 uses, ChromIQ's own search
+  accepts it) and writes a file you can send. It never asks the instrument to
+  measure or to calibrate.
+
+> **PLACEHOLDER, DO NOT SHIP: Knut's twenty CR30 presets.** The entry for the
+> built-in CR30 presets goes here once that work merges. Do not write it before
+> then.
+
+- **Neutral, a third appearance.** A designed greyscale scheme rather than Light
+  with the colour turned down: one accent value, five-cell rules where the tab
+  hues used to be, and every icon redrawn to read without colour. Choose it in
+  Preferences beside Light and Dark, which are unchanged, checked view by view.
+- **The scanner and camera window asks what the profile is for.** Three choices:
+  an everyday scanner or camera profile, a profile so the scanner can stand in
+  for a measuring instrument, and a printer profile measured with that scanner.
+  Picking one sets the profile type, the quality and the white point handling to
+  suit it, so the three settings that decide whether the profile is any good are
+  not something to remember. They also follow the size of your target: under 100
+  patches ChromIQ starts from shaper plus matrix at Medium quality with "Map
+  chart white to white", at 100 and above from the XYZ table at High with "Scale
+  white to a perfect white surface". Nothing is locked, settings you saved
+  yourself are never moved, and the window says which setting differs rather
+  than changing it back.
+- **Auto align, in the scanner and camera window.** Press it and ChromIQ tries
+  to place the grid on the chart's patches for you, turning it the right way up
+  if the scan was made sideways. It is an addition, not a replacement: nothing
+  runs until you press it, one press puts your corners back exactly, and when it
+  is not confident it says so and moves nothing rather than guessing. It works
+  on all 25 bundled targets. On photographs it is much weaker, and dragging the
+  corners roughly around the chart first is what makes it work on a cluttered
+  desk.
+- **The scanner and camera window is two panels.** The preview and its controls
+  moved to the right, so the twelve wheel-turns of scrolling it used to take to
+  reach the last control are now none, and it fits a 1280 screen in the twelve
+  languages it was measured in. The preview takes the space the window gives it
+  instead of staying pinned at its minimum, and the six buttons under it are
+  grouped by what each one acts on.
+- **Windows: one place to get an instrument driver.** For ArgyllCMS's supported
+  devices and for the CR30's USB bridge. ChromIQ checks what is bound, offers
+  the right package, asks for consent before anything elevated happens, says
+  what it changes on your machine before you click, and says what it did
+  afterwards.
+- **"Show row numbers", on any chart.** ChromIQ has always printed a number
+  beside each row on a SpectroScan chart, which together with the letters along
+  the top lets you find one patch among several hundred the way you find a
+  square on a map. There is now a checkbox for it in the layout panel, next to
+  "Show strip indicators", for every instrument. Every chart you have already
+  made looks exactly as it did: the setting starts out as "whatever this
+  instrument normally does". Switching it on reserves 7.5 mm down the left edge,
+  which the patch estimate and the built chart both take into account.
+- **Check & Refine is a proper import door.** Browse for a measurement that is
+  not in one of your projects and ChromIQ asks where it belongs, in the same
+  window Build Profile uses; it used to make a project without asking. A third
+  answer, "Just check it where it is", copies nothing, makes no project and
+  writes the report next to the file, and the window says what that costs you.
+- **A profile keeps its accented name.** A profile called Müller-Prüfdruck used
+  to arrive as M?ller-Pr?fdruck in Windows' colour management, because the ICC
+  field ArgyllCMS fills cannot hold an accent. ChromIQ writes the name into the
+  field that can, and reads it back in its own Profile Info window.
+- **The ColorMunki's dial is drawn.** Both calibration windows show the wheel
+  turned to the mark that window is asking for, so the two cannot be confused.
+
+> **PLACEHOLDER, DO NOT SHIP: the scanner help cards.** The entry for the help
+> cards rebuilt around the usage scenarios goes here once that work merges.
+
+### Changed
+
+- **The scanner's Profile type control no longer says something nothing
+  measured.** Four hundred profile builds on two targets, scored only on patches
+  the fit never saw, settled where each type wins: shaper plus matrix below
+  about a hundred patches, a lookup table above it. The help says so and points
+  at where you can read your own patch count. The Lab table clips anything
+  lighter than the chart's own white, so the XYZ one is marked as the
+  recommended lookup table.
+- **The white point options say which profile types they suit** rather than one
+  of them being called the default, because that default costs real accuracy on
+  the two matrix types. "Restrict white, black and primaries" now shows as
+  ticked when your white point choice includes it; the flag was always being
+  sent and the box did not say so. What is stored stays your own value.
+- **Every warning, information and question sign in the app is ChromIQ's own.**
+  The platform's signs were still showing in 70 places across 13 files. All
+  three are drawn for Light, Dark and Neutral, and Neutral stays hueless.
+- **Explanation has left the Create Chart sections for the ⓘ it belongs to.**
+  Four blocks of standing text now ride on the information icon of the control
+  they describe, with the first line also in the hover tooltip. 246 px of
+  vertical space returned in English, 262 in German, and the panel did not get
+  wider in any language.
+- **Patch size and Patch scale have moved into Basic**, next to "Prioritise
+  patch size", where the help has always said they were.
+- **The chart legend fades out when you point at it**, so you can see the
+  patches underneath. On a chart whose patches run to the paper's edge it has to
+  rest on the last row, and it now simply gets out of the way.
+- **An unmeasured calibration chart is treated as an experiment.** Replace one
+  and it is not kept, the way a profile run's chart is not kept; a calibration
+  that has been measured is always archived to the project's "cal/old" folder.
+  The window says which of the two is about to happen. Before this it promised
+  to keep a chart and then deleted five files.
+- **The scanner window checks that what it read is the chart you meant.** It
+  compares the reference against the chart, the read against the reference, and
+  looks for clipping, before it builds anything.
+- **A preset no longer names your project after itself.** Loading a built-in
+  preset with the name box empty used to name the project after the preset, so a
+  folder, the name printed on the chart and the finished ICC could all end up
+  called something like "i1Pro-A4-162p-1page-Portrait-w7.5mm". ChromIQ asks you
+  for a name, in a window that takes the answer and builds the chart.
+- **The bundled CMYK profile is no longer Adobe's.** ChromIQ was redistributing
+  `USWebCoatedSWOP.icc`, which Adobe's licence does not permit. It is replaced
+  by ArgyllCMS's public-domain equivalent.
+- **Your log reaches about three times further back.** A debug line recorded
+  every help icon the app built, around three fifths of everything ChromIQ
+  wrote, and pushed the entries that diagnose real faults out of the file.
+- **Return no longer presses the button that discards a chart**, and the Tools
+  menu is capped and scrolls instead of growing past the bottom of smaller
+  screens.
+
+### Fixed
+
+- **A measurement is no longer lost when you quit.** Closing ChromIQ during a
+  measurement killed the reader, and the reader only writes its file on a clean
+  exit, so the reading was gone with no warning. Quitting now asks, the way
+  every other way out of a session already did.
+- **"Save and stop" saves.** It was sending the reader a key it rejects, so the
+  session never ended and nothing was written. "Keep measuring" now keeps
+  measuring instead of stranding the session.
+- **A single corrupt byte in a measurement no longer destroys it.** One zeroed
+  byte in a `.ti3` made ChromIQ read the whole file as a different encoding and
+  replace it with nonsense.
+- **The optional calibration window no longer closes ChromIQ**, and its "Skip
+  this step" button now does something. Both faults appear only with an
+  instrument that offers optional calibration, such as a SwatchMate Cube, and
+  both took the measurement in progress with them.
+- **Importing a measurement can no longer end the app.** Four separate causes: a
+  folder ChromIQ cannot write to, a disk that is full, a drive or share that has
+  gone away, and a project whose own `project.json` has been damaged. Each now
+  says what went wrong and leaves everything as it was.
+- **A measurement can no longer be filed into the wrong project.** Picking a
+  folder whose name contains something like a space (a Finder duplicate, an
+  unzipped hand-off, a Dropbox conflicted copy) used to make an empty project of
+  a slightly different name and then complain that it had no chart in it. A
+  project behind a symlink, on an external drive or on a NAS could take the
+  measurement into whatever project happened to be open instead.
+- **A measurement refused as not belonging to the chart no longer leaves a run
+  behind**, under a window saying nothing had been changed. The same check now
+  covers the other road into a run: choosing an existing run that happens to
+  hold no chart used to accept anything at all, in silence.
+- **A print that never happened is no longer recorded as one.** A sleeping
+  printer or a cancelled dialog left a record saying the sheet had been printed
+  through the profile, which then silently changed the yardstick every dE in the
+  report was measured against. That record also travels with the chart when a
+  run is duplicated; it used to be dropped, so the guard that asks whether the
+  sheet was converted when it was printed stopped firing on the copy.
+- **A measurement report that could not be saved said nothing at all**, while a
+  report that saved announced itself, so the failure looked exactly like
+  success. It now says so, and says first that the measurement itself is safe.
+- **Saved measurement reports were re-graded by whatever the thresholds say
+  today.** A report is a record of a judgement made on a day; it now keeps the
+  thresholds it was judged with and the verdict it was given.
+- **A refine-strips list is no longer overwritten in place.** It was written
+  under one fixed name, so re-checking a run destroyed the list from the check
+  before it. They are numbered now, like the quality reports beside them, and a
+  file written by an older version is left exactly where it is.
+- **A new run opens on your defaults, not on the last run's settings.** The
+  instrument, the paper, the layout mode, both indicator checkboxes, the stamp
+  option, the Guided settings and the gamut options were all inherited from
+  whichever run you had been looking at, and then stored on the new run as
+  though you had chosen them.
+- **An under-exposed scan built a profile with no warning, and the app rated it
+  best of the run.** Measured at 21.7 dE out. The scan is now judged before it
+  is trusted, and one too dark to profile from says so instead of producing a
+  plausible, wrong profile.
+- **A sheet photographed ten degrees off square was accepted as correctly
+  placed.** Keystone is measured against a limit now rather than assumed away:
+  328 correct placements separate cleanly from 106 wrong ones.
+- **The alignment diagnostic drew no outline**, so a correct read looked
+  misaligned; zooming it interpolated away the very edges being judged; and a
+  refusal could not be diagnosed from the log. All three now say what happened.
+- **A scan that is not the target you chose, an unreadable reference, and a
+  scanin diagnostic image loaded as a scan** each said nothing, or blamed the
+  wrong thing. Each now names what it found. The profile self-check also had no
+  floor and no guard against a meaningless number.
+- **The scanner white-point default clipped every original brighter than the
+  chart's own board.** New scanner profiles start from a better default, and the
+  help no longer says "1.00 makes no change", which is the opposite of what it
+  does. Nothing in ChromIQ used to say that a scanner profile meant to stand in
+  for a measuring instrument must be built for that purpose; it does now.
+- **"Save As…" in the patch editor turned a chart ChromIQ had laid out into a
+  different chart.** A change made in June switched the editor's ChromIQ layout
+  engine off without anyone noticing, so the saved chart came back with extra
+  fill patches, a different strip grid, and without the sidecar that records its
+  layout, which the measuring path reads. Measured on a 525-patch i1Pro chart:
+  525 patches became 528 and a 21 by 25 strip grid became 24 by 22. It now saves
+  back identical, patch for patch and strip for strip. "Apply / Save ▸
+  Overwrite" was never affected. If you kept a chart saved this way, save it
+  again from the editor to get the layout back.
+- **An i1Pro chart lost its automatic bidirectional reading whenever the project
+  was reopened.** The instrument a chart names is written into the chart file by
+  the layout stage, and after a reopen ChromIQ looked for it in the wrong file
+  and found nothing, so the i1Pro family lost the setting that lets a strip be
+  swiped either way, the preview's bidirectional arrow was wrong, and the pace
+  row fell back to the i1Pro minimum sample count.
+- **"Prioritise chart area" now honours your left margin.** The 7.5 mm band that
+  carries the row numbers was reserved outside it in every mode, so a 1 mm
+  margin put the first patch at 8.5 mm. It sits inside the margin now, in the
+  one mode whose whole contract is that the patch area is exactly the margin
+  box, and the panel warns when the margin is too tight for the numbers. The
+  margin readout also says what it measures, "Left (to first patch)", and
+  explains the two things that legitimately sit in that space.
+- **A hexagonal patch was reported smaller than it prints.** The layout panel
+  gave the row pitch as the patch height, so an 11.3 mm hexagon was listed as
+  11.3 by 9.8 when it actually stands 13.1 mm from point to point. Hexagons
+  interlock, so the pitch is real and useful, but it is not the patch: the panel
+  now gives the patch size, and a separate "Row pitch (mm)" line for honeycombs.
+  Nothing about the charts themselves changed, only what was reported.
+- **On a hexagonal chart, two layout controls did nothing and did not say so.**
+  With the strips pinned, neither "Patches per strip" nor "Minimum patch height
+  (% of width)" could change the chart, because a honeycomb interlocks: its
+  height follows from its width, and the strip count already decides the size.
+  Both are locked where they cannot work, with the reason on the row's
+  information button, and both stay live where they genuinely do something.
+- **The seed box read 0 while the chart on screen had been built with something
+  else.** With "randomise patch order" on and no fixed seed asked for, the
+  engine drew its own seed and nothing carried it back to the box, and 0 is a
+  valid seed rather than a placeholder, so the box was reporting a wrong answer
+  as fact. The seed itself was never lost: it is written into the chart file,
+  the chart's sidecar and the build log, and all three always agreed.
+- **Row numbers fit the row they name.** On a tall chart the automatic size was
+  taken from the patch width, so the numbers printed over each other into an
+  unreadable ladder. They also stay inside the "Text distance to edge" limit
+  instead of walking to the paper's edge on charts with more than ninety-nine
+  rows.
+- **A flagged patch keeps its whole red ring** on a hexagonal chart, where the
+  neighbouring patch used to be painted over part of it; **loading a new chart
+  no longer shows the previous chart's measurements**; and **the legend no
+  longer lands at the top of the sheet**, over the column letters, on charts
+  whose strip geometry is not recorded.
+- **Windows: a project name that was accepted and then could not be written.**
+  Names of about 111 to 120 characters passed the name box and then failed when
+  ChromIQ wrote the chart, because Windows limits the whole path rather than
+  each folder name. The limit is worked out from the longest file ChromIQ
+  actually creates, and a project you already have opens whatever it is called.
+  A name too long for the filesystem is now refused with an explanation instead
+  of failing halfway and leaving a half-made project behind.
+- **Two projects whose names differ only in capitals no longer overwrite each
+  other's chart.** ChromIQ kept the name you typed while the folder kept its
+  own, so one run could hold two charts, each invisible to the other.
+- **A bracket in a project's folder name no longer hides its chart**, and an
+  asterisk no longer lets one project claim another's files.
+- **A project with an umlaut can be opened after a trip through a backup drive
+  or a Windows machine.** Older Mac disks, and Windows, store accented names
+  differently from a modern Mac, and ChromIQ used to find none of the project's
+  files afterwards while telling you the chart was missing. On Windows it could
+  be worse than invisible: a different chart was used in its place.
+- **Everything ChromIQ writes now names its encoding**, so a file written on
+  Windows and read on a Mac, or the reverse, arrives as what was written. This
+  is GitHub issue #178.
+- **On Windows, every measurement lost its own bookkeeping.** ChromIQ's
+  measuring engine reports what it is doing as it goes, and a Windows chart path
+  like `C:\Users\…` was written into that channel without escaping, so the
+  message carrying the strip map and the patch count was thrown away silently,
+  on every measurement. macOS and Linux were unaffected, because their paths
+  have no backslashes.
+- **Windows: the "Install USB Driver…" button had never installed a driver.**
+  Not for any of the 28 supported instruments, not on any architecture, not
+  once. It passed an option the tool it runs does not have, so that tool printed
+  its usage text and exited cleanly, and ChromIQ read that as success and
+  reported an installed driver every time, having installed nothing. It named no
+  destination either, so anything it did extract went wherever the elevated
+  process happened to start; and an instrument that still had a driver recorded
+  against it from a different USB port made ChromIQ believe the device was ready
+  and never offer to install anything at all. Found by testing that path against
+  real hardware for the first time.
+- **Windows: ArgyllCMS cannot use WinUSB, and ChromIQ told users to choose it in
+  seven places.** An instrument bound to WinUSB is invisible to ArgyllCMS. The
+  driver helper installs libusb-win32 now, and the Zadig instructions no longer
+  point at the one driver that cannot work. If you followed the old advice, the
+  helper puts it right: rebinding was tested on an X-Rite i1Studio, from
+  `** No ports found **` back to a working instrument. ChromIQ also refuses
+  outright to install WinUSB on a USB-serial instrument, whatever asks it to.
+- **A project whose name ends in an underscore and digits silently lost its
+  exports**, and **the ICC filename and the description embedded inside it
+  disagreed** when no description was given.
+- **A window can no longer open taller than your screen and take its buttons
+  with it.** Long messages are widened rather than stretched, anything left over
+  goes behind "Show Details", and no message window, tool window or patch editor
+  can open past the edge of the usable screen. The patch editor opened 1280 by
+  820 whatever screen it was on, which put Apply / Save… and Close under the
+  bottom edge of a smaller laptop, and three controls in the scanner window
+  opened past the bottom of the screen for the same underlying reason: a window
+  was placed before it was sized, and nothing put it back.
+- **The app no longer crashes when a tool window is opened** after a spot read
+  ends badly, and a scroll bar that was crashing the app outright in some
+  windows is fixed.
+- **"Build anyway" was drawn as "uild anywa"** in three windows that built their
+  own buttons and never called the helper that has fitted them since #130, and
+  **four instruction labels were painted in the one colour that cannot carry a
+  word**: 1.25:1 in Light and 1.02:1 in Dark, against the 4.5:1 that AA asks
+  for. Now 13.6:1, 5.1:1 and 12.1:1.
+- **Fourteen German sentences named buttons that do not exist**, including all
+  three buttons of the window that decides whether your measurement is kept, and
+  **four languages could not say where a measurement was running**: Italian,
+  Portuguese, Polish and Russian glued a preposition to a translated label and
+  produced ungrammatical text. Each language now supplies the whole sentence.
+- **A chart whose paper size is larger than printtarg can lay out no longer
+  answers with a wall of usage text.** The two custom paper boxes also offered
+  sizes up to 9999 mm, and printtarg stops at 4000; both agree with the tool
+  now, and the values ChromIQ sends are checked against what printtarg accepts
+  before it is started at all. When a tool does refuse a chart, the patch editor
+  says what happened in ChromIQ's own words and quotes the one line of the
+  tool's answer that means something, instead of showing you the raw output.
+- **Layout settings restored from a chart folder are range-checked**, not only
+  checked for the right names, so a hand-edited or damaged `meta.json` cannot
+  pass a value the tool refuses.
+
+> **PLACEHOLDER, DO NOT SHIP: the profile Algorithm list.** Entries in that list
+> that colprof cannot build an output profile from are being corrected in
+> separate work. Nothing is to be written here until it merges, and the beta 11
+> sentence about "Matrix only (forced)" must not be reused: colprof does offer
+> matrix only, as lowercase `m`.
+
+> **PLACEHOLDER, DO NOT SHIP: the Chart layout information estimate column.**
+> The entry for the estimate that reported another chart's numbers goes here
+> once that work merges.
+
+### Documentation
+
+- **`THIRD-PARTY-NOTICES.md` states the terms for everything ChromIQ ships**,
+  measured per file rather than assumed. The bundled scanner targets are marked
+  AGPLv3, matching ArgyllCMS, whose patch geometry they carry. No recognition
+  file changed, and ChromIQ itself remains GPLv3.
+- **`docs/cr30_platform_support.md` is the CR30 page**: what each platform
+  needs, what has been tried on hardware and what has not. On Windows the
+  instrument is reached through a serial driver, not WinUSB; macOS needs
+  nothing; on Linux the driver is in the kernel and your user needs permission
+  to open the serial port.
+
 ## v4.1.5-beta.11
 
 **Opening Tools ▸ Edit / create chart patch set on a CR30 chart stopped the
