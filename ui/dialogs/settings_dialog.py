@@ -247,13 +247,27 @@ def usb_installer_text(devices, wdi_available: bool) -> "tuple[str, str | None]"
             None,
         )
 
-    # "WinUSB ✓" is a Microsoft product name and a tick; there is nothing in it
-    # to translate, and a key whose value must equal its key in all twelve
-    # languages fails `test_untranslated_values_do_not_creep_in_unseen`.
+    # THE TICK SAID "WinUSB ✓" ABOUT A DEVICE WHOSE DRIVER IS libusb0.
+    #
+    # `UsbDevice.has_winusb` accepts EITHER — `("winusb", "libusb0")`, in
+    # `core/usb_driver_installer.py` — so the flag has never meant "WinUSB is
+    # bound"; it means "a driver ArgyllCMS can use is bound". Measured on the
+    # ARM64 box, 2026-09-06, with an X-Rite i1Studio / ColorMunki (0765:6008)
+    # attached: the device's service is `libusb0` and Argyll lists it as
+    # `libusb0-0001 (X-Rite ColorMunki)` — and this line said WinUSB about it.
+    #
+    # WHO INSTALLED THAT libusb0 IS NOT KNOWN AND DOES NOT MATTER HERE. It was
+    # not ChromIQ (see the note in `usb_install_outcome`); it is whatever was
+    # already on the machine. The point is only that the two drivers the flag
+    # accepts are not the same word, so the flag cannot be printed as one of
+    # them. It is a `tr()` key now rather than a product name, which is the
+    # right treatment either way: it is a sentence about state, not a brand,
+    # and it pairs with `driver not installed` below it so the two halves of
+    # the same question are one translatable pair.
     lines = [
         "&nbsp;&nbsp;• {name} — <i>{state}</i>".format(
             name=d.name,
-            state=("WinUSB ✓" if d.has_winusb
+            state=(tr("driver installed") + " ✓" if d.has_winusb
                    else tr("driver not installed")))
         for d in devices
     ]
@@ -287,11 +301,36 @@ def usb_installer_text(devices, wdi_available: bool) -> "tuple[str, str | None]"
         # "click Yes" is the Windows permission prompt's button, and Windows
         # IS translated — German Windows says "Ja". It belongs inside the key,
         # for the translator to render, not interpolated from anything of ours.
+        #
+        # THIS SENTENCE PROMISED "the Microsoft WinUSB driver", AND THE WINDOW
+        # IS IN NO POSITION TO NAME A DRIVER AT ALL.
+        #
+        # `install_winusb` passes `--driver WinUSB` to the bundled
+        # `wdi_simple.exe`, and wdi-simple has no `--driver` option — its flag
+        # is `-t/--type <n>`. Measured on the bench, 2026-09-06, against a real
+        # driverless i1Studio: wdi-simple answered `unrecognized option
+        # '--driver'`, printed its usage, and EXITED 0, which `install_winusb`
+        # reads as success. Nothing was written to `setupapi.dev.log`. So the
+        # only honest thing that can be said about which driver this button
+        # installs is that nobody knows yet: the flag is being fixed on
+        # `fix/wdi-simple-never-installed-anything`, and `-t 0` and `-t 1` are
+        # different drivers with different names.
+        #
+        # THE FIX IS THEREFORE TO NAME NO DRIVER, not to name a different one.
+        # This paragraph says what the click is FOR — "the USB driver your
+        # instrument needs, so ArgyllCMS can talk to it" — which stays true
+        # whichever `--type` is settled on, and warns that the name Windows
+        # shows will be unfamiliar, which is true of WinUSB and libusb-win32
+        # alike. A beginner needs to know their instrument will work and that a
+        # strange name is not a mistake; they do not need the fork's name.
         action_text = tr(
-            "Click <b>{button}</b> to install the Microsoft WinUSB driver "
-            "automatically. A Windows security prompt will appear — click Yes to "
-            "continue.<br><br>"
-            "<i>No test-signing mode required. Works on x64 and ARM64.</i>"
+            "Click <b>{button}</b> and ChromIQ will install the USB driver "
+            "your instrument needs, so ArgyllCMS can talk to it. A Windows "
+            "security prompt will appear — click Yes to continue.<br><br>"
+            "<i>Afterwards Windows may list your instrument under a driver "
+            "name you do not recognise. That is normal — it is the driver "
+            "ArgyllCMS reads instruments through. It is signed, so Windows "
+            "needs no special mode, and it works on x64 and ARM64.</i>"
         ).format(button=_label_install_driver())
         btn_label = _label_install_driver()
     else:
@@ -331,17 +370,105 @@ def usb_installer_text(devices, wdi_available: bool) -> "tuple[str, str | None]"
 
 def usb_install_outcome(*, wdi_available: bool, ran_ok: bool,
                         still_unbound_names: "list[str]",
-                        zadig_status: "str | None") -> "tuple[str, bool]":
+                        zadig_status: "str | None",
+                        driver_was_missing: bool,
+                        target_names: "list[str] | None" = None,
+                        ) -> "tuple[str, bool]":
     """What the second window says, and whether it offers a Zadig button.
 
-    With wdi-simple present, the verdict comes from *ran_ok* plus
-    *still_unbound_names* (the instruments that re-enumerated without a driver
-    — an empty list is the only success). Without it, ChromIQ has already
-    launched Zadig and *zadig_status* is what that returned.
+    With wdi-simple present, the verdict comes from *ran_ok*,
+    *still_unbound_names* (the instruments that re-enumerated without a driver)
+    and *driver_was_missing* (whether any of them lacked one BEFORE the button
+    was pressed). Without it, ChromIQ has already launched Zadig and
+    *zadig_status* is what that returned. *target_names* are the instruments
+    the install was aimed at, for the sentences that name them.
+
+    **THIS HALF USED TO CLAIM A SUCCESS IT HAD NOT DEMONSTRATED, AND THE
+    MEASUREMENT IS WORSE THAN THAT.** Every run that ended
+    `ran_ok and not still_unbound` said "WinUSB driver installed successfully."
+    — and `ran_ok` is `install_winusb()`'s return, which is `wdi_simple.exe`'s
+    exit code. Measured on the bench, 2026-09-06, against a real driverless
+    i1Studio: `install_winusb` passes `--driver WinUSB`, wdi-simple has no
+    `--driver` option (its flag is `-t/--type <n>`), so it answered
+    `unrecognized option '--driver'`, printed its usage, and exited 0. Nothing
+    reached `setupapi.dev.log`. **The window congratulated the user on a
+    command that did nothing at all.**
+
+    That the sentence was only ever REACHED on a device already carrying a
+    driver — anything genuinely unbound stayed unbound and fell to the "did not
+    take" branch below — is the only reason it was not more obviously wrong.
+    Which is exactly the case this fork is about: nothing was missing, nothing
+    was measured to have changed, and the only honest answer is that ChromIQ
+    cannot tell. The COM-port half next door had already been made to say
+    precisely that about precisely this situation ("ChromIQ cannot tell you
+    whether that worked, because there was nothing to change"), which is the
+    whole reason `unbound_targets()` exists: `wdi-simple can exit 0 without
+    binding`. It exits 0 without even trying. Two halves of one window held two
+    standards of honesty; they now hold one.
+
+    The FLAG is not fixed here — that is
+    `fix/wdi-simple-never-installed-anything`, deliberately a separate branch.
+    This one changes only what the user is told, and what it now tells them is
+    true under the broken flag and under the fixed one alike: a verdict is
+    given only when the instrument was re-enumerated and found bound.
+
+    `driver_was_missing` is REQUIRED, deliberately and with no default. A
+    default would have to be one of the two answers, and the one that reads
+    "assume it worked" is the bug being fixed here; the one that reads "assume
+    we cannot tell" quietly downgrades a real success. A caller that does not
+    know cannot be given a sentence — it has to go and find out.
     """
     if wdi_available:
         if ran_ok and not still_unbound_names:
-            return tr("WinUSB driver installed successfully."), False
+            names = ", ".join(target_names or [])
+            if driver_was_missing:
+                # The driver was missing, the install ran, and the device
+                # re-enumerated WITH one. That is a demonstrated success, and
+                # the second paragraph says what the demonstration was — the
+                # `bound` window next door earns its "It worked." the same way.
+                #
+                # TWO WHOLE SENTENCES RATHER THAN A FALLBACK WORD IN A SLOT.
+                # `target_names` is always populated by the app, but a slot
+                # filled with "your instrument" would render "…attached it to
+                # your instrument — your instrument", and a translator cannot
+                # see that from the key. Written-out variants are the same rule
+                # CLAUDE.md gives for singular and plural.
+                heading = (
+                    tr("<b>It worked.</b> The driver is installed, and Windows "
+                       "has attached it to your instrument — {names}."
+                       ).format(names=names)
+                    if names else
+                    tr("<b>It worked.</b> The driver is installed, and Windows "
+                       "has attached it to your instrument.")
+                )
+                return ("<br><br>".join([
+                    heading,
+                    tr("That last part is the check that matters. An installer "
+                       "can finish without complaining and still fail to "
+                       "attach the driver to the hardware, so ChromIQ does not "
+                       "take its word for it — it looks the instrument up "
+                       "again afterwards. The driver is there."),
+                    tr("You can close this window and start measuring."),
+                ]), False)
+            # Nothing was missing before, so nothing can be shown to have
+            # changed. Saying "installed successfully" here is the claim this
+            # branch exists to stop making. No instrument is named: there is
+            # nothing to point AT, which is the whole message.
+            return ("<br><br>".join([
+                tr("<b>ChromIQ cannot tell you whether that changed "
+                   "anything.</b>"),
+                tr("The driver was already there before you clicked, and it is "
+                   "still there now. The installer finished without "
+                   "complaining — but there was nothing missing for it to put "
+                   "right, so there is no difference for ChromIQ to point at "
+                   "and call a success."),
+                tr("Nothing was removed or replaced. If ArgyllCMS still cannot "
+                   "open your instrument, unplug it, wait a few seconds and "
+                   "plug it back in. Then open <b>{opener}</b> in Preferences "
+                   "again and use <b>{button}</b>.").format(
+                       opener=_in_prose(tr("Instrument drivers…")),
+                       button=_in_prose(_label_check_again())),
+            ]), False)
         if not ran_ok:
             return (
                 tr("Automatic installation failed or was cancelled.<br>"
@@ -1411,16 +1538,24 @@ class SettingsDialog(QDialog):
 
         if _sys.platform == "win32":
             # NOT "Install USB Driver…" any more. The window behind it now
-            # covers two unrelated kinds of driver — WinUSB for the instruments
+            # covers two unrelated kinds of driver — one for the instruments
             # ArgyllCMS reads over raw USB, and a serial driver for the ones
             # reached through a COM port — and it can now report that nothing
             # needs installing at all. A button that says "Install" is wrong
             # twice over: about what it does, and about whether it will do it.
+            #
+            # THE FIRST HALF USED TO BE CALLED "the WinUSB driver" HERE TOO,
+            # and what that button actually installs is an open question (see
+            # `usb_installer_text` and `usb_install_outcome`: the bundled
+            # wdi-simple is being passed an option it does not have). A tooltip
+            # is the wrong place to name a driver in any case — the reader is
+            # deciding whether to open a window, not what to install. It names
+            # the two KINDS, which is what the window behind it is divided by.
             driver_btn = QPushButton(tr("Instrument drivers…"), self)
             driver_btn.setToolTip(
                 tr("Check whether Windows has the driver each of your "
                    "instruments needs, and install it if it does not — the "
-                   "WinUSB driver for the instruments ArgyllCMS reads over "
+                   "USB driver for the instruments ArgyllCMS reads over "
                    "USB, and the serial driver for the ones reached through a "
                    "COM port, such as the CR30.")
             )
@@ -5908,11 +6043,20 @@ class SettingsDialog(QDialog):
                     ran_ok=ran_ok,
                     still_unbound_names=[d.name for d in still_unbound],
                     zadig_status=None,
+                    # `needs_install` is the list read BEFORE the button was
+                    # pressed, so it is the only thing that can tell a repair
+                    # apart from an install. Empty means the user pressed
+                    # `Reinstall Driver` on hardware that already worked, and
+                    # the outcome window must not call that a success.
+                    driver_was_missing=bool(needs_install),
+                    target_names=[d.name for d in targets],
                 )
             else:
                 outcome_text, offer_zadig = usb_install_outcome(
                     wdi_available=False, ran_ok=False, still_unbound_names=[],
                     zadig_status=launch_zadig(),
+                    driver_was_missing=bool(needs_install),
+                    target_names=[d.name for d in targets],
                 )
 
             if self._driver_notice(tr("Driver Installation"), outcome_text,
