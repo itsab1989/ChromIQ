@@ -1,5 +1,55 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **The profile Algorithm list is two entries, and both of them work.** It had
+  eight. Five of them could never build a printer profile: ArgyllCMS builds a
+  printer profile as a lookup table or not at all, and colprof refuses a gamma,
+  shaper or matrix model for one before it has read a single measurement. A
+  sixth, "XYZ cLUT + matrix", built a file identical to plain "XYZ cLUT",
+  because the matrix it promised is thrown away for a printer. What is left is
+  "Lab cLUT" and "XYZ cLUT". The gamma, shaper and matrix models are not gone
+  from ChromIQ: they suit a scanner or a camera, and the scanner and camera
+  window still offers them there, where they work.
+- **Three of those entries also named the wrong algorithm.** colprof's own
+  names are `s = shaper+matrix`, `G = single gamma+matrix` and
+  `S = single shaper+matrix`; ChromIQ called them "Single gamma + matrix",
+  "Gamma + matrix (forced)" and "Single gamma + matrix (forced)". "Single" in
+  ArgyllCMS means one tone curve shared by all three colour channels, not
+  "forced", and the entry ChromIQ labelled as a gamma model was the shaper one,
+  which ArgyllCMS calls the better of the two. The scanner window's names were
+  right all along.
+- **If a project of yours was saved with one of the entries that has gone, it
+  still opens, and ChromIQ tells you what it did.** "XYZ cLUT + matrix" becomes
+  "XYZ cLUT", and the profile that builds is unchanged, because for a printer
+  the two were the same file. Anything else becomes "Lab cLUT", with a line
+  saying the stored setting could not build a printer profile at all. Nothing
+  is changed behind your back and nothing is thrown away.
+- **The scanner and camera window no longer offers "Shaper + matrix" or
+  "Matrix only" while "Profile my printer from this scan" is ticked.** That
+  tick makes it a printer profile, so the same ArgyllCMS rule applies. With the
+  tick off, all four types are there as before.
+- **Quality is no longer greyed out for the shaper and matrix profile types.**
+  It was greyed out and then sent to ArgyllCMS anyway, so it was doing
+  something you were told it did not do and could not change. It does apply:
+  for a lookup table it sets the table's resolution, and for the shaper and
+  matrix types it sets how finely the tone curves are fitted. Measured, it
+  changes the profile for every type.
+
+### Fixed
+
+- **A profile build that ArgyllCMS refused for this reason produced no
+  message.** It wrote no profile, opened no window and left one line in the
+  log. It now says what happened and what to change. This is the same silence
+  the beta 11 note described for a setting that never existed, and it was still
+  there for five settings that do.
+- **The beta 11 release note itself was wrong, and it is corrected in place.**
+  It said ArgyllCMS "has no such setting" for matrix only. It has no *forced*
+  matrix setting, which is what was removed; it does have plain matrix only,
+  and ChromIQ offered that one too.
+
 ## v4.1.5-beta.11
 
 **Opening Tools ▸ Edit / create chart patch set on a CR30 chart stopped the
@@ -71,8 +121,13 @@ now say so.
   happened in ChromIQ's own words, quotes the one line of the tool's answer that
   means something, and leaves the rest in the log.
 - **"Matrix only (forced)" in the profile Algorithm list could never build a
-  profile.** ArgyllCMS's colprof has no such setting: choosing it produced no
-  profile, no message and one line in the log. The entry is gone.
+  profile.** ArgyllCMS's colprof has no *forced* matrix setting: choosing it
+  produced no profile, no message and one line in the log. The entry is gone.
+  (Corrected after publication, because this note first said colprof "has no
+  such setting" and that reads wider than it should. colprof does have a plain
+  matrix-only algorithm and ChromIQ offered that one too; what never existed
+  was the "(forced)" variant. And matrix only was not the only entry in that
+  list that could not build a printer profile: see the next release.)
 - **A chart whose paper size is larger than printtarg can lay out gave the same
   wall of text.** The two custom paper boxes also offered sizes up to 9999 mm,
   and printtarg stops at 4000. Both now agree with the tool.

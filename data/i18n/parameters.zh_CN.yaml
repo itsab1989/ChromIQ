@@ -791,12 +791,6 @@ parameters:
       labels:
         - "l — Lab cLUT（RGB打印机推荐）"
         - "x — XYZ cLUT"
-        - "X — XYZ cLUT（绝对）"
-        - "g — 伽马 + 矩阵（快，精度低）"
-        - "G — 伽马 + 矩阵（强制）"
-        - "s — 单伽马 + 矩阵"
-        - "S — 单伽马 + 矩阵（强制）"
-        - "m — 仅矩阵"
     "-q":
       name: "配置文件质量"
       tooltip_title: "配置文件质量 (-q)"

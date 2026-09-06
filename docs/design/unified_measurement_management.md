@@ -3159,6 +3159,26 @@ they had been:
    is that it never touches a bucket whose settings somebody saved. B8-78 has
    the whole of it.
 
+4. **The printer side lost two of its four profile types, and this
+   document said they worked.** It read *"All four choices build a working
+   profile"* for the printer mode and listed Shaper + matrix and Matrix only in
+   the dropdown table, and ArgyllCMS makes that impossible: `colprof.c:1244`
+   answers any non-cLUT algorithm for a `DEVICE_CLASS "OUTPUT"` measurement
+   with *"Output profile can only be a cLUT algorithm"* and writes nothing.
+   MEASURED on Knut's own `Knut-Scanner-printer.ti3`, the printer-mode
+   measurement this very window produced: `-as` and `-am` exit 1 with no
+   profile. So this is a fault in the DOCUMENT as much as in the code, and by
+   CLAUDE.md's rule that is Knut's and Basti's call rather than ours: the
+   wording below is what the app now shows, and it is flagged here for a ruling
+   rather than presented as settled. B8-93 and B8-94 carry the whole
+   measurement. The same note applies to the Quality paragraph on BOTH sides:
+   it said `-q` "applies only to the two cLUT types and is greyed out for the
+   other two", and ArgyllCMS's own `colprof.html` says the opposite ("For
+   matrix profiles it sets the per channel curve detail level and fitting
+   'effort'"), which is measured: `-q l/m/h/u` gives four different profiles
+   for every algorithm tested. The greyed value was being sent regardless.
+   B8-95.
+
 The patch-count *hint* Basti approved is still there and still changes nothing.
 It now fires only where ChromIQ may not choose for the user: a bucket with
 saved settings, or one edited by hand this session.
@@ -3211,7 +3231,9 @@ of the two "(default)" markers.
 >
 > Right around a hundred patches the first three land within a whisker of one another and the choice barely matters; it is above and below that the difference shows. And whichever you pick, changing the paper or the target you scan moves the result a great deal further than the profile type does.
 >
-> Quality (-q) — the look-up table's grid resolution: higher is finer but slower, and needs better data to be worth it. It applies only to the two cLUT types and is greyed out for the other two. Medium is a good default, Low is a quick test, and High and Ultra are for large, clean charts.
+> ArgyllCMS has two more variants that this list leaves out, and it is worth knowing they exist. They fit one tone curve shared by all three colour channels instead of a separate curve for each. That is not an accuracy choice: their stated purpose is compatibility with applications that refuse a profile carrying a different curve per channel. If an application will not accept a profile this window built, that is the first thing to mention when you report it.
+>
+> Quality (-q): how much detail and fitting effort goes into the profile. For the two look-up-table types it sets the table's grid resolution; for the shaper and matrix types it sets how finely the tone curves are fitted. Higher is finer but slower, and needs better data to be worth it. It applies to every profile type. Medium is a good default, Low is a quick test, and High and Ultra are for large, clean charts.
 >
 > If you tick “Profile my printer from this scan”, this same control builds the printer profile instead — a different kind of device, with different advice. The type then defaults to “cLUT — Lab table”; open this ⓘ again with the box ticked and it will explain why. Either way you won't find a working space (like sRGB) or a rendering intent here; a rendering intent is something you choose when you print, not when you build a profile from measurements.
 >
@@ -3235,7 +3257,9 @@ of the two "(default)" markers.
 >
 > Genau um die hundert Felder herum liegen die ersten drei so dicht beieinander, dass die Wahl kaum eine Rolle spielt; erst darüber und darunter zeigt sich der Unterschied. Und was du auch nimmst: Ein anderes Papier oder ein anderes Target zu scannen verschiebt das Ergebnis weit stärker als der Profiltyp.
 >
-> Qualität (-q) – die Gitterauflösung der Nachschlagetabelle: höher ist feiner, aber langsamer und braucht bessere Daten, damit es sich lohnt. Sie gilt nur für die beiden cLUT-Typen und ist für die anderen beiden ausgegraut. Mittel ist ein guter Standard, Niedrig ein schneller Test, und Hoch und Ultra sind für große, saubere Testkarten.
+> ArgyllCMS hat zwei weitere Varianten, die diese Liste weglässt, und es lohnt sich zu wissen, dass es sie gibt. Sie legen eine einzige Tonwertkurve für alle drei Farbkanäle an statt einer eigenen Kurve je Kanal. Das ist keine Frage der Genauigkeit: Ihr erklärter Zweck ist die Kompatibilität mit Anwendungen, die ein Profil mit unterschiedlichen Kurven je Kanal ablehnen. Wenn eine Anwendung ein hier gebautes Profil nicht annimmt, erwähne das bitte als Erstes, wenn du es meldest.
+>
+> Qualität (-q): wie viel Detail und Anpassungsaufwand in das Profil geht. Bei den beiden Tabellentypen legt sie die Gitterauflösung der Tabelle fest, bei den Shaper- und Matrixtypen, wie fein die Tonwertkurven angepasst werden. Höher heißt feiner, aber langsamer, und lohnt sich nur mit besseren Daten. Sie gilt für jeden Profiltyp. Mittel ist ein guter Standard, Niedrig ein schneller Test, Hoch und Ultra sind für große, saubere Charts.
 >
 > Wenn du „Meinen Drucker aus diesem Scan profilieren“ ankreuzt, baut genau dieses Bedienelement stattdessen das Druckerprofil – ein anderes Gerät, eine andere Empfehlung. Der Typ ist dann auf „cLUT — Lab-Tabelle“ voreingestellt; öffne dieses ⓘ mit gesetztem Haken noch einmal, dann erklärt es dir warum. So oder so findest du hier keinen Arbeitsfarbraum (etwa sRGB) und kein Rendering-Intent; ein Rendering-Intent wählst du beim Drucken, nicht beim Erstellen eines Profils aus Messwerten.
 >
@@ -3247,15 +3271,15 @@ of the two "(default)" markers.
 >
 > “Profile my printer from this scan” is ticked, so this window is building a PRINTER profile: your scanner is the measuring instrument, and the chart it reads is the one you printed. That changes what to choose here, so this is not the same advice you get for a scanner or camera profile.
 >
-> Profile type (-a) — the shape of the maths inside the profile, and how it describes what your printer does with colour. All four choices build a working profile.
+> Profile type (-a): the shape of the maths inside the profile, and how it describes what your printer does with colour. There are two here, not the four you get with the tick off, and both build a working profile.
 >
 > • cLUT — Lab table — the default here, and what a printer profile should normally be. “cLUT” means a look-up table: instead of reducing your printer to a formula, the profile stores your measurements and interpolates between them. It also carries something the formula types cannot — the perceptual and saturation rendering intents, which are what decide how colours your printer cannot reach are eased inwards when you print a photograph. Everything under Advanced… ▸ Gamut Mapping describes those two intents, so it has nothing to act on unless the profile is a table. “Lab” is simply the internal form the table keeps colour in; it is ArgyllCMS's own default for this job, and it is what ChromIQ's Build Profile tab builds as well.
 >
 > • cLUT — XYZ table — the same kind of table, keeping colour in the other internal form. It is worth knowing why this window points at the XYZ table on the scanner side and not here. A Lab table cannot describe anything lighter than the white patch of the chart it was built from, and a scanner meets paper brighter than a scanning target's white board all the time. A printer never does — nothing it prints is lighter than the paper it prints on — so that reason does not apply here, and the Lab default stands.
 >
-> • Shaper + matrix, and Matrix only — a formula instead of a table: one gentle tone curve per colour channel plus a 3×3 matrix, which is a fixed recipe for mixing red, green and blue into a finished colour, or that mix on its own. They are small and undemanding, and they are offered here because this one control also serves the scanner side of the window. For a printer they have a real drawback: by the way the ICC format works, a matrix-based profile cannot carry a perceptual or a saturation intent at all, so it has nothing to fall back on when a colour is out of the printer's reach. Leave them be unless you know you want one.
+> “Shaper + matrix” and “Matrix only”, which this list offers with the tick off, are not here. That is ArgyllCMS's rule and not a ChromIQ choice: colprof refuses to build a printer profile from a formula, and refuses it before it has read a single patch. The rule is not arbitrary either. By the way the ICC format works, a matrix-based profile cannot carry a perceptual or a saturation intent at all, so it would have nothing to fall back on when a colour is out of the printer's reach.
 >
-> Quality (-q) — the look-up table's grid resolution: higher is finer but slower, and needs better data to be worth it. It applies only to the two cLUT types and is greyed out for the other two. Medium is a good default, Low is a quick test, and High and Ultra are for large, clean charts.
+> Quality (-q): how much detail and fitting effort goes into the profile. For the two look-up-table types it sets the table's grid resolution; for the shaper and matrix types it sets how finely the tone curves are fitted. Higher is finer but slower, and needs better data to be worth it. It applies to every profile type. Medium is a good default, Low is a quick test, and High and Ultra are for large, clean charts.
 >
 > Untick “Profile my printer from this scan” and this control goes back to building a scanner or camera profile, where the default is “Shaper + matrix” and the advice is different — open this ⓘ again and it will tell you that story instead. Either way you won't find a working space (like sRGB) or a rendering intent in this row: the working space the gamut mapping uses is under Advanced… ▸ Gamut Mapping, and a rendering intent is something you choose when you print, not when you build a profile from measurements.
 
@@ -3265,15 +3289,15 @@ of the two "(default)" markers.
 >
 > „Meinen Drucker aus diesem Scan profilieren“ ist angehakt, dieses Fenster baut also ein DRUCKERPROFIL: Dein Scanner ist das Messgerät, und die Testkarte, die er liest, ist die, die du gedruckt hast. Das ändert, was du hier wählen solltest – es ist deshalb nicht dieselbe Empfehlung wie für ein Scanner- oder Kameraprofil.
 >
-> Profiltyp (-a) – die Form der Mathematik im Inneren des Profils, also wie es beschreibt, was dein Drucker mit Farbe macht. Alle vier Möglichkeiten erzeugen ein funktionierendes Profil.
+> Profiltyp (-a): die Form der Mathematik im Profil und damit, wie es beschreibt, was dein Drucker mit Farbe macht. Hier gibt es zwei davon, nicht die vier, die du ohne Haken bekommst, und beide bauen ein funktionierendes Profil.
 >
 > • cLUT — Lab-Tabelle – hier die Voreinstellung und normalerweise das, was ein Druckerprofil sein sollte. „cLUT“ heißt Nachschlagetabelle: Statt deinen Drucker auf eine Formel zu reduzieren, speichert das Profil deine Messwerte und interpoliert dazwischen. Es trägt außerdem etwas, das die Formel-Typen nicht können – die Rendering-Intents Perzeptiv und Sättigung, die darüber entscheiden, wie Farben, die dein Drucker nicht erreicht, beim Druck eines Fotos sanft nach innen geführt werden. Alles unter Erweitert… ▸ Gamut-Mapping beschreibt genau diese beiden Intents und hat deshalb nichts, worauf es wirken könnte, wenn das Profil keine Tabelle ist. „Lab“ ist einfach die interne Form, in der die Tabelle Farbe hält; es ist die eigene Voreinstellung von ArgyllCMS für diese Aufgabe und auch das, was der Reiter „Profil erstellen“ von ChromIQ baut.
 >
 > • cLUT — XYZ-Tabelle – dieselbe Art Tabelle, die Farbe nur in der anderen internen Form hält. Es lohnt sich zu wissen, warum dieses Fenster auf der Scanner-Seite zur XYZ-Tabelle rät und hier nicht. Eine Lab-Tabelle kann nichts beschreiben, was heller ist als das Weißfeld der Testkarte, aus der sie gebaut wurde, und ein Scanner bekommt ständig Papier zu sehen, das heller ist als das Weiß eines Scan-Targets. Ein Drucker nie – nichts, was er druckt, ist heller als das Papier, auf das er druckt –, deshalb greift dieser Grund hier nicht und die Lab-Voreinstellung bleibt richtig.
 >
-> • Shaper + Matrix und Nur Matrix – eine Formel statt einer Tabelle: je eine sanfte Tonwertkurve pro Farbkanal plus eine 3×3-Matrix, also ein festes Rezept, das Rot, Grün und Blau zu einer fertigen Farbe mischt – oder diese Mischung allein. Sie sind klein und anspruchslos und stehen hier, weil dasselbe Bedienelement auch die Scanner-Seite dieses Fensters bedient. Für einen Drucker haben sie einen echten Nachteil: So wie das ICC-Format funktioniert, kann ein matrixbasiertes Profil überhaupt kein perzeptives Intent und kein Sättigungs-Intent tragen und hat damit nichts, worauf es zurückgreifen kann, wenn eine Farbe außerhalb der Reichweite des Druckers liegt. Lass sie hier stehen, außer du weißt, dass du eine davon willst.
+> „Shaper + Matrix“ und „Nur Matrix“, die diese Liste ohne Haken anbietet, gibt es hier nicht. Das ist die Regel von ArgyllCMS und keine Entscheidung von ChromIQ: colprof weigert sich, ein Druckerprofil aus einer Formel zu bauen, und weigert sich schon, bevor es ein einziges Feld gelesen hat. Willkürlich ist die Regel auch nicht. So wie das ICC-Format funktioniert, kann ein matrixbasiertes Profil überhaupt keinen perzeptiven und keinen Sättigungs-Rendering-Intent tragen, es hätte also nichts, worauf es zurückfallen könnte, wenn eine Farbe außerhalb der Reichweite des Druckers liegt.
 >
-> Qualität (-q) – die Gitterauflösung der Nachschlagetabelle: höher ist feiner, aber langsamer und braucht bessere Daten, damit es sich lohnt. Sie gilt nur für die beiden cLUT-Typen und ist für die anderen beiden ausgegraut. Mittel ist ein guter Standard, Niedrig ein schneller Test, und Hoch und Ultra sind für große, saubere Testkarten.
+> Qualität (-q): wie viel Detail und Anpassungsaufwand in das Profil geht. Bei den beiden Tabellentypen legt sie die Gitterauflösung der Tabelle fest, bei den Shaper- und Matrixtypen, wie fein die Tonwertkurven angepasst werden. Höher heißt feiner, aber langsamer, und lohnt sich nur mit besseren Daten. Sie gilt für jeden Profiltyp. Mittel ist ein guter Standard, Niedrig ein schneller Test, Hoch und Ultra sind für große, saubere Charts.
 >
 > Nimm den Haken bei „Meinen Drucker aus diesem Scan profilieren“ heraus, dann baut dieses Bedienelement wieder ein Scanner- oder Kameraprofil, wo die Voreinstellung „Shaper + Matrix“ heißt und die Empfehlung eine andere ist – öffne dieses ⓘ dann noch einmal, es erzählt dir stattdessen jene Geschichte. So oder so findest du in dieser Zeile keinen Arbeitsfarbraum (etwa sRGB) und kein Rendering-Intent: Der Arbeitsfarbraum, den das Gamut-Mapping benutzt, steht unter Erweitert… ▸ Gamut-Mapping, und ein Rendering-Intent wählst du beim Drucken, nicht beim Erstellen eines Profils aus Messwerten.
 
@@ -3290,7 +3314,7 @@ recommendation identical to that mode's default is refused by a test.
 | mode | what the dropdown reads |
 |---|---|
 | scanner / camera | Shaper + matrix **(default)** · Matrix only · cLUT — XYZ table **(recommended cLUT)** · cLUT — Lab table |
-| printer | Shaper + matrix · Matrix only · cLUT — XYZ table · cLUT — Lab table **(default)** |
+| printer | cLUT — XYZ table · cLUT — Lab table **(default)** |
 
 | proposed marker | German |
 |---|---|

@@ -2140,6 +2140,8 @@ class TabProfile(QWidget):
             try:
                 if kind == "check":
                     wgt.setChecked(bool(val))
+                elif key == "g_algorithm":
+                    self._set_algorithm_combo(wgt, val)
                 elif kind == "combo":
                     i = wgt.findData(val)
                     if i >= 0:
@@ -2230,12 +2232,77 @@ class TabProfile(QWidget):
         finally:
             self._loading_profile_settings = False
 
+    # ------------------------------------------------------------------
+    # A stored algorithm letter this tab no longer offers
+    # ------------------------------------------------------------------
+    #: (stored letter, letter used) pairs already announced this session, so a
+    #: target the user switches back and forth between says it once.
+    _algo_moves_said: "set[tuple[str, str]]"
+
+    def _set_algorithm_combo(self, combo: QComboBox,
+                             stored: "str | None") -> None:
+        """Put a stored ``-a`` letter on an Algorithm combo, and SAY SO when
+        it is not the letter that was stored.
+
+        Five of this tab's eight algorithm entries could never build a printer
+        profile (``colprof.c:1244-1246``) and a sixth built the same file as
+        the entry above it, so the list is now the two that work. A project,
+        a preset or a saved default can still name one of the six.
+
+        Nothing is thrown away silently, which is the whole point: a combo
+        whose `findData` misses simply keeps whatever it was showing, and the
+        next build would then quietly use a different algorithm than the one
+        the project was saved with.
+        """
+        from workflow import profile_builder as _pb
+        # Per INSTANCE, never a shared class attribute: the annotation above
+        # declares the type and deliberately binds no value, which is the same
+        # trap `_profile_written` documents two hundred lines up. Created here
+        # rather than in `__init__` so every path into this method finds it,
+        # including the ones that run while the tab is still being built.
+        if "_algo_moves_said" not in self.__dict__:
+            self._algo_moves_said = set()
+        letter, changed = _pb.output_algorithm(stored)
+        i = combo.findData(letter)
+        if i >= 0:
+            combo.setCurrentIndex(i)
+        if not changed:
+            return
+        old = (stored or "").strip()
+        if (old, letter) in self._algo_moves_said:
+            return
+        self._algo_moves_said.add((old, letter))
+        name = combo.itemText(i) if i >= 0 else letter
+        if old in ("L", "X", "Y"):
+            # An alias, measured bit-identical for a printer profile: the
+            # build is unchanged, so this is a note and not a warning.
+            msg = tr(
+                "The stored profile algorithm \"-a {old}\" is another name for "
+                "\"{name}\" in a printer profile, so the Algorithm box now "
+                "shows that. The profile this builds is unchanged."
+            ).format(old=old, name=name)
+        else:
+            msg = tr(
+                "The stored profile algorithm \"-a {old}\" cannot build a "
+                "printer profile: ArgyllCMS accepts only a lookup table for "
+                "one, and refused this letter before reading any "
+                "measurement. The Algorithm box has been set to \"{name}\". "
+                "Choose a different one before you build if that is not what "
+                "you want."
+            ).format(old=old, name=name)
+        try:
+            self._log.appendPlainText(msg)
+            self._log.ensureCursorVisible()
+        except Exception:      # noqa: BLE001 — never lose the tab over a note
+            log.info("%s", msg)
+
     def _m_apply_preset_data(self, data: dict) -> None:
         def _set_combo(combo: QComboBox, key: str, default: str) -> None:
             idx = combo.findData(data.get(key, default))
             if idx >= 0:
                 combo.setCurrentIndex(idx)
-        _set_combo(self._m_algo_combo,          "algorithm", "l")
+        self._set_algorithm_combo(self._m_algo_combo,
+                                  data.get("algorithm", "l"))
         _set_combo(self._m_qual_combo,          "quality",   "m")
         self._m_b2a_check.setChecked(bool(data.get("b2a_enabled", False)))
         _set_combo(self._m_b2a_combo,           "b2a_quality", "m")
@@ -2295,7 +2362,9 @@ class TabProfile(QWidget):
                 idx = combo.findData(s.get(key, default))
                 if idx >= 0:
                     combo.setCurrentIndex(idx)
-            _set_combo(self._m_algo_combo,          "manual2_colprof_algorithm", "l")
+            self._set_algorithm_combo(
+                self._m_algo_combo,
+                s.get("manual2_colprof_algorithm", "l"))
             _set_combo(self._m_qual_combo,          "manual2_colprof_quality",   "m")
             self._m_b2a_check.setChecked(bool(s.get("manual2_colprof_b2a_enabled", False)))
             _set_combo(self._m_b2a_combo,           "manual2_colprof_b2a_quality", "m")
@@ -2458,21 +2527,27 @@ class TabProfile(QWidget):
         for code, label in [
             ("l", "Lab cLUT (recommended for inkjet)"),
             ("x", "XYZ cLUT"),
-            ("X", "XYZ cLUT + matrix"),
-            ("g", "Gamma + matrix"),
-            ("G", "Gamma + matrix (forced)"),
-            ("s", "Single gamma + matrix"),
-            ("S", "Single gamma + matrix (forced)"),
-            ("m", "Matrix only"),
-            # THERE IS NO -aM. colprof 3.5.0's algorithm switch
-            # (`profile/colprof.c:599-631`) has cases for l L x X Y g G s S m
-            # and nothing else; MEASURED against the binary, `-aM` answers
-            # "Diagnostic: Unknown argument 'M' to algorithm flag -a" and exits
-            # 1. `profile_builder.py` passes the letter through verbatim and no
-            # entry in `_COLPROF_ERROR_PATTERNS` matches that line, so picking
-            # this entry produced no profile, no window and one line in a log.
-            # Removed rather than mapped to "m": a "(forced)" variant that is
-            # silently the unforced one would be a different lie.
+            # THIS TAB BUILDS A PRINTER PROFILE, AND A PRINTER PROFILE IS A
+            # cLUT OR IT IS NOTHING. `colprof.c:1244-1246` refuses every other
+            # algorithm for a DEVICE_CLASS "OUTPUT" measurement with
+            # "Output profile can only be a cLUT algorithm", before it reads a
+            # patch. This list used to hold eight entries; MEASURED against the
+            # 3.5.0 binary on real printer .ti3 files, five of them (g G s S m)
+            # exited 1 and wrote nothing, and a sixth (X) built a file
+            # BIT-IDENTICAL to "x" because the OUTPUT call site passes mtxtoo=0
+            # (`colprof.c:1256`) and throws the matrix those letters exist to
+            # add away. Its label, "XYZ cLUT + matrix", promised a matrix the
+            # file did not contain.
+            #
+            # Beta 11 removed "M", which colprof never had, and left the five
+            # that it does have and cannot use here. The letters and the reason
+            # live in `profile_builder.COLPROF_ALGORITHMS_BY_DEVICE_CLASS` /
+            # `OUTPUT_ALGORITHM_CHOICES`; `_set_algorithm_combo` below moves a
+            # stored letter onto this list AND SAYS SO.
+            #
+            # The gamma / shaper / matrix algorithms are not gone from ChromIQ:
+            # they belong to a scanner or camera profile, and the scanner and
+            # camera window offers them where they work.
         ]:
             self._m_algo_combo.addItem(label, code)
         self._m_algo_combo.setObjectName("compact_input")
@@ -2483,13 +2558,18 @@ class TabProfile(QWidget):
             tr("Profile Algorithm (-a)"),
             tr("Selects the mathematical model used to map device values (ink percentages)\n"
             "to colours.\n\n"
-            "Lab cLUT — a full 3-dimensional lookup table. Captures the complex,\n"
-            "non-linear relationship between ink and colour that every real inkjet\n"
-            "printer has. This is almost always the right choice.\n\n"
-            "Matrix + gamma — a simple linear model that fits only devices with a\n"
-            "near-linear, predictable response (such as monitors). Far less accurate\n"
-            "for inkjet printers. Use only if the destination application explicitly\n"
-            "requires a matrix profile."),
+            "Lab cLUT: a full 3-dimensional lookup table, connecting through L*a*b*.\n"
+            "It captures the complex, non-linear relationship between ink and colour\n"
+            "that every real inkjet printer has, and it is the only kind of printer\n"
+            "profile that can carry all four rendering intents. This is almost always\n"
+            "the right choice.\n\n"
+            "XYZ cLUT: the same kind of table, connecting through XYZ instead. It can\n"
+            "suit an additive device better, and ArgyllCMS warns that it is a lot less\n"
+            "robust on a patch set that is sparse or unevenly spaced.\n\n"
+            "There is no third choice here, and that is ArgyllCMS\u2019s rule rather than\n"
+            "ChromIQ\u2019s: colprof refuses to build a printer profile from a gamma,\n"
+            "shaper or matrix model. Those suit a scanner, a camera or a display, and\n"
+            "ChromIQ offers them in the scanner and camera window."),
             grp,
             min_width=480,
         ))
@@ -3509,21 +3589,12 @@ class TabProfile(QWidget):
         for code, label in [
             ("l", "Lab cLUT (recommended for inkjet)"),
             ("x", "XYZ cLUT"),
-            ("X", "XYZ cLUT + matrix"),
-            ("g", "Gamma + matrix"),
-            ("G", "Gamma + matrix (forced)"),
-            ("s", "Single gamma + matrix"),
-            ("S", "Single gamma + matrix (forced)"),
-            ("m", "Matrix only"),
-            # THERE IS NO -aM. colprof 3.5.0's algorithm switch
-            # (`profile/colprof.c:599-631`) has cases for l L x X Y g G s S m
-            # and nothing else; MEASURED against the binary, `-aM` answers
-            # "Diagnostic: Unknown argument 'M' to algorithm flag -a" and exits
-            # 1. `profile_builder.py` passes the letter through verbatim and no
-            # entry in `_COLPROF_ERROR_PATTERNS` matches that line, so picking
-            # this entry produced no profile, no window and one line in a log.
-            # Removed rather than mapped to "m": a "(forced)" variant that is
-            # silently the unforced one would be a different lie.
+            # The same two, for the same reason as the Manual combo above:
+            # `colprof.c:1244-1246` accepts no other algorithm for a printer
+            # measurement. This combo is hidden (`setVisible(False)` below) and
+            # has been since v2.1.0, but it is still collected into the build
+            # parameters and still stored per target as "g_algorithm", so it
+            # gets the same list and the same coercion, not a comment.
         ]:
             self._algo_combo.addItem(label, code)
         algo_row.addWidget(self._algo_combo, stretch=1)
@@ -3531,13 +3602,18 @@ class TabProfile(QWidget):
             tr("Profile Algorithm (-a)"),
             tr("Selects the mathematical model used to map device values (ink percentages)\n"
             "to colours.\n\n"
-            "Lab cLUT — a full 3-dimensional lookup table. Captures the complex,\n"
-            "non-linear relationship between ink and colour that every real inkjet\n"
-            "printer has. This is almost always the right choice.\n\n"
-            "Matrix + gamma — a simple linear model that fits only devices with a\n"
-            "near-linear, predictable response (such as monitors). Far less accurate\n"
-            "for inkjet printers. Use only if the destination application explicitly\n"
-            "requires a matrix profile."),
+            "Lab cLUT: a full 3-dimensional lookup table, connecting through L*a*b*.\n"
+            "It captures the complex, non-linear relationship between ink and colour\n"
+            "that every real inkjet printer has, and it is the only kind of printer\n"
+            "profile that can carry all four rendering intents. This is almost always\n"
+            "the right choice.\n\n"
+            "XYZ cLUT: the same kind of table, connecting through XYZ instead. It can\n"
+            "suit an additive device better, and ArgyllCMS warns that it is a lot less\n"
+            "robust on a patch set that is sparse or unevenly spaced.\n\n"
+            "There is no third choice here, and that is ArgyllCMS\u2019s rule rather than\n"
+            "ChromIQ\u2019s: colprof refuses to build a printer profile from a gamma,\n"
+            "shaper or matrix model. Those suit a scanner, a camera or a display, and\n"
+            "ChromIQ offers them in the scanner and camera window."),
             _algo_w,
             min_width=480,
         ))
@@ -5723,7 +5799,8 @@ class TabProfile(QWidget):
                 combo.setCurrentIndex(idx)
 
         # Guided defaults
-        _set_combo(self._algo_combo,         "colprof_algorithm", "l")
+        self._set_algorithm_combo(self._algo_combo,
+                                  s.get("colprof_algorithm", "l"))
         _set_combo(self._qual_combo,         "colprof_quality",   "m")
         self._b2a_check.setChecked(bool(s.get("colprof_b2a_enabled", False)))
         _set_combo(self._b2a_combo,          "colprof_b2a_quality", "m")
@@ -5771,7 +5848,8 @@ class TabProfile(QWidget):
             if idx >= 0:
                 combo.setCurrentIndex(idx)
 
-        _set_m_combo(self._m_algo_combo,          "manual2_colprof_algorithm", "l")
+        self._set_algorithm_combo(self._m_algo_combo,
+                                  s.get("manual2_colprof_algorithm", "l"))
         _set_m_combo(self._m_qual_combo,          "manual2_colprof_quality",   "m")
         self._m_b2a_check.setChecked(bool(s.get("manual2_colprof_b2a_enabled", False)))
         _set_m_combo(self._m_b2a_combo,           "manual2_colprof_b2a_quality", "m")

@@ -2382,6 +2382,9 @@ class ScannerProfileDialog(_ToolDialogBase):
             # edit. Only the signal is.
             _w.currentIndexChanged.connect(self._note_user_change)
         self._prof_name.textChanged.connect(self._update_command_preview)
+        # The Profile type list is not the same list in both modes, so fit it
+        # to the mode BEFORE the first context is loaded into it.
+        self._rebuild_ptype_choices()
         self._active_ctx = self._colprof_context()
         self._load_context(self._active_ctx)
         self._apply_read_vals(self._settings.get(self._READ_KEY, {}) or {})
@@ -3167,6 +3170,56 @@ class ScannerProfileDialog(_ToolDialogBase):
             "scenario": self._scenario_for(ctx),
         }
 
+    def _rebuild_ptype_choices(self) -> None:
+        """Fill the Profile type combo with the types THIS MODE can build.
+
+        A printer profile is a cLUT or it is nothing (`colprof.c:1244-1246`),
+        so "Shaper + matrix" and "Matrix only" are not on offer with the
+        printer tick on. The combo used to be filled once, at construction,
+        with all four, and nothing ever filtered it: picking a matrix type in
+        printer mode was accepted, went into the printer settings bucket, and
+        ended in a colprof error instead of a profile.
+
+        Signals are blocked because clearing a combo moves its index, and
+        `_note_user_change` would read that as the user editing the setting.
+        """
+        printer = self._printer_mode()
+        choices = scanner_colprof.ptype_choices(printer)
+        if [self._ptype.itemData(i) for i in range(self._ptype.count())] == \
+                [d for d, _ in choices]:
+            return                              # already this mode's list
+        keep, _ = scanner_colprof.coerce_ptype(self._ptype.currentData(), printer)
+        self._ptype.blockSignals(True)
+        try:
+            self._ptype.clear()
+            for data, label in choices:
+                self._ptype.addItem(label, data)
+            i = self._ptype.findData(keep)
+            if i >= 0:
+                self._ptype.setCurrentIndex(i)
+        finally:
+            self._ptype.blockSignals(False)
+
+    def _say_the_profile_type_moved(self, stored: str, used: str) -> None:
+        """Say, in the log, that a remembered profile type could not be used.
+
+        In the LOG and not a window, the same register `_announce_wp_default_
+        migration` uses next door: it is a note about settings this window
+        already shows on its face, and the wording has not been through §M.
+        Silence is the one option that is not available: a stored "s" in the
+        printer bucket used to reach colprof and fail there, and coercing it
+        without a word would swap the algorithm a saved project builds with.
+        """
+        if getattr(self, "_log", None) is None:
+            return                    # still being built; `_say_what_was_set_up`
+        name = scanner_colprof.label_for(scanner_colprof.PTYPE_CHOICES, used)
+        old = scanner_colprof.label_for(scanner_colprof.PTYPE_CHOICES, stored)
+        self._log.appendPlainText(tr(
+            "The saved profile type \"{old}\" cannot build a printer profile: "
+            "ArgyllCMS builds a printer profile only as a lookup table. "
+            "Profile type has been set to \"{new}\"."
+        ).format(old=old, new=name))
+
     def _load_context(self, ctx: str) -> None:
         """Load *ctx*'s remembered settings into the widgets (or the built-in
         defaults for a bucket that's never been used)."""
@@ -3181,7 +3234,10 @@ class ScannerProfileDialog(_ToolDialogBase):
                 combo.setCurrentIndex(i)
         for w in (self._ptype, self._pq):
             w.blockSignals(True)
-        _sel(self._ptype, main.get("ptype") or default_ptype)
+        stored_ptype = main.get("ptype") or default_ptype
+        ptype, moved = scanner_colprof.coerce_ptype(stored_ptype,
+                                                    ctx == "printer")
+        _sel(self._ptype, ptype)
         _sel(self._pq, main.get("quality") or "m")
         for w in (self._ptype, self._pq):
             w.blockSignals(False)
@@ -3189,6 +3245,8 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._prof_name.setText(main.get("description", "") or "")
         self._prof_name.blockSignals(False)
         self._adv_vals = dict(adv)
+        if moved:
+            self._say_the_profile_type_moved(stored_ptype, ptype)
 
     def _sync_colprof_context(self) -> None:
         """On a mode change, save the settings of the context we're leaving and
@@ -3197,11 +3255,19 @@ class ScannerProfileDialog(_ToolDialogBase):
         if new != self._active_ctx:
             self._snapshot_context(self._active_ctx)
             self._active_ctx = new
+            # THE ORDER OF THESE THREE MATTERS. `_snapshot_context` reads the
+            # combo's current letter, so it has to run before the list under it
+            # changes; `_load_context` selects by `findData`, so the list has
+            # to be this mode's before it runs. Nothing outside this block
+            # rebuilds: the context IS the mode (`_colprof_context` returns
+            # "printer" exactly when the tick is on), so a mode change and a
+            # context change are the same event.
+            self._rebuild_ptype_choices()
             self._load_context(new)
         # …and the Advanced section shows the options of the profile now being
         # built, filled in from the settings just loaded.
         self._sync_inline_advanced()
-        self._on_colprof_changed()          # refresh cLUT-enable + command preview
+        self._on_colprof_changed()          # refresh the command preview
         self._mark_default_combos()
         # The scenario is per bucket, so it follows the bucket. `_maybe_auto_setup`
         # refuses on its own for a stored or hand-edited one.
@@ -3314,9 +3380,16 @@ class ScannerProfileDialog(_ToolDialogBase):
         btn.setEnabled(True)
 
     def _on_colprof_changed(self) -> None:
-        is_clut = self._ptype.currentData() in scanner_colprof.CLUT_ALGOS
-        self._q_label.setEnabled(is_clut)      # quality only applies to a cLUT
-        self._pq.setEnabled(is_clut)
+        # QUALITY APPLIES TO EVERY PROFILE TYPE, and this row used to grey it
+        # out for the two matrix ones while sending it anyway. ArgyllCMS,
+        # `colprof.html` on `-q`: "For table based profiles … it sets the main
+        # lookup table size … For matrix profiles it sets the per channel curve
+        # detail level and fitting 'effort'." MEASURED (one base filename, ICC
+        # header creation time zeroed before hashing): `-q l/m/h/u` against
+        # `-as`, `-am`, `-ag`, `-aS` and `-aG` gives four different profiles
+        # every time. `make_profile_params` passed the greyed value on the
+        # command line regardless, so the user was told the control did not
+        # apply, could not change it, and it was used.
         self._update_command_preview()         # persistence is now explicit (Save button)
         self._sync_profile_type_advice()
 
@@ -3391,7 +3464,11 @@ class ScannerProfileDialog(_ToolDialogBase):
         # a printer prints is lighter than its own paper.
         recommended_clut = scanner_colprof.PTYPE_RECOMMENDED_CLUT[printer]
         for combo, choices, default in (
-                (self._ptype, scanner_colprof.PTYPE_CHOICES, ptype_default),
+                # The mode's OWN list: printer mode offers two of the four, so
+                # walking the full list here would put the labels one item out
+                # from the third entry on. `_rebuild_ptype_choices` and this
+                # both read `ptype_choices`, so they cannot disagree.
+                (self._ptype, scanner_colprof.ptype_choices(printer), ptype_default),
                 (self._pq, scanner_colprof.QUALITY_CHOICES, "m")):
             for i, (data, label) in enumerate(choices):
                 if data == default:

@@ -323,19 +323,36 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # count in it, and the rewritten Lab-table note), and the short form of
 # the saved-bucket line is under the 25-character floor. These are each
 # language's ACTUAL count, not a round ceiling.
+# 2026-09-06, the colprof algorithm fix (B8-93 to B8-96): +4 for the eleven
+# and +0 for German. Eight keys arrive and four leave, and the arithmetic is
+# 7 in, 3 out rather than 8 and 4 — MEASURED by diffing the counted SETS
+# rather than reasoning about it, because the two ends do not cancel:
+#   * of the eight arriving, seven are counted; "ArgyllCMS has two more
+#     variants…" opens with the brand name, which the filter above treats as
+#     legitimately identical.
+#   * of the four leaving, three were counted; the fourth is the Build Profile
+#     Algorithm tooltip, which the eleven had actually TRANSLATED. Its
+#     replacement is a new key, so it arrives as English and is counted. That
+#     is one tooltip going from translated to English until the sweep, and it
+#     is the honest cost of rewriting a string whose old translation described
+#     eight list entries that no longer exist: a `tr()` key IS its English
+#     source, so a stale translation cannot be carried across.
+# German is translated for all eight and does not move; its budget of 31 is an
+# old ceiling and its actual count is 4. These are each language's ACTUAL
+# count, not a round ceiling.
 _BUDGET = {
     "de": 31,
-    "es": 244,
-    "fr": 245,
-    "it": 244,
-    "ja": 244,
-    "nl": 244,
-    "no": 244,
-    "pl": 244,
-    "pt": 244,
-    "ru": 243,
-    "sv": 244,
-    "zh_CN": 243,
+    "es": 248,
+    "fr": 249,
+    "it": 248,
+    "ja": 248,
+    "nl": 248,
+    "no": 248,
+    "pl": 248,
+    "pt": 248,
+    "ru": 247,
+    "sv": 248,
+    "zh_CN": 247,
 }
 
 
