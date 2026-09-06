@@ -3100,3 +3100,102 @@ came back to it.
   aggregation" — they cannot be both); and
   `assets/plotly-gl3d.min.js.LICENSE.txt`, which the bundle's own header points
   at, has never been in this repo.
+
+---
+
+### B8-77 · The bundled scanner targets are ArgyllCMS's geometry, and the sweep that asked could not tell
+- blocks release: no
+- status: FIXED
+- found by: B8-76's licensing sweep left it under `THIRD-PARTY-NOTICES.md` →
+  "Still open" as the owner's call; re-opened and measured by Agent CB,
+  2026-09-06
+- detail: `data/scanner_targets/` ships **eight** `.cht` files under a **GPLv3**
+  `LICENSE`, and ArgyllCMS's `ref/` — which its own `ref/ReadMe.txt` names all
+  eight of them in — is **AGPLv3**. B8-76 offered two honest ways out: establish
+  that the geometry was *regenerated*, making the files original work whose
+  licence is the author's to choose, or mark the folder AGPLv3. It could not
+  choose, because the only measurement it had was that "every one of the eight
+  differs byte-wise from Argyll's copy, which settles nothing either way".
+
+  **That instrument was wrong, and the first resolution is now refuted.** Argyll
+  writes a whole grid on one line (`Y 01 29 A V 24.689655 24.545454 99.5 25.5
+  24.689655 24.545454`) where these files write one line per patch, so the two
+  never match byte-wise even when they describe the identical grid; a "percent
+  similar" taken from such a diff — an earlier agent reported 0.2–2.9 % — is not
+  a measurement of anything. Expanding **both** sides to per-patch boxes first,
+  through a Python transcription of ArgyllCMS 3.5.0's own reader
+  (`scanin/scanrd.c`, `read_elist()` and `strinc()`), and comparing patch by
+  patch: `BOX_SHRINK` is Argyll's in **8 of 8** (12, 3, 12, 1.6, 4, 3, 8, 3.5),
+  the declared patch size is Argyll's in **8 of 8** (including 24.6897 ×
+  24.5455 and 12.675 × 12.75), and `ISO12641_2_1` (864 patches), `it8Wolf` (288)
+  and `Hutchcolor` (528) sit at Argyll's **absolute** coordinates with a maximum
+  deviation of 0, 0 and 0.00053. The remaining four are that grid translated or
+  uniformly rescaled. The repo's own history agrees: `1f9c534a` bundles
+  rectarg's corrected copies "plus ISO 12641-2 **unchanged**".
+
+  Two guards against over-reading: an exact affine fit on a *uniform* grid is
+  trivial and proves nothing on its own (four of these are uniform), and it is
+  **NOT ESTABLISHED** whether rectarg took the geometry from Argyll or both took
+  it from a common third source — which does not change what ships here.
+
+  A second, smaller fault fell out of it: `it8Wolf.cht` had shipped in this
+  folder since its first commit and was named nowhere in its README, so B8-76
+  described a seven-file folder and audited seven of eight.
+- fix: the folder is now **AGPLv3**. Measured first, decided after: the
+  measurement is
+  written into `data/scanner_targets/README.md` under "Provenance — measured,
+  not assumed" — method, per-file table, and an explicit note on which numbers
+  are evidence and which are not — and `THIRD-PARTY-NOTICES.md` records that
+  resolution (a) is closed and what the remaining options cost: **(b)** mark the
+  folder AGPLv3 (a `LICENSE` swap plus two documents; the files are data, so it
+  does not touch ChromIQ's own licence), **(c)** drop the bundled copies and read
+  the user's `ref/` at run time (`workflow/standard_targets` already falls back,
+  but this loses the corrected fiducials and the `XLIST`/`YLIST` normalisation
+  that took auto-align from 8 of 25 targets to 25 of 25 — a real functional
+  loss), or **(d)** ask Graeme W. Gill for permission to ship these eight under
+  GPLv3.
+
+  **Basti chose (b) on 2026-09-06**, after asking — and being shown — that it
+  changes nothing about how the app works. `data/scanner_targets/LICENSE` now
+  carries the same AGPLv3 text ArgyllCMS ships as `ref/License.txt`; the folder
+  README's "Credit & licence" section states the AGPL and why; and
+  `THIRD-PARTY-NOTICES.md` records the decision under the folder's own heading
+  and no longer lists it under **Still open**. The README's "mere aggregation"
+  sentence is gone for good — the folder does not need an aggregation argument,
+  because it now simply adopts its upstream's licence instead of asserting a
+  different one. **No `.cht` was touched**, no code reads the `LICENSE`, and
+  ChromIQ's own licence remains GPLv3. `it8Wolf.cht` is now listed in the README
+  and a test keeps it that way.
+- what is owed: nothing. The one visible run-time effect is that
+  `ensure_user_targets_dir` refreshes an unmodified copy of the `LICENSE` in the
+  user's `scanner-test-targets` folder on next open — its `.provisioned.json`
+  hash changed — which is the "updated files must reach users" behaviour Knut
+  asked for in beta.5. A copy the user has edited is never overwritten.
+- evidence: test_every_bundled_cht_is_named_in_the_folder_readme,
+  test_the_readme_states_the_measured_provenance_for_every_file,
+  test_the_folder_carries_the_licence_of_the_geometry_it_ships,
+  test_the_geometry_still_matches_argylls_the_way_the_readme_says.
+  Nine mutations were each proved to land before the run: adding a ninth
+  undocumented `.cht`, renaming `it8Wolf.cht` out of the README, deleting the
+  Provenance header, removing one file's row from the table, softening the
+  conclusion sentence, cutting the whole open item out of the notices, stripping
+  the word AGPL from it, and changing a bundled `BOX_SHRINK` and a declared
+  patch size. Two of those first did NOT land and were strengthened rather than
+  believed.
+
+  The licence test changed shape when the decision landed. It was written to
+  SKIP once the folder became AGPLv3 — a reminder that retires. That would have
+  left the folder unwatched again, which is how it carried the wrong licence
+  from its first commit, so it was rewritten to hold the decision instead: the
+  `LICENSE`, the folder README and the notices must agree, and reverting any one
+  of them alone now fails. Five mutations were run against the new form:
+  swapping the `LICENSE` back to the GPL, dropping "Affero" from the README's
+  licence section, cutting the licence statement out of the notices, removing
+  the sentence that says ChromIQ itself stays GPLv3, and re-listing the folder
+  under **Still open**. Four failed the test immediately. **The fifth did not
+  land** — cutting the licence statement left the word "AGPLv3" elsewhere in the
+  same section, and a bare `"AGPLv3" in section` check passed over the hole. The
+  assertion was tightened to require the section to *state* the licence
+  (`**Licence: AGPLv3 …**`) rather than merely mention it, and the mutation then
+  failed as it should. A passing mutation run is worth nothing if the mutation
+  never applied.

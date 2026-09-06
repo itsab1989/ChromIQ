@@ -164,10 +164,31 @@ ChromIQ carries, and it was a deliberate choice, not an oversight.
 
 ## Scanner target recognition files — `data/scanner_targets/`
 
-Documented in **`data/scanner_targets/README.md`**, with `LICENSE` beside it.
-Corrected `.cht` geometry files by Knut Georg Larsson (rectarg), stated there as
-derived from the recognition files distributed with ArgyllCMS. See
-[Still open](#still-open) — the stated licence needs a decision.
+**Eight** `.cht` files, documented in **`data/scanner_targets/README.md`**, with
+`LICENSE` beside it. Corrected geometry by Knut Georg Larsson (rectarg), derived
+from the recognition files distributed with ArgyllCMS.
+
+That derivation is no longer a description taken on trust: it was measured per
+file on 2026-09-06 and the method and numbers are in that README under
+**Provenance — measured, not assumed**. All eight carry ArgyllCMS's patch
+geometry — `BOX_SHRINK` and the declared patch size are Argyll's in 8 of 8, and
+three of the files sit at Argyll's absolute coordinates over 864, 288 and 528
+patches.
+
+**Licence: AGPLv3, decided 2026-09-06 by Basti.** ArgyllCMS's `ref/ReadMe.txt`
+names all eight of these files as covered by `ref/License.txt`, which is the GNU
+Affero GPL v3; unlike Argyll's `.icm` profiles they carry no public-domain
+dedication. A work derived from an AGPLv3 work cannot be redistributed under the
+plain GPLv3, so the folder's `LICENSE` — GPLv3 since its first commit — now
+carries the same AGPLv3 text Argyll ships. Note this is **not** an aggregation
+argument of the kind weighed below: nothing here needed one, because the folder
+simply adopts its upstream's licence rather than asserting a different one.
+
+**ChromIQ's own licence is untouched** and remains GPLv3. Only this folder is
+AGPLv3; the files are data, read at run time and never linked. No code reads the
+`LICENSE`, and no `.cht` coordinate changed, so the application behaves exactly
+as before — the one visible effect is that `ensure_user_targets_dir` refreshes an
+unmodified copy of the file in the user's `scanner-test-targets` folder.
 
 ## Argyll-derived helpers — `native/`
 
@@ -342,25 +363,15 @@ already the house pattern, used four times over in the same folder.
 ## Still open
 
 Two items this sweep turned up that are **not** for this assistant to decide.
+(A third — the scanner targets' licence — was decided on 2026-09-06 and is
+recorded above under **Scanner target recognition files**.)
 
-1. **`data/scanner_targets/` states GPLv3 for files it also describes as derived
-   from ArgyllCMS.** ArgyllCMS is **AGPLv3**, and its `ref/*.cht` files carry no
-   public-domain dedication of their own (unlike its `.icm` profiles). A
-   derivative of an AGPLv3 work cannot be relicensed to GPLv3 — that drops the
-   §13 network clause AGPL exists for. The README is also internally
-   inconsistent: it calls the files *"derived from"* Argyll's and, three lines
-   later, *"bundled as data alongside ChromIQ (mere aggregation)"*. They cannot
-   be both. The honest resolutions are (a) establish that rectarg **regenerated**
-   the geometry rather than editing Argyll's files, in which case they are
-   original work and GPLv3 is the author's to choose, or (b) mark them AGPLv3.
-   Every one of the eight differs byte-wise from Argyll's copy, which settles
-   nothing either way. **Owner's call.**
-2. **`assets/plotly-gl3d.min.js.LICENSE.txt` is missing.** The bundle's own
+1. **`assets/plotly-gl3d.min.js.LICENSE.txt` is missing.** The bundle's own
    header points at it. The MIT notice above covers plotly.js itself; the
    individual notices for the dependencies webpack folded in do not travel with
    the file today. Cheapest fix: regenerate the bundle and commit the sidecar
    webpack emits beside it.
-3. **`assets/clipborder.psd` ships in every build and nothing uses it.** 588 KB
+2. **`assets/clipborder.psd` ships in every build and nothing uses it.** 588 KB
    of Photoshop source, referenced by no code, carried in because `ChromIQ.spec`
    bundles `assets` wholesale — and it brings an embedded HP sRGB profile's
    copyright string with it. Excluding it (and anything else under `assets/` that
