@@ -130,6 +130,26 @@ def _label_try_zadig() -> str:
     return tr("Try Zadig")
 
 
+def _label_stop_waiting() -> str:
+    # NOT "Cancel", and the difference is the whole point. The design document
+    # rules on this window's dismissing words at
+    # `docs/design/unified_measurement_management.md`, and rejects Qt's `Cancel`
+    # there because "there is nothing in flight to cancel … the user is
+    # declining an offer, not aborting an operation". Here something IS in
+    # flight — and it still cannot be cancelled: an elevated driver install
+    # cannot be safely killed, and ChromIQ does not try. This stops ChromIQ
+    # WATCHING, which is exactly what it says, and the window that follows says
+    # the same thing again in a sentence.
+    return tr("Stop waiting")
+
+
+def usb_installing_text(name: str) -> str:
+    """What the window says while the elevated installer is running."""
+    return tr("Installing the driver for {name}. Windows makes a restore "
+              "point before it touches a driver, and that is most of the "
+              "wait.").format(name=name)
+
+
 # THE BUTTON THAT DECLINES MUST NOT SAY "OK".
 #
 # `_driver_notice` shows two kinds of window. Without an extra button it is a
@@ -372,6 +392,7 @@ def usb_install_outcome(*, wdi_available: bool, ran_ok: bool,
                         still_unbound_names: "list[str]",
                         zadig_status: "str | None",
                         driver_was_missing: bool,
+                        stopped_watching: bool,
                         target_names: "list[str] | None" = None,
                         ) -> "tuple[str, bool]":
     """What the second window says, and whether it offers a Zadig button.
@@ -417,8 +438,49 @@ def usb_install_outcome(*, wdi_available: bool, ran_ok: bool,
     "assume it worked" is the bug being fixed here; the one that reads "assume
     we cannot tell" quietly downgrades a real success. A caller that does not
     know cannot be given a sentence — it has to go and find out.
+
+    `stopped_watching` is REQUIRED for exactly the same reason, and it was
+    nearly not: the first design widened `ran_ok` to `bool | None`, which needs
+    no change at any existing call site. It is the same trap wearing a friendly
+    face. The parameter's NAME promises a boolean, `False` is legal, and a
+    caller who one day writes `ran_ok=bool(...)` collapses "we do not know" into
+    "it failed" and gets *"Automatic installation failed or was cancelled"* plus
+    a Zadig button — the single worst sentence to show about an install that is
+    succeeding, which is the fault this argument exists to fix.
     """
     if wdi_available:
+        if stopped_watching:
+            # ChromIQ STOPPED WATCHING. IT DID NOT STOP THE INSTALL.
+            #
+            # This is the ending the window had no word for. `install_winusb`
+            # waited 60 s, threw away what the wait returned, read
+            # `STILL_ACTIVE` (259) as an exit code, found `259 != 0` and
+            # reported a FAILED INSTALL — about an install measured at 48.6 s on
+            # an IDLE machine, i.e. one that was succeeding a second later. The
+            # user was then sent to Zadig to repair something that was not
+            # broken.
+            #
+            # No instrument is named and no verdict is given, because there is
+            # nothing to point at: `unbound_targets()` is deliberately NOT asked
+            # while an install is in flight — it samples the same device stack
+            # wdi-simple is re-enumerating, and can come back with either answer
+            # for the wrong reason. And no Zadig button: nudging somebody to
+            # replace a driver while an elevated installer is still putting one
+            # in is the one action here that could leave the machine worse than
+            # it started.
+            return ("<br><br>".join([
+                tr("<b>ChromIQ stopped waiting, and cannot tell you whether "
+                   "that worked.</b>"),
+                tr("The installer had not finished when ChromIQ stopped "
+                   "watching it. Nothing was cancelled and nothing was undone "
+                   "— Windows is very likely still installing the driver, and "
+                   "it may well finish on its own."),
+                tr("Give it a moment, then open <b>{opener}</b> in Preferences "
+                   "again and use <b>{button}</b>. That looks your instrument "
+                   "up afresh and says whether the driver is attached now."
+                   ).format(opener=_in_prose(tr("Instrument drivers…")),
+                            button=_in_prose(_label_check_again())),
+            ]), False)
         if ran_ok and not still_unbound_names:
             names = ", ".join(target_names or [])
             if driver_was_missing:
@@ -5872,6 +5934,91 @@ class SettingsDialog(QDialog):
                                       folder=str(folder))
         self._driver_notice(tr("Instrument drivers"), text)
 
+    def _install_the_drivers(self, targets: list, install) -> list:
+        """Install a driver for each of *targets*, with something on the screen.
+
+        Returns the `InstallAttempt` for each device it got to, in order — which
+        is shorter than *targets* when one of them did not land.
+
+        **THE WAIT USED TO HAPPEN ON THIS THREAD WITH NOTHING ON SCREEN.**
+        Measured on the bench 2026-09-06 with a real i1Studio,
+        `Get-Process ChromIQ` reported `Responding = False` for ~50 s — no
+        spinner, no message, no cursor change. The owner's words while it was
+        working correctly were *"after confirming the uac nothing seems to
+        happen"*, then *"it seems to be hanging"*. Nobody had seen it before
+        because every earlier attempt failed in 2-5 s: a WORKING install is the
+        slow case, so this only became reachable when the installer started
+        working.
+
+        **The window is built on the FIRST TICK, not up front,** and that is
+        two decisions in one. An install that ends at the permission prompt
+        never waits, so it never gets a progress window flashed at it. And an
+        install that does not wait puts no modal on screen at all — which
+        matters to the seventeen driving tests next door, because
+        `tests/test_usb_driver_dialog.py::ModalDriver` acts on
+        `QApplication.activeModalWidget()` and would have run their next step,
+        `_ok_button(w).click()`, against a window that has no OK button:
+        `AttributeError` inside a QTimer slot, which PyQt6 answers with
+        `qFatal()`. That is a dead worker, not a red test.
+
+        **It is application-modal, and that is the answer to "can they start a
+        second install?".** Pumping events keeps this window painting, and it
+        equally keeps every other window reachable in principle; modality is
+        what stops a second `Install Driver`, a closed Preferences, a quit, or a
+        measurement being started while an elevated installer runs.
+
+        **The button says `Stop waiting`, not `Cancel`.** Nothing here can abort
+        an elevated driver install and nothing here tries. It stops ChromIQ
+        watching, and the window that follows says exactly that.
+        """
+        from PyQt6.QtWidgets import QProgressDialog
+        from core.usb_driver_installer import InstallAttempt
+
+        progress: "QProgressDialog | None" = None
+        attempts: list = []
+
+        try:
+            for device in targets:
+                def _still_watching(_secs: float,
+                                    _name: str = device.name) -> bool:
+                    nonlocal progress
+                    try:
+                        if progress is None:
+                            progress = QProgressDialog(
+                                usb_installing_text(_name),
+                                _label_stop_waiting(), 0, 0, self)
+                            progress.setWindowTitle(tr("Instrument drivers"))
+                            progress.setWindowModality(
+                                Qt.WindowModality.ApplicationModal)
+                            progress.setAutoClose(False)
+                            progress.setAutoReset(False)
+                            progress.show()
+                        else:
+                            progress.setLabelText(usb_installing_text(_name))
+                        QApplication.processEvents()
+                        return not progress.wasCanceled()
+                    except RuntimeError:
+                        # The window this was parented to has been deleted under
+                        # us. Stop watching — and, because the ending that
+                        # follows is "ChromIQ cannot tell you", stop claiming to
+                        # know anything, rather than dying with a traceback
+                        # after an elevated install.
+                        return False
+
+                attempts.append(install(device, progress=_still_watching))
+                if attempts[-1] is not InstallAttempt.INSTALLED:
+                    # STOP AT THE FIRST ONE THAT DID NOT LAND, which is what
+                    # `all(install_winusb(d) for d in targets)` used to do by
+                    # short-circuiting. It is not only politeness about a second
+                    # permission prompt: elevating a second wdi-simple while the
+                    # first still holds Windows' PnP install lock is a way to
+                    # make a good install fail.
+                    break
+        finally:
+            if progress is not None:
+                progress.close()
+        return attempts
+
     def _show_usb_installer(self) -> None:
         if _sys.platform != "win32":
             return
@@ -5896,7 +6043,8 @@ class SettingsDialog(QDialog):
             QWidget,
         )
         from core.usb_driver_installer import (
-            enumerate_connected, install_winusb, launch_zadig, unbound_targets,
+            InstallAttempt, enumerate_connected, install_winusb, launch_zadig,
+            unbound_targets,
         )
         from core.resource_path import resource_path as _rp
         from ui.widgets import tint_dialog_primary
@@ -6027,7 +6175,16 @@ class SettingsDialog(QDialog):
             # device; otherwise only the ones missing a driver are targeted.
             targets = needs_install or devices
             if _wdi_available:
-                ran_ok = all(install_winusb(d) for d in targets)
+                attempts = self._install_the_drivers(targets, install_winusb)
+                stopped_watching = any(a is InstallAttempt.STILL_RUNNING
+                                       for a in attempts)
+                # `len(attempts) == len(targets)` is not redundant with the
+                # `all(...)`: an empty list makes `all` True and would claim a
+                # success nobody attempted.
+                ran_ok = (not stopped_watching
+                          and len(attempts) == len(targets)
+                          and all(a is InstallAttempt.INSTALLED
+                                  for a in attempts))
                 # wdi-simple can report success (exit 0) without actually binding
                 # the driver to the live device — a stale ghost instance from a
                 # previous USB port can misdirect it. Verify by re-enumerating
@@ -6037,10 +6194,22 @@ class SettingsDialog(QDialog):
                 # which is now presence-filtered at instance level, so a ghost
                 # can neither be reported as "the install did not bind" nor lend
                 # its stale driver to a device that did not bind at all.
-                still_unbound = unbound_targets(targets)
+                #
+                # BUT IT IS NOT ASKED WHILE AN INSTALL IS STILL RUNNING. It
+                # samples the registry AND cfgmgr32's PRESENT list — exactly the
+                # device stack wdi-simple is re-enumerating — and mid-install it
+                # can be wrong in either direction: an instance that is
+                # transiently absent is dropped by the presence guard and the
+                # device reads as bound, while an instance whose id has just
+                # changed sends that same guard to its "fall back to every
+                # remembered instance" branch, which re-admits the ghosts this
+                # function exists to see past.
+                still_unbound = [] if stopped_watching \
+                    else unbound_targets(targets)
                 outcome_text, offer_zadig = usb_install_outcome(
                     wdi_available=True,
                     ran_ok=ran_ok,
+                    stopped_watching=stopped_watching,
                     still_unbound_names=[d.name for d in still_unbound],
                     zadig_status=None,
                     # `needs_install` is the list read BEFORE the button was
@@ -6054,6 +6223,7 @@ class SettingsDialog(QDialog):
             else:
                 outcome_text, offer_zadig = usb_install_outcome(
                     wdi_available=False, ran_ok=False, still_unbound_names=[],
+                    stopped_watching=False,
                     zadig_status=launch_zadig(),
                     driver_was_missing=bool(needs_install),
                     target_names=[d.name for d in targets],

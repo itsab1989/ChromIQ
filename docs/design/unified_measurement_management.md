@@ -3396,6 +3396,87 @@ dark appearance's wider button font, on a screen tall enough that the window is
 not at its cap: the row fits, nothing is clipped, nothing runs past the edge
 (`tests/test_usb_driver_dialog.py::test_the_consent_buttons_fit_the_row_in_every_language`).*
 
+### The driver window's fifth ending — an install that has not finished (A9) — ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.* Proposed 2026-09-06 by A9. Nobody has ruled on
+this wording; it is recorded here because it is user-facing wording on the
+driver helper, and this is where user-facing wording on that window is proposed
+and ruled on.
+
+*Deliberately NOT given an `M-` identifier, for the reason the driver consent
+button's section above gives: §M is a catalogue of MESSAGES rendered from
+`workflow/measurement_messages.py`, and `tests/test_message_catalogue.py`
+requires every `M-` heading in this document to exist there. The driver helper
+is a Preferences window, not a measurement window, and must not be given a fake
+identifier to satisfy a parser.*
+
+**What was wrong.** `core/usb_driver_installer.py::install_winusb` waited 60 s
+for the elevated installer, threw away what `WaitForSingleObject` returned, then
+read `GetExitCodeProcess` — which answers `STILL_ACTIVE` (259) for a process
+that has not finished. `259 != 0`, so the window said the install had **failed**
+and offered **Try Zadig**. Measured on the bench 2026-09-06 against a real
+driverless X-Rite i1Studio on an idle 2-core ARM64 VM, a *successful* install
+took **48.6 s** (`00:41:24.501` → `00:42:13.129`) — 11.4 s inside that budget,
+most of it Windows making a system restore point. On a machine that is actually
+busy the window would have called a succeeding install a failure and sent the
+user to replace a driver that was being installed as they read it.
+
+**The window now has a fifth ending**, alongside *It worked* / *cannot tell you
+whether that changed anything* / *did not take* / *failed or was cancelled*. It
+is reached when ChromIQ stops WATCHING — because its five-minute budget ran out,
+or because the user pressed the button that says so. It never says "failed", it
+names no instrument, and it offers no Zadig button.
+
+> **ChromIQ stopped waiting, and cannot tell you whether that worked.**
+>
+> The installer had not finished when ChromIQ stopped watching it. Nothing was
+> cancelled and nothing was undone — Windows is very likely still installing the
+> driver, and it may well finish on its own.
+>
+> Give it a moment, then open **Instrument drivers** in Preferences again and
+> use **Check again**. That looks your instrument up afresh and says whether the
+> driver is attached now.
+
+*No instrument is named because there is nothing to point at:
+`unbound_targets()` is deliberately not asked while an install is in flight — it
+samples the same device stack wdi-simple is re-enumerating and can be wrong in
+either direction. No Zadig button, because nudging somebody to replace a driver
+while an elevated installer is still putting one in is the one action here that
+could leave the machine worse than it started. Both onward controls are named
+from the controls' own `tr()` keys via `_in_prose`, the same way the reboot
+window and the "cannot tell" ending are, so they cannot drift from the buttons
+in any of the twelve languages.*
+
+**And the window that is on screen while it waits.** The install used to hold
+the GUI thread: `Get-Process ChromIQ` reported `Responding = False` for ~50 s
+with no spinner, no message and no cursor change, and the owner read it as a
+hang (*"after confirming the uac nothing seems to happen"*, then *"it seems to
+be hanging"*).
+
+| what it says | when |
+|---|---|
+| **Installing the driver for {name}. Windows makes a restore point before it touches a driver, and that is most of the wait.** | from the first moment there is anything to wait for |
+| button: **Stop waiting** | on that window |
+
+*The window appears only once there is a wait — an install that ends at the
+permission prompt takes 2-5 s and gets nothing flashed at it. It is
+application-modal, which is what stops a second install, a closed Preferences
+window or a quit while an elevated installer is running.*
+
+*The button is **Stop waiting** and not Qt's **Cancel**. The section above
+rejects `Cancel` on this window's other five offers because "there is nothing in
+flight to cancel … the user is declining an offer, not aborting an operation".
+Here something IS in flight — and it still cannot be cancelled: an elevated
+driver install cannot be safely killed, and ChromIQ does not try. The button
+stops ChromIQ watching, which is what it says, and the ending above says the
+same thing again in a sentence. **Not now** was considered and is wrong for the
+same reason: nothing is being offered.*
+
+*The permission prompt itself is still frozen time — `SEE_MASK_NOASYNC` makes
+`ShellExecuteExW` block until the shell operation completes, so ChromIQ does not
+pump events while Windows asks for consent. That is deliberate: consent must
+stay a modal, deliberate act. It is a second or two, not fifty.*
+
 ### The measurement guard's "{where}" — a preposition glued to a translated noun (AGENT-BD) — ⏳ Awaiting confirmation
 
 **Confirmed by:** *nobody yet.* Recorded 2026-09-05 by AGENT-BD. **No wording is
