@@ -121,14 +121,34 @@ def test_the_dataclass_default_did_not_move_with_it():
 
 # ------------------------------------------------------------------ the window
 def test_the_window_marks_the_default_entry_and_only_that_one(_app):
-    """The label and the constant cannot drift: the marker is applied from
-    WP_MODE_DEFAULT, so exactly one entry says "(default)" and it is that one."""
+    """SUPERSEDED IN SUBSTANCE by Knut, beta 10, and kept for what still holds.
+
+    This used to assert that exactly one entry said "(default)". It no longer
+    says that, and it is Knut who asked: *"the default white point option is
+    wrong for matrix profile types — our own help says it makes accuracy worse
+    for them"*. One marker on a control whose right answer depends on another
+    control was telling half the users of this window something untrue, so the
+    two entries now carry "(best for cLUT profiles)" and "(best for matrix
+    profiles)" instead, derived from the same table the patch-count rule uses.
+    ("best for" and not his own "recommended for" because the longer wording
+    made opening the Advanced disclosure widen the window by 53 px, which
+    `test_the_worst_languages_fit_a_1280_screen` refuses.)
+
+    What still holds, and is what this file cared about: no entry is marked
+    that is not in that table, the markers land on the entries the table
+    names, and a window nobody has configured still OPENS on WP_MODE_DEFAULT.
+    """
     dlg = sc.ScannerAdvancedDialog({}, None, printer=False)
     try:
         combo = dlg._wp_mode
-        marked = [i for i in range(combo.count()) if "(default)" in combo.itemText(i)]
-        assert len(marked) == 1, [combo.itemText(i) for i in range(combo.count())]
-        assert combo.itemData(marked[0]) == sc.WP_MODE_DEFAULT
+        assert not [i for i in range(combo.count())
+                    if "(default)" in combo.itemText(i)]
+        marked = {combo.itemData(i): combo.itemText(i)
+                  for i in range(combo.count())
+                  if "best for" in combo.itemText(i)}
+        assert set(marked) == set(sc.WP_MODE_RECOMMENDED), marked
+        assert "cLUT" in marked[sc.SETUP_LARGE["wp_mode"]]
+        assert "matrix" in marked[sc.SETUP_SMALL["wp_mode"]]
         # and a window nobody has configured OPENS on it
         assert combo.currentData() == sc.WP_MODE_DEFAULT
     finally:
@@ -364,20 +384,33 @@ def test_the_help_calls_the_new_default_the_default_and_the_old_one_not():
     is — the combo marker, the white-point help and the profile-type help —
     and all three have to name the same entry."""
     body = sc._TIP_WP
-    assert "Scale white to a perfect white surface (-u -R) — the default" in body
+    # Knut, beta 10: no entry is "the default" any more, because the right one
+    # depends on the profile type. The help has to say the same thing the
+    # combo says, and it must not resurrect the word.
+    assert ("Scale white to a perfect white surface (-u -R), recommended for "
+            "the two look-up-table profile types") in body
+    assert "Map chart white to white, recommended for the two matrix" in body
+    assert "the default." not in body
     assert "Map chart white to white (default)" not in body
     # the profile-type help sends people to this control; it must not describe
-    # a ceiling that the current default has already lifted
+    # a ceiling that "Scale white to a perfect white surface" has already
+    # lifted, and it must not call any white-point entry the default either
     _, ptype = sc.ptype_help(False)
     assert "Scale white to a perfect white surface" in ptype
     assert "which lifts the ceiling" not in ptype
+    assert "On the default there" not in ptype
 
 
 def test_the_help_says_the_R_switch_is_already_in_the_default():
-    """Otherwise the obvious reading of the Expert switch is that the default
-    is missing something, and people tick it for nothing."""
-    assert "ALREADY APPLIED" in sc._TIP_R
+    """Otherwise the obvious reading of the Expert switch is that the entry is
+    missing something, and people tick it for nothing.
+
+    Knut, beta 10, went further: an unticked box beside a command line that
+    reads `-u -R` is simply false, so the switch is now SHOWN ticked and
+    locked. The help says that too, in the same place."""
+    assert "ALREADY IN FORCE" in sc._TIP_R
     assert "Scale white to a perfect white surface" in sc._TIP_R
+    assert "ticked and locked" in sc._TIP_R
 
 
 def test_the_help_still_says_what_the_default_costs():

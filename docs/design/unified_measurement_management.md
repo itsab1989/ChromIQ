@@ -3128,6 +3128,41 @@ app rather than only in a reply to Knut. Knut asked for it: *"Maybe the help tex
 recommendations for when to use the LUT types, such as when one has large
 targets with many patches… or whatever…."*
 
+#### ⏳ Awaiting confirmation — three paragraphs of the scanner-side ⓘ, 2026-09-06
+
+**Confirmed by:** *nobody yet.*
+
+Basti approved the words above on 2026-09-04. Three paragraphs of the
+scanner-side text have changed since, and neither change has been put to him,
+so they are flagged here rather than left inside a "Confirmed" heading as if
+they had been:
+
+1. **The Lab-table bullet was already out of date in this document before
+   today**, and that is a pre-existing divergence, not something this change
+   introduced. B8-75 moved the white-point default to "Scale white to a perfect
+   white surface (-u -R)" on 2026-09-05, which moves a Lab cLUT's ceiling from
+   about 94 % reflectance to about 114 %, and the bullet was rewritten in the
+   code to say so. This document kept the older wording, which still ends
+   *"set Advanced… ▸ White point handling to 'Auto-scale to avoid clipping
+   (-u)', which lifts the ceiling"* — advice the new default has already taken.
+   The paragraph above is now the code's, so the two agree again.
+2. **"the default here" is gone from the Shaper + matrix bullet, and "on the
+   default there" from the Lab one.** Knut asked in beta 10 for the profile
+   type, the quality and the white point to be chosen from the patch count, and
+   for the white-point dropdown to stop calling one entry the default (it is
+   wrong for the two matrix types, which this window's own help says). With
+   both built, "the default" names nothing on either control, so the two
+   sentences that leaned on it had to say something else.
+3. **The third paragraph now says the window acts on the patch count**, because
+   it does. That is the change B8-19 considered and deliberately did not make;
+   Knut asked for it and Basti authorised it, and the guard that keeps it safe
+   is that it never touches a bucket whose settings somebody saved. B8-78 has
+   the whole of it.
+
+The patch-count *hint* Basti approved is still there and still changes nothing.
+It now fires only where ChromIQ may not choose for the user: a bucket with
+saved settings, or one edited by hand this session.
+
 **The wording below is what the app now shows.** It is written into
 `ui/dialogs/scanner_colprof.py` (`ptype_help`, `ptype_advice`) and reproduced
 here verbatim so a ruling can be made on the exact words. If a word changes
@@ -3164,13 +3199,13 @@ of the two "(default)" markers.
 >
 > Profile type (-a) — the shape of the maths inside the profile, and how it describes what your device does with colour. All four choices build a working profile. What separates them is how many measured patches they need before they are any good, and how they behave on colours your target did not contain.
 >
-> That makes the size of your target the first thing to look at, and you do not have to count anything: the patch count is printed beside each target's name in the list above, and again in the green “✓ … patches” line once a target or a chart is loaded.
+> That makes the size of your target the first thing to look at, and you do not have to count anything or set anything up. The patch count is printed beside each target's name in the list above, and again in the green “✓ … patches” line once a target or a chart is loaded; and the moment ChromIQ knows that number it sets this control, the Quality below it and Advanced… ▸ White point handling to suit it. Below about a hundred patches that is “Shaper + matrix” at Medium; at a hundred or more it is the XYZ look-up table at High. Change any of the three and ChromIQ leaves all three alone from then on.
 >
-> • Shaper + matrix — the default here, and a small, sturdy profile: one gentle tone curve for each of red, green and blue, plus a 3×3 matrix, which is a fixed recipe for mixing those three into a finished colour. It is a formula rather than a stored table, so it needs very little data to work well, and it carries on sensibly beyond the lightest and darkest patch your target contains. Take it for targets up to about a hundred patches — a ColorChecker (24 patches), a SpyderChecker (48), a QPcard (49) — and whenever a scan is noisy or you would rather not think about it. On real scanned targets it was the most accurate of the four at 24 and at 48 patches.
+> • Shaper + matrix, and what ChromIQ chooses for a target under about a hundred patches: a small, sturdy profile made of one gentle tone curve for each of red, green and blue plus a 3×3 matrix, which is a fixed recipe for mixing those three into a finished colour. It is a formula rather than a stored table, so it needs very little data to work well, and it carries on sensibly beyond the lightest and darkest patch your target contains. Take it for a ColorChecker (24 patches), a SpyderChecker (48) or a QPcard (49), and whenever a scan is noisy or you would rather not think about it. On real scanned targets it was the most accurate of the four at 24 and at 48 patches.
 >
 > • cLUT — XYZ table — “cLUT” means a look-up table. Instead of a formula, the profile stores your measurements and interpolates between them, so it can follow a device that does not behave like tidy maths. That freedom has to be paid for in patches: with too few of them there is nothing much to interpolate between, and the table will happily fit the noise in a scan rather than the colour. Take it when your target has roughly two hundred patches or more — a full IT8 has 288, a three-page ISO 12641-2 set has 864 — and the scan is clean and correctly exposed. At that size it measured about a third more accurate than Shaper + matrix on a real IT8 scan. “XYZ” is simply the internal form the table keeps colour in, and it is the one to use here — the next entry says why.
 >
-> • cLUT — Lab table — the same kind of look-up table, keeping colour in a different internal form. On the colours your target actually contains, the two tables measured close together, with neither of them consistently ahead of the other. The difference is at the top end. A Lab table cannot describe anything lighter than your target's own white patch — and a target's white board is not very white: on a real IT8 scan it reached only about 80 out of the scanner's 100. So everything brighter than that, which includes most bright photo paper, arrives at exactly the lightness of the target's white patch, with the differences between those tones flattened away. Shaper + matrix and the XYZ table both keep going past it. That is the whole reason the XYZ table is the one to take if you want a table profile. If you would rather stay with Lab, set Advanced… ▸ White point handling to “Auto-scale to avoid clipping (-u)”, which lifts the ceiling.
+> • The Lab look-up table, the other of the two cLUT entries: the same kind of table, keeping colour in a different internal form. On the colours your target actually contains, the two tables measured close together, with neither of them consistently ahead of the other. The difference is at the top end: a Lab table has a hard ceiling and stops dead at it, flattening every tone above onto one value, where Shaper + matrix and the XYZ table both carry on. How high that ceiling sits is decided by Advanced… ▸ White point handling. On “Scale white to a perfect white surface” it sits at about 114 % reflectance, brighter than a perfect white surface, so nothing you can put on the glass will reach it. On “Map chart white to white” the ceiling drops to about 94 % reflectance, which ordinary bright paper does reach, and everything above it arrives flattened. (Both figures measured on a real IT8 scan, so your own will differ a little.) The XYZ table has no ceiling at all under any of those settings, which is why it is the safer of the two and why it costs nothing to take.
 >
 > • Matrix only — the 3×3 mix and nothing else, with no tone curves in front of it. It suits a device that is already perfectly linear, such as a camera shooting RAW. On an ordinary scanner it measured several times less accurate than any of the other three at every size tested, so it is not the one to reach for here.
 >
@@ -3188,13 +3223,13 @@ of the two "(default)" markers.
 >
 > Profiltyp (-a) – die Form der Mathematik im Inneren des Profils, also wie es beschreibt, was dein Gerät mit Farbe macht. Alle vier Möglichkeiten erzeugen ein funktionierendes Profil. Sie unterscheiden sich darin, wie viele gemessene Felder sie brauchen, bevor sie wirklich gut sind, und wie sie sich bei Farben verhalten, die dein Target gar nicht enthielt.
 >
-> Damit ist die Größe deines Targets das Erste, worauf du schauen solltest – und zählen musst du nichts: Die Feldanzahl steht in der Liste oben neben dem Namen jedes Targets und noch einmal in der grünen Bereitschaftszeile mit dem Häkchen, sobald ein Target oder eine Testkarte geladen ist.
+> Damit ist die Größe deines Targets das Erste, worauf du schauen solltest, und zählen oder einstellen musst du nichts: Die Feldanzahl steht in der Liste oben neben dem Namen jedes Targets und noch einmal in der grünen Bereitschaftszeile mit dem Häkchen, sobald ein Target oder eine Testkarte geladen ist. Und sobald ChromIQ diese Zahl kennt, setzt es dieses Bedienelement, die Qualität darunter und Erweitert… ▸ Weißpunkt-Behandlung passend dazu. Unter etwa hundert Feldern ist das „Shaper + Matrix“ mit Mittel, ab hundert die XYZ-Nachschlagetabelle mit Hoch. Änderst du eine der drei, lässt ChromIQ von da an alle drei in Ruhe.
 >
-> • Shaper + Matrix – hier die Voreinstellung und ein kleines, robustes Profil: je eine sanfte Tonwertkurve für Rot, Grün und Blau, dazu eine 3×3-Matrix, also ein festes Rezept, das diese drei zu einer fertigen Farbe mischt. Es ist eine Formel und keine gespeicherte Tabelle, braucht deshalb sehr wenig Daten, um gut zu arbeiten, und verhält sich auch jenseits des hellsten und des dunkelsten Feldes deines Targets noch vernünftig. Nimm es für Targets bis etwa hundert Felder – ein ColorChecker (24 Felder), ein SpyderChecker (48), eine QPcard (49) – und immer dann, wenn ein Scan verrauscht ist oder du dir darüber lieber keine Gedanken machen möchtest. Bei echten gescannten Targets war es bei 24 und bei 48 Feldern das genaueste der vier.
+> • Shaper + Matrix, und das, was ChromIQ für ein Target unter etwa hundert Feldern wählt: ein kleines, robustes Profil aus je einer sanften Tonwertkurve für Rot, Grün und Blau und einer 3×3-Matrix, also einem festen Rezept, das diese drei zu einer fertigen Farbe mischt. Es ist eine Formel und keine gespeicherte Tabelle, braucht deshalb sehr wenig Daten, um gut zu arbeiten, und verhält sich auch jenseits des hellsten und des dunkelsten Feldes deines Targets noch vernünftig. Nimm es für einen ColorChecker (24 Felder), einen SpyderChecker (48) oder eine QPcard (49) und immer dann, wenn ein Scan verrauscht ist oder du dir darüber lieber keine Gedanken machen möchtest. Bei echten gescannten Targets war es bei 24 und bei 48 Feldern das genaueste der vier.
 >
 > • cLUT — XYZ-Tabelle – „cLUT“ heißt Nachschlagetabelle. Statt einer Formel speichert das Profil deine Messwerte und interpoliert dazwischen, kann also einem Gerät folgen, das sich nicht wie saubere Mathematik verhält. Diese Freiheit muss in Feldern bezahlt werden: Sind es zu wenige, gibt es kaum etwas, wozwischen sich interpolieren ließe, und die Tabelle bildet bereitwillig das Rauschen im Scan ab statt der Farbe. Nimm sie, wenn dein Target ungefähr zweihundert Felder oder mehr hat – ein volles IT8 hat 288, ein dreiseitiges ISO-12641-2-Set 864 – und der Scan sauber und richtig belichtet ist. In dieser Größe war sie bei einem echten IT8-Scan rund ein Drittel genauer als Shaper + Matrix. „XYZ“ ist einfach die interne Form, in der die Tabelle Farbe hält, und sie ist hier die richtige – warum, sagt der nächste Punkt.
 >
-> • cLUT — Lab-Tabelle – dieselbe Art Nachschlagetabelle, die Farbe nur in einer anderen internen Form hält. Auf den Farben, die dein Target tatsächlich enthält, lagen die beiden Tabellen dicht beieinander, keine von beiden durchgehend vorn. Der Unterschied liegt am oberen Ende. Eine Lab-Tabelle kann nichts beschreiben, was heller ist als das eigene Weißfeld deines Targets – und das Weiß eines Targets ist gar nicht so weiß: Bei einem echten IT8-Scan erreichte es nur etwa 80 von den 100 des Scanners. Alles Hellere, und dazu gehört das meiste helle Fotopapier, kommt deshalb genau mit der Helligkeit des Weißfeldes heraus; die Unterschiede zwischen diesen Tönen sind eingeebnet. Shaper + Matrix und die XYZ-Tabelle laufen beide darüber hinaus weiter. Genau das ist der Grund, die XYZ-Tabelle zu nehmen, wenn du ein Tabellenprofil willst. Wenn du lieber bei Lab bleibst, stelle Erweitert… ▸ Weißpunkt-Behandlung auf „Automatisch skalieren, um Beschnitt zu vermeiden (-u)“ – das hebt die Grenze auf.
+> • Die Lab-Nachschlagetabelle, der andere der beiden cLUT-Einträge: dieselbe Art Tabelle, die Farbe nur in einer anderen internen Form hält. Auf den Farben, die dein Target tatsächlich enthält, lagen die beiden Tabellen dicht beieinander, keine von beiden durchgehend vorn. Der Unterschied liegt am oberen Ende: Eine Lab-Tabelle hat eine harte Obergrenze und bleibt dort stehen; jeder Ton darüber wird auf einen einzigen Wert eingeebnet, während Shaper + Matrix und die XYZ-Tabelle beide weiterlaufen. Wie hoch diese Grenze liegt, entscheidet Erweitert… ▸ Weißpunkt-Behandlung. Mit „Weiß auf eine perfekt weiße Fläche skalieren“ liegt sie bei rund 114 % Reflexionsgrad, heller als eine perfekt weiße Fläche, nichts, was du auf das Glas legen kannst, erreicht sie also. Mit „Chart-Weiß auf Weiß abbilden“ fällt die Grenze auf etwa 94 % Reflexionsgrad, was gewöhnliches helles Papier durchaus erreicht, und alles darüber kommt eingeebnet an. (Beide Werte an einem echten IT8-Scan gemessen, deine eigenen werden also etwas abweichen.) Die XYZ-Tabelle hat unter keiner dieser Einstellungen eine Obergrenze, und deshalb ist sie die sicherere der beiden und deshalb kostet es nichts, sie zu nehmen.
 >
 > • Nur Matrix – die 3×3-Mischung und sonst nichts, ohne jede Tonwertkurve davor. Sie passt zu einem Gerät, das bereits perfekt linear ist, etwa einer Kamera im RAW-Modus. Bei einem gewöhnlichen Scanner war sie in jeder getesteten Größe um ein Vielfaches ungenauer als alle drei anderen und ist hier deshalb nicht die richtige Wahl.
 >

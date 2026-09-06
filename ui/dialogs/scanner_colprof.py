@@ -19,6 +19,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (QCheckBox, QDialog, QDialogButtonBox,
                              QGridLayout, QGroupBox, QHBoxLayout, QLabel,
                              QLineEdit, QScrollArea, QVBoxLayout, QWidget)
@@ -31,6 +32,7 @@ from ui.widgets import (NoScrollDoubleSpinBox, ValueWidthComboBox,
 
 # QSettings prefix for the remembered scanner colprof configuration.
 SETTINGS_PREFIX = "scanner_colprof"
+
 
 # Main-window profile type = colprof's -a algorithm directly (data = the -a
 # letter). The XYZ vs Lab distinction is how a cLUT stores colour internally, so
@@ -79,6 +81,116 @@ PTYPE_RECOMMENDED_CLUT: dict[bool, "str | None"] = {False: "x", True: None}
 #: where the measurement is unambiguous and never in the shallow middle.
 PTYPE_BIG_TARGET = 200        # at 192 fit patches: cLUT-XYZ 0.69 vs shaper 1.07
 PTYPE_SMALL_TARGET = 100      # at 48: shaper 1.25 vs 1.68 / 1.68 for the cLUTs
+
+#: The two profile types that are a FORMULA rather than a stored table. The
+#: complement of `CLUT_ALGOS`, named because several rules below turn on "is
+#: this a matrix profile?" and a second literal tuple would be a second answer.
+MATRIX_ALGOS = ("s", "m")
+
+
+# ---------------------------------------------------------------------------
+# ONE table decides what a scanner/camera profile is set up as (Knut, beta 10)
+# ---------------------------------------------------------------------------
+# Knut asked for three things, and all three set the same three controls: the
+# usage scenario (B8-71), a profile type / quality / white-point choice made
+# from the patch count, and a white-point recommendation that follows the
+# profile type. Three mechanisms writing three controls is three mechanisms
+# that can fight each other, so there is exactly ONE of them: this table, and
+# the two functions under it. Everything else reads them.
+#
+# Knut's rule, beta 10, verbatim in substance: below a hundred patches
+# "Shaper + Matrix" with quality Medium and "Map chart white to white"; at a
+# hundred or above "cLUT — XYZ table" with quality High and "Scale white to a
+# perfect white surface (-u -R)".
+#
+# It agrees with what was measured here, and the agreement is not luck: B8-19
+# put the profile-type crossover at about a hundred fit patches
+# (`PTYPE_SMALL_TARGET`), B8-69 measured Quality High as the biggest single
+# lever a cLUT has (0.484 → 0.337 ΔE00), and B8-75 measured `-R` costing real
+# accuracy on a matrix fit (7.877 → 9.028 ΔE00) while doing the anti-clipping
+# job a cLUT wants.
+SETUP_CROSSOVER = 100
+SETUP_SMALL = {"ptype": "s", "quality": "m", "wp_mode": ""}
+SETUP_LARGE = {"ptype": "x", "quality": "h", "wp_mode": "uR"}
+
+
+def setup_for_patch_count(n_patches: "int | None") -> "dict[str, str] | None":
+    """The three settings Knut's rule chooses for a target of *n_patches*, or
+    None while the window does not know how big the target is.
+
+    None is not "take the small one": a window that has not been given a chart
+    yet knows nothing, and guessing would set settings from a number nobody
+    supplied.
+    """
+    if not n_patches or n_patches < 2:
+        return None
+    return dict(SETUP_LARGE if n_patches >= SETUP_CROSSOVER else SETUP_SMALL)
+
+
+# --- the usage scenario (B8-71) --------------------------------------------
+# Three answers to one question, and this is the correction that makes the
+# control work: they are NOT three parallel alternatives. Scenarios 2 and 3 are
+# step one and step two of one job, so the second says "build this one once,
+# the printer scenario below uses it" and the third says it needs the profile
+# the one above builds. Flat, a user who wants a printer profile picks the
+# third, has no measuring profile, and is stuck.
+SCENARIO_EVERYDAY = "everyday"
+SCENARIO_INSTRUMENT = "instrument"
+SCENARIO_PRINTER = "printer"
+SCENARIOS = (SCENARIO_EVERYDAY, SCENARIO_INSTRUMENT, SCENARIO_PRINTER)
+
+#: What scenario 2 sets, and every one of the three is a measurement rather
+#: than colour-management lore (B8-69, on two real scans, every figure scored
+#: only on patches the fit never saw): `-ua` because a Lab cLUT on the old
+#: default FLATTENS everything above the chart's own board (device 0.76 / 0.80
+#: / 0.85 / 0.90 / 1.00 all read Y 0.833, one colour) and ArgyllCMS asks for
+#: the flag by name whenever an input profile stands in for a colorimeter; the
+#: XYZ table because it is twice as accurate as the everyday type (0.484
+#: against 0.913) and never flattens; Quality High because it is the biggest
+#: single lever of the three (0.484 → 0.337, about 30 %).
+#:
+#: "Restrict white, black and primaries" is deliberately NOT among them.
+#: Measured beside `-ua` on a cLUT it is a complete no-op (the two profiles
+#: transform identically), and on a cLUT it cannot restrict primaries at all
+#: (`profin.c:1070` sets ICX_CLIP_WB only). Setting it would be cargo cult.
+SETUP_INSTRUMENT = {"ptype": "x", "quality": "h", "wp_mode": "ua"}
+
+
+
+def scenario_setup(scenario: str,
+                   n_patches: "int | None") -> "dict[str, str] | None":
+    """The settings a scenario pre-selects, or None when it sets none.
+
+    * everyday — Knut's patch-count rule, so the two mechanisms are one thing
+      and cannot disagree about the same three controls.
+    * instrument — the three measured settings above, whatever the patch count.
+      A profile that stands in for a colorimeter needs `-ua` at 24 patches
+      exactly as much as at 864, and the cLUT/quality pair is what that job
+      was measured on.
+    * printer — nothing at all. The printer bucket already defaults to a Lab
+      cLUT and white-point handling is stripped from an output build
+      (`INPUT_ONLY_KEYS`), so there is no setting for it to pre-select. Its
+      whole value is that it appears in the list, in the right order, after
+      the scenario that builds the profile it needs.
+    """
+    if scenario == SCENARIO_EVERYDAY:
+        return setup_for_patch_count(n_patches)
+    if scenario == SCENARIO_INSTRUMENT:
+        return dict(SETUP_INSTRUMENT)
+    return None
+
+
+def label_for(choices, data: str) -> str:
+    """The plain, unmarked label of a choice, for quoting inside a sentence.
+
+    The combos append "(recommended…)" markers to what the user sees, so a
+    sentence built from the item text would read: Profile type is
+    "Shaper + matrix (recommended for a target under 100 patches)".
+    """
+    for value, label in choices:
+        if value == data:
+            return label
+    return data
 
 
 # Gamut-source mode (colprof -s / -S). Same three choices, wording and order as
@@ -155,6 +267,55 @@ WP_MODE_CHOICES = [
 #:     real cast, a* +1.49 rising to +2.50 on a perfect diffuser. Right for an
 #:     instrument, wrong for a picture, so `-ua` is not the default.
 WP_MODE_DEFAULT = "uR"
+
+#: WHICH ENTRY IS MARKED IN THE DROPDOWN, AND WHY IT IS NO LONGER "(default)".
+#:
+#: Knut, beta 10: *"the default white point option is wrong for the two matrix
+#: profile types — our own help text says 'Scale white to a perfect white
+#: surface (-u -R)' makes accuracy worse for them"*, and he offered two routes:
+#: label the options "(recommended for cLUT profiles)" / "(recommended for
+#: matrix profiles)" instead of calling one the default, or change the selected
+#: option automatically when the profile type changes.
+#:
+#: THE LABEL ROUTE, and the reason is that the other one is a control that
+#: silently undoes an edit. A user who has deliberately set "Force Absolute
+#: Colorimetric (-ua)" for a measuring profile and then switches the type to
+#: try something would have that choice thrown away by a rule following the
+#: type — the exact failure `USAGE-SCENARIO-DESIGN.md` §3 rule 2 forbids and
+#: the one B8-71 was deferred over. It would also have to fight the two other
+#: things that set this control (the scenario and the patch-count rule) over
+#: the same widget. A label changes no setting, so it cannot fight anything,
+#: and it removes the false universal claim that was the actual complaint.
+#:
+#: The automatic side of what he asked for is not lost: `setup_for_patch_count`
+#: sets all three together, from the patch count, in the one place where it is
+#: safe to do so. These two markers are that same table, said out loud — they
+#: are DERIVED from it, so a change to the rule moves the labels with it.
+#: What the everyday scenario means before anything has been picked, so it has
+#: no patch count to reason from: the window's own factory settings for a
+#: scanner/camera input profile, which is what `USAGE-SCENARIO-DESIGN.md` says
+#: scenario 1 pre-selects.
+#:
+#: Found by driving the window, 2026-09-06. Choose the measuring scenario, then
+#: choose everyday again with no chart loaded, and without this the settings
+#: simply stayed on `-ua` and the XYZ table at High while the radio said
+#: "everyday scanning". The window was showing one thing and the command line
+#: doing another, which is the fault the divergence line exists to prevent and
+#: which the divergence line cannot catch here, because with no patch count
+#: there is no recipe to compare against.
+#:
+#: It is ONLY for the explicit click. `setup_for_patch_count(None)` still
+#: returns None, so the AUTOMATIC path never sets anything from a number
+#: nobody supplied; and the click clears the bucket's "the user has touched
+#: this" mark, so loading a chart afterwards refines all three properly.
+SETUP_EVERYDAY_UNKNOWN = {"ptype": PTYPE_DEFAULT[False], "quality": "m",
+                          "wp_mode": WP_MODE_DEFAULT}
+
+WP_MODE_RECOMMENDED = {
+    SETUP_LARGE["wp_mode"]: "clut",
+    SETUP_SMALL["wp_mode"]: "matrix",
+}
+
 #: What the default was before 2026-09-05. A stored configuration carrying this
 #: value AND no schema stamp predates the change and is migrated to
 #: `WP_MODE_DEFAULT`; see `migrate_stored_configs`.
@@ -259,21 +420,27 @@ def ptype_help(printer: bool) -> "tuple[str, str]":
            "choices build a working profile. What separates them is how many "
            "measured patches they need before they are any good, and how they "
            "behave on colours your target did not contain."),
-        tr("That makes the size of your target the first thing to look at, and "
-           "you do not have to count anything: the patch count is printed "
-           "beside each target's name in the list above, and again in the "
-           "green “✓ … patches” line once a target or a chart is loaded."),
-        tr("• Shaper + matrix — the default here, and a small, sturdy profile: "
-           "one gentle tone curve for each of red, green and blue, plus a 3×3 "
+        tr("That makes the size of your target the first thing to look at, "
+           "and you do not have to count anything or set anything up. The "
+           "patch count is printed beside each target's name in the list "
+           "above, and again in the green “✓ … patches” line once a target or "
+           "a chart is loaded; and the moment ChromIQ knows that number it "
+           "sets this control, the Quality below it and Advanced… ▸ White "
+           "point handling to suit it. Below about a hundred patches that is "
+           "“Shaper + matrix” at Medium; at a hundred or more it is the XYZ "
+           "look-up table at High. Change any of the three and ChromIQ leaves "
+           "all three alone from then on."),
+        tr("• Shaper + matrix, and what ChromIQ chooses for a target under "
+           "about a hundred patches: a small, sturdy profile made of one "
+           "gentle tone curve for each of red, green and blue plus a 3×3 "
            "matrix, which is a fixed recipe for mixing those three into a "
-           "finished colour. It is a formula rather than a stored table, so it "
-           "needs very little data to work well, and it carries on sensibly "
-           "beyond the lightest and darkest patch your target contains. Take "
-           "it for targets up to about a hundred patches — a ColorChecker (24 "
-           "patches), a SpyderChecker (48), a QPcard (49) — and whenever a "
-           "scan is noisy or you would rather not think about it. On real "
-           "scanned targets it was the most accurate of the four at 24 and at "
-           "48 patches."),
+           "finished colour. It is a formula rather than a stored table, so "
+           "it needs very little data to work well, and it carries on "
+           "sensibly beyond the lightest and darkest patch your target "
+           "contains. Take it for a ColorChecker (24 patches), a "
+           "SpyderChecker (48) or a QPcard (49), and whenever a scan is noisy "
+           "or you would rather not think about it. On real scanned targets "
+           "it was the most accurate of the four at 24 and at 48 patches."),
         tr("• cLUT — XYZ table — “cLUT” means a look-up table. Instead of a "
            "formula, the profile stores your measurements and interpolates "
            "between them, so it can follow a device that does not behave like "
@@ -286,23 +453,24 @@ def ptype_help(printer: bool) -> "tuple[str, str]":
            "about a third more accurate than Shaper + matrix on a real IT8 "
            "scan. “XYZ” is simply the internal form the table keeps colour in, "
            "and it is the one to use here — the next entry says why."),
-        tr("• cLUT — Lab table — the same kind of look-up table, keeping "
-           "colour in a different internal form. On the colours your target "
-           "actually contains, the two tables measured close together, with "
-           "neither of them consistently ahead of the other. The difference is "
-           "at the top end: a Lab table has a hard ceiling and stops dead at "
-           "it, flattening every tone above onto one value, where Shaper + "
-           "matrix and the XYZ table both carry on. How high that ceiling sits "
-           "is decided by Advanced… ▸ White point handling. On the default "
-           "there, “Scale white to a perfect white surface”, it sits at about "
-           "114 % reflectance — brighter than a perfect white surface, so "
-           "nothing you can put on the glass will reach it. Change that "
-           "control to “Map chart white to white” and the ceiling drops to "
+        tr("• The Lab look-up table, the other of the two cLUT entries: the "
+           "same kind of table, keeping colour in a different internal form. "
+           "On the colours your target actually contains, the two tables "
+           "measured close together, with neither of them consistently ahead "
+           "of the other. The difference is at the top end: a Lab table has a "
+           "hard ceiling and stops dead at it, flattening every tone above "
+           "onto one value, where Shaper + matrix and the XYZ table both "
+           "carry on. How high that ceiling sits is decided by Advanced… ▸ "
+           "White point handling. On “Scale white to a perfect white "
+           "surface” it sits at about 114 % reflectance, brighter than a "
+           "perfect white surface, so nothing you can put on the glass will "
+           "reach it. On “Map chart white to white” the ceiling drops to "
            "about 94 % reflectance, which ordinary bright paper does reach, "
            "and everything above it arrives flattened. (Both figures measured "
            "on a real IT8 scan, so your own will differ a little.) The XYZ "
            "table has no ceiling at all under any of those settings, which is "
-           "why it is the safer of the two and why it costs nothing to take."),
+           "why it is the safer of the two and why it costs nothing to "
+           "take."),
         tr("• Matrix only — the 3×3 mix and nothing else, with no tone curves "
            "in front of it. It suits a device that is already perfectly "
            "linear, such as a camera shooting RAW. On an ordinary scanner it "
@@ -515,93 +683,100 @@ _TIP_NC = (
 # in the scan by about a stop.
 _TIP_WP = (
     "Your scanner does not measure colour. It produces three numbers per pixel "
-    "that depend on its lamp, its sensor and the software that saved the file "
-    "— the same original scanned by different software gives different "
-    "numbers. The profile is what turns those numbers into colour, and this "
-    "setting chooses WHAT THE PROFILE CALLS WHITE.\n\n"
-    "• Scale white to a perfect white surface (-u -R) — the default. White is "
-    "put where a perfect white surface would be, which is the brightest thing "
-    "a reflective original can physically be, so nothing you ever put on the "
-    "glass is brighter than the profile's white and nothing is clipped. Your "
-    "chart's white board is dimmer than that, so it arrives at about L* 93 "
-    "instead of 100 and a scan opens looking very slightly grey: one levels "
-    "step, with every tone still there to work with. It costs no accuracy — "
-    "measured on a real IT8 scan, it and the entry below both average 0.34 "
-    "ΔE00 — and it keeps whites as neutral as that entry does.\n\n"
-    "• Map chart white to white — the white patch of your test chart becomes "
-    "pure white, and every other colour is measured against it. A scan opens "
-    "looking finished, with no levels step to make, which is why photo "
-    "applications expect it. The cost is that anything lighter than your "
-    "chart's white patch is clipped to white when the scan is converted into "
-    "a working space such as sRGB, and that detail cannot be recovered "
-    "afterwards. Measured on a real IT8 scan whose white board is 84 % "
-    "reflectance: that board, a brighter paper at 89 %, a very bright paper "
-    "at 95 % and a perfect white surface all arrive at exactly the same "
-    "255/255/255. Take it when the originals you scan are on paper like your "
-    "chart's, and you would rather not make that levels step.\n\n"
-    "• Auto-scale to avoid clipping (-u) — the profile is scaled so that the "
+    "that depend on its lamp, its sensor and the software that saved the file: "
+    "the same original scanned by different software gives different numbers. "
+    "The profile is what turns those numbers into colour, and this setting "
+    "chooses WHAT THE PROFILE CALLS WHITE.\n\n"
+    "• Scale white to a perfect white surface (-u -R), recommended for the two "
+    "look-up-table profile types. White is put where a perfect white surface "
+    "would be, which is the brightest thing a reflective original can "
+    "physically be, so nothing you ever put on the glass is brighter than the "
+    "profile's white and nothing is clipped. Your chart's white board is "
+    "dimmer than that, so it arrives at about L* 93 instead of 100 and a scan "
+    "opens looking very slightly grey: one levels step, with every tone still "
+    "there to work with. It costs no accuracy (measured on a real IT8 scan, it "
+    "and the entry below both average 0.34 ΔE00) and it keeps whites as "
+    "neutral as that entry does. On a matrix profile type it is the wrong "
+    "choice, and that is why it is not marked recommended for those two: the "
+    "“-R” half of it clamps the fit and costs real accuracy there, 7.9 against "
+    "9.0 ΔE00 on the same scan.\n\n"
+    "• Map chart white to white, recommended for the two matrix profile types. "
+    "The white patch of your test chart becomes pure white, and every other "
+    "colour is measured against it. A scan opens looking finished, with no "
+    "levels step to make, which is why photo applications expect it. The cost "
+    "is that anything lighter than your chart's white patch is clipped to "
+    "white when the scan is converted into a working space such as sRGB, and "
+    "that detail cannot be recovered afterwards. Measured on a real IT8 scan "
+    "whose white board is 84 % reflectance: that board, a brighter paper at "
+    "89 %, a very bright paper at 95 % and a perfect white surface all arrive "
+    "at exactly the same 255/255/255. Take it when the originals you scan are "
+    "on paper like your chart's, and you would rather not make that levels "
+    "step.\n\n"
+    "• Auto-scale to avoid clipping (-u): the profile is scaled so that the "
     "scanner's MAXIMUM value becomes white. Nothing can clip, but it goes far "
-    "further than it needs to: that maximum is around 160 % reflectance, half "
+    "further than it needs to. That maximum is around 160 % reflectance, half "
     "as bright again as anything that can physically exist on paper, so every "
-    "tone in the scan arrives much darker than with the default and you are "
-    "expected to set the white yourself afterwards. Use it only if something "
-    "later in your workflow does that.\n\n"
-    "• Force Absolute Colorimetric (-ua) — the profile reports colour as it "
+    "tone in the scan arrives much darker than with the first entry above, and "
+    "you are expected to set the white yourself afterwards. Use it only if "
+    "something later in your workflow does that.\n\n"
+    "• Force Absolute Colorimetric (-ua): the profile reports colour as it "
     "actually is, measured against a perfect white surface, instead of "
     "relative to your chart's white. (“Absolute colorimetric” is the rendering "
     "intent that means exactly that: report what is there, adapt nothing.) "
     "Both intents then give the same answer, so no application can pick the "
     "wrong one. This is the setting for using the scanner as a measuring "
-    "instrument — see “Profile my printer from this scan” in the main window. "
-    "Two costs: your scans arrive darker, because your chart's white patch is "
-    "not a perfect white; and the profile no longer neutralises the colour of "
-    "your chart's paper, so whites keep their real slight tint. Correct as a "
+    "instrument, and it is what the usage scenario “A profile for my scanner, "
+    "so it can stand in for a measuring instrument” chooses for you. Two "
+    "costs: your scans arrive darker, because your chart's white patch is not "
+    "a perfect white; and the profile no longer neutralises the colour of your "
+    "chart's paper, so whites keep their real slight tint. Correct as a "
     "measurement, unfinished-looking as a picture.\n\n"
-    "• Clip highlights above white (-uc) — anything brighter than the chart's "
-    "white is forced exactly onto white. Only affects look-up-table (cLUT) "
+    "• Clip highlights above white (-uc): anything brighter than the chart's "
+    "white is forced exactly onto white. It only affects look-up-table (cLUT) "
     "profile types, and it costs accuracy in the lightest colours.\n\n"
-    "• Manual white-point scale (-u scale) — this is “Auto-scale” above with "
+    "• Manual white-point scale (-u scale): this is “Auto-scale” above with "
     "your own number applied on top of it, not a scale on its own. A value of "
     "1.00 is therefore the same thing as “Auto-scale to avoid clipping”, not "
     "“no change”; see the box below.\n\n"
-    "Which to choose. Leave it on the default unless one of these fits you "
-    "better. Scanning photographs on paper like your chart's, and you want "
-    "the scan finished the moment it opens: “Map chart white to white”. Using "
-    "the scanner to MEASURE rather than to photograph: “Force Absolute "
-    "Colorimetric”.\n\n"
+    "Which to choose. Once you have loaded a chart or a target, ChromIQ has "
+    "already set this from the size of it, together with the profile type and "
+    "the quality, so you can normally leave it alone. Change it if one of "
+    "these fits you better. Scanning photographs on paper like your chart's, "
+    "and you want the scan finished the moment it opens: “Map chart white to "
+    "white”. Using the scanner to MEASURE rather than to photograph: “Force "
+    "Absolute Colorimetric”.\n\n"
     "A note on “Restrict white, black and primaries”, the switch under Expert "
-    "Options. It is the “-R” half of the default above, and the default "
-    "already applies it — you do not need to tick it as well, and while the "
-    "default is selected ticking it changes nothing. Elsewhere: on a "
-    "look-up-table profile (cLUT — XYZ or cLUT — Lab) it can only limit the "
-    "white and black points, because a look-up table has no primaries to "
-    "restrict; with “Map chart white to white” it usually does nothing at "
-    "all; with “Force Absolute Colorimetric” it does nothing either — "
-    "measured, the two profiles transform identically — because that option "
-    "has already put white where the clamp would; and on the two matrix "
+    "Options. It is the “-R” half of the first entry above, so while that "
+    "entry is chosen the switch is shown ticked and locked, with a line beside "
+    "it saying where the tick came from. Everywhere else it is yours to set, "
+    "and what it does depends on the profile type: on a look-up-table profile "
+    "it can only limit the white and black points, because a look-up table has "
+    "no primaries to restrict; with “Map chart white to white” it usually does "
+    "nothing at all; with “Force Absolute Colorimetric” it does nothing "
+    "either, because that option has already put white where the clamp would "
+    "(measured: the two profiles transform identically); and on the two matrix "
     "profile types it clamps the fit and costs accuracy.\n\n"
     "Worth more than any of this: the Quality setting. On a real IT8 scan, "
-    "moving Quality from Medium to High cut the average error by about 30 % — "
+    "moving Quality from Medium to High cut the average error by about 30 %, "
     "more than every white-point option in this list put together.\n\n"
     "Only applies to a scanner/camera input profile.")
 _TIP_WP_SCALE = (
-    "The number that “Manual white-point scale” above uses — and it is applied "
-    "ON TOP OF that option's automatic scaling, not instead of it.\n\n"
+    "The number that “Manual white-point scale” above uses, and it is applied "
+    "ON TOP OF that option's automatic scaling rather than instead of it.\n\n"
     "So 1.00 does not mean “no change”. It means “the automatic scaling, "
-    "unaltered”, which makes it identical to “Auto-scale to avoid clipping” "
-    "— measured on a real IT8 scan, the two build the same profile. If what "
-    "you want is to leave the white alone, that is the FIRST entry in the list "
-    "above, “Map chart white to white”, not a scale of 1.00.\n\n"
+    "unaltered”, which makes it identical to “Auto-scale to avoid clipping”: "
+    "measured on a real IT8 scan, the two build the same profile. If what you "
+    "want is to leave the white alone, that is the entry “Map chart white to "
+    "white” in the list above, not a scale of 1.00.\n\n"
     "Numbers below 1.00 reduce the automatic scaling without undoing it. On "
     "that same scan, 0.90 still left the white point at about 1.46 instead of "
-    "1.00, and every tone in the scan about 44 % darker than the default. "
-    "Numbers above 1.00 scale further still.\n\n"
+    "1.00, and every tone in the scan about 44 % darker than “Scale white to a "
+    "perfect white surface”. Numbers above 1.00 scale further still.\n\n"
     "Reach for this only when you already know the factor you want. The one "
-    "everyday thing it used to be needed for — a scale of 1.00 with “Restrict "
-    "white, black and primaries” ticked alongside it, to bring the white "
-    "point back to a perfect white surface — is now the first entry in the "
-    "list above and the default, so you no longer have to build it out of two "
-    "controls.\n\n"
+    "everyday thing it used to be needed for, a scale of 1.00 with “Restrict "
+    "white, black and primaries” ticked alongside it to bring the white point "
+    "back to a perfect white surface, is now the first entry in the list "
+    "above, so you no longer have to build it out of two controls.\n\n"
     "This box only has an effect when the handling above is set to “Manual "
     "white-point scale”.")
 # What it does depends on the PROFILE TYPE, and the old text said neither.
@@ -613,33 +788,34 @@ _TIP_WP_SCALE = (
 # transform), with "Manual white-point scale" it rescales the whole table, and
 # on a matrix profile it costs accuracy — 7.877 to 9.028 dE00.
 _TIP_R = (
-    "Holds white to no brighter than full white, and — on the two matrix "
-    "profile types only — forces black and the pure primary colours to stay "
-    "positive rather than negative. Some programs are unhappy with a profile "
-    "whose white point is brighter than white or whose corners go negative, "
-    "and this makes such a profile acceptable to them.\n\n"
+    "Holds white to no brighter than full white and, on the two matrix profile "
+    "types only, forces black and the pure primary colours to stay positive "
+    "rather than negative. Some programs are unhappy with a profile whose "
+    "white point is brighter than white or whose corners go negative, and this "
+    "makes such a profile acceptable to them.\n\n"
     "What it actually does depends on the profile type, and it is worth "
     "knowing before you tick it:\n\n"
-    "• On a look-up-table profile (cLUT — XYZ or cLUT — Lab) it can only "
-    "clamp the white and black points. A look-up table has no primaries, so "
-    "that half of the label does nothing here.\n"
-    "• With the default white point handling, “Scale white to a perfect white "
-    "surface”, it is ALREADY APPLIED — that entry is this switch and “-u” "
-    "together — so ticking it here as well changes nothing.\n"
-    "• On its own, with “Map chart white to white”, it usually changes "
-    "nothing at all — measured on a real IT8 scan, the profile came out "
-    "identical.\n"
-    "• Together with “Manual white-point scale” it is not a tidy-up: it "
+    "• On a look-up-table profile (either cLUT type) it can only clamp the "
+    "white and black points. A look-up table has no primaries, so that half of "
+    "the label does nothing here.\n"
+    "• With White point handling on “Scale white to a perfect white surface”, "
+    "this switch is ALREADY IN FORCE: that entry is this switch and “-u” "
+    "together. So it is shown here ticked and locked, with a line beside it "
+    "saying so, and choosing any other white point handling gives it back to "
+    "you with whatever you had set.\n"
+    "• On its own, with “Map chart white to white”, it usually changes nothing "
+    "at all: measured on a real IT8 scan, the profile came out identical.\n"
+    "• Together with “Manual white-point scale” it is not a tidy-up. It "
     "rescales the whole colour table, and it is what puts white at a perfect "
     "white surface.\n"
-    "• With “Force Absolute Colorimetric” it does nothing, because that "
-    "option has already put white where the clamp would put it.\n"
+    "• With “Force Absolute Colorimetric” it does nothing, because that option "
+    "has already put white where the clamp would put it.\n"
     "• On “Shaper + matrix” or “Matrix only” it clamps the fit and costs real "
-    "accuracy. ArgyllCMS says so itself: “this will reduce the accuracy of "
-    "the profile”.\n\n"
-    "So you can leave it unchecked: the one setting that needs it has it. "
-    "Tick it when a program refuses or misreads your profile, or when you are "
-    "pairing it with “Manual white-point scale”.")
+    "accuracy. ArgyllCMS says so itself: “this will reduce the accuracy of the "
+    "profile”.\n\n"
+    "So you can leave it unchecked: the one setting that needs it already "
+    "carries it. Tick it when a program refuses or misreads your profile, or "
+    "when you are pairing it with “Manual white-point scale”.")
 
 
 # Keys of the values dict this module round-trips. Resolved colprof flags
@@ -893,13 +1069,16 @@ class ScannerAdvancedDialog(QDialog):
 
         scroll = QScrollArea(self)
         scroll.setWidgetResizable(True)
-        from PyQt6.QtCore import Qt
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         body = QWidget()
         v = QVBoxLayout(body)
         v.setSpacing(10)
 
         self._wp_mode = None                       # scanner-only; None in printer mode
+        #: The user's own answer to "-R", kept apart from what the checkbox is
+        #: currently SHOWING — see `_sync_r_lock`.
+        self._r_user = False
+        self._r_note = None
         self._build_measurement_group(v, printer)
         if printer:
             self._build_gamut_group(v)
@@ -979,13 +1158,34 @@ class ScannerAdvancedDialog(QDialog):
 
         self._wp_mode = _option_combo(grp)
         for data, lbl in WP_MODE_CHOICES:
-            # The "(default)" marker is applied HERE, from WP_MODE_DEFAULT, not
-            # written into one entry's own translated string. The window's other
-            # two dropdowns are marked the same way and with the same key
-            # (`scanin_dialog._mark_default_combos`), so moving the default is
-            # one constant and never thirteen catalogues out of step.
-            if data == WP_MODE_DEFAULT:
-                lbl = tr("{option} (default)").format(option=lbl)
+            # The markers are applied HERE, from `WP_MODE_RECOMMENDED`, not
+            # written into an entry's own translated string. The window's other
+            # two dropdowns are marked the same way and from the same constants
+            # (`scanin_dialog._mark_default_combos`), so a change of advice is
+            # one table and never thirteen catalogues out of step.
+            #
+            # TWO MARKERS, NOT "(default)" (Knut, beta 10). One of these two
+            # options is better for a look-up-table profile and the other is
+            # better for a matrix one — our own help says so, and it is
+            # measured — so a single "(default)" told half the users of this
+            # window something untrue about their own profile type.
+            #
+            # "best for", not Knut's own "recommended for", and the three
+            # characters are MEASURED. This combo sits on its own line in a
+            # FIXED-width pane, and `test_the_worst_languages_fit_a_1280_
+            # screen` refuses to let opening the Advanced disclosure widen the
+            # window. Against the app's own Fusion style: "(recommended for
+            # cLUT profiles)" made the window 53 px wider the moment Advanced
+            # was opened, "(recommended for cLUT)" 3 px wider, and this fits
+            # with nothing to spare. A translation longer than this one will
+            # be caught by the same test, which is where it belongs.
+            kind = WP_MODE_RECOMMENDED.get(data)
+            if kind == "clut":
+                lbl = tr("{option} (best for cLUT profiles)").format(
+                    option=lbl)
+            elif kind == "matrix":
+                lbl = tr("{option} (best for matrix profiles)").format(
+                    option=lbl)
             self._wp_mode.addItem(lbl, data)
         _option_rows(g, QLabel(tr("White point handling:"), grp), self._wp_mode,
                      _green_tip("White Point Handling (-u / -ua / -uc)",
@@ -1004,14 +1204,69 @@ class ScannerAdvancedDialog(QDialog):
         srow.addWidget(_green_tip("Manual White-point Scale (-u scale)", _TIP_WP_SCALE, grp))
         g.addLayout(srow)
 
-        def _on_wp() -> None:
-            manual = self._wp_mode.currentData() == "scale"
-            self._wp_scale_label.setEnabled(manual)
-            self._wp_scale.setEnabled(manual)
-        self._wp_mode.currentIndexChanged.connect(_on_wp)
-        _on_wp()
+        # A BOUND METHOD, not a closure capturing `self`. CLAUDE.md's standing
+        # rule for slots on a signal a widget's own child emits.
+        self._wp_mode.currentIndexChanged.connect(self._on_wp_mode_changed)
 
         layout.addWidget(grp)
+
+    def _on_wp_mode_changed(self, *_args) -> None:
+        """The white-point choice moved: enable the manual scale box for the
+        one entry that uses it, and show whether `-R` is in force."""
+        if self._wp_mode is None:                  # printer mode has no such row
+            return
+        manual = self._wp_mode.currentData() == "scale"
+        self._wp_scale_label.setEnabled(manual)
+        self._wp_scale.setEnabled(manual)
+        self._sync_r_lock()
+
+    # ------------------------------------------------------------------
+    # "Restrict white, black & primaries (-R)" — visible when it is in force
+    # ------------------------------------------------------------------
+    # Knut, beta 10: *"the -R checkbox is invisible. The default white-point
+    # option is 'Scale white to a perfect white surface (-u -R)', which
+    # includes -R, but the checkbox is not ticked."*
+    #
+    # He is right, and an unticked box beside a command line that reads
+    # `-u -R` is simply false. So while that entry is chosen the box is shown
+    # TICKED AND DISABLED, with the reason on screen beside it.
+    #
+    # Ticked, because it is on. Disabled, because it cannot be turned off from
+    # here: the white-point entry puts `-R` on the command line whatever this
+    # box says (`profile_builder.py:487` — `if p.clip_primaries or
+    # p.wp_mode == "uR"`), so an editable control that cannot change the
+    # outcome is worse than a locked one. The reason is a LABEL and not a
+    # tooltip, because Qt sends no events to a disabled widget and a disabled
+    # checkbox's tooltip therefore never appears.
+    #
+    # And the user's own answer is kept, untouched, in `_r_user`: `values()`
+    # writes THAT, never the forced display state. Otherwise choosing the
+    # default and pressing "Save as Defaults" would store `-R: true` for ever,
+    # and a later switch to "Map chart white to white" would silently carry a
+    # flag the user never asked for into a profile that had none. The command
+    # line is byte-for-byte what it was before this change; that is what
+    # `test_the_locked_tick_changes_no_command_line` proves.
+    def _sync_r_lock(self) -> None:
+        cb = self._flags.get("-R")
+        if cb is None or self._wp_mode is None:
+            return
+        forced = self._wp_mode.currentData() == WP_MODE_DEFAULT
+        cb.blockSignals(True)
+        cb.setChecked(True if forced else self._r_user)
+        cb.blockSignals(False)
+        cb.setEnabled(not forced)
+        if self._r_note is not None:
+            self._r_note.setVisible(forced)
+
+    def _r_choice(self) -> bool:
+        """What the user has actually asked of `-R`, ignoring the lock."""
+        cb = self._flags.get("-R")
+        if cb is None:
+            return False
+        if not cb.isEnabled() and self._wp_mode is not None \
+                and self._wp_mode.currentData() == WP_MODE_DEFAULT:
+            return self._r_user
+        return cb.isChecked()
 
     def _build_gamut_group(self, layout: QVBoxLayout) -> None:
         grp = QGroupBox(tr("Gamut Mapping"), self)
@@ -1134,7 +1389,47 @@ class ScannerAdvancedDialog(QDialog):
             g.addWidget(_green_tip(tip_title, tip_body, grp), i, 1)
             self._flags[flag] = cb
         g.setColumnStretch(2, 1)
+        # WHERE THE TICK CAME FROM, said on screen (Knut, beta 10). A WRAPPING
+        # label spanning the whole grid: this panel lives in the window's
+        # fixed-width left pane, and a suffix on the checkbox itself would set
+        # how wide that pane has to be in every one of thirteen languages.
+        if not printer:
+            self._r_note = QLabel(tr(
+                "“Restrict white, black and primaries” is ticked and locked "
+                "because White point handling above is set to “Scale white to "
+                "a perfect white surface (-u -R)”, and the “-R” in that entry "
+                "is this switch. Choose any other white point handling to get "
+                "it back."), grp)
+            self._r_note.setWordWrap(True)
+            self._r_note.setEnabled(False)         # a note, not a control
+            # …and it may not be what decides how wide this panel is. The
+            # panel sits in the window's FIXED-width left pane, which grows
+            # when Advanced opens and gives the width back when it closes, and
+            # `test_the_worst_languages_fit_a_1280_screen` measures exactly
+            # that: without the cap this note added 53 px to the open width in
+            # English alone. Capped at the widest switch it already has to fit,
+            # it wraps instead and costs nothing.
+            cap = max(cb.sizeHint().width() for cb in self._flags.values())
+            self._r_note.setMaximumWidth(cap)
+            # …and its HEIGHT is settled here, once, from that same cap, rather
+            # than latched on a resize. Measured on screen 2026-09-06: a
+            # `_WrapHint`-style label that reclaims its height in `resizeEvent`
+            # never gets one while it is hidden, so it kept the height its
+            # text needs at the DEFAULT 100 px width — about 650 px — and the
+            # note appeared floating in the middle of a tall empty box when it
+            # was finally shown. The width here is fixed by the pane and by the
+            # cap above, so one measurement is the whole answer, in any
+            # language.
+            g.addWidget(self._r_note, len(specs), 0, 1, 3,
+                        Qt.AlignmentFlag.AlignTop)
+            self._r_note.setFixedHeight(self._r_note.heightForWidth(cap))
+            self._r_note.setVisible(False)
+            self._flags["-R"].toggled.connect(self._on_r_toggled)
         layout.addWidget(grp)
+
+    def _on_r_toggled(self, on: bool) -> None:
+        """The user moved "-R" themselves: that is their answer from now on."""
+        self._r_user = bool(on)
 
     # -------------------------------------------------------------- behaviour
     def _browse_gamut(self) -> None:
@@ -1208,6 +1503,29 @@ class ScannerAdvancedDialog(QDialog):
 
         for flag, cb in self._flags.items():
             cb.setChecked(bool(values.get(flag, False)))
+        # …and "-R" gets its lock applied AFTER the seed, so a stored value is
+        # what comes back when the white-point option stops forcing it. The
+        # seed above already ran `_on_r_toggled`, so `_r_user` is the stored
+        # answer; set it again anyway, because a stored False after a stored
+        # True emits nothing.
+        self._r_user = bool(values.get("-R", False))
+        self._on_wp_mode_changed()
+
+    def set_wp_mode(self, data: str) -> bool:
+        """Put the white-point handling on *data*. Returns whether it moved.
+
+        The one supported way for the window above to change this control:
+        the usage scenario and the patch-count rule both set it, and both go
+        through here so the "-R" lock, the manual-scale box and the command
+        preview all follow in one place.
+        """
+        if self._wp_mode is None:
+            return False
+        i = self._wp_mode.findData(data)
+        if i < 0 or i == self._wp_mode.currentIndex():
+            return False
+        self._wp_mode.setCurrentIndex(i)
+        return True
 
     def _seed_intent(self, check, combo, values, prefix, flag) -> None:
         on_key, val_key = prefix + "_on", prefix + "_val"
@@ -1244,7 +1562,10 @@ class ScannerAdvancedDialog(QDialog):
             check.setChecked(False)
             edit.clear()
         for cb in self._flags.values():
+            cb.setEnabled(True)        # so "-R" can be cleared before relocking
             cb.setChecked(False)
+        self._r_user = False
+        self._on_wp_mode_changed()
 
     def values(self) -> dict[str, Any]:
         """UI state + resolved colprof flags. State keys let the dialog reopen
@@ -1287,6 +1608,14 @@ class ScannerAdvancedDialog(QDialog):
 
         for flag, cb in self._flags.items():
             out[flag] = cb.isChecked()
+        # "-R" is the ONE flag whose widget can be showing something the user
+        # did not choose (see `_sync_r_lock`), so it is written from their own
+        # answer. Without this line, opening the window on the recommended
+        # cLUT white point and pressing "Save as Defaults" would store
+        # `-R: true` for ever, and a later switch to "Map chart white to
+        # white" would quietly carry a clamp the user never asked for.
+        if "-R" in out:
+            out["-R"] = self._r_choice()
         # Anything this version writes is current by definition. Without the
         # stamp a deliberate "Map chart white to white" would be read as a
         # pre-2026-09-05 leftover on the next open and silently re-defaulted —

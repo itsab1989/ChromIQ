@@ -1201,7 +1201,17 @@ def test_colprof_settings_are_stored_per_context(_app, _out_dir):
         dlg._printer_cb.setChecked(False)
         assert dlg._active_ctx == "chart" and dlg._prof_name.text() == "chart-scan"
         dlg._mode_standard.setChecked(True)
-        assert dlg._active_ctx == "standard" and dlg._ptype.currentData() == "s"
+        # The bucket is a third independent one, and it is EMPTY — so Knut's
+        # patch-count rule (beta 10) is free to set it up, and does: the
+        # standard-target combo already names a target with a known size, and
+        # a bought IT8 is 288 patches, which is over the hundred-patch
+        # crossover. So the type is the XYZ cLUT here and not shaper+matrix.
+        # What is being asserted is still the same thing: this bucket did not
+        # inherit the chart bucket's settings.
+        assert dlg._active_ctx == "standard"
+        assert dlg._ptype.currentData() == "x", (
+            "a standard target of 288 patches gets the cLUT set up for it")
+        assert dlg._pq.currentData() == "h"
         assert dlg._prof_name.text() == ""                     # separate from chart-scanner
         # only the printer bucket was persisted
         stored = settings.get("scanner_colprof_configs", {})

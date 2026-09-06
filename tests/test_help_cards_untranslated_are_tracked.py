@@ -307,19 +307,29 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # profile-type help's Lab-cLUT bullet, whose ceiling is a different height under
 # the new default. Both are new wording in a beta and both are PROPOSED besides,
 # so the eleven carry the English source and German is translated.
+# 2026-09-06, Knut's beta 10 batch for the scanner/camera window (B8-78):
+# +15 for the eleven and +0 for German. Twenty-six keys arrive and nine
+# leave, and fifteen of the survivors are long enough to count here: the
+# three scenario glosses, the ⓘ behind the scenario heading, the greyed
+# printer reason, the divergence line, the Custom line, the line saying
+# what the patch count set up, the note under the locked -R switch, and
+# the six rewritten help bodies. German is translated for all twenty-six
+# and stays where it was. The eleven carry the English source for the
+# usual reason: translated before a final, not during a beta. These are
+# each language's ACTUAL count, not a round ceiling.
 _BUDGET = {
     "de": 31,
-    "es": 227,
-    "fr": 228,
-    "it": 227,
-    "ja": 227,
-    "nl": 227,
-    "no": 227,
-    "pl": 227,
-    "pt": 227,
-    "ru": 226,
-    "sv": 227,
-    "zh_CN": 226,
+    "es": 242,
+    "fr": 243,
+    "it": 242,
+    "ja": 242,
+    "nl": 242,
+    "no": 242,
+    "pl": 242,
+    "pt": 242,
+    "ru": 241,
+    "sv": 242,
+    "zh_CN": 241,
 }
 
 

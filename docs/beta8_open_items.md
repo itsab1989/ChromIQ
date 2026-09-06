@@ -3199,3 +3199,251 @@ came back to it.
   (`**Licence: AGPLv3 …**`) rather than merely mention it, and the mutation then
   failed as it should. A passing mutation run is worth nothing if the mutation
   never applied.
+
+---
+
+### B8-78 · "Usage scenario", the patch-count setup, and three help texts that said things that were not true
+- blocks release: no
+- status: FIXED
+- supersedes: B8-71, which is now BUILT. Read that entry for why it was
+  deferred; read this one for what was built and what changed on the way.
+- asked for by: Knut, beta 10, five items in one message on Tools ▸ Build
+  profile with scanner or camera; **authorised for 4.2.0 by Basti**, who had
+  been referred the wording and the migration when B8-71 was deferred.
+- **the danger in it, and it is the reason B8-71 was deferred**: three of the
+  five items set the SAME three controls (profile type, quality, white point
+  handling). Built as three mechanisms they would overwrite each other, and any
+  one of them could move a setting on a target somebody had already configured
+  — which changes what their next profile looks like, in silence. So there is
+  one table and one predicate, and both are named below.
+
+**1 · One rule, not three.** `scanner_colprof.SETUP_SMALL` / `SETUP_LARGE` is
+Knut's own rule (under a hundred patches: shaper+matrix, Medium, "Map chart
+white to white"; at a hundred or more: the XYZ cLUT, High, "Scale white to a
+perfect white surface"). Everything else reads it:
+  * the usage scenario's **everyday** case IS that rule — `scenario_setup` for
+    it returns `setup_for_patch_count`, so the two can never disagree;
+  * the two white-point dropdown markers are DERIVED from it
+    (`WP_MODE_RECOMMENDED`), so item 4 and item 5 are one fact written once;
+  * the **measuring** scenario is the separate, measured triple (XYZ cLUT,
+    High, `-ua`), and deliberately NOT `-R`, which is a measured no-op beside
+    `-ua` on a cLUT (B8-69);
+  * the **printer** scenario sets no colprof value at all.
+
+  It agrees with what was measured here, and not by luck: B8-19 put the type
+  crossover at about a hundred fit patches, B8-69 measured Quality High as the
+  biggest single lever a cLUT has (0.484 → 0.337 ΔE00), and B8-75 measured `-R`
+  costing 7.877 → 9.028 ΔE00 on a matrix fit while doing the anti-clipping job
+  a cLUT wants.
+
+**2 · The hard rule, made mechanical.** `_may_auto_setup(ctx)` is the one
+predicate every automatic path asks, and it says no when either is true:
+  * **the bucket has stored settings.** `_ctx_stored` is computed ONCE, in
+    `_load_ctx_configs`, from the settings store. It is deliberately not read
+    off `_ctx_cfg`, which gains an entry for every bucket the window merely
+    VISITS (`_snapshot_context`) — a user who ticked and unticked the printer
+    box would otherwise look like a user who had saved settings, and that is
+    the shape of bug this rule exists to prevent.
+  * **the user has changed one of the three this session.** After that the
+    window sets nothing for that bucket, whatever happens to the patch count.
+
+  A bucket saved before this version has no `scenario` key, which is the whole
+  migration: it comes back as the Custom state, no radio lit, nothing applied,
+  no schema bump. An explicit click on a scenario is not the automatic path and
+  applies to any bucket, because the user has just asked out loud.
+
+**3 · What changed in the design document, and it needs saying.**
+`beta 9/printer-from-scan/USAGE-SCENARIO-DESIGN.md` §3 rule 2 says *"the
+scenario never re-applies itself. Not on reopening the window, not on switching
+source, not on picking a file."* Item 5 requires the opposite: a rule keyed on
+the patch count cannot act before a chart is picked. **The amendment, and it is
+proposed rather than assumed:** the everyday scenario re-applies when the patch
+count it depends on CHANGES, and only while the bucket is one `_may_auto_setup`
+allows. Reopening the window still applies nothing, because a saved bucket is
+off limits for ever and an unsaved one has no patch count until something is
+picked. §2's table also names the wrong white-point value for scenario 1; it
+predates B8-75 (see that entry's own closing note) and is now moot, because
+scenario 1 has no fixed values at all.
+
+**4 · The `-R` switch is visible when it is in force** (Knut: *"the -R checkbox
+is invisible"*). An unticked box beside a command line reading `-u -R` is
+false, so while "Scale white to a perfect white surface (-u -R)" is chosen the
+switch is shown **ticked and disabled**, with a wrapping line beside it saying
+where the tick came from. Three decisions inside that:
+  * **disabled**, because it cannot be turned off from here:
+    `profile_builder.py:487` emits `-R` for `wp_mode == "uR"` whatever the box
+    says, so an editable control that cannot change the outcome is worse than a
+    locked one;
+  * **a label, not a tooltip**, because Qt sends no events to a disabled widget
+    and a disabled checkbox's tooltip never appears;
+  * **the stored value stays the user's own** (`_r_choice`, written by
+    `values()`). Without that, opening the window and pressing "Save as
+    Defaults" would store `-R: true` for ever, and a later switch to "Map chart
+    white to white" would carry a clamp nobody asked for. The command line is
+    byte-for-byte what it was, which `test_the_locked_tick_changes_no_command_line`
+    proves by comparing the two argument lists.
+
+**5 · The white-point "(default)" marker is gone**, replaced by "(best for cLUT
+profiles)" and "(best for matrix profiles)" — Knut's first route, because his
+second (change the selection when the profile type changes) is a control that
+silently undoes an edit, which is what `USAGE-SCENARIO-DESIGN.md` §3 rule 2 and
+this whole entry exist to prevent, and it would have to fight the other two
+mechanisms over the same widget. His own wording "(recommended for cLUT
+profiles)" could not be used, and the three characters are MEASURED: against
+the app's own Fusion style it made the window **53 px wider the moment the
+Advanced disclosure was opened**, "(recommended for cLUT)" 3 px wider, and
+"(best for cLUT profiles)" fits with nothing to spare
+(`test_the_worst_languages_fit_a_1280_screen`). A translation longer than the
+English will be caught by that same test, which is where it belongs.
+
+**6 · The three factual errors in the printer-mode help, in his words.**
+  * *"the scanner profile must be built in this window's ordinary scanner mode,
+    from a bought target — not true"*: the text now says either source works,
+    a chart made in ChromIQ included, as long as somebody has measured it with
+    a real spectrophotometer.
+  * *"reads as if choosing cLUT XYZ automatically sets -ua — it does not"*: the
+    text now says so outright, and then says what the old sentence was reaching
+    for. It is `scanin` that reads the scanner profile with
+    `icAbsoluteColorimetric` hard-coded, so ChromIQ's own measurement is
+    already absolute whatever the profile was built with. That is why the flag
+    looks small inside ChromIQ, and it has nothing to do with the profile type.
+  * *"'With the Lab table it is the difference … It costs nothing. Set it.'
+    reads as advice to choose the Lab table, and 'Set it' has no referent"*:
+    the paragraph now leads with what the flag is worth outside ChromIQ, says
+    the Lab table's rescue is beside the point because the answer there is the
+    XYZ table, and ends by naming the control and the entry to set.
+
+**7 · B8-70 is absorbed.** The greyed third scenario carries the reason a
+bought target cannot profile a printer; `_mode_note` is the same widget, moved
+under it, and the gate itself is unchanged.
+
+- **§M does not govern any of this**, and that was checked rather than assumed:
+  §M is the catalogue of measurement WINDOWS (`test_message_catalogue.py`
+  parses §M and pins `WINDOW_SOURCES`), and nothing here is a window. The one
+  new sentence that reaches a user unprompted is a LOG line, which is the same
+  place B8-69 and B8-75 speak from and for the same reason.
+- i18n: 26 keys in, 9 stale keys out, across all thirteen catalogues. German is
+  translated for all 26; the other eleven carry the English source, per
+  "translate before a final, not during a beta". Two long help bodies are in
+  `tests/data/em_dash_allowed.json` with a reason that is checked before it is
+  written: every em dash in them is inside a quotation of a dropdown entry
+  whose own grandfathered label contains one ("cLUT — XYZ table"), and naming a
+  control approximately is the fault this text was rewritten to remove. Rename
+  those two labels and both entries go with them.
+- guarded by: `tests/test_the_window_says_what_the_profile_is_for.py`, 40 tests.
+- evidence: test_the_patch_count_rule_is_knuts_rule,
+  test_the_everyday_scenario_is_that_same_rule_and_not_a_second_answer,
+  test_the_white_point_markers_are_derived_from_the_same_table,
+  test_the_two_matrix_types_and_the_two_clut_types_are_all_four,
+  test_the_measuring_scenario_sets_the_three_measured_settings,
+  test_the_measuring_scenario_does_not_set_restrict_white_black_primaries,
+  test_the_printer_scenario_changes_no_colprof_setting,
+  test_the_three_are_listed_in_the_order_you_would_do_them,
+  test_the_second_and_third_say_they_are_two_steps_of_one_job,
+  test_choosing_a_scenario_sets_the_three_controls,
+  test_a_scenario_locks_nothing,
+  test_the_window_names_the_divergence_when_the_user_overrides,
+  test_a_setting_the_user_changed_is_never_chosen_for_them_again,
+  test_the_custom_state_is_a_state_and_not_a_fourth_option,
+  test_a_bucket_with_stored_settings_is_never_set_up_on_first_open,
+  test_a_stored_bucket_from_before_this_feature_shows_no_scenario,
+  test_the_stored_set_is_read_from_the_store_and_not_from_the_visits,
+  test_a_bucket_nobody_ever_saved_is_set_up_from_the_patch_count,
+  test_the_patch_count_rule_is_off_in_printer_mode,
+  test_it_applies_to_a_bought_target_as_well_as_a_chart,
+  test_the_scenario_is_stored_with_the_bucket,
+  test_the_R_switch_is_shown_ticked_and_locked_when_the_white_point_carries_it,
+  test_the_locked_tick_changes_no_command_line,
+  test_the_R_switch_comes_back_with_whatever_the_user_had,
+  test_saving_defaults_on_that_entry_never_stores_an_R_nobody_chose,
+  test_a_printer_build_has_no_such_switch_to_lock,
+  test_the_help_no_longer_says_the_profile_must_come_from_a_bought_target,
+  test_the_help_says_outright_that_the_xyz_table_does_not_set_ua,
+  test_the_help_does_not_end_by_pointing_at_the_lab_table,
+  test_the_help_points_at_the_scenario_that_sets_all_three,
+  test_the_printer_scenario_is_greyed_for_a_bought_target_with_its_reason,
+  test_the_printer_scenario_and_the_tick_are_one_control,
+  test_the_window_says_what_it_set_up_and_why,
+  test_it_says_nothing_when_it_changed_nothing,
+  test_switching_source_never_writes_the_new_modes_count_into_the_old_bucket,
+  test_choosing_everyday_with_nothing_loaded_still_means_everyday,
+  test_the_unknown_count_fallback_is_only_for_the_explicit_click,
+  test_a_hint_that_is_hidden_claims_no_height,
+  test_the_standard_target_explanation_sits_against_the_rows_around_it.
+  **TWENTY-ONE MUTATIONS, every one caught, and every one proved present on
+  disk before its run** (`scratchpad/mutate.py`, the harness refuses to believe
+  a run whose replacement it cannot find in the file). Both halves of
+  `_may_auto_setup`; `_ctx_stored` taken from the visits instead of the store;
+  a pre-4.2.0 bucket given a scenario anyway; the mid-switch guard; the
+  scenario dropped from the stored bucket; the divergence line silenced; the
+  announcement silenced; the greyed printer scenario re-enabled; the everyday
+  scenario given fixed settings of its own; the everyday click's fallback
+  removed; `-R` added to the measuring scenario; the crossover moved off a
+  hundred; the white-point markers un-derived from the setup table; the locked
+  `-R` stored as a choice; the `-R` switch left editable; the `-R` switch not
+  restoring the user's answer; the printer bucket no longer reporting the
+  printer scenario; and the three help-text corrections each reverted.
+
+  **THREE of them survived the first pass, and all three were real.**
+  * dropping the stored-bucket half of the gate changed nothing, because the
+    test used a bucket saved BEFORE this feature, which the scenario check
+    already refuses. The case that rests on the gate alone is a bucket saved BY
+    this version, on the everyday scenario. The test now covers both.
+  * the printer clause of `_maybe_auto_setup` could not be told apart from
+    `_scenario_for`'s answer by any test, so it was DELETED rather than left as
+    a safety net nothing can measure. The invariant now lives in one place and
+    the mutation of that place is caught.
+  * one anchor did not match the file at all, and the run said so instead of
+    reporting a pass.
+**8 · Driven on screen, and the adversarial pass found two faults in this
+change that no test of mine had.** `CHROMIQ_SETTINGS_FILE=/tmp/chromiq-cj.ini`,
+the real `AppSettings`, the real window, the real ArgyllCMS. Proof in
+`Desktop/beta 9/scanner-usage-scenarios/` (shots, every Argyll argv, the
+settings file, the profiles, PROVENANCE.md).
+  * **the bought target's patch count was written into the CHART bucket.**
+    `_on_mode_changed` calls `_on_target_changed` (which ends in `_refresh`,
+    which is where the rule runs) BEFORE `_sync_colprof_context`, so for one
+    call the source radio already says "a standard target" while `_active_ctx`
+    is still the chart bucket. Measured: a chart bucket on the XYZ table at
+    High with "Force Absolute Colorimetric" came back from one round trip
+    through the standard-target side holding "Scale white to a perfect white
+    surface". Nobody chose that. Fixed by refusing whenever `_active_ctx` and
+    `_colprof_context()` disagree.
+  * **choosing "everyday scanning" with nothing loaded left another scenario's
+    settings under the lit radio.** With no patch count the rule has nothing to
+    say and correctly said nothing, so `-ua` and the XYZ table at High sat
+    under a radio labelled everyday scanning, and the divergence line could not
+    catch it either (with no count there is no recipe to compare against). The
+    explicit click now falls back to the window's factory settings, which is
+    what `USAGE-SCENARIO-DESIGN.md` says scenario 1 pre-selects, and a chart
+    still refines all three afterwards. The AUTOMATIC path is untouched:
+    `setup_for_patch_count(None)` is still None.
+  * **a hidden hint claimed about 700 px of the left column, and it is
+    PRE-EXISTING.** `_WrapHint` reclaims its height in `resizeEvent`, and a
+    hint created hidden gets one resize to Qt's default 100 px before anything
+    lays it out: `heightForWidth(100)` for a paragraph is several hundred
+    pixels, and that number was latched. Layouts skip a hidden widget, so
+    nothing corrected it, and the moment the hint was shown it claimed that
+    height with its text floating in the middle. Photographed on the real left
+    column: two gaps of roughly 300 px, above and below the standard-target
+    explanation, pushing everything after it off the visible pane. The widget
+    is B8-70's, so **beta.10 has this too**, in standard-target mode; the usage
+    scenario above it is what made it impossible to miss. A hidden label needs
+    no height, so it now takes none, and the reclaim happens the first time it
+    is shown and laid out.
+
+    Worth keeping: **geometry alone did not find this.** Two probes read the
+    live window and reported the hint at 75 px with nothing overlapping,
+    because by the time they asked, those runs had settled. The picture of the
+    column is what showed it, every time. A grab of the whole DIALOG does not
+    show it either — `QWidget.grab()` does not composite everything inside the
+    left pane's scroll viewport — so the proof shots photograph the settings
+    column on its own as well.
+
+- what is NOT done, and is somebody else's call:
+  * the eleven catalogues other than German carry English and need the ordinary
+    translation pass;
+  * the scenario glosses are three wrapped lines each, which is a lot of chrome
+    above "pick your chart". `USAGE-SCENARIO-DESIGN.md` §7 raises it and offers
+    a one-line form with the detail behind the ⓘ. That is Basti's to judge on
+    screen, and it is a layout change, not a behaviour one.

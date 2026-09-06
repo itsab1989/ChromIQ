@@ -249,7 +249,18 @@ def test_the_live_note_fires_only_where_the_measurement_is_unambiguous(
 def test_the_note_reaches_the_tooltip_and_leaves_again(_app, tmp_path):
     """The note lives inside the ⓘ — `set_live_note` — so it costs no layout and
     cannot nag. Its first line reaches the hover tooltip; the whole of it goes
-    in front of the standing help."""
+    in front of the standing help.
+
+    WHEN THE NOTE FIRES MOVED ON 2026-09-06, and it is worth being exact about
+    why. Knut asked (beta 10) for the profile type, the quality and the white
+    point to be CHOSEN from the patch count, which B8-19 had considered and
+    deliberately not done. Where the window may now choose, it does, and the
+    note is then silent because there is nothing left to suggest: the setting
+    already is the one it would have pointed at. The note is what remains for
+    the cases where ChromIQ may NOT choose — a bucket whose settings the user
+    has saved, or one they have edited by hand this session — and that is the
+    case set up below, by hand-picking the type the note is about.
+    """
     dlg = _dialog(_app, tmp_path)
     try:
         assert dlg._known_patch_count() is None
@@ -257,6 +268,9 @@ def test_the_note_reaches_the_tooltip_and_leaves_again(_app, tmp_path):
         dlg._layout = {"patches": [{"page": 0} for _ in range(288)]}
         dlg._refresh()
         assert dlg._known_patch_count() == 288
+        # A hand edit: from here on ChromIQ chooses nothing for this bucket, so
+        # the suggestion is the only thing left that can speak.
+        dlg._ptype.setCurrentIndex(dlg._ptype.findData("s"))
         note = dlg._ptype_tip.live_note()
         assert "288 patches" in note
         assert note in dlg._ptype_tip.dialog_body()    # carried in FRONT of the help
@@ -276,11 +290,22 @@ def test_the_note_reaches_the_tooltip_and_leaves_again(_app, tmp_path):
 
 
 def test_the_note_never_changes_a_setting(_app, tmp_path):
-    """An automatic switch was considered and rejected (B8-19): the window
-    learns the count only after the type is set, and the crossover is shallow.
-    So the advice must be advice."""
+    """The NOTE changes nothing, and that is still true and still the point.
+
+    SUPERSEDED IN PART, 2026-09-06. B8-19 considered an automatic switch and
+    rejected it; Knut asked for one in beta 10 and Basti authorised it, so the
+    window now does choose — but through a different mechanism, with its own
+    consent gate (`_may_auto_setup`), which refuses a bucket the user has
+    saved or edited. This test is the half that did not change: once that gate
+    has said no, the note fires and moves nothing at all.
+    """
     dlg = _dialog(_app, tmp_path)
     try:
+        # The hand edit that closes the automatic path for this bucket. Away
+        # and back, because the type already IS "s" and a setCurrentIndex that
+        # moves nothing emits nothing and would not count as an edit at all.
+        dlg._ptype.setCurrentIndex(dlg._ptype.findData("l"))
+        dlg._ptype.setCurrentIndex(dlg._ptype.findData("s"))
         before = dlg._current_main_vals()
         dlg._layout = {"patches": [{"page": 0} for _ in range(864)]}
         dlg._refresh()

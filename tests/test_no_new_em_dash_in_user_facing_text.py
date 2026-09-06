@@ -43,7 +43,7 @@ import em_dash_check as E                                        # noqa: E402
 #: and there is no "add the failures" mode, so the ordinary way to launder new
 #: text into the grandfathered set does not exist. This catches the clumsy way:
 #: regenerating the file wholesale. It may only ever be lowered.
-BASELINE_CEILING = 1225
+BASELINE_CEILING = 1215
 
 
 def _excerpt(s: str, n: int = 110) -> str:

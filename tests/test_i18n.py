@@ -600,20 +600,29 @@ def test_every_deliberate_exception_says_why():
 # saying the default moved and took the user's remembered setting with it.
 # German is translated for all eight and does not move. The eleven catalogues
 # carry the English source: new wording in a beta, and PROPOSED wording besides.
+# Moved again on 2026-09-06 by Knut's beta 10 batch for this same window:
+# the usage-scenario control (heading, three labels, three glosses, the
+# divergence line, the greyed printer reason and its ⓘ), the two
+# white-point "(best for …)" markers that replaced the single
+# "(default)" one, the line that says what the patch count set up, the
+# note under the locked -R switch, and the six help bodies that had to be
+# rewritten with them. 26 keys in, 9 stale keys out. German is translated
+# for all 26 and does not move; the eleven others carry the English
+# source, so each of them gains 17.
 # These are each language's ACTUAL count.
 _IDENTICAL_TO_KEY = {
     "de": 117,
-    "es": 386,
-    "fr": 406,
-    "it": 398,
-    "ja": 375,
-    "nl": 415,
-    "no": 399,
-    "pl": 390,
-    "pt": 390,
-    "ru": 362,
-    "sv": 403,
-    "zh_CN": 368,
+    "es": 403,
+    "fr": 423,
+    "it": 415,
+    "ja": 392,
+    "nl": 432,
+    "no": 416,
+    "pl": 407,
+    "pt": 407,
+    "ru": 379,
+    "sv": 420,
+    "zh_CN": 385,
 }
 
 

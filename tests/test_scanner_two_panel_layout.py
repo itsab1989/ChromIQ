@@ -390,9 +390,17 @@ def test_the_advanced_switches_are_one_column(_app, _out_dir):
         grp = [g for g in dlg.findChildren(QGroupBox)
                if g.layout().__class__.__name__ == "QGridLayout"][0]
         lay = grp.layout()
-        rows = {lay.getItemPosition(i)[0] for i in range(lay.count())}
         checks = [w for w in grp.findChildren(QWidget)
                   if w.__class__.__name__ == "QCheckBox"]
+        # ROWS THAT HOLD A SWITCH, not every row in the grid. Since Knut's
+        # beta 10 batch the group also carries a wrapping note under the
+        # switches, saying where the "-R" tick came from when the white-point
+        # choice is forcing it. That note is one more row and no wider than
+        # the column, so it cannot be what this test is about; two switches
+        # sharing a row still shows up as fewer rows than switches.
+        rows = {lay.getItemPosition(i)[0] for i in range(lay.count())
+                if lay.itemAt(i).widget() is not None
+                and lay.itemAt(i).widget().__class__.__name__ == "QCheckBox"}
         assert len(rows) == len(checks), \
             "the Advanced switches are back on more than one per row"
         widest = max(c.sizeHint().width() for c in checks)
