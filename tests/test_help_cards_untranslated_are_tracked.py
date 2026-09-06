@@ -323,19 +323,38 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # count in it, and the rewritten Lab-table note), and the short form of
 # the saved-bucket line is under the 25-character floor. These are each
 # language's ACTUAL count, not a round ceiling.
+#
+# 2026-09-06, AGENT CR, the scanner and camera HELP brought up to those
+# scenarios: +42 for the eleven and +0 for German. Fifty keys arrive and
+# twenty leave. Both printable cards were rewritten around the three
+# scenarios, with their reasoning moved out of the numbered steps into a new
+# note register (a step may now carry `(heading, body)` notes, closed on
+# screen and printed in full); the window's own ⓘ was corrected, having said
+# since 2026-07-13 that the target-source choice is "at the top of the window"
+# and that the build button reads "Build profile with scanner or camera"
+# (in printer mode it reads "Build printer profile"); and the "Which source?"
+# ⓘ, the "Save as Defaults" tooltip and the printer-tick log line each gained
+# a sentence naming the scenarios. German is translated for all fifty.
+#
+# GERMAN'S OWN NUMBER FELL 31 -> 4, AND NOT BECAUSE OF THIS CHANGE. Measured
+# both sides: German carried exactly 4 echoes before this work and exactly 4
+# after. The 31 was a stale ceiling from an earlier batch that this file's own
+# rule ("each language's ACTUAL count, not a round ceiling") had already
+# outgrown. It is recorded as the actual so a German string arriving
+# untranslated is caught the day it arrives.
 _BUDGET = {
-    "de": 31,
-    "es": 244,
-    "fr": 245,
-    "it": 244,
-    "ja": 244,
-    "nl": 244,
-    "no": 244,
-    "pl": 244,
-    "pt": 244,
-    "ru": 243,
-    "sv": 244,
-    "zh_CN": 243,
+    "de": 4,
+    "es": 286,
+    "fr": 287,
+    "it": 286,
+    "ja": 286,
+    "nl": 286,
+    "no": 286,
+    "pl": 286,
+    "pt": 286,
+    "ru": 285,
+    "sv": 286,
+    "zh_CN": 285,
 }
 
 

@@ -48,11 +48,37 @@ if TYPE_CHECKING:
 # Workflow content
 # ---------------------------------------------------------------------------
 
-# Each step is (tab_index_1based, text) or (tab_index_1based, text, optional_bool).
+# Each step is one of
+#     (tab_index_1based, text)
+#     (tab_index_1based, text, optional_bool)
+#     (tab_index_1based, text, optional_bool, notes)
 # tab_index drives the coloured badge. The displayed number inside the badge is
 # the step count, not the tab number — the colour already tells you which tab.
 # optional=True renders the badge outlined (rather than filled) and dims the
 # text slightly, marking steps that improve quality but aren't required.
+#
+# `notes` IS THE SECOND REGISTER, AND IT IS WHY IT EXISTS.
+#
+# Knut, 2026-09-06: *"A user should be guided with simple steps, and given the
+# more detailed explanations as notes for a deeper understanding, if the user
+# decides to want that."*
+#
+# Until this existed a card had exactly ONE register — a numbered step — so
+# every explanation had to be written as an instruction. That is how
+# "printer_from_scan" came to carry a 200-word step that sets three controls
+# and a 130-word step opening "Why it matters, in one sentence", both numbered,
+# both compulsory reading, on a sheet the user may be holding at the printer.
+#
+# `notes` is a sequence of (heading, body) pairs. On screen each one is a
+# CLOSED disclosure under its step: the heading is a small ▶ line the reader
+# can open if they want the reasoning, and the card reads as a short list of
+# actions until they do. On paper there is nothing to click, so every note
+# prints, indented and in smaller grey type under its step.
+#
+# THE SPLIT IS THE POINT, not the widget. A step is an action the reader
+# performs: "pick the second usage scenario". A note is why that action is
+# right, what it sets, and what happens if it is skipped. If a sentence cannot
+# be carried out, it is not a step.
 WORKFLOWS: list[dict] = [
     {
         "key": "first_profile",
@@ -640,49 +666,127 @@ WORKFLOWS: list[dict] = [
     {
         "key": "scanner_profile",
         "title": tr("Profile my scanner or camera"),
-        "subtitle": tr("Colour-profile a scanner or a camera — from a chart you "
-                       "measured, or a standard target you own."),
+        "subtitle": tr("Colour-profile a scanner or a camera, from a chart you "
+                       "measured or a standard target you own."),
+        # KNUT, 2026-09-06: *"A user should be guided with simple steps, and
+        # given the more detailed explanations as notes for a deeper
+        # understanding, if the user decides to want that."*
+        #
+        # Every step below is an action. Everything that explains, justifies or
+        # measures is a note. The card used to carry both as numbered steps,
+        # because until this release there was no second register: step 6 was a
+        # 145-word instruction to set three controls by hand, which is what the
+        # second usage scenario now does from one radio button.
         "steps": [
-            (3, tr("Print and measure a ChromIQ chart as usual, and keep its "
-                "recognition files: after measuring, tick “Also save "
-                "scanner-profiling files for this chart” in the All Strips Read "
-                "or Profile Quality Assessment window — or run Tools ▸ Create "
-                "scanner or camera target on any measured chart. This writes the "
-                "chart's .cht + .cie files.")),
-            (3, tr("Scan the printed chart on the scanner you want to profile as "
-                "a plain RGB TIFF, with the scanner's own auto-correction and "
-                "colour management turned OFF. Scan at 600 dpi or more — "
-                "1200 dpi is preferred; 300 dpi is too coarse for clean patch "
-                "reads.")),
-            (3, tr("Open Tools ▸ Build profile with scanner or camera. Pick the "
-                "measured chart and the scan, drag the four corners over the "
-                "patch area until the green grid lines up with the real patches, "
-                "and build. ChromIQ runs scanin + colprof and writes an ICC "
-                "profile next to the scan. Multi-page charts: place each page's "
-                "scan (and, if you like, several scans per page to average), all "
-                "combined into one profile.")),
-            (3, tr("No ChromIQ chart — or profiling a camera? In Build profile "
-                "with scanner or camera choose “A standard target I own”, pick your "
-                "target type (IT8, X-Rite ColorChecker, LaserSoft…) and load the "
-                "reference data file that came with it, then scan the target — or "
-                "photograph it for a camera. Everything else is the same. See the "
-                "window's ⓘ for how to capture a camera shot."), True),
-            (3, tr("For the best quality when you mainly scan your own "
-                "colour-managed prints, print a fresh chart through your normal "
-                "print workflow, measure THAT sheet, and profile from it — its "
-                "colours then match what you actually scan."), True),
-            (3, tr("Building this profile to MEASURE with — to use the scanner "
-                "in place of a spectrophotometer, as “Profile my printer with "
-                "a flatbed scanner” does? Then it needs different settings from "
-                "the ones above: Profile type “cLUT — XYZ table”, Quality "
-                "“High”, and Advanced… ▸ White Point Handling on “Force "
-                "Absolute Colorimetric (-ua)”, which makes the profile report "
-                "the colour that is really there rather than colour relative to "
-                "your target's white patch. Keep it as a separate file: a "
-                "profile built for measuring makes everyday scans look dark and "
-                "slightly tinted, and a profile built for everyday scanning "
-                "quietly clips everything brighter than the target's white "
-                "board when you measure with it."), True),
+            (3, tr("Get a target whose true colours are known. Either print "
+                "and measure a ChromIQ chart and keep its recognition files "
+                "(tick “Also save scanner-profiling files for this chart” "
+                "after measuring, or run Tools ▸ Create scanner or camera "
+                "target on any measured chart), or use a standard target you "
+                "own, such as an IT8 or an X-Rite ColorChecker, with the "
+                "reference data file that came with it."),
+             False,
+             ((tr("Which target gives the better profile"),
+               tr("A chart you printed yourself wins whenever you mainly scan "
+                  "your own prints: profile from a sheet made on your printer, "
+                  "on your paper, through your normal print workflow, and the "
+                  "colours the profile is fitted to are the colours you "
+                  "actually put on the glass. A bought target is the answer "
+                  "when you have no printer to hand, when you scan other "
+                  "people's prints and film, or when you are profiling a "
+                  "camera. The ChromIQ route needs the chart's .cht and .cie "
+                  "files, which is what the tick box above writes; without "
+                  "them ChromIQ has no map of where the patches sit.")),)),
+            (3, tr("Capture the target on the device you are profiling. Scan "
+                "it, or photograph it for a camera, as a plain RGB TIFF with "
+                "the device's own auto-correction and colour management turned "
+                "OFF. Scan at 600 dpi or more; 1200 dpi is preferred."),
+             False,
+             ((tr("Why 300 dpi is too coarse"),
+               tr("The profile is built by reading the middle of every patch "
+                  "and averaging it. At 300 dpi a small patch is only a few "
+                  "dozen pixels across once the edges are left out, so the "
+                  "average carries the scanner's own noise into the profile. "
+                  "More pixels per patch is simply a quieter measurement, and "
+                  "it costs nothing but scan time.")),
+              (tr("Photographing the target, for a camera profile"),
+               tr("A camera profile is only valid for the light you shot "
+                  "under, so light the target flatly and evenly, with no glare "
+                  "or hot-spots, under the lighting you will actually use. "
+                  "Shoot raw and convert with a neutral, linear setting: no "
+                  "creative white balance, no tone curve, no contrast, no "
+                  "sharpening. Export a plain TIFF. That is the camera version "
+                  "of turning a scanner's correction off. Fill the frame "
+                  "square-on so the target is flat and undistorted.")))),
+            (3, tr("Open Tools ▸ Build profile with scanner or camera and "
+                "answer the first question in the window, “Usage scenario: "
+                "what is this profile for?”. For scans and photographs that "
+                "should simply open looking right, pick “A profile for my "
+                "scanner or camera, for everyday scanning”. ChromIQ fills in "
+                "the profile type, the quality and the white point handling "
+                "for you."),
+             False,
+             ((tr("What that scenario sets, and why it waits for your files"),
+               tr("There is no one right answer for everyday scanning, because "
+                  "the right profile type depends on how big your target is. "
+                  "So ChromIQ waits until it knows the patch count and then "
+                  "sets all three settings together: below about a hundred "
+                  "patches “Shaper + matrix” at Medium with “Map chart white "
+                  "to white”, and at a hundred or more the XYZ look-up table "
+                  "at High with “Scale white to a perfect white surface "
+                  "(-u -R)”. Both pairings were measured on real scans and "
+                  "scored only on patches the fit never saw. Nothing is "
+                  "locked: a scenario fills the settings in once, at the "
+                  "moment you pick it, and every control stays yours to "
+                  "change.")),
+              (tr("It will not touch settings you saved yourself"),
+               tr("If you have pressed “Save as Defaults” for this kind of "
+                  "profile, ChromIQ shows what you saved and sets nothing, "
+                  "because the profile you build next has to be the profile "
+                  "you built last unless you say otherwise. A line under the "
+                  "scenario list tells you when that is what is "
+                  "happening.")))),
+            (3, tr("Under “Create profile using:”, say where the target came "
+                "from, pick the files, drag the four corners over the patch "
+                "area until the green grid lines up with the real patches, and "
+                "press “Build profile with scanner or camera”. ChromIQ runs "
+                "scanin and colprof and writes the ICC profile next to your "
+                "capture."),
+             False,
+             ((tr("Several pages, and several scans of each"),
+               tr("A multi-page ChromIQ chart shows a Page selector: pick and "
+                  "place each page's scan in turn, and all the pages go into "
+                  "one profile. You can also add several scans of the same "
+                  "page and have them averaged, which cancels out the random "
+                  "noise every scanner adds. Each scan keeps its own corner "
+                  "placement, so it does not matter if the sheet shifted a "
+                  "little on the glass between scans. A bought target is "
+                  "always a single sheet, even a two-area one like the Wolf "
+                  "Faust IT8.")),)),
+            (3, tr("Building this profile so the scanner can MEASURE with it, "
+                "the way “Profile my printer with a flatbed scanner” needs? "
+                "Then pick the second scenario instead, “A profile for my "
+                "scanner, so it can stand in for a measuring instrument”, and "
+                "save the result as a separate file with a name that says so."),
+             True,
+             ((tr("Why a measuring profile is a different profile"),
+               tr("A profile for looking at reports colour relative to the "
+                  "white patch of the target you scanned. A profile for "
+                  "measuring has to report the colour that is really there. "
+                  "The scenario sets Profile type “cLUT — XYZ table”, Quality "
+                  "“High” and, under Advanced…, White Point Handling on "
+                  "“Force Absolute Colorimetric (-ua)”, which is exactly the "
+                  "flag ArgyllCMS asks for whenever an input profile is used "
+                  "“as a substitute for a colorimeter”.")),
+              (tr("Why it has to stay a separate file"),
+               tr("Built this way the profile makes ordinary scans arrive "
+                  "darker and keeps the slight tint of your target's paper: "
+                  "right for measuring, wrong for photographs. And the swap "
+                  "the other way is worse. A profile built for everyday "
+                  "scanning quietly clips everything brighter than the "
+                  "target's white board when you measure with it, and nothing "
+                  "later recovers it. Two files, two names, no doubt about "
+                  "which is which.")))),
         ],
     },
     {
@@ -690,73 +794,113 @@ WORKFLOWS: list[dict] = [
         "title": tr("Profile my printer with a flatbed scanner"),
         "subtitle": tr("No spectrophotometer? A profiled scanner can measure "
                        "your chart and build the printer profile."),
+        # THE ORDER IS THE POINT, and it is the window's own order too
+        # (`scanin_dialog.py`: *"Scenario 2 builds the profile scenario 3
+        # needs"*). Step 1 is the step people miss; its reasoning is in notes
+        # so that the step itself is one sentence long and cannot be skimmed
+        # past.
         "steps": [
-            (3, tr("First profile your scanner — it's about to become your "
-                "measuring instrument. Follow the “Profile my scanner or "
-                "camera” workflow once (from a measured ChromIQ chart or a "
-                "standard target you own); the scanner profile is reused for "
-                "every printer profile you build this way.")),
-            # KNUT, beta 9: he wrote his own reference colprof command with
-            # `-ua` in it and annotated why, and still said *"I totally forgot
-            # all this, and had to relearn all of it now, so this is really an
-            # important detail that the workflow steps in help cards and help
-            # descriptions must be clear about"*. It was in no card at all.
-            (3, tr("Build that scanner profile FOR MEASURING, which is not the "
-                "same as building one to make scans look right — this is the "
-                "step people miss, and nothing later can repair it. In Tools ▸ "
-                "Build profile with scanner or camera set Profile type to "
-                "“cLUT — XYZ table” (about twice as accurate as the default "
-                "“Shaper + matrix”: 0.48 against 0.91 average ΔE00 on a real "
-                "IT8 scan), Quality to “High” (worth about 30 % on its own — "
-                "the biggest single gain there is), and, under Advanced…, "
-                "White Point Handling to “Force Absolute Colorimetric (-ua)”. "
-                "That last one tells the profile to report the colour that is "
-                "really there, measured against a perfect white surface, "
-                "instead of reporting it relative to the white patch of the "
-                "target you scanned — which is what a measuring instrument has "
-                "to do. ArgyllCMS asks for the same flag whenever an input "
-                "profile is used “as a substitute for a colorimeter”.")),
-            (3, tr("Why it matters, in one sentence: your target's white board "
-                "is not as white as your paper — a photographic IT8 measures "
-                "about 84 % reflectance, most inkjet and office paper is "
-                "brighter — so a profile that calls the target's white “white” "
-                "has no room left to describe your paper. With a “cLUT — Lab "
-                "table” profile that is fatal: your paper white and every "
-                "light tint on the sheet are measured as one and the same "
-                "colour. With the “cLUT — XYZ table” recommended above it is "
-                "much milder, because ChromIQ already reads your scan through "
-                "the profile absolutely — but set the flag anyway. It costs "
-                "nothing, and it makes the profile say what it is for.")),
-            (3, tr("Keep that measuring profile as a separate file, with a "
-                "name that says so. Built this way it makes ordinary scans arrive "
-                "darker and keeps the slight tint of your target's paper — "
-                "right for measuring, wrong for photographs — so it is not the "
-                "profile you want your scanning software to use day to day."),
-             True),
+            (3, tr("Profile your scanner first, and build that profile FOR "
+                "MEASURING. Open Tools ▸ Build profile with scanner or camera "
+                "and pick the second usage scenario at the top of the window, "
+                "“A profile for my scanner, so it can stand in for a measuring "
+                "instrument”. It sets the three settings this job needs. Then "
+                "follow the “Profile my scanner or camera” card to build it."),
+             False,
+             ((tr("What the scenario sets, and what each part is worth"),
+               tr("Profile type “cLUT — XYZ table”, which was about twice as "
+                  "accurate as the default “Shaper + matrix” on a real IT8 "
+                  "scan: 0.48 against 0.91 average ΔE00. Quality “High”, worth "
+                  "about 30 % on its own, the biggest single gain there is. "
+                  "And, under Advanced…, White Point Handling on “Force "
+                  "Absolute Colorimetric (-ua)”, which tells the profile to "
+                  "report the colour that is really there, measured against a "
+                  "perfect white surface, instead of reporting it relative to "
+                  "the white patch of the target you scanned. That is what a "
+                  "measuring instrument has to do, and ArgyllCMS asks for the "
+                  "same flag whenever an input profile is used “as a "
+                  "substitute for a colorimeter”.")),
+              (tr("Why the white point matters, in one sentence"),
+               tr("Your target's white board is not as white as your paper. A "
+                  "photographic IT8 measures about 84 % reflectance and most "
+                  "inkjet and office paper is brighter, so a profile that "
+                  "calls the target's white “white” has no room left to "
+                  "describe your paper. With a “cLUT — Lab table” profile that "
+                  "is fatal: your paper white and every light tint on the "
+                  "sheet are measured as one and the same colour. With the "
+                  "“cLUT — XYZ table” the scenario picks it is much milder, "
+                  "because ChromIQ already reads your scan through the profile "
+                  "absolutely. Set the flag anyway. It costs nothing, and it "
+                  "makes the profile say what it is for.")))),
+            (3, tr("Save that measuring profile as a separate file, with a "
+                "name that says what it is for."),
+             True,
+             ((tr("Why it is not the profile for everyday scanning"),
+               tr("Built this way it makes ordinary scans arrive darker and "
+                  "keeps the slight tint of your target's paper, which is "
+                  "right for measuring and wrong for photographs. It is not "
+                  "the profile you want your scanning software to use day to "
+                  "day, and overwriting your normal scanner profile with it "
+                  "would break your scanning with no visible reason "
+                  "why.")),)),
             (1, tr("On the Create Chart tab, create a chart for your printer "
-                "and paper. A ChromIQ layout-engine chart is ideal — its patch "
-                "geometry travels with the chart, so the reading grid knows "
-                "exactly where every patch sits.")),
+                "and paper."),
+             False,
+             ((tr("Which chart to use"),
+               tr("A ChromIQ layout-engine chart is ideal: its patch geometry "
+                  "travels with the chart, so the reading grid knows exactly "
+                  "where every patch sits and you have no .cht files to find. "
+                  "A chart made elsewhere works too, as long as you have its "
+                  ".ti2 and the .cht page files that came with it.")),)),
             (2, tr("Print the chart from the Print Chart tab as usual, with "
-                "driver colour management OFF. You do NOT measure it — the "
-                "scanner will do that.")),
+                "driver colour management OFF. You do NOT measure it: the "
+                "scanner is going to do that.")),
             (3, tr("Scan every printed page on your profiled scanner as a "
                 "plain RGB TIFF, with the scanner's auto-correction and colour "
-                "management turned OFF — the same settings you profiled it "
-                "with. Scan at 600 dpi or more — 1200 dpi is preferred; "
-                "300 dpi is too coarse for clean patch reads.")),
-            (3, tr("Open Tools ▸ Build profile with scanner or camera and tick "
-                "“Profile my printer from this scan”. Pick your scanner "
-                "profile, the chart you printed (its .ti2), and each page's "
-                "scan; drag the four corners so the grid lines up with the "
-                "patches on every page, then build. ChromIQ reads the patches "
+                "management turned OFF, using the same settings you profiled "
+                "it with. Scan at 600 dpi or more; 1200 dpi is preferred."),
+             False,
+             ((tr("The settings have to match the ones you profiled with"),
+               tr("The profile describes your scanner at the settings it was "
+                  "built under. Change the resolution, the bit depth or any "
+                  "correction and it no longer fits, and the measurement it "
+                  "produces is wrong in a way nothing downstream can "
+                  "see.")),)),
+            (3, tr("Open Tools ▸ Build profile with scanner or camera and pick "
+                "the third usage scenario, “A profile for my printer, measured "
+                "with this scanner”. Pick your measuring profile, the chart "
+                "you printed (its .ti2) and each page's scan, drag the four "
+                "corners so the grid lines up with the patches on every page, "
+                "then press “Build printer profile”. ChromIQ reads the patches "
                 "through the scanner profile and writes a printer ICC "
-                "profile.")),
+                "profile."),
+             False,
+             ((tr("What that scenario changes in the window"),
+               tr("It ticks “Profile my printer from this scan” for you and "
+                  "opens the rows that go with it: the scanner profile to "
+                  "measure through, and, for a chart made outside ChromIQ, its "
+                  ".cht page files. The chart row asks for the chart you "
+                  "PRINTED rather than one you measured, and the build button "
+                  "and the window's own title both change to “Build printer "
+                  "profile”, so it is always visible which of the two things "
+                  "you are about to make.")),
+              (tr("Why a bought target cannot do this job"),
+               tr("An IT8 or a ColorChecker was printed and measured by its "
+                  "manufacturer, not by your printer, so there is no record of "
+                  "the colour values that went in and nothing to compare a "
+                  "scan against. A printer profile is built from exactly that "
+                  "comparison, which is why this scenario needs a chart you "
+                  "printed yourself, and its .ti2.")))),
             (3, tr("Save the diagnostic image and take any alignment warning "
-                "seriously — a misplaced grid reads the wrong patches and "
-                "ruins the profile. And keep expectations honest: a flatbed "
-                "is a fine everyday instrument, but not a spectrophotometer."),
-             True),
+                "seriously: a misplaced grid reads the wrong patches and ruins "
+                "the profile."),
+             True,
+             ((tr("How good is a flatbed, honestly"),
+               tr("A flatbed is a fine everyday instrument and it will get you "
+                  "a genuinely useful printer profile with no spectrophotometer "
+                  "at all. It is not a spectrophotometer, though, and it will "
+                  "not match one. Judge the result on your own prints rather "
+                  "than on a number.")),)),
         ],
     },
 ]
@@ -2346,6 +2490,83 @@ class StepBadge(QLabel):
 
 
 # ---------------------------------------------------------------------------
+# A note under a step
+# ---------------------------------------------------------------------------
+
+class StepNote(QWidget):
+    """The deeper explanation under a step, closed until it is asked for.
+
+    Knut, 2026-09-06: *"A user should be guided with simple steps, and given
+    the more detailed explanations as notes for a deeper understanding, if the
+    user decides to want that."* Both halves matter. The step stays short, so
+    the card can be followed; the reasoning is still on the card, one click
+    away, so nothing had to be deleted to get there.
+
+    It is a button, not a clickable label, so it is reachable by Tab and opens
+    on Space or Return like every other control in the dialog.
+    """
+
+    #: Same triangles as `CollapsibleGroupBox`, for the same reason: the small
+    #: ▸ / ▾ do not read as an open/close affordance (Knut).
+    CLOSED = "▶  "
+    OPEN = "▼  "
+
+    def __init__(self, heading: str, body: str,
+                 parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._heading = heading
+        v = QVBoxLayout(self)
+        v.setContentsMargins(0, 4, 0, 0)
+        v.setSpacing(2)
+
+        self._btn = QPushButton(self.CLOSED + heading, self)
+        self._btn.setCheckable(True)
+        self._btn.setFlat(True)
+        self._btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._btn.setObjectName("welcome_note_head")
+        hf = QFont()
+        hf.setPixelSize(12)
+        hf.setBold(True)
+        self._btn.setFont(hf)
+        # A BOUND METHOD. Never a lambda capturing `self` on a signal a child
+        # of this widget emits — see CLAUDE.md, ui/fade_scroll.py.
+        self._btn.toggled.connect(self._on_toggled)
+        head = QHBoxLayout()
+        head.setContentsMargins(0, 0, 0, 0)
+        head.addWidget(self._btn)
+        head.addStretch(1)
+        v.addLayout(head)
+
+        self._body = QLabel(body, self)
+        self._body.setWordWrap(True)
+        bf = QFont()
+        bf.setPixelSize(12)
+        self._body.setFont(bf)
+        self._body.setObjectName("welcome_note_body")
+        self._body.setContentsMargins(16, 0, 0, 0)
+        self._body.setVisible(False)
+        v.addWidget(self._body)
+
+    # ------------------------------------------------------------------
+    def _on_toggled(self, checked: bool) -> None:
+        self._btn.setText((self.OPEN if checked else self.CLOSED)
+                          + self._heading)
+        self._body.setVisible(bool(checked))
+
+    def is_open(self) -> bool:
+        return self._btn.isChecked()
+
+    def set_open(self, opened: bool) -> None:
+        self._btn.setChecked(bool(opened))
+
+    def heading(self) -> str:
+        return self._heading
+
+    def body_text(self) -> str:
+        return self._body.text()
+
+
+# ---------------------------------------------------------------------------
 # Welcome dialog
 # ---------------------------------------------------------------------------
 
@@ -2821,7 +3042,9 @@ class WelcomeDialog(QDialog):
             for i, step in enumerate(wf["steps"], start=1):
                 tab_idx, text = step[0], step[1]
                 optional = bool(step[2]) if len(step) > 2 else False
-                row = self._make_step_row(i, tab_idx, text, optional=optional)
+                notes = tuple(step[3]) if len(step) > 3 else ()
+                row = self._make_step_row(i, tab_idx, text, optional=optional,
+                                          notes=notes)
                 self._steps_layout.addWidget(row)
         self._steps_layout.addStretch(1)
         self._apply_detail_text_colors()
@@ -3001,6 +3224,7 @@ class WelcomeDialog(QDialog):
         text: str,
         *,
         optional: bool = False,
+        notes: "tuple | list" = (),
     ) -> QWidget:
         row = QWidget(self._steps_host)
         h = QHBoxLayout(row)
@@ -3010,6 +3234,9 @@ class WelcomeDialog(QDialog):
         badge = StepBadge(number, tab_index, row, optional=optional)
         h.addWidget(badge, alignment=Qt.AlignmentFlag.AlignTop)
 
+        # A COLUMN, NOT A LABEL — but only when there is a note to put under
+        # it. A step with no notes builds exactly the widget it always did, so
+        # every card that has none is untouched by this change.
         body = QLabel(text, row)
         body.setWordWrap(True)
         bf = QFont()
@@ -3020,7 +3247,19 @@ class WelcomeDialog(QDialog):
         body.setObjectName("welcome_step_body")
         # Tag the label so theme re-tinting can dim optional steps.
         body.setProperty("welcome_optional", optional)
-        h.addWidget(body, stretch=1)
+        if not notes:
+            h.addWidget(body, stretch=1)
+            return row
+
+        col = QWidget(row)
+        v = QVBoxLayout(col)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(0)
+        body.setParent(col)
+        v.addWidget(body)
+        for heading, note_body in notes:
+            v.addWidget(StepNote(heading, note_body, col))
+        h.addWidget(col, stretch=1)
         return row
 
     # ------------------------------------------------------------------
@@ -3088,5 +3327,33 @@ class WelcomeDialog(QDialog):
         for lbl in self._steps_host.findChildren(QLabel, "welcome_step_body"):
             fg = optional_fg if bool(lbl.property("welcome_optional")) else body_fg
             lbl.setStyleSheet(f"color: {fg};")
+        # A NOTE IS SECONDARY TO ITS STEP, and it has to LOOK it — otherwise
+        # the card gains a second thing competing for the reader's attention,
+        # which is the opposite of what the notes are for. Same dimmed ink as
+        # an optional step, in both themes and in Neutral.
+        for lbl in self._steps_host.findChildren(QLabel, "welcome_note_body"):
+            lbl.setStyleSheet(f"color: {optional_fg};")
+        # AND IT IS TEXT, NOT A BUTTON, WHATEVER WIDGET IT IS BUILT FROM.
+        #
+        # The heading is a QPushButton so that Tab reaches it and Space opens
+        # it. That also means the app-wide sheet's `QPushButton` rule reaches
+        # it, and on screen that rule is **Menlo**: measured in the running app
+        # (`QFontInfo(btn.font()).family()`), the step beside it resolved to
+        # Inter and the note heading under it to Menlo, so a line of prose came
+        # out in the same monospace as "Save as PDF" and "Close". The family is
+        # taken from the step's own label rather than named here, so it follows
+        # whatever the sheet gives body text.
+        fam = ""
+        bodies = self._steps_host.findChildren(QLabel, "welcome_step_body")
+        if bodies:
+            from PyQt6.QtGui import QFontInfo
+            fam = QFontInfo(bodies[0].font()).family()
+        for btn in self._steps_host.findChildren(QPushButton,
+                                                 "welcome_note_head"):
+            btn.setStyleSheet(
+                f"QPushButton#welcome_note_head {{ color: {optional_fg}; "
+                + (f'font-family: "{fam}"; ' if fam else "")
+                + "background: transparent; border: none; text-align: left; "
+                "padding: 0px; }")
         if hasattr(self, "_detail_title"):
             self._detail_title.setStyleSheet(f"color: {title_fg};")

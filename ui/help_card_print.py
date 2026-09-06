@@ -92,6 +92,11 @@ li   { margin-bottom: 10px; }
    waste Knut objected to in the first place. Scoped to that list so the steps
    cards keep the 10 px they were given in #164. */
 ol.tight li { margin-bottom: 4px; }
+/* A NOTE UNDER A STEP. On screen it is a disclosure the reader opens; paper
+   has nothing to click, so it prints — but it must still read as the quieter
+   half of the step, or the card is back to one long block. Smaller, grey, and
+   indented past the step's own text. px, like everything else here. */
+p.note { font-size: 12px; color: #555555; margin: 6px 0 0 14px; }
 p.foot { color: #666666; font-size: 11px; margin-top: 20px; }
 """
 #: The tab a step belongs to, for the printed step list. The dialog shows this
@@ -114,12 +119,36 @@ _TAB_NAMES = {
 
 def _tab_name(idx: Any) -> str:
     """The tab's name, translated — a printed card is read in the user's own
-    language, and these were the one thing on the page that stayed English."""
+    language, and these were the one thing on the page that stayed English.
+
+    TRANSLATED THROUGH THE TAB STRIP'S OWN NUMBERED KEY, and that is the fix
+    rather than a flourish. `tr(name)` here passes a VARIABLE, which
+    `scripts/i18n_extract.py` cannot see, so none of these five was ever a
+    catalogue key. Four of them were translated anyway, by coincidence: the
+    same words appear as `tr()` literals elsewhere. The fifth does not.
+    **"Measure" had no German entry at all**, so every printed step belonging
+    to tab 3 said "Measure" in all twelve languages — measured on the German
+    sheet, where steps 1 to 4 of "Scanner oder Kamera profilieren" all read
+    "Measure —" against a German card (`de-scanner_profile-p1.png`), and
+    `test_catalog_is_complete` was green throughout because the key does not
+    exist to be missing.
+
+    `"3. Measure"` IS a real key: `ui/main_window.py:333` writes
+    `tr("3. Measure")` as a literal, so the extractor sees it and every
+    catalogue carries it. Asking for that and dropping the number needs no new
+    key, no new translation in any language, and cannot drift from the tab the
+    reader is being sent to. If the number is ever dropped from the tab strip
+    the fallback keeps the English word rather than printing "3.".
+    """
     try:
         name = _TAB_NAMES.get(int(idx))
     except (TypeError, ValueError):
         return ""
-    return tr(name) if name else ""
+    if not name:
+        return ""
+    labelled = tr(f"{int(idx)}. {name}")
+    stripped = re.sub(r"^\s*\d+\s*[.)]\s*", "", labelled).strip()
+    return stripped or tr(name)
 
 
 #: Fallback page size, in millimetres — A4 less a 15 mm margin each side. Used
@@ -262,6 +291,31 @@ def _as_html(text: str) -> str:
     return "".join(out)
 
 
+def _notes_html(notes) -> str:
+    """The `(heading, body)` notes of one step, as printable paragraphs.
+
+    A note is CLOSED on screen (`welcome_dialog.StepNote`) and open on paper:
+    a printed sheet has nothing to click, and a note the reader cannot reach
+    is a note that was deleted. It stays visibly secondary through `p.note` —
+    smaller, grey, indented — rather than through being hidden.
+    """
+    out: list[str] = []
+    for heading, body in notes or ():
+        paras = [p for p in re.split(r"\n\s*\n", str(body)) if p.strip()]
+        if not paras:
+            paras = [""]
+        for i, para in enumerate(paras):
+            inner = "<br>".join(html.escape(ln) for ln in para.split("\n"))
+            # A FULL STOP AFTER THE HEADING, on paper only. On screen the
+            # heading is a line of its own with the body under it; run in to
+            # the body it needs a stop, or "…what each part is worth Profile
+            # type…" reads as one sentence. Looked at on the printed page.
+            lead = ("<b>%s.</b> " % html.escape(str(heading).rstrip("."))
+                    if i == 0 else "")
+            out.append(f'<p class="note">{lead}{inner}</p>')
+    return "".join(out)
+
+
 def card_html(wf: dict, doc=None, lang: str = "en",
               width_mm: float = _PAGE_WIDTH_MM,
               height_mm: float = _PAGE_HEIGHT_MM) -> str:
@@ -321,17 +375,27 @@ def card_html(wf: dict, doc=None, lang: str = "en",
     else:
         # Numbered steps. The badge is a tab number on screen; on paper the tab
         # is named, because a printed sheet has no coloured tabs to point at.
+        #
+        # THE STEP LIST KEEPS ITS 10 px, AND `ol.tight` WAS TRIED AND THROWN
+        # OUT. A card with notes was given the tight list to claw back the
+        # four lines `printer_from_scan` spills onto a second sheet. Measured:
+        # it saved four lines and the card was still two pages, so it bought
+        # nothing and put steps 4 and 5, which have no note between them, 4 px
+        # apart — the "one continuous block" #164 raised that 10 px to fix.
+        steps = list(wf.get("steps") or ())
         parts.append("<ol>")
-        for step in wf.get("steps") or ():
+        for step in steps:
             tab, text = step[0], step[1]
             optional = bool(step[2]) if len(step) > 2 else False
+            notes = step[3] if len(step) > 3 else ()
             name = _tab_name(tab)
             lead = f"<b>{html.escape(name)}</b> — " if name else ""
             tail = f" <i>({tr('optional')})</i>" if optional else ""
             # …and the step's own text may carry its own paragraphs and lists.
             body_html = _as_html(str(text))
             body_html = re.sub(r"^<p>|</p>$", "", body_html)   # first para inline
-            parts.append(f"<li>{lead}{body_html}{tail}</li>")
+            parts.append(f"<li>{lead}{body_html}{tail}"
+                         f"{_notes_html(notes)}</li>")
         parts.append("</ol>")
 
     parts.append('<p class="foot">'

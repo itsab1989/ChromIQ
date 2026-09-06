@@ -4121,3 +4121,137 @@ only a triple that DIFFERS from the rule's answer would stop it.
   On-screen proof for Basti, both columns and the controls in the same shot, in
   `~/Desktop/beta 9/layout-estimate-column/` (`before/` and `after/`, driven by
   `scripts/drive_layout_estimate_columns.py`).
+
+### B8-93 · Both scanner help cards, and the window's own ⓘ, still taught the route the usage scenarios replaced
+- blocks release: no
+- status: FIXED
+- found by: Knut, 2026-09-06, on 4.1.5-beta.11; mapped by Agent CP
+  (`FINDINGS-agentCP.md`, H1-H4), built by Agent CR
+- detail: Knut set the bar himself:
+
+  > *"A user should be guided with simple steps, and given the more detailed
+  > explanations as notes for a deeper understanding, if the user decides to
+  > want that."*
+
+  The three usage scenarios landed on 2026-09-06 (`97da3224f` /
+  `af2d429234`). **Neither commit opens `ui/dialogs/welcome_dialog.py`**, and
+  the window's own ⓘ had not been touched since 2026-07-13. So on the day the
+  feature shipped, the help still taught the long way round:
+
+  1. `ScannerProfileDialog.HELP` said *"There are two ways to provide the
+     target — choose one at the top of the window"*. The top of the window is
+     now **"Usage scenario: what is this profile for?"** and its three radios;
+     the source choice is the second block.
+  2. It said *"click Build profile with scanner or camera"*. In printer mode
+     that button reads **"Build printer profile"** (`_apply_mode_title`), and
+     so does the masthead and the window title.
+  3. Its opening sentence promised *"a genuinely useful printer profile with
+     no spectro at all"* and then the whole body was written for a scanner or
+     camera profile. The printer route had no steps in it at all.
+  4. **Found here, not in the mapping:** the contents list promised the
+     sections "in order" and had them the wrong way round. They really run
+     `SCANNING_TIPS_HELP` (averaging), then `SCAN_SETUP_HELP` (capture), then
+     camera, then which target; the sentence listed capture first.
+  5. `scanner_profile` step 6 was a 145-word instruction to set three controls
+     by hand, and `printer_from_scan` step 2 was a 200-word one. That is
+     verbatim what `SETUP_INSTRUMENT` now does from one radio button.
+  6. `grep "usage scenario" tests/` returned **nothing**, which is why none of
+     the above cost anything to leave broken.
+
+  **Knut's bar could not be met by rewording, and that is the finding the work
+  turns on** (CP, H3). A card had exactly four keys, and a step was
+  `(tab, text[, optional])`. There was one register, the numbered step, so
+  every explanation had to be written as an instruction.
+- fix: a **note register**, then the content.
+  * A step may now carry a fourth element, a sequence of `(heading, body)`
+    notes. On screen each is a CLOSED disclosure (`welcome_dialog.StepNote`:
+    a bold ▶ heading that is a real `QPushButton`, so Tab reaches it and Space
+    opens it, with the body hidden under it and painted in the dimmed ink an
+    optional step uses, in all three appearances). On paper every note prints,
+    because a sheet has nothing to click, indented and at 12 px grey against
+    the body's 14 px black (`help_card_print._notes_html`, `p.note`).
+  * `scanner_profile` 6 steps → 5, `printer_from_scan` 9 → 7, both rewritten
+    around the three scenarios: what each is for, when to choose it, what it
+    sets. The reasoning, the measured numbers and the colour science are
+    notes.
+  * `ScannerProfileDialog.HELP`'s middle block is rewritten as three numbered
+    steps (scenario, source, capture and build) and names both states of the
+    build button. The unchanged "Using your profile" half was split into its
+    own `tr()` so its reviewed German moved rather than being rewritten.
+  * Three more bodies gained one sentence each: the "Which source?" ⓘ (it is
+    the second question, after the scenario), the "Save as Defaults" tooltip
+    (saving is what stops the scenarios setting anything, and nothing said
+    so), and the printer-tick log line (it named the three settings and sent
+    the reader to an ⓘ; it now names the scenario that sets them).
+- what was checked and found NOT stale: the other nine ⓘ bodies in that window.
+  "Which chart to read", "Chart geometry (.cht)", "Averaging several scans",
+  "Averaging method", "Patch sample area", "Reading options", "Profile
+  description (-D)" and "Command preview" say nothing the scenarios made
+  false. `grep` for the two false claims across `ui/` finds them in this
+  window only; every other occurrence of "Build profile with scanner or
+  camera" is the TOOLS MENU entry, which is still its name.
+- §M: does NOT govern this text. `tests/test_message_catalogue.py` guards an
+  allow-list of measurement message WINDOWS (`WINDOW_SOURCES`, plus three
+  module-level functions); a printable help card and an ⓘ body are in neither,
+  and `ScannerProfileDialog.HELP` is a class constant no catalogue check
+  reaches. Checked rather than assumed, because the driver helper turned out
+  not to be governed either.
+- proved on screen: `scripts/drive_cr_help_cards.py` drives the real app,
+  opens both cards in English and German, opens every note, and prints each
+  card to PDF. Screenshots and PDFs on the Desktop under
+  `beta 9/colprof-and-help-cards/`. Settings sandboxed to
+  `/tmp/chromiq-cr.ini`; `defaults read com.chromiq.ChromIQ
+  custom_output_path` unchanged after the run.
+- evidence: twenty-one checks in one new file,
+  `tests/…_knows_about_the_usage_scenarios.py`. The scenario labels are read
+  off the LIVE radio buttons and the three settings off `scanner_colprof`,
+  never copied into the test, so a reworded control fails the help rather than
+  drifting away from it:
+
+  test_the_window_really_offers_three_usage_scenarios,
+  test_the_card_names_the_usage_scenario_feature,
+  test_the_scanner_card_names_the_everyday_and_the_instrument_scenario,
+  test_the_printer_card_names_the_instrument_and_the_printer_scenario,
+  test_a_card_that_lists_the_three_settings_must_also_name_the_scenario,
+  test_the_printer_card_sends_the_user_to_the_scenario_not_the_tick_box,
+  test_the_window_help_leads_with_the_usage_scenario,
+  test_the_window_help_does_not_send_the_user_to_the_wrong_control,
+  test_the_window_help_names_the_build_button_in_both_of_its_states,
+  test_the_window_help_contents_list_is_in_the_real_order,
+  test_every_note_is_a_heading_and_a_body,
+  test_the_two_scanner_cards_use_the_note_register,
+  test_no_step_of_these_cards_is_an_essay,
+  test_a_note_is_never_the_only_place_a_warning_lives,
+  test_a_note_starts_closed_and_its_heading_is_a_button,
+  test_on_screen_a_note_is_dimmer_than_the_step_it_sits_under,
+  test_a_note_prints_and_prints_as_a_note,
+  test_a_card_with_no_notes_prints_exactly_as_it_did.
+
+  The one that would have caught the whole thing is
+  test_a_card_that_lists_the_three_settings_must_also_name_the_scenario: any
+  card spelling out `SETUP_INSTRUMENT`'s three values is describing the manual
+  route, and must name the feature that does it for you.
+
+  The existing `tests/…must_be_built_for_measuring.py` gained
+  test_the_step_itself_still_says_to_build_it_for_measuring, the other half of
+  the rule: the three settings may live in a note, the INSTRUCTION may not, or
+  "moved to a note" is indistinguishable from "deleted". Its four card checks
+  now read the notes as well as the steps, through a `_card_text` helper that
+  says in as many words why a note counts.
+
+  **The schema change is inert for the other nineteen cards, proved rather
+  than asserted.** Rendered before and after, from a clean `git archive`
+  extraction of master: printed HTML sha256 identical 21/21, printed-PDF text
+  (read back with pypdf, not from a preview) and page count identical 21/21,
+  and on screen the grabbed pixels, the row geometry and every label and
+  button identical 21/21.
+
+  Fourteen mutations, each proved to land before the run: rendering a note
+  open; dropping notes from the print path; printing a note at the body's own
+  size; painting a note in the step's ink; never building a `StepNote`; a card
+  that stops naming a scenario; the printer card back on the tick box; the
+  first step no longer saying FOR MEASURING; an explanation put back into a
+  numbered step; the false "top of the window" sentence restored; the help
+  naming one build-button state; the help no longer naming the scenario row;
+  the contents list back in the wrong order; and a card that lists the three
+  settings without naming the scenario.
