@@ -615,6 +615,7 @@ def test_every_deliberate_exception_says_why():
 # Lab-table note, which had gone on describing the world before B8-75
 # moved the white-point default. Three keys in, one out; German
 # translated, the eleven +2 each.
+<<<<<<< HEAD
 # …and once more on 2026-09-06 (AGENT CR), bringing the scanner and camera
 # HELP up to the usage scenarios those two entries added. Both printable help
 # cards were rewritten around the three scenarios, with their reasoning moved
@@ -640,6 +641,33 @@ _IDENTICAL_TO_KEY = {
     "ru": 424,
     "sv": 465,
     "zh_CN": 430,
+=======
+# …and again on 2026-09-06, by the colprof algorithm fix. Five of the
+# Build Profile Algorithm list's eight entries could not build a printer
+# profile at all and a sixth built the same file as the entry above it, so
+# the list is now the two that work, in both windows: the two Algorithm
+# tooltips are rewritten, the Profile type ⓘ says why the printer side
+# offers two and the scanner side four, the Quality note stops claiming it
+# applies to cLUTs only, and three lines say out loud when a stored
+# algorithm had to be moved. 8 keys in, 4 stale keys out. German is
+# translated for all 8 and does not move; the eleven others carry the
+# English source, and each gains 5 (three of the four keys that left were
+# English placeholders there too).
+# These are each language's ACTUAL count.
+_IDENTICAL_TO_KEY = {
+    "de": 117,
+    "es": 410,
+    "fr": 430,
+    "it": 422,
+    "ja": 399,
+    "nl": 439,
+    "no": 423,
+    "pl": 414,
+    "pt": 414,
+    "ru": 386,
+    "sv": 427,
+    "zh_CN": 392,
+>>>>>>> origin/fix/colprof-algorithm-device-class
 }
 
 

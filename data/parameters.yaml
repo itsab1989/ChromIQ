@@ -1252,19 +1252,20 @@ parameters:
     - flag: "-a"
       name: "Profile Algorithm"
       type: choice
-      # No "M": colprof 3.5.0's -a switch accepts l L x X Y g G s S m and
-      # nothing else (profile/colprof.c:599-631, and measured against the
-      # binary). -aM exits 1 with "Unknown argument 'M' to algorithm flag -a".
-      choices: ["l", "x", "X", "g", "G", "s", "S", "m"]
+      # TWO CHOICES, BECAUSE THIS IS A PRINTER PROFILE. colprof 3.5.0's -a
+      # switch accepts l L x X Y g G s S m (profile/colprof.c:599-631) and no
+      # "M", but the letter is only half the rule: for a DEVICE_CLASS "OUTPUT"
+      # measurement colprof.c:1244-1246 answers everything but a cLUT with
+      # "Output profile can only be a cLUT algorithm" and writes nothing, and
+      # X / Y are accepted but inert (the OUTPUT call site passes mtxtoo=0, so
+      # they build a file bit-identical to -ax). MEASURED against the binary on
+      # real printer .ti3 files. Kept in step with
+      # workflow/profile_builder.OUTPUT_ALGORITHM_CHOICES and the two Build
+      # Profile combos by tests/test_colprof_algorithms_fit_the_device_class.py.
+      choices: ["l", "x"]
       labels:
         - "l — Lab cLUT (recommended for RGB printers)"
         - "x — XYZ cLUT"
-        - "X — XYZ cLUT (Absolute)"
-        - "g — Gamma + matrix (fast, less accurate)"
-        - "G — Gamma + matrix (forced)"
-        - "s — Single gamma + matrix"
-        - "S — Single gamma + matrix (forced)"
-        - "m — Matrix only"
       default: "l"
       no_space: true
       expert_only: false
@@ -1275,8 +1276,10 @@ parameters:
           Uses a full 3D lookup table in L*a*b* space.  Recommended.
         • XYZ cLUT (-ax): Similar to Lab but in XYZ space.
           Sometimes produces smoother neutral gradients.
-        • Matrix/gamma (-ag, -as): Simpler model, less accurate
-          for complex printer behaviour but faster to compute.
+        There is no third choice: ArgyllCMS builds a printer profile
+        only as a lookup table, and refuses the gamma, shaper and
+        matrix models for one. Those suit a scanner, a camera or a
+        display, and ChromIQ offers them in the scanner window.
         Always use Lab cLUT (-al) for first-time RGB printer profiles.
 
     - flag: "-q"

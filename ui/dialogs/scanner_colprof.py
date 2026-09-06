@@ -49,10 +49,47 @@ PTYPE_CHOICES = [
 # profile is best as shaper+matrix; a printer OUTPUT profile is best as a Lab
 # cLUT (Basti/Knut, #121). The main window marks whichever applies "(default)".
 PTYPE_DEFAULT = {False: "s", True: "l"}      # keyed by printer-mode
+
+#: …and WHICH OF THE FOUR THE WINDOW MAY OFFER, keyed by printer-mode.
+#:
+#: This window builds two different device classes from one set of controls,
+#: and only one of them can use a matrix profile. With "Profile my printer
+#: from this scan" ticked the measurement is `DEVICE_CLASS "OUTPUT"`, and
+#: `colprof.c:1244-1246` answers every algorithm but a cLUT with
+#: "Output profile can only be a cLUT algorithm" and writes nothing. MEASURED
+#: against the 3.5.0 binary on Knut's own printer-mode measurement from this
+#: very window (`Knut-Scanner-printer.ti3`, OUTPUT, iRGB_XYZ, 315 sets):
+#: `-as` and `-am` both exit 1 with no profile; `-ax` and `-al` build one.
+#:
+#: The combo used to hold all four in both modes and was populated once, so
+#: "Matrix only" was selectable in printer mode, went into the printer
+#: settings bucket, and "Save as Defaults" would have kept it there.
+#:
+#: The scanner/camera side keeps all four: for `DEVICE_CLASS "INPUT"` colprof
+#: accepts every algorithm it has (MEASURED, all of `l L x X Y g G s S m`
+#: build a profile), and the shaper and matrix types are the right answer for
+#: a small target.
+PTYPE_CHOICES_BY_MODE: "dict[bool, list[str]]" = {
+    False: ["s", "m", "x", "l"],       # scanner / camera  (INPUT)
+    True:  ["x", "l"],                 # printer           (OUTPUT)
+}
+
 QUALITY_CHOICES = [
     ("l", tr("Low")), ("m", tr("Medium")), ("h", tr("High")), ("u", tr("Ultra")),
 ]
-CLUT_ALGOS = ("x", "l")            # the -a letters for which -q quality applies
+
+#: The two profile types that ARE a stored table. Not "the ones -q applies to":
+#: that was the claim this line used to make and it was wrong in both
+#: directions. ArgyllCMS, `colprof.html` on `-q`: "For table based profiles
+#: ('cLUT' profiles), it sets the main lookup table size … For matrix profiles
+#: it sets the per channel curve detail level and fitting 'effort'." MEASURED
+#: (controlled: one base filename, the ICC header creation time zeroed before
+#: hashing) on an INPUT measurement, `-q l/m/h/u` against each algorithm:
+#: `s`, `m`, `g`, `S` and `G` all produce four DIFFERENT profiles. The window
+#: greyed Quality out for the matrix types and `make_profile_params` put the
+#: greyed value on the command line anyway, so the control said it did not
+#: apply, could not be changed, and was used regardless.
+CLUT_ALGOS = ("x", "l")
 
 # Of the two cLUTs, the one ChromIQ recommends — keyed by printer-mode, exactly
 # like PTYPE_DEFAULT above, because the recommendation is NOT the same on both
@@ -86,6 +123,30 @@ PTYPE_SMALL_TARGET = 100      # at 48: shaper 1.25 vs 1.68 / 1.68 for the cLUTs
 #: complement of `CLUT_ALGOS`, named because several rules below turn on "is
 #: this a matrix profile?" and a second literal tuple would be a second answer.
 MATRIX_ALGOS = ("s", "m")
+
+
+def ptype_choices(printer: bool) -> "list[tuple[str, str]]":
+    """The (letter, label) pairs the Profile type combo may show in *printer*
+    mode or out of it. A subset of `PTYPE_CHOICES`, in the same order, so the
+    entries a user knows never move about when the tick changes."""
+    allowed = PTYPE_CHOICES_BY_MODE[bool(printer)]
+    return [(d, lbl) for d, lbl in PTYPE_CHOICES if d in allowed]
+
+
+def coerce_ptype(ptype: "str | None", printer: bool) -> "tuple[str, bool]":
+    """A stored profile type, made legal for the mode it is loaded into.
+
+    Returns ``(letter, changed)``. ``changed`` is True only when the stored
+    letter is not one this mode may use, which is the caller's cue to say so
+    in the log: the printer bucket could hold "s" or "m" from before this
+    window filtered its list, and a build with either of those ends in a
+    colprof error rather than a profile.
+    """
+    letter = (ptype or "").strip()
+    allowed = PTYPE_CHOICES_BY_MODE[bool(printer)]
+    if letter in allowed:
+        return letter, False
+    return PTYPE_DEFAULT[bool(printer)], bool(letter)
 
 
 # ---------------------------------------------------------------------------
@@ -362,10 +423,18 @@ def ptype_help(printer: bool) -> "tuple[str, str]":
     can never drift apart.
     """
     title = tr("Profile type and quality")
+    # THE OLD WORDING SAID QUALITY APPLIED TO THE cLUT TYPES ONLY, and the row
+    # greyed it out for the other two while sending it on the command line
+    # regardless. ArgyllCMS, `colprof.html`: "For table based profiles … it
+    # sets the main lookup table size … For matrix profiles it sets the per
+    # channel curve detail level and fitting 'effort'." MEASURED: `-q l/m/h/u`
+    # produces four different profiles for every algorithm tested.
     quality = tr(
-        "Quality (-q) — the look-up table's grid resolution: higher is finer "
-        "but slower, and needs better data to be worth it. It applies only to "
-        "the two cLUT types and is greyed out for the other two. Medium is a "
+        "Quality (-q): how much detail and fitting effort goes into the "
+        "profile. For the two look-up-table types it sets the table's grid "
+        "resolution; for the shaper and matrix types it sets how finely the "
+        "tone curves are fitted. Higher is finer but slower, and needs better "
+        "data to be worth it. It applies to every profile type. Medium is a "
         "good default, Low is a quick test, and High and Ultra are for large, "
         "clean charts.")
     if printer:
@@ -376,9 +445,10 @@ def ptype_help(printer: bool) -> "tuple[str, str]":
                "instrument, and the chart it reads is the one you printed. "
                "That changes what to choose here, so this is not the same "
                "advice you get for a scanner or camera profile."),
-            tr("Profile type (-a) — the shape of the maths inside the "
+            tr("Profile type (-a): the shape of the maths inside the "
                "profile, and how it describes what your printer does with "
-               "colour. All four choices build a working profile."),
+               "colour. There are two here, not the four you get with the "
+               "tick off, and both build a working profile."),
             tr("• cLUT — Lab table — the default here, and what a printer "
                "profile should normally be. “cLUT” means a look-up table: "
                "instead of reducing your printer to a formula, the profile "
@@ -401,17 +471,15 @@ def ptype_help(printer: bool) -> "tuple[str, str]":
                "time. A printer never does — nothing it prints is lighter than "
                "the paper it prints on — so that reason does not apply here, "
                "and the Lab default stands."),
-            tr("• Shaper + matrix, and Matrix only — a formula instead of a "
-               "table: one gentle tone curve per colour channel plus a 3×3 "
-               "matrix, which is a fixed recipe for mixing red, green and blue "
-               "into a finished colour, or that mix on its own. They are small "
-               "and undemanding, and they are offered here because this one "
-               "control also serves the scanner side of the window. For a "
-               "printer they have a real drawback: by the way the ICC format "
-               "works, a matrix-based profile cannot carry a perceptual or a "
-               "saturation intent at all, so it has nothing to fall back on "
-               "when a colour is out of the printer's reach. Leave them be "
-               "unless you know you want one."),
+            tr("“Shaper + matrix” and “Matrix only”, which this list offers "
+               "with the tick off, are not here. That is ArgyllCMS's rule and "
+               "not a ChromIQ choice: colprof refuses to build a printer "
+               "profile from a formula, and refuses it before it has read a "
+               "single patch. The rule is not arbitrary either. By the way "
+               "the ICC format works, a matrix-based profile cannot carry a "
+               "perceptual or a saturation intent at all, so it would have "
+               "nothing to fall back on when a colour is out of the "
+               "printer's reach."),
             quality,
             tr("Untick “Profile my printer from this scan” and this control "
                "goes back to building a scanner or camera profile, where the "
@@ -491,6 +559,28 @@ def ptype_help(printer: bool) -> "tuple[str, str]":
            "and below that the difference shows. And whichever you pick, "
            "changing the paper or the target you scan moves the result a great "
            "deal further than the profile type does."),
+        # WHY THE LIST IS FOUR. ArgyllCMS also has -aG and -aS, one tone curve
+        # shared by all three channels instead of one curve each, and -ag,
+        # gamma curves rather than shaper curves. All three are legal for a
+        # scanner or camera (MEASURED: every letter builds a profile from an
+        # INPUT .ti3). None is offered, and until now nothing said so. Argyll's
+        # own documentation gives their purpose as compatibility, not quality:
+        # "may be needed with certain applications that will not accept
+        # different gamma curves for each channel", and shaper curves "are
+        # superior to gamma curve profiles". So the list stays at four and the
+        # window says why, rather than growing two entries nobody asked for.
+        # The paragraph names TWO and not three on purpose: `-ag` costs a user
+        # nothing, because `-as` is already on the list and is the better of
+        # the pair by ArgyllCMS's own account. The shared-curve variants are
+        # the only ones whose absence can leave somebody stuck.
+        tr("ArgyllCMS has two more variants that this list leaves out, and it "
+           "is worth knowing they exist. They fit one tone curve shared by all "
+           "three colour channels instead of a separate curve for each. That "
+           "is not an accuracy choice: their stated purpose is compatibility "
+           "with applications that refuse a profile carrying a different curve "
+           "per channel. If an application will not accept a profile this "
+           "window built, that is the first thing to mention when you report "
+           "it."),
         quality,
         tr("If you tick “Profile my printer from this scan”, this same control "
            "builds the printer profile instead — a different kind of device, "

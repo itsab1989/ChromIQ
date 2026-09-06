@@ -41,6 +41,74 @@ log = get_logger(__name__)
 COLPROF_ALGORITHMS = frozenset("lLxXYgGsSm")
 
 
+#: …and that set is only HALF the rule. The missing half is what beta 11 left
+#: behind: `-a` is parsed long before the measurement is read, so every one of
+#: those ten letters parses, and the **DEVICE_CLASS in the .ti3** then decides
+#: whether it can be used at all. READ-FROM-SOURCE, colprof.c 3.5.0:
+#:
+#: * ``OUTPUT`` (a printer), ``colprof.c:1244-1246``::
+#:
+#:       else if (ptype != prof_clutLab && ptype != prof_clutXYZ)
+#:           error ("Output profile can only be a cLUT algorithm");
+#:
+#:   A printer profile is a cLUT or it is nothing.
+#: * ``INPUT`` / ``EMISINPUT`` (a scanner or camera), ``colprof.c:1272-1287`` —
+#:   every letter is accepted; ``X`` and ``Y`` *warn* ("-aX not applicable to
+#:   input profile, using -ax") and fall back to ``x``.
+#: * ``DISPLAY``, ``colprof.c:1296-1310`` — every letter, and the only branch
+#:   that passes ``mtxtoo`` on to ``make_output_icc``, so it is the only place
+#:   ``X`` and ``Y`` mean anything at all. ChromIQ profiles no displays.
+#:
+#: MEASURED against the 3.5.0 binary on real measurements of both classes
+#: (a printer chart, Knut's scanner-measured printer chart, a scanned IT8) and
+#: on a synthetic 300-patch chart: exactly the letters below build a profile,
+#: and every other letter exits 1 having written nothing.
+COLPROF_ALGORITHMS_BY_DEVICE_CLASS: "dict[str, frozenset[str]]" = {
+    "OUTPUT":    frozenset("lLxXY"),
+    "INPUT":     frozenset("lLxXYgGsSm"),
+    "EMISINPUT": frozenset("lLxXYgGsSm"),
+    "DISPLAY":   frozenset("lLxXYgGsSm"),
+}
+
+#: The ``-a`` letters ChromIQ OFFERS for a printer profile, and the reason the
+#: list is two where colprof accepts five.
+#:
+#: ``X`` and ``Y`` are legal for an OUTPUT profile but inert in one: the OUTPUT
+#: call site is ``make_output_icc(ptype, 0, …)`` (``colprof.c:1256``) with
+#: ``mtxtoo`` a hard-coded literal ``0``, so the fallback matrix those two
+#: letters exist to add is discarded before it is built. MEASURED, byte-comparing
+#: three profiles built from one printer .ti3: ``x``, ``X`` and ``Y`` differ only
+#: in the header creation time. colprof prints no warning about it either (the
+#: INPUT branch does). An entry that silently makes the same file as the one
+#: above it is a trap, and ChromIQ's label for ``X``, "XYZ cLUT + matrix",
+#: promised a matrix the file does not contain.
+OUTPUT_ALGORITHM_CHOICES = ("l", "x")
+
+#: Where a stored letter goes when it is no longer offered for a printer.
+#: ``X``/``Y``/``L`` are aliases of a letter that IS offered and produce the
+#: identical file, so those projects build exactly what they built before.
+#: ``g G s S m`` never built anything at all, so they land on colprof's own
+#: default for an output profile, ``l`` (``colprof.c:1243``).
+_OUTPUT_ALGORITHM_FALLBACK = {"L": "l", "X": "x", "Y": "x",
+                              "g": "l", "G": "l", "s": "l", "S": "l", "m": "l"}
+
+
+def output_algorithm(letter: "str | None") -> "tuple[str, bool]":
+    """Coerce a stored ``-a`` letter to one ChromIQ offers for a PRINTER.
+
+    Returns ``(letter, changed)``. ``changed`` is True only when the stored
+    letter was one this app no longer offers, which is the caller's cue to
+    SAY SO: a setting that quietly means something else is the failure mode
+    this whole change exists to remove.
+    """
+    letter = (letter or "").strip()
+    if letter in OUTPUT_ALGORITHM_CHOICES:
+        return letter, False
+    if letter in _OUTPUT_ALGORITHM_FALLBACK:
+        return _OUTPUT_ALGORITHM_FALLBACK[letter], True
+    return OUTPUT_ALGORITHM_CHOICES[0], bool(letter)
+
+
 # Errors that colprof can print when it fails. Each entry pairs a regex that
 # captures the dynamic part of the message (filename, value, etc.) with a
 # (key, friendly_template) tuple. The key lets the UI choose a bespoke dialog
@@ -59,6 +127,20 @@ _COLPROF_ERROR_PATTERNS: list[tuple[re.Pattern[str], str, str]] = [
      "FWA compensation requires you to also set a viewing condition and/or "
      "illuminant in Build Profile → Color Science. Either pick one of those, "
      "or disable FWA Compensation."),
+    # L1246 — the algorithm is not one an OUTPUT (printer) profile can use.
+    # colprof refuses -ag/-aG/-as/-aS/-am for a printer measurement outright,
+    # before it reads a single patch, and until now nothing here matched that
+    # line: no profile, no window, one line in a log. ChromIQ no longer offers
+    # those letters for a printer, so a user should never see this; it is here
+    # because the class of failure must never be silent again, and a stored
+    # setting, a preset or a hand-typed extra argument can still reach it.
+    (re.compile(r"Output profile can only be a cLUT algorithm"),
+     "algo_not_clut",
+     "A printer profile has to be a lookup table, and the algorithm this "
+     "build asked for is not one.\n\nSet Algorithm to \"Lab cLUT\" or "
+     "\"XYZ cLUT\" in Build Profile and build again. ArgyllCMS supports the "
+     "gamma, shaper and matrix algorithms only for scanners, cameras and "
+     "displays, never for a printer."),
     # L1048 — input .ti3 unreadable / corrupt
     (re.compile(r"CGATS file read error\s*:\s*(.+)$"),
      "ti3_read",

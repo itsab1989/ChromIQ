@@ -881,12 +881,6 @@ parameters:
       labels:
         - "l — Lab cLUT（RGBプリンターに推奨）"
         - "x — XYZ cLUT"
-        - "X — XYZ cLUT（絶対的）"
-        - "g — ガンマ + 行列（高速、低精度）"
-        - "G — ガンマ + 行列（強制）"
-        - "s — 単一ガンマ + 行列"
-        - "S — 単一ガンマ + 行列（強制）"
-        - "m — 行列のみ"
     "-q":
       name: "プロファイル品質"
       tooltip_title: "プロファイル品質 (-q)"

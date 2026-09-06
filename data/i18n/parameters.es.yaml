@@ -941,12 +941,6 @@ parameters:
       labels:
         - "l — Lab cLUT (recomendado para impresoras RGB)"
         - "x — XYZ cLUT"
-        - "X — XYZ cLUT (absoluto)"
-        - "g — gamma + matriz (rápido, menos preciso)"
-        - "G — gamma + matriz (forzado)"
-        - "s — gamma única + matriz"
-        - "S — gamma única + matriz (forzado)"
-        - "m — solo matriz"
     "-q":
       name: "Calidad del perfil"
       tooltip_title: "Calidad del perfil (-q)"

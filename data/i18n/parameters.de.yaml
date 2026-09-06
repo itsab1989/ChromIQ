@@ -951,12 +951,6 @@ parameters:
       labels:
         - "l — Lab cLUT (empfohlen für RGB-Drucker)"
         - "x — XYZ cLUT"
-        - "X — XYZ cLUT (absolut)"
-        - "g — Gamma + Matrix (schnell, ungenauer)"
-        - "G — Gamma + Matrix (erzwungen)"
-        - "s — Einzelnes Gamma + Matrix"
-        - "S — Einzelnes Gamma + Matrix (erzwungen)"
-        - "m — Nur Matrix"
       tooltip_title: "Profil-Algorithmus (-a)"
       tooltip_body: |
         Wählt den Farbtransformations-Algorithmus:
@@ -964,8 +958,10 @@ parameters:
           Verwendet eine volle 3D-Lookup-Tabelle im L*a*b*-Raum.  Empfohlen.
         • XYZ cLUT (-ax): wie Lab, aber im XYZ-Raum.
           Erzeugt manchmal glattere Neutralverläufe.
-        • Matrix/Gamma (-ag, -as): einfacheres Modell, für komplexes
-          Druckerverhalten ungenauer, dafür schneller zu berechnen.
+        Eine dritte Wahl gibt es nicht: ArgyllCMS baut ein Druckerprofil
+        ausschließlich als Lookup-Tabelle und lehnt die Gamma-, Shaper-
+        und Matrix-Modelle dafür ab. Die passen zu Scanner, Kamera oder
+        Bildschirm, und ChromIQ bietet sie im Scanner-Fenster an.
         Für erste RGB-Druckerprofile immer Lab cLUT (-al) verwenden.
 
     "-q":

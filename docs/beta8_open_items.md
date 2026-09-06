@@ -4255,3 +4255,214 @@ only a triple that DIFFERS from the rule's answer would stop it.
   naming one build-button state; the help no longer naming the scenario row;
   the contents list back in the wrong order; and a card that lists the three
   settings without naming the scenario.
+
+### B8-93 · The Build Profile Algorithm list: five entries could not build a profile, a sixth was a silent no-op, three named the wrong algorithm
+- blocks release: no
+- status: FIXED
+- found by: Knut, 2026-09-06, on the published v4.1.5-beta.11 release note;
+  surveyed by Agent CP, measured and fixed by Agent CQ
+- detail: Knut objected to the beta 11 note, which said *"'Matrix only
+  (forced)' in the profile Algorithm list could never build a profile.
+  ArgyllCMS's colprof has no such setting."* He is right that the sentence is
+  wrong: colprof has no *forced* matrix setting, but it does have plain matrix
+  only, as lowercase `-am`, and ChromIQ offered that one too.
+
+  The fault under the sentence is larger than the sentence. Beta 11 checked
+  the offered letters against colprof's `-a` **parser** and removed the one
+  letter (`M`) that never existed. But `-a` is parsed long before the
+  measurement is opened, so all ten of the parser's letters parse, and what
+  decides whether one can be USED is the `DEVICE_CLASS` in the `.ti3`:
+
+  ```c
+  /* colprof.c:1244-1246, the OUTPUT branch */
+  else if (ptype != prof_clutLab && ptype != prof_clutXYZ) {
+      error ("Output profile can only be a cLUT algorithm");
+  }
+  ```
+
+  **MEASURED** against the ArgyllCMS 3.5.0 binary, `-ql`, one run per letter,
+  on three real `DEVICE_CLASS "OUTPUT"` measurements (`Demo-Switching` run2,
+  Knut's own `Knut-Scanner-printer.ti3` from the scanner window, and a
+  synthetic 300-patch chart): of the eight entries the tab offered,
+  **`g G s S m` all exit 1 and write no `.icc`**, and `X` exits 0 and writes a
+  file bit-identical to `x` (three differing bytes, all of them the ICC
+  header's creation-time seconds). Only `l` and `x` do anything at all.
+
+  `X` is inert for a structural reason, not an incidental one: the OUTPUT call
+  site is `make_output_icc(ptype, 0, …)` (`colprof.c:1256`) with `mtxtoo` a
+  hard-coded literal `0`, while the DISPLAY branch passes `mtxtoo` through
+  (`:1310`). The fallback matrix that `X` and `Y` exist to add is discarded
+  before it is built, and colprof says nothing about it (the INPUT branch, by
+  contrast, does warn: *"-aX not applicable to input profile, using -ax"*).
+  ChromIQ's label for it, "XYZ cLUT + matrix", promised a matrix the file does
+  not contain.
+
+  **And it failed in the same silence beta 11's own note described.**
+  `_COLPROF_ERROR_PATTERNS` had no entry matching
+  `Output profile can only be a cLUT algorithm`, so picking one of the five
+  gave no profile, no window and one line in a log. Beta 11 removed the entry
+  that never existed and left the five that do.
+
+  **Three labels named a different algorithm.** colprof's own usage text
+  (`colprof.c:127-131`): `s = shaper+matrix`, `G = single gamma+matrix`,
+  `S = single shaper+matrix`. ChromIQ said `s` was "Single gamma + matrix",
+  `G` "Gamma + matrix (forced)" and `S` "Single gamma + matrix (forced)".
+  `s` is the worst of the three: it is the algorithm ArgyllCMS calls *"superior
+  to gamma curve profiles"*, labelled as the gamma one. "single" in colprof
+  means ONE TONE CURVE SHARED BY ALL THREE CHANNELS, not "forced". The scanner
+  window's four labels were correct all along.
+
+  **A fourth list disagreed with both.** `data/parameters.yaml`'s colprof `-a`
+  row offered the same eight letters, called `X` "(Absolute)" (a
+  rendering-intent word, nothing to do with `-aX`), and its tooltip described
+  `-ag`/`-as` as *"faster to compute"* for a printer, where they compute
+  nothing at all. The wrong labels were carried into all twelve language
+  overlays.
+- fix: `workflow/profile_builder.COLPROF_ALGORITHMS_BY_DEVICE_CLASS` (the
+  legal set per `DEVICE_CLASS`, from colprof's three branches),
+  `OUTPUT_ALGORITHM_CHOICES` (`l`, `x`) and `output_algorithm()`. Both Build
+  Profile combos, Guided and Manual, now offer those two; `parameters.yaml`
+  and all twelve overlays are trimmed to match; the two Algorithm tooltips say
+  why there is no third choice. `_COLPROF_ERROR_PATTERNS` gains the missing
+  pattern, so this class of failure opens a window with a sentence in it
+  instead of vanishing into the log.
+- existing projects: nothing is lost and nothing changes in silence.
+  `_set_algorithm_combo` coerces a stored letter and SAYS SO in the tab's log.
+  `L`/`X`/`Y` map to the letter they are an alias of, and the note says the
+  built profile is unchanged, which is measured, not assumed. `g G s S m` map
+  to `l`, colprof's own default for an output profile, and the note says the
+  stored letter could not build a printer profile at all. Every store is
+  covered: the app defaults (`colprof_algorithm`,
+  `manual2_colprof_algorithm`), a target's `meta.json`
+  (`profile_settings["algorithm"]` and `["g_algorithm"]`) and a user's Manual
+  preset all reach the same one method.
+- proved on screen: `scripts/drive_colprof_algorithm_lists.py`, sandboxed to
+  `/tmp/chromiq-cq.ini`; screenshots and log under
+  `Desktop/beta 9/colprof-and-help-cards/CQ-*`.
+- evidence: `tests/…colprof_algorithms_fit_the_device_class.py`:
+  test_the_device_class_table_is_colprofs_own_three_branches,
+  test_an_output_profile_is_a_clut_or_it_is_nothing,
+  test_aX_and_aY_are_inert_in_an_output_profile,
+  test_every_letter_a_window_offers_is_legal_for_what_that_window_builds,
+  test_the_printer_windows_offer_exactly_the_letters_that_do_distinct_work,
+  test_no_label_names_an_algorithm_the_letter_does_not_select,
+  test_the_output_clut_error_has_a_pattern_and_a_message,
+  test_the_pattern_matches_the_string_colprof_actually_prints,
+  test_a_stored_algorithm_lands_on_one_that_works,
+  test_the_build_profile_tab_says_when_it_moves_a_stored_algorithm,
+  and in the slow tier, driven by the real binary rather than by a list:
+  test_real_colprof_builds_a_profile_for_every_letter_we_still_offer,
+  test_real_colprof_refuses_the_letters_this_app_stopped_offering,
+  test_aX_really_does_make_the_same_printer_profile_as_ax.
+
+  Seven mutations, each PROVED to land by reading the value back through a
+  fresh interpreter before the run and again after the restore: re-adding
+  `("m", "Matrix only")` to the printer combo; relabelling `s` "Single gamma +
+  matrix"; breaking the new error pattern; making `output_algorithm` return the
+  stored letter unchanged; putting `s` back in the printer mode list; adding
+  `g` to the OUTPUT row of the device-class table; and adding `g` to
+  `parameters.yaml`. All seven turned the file red. The first attempt at this
+  produced a phantom and is worth recording: two of the replacements were
+  written to keep the column alignment, so mutant and original were the same
+  BYTE COUNT and the write-and-restore happened inside one second, and CPython
+  reused the stale mutated `.pyc` of a file that had already been restored. A
+  mutation appeared to be caught by a test it never touched. Every run now
+  purges `__pycache__` and reads the value back.
+
+### B8-94 · The scanner and camera window offered two profile types in printer mode that colprof refuses
+- blocks release: no
+- status: FIXED
+- found by: Agent CP, 2026-09-06, on Knut's own measurement; fixed by Agent CQ
+- detail: with "Profile my printer from this scan" ticked the window builds a
+  `DEVICE_CLASS "OUTPUT"` profile, and `PTYPE_CHOICES` was populated into the
+  combo once, at construction, and never filtered by mode. So "Shaper + matrix"
+  and "Matrix only" were selectable in printer mode.
+
+  MEASURED on `Knut-Scanner-printer.ti3`, the printer-mode measurement this
+  very window produced (`ORIGINATOR "Argyll printread"`, OUTPUT, `iRGB_XYZ`,
+  315 sets): `-as` and `-am` exit 1 with
+  `Error - Output profile can only be a cLUT algorithm` and write nothing;
+  `-ax` and `-al` build a profile. CP saw the window's own command preview read
+  `colprof -v -D … -am -qm …` in printer mode, live, on screen.
+
+  Mitigating, and worth crediting: the per-context settings buckets mean
+  ticking "printer" loads the printer bucket, whose default is `l`, so nobody
+  drifts into this; and unlike the Profile tab this window does print colprof's
+  raw output to its log on failure. But the choice was offered, nothing warned,
+  and "Save as Defaults" would have kept it in the printer bucket.
+- fix: `scanner_colprof.PTYPE_CHOICES_BY_MODE` and `ptype_choices(printer)`;
+  `scanin_dialog._rebuild_ptype_choices` refills the combo on every mode
+  change, with signals blocked so the refill is not read as a user edit, and
+  `_mark_default_combos` walks the mode's own list so the "(default)" marker
+  cannot land on the wrong item. The scanner and camera side keeps all four:
+  every algorithm colprof has is legal for an INPUT profile (MEASURED), and
+  Shaper + matrix is the right answer for a small target.
+- existing projects: `coerce_ptype` moves a printer bucket holding `s` or `m`
+  onto the bucket's own default and `_say_the_profile_type_moved` says so in
+  the window's log, in the same register `_announce_wp_default_migration`
+  already uses next door.
+- evidence: `tests/…colprof_algorithms_fit_the_device_class.py`:
+  test_every_letter_a_window_offers_is_legal_for_what_that_window_builds,
+  test_the_scanner_window_offers_all_four_types_off_the_printer_tick,
+  test_a_stored_scanner_profile_type_lands_on_one_that_works,
+  and the slow, binary-driven
+  test_real_colprof_builds_a_profile_for_every_letter_we_still_offer, which
+  runs the real colprof once per entry in each of the window's two modes.
+
+### B8-95 · Quality was greyed out for the matrix profile types and put on the command line anyway
+- blocks release: no
+- status: FIXED
+- found by: Agent CP, 2026-09-06; re-measured and fixed by Agent CQ
+- detail: `scanner_colprof.CLUT_ALGOS` was commented *"the -a letters for which
+  -q quality applies"* and `scanin_dialog._on_colprof_changed` disabled the
+  Quality label and combo for anything else. Both halves were wrong at once:
+  the claim is false, and `make_profile_params` passed
+  `quality=main_vals.get("quality", "m")` unconditionally, so the greyed-out
+  value went on the command line regardless. The user was told the control did
+  not apply, could not change it, and it was used.
+
+  ArgyllCMS says the opposite, in `colprof.html` under `-q`: *"For table based
+  profiles ('cLUT' profiles), it sets the main lookup table size … **For matrix
+  profiles it sets the per channel curve detail level and fitting 'effort'**."*
+
+  MEASURED, controlled (one base filename in separate directories so the
+  embedded description is constant, and the ICC header creation date-time
+  zeroed before hashing, because an uncontrolled first run of this comparison
+  is exactly how a confounded answer gets reported): `-q l/m/h/u` on a
+  300-patch INPUT measurement gives **four different profiles for every one of
+  `-as`, `-am`, `-ag`, `-aS` and `-aG`**. Sizes move for `s` and `S`
+  (18620/18620/20156/23228 bytes) and stay constant for `m`, `g` and `G` while
+  every hash still differs, which is the fitting effort changing the curve
+  rather than its length.
+- fix: the row is no longer disabled. Nothing about the command changes, only
+  whether the user can see and set what is already being sent. `CLUT_ALGOS`
+  keeps its name and its two members, which several other rules legitimately
+  need, and its comment now says what it is (the two types that ARE a stored
+  table) instead of what it is not. The Profile type ⓘ's Quality paragraph is
+  rewritten to say `-q` applies to every type and what it means for each.
+- evidence: tests/…scanner_colprof.py's test_ptype_choices_are_colprof_algo_letters
+  keeps `CLUT_ALGOS` at its two members, and
+  the new file's test_quality_is_never_greyed_out_again
+  reads the enable rule off the window's own source, so putting the disabling
+  back is red. The measurement is recorded here and reproducible from
+  `Desktop/beta 9/colprof-and-help-cards/CQ-quality-probe.txt`.
+
+### B8-96 · The published beta 11 release note said colprof has no matrix-only setting
+- blocks release: no
+- status: FIXED
+- found by: Knut, 2026-09-06; corrected by Agent CQ
+- detail: verbatim from `CHANGELOG.md` as published: *"'Matrix only (forced)'
+  in the profile Algorithm list could never build a profile. ArgyllCMS's
+  colprof has no such setting."* colprof has no *forced* matrix setting, which
+  is what was removed and is true; but it does have plain matrix only, as
+  lowercase `-am` (`colprof.c:628`), and ChromIQ offered that one as well. The
+  sentence reads wider than the fact.
+- fix: the sentence in `CHANGELOG.md` now says *no forced matrix setting*,
+  carries the correction openly rather than rewriting history, and points at
+  the next release for the rest of that list. The GitHub release page is
+  regenerated from the changelog, so correcting the changelog is what corrects
+  the page.
+- evidence: tests/…release_notes.py's test_the_current_release_renders_every_section_it_actually_has
+  still renders the beta 11 entry, and
+  the new file's test_an_output_profile_is_a_clut_or_it_is_nothing
+  holds the fact the corrected sentence rests on.

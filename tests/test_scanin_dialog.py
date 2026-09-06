@@ -107,8 +107,16 @@ def test_profile_type_options_and_mapping(_app, _out_dir):
         assert dlg._ptype.currentData() == "s"           # default shaper+matrix
         assert dlg._pq.currentData() == "m"              # medium default
         assert dlg._current_main_vals() == {"ptype": "s", "quality": "m"}
-        # Quality is disabled unless a cLUT type is chosen.
-        assert not dlg._pq.isEnabled()
+        # QUALITY IS LIVE FOR EVERY TYPE, and this line used to assert the
+        # opposite (B8-95). The row greyed Quality out for the two matrix
+        # types and `make_profile_params` put the greyed value on the command
+        # line regardless, so the control said it did not apply, could not be
+        # changed, and was used. ArgyllCMS's own `-q` documentation covers
+        # matrix profiles ("the per channel curve detail level and fitting
+        # 'effort'"), and measured, `-q l/m/h/u` produces four different
+        # profiles for -as, -am, -ag, -aS and -aG.
+        assert dlg._pq.isEnabled() and dlg._q_label.isEnabled()
+        assert "-qm" in dlg._cmd_preview.text()      # …and it is on the line
         assert "colprof" in dlg._cmd_preview.text() and "-as" in dlg._cmd_preview.text()
     finally:
         dlg.deleteLater()
@@ -195,12 +203,23 @@ def test_printer_mode_switches_default_profile_type(_app, _out_dir):
         assert dlg._ptype.currentData() == "s"           # back to shaper+matrix
         # Each context keeps its own choice: a type picked in printer mode is
         # remembered for printer mode and doesn't bleed into scanner mode.
+        #
+        # THE TYPE PICKED HERE USED TO BE "m", AND THAT IS B8-94: a printer
+        # profile is a cLUT or it is nothing (`colprof.c:1244-1246`), so
+        # "Matrix only" is no longer on the list with the tick on, and this
+        # test was pinning that it could be chosen there. The property it
+        # exists for is the per-bucket memory, which is unchanged, so it is
+        # proved with a type printer mode really offers.
         dlg._printer_cb.setChecked(True)
-        dlg._ptype.setCurrentIndex(dlg._ptype.findData("m"))
+        assert dlg._ptype.findData("m") == -1, \
+            "Matrix only is on offer for a printer profile again"
+        assert dlg._ptype.findData("s") == -1
+        dlg._ptype.setCurrentIndex(dlg._ptype.findData("x"))
         dlg._printer_cb.setChecked(False)
         assert dlg._ptype.currentData() == "s"           # scanner bucket unchanged
+        assert dlg._ptype.findData("m") >= 0             # …and still offered there
         dlg._printer_cb.setChecked(True)
-        assert dlg._ptype.currentData() == "m"           # printer bucket remembered
+        assert dlg._ptype.currentData() == "x"           # printer bucket remembered
     finally:
         dlg.deleteLater()
 

@@ -905,12 +905,6 @@ parameters:
       labels:
         - "l — Lab-cLUT (aanbevolen voor RGB-printers)"
         - "x — XYZ-cLUT"
-        - "X — XYZ-cLUT (absoluut)"
-        - "g — gamma + matrix (snel, minder nauwkeurig)"
-        - "G — gamma + matrix (geforceerd)"
-        - "s — enkele gamma + matrix"
-        - "S — enkele gamma + matrix (geforceerd)"
-        - "m — alleen matrix"
     "-q":
       name: "Profielkwaliteit"
       tooltip_title: "Profielkwaliteit (-q)"

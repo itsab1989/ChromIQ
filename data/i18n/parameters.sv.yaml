@@ -882,12 +882,6 @@ parameters:
       labels:
         - "l — Lab-cLUT (rekommenderas för RGB-skrivare)"
         - "x — XYZ-cLUT"
-        - "X — XYZ-cLUT (absolut)"
-        - "g — gamma + matris (snabb, mindre exakt)"
-        - "G — gamma + matris (tvingad)"
-        - "s — enkel gamma + matris"
-        - "S — enkel gamma + matris (tvingad)"
-        - "m — endast matris"
     "-q":
       name: "Profilkvalitet"
       tooltip_title: "Profilkvalitet (-q)"
