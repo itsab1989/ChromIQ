@@ -18,6 +18,8 @@ from PyQt6.QtWidgets import (QGridLayout, QGroupBox, QHBoxLayout, QLabel,
 from core.i18n import tr
 from ui.widgets import set_ink
 from ui.tooltip_button import TooltipButton
+from workflow.hex_support import (HEX_HEIGHT_FACTOR,
+                                  hex_two_heights_note)
 
 _DASH = "—"
 _AMBER = "#c47f17"      # estimate differs from the chart on screen
@@ -39,6 +41,7 @@ class ChartLayoutInfoPanel(QGroupBox):
         self._estimate: dict | None = None       # predicted from current settings
         self._actual_labels: dict[str, QLabel] = {}
         self._estimate_labels: dict[str, QLabel] = {}
+        self._row_names: dict[str, QLabel] = {}
         self._build_ui()
         self._render()
 
@@ -80,9 +83,12 @@ class ChartLayoutInfoPanel(QGroupBox):
             ("cols", tr("Strips (this page)")),
             ("pages", tr("Pages")),
             ("patch", tr("Patch size (mm)")),
+            ("pitch", tr("Row pitch (mm)")),
         )
         for r, (key, label) in enumerate(rows, start=1):
-            grid.addWidget(QLabel(label, self), r, 0)
+            name = QLabel(label, self)
+            self._row_names[key] = name
+            grid.addWidget(name, r, 0)
             for col, store in ((1, self._actual_labels), (2, self._estimate_labels)):
                 val = QLabel(_DASH, self)
                 val.setAlignment(Qt.AlignmentFlag.AlignRight
@@ -134,7 +140,8 @@ class ChartLayoutInfoPanel(QGroupBox):
                "Change a setting (patch size, paper, margins, alignment…) and the "
                "estimate updates live. Any number that would come out different "
                "from the chart on screen turns amber — so you can see the effect "
-               "of a change before re-generating the chart."),
+               "of a change before re-generating the chart.")
+            + "\n\n" + hex_two_heights_note(),
             self))
         v.addLayout(bottom)
 
@@ -147,27 +154,39 @@ class ChartLayoutInfoPanel(QGroupBox):
 
     @staticmethod
     def _as_dict(total, rows, cols, pages, patch_w, patch_h,
-                 page_patches=None, fillup=None) -> dict:
+                 page_patches=None, fillup=None, row_pitch=None) -> dict:
         # Patch size is held as a rounded (w, h) tuple so the diff-highlight can
         # compare it; formatted to "w×h mm" at render time. 2 decimals so a
         # derived size like 7.34 mm is visible instead of hidden by 1-dp rounding.
         patch = None
         if patch_w and patch_h and patch_w > 0 and patch_h > 0:
             patch = (round(float(patch_w), 2), round(float(patch_h), 2))
+        # `row_pitch` is set ONLY for a honeycomb, where the patch is taller than
+        # the spacing between rows (they interlock). Square patches have nothing
+        # to say here — their pitch is the height plus the spacer, a different
+        # question — so the row stays hidden (#B8-80, Knut).
+        pitch = (round(float(row_pitch), 2)
+                 if row_pitch and float(row_pitch) > 0 else None)
         return {"total": total, "fillup": fillup, "page_patches": page_patches,
-                "rows": rows, "cols": cols, "pages": pages, "patch": patch}
+                "rows": rows, "cols": cols, "pages": pages, "patch": patch,
+                "pitch": pitch}
 
     def set_actual(self, *, total: int, rows: int, cols: int, pages: int,
                    patch_w: float = 0.0, patch_h: float = 0.0,
                    page_patches: "int | None" = None,
-                   fillup: "int | None" = None) -> None:
+                   fillup: "int | None" = None,
+                   row_pitch: float = 0.0) -> None:
         """The measured values of the chart currently in the preview.
 
         *fillup* = how many of *total* are paper-white strip fill-up patches
         (None = unknown), so a total that grew past the designed count is
-        explained right where the number is read (#124, Knut)."""
+        explained right where the number is read (#124, Knut).
+
+        *patch_h* is the patch's REAL height: for a hexagon that is tip to tip,
+        not the slot it is drawn in. *row_pitch* carries the slot spacing for a
+        honeycomb, where the two are different numbers and both matter."""
         self._actual = self._as_dict(total, rows, cols, pages, patch_w, patch_h,
-                                     page_patches, fillup)
+                                     page_patches, fillup, row_pitch)
         self._render()
 
     def clear_actual(self) -> None:
@@ -177,10 +196,11 @@ class ChartLayoutInfoPanel(QGroupBox):
     def set_estimate(self, *, total: int, rows: int, cols: int, pages: int,
                      patch_w: float = 0.0, patch_h: float = 0.0,
                      page_patches: "int | None" = None,
-                     fillup: "int | None" = None) -> None:
+                     fillup: "int | None" = None,
+                     row_pitch: float = 0.0) -> None:
         """The predicted values for the current (engine) settings."""
         self._estimate = self._as_dict(total, rows, cols, pages, patch_w, patch_h,
-                                       page_patches, fillup)
+                                       page_patches, fillup, row_pitch)
         self._render()
 
     def clear_estimate(self) -> None:
@@ -204,7 +224,20 @@ class ChartLayoutInfoPanel(QGroupBox):
                 return _DASH
             if key == "patch":
                 return f"{v[0]:g}×{v[1]:g}"
+            if key == "pitch":
+                return f"{v:g}"
             return str(v)
+
+        # The row pitch row is a honeycomb's business only, and it is hidden
+        # rather than dashed: a permanent "—" against a square chart would read
+        # as a number the app failed to work out.
+        _hex = bool((self._actual or {}).get("pitch")
+                    or (self._estimate or {}).get("pitch"))
+        for w in (self._row_names.get("pitch"),
+                  self._actual_labels.get("pitch"),
+                  self._estimate_labels.get("pitch")):
+            if w is not None:
+                w.setVisible(_hex)
 
         for key in self._actual_labels:
             a = self._actual.get(key) if self._actual else None
@@ -218,8 +251,15 @@ class ChartLayoutInfoPanel(QGroupBox):
             if a is None or e is None:
                 differs = False
             elif key == "patch":
+                # The tolerance absorbs ONE pixel of render snapping. A hexagon's
+                # reported height is its slot scaled by 4/3, so that pixel is
+                # scaled with it and the height tolerance has to be too, or a
+                # honeycomb rendered at a low dpi flags amber against itself.
+                _htol = self._PATCH_TOL_MM * (HEX_HEIGHT_FACTOR if _hex else 1.0)
                 differs = (abs(a[0] - e[0]) > self._PATCH_TOL_MM
-                           or abs(a[1] - e[1]) > self._PATCH_TOL_MM)
+                           or abs(a[1] - e[1]) > _htol)
+            elif key == "pitch":
+                differs = abs(a - e) > self._PATCH_TOL_MM
             else:
                 differs = a != e
             # THE FLAG SURVIVES WITHOUT THE HUE. Amber-versus-grey was the

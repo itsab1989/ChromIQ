@@ -80,6 +80,68 @@ def hex_scanner_allowed(settings) -> bool:
         return False
 
 
+# A HEXAGON IS TALLER THAN ITS SLOT, AND THE SLOT IS THE ROW PITCH.
+#
+# Knut, 2026-09-06: *"the height part is wrong and too small. For a hexagonal
+# patch, the height top-tip to bottom-tip is always larger than the patch width,
+# but the 'Patch size (mm)' says 11.3 x 9.78."* He was right, and by exactly this
+# factor.
+#
+# `geometry.patch_rects_px` records SLOT rects, and `instruments` builds a
+# hexagonal geometry with `plen = pwid * sqrt(3)/2` — the interlocking ROW PITCH,
+# the distance from one row's centre to the next. The patch itself is bigger:
+# `raster._hexagon_points` puts the apexes at `y0 - plen/6` and `y0 + plen +
+# plen/6`, so the drawn shape spans `plen * 4/3`, which is `pwid * 2/sqrt(3)` —
+# the regular-hexagon relation, tip to tip.
+#
+# MEASURED, not derived: rendered at 1200 dpi with every patch a different colour
+# so an interlocking neighbour could not be mistaken for the patch under test, the
+# drawn hexagon came out 7.027 x 8.086 mm against a 7.006 x 6.075 mm slot
+# (SpectroScan) and 12.002 x 13.843 mm against 12.002 x 10.393 mm (CR30) — ratios
+# 1.33101 and 1.33198 against an ideal 4/3, the residual being pixel snapping.
+# `tests/test_a_hexagon_is_taller_than_its_row_pitch.py` re-measures it.
+#
+# The WIDTH needs no correction: the hexagon's sides are flat and vertical, so it
+# is exactly as wide as its slot. Only the height was ever wrong.
+HEX_HEIGHT_FACTOR = 4.0 / 3.0
+
+
+def hex_two_heights_note() -> str:
+    """The note that has to appear wherever a honeycomb's height is shown or set.
+
+    ONE string, shared by the Chart-layout-information tooltip and the Manual
+    "Patch size (mm)" boxes, because they are the two ends of the same number and
+    a note that drifts between them is worse than no note. It is appended to
+    those tooltips rather than written into them: both are long, shipped, and
+    translated into twelve languages, and retiring their keys mid-beta to add a
+    paragraph is not a trade worth making.
+
+    Knut, 2026-09-06 (B8-80), on a chart whose patches print 11.3 × 13.05 mm:
+    *"the 'Patch size (mm)' says 11.3 x 9.78."*"""
+    return tr(
+        "Hexagonal patches have two heights, and they are not the same "
+        "number.\n"
+        "Hexagons interlock, so a row of them starts before the row above has "
+        "finished and the patches sit closer together than they are tall. The "
+        "ROW PITCH is that closer spacing, centre to centre down a strip. It "
+        "decides how many patches fit on the page, and it is the height you set "
+        "in the Patch size boxes. The PATCH is the hexagon itself, measured top "
+        "tip to bottom tip, and it is a third taller: set 9.78 mm and you get a "
+        "patch 13.05 mm from tip to tip, taller than it is wide. Chart layout "
+        "information shows you both.")
+
+
+def hex_patch_height_mm(row_pitch_mm: float) -> float:
+    """Tip-to-tip height (mm) of a hexagon whose slot / row pitch is
+    *row_pitch_mm*. See :data:`HEX_HEIGHT_FACTOR`.
+
+    Report only, never geometry: nothing that lays a chart out may call this,
+    because capacity and placement are correct on the pitch and the reserved
+    apex overhang (``hxeh``) already, and a chart built before this existed must
+    still come out byte-identical."""
+    return float(row_pitch_mm) * HEX_HEIGHT_FACTOR
+
+
 def recipe_is_hexagonal(recipe) -> bool:
     """True for a hexagonal-patch recipe (a ``LayoutRecipe`` or the dict form).
 

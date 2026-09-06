@@ -46,7 +46,8 @@ def test_bugC_patch_size_uses_the_sidecars_own_dpi():
     lay = _layout(EXT1944_A4)
     assert lay["dpi"] == 360 and "recipe" not in lay      # the shape of the trap
     ti2 = resource_path(f"{EXT1944_A4}.ti2")
-    w, h = TabChart._chart_patch_size_mm(ti2)
+    w, h, pitch = TabChart._chart_patch_size_mm(ti2)
+    assert pitch == 0.0          # square patches: no separate row pitch
     r0 = lay["patches"][0]
     assert w == pytest.approx(r0["w"] * MM / 360, abs=0.01)
     assert h == pytest.approx(r0["h"] * MM / 360, abs=0.01)
@@ -60,7 +61,8 @@ def test_bugC_every_prebuilt_bundle_reports_its_true_patch_size(stem):
     from ui.tabs.tab_chart import TabChart
     lay = _layout(stem)
     rects = lay["patches"]
-    w, h = TabChart._chart_patch_size_mm(resource_path(f"{stem}.ti2"))
+    w, h, pitch = TabChart._chart_patch_size_mm(resource_path(f"{stem}.ti2"))
+    assert pitch == 0.0          # none of the nine is a honeycomb
     assert w == pytest.approx(rects[0]["w"] * MM / lay["dpi"], abs=0.01)
     assert h == pytest.approx(rects[0]["h"] * MM / lay["dpi"], abs=0.01)
 
@@ -86,7 +88,7 @@ def test_bugC_unknown_dpi_shows_a_dash_not_a_guess(tmp_path):
         {"layout": {"engine": "derived",
                     "patches": [{"loc": "A1", "page": 0,
                                  "x": 0, "y": 0, "w": 100, "h": 100}]}}), encoding="utf-8")
-    assert TabChart._chart_patch_size_mm(ti2) == (0.0, 0.0)
+    assert TabChart._chart_patch_size_mm(ti2) == (0.0, 0.0, 0.0)
 
 
 def test_bugC_the_two_panels_agree_on_patch_width():
@@ -94,7 +96,8 @@ def test_bugC_the_two_panels_agree_on_patch_width():
     from ui.tabs.tab_chart import TabChart
     for stem in BUNDLES:
         lay = _layout(stem)
-        w, _h = TabChart._chart_patch_size_mm(resource_path(f"{stem}.ti2"))
+        w, _h, _pitch = TabChart._chart_patch_size_mm(
+            resource_path(f"{stem}.ti2"))
         for tif in _pages(stem):
             rep = measure_margins(tif, dpi=300,
                                   ti2_path=resource_path(f"{stem}.ti2"))

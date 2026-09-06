@@ -13,6 +13,35 @@ had switched the patch editor's ChromIQ layout engine off without anyone
 noticing, so "Save As" on a chart ChromIQ had laid out handed back a different
 chart.
 
+The rest of this release comes from a beta 10 review: the scanner and camera
+window now asks what the profile is for and sets itself up for that job, and
+three layout controls that quietly ignored what you typed on a hexagonal chart
+now say so.
+
+### New
+
+- **The scanner and camera window asks what the profile is for.** Three
+  choices: an everyday scanner or camera profile, a profile so the scanner can
+  stand in for a measuring instrument, and a printer profile measured with that
+  scanner. Picking one sets the profile type, the quality and the white point
+  handling to suit it, so the settings that decide whether the profile is any
+  good are not something to remember. Nothing is locked. Change a setting
+  afterwards and the window says which one differs rather than changing it back.
+- **Those three settings are also chosen from the size of your target.** Under
+  100 patches ChromIQ starts from Shaper + matrix at Medium quality with "Map
+  chart white to white"; at 100 and above from the XYZ table at High with "Scale
+  white to a perfect white surface". Settings you have saved yourself are never
+  moved, and the window tells you when it is leaving them alone.
+
+### Changed
+
+- **The white point options say which profile types they suit** rather than one
+  being called the default, because the previous default costs real accuracy on
+  the two matrix types.
+- **"Restrict white, black and primaries" now shows as ticked** when the white
+  point choice includes it. The flag was always being sent; the box did not say
+  so. What is stored stays your own value.
+
 ### Fixed
 
 - **The patch-set editor could not be opened on a CR30 chart.** ChromIQ asked
@@ -50,6 +79,20 @@ chart.
 - **The Create Chart command preview showed CR30 users a command that cannot be
   run.** ChromIQ never ran it; the line on screen simply described the wrong
   thing.
+- **On a hexagonal chart, two layout controls did nothing and did not say so.**
+  With the strips pinned, "Patches per strip" could not change the chart, and
+  "Minimum patch height (% of width)" could not either: a honeycomb interlocks,
+  so its height follows from its width, and the strip count already decides the
+  size. Both are now locked where they cannot work, with the reason on the row's
+  information button, and both stay live where they genuinely do something.
+- **Three errors in the scanner window's printer-mode help.** A scanner profile
+  used as a measuring instrument can be built from a chart you made in ChromIQ,
+  not only from a bought target; choosing the XYZ table does not switch on Force
+  Absolute Colorimetric; and the closing advice pointed at a control the
+  paragraph above it recommends against.
+- **A help note contradicted the help card it sits in front of**, telling users
+  on the current default that their bright paper was being flattened and to lift
+  a ceiling that already sits above anything physical.
 - **Layout settings restored from a chart folder are now range-checked**, not
   only checked for the right names, so a hand-edited or damaged `meta.json`
   cannot pass a value the tool refuses.

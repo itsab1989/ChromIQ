@@ -3933,3 +3933,105 @@ only a triple that DIFFERS from the rule's answer would stop it.
 - fix: not attempted. What a capacity search should DO when the tool refuses the
   user's own extra flag - report it, fall back, or refuse to build - is a
   decision rather than a repair, and the wrong number is not a data loss.
+### B8-92 · A hexagonal patch was reported as the row pitch, so the panel said it was smaller than it prints
+- blocks release: no
+- status: FIXED
+- found by: Knut, 2026-09-06, on 4.1.5-beta.10 (`/tmp/knut2.log`); measured and
+  fixed by Agent CO
+- detail: Knut, verbatim:
+
+  > *"In the Chart layout information frame, the 'Patch size (mm)' has the
+  > correct width according to the Patch width measurement in the 'Measured
+  > from Preview' frame, but the height part is wrong and too small. For a
+  > hexagonal patch, the height top-tip to bottom-tip is always larger than the
+  > patch width, but the 'Patch size (mm)' says 11.3 x 9.78."*
+
+  He is right, and by exactly 4/3. `instruments._build_base` builds a honeycomb
+  with `plen = pwid · √3/2` (SpectroScan `:588`, CR30 `:727`), which is the
+  interlocking ROW PITCH, and `raster._hexagon_points` puts the apexes at
+  `y0 − plen/6` and `y0 + plen + plen/6`, so the drawn patch spans `plen · 4/3`
+  = `pwid · 2/√3`, tip to tip. 11.3 · √3/2 = 9.786, which is what he saw;
+  11.3 · 2/√3 = 13.05, which is what he gets. The panel was reporting the
+  spacing between patches under the label "Patch size".
+
+  **Measured, not derived.** Rendered at 1200 dpi with every patch a different
+  colour, so an interlocking neighbour could not be mistaken for the patch under
+  test (a same-colour scan merges three rows and reports a height three times too
+  big), the drawn hexagon came out 7.027 × 8.086 mm against a 7.006 × 6.075 mm
+  slot for the SpectroScan and 12.002 × 13.843 mm against 12.002 × 10.393 mm for
+  the CR30. Ratios 1.33101 and 1.33198 against an ideal 4/3; the residual is
+  pixel snapping.
+
+  **The width is honest, and that is the control.** Both frames read the same
+  field: "Patch width (in strip reading direction)" is
+  `rects[0]["w"] · px2mm` (`margin_inspector.py:294`) and the width half of
+  "Patch size" is `r0["w"] · 25.4/dpi` (`tab_chart.py`). A hexagon has flat
+  vertical sides, so it is exactly as wide as its slot: 12.002 against 12.002 mm
+  in the raster. Only the height was ever wrong.
+
+  **Nothing computational depended on it.** Capacity subtracts `2·hxeh` before
+  fitting rows (`geometry.py:83`, `:90`, `area_fit.py:44`) and placement shifts
+  the block down by `hxeh` (`geometry.py:278`), so the page fit already knows
+  about the overhang and reserves it. The margin inspector already expands
+  `y0`/`y1` by `h_px/6` for a hexagonal recipe (`margin_inspector.py:283-286`),
+  so its margins and strip length were already the real ink extremes. This was a
+  display fault only, and the sheet is unchanged.
+
+  Two siblings were found by the same sweep and fixed with it: the Manual info
+  line's "patch {w}×{h} mm" summary echoed the same slot height, and the Manual
+  "Patch size (mm)" tooltip claimed the boxes were the patch when on a honeycomb
+  the height box is the row pitch.
+- fix: `workflow/hex_support.hex_patch_height_mm` / `HEX_HEIGHT_FACTOR`, a
+  REPORTING helper the layout engine may not call, plus
+  `ui/tabs/tab_chart._panel_patch_height_mm` shared by both feeds of the panel
+  so the estimate and the on-screen column cannot drift apart. The panel gains a
+  "Row pitch (mm)" row, shown only for a honeycomb: both numbers are real and
+  both matter, so both are named rather than one being picked. The height
+  tolerance that decides the amber "differs" flag is scaled by the same 4/3, or a
+  honeycomb rendered at a low dpi would flag amber against itself.
+- proved on screen: `scripts/drive_hex_patch_size_readout.py` drives the real
+  window, builds a real CR30 honeycomb at Knut's own 11.3 × 9.78 and reads the
+  labels back. Before: `Patch size (mm) 11.35×9.82`, no pitch row. After:
+  `Patch size (mm) 11.35×13.1`, `Row pitch (mm) 9.82`, with "Patch width" in the
+  other frame reading 11.3 in both. Screenshots on the Desktop under
+  `beta 9/hex-patch-size/`.
+- what is owed: three things, all Basti's or Knut's call, none of them fixed here
+  because each changes behaviour rather than wording.
+  1. **The Manual "Patch size (mm)" height box is a row pitch on a honeycomb.**
+     What you type becomes `geom.plen`. Changing that would change every chart
+     built from a stored recipe, so the number was left alone and the tooltip now
+     says what it is. Whether the LABEL should change for a hexagonal instrument
+     is a design decision.
+  2. **`preflight.check` tests `min(geom.plen, geom.pwid)`** against the 6 mm
+     reliability floor (`preflight.py:54`, shown live in Preferences → Layout via
+     `settings_dialog.py:5652-5670`). For a hexagon `plen` is the row pitch, and
+     the patch's own smallest dimension is its width across the flats, which is
+     larger. The check is therefore conservative, and it can call a honeycomb
+     "below the floor" that is not. It decides when an error text appears, so
+     changing it is a behaviour change and needs a ruling.
+  3. **A CR30 honeycomb with spacers turned ON loses its bottom point.** The
+     spacer bar is drawn after the patch above it and across the un-staggered
+     slot, so it paints over the next hexagon's lower apex: measured at 600 dpi,
+     12.107 mm drawn against 13.829 mm expected, the whole 1.73 mm point gone,
+     and the patches print as houses rather than hexagons. Not the default (the
+     CR30's default recipe sets `spacer_mode="none"` and the SpectroScan's
+     `pspa` is 0), so no shipped default is affected, and it is a rendering
+     change rather than a reporting one. Evidence:
+     `cr30-hexagon-spacers-colored.png` beside the screenshots above.
+- evidence: all nine live in one new file, `tests/…is_taller_than_its_row_pitch.py`:
+  test_the_drawn_hexagon_is_four_thirds_of_its_slot (measures a rendered raster,
+  so a change to `_hexagon_points` that leaves the constant alone still fails),
+  test_the_slot_is_the_row_pitch_and_is_smaller_than_the_patch,
+  test_knuts_own_numbers, test_the_panel_feed_reports_the_patch_and_the_pitch,
+  test_a_square_chart_has_no_second_number,
+  test_the_panel_hides_the_pitch_row_for_a_square_chart,
+  test_the_two_columns_of_a_honeycomb_agree,
+  test_the_honeycomb_geometry_is_untouched,
+  test_no_layout_code_reports_its_way_into_the_geometry.
+
+  Five mutations, each proved to land before the run: setting
+  `HEX_HEIGHT_FACTOR` to 1.0; making `_panel_patch_height_mm` ignore its
+  `hexagonal` argument; changing `raster._hexagon_points` to `ph/8` at the apex
+  (the raster test fails, the constant test does not, which is the point of
+  having both); scaling `pwid` in `patch_rects_px` so the geometry moves; and
+  importing the reporting helper into `workflow/layout_engine/geometry.py`.
