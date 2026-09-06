@@ -291,22 +291,72 @@ def test_the_filter_that_makes_labels_cost_something_is_on(qapp, tmp_path):
     """Control — prove the measurement can SEE a long label at all.
 
     Not a proxy: the number checked is the one the packing uses. A German
-    "Auf Vorgabe zurücksetzen" must arrive at the layout as a >=200 px floor.
-    Without `CompositeAppFilter` it arrives as 94 px — the app stylesheet's flat
-    72 px content box plus padding and border — in every language, and the whole
-    file becomes an expensive way of measuring nothing.
+    "Auf Vorgabe zurücksetzen" must arrive at the layout carrying its own
+    label's width. Without `CompositeAppFilter` it arrives as the app
+    stylesheet's flat `_APP_MIN_BUTTON_WIDTH` content box plus padding and
+    border — the same number in every language — and the whole file becomes an
+    expensive way of measuring nothing.
+
+    THE BOUND IS THE LABEL, NOT A CONSTANT, AND THAT IS THE FIX HERE. This
+    read `floor >= 200`, a figure taken on macOS where `Menlo` — the family
+    `ButtonFontFilter` asks for — actually exists. It does not exist on
+    Windows, and under `QT_QPA_PLATFORM=offscreen` with only ChromIQ's own
+    three bundled faces in the database it resolves to `Instrument Serif`, so
+    the same German label reaches the layout as **166 px**: the filter is doing
+    its job and the constant said it was not. Measured on this tree,
+    2026-09-06, German: label advance in the button's own font **142 px**,
+    fitted `min-width` rule **144 px**, floor **166 px**, against
+    `_APP_MIN_BUTTON_WIDTH` **72** and a one-character button's rule of exactly
+    that 72. The assertions below pin the mechanism instead — the rule is
+    written, it is the LABEL's width and not the flat floor, and it reaches the
+    layout — which fails on the regression this control guards in every
+    language and on every platform, where a magic 200 only failed on one.
     """
+    import re
+    from ui.widgets import _APP_MIN_BUTTON_WIDTH
+    from PyQt6.QtGui import QFontMetrics
+
     tab, _area = _manual_scroll_area(qapp, "de", tmp_path)
     try:
         btn = tab._manual_preset_reset_btn
         assert btn.text() == "Auf Vorgabe zurücksetzen", btn.text()
+        rule = re.search(r"min-width:\s*(\d+)px", btn.styleSheet())
+        assert rule, (
+            f"ButtonFontFilter has written no per-label min-width rule on "
+            f"'Auf Vorgabe zurücksetzen', so no label in any language can "
+            f"widen this pane and every assertion in this file is vacuous: "
+            f"{btn.styleSheet()!r}")
+        declared = int(rule.group(1))
+        assert declared > _APP_MIN_BUTTON_WIDTH, (
+            f"the rule on 'Auf Vorgabe zurücksetzen' declares {declared} px — "
+            f"the flat {_APP_MIN_BUTTON_WIDTH} px floor every button gets, not "
+            f"this label's own width. Nothing in this file can then be widened "
+            f"by a translation")
+        label_px = QFontMetrics(btn.font()).horizontalAdvance(btn.text().upper())
+        assert declared >= label_px, (
+            f"the rule declares {declared} px for a label that measures "
+            f"{label_px} px in the button's own font")
         floor = btn.minimumSizeHint().width()
-        assert floor >= 200, (
-            f"the German 'Auf Vorgabe zurücksetzen' reaches the layout as a "
-            f"{floor} px floor. ButtonFontFilter has not written its per-label "
-            f"min-width rule, so no label in any language can widen this pane "
-            f"and every assertion in this file is vacuous")
+        assert floor >= declared, (
+            f"the {declared} px rule does not reach the layout: the button's "
+            f"floor is {floor} px")
         assert btn.font().capitalization() == btn.font().capitalization().AllUppercase
+        # …AND THE ROW MUST STILL WRAP RATHER THAN SUM. The other half of
+        # `test_this_file_can_see_the_preset_row_running_off_the_edge`, taken
+        # here because this test already has an unmutated German tab and a
+        # second `TabChart` build is the expensive, fault-prone part of this
+        # file. `WrappingButtonRow` charges the row its widest SINGLE button;
+        # a plain `QHBoxLayout` charges the sum, which is the fault the owner
+        # reported five times.
+        widths = [b.minimumSizeHint().width()
+                  for b in (tab._manual_preset_reset_btn,
+                            tab._manual_preset_update_btn,
+                            tab._manual_preset_edit_btn)]
+        row_floor = tab._manual_preset_bar.minimumSizeHint().width()
+        assert row_floor <= max(widths) + 2, (
+            f"the shipped preset row costs {row_floor} px for buttons of "
+            f"{widths} — it is no longer wrapping, so a long label can widen "
+            f"this pane again")
     finally:
         tab.deleteLater()
         qapp.processEvents()
@@ -317,8 +367,44 @@ def test_this_file_can_see_the_preset_row_running_off_the_edge(qapp, monkeypatch
     """Control — the fault the owner reported five times, put back.
 
     The row used to be a plain `QHBoxLayout`, whose minimum is the SUM of its
-    three buttons: 592 px in German against a 540 px viewport. Substitute that
-    layout back and the file must fail; if it does not, the guard is decoration.
+    three buttons. Substitute that layout back and the difference must show; if
+    it does not, `WrappingButtonRow` is decoration.
+
+    WHAT THIS ASSERTED, AND WHY IT NO LONGER CAN. It read `hbar.maximum() > 0`
+    on the German pane: the sum was 592 px against a 540 px viewport. That 592
+    was measured on the Windows offscreen gate with an EMPTY font database,
+    where every glyph is a box of `pixelSize`. With ChromIQ's own fonts
+    registered the three German labels measure 166 + 144 + 144, the plain row's
+    minimum is **466 px**, and the German pane's content minimum is 537 px
+    either way — the row is no longer the widest thing in that column, so the
+    pane does not overflow and `maximum()` stays 0. Measured for every shipped
+    language on this tree, 2026-09-06, plain-row content minimum against the
+    540 px viewport: de 537, sv 536, ru 531, pl 526, no 520, pt 520, es 514,
+    it 504, fr 490, en 449, ja 416, zh_CN 416 — **not one of them crosses 540**
+    (nl is 544, but nl is over budget with the shipped row too: see
+    `test_the_manual_panel_never_scrolls_sideways[nl-engine]`). There is no
+    language left in which this mutation overflows the pane, so no choice of
+    language can recalibrate the old assertion.
+
+    So the control asserts the MECHANISM the mutation changes, which holds on
+    every platform and in every language: a plain `QHBoxLayout` charges the row
+    the SUM of its buttons. That is what `WrappingButtonRow` exists to prevent,
+    and reverting it fails here immediately rather than only where the sum
+    happens to exceed the pane. The other half — that the SHIPPED row is
+    charged only its widest single button — is asserted by
+    `test_the_filter_that_makes_labels_cost_something_is_on`, which already has
+    an unmutated German tab in hand and so costs no second build. Measured on
+    this tree: German shipped 166 px, plain 466 px, buttons 166/144/144.
+
+    ONE TAB, NOT TWO, AND THAT IS DELIBERATE. `TabChart` construction is the
+    expensive and fragile part of this file — building 42 of them already
+    faulted a worker once here with a Windows access violation inside
+    `_build_ui` — so this control takes both of its numbers from the single
+    mutated build.
+
+    The file's `hbar.maximum()` instrument is still proved able to see an
+    over-wide pane — by `test_this_file_can_see_the_fault_it_guards` above,
+    which mutates `ElidingComboBox` and is green.
 
     Patched on `ui.widgets`, not on `tab_chart`: `_make_manual_panel` imports
     the name inside the function, so the module attribute is what it resolves.
@@ -329,14 +415,30 @@ def test_this_file_can_see_the_preset_row_running_off_the_edge(qapp, monkeypatch
     from PyQt6.QtWidgets import QHBoxLayout
 
     import ui.widgets as uiw
+
+    def _row_and_buttons(tab):
+        bar = tab._manual_preset_bar
+        widths = [b.minimumSizeHint().width()
+                  for b in (tab._manual_preset_reset_btn,
+                            tab._manual_preset_update_btn,
+                            tab._manual_preset_edit_btn)]
+        return bar.minimumSizeHint().width(), widths
+
     monkeypatch.setattr(uiw, "WrappingButtonRow", QHBoxLayout, raising=True)
     tab, area = _manual_scroll_area(qapp, "de", tmp_path)
     try:
-        over = area.horizontalScrollBar().maximum()
-        assert over > 0, (
-            "with the preset row back on a plain QHBoxLayout the German Manual "
-            "panel still fits its viewport, so this file would not have caught "
-            "the fault it was extended for")
+        assert type(tab._manual_preset_bar.layout()) is QHBoxLayout, (
+            "the substitution did not land — this control is measuring the "
+            "shipped row and proves nothing")
+        plain, widths = _row_and_buttons(tab)
+        assert plain >= sum(widths), (
+            f"a plain QHBoxLayout does not charge the row the sum of its "
+            f"buttons ({plain} px for {widths}), so this control is not "
+            f"re-creating the fault it was written for")
+        assert plain > max(widths) + 2, (
+            f"the plain row costs {plain} px, no more than its widest single "
+            f"button of {widths} — there is nothing here for "
+            f"`WrappingButtonRow` to have saved")
     finally:
         tab.deleteLater()
         qapp.processEvents()

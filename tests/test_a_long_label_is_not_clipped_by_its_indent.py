@@ -116,11 +116,35 @@ def test_the_stamp_tick_box_shows_its_whole_label(qapp, lang, tmp_path):
 
 
 def test_this_file_can_see_the_bug_it_guards(qapp, tmp_path):
-    """Control. Pin the indent back to a fixed width and German must fail again
-    — otherwise the assertions above would hold against any layout at all."""
+    """Control. Pin the indent back to a fixed width and the longest language
+    must be clipped again — otherwise the assertions above would hold against
+    any layout at all.
+
+    RUSSIAN, NOT GERMAN, AND THE LANGUAGE IS THE WHOLE CALIBRATION. This
+    control was written against the Windows offscreen gate's tofu metrics,
+    where every glyph was a box of `pixelSize` and German measured 297 px
+    against the 294 the pinned row leaves. With the fonts the app actually
+    bundles registered (`tests/conftest.py`), the same German label measures
+    **208 px and the pinned row leaves exactly 208** — the control failed on
+    `assert 208 < 208`, an exact tie, and would have flipped on a one-pixel
+    rounding change in either direction.
+
+    Measured here, every language, pinned-row width against the label's own
+    minimum (Inter, this tree, 2026-09-06):
+
+        ru 289 / 317  -28      de 208 / 208   0      nl 205 / 205   0
+        sv 241 / 241    0      no 215 / 215   0      en 156 / 156   0
+
+    Only Russian is genuinely clipped — by 28 px, which is a margin and not a
+    tie. It is also the language this file's own header already names as the
+    widest ("Russian needs 331 px against English's 225"), so the control now
+    runs in the language it was always describing. German is left to the
+    parametrised assertions above, where it belongs: at 208/208 the shipped
+    layout gives that label exactly what it needs and not a pixel more.
+    """
     from PyQt6.QtWidgets import QLabel
 
-    tab, cb = _stamp_check(qapp, "de", tmp_path)
+    tab, cb = _stamp_check(qapp, "ru", tmp_path)
     try:
         row = tab._manual_stamp_cmd_row
         spacer = row.layout().itemAt(0).widget()
@@ -131,8 +155,9 @@ def test_this_file_can_see_the_bug_it_guards(qapp, tmp_path):
         row.layout().activate()
         qapp.processEvents()
         assert cb.width() < cb.minimumSizeHint().width(), (
-            "pinning the indent back did NOT clip the German label, so the "
-            "assertions above are not measuring the indent")
+            f"pinning the indent back did NOT clip the Russian label "
+            f"({cb.width()} px given, {cb.minimumSizeHint().width()} px "
+            f"needed), so the assertions above are not measuring the indent")
     finally:
         # Deliberately NOT deleted — see _KEEP_ALIVE.
         qapp.processEvents()

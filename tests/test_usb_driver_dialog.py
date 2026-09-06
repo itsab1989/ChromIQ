@@ -2016,10 +2016,54 @@ def test_the_not_bound_window_is_unchanged_when_core_says_nothing():
 # and, when the cap is what bit, everything is still reachable by scrolling.
 
 
+def _settle(w, rounds: int = 60):
+    """Pump until this window's scroll area stops moving.
+
+    THE MEASUREMENT USED TO BE TAKEN MID-LAYOUT, AND IT IS WHY THIS FILE WAS
+    NONDETERMINISTIC. `ModalDriver` acts on the first 5 ms tick at which
+    `activeModalWidget()` is not None — which is before Qt has finished
+    `QScrollAreaPrivate::updateScrollBars`. Measured on this tree, 2026-09-06,
+    the consent window with the fonts registered, first tick against settled:
+
+        ru   vp_w 498 hbar_visible True  ->  vp_w 512 hbar_visible False
+        no   vp_h 354 hbar_visible True  ->  vp_h 368 hbar_visible False
+        en   vp_w 498                    ->  vp_w 512
+
+    `hbar.maximum()` is **0 at both moments** in every language: nothing is
+    scrolled anywhere, the bar is raised and withdrawn again inside one layout
+    pass, and a test that reads `isVisible()` in that window reports a window
+    that "scrolls sideways" when it does not. Which language is caught depends
+    on how loaded the machine is, which is exactly the shape the owner saw:
+    the same command, the same commit, three runs — 13 passed, 13 passed,
+    4 failed (zh_CN among them), and fr/no/ru/no on four further runs.
+
+    Nothing here relaxes an assertion. The numbers are simply read once the
+    layout has stopped changing them, which is what `_settle` does in
+    `test_the_manual_panel_does_not_scroll_sideways.py` for the same reason.
+    """
+    from PyQt6.QtWidgets import QApplication, QScrollArea
+    areas = w.findChildren(QScrollArea)
+    if not areas:
+        return
+    area = areas[0]
+    last = None
+    for _ in range(rounds):
+        QApplication.processEvents()
+        now = (w.height(), w.width(), area.viewport().width(),
+               area.viewport().height(),
+               area.horizontalScrollBar().maximum(),
+               area.horizontalScrollBar().isVisible(),
+               area.verticalScrollBar().maximum())
+        if now == last:
+            return
+        last = now
+
+
 def _geometry_of(w):
     """Everything these tests need, read while the window is still alive."""
     from PyQt6.QtCore import Qt
     from PyQt6.QtWidgets import QPushButton, QScrollArea
+    _settle(w)
     area = w.findChildren(QScrollArea)[0]
     vbar, hbar = area.verticalScrollBar(), area.horizontalScrollBar()
     inner = area.widget()

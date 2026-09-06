@@ -102,9 +102,25 @@ def test_two_straddlers_resolve_independently(qapp):
 
 
 def test_wrapped_legend_gets_its_own_rows(qapp):
-    """At the PDF grab width the five ΔE labels wrap to two legend rows; at a
-    wide window they fit one. The row count is what moves the plot down, so a
-    wrapped legend can never be painted across the graph."""
+    """A legend too narrow for its five ΔE labels takes more than one row; a
+    wide one takes exactly one. The row count is what moves the plot down, so a
+    wrapped legend can never be painted across the graph.
+
+    THE NARROW WIDTH IS MEASURED, NOT ASSUMED, AND THAT IS THE CHANGE HERE.
+    This asked for two rows at the 640 px PDF grab width, a figure taken on the
+    Windows offscreen gate with an EMPTY font database, where every glyph is a
+    box of `pixelSize` and five labels could not possibly fit. With ChromIQ's
+    own fonts registered the same five labels measure 82 + 84 + 84 + 90 + 92 =
+    **432 px** at `pixelSize(10)` and fit the 588 px the PDF grab leaves on ONE
+    row — so `narrow >= 2` failed on `assert 1 >= 2` at a width where the app
+    is behaving correctly. Measured on this tree, 2026-09-06, rows against the
+    available width: 200 → 5, 260 → 3, 340 → 2, 560 → 2, 600 → 1.
+
+    The wrapping threshold therefore moves with the font, and pinning a pixel
+    figure to it pins the font. The width below is derived from the labels
+    themselves, so the assertion says what it means on any metrics; the PDF
+    grab width is kept as a separate, explicit statement of what it now does.
+    """
     from PyQt6.QtGui import QColor, QFont, QFontMetricsF
     from ui.dialogs.measurement_report_dialog import _TrendChart
     chart = _TrendChart()
@@ -115,10 +131,19 @@ def test_wrapped_legend_gets_its_own_rows(qapp):
     font = QFont()
     font.setPixelSize(10)
     fm = QFontMetricsF(font)
-    narrow = chart._legend_rows(fm, 40.0, 640 - 52.0)
+    # Half of what the five labels' own glyphs need: whatever the font, that
+    # cannot be one row.
+    too_narrow = sum(fm.horizontalAdvance(l) for l in labels) / 2.0
+    narrow = chart._legend_rows(fm, 40.0, too_narrow)
     wide = chart._legend_rows(fm, 40.0, 1600 - 52.0)
-    assert narrow >= 2, narrow
+    assert narrow >= 2, (narrow, too_narrow)
     assert wide == 1, wide
+    # …and the plot really is pushed down by the extra rows, which is the whole
+    # point of counting them.
+    assert chart._legend_rows(fm, 40.0, too_narrow / 2.0) > narrow
+    # What the PDF grab width does today, said out loud so a regression in
+    # either direction is visible: the labels fit one row there.
+    assert chart._legend_rows(fm, 40.0, 640 - 52.0) == 1
 
 
 def test_trend_chart_paints_at_pdf_width(qapp):
