@@ -240,7 +240,7 @@ M_CR30_CALIBRATE_BLACK = _m(
     "This second step is the opposite of the first one, so it is worth a "
     "glance at the picture above.\n\n"
     "TAKE THE CAP OFF and put it aside. Hold the instrument with the opening "
-    "pointing DOWNWARD into open space — about a metre above the "
+    "pointing DOWNWARD into open space, about a metre above the "
     "floor, with nothing in front of it, and not aimed at a lamp or a "
     "window.\n\n"
     "There is nothing to place it on. Your CR30 has no black tile: it takes "
@@ -248,18 +248,18 @@ M_CR30_CALIBRATE_BLACK = _m(
     "pointing at nothing.\n\n"
     "Then press “Calibrate now”. Afterwards ChromIQ reads once more and shows "
     "you the number that came back, so there is a record of it.\n\n"
-    "⚠ It cannot check that you pointed it at the right thing. A dark "
+    "⚠ It cannot check that you pointed it at the right thing. A black "
     "calibration DEFINES what zero means, so whatever the instrument was "
-    "looking at becomes the new zero and reads as nothing a moment later — "
-    "measured on a real unit: calibrated against white paper, it read back "
+    "looking at becomes the new zero and reads as nothing a moment later. "
+    "Measured on a real unit: calibrated against white paper, it read back "
     "0.004 %. Getting this step right is your eyes, not ours.\n\n"
     "If you would rather not, press “Skip this step”. Your white calibration "
     "still stands and the measurement goes ahead with the dark reference the "
     "instrument already had.\n\n"
     "If you have changed your mind about measuring at all, press “Cancel the "
     "measurement”. Nothing has been measured yet and nothing on disk changes, "
-    "so the only thing you lose is the white calibration you have just taken "
-    "— and you can take that again in a few seconds whenever you like.",
+    "so the only thing you lose is the white calibration you have just taken, "
+    "and you can take that again in a few seconds whenever you like.",
     approved=False)
 
 

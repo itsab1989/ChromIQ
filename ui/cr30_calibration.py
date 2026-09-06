@@ -454,7 +454,7 @@ class Cr30CalibrationMixin:
                 "and a reading of nothing came back at {zero:.3f} %, which is "
                 "what a healthy dark reference looks like. It does NOT say "
                 "the reference "
-                "was taken against the right thing: a dark calibration defines "
+                "was taken against the right thing: a black calibration defines "
                 "what zero means, so whatever the instrument was looking at "
                 "reads as nothing straight afterwards."
                 ).format(zero=zero))
@@ -489,7 +489,7 @@ class Cr30CalibrationMixin:
 
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.NoIcon)
-        box.setWindowTitle(tr("Check the dark calibration"))
+        box.setWindowTitle(tr("Check the black calibration"))
         box.setText(tr("That dark reference does not look dark."))
         box.setInformativeText(tr(
             "Straight after the calibration, ChromIQ asked your CR30 to read "

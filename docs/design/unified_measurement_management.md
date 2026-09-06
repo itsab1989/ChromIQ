@@ -1706,6 +1706,17 @@ tile signature is one unit's constant. USB catches it on every unit.*
 
 ### M-CR30-CALIBRATE-BLACK · PROPOSED · the dark reference, taken against air — Measure
 
+*⚠ REVISED 2026-09-07, wording only, and it is still PROPOSED — nothing here
+has been approved. The act had two names. `black calibration` names it in seven
+places and all twelve catalogues have committed to it (`svartkalibrering`,
+`kalibracja czerni`, `калибровка по чёрному`, `黑校准`); `dark calibration`
+named the same act in three, one of which was this body, one a window title
+sitting directly over the sentence "That dark reference does not look dark."
+`dark reference` is kept, because it names the RESULT the instrument now holds
+and that distinction is worth having. So the body now says "A black calibration
+DEFINES what zero means". Three em dashes went with it, under the em-dash rule:
+the string was modified, so it stops matching the frozen baseline.*
+
 *New message (#159, 2026-08-29). The second calibration step, offered by an
 unticked checkbox in M-CR30-CALIBRATE — per use, deliberately not remembered, so
 a second window only ever appears for the user who has just asked for it. That
@@ -1750,17 +1761,17 @@ where being unmistakable matters most.*
 >
 > This second step is the opposite of the first one, so it is worth a glance at the picture above.
 >
-> TAKE THE CAP OFF and put it aside. Hold the instrument with the opening pointing DOWNWARD into open space — about a metre above the floor, with nothing in front of it, and not aimed at a lamp or a window.
+> TAKE THE CAP OFF and put it aside. Hold the instrument with the opening pointing DOWNWARD into open space, about a metre above the floor, with nothing in front of it, and not aimed at a lamp or a window.
 >
 > There is nothing to place it on. Your CR30 has no black tile: it takes its dark reading from empty air, which is why the picture shows it pointing at nothing.
 >
 > Then press "Calibrate now". Afterwards ChromIQ reads once more and shows you the number that came back, so there is a record of it.
 >
-> ⚠ It cannot check that you pointed it at the right thing. A dark calibration DEFINES what zero means, so whatever the instrument was looking at becomes the new zero and reads as nothing a moment later — measured on a real unit: calibrated against white paper, it read back 0.004 %. Getting this step right is your eyes, not ours.
+> ⚠ It cannot check that you pointed it at the right thing. A black calibration DEFINES what zero means, so whatever the instrument was looking at becomes the new zero and reads as nothing a moment later. Measured on a real unit: calibrated against white paper, it read back 0.004 %. Getting this step right is your eyes, not ours.
 >
 > If you would rather not, press "Skip this step". Your white calibration still stands and the measurement goes ahead with the dark reference the instrument already had.
 >
-> If you have changed your mind about measuring at all, press "Cancel the measurement". Nothing has been measured yet and nothing on disk changes, so the only thing you lose is the white calibration you have just taken — and you can take that again in a few seconds whenever you like.
+> If you have changed your mind about measuring at all, press "Cancel the measurement". Nothing has been measured yet and nothing on disk changes, so the only thing you lose is the white calibration you have just taken, and you can take that again in a few seconds whenever you like.
 
 *⚠ REVISED 2026-08-30, and this one is a retraction. The window claimed the
 read-back was "the one check it can honestly make". **It is not a check of what
@@ -1768,7 +1779,7 @@ the user did.** Basti tested it on hardware — black-calibrated deliberately
 against white paper — and the read-back came back at **0.004 %R**, comfortably
 inside the 0.05 threshold, reported as a healthy dark reference.*
 
-*The reason is structural, not a bug: a dark calibration DEFINES zero. Whatever
+*The reason is structural, not a bug: a black calibration DEFINES zero. Whatever
 the instrument is looking at becomes the new zero, so reading that same surface
 a moment later can only return ~0. The check is circular for the one mistake it
 appeared to guard — pointing it at the wrong thing — and could only fire if
