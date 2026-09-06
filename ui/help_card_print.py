@@ -119,12 +119,36 @@ _TAB_NAMES = {
 
 def _tab_name(idx: Any) -> str:
     """The tab's name, translated — a printed card is read in the user's own
-    language, and these were the one thing on the page that stayed English."""
+    language, and these were the one thing on the page that stayed English.
+
+    TRANSLATED THROUGH THE TAB STRIP'S OWN NUMBERED KEY, and that is the fix
+    rather than a flourish. `tr(name)` here passes a VARIABLE, which
+    `scripts/i18n_extract.py` cannot see, so none of these five was ever a
+    catalogue key. Four of them were translated anyway, by coincidence: the
+    same words appear as `tr()` literals elsewhere. The fifth does not.
+    **"Measure" had no German entry at all**, so every printed step belonging
+    to tab 3 said "Measure" in all twelve languages — measured on the German
+    sheet, where steps 1 to 4 of "Scanner oder Kamera profilieren" all read
+    "Measure —" against a German card (`de-scanner_profile-p1.png`), and
+    `test_catalog_is_complete` was green throughout because the key does not
+    exist to be missing.
+
+    `"3. Measure"` IS a real key: `ui/main_window.py:333` writes
+    `tr("3. Measure")` as a literal, so the extractor sees it and every
+    catalogue carries it. Asking for that and dropping the number needs no new
+    key, no new translation in any language, and cannot drift from the tab the
+    reader is being sent to. If the number is ever dropped from the tab strip
+    the fallback keeps the English word rather than printing "3.".
+    """
     try:
         name = _TAB_NAMES.get(int(idx))
     except (TypeError, ValueError):
         return ""
-    return tr(name) if name else ""
+    if not name:
+        return ""
+    labelled = tr(f"{int(idx)}. {name}")
+    stripped = re.sub(r"^\s*\d+\s*[.)]\s*", "", labelled).strip()
+    return stripped or tr(name)
 
 
 #: Fallback page size, in millimetres — A4 less a 15 mm margin each side. Used

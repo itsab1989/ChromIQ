@@ -421,6 +421,45 @@ def test_a_note_prints_and_prints_as_a_note(_app):
         assert 'class="note"' in markup
 
 
+def test_every_printed_tab_name_is_the_tab_strip_s_own_label(_app):
+    """A printed step names its tab, and the name has to be the reader's.
+
+    FOUND BY LOOKING AT THE GERMAN SHEET, not by a check. `_tab_name` called
+    `tr()` on a VARIABLE, which `scripts/i18n_extract.py` cannot see, so none
+    of the five was a catalogue key. Four were translated by coincidence,
+    because the same words are `tr()` literals elsewhere; "Measure" was not, so
+    every printed step belonging to tab 3 read "Measure" in all twelve
+    languages while `test_catalog_is_complete` stayed green, because a key that
+    does not exist cannot be missing.
+
+    The names are now taken from the tab strip's own numbered key, which IS a
+    literal (`ui/main_window.py`), so this asserts the two against each other
+    rather than against a word typed here.
+    """
+    from core import i18n
+    from ui.help_card_print import _TAB_NAMES, _tab_name
+
+    was = i18n.current_language()
+    try:
+        for code in ("en", "de", "fr", "ja", "no"):
+            i18n.set_language(code)
+            for idx, english in _TAB_NAMES.items():
+                strip = i18n.tr(f"{idx}. {english}")
+                printed = _tab_name(idx)
+                assert printed and printed in strip, (
+                    f"[{code}] tab {idx}: the card prints {printed!r} and the "
+                    f"tab strip says {strip!r}")
+                if code != "en":
+                    assert strip != f"{idx}. {english}", (
+                        f"[{code}] the tab strip label for tab {idx} is "
+                        "untranslated, so this check proves nothing there")
+                    assert printed != english, (
+                        f"[{code}] tab {idx} still prints the English "
+                        f"{english!r}")
+    finally:
+        i18n.set_language(was)
+
+
 def test_a_card_with_no_notes_prints_exactly_as_it_did(_app):
     """The schema change had to be inert for the other nineteen cards.
 
