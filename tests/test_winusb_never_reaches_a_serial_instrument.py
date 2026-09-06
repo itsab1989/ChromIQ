@@ -114,12 +114,13 @@ def test_every_zadig_instruction_warns_about_the_serial_device():
     for status in ("launched", "download_page", "failed", None):
         rendered.append(usb_install_outcome(
             wdi_available=False, ran_ok=False, still_unbound_names=[],
-            zadig_status=status)[0])
+            zadig_status=status, driver_was_missing=True)[0])
     for ran_ok in (True, False):
         for unbound in ([], ["GretagMacbeth i1 Pro / i1 Pro 2"]):
             rendered.append(usb_install_outcome(
                 wdi_available=True, ran_ok=ran_ok,
-                still_unbound_names=unbound, zadig_status=None)[0])
+                still_unbound_names=unbound, zadig_status=None,
+                driver_was_missing=True)[0])
 
     steers = [t for t in rendered
               if "List All Devices" in t
