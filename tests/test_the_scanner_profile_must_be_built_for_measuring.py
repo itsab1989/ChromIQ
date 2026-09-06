@@ -223,20 +223,61 @@ def _card(key):
     return next(c for c in WORKFLOWS if c.get("key") == key)
 
 
+def _steps_text(key) -> str:
+    """Only what a numbered STEP says. The instruction, not its reasoning."""
+    return " ".join(str(s[1]) for s in _card(key)["steps"])
+
+
+def _card_text(key) -> str:
+    """Everything on the card: the steps AND the notes under them.
+
+    THE NOTES ARE PART OF THE CARD, and this helper had to learn that.
+    2026-09-06 gave a step an optional fourth element, a sequence of
+    ``(heading, body)`` notes, on Knut's instruction: *"A user should be guided
+    with simple steps, and given the more detailed explanations as notes for a
+    deeper understanding, if the user decides to want that."* Everything below
+    that reads like an explanation rather than an action moved into one, so a
+    check that reads ``s[1]`` alone would report a card that had lost the very
+    facts it still carries. It is closed on screen and printed in full, which
+    is why it counts.
+    """
+    parts = []
+    for step in _card(key)["steps"]:
+        parts.append(str(step[1]))
+        for heading, body in (step[3] if len(step) > 3 else ()):
+            parts += [str(heading), str(body)]
+    return " ".join(parts)
+
+
 def test_the_printer_from_scan_card_names_all_three_settings():
     """Knut's words: the *workflow steps in help cards* must be clear about it.
     Before beta 9 this card mentioned neither the flag, nor the profile type,
     nor even Quality."""
-    blob = " ".join(s[1] for s in _card("printer_from_scan")["steps"])
+    blob = _card_text("printer_from_scan")
     assert "-ua" in blob
     assert _XYZ_CLUT in blob
     assert "Quality" in blob and "High" in blob
     assert "Advanced" in blob
 
 
+def test_the_step_itself_still_says_to_build_it_for_measuring():
+    """The three settings may live in a note; the INSTRUCTION may not.
+
+    The other half of the rule the note register introduced. A reader who never
+    opens a note must still be told, in the numbered step, that the scanner
+    profile has to be built as a measuring instrument and which scenario does
+    it. Otherwise "moved to a note" is indistinguishable from "deleted".
+    """
+    step_one = str(_card("printer_from_scan")["steps"][0][1])
+    assert "MEASURING" in step_one, (
+        "the first step no longer says what kind of profile this is")
+    assert "measuring instrument" in step_one, (
+        "the first step does not name the scenario that builds one")
+
+
 def test_the_printer_from_scan_card_explains_why_before_it_instructs():
     """A step that only says "tick this" is the step people skip."""
-    blob = " ".join(s[1] for s in _card("printer_from_scan")["steps"])
+    blob = _card_text("printer_from_scan")
     assert "84 %" in blob, "the target-white-vs-paper-white fact is not given"
     assert _LAB_CLUT in blob
     assert "perfect white surface" in blob
@@ -245,7 +286,7 @@ def test_the_printer_from_scan_card_explains_why_before_it_instructs():
 def test_the_scanner_profile_card_points_at_the_measuring_settings():
     """The card that BUILDS the profile is the one where the settings are
     actually entered, so it cannot be silent about them either."""
-    blob = " ".join(s[1] for s in _card("scanner_profile")["steps"])
+    blob = _card_text("scanner_profile")
     assert "-ua" in blob
     assert _XYZ_CLUT in blob
     assert "flatbed scanner" in blob, (
@@ -257,5 +298,7 @@ def test_both_cards_say_the_measuring_profile_is_a_separate_file():
     normal scanner profile with it has broken their scanning, and would have no
     idea why."""
     for key in ("printer_from_scan", "scanner_profile"):
-        blob = " ".join(s[1] for s in _card(key)["steps"])
-        assert "separate" in blob, f"{key} does not say to keep it separate"
+        blob = _steps_text(key)
+        assert "separate" in blob, (
+            f"{key} does not say to keep it separate in a STEP — a warning "
+            f"this sharp cannot sit behind a disclosure")

@@ -615,20 +615,31 @@ def test_every_deliberate_exception_says_why():
 # Lab-table note, which had gone on describing the world before B8-75
 # moved the white-point default. Three keys in, one out; German
 # translated, the eleven +2 each.
+# …and once more on 2026-09-06 (AGENT CR), bringing the scanner and camera
+# HELP up to the usage scenarios those two entries added. Both printable help
+# cards were rewritten around the three scenarios, with their reasoning moved
+# out of the numbered steps into the new note register; the window's own ⓘ was
+# corrected, having said for fifty-five days that the source choice was "at the
+# top of the window" (it is the scenario radios) and that the build button
+# reads "Build profile with scanner or camera" (it reads "Build printer
+# profile" in printer mode); and three more bodies gained a sentence naming the
+# scenarios. 50 keys in, 20 stale out. German is translated for all 50 and does
+# not move; the eleven others carry the English source under the beta rule, so
+# each of them gains 43.
 # These are each language's ACTUAL count.
 _IDENTICAL_TO_KEY = {
     "de": 117,
-    "es": 405,
-    "fr": 425,
-    "it": 417,
-    "ja": 394,
-    "nl": 434,
-    "no": 418,
-    "pl": 409,
-    "pt": 409,
-    "ru": 381,
-    "sv": 422,
-    "zh_CN": 387,
+    "es": 448,
+    "fr": 468,
+    "it": 460,
+    "ja": 437,
+    "nl": 477,
+    "no": 461,
+    "pl": 452,
+    "pt": 452,
+    "ru": 424,
+    "sv": 465,
+    "zh_CN": 430,
 }
 
 

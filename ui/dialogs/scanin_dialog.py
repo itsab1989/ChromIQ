@@ -618,61 +618,110 @@ class ScannerProfileDialog(_ToolDialogBase):
 
     # Prepended OUTSIDE the main tr() key — appending inside would orphan the
     # existing help key and its translations (the WHICH_CHART_HELP lesson).
+    #
+    # THE MIDDLE BLOCK WAS FIFTY-FIVE DAYS STALE AND SAID FOUR THINGS THAT WERE
+    # NOT TRUE ON SCREEN. Written 2026-07-13 (`61fe498b0`); the usage scenarios
+    # landed 2026-09-06 (`97da3224f` / `af2d429234`) and opened neither this
+    # file's help nor either printable card. Read off the running window,
+    # 2026-09-06:
+    #
+    #  1. *"There are two ways to provide the target — choose one at the top of
+    #     the window"*. The top of the window is now "Usage scenario: what is
+    #     this profile for?" and its three radios. The source choice is the
+    #     SECOND block. The card pointed at the wrong control, and at the
+    #     wrong question: the scenario is the first thing to answer.
+    #  2. *"click Build profile with scanner or camera"*. In printer mode that
+    #     button reads **"Build printer profile"** (`_apply_mode_title`), and
+    #     so does the masthead.
+    #  3. The opening sentence promises *"a genuinely useful printer profile
+    #     with no spectro at all"* and then the whole body was written for a
+    #     scanner or camera profile. The printer route had no steps here at
+    #     all — and it is now a named scenario.
+    #  4. The contents list was in the wrong ORDER as well as short of an
+    #     entry: the sections really run averaging (SCANNING_TIPS_HELP), then
+    #     capture (SCAN_SETUP_HELP), then camera, then which target. It
+    #     promised "in order" and listed capture first.
+    #
+    # The block is split in two so the unchanged "Using your profile" half
+    # keeps its own key. Both halves are new keys either way — `tr()` is keyed
+    # on the exact English source — but splitting means the German for the
+    # second half is the German that was already reviewed, moved, not rewritten.
     HELP = tr(
         "A scanner or camera is never as accurate as a real spectrophotometer "
         "— but it lets you build a genuinely useful printer profile with no "
         "spectro at all, and a fine scanner/camera profile for your device."
     ) + "\n\n" + tr(
-        "Builds an ICC colour profile for a scanner or a digital camera, from a "
-        "target whose true colours are known. Once built, the profile tells any "
-        "colour-managed program how your device really sees colour, so scans and "
-        "photos come out accurate instead of dull or colour-cast.\n\n"
-        "There are two ways to provide the target — choose one at the top of the "
-        "window:\n\n"
+        "Builds an ICC colour profile for a scanner or a digital camera from a "
+        "target whose true colours are known, and it can build a profile for "
+        "your printer as well, using the scanner as the measuring instrument. "
+        "Once built, a scanner or camera profile tells any colour-managed "
+        "program how your device really sees colour, so scans and photos come "
+        "out accurate instead of dull or colour-cast.\n\n"
+        "Three steps, in this order:\n\n"
+        "1. Say what the profile is for. That is the first row of the window, "
+        "“Usage scenario: what is this profile for?”, and it comes first "
+        "because it decides how the profile has to be built. Picking one fills "
+        "in the profile type, the quality and the white point handling for "
+        "you, once, at the moment you pick it. Nothing is locked afterwards.\n"
+        "• “A profile for my scanner or camera, for everyday scanning” is the "
+        "usual choice: scans and photographs open looking right.\n"
+        "• “A profile for my scanner, so it can stand in for a measuring "
+        "instrument” builds a profile for measuring rather than for looking "
+        "at. Build this one once. It is the profile the next scenario needs, "
+        "and it is the step almost everybody misses.\n"
+        "• “A profile for my printer, measured with this scanner” builds your "
+        "printer's profile from a scan of one of your own charts, with no "
+        "spectrophotometer. Pick the measuring profile from the scenario above "
+        "in the “Scanner profile” row that appears.\n\n"
+        "2. Say where the target comes from, under “Create profile using:”.\n"
         "• A chart you made in ChromIQ. Print and measure a chart as usual and "
-        "keep its scanner files (.cht + .cie) — tick 'Also save "
+        "keep its scanner files (.cht + .cie): tick 'Also save "
         "scanner-profiling files' after measuring, or use Tools ▸ Create scanner "
-        "or camera target. Nothing extra to buy: ChromIQ already knows every "
-        "patch's real colour.\n"
+        "or camera target. Nothing extra to buy, because ChromIQ already knows "
+        "every patch's real colour. This is also the only side that can profile "
+        "a printer.\n"
         "• A standard target you own. A bought reflective target such as an IT8 "
         "(for example Wolf Faust), an X-Rite ColorChecker or a LaserSoft target. "
         "Pick its type from the list and load the reference data file that came "
-        "with it (.cie / .txt — or a .ti3 you measured from it yourself).\n\n"
-        "Then capture the target on the device you want to profile — scan it, or "
-        "for a camera photograph it — as a plain RGB TIFF, with the device's own "
-        "colour correction turned OFF. When scanning, use 600 dpi or more — "
+        "with it (.cie / .txt, or a .ti3 you measured from it yourself).\n\n"
+        "3. Capture the target on the device you want to profile. Scan it, or "
+        "for a camera photograph it, as a plain RGB TIFF, with the device's own "
+        "colour correction turned OFF. When scanning, use 600 dpi or more. "
         "1200 dpi is preferred; 300 dpi is too coarse for clean patch reads. "
-        "Load it here, drag the four corners over "
-        "the patch area until the green grid sits on the real patches, and click "
-        "Build profile with scanner or camera. ChromIQ compares how your device saw "
-        "each patch against the true colours and writes the ICC profile next to "
-        "your capture.\n\n"
-        "The sections below cover, in order: the best way to capture the target, "
-        "averaging several captures for less noise, profiling a camera, and "
-        "which target to use.\n\n"
+        "Load it here, drag the four corners over the patch area until the "
+        "green grid sits on the real patches, and press the build button at the "
+        "bottom of the window. It is labelled “Build profile with scanner or "
+        "camera”, and “Build printer profile” once the printer scenario is "
+        "chosen. ChromIQ compares how your device saw each patch against the "
+        "true colours and writes the ICC profile next to your capture.\n\n"
+        "The sections below cover, in order: getting the best result from "
+        "several captures, how to scan the chart, profiling a camera, and "
+        "which target to use."
+    ) + "\n\n" + tr(
         "───────────────\n"
         "Using your profile\n\n"
-        "The profile makes your scans or photos come out accurate — great for "
-        "digitising prints, artwork and photos, or for repeatable studio and "
-        "repro work, so the result matches the original.\n\n"
+        "The profile makes your scans or photos come out accurate, which is "
+        "what you want for digitising prints, artwork and photos, or for "
+        "repeatable studio and repro work, so the result matches the "
+        "original.\n\n"
         "Two common ways to use it:\n\n"
         "• In your scanner software (VueScan, SilverFast, Epson Scan, etc.): "
         "set this .icc file as the scanner's input / ICC profile, and choose a "
         "working space such as sRGB or Adobe RGB as the output. New scans are "
         "then corrected automatically.\n\n"
         "• In Photoshop or another editor (this is also the route for camera "
-        "photos): open the scan or photo — captured with correction OFF — then "
+        "photos): open the scan or photo, captured with correction OFF, then "
         "Assign Profile ▸ this profile (so the app knows how your device saw the "
         "colours), and Convert to Profile ▸ your working space (e.g. sRGB or "
         "Adobe RGB). The colours now match the original.\n\n"
         "Good to know:\n"
         "• The profile is specific to this device and the settings you captured "
-        "with. Keep the scanner's auto-correction off — or the camera's lighting "
-        "and raw settings the same — exactly as when you captured the target, or "
+        "with. Keep the scanner's auto-correction off, or the camera's lighting "
+        "and raw settings the same, exactly as when you captured the target, or "
         "the profile won't fit.\n"
         "• A scanner profile is most accurate for media like the paper you "
         "profiled; a camera profile is tied to the light you shot under.\n"
-        "• The profile characterises the device — it does not sharpen or "
+        "• The profile characterises the device. It does not sharpen or "
         "retouch; it just makes the colours faithful."
     ) + "\n\n───────────────\n" + SCANNING_TIPS_HELP \
       + "\n\n───────────────\n" + SCAN_SETUP_HELP \
@@ -1319,14 +1368,16 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._mode_group.addButton(self._mode_standard)
         tip = self._tip(
             tr("Which source?"),
-            tr("Two ways to profile a scanner or camera — and only one of them "
-            "can also profile your printer.\n\n"
-            "• A chart you printed yourself — the option labelled “A chart I "
+            tr("The second question, after the usage scenario above: where the "
+            "target's true colours are going to come from. Two ways to profile "
+            "a scanner or camera, and only one of them can also profile your "
+            "printer.\n\n"
+            "• A chart you printed yourself, the option labelled “A chart I "
             "made in ChromIQ”. Print and measure a chart, then scan the print; "
             "ChromIQ already knows its exact patch colours.\n"
             "Despite that label, this option is not limited to ChromIQ's own "
             "charts. ANY chart you printed yourself belongs here, including one "
-            "made in another program — i1Profiler, ProfileMaker, or ArgyllCMS's "
+            "made in another program: i1Profiler, ProfileMaker, or ArgyllCMS's "
             "printtarg on the command line. Pick its .ti2 and, if there is no "
             "ChromIQ layout file beside it, ChromIQ asks you for the .cht page "
             "files that came with it instead.\n"
@@ -1335,14 +1386,14 @@ class ScannerProfileDialog(_ToolDialogBase):
             "colour values that were sent to the printer, and a printer profile "
             "is built by comparing those values with what actually came out on "
             "paper. Without it there is nothing to compare the scan against.\n\n"
-            "• A target you bought — the option labelled “A standard target I "
+            "• A target you bought, the option labelled “A standard target I "
             "own”. A reflective target such as a Wolf Faust IT8, a LaserSoft "
             "target or an X-Rite ColorChecker. Pick its type and the reference "
             "data file that came with it (.cie / .txt), then scan it. No "
             "printing or measuring needed.\n"
             "This profiles your SCANNER or CAMERA only. The target was printed "
             "and measured by its manufacturer, not by your printer, so nothing "
-            "about it can describe how your printer behaves — which is why "
+            "about it can describe how your printer behaves, which is why "
             "“Profile my printer from this scan” is not offered on this side."))
         # The two options go on their own lines UNDER the question rather than
         # trailing after it. On one line the row has to be as wide as the label
@@ -2291,11 +2342,11 @@ class ScannerProfileDialog(_ToolDialogBase):
         # on, and PLACED in the bottom button row (see showEvent).
         self._save_defaults_btn = QPushButton(tr("Save as Defaults"), self)
         self._save_defaults_btn.setToolTip(
-            tr("Store everything you've set here — the patch sample area, the "
-               "two reading options, the profile type, quality, the description, "
-               "and every option under Advanced — as your defaults. Next time "
-               "you open this window they'll already be filled in, so you don't "
-               "have to set them up again.\n\n"
+            tr("Store everything you've set here as your defaults: the patch "
+               "sample area, the two reading options, the profile type, "
+               "quality, the description, and every option under Advanced. "
+               "Next time you open this window they'll already be filled in, "
+               "so you don't have to set them up again.\n\n"
                "Each kind of profile is remembered on its own: this saves the "
                "profile settings for whatever you're building right now (a "
                "printer profile, a scanner/camera profile from a ChromIQ chart, "
@@ -2303,6 +2354,11 @@ class ScannerProfileDialog(_ToolDialogBase):
                "untouched. The reading options are shared by all three, because "
                "they describe how the scan is read rather than what is built "
                "from it.\n\n"
+               "Saving also puts the usage scenarios at the top of the window "
+               "out of the driving seat for that kind of profile: ChromIQ then "
+               "shows you what you saved and sets nothing, because the profile "
+               "you build next has to be the profile you built last unless you "
+               "say otherwise. Picking a scenario yourself still applies it.\n\n"
                "Your choices are only remembered when you click this. Closing the "
                "window without saving leaves your saved defaults untouched, and "
                "“Restore factory defaults” in Preferences clears them again."))
@@ -4075,12 +4131,16 @@ class ScannerProfileDialog(_ToolDialogBase):
             # `tr()` goes around the LITERAL: the extractor only sees literals,
             # and a body it cannot see would ship untranslated.
             self._log.appendPlainText(tr(
-                "Note — the scanner profile you pick has to have been built as "
+                "Note: the scanner profile you pick has to have been built as "
                 "a measuring instrument, which is not ChromIQ's default: "
                 "Profile type “cLUT — XYZ table”, Quality “High”, and "
                 "Advanced… ▸ White Point Handling on “Force Absolute "
-                "Colorimetric (-ua)”. The ⓘ beside the tick explains what each "
-                "is worth, and what happens without them."))
+                "Colorimetric (-ua)”. When you build that scanner profile, "
+                "pick the second usage scenario at the top of this window, “A "
+                "profile for my scanner, so it can stand in for a measuring "
+                "instrument”, and ChromIQ sets all three for you. The ⓘ beside "
+                "the tick explains what each is worth, and what happens "
+                "without them."))
         # The Chart-geometry (.cht) row only matters in printer mode (#105).
         self._byo_row_w.setVisible(checked)
         self._refresh_shot_bar()   # averaging affordances hide in printer mode
