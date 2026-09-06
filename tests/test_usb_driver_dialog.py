@@ -123,7 +123,8 @@ def test_one_device_without_a_driver_and_wdi_simple_present():
         "changes.</b> The driver is built for your instrument at the moment it "
         "is installed, so it has to be signed at that moment too — and the "
         "installer puts the certificate it signs with into two of Windows' own "
-        "lists of trusted signers, for the whole computer. It stays there "
+        "lists of trusted signers — one of them the trusted-root list — for "
+        "the whole computer. It stays there "
         "after the driver is gone. ArgyllCMS's own driver installer does the "
         "same. Click <b>What this changes</b> for exactly what it is, what it "
         "can and cannot vouch for, and how to take it out again."
@@ -164,7 +165,8 @@ def test_one_device_without_a_driver_and_no_wdi_simple_falls_back_to_zadig():
         "changes.</b> The driver is built for your instrument at the moment it "
         "is installed, so it has to be signed at that moment too — and the "
         "installer puts the certificate it signs with into two of Windows' own "
-        "lists of trusted signers, for the whole computer. It stays there "
+        "lists of trusted signers — one of them the trusted-root list — for "
+        "the whole computer. It stays there "
         "after the driver is gone. ArgyllCMS's own driver installer does the "
         "same. Click <b>What this changes</b> for exactly what it is, what it "
         "can and cannot vouch for, and how to take it out again."
@@ -198,6 +200,13 @@ def test_one_device_that_already_works_offers_a_repair_not_an_install():
         "The driver is already installed for the device above. "
         "If ChromIQ or Argyll still can't open your instrument, click "
         "<b>Reinstall Driver</b> to run the installer again."
+        # AND THE CERTIFICATE PARAGRAPH, WHICH THIS BRANCH DID NOT CARRY.
+        # `Reinstall Driver` runs `install_winusb` over every detected device
+        # and libwdi mints a fresh certificate on every run, so the repair path
+        # writes to the root store too. Referenced rather than repeated: the
+        # paragraph's own wording is pinned character-for-character on the
+        # install branch above, and this test is about the repair sentence.
+        + sd.usb_certificate_notice_line()
     )
     assert btn == "Reinstall Driver"
 
@@ -213,6 +222,7 @@ def test_two_working_devices_switch_every_word_to_the_plural():
         "The driver is already installed for the devices above. "
         "If ChromIQ or Argyll still can't open your instrument, click "
         "<b>Reinstall Driver</b> to run the installer again."
+        + sd.usb_certificate_notice_line()
     )
     assert btn == "Reinstall Driver"
 
@@ -1762,7 +1772,18 @@ class ModalDriver:
     def __init__(self, *steps):
         from PyQt6.QtCore import QTimer
         self._steps = list(steps)
-        self._handled: set = set()
+        # STRONG REFERENCES, NOT ids — and this was a latent hole in the
+        # harness, not a style preference. `_show_usb_installer` is a
+        # `while True:` that destroys its dialog and builds a new one on every
+        # pass, and CPython hands the new object the address the old one has
+        # just freed. Keyed by `id()`, the REBUILT window reads as "already
+        # handled": its step never fires, nothing dismisses it, and the run
+        # ends in `timed_out` — or, worse, a step silently does not run and
+        # the test asserts on a window it never saw. Measured twice on this
+        # machine, once here and once in `scripts/drive_a11_certificate_text.py`
+        # against the real screen. Holding the widget alive makes the address
+        # unre-usable while the driver is running.
+        self._handled: list = []
         self.seen: list = []
         self.ticks = 0
         self.timed_out = False
@@ -1776,6 +1797,9 @@ class ModalDriver:
 
     def __exit__(self, *exc):
         self._timer.stop()
+        # Drop the strong references as soon as the driver is done, so the
+        # widgets it held alive are collected on the usual schedule.
+        self._handled = []
         if exc[0] is None:
             # THIS ASSERT IS THE POINT OF THE FLAG, and for one release it did
             # not exist. `timed_out` was recorded and never read by any of the
@@ -1808,9 +1832,9 @@ class ModalDriver:
             self._timer.stop()
             return
         w = QApplication.activeModalWidget()
-        if w is None or id(w) in self._handled:
+        if w is None or any(seen is w for seen in self._handled):
             return
-        self._handled.add(id(w))
+        self._handled.append(w)
         self.seen.append((w.windowTitle(), _plain(w)))
         if self._steps:
             self._steps.pop(0)(w)
@@ -2026,6 +2050,47 @@ def test_the_winusb_outcome_window_appears_when_zadig_was_launched(
     assert drv.modal_count == 2, (
         "the install ran and its outcome window never appeared")
     assert "Zadig is open" in drv.text_of(1)
+
+
+def test_the_certificate_button_is_on_screen_and_opens_the_notice(
+        dialog, on_windows, monkeypatch):
+    """The disclosure promises a control. Nothing built the window and pressed
+    it — the guards checked the two text functions, which agree with each other
+    whatever `_show_usb_installer` does with them.
+
+    So this presses it: the first window must carry `What this changes…`, the
+    second must be the notice, and the driver must come BACK to the first
+    window afterwards (`continue`), because reading what the install changes
+    must not cost the user their place in a repair.
+    """
+    _fixed_hardware(monkeypatch, [dev(I1PRO, False)], wdi=False)
+    with ModalDriver(lambda w: _button(w, "What this changes…").click(),
+                     lambda w: _ok_button(w).click(),
+                     lambda w: w.reject()) as drv:
+        dialog._show_usb_installer()
+    assert drv.modal_count == 3, (
+        "expected first window -> notice -> first window again, saw %r"
+        % [t for t, _ in drv.seen])
+    assert "lists of trusted signers" in drv.text_of(0), \
+        "the disclosure was not on screen before the button was pressed"
+    assert "Trusted Root Certification Authorities" in drv.text_of(1)
+    assert "certlm.msc" in drv.text_of(1)
+    assert "What this changes" in drv.text_of(2), \
+        "the window did not come back after the notice was dismissed"
+
+
+def test_the_certificate_button_is_there_on_the_repair_path_too(
+        dialog, on_windows, monkeypatch):
+    """`Reinstall Driver` runs the installer over every detected device and
+    mints a fresh certificate, so it needs the button as much as `Install
+    Driver` does. This branch had neither the paragraph nor the button."""
+    _fixed_hardware(monkeypatch, [dev(I1PRO, True)], wdi=True)
+    with ModalDriver(lambda w: _button(w, "What this changes…").click(),
+                     lambda w: _ok_button(w).click(),
+                     lambda w: w.reject()) as drv:
+        dialog._show_usb_installer()
+    assert drv.modal_count == 3
+    assert "Trusted Root Certification Authorities" in drv.text_of(1)
 
 
 def test_the_cr30_warning_reaches_the_screen_after_zadig_is_launched(

@@ -33,6 +33,11 @@ from ui.dialogs import settings_dialog as sd
 ALL_CODES = ["de", "es", "fr", "it", "ja", "nl", "no", "pl", "pt", "ru", "sv",
              "zh_CN"]
 
+#: How many `tr()` keys `_english_keys()` must recover. Seven of the feature's
+#: eight; the notice window's TITLE is written at the call site and is checked
+#: by `test_the_notice_title_is_a_key_too`.
+EXPECTED_SWEPT_KEYS = 7
+
 
 def dev(name: str, has_winusb: bool):
     return SimpleNamespace(name=name, has_winusb=has_winusb)
@@ -49,9 +54,13 @@ SHAPES = [
     ([], False, False),
     ([dev(I1PRO, False)], True, True),
     ([dev(I1PRO, False)], False, True),
-    ([dev(I1PRO, True)], True, False),
-    ([dev(I1PRO, True)], False, False),
-    ([dev(I1PRO, True), dev(SPYDER, True)], True, False),
+    # ALREADY DRIVEN IS **TRUE**, AND IT WAS FALSE HERE UNTIL A REVIEW.
+    # `Reinstall Driver` runs `install_winusb` over every detected device
+    # (`targets = needs_install or devices`), and libwdi mints a fresh
+    # certificate every run. The repair path writes to the root store too.
+    ([dev(I1PRO, True)], True, True),
+    ([dev(I1PRO, True)], False, True),
+    ([dev(I1PRO, True), dev(SPYDER, True)], True, True),
     ([dev(I1PRO, False), dev(SPYDER, False)], True, True),
     ([dev(I1PRO, True), dev(SPYDER, False)], True, True),
     ([dev(I1PRO, False), dev(SPYDER, True)], False, True),
@@ -95,6 +104,11 @@ def test_the_disclosure_is_in_the_first_window_not_only_behind_the_button():
 @pytest.mark.parametrize("phrase", [
     # which lists it goes into
     "lists of trusted signers",
+    # …and that one of them is THE ROOT STORE. This phrase was missing while
+    # the docstring above claimed it was there: the paragraph said "two of
+    # Windows' own lists of trusted signers", which is materially less than
+    # naming the list Windows uses to decide which authorities to believe.
+    "trusted-root list",
     # whose computer trusts it
     "for the whole computer",
     # and that it does not go away with the driver
@@ -127,15 +141,33 @@ def test_the_zadig_branch_is_disclosed_too_because_zadig_is_libwdi():
     assert sd.usb_certificate_notice_line() in msg
 
 
-def test_the_disclosure_does_not_reach_a_user_who_is_installing_nothing():
-    """The other direction, and it is not symmetry for its own sake.
+def test_the_repair_path_discloses_too_because_it_reinstalls_the_certificate():
+    """THIS TEST USED TO ASSERT THE OPPOSITE, ON A FALSE PREMISE.
 
-    Every device already driven means the button says `Reinstall Driver` and
-    nothing is about to be written. A certificate paragraph there would be
-    describing something that is not happening.
+    It was called `…does_not_reach_a_user_who_is_installing_nothing` and its
+    docstring said that with every device already driven "nothing is about to
+    be written". That is not true. `_show_usb_installer` computes
+    ``targets = needs_install or devices``, so `Reinstall Driver` runs
+    `install_winusb` over every detected device, and libwdi mints a **fresh**
+    certificate on every run — the details text says so itself two paragraphs
+    later. The repair path was the one branch with no disclosure at all, and
+    its user is the one with no driver problem to justify the risk.
+
+    A guard asserting a comfortable falsehood is worse than no guard, because
+    it stops anybody looking.
     """
     for wdi in (True, False):
-        msg, _ = sd.usb_installer_text([dev(I1PRO, True)], wdi_available=wdi)
+        msg, btn = sd.usb_installer_text([dev(I1PRO, True)], wdi_available=wdi)
+        assert btn in ("Reinstall Driver", "Open Zadig"), btn
+        assert sd.usb_certificate_notice_line() in msg
+
+
+def test_a_window_with_no_instrument_has_nothing_to_disclose():
+    """The one shape that really is silent — and it is silent because there is
+    no button on it at all, not because a certificate is not written."""
+    for wdi in (True, False):
+        msg, btn = sd.usb_installer_text([], wdi_available=wdi)
+        assert btn is None
         assert "certificate" not in msg
 
 
@@ -189,8 +221,14 @@ def test_the_removal_advice_is_hedged_because_the_experiment_was_not_run():
 def test_it_does_not_promise_a_repair_nobody_has_produced():
     """"Running Install Driver again puts everything back" was a repair promise
     for a failure mode nobody has ever produced. What is known is only that a
-    second install mints a fresh certificate and reinstalls the driver."""
-    assert "puts everything back" not in _all_text()
+    second install mints a fresh certificate and reinstalls the driver.
+
+    The positive assertion comes first, because a bare `not in` passes on an
+    empty string and this test would then be guarding nothing at all.
+    """
+    text = _all_text()
+    assert "installs the driver, and its certificate, from the start" in text
+    assert "puts everything back" not in text
 
 
 def test_the_replacement_claim_is_scoped_to_one_instrument():
@@ -249,18 +287,43 @@ def test_the_search_term_it_gives_survives_the_path_wrapper():
 # 3. It renders — in twelve languages
 # ---------------------------------------------------------------------------
 
+def _assert_rich_text_is_sane(text: str, where: str) -> None:
+    for tag in ("b", "i"):
+        assert text.count(f"<{tag}>") == text.count(f"</{tag}>"), \
+            f"{where}: unbalanced <{tag}>"
+    assert not set(re.findall(r"<\s*/?\s*([a-zA-Z]+)", text)) - {
+        "b", "i", "br"}, f"{where}: a tag that is not b/i/br"
+    assert not re.search(r"&(?!amp;|nbsp;|lt;|gt;)", text), \
+        f"{where}: a bare ampersand"
+
+
 def test_the_rich_text_is_balanced():
     """Every tag opened is closed. A stray `<` swallows everything up to the
     next `>` SILENTLY — measured on this Qt: `'5 < 6 and 7 > 2'` renders as
-    `'5 2'`. Twelve translators writing free prose into a rich-text key is
-    exactly how that gets in, and nothing else in the suite would notice."""
-    for text in (sd.usb_certificate_notice_line(),
-                 sd.usb_certificate_details_text()):
-        for tag in ("b", "i"):
-            assert text.count(f"<{tag}>") == text.count(f"</{tag}>"), tag
-        # no tag but the four this text is allowed to use
-        assert not set(re.findall(r"<\s*/?\s*([a-zA-Z]+)", text)) - {
-            "b", "i", "br"}
+    `'5 2'`."""
+    _assert_rich_text_is_sane(sd.usb_certificate_notice_line(), "notice line")
+    _assert_rich_text_is_sane(sd.usb_certificate_details_text(), "details")
+
+
+@pytest.mark.parametrize("code", ALL_CODES)
+def test_the_rich_text_survives_translation(code):
+    """AND THE ENGLISH CHECK ABOVE DOES NOT COVER THIS, WHICH IS THE WHOLE
+    POINT OF IT.
+
+    The risk named in the sibling test is "twelve translators writing free
+    prose into a rich-text key" — and the sibling test reads the functions,
+    which return ENGLISH under the suite's default language. It could not
+    fail on a translation if it tried. Nothing in `tests/test_i18n.py` checks
+    tag balance either. This reads the catalogues.
+    """
+    import json
+    from pathlib import Path
+
+    root = Path(sd.__file__).resolve().parent.parent.parent / "data" / "i18n"
+    cat = json.loads(root.joinpath(f"{code}.json").read_text(encoding="utf-8"))
+    for key in _english_keys():
+        if key in cat:
+            _assert_rich_text_is_sane(cat[key], f"[{code}] {key[:40]}…")
 
 
 @pytest.mark.parametrize("code", ALL_CODES)
@@ -275,13 +338,17 @@ def test_every_language_has_the_disclosure_and_it_is_not_english(code):
     root = Path(sd.__file__).resolve().parent.parent.parent / "data" / "i18n"
     cat = json.loads(root.joinpath(f"{code}.json").read_text(encoding="utf-8"))
     keys = _english_keys()
-    assert keys, "the sweep found no keys — it would pass for ever"
+    # NOT JUST "non-empty". The sweep is a regex over `inspect.getsource`, so a
+    # single-quoted literal, an f-string, a `+` inside the call or a comment
+    # between the parens drops a key SILENTLY — and one surviving key satisfies
+    # a truthiness check. The count is the thing that has to be deliberate:
+    # adding a sixth paragraph should make this line fail and be bumped.
+    assert len(keys) == EXPECTED_SWEPT_KEYS, (
+        f"the sweep recovered {len(keys)} keys, expected "
+        f"{EXPECTED_SWEPT_KEYS} — either a paragraph was added (bump the "
+        f"number) or the regex stopped seeing one: {[k[:40] for k in keys]}")
     for key in keys:
         assert key in cat, f"[{code}] missing: {key[:60]}…"
-        if code == "zh_CN":
-            # Chinese keeps the HTML and the two proper nouns and little else;
-            # equality would be the only signal that matters and it is checked.
-            pass
         assert cat[key] != key, (
             f"[{code}] left as English: {key[:60]}…")
 

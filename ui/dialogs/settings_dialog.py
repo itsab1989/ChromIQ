@@ -292,7 +292,8 @@ def usb_certificate_notice_line() -> str:
         "changes.</b> The driver is built for your instrument at the moment it "
         "is installed, so it has to be signed at that moment too — and the "
         "installer puts the certificate it signs with into two of Windows' own "
-        "lists of trusted signers, for the whole computer. It stays there "
+        "lists of trusted signers — one of them the trusted-root list — for "
+        "the whole computer. It stays there "
         "after the driver is gone. ArgyllCMS's own driver installer does the "
         "same. Click <b>{details}</b> for exactly what it is, what it can and "
         "cannot vouch for, and how to take it out again."
@@ -319,8 +320,10 @@ def usb_certificate_details_text() -> str:
         tr("<b>The short version.</b> Installing the driver also puts one "
            "certificate into two of Windows' own lists of trusted signers, and "
            "it stays there after the driver is gone. It is not a program and "
-           "it cannot run. The key that would be needed to sign anything new "
-           "with it was not kept on your computer.<br><br>"
+           "it cannot be run. Windows' copy holds only the public half: the "
+           "key that would be needed to sign anything new with it is not "
+           "stored alongside it, and the installer deletes that key as soon "
+           "as it has finished signing.<br><br>"
            "<b>Why there is a certificate at all.</b> Windows will not install "
            "a driver package unless it can check who signed it. The driver "
            "your instrument needs is not one ready-made file — it is assembled "
@@ -357,10 +360,13 @@ def usb_certificate_details_text() -> str:
              "Within that limit it is genuinely trusted, by the whole "
              "computer, and that is worth knowing rather than glossing "
              "over.<br><br>"
-             "Nothing about it leaves your computer either: the installer "
-             "carries no networking code at all, and the certificate is made "
-             "on your machine and used once, to sign that one driver "
-             "package.<br><br>"
+             "Nothing about it leaves your computer: the certificate is made "
+             "on your machine and used once, to sign that one driver package. "
+             "ChromIQ's own driver installer carries no networking code at "
+             "all — its program file asks Windows for no network library of "
+             "any kind. Zadig is a separate program with its own update "
+             "check, and that is the one thing here that can reach the "
+             "internet.<br><br>"
              "This is also the ordinary way colour-measuring instruments are "
              "installed on Windows — the same tooling sits behind Zadig, and "
              "<b>ArgyllCMS's own USB driver installer does exactly this "
@@ -402,22 +408,38 @@ def usb_shows_certificate_details(devices, wdi_available: bool) -> bool:
     silence. `tests/test_the_install_says_what_it_changes.py` ties the two
     together over every list shape rather than trusting them to stay equal.
 
-    ⚠ `wdi_available` IS NOT PART OF THE ANSWER, AND MAKING IT ONE WAS THE FIRST
-    DRAFT'S HOLE. Without the bundled wdi-simple this window does not offer an
-    install — it sends the user to **Zadig**, and Zadig is libwdi's own front
-    end. libwdi's Certification Practice Statement names Zadig first in the list
-    of applications that install these certificates. So a user routed to Zadig
-    gets the same certificate by the same code, and a disclosure that appears
-    only beside `Install Driver` would tell exactly the users ChromIQ installs
-    for and none of the users ChromIQ sends elsewhere. The predicate is
-    therefore "is a driver about to be installed for anything", full stop.
+    ⚠ NEITHER `wdi_available` NOR "does anything NEED a driver" IS PART OF THE
+    ANSWER, AND BOTH WERE TRIED FIRST. Two holes, both found by review, both
+    with the same shape — a branch that installs a certificate and says nothing:
+
+    1. **`wdi_available`.** Without the bundled wdi-simple this window does not
+       offer an install — it sends the user to **Zadig**, and Zadig is libwdi's
+       own front end; libwdi's Certification Practice Statement names Zadig
+       first in the list of applications that install these certificates. So a
+       user routed to Zadig gets the same certificate by the same code.
+
+    2. **`needs_install`.** Every instrument already driven means the button
+       says `Reinstall Driver` — and `_show_usb_installer` runs
+       `targets = needs_install or devices`, so pressing it runs
+       `install_winusb` over EVERY detected device. libwdi mints a **fresh**
+       certificate on every run (measured: three DriverStore packages on the
+       bench, three different catalogue-signer thumbprints under one subject).
+       So the repair path writes a new certificate into the root store, and it
+       was the one path with no disclosure at all — for a user who has no
+       driver problem to justify the risk. A guard here even asserted that it
+       *should* be silent, on the reasoning that "nothing is about to be
+       written". That reasoning was simply false.
+
+    The predicate is therefore the only honest one: **does this window offer to
+    run an installer at all.** With no device there is no button, so there is
+    nothing to disclose.
 
     (`usb_install_outcome`'s Zadig steers are a second window and carry no
     button of their own. Every user reaches them THROUGH this one, so they are
     not silent — but a disclosure of their own is a fair follow-up.)
     """
     del wdi_available    # deliberately not consulted — see above
-    return any(not d.has_winusb for d in devices)
+    return bool(devices)
 
 
 # ---------------------------------------------------------------------------
@@ -507,7 +529,7 @@ def usb_installer_text(devices, wdi_available: bool) -> "tuple[str, str | None]"
             tr("The driver is already installed for the devices above. "
                "If ChromIQ or Argyll still can't open your instrument, click "
                "<b>{button}</b> to run the installer again.")
-        ).format(button=btn_label)
+        ).format(button=btn_label) + usb_certificate_notice_line()
     elif wdi_available:
         # "click Yes" is the Windows permission prompt's button, and Windows
         # IS translated — German Windows says "Ja". It belongs inside the key,
