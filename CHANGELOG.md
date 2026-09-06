@@ -79,6 +79,12 @@ now say so.
 - **The Create Chart command preview showed CR30 users a command that cannot be
   run.** ChromIQ never ran it; the line on screen simply described the wrong
   thing.
+- **A hexagonal patch was reported smaller than it prints.** The layout panel
+  gave the row pitch as the patch height, so an 11.3 mm hexagon was listed as
+  11.3 x 9.8 when it actually stands 13.1 mm from point to point. Hexagons
+  interlock, so the pitch is real and useful, but it is not the patch: the panel
+  now gives the patch size, and a separate "Row pitch (mm)" line for honeycombs.
+  Nothing about the charts themselves changed, only what was reported.
 - **On a hexagonal chart, two layout controls did nothing and did not say so.**
   With the strips pinned, "Patches per strip" could not change the chart, and
   "Minimum patch height (% of width)" could not either: a honeycomb interlocks,
