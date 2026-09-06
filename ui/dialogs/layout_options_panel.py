@@ -31,6 +31,7 @@ from ui.widgets import (
     set_ink,
 )
 from ui.warning_sign import ask, inform
+from workflow.hex_support import hex_two_heights_note
 from workflow.layout_engine.presets import LayoutRecipe
 
 log = get_logger(__name__)
@@ -964,7 +965,12 @@ class LayoutOptionsPanel(QWidget):
                     tr("Width × height of each patch in millimetres. Leave at "
                        "“auto” (0) to use the instrument's recommended size "
                        "(scaled by Patch scale). A value below ~6 mm can make the "
-                       "chart hard to read."), self))
+                       "chart hard to read.")
+                    # THE HEIGHT BOX IS THE ROW PITCH ON A HONEYCOMB. What you
+                    # type becomes `geom.plen`, and a hexagon stands 4/3 of that
+                    # tip to tip, so the note has to be here as well as on the
+                    # readout that shows both (B8-80, Knut).
+                    + "\n\n" + hex_two_heights_note(), self))
         self._patch_scale_row = add_row(
                 self._patch_fields_grid, 1, tr("Patch scale:"), self.pscale,
                 tip=TooltipButton(

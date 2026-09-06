@@ -103,6 +103,26 @@ _SLOW_CHART_WATCHDOG_MS = 30_000
 _TARGEN_ADDED_RE = re.compile(r"Added (\d+)/(\d+)")
 
 
+def _panel_patch_height_mm(slot_h_mm: float,
+                           hexagonal: bool) -> "tuple[float, float]":
+    """What the Chart-layout-information panel should show for a patch whose SLOT
+    is *slot_h_mm* tall: ``(patch height, row pitch)``, both in mm.
+
+    Square patches: the slot IS the patch, and there is no second number, so the
+    pitch comes back 0 and the panel hides its row.
+
+    Hexagons: the slot is the interlocking ROW PITCH and the patch is taller than
+    it, tip to tip, by 4/3. Reporting the slot as the patch is the fault Knut
+    found (#B8-80): a 11.3 mm wide hexagon was shown as 11.3 × 9.78 when it is
+    11.3 × 13.05. Display only, both feeds of the panel share it so the estimate
+    and the on-screen column cannot drift apart, and no geometry calls it."""
+    from workflow.hex_support import hex_patch_height_mm
+    h = float(slot_h_mm or 0.0)
+    if not hexagonal or h <= 0:
+        return (h, 0.0)
+    return (hex_patch_height_mm(h), h)
+
+
 def _number_of_sets(path) -> int | None:
     """``NUMBER_OF_SETS`` from a CGATS .ti1/.ti2, or None if unreadable."""
     try:
@@ -12038,8 +12058,22 @@ class TabChart(QWidget):
             else:
                 bits.append(tr("area-fit"))
         elif r.patch_w_mm > 0 and r.patch_h_mm > 0:
-            bits.append(tr("patch {w:g}×{h:g} mm").format(
-                w=r.patch_w_mm, h=r.patch_h_mm))
+            # THE SAME TRAP AS THE LAYOUT PANEL'S (B8-80). `patch_h_mm` becomes
+            # `geom.plen`, and on a honeycomb that is the interlocking ROW PITCH,
+            # not the patch: the hexagon's apexes reach plen/6 past both ends of
+            # its slot, so it stands 4/3 as tall. Echoing the typed number here
+            # as "patch" said a 11.3 × 9.78 mm patch about one that prints
+            # 11.3 × 13.05. Both numbers are real, so name both.
+            from workflow.hex_support import (hex_patch_height_mm,
+                                              recipe_is_hexagonal)
+            if recipe_is_hexagonal(r):
+                bits.append(tr("patch {w:g}×{h:.2f} mm, row pitch {p:g} mm")
+                            .format(w=r.patch_w_mm,
+                                    h=hex_patch_height_mm(r.patch_h_mm),
+                                    p=r.patch_h_mm))
+            else:
+                bits.append(tr("patch {w:g}×{h:g} mm").format(
+                    w=r.patch_w_mm, h=r.patch_h_mm))
         elif abs(r.pscale - 1.0) > 0.01:
             bits.append(tr("patch ×{s:.2f}").format(s=r.pscale))
         if r.instrument in ("i1", "p3"):
@@ -17022,7 +17056,7 @@ class TabChart(QWidget):
         if panel is None:
             return
         try:
-            from workflow.layout_engine import geometry, papers
+            from workflow.layout_engine import geometry, instruments, papers
             w_mm, h_mm = papers.dimensions_mm(paper)
             per_sheet = geometry.patches_per_sheet(geom, w_mm, h_mm)
             if not per_sheet:
@@ -17033,9 +17067,17 @@ class TabChart(QWidget):
             rows = lay.steps_in_pass
             n0 = min(lay.total_patches, lay.patches_per_page)
             cols = (n0 + rows - 1) // rows if rows else 0
+            # REPORT THE PATCH, NOT THE SLOT IT SITS IN. `geom.plen` is the slot
+            # length along a strip, which for a honeycomb is the interlocking ROW
+            # PITCH (pwid·√3/2) and NOT the hexagon: its apexes reach plen/6 past
+            # both ends, so tip to tip it is plen·4/3. Knut read 11.3 × 9.78 for a
+            # patch that is 11.3 × 13.05 (#B8-80). Both numbers are worth having,
+            # so both are shown, and the pitch is named as the pitch.
+            _ph, _pitch = _panel_patch_height_mm(geom.plen,
+                                                 instruments.is_hexagonal(geom))
             panel.set_estimate(total=lay.total_patches, rows=rows, cols=cols,
-                               pages=lay.pages, patch_w=geom.pwid, patch_h=geom.plen,
-                               page_patches=n0,
+                               pages=lay.pages, patch_w=geom.pwid, patch_h=_ph,
+                               page_patches=n0, row_pitch=_pitch,
                                fillup=getattr(lay, "padding", None))
         except Exception:
             panel.clear_estimate()
@@ -17068,7 +17110,7 @@ class TabChart(QWidget):
             if not (0 <= idx < len(passes)):
                 idx = 0
             cols = passes[idx] if passes else 0
-            pw, ph = self._chart_patch_size_mm(ti2)
+            pw, ph, pitch = self._chart_patch_size_mm(ti2)
             # Patches on the SHOWN page: full passes are `rows` tall; the chart's
             # last pass may be partial, so cap by the remaining count (#93, Knut).
             before = rows * sum(passes[:idx]) if passes else 0
@@ -17083,20 +17125,26 @@ class TabChart(QWidget):
                       if designed is not None and 0 <= total - designed else None)
             panel.set_actual(total=total, rows=rows, cols=cols, pages=len(tiffs),
                              patch_w=pw, patch_h=ph, page_patches=page_patches,
-                             fillup=fillup)
+                             row_pitch=pitch, fillup=fillup)
         except Exception:
             panel.clear_actual()
 
     @staticmethod
-    def _chart_patch_size_mm(ti2: "Path") -> "tuple[float, float]":
-        """Patch (width, height) in mm of the previewed chart, from its engine
-        ``channels.json`` patch rects (px → mm). (0, 0) for printtarg charts /
-        when unavailable (#93)."""
+    def _chart_patch_size_mm(ti2: "Path") -> "tuple[float, float, float]":
+        """Patch (width, height, row pitch) in mm of the previewed chart, from its
+        engine ``channels.json`` patch rects (px → mm). (0, 0, 0) for printtarg
+        charts / when unavailable (#93).
+
+        The recorded rects are SLOTS. For a honeycomb the hexagon is taller than
+        its slot (its apexes reach plen/6 past both ends), so the height returned
+        here is the slot scaled to tip-to-tip and the slot itself comes back as
+        the row pitch. Square patches return a zero pitch, meaning "no second
+        number to show" (#B8-80, Knut)."""
         try:
             import json
             sidecar = Path(ti2).with_suffix(".channels.json")
             if not sidecar.is_file():
-                return (0.0, 0.0)
+                return (0.0, 0.0, 0.0)
             doc = json.loads(read_text(sidecar))
             layout = doc.get("layout") or {}
             rects = layout.get("patches") or []
@@ -17108,11 +17156,15 @@ class TabChart(QWidget):
             # panel already renders that honestly as "—".
             dpi = float(layout.get("dpi") or recipe.get("dpi") or 0)
             if not rects or dpi <= 0:
-                return (0.0, 0.0)
+                return (0.0, 0.0, 0.0)
             r0 = rects[0]
-            return (r0["w"] * 25.4 / dpi, r0["h"] * 25.4 / dpi)
+            slot_h = r0["h"] * 25.4 / dpi
+            from workflow.hex_support import recipe_is_hexagonal
+            ph, pitch = _panel_patch_height_mm(slot_h,
+                                               recipe_is_hexagonal(recipe))
+            return (r0["w"] * 25.4 / dpi, ph, pitch)
         except Exception:
-            return (0.0, 0.0)
+            return (0.0, 0.0, 0.0)
 
     def _chart_is_hexagonal(self) -> bool:
         """True for a SpectroScan chart drawn with six-sided patches.
