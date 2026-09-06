@@ -99,9 +99,10 @@ def test_one_device_without_a_driver_and_wdi_simple_present():
         "Click <b>Install Driver</b> and ChromIQ will install the USB driver "
         "your instrument needs, so ArgyllCMS can talk to it. A Windows "
         "security prompt will appear — click Yes to continue.<br><br>"
-        "<i>If Windows already shows a driver for your instrument, this "
-        "replaces it; nothing else on your computer is changed. Earlier "
-        "versions of ChromIQ told people to choose WinUSB here, and "
+        "<i>Only the instruments marked <b>driver not installed</b> above "
+        "are touched. If Windows already shows one of them a driver, this "
+        "replaces that driver; no other device is changed. Earlier "
+        "versions of ChromIQ told people to choose WinUSB, and "
         "ArgyllCMS cannot read an instrument through WinUSB — so if that "
         "is what you have, this is the repair, and you did nothing wrong. "
         "Afterwards Windows may list your instrument under a driver name "
@@ -113,7 +114,7 @@ def test_one_device_without_a_driver_and_wdi_simple_present():
     # It still promises no driver by name. WinUSB appears only in the sentence
     # that says ArgyllCMS CANNOT use it — never as the thing being installed —
     # so the promise half of the paragraph is checked on its own.
-    promise = msg.split("If Windows already shows a driver")[0]
+    promise = msg.split("Only the instruments marked")[0]
     for named in ("WinUSB", "libusb"):
         assert named not in promise, (
             f"the window names {named!r} as what it installs, and it cannot "
@@ -445,7 +446,12 @@ def test_zadig_failing_entirely_falls_back_to_the_website():
     assert text == (
         "Could not open Zadig or its download page. Visit "
         "<b>https://zadig.akeo.ie</b> manually, or try running ChromIQ "
-        "as Administrator."
+        "as Administrator.<br>Then, in Zadig: Options → List All Devices → "
+        "select your colorimeter → choose libusb-win32 → Install Driver."
+        "<br><br><b>If you own a CR30:</b> do not pick the USB-serial "
+        "device (CH340) in Zadig. That instrument is reached "
+        "through its COM port, and replacing its driver — with any of the "
+        "drivers Zadig offers — would stop ChromIQ finding it at all."
     )
     assert offer_zadig is False
 
@@ -2128,10 +2134,13 @@ def test_the_first_window_no_longer_promises_winusb_on_screen(
         dialog._show_usb_installer()
     assert drv.modal_count == 1
     said = drv.text_of(0)
-    promise = said.split("If Windows already shows a driver")[0]
+    promise = said.split("Only the instruments marked")[0]
     assert promise != said, (
         "the paragraph no longer says the install replaces what is there — a "
         "WinUSB user is asked to press a button whose effect nobody described")
+    assert "no other device is changed" in said, (
+        "the scope claim is gone; a user pressing this has been told nothing "
+        "about what else it might touch")
     for named in ("WinUSB", "libusb"):
         assert named not in promise, (
             f"the window tells the user it installs {named!r}")

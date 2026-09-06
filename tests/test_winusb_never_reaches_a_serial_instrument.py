@@ -154,6 +154,10 @@ def test_every_zadig_instruction_warns_about_the_serial_device():
                 wdi_available=True, ran_ok=True,
                 still_unbound_names=["GretagMacbeth i1 Pro / i1 Pro 2"],
                 zadig_status=None, driver_was_missing=True)[0],
+        "Zadig could not be opened at all":
+            usb_install_outcome(
+                wdi_available=False, ran_ok=False, still_unbound_names=[],
+                zadig_status="failed", driver_was_missing=True)[0],
     }
     unwarned = sorted(why for why, text in steers.items()
                       if "If you own a CR30" not in text)
@@ -171,7 +175,19 @@ def test_every_zadig_instruction_warns_about_the_serial_device():
     # "Zadig has just been launched", which is in `steers`. "Could not open
     # Zadig or its download page" gives an address and sends nobody to a
     # dropdown.
-    instructs_nobody = ("to run the installer again", "Could not open Zadig")
+    # ONE EXCLUSION LEFT, AND IT SHRANK BECAUSE A REVIEW ARGUED IT DOWN.
+    # "Could not open Zadig or its download page" used to be excluded on the
+    # grounds that it gives an address rather than an instruction. It gives
+    # Zadig's DOWNLOAD PAGE and tells the user to go there — the same journey
+    # as the `download_page` branch, which has always carried the warning, with
+    # the only difference being whether ChromIQ managed to open the browser.
+    # It carries the warning now, and is swept like the rest.
+    #
+    # What remains is the branch that opens Zadig and instructs nothing: the
+    # instruction arrives one window later, in "Zadig has just been launched",
+    # which is in `steers` above. This file runs in English only, so an English
+    # phrase is safe here in a way it is not in the twelve-language sibling.
+    instructs_nobody = ("to run the installer again",)
     everything: "list[tuple[str, bool]]" = []
     for wdi in (True, False):
         for devices in ([], [dev(True)], [dev(False)], [dev(True), dev(False)]):

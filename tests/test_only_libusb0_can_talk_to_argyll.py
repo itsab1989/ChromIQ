@@ -179,7 +179,21 @@ def test_no_zadig_instruction_tells_the_user_to_choose_winusb(code,
     through — and ChromIQ then told the user the driver was installed.
     """
     in_language(code)
-    offenders = [t for t, _ in _every_rendered_branch()
+    rendered = _every_rendered_branch()
+
+    # THE GUARD THIS TEST WOULD OTHERWISE NOT HAVE, and its absence is the
+    # exact defect the sibling file was rewritten in this same commit to cure.
+    # `offenders` is a filter over branches that mention Zadig; if the word
+    # "Zadig" ever leaves the prose the filter selects nothing and this test is
+    # green for ever, having stopped looking. Proved blindable by mutation
+    # before this assert existed.
+    zadig_branches = [t for t, _ in rendered if "Zadig" in t]
+    assert len(zadig_branches) >= 4, (
+        f"[{code}] only {len(zadig_branches)} rendered branches mention Zadig. "
+        "Either the wording moved somewhere this test cannot see, or this "
+        "sweep has quietly stopped covering anything")
+
+    offenders = [t for t, _ in rendered
                  if "Zadig" in t and "WinUSB" in t]
     assert not offenders, (
         f"[{code}] {len(offenders)} Zadig instruction(s) still name WinUSB as "
@@ -193,11 +207,10 @@ def _branches_that_put_a_user_in_front_of_zadigs_dropdown():
     `tests/test_winusb_never_reaches_a_serial_instrument.py`. Naming them means
     a branch can only leave this list by being deleted from the app.
 
-    Deliberately NOT here: "The driver is already installed… click Open Zadig
-    to run the installer again", which opens Zadig but instructs nothing — the
-    instruction arrives one window later, in the `launched` branch, which is in
-    this list; and "Could not open Zadig or its download page", which gives an
-    address and sends nobody to a dropdown.
+    Deliberately NOT here, and it is the only exclusion left: "The driver is
+    already installed… click Open Zadig to run the installer again", which
+    opens Zadig but instructs nothing — the instruction arrives one window
+    later, in the `launched` branch, which is in this list.
     """
     undriven = SimpleNamespace(name=I1PRO, has_winusb=False)
     return {
@@ -223,6 +236,17 @@ def _branches_that_put_a_user_in_front_of_zadigs_dropdown():
                 wdi_available=True, ran_ok=True, still_unbound_names=[I1PRO],
                 zadig_status=None, driver_was_missing=True,
                 target_names=[I1PRO])[0],
+        # THE SIXTH, ADDED AFTER A REVIEW ARGUED IT OUT OF ITS EXCLUSION.
+        # It reads as "an address, not an instruction", and it was excluded on
+        # that basis — but it hands the user Zadig's download page and tells
+        # them to go there, which is precisely what the `download_page` branch
+        # does. The only difference is whether ChromIQ managed to open the
+        # browser itself; the user ends at the same dropdown either way.
+        "Zadig could not be opened at all":
+            sd.usb_install_outcome(
+                wdi_available=False, ran_ok=False, still_unbound_names=[],
+                zadig_status="failed", driver_was_missing=True,
+                target_names=[I1PRO])[0],
     }
 
 
@@ -234,13 +258,69 @@ def test_every_zadig_instruction_names_libusb_win32(code, in_language):
     pick, or they take Zadig's default — which is WinUSB, which is the fault.
     """
     in_language(code)
-    silent = [why for why, text
-              in _branches_that_put_a_user_in_front_of_zadigs_dropdown().items()
+    branches = _branches_that_put_a_user_in_front_of_zadigs_dropdown()
+    assert len(branches) == 6, (
+        f"[{code}] the list of Zadig steers is {len(branches)} long, not 6 — "
+        "if a branch was added or removed, say so here deliberately")
+    silent = [why for why, text in branches.items()
               if "libusb-win32" not in text]
     assert not silent, (
         f"[{code}] {len(silent)} branch(es) send the user to Zadig without "
         f"naming the driver to pick, so they will take Zadig's default "
         f"(WinUSB): {silent}")
+
+    # AND THE HAND-WRITTEN LIST MUST STILL BE THE WHOLE LIST. Without this, a
+    # NEW branch that steers into Zadig and forgets the driver name ships
+    # silently: the dict above cannot grow by itself. Proved by mutation —
+    # turning the "It worked" branch into a Zadig steer left this test GREEN
+    # while the CR30 sweep in the sibling file went red naming it.
+    #
+    # THE SWEEP IS SPLIT ALONG THE SEAM THE CODE ALREADY HAS, and the first
+    # attempt at it got this wrong in both directions. `usb_install_outcome`
+    # returns `offers_zadig` as a FACT and renders no device list, so its whole
+    # output can be swept. `usb_installer_text` puts the connected hardware
+    # above the instruction, so the same Zadig steps render as a different
+    # string for one device and for two — which a membership test read as a new
+    # branch. And the exclusion for the one deliberate non-steer was the
+    # ENGLISH phrase "to run the installer again", which excluded nothing in
+    # the other eleven languages. Neither a phrase nor a whole-string identity
+    # survives twelve languages; the returned flag and the function boundary do.
+    outcomes = []
+    for status in ("launched", "download_page", "failed", None):
+        outcomes.append(sd.usb_install_outcome(
+            wdi_available=False, ran_ok=False, still_unbound_names=[],
+            zadig_status=status, driver_was_missing=True,
+            target_names=[I1PRO]))
+    for ran_ok in (True, False):
+        for unbound in ([], [I1PRO]):
+            outcomes.append(sd.usb_install_outcome(
+                wdi_available=True, ran_ok=ran_ok, still_unbound_names=unbound,
+                zadig_status=None, driver_was_missing=True,
+                target_names=[I1PRO]))
+    unaccounted = [t for t, offers in outcomes
+                   if (offers or "Zadig" in t) and "libusb-win32" not in t]
+    assert not unaccounted, (
+        f"[{code}] {len(unaccounted)} outcome window(s) put the user in front "
+        f"of Zadig without naming the driver to pick — add the name, and add "
+        f"the branch to _branches_that_put_a_user_in_front_of_zadigs_"
+        f"dropdown(): {unaccounted}")
+
+    # …and the first window's Zadig branch, for every shape its device list can
+    # take. Deliberately NOT the "the driver is already installed… click Open
+    # Zadig" branch: it opens Zadig but instructs nothing, and the instruction
+    # arrives one window later in `launched`, which is swept above.
+    def dev(has_winusb):
+        return SimpleNamespace(name=I1PRO, has_winusb=has_winusb)
+
+    for shape, devices in (("one driverless instrument", [dev(False)]),
+                           ("one driven and one not",
+                            [dev(True), dev(False)]),
+                           ("two driverless instruments",
+                            [dev(False), dev(False)])):
+        steps = sd.usb_installer_text(devices, wdi_available=False)[0]
+        assert "libusb-win32" in steps, (
+            f"[{code}] the Zadig steps shown for {shape} do not name the "
+            f"driver to pick: {steps}")
 
 
 def test_the_english_zadig_steps_name_libusb_win32_verbatim():
@@ -264,3 +344,48 @@ def test_the_cr30_warning_no_longer_names_a_single_driver():
         assert driver not in warning, (
             f"the CR30 warning names {driver!r}; a user told to pick a "
             "different driver will read that as permission")
+
+
+# ---------------------------------------------------------------------------
+# …and the service we ACCEPT is the service Argyll BINDS
+# ---------------------------------------------------------------------------
+#
+# `test_the_driver_installer_speaks_wdi_simples_language.py` already ties the
+# driver ChromIQ INSTALLS (`WDI_DRIVER_TYPE = 1`) to Argyll's own `.inf`. This
+# ties the third number to the same artefact: the service ChromIQ will accept
+# as "already driven". All three have to move together, and the bug this file
+# exists for is exactly the case where one of them did not.
+
+def test_the_service_we_accept_is_the_service_argylls_inf_binds():
+    """If a future ArgyllCMS moved to WinUSB, this is what would notice.
+
+    SKIPS where ArgyllCMS is not installed — the finding then rests on the
+    evidence quoted in this file's docstring rather than on the artefact.
+    """
+    import re
+    from tests.argyll_env import argyll_bin_dir
+
+    bin_dir = argyll_bin_dir()
+    if bin_dir is None:
+        pytest.skip("ArgyllCMS is not installed on this host, so its "
+                    "usb/ArgyllCMS.inf cannot be read")
+    inf = bin_dir.parent / "usb" / "ArgyllCMS.inf"
+    if not inf.exists():
+        pytest.skip(f"{inf} is not present in this ArgyllCMS install")
+
+    services = re.findall(
+        r"^\s*AddService\s*=\s*([A-Za-z0-9_]+)",
+        inf.read_text(encoding="utf-8", errors="replace"), re.MULTILINE)
+    assert services, f"no AddService line in {inf}"
+    assert set(services) == {udi.ARGYLL_USB_SERVICE}, (
+        f"{inf} binds {sorted(set(services))}, and ChromIQ accepts "
+        f"{udi.ARGYLL_USB_SERVICE!r} as driven. Those must be the same set: "
+        f"accepting less tells a working user their driver is missing, and "
+        f"accepting more tells a dark instrument it is fine.")
+
+
+def test_a_service_value_with_stray_whitespace_is_still_the_driver():
+    """The registry is not ours, and `==` is less forgiving than `in` was."""
+    for spelling in ("libusb0 ", " libusb0", "\tlibusb0\n"):
+        got = udi.attached_devices(_entry(spelling), _PRESENT)
+        assert [d.has_winusb for d in got] == [True], repr(spelling)

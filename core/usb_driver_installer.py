@@ -357,8 +357,16 @@ def attached_devices(
 
         # ONE SERVICE, NOT A SET — see ARGYLL_USB_SERVICE. A device bound to
         # WinUSB is not driven for our purposes: Argyll cannot open it.
+        #
+        # `.strip()` because an equality test is less forgiving than the `in`
+        # test it replaced was ever asked to be, and this value comes back from
+        # the registry rather than from us. A stray space would read as "not
+        # driven", which errs in the module's stated safe direction — offering
+        # help that is not needed is visible and declinable — but there is no
+        # reason to make a working user argue with the window over whitespace.
         has_winusb = any(
-            str(service).lower() == ARGYLL_USB_SERVICE for _, service in live)
+            str(service).strip().lower() == ARGYLL_USB_SERVICE
+            for _, service in live)
         found.append(UsbDevice(vid=vid, pid=pid, name=name, has_winusb=has_winusb))
 
     # Composite USB devices register multiple keys per VID/PID (parent + MI_xx
