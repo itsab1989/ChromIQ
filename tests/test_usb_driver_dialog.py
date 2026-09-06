@@ -90,6 +90,15 @@ def test_one_device_without_a_driver_and_wdi_simple_present():
     Microsoft driver. The paragraph has to say three things it did not say: it
     replaces what is there, nothing else is touched, and the wrong driver was
     our instruction, not their mistake.
+
+    REPINNED AGAIN 2026-09-06: THE CERTIFICATE. Pressing this button installs a
+    self-signed certificate into `LocalMachine\\Root` and
+    `…\\TrustedPublisher` — measured on the bench, three seconds after the
+    click — and the paragraph said nothing whatever about it. The disclosure is
+    the last block, and every fact in it is here rather than behind the
+    `What this changes…` button, so that a user who never presses that button
+    has still been told the three things that matter: which lists, whose
+    computer, and that it stays behind.
     """
     msg, btn = sd.usb_installer_text([dev(I1PRO, False)], wdi_available=True)
     assert msg == (
@@ -109,6 +118,15 @@ def test_one_device_without_a_driver_and_wdi_simple_present():
         "you do not recognise. That is normal — it is the driver ArgyllCMS "
         "reads instruments through. It is signed, so Windows needs no special "
         "mode, and it works on x64 and ARM64.</i>"
+        "<br><br>"
+        "<b>Besides the driver itself, one other thing on this computer "
+        "changes.</b> The driver is built for your instrument at the moment it "
+        "is installed, so it has to be signed at that moment too — and the "
+        "installer puts the certificate it signs with into two of Windows' own "
+        "lists of trusted signers, for the whole computer. It stays there "
+        "after the driver is gone. ArgyllCMS's own driver installer does the "
+        "same. Click <b>What this changes</b> for exactly what it is, what it "
+        "can and cannot vouch for, and how to take it out again."
     )
     assert btn == "Install Driver"
     # It still promises no driver by name. WinUSB appears only in the sentence
@@ -141,8 +159,24 @@ def test_one_device_without_a_driver_and_no_wdi_simple_falls_back_to_zadig():
         "device (CH340) in Zadig. That instrument is reached "
         "through its COM port, and replacing its driver — with any of the "
         "drivers Zadig offers — would stop ChromIQ finding it at all."
+        "<br><br>"
+        "<b>Besides the driver itself, one other thing on this computer "
+        "changes.</b> The driver is built for your instrument at the moment it "
+        "is installed, so it has to be signed at that moment too — and the "
+        "installer puts the certificate it signs with into two of Windows' own "
+        "lists of trusted signers, for the whole computer. It stays there "
+        "after the driver is gone. ArgyllCMS's own driver installer does the "
+        "same. Click <b>What this changes</b> for exactly what it is, what it "
+        "can and cannot vouch for, and how to take it out again."
     )
     assert btn == "Open Zadig"
+    # AND IT IS HERE AT ALL BECAUSE ZADIG IS libwdi. This branch installs no
+    # driver itself — it hands the user to Zadig, which is libwdi's own front
+    # end and mints the same certificate. A disclosure that appeared only
+    # beside `Install Driver` would have covered the users ChromIQ installs for
+    # and missed the ones it sends elsewhere.
+    assert sd.usb_shows_certificate_details(
+        [dev(I1PRO, False)], wdi_available=False)
 
 
 def test_one_device_that_already_works_offers_a_repair_not_an_install():
