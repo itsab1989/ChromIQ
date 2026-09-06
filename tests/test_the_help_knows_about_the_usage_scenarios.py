@@ -179,6 +179,36 @@ def test_a_card_that_lists_the_three_settings_must_also_name_the_scenario():
             "names the usage scenario that sets them")
 
 
+def test_that_rule_really_fires_on_the_cards_it_was_written_for():
+    """Guard the guard, on the REAL text it was written against.
+
+    The check above is a low bar by design, and a low bar is exactly the kind
+    that quietly stops testing anything. So it is run here against the two
+    cards AS THEY SHIPPED IN 4.1.5-beta.11, whose text is kept in
+    `tests/data/`: both spell all three settings out and neither contains the
+    word "scenario" anywhere. If this stops failing, the rule above has stopped
+    meaning anything.
+    """
+    import json
+    from pathlib import Path
+
+    from ui.dialogs import scanner_colprof as sc
+
+    before = json.loads(
+        (Path(__file__).parent / "data" / "help_cards_before_b8_93.json")
+        .read_text(encoding="utf-8"))
+    wanted = [dict(sc.PTYPE_CHOICES)[sc.SETUP_INSTRUMENT["ptype"]],
+              dict(sc.QUALITY_CHOICES)[sc.SETUP_INSTRUMENT["quality"]],
+              dict(sc.WP_MODE_CHOICES)[sc.SETUP_INSTRUMENT["wp_mode"]]]
+    for key, blob in before.items():
+        assert all(w in blob for w in wanted), (
+            f"the recorded {key} text no longer spells the three settings out, "
+            "so it can no longer stand in for the card that did")
+        assert "scenario" not in blob.lower(), (
+            f"the recorded {key} text mentions a scenario; it is supposed to "
+            "be the version that did not")
+
+
 def test_the_printer_card_sends_the_user_to_the_scenario_not_the_tick_box():
     """Scenario 3 ticks "Profile my printer from this scan" for the user.
 
@@ -323,7 +353,11 @@ def test_a_note_starts_closed_and_its_heading_is_a_button(_app):
 
     note = StepNote("Why this matters", "Because of the reason.")
     assert not note.is_open()
-    assert not note._body.isVisible()
+    # isVisibleTo, NOT isVisible. A widget whose parent was never shown reports
+    # isVisible() False whatever its own flag says, so the first version of
+    # this line passed with the note rendering OPEN: proved by mutating
+    # `setVisible(False)` to `setVisible(True)`, which left it green.
+    assert not note._body.isVisibleTo(note)
     btn = note.findChild(QPushButton, "welcome_note_head")
     assert btn is not None, "the heading is not a focusable control"
     assert "Why this matters" in btn.text()
