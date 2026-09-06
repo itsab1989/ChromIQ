@@ -427,6 +427,12 @@ class LayoutOptionsPanel(QWidget):
             self.mode.currentIndexChanged.connect(self._sync_clip_content_for_mode)
             self.mode.currentIndexChanged.connect(self._emit)
             self.mode.currentIndexChanged.connect(self._update_clip_visibility)
+            # The shape selector decides whether the two area-first boxes below
+            # can do anything at all (see `_update_area_hex_locks`). It is
+            # connected here, before those boxes exist; the slot is guarded on
+            # `hasattr`, and `_sync_layout_mode` runs the same update once the
+            # panel is built.
+            self.mode.currentIndexChanged.connect(self._update_area_hex_locks)
             self._on_instr_changed()
 
         def mm(special_auto: bool = False, top: float = 300.0) -> NoScrollDoubleSpinBox:
@@ -3189,6 +3195,115 @@ class LayoutOptionsPanel(QWidget):
                       getattr(self, "_mode_tip", None)):
                 if w is not None:
                     w.setVisible(True)
+        self._update_area_hex_locks()
+
+    # ------------------------------------------------------------------
+    # A HONEYCOMB HAS ONE FREE DIMENSION, AND THE PANEL OFFERED TWO.
+    # ------------------------------------------------------------------
+    def _area_is_hexagonal(self) -> bool:
+        """Whether the chart on screen is a honeycomb.
+
+        Asked of the shape selector when this panel owns one, and of the last
+        recipe loaded when it does not (Preferences > Chart Layout and the
+        relayout dialog have no selectors of their own).
+
+        `instruments.hex_capable` is the same single source of truth
+        `area_fit.derive_area_patch_size` consults, so the lock and the maths
+        can never disagree about which instruments this applies to. The flag
+        alone is not the test: on a ColorMunki it means density, not hexagons.
+        """
+        from workflow.layout_engine import instruments
+        inst = ((self.instr.currentData() if self.instr is not None
+                 else getattr(self, "_inst", "i1")) or "i1")
+        if self.mode is not None:
+            hexed = (self.mode.currentData() == "hex")
+        else:
+            hexed = bool(getattr(self, "_recipe_hflag", False))
+        return bool(hexed and instruments.hex_capable(str(inst)))
+
+    def _hex_locked_rows(self) -> "list[tuple[list, bool, str]]":
+        """``(row_widgets, locked, reason)`` for the two area-first boxes a
+        honeycomb takes out of the user's hands. Shared by the lock itself and
+        by the guard that proves it, so neither can drift from the other."""
+        by_width = (self.area_method.currentData() == "by_width")
+        hexed = self._area_is_hexagonal()
+        cols_pinned = int(self.area_cols.value()) > 0
+        return [
+            (list(getattr(self, "_area_row_ratio", [])),
+             hexed and by_width, self._hex_ratio_note()),
+            (list(getattr(self, "_area_row_rows", [])),
+             hexed and (not by_width) and cols_pinned, self._hex_rows_note()),
+        ]
+
+    @staticmethod
+    def _hex_ratio_note() -> str:
+        """Why "Minimum patch height (% of width)" is dead on a honeycomb."""
+        return tr(
+            "Hexagons: this box has no effect, because the patch height is "
+            "fixed by the shape.\n\n"
+            "A honeycomb interlocks, which only works when each cell is "
+            "exactly 86.6 % as tall as it is wide. Any other percentage would "
+            "draw stretched hexagons whose rows no longer nest, so ChromIQ "
+            "keeps the honeycomb proportion and ignores this value. Set Patch "
+            "shape to Rectangular if you want to choose the height yourself.")
+
+    @staticmethod
+    def _hex_rows_note() -> str:
+        """Why "Patches per strip (rows)" is dead once the strips are pinned."""
+        return tr(
+            "Hexagons: this box has no effect while Strips (columns) is set to "
+            "a number.\n\n"
+            "A honeycomb interlocks, which fixes each cell at 86.6 % as tall "
+            "as it is wide. So the number of strips already decides the patch "
+            "width, the width decides the height, and the height decides how "
+            "many patches fit down the page. To choose the patches per strip "
+            "yourself, put Strips (columns) back to auto, or set Patch shape "
+            "to Rectangular.")
+
+    def _update_area_hex_locks(self, *_a) -> None:
+        """Grey the area-first boxes a honeycomb makes inert, and say why.
+
+        MEASURED, not assumed. A hexagon's height is `width * sqrt(3)/2`:
+        `area_fit.derive_area_patch_size` sets that ratio before it solves and
+        snaps to it again afterwards, so the honeycomb cannot come out
+        stretched (Basti's ruling, 2026-08-28). Two controls are therefore
+        inert on a honeycomb and both stayed live and looked armed. On a CR30,
+        A4, default margins:
+
+        * "Minimum patch height (% of width)", in "By patch width", ALWAYS:
+          50 / 100 / 150 / 200 / 300 % all give 8.29 x 7.18 mm, 20 strips of
+          33, 660 patches. Rectangular, the same five values give 1113 / 630 /
+          441 / 336 / 231 patches.
+        * "Patches per strip (rows)", in "By columns / rows", WHEN the strips
+          are pinned: at 15 strips, 0 / 5 / 10 / 20 / 28 / 40 patches per strip
+          all give 10.85 x 9.39 mm, 15 x 26, 390 patches. That is Knut's
+          report, 4.1.5-beta.10.
+
+        THE ROW BOX IS NOT LOCKED WHEN "Strips (columns)" IS ON AUTO. There the
+        column count is derived from it and it does move the chart (5 / 10 / 20
+        / 28 / 40 give 4 / 8 / 18 / 27 / 39 rows). The lock follows what is
+        actually inert, never the shape alone.
+
+        NOTHING HERE TOUCHES A VALUE OR A GEOMETRY. The boxes keep what they
+        hold, the recipe still carries it, and a chart built before this change
+        builds identically after it.
+
+        AND THE INFO BUTTON STAYS LIVE, WHICH IS THE WHOLE MECHANISM. A
+        disabled QWidget receives no hover events, so a tooltip parked on the
+        greyed spin box may never appear at all. The reason rides on the row's
+        own info button instead, which `TooltipButton.changeEvent` keeps
+        enabled inside a disabled parent and whose hover tip carries the note's
+        first line. Same rule as `_update_helper_marker_rows` (Knut: greyed,
+        but never unexplained).
+        """
+        if not hasattr(self, "area_method") or not hasattr(self, "area_cols"):
+            return
+        for row, locked, note in self._hex_locked_rows():
+            for w in row:
+                if isinstance(w, TooltipButton):
+                    w.set_live_note(note if locked else "")
+                else:
+                    w.setEnabled(not locked)
 
     def _browse_clip_image(self) -> None:
         from pathlib import Path
@@ -4418,6 +4533,11 @@ class LayoutOptionsPanel(QWidget):
             self.seed_spin.setValue(int(r.seed))
         self._sync_seed_enabled()
         self._inst, self._clip = r.instrument, r.clip_border
+        # The shape, for the panels that have no shape selector of their own
+        # (Preferences > Chart Layout, the relayout dialog). Without it those
+        # panels cannot tell a honeycomb from a rectangular chart and would
+        # leave the two inert area-first boxes live. See `_area_is_hexagonal`.
+        self._recipe_hflag = bool(getattr(r, "hflag", False))
         # …and the paper it was written for, so a panel with no paper selector
         # measures its clip band against the right sheet (see _preview_paper).
         self._paper_hint = getattr(r, "paper", None) or None
@@ -4432,6 +4552,10 @@ class LayoutOptionsPanel(QWidget):
         # Final pass with loading off: computes the real conflict state for
         # the values just loaded (during loading only the clean-up runs).
         self._update_clip_margin_conflict()
+        # …and the same for the honeycomb locks. `_sync_layout_mode` ran above,
+        # BEFORE `_inst` / `_recipe_hflag` were written, so on a selector-less
+        # panel it could only ask about the previous recipe's shape.
+        self._update_area_hex_locks()
         # One consolidated refresh now that loading is off: every field above was
         # set with change-signals suppressed, so without this the text/clip
         # previews and any listener (the layout editor's render preview) kept
