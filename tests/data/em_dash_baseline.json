@@ -31,7 +31,6 @@
   "<b>All strips have been read successfully.</b><br><br>Click <b>Go to {tab} Tab</b> to finalise the measurement and go straight to that tab — the next and final step.<br><br>If you would like to re-read any strip first, click <b>Re-read Individual Strips</b>. Use <b>f</b>&nbsp;/&nbsp;<b>b</b> to move forward and back between strips, <b>n</b> to jump to the next unread strip, and press <b>d</b> when you are done.<br><br><span style='color:#909090;'>These instructions are always visible in the output log below.</span>",
   "<b>All strips of your calibration chart have been read successfully.</b><br><br>The measurement data has been saved. The next step is to turn it into a <b>calibration file (.cal)</b> — click <b>Create Calibration File</b> to go directly to the <b>4. Calibration &amp; Profiling</b> tab, where the file path is already filled in and ready to go.<br><br>If you would like to re-read any strip first, click <b>Re-read Individual Strips</b>. Use <b>f</b>&nbsp;/&nbsp;<b>b</b> to move forward and back between strips, <b>n</b> to jump to the next unread strip, and press <b>d</b> when you are done.<br><br><span style='color:#909090;'>These instructions are always visible in the output log below.</span>",
   "<b>All strips read — {n} reads of this chart are now saved.</b><br><br>Combining repeated reads of the same chart averages out instrument noise and can improve profile accuracy.<br><br>&nbsp;&nbsp;•&nbsp; <b>Average all reads &amp; build</b> — combine all {n} reads into one measurement, then continue to Build Profile.<br>&nbsp;&nbsp;•&nbsp; <b>{measure_again}</b> — read the whole chart once more and add it to the set.<br>&nbsp;&nbsp;•&nbsp; <b>Use last read only</b> — build from this most recent read and ignore the others.<br><br><span style='color:#909090;'>After <b>{measure_again}</b> the instrument is set up again — this can take a few seconds and may ask you to recalibrate before the next read starts, so a brief pause here is normal.</span>",
-  "<b>An unexpected color response was detected (ΔE {delta_e}).</b><br><br>This usually means the instrument was not aligned correctly with the strip, was moved during the scan, or the wrong strip was read. A ΔE this high indicates the measured colors are very far from what is expected.<br><br>&nbsp;&nbsp;<b>{use_anyway}</b> — accept the reading and continue. Only use this if you are sure the scan was correct.<br><br>&nbsp;&nbsp;<b>{retry}</b> — discard this reading, re-position your instrument carefully on the correct strip, and try again.<br><br>&nbsp;&nbsp;<b>{give_up}</b> — stop the measurement without saving.",
   "<b>Apply Calibration</b> — bakes your calibration curves (.cal file) directly into the ICC profile. This means every colour-managed app will automatically apply the calibration without any extra steps. Use this after you have created a calibration file in the <i>Create Calibration File</i> module. The profile path is already pre-filled — just select your .cal file and run.",
   "<b>ArgyllCMS could not be found on your system.</b><br><br>ChromIQ requires ArgyllCMS to create and measure ICC profiles. It was not detected in any of the usual locations.<br><br><b>To install ArgyllCMS:</b><br>&nbsp;&nbsp;1. Download ArgyllCMS from <a href='{url}'>argyllcms.com</a><br>&nbsp;&nbsp;2. {where}<br>&nbsp;&nbsp;3. Restart ChromIQ — it will detect the installation automatically.<br><br>ChromIQ also finds it anywhere else you may have put it, as long as you point it there: click <b>Open Preferences</b> to set the path manually.",
   "<b>Calibration complete. The app will guide you to each strip.</b><br><br>There are <b>{n} strips</b> to re-measure. The app will automatically navigate chartread to each one — <b>you do not need to press f or b yourself.</b>",
@@ -423,7 +422,6 @@
   "Layout preview only — i1Profiler will lay out the actual chart from the patch list when you load the .pxf, so the printed chart will look different from what's shown here.",
   "Leaves this patch unmeasured and moves on to the next one. You can come back to it later — the chart is not finished until every patch has a reading.",
   "Let the measurement finish, or stop it, and this window will open normally. Everything else in Preferences stays available in the meantime — it is only the driver helper that is held back.",
-  "Let's start a brand-new chart. You only need to make a few quick choices here — once you're done, the chart opens in the editor where you can arrange and fine-tune everything.\n\nWhat each choice means:\n\n• Device — what kind of printer the chart is for. Print RGB is the standard choice: any printer you print to through a normal driver, which is how ChromIQ profiles are usually made. CMYK and CMYK + extra inks are for printers you address ink-by-ink (typically through a RIP): the chart is then designed in ink values, you can add your printer's extra inks (orange, green, violet, light inks, …), set an ink limit, and optionally point to a preconditioning profile. The colour-set list below adapts to the device — the overview at the end explains which sets are available when.\n\n• Instrument & Paper — which measuring device you'll use and what paper you'll print on. ChromIQ uses these to lay the patches out in a way your device can read, at the right page size.\n\n• Patches — how to fill the chart to begin with. There are three ways:\n    – Seed from targen — enter a number and let ChromIQ spread that many colours evenly across the whole colour range. A great all-round starting point you can then rearrange.\n    – Paste colour values — paste, or load from a file, your own list of hex or RGB colours.\n    – Generate colour sets — build the chart from one or more ready-made colour spreads (described below).\n\n• Layout options — the finer print settings (spacer squares, sizing, page margin, resolution). The defaults are sensible, so feel free to leave these alone until you need them.",
   "Lets ChromIQ choose the \"Strip recognition\" option for you, based\non the measuring instrument saved in the chart you loaded:\n\n  • i1 Pro / i1 Pro 2 / i1 Pro 3 — reads strips in both\n      directions, so Auto chooses \"Bidirectional forced\".\n  • ColorMunki / i1Studio / ColorChecker Studio — Argyll's\n      default already reads these correctly, so Auto chooses\n      \"Argyll default\".\n  • Any other or unknown instrument — uses \"Argyll default\".\n\nWhile Auto is on, the menu on the left is locked and simply shows\nthe option Auto has chosen, so you can always see what will be\nused. Switch Auto off to pick the option yourself.\n\nAuto is the recommended setting — most people never need to\nchange it.",
   "Lets the engine try a physical model of how your printer's inks mix on paper (halftone dot physics, including paper gloss), instead of relying on curve fitting alone.\n\nHow it works: the engine builds both models and holds back a share of your measured patches as an exam. Only if the physics model predicts those unseen patches clearly better is it used for the profile — otherwise the build silently keeps the standard model. Ticking this can therefore never make a profile worse; it can only win or change nothing.\n\nWhen it helps most: printers with many inks (CMYK plus orange, green, violet …), where a chart can never cover every ink combination — physics fills those gaps far better than interpolation. On ChromIQ's synthetic test bench, multi-ink profiles came out 20–36% closer to the true colours with this enabled.\n\nWhat it needs: a chart measured in spectral mode (the high-resolution setting in the Measure tab) and a printer driven through its real ink channels. RGB printer drivers — the usual ChromIQ workflow — hide the inks, so there this option simply does nothing.\n\nWhy it is off by default: the resulting tables trade a small amount of internal round-trip consistency for the accuracy gain. For proofing-style work where soft-proof round-trips matter more than absolute accuracy, leave it off.\n\nDefault: off.",
   "Lets you read the SAME printed chart more than once and combine the readings, to even out the small random errors every measuring device makes. The more times you read a chart, the closer the averaged result gets to its \"true\" colour — which can make for a slightly more accurate profile, especially with budget instruments or tricky papers.\n\nYou do NOT print a new chart. You measure the one already in front of you a second (or third, or fourth) time. Because the printed colours never change, only the tiny reading-to-reading wobble of the instrument does, averaging those reads cancels most of that wobble out.\n\nHere is the whole journey, step by step:\n\n  1. You measure your chart as usual in the Measure tab.\n\n  2. When the read finishes, a new completion window appears. As well as continuing to Build Profile, it offers \"Measure again\" — put the very same chart back on the table and read it once more.\n\n  3. You can repeat this as many times as you like. ChromIQ keeps each read safely side by side in the working folder (named …_read1, …_read2, and so on).\n\n  4. Once you have two or more reads, the window lets you either build from just the last read, or average all of the reads together and build from that combined result (saved as …_average).\n\nMean vs. Median: averaging normally uses the plain mean (the ordinary average). The window also offers Median, which ignores the odd stray reading and only behaves differently once you have three or more reads — handy if one read was disturbed (a bump, a smudge) and you don't want it dragging the result.\n\nWhen this option is OFF (the default), ChromIQ behaves exactly as it always has: a finished measurement takes you straight on to Build Profile with no extra window and no extra files. Turn it on only if you want the option to read charts repeatedly for extra precision.\n\nTip: two reads already remove most of the random noise; three or four give diminishing returns. There is no benefit to averaging reads of DIFFERENT charts — this is only for re-reading one and the same chart.\n\nWith thanks to Alan Goldhammer, who suggested this feature.",
@@ -616,13 +614,11 @@
   "Prints the help card you are reading — handy for the keyboard shortcuts, or a workflow to follow at the printer. Your usual print window opens, so you can choose the printer, the paper and how many copies. To see the pages first, or to keep them, use “Save as PDF…” beside this button.",
   "Profile install folder — where “Install profile” copies a finished .icc (leave blank for your system's colour-profile folder):",
   "Profile type (-a) — the shape of the maths inside the profile, and how it describes what your device does with colour. All four choices build a working profile. What separates them is how many measured patches they need before they are any good, and how they behave on colours your target did not contain.",
-  "Profile type (-a) — the shape of the maths inside the profile, and how it describes what your printer does with colour. All four choices build a working profile.",
   "Profiling a camera\n\nThis tool works for a digital camera too, not just a scanner — ArgyllCMS reads camera and scanner targets the same way. Use the “standard target” mode with a camera target (an X-Rite ColorChecker, IT8, and so on), and wherever ChromIQ says “scan”, a photo of the target works just the same.\n\nFor a camera the capture matters more than the software:\n\n• Even light. A camera profile is only valid for the light you shot under, so light the target flatly and evenly — no glare or hot-spots — under the lighting you'll actually use (daylight, studio strobe, and so on).\n• Shoot flat. Photograph raw and convert with a neutral, linear setting — no creative white balance, tone curve, contrast or sharpening — then export a plain TIFF. That's the camera version of turning a scanner's correction off.\n• Fill the frame square-on, so the target is flat and undistorted.\n• Keep the profile type on Matrix for a small target like a 24-patch ColorChecker; a LUT needs a many-patch target.\n\nThe profile applies to that camera under that light. A camera isn't a colorimeter, so treat it as a very good approximation — great for consistent studio or repro work, less so across mixed lighting.",
   "Put ChromIQ back to how it looks on a fresh install, with no project open. Press “Close Project” at the top left — the third button, beside “Open Chart File”. Nothing is deleted: every run, chart, measurement and profile stays where it is on disk, and “Open Project” brings it all back. Only what you have typed and not yet used is let go — the name in “Printer profile project name”, and the run description beside it — and the Create Chart settings return to your saved defaults. Useful when you have finished a job, when you are handing the computer to someone else, or before moving a project folder somewhere else on disk.",
   "Put back the calibration chart this project's calibration was measured with, exactly as it was printed — the pages, the patch layout and the .ti2 behind them. Use this when you want to reprint the sheet or read it again.",
   "Put the reading grid on the chart’s patches for you.\n\nChromIQ searches the whole picture for the chart, so your corners do not have to be anywhere near right to start with. It then reshapes what it finds so the grid sits squarely on the patches — and that second part is what a photograph needs, because a sheet photographed even slightly off square is no longer a rectangle: the end further from the camera comes out smaller. The grid is allowed to lean the same way, but never far enough to reach the next patch along.\n\nIf it cannot find the chart by itself it works from the four corners you placed instead, so dragging them roughly around the chart first always helps.\n\nNothing moves until the answer has been checked against the picture and against this chart’s own reference. If it is not confident it says so below and leaves your corners exactly where they are. Press the button again straight afterwards to put them back.",
   "Puts back the chart that was actually measured — which chart that is depends on “Run type”.\n\nRUN TYPE = PROFILING\nEvery profile run keeps a copy of the chart it was measured with, saved the moment the measurement starts. If you later change or re-create that chart, the run's measurement no longer describes a chart you still have — this button brings the copy back, so the measurement makes sense again and you can reprint exactly the same sheet. It becomes available once that run has been measured at least once.\n\nRUN TYPE = VERIFICATION\nEach dated verification keeps its own copy in the same way, and the button puts back the one belonging to the date selected in the “Verification” box. Pick an existing date that has a stored chart and the button becomes available.\n\nRUN TYPE = CALIBRATION\nThe project's calibration chart keeps a copy too, saved when its measurement starts. A calibration chart is the one chart that cannot simply be made again — the printed sheet you measured is the foundation of the calibration itself — so this copy is the way back to exactly that sheet. The button becomes available once the calibration has been measured.\n\nIN EVERY CASE\nYour measurements are never touched: only the chart files are replaced, and you are asked first whenever the chart currently in place is a different one. If a measurement was taken with the copy deliberately left alone, the button says so, because the copy then describes an earlier measurement.",
-  "Quality (-q) — the look-up table's grid resolution: higher is finer but slower, and needs better data to be worth it. It applies only to the two cLUT types and is greyed out for the other two. Medium is a good default, Low is a quick test, and High and Ultra are for large, clean charts.",
   "Raw — already converted",
   "Raw — no profile",
   "Re-centre the reading grid at the size computed from this target — use it if the grid has drifted off-screen (e.g. after loading an image at a different resolution).",
@@ -680,7 +676,6 @@
   "Select an existing profile run to delete. “New run” is not a run yet — there is nothing on disk to remove",
   "Select the printer to send the chart to.  Only printers installed in\nthe system CUPS print queue are listed.\n\nChromIQ converts the chart to PostScript and sends it via lp —\nbypassing ColorSync entirely.  If CUPS rejects PostScript (e.g.\nAirPrint or Driverless drivers), it automatically retries by sending\nthe TIFF directly with colour-space-aware raster options.\nColour management is always disabled automatically.",
   "Selects the CIE standard observer model used to convert spectral data\nto XYZ tristimulus values.\n\n1931 2° (CIE 1931) — the default for all ICC-based workflows. Use this\nunless you have a specific reason not to.\n\n1964 10° (CIE 1964) — designed for large-area viewing (prints that\nsubtend more than ~4° of visual angle). May suit large-format output.\n\n2015 2° / 10° (Stockman) — based on modern cone fundamentals and more\nphysiologically accurate. Useful for research; not widely adopted in\nproduction ICC pipelines.\n\nFor standard inkjet photo profiling, leave this at the 1931 default.",
-  "Selects the mathematical model used to map device values (ink percentages)\nto colours.\n\nLab cLUT — a full 3-dimensional lookup table. Captures the complex,\nnon-linear relationship between ink and colour that every real inkjet\nprinter has. This is almost always the right choice.\n\nMatrix + gamma — a simple linear model that fits only devices with a\nnear-linear, predictable response (such as monitors). Far less accurate\nfor inkjet printers. Use only if the destination application explicitly\nrequires a matrix profile.",
   "Selects which ICC rendering table iccgamut uses to compute the gamut boundary.\n\n• Absolute colorimetric (default) — shows the true colorimetric gamut of the\n  device including its media white point. Best for comparing one profile against\n  another or against a reference colour space such as sRGB or AdobeRGB.\n\n• Relative colorimetric — normalises to the media white before computing the gamut.\n  Shows how much of the colour space the device covers relative to white, which\n  reflects how colours are reproduced in a standard print workflow.\n\n• Perceptual — uses the perceptual rendering table. The gamut may appear smaller or\n  differently shaped because this table compresses or re-maps colours to avoid hard\n  clipping at the gamut boundary.\n\n• Saturation — uses the saturation rendering table, which prioritises vivid colours\n  over colorimetric accuracy.\n\nFor most ICC profile analysis, use Absolute colorimetric.",
   "Sets a human-readable description embedded in the .cal file.\nPurely informational — does not affect the calibration curves.\n",
   "Sets how sensitive the quality check is when deciding which strips\nneed to be re-measured.\n\nA strip is flagged if any single patch on it has a colour error (ΔE)\nhigher than this value.\n\nLower value (e.g. 1.0) — more strict: flags strips with even small\nerrors. Use this for critical colour work where accuracy matters most.\n\nHigher value (e.g. 3.0 or 4.0) — more lenient: only flags strips with\nclearly visible errors. Use this to limit re-measurement to the worst\noffenders only.\n\nThe default of 2.0 is a good balance for most RGB printer profiles.\nNote: this does not affect the profcheck analysis itself — only which\nstrips appear in the re-measurement recommendation.",
@@ -903,7 +898,6 @@
   "This run holds {n} dated verification measurements, going back to {date}. Each was printed through the profile in this run and measured against it, so each records how that profile behaved on that day.\n\nBuilding a new profile here does not make those measurements wrong, and it deletes nothing — but they will no longer say which profile they belong to, and comparing them with verification measurements made afterwards means comparing against two different profiles.\n\nWhat each button does:\n\n•  Duplicate the run and build there (recommended) — copies this run's chart, measurement and profile into a new run and builds there. This run keeps its profile and its verification measurements exactly as they are, and the copy starts fresh. This is the clean way to try a different profile from the same readings.\n\n•  Build here anyway — replaces this run's profile. The current profile is moved to the run's “old” folder, and the {n} dated verification measurements are moved to the “old” folder inside “verifications” with it, because they describe the profile being replaced. Nothing is deleted.\n\n•  Cancel — changes nothing.{blocked}",
   "This saves recognition files from the chart you just measured — great for general use, and they work for profiling a scanner or a camera (scan the printed chart, or photograph it). For the most accurate scanner profile of your own colour-managed prints, print a fresh chart through your normal print workflow and measure it too. (For a camera, accuracy depends on the light you shoot under rather than a reprint — see “Profiling a camera” in the Build window.)",
   "This screen turns the measurements from step 3 into an .icc profile — the file that applications like Lightroom, Photoshop, or Preview use to print accurate colour on your printer.\n\nBefore you build:\n• You need a finished .ti3 measurement file from step 3. ChromIQ pre-fills it for you if you came straight from tab 3.\n\nHow to use this screen:\n• Quality controls how detailed the profile's colour tables are. Higher = more accurate but slower to build and slightly larger. \"Medium\" is a fine starting point.\n• Profile description is the human-readable name you'll see in print dialogs later. Include the printer, paper, and date so you can tell profiles apart.\n• Click “Build Profile” and ChromIQ runs Argyll's colprof. When it's done you'll have a .icc file you can install on macOS.\n\nWhat happens next: install the .icc into ~/Library/ColorSync/Profiles (ChromIQ can do this for you), then verify it on tab 5 before relying on it for important prints.",
-  "This second step is the opposite of the first one, so it is worth a glance at the picture above.\n\nTAKE THE CAP OFF and put it aside. Hold the instrument with the opening pointing DOWNWARD into open space — about a metre above the floor, with nothing in front of it, and not aimed at a lamp or a window.\n\nThere is nothing to place it on. Your CR30 has no black tile: it takes its dark reading from empty air, which is why the picture shows it pointing at nothing.\n\nThen press “Calibrate now”. Afterwards ChromIQ reads once more and shows you the number that came back, so there is a record of it.\n\n⚠ It cannot check that you pointed it at the right thing. A dark calibration DEFINES what zero means, so whatever the instrument was looking at becomes the new zero and reads as nothing a moment later — measured on a real unit: calibrated against white paper, it read back 0.004 %. Getting this step right is your eyes, not ours.\n\nIf you would rather not, press “Skip this step”. Your white calibration still stands and the measurement goes ahead with the dark reference the instrument already had.\n\nIf you have changed your mind about measuring at all, press “Cancel the measurement”. Nothing has been measured yet and nothing on disk changes, so the only thing you lose is the white calibration you have just taken — and you can take that again in a few seconds whenever you like.",
   "This selection is not used on the Build Profile and Check & Refine tabs — both work on the measurement file you load into them. It is shown here so you can see where you are, and can be changed on the Create Chart, Print Chart and Measure tabs.",
   "This set places patches by how colours look (skin, sky, foliage…). On a multi-ink printer the app first needs a preconditioning profile, so it knows which ink mix produces each colour. Add one in the Preconditioning profile field above — its tooltip walks through the two-pass workflow, and the field accepts any profile made for this exact printer and ink set. On RGB printers this set is always available.",
   "This sheet was printed raw, without the profile — a drift check. Its ΔE figures above describe distance from the design, and what matters is how they change between dated checks, not their size.",
@@ -1015,7 +1009,6 @@
   "Which chart makes the best scanner profile?\n\nThe reference colours always come from your spectrophotometer measurement, so the profile is correct as long as you scan the very sheet you measured. The choice is only about how well the target matches what you'll actually scan:\n\n• Reuse the chart you already measured (no reprint) — free, correct, and ideal for general use and most photographers. Printed without colour management, it actually spans your printer's full gamut.\n\n• Print a fresh chart through your normal colour-managed workflow — the same paper and settings you use for real prints — then measure THAT sheet and scan it. This is best when you mainly scan your own colour-managed prints, because the target then matches the exact colours and rendering you produce. You must measure the reprint: you can't reuse the earlier measurement for a different sheet.\n\nWhichever you choose, match the paper and finish (glossy vs. matte) to what you'll scan.",
   "Which chart your scan is of.\n\n• For a scanner or camera profile — pick a chart you have already MEASURED (its .ti3). ChromIQ compares the chart's known, measured colours with how your device saw them, and builds the profile from the difference.\n\n• For a printer profile (the “Profile my printer from this scan” tick below) — you can pick a chart you simply PRINTED, even if you never measured it. Pick its .ti2 — the file ChromIQ wrote when it created the chart, holding the exact colour values it sent to the printer. This time the scanner does the measuring, so no spectrophotometer reading is needed.\n\nBoth files live in the chart's own folder, next to the chart image.",
   "Which edge of the page the clip border sits on — Left or Right. Choose whichever matches how you feed the chart into your instrument's ruler. The patches fill the rest of the page; the patch count is the same either way.\n\nThis also decides which page margin the clip-border width shares an edge with: Left → the Left margin, Right → the Right margin. On that edge the wider of the two (margin or clip-border width) is what gets reserved; the smaller one is outlined in red to show it's overridden.",
-  "Which edges of the sheet get the dashes.\n\nTick “Sides” for the dashes down the left and right edges — these are the ones that line up with the rows of patches, so they are what you want when you read a strip with a hand-held instrument. Tick “Top/bottom” for the dashes along the top and bottom edges, which line up with the strips across the page.\n\nUntick the set you don't need and it simply isn't printed — less ink on the sheet, and nothing in the way of your margins or the clip-border text. The set you keep then reaches into the corners as well, because there is no longer another set there to bump into.\n\nWith both unticked no dashes are printed at all — the same as turning the markers off. Leave it that way and this ⓘ says so, at the top, before this help.\n\nDefault: both ticked.",
   "Which profile build this applies to. Every profile you make is a “run”, kept in its own folder. Pick an existing run to work on it again — that overwrites that run's files — or choose “New run” to start a fresh profile alongside the ones you already have. Your older runs are never touched unless you select them here.\n\nWhile “Run type” is set to Calibration this shows “Project calibration” and cannot be changed: a calibration describes your printer, your paper and your inks — not one particular profile — so a project keeps exactly one, in its “cal” folder, and every profile run can use it. There is no run to pick.",
   "Which verification to work on. “New verification” starts a fresh, dated check that is kept next to your earlier ones — so you build up a history of how this profile performs month after month. Pick an existing date instead to re-measure that particular check.",
   "Which way the greys lean overall — for example slightly warm/yellow or cool/blue. Tells you the character of your raw output that the profile neutralises.",
@@ -1083,7 +1076,6 @@
   "[NOTE] Skip initial calibration is switched on, so ChromIQ has not offered to calibrate your instrument before this measurement.\nThat is fine if you calibrated it earlier. If you did not, every reading in this measurement can be shifted by the same amount, which is not visible in the numbers — untick the option in the measurement options and start again to be offered the calibration.",
   "[OK] Recognition files (.cht + .cie) saved for {n} patches — scan or photograph the printed chart, then use Tools ▸ Build profile with scanner or camera.",
   "[STOPPED] You cancelled the calibration, so this measurement did not start. Nothing has been changed and nothing has been measured — your instrument still has the calibration it had before. Press “{start}” whenever you are ready to begin.",
-  "[WARN] Instrument connection lost — still trying to save the partial measurement…",
   "as it is (Raw) — the profile is already inside this chart from the moment it was made, so printing it unchanged is exactly right; nothing was skipped",
   "as measured — no white adjustment: every difference counts, the paper's own tone included. (This is a way of comparing, not a rendering intent — a raw print has no intent at all.)",
   "cLUT — Lab table",
@@ -1156,7 +1148,6 @@
   "•  Empty the run — keep run {n} but delete its chart, measurement, profile, reports and verifications, so you start again from a clean run {n}. That means everything inside the run folder, including anything kept in its “old” folder from earlier measurements and the copy of the chart in its “chart” folder.",
   "•  the measurement {stem}.ti3 — real ink on real paper, which cannot be recreated without printing and measuring the chart again",
   "• Matrix only — the 3×3 mix and nothing else, with no tone curves in front of it. It suits a device that is already perfectly linear, such as a camera shooting RAW. On an ordinary scanner it measured several times less accurate than any of the other three at every size tested, so it is not the one to reach for here.",
-  "• Shaper + matrix, and Matrix only — a formula instead of a table: one gentle tone curve per colour channel plus a 3×3 matrix, which is a fixed recipe for mixing red, green and blue into a finished colour, or that mix on its own. They are small and undemanding, and they are offered here because this one control also serves the scanner side of the window. For a printer they have a real drawback: by the way the ICC format works, a matrix-based profile cannot carry a perceptual or a saturation intent at all, so it has nothing to fall back on when a colour is out of the printer's reach. Leave them be unless you know you want one.",
   "• cLUT — Lab table — the default here, and what a printer profile should normally be. “cLUT” means a look-up table: instead of reducing your printer to a formula, the profile stores your measurements and interpolates between them. It also carries something the formula types cannot — the perceptual and saturation rendering intents, which are what decide how colours your printer cannot reach are eased inwards when you print a photograph. Everything under Advanced… ▸ Gamut Mapping describes those two intents, so it has nothing to act on unless the profile is a table. “Lab” is simply the internal form the table keeps colour in; it is ArgyllCMS's own default for this job, and it is what ChromIQ's Build Profile tab builds as well.",
   "• cLUT — XYZ table — the same kind of table, keeping colour in the other internal form. It is worth knowing why this window points at the XYZ table on the scanner side and not here. A Lab table cannot describe anything lighter than the white patch of the chart it was built from, and a scanner meets paper brighter than a scanning target's white board all the time. A printer never does — nothing it prints is lighter than the paper it prints on — so that reason does not apply here, and the Lab default stands.",
   "• cLUT — XYZ table — “cLUT” means a look-up table. Instead of a formula, the profile stores your measurements and interpolates between them, so it can follow a device that does not behave like tidy maths. That freedom has to be paid for in patches: with too few of them there is nothing much to interpolate between, and the table will happily fit the noise in a scan rather than the colour. Take it when your target has roughly two hundred patches or more — a full IT8 has 288, a three-page ISO 12641-2 set has 864 — and the scan is clean and correctly exposed. At that size it measured about a third more accurate than Shaper + matrix on a real IT8 scan. “XYZ” is simply the internal form the table keeps colour in, and it is the one to use here — the next entry says why.",
@@ -1332,10 +1323,6 @@
   ],
   [
    "de",
-   "64100363913f03c2"
-  ],
-  [
-   "de",
    "68eae9a1722849a0"
   ],
   [
@@ -1364,10 +1351,6 @@
   ],
   [
    "de",
-   "74639a1c747ceb39"
-  ],
-  [
-   "de",
    "74b9c5ac76de1b63"
   ],
   [
@@ -1385,10 +1368,6 @@
   [
    "de",
    "80c3d388167f3dc4"
-  ],
-  [
-   "de",
-   "8992ceaea8b58906"
   ],
   [
    "de",
@@ -1492,10 +1471,6 @@
   ],
   [
    "de",
-   "ca4b39cf8e954314"
-  ],
-  [
-   "de",
    "cc65f3466ce65a0f"
   ],
   [
@@ -1584,10 +1559,6 @@
   ],
   [
    "es",
-   "64100363913f03c2"
-  ],
-  [
-   "es",
    "74b9c5ac76de1b63"
   ],
   [
@@ -1609,10 +1580,6 @@
   [
    "es",
    "c24382cdf65a38d5"
-  ],
-  [
-   "es",
-   "ca4b39cf8e954314"
   ],
   [
    "es",
@@ -1692,10 +1659,6 @@
   ],
   [
    "fr",
-   "64100363913f03c2"
-  ],
-  [
-   "fr",
    "74b9c5ac76de1b63"
   ],
   [
@@ -1713,10 +1676,6 @@
   [
    "fr",
    "b7d76acd822b7934"
-  ],
-  [
-   "fr",
-   "ca4b39cf8e954314"
   ],
   [
    "fr",
@@ -1784,10 +1743,6 @@
   ],
   [
    "it",
-   "64100363913f03c2"
-  ],
-  [
-   "it",
    "74b9c5ac76de1b63"
   ],
   [
@@ -1821,10 +1776,6 @@
   [
    "it",
    "c24382cdf65a38d5"
-  ],
-  [
-   "it",
-   "ca4b39cf8e954314"
   ],
   [
    "it",
@@ -1872,19 +1823,11 @@
   ],
   [
    "ja",
-   "64100363913f03c2"
-  ],
-  [
-   "ja",
    "8bffe1411201ba10"
   ],
   [
    "ja",
    "b53861ab84b95961"
-  ],
-  [
-   "ja",
-   "ca4b39cf8e954314"
   ],
   [
    "ja",
@@ -1960,10 +1903,6 @@
   ],
   [
    "nl",
-   "64100363913f03c2"
-  ],
-  [
-   "nl",
    "74b9c5ac76de1b63"
   ],
   [
@@ -2001,10 +1940,6 @@
   [
    "nl",
    "c24382cdf65a38d5"
-  ],
-  [
-   "nl",
-   "ca4b39cf8e954314"
   ],
   [
    "nl",
@@ -2084,10 +2019,6 @@
   ],
   [
    "no",
-   "64100363913f03c2"
-  ],
-  [
-   "no",
    "74b9c5ac76de1b63"
   ],
   [
@@ -2125,10 +2056,6 @@
   [
    "no",
    "c24382cdf65a38d5"
-  ],
-  [
-   "no",
-   "ca4b39cf8e954314"
   ],
   [
    "no",
@@ -2212,10 +2139,6 @@
   ],
   [
    "pl",
-   "64100363913f03c2"
-  ],
-  [
-   "pl",
    "6e3d71c4372fa0cf"
   ],
   [
@@ -2261,10 +2184,6 @@
   [
    "pl",
    "c4ccce1ee7be1633"
-  ],
-  [
-   "pl",
-   "ca4b39cf8e954314"
   ],
   [
    "pl",
@@ -2324,10 +2243,6 @@
   ],
   [
    "pt",
-   "64100363913f03c2"
-  ],
-  [
-   "pt",
    "74b9c5ac76de1b63"
   ],
   [
@@ -2353,10 +2268,6 @@
   [
    "pt",
    "be696b4bd6ad78eb"
-  ],
-  [
-   "pt",
-   "ca4b39cf8e954314"
   ],
   [
    "pt",
@@ -2581,10 +2492,6 @@
   [
    "ru",
    "63aab05b19f3561a"
-  ],
-  [
-   "ru",
-   "64100363913f03c2"
   ],
   [
    "ru",
@@ -2828,10 +2735,6 @@
   ],
   [
    "ru",
-   "ca4b39cf8e954314"
-  ],
-  [
-   "ru",
    "cc65f3466ce65a0f"
   ],
   [
@@ -3044,10 +2947,6 @@
   ],
   [
    "sv",
-   "64100363913f03c2"
-  ],
-  [
-   "sv",
    "74b9c5ac76de1b63"
   ],
   [
@@ -3081,10 +2980,6 @@
   [
    "sv",
    "c24382cdf65a38d5"
-  ],
-  [
-   "sv",
-   "ca4b39cf8e954314"
   ],
   [
    "sv",
@@ -3136,10 +3031,6 @@
   ],
   [
    "zh_CN",
-   "64100363913f03c2"
-  ],
-  [
-   "zh_CN",
    "6e3d71c4372fa0cf"
   ],
   [
@@ -3153,10 +3044,6 @@
   [
    "zh_CN",
    "b53861ab84b95961"
-  ],
-  [
-   "zh_CN",
-   "ca4b39cf8e954314"
   ],
   [
    "zh_CN",

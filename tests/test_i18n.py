@@ -640,6 +640,13 @@ def test_every_deliberate_exception_says_why():
 # These are each language's ACTUAL count, re-measured on the merged tree:
 # both changes above landed together, so neither branch's figure was right
 # on its own.
+# RE-MEASURED 2026-09-07, after the English-source fixes for 4.2.0: every
+# one of these twelve numbers is UNCHANGED. Seventeen English keys were
+# re-spelled that day (comma splices, quoted control names, `dark
+# calibration`, `[WARN]`, `Unexpected Colour Response`), and a re-key is
+# the one move that loses twelve translations at once. The table not
+# moving is the proof that every one of them was carried across rather
+# than left to fall back to English.
 _IDENTICAL_TO_KEY = {
     "de": 117,
     "es": 100,
