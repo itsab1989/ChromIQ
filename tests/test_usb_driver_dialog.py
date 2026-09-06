@@ -107,23 +107,23 @@ def test_one_device_without_a_driver_and_wdi_simple_present():
         "<br><br>"
         "Click <b>Install Driver</b> and ChromIQ will install the USB driver "
         "your instrument needs, so ArgyllCMS can talk to it. A Windows "
-        "security prompt will appear — click Yes to continue.<br><br>"
+        "security prompt will appear. Click Yes to continue.<br><br>"
         "<i>Only the instruments marked <b>driver not installed</b> above "
         "are touched. If Windows already shows one of them a driver, this "
         "replaces that driver; no other device is changed. Earlier "
         "versions of ChromIQ told people to choose WinUSB, and "
-        "ArgyllCMS cannot read an instrument through WinUSB — so if that "
+        "ArgyllCMS cannot read an instrument through WinUSB, so if that "
         "is what you have, this is the repair, and you did nothing wrong. "
         "Afterwards Windows may list your instrument under a driver name "
-        "you do not recognise. That is normal — it is the driver ArgyllCMS "
+        "you do not recognise. That is normal: it is the driver ArgyllCMS "
         "reads instruments through. It is signed, so Windows needs no special "
         "mode, and it works on x64 and ARM64.</i>"
         "<br><br>"
         "<b>Besides the driver itself, one other thing on this computer "
         "changes.</b> The driver is built for your instrument at the moment it "
-        "is installed, so it has to be signed at that moment too — and the "
+        "is installed, so it has to be signed at that moment too, and the "
         "installer puts the certificate it signs with into two of Windows' own "
-        "lists of trusted signers — one of them the trusted-root list — for "
+        "lists of trusted signers (one of them the trusted-root list) for "
         "the whole computer. It stays there "
         "after the driver is gone. ArgyllCMS's own driver installer does the "
         "same. Click <b>What this changes</b> for exactly what it is, what it "
@@ -158,14 +158,14 @@ def test_one_device_without_a_driver_and_no_wdi_simple_falls_back_to_zadig():
         "<b>Install Driver</b>"
         "<br><br><b>If you own a CR30:</b> do not pick the USB-serial "
         "device (CH340) in Zadig. That instrument is reached "
-        "through its COM port, and replacing its driver — with any of the "
-        "drivers Zadig offers — would stop ChromIQ finding it at all."
+        "through its COM port, and replacing its driver (with any of the "
+        "drivers Zadig offers) would stop ChromIQ finding it at all."
         "<br><br>"
         "<b>Besides the driver itself, one other thing on this computer "
         "changes.</b> The driver is built for your instrument at the moment it "
-        "is installed, so it has to be signed at that moment too — and the "
+        "is installed, so it has to be signed at that moment too, and the "
         "installer puts the certificate it signs with into two of Windows' own "
-        "lists of trusted signers — one of them the trusted-root list — for "
+        "lists of trusted signers (one of them the trusted-root list) for "
         "the whole computer. It stays there "
         "after the driver is gone. ArgyllCMS's own driver installer does the "
         "same. Click <b>What this changes</b> for exactly what it is, what it "
@@ -275,11 +275,11 @@ def test_a_clean_install_says_so_and_offers_nothing_further():
         zadig_status=None, driver_was_missing=True, target_names=[I1PRO])
     assert text == (
         "<b>It worked.</b> The driver is installed, and Windows has attached "
-        f"it to your instrument — {I1PRO}."
+        f"it to your instrument: {I1PRO}."
         "<br><br>"
         "That last part is the check that matters. An installer can finish "
         "without complaining and still fail to attach the driver to the "
-        "hardware, so ChromIQ does not take its word for it — it looks the "
+        "hardware, so ChromIQ does not take its word for it: it looks the "
         "instrument up again afterwards. The driver is there."
         "<br><br>"
         "You can close this window and start measuring."
@@ -330,7 +330,7 @@ def test_a_reinstall_that_changed_nothing_does_not_claim_an_install():
         "<b>ChromIQ cannot tell you whether that changed anything.</b>"
         "<br><br>"
         "The driver was already there before you clicked, and it is still "
-        "there now. The installer finished without complaining — but there "
+        "there now. The installer finished without complaining, but there "
         "was nothing missing for it to put right, so there is no difference "
         "for ChromIQ to point at and call a success."
         "<br><br>"
@@ -414,8 +414,8 @@ def test_a_failed_or_cancelled_install_offers_zadig():
         "click <b>Install Driver</b>."
         "<br><br><b>If you own a CR30:</b> do not pick the USB-serial "
         "device (CH340) in Zadig. That instrument is reached "
-        "through its COM port, and replacing its driver — with any of the "
-        "drivers Zadig offers — would stop ChromIQ finding it at all."
+        "through its COM port, and replacing its driver (with any of the "
+        "drivers Zadig offers) would stop ChromIQ finding it at all."
     )
     assert offer_zadig is True
 
@@ -447,8 +447,8 @@ def test_installed_but_not_bound_names_the_instrument():
         "instrument first can also help."
         "<br><br><b>If you own a CR30:</b> do not pick the USB-serial "
         "device (CH340) in Zadig. That instrument is reached "
-        "through its COM port, and replacing its driver — with any of the "
-        "drivers Zadig offers — would stop ChromIQ finding it at all."
+        "through its COM port, and replacing its driver (with any of the "
+        "drivers Zadig offers) would stop ChromIQ finding it at all."
     )
     assert offer_zadig is True
 
@@ -472,8 +472,8 @@ def test_zadig_launched_repeats_the_cr30_warning():
         "then click Install Driver."
         "<br><br><b>If you own a CR30:</b> do not pick the USB-serial "
         "device (CH340) in Zadig. That instrument is reached "
-        "through its COM port, and replacing its driver — with any of the "
-        "drivers Zadig offers — would stop ChromIQ finding it at all."
+        "through its COM port, and replacing its driver (with any of the "
+        "drivers Zadig offers) would stop ChromIQ finding it at all."
     )
     assert offer_zadig is False
 
@@ -490,8 +490,8 @@ def test_the_zadig_download_page_repeats_the_cr30_warning_too():
         "select your colorimeter → choose libusb-win32 → Install Driver."
         "<br><br><b>If you own a CR30:</b> do not pick the USB-serial "
         "device (CH340) in Zadig. That instrument is reached "
-        "through its COM port, and replacing its driver — with any of the "
-        "drivers Zadig offers — would stop ChromIQ finding it at all."
+        "through its COM port, and replacing its driver (with any of the "
+        "drivers Zadig offers) would stop ChromIQ finding it at all."
     )
     assert offer_zadig is False
 
@@ -508,8 +508,8 @@ def test_zadig_failing_entirely_falls_back_to_the_website():
         "select your colorimeter → choose libusb-win32 → Install Driver."
         "<br><br><b>If you own a CR30:</b> do not pick the USB-serial "
         "device (CH340) in Zadig. That instrument is reached "
-        "through its COM port, and replacing its driver — with any of the "
-        "drivers Zadig offers — would stop ChromIQ finding it at all."
+        "through its COM port, and replacing its driver (with any of the "
+        "drivers Zadig offers) would stop ChromIQ finding it at all."
     )
     assert offer_zadig is False
 
