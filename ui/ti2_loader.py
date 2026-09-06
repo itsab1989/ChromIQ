@@ -337,19 +337,19 @@ def patch_measurement_instructions_html(family: "str | None") -> str:
             "Turn the dial to the <b>measurement position</b> (the target / "
             "aperture icon). Rest the device flat on the highlighted patch, "
             "with the aperture fully inside it, and <b>press the side button "
-            "once</b>. Hold it still until the reading is taken, there is no "
+            "once</b>. Hold it still until the reading is taken. There is no "
             "sliding in this mode.")
     if family == "cr30":
         return tr(
-            "Take the <b>magnetic cap off</b> the measuring end first, with "
+            "Take the <b>magnetic cap off</b> the measuring end first. With "
             "the cap on, the CR30 reads its own white tile instead of your "
             "print.<br><br>Rest the instrument flat on the highlighted patch "
             "with the aperture fully inside it, hold it still, and <b>press "
             "the button on the instrument</b>. ChromIQ collects the reading by "
-            "itself and moves on to the next patch, there is nothing to press "
+            "itself and moves on to the next patch. There is nothing to press "
             "on screen, and there is no sliding in this mode.<br><br>"
             "You can also press the <b>space bar</b> (or Enter) to take the "
-            "reading without touching the instrument at all, that keeps it "
+            "reading without touching the instrument at all. That keeps it "
             "perfectly still and is steadier than pressing its button. It "
             "becomes available once ChromIQ has learned your instrument's "
             "white tile, which it offers after calibrating.<br><br>"
@@ -359,7 +359,7 @@ def patch_measurement_instructions_html(family: "str | None") -> str:
         return tr(
             "Take the i1Pro off its base. Place it flat on the highlighted "
             "patch so the aperture sits fully inside it, and <b>press the "
-            "button once</b>. Keep it still until the reading is taken, there "
+            "button once</b>. Keep it still until the reading is taken. There "
             "is no sliding in this mode.")
     if family == "spectroscan":
         return tr(
