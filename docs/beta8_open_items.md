@@ -4035,3 +4035,89 @@ only a triple that DIFFERS from the rule's answer would stop it.
   (the raster test fails, the constant test does not, which is the point of
   having both); scaling `pwid` in `patch_rects_px` so the geometry moves; and
   importing the reporting helper into `workflow/layout_engine/geometry.py`.
+### B8-95 · The layout panel's estimate column described the chart from before the last build, so its two columns showed two different charts
+- blocks release: no
+- status: FIXED
+- found by: Basti, 2026-09-06, on 4.1.5-beta.11, with Knut's CR30 preset set;
+  reproduced on screen and fixed by Agent CS
+- detail: Basti, with `CR30-A4-360p-1page-Portrait-w11.0mm` loaded, read the
+  Chart layout information panel as **on screen 360, estimate 192**; loading the
+  192-patch preset next read **192 / 360**. Each column appeared to be showing
+  the other preset's chart. His screenshot carried a second oddity: with the
+  panel's own "Strips (columns)" control reading **15** and "Patches per strip"
+  **24**, the estimate said **8** strips.
+
+  **It is one number, not two faults.** `_predict_layout_info` derives the
+  strips row from the patch total it is handed:
+  `cols = ceil(min(total, page capacity) / patches_per_strip)`. Measured against
+  the layout engine with this preset's own recipe: 192 patches give
+  `steps=24, patches_per_page=360, cols=8`; 360 give `cols=15`. So 8 is not a
+  column count solved from a patch width and the estimate is not ignoring the
+  "By columns / rows" method - it honours the 15x24 grid in every case. Feed it
+  the right total and 15 comes back.
+
+  **The cause.** The estimate column was computed only from the SETTINGS-change
+  path (`_refresh_manual_command_preview`). Nothing recomputed it when the chart
+  in the preview changed: `_set_margin_chart` called `_update_layout_info`,
+  which fills the "on screen" column ONLY. And the count the estimate lays out
+  comes from `_onscreen_patch_total()`, read from that very chart's `.ti2`. So
+  every Generate published a panel whose estimate described the chart that was
+  on screen *before* the build. The estimate lagged exactly one chart, which a
+  two-preset A/B makes look like a swap.
+
+  Driven in the real window with his own presets, before the fix:
+
+  | step | on screen | estimate |
+  |---|---|---|
+  | nothing generated | (dash) | 360 (the 15x24 capacity fill) |
+  | pick the 192 preset | 192 | 360 |
+  | pick the 360 preset | 360 | 192 |
+  | pick the 192 preset | 192 | 360 |
+  | press Generate, nothing changed | 192 | 360 |
+
+  The fifth row is the part that made it permanent: an explicit Generate did not
+  correct it either, and it stayed wrong until some control was nudged.
+
+  **Ruled out, measured not assumed:** changing the instrument and seeing
+  nothing move is CORRECT here. With an explicit grid in area-first mode the
+  instrument does not change the geometry (CR30 / i1 / CM / SS all return
+  pwid 11.26, plen 11.16, 24 steps, 360 per page for this recipe). And the
+  0.04 mm gap in the "Patch size (mm)" row is render snapping, not a mismatch:
+  11.26 mm at 200 dpi is 88.66 px, drawn as 89 px = 11.303 mm. The panel's own
+  0.15 mm tolerance already declines to flag it.
+- fix: the estimate block moves out of `_refresh_manual_command_preview` into
+  `TabChart._refresh_layout_estimate`, which `_set_margin_chart` now calls too -
+  so the one door every chart comes through refreshes BOTH columns. A second,
+  quieter error is fixed with it: `_estimate_patch_total` now prefers the patch
+  set that is already armed (`_pending_patch_set_total`: a preset's attached
+  `.ti1`, or a built-in's bundled one, mirroring the branch `_on_generate`
+  actually takes, override included) over the chart still on screen. Selecting a
+  preset arms its `.ti1` long before the build finishes, and the estimate is
+  "what Generate would give". The `.ti1` is also the DESIGNED count where the
+  `.ti2` already carries the fill-up patches, so laying the `.ti2` total out
+  again was padding a padded chart.
+
+  **The chart is untouched.** Both presets were generated with the seed pinned,
+  with and without the fix, and the page TIFF, the `.ti2` (only `CREATED`, a wall
+  clock, removed), the `.ti1` and the engine's `channels.json` layout block are
+  byte-identical across the pair:
+  `scripts/drive_layout_estimate_chart_unchanged.py`.
+- evidence: all six live in one new file,
+  `tests/…layout_estimate_follows_the_chart_on_screen.py`:
+  test_a_new_chart_on_screen_refreshes_the_estimate (Basti's journey in the
+  order he walked it), test_the_estimate_strip_count_agrees_with_the_grid_control
+  (the 8-against-15 symptom, and that a full page uses every strip the control
+  asks for), test_an_armed_patch_set_beats_the_chart_still_on_screen,
+  test_editing_the_targen_recipe_drops_the_armed_patch_set,
+  test_refreshing_the_estimate_writes_nothing (a readout may not put a byte on
+  disk), test_set_margin_chart_still_refreshes_the_estimate_in_source.
+
+  Three mutations, each proved to land before the run: removing the
+  `_refresh_layout_estimate()` call from `_set_margin_chart` (4 of the 6 fail);
+  making `_estimate_patch_total` ignore the armed patch set (2 fail); and making
+  the estimate report the grid's strip capacity instead of the strips the
+  patches occupy (2 fail).
+
+  On-screen proof for Basti, both columns and the controls in the same shot, in
+  `~/Desktop/beta 9/layout-estimate-column/` (`before/` and `after/`, driven by
+  `scripts/drive_layout_estimate_columns.py`).

@@ -5279,35 +5279,64 @@ class TabChart(QWidget):
 
         # Live layout-info estimate (Manual + engine). Runs even with a chart on
         # screen so the "estimate" column tracks the current settings (#93).
-        manual_active = (self._manual_btn is not None
-                         and self._manual_btn.isChecked())
-        if manual_active and getattr(self, "_layout_info_panel", None) is not None:
-            if use_engine and getattr(self, "_manual_layout_panel", None) is not None:
-                try:
-                    from workflow.layout_engine import instruments
-                    r = self._current_layout_recipe()
-                    # Margin boxes are ALWAYS the law now (Knut, new model): the
-                    # render never clamps to instrument minimums, so the estimate
-                    # mustn't either, or the two would disagree. Below-minimum is
-                    # only flagged as a violation in the inspector.
-                    geom = instruments.geom_from_build_kwargs(r.build_kwargs())
-                    pages_req = (self._manual_pages_spin.value()
-                                 if self._manual_pages_spin is not None else 1)
-                    # Use the on-screen chart's fixed patch count ONLY when the
-                    # count is fixed (Auto patch count OFF). With Auto ON the count
-                    # is a capacity-fill that changes with the patch size, so let
-                    # the estimate recompute it (npat=None) — otherwise the estimate
-                    # sticks on the stale generated count when you change e.g. the
-                    # minimum patch width (#93, Knut beta-14 regression).
-                    _auto = (self._manual_auto_patches_check is not None
-                             and self._manual_auto_patches_check.isChecked())
-                    self._predict_layout_info(
-                        geom, r.paper, pages_req,
-                        npat=None if _auto else self._onscreen_patch_total())
-                except Exception:
-                    self._layout_info_panel.clear_estimate()
-            else:
-                self._layout_info_panel.clear_estimate()
+        self._refresh_layout_estimate(use_engine=use_engine)
+
+    def _refresh_layout_estimate(self, use_engine: "bool | None" = None) -> None:
+        """Recompute the Manual "estimate" column of the layout-info panel.
+
+        **THIS IS ALSO CALLED WHEN THE CHART ON SCREEN CHANGES, AND THAT IS THE
+        POINT.** It used to live inline in `_refresh_manual_command_preview`, so
+        the estimate was recomputed only when a *setting* moved — while the
+        count it lays out comes from the chart in the PREVIEW. Generating a
+        chart therefore left the estimate describing the chart that was on
+        screen *before* the build, permanently, until some control was nudged.
+
+        Basti, 4.1.5-beta.11: loading Knut's 360-patch CR30 preset read
+        *on screen 360, estimate 192*, and loading the 192-patch one next read
+        *192 / 360* — each column showing the other preset's chart. The strip
+        count went with it (8 against the control's 15) because the estimate
+        derives its strip count from the patch total: 192 patches occupy 8 of
+        the 15 strips the grid offers. One stale number, two wrong rows.
+        """
+        if getattr(self, "_layout_info_panel", None) is None:
+            return
+        # `getattr`, not the attribute: this now also runs from
+        # `_set_margin_chart`, which a restore path can reach while the tab is
+        # still being built and these widgets do not exist yet.
+        manual_btn = getattr(self, "_manual_btn", None)
+        if not (manual_btn is not None and manual_btn.isChecked()):
+            return
+        if use_engine is None:
+            engine_check = getattr(self, "_manual_engine_check", None)
+            use_engine = bool(engine_check is not None
+                              and engine_check.isChecked())
+        if not (use_engine
+                and getattr(self, "_manual_layout_panel", None) is not None):
+            self._layout_info_panel.clear_estimate()
+            return
+        try:
+            from workflow.layout_engine import instruments
+            r = self._current_layout_recipe()
+            # Margin boxes are ALWAYS the law now (Knut, new model): the
+            # render never clamps to instrument minimums, so the estimate
+            # mustn't either, or the two would disagree. Below-minimum is
+            # only flagged as a violation in the inspector.
+            geom = instruments.geom_from_build_kwargs(r.build_kwargs())
+            pages_req = (self._manual_pages_spin.value()
+                         if self._manual_pages_spin is not None else 1)
+            # Use a fixed patch count ONLY when the count is fixed (Auto patch
+            # count OFF). With Auto ON the count is a capacity-fill that changes
+            # with the patch size, so let the estimate recompute it (npat=None)
+            # — otherwise the estimate sticks on the stale generated count when
+            # you change e.g. the minimum patch width (#93, Knut beta-14
+            # regression).
+            _auto = (self._manual_auto_patches_check is not None
+                     and self._manual_auto_patches_check.isChecked())
+            self._predict_layout_info(
+                geom, r.paper, pages_req,
+                npat=None if _auto else self._estimate_patch_total())
+        except Exception:
+            self._layout_info_panel.clear_estimate()
 
     # ------------------------------------------------------------------
     # Layout-engine per-chart preset bar (issue #93)
@@ -17037,6 +17066,66 @@ class TabChart(QWidget):
         self._margin_ti2 = ti2 if (ti2 and Path(ti2).is_file()) else None
         self._update_margin_inspector()
         self._update_layout_info()
+        # …AND THE ESTIMATE COLUMN, WHICH READS THIS VERY CHART.
+        # `_update_layout_info` fills the "on screen" column only. The estimate
+        # lays out the patch count taken from the chart in the preview, so
+        # leaving it alone here made every Generate publish a panel whose two
+        # columns describe two different charts, one build apart.
+        self._refresh_layout_estimate()
+
+    def _estimate_patch_total(self) -> "int | None":
+        """The patch count the estimate should lay out: what pressing Generate
+        NOW would produce.
+
+        A fixed patch set that is already armed wins, because that is the file
+        Generate will lay out — a preset's attached .ti1, or a built-in's
+        bundled one. Only when Generate would build a fresh set does the chart
+        in the preview stand in for it.
+
+        THE DISTINCTION IS NOT ACADEMIC: selecting a preset arms its .ti1 long
+        before the build finishes, and until it did the estimate answered with
+        the patch count of the chart still on screen — the *previous* preset's.
+        Feeding the armed set also fixes a quieter error, because the .ti1 is
+        the DESIGNED count while the .ti2 already carries the fill-up patches:
+        laying the .ti2's total out again padded a padded chart.
+        """
+        n = self._pending_patch_set_total()
+        if n:
+            return n
+        return self._onscreen_patch_total()
+
+    def _pending_patch_set_total(self) -> "int | None":
+        """Patch count of the fixed patch set the next Generate would lay out,
+        or None when it would run targen and make a fresh one.
+
+        Mirrors the branches `_on_generate` actually takes: an attached /
+        bundled .ti1 is reused verbatim unless the user ticked the targen
+        override AND then changed a targen value.
+        """
+        try:
+            path = None
+            if getattr(self, "_preset_ti1_path", None) is not None:
+                opted_in = bool(self._override_targen_check is not None
+                                and self._override_targen_check.isChecked())
+                changed = (opted_in
+                           and self._preset_ti1_targen_sig is not None
+                           and self._targen_signature()
+                           != self._preset_ti1_targen_sig)
+                if not changed:
+                    path = self._preset_ti1_path
+            elif getattr(self, "_tc918_active", False):
+                if self._targen_signature() == self._tc918_targen_sig:
+                    path = self._tc918_ti1_path()
+            elif getattr(self, "_knut_active", False):
+                if self._targen_signature() == self._knut_targen_sig:
+                    path = getattr(self, "_builtin_ti1_path", None)
+            if path is None or not Path(path).is_file():
+                return None
+            m = re.search(r"NUMBER_OF_SETS\s+(\d+)",
+                          read_text(Path(path), lenient=True))
+            return int(m.group(1)) if m else None
+        except Exception:      # noqa: BLE001 — a readout may never break the tab
+            return None
 
     def _onscreen_patch_total(self) -> "int | None":
         """Patch count of the chart currently in the preview (its .ti2
