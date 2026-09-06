@@ -74,17 +74,74 @@ def test_nothing_attached_says_the_same_without_wdi_simple():
 
 
 def test_one_device_without_a_driver_and_wdi_simple_present():
+    """REPINNED 2026-09-06 (twice).
+
+    First: this promised "the Microsoft WinUSB driver", and it is in no
+    position to promise any driver by name — `install_winusb` handed
+    `wdi_simple.exe` a `--driver WinUSB` it does not have, so wdi-simple
+    printed its usage and exited 0. The paragraph names none: it says what the
+    click is FOR, and warns that the name Windows shows afterwards will look
+    unfamiliar.
+
+    Then: TIGHTENING `has_winusb` TO `libusb0` PUT A NEW READER IN FRONT OF
+    THIS PARAGRAPH. Somebody who followed ChromIQ's own old Zadig instructions
+    has WinUSB bound; they now arrive here, at a window telling them the driver
+    is not installed, on a machine where Device Manager shows a healthy
+    Microsoft driver. The paragraph has to say three things it did not say: it
+    replaces what is there, nothing else is touched, and the wrong driver was
+    our instruction, not their mistake.
+
+    REPINNED AGAIN 2026-09-06: THE CERTIFICATE. Pressing this button installs a
+    self-signed certificate into `LocalMachine\\Root` and
+    `…\\TrustedPublisher` — measured on the bench, three seconds after the
+    click — and the paragraph said nothing whatever about it. The disclosure is
+    the last block, and every fact in it is here rather than behind the
+    `What this changes…` button, so that a user who never presses that button
+    has still been told the three things that matter: which lists, whose
+    computer, and that it stays behind.
+    """
     msg, btn = sd.usb_installer_text([dev(I1PRO, False)], wdi_available=True)
     assert msg == (
         "<b>Connected colorimeter:</b><br>"
         f"&nbsp;&nbsp;• {I1PRO} — <i>driver not installed</i>"
         "<br><br>"
-        "Click <b>Install Driver</b> to install the Microsoft WinUSB driver "
-        "automatically. A Windows security prompt will appear — click Yes to "
-        "continue.<br><br>"
-        "<i>No test-signing mode required. Works on x64 and ARM64.</i>"
+        "Click <b>Install Driver</b> and ChromIQ will install the USB driver "
+        "your instrument needs, so ArgyllCMS can talk to it. A Windows "
+        "security prompt will appear — click Yes to continue.<br><br>"
+        "<i>Only the instruments marked <b>driver not installed</b> above "
+        "are touched. If Windows already shows one of them a driver, this "
+        "replaces that driver; no other device is changed. Earlier "
+        "versions of ChromIQ told people to choose WinUSB, and "
+        "ArgyllCMS cannot read an instrument through WinUSB — so if that "
+        "is what you have, this is the repair, and you did nothing wrong. "
+        "Afterwards Windows may list your instrument under a driver name "
+        "you do not recognise. That is normal — it is the driver ArgyllCMS "
+        "reads instruments through. It is signed, so Windows needs no special "
+        "mode, and it works on x64 and ARM64.</i>"
+        "<br><br>"
+        "<b>Besides the driver itself, one other thing on this computer "
+        "changes.</b> The driver is built for your instrument at the moment it "
+        "is installed, so it has to be signed at that moment too — and the "
+        "installer puts the certificate it signs with into two of Windows' own "
+        "lists of trusted signers — one of them the trusted-root list — for "
+        "the whole computer. It stays there "
+        "after the driver is gone. ArgyllCMS's own driver installer does the "
+        "same. Click <b>What this changes</b> for exactly what it is, what it "
+        "can and cannot vouch for, and how to take it out again."
     )
     assert btn == "Install Driver"
+    # It still promises no driver by name. WinUSB appears only in the sentence
+    # that says ArgyllCMS CANNOT use it — never as the thing being installed —
+    # so the promise half of the paragraph is checked on its own.
+    promise = msg.split("Only the instruments marked")[0]
+    for named in ("WinUSB", "libusb"):
+        assert named not in promise, (
+            f"the window names {named!r} as what it installs, and it cannot "
+            "know that")
+    assert "you did nothing wrong" in msg, (
+        "a user who followed ChromIQ's own old instructions is told their "
+        "driver is missing; the window must not leave that reading as their "
+        "mistake")
 
 
 def test_one_device_without_a_driver_and_no_wdi_simple_falls_back_to_zadig():
@@ -97,25 +154,59 @@ def test_one_device_without_a_driver_and_no_wdi_simple_falls_back_to_zadig():
         "USB driver tool. In Zadig:<br>"
         "&nbsp;&nbsp;1. Click <b>Options → List All Devices</b><br>"
         "&nbsp;&nbsp;2. Find your colorimeter in the dropdown<br>"
-        "&nbsp;&nbsp;3. Select <b>WinUSB</b> as the driver and click "
+        "&nbsp;&nbsp;3. Select <b>libusb-win32</b> as the driver and click "
         "<b>Install Driver</b>"
         "<br><br><b>If you own a CR30:</b> do not pick the USB-serial "
         "device (CH340) in Zadig. That instrument is reached "
-        "through its COM port, and giving it WinUSB would stop "
-        "ChromIQ finding it at all."
+        "through its COM port, and replacing its driver — with any of the "
+        "drivers Zadig offers — would stop ChromIQ finding it at all."
+        "<br><br>"
+        "<b>Besides the driver itself, one other thing on this computer "
+        "changes.</b> The driver is built for your instrument at the moment it "
+        "is installed, so it has to be signed at that moment too — and the "
+        "installer puts the certificate it signs with into two of Windows' own "
+        "lists of trusted signers — one of them the trusted-root list — for "
+        "the whole computer. It stays there "
+        "after the driver is gone. ArgyllCMS's own driver installer does the "
+        "same. Click <b>What this changes</b> for exactly what it is, what it "
+        "can and cannot vouch for, and how to take it out again."
     )
     assert btn == "Open Zadig"
+    # AND IT IS HERE AT ALL BECAUSE ZADIG IS libwdi. This branch installs no
+    # driver itself — it hands the user to Zadig, which is libwdi's own front
+    # end and mints the same certificate. A disclosure that appeared only
+    # beside `Install Driver` would have covered the users ChromIQ installs for
+    # and missed the ones it sends elsewhere.
+    assert sd.usb_shows_certificate_details(
+        [dev(I1PRO, False)], wdi_available=False)
 
 
 def test_one_device_that_already_works_offers_a_repair_not_an_install():
+    """REPINNED 2026-09-06: the state chip said `WinUSB ✓`.
+
+    `UsbDevice.has_winusb` is true for `winusb` OR `libusb0`
+    (core/usb_driver_installer.py), so it has never meant "WinUSB is bound".
+    On the instrument on the bench the service is `libusb0` and Argyll lists
+    `libusb0-0001 (X-Rite ColorMunki)` — and the tick said WinUSB about it.
+    Where that libusb0 came from is not known and does not matter: two
+    different drivers cannot be printed as one of their names. The chip says
+    what the flag means now, and pairs with `driver not installed`.
+    """
     msg, btn = sd.usb_installer_text([dev(I1PRO, True)], wdi_available=True)
     assert msg == (
         "<b>Connected colorimeter:</b><br>"
-        f"&nbsp;&nbsp;• {I1PRO} — <i>WinUSB ✓</i>"
+        f"&nbsp;&nbsp;• {I1PRO} — <i>driver installed ✓</i>"
         "<br><br>"
         "The driver is already installed for the device above. "
         "If ChromIQ or Argyll still can't open your instrument, click "
         "<b>Reinstall Driver</b> to run the installer again."
+        # AND THE CERTIFICATE PARAGRAPH, WHICH THIS BRANCH DID NOT CARRY.
+        # `Reinstall Driver` runs `install_winusb` over every detected device
+        # and libwdi mints a fresh certificate on every run, so the repair path
+        # writes to the root store too. Referenced rather than repeated: the
+        # paragraph's own wording is pinned character-for-character on the
+        # install branch above, and this test is about the repair sentence.
+        + sd.usb_certificate_notice_line()
     )
     assert btn == "Reinstall Driver"
 
@@ -125,12 +216,13 @@ def test_two_working_devices_switch_every_word_to_the_plural():
         [dev(I1PRO, True), dev(SPYDER, True)], wdi_available=True)
     assert msg == (
         "<b>Connected colorimeters:</b><br>"
-        f"&nbsp;&nbsp;• {I1PRO} — <i>WinUSB ✓</i><br>"
-        f"&nbsp;&nbsp;• {SPYDER} — <i>WinUSB ✓</i>"
+        f"&nbsp;&nbsp;• {I1PRO} — <i>driver installed ✓</i><br>"
+        f"&nbsp;&nbsp;• {SPYDER} — <i>driver installed ✓</i>"
         "<br><br>"
         "The driver is already installed for the devices above. "
         "If ChromIQ or Argyll still can't open your instrument, click "
         "<b>Reinstall Driver</b> to run the installer again."
+        + sd.usb_certificate_notice_line()
     )
     assert btn == "Reinstall Driver"
 
@@ -140,7 +232,7 @@ def test_a_mixed_pair_is_treated_as_needing_an_install():
     msg, btn = sd.usb_installer_text(
         [dev(I1PRO, True), dev(SPYDER, False)], wdi_available=True)
     assert msg.startswith("<b>Connected colorimeters:</b><br>")
-    assert f"• {I1PRO} — <i>WinUSB ✓</i>" in msg
+    assert f"• {I1PRO} — <i>driver installed ✓</i>" in msg
     assert f"• {SPYDER} — <i>driver not installed</i>" in msg
     assert "Click <b>Install Driver</b>" in msg
     assert "already installed" not in msg
@@ -167,20 +259,155 @@ def test_no_bracketed_plurals_reach_the_screen(wdi, has_driver):
 # ---------------------------------------------------------------------------
 
 def test_a_clean_install_says_so_and_offers_nothing_further():
+    """REPINNED 2026-09-06: this said "WinUSB driver installed successfully."
+
+    Two faults in six words. It named a driver that is not what gets installed
+    (see `test_one_device_without_a_driver_and_wdi_simple_present`), and it
+    said "successfully" in every run that reached here — including the one
+    where nothing had been missing and nothing could be shown to have changed.
+    The success sentence is now only reachable when a driver really was
+    missing and the device really did come back bound; and it says what the
+    proof was, the way the COM-port half's `bound` window does.
+    """
     text, offer_zadig = sd.usb_install_outcome(
         wdi_available=True, ran_ok=True, still_unbound_names=[],
-        zadig_status=None)
-    assert text == "WinUSB driver installed successfully."
+        zadig_status=None, driver_was_missing=True, target_names=[I1PRO])
+    assert text == (
+        "<b>It worked.</b> The driver is installed, and Windows has attached "
+        f"it to your instrument — {I1PRO}."
+        "<br><br>"
+        "That last part is the check that matters. An installer can finish "
+        "without complaining and still fail to attach the driver to the "
+        "hardware, so ChromIQ does not take its word for it — it looks the "
+        "instrument up again afterwards. The driver is there."
+        "<br><br>"
+        "You can close this window and start measuring."
+    )
     assert offer_zadig is False
+
+
+def test_a_success_with_no_names_is_a_sentence_of_its_own():
+    """`target_names` is optional, and the empty case is a WRITTEN-OUT variant.
+
+    A slot filled with a fallback word would render "…attached it to your
+    instrument — your instrument", and no translator could see that coming
+    from the key. Two keys, the same rule CLAUDE.md gives for singular and
+    plural.
+    """
+    text, _ = sd.usb_install_outcome(
+        wdi_available=True, ran_ok=True, still_unbound_names=[],
+        zadig_status=None, driver_was_missing=True)
+    assert text.startswith(
+        "<b>It worked.</b> The driver is installed, and Windows has attached "
+        "it to your instrument.<br><br>")
+    assert "—" not in text.split("<br><br>")[0]
+
+
+def test_a_reinstall_that_changed_nothing_does_not_claim_an_install():
+    """FINDING 2, pinned — and the measurement is worse than the finding.
+
+    `Reinstall Driver` on an instrument that already had a driver ran
+    wdi-simple, which exited 0, and the window said "WinUSB driver installed
+    successfully." The bench then established what that exit 0 was: ChromIQ
+    passes `--driver WinUSB`, wdi-simple has no such option, and it answers
+    `unrecognized option '--driver'`, prints its usage and exits 0 without
+    touching a single device. The window was congratulating the user on a
+    command that did nothing at all.
+
+    Nothing had been missing, so nothing had been demonstrated — which is what
+    this ending now says. The COM-port half of the SAME window already refused
+    to make that claim ("ChromIQ cannot tell you whether this install changed
+    anything, because there was nothing to change"), which is the entire reason
+    `unbound_targets()` exists: wdi-simple can exit 0 without binding.
+    """
+    text, offer_zadig = sd.usb_install_outcome(
+        wdi_available=True, ran_ok=True, still_unbound_names=[],
+        zadig_status=None, driver_was_missing=False, target_names=[I1PRO])
+    assert text == (
+        "<b>ChromIQ cannot tell you whether that changed anything.</b>"
+        "<br><br>"
+        "The driver was already there before you clicked, and it is still "
+        "there now. The installer finished without complaining — but there "
+        "was nothing missing for it to put right, so there is no difference "
+        "for ChromIQ to point at and call a success."
+        "<br><br>"
+        "Nothing was removed or replaced. If ArgyllCMS still cannot open your "
+        "instrument, unplug it, wait a few seconds and plug it back in. Then "
+        "open <b>Instrument drivers</b> in Preferences again and use "
+        "<b>Check again</b>."
+    )
+    assert I1PRO not in text, (
+        "nothing was demonstrated about this instrument, so naming it would "
+        "dress the refusal up as a report")
+    assert offer_zadig is False, (
+        "nothing is wrong, so Zadig must not be pushed at the user")
+
+
+def test_the_two_clean_endings_are_told_apart_by_what_was_missing():
+    """The distinction itself, stated as one assertion.
+
+    Same `ran_ok`, same empty unbound list — only `driver_was_missing`
+    differs, and it has to be the difference between a claim and a refusal to
+    claim.
+    """
+    worked, _ = sd.usb_install_outcome(
+        wdi_available=True, ran_ok=True, still_unbound_names=[],
+        zadig_status=None, driver_was_missing=True, target_names=[I1PRO])
+    cannot, _ = sd.usb_install_outcome(
+        wdi_available=True, ran_ok=True, still_unbound_names=[],
+        zadig_status=None, driver_was_missing=False, target_names=[I1PRO])
+    assert worked != cannot
+    assert "It worked" in worked and "cannot tell" not in worked
+    assert "cannot tell" in cannot
+    assert "It worked" not in cannot
+    for claim in ("installed successfully", "successfully"):
+        assert claim not in cannot, (
+            f"the no-op ending still claims {claim!r}")
+
+
+def test_no_ending_anywhere_claims_a_driver_was_installed_successfully():
+    """The phrase itself, hunted across every branch in every language.
+
+    It is not enough to change the one string: "successfully" is the word that
+    made the old window dishonest, and the only branch entitled to a verdict
+    at all is the one that re-enumerated the device and found a driver.
+    """
+    for missing in (True, False):
+        for ran_ok in (True, False):
+            for unbound in ([], [I1PRO]):
+                text, _ = sd.usb_install_outcome(
+                    wdi_available=True, ran_ok=ran_ok,
+                    still_unbound_names=unbound, zadig_status=None,
+                    driver_was_missing=missing, target_names=[I1PRO])
+                assert "installed successfully" not in text, text
+
+
+def test_the_outcome_cannot_be_asked_without_saying_what_was_missing():
+    """`driver_was_missing` is required, and that is the guard.
+
+    A default would have to pick one of the two answers. "Assume it worked" is
+    the bug; "assume we cannot tell" silently downgrades a real success. A
+    caller that does not know has to go and find out.
+    """
+    with pytest.raises(TypeError):
+        sd.usb_install_outcome(
+            wdi_available=True, ran_ok=True, still_unbound_names=[],
+            zadig_status=None)
 
 
 def test_a_failed_or_cancelled_install_offers_zadig():
     text, offer_zadig = sd.usb_install_outcome(
         wdi_available=True, ran_ok=False, still_unbound_names=[],
-        zadig_status=None)
+        zadig_status=None, driver_was_missing=True)
     assert text == (
         "Automatic installation failed or was cancelled.<br>"
-        "Click <b>Try Zadig</b> to install it manually using the guided tool."
+        "Click <b>Try Zadig</b> to install it manually using the guided tool: "
+        "pick your instrument in Zadig, choose <b>libusb-win32</b>, then "
+        "click <b>Install Driver</b>."
+        "<br><br><b>If you own a CR30:</b> do not pick the USB-serial "
+        "device (CH340) in Zadig. That instrument is reached "
+        "through its COM port, and replacing its driver — with any of the "
+        "drivers Zadig offers — would stop ChromIQ finding it at all."
     )
     assert offer_zadig is True
 
@@ -190,22 +417,28 @@ def test_the_cancelled_wording_wins_even_when_something_is_still_unbound():
     ordering cannot be swapped by accident."""
     text, _ = sd.usb_install_outcome(
         wdi_available=True, ran_ok=False, still_unbound_names=[I1PRO],
-        zadig_status=None)
+        zadig_status=None, driver_was_missing=True)
     assert text.startswith("Automatic installation failed or was cancelled.")
 
 
 def test_installed_but_not_bound_names_the_instrument():
     text, offer_zadig = sd.usb_install_outcome(
         wdi_available=True, ran_ok=True, still_unbound_names=[I1PRO],
-        zadig_status=None)
+        zadig_status=None, driver_was_missing=True)
     assert text == (
         "Windows reported the install finished, but the driver still "
-        f"isn't bound to {I1PRO}. This often happens when the device "
+        f"isn't bound to {I1PRO}. That happens when a driver is already "
+        "bound and Windows declines to replace it, and it also happens when "
+        "the device "
         "was previously plugged into a different USB port.<br><br>"
         "Click <b>Try Zadig</b> to install it reliably: pick your "
-        "instrument in Zadig, choose <b>WinUSB</b> (or libusb-win32), "
+        "instrument in Zadig, choose <b>libusb-win32</b>, "
         "then click <b>Replace Driver</b>. Unplugging and replugging the "
         "instrument first can also help."
+        "<br><br><b>If you own a CR30:</b> do not pick the USB-serial "
+        "device (CH340) in Zadig. That instrument is reached "
+        "through its COM port, and replacing its driver — with any of the "
+        "drivers Zadig offers — would stop ChromIQ finding it at all."
     )
     assert offer_zadig is True
 
@@ -213,21 +446,22 @@ def test_installed_but_not_bound_names_the_instrument():
 def test_installed_but_not_bound_lists_several_instruments_comma_separated():
     text, _ = sd.usb_install_outcome(
         wdi_available=True, ran_ok=True,
-        still_unbound_names=[I1PRO, SPYDER], zadig_status=None)
+        still_unbound_names=[I1PRO, SPYDER], zadig_status=None,
+        driver_was_missing=True)
     assert f"isn't bound to {I1PRO}, {SPYDER}." in text
 
 
 def test_zadig_launched_repeats_the_cr30_warning():
     text, offer_zadig = sd.usb_install_outcome(
         wdi_available=False, ran_ok=False, still_unbound_names=[],
-        zadig_status="launched")
+        zadig_status="launched", driver_was_missing=True)
     assert text == (
-        "Zadig is open. Select your colorimeter, choose WinUSB, "
+        "Zadig is open. Select your colorimeter, choose libusb-win32, "
         "then click Install Driver."
         "<br><br><b>If you own a CR30:</b> do not pick the USB-serial "
         "device (CH340) in Zadig. That instrument is reached "
-        "through its COM port, and giving it WinUSB would stop "
-        "ChromIQ finding it at all."
+        "through its COM port, and replacing its driver — with any of the "
+        "drivers Zadig offers — would stop ChromIQ finding it at all."
     )
     assert offer_zadig is False
 
@@ -235,16 +469,16 @@ def test_zadig_launched_repeats_the_cr30_warning():
 def test_the_zadig_download_page_repeats_the_cr30_warning_too():
     text, offer_zadig = sd.usb_install_outcome(
         wdi_available=False, ran_ok=False, still_unbound_names=[],
-        zadig_status="download_page")
+        zadig_status="download_page", driver_was_missing=True)
     assert text == (
         "Zadig isn't bundled with this build, so its download page "
         "has been opened in your browser.<br>"
         "Download and run <b>Zadig</b>, then: Options → List All Devices → "
-        "select your colorimeter → choose WinUSB → Install Driver."
+        "select your colorimeter → choose libusb-win32 → Install Driver."
         "<br><br><b>If you own a CR30:</b> do not pick the USB-serial "
         "device (CH340) in Zadig. That instrument is reached "
-        "through its COM port, and giving it WinUSB would stop "
-        "ChromIQ finding it at all."
+        "through its COM port, and replacing its driver — with any of the "
+        "drivers Zadig offers — would stop ChromIQ finding it at all."
     )
     assert offer_zadig is False
 
@@ -252,11 +486,16 @@ def test_the_zadig_download_page_repeats_the_cr30_warning_too():
 def test_zadig_failing_entirely_falls_back_to_the_website():
     text, offer_zadig = sd.usb_install_outcome(
         wdi_available=False, ran_ok=False, still_unbound_names=[],
-        zadig_status="failed")
+        zadig_status="failed", driver_was_missing=True)
     assert text == (
         "Could not open Zadig or its download page. Visit "
         "<b>https://zadig.akeo.ie</b> manually, or try running ChromIQ "
-        "as Administrator."
+        "as Administrator.<br>Then, in Zadig: Options → List All Devices → "
+        "select your colorimeter → choose libusb-win32 → Install Driver."
+        "<br><br><b>If you own a CR30:</b> do not pick the USB-serial "
+        "device (CH340) in Zadig. That instrument is reached "
+        "through its COM port, and replacing its driver — with any of the "
+        "drivers Zadig offers — would stop ChromIQ finding it at all."
     )
     assert offer_zadig is False
 
@@ -266,7 +505,7 @@ def test_an_unknown_zadig_status_lands_on_the_website_fallback():
     fourth must not produce an empty window."""
     text, _ = sd.usb_install_outcome(
         wdi_available=False, ran_ok=False, still_unbound_names=[],
-        zadig_status="something-new")
+        zadig_status="something-new", driver_was_missing=True)
     assert text.startswith("Could not open Zadig or its download page.")
 
 
@@ -276,7 +515,7 @@ def test_every_zadig_steer_in_the_outcomes_carries_the_cr30_warning():
     for status in ("launched", "download_page"):
         text, _ = sd.usb_install_outcome(
             wdi_available=False, ran_ok=False, still_unbound_names=[],
-            zadig_status=status)
+            zadig_status=status, driver_was_missing=True)
         assert "If you own a CR30" in text
 
 
@@ -294,7 +533,7 @@ def test_the_text_functions_need_no_qt_and_no_windows(monkeypatch):
         "Install Driver")
     assert sd.usb_install_outcome(
         wdi_available=True, ran_ok=True, still_unbound_names=[],
-        zadig_status=None)[1] is False
+        zadig_status=None, driver_was_missing=True)[1] is False
 
 
 # ---------------------------------------------------------------------------
@@ -306,108 +545,23 @@ def test_the_text_functions_need_no_qt_and_no_windows(monkeypatch):
 # HKLM\SYSTEM\CurrentControlSet\Enum\USB, which remembers every USB device the
 # machine has ever seen. The window then said "Connected colorimeter: X-Rite i1
 # Studio" about hardware that was not in the building.
-
-PRESENT_LIST = [
-    r"USB\ROOT_HUB30\5&32007b01&0&0",
-    r"USB\VID_0765&PID_6008\7&2a0c73b9&0&0002",
-    r"USB\VID_1A86&PID_7523\7&3b74c78&0&1",
-    r"USB\VID_0E0F&PID_000B&MI_00\7&2a0c73b9&0&0000",
-]
-
-
-@pytest.mark.parametrize("instance_id, expected", [
-    (r"USB\VID_1A86&PID_7523\7&3b74c78&0&1", ("1a86", "7523")),
-    (r"USB\VID_0765&PID_6008\7&2a0c73b9&0&0002", ("0765", "6008")),
-    # a composite child carries a third token and must still resolve
-    (r"USB\VID_0E0F&PID_000B&MI_00\7&2a0c73b9&0&0000", ("0e0f", "000b")),
-    # hubs have no VID at all
-    (r"USB\ROOT_HUB30\5&32007b01&0&0", None),
-    (r"USB\ROOT_HUB20\4&2ec99baf&0", None),
-    # malformed input must not raise
-    ("", None),
-    ("USB", None),
-    (r"USB\NOT_A_DEVICE", None),
-    (r"USB\VID_1A86\7&3b74c78&0&1", None),      # VID without PID
-])
-def test_the_ids_are_read_out_of_a_pnp_instance_id(instance_id, expected):
-    assert sd.usb_ids_in_instance(instance_id) == expected
-
-
-def test_the_ids_come_back_lower_case_whatever_case_windows_used():
-    """`enumerate_connected` lower-cases what it reads, so the two sides of the
-    comparison have to agree — Windows writes these IDs upper-case."""
-    assert sd.usb_ids_in_instance(
-        r"usb\vid_1a86&pid_7523\7&3b74c78&0&1") == ("1a86", "7523")
-
-
-def _ghost():
-    """A device Windows remembers and no longer has."""
-    return SimpleNamespace(vid="0765", pid="6008", name="X-Rite i1 Studio",
-                           has_winusb=True)
-
-
-def _real():
-    return SimpleNamespace(vid="0971", pid="2000", name=I1PRO, has_winusb=False)
-
-
-def test_a_remembered_device_that_is_not_attached_is_dropped():
-    present = {("0971", "2000")}
-    assert sd.attached_only([_ghost(), _real()], present) == [_real()]
-
-
-def test_an_attached_device_survives_the_filter():
-    present = {("0765", "6008")}
-    kept = sd.attached_only([_ghost()], present)
-    assert [d.name for d in kept] == ["X-Rite i1 Studio"]
-
-
-def test_the_filter_is_case_insensitive_on_both_sides():
-    dev_upper = SimpleNamespace(vid="0765", pid="6008", name="x", has_winusb=True)
-    assert sd.attached_only([dev_upper], {("0765", "6008")}) == [dev_upper]
-
-
-def test_nothing_present_means_nothing_reported():
-    assert sd.attached_only([_ghost(), _real()], set()) == []
-
-
-def test_when_windows_cannot_be_asked_everything_is_shown():
-    """The failure direction is chosen deliberately: a ghost is a lie the user
-    can see and ignore, a filtered-out real instrument is a feature that
-    silently refuses to help. Only the first is survivable."""
-    devices = [_ghost(), _real()]
-    assert sd.attached_only(devices, None) == devices
-
-
-def test_the_filter_returns_a_new_list_and_does_not_mutate_the_input():
-    devices = [_ghost(), _real()]
-    out = sd.attached_only(devices, None)
-    assert out is not devices
-    assert len(devices) == 2
-
-
-def test_present_usb_ids_says_it_cannot_ask_off_windows(monkeypatch):
-    monkeypatch.setattr(sd, "_sys", SimpleNamespace(platform="linux"))
-    assert sd.present_usb_ids() is None
-
-
-def test_present_usb_ids_survives_a_missing_cfgmgr32(monkeypatch):
-    """A ctypes failure must not take the Preferences window down with it."""
-    import ctypes
-
-    def boom(*_a, **_kw):
-        raise OSError("cfgmgr32 is not here")
-
-    monkeypatch.setattr(sd, "_sys", SimpleNamespace(platform="win32"))
-    monkeypatch.setattr(ctypes, "WinDLL", boom, raising=False)
-    assert sd.present_usb_ids() is None
-
+#
+# THE FILTER USED TO LIVE IN `settings_dialog`, next to this one caller, and so
+# `core.usb_driver_installer.unbound_targets()` — the post-install verification,
+# the one function whose job is to not be fooled — went on reading ghosts. It
+# now lives inside `enumerate_connected()` itself, and the unit tests for it
+# live beside it in `tests/test_usb_driver_installer.py`.
+#
+# What stays here is the only part that is about this window: that a ghost
+# reaches the user as "No colorimeter detected", in the words they read.
 
 def test_the_whole_chain_turns_a_ghost_into_no_colorimeter_detected():
     """The bug, end to end, in the words the user reads."""
-    remembered = [_ghost()]
-    present = {("1a86", "7523")}       # only the serial bridge is attached
+    import core.usb_driver_installer as udi
+    remembered = [("VID_0765&PID_6008", [("7&3b74c78&0&1", "libusb0")])]
+    present = {r"USB\VID_1A86&PID_7523\7&3B74C78&0&1"}   # only the bridge
     msg, btn = sd.usb_installer_text(
-        sd.attached_only(remembered, present), wdi_available=True)
+        udi.attached_devices(remembered, present), wdi_available=True)
     assert msg.startswith("<b>No colorimeter detected.</b>")
     assert "i1 Studio" not in msg
     assert btn is None
@@ -1253,10 +1407,41 @@ def test_the_outcomes_that_offer_zadig_name_the_zadig_button(code, in_language):
     for ran_ok, unbound in ((False, []), (True, [I1PRO])):
         text, offer = sd.usb_install_outcome(
             wdi_available=True, ran_ok=ran_ok,
-            still_unbound_names=unbound, zadig_status=None)
+            still_unbound_names=unbound, zadig_status=None,
+            driver_was_missing=True)
         assert offer is True
         assert sd._label_try_zadig() in text, (
             f"[{code}] the outcome offers a button it does not name")
+
+
+@pytest.mark.parametrize("code", ALL_CODES)
+def test_the_honest_ending_names_both_controls_it_points_at(code, in_language):
+    """It sends the reader to two controls, and it must NAME them as they read.
+
+    THIS TEST EXISTS BECAUSE MUTATING THE CODE PROVED NOTHING ELSE CAUGHT IT.
+    Replacing `_in_prose(_label_check_again())` with the English literal
+    `"Check again"` left all 539 tests green — the character-for-character pin
+    above is written in English, where the literal and the label are the same
+    string, so it cannot see the difference. On a German machine the button
+    reads ERNEUT PRÜFEN and the paragraph would send the user hunting for a
+    control that is not on the screen: exactly the fault `3c3ba01b` fixed on
+    this half and the reboot window nearly shipped again.
+
+    Both names, in all twelve, from the controls' own keys. And the controls
+    are NOT on the outcome window — pressing the install button closed the
+    driver helper behind it — so the sentence names the Preferences entry that
+    reopens it as well, the way the reboot window does.
+    """
+    from core.i18n import tr as _tr
+    in_language(code)
+    text, _ = sd.usb_install_outcome(
+        wdi_available=True, ran_ok=True, still_unbound_names=[],
+        zadig_status=None, driver_was_missing=False)
+    assert sd._in_prose(sd._label_check_again()) in text, (
+        f"[{code}] the honest ending does not name the Check again button")
+    assert sd._in_prose(_tr("Instrument drivers…")) in text, (
+        f"[{code}] the honest ending does not name the control that reopens "
+        "the driver helper")
 
 
 def test_the_labels_come_from_tr_and_not_from_a_literal():
@@ -1308,29 +1493,42 @@ def test_no_message_hard_codes_a_button_name_in_english():
 # controls only, and not every foreign word in the window.
 
 ZADIG_CONTROLS = ("Options → List All Devices", "Install Driver",
-                  "Replace Driver", "WinUSB", "libusb-win32")
+                  "Replace Driver", "libusb-win32")
 
 
 @pytest.mark.parametrize("code", ALL_CODES)
 def test_zadigs_own_controls_are_never_translated(code, in_language):
-    """Zadig's menu items must survive verbatim into every language."""
+    """Zadig's menu items must survive verbatim into every language.
+
+    REPINNED 2026-09-06: the control this asserted on was `WinUSB`, which was
+    the wrong row all along — ArgyllCMS cannot read an instrument through it.
+    It is `libusb-win32` now, and it is a Zadig dropdown entry in exactly the
+    same way, so it stays English in all twelve.
+    """
     in_language(code)
     steps, _btn = sd.usb_installer_text([dev(I1PRO, False)], wdi_available=False)
-    for control in ("Options → List All Devices", "WinUSB", "Install Driver"):
+    for control in ("Options → List All Devices", "libusb-win32",
+                    "Install Driver"):
         assert control in steps, (
             f"[{code}] Zadig's {control!r} was translated — the user will look "
             "for it in Zadig's English interface and not find it")
 
     launched, _ = sd.usb_install_outcome(
         wdi_available=False, ran_ok=False, still_unbound_names=[],
-        zadig_status="launched")
-    assert "WinUSB" in launched and "Install Driver" in launched
+        zadig_status="launched", driver_was_missing=True)
+    assert "libusb-win32" in launched and "Install Driver" in launched
 
     unbound, _ = sd.usb_install_outcome(
         wdi_available=True, ran_ok=True, still_unbound_names=[I1PRO],
-        zadig_status=None)
-    for control in ("WinUSB", "libusb-win32", "Replace Driver"):
+        zadig_status=None, driver_was_missing=True)
+    for control in ("libusb-win32", "Replace Driver"):
         assert control in unbound, f"[{code}] Zadig's {control!r} was translated"
+
+    failed, _ = sd.usb_install_outcome(
+        wdi_available=True, ran_ok=False, still_unbound_names=[],
+        zadig_status=None, driver_was_missing=True)
+    for control in ("libusb-win32", "Install Driver"):
+        assert control in failed, f"[{code}] Zadig's {control!r} was translated"
 
 
 @pytest.mark.parametrize("code", ALL_CODES)
@@ -1340,7 +1538,7 @@ def test_the_zadig_address_survives_every_language(code, in_language):
     in_language(code)
     text, _ = sd.usb_install_outcome(
         wdi_available=False, ran_ok=False, still_unbound_names=[],
-        zadig_status="failed")
+        zadig_status="failed", driver_was_missing=True)
     assert sd.ZADIG_SITE in text
     assert sd.ZADIG_SITE == "https://zadig.akeo.ie"
 
@@ -1387,8 +1585,21 @@ def test_the_whole_window_is_one_language_or_the_other(in_language):
     assert "driver not installed" not in listed
 
     ok, _ = sd.usb_install_outcome(wdi_available=True, ran_ok=True,
-                                   still_unbound_names=[], zadig_status=None)
+                                   still_unbound_names=[], zadig_status=None,
+                                   driver_was_missing=True)
     assert "installed successfully" not in ok
+    assert "It worked" not in ok
+    assert "The driver is there" not in ok
+
+    # Both endings, not just the cheerful one: the honest one is new and is
+    # exactly the kind of string a translation pass forgets.
+    cannot, _ = sd.usb_install_outcome(wdi_available=True, ran_ok=True,
+                                       still_unbound_names=[],
+                                       zadig_status=None,
+                                       driver_was_missing=False)
+    assert "cannot tell you" not in cannot
+    assert "already there before you clicked" not in cannot
+    assert "Nothing was removed or replaced" not in cannot
 
 
 # ---------------------------------------------------------------------------
@@ -1561,7 +1772,18 @@ class ModalDriver:
     def __init__(self, *steps):
         from PyQt6.QtCore import QTimer
         self._steps = list(steps)
-        self._handled: set = set()
+        # STRONG REFERENCES, NOT ids — and this was a latent hole in the
+        # harness, not a style preference. `_show_usb_installer` is a
+        # `while True:` that destroys its dialog and builds a new one on every
+        # pass, and CPython hands the new object the address the old one has
+        # just freed. Keyed by `id()`, the REBUILT window reads as "already
+        # handled": its step never fires, nothing dismisses it, and the run
+        # ends in `timed_out` — or, worse, a step silently does not run and
+        # the test asserts on a window it never saw. Measured twice on this
+        # machine, once here and once in `scripts/drive_a11_certificate_text.py`
+        # against the real screen. Holding the widget alive makes the address
+        # unre-usable while the driver is running.
+        self._handled: list = []
         self.seen: list = []
         self.ticks = 0
         self.timed_out = False
@@ -1575,6 +1797,9 @@ class ModalDriver:
 
     def __exit__(self, *exc):
         self._timer.stop()
+        # Drop the strong references as soon as the driver is done, so the
+        # widgets it held alive are collected on the usual schedule.
+        self._handled = []
         if exc[0] is None:
             # THIS ASSERT IS THE POINT OF THE FLAG, and for one release it did
             # not exist. `timed_out` was recorded and never read by any of the
@@ -1607,9 +1832,9 @@ class ModalDriver:
             self._timer.stop()
             return
         w = QApplication.activeModalWidget()
-        if w is None or id(w) in self._handled:
+        if w is None or any(seen is w for seen in self._handled):
             return
-        self._handled.add(id(w))
+        self._handled.append(w)
         self.seen.append((w.windowTitle(), _plain(w)))
         if self._steps:
             self._steps.pop(0)(w)
@@ -1680,7 +1905,6 @@ def _fixed_hardware(monkeypatch, devices, wdi: bool):
     monkeypatch.setattr(inst, "enumerate_connected", lambda: list(devices))
     monkeypatch.setattr(inst, "unbound_targets", lambda t: [])
     monkeypatch.setattr(inst, "install_winusb", lambda d: True)
-    monkeypatch.setattr(sd, "present_usb_ids", lambda: None)
     monkeypatch.setattr(sd.SettingsDialog, "_serial_states", lambda self: [])
 
     class _P:
@@ -1828,6 +2052,47 @@ def test_the_winusb_outcome_window_appears_when_zadig_was_launched(
     assert "Zadig is open" in drv.text_of(1)
 
 
+def test_the_certificate_button_is_on_screen_and_opens_the_notice(
+        dialog, on_windows, monkeypatch):
+    """The disclosure promises a control. Nothing built the window and pressed
+    it — the guards checked the two text functions, which agree with each other
+    whatever `_show_usb_installer` does with them.
+
+    So this presses it: the first window must carry `What this changes…`, the
+    second must be the notice, and the driver must come BACK to the first
+    window afterwards (`continue`), because reading what the install changes
+    must not cost the user their place in a repair.
+    """
+    _fixed_hardware(monkeypatch, [dev(I1PRO, False)], wdi=False)
+    with ModalDriver(lambda w: _button(w, "What this changes…").click(),
+                     lambda w: _ok_button(w).click(),
+                     lambda w: w.reject()) as drv:
+        dialog._show_usb_installer()
+    assert drv.modal_count == 3, (
+        "expected first window -> notice -> first window again, saw %r"
+        % [t for t, _ in drv.seen])
+    assert "lists of trusted signers" in drv.text_of(0), \
+        "the disclosure was not on screen before the button was pressed"
+    assert "Trusted Root Certification Authorities" in drv.text_of(1)
+    assert "certlm.msc" in drv.text_of(1)
+    assert "What this changes" in drv.text_of(2), \
+        "the window did not come back after the notice was dismissed"
+
+
+def test_the_certificate_button_is_there_on_the_repair_path_too(
+        dialog, on_windows, monkeypatch):
+    """`Reinstall Driver` runs the installer over every detected device and
+    mints a fresh certificate, so it needs the button as much as `Install
+    Driver` does. This branch had neither the paragraph nor the button."""
+    _fixed_hardware(monkeypatch, [dev(I1PRO, True)], wdi=True)
+    with ModalDriver(lambda w: _button(w, "What this changes…").click(),
+                     lambda w: _ok_button(w).click(),
+                     lambda w: w.reject()) as drv:
+        dialog._show_usb_installer()
+    assert drv.modal_count == 3
+    assert "Trusted Root Certification Authorities" in drv.text_of(1)
+
+
 def test_the_cr30_warning_reaches_the_screen_after_zadig_is_launched(
         dialog, on_windows, monkeypatch):
     """The warning this branch consolidated into one key was being shown to
@@ -1897,6 +2162,116 @@ def test_try_zadig_on_the_outcome_window_does_launch_zadig(
         dialog._show_usb_installer()
     assert drv.modal_count == 2
     assert launches == [1]
+
+
+# --- FINDING 2, on the real window ------------------------------------------
+#
+# The pure-function tests above say what the two endings ARE. These say that
+# the window really tells the user apart which one happened — and, crucially,
+# that `driver_was_missing` is wired to `needs_install` as it was read BEFORE
+# the button was pressed. Nothing in the pure function can check that wiring,
+# and getting it backwards would restore the exact bug: every reinstall
+# congratulating itself.
+
+
+def test_a_reinstall_that_changed_nothing_says_so_on_screen(
+        dialog, on_windows, monkeypatch):
+    """The instrument arrives already bound and is still bound afterwards.
+
+    This is what a user gets from `Reinstall Driver` on working hardware, and
+    it is what the shipped build answered "WinUSB driver installed
+    successfully." to.
+    """
+    _fixed_hardware(monkeypatch, [dev(I1PRO, True)], wdi=True)
+    with ModalDriver(lambda w: _button(w, "Reinstall Driver").click(),
+                     lambda w: _ok_button(w).click()) as drv:
+        dialog._show_usb_installer()
+    assert drv.modal_count == 2, "the outcome window never appeared"
+    said = drv.text_of(1)
+    assert "cannot tell you whether that changed anything" in said
+    assert "The driver was already there before you clicked" in said
+    assert "successfully" not in said
+    assert "It worked" not in said
+
+
+def test_an_install_on_a_driverless_instrument_says_it_worked(
+        dialog, on_windows, monkeypatch):
+    """The other half of the same fork, driven the same way.
+
+    The device is listed WITHOUT a driver, so `needs_install` is non-empty; it
+    re-enumerates bound, so the verdict is earned. If the two endings were
+    swapped, or `driver_was_missing` read after the install instead of before,
+    this and the test above would trade answers.
+    """
+    _fixed_hardware(monkeypatch, [dev(I1PRO, False)], wdi=True)
+    with ModalDriver(lambda w: _button(w, "Install Driver").click(),
+                     lambda w: _ok_button(w).click()) as drv:
+        dialog._show_usb_installer()
+    assert drv.modal_count == 2
+    said = drv.text_of(1)
+    assert "It worked." in said
+    assert I1PRO in said
+    assert "cannot tell" not in said
+
+
+def test_the_first_window_no_longer_promises_winusb_on_screen(
+        dialog, on_windows, monkeypatch):
+    """FINDING 1, where it is read.
+
+    No paragraph on this half may name the driver it installs: what the click
+    is FOR is the useful fact, and the name Windows shows afterwards is
+    unfamiliar either way.
+
+    WinUSB now has a second legitimate home in this window, and it is the
+    opposite of a promise: the sentence that tells a user who followed
+    ChromIQ's OWN old Zadig instructions why their healthy-looking driver is
+    not enough. So the promise half of the paragraph is checked on its own,
+    up to the point where that sentence starts.
+    """
+    _fixed_hardware(monkeypatch, [dev(I1PRO, False)], wdi=True)
+    with ModalDriver(lambda w: _button(w, "Close").click()) as drv:
+        dialog._show_usb_installer()
+    assert drv.modal_count == 1
+    said = drv.text_of(0)
+    promise = said.split("Only the instruments marked")[0]
+    assert promise != said, (
+        "the paragraph no longer says the install replaces what is there — a "
+        "WinUSB user is asked to press a button whose effect nobody described")
+    assert "no other device is changed" in said, (
+        "the scope claim is gone; a user pressing this has been told nothing "
+        "about what else it might touch")
+    for named in ("WinUSB", "libusb"):
+        assert named not in promise, (
+            f"the window tells the user it installs {named!r}")
+    assert "cannot read an instrument through WinUSB" in said
+
+
+def test_the_state_of_a_working_instrument_is_not_called_winusb(
+        dialog, on_windows, monkeypatch):
+    _fixed_hardware(monkeypatch, [dev(I1PRO, True)], wdi=True)
+    with ModalDriver(lambda w: _button(w, "Close").click()) as drv:
+        dialog._show_usb_installer()
+    said = drv.text_of(0)
+    assert f"{I1PRO} — driver installed ✓" in said
+    assert "WinUSB" not in said
+
+
+def test_the_honest_ending_reaches_the_screen_in_german(
+        dialog, on_windows, monkeypatch, in_language):
+    """A new paragraph is exactly what a translation pass forgets.
+
+    Asserted on the rendered window rather than on the catalogue, so a key
+    that is present but never reaches this branch still fails.
+    """
+    in_language("de")
+    _fixed_hardware(monkeypatch, [dev(I1PRO, True)], wdi=True)
+    with ModalDriver(lambda w: _button(w, sd._label_reinstall_driver()).click(),
+                     lambda w: _ok_button(w).click()) as drv:
+        dialog._show_usb_installer()
+    assert drv.modal_count == 2
+    said = drv.text_of(1)
+    assert "cannot tell you" not in said, f"still English: {said!r}"
+    assert "successfully" not in said
 
 
 # --- the driver window itself ----------------------------------------------

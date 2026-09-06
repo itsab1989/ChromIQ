@@ -65,104 +65,18 @@ from core.i18n import tr
 # Which of those devices is actually plugged in
 # ---------------------------------------------------------------------------
 #
-# `core.usb_driver_installer.enumerate_connected()` reads
-# HKLM\SYSTEM\CurrentControlSet\Enum\USB, and that key is a MEMORY, not a
-# census: Windows keeps a subkey for every USB device the machine has ever
-# seen, for ever. So the dialog has been saying "Connected colorimeter: X-Rite
-# i1 Studio" on a machine with nothing whatsoever plugged into it — measured on
-# this ARM64 box on 2026-09-04, where the only USB devices present were the
-# virtual-machine's own and one CH340.
+# THE PRESENCE FILTER USED TO LIVE HERE, AND THAT WAS THE BUG.
+# `HKLM\SYSTEM\CurrentControlSet\Enum\USB` remembers every USB device this
+# machine has ever seen, so this window once said "Connected colorimeter:
+# X-Rite i1 Studio" with nothing plugged in. The fix filtered the answer here,
+# beside this one caller — which left `unbound_targets()`, the OTHER caller of
+# `enumerate_connected()` and the one whose whole job is to not be fooled,
+# still reading ghosts.
 #
-# That is not a cosmetic wart. The whole point of the window is to tell you what
-# state your instrument is in; a box that names hardware you do not own poisons
-# every sentence under it, including the new ones.
-#
-# The fix is to ask configuration manager which device nodes are PRESENT, which
-# is a different question from which are remembered. `CM_Get_Device_ID_ListW`
-# with CM_GETIDLIST_FILTER_PRESENT answers it directly, and it is the same
-# presence source `core/ch34x_driver.py` uses for the serial side, so the two
-# halves of this window cannot disagree about what "attached" means.
-#
-# NOTE ON THE FAILURE DIRECTION. When the question cannot be asked at all — not
-# Windows, no cfgmgr32, the call fails — `present_usb_ids()` returns None and
-# the filter lets everything through. A ghost in the list is a lie the user can
-# see and ignore. A real instrument filtered OUT of the list is a working
-# feature that silently refuses to help. Of the two, only the first is
-# survivable, so the fallback is deliberately the noisy one.
-
-#: `CM_GETIDLIST_FILTER_ENUMERATOR` — restrict to the "USB" enumerator.
-_CM_GETIDLIST_FILTER_ENUMERATOR = 0x00000001
-#: `CM_GETIDLIST_FILTER_PRESENT` — the whole point: attached right now.
-_CM_GETIDLIST_FILTER_PRESENT = 0x00000100
-_CR_SUCCESS = 0
-
-
-def usb_ids_in_instance(instance_id: str) -> "tuple[str, str] | None":
-    r"""The (vid, pid) inside a PnP instance ID, lower-case, or None.
-
-    ``USB\VID_1A86&PID_7523\7&3b74c78&0&1`` → ``("1a86", "7523")``.
-    Composite children carry a third token (``&MI_00``) and hubs carry no VID
-    at all (``USB\ROOT_HUB30\…``); both are handled by looking for the tokens
-    rather than counting them.
-    """
-    parts = instance_id.split("\\")
-    if len(parts) < 2:
-        return None
-    vid = pid = None
-    for token in parts[1].upper().split("&"):
-        if token.startswith("VID_"):
-            vid = token[4:].lower()
-        elif token.startswith("PID_"):
-            pid = token[4:].lower()
-    if vid is None or pid is None:
-        return None
-    return vid, pid
-
-
-def present_usb_ids() -> "set[tuple[str, str]] | None":
-    """Every (vid, pid) attached to this machine right now.
-
-    None means the question could not be asked — see the note above: callers
-    must then show everything rather than hide anything.
-    """
-    if _sys.platform != "win32":
-        return None
-    try:
-        import ctypes
-        cfgmgr = ctypes.WinDLL("cfgmgr32")
-        flags = ctypes.c_ulong(
-            _CM_GETIDLIST_FILTER_ENUMERATOR | _CM_GETIDLIST_FILTER_PRESENT)
-        enumerator = ctypes.c_wchar_p("USB")
-        size = ctypes.c_ulong(0)
-        if cfgmgr.CM_Get_Device_ID_List_SizeW(
-                ctypes.byref(size), enumerator, flags) != _CR_SUCCESS:
-            return None
-        buf = ctypes.create_unicode_buffer(size.value)
-        if cfgmgr.CM_Get_Device_ID_ListW(
-                enumerator, buf, size, flags) != _CR_SUCCESS:
-            return None
-        raw = buf[:size.value]
-    except Exception as exc:   # noqa: BLE001 — a missing DLL must not kill the window
-        log.warning("could not ask Windows which USB devices are present: %s", exc)
-        return None
-
-    found: set[tuple[str, str]] = set()
-    for instance_id in raw.split("\0"):
-        if not instance_id:
-            continue
-        ids = usb_ids_in_instance(instance_id)
-        if ids is not None:
-            found.add(ids)
-    return found
-
-
-def attached_only(devices, present_ids: "set[tuple[str, str]] | None"):
-    """Drop the devices Windows remembers but no longer has."""
-    if present_ids is None:
-        return list(devices)
-    return [d for d in devices
-            if (str(d.vid).lower(), str(d.pid).lower()) in present_ids]
-
+# It now lives in `core.usb_driver_installer`, inside `enumerate_connected()`
+# itself, at instance granularity. `enumerate_connected()` means connected.
+# There is nothing left for this window to filter, and deliberately no second
+# copy here that could drift away from the first.
 
 
 # ---------------------------------------------------------------------------
@@ -274,6 +188,17 @@ def _label_not_listed() -> str:
     return tr("My instrument is not listed…")
 
 
+def _label_what_this_changes() -> str:
+    """The USB half's second button — the one that answers the sentence above it.
+
+    Deliberately SHORT. It sits beside `Install Driver` in a row that
+    `test_the_consent_buttons_fit_the_row_in_every_language` measures in twelve
+    languages, and a label like "What this changes on your computer…" is 40
+    characters in English and half as much again in German.
+    """
+    return tr("What this changes…")
+
+
 ZADIG_SITE = "https://zadig.akeo.ie"
 
 
@@ -282,14 +207,239 @@ def _cr30_zadig_warning() -> str:
 
     Three outcomes used to carry their own copy of this paragraph, word for
     word. One key, used three times: a translator writes it once, and the three
-    windows cannot drift apart. `WinUSB` and `CH340` are product and chip names
-    and stay as they are in every language.
+    windows cannot drift apart. `CH340` is a chip name and stays as it is in
+    every language.
+
+    IT USED TO NAME WinUSB, AND THAT IS NOW THE WRONG HALF OF THE DANGER.
+    Every Zadig instruction in this file now tells the user to choose
+    libusb-win32, because WinUSB is the one driver ArgyllCMS cannot read an
+    instrument through. A warning that says "do not give it WinUSB" therefore
+    reads, to somebody following those instructions, as permission to give it
+    libusb-win32 — which destroys the CR30's COM port exactly as thoroughly.
+    So the warning names no driver at all: it is the ROW that must not be
+    picked, whatever is in the driver box beside it.
     """
     return tr(
         "<br><br><b>If you own a CR30:</b> do not pick the USB-serial "
         "device (CH340) in Zadig. That instrument is reached "
-        "through its COM port, and giving it WinUSB would stop "
-        "ChromIQ finding it at all.")
+        "through its COM port, and replacing its driver — with any of the "
+        "drivers Zadig offers — would stop ChromIQ finding it at all.")
+
+
+# ---------------------------------------------------------------------------
+# The certificate — said before the click, in full beside it
+# ---------------------------------------------------------------------------
+#
+# PRESSING Install Driver PUTS A SELF-SIGNED CERTIFICATE INTO THE MACHINE'S
+# TRUSTED ROOT STORE, AND THIS WINDOW USED TO SAY NOTHING ABOUT IT. Measured
+# read-only on the ARM64 bench, 2026-09-06: the click at 06:43:28 produced
+# `CN=USB\VID_0765&PID_6008 (libwdi autogenerated)` in BOTH
+# `Cert:\LocalMachine\Root` and `…\TrustedPublisher`, NotBefore 06:43:31. The
+# evidence, the attribution and why it cannot be switched off are recorded in
+# `core/usb_driver_installer.py` beside `WDI_DRIVER_TYPE`.
+#
+# WHERE IT IS SAID IS AS MUCH OF THE DECISION AS WHAT IS SAID. Two places, and
+# neither on its own would do:
+#
+#   1. `usb_certificate_notice_line()` is appended to the install paragraph, so
+#      it is on screen BEFORE the button is pressed. A user who never opens
+#      anything else has still been told that a certificate is added and that it
+#      stays. That is the part that cannot be behind a button.
+#   2. `usb_certificate_details_text()` is the extensive half, behind
+#      `What this changes…` beside `Install Driver`. It is not hidden: it is the
+#      only place a friendly, complete explanation FITS. The install paragraph is
+#      already eight sentences; a further six hundred words inline would push the
+#      button below the fold on a 200 % display, and a wall of text nobody reads
+#      is not disclosure either. The COM-port half of this same window already
+#      pairs a secondary button with a primary one, so this is the window's own
+#      idiom rather than a new one.
+#
+# THE RULE FOR EVERY SENTENCE IN HERE: no reassurance that is not measured.
+# "Nothing is sent anywhere" is measurable and was measured — `wdi_simple.exe`'s
+# import table is ADVAPI32, KERNEL32, SETUPAPI, SHELL32, USER32, ntdll, ole32,
+# and no networking library of any kind. "Only ever accepted for signing
+# software" is the certificate's own critical Extended Key Usage (2.5.29.37 =
+# 1.3.6.1.5.5.7.3.3), read off the store by OID. What is NOT measured — that
+# deleting the certificate afterwards leaves the driver working — is written as
+# what we expect, and the last paragraph says so in as many words.
+
+def usb_certificate_notice_line() -> str:
+    """The paragraph the user reads BEFORE the driver is installed.
+
+    EVERY LOAD-BEARING FACT IS IN HERE, not behind the button. A first draft
+    said only that "a small security certificate" is added to "your computer's
+    list of trusted certificates", and a reviewer was right that this is a
+    footnote rather than a disclosure: it never said the whole computer trusts
+    it and never said it stays behind. Somebody who reads this paragraph and
+    presses the button without opening anything else has to have been told the
+    three things that matter. They are: it goes into Windows' own trusted-signer
+    lists, for the whole machine, and it does not go away with the driver.
+
+    "small" and "that is normal" are both gone with it. The first minimises by
+    talking about a file size nobody asked about; the second is a value
+    judgement wearing a measurement's clothes. What replaces "that is normal"
+    is the measurement itself — ArgyllCMS's own installer does this, which is on
+    this bench and is a fact rather than a reassurance.
+
+    It opens by breaking the frame of the paragraph above it, which ends "no
+    other device is changed". That claim is true and was deliberately narrowed
+    to devices (see the comment in `usb_installer_text`), but in ordinary
+    English it reads as "nothing else is touched" — so the next sentence has to
+    say plainly that something else is.
+    """
+    return "<br><br>" + tr(
+        "<b>Besides the driver itself, one other thing on this computer "
+        "changes.</b> The driver is built for your instrument at the moment it "
+        "is installed, so it has to be signed at that moment too — and the "
+        "installer puts the certificate it signs with into two of Windows' own "
+        "lists of trusted signers — one of them the trusted-root list — for "
+        "the whole computer. It stays there "
+        "after the driver is gone. ArgyllCMS's own driver installer does the "
+        "same. Click <b>{details}</b> for exactly what it is, what it can and "
+        "cannot vouch for, and how to take it out again."
+    ).format(details=_in_prose(_label_what_this_changes()))
+
+
+def usb_certificate_details_text() -> str:
+    """The extensive half, shown by `What this changes…`.
+
+    Five keys rather than one. A single six-hundred-word key is a key no
+    translator renders well and no reviewer can diff; each of these is a whole
+    thought that survives being translated on its own.
+
+    THE CERTIFICATE'S FULL NAME IS DELIBERATELY NOT QUOTED HERE, and it is not
+    squeamishness. `_driver_notice` runs its text through `_let_paths_wrap`,
+    which inserts a zero-width space after every backslash so long paths wrap —
+    so `USB\\VID_0765&PID_6008 …` would render correctly and copy to the
+    clipboard with an invisible character in it, and pasting that into certlm's
+    find box finds nothing. The tail `(libwdi autogenerated)` is what the "how
+    to look at it" steps tell the user to search for, it has no backslash and no
+    ampersand, and it is the part that is the same on every machine.
+    """
+    return (
+        tr("<b>The short version.</b> Installing the driver also puts one "
+           "certificate into two of Windows' own lists of trusted signers, and "
+           "it stays there after the driver is gone. It is not a program and "
+           "it cannot be run. Windows' copy holds only the public half: the "
+           "key that would be needed to sign anything new with it is not "
+           "stored alongside it, and the installer deletes that key as soon "
+           "as it has finished signing.<br><br>"
+           "<b>Why there is a certificate at all.</b> Windows will not install "
+           "a driver package unless it can check who signed it. The driver "
+           "your instrument needs is not one ready-made file — it is assembled "
+           "for <i>your</i> instrument, with your instrument's own ID written "
+           "inside it, at the moment it is installed. Nobody can sign a file "
+           "in advance that does not exist until then. So the installer "
+           "creates a certificate of its own, signs the driver package it has "
+           "just built, and hands Windows the certificate so that Windows can "
+           "check that signature. That is the whole of what it is for.")
+        + "<br><br>"
+        + tr("<b>Where it goes.</b> Two lists that belong to the whole "
+             "computer — every user account and every program on it, not just "
+             "ChromIQ:<br>"
+             "&nbsp;&nbsp;• Trusted Root Certification Authorities "
+             "(Local Computer)<br>"
+             "&nbsp;&nbsp;• Trusted Publishers (Local Computer)<br>"
+             "It is named after your instrument and ends with <i>(libwdi "
+             "autogenerated)</i>. Installing the driver again for the same "
+             "instrument replaces that certificate rather than adding a "
+             "second; a different instrument gets its own.<br><br>"
+             "<b>It stays behind.</b> Removing the driver later does not "
+             "remove the certificate, and it stops being valid at the start of "
+             "2029. If you want it gone sooner, the steps are at the end of "
+             "this window. We have not tested removing it from a working "
+             "instrument, so we can tell you what we expect — that the "
+             "instrument keeps working — but not that we have proved it.")
+        + "<br><br>"
+        + tr("<b>What it can and cannot do.</b> It is not a virus, and it is "
+             "not a program at all — a certificate is a small file that says "
+             "who signed something. This one can vouch for exactly one kind of "
+             "thing: signed programs and drivers. That limit is written into "
+             "the certificate itself and Windows enforces it, so it cannot "
+             "vouch for a website, an email, or anything you sign in to. "
+             "Within that limit it is genuinely trusted, by the whole "
+             "computer, and that is worth knowing rather than glossing "
+             "over.<br><br>"
+             "Nothing about it leaves your computer: the certificate is made "
+             "on your machine and used once, to sign that one driver package. "
+             "ChromIQ's own driver installer carries no networking code at "
+             "all — its program file asks Windows for no network library of "
+             "any kind. Zadig is a separate program with its own update "
+             "check, and that is the one thing here that can reach the "
+             "internet.<br><br>"
+             "This is also the ordinary way colour-measuring instruments are "
+             "installed on Windows — the same tooling sits behind Zadig, and "
+             "<b>ArgyllCMS's own USB driver installer does exactly this "
+             "too</b>, adding a certificate called <i>ArgyllCMS (libwdi "
+             "autogenerated)</i> to the same two lists. If you have ever run "
+             "that installer, one is already there.")
+        + "<br><br>"
+        + tr("<b>How to look at it.</b><br>"
+             "&nbsp;&nbsp;1. Press <b>Windows + R</b>, type <b>certlm.msc</b> "
+             "and press Enter<br>"
+             "&nbsp;&nbsp;2. Open <b>Trusted Root Certification Authorities → "
+             "Certificates</b><br>"
+             "&nbsp;&nbsp;3. Look for a name that ends in <b>(libwdi "
+             "autogenerated)</b><br>"
+             "The same entry is under <b>Trusted Publishers → "
+             "Certificates</b>.<br><br>"
+             "<b>How to remove it.</b> In that same window, right-click the "
+             "certificate, choose <b>Delete</b>, and do it in both places. Do "
+             "that only once your instrument is working. If Windows ever needs "
+             "to attach the driver again and objects, running the driver "
+             "install again installs the driver, and its certificate, from the "
+             "start.")
+        + "<br><br>"
+        + tr("<b>What was measured, and what was not.</b> This was measured on "
+             "Windows 11 on ARM64, installing the libusb-win32 driver — the "
+             "only driver ChromIQ installs — for one instrument. It is how the "
+             "installer works rather than something peculiar to that machine, "
+             "but one machine is what was checked. Deleting the certificate "
+             "and restarting was not tested, which is why the paragraph above "
+             "says what we expect rather than what we have proved.")
+    )
+
+
+def usb_shows_certificate_details(devices, wdi_available: bool) -> bool:
+    """Does this window's USB half carry the certificate disclosure?
+
+    The button and the paragraph have to appear together or neither means
+    anything: a paragraph pointing at a button that is not there is worse than
+    silence. `tests/test_the_install_says_what_it_changes.py` ties the two
+    together over every list shape rather than trusting them to stay equal.
+
+    ⚠ NEITHER `wdi_available` NOR "does anything NEED a driver" IS PART OF THE
+    ANSWER, AND BOTH WERE TRIED FIRST. Two holes, both found by review, both
+    with the same shape — a branch that installs a certificate and says nothing:
+
+    1. **`wdi_available`.** Without the bundled wdi-simple this window does not
+       offer an install — it sends the user to **Zadig**, and Zadig is libwdi's
+       own front end; libwdi's Certification Practice Statement names Zadig
+       first in the list of applications that install these certificates. So a
+       user routed to Zadig gets the same certificate by the same code.
+
+    2. **`needs_install`.** Every instrument already driven means the button
+       says `Reinstall Driver` — and `_show_usb_installer` runs
+       `targets = needs_install or devices`, so pressing it runs
+       `install_winusb` over EVERY detected device. libwdi mints a **fresh**
+       certificate on every run (measured: three DriverStore packages on the
+       bench, three different catalogue-signer thumbprints under one subject).
+       So the repair path writes a new certificate into the root store, and it
+       was the one path with no disclosure at all — for a user who has no
+       driver problem to justify the risk. A guard here even asserted that it
+       *should* be silent, on the reasoning that "nothing is about to be
+       written". That reasoning was simply false.
+
+    The predicate is therefore the only honest one: **does this window offer to
+    run an installer at all.** With no device there is no button, so there is
+    nothing to disclose.
+
+    (`usb_install_outcome`'s Zadig steers are a second window and carry no
+    button of their own. Every user reaches them THROUGH this one, so they are
+    not silent — but a disclosure of their own is a fair follow-up.)
+    """
+    del wdi_available    # deliberately not consulted — see above
+    return bool(devices)
 
 
 # ---------------------------------------------------------------------------
@@ -333,13 +483,24 @@ def usb_installer_text(devices, wdi_available: bool) -> "tuple[str, str | None]"
             None,
         )
 
-    # "WinUSB ✓" is a Microsoft product name and a tick; there is nothing in it
-    # to translate, and a key whose value must equal its key in all twelve
-    # languages fails `test_untranslated_values_do_not_creep_in_unseen`.
+    # THE TICK SAID "WinUSB ✓" ABOUT A DEVICE WHOSE DRIVER IS libusb0.
+    #
+    # `UsbDevice.has_winusb` USED TO accept either — `("winusb", "libusb0")`,
+    # in `core/usb_driver_installer.py` — so the flag never meant "WinUSB is
+    # bound". Measured on the ARM64 box, 2026-09-06, with an X-Rite i1Studio /
+    # ColorMunki (0765:6008) attached: the device's service is `libusb0` and
+    # Argyll lists it as `libusb0-0001 (X-Rite ColorMunki)` — and this line
+    # said WinUSB about it.
+    #
+    # It accepts only `libusb0` now (see `ARGYLL_USB_SERVICE`), which makes the
+    # flag mean exactly one thing: ArgyllCMS can open this instrument. So the
+    # chip is a `tr()` key rather than a product name — a sentence about state,
+    # not a brand — and it pairs with `driver not installed` below it so the
+    # two halves of the same question are one translatable pair.
     lines = [
         "&nbsp;&nbsp;• {name} — <i>{state}</i>".format(
             name=d.name,
-            state=("WinUSB ✓" if d.has_winusb
+            state=(tr("driver installed") + " ✓" if d.has_winusb
                    else tr("driver not installed")))
         for d in devices
     ]
@@ -368,29 +529,103 @@ def usb_installer_text(devices, wdi_available: bool) -> "tuple[str, str | None]"
             tr("The driver is already installed for the devices above. "
                "If ChromIQ or Argyll still can't open your instrument, click "
                "<b>{button}</b> to run the installer again.")
-        ).format(button=btn_label)
+        ).format(button=btn_label) + usb_certificate_notice_line()
     elif wdi_available:
         # "click Yes" is the Windows permission prompt's button, and Windows
         # IS translated — German Windows says "Ja". It belongs inside the key,
         # for the translator to render, not interpolated from anything of ours.
+        #
+        # THIS SENTENCE PROMISED "the Microsoft WinUSB driver", AND THE WINDOW
+        # IS IN NO POSITION TO NAME A DRIVER AT ALL.
+        #
+        # `install_winusb` passes `--driver WinUSB` to the bundled
+        # `wdi_simple.exe`, and wdi-simple has no `--driver` option — its flag
+        # is `-t/--type <n>`. Measured on the bench, 2026-09-06, against a real
+        # driverless i1Studio: wdi-simple answered `unrecognized option
+        # '--driver'`, printed its usage, and EXITED 0, which `install_winusb`
+        # reads as success. Nothing was written to `setupapi.dev.log`. So the
+        # only honest thing that can be said about which driver this button
+        # installs is that nobody knows yet: the flag is being fixed on
+        # `fix/wdi-simple-never-installed-anything`, and `-t 0` and `-t 1` are
+        # different drivers with different names.
+        #
+        # THE FIX IS THEREFORE TO NAME NO DRIVER, not to name a different one.
+        # This paragraph says what the click is FOR — "the USB driver your
+        # instrument needs, so ArgyllCMS can talk to it" — and warns that the
+        # name Windows shows will be unfamiliar. A beginner needs to know their
+        # instrument will work and that a strange name is not a mistake; they
+        # do not need the fork's name. (`--type` has since settled at 1,
+        # libusb-win32, but the sentence is still right and the Zadig steers
+        # below are where the driver has to be named, because there the user
+        # picks it from a dropdown themselves.)
+        #
+        # AND IT NOW SAYS THAT IT MAY REPLACE SOMETHING, WHICH IT DID NOT.
+        # Tightening `has_winusb` to `libusb0` alone means a user who followed
+        # ChromIQ's OWN old Zadig instructions — "choose WinUSB" — is now told
+        # the driver is not installed, on a machine where Device Manager shows
+        # a healthy Microsoft driver. Without this sentence the window
+        # contradicts what Windows tells them, blames nobody, explains nothing,
+        # and asks them to press a button whose effect it has not described.
+        # The COM-port half of this same window promises "ChromIQ never deletes
+        # or replaces a driver" (`core/ch34x_driver.py`); this half now does,
+        # so it has to say so. It also has to say whose mistake it was, because
+        # it was ours.
+        #
+        # WHAT IT MUST NOT SAY IS "nothing else on your computer is changed",
+        # AND THE FIRST DRAFT OF THIS PARAGRAPH DID. A reviewer measured
+        # `Cert:\LocalMachine\Root` and `...\TrustedPublisher` on the bench and
+        # found `CN=USB\VID_0765&PID_6008 (libwdi autogenerated)` in both, with
+        # the libusb-win32 packages in the driver store signed by it rather than
+        # by Microsoft. Nobody has yet shown that ChromIQ's own invocation is
+        # what put it there — but nobody has shown that it does not, either, and
+        # an absolute claim about scope is not one an honesty fix may make on an
+        # unmeasured guess. So the claim is narrowed to what the command line
+        # actually pins: `--vid`/`--pid` scope the install to one device, so NO
+        # OTHER DEVICE is touched. That is provable from `wdi_simple_args()`.
+        #
+        # It also now says WHICH instruments are touched, which matters when two
+        # are listed and only one lacks a driver: `targets = needs_install` at
+        # the call site, so a working instrument in the same list is not a
+        # target — and the first draft warned the user it would replace a driver
+        # it will not go near. The state is interpolated from the chip's own
+        # `tr()` key, so the sentence and the list cannot drift apart.
         action_text = tr(
-            "Click <b>{button}</b> to install the Microsoft WinUSB driver "
-            "automatically. A Windows security prompt will appear — click Yes to "
-            "continue.<br><br>"
-            "<i>No test-signing mode required. Works on x64 and ARM64.</i>"
-        ).format(button=_label_install_driver())
+            "Click <b>{button}</b> and ChromIQ will install the USB driver "
+            "your instrument needs, so ArgyllCMS can talk to it. A Windows "
+            "security prompt will appear — click Yes to continue.<br><br>"
+            "<i>Only the instruments marked <b>{state}</b> above are touched. "
+            "If Windows already shows one of them a driver, this replaces that "
+            "driver; no other device is changed. Earlier versions of ChromIQ "
+            "told people to choose WinUSB, and ArgyllCMS cannot read an "
+            "instrument through WinUSB — so if that is what you have, this is "
+            "the repair, and you did nothing wrong. "
+            "Afterwards Windows may list your instrument under a driver "
+            "name you do not recognise. That is normal — it is the driver "
+            "ArgyllCMS reads instruments through. It is signed, so Windows "
+            "needs no special mode, and it works on x64 and ARM64.</i>"
+        ).format(button=_label_install_driver(),
+                 state=tr("driver not installed")) + usb_certificate_notice_line()
         btn_label = _label_install_driver()
     else:
+        # STEP 3 SAID WinUSB, AND WinUSB IS THE ONE DRIVER THAT CANNOT WORK.
+        # ArgyllCMS opens `\\.\libusb0-NNNN`, which only libusb-win32's
+        # libusb0.sys creates; `spotread.exe` carries no `WinUsb_*` symbol at
+        # all. A user who followed this sentence ended with an instrument
+        # Windows called healthy and Argyll could not see — and, until the
+        # predicate was tightened, with ChromIQ agreeing that the driver was
+        # installed. This app walked its own users into the fault it then
+        # failed to detect.
+        #
         # THE WARNING IS NOT OPTIONAL ON A MACHINE THAT MAY HAVE
-        # A CR30. "Find your colorimeter and give it WinUSB" is
+        # A CR30. "Find your colorimeter and give it a driver" is
         # right for every device this dialog knows about and
         # catastrophic for one it does not: the CR30 is reached
-        # through a COM port, and WinUSB removes it. Nothing in the
-        # app can steer the user there — but this text can, and a
+        # through a COM port, and any of Zadig's drivers removes it. Nothing in
+        # the app can steer the user there — but this text can, and a
         # user with driver trouble is exactly who follows it.
         #
-        # `Options → List All Devices`, `WinUSB` and the `Install Driver` in
-        # step 3 are ZADIG'S controls, not ours. Zadig has one English UI, so
+        # `Options → List All Devices`, `libusb-win32` and the `Install Driver`
+        # in step 3 are ZADIG'S controls, not ours. Zadig has one English UI, so
         # they stay English in every language — translating them would send the
         # user hunting for a control Zadig does not have. Only `{button}` is
         # ours. That our button and Zadig's step-3 button share a name is
@@ -400,9 +635,10 @@ def usb_installer_text(devices, wdi_available: bool) -> "tuple[str, str | None]"
             "USB driver tool. In Zadig:<br>"
             "&nbsp;&nbsp;1. Click <b>Options → List All Devices</b><br>"
             "&nbsp;&nbsp;2. Find your colorimeter in the dropdown<br>"
-            "&nbsp;&nbsp;3. Select <b>WinUSB</b> as the driver and click "
+            "&nbsp;&nbsp;3. Select <b>libusb-win32</b> as the driver and click "
             "<b>Install Driver</b>"
-        ).format(button=_label_open_zadig()) + _cr30_zadig_warning()
+        ).format(button=_label_open_zadig()) + _cr30_zadig_warning() \
+            + usb_certificate_notice_line()
         btn_label = _label_open_zadig()
 
     msg_text = (
@@ -417,42 +653,156 @@ def usb_installer_text(devices, wdi_available: bool) -> "tuple[str, str | None]"
 
 def usb_install_outcome(*, wdi_available: bool, ran_ok: bool,
                         still_unbound_names: "list[str]",
-                        zadig_status: "str | None") -> "tuple[str, bool]":
+                        zadig_status: "str | None",
+                        driver_was_missing: bool,
+                        target_names: "list[str] | None" = None,
+                        ) -> "tuple[str, bool]":
     """What the second window says, and whether it offers a Zadig button.
 
-    With wdi-simple present, the verdict comes from *ran_ok* plus
-    *still_unbound_names* (the instruments that re-enumerated without a driver
-    — an empty list is the only success). Without it, ChromIQ has already
-    launched Zadig and *zadig_status* is what that returned.
+    With wdi-simple present, the verdict comes from *ran_ok*,
+    *still_unbound_names* (the instruments that re-enumerated without a driver)
+    and *driver_was_missing* (whether any of them lacked one BEFORE the button
+    was pressed). Without it, ChromIQ has already launched Zadig and
+    *zadig_status* is what that returned. *target_names* are the instruments
+    the install was aimed at, for the sentences that name them.
+
+    **THIS HALF USED TO CLAIM A SUCCESS IT HAD NOT DEMONSTRATED, AND THE
+    MEASUREMENT IS WORSE THAN THAT.** Every run that ended
+    `ran_ok and not still_unbound` said "WinUSB driver installed successfully."
+    — and `ran_ok` is `install_winusb()`'s return, which is `wdi_simple.exe`'s
+    exit code. Measured on the bench, 2026-09-06, against a real driverless
+    i1Studio: `install_winusb` passes `--driver WinUSB`, wdi-simple has no
+    `--driver` option (its flag is `-t/--type <n>`), so it answered
+    `unrecognized option '--driver'`, printed its usage, and exited 0. Nothing
+    reached `setupapi.dev.log`. **The window congratulated the user on a
+    command that did nothing at all.**
+
+    That the sentence was only ever REACHED on a device already carrying a
+    driver — anything genuinely unbound stayed unbound and fell to the "did not
+    take" branch below — is the only reason it was not more obviously wrong.
+    Which is exactly the case this fork is about: nothing was missing, nothing
+    was measured to have changed, and the only honest answer is that ChromIQ
+    cannot tell. The COM-port half next door had already been made to say
+    precisely that about precisely this situation ("ChromIQ cannot tell you
+    whether that worked, because there was nothing to change"), which is the
+    whole reason `unbound_targets()` exists: `wdi-simple can exit 0 without
+    binding`. It exits 0 without even trying. Two halves of one window held two
+    standards of honesty; they now hold one.
+
+    The FLAG is not fixed here — that is
+    `fix/wdi-simple-never-installed-anything`, deliberately a separate branch.
+    This one changes only what the user is told, and what it now tells them is
+    true under the broken flag and under the fixed one alike: a verdict is
+    given only when the instrument was re-enumerated and found bound.
+
+    `driver_was_missing` is REQUIRED, deliberately and with no default. A
+    default would have to be one of the two answers, and the one that reads
+    "assume it worked" is the bug being fixed here; the one that reads "assume
+    we cannot tell" quietly downgrades a real success. A caller that does not
+    know cannot be given a sentence — it has to go and find out.
     """
     if wdi_available:
         if ran_ok and not still_unbound_names:
-            return tr("WinUSB driver installed successfully."), False
+            names = ", ".join(target_names or [])
+            if driver_was_missing:
+                # The driver was missing, the install ran, and the device
+                # re-enumerated WITH one. That is a demonstrated success, and
+                # the second paragraph says what the demonstration was — the
+                # `bound` window next door earns its "It worked." the same way.
+                #
+                # TWO WHOLE SENTENCES RATHER THAN A FALLBACK WORD IN A SLOT.
+                # `target_names` is always populated by the app, but a slot
+                # filled with "your instrument" would render "…attached it to
+                # your instrument — your instrument", and a translator cannot
+                # see that from the key. Written-out variants are the same rule
+                # CLAUDE.md gives for singular and plural.
+                heading = (
+                    tr("<b>It worked.</b> The driver is installed, and Windows "
+                       "has attached it to your instrument — {names}."
+                       ).format(names=names)
+                    if names else
+                    tr("<b>It worked.</b> The driver is installed, and Windows "
+                       "has attached it to your instrument.")
+                )
+                return ("<br><br>".join([
+                    heading,
+                    tr("That last part is the check that matters. An installer "
+                       "can finish without complaining and still fail to "
+                       "attach the driver to the hardware, so ChromIQ does not "
+                       "take its word for it — it looks the instrument up "
+                       "again afterwards. The driver is there."),
+                    tr("You can close this window and start measuring."),
+                ]), False)
+            # Nothing was missing before, so nothing can be shown to have
+            # changed. Saying "installed successfully" here is the claim this
+            # branch exists to stop making. No instrument is named: there is
+            # nothing to point AT, which is the whole message.
+            return ("<br><br>".join([
+                tr("<b>ChromIQ cannot tell you whether that changed "
+                   "anything.</b>"),
+                tr("The driver was already there before you clicked, and it is "
+                   "still there now. The installer finished without "
+                   "complaining — but there was nothing missing for it to put "
+                   "right, so there is no difference for ChromIQ to point at "
+                   "and call a success."),
+                tr("Nothing was removed or replaced. If ArgyllCMS still cannot "
+                   "open your instrument, unplug it, wait a few seconds and "
+                   "plug it back in. Then open <b>{opener}</b> in Preferences "
+                   "again and use <b>{button}</b>.").format(
+                       opener=_in_prose(tr("Instrument drivers…")),
+                       button=_in_prose(_label_check_again())),
+            ]), False)
         if not ran_ok:
+            # THIS BRANCH OPENS ZADIG AND USED TO SAY NOTHING ABOUT IT.
+            # `offer_zadig` is True here, so pressing the button in the window
+            # this text is shown in launches Zadig — and the old sentence
+            # neither named the driver to pick nor carried the CR30 warning.
+            # Zadig's driver box defaults to WinUSB, so a user who followed the
+            # window's only instruction landed on the one driver ArgyllCMS
+            # cannot read, and a CR30 owner could reach the CH340 row with no
+            # warning at all. Both are fixed here rather than left to the
+            # user's luck.
             return (
                 tr("Automatic installation failed or was cancelled.<br>"
                    "Click <b>{button}</b> to install it manually using the "
-                   "guided tool.").format(button=_label_try_zadig()),
+                   "guided tool: pick your instrument in Zadig, choose "
+                   "<b>libusb-win32</b>, then click <b>Install Driver</b>."
+                   ).format(button=_label_try_zadig())
+                + _cr30_zadig_warning(),
                 True,
             )
         names = ", ".join(still_unbound_names) or tr("the instrument")
-        # `Replace Driver` and the `WinUSB` / `libusb-win32` choices are
-        # Zadig's; `{button}` is ours. See the note above usb_installer_text.
+        # `Replace Driver` and the `libusb-win32` choice are Zadig's;
+        # `{button}` is ours. See the note above usb_installer_text.
+        #
+        # TWO THINGS WERE WRONG HERE AND BOTH GOT WORSE WITH THE TIGHTENED
+        # PREDICATE. The old text offered "choose WinUSB (or libusb-win32)" —
+        # so the window a user reaches BECAUSE the driver did not bind sent
+        # them to bind the one driver that cannot work, and ChromIQ would then
+        # tell them again that the driver was not installed. A loop, out of the
+        # app's own mouth. And the diagnosis named only a stale USB-port
+        # instance, which was the one known cause when nobody could arrive here
+        # with a driver already bound; now the commonest way to reach this
+        # branch is exactly that — an existing binding Windows declined to
+        # replace — so the sentence names it first.
         return (
             tr("Windows reported the install finished, but the driver still "
-               "isn't bound to {names}. This often happens when the device "
-               "was previously plugged into a different USB port.<br><br>"
+               "isn't bound to {names}. That happens when a driver is already "
+               "bound and Windows declines to replace it, and it also happens "
+               "when the device was previously plugged into a different USB "
+               "port.<br><br>"
                "Click <b>{button}</b> to install it reliably: pick your "
-               "instrument in Zadig, choose <b>WinUSB</b> (or libusb-win32), "
+               "instrument in Zadig, choose <b>libusb-win32</b>, "
                "then click <b>Replace Driver</b>. Unplugging and replugging the "
                "instrument first can also help.").format(
-                   names=names, button=_label_try_zadig()),
+                   names=names, button=_label_try_zadig())
+            + _cr30_zadig_warning(),
             True,
         )
 
     if zadig_status == "launched":
         return (
-            tr("Zadig is open. Select your colorimeter, choose WinUSB, "
+            tr("Zadig is open. Select your colorimeter, choose libusb-win32, "
                "then click Install Driver.") + _cr30_zadig_warning(),
             False,
         )
@@ -461,16 +811,29 @@ def usb_install_outcome(*, wdi_available: bool, ran_ok: bool,
             tr("Zadig isn't bundled with this build, so its download page "
                "has been opened in your browser.<br>"
                "Download and run <b>Zadig</b>, then: Options → List All Devices → "
-               "select your colorimeter → choose WinUSB → Install Driver."
+               "select your colorimeter → choose libusb-win32 → Install Driver."
                ) + _cr30_zadig_warning(),
             False,
         )
     # The address is interpolated rather than left in the key: a URL that a
     # translator retypes is a URL that can acquire a typo in one language only.
+    #
+    # AND IT CARRIES THE CR30 WARNING, WHICH IT DID NOT. This branch was read as
+    # "an address, not an instruction" and excluded from the sweep that checks
+    # every Zadig steer warns about the CH340 row. That was wrong: it hands the
+    # user Zadig's download page and tells them to go there, which is exactly
+    # what the `download_page` branch does — and that one has always carried the
+    # warning. The only difference between them is whether ChromIQ managed to
+    # open the browser itself; the user's next actions are identical, and they
+    # end at the same dropdown. Rare (both the launch AND `webbrowser.open` have
+    # to fail) is not the same as harmless.
     return (
         tr("Could not open Zadig or its download page. Visit "
            "<b>{url}</b> manually, or try running ChromIQ "
-           "as Administrator.").format(url=ZADIG_SITE),
+           "as Administrator.<br>Then, in Zadig: Options → List All Devices → "
+           "select your colorimeter → choose libusb-win32 → Install Driver."
+           ).format(url=ZADIG_SITE)
+        + _cr30_zadig_warning(),
         False,
     )
 
@@ -1497,16 +1860,24 @@ class SettingsDialog(QDialog):
 
         if _sys.platform == "win32":
             # NOT "Install USB Driver…" any more. The window behind it now
-            # covers two unrelated kinds of driver — WinUSB for the instruments
+            # covers two unrelated kinds of driver — one for the instruments
             # ArgyllCMS reads over raw USB, and a serial driver for the ones
             # reached through a COM port — and it can now report that nothing
             # needs installing at all. A button that says "Install" is wrong
             # twice over: about what it does, and about whether it will do it.
+            #
+            # THE FIRST HALF USED TO BE CALLED "the WinUSB driver" HERE TOO,
+            # and what that button actually installs is an open question (see
+            # `usb_installer_text` and `usb_install_outcome`: the bundled
+            # wdi-simple is being passed an option it does not have). A tooltip
+            # is the wrong place to name a driver in any case — the reader is
+            # deciding whether to open a window, not what to install. It names
+            # the two KINDS, which is what the window behind it is divided by.
             driver_btn = QPushButton(tr("Instrument drivers…"), self)
             driver_btn.setToolTip(
                 tr("Check whether Windows has the driver each of your "
                    "instruments needs, and install it if it does not — the "
-                   "WinUSB driver for the instruments ArgyllCMS reads over "
+                   "USB driver for the instruments ArgyllCMS reads over "
                    "USB, and the serial driver for the ones reached through a "
                    "COM port, such as the CR30.")
             )
@@ -5859,15 +6230,15 @@ class SettingsDialog(QDialog):
         _SERIAL_GET = 4
         _SERIAL_FOLDER = 5
         _SERIAL_NOT_LISTED = 6
+        _WINUSB_CERT = 7
 
         offer_anyway = False
 
         while True:
-            # enumerate_connected() reads a registry key that remembers every
-            # USB device this machine has EVER seen, so it must be filtered
-            # against what is attached right now or the window names hardware
-            # the user does not own.
-            devices = attached_only(enumerate_connected(), present_usb_ids())
+            # enumerate_connected() returns what is ATTACHED, not what the
+            # registry remembers — it filters against cfgmgr32's PRESENT list
+            # itself, so this window names no hardware the user does not own.
+            devices = enumerate_connected()
             needs_install = [d for d in devices if not d.has_winusb]
             states = self._serial_states()
 
@@ -5901,6 +6272,15 @@ class SettingsDialog(QDialog):
             if btn_label is not None:
                 row = QHBoxLayout()
                 row.addStretch()
+                # The certificate disclosure's second half, beside the button
+                # whose paragraph promises it. Secondary first, primary last —
+                # the same order the COM-port half below uses, so the two rows
+                # do not read as two conventions.
+                if usb_shows_certificate_details(devices, _wdi_available):
+                    cert_btn = QPushButton(_label_what_this_changes(), usb_grp)
+                    cert_btn.clicked.connect(
+                        lambda _c=False, d=dlg: d.done(_WINUSB_CERT))
+                    row.addWidget(cert_btn)
                 install_btn = QPushButton(btn_label, usb_grp)
                 install_btn.setObjectName("primary")
                 install_btn.clicked.connect(
@@ -5959,6 +6339,15 @@ class SettingsDialog(QDialog):
             if result == _REFRESH:
                 continue   # rebuild with fresh device state
 
+            if result == _WINUSB_CERT:
+                # Read-only, and it comes straight back to the window it was
+                # opened from — reading what the install changes must not cost
+                # the user their place in the repair.
+                self._driver_notice(
+                    tr("What installing the driver changes"),
+                    usb_certificate_details_text())
+                continue
+
             if result == _SERIAL_NOT_LISTED:
                 offer_anyway = True
                 continue
@@ -5985,22 +6374,30 @@ class SettingsDialog(QDialog):
                 # previous USB port can misdirect it. Verify by re-enumerating
                 # before claiming success, and fall back to Zadig if it didn't bind.
                 #
-                # unbound_targets() re-enumerates through the same remembering
-                # registry key, so the same presence filter applies: a ghost with
-                # no driver would otherwise be reported as "the install did not
-                # bind" on a perfectly good install.
-                still_unbound = attached_only(unbound_targets(targets),
-                                              present_usb_ids())
+                # unbound_targets() re-enumerates through enumerate_connected(),
+                # which is now presence-filtered at instance level, so a ghost
+                # can neither be reported as "the install did not bind" nor lend
+                # its stale driver to a device that did not bind at all.
+                still_unbound = unbound_targets(targets)
                 outcome_text, offer_zadig = usb_install_outcome(
                     wdi_available=True,
                     ran_ok=ran_ok,
                     still_unbound_names=[d.name for d in still_unbound],
                     zadig_status=None,
+                    # `needs_install` is the list read BEFORE the button was
+                    # pressed, so it is the only thing that can tell a repair
+                    # apart from an install. Empty means the user pressed
+                    # `Reinstall Driver` on hardware that already worked, and
+                    # the outcome window must not call that a success.
+                    driver_was_missing=bool(needs_install),
+                    target_names=[d.name for d in targets],
                 )
             else:
                 outcome_text, offer_zadig = usb_install_outcome(
                     wdi_available=False, ran_ok=False, still_unbound_names=[],
                     zadig_status=launch_zadig(),
+                    driver_was_missing=bool(needs_install),
+                    target_names=[d.name for d in targets],
                 )
 
             if self._driver_notice(tr("Driver Installation"), outcome_text,
