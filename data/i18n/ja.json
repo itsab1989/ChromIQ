@@ -1577,6 +1577,8 @@
   "Hexagonal patches — a heads-up": "六角形パッチについてのご注意",
   "Hexagonal patches: {cap} % is the most this chart can be read at. Above it the sampled square reaches past the hexagon's slanted sides into the neighbouring patches.": "六角形パッチ: このチャートを読み取れる上限は {cap} % です。これを超えると、読み取る正方形が六角形の斜めの辺を越えて、隣のパッチにまで届いてしまいます。",
   "Hexagonal — denser": "六角形 — より密",
+  "Hexagons: this box has no effect while Strips (columns) is set to a number.\n\nA honeycomb interlocks, which fixes each cell at 86.6 % as tall as it is wide. So the number of strips already decides the patch width, the width decides the height, and the height decides how many patches fit down the page. To choose the patches per strip yourself, put Strips (columns) back to auto, or set Patch shape to Rectangular.": "六角形: ストリップ（列）に数値が入っている間、この欄は効果がありません。\n\nハニカムはたがいにかみ合う構造で、各セルの高さは幅のちょうど 86.6 % に固定されます。つまりストリップ数がパッチ幅を決め、幅が高さを決め、高さがページの縦方向に入るパッチ数を決めます。ストリップあたりのパッチ数を自分で決めたい場合は、ストリップ（列）を自動に戻すか、パッチ形状を長方形にしてください。",
+  "Hexagons: this box has no effect, because the patch height is fixed by the shape.\n\nA honeycomb interlocks, which only works when each cell is exactly 86.6 % as tall as it is wide. Any other percentage would draw stretched hexagons whose rows no longer nest, so ChromIQ keeps the honeycomb proportion and ignores this value. Set Patch shape to Rectangular if you want to choose the height yourself.": "六角形: この欄は効果がありません。パッチの高さは形状によって決まっているためです。\n\nハニカムはたがいにかみ合う構造で、それが成り立つのは各セルの高さが幅のちょうど 86.6 % のときだけです。ほかの割合にすると引き伸ばされた六角形になり、行どうしがかみ合わなくなります。そのため ChromIQ はハニカムの比率を保ち、この値を無視します。高さを自分で決めたい場合は、パッチ形状を長方形にしてください。",
   "Hide the Log Panel": "ログ欄を隠す",
   "Hide the log panel on every tab": "すべてのタブでログ欄を隠す",
   "High": "高",

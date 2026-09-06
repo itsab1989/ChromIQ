@@ -3199,3 +3199,66 @@ came back to it.
   (`**Licence: AGPLv3 …**`) rather than merely mention it, and the mutation then
   failed as it should. A passing mutation run is worth nothing if the mutation
   never applied.
+
+---
+
+### B8-79 · Two layout controls did nothing at all on a hexagonal chart, and stayed live and armed
+- blocks release: no
+- status: FIXED
+- found by: Knut, 4.1.5-beta.10 — *"When I try to make hexagonal patches on a
+  chart for CR30, and setting in the layout engine Calculation method 'By
+  columns / rows…', then changing the patches per strip has no function or
+  effect. When 15 strips the patch width is 10.9 mm, and there is 28 rows, no
+  matter what I set on patches per strip. … I assume the same thinking also
+  applies to … 'Minimum patch height (% of width)' is not really used. **This
+  should be verified.**"*
+- detail: verified, and BOTH of his assumptions are right. A honeycomb
+  interlocks, so its cell height is fixed at `width * sqrt(3)/2`;
+  `area_fit.derive_area_patch_size` sets that ratio before it solves and snaps
+  the solved height back to it afterwards, precisely so hexagons cannot come out
+  stretched (Basti's ruling, 2026-08-28). A hexagonal grid therefore has ONE
+  free parameter, and the panel offered two.
+  Swept against the real engine, CR30 + SpectroScan, A4 and A3:
+  **(a)** by columns/rows, hexagons, 15 strips pinned: patches-per-strip
+  0 / 5 / 10 / 20 / 28 / 40 / 60 / 100 all give patch 10.85 x 9.39 mm, 15 strips
+  of 26, 390 patches. Eight values, one chart. Knut's own 10.9 mm / 15 / 28
+  falls out of the same run on Letter with a 10 mm right margin (10.96 x 9.49,
+  15 x 28, 420), and 28 margin/paper combinations reproduce his exact triple.
+  **(b)** by patch width, hexagons, minimum width 8 mm: height 50 / 100 / 150 /
+  200 / 300 % all give 8.29 x 7.18 mm, 20 strips of 33, 660 patches, where
+  rectangular gives 1113 / 630 / 441 / 336 / 231.
+  The row box is NOT inert when Strips (columns) is on auto, so the lock is
+  conditional on the strips being pinned rather than on the shape alone.
+  Reproduced in the running app (`scripts/drive_hex_locks_the_inert_controls.py`,
+  screenshots on the Desktop under `beta 9/hex-layout-controls/`).
+- fix: `LayoutOptionsPanel._update_area_hex_locks` greys the inert box and puts
+  the reason on the row's ⓘ button, which `TooltipButton.changeEvent` keeps
+  enabled inside a disabled parent. A DISABLED QWIDGET RECEIVES NO HOVER EVENTS,
+  so a tooltip on the greyed spin box may never appear at all; the note's first
+  line also goes into the ⓘ's own hover tip. No value, no geometry and no
+  default was touched: eleven recorded (instrument, shape, method, grid) charts
+  come out byte-identical.
+- deferred out of this fix, reported for Knut and Basti: **(1)** in "By columns /
+  rows" with Strips on auto, the HIDDEN "Minimum patch height (% of width)"
+  genuinely drives the layout for rectangular patches (50/100/150/200 % gives
+  120 / 240 / 380 / 520 patches on a CR30 A4), which is the same fault pointing
+  the other way and the same shape as the ColorMunki density row already
+  documented in `_sync_layout_mode`; **(2)** on a honeycomb with Strips on auto
+  the requested patches-per-strip is delivered short by one or two (10 -> 8,
+  15 -> 13, 20 -> 18, 30 -> 29; rectangular is exact). That is a control that
+  SHOULD work and does not, so the arithmetic was left alone.
+- evidence: test_patches_per_strip_is_inert_on_a_honeycomb_with_pinned_strips,
+  test_patches_per_strip_is_still_live_when_the_strips_are_on_auto,
+  test_minimum_patch_height_is_inert_on_a_honeycomb,
+  test_minimum_patch_width_stays_live_on_a_honeycomb,
+  test_the_lock_fires_exactly_where_the_control_is_inert,
+  test_a_locked_row_always_says_why_on_a_button_that_still_works,
+  test_clearing_the_lock_restores_the_row_and_drops_the_note,
+  test_a_panel_with_no_selectors_locks_from_the_recipe,
+  test_the_guard_would_catch_a_lock_that_stopped_firing,
+  test_the_guard_would_catch_a_lock_that_fired_on_everything,
+  test_the_chart_that_came_out_before_still_comes_out.
+  Both mutations were proved to land: forcing `_area_is_hexagonal` False leaves
+  the row live where the table demands it locked, and forcing it True locks a
+  rectangular row that the table demands live. The eleven frozen charts were
+  recorded from `origin/master` @ 848e6965 before the lock existed.

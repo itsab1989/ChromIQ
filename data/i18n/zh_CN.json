@@ -1577,6 +1577,8 @@
   "Hexagonal patches — a heads-up": "六边形色块 — 提个醒",
   "Hexagonal patches: {cap} % is the most this chart can be read at. Above it the sampled square reaches past the hexagon's slanted sides into the neighbouring patches.": "六边形色块：这张色卡最多只能按 {cap} % 读取。再往上，取样方块就会越过六边形的斜边，伸进旁边的色块里。",
   "Hexagonal — denser": "六边形——更密",
+  "Hexagons: this box has no effect while Strips (columns) is set to a number.\n\nA honeycomb interlocks, which fixes each cell at 86.6 % as tall as it is wide. So the number of strips already decides the patch width, the width decides the height, and the height decides how many patches fit down the page. To choose the patches per strip yourself, put Strips (columns) back to auto, or set Patch shape to Rectangular.": "六边形：只要“色条（列）”填有数值，此项就无效。\n\n蜂窝结构彼此嵌合，使每个单元的高度恰好是宽度的 86.6 %。因此色条数量已经决定了色块宽度，宽度决定高度，高度又决定页面纵向能放下多少色块。若想自己选择每条色条的色块数，请将“色条（列）”改回“自动”，或将“色块形状”设为“矩形”。",
+  "Hexagons: this box has no effect, because the patch height is fixed by the shape.\n\nA honeycomb interlocks, which only works when each cell is exactly 86.6 % as tall as it is wide. Any other percentage would draw stretched hexagons whose rows no longer nest, so ChromIQ keeps the honeycomb proportion and ignores this value. Set Patch shape to Rectangular if you want to choose the height yourself.": "六边形：此项无效，因为色块高度由形状决定。\n\n蜂窝结构彼此嵌合，只有当每个单元的高度恰好是宽度的 86.6 % 时才成立。任何其他百分比都会画出被拉长的六边形，各行不再嵌合，因此 ChromIQ 保持蜂窝比例并忽略此值。若想自己选择高度，请将“色块形状”设为“矩形”。",
   "Hide the Log Panel": "隐藏日志面板",
   "Hide the log panel on every tab": "在所有选项卡中隐藏日志面板",
   "High": "高",
