@@ -202,6 +202,47 @@ def test_it_never_says_the_certificate_is_trusted_for_everything():
     assert "cannot vouch for a website" in sd.usb_certificate_details_text()
 
 
+def test_the_network_claim_is_scoped_to_the_installer_that_was_measured():
+    """THE FALSEST SENTENCE THIS FEATURE EVER SHIPPED WAS ALMOST THIS ONE.
+
+    A draft said "the installer carries no networking code at all". That is
+    measured, and it is true — of `wdi_simple.exe`, whose import table is
+    ADVAPI32/KERNEL32/SETUPAPI/SHELL32/USER32/ntdll/ole32 with no networking
+    library and no `winhttp`/`wininet`/`ws2_32` string to load one by name.
+
+    But `usb_shows_certificate_details` deliberately ignores `wdi_available`,
+    so that sentence is ALSO shown to the users being sent to **Zadig** — and
+    `zadig.exe` imports `WININET.dll` and calls `InternetOpenA`. Measured on
+    the shipped binary, read-only, by two agents independently. Generalising
+    "the installer" across a branch where the installer is a different program
+    made the one sentence a user cannot check into a false one.
+
+    So the claim names whose installer it is, and Zadig's update check is
+    stated rather than left for the user to discover.
+    """
+    text = sd.usb_certificate_details_text()
+    assert "ChromIQ's own driver installer carries no networking code" in text
+    assert "Zadig is a separate program with its own update check" in text
+    assert "that is the one thing here that can reach the internet" in text
+    # …and never the unscoped form again.
+    assert "The installer carries no networking code" not in text
+    assert "the installer carries no networking code" not in text
+
+
+def test_the_private_key_claim_says_what_the_store_holds():
+    """What was measured is `HasPrivateKey : False` on the certificate in the
+    store. libwdi's `DeletePrivateKey` (`pki.c:864`) only warns when the
+    deletion fails and the caller still reports success — so "the key was not
+    kept on your computer" is a promise about a best-effort step, told as a
+    fact. The window says what Windows holds, and separately what the installer
+    does."""
+    text = sd.usb_certificate_details_text()
+    assert "Windows' copy holds only the public half" in text
+    assert "the installer deletes that key as soon as it has finished signing" \
+        in text
+    assert "was not kept on your computer" not in text
+
+
 def test_the_removal_advice_is_hedged_because_the_experiment_was_not_run():
     """Deleting the certificate and rebooting was NOT tested.
 
