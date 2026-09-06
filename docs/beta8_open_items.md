@@ -3598,3 +3598,338 @@ only a triple that DIFFERS from the rule's answer would stop it.
   the row live where the table demands it locked, and forcing it True locks a
   rectangular row that the table demands live. The eleven frozen charts were
   recorded from `origin/master` @ 848e6965 before the lock existed.
+### B8-90 · The patch-set editor is unusable for any CR30 chart, and the error box is taller than the screen
+- blocks release: yes
+- status: FIXED
+- found by: Knut, v4.1.5-beta.10, with a screenshot; analysed by Agent CK,
+  `Desktop/beta 9/cr30-patch-editor/FINDINGS-agentCK.md` (CK-1); fixed by Agent CM
+- detail: `workflow/ti2_relayout.py` builds its own printtarg argv and passed
+  `spec.instrument_flag` to `-i` unvalidated. `instrument_to_flag` returns the
+  ChromIQ-only sentinel `"CR30"` for a CR30 chart, and printtarg 3.5.0 has no
+  such code: `printtarg.c:3345` answers `Argument to -i wasn't recognised` and
+  prints 51 lines of usage. The rule against this EXISTED and lived in one
+  module: `chart_creator._build_printtarg_args` refuses to build an argv for an
+  ENGINE_ONLY instrument, and `ti2_relayout` does not import it. Reproduced end
+  to end in the real app before any change: box 420 x 1433 px on a 1079 px work
+  area, 354 px of overflow, OK button at global y 1451, on screen = False,
+  window title discarded by macOS so the words "Render failed" were never
+  visible. Both doors into the editor pre-load the selected target's chart, so a
+  CR30 owner met this on every open with no way to get in front of it.
+- fix: three layers. (1) `ti2_relayout.PRINTTARG_INSTRUMENTS` /
+  `PRINTTARG_PAPER_MIN_MM` / `PRINTTARG_PAPER_MAX_MM` and
+  `check_printtarg_can_lay_out()`, called from `regenerate()` before the process
+  is spawned, so the message is ChromIQ's one sentence. The set is
+  `printtarg.c:3323-3345` and the test parses it out of that parser rather than
+  out of the usage text, which is the thing that is wrong (it prints `p3`;
+  printtarg accepts `3p`). (2) `_regenerate` routes an ENGINE chart to the
+  engine instead of running a printtarg pass whose result is discarded two lines
+  later, which for a CR30 is a pass that cannot succeed. (3) B8-91, which is
+  what makes (2) reachable at all. Re-driven in the real app afterwards: zero
+  windows on open, `_regen is None`, the engine renders the chart's 299 patches.
+  The report's recommended route (delete the load-time render entirely) was NOT
+  taken: `_suggest_chart_name` consumes `self._regen.tiffs` for the Save-As
+  default name, so the claim that every consumer is a hidden widget has one
+  hole, and removing the render is a design question for Basti and Knut.
+- evidence: test_the_instrument_set_is_printtargs_own_strcmp_chain,
+  test_p3_is_not_one_of_them_and_3p_is,
+  test_every_flag_instrument_to_flag_can_return_is_known,
+  test_regenerate_refuses_a_cr30_chart_without_spawning_printtarg,
+  test_the_refusal_says_something_a_person_can_read,
+  test_opening_a_cr30_chart_never_spawns_printtarg,
+  test_a_rejected_instrument_is_refused_at_the_boundary,
+  test_an_accepted_instrument_passes_the_boundary
+
+---
+
+### B8-91 · "Save As" from the patch editor turned an engine chart into a printtarg chart
+- blocks release: yes
+- status: FIXED
+- found by: Agent CK, same report (CK-4); fixed by Agent CM
+- detail: `Ti2RelayoutDialog._engine_active()` decided which renderer draws the
+  preview, which renderer writes a Save-As deliverable, and whether the
+  printtarg pass runs at all, and it answered by asking a QGroupBox whether it
+  was visible. Commit `72c54d1f` (2026-06-29, "#93: editor - hide the
+  layout-editing panels") then hid that group unconditionally, believing the
+  hidden widgets inert. Its message says the chart "renders and saves unchanged
+  through the edit->apply round-trip", and Apply IS unchanged because that path
+  hands back only the `.ti1`. What went dark with it, measured by CK in the real
+  app on an i1Pro engine chart saved from this window: 525 patches became 528,
+  a 21x25 strip grid became 24x22, and `channels.json` was gone. For a CR30 that
+  sidecar is not decoration: `measure_manager.py:481` and `:1587` and the
+  ChromIQ chartread fork read the chart's own recorded layout. A widget's
+  visibility was load-bearing state for two months.
+- fix: `_engine_active()` tests the thing it means. The expression is
+  `_refresh_engine_panel_visible`'s own `use_engine` from before `72c54d1f`,
+  restored verbatim (`self._engine_recipe is not None or (the engine setting and
+  not a loaded printtarg chart)`), plus the unchanged non-RGB rule, so the
+  function matches its own docstring again. Round trip re-driven in the real app
+  with real Argyll: an i1Pro engine chart built through Create Chart and saved
+  through the editor's own `_write_chart_into` came back 441 / 21 / 21 with
+  `channels.json` present and a 441-patch `.ti1`, identical in every field, and
+  the save message names the engine writer. `_suggest_chart_name` now takes its
+  page count from the engine's pages so the Save-As default name does not lose
+  its `2pages` token with the dropped printtarg pass. NOTE, because it is a
+  behaviour change and not only a repair: with the layout-engine setting on, a
+  from-scratch patch set saves through the engine again, which is what the code
+  did before `72c54d1f`.
+- evidence: test_engine_active_does_not_read_a_widgets_visibility,
+  test_an_engine_chart_makes_the_engine_active,
+  test_a_printtarg_chart_off_disk_keeps_printtarg,
+  test_a_multi_ink_chart_is_engine_only_whatever_else_is_true,
+  test_save_as_on_an_engine_chart_goes_to_the_engine_writer,
+  test_the_suggested_name_still_counts_pages_for_an_engine_chart
+
+---
+
+### B8-80 · A message box could open taller than the screen and take its only button with it
+- blocks release: yes
+- status: FIXED
+- found by: Agent CK, same report (CK-2); fixed by Agent CM
+- detail: `ui/warning_sign.py::warn` builds a `QMessageBox`, calls
+  `setText(...)` and `exec()`. `ui/widgets.py::fit_message_box_buttons` only
+  ever WIDENS a box to fit its BUTTONS; nothing widened it to fit its TEXT and
+  nothing capped its HEIGHT. B8-72's `_work_area_cap` /
+  `_keep_inside_the_work_area` were METHODS OF `tools_dialogs._ToolDialogBase`,
+  and a `QMessageBox` is Qt's class. Measured on the real screen with the
+  3055-character printtarg dump of B8-90: frame 420 x 1433 px on a 1079 px work
+  area, 354 px past the bottom, OK button at y 1451 and off screen. macOS could
+  not rescue it, because there is no position at which a 1433 px window fits a
+  1079 px work area. The box also took 420 px against its own 664 px sizeHint,
+  so printtarg's 80-column lines wrapped to two and three each and roughly
+  doubled the height. This is 51 shared call sites, not one window.
+- fix: `ui.widgets.keep_message_box_inside_the_work_area`, called from `warn()`
+  and `_boxed()` (so `inform` and `ask` too). It widens the box for its text up
+  to a share of the work area, moves an overflowing body behind Qt's own "Show
+  Details" (a scroll area, so it cannot overflow) with a purely mechanical
+  split that invents no sentence, and clamps the frame on the next turn of the
+  event loop once the caption is real. Re-measured on the real screen with the
+  same body: 778 x 937 px, 117 px of headroom, OK button on screen at y 980, and
+  the widening alone was enough that the detail pane was not needed there. Under
+  the suite's 800 px offscreen screen the split does fire and all 3055
+  characters stay recoverable.
+- evidence: test_a_message_box_with_a_tool_dump_in_it_still_fits_the_work_area,
+  test_every_button_of_that_box_is_on_the_screen,
+  test_the_overflow_goes_behind_show_details_rather_than_being_lost,
+  test_a_short_message_is_left_exactly_as_it_was,
+  test_the_helper_is_what_does_it_and_warn_calls_it,
+  test_the_cap_is_not_a_round_fraction_of_the_screen
+
+---
+
+### B8-81 · `Ti2RelayoutDialog` is outside B8-72's work-area fix, and so is its guard test
+- blocks release: no
+- status: FIXED
+- found by: Agent CK, same report (CK-13); fixed by Agent CM
+- detail: `class Ti2RelayoutDialog(QDialog)` sizes itself with a hard-coded
+  `resize(1280, 820)` and `setMinimumSize(1000, 620)`, and the whole class
+  contains no `showEvent`, no `availableGeometry` and no other `resize`. A
+  1366x768 laptop's work area is about 728 px, so the window opens roughly 92 px
+  taller than the screen, and Apply / Save... and Close sit at the very bottom of
+  its right-hand column. B8-72 fixed exactly this class of fault and fixed it
+  only for `_ToolDialogBase`'s subclasses, because the arithmetic was two
+  methods of that class; `tests/test_a_tool_window_opens_inside_the_work_area.py`
+  reads `inspect.getsource(tools_dialogs._ToolDialogBase)` and never mentions
+  this window, so its name promised more than its scope. Not reproducible on
+  this machine (work area 1079 px), which is why it is read off the source, and
+  B8-72's own write-up records that macOS shoves a frame back up and Windows
+  does not, so this would be reported from Windows first.
+- fix: the arithmetic moved into `ui.widgets.WorkAreaClamped`, a mixin, with the
+  same body; `_ToolDialogBase` and `Ti2RelayoutDialog` both inherit it, so the
+  rule is inherited rather than remembered. `Ti2RelayoutDialog.showEvent` caps
+  the opening height against the work area and clamps the frame, once, so a user
+  who resizes afterwards is never overruled.
+- evidence: test_the_patch_editor_opens_inside_the_work_area,
+  test_the_editor_inherits_the_clamp_rather_than_restating_it,
+  test_the_clamp_brings_the_editor_back_from_under_the_taskbar
+
+---
+
+### B8-82 · The patch editor was the only place in the app that showed an Argyll tool's raw stderr in a modal
+- blocks release: no
+- status: FIXED
+- found by: Agent CK, same report (CK-3); fixed by Agent CM
+- detail: `_on_regen_done` and `_save_as` did `warn(self, <title>, str(exc))`,
+  and `ti2_relayout` wraps a whole `stderr` in its `RuntimeError`. Everywhere
+  else in the app the same stderr goes to a scrollable log and, if a pattern
+  matches, ChromIQ's own sentence goes to an `InfoDialog`. Measured: every
+  printtarg argument-parse failure is 51 lines with exactly one useful line,
+  always prefixed `Diagnostic:`; every runtime failure is one line prefixed
+  `printtarg: Error - `. There is no case in which the usage text helps. A
+  related fault in the same area: `_PRINTTARG_ERROR_PATTERNS`'s
+  `unsupported_instrument` entry, and the comment above
+  `ENGINE_ONLY_INSTRUMENTS` pointing at it, both claimed printtarg answers
+  "Unsupported instrument type" to a bad `-i`. It does not; that message is a
+  different error, raised for an itype that parsed. So the one pattern written
+  for this case could never match it.
+- fix: `Ti2RelayoutDialog._report_tool_failure`, used at all three sites that
+  can receive a whole stderr (the render worker's result and both callers of
+  `_write_chart_into`). It logs the full output, consults the shared
+  `chart_creator` table through the new pure `match_printtarg_error()`, falls
+  back to `printtarg_said()` quoting the tool's one useful line inside a
+  sentence, and shows it in `InfoDialog`, which scrolls its body, caps itself at
+  90 % of the screen and repeats its title as a heading inside the window so it
+  survives macOS discarding a QMessageBox title. Three patterns added for the
+  messages the argument parser really prints, and the false comment corrected.
+  The wording is NOT in the measurement-model catalogue and does not belong
+  there: that catalogue is enforced over an allow-list of measurement windows
+  and this is not one, with `tab_chart`'s own unmatched-failure window as the
+  precedent. One new string, reusing existing titles, translated into all twelve
+  languages from each catalogue's own translation of the sibling string.
+- evidence: test_every_call_that_can_receive_a_tool_dump_routes_it_through_the_window,
+  test_the_failure_handler_quotes_one_line_and_logs_the_rest,
+  test_the_table_now_matches_the_message_printtarg_actually_prints,
+  test_the_one_useful_line_is_what_is_quoted,
+  test_a_dump_with_nothing_useful_in_it_still_yields_a_line
+
+---
+
+### B8-83 · colprof "Matrix only (forced)" does not exist, and choosing it failed in silence
+- blocks release: no
+- status: FIXED
+- found by: Agent CK, same report (CK-5); established and fixed by Agent CM
+- detail: both algorithm dropdowns in `ui/tabs/tab_profile.py` and
+  `data/parameters.yaml`'s colprof `-a` row offered `M`. colprof 3.5.0's switch
+  (`profile/colprof.c:599-631`) has cases for `l L x X Y g G s S m` and a
+  `default:` that calls `usage("Unknown argument '%c' to algorithm flag -a")`.
+  Measured one probe per ASCII letter against the real binary: those ten parse
+  and every other letter, `M` included, exits 1. CK's report gives the set as
+  `l x X Y g G s S m` and misses `L`, which colprof accepts as a synonym for
+  `l`; the constant added here is the source's set, not the report's.
+  `profile_builder._build_args` passes the letter verbatim. CK marked the third
+  link NOT ESTABLISHED; it is established here without a profile build:
+  `Diagnostic: Unknown argument 'M' to algorithm flag -a` is matched by none of
+  the fourteen entries in `_COLPROF_ERROR_PATTERNS`, and
+  `tab_profile.py:5213-5232` opens a window only when `primary_failure()`
+  returns something or the FWA case fires, so the silence is by construction.
+- fix: `workflow.profile_builder.COLPROF_ALGORITHMS`, parsed out of colprof's
+  own switch by the test. `M` removed from both combos, from
+  `data/parameters.yaml` and from the label list in all twelve
+  `parameters.<code>.yaml` overlays, which are keyed by flag rather than being
+  lists, so a label list one entry too long puts the wrong words against the
+  wrong letter instead of failing to load. colprof's real `Y` was NOT added:
+  offering an algorithm the app has never offered is a feature decision.
+- evidence: test_the_colprof_algorithm_set_is_colprofs_own_switch,
+  test_every_algorithm_letter_the_ui_offers_is_one_colprof_has,
+  test_the_labels_still_match_the_choices_in_every_language
+
+---
+
+### B8-84 · A paper size the widget offers and printtarg refuses, and a `meta.json` trusted by key name only
+- blocks release: no
+- status: FIXED
+- found by: Agent CK, same report (CK-6, CK-8, CK-9); fixed by Agent CM
+- detail: `paper_to_flag` falls through to an unbounded `f"{w:g}x{h:g}"` and
+  nothing checked it, so a `.ti2` carrying `PAPER_SIZE "5000.0x5000.0"` loaded
+  through "Load patch set..." produced the same unbounded box as B8-90.
+  printtarg's custom `-p WWWxHHH` sanity-checks each axis against 1.0..4000.0
+  (`printtarg.c:3311-3316`; measured, 4000x4000 parses and 4000.5x4000.5 does
+  not), and all four custom-paper spin boxes in the editor were
+  `setRange(10, 9999)` - a range the widget offers and the tool rejects, latent
+  today because both groups are hidden but wrong the moment either is shown
+  again. Separately, `_layout_from_dict` rebuilds `LayoutOptions` from a
+  `meta.json` filtering on key NAME only and never on value, feeding `-a`, `-A`
+  and `-m`; measured printtarg limits are `-a` 0.1-4.0, `-A` 0.1-8.0, `-m`
+  accepted at 50 and refused at 60 on A4.
+- fix: `check_printtarg_can_lay_out()` range-checks the custom `-p` at the same
+  boundary as the instrument (B8-90). The four spin boxes take
+  `_CUSTOM_PAPER_MAX_MM = int(R.PRINTTARG_PAPER_MAX_MM)` so the widget and the
+  tool cannot disagree; the floor stays 10 rather than printtarg's own 1,
+  because a 1 mm page parses and then fails at layout time.
+  `LayoutOptions.__post_init__` clamps to the widgets' own ranges while leaving
+  each value's int/float TYPE exactly as it arrived, so a saved `meta.json`
+  still round-trips to the value it was written with.
+- evidence: test_an_accepted_paper_passes_the_boundary,
+  test_a_paper_outside_printtargs_range_is_refused,
+  test_a_paper_NAME_is_left_for_printtarg_to_judge,
+  test_the_paper_ceiling_is_printtargs_own_sanity_check,
+  test_the_custom_paper_spin_boxes_cannot_ask_for_a_page_printtarg_refuses
+
+---
+
+### B8-85 · The Manual command preview showed a CR30 user a command line printtarg rejects
+- blocks release: no
+- status: FIXED
+- found by: Agent CK, same report (CK-11); corrected and fixed by Agent CM
+- detail: `tab_chart._refresh_manual_command_preview` decides whether to show
+  the engine summary or a `printtarg ...` line with its own `use_engine`
+  expression, and that expression lacks `_should_use_engine`'s first rule: an
+  ENGINE_ONLY instrument takes the engine whatever else is set. So a CR30 user
+  with the layout-engine setting off was shown `printtarg -iCR30 ...`, a command
+  line that cannot be run, describing a build that always takes the engine. One
+  correction to the report: it says this label applies `{"3p": "p3"}`. It does
+  the opposite (`"3p" if p.instrument == "p3"`), which is correct; the two
+  `{"3p": "p3"}` maps at `:5324` and `:17887` translate into ChromIQ's engine
+  namespace and never reach a command line. The CR30 half of the finding stands.
+- fix: `use_engine` now begins with `p.instrument in ENGINE_ONLY_INSTRUMENTS`,
+  mirroring `_should_use_engine`. Covered by the same vocabulary test that pins
+  every place in the app that turns an instrument key into a printtarg `-i`.
+- evidence: test_no_path_in_the_app_can_hand_printtarg_the_string_p3
+
+---
+
+### B8-86 · chartread extra arguments are joined with a space and re-split with shlex
+- blocks release: no
+- status: FIXED
+- found by: Agent CK, same report (CK-12, first half); fixed by Agent CM
+- detail: `tab_measure._collect_guided` and `_collect_manual` join the option
+  rows' arguments with `" ".join` and `measure_manager` re-splits them with
+  `shlex.split`, so a value containing a space is torn in two. Latent, not live:
+  no current option row carries one. `data/parameters.yaml:1213` already
+  declares a `-X file.ccmx` row, and a path with a space is the normal case the
+  day that is wired up. `tab_chart` does the same round trip correctly with
+  `shlex.join`.
+- fix: `shlex.join` in both collectors, matching `tab_chart`.
+- evidence: test_chartread_extra_args_survive_a_path_with_a_space
+
+---
+
+### B8-87 · The patch editor's instrument combo holds a value the chart does not have, and the user cannot see it
+- blocks release: no
+- status: OPEN
+- found by: Agent CK, same report (CK-7, corrected by his own Part 5.1)
+- detail: `_pt_instr` offers only `i1` / `3p` / `CM`, so `findData("CR30")`
+  returns -1 and the combo is silently left showing item 0 while
+  `spec.instrument_flag` is `CR30`. The same is true of `SS`. His first reading
+  of this - that a user could pick ColorMunki out of curiosity and silently
+  convert a CR30 chart - he withdrew himself: the whole `_pt_box` group is
+  hidden by the #93 decision, so the control is not reachable. What is left is a
+  hidden control holding a value that does not match the chart. The HARM it
+  caused is gone with B8-90 and B8-91: that chart no longer goes near printtarg,
+  so the invisible value no longer decides whether the window works. What
+  remains is Part 10's Q5, whether hiding rather than removing was the right
+  mechanism for #93, which is a design question and not an agent's to answer.
+- fix: not attempted. Left OPEN rather than DEFERRED because nobody has been
+  asked yet.
+
+---
+
+### B8-88 · The instrument-port spinner is a bare 1-9 with nothing enumerating the ports
+- blocks release: no
+- status: OPEN
+- found by: Agent CK, same report (CK-10), measured by his subagent and not
+  re-run by him or by Agent CM
+- detail: `ui/tabs/tab_measure.py:2206` and `:2745` set the instrument-port
+  spinner to `setRange(1, 9)`, and `-c` on chartread and spotread is an INDEX
+  into the ports ArgyllCMS enumerated. `core/argyll_instruments.py:124` already
+  enumerates instruments and its result is not used to bound the spinner.
+  Reported measurement: `spotread -c 9 -N` answers `Error - No instrument at
+  port 9`.
+- fix: not attempted on beta night. Bounding the spinner means wiring the
+  enumeration into two Measure tabs and deciding what happens when enumeration
+  is empty or the instrument is unplugged mid-session, which is a measure-path
+  change for a fault whose symptom is one clear Argyll error line.
+
+---
+
+### B8-89 · The patch-capacity probe swallows a printtarg failure and shows a wrong number
+- blocks release: no
+- status: OPEN
+- found by: Agent CK, same report (CK-12, second half), read and not driven
+- detail: `chart_creator._probe` reuses `_build_printtarg_args(p)`, user extras
+  included, and treats ANY non-zero exit as `pages = 0`. `_binary_search` then
+  returns its estimate with only a `log.warning`. So a malformed extra printtarg
+  argument does not raise: it collapses the patch-capacity search and the user
+  is shown a wrong "fits per page" number with no message.
+- fix: not attempted. What a capacity search should DO when the tool refuses the
+  user's own extra flag - report it, fall back, or refuse to build - is a
+  decision rather than a repair, and the wrong number is not a data loss.

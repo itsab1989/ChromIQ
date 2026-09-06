@@ -161,13 +161,29 @@ def test_add_with_no_chart_open_seeds_a_chart_and_previews(qapp, monkeypatch):
         def exec(self):
             return QDialog.DialogCode.Accepted
     monkeypatch.setattr(M, "_AddPatchesDialog", _StubAdd)
+    # THE PREVIEW HAS TWO RENDERERS, AND THIS USED TO WATCH ONLY ONE.
+    #
+    # `_set_chart` chooses between them: an engine chart previews through
+    # `_do_engine_preview`, a printtarg chart through `_regenerate`. This test
+    # watched `_regenerate` alone, which was safe only for as long as
+    # `_engine_active()` was permanently False — and that WAS the defect
+    # (B8-79: a widget's visibility standing in for "is this an engine chart",
+    # nailed to False by `72c54d1f` for two months). With the predicate fixed,
+    # a from-scratch chart follows the layout-engine setting, which is on by
+    # default, so the engine draws it and `_regenerate` is correctly not
+    # called. The question this test asks is "was a preview kicked off", so it
+    # now watches both answers.
     rendered = []
     monkeypatch.setattr(editor, "_regenerate", lambda **k: rendered.append(k))
+    monkeypatch.setattr(editor._engine_preview_timer, "start",
+                        lambda *a: rendered.append("engine"))
 
     editor._add_patch()
     assert editor._spec is not None          # a chart was seeded
     assert editor._grid.count() == 2         # patches landed in the grid
-    assert rendered                          # initial preview was kicked off
+    assert rendered, (                       # initial preview was kicked off
+        "neither renderer was asked to draw the seeded chart "
+        f"(engine active: {editor._engine_active()})")
 
 
 def test_fill_counts_existing_chart_patches(qapp):

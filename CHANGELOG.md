@@ -1,5 +1,59 @@
 # Changelog
 
+## v4.1.5-beta.11
+
+**Opening Tools ▸ Edit / create chart patch set on a CR30 chart stopped the
+window with fifty-one lines of ArgyllCMS usage text, in a box three hundred and
+fifty pixels taller than the screen, with its only button off the bottom.** It
+happened on every open, from either door, and there was nothing the user could
+do inside that window to get past it.
+
+Hunting that down turned up something quieter and worse: a line changed in June
+had switched the patch editor's ChromIQ layout engine off without anyone
+noticing, so "Save As" on a chart ChromIQ had laid out handed back a different
+chart.
+
+### Fixed
+
+- **The patch-set editor could not be opened on a CR30 chart.** ChromIQ asked
+  printtarg to draw the preview, and printtarg has no code for the CR30, so it
+  refused the chart and printed its whole usage text. ChromIQ lays CR30 charts
+  out itself, and the editor now does the same instead of asking a tool that
+  cannot. Charts ChromIQ laid out are drawn by ChromIQ everywhere, and the
+  values that go to printtarg are checked against what printtarg actually
+  accepts before it is started at all.
+- **"Save As…" in the patch editor turned a ChromIQ-laid-out chart into a
+  different chart.** The saved chart came back with extra fill patches, a
+  different strip grid, and without the sidecar that records its layout, which
+  the measuring path reads. Measured on a real 441-patch chart: it now saves
+  back identical, patch for patch and strip for strip. "Apply / Save →
+  Overwrite" was never affected. If you kept a chart saved this way, save it
+  again from the editor to get the layout back.
+- **A message window could open taller than your screen and take its buttons
+  with it.** Long messages are now widened rather than stretched, anything left
+  over goes behind "Show Details", and no message window can open past the edge
+  of the usable screen. macOS could not rescue the old one: a window that tall
+  does not fit anywhere.
+- **The patch editor window itself opened 1280 by 820 whatever screen it was
+  on.** On a smaller laptop that put Apply / Save… and Close under the bottom
+  edge. It now opens no taller than the screen can hold.
+- **When a tool refused a chart, the patch editor showed you the tool's raw
+  output.** It was the only window in ChromIQ that did. It now says what
+  happened in ChromIQ's own words, quotes the one line of the tool's answer that
+  means something, and leaves the rest in the log.
+- **"Matrix only (forced)" in the profile Algorithm list could never build a
+  profile.** ArgyllCMS's colprof has no such setting: choosing it produced no
+  profile, no message and one line in the log. The entry is gone.
+- **A chart whose paper size is larger than printtarg can lay out gave the same
+  wall of text.** The two custom paper boxes also offered sizes up to 9999 mm,
+  and printtarg stops at 4000. Both now agree with the tool.
+- **The Create Chart command preview showed CR30 users a command that cannot be
+  run.** ChromIQ never ran it; the line on screen simply described the wrong
+  thing.
+- **Layout settings restored from a chart folder are now range-checked**, not
+  only checked for the right names, so a hand-edited or damaged `meta.json`
+  cannot pass a value the tool refuses.
+
 ## v4.1.5-beta.10
 
 **ChromIQ's USB driver installer had never installed a driver. Not for any of

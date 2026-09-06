@@ -976,6 +976,259 @@ def order_message_box_buttons(box, buttons) -> None:
         _log.debug("could not reorder the message box buttons", exc_info=True)
 
 
+class WorkAreaClamped:
+    """A window that cannot open with any part of itself off the usable screen.
+
+    Both methods were written for `ui.dialogs.tools_dialogs._ToolDialogBase`
+    (B8-72) and lived only there, so every window in the app that is NOT a tool
+    dialog was outside the fix. `Ti2RelayoutDialog` is the one that was found:
+    it is a plain `QDialog` that opens with a hard-coded ``resize(1280, 820)``
+    and never mentions ``availableGeometry`` at all, which is 92 px taller than
+    a 1366x768 laptop's work area, with its Apply / Save and Close buttons at
+    the very bottom of the right column. So the arithmetic is a mixin, and the
+    rule is inherited rather than remembered.
+
+    It is a mixin and not a base class because the classes that need it already
+    have one, and because the whole point is that nothing about it depends on
+    the window's contents.
+    """
+
+    def _work_area_cap(self, fallback: int) -> int:
+        """The tallest CLIENT height that still fits the screen's WORK AREA.
+
+        **THIS WAS ``0.9 * availableGeometry().height()``, AND THE MISSING
+        TENTH IS NOT SPARE — IT IS THE BOTTOM OF THE RIGHT PANE.** Nine tenths
+        of a work area is a round number with nothing behind it, and it is not
+        free: measured on the Windows ARM64 VM (B8-39), on a 1032 px work area
+        it holds the scanner/camera window **41 px (German) / 25 px (English)
+        shorter than its own sizeHint while 75 px of screen sits unused** —
+        and those pixels carry *add another scan to average*, *save a
+        diagnostic image* and *use fiducial marks*. Re-measured here with the
+        Dock shown (work area 994 px): the cap took the window from the 952 px
+        it asked for to 894, i.e. 58 px, in exactly the same direction.
+
+        `scanin_dialog.py::MAX_FLOOR_H` already reasons the honest way — the
+        screen, minus the taskbar, minus the caption. This is that arithmetic,
+        with the caption READ off the window rather than assumed: a window may
+        be as tall as the work area can hold it, frame and all, and no taller.
+
+        The chrome reads 0 before the window is mapped, which would let the
+        first `resize` ask for a client as tall as the whole work area. That is
+        safe because it is not the last word: `_keep_inside_the_work_area`
+        runs immediately afterwards and SHRINKS a frame that turns out not to
+        fit. Nothing here has to be right first time; it has to be right once
+        the frame is real.
+        """
+        from PyQt6.QtGui import QGuiApplication
+        screen = self.screen() or QGuiApplication.primaryScreen()
+        if screen is None:
+            return fallback
+        chrome = max(0, self.frameGeometry().height() - self.height())
+        return max(1, screen.availableGeometry().height() - chrome)
+
+    def _keep_inside_the_work_area(self) -> None:
+        """Bring the window back inside the screen's WORK AREA after a resize.
+
+        **A DIALOG IS PLACED BEFORE IT IS SIZED, AND NOTHING PUTS IT BACK.**
+        ``QDialog::showEvent`` runs ``adjustPosition``, which centres the window
+        on its parent and then clamps it against ``availableGeometry`` — with
+        the size the window has AT THAT MOMENT. Every dialog in
+        ``tools_dialogs.py`` is resized a few lines later, once its rows are
+        real and its wrapped labels have claimed their height, so the clamp is
+        stale before it matters: the window keeps the top-left corner chosen for
+        a shorter window and grows downward, straight under the taskbar.
+
+        Traced on the live window (agent BM, 2026-09-05, German, macOS with the
+        Dock shown, work area 994 px):
+
+            base.showEvent on entry     y = -28, h = 744
+            base.showEvent on exit      y = 137, h = 860
+            just after show()           y = 110, h = 894
+            settled                     y = 110, h = 922
+
+        — the height grew by 178 px after the position was chosen. **macOS
+        hides this**: Cocoa's ``constrainFrameRect:toScreen:`` shoves the window
+        up on every one of those growth steps, which is why the frame lands
+        with its bottom exactly on the work area's edge and the defect is
+        invisible here. Windows has no such rescue, and the Windows ARM64 VM
+        reported this window opening **67 logical px below the usable area,
+        hiding three controls completely** — add-a-scan-for-averaging, save a
+        diagnostic image, and use the .cht's registration marks (W-07,
+        `HANDOVER-to-macos-3.md`). Same code, same arithmetic, one platform
+        that catches it and one that does not.
+
+        So the clamp is re-run here, against the work area and not the screen,
+        after every resize the window performs. It only ever moves a window
+        that is hanging off an edge; one that already fits is left where the
+        user put it.
+        """
+        from PyQt6.QtGui import QGuiApplication
+        screen = self.screen() or QGuiApplication.primaryScreen()
+        if screen is None:
+            return
+        work = screen.availableGeometry()
+        # `pos()` on a window IS the frame's top-left, and `frameGeometry()`
+        # carries the caption and border the work area has to hold as well —
+        # clamping the CLIENT rect would leave the title bar off the top.
+        frame = self.frameGeometry()
+        # A frame TALLER than the work area is brought down to it first, and
+        # this is what makes `_work_area_cap` safe before the window is mapped:
+        # the cap cannot know the caption's height yet, so it over-asks by
+        # exactly the caption, and this takes it back. Never below the window's
+        # own minimum — a floor that does not fit the screen is a separate
+        # fault and hiding it here would only make it harder to find.
+        over = frame.height() - work.height()
+        if over > 0 and self.height() - over >= self.minimumHeight():
+            self.resize(self.width(), self.height() - over)
+            frame = self.frameGeometry()
+        x, y = frame.x(), frame.y()
+        if x + frame.width() > work.x() + work.width():
+            x = work.x() + work.width() - frame.width()
+        if y + frame.height() > work.y() + work.height():
+            y = work.y() + work.height() - frame.height()
+        # …and never off the TOP or LEFT to make the bottom fit: a window taller
+        # than the work area cannot be shown whole, and the end with the title
+        # bar and the first row on it is the end to keep.
+        x, y = max(x, work.x()), max(y, work.y())
+        if (x, y) != (frame.x(), frame.y()):
+            self.move(x, y)
+
+
+#: The widest a message box may be held open for its own TEXT, as a share of
+#: the work area. Wide enough that printtarg's 80-column lines stop wrapping to
+#: three, narrow enough that a box is still a box and not a banner across the
+#: screen. Only ever a CEILING: a short message is left the width it asked for.
+_MESSAGE_BOX_MAX_TEXT_WIDTH = 0.55
+
+
+def keep_message_box_inside_the_work_area(box) -> None:
+    """A message box may not open taller than the screen it opens on.
+
+    **THE BOX THAT STARTED THIS WAS 1433 px TALL ON A 1079 px WORK AREA, AND
+    ITS ONLY BUTTON WAS 372 px BELOW THE BOTTOM OF THE SCREEN.** MEASURED on the
+    real screen, in the real app, driving Knut's own journey: Create Chart, CR30,
+    Generate, Tools, Edit / create chart patch set. The patch editor put
+    printtarg's entire stderr — 51 lines, 3055 characters — into ``setText``,
+    and nothing anywhere capped the result.
+
+    **macOS did not rescue it, and could not.** Cocoa's
+    ``constrainFrameRect:toScreen:`` normally shoves a grown window back up so
+    its bottom lands on the work area's edge; there is no position at which a
+    1433 px window fits a 1079 px work area, so it parked the top on the work
+    area's top and let 354 px hang off the bottom. Knut's 1920x1080 screen has a
+    work area of at most 1055 px, so his overflow was larger than the one
+    measured here. His only way out was Esc or Return, which the window said
+    nothing about.
+
+    Three things are done about it, in this order, because each changes the
+    numbers the next one reads:
+
+    1. **Widen for the TEXT.** ``fit_message_box_buttons`` widens a box to fit
+       its BUTTONS and nothing widens it to fit its MESSAGE, so the box took
+       420 px while its own ``sizeHint`` asked for 664 — the label got 310 px,
+       printtarg's 80-column lines wrapped to two and three each, and the
+       message roughly doubled in height. A wider box is a shorter box.
+    2. **Move the overflow behind "Show Details".** If it is still too tall, the
+       body moves to ``setDetailedText``, which Qt puts in a scroll area of its
+       own and which therefore has no height to overflow with. The split is
+       MECHANICAL — the first paragraph stays, the whole original goes below —
+       so no sentence is invented and nothing is lost.
+    3. **Clamp the frame**, on the next turn of the event loop, once the window
+       is real and its caption has a height. Same arithmetic as
+       :class:`WorkAreaClamped`, which a ``QMessageBox`` cannot inherit because
+       it is Qt's class and not ours.
+
+    Nothing here can raise: a message box is what the app reaches for when
+    something has already gone wrong, and it must not be the thing that fails.
+    """
+    try:
+        from PyQt6.QtCore import QTimer
+        from PyQt6.QtGui import QFontMetrics, QGuiApplication
+        from PyQt6.QtWidgets import QLabel, QSizePolicy, QSpacerItem
+
+        screen = box.screen() or QGuiApplication.primaryScreen()
+        if screen is None:
+            return
+        work = screen.availableGeometry()
+        lay = box.layout()
+
+        # --- 1. widen for the text ---------------------------------------
+        text = box.text() or ""
+        label = None
+        for child in box.findChildren(QLabel):
+            if child.text() == text:
+                label = child
+                break
+        if lay is not None and text:
+            fm = QFontMetrics(label.font() if label is not None else box.font())
+            longest = max((fm.horizontalAdvance(ln) for ln in text.splitlines()),
+                          default=0)
+            # The icon, the margins and the gap between them. Measured off the
+            # box rather than guessed: the icon is a pixmap this app sets
+            # itself and is not the platform's size.
+            chrome = 120
+            wanted = min(longest + chrome,
+                         int(work.width() * _MESSAGE_BOX_MAX_TEXT_WIDTH))
+            if wanted > 0:
+                # setMinimumWidth does NOT work on a QMessageBox — it sizes from
+                # its own grid layout and squeezes straight back. A full-width
+                # spacer row is the way to hold it open. (Same trick, and same
+                # reason, as `fit_message_box_buttons`.)
+                lay.addItem(QSpacerItem(wanted, 0,
+                                        QSizePolicy.Policy.Minimum,
+                                        QSizePolicy.Policy.Expanding),
+                            lay.rowCount(), 0, 1, lay.columnCount())
+                lay.activate()
+
+        # --- 2. move the overflow behind "Show Details" -------------------
+        # The caption is not measurable before the window is mapped, so budget
+        # for one. It is taken back in step 3 if it turns out to be wrong.
+        room = work.height() - 60
+        if box.sizeHint().height() > room and text and not box.detailedText():
+            head = text.split("\n\n", 1)[0]
+            if head == text:
+                # No paragraph break to cut at (one long wrapped sentence, which
+                # is what a translation of a short English message usually is).
+                # Keep whole LINES, never a part of one.
+                lines = text.splitlines()
+                head = "\n".join(lines[:max(1, len(lines) // 4)])
+            box.setDetailedText(text)
+            box.setText(head)
+            if lay is not None:
+                lay.activate()
+
+        # --- 3. clamp the frame once it is real ---------------------------
+        def _clamp() -> None:
+            try:
+                sc = box.screen() or QGuiApplication.primaryScreen()
+                if sc is None:
+                    return
+                w = sc.availableGeometry()
+                frame = box.frameGeometry()
+                over = frame.height() - w.height()
+                if over > 0:
+                    box.resize(box.width(), max(1, box.height() - over))
+                    frame = box.frameGeometry()
+                x, y = frame.x(), frame.y()
+                if x + frame.width() > w.x() + w.width():
+                    x = w.x() + w.width() - frame.width()
+                if y + frame.height() > w.y() + w.height():
+                    y = w.y() + w.height() - frame.height()
+                # Never off the top or left to make the bottom fit: the end with
+                # the title bar and the first line of the message on it is the
+                # end to keep.
+                x, y = max(x, w.x()), max(y, w.y())
+                if (x, y) != (frame.x(), frame.y()):
+                    box.move(x, y)
+            except Exception:      # noqa: BLE001
+                pass
+
+        QTimer.singleShot(0, _clamp)
+    except Exception:      # noqa: BLE001 — a warning must never be what raises
+        _log.debug("could not fit the message box to the work area",
+                   exc_info=True)
+
+
 def fit_message_box_buttons(box) -> None:
     """Fit **every** button of a QMessageBox to the label it will paint.
 

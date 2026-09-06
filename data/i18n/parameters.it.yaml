@@ -928,7 +928,6 @@ parameters:
         - "s — gamma singola + matrice"
         - "S — gamma singola + matrice (forzato)"
         - "m — solo matrice"
-        - "M — solo matrice (forzato)"
     "-q":
       name: "Qualità profilo"
       tooltip_title: "Qualità profilo (-q)"

@@ -957,7 +957,6 @@ parameters:
         - "s — Einzelnes Gamma + Matrix"
         - "S — Einzelnes Gamma + Matrix (erzwungen)"
         - "m — Nur Matrix"
-        - "M — Nur Matrix (erzwungen)"
       tooltip_title: "Profil-Algorithmus (-a)"
       tooltip_body: |
         Wählt den Farbtransformations-Algorithmus:

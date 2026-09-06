@@ -963,7 +963,6 @@ parameters:
         - "s — gamma unique + matrice"
         - "S — gamma unique + matrice (forcé)"
         - "m — matrice seule"
-        - "M — matrice seule (forcé)"
     "-q":
       name: "Qualité du profil"
       tooltip_title: "Qualité du profil (-q)"

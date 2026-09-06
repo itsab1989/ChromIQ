@@ -94,11 +94,36 @@ _PRINTTARG_ERROR_PATTERNS: list[tuple[re.Pattern[str], str, str]] = [
      "paper_too_narrow",
      "The paper isn't wide enough for even one patch row. Rotate to landscape "
      "or use wider paper."),
-    # L2247
+    # L2247. THIS ENTRY CANNOT MATCH A BAD `-i`, AND THE COMMENT BELOW THE
+    # ENGINE_ONLY_INSTRUMENTS SET USED TO SAY IT DOES.
+    #
+    # "Unsupported instrument type" is raised at `printtarg.c:2247` for an itype
+    # that PARSED and then has no layout branch. A `-i` string printtarg has
+    # never heard of dies far earlier, in the argument parser at
+    # `printtarg.c:3345`, with "Argument to -i wasn't recognised" — which is
+    # exactly what Knut saw, and which no pattern in this table matched. Both
+    # are kept: this one for the instrument that parses and cannot be laid out,
+    # the next one for the string that never parses at all.
     (re.compile(r"Unsupported instrument type"),
      "unsupported_instrument",
      "printtarg doesn't support the selected instrument for chart layout. "
      "Pick a different chart instrument in the Chart tab."),
+    # L3345 — the argument parser, reached before any layout logic.
+    (re.compile(r"Argument to -i wasn't recognised"),
+     "instrument_not_a_printtarg_code",
+     "printtarg does not have a code for this instrument, so it cannot lay "
+     "this chart out. ChromIQ's own layout engine lays this instrument's "
+     "charts out instead."),
+    # L3316 — the custom `-p WWWxHHH` sanity check (1 to 4000 mm on each axis).
+    (re.compile(r"Argument to -p was of unexpected size"),
+     "paper_outside_printtarg_range",
+     "printtarg cannot lay out a chart on paper this size. Its largest custom "
+     "page is 4000 x 4000 mm."),
+    # L3318 — a `-p` name printtarg does not know.
+    (re.compile(r"Failed to recognise argument to -p"),
+     "paper_not_a_printtarg_size",
+     "printtarg does not recognise this paper size, so it cannot lay this "
+     "chart out. Pick one of the standard sizes, or a custom width x height."),
     # Knut, #130 2026-08-01: "printtarg error: input file doesn't contain two or
     # three tables". The tool's own words are accurate and tell nobody what to
     # do — a ".ti1 with the wrong number of tables" is not a thing most people
@@ -134,10 +159,14 @@ ENGINE_INSTRUMENTS = {"i1", "p3", "CM", "SS", "CR30"}
 # Instruments the engine is the ONLY route for - printtarg cannot lay them out
 # at all, so the printtarg path is not a fallback, it is a fault (#159).
 #
-# printtarg's -i takes an ArgyllCMS instrument code. "CR30" is not one: printtarg
-# answers "Unsupported instrument type" (see the error table at the top of this
-# file) and, before that, ChromIQ's own patch-capacity binary search would shell
-# out to it once per probe. So the CR30 is forced onto the engine in
+# printtarg's -i takes an ArgyllCMS instrument code. "CR30" is not one, and this
+# comment used to name the wrong error for it: printtarg answers "Argument to -i
+# wasn't recognised", from its argument parser at `printtarg.c:3345`, and never
+# reaches the "Unsupported instrument type" branch at all. MEASURED against the
+# real 3.5.0 binary; the complete accepted set is
+# `workflow.ti2_relayout.PRINTTARG_INSTRUMENTS`, which mirrors the source.
+# Before even that, ChromIQ's own patch-capacity binary search would shell out
+# to printtarg once per probe. So the CR30 is forced onto the engine in
 # _should_use_engine, and _build_printtarg_args REFUSES to build an argv for it
 # rather than emitting a flag printtarg will reject.
 ENGINE_ONLY_INSTRUMENTS = {"CR30"}
@@ -147,6 +176,46 @@ ENGINE_ONLY_INSTRUMENTS = {"CR30"}
 # so a printtarg -a maps to engine pscale = -a / this. (Converted in
 # _engine_build_kwargs; the engine geometry is in instruments.py density>=3.)
 CM_TRIPLE_PRINTTARG_SCALE = 1.3
+
+
+def match_printtarg_error(text: str) -> "tuple[str, str] | None":
+    """``(key, ChromIQ's sentence)`` for the first known printtarg error in
+    *text*, or None when no pattern in ``_PRINTTARG_ERROR_PATTERNS`` knows it.
+
+    The table above is scanned line by line during a live build by
+    ``ChartCreator._scan_line``, which needs a running creator and its
+    ``_matched_errors`` list. This is the same table read as a pure function, so
+    a failure that arrives in ONE lump — a ``RuntimeError`` carrying a whole
+    ``stderr``, which is how ``workflow.ti2_relayout`` reports one — reaches the
+    same words. Written for the patch editor, which was the only window in the
+    app that put an Argyll tool's raw stderr in a modal.
+    """
+    for line in (text or "").splitlines():
+        for pattern, key, fmt in _PRINTTARG_ERROR_PATTERNS:
+            m = pattern.search(line)
+            if m:
+                return key, fmt.format(*m.groups())
+    return None
+
+
+def printtarg_said(text: str) -> str:
+    """The ONE useful line out of printtarg's output, or "" if there is none.
+
+    MEASURED on the real 3.5.0 binary: an argument-parse failure is 51 lines
+    (banner, one ``Diagnostic:`` line, then the whole usage text) and a runtime
+    failure is one line beginning ``printtarg: Error - ``. There is no failure
+    whose usage text helps, so the usage text is what this drops: the log keeps
+    the lot, and the window gets the sentence.
+    """
+    for line in (text or "").splitlines():
+        s = line.strip()
+        for marker in ("Diagnostic:", "Error -", "Error:"):
+            if marker in s:
+                return s.split(marker, 1)[1].strip() or s
+    for line in (text or "").splitlines():
+        if line.strip():
+            return line.strip()
+    return ""
 
 
 def _engine_padding_log_line(total: int, padding: int) -> str:

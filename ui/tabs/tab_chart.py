@@ -5076,11 +5076,20 @@ class TabChart(QWidget):
         # the FRAME does not — the layout panel hides, the printtarg group shows,
         # the "Layout preset:" bar disappears and the command stamp switches on,
         # all describing a printtarg run that never happens.
+        from workflow.chart_creator import ENGINE_ONLY_INSTRUMENTS
         use_engine = (
-            bool(self._settings.get("use_chromiq_layout_engine", False))
-            and p.instrument in ENGINE_INSTRUMENTS
-            and (p.layout_recipe is not None
-                 or not (p.chromiq_clip_style or p.left_clip_info)))
+            # ENGINE-ONLY (CR30, #159) FIRST, exactly as `_should_use_engine`
+            # decides it, and for the same reason: the engine is not a
+            # preference for these instruments, it is the only thing that can
+            # lay the chart out. Without this the preview showed a CR30 user
+            # `printtarg -iCR30 …` whenever the layout-engine setting happened
+            # to be off — a command line printtarg rejects, describing a run
+            # that never happens, next to a build that always takes the engine.
+            p.instrument in ENGINE_ONLY_INSTRUMENTS
+            or (bool(self._settings.get("use_chromiq_layout_engine", False))
+                and p.instrument in ENGINE_INSTRUMENTS
+                and (p.layout_recipe is not None
+                     or not (p.chromiq_clip_style or p.left_clip_info))))
 
         def _layout_cmd() -> str:
             if use_engine:

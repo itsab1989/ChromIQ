@@ -73,6 +73,20 @@ def _run(d, *, write_raises=False, apply_result=True, apply_raises=False,
     # tests/test_hex_scanner_support.py. `d` here is a Ti2RelayoutDialog built
     # through `__new__`, which a real QMessageBox will not take as a parent.
     monkeypatch.setattr(rd, "warn", lambda *a, **k: None)
+    # …and the same for the window that REPLACED `warn` on the tool-failure
+    # paths. An Argyll tool's raw stderr no longer goes into a QMessageBox
+    # (B8-82): `_report_tool_failure` shows ChromIQ's own sentence in an
+    # InfoDialog, which is a real modal and would sit here with nobody to close
+    # it. The real `_save_and_apply` and the real `_report_tool_failure` still
+    # run; only the window is stubbed, exactly as `warn` was.
+    class _NoWindow:
+        def __init__(self, *a, **k):
+            pass
+
+        def exec(self):
+            return 0
+
+    monkeypatch.setattr(rd, "InfoDialog", _NoWindow)
     d._save_and_apply()
 
 
