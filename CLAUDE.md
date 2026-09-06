@@ -407,6 +407,20 @@ Rules when touching UI code:
 - Wrap every new user-facing literal in `tr()`; runtime values use
   `tr("… {name} …").format(name=…)` (placeholders are part of the key).
 - Count-bearing messages get explicit singular/plural variants, never `(s)`.
+- **No em dash (—) in new or modified user-facing text.** It is one of the
+  clearest tells of machine-written prose, and a comma, a colon, a full stop or
+  brackets almost always read better anyway. The 1,225 strings that carried one
+  before this rule (2026-09-06) are frozen in `tests/data/em_dash_baseline.json`
+  and are NOT to be swept; but a string you touch for any reason stops matching
+  the baseline, so clean its dash while you are in there.
+  `tests/test_no_new_em_dash_in_user_facing_text.py` enforces it over `tr()`
+  literals, `data/parameters.yaml` and the §M catalogue, and separately refuses
+  a translation that adds an em dash its English source does not have. The en
+  dash (–) is deliberately untouched: it is the correct dash in German and
+  Norwegian. If one is genuinely unavoidable, put the string in
+  `tests/data/em_dash_allowed.json` with a real reason. Never add it to the
+  baseline, which only shrinks: `python scripts/em_dash_check.py --report`
+  says where it stands, `--prune` tidies it.
 - After string changes run `python scripts/i18n_extract.py --missing de`
   and add the German translations — `tests/test_i18n.py` fails CI on missing
   keys, stale keys, placeholder mismatches, and over-long short labels.
