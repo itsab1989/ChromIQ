@@ -412,11 +412,6 @@ Eleven betas, folded into one list. Everything below is measured against 4.1.4.
   log. It now says what happened and what to change. This is the same silence
   the beta 11 note described for a setting that never existed, and it was still
   there for five settings that do.
-- **The beta 11 release note itself was wrong, and it is corrected in place.**
-  It said ArgyllCMS "has no such setting" for matrix only. It has no *forced*
-  matrix setting, which is what was removed; it does have plain matrix only,
-  and ChromIQ offered that one too.
-
 - **The "estimate" column described the chart you had before, not the one on
   screen.** Generating a chart, or picking a preset, left the estimate showing
   the previous chart's patch count and strip count, so loading two presets one
