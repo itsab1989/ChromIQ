@@ -44,7 +44,13 @@ def test_disconnect_during_save_partial_does_not_abort(monkeypatch):
 
     assert not aborted
     assert not tab._instrument_disconnected
-    assert "still trying to save" in tab._log.toPlainText()
+    # The tag and the sentence, both as the log now prints them: the
+    # severity was `[WARN]` here and `[WARNING]` two lines below it in
+    # the same widget, and the em dash that joined the two clauses went
+    # with the re-key.
+    text = tab._log.toPlainText()
+    assert "[WARNING] Instrument connection lost." in text
+    assert "Still trying to save the partial measurement" in text
 
 
 def test_disconnect_outside_save_partial_still_aborts(monkeypatch):

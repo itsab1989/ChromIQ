@@ -362,7 +362,7 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # Re-measured on the merged tree: the help-card rewrite and the colprof
 # algorithm fix landed together, so neither branch's table was right alone.
 # RE-MEASURED 2026-09-07, after the English-source fixes for 4.2.0: all
-# twelve UNCHANGED. Seventeen keys were re-spelled and every translation
+# twelve UNCHANGED. Fourteen keys were re-spelled and every translation
 # was carried to the new key, so nothing arrived here as a fresh echo.
 _BUDGET = {
     "de": 4,

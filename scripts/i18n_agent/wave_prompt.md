@@ -77,9 +77,22 @@ translate from the ENGLISH key, using German only to judge register and length.
   translate the text inside braces — `{patches}` is a variable name.
 - HTML (`<b>`, `<br>`, `&nbsp;`) preserved exactly. Angle brackets around
   ordinary words — `<chart name>` — are prose the user reads: translate those.
-- Log prefixes `[INFO]` `[OK]` `[WARN]` `[ERROR]` stay in English. Every
-  language had two strings that translated them and sixteen that did not, so one
-  log printed two different tags. Do not reintroduce that.
+- **EVERY bracketed log tag stays in English**, not just four of them:
+  `[INFO]` `[OK]` `[WARNING]` `[ERROR]` `[NOTE]` `[STOPPED]` `[BUSY]`
+  `[Report]` `[Engine]`. Measured 2026-09-07 across all twelve catalogues:
+  **221 values translated a tag and 523 left it alone**, and every language was
+  inconsistent with itself — German kept `[ERROR]` and wrote `[WARNUNG]`, side
+  by side in the same log widget. The rule used to name only the first four and
+  the other six went unchecked. Do not reintroduce that.
+- **The dash is your language's dash, not English's, and NOT a rule someone
+  hands you.** German and Norwegian take the en dash (–) with spaces; so does
+  Polish (the półpauza). Japanese, Chinese AND RUSSIAN take the em dash (—):
+  the Russian тире IS the em dash, and it also stands where English has no dash
+  at all ("Планшетный сканер — хороший прибор"). In the 4.2.0 wave every agent
+  was told "German and Norwegian use the en dash, apply that everywhere", and
+  Russian took 179 en dashes against 2,424 em dashes in its own untouched
+  strings. If an instruction about punctuation does not name YOUR language,
+  measure your own catalogue before following it.
 - CLI flags, file extensions and file-filter patterns `"(*.ti3);;…"` untouched.
 - Newlines `\n` preserved — these texts are laid out deliberately.
 - Singular and plural are separate keys; translate each naturally, never "(s)".
