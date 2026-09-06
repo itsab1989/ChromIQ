@@ -6047,7 +6047,18 @@ class SettingsDialog(QDialog):
                     break
         finally:
             if progress is not None:
-                progress.close()
+                try:
+                    progress.close()
+                except RuntimeError:
+                    # THE SAME DELETED OBJECT THE GUARD ABOVE EXISTS FOR. When
+                    # the parent window goes, this QProgressDialog goes with it,
+                    # and `close()` on the dead C++ object raises — out of a Qt
+                    # slot, which PyQt6 answers with `qFatal()`. So the guard
+                    # that stops us dying with a traceback after an elevated
+                    # install was undone by its own cleanup: the process died in
+                    # the `finally` instead of the `try`. Nothing needs closing
+                    # if the window is already gone.
+                    pass
         return attempts
 
     def _show_usb_installer(self) -> None:

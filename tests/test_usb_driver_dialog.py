@@ -4051,3 +4051,73 @@ def test_the_unreached_sentence_is_translated_everywhere(code, in_language):
     if code != "en":
         assert "Nothing was tried there" not in text, (
             f"[{code}] the unreached sentence is still English")
+
+
+def test_the_deleted_parent_guard_is_not_undone_by_its_own_cleanup(
+        qapp_for_driving):
+    """The `finally` must not call into the object the guard exists for.
+
+    `_install_the_drivers` catches `RuntimeError` inside `_still_watching`
+    because, in its own words, *"the window this was parented to has been
+    deleted under us"* — and the ending that follows is the honest "ChromIQ
+    cannot tell you" one, deliberately, rather than dying with a traceback
+    after an ELEVATED install.
+
+    That guard was then undone by its own cleanup. `progress` is parented to
+    the same window, so when the parent goes the QProgressDialog goes with it,
+    and `finally: progress.close()` called into the dead C++ object. The
+    exception left a Qt slot, and PyQt6 answers an unhandled exception in a
+    slot with `qFatal()` — so the process died in the `finally` instead of the
+    `try`, which is worse than not having guarded at all.
+
+    Found by a reviewer walking the app, 2026-09-06. Related to the branch's
+    own subject: an exit path that leaves things worse than doing nothing.
+    """
+    from PyQt6 import sip
+    from PyQt6.QtWidgets import QApplication
+    from core.settings import DEFAULTS
+    from core.usb_driver_installer import InstallAttempt, UsbDevice
+    from ui.dialogs.settings_dialog import SettingsDialog
+
+    # This test DELETES its dialog on purpose, so it builds its own rather than
+    # taking the `dialog` fixture, whose teardown would then call
+    # `deleteLater()` on a dead object and fail every run.
+    class _Settings:
+        def __init__(self):
+            self._s = dict(DEFAULTS)
+
+        def get(self, k, d=None):
+            return self._s.get(k, d)
+
+        def set(self, k, v):
+            self._s[k] = v
+
+        def migrate(self):
+            pass
+
+        def reset_to_defaults(self):
+            pass
+
+    dialog = SettingsDialog(_Settings())
+
+    device = UsbDevice(vid="0765", pid="6008",
+                       name="X-Rite i1 Studio", has_winusb=False)
+    seen = {}
+
+    def install(dev, *, progress=None, timeout_ms=None):
+        seen["first"] = progress(0.1)      # builds the progress window
+        sip.delete(dialog)                 # the parent goes away under us
+        seen["after"] = progress(0.2)      # the documented guard fires
+        return InstallAttempt.STILL_RUNNING
+
+    dialog.show()
+    QApplication.processEvents()
+
+    # The assertion is that this RETURNS. Before the fix the `finally` reached
+    # a deleted object and PyQt6 turned that into qFatal() — which is not an
+    # exception a test can catch, it is a dead worker, so `pytest.raises` could
+    # never have expressed this.
+    attempts = SettingsDialog._install_the_drivers(dialog, [device], install)
+
+    assert seen == {"first": True, "after": False}
+    assert attempts == [InstallAttempt.STILL_RUNNING]
