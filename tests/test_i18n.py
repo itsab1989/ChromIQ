@@ -615,7 +615,6 @@ def test_every_deliberate_exception_says_why():
 # Lab-table note, which had gone on describing the world before B8-75
 # moved the white-point default. Three keys in, one out; German
 # translated, the eleven +2 each.
-<<<<<<< HEAD
 # …and once more on 2026-09-06 (AGENT CR), bringing the scanner and camera
 # HELP up to the usage scenarios those two entries added. Both printable help
 # cards were rewritten around the three scenarios, with their reasoning moved
@@ -627,21 +626,6 @@ def test_every_deliberate_exception_says_why():
 # scenarios. 50 keys in, 20 stale out. German is translated for all 50 and does
 # not move; the eleven others carry the English source under the beta rule, so
 # each of them gains 43.
-# These are each language's ACTUAL count.
-_IDENTICAL_TO_KEY = {
-    "de": 117,
-    "es": 448,
-    "fr": 468,
-    "it": 460,
-    "ja": 437,
-    "nl": 477,
-    "no": 461,
-    "pl": 452,
-    "pt": 452,
-    "ru": 424,
-    "sv": 465,
-    "zh_CN": 430,
-=======
 # …and again on 2026-09-06, by the colprof algorithm fix. Five of the
 # Build Profile Algorithm list's eight entries could not build a printer
 # profile at all and a sixth built the same file as the entry above it, so
@@ -653,21 +637,22 @@ _IDENTICAL_TO_KEY = {
 # translated for all 8 and does not move; the eleven others carry the
 # English source, and each gains 5 (three of the four keys that left were
 # English placeholders there too).
-# These are each language's ACTUAL count.
+# These are each language's ACTUAL count, re-measured on the merged tree:
+# both changes above landed together, so neither branch's figure was right
+# on its own.
 _IDENTICAL_TO_KEY = {
     "de": 117,
-    "es": 410,
-    "fr": 430,
-    "it": 422,
-    "ja": 399,
-    "nl": 439,
-    "no": 423,
-    "pl": 414,
-    "pt": 414,
-    "ru": 386,
-    "sv": 427,
-    "zh_CN": 392,
->>>>>>> origin/fix/colprof-algorithm-device-class
+    "es": 453,
+    "fr": 473,
+    "it": 465,
+    "ja": 442,
+    "nl": 482,
+    "no": 466,
+    "pl": 457,
+    "pt": 457,
+    "ru": 429,
+    "sv": 470,
+    "zh_CN": 435,
 }
 
 

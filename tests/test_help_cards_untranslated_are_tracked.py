@@ -323,7 +323,6 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # count in it, and the rewritten Lab-table note), and the short form of
 # the saved-bucket line is under the 25-character floor. These are each
 # language's ACTUAL count, not a round ceiling.
-<<<<<<< HEAD
 #
 # 2026-09-06, AGENT CR, the scanner and camera HELP brought up to those
 # scenarios: +42 for the eleven and +0 for German. Fifty keys arrive and
@@ -343,20 +342,6 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # rule ("each language's ACTUAL count, not a round ceiling") had already
 # outgrown. It is recorded as the actual so a German string arriving
 # untranslated is caught the day it arrives.
-_BUDGET = {
-    "de": 4,
-    "es": 286,
-    "fr": 287,
-    "it": 286,
-    "ja": 286,
-    "nl": 286,
-    "no": 286,
-    "pl": 286,
-    "pt": 286,
-    "ru": 285,
-    "sv": 286,
-    "zh_CN": 285,
-=======
 # 2026-09-06, the colprof algorithm fix (B8-93 to B8-96): +4 for the eleven
 # and +0 for German. Eight keys arrive and four leave, and the arithmetic is
 # 7 in, 3 out rather than 8 and 4 — MEASURED by diffing the counted SETS
@@ -374,20 +359,21 @@ _BUDGET = {
 # German is translated for all eight and does not move; its budget of 31 is an
 # old ceiling and its actual count is 4. These are each language's ACTUAL
 # count, not a round ceiling.
+# Re-measured on the merged tree: the help-card rewrite and the colprof
+# algorithm fix landed together, so neither branch's table was right alone.
 _BUDGET = {
-    "de": 31,
-    "es": 248,
-    "fr": 249,
-    "it": 248,
-    "ja": 248,
-    "nl": 248,
-    "no": 248,
-    "pl": 248,
-    "pt": 248,
-    "ru": 247,
-    "sv": 248,
-    "zh_CN": 247,
->>>>>>> origin/fix/colprof-algorithm-device-class
+    "de": 4,
+    "es": 290,
+    "fr": 291,
+    "it": 290,
+    "ja": 290,
+    "nl": 290,
+    "no": 290,
+    "pl": 290,
+    "pt": 290,
+    "ru": 289,
+    "sv": 290,
+    "zh_CN": 289,
 }
 
 
