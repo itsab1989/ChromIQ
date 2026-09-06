@@ -428,6 +428,77 @@ and checks each lands on the page count its name promises, holds its patch set
 with **no white padding**, and prints patches within 0.5 mm of the width in its
 name.
 
+### The CR30 family (2026-09-06) — 20 charts, and the first with two shapes
+
+Knut's line-up for the ChnSpec CR30, curated to twenty by Basti: ten on A4 and
+ten on US Letter, portrait, one to three sheets, patches 11 mm to 24 mm wide.
+Kind 3 again (`_CR30_BASE` + `_cr30_preset()`, assets at
+`assets/charts/knut/rgb/cr30/<slug>/chart.ti1` with the usual `recipe.json`),
+imported by the same script:
+
+```bash
+python scripts/import_knut_presets.py cr30 <folder-of-exports> --write
+```
+
+**It could not have been any other kind.** Argyll has no layout for the CR30, so
+`chart_creator._should_use_engine` forces the ChromIQ engine on for that
+instrument and printtarg never sees one of these charts. The kind-3 route is
+therefore the only route, not a preference.
+
+**What the sheet is cut for.** The CR30 is a ROUND hand-held colorimeter set
+down on one patch at a time, so this is a sheet for a hand and a ruler rather
+than for a strip reader's jig: **no spacers at all** (nothing is rolled along a
+row, so a spacer would cost sheet area and buy nothing), helper marks every
+**third** patch top and bottom so a ruler lines up with the row being read, and
+a **26 mm clip band down the right** carrying the automatic notes box, flipped
+180° because the sheet is turned to read it. That last point is why the family
+gets a branch in `_knut_tooltip`: the shared engine tooltip calls a wide band
+"the run-up your instrument needs before the first patch", and a CR30 has no
+run-up.
+
+**THE FIRST FAMILY WITH TWO CUTS, AND THE MECHANISM IT ADDED.** Half the
+line-up is hexagonal, which packs more round patches per sheet at the same
+width. Eight charts carry `hflag` and every one of them moves the same four
+other fields with it (`margin_left` 13, `margin_top`/`margin_bottom` 13,
+`text_edge_top_mm` 4, against the rectangular 15/17/12/8). Spelling five keyword
+arguments out on eight rows would bury the two fields a chart really owns, so
+the shape has a NAME: `_CR30_HEX` says what the cut is, once, and a row says
+`hexagonal=True`. Three Letter hex charts pull their top and bottom margins in
+further and still spell those out, so nothing hides inside the flag.
+
+The importer learned the same idea as `Family.overlay` (an `Overlay(keyword,
+discriminator, delta)`): a chart matching the discriminator is diffed against
+`base | delta` rather than against `base`, so it emits the flag plus only what
+it really owns. A family with one shape passes `overlay=None` and behaves
+exactly as before.
+
+Fields a single chart may own here are wider than in the i1Pro 3 Plus family:
+the sheet and the grid, plus `margin_top`, `margin_bottom` and
+`area_min_patch_mm` (four of Knut's exports carry a patch-size floor of 10.5,
+16.5 or 17.5 mm; it is carried through rather than flattened). All twenty
+exports needed their Set B re-pointed — every one said `instr: "CM"` or `"i1"`
+from earlier work.
+
+The group heading is `INSTRUMENT_LABELS["CR30"]` ("CR30 (ChnSpec)") and the
+group sits **before Scanner** in `BUILTIN_PRESET_GROUPS` (Basti: *"i want them
+listed for the cr30 in both preset dropdowns / speechbubble overlay before the
+scanner section"*). That one list orders the Presets dropdown, the ★ overlay,
+the #66 "Compare with profile" list and, through `builtin_recipe_choices`, the
+New-chart "Load setup from preset" list — five places, no extra wiring.
+
+`tests/test_cr30_builtin_presets.py` builds **every one of the twenty** in the
+everyday tier (four seconds) and checks each lands on the paper, patch count,
+page count and patch SHAPE its name promises.
+`scripts/drive_cr30_builtin_presets.py` drives the real window over the same
+twenty from the real dropdown and photographs both boundaries.
+
+> **Two names round differently, and they are Knut's.**
+> `Letter-150p-1page-Portrait-w17.0mm` prints 17.53 mm patches and
+> `Letter-170p-1page-Portrait-w16.0mm-Hexagonal` prints 16.64 mm. Both are wider
+> than the name says, both come from recipes that are byte-for-byte his export,
+> and both are pinned at what they measure rather than waved through. Whether
+> the name or the layout is the one to correct is his call.
+
 ### Rename or re-file an existing preset
 
 - **Rename (label only):** change `*_PRESET_LABEL` and update
