@@ -1000,7 +1000,18 @@ class ScannerProfileDialog(_ToolDialogBase):
         #: no scenario, no radio is lit and this line names the difference.
         self._scenario_note = self._tall_hint_label("")
         self._scenario_note.setVisible(False)
-        col.addWidget(self._scenario_note)
+        # SEPARATED FROM THE LIST, AND ALIGNED WITH THE OPTIONS RATHER THAN
+        # WITH THEIR GLOSSES (CL-4). Flush left and hard against the last
+        # gloss, it read as a fourth gloss belonging to the printer scenario.
+        # It is about the whole list, so it sits at the options' own indent,
+        # with air above it; the top margin costs nothing while it is hidden,
+        # because a hidden widget is skipped by the layout.
+        self._scenario_note.setContentsMargins(0, 8, 0, 0)
+        srow = QHBoxLayout()
+        srow.setContentsMargins(0, 0, 0, 0)
+        srow.addSpacing(14)
+        srow.addWidget(self._scenario_note, 1)
+        col.addLayout(srow)
         form.addLayout(col)
 
     # -- the three gates that decide whether anything may be set for you ----
@@ -1209,9 +1220,30 @@ class ScannerProfileDialog(_ToolDialogBase):
             self._scenario_group.setExclusive(True)
         finally:
             self._syncing_scenario = False
-        diffs = self._scenario_divergence(want)
-        if diffs:
-            self._scenario_note.setText(tr(
+        ctx = self._active_ctx
+        # A SAVED BUCKET IS NOT A DIVERGENCE, AND SAYING IT IS BLAMES THE USER
+        # FOR CHROMIQ'S OWN CHOICE (CL-1). Press "Save as Defaults" on a
+        # scanner bucket having changed nothing — saving exactly the three
+        # settings ChromIQ chose from a 288-patch target — and every later
+        # chart on the other side of the crossover used to be met with "your
+        # settings no longer match this scenario", listing three differences
+        # the user never made, under a lit radio whose own gloss promises
+        # ChromIQ sets those three from the size of the target. So the everyday
+        # scenario says what is actually true instead: the settings are being
+        # left alone because they were saved, and here is what the rule would
+        # have chosen.
+        saved = (want == scanner_colprof.SCENARIO_EVERYDAY
+                 and ctx in self._ctx_stored)
+        diffs = [] if saved else self._scenario_divergence(want)
+        if saved:
+            self._scenario_note.setText(self._saved_bucket_note())
+        elif diffs:
+            # …and THIS one is a warning, so it carries a warning's mark. It
+            # is the one line in this group whose whole job is to be noticed,
+            # and without a mark it read as a fourth gloss of the scenario
+            # above it (CL-4). The mark is added HERE and not inside the
+            # translated string, so no catalogue can lose it.
+            self._scenario_note.setText("⚠ " + tr(
                 "Your settings no longer match this scenario: {differences}. "
                 "That is allowed and nothing has been changed back."
             ).format(differences="; ".join(diffs)))
@@ -1220,7 +1252,32 @@ class ScannerProfileDialog(_ToolDialogBase):
                 "Your own settings are in force, so no scenario is selected. "
                 "Pick one to have ChromIQ fill the settings in, or leave it "
                 "as it is."))
-        self._scenario_note.setVisible(bool(diffs) or want is None)
+        self._scenario_note.setVisible(saved or bool(diffs) or want is None)
+
+    def _saved_bucket_note(self) -> str:
+        """Why the everyday scenario is setting nothing for a saved bucket.
+
+        With a patch count it also says what the rule WOULD have chosen, so
+        the user can act on it; without one there is nothing to name.
+        """
+        n = self._known_patch_count()
+        setup = scanner_colprof.setup_for_patch_count(n)
+        if not setup:
+            return tr("You saved settings for this kind of profile, so "
+                      "ChromIQ is leaving them alone.")
+        return tr(
+            "You saved settings for this kind of profile, so ChromIQ is "
+            "leaving them alone. Your target has {n} patches; from that it "
+            "would otherwise set Profile type “{ptype}”, Quality “{quality}” "
+            "and White point handling “{wp}”."
+        ).format(
+            n=n,
+            ptype=scanner_colprof.label_for(scanner_colprof.PTYPE_CHOICES,
+                                            setup["ptype"]),
+            quality=scanner_colprof.label_for(scanner_colprof.QUALITY_CHOICES,
+                                              setup["quality"]),
+            wp=scanner_colprof.label_for(scanner_colprof.WP_MODE_CHOICES,
+                                         setup["wp_mode"]))
 
     def _scenario_divergence(self, scenario: "str | None") -> list[str]:
         """Which of the three settings do not match *scenario*, in words."""
@@ -3208,6 +3265,16 @@ class ScannerProfileDialog(_ToolDialogBase):
         stored = dict(stored) if isinstance(stored, dict) else {}
         stored[self._active_ctx] = self._ctx_cfg[self._active_ctx]
         self._settings.set("scanner_colprof_configs", stored)
+        # …AND THE BUCKET IS SAVED FROM NOW ON, IN THIS SESSION TOO (CL-1).
+        # `_ctx_stored` is read once, at construction, from the store — which
+        # is right for the question it answers and wrong the moment the store
+        # changes underneath it. Without this line "Save as Defaults" meant one
+        # thing before a restart and another after: the patch-count rule kept
+        # managing the bucket until the window was closed and reopened, and
+        # then stopped for ever. Saving has to mean the same thing on both
+        # sides of a restart, and this is the side that was missing.
+        self._ctx_stored.add(self._active_ctx)
+        self._sync_scenario_ui()
         # …AND THE READ OPTIONS, WHICH SURVIVED NOTHING (beta 8, B8-31).
         # Sample area, "Use fiducial marks" and "Save a diagnostic image" were
         # re-defaulted on every open: this window wrote exactly one key and it

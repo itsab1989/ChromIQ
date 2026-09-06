@@ -3310,6 +3310,18 @@ before it, so an automatic default would move the user's control under them —
 and the crossover is shallow. A note is the proportionate form of the same
 information.
 
+> **⏳ Superseded, and awaiting confirmation, 2026-09-06.** *Knut asked for that
+> automatic switch in beta 10 and Basti authorised it, so the paragraph above
+> is no longer what the app does: the profile type, the quality and the white
+> point ARE chosen from the patch count, by the rule in B8-78. The objection it
+> records was answered rather than overruled. The window learning the count
+> late is why the rule fires on `_refresh` and not at construction; the control
+> being moved under the user is why it is refused for any bucket whose settings
+> were saved or hand-edited (`_may_auto_setup`); and the crossover being
+> shallow is why the note below still exists, for exactly the cases where
+> ChromIQ may not choose. Read this paragraph as the reasoning that shaped the
+> rule, not as the behaviour. **Confirmed by:** *nobody yet.*
+
 Each one requires a KNOWN patch count, and none of them fires in printer mode,
 where nothing was measured.
 
@@ -3347,15 +3359,25 @@ where nothing was measured.
 
 **(c)** — shown here with a 288-patch target:
 
-> A note on the profile type: “cLUT — Lab table” cannot describe anything lighter than your target's own white patch.
+> A note on the profile type: “cLUT — Lab table” has a ceiling, and how high it sits depends on Advanced… ▸ White point handling.
 >
-> A scanning target's white board is not very white — on a real IT8 scan it reached only about 80 out of the scanner's 100 — so everything brighter, which includes most bright photo paper, comes out at exactly the lightness of that white patch with the differences between those tones flattened away. “cLUT — XYZ table” is the same kind of table without that ceiling, and it measured just as accurate on the colours your target does contain. If you would rather stay with Lab, Advanced… ▸ White point handling ▸ “Auto-scale to avoid clipping (-u)” lifts the ceiling. Your choice stands either way.
+> A Lab table cannot describe anything above that ceiling: every tone over it comes out at one lightness, with the differences flattened away. On “Scale white to a perfect white surface” the ceiling is at about 114 % reflectance, brighter than a perfect white surface, so nothing you can put on the glass reaches it and there is nothing to worry about. On “Map chart white to white” it drops to about 94 %, which ordinary bright photo paper does reach. “cLUT — XYZ table” has no ceiling under any of those settings and measured just as accurate on the colours your target does contain, so it is the safer of the two. Your choice stands either way, and nothing here has been changed for you.
 
 *German:*
 
-> Ein Hinweis zum Profiltyp: „cLUT — Lab-Tabelle“ kann nichts beschreiben, was heller ist als das eigene Weißfeld deines Targets.
+> Ein Hinweis zum Profiltyp: „cLUT — Lab-Tabelle“ hat eine Obergrenze, und wie hoch sie liegt, entscheidet Erweitert… ▸ Weißpunkt-Behandlung.
 >
-> Das Weiß eines Scan-Targets ist gar nicht so weiß – bei einem echten IT8-Scan erreichte es nur etwa 80 von den 100 des Scanners –, deshalb kommt alles Hellere, und dazu gehört das meiste helle Fotopapier, genau mit der Helligkeit dieses Weißfeldes heraus; die Unterschiede zwischen diesen Tönen sind eingeebnet. „cLUT — XYZ-Tabelle“ ist dieselbe Art Tabelle ohne diese Grenze und war auf den Farben, die dein Target enthält, genauso genau. Wenn du lieber bei Lab bleibst, hebt Erweitert… ▸ Weißpunkt-Behandlung ▸ „Automatisch skalieren, um Beschnitt zu vermeiden (-u)“ die Grenze auf. Deine Wahl bleibt so oder so bestehen.
+> Eine Lab-Tabelle kann nichts oberhalb dieser Grenze beschreiben: Jeder Ton darüber kommt mit einer einzigen Helligkeit heraus, die Unterschiede sind eingeebnet. Mit „Weiß auf eine perfekt weiße Fläche skalieren“ liegt die Grenze bei rund 114 % Reflexionsgrad, heller als eine perfekt weiße Fläche, nichts, was du auf das Glas legen kannst, erreicht sie also, und es gibt nichts zu befürchten. Mit „Chart-Weiß auf Weiß abbilden“ fällt sie auf etwa 94 %, was gewöhnliches helles Fotopapier durchaus erreicht. „cLUT — XYZ-Tabelle“ hat unter keiner dieser Einstellungen eine Obergrenze und war auf den Farben, die dein Target tatsächlich enthält, genauso genau, sie ist also die sicherere der beiden. Deine Wahl bleibt so oder so bestehen, und hier wurde nichts für dich geändert.
+
+> **⏳ Awaiting confirmation, 2026-09-06 (CL-6).** *Note (c) above is not the
+> wording Basti approved on 2026-09-04, and the wording he approved had stopped
+> being true the day after: B8-75 moved the white-point default on 2026-09-05,
+> and from then on this note told a user on the shipped default that their
+> bright paper was being flattened and sent them to "Auto-scale to avoid
+> clipping" to lift a ceiling that already sat at about 114 % reflectance,
+> above anything that can physically be put on the glass. The same ⓘ gave two
+> answers, 130 lines apart. It now names the ceiling and says what decides how
+> high it is. **Confirmed by:** *nobody yet.*
 
 *The other eleven catalogues carry the English source until this is ruled on,
 because translating a draft translates it twice. German is translated, as the

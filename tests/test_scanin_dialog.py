@@ -227,7 +227,11 @@ def test_profile_type_clut_lab_high_maps_and_previews(_app, _out_dir):
         assert dlg._ptype_tip.live_note() == ""      # no chart picked yet
         dlg._layout = {"patches": [{"page": 0} for _ in range(288)]}
         dlg._refresh()
-        assert "cannot describe anything lighter" in dlg._ptype_tip.live_note()
+        # "has a ceiling", not the old "cannot describe anything
+        # lighter than your target's own white patch": since B8-75 the
+        # ceiling moves with the white-point setting, and on the shipped
+        # default it is above anything physical (CL-6).
+        assert "has a ceiling" in dlg._ptype_tip.live_note()
         assert dlg._ptype.currentData() == "l"       # still the user's choice
         dlg._layout = None
         dlg._pq.setCurrentIndex(dlg._pq.findData("h"))

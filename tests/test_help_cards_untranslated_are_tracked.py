@@ -317,19 +317,25 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # and stays where it was. The eleven carry the English source for the
 # usual reason: translated before a final, not during a beta. These are
 # each language's ACTUAL count, not a round ceiling.
+# 2026-09-06, the review of that same batch (CL-1, CL-6): +2 for the
+# eleven and +0 for German. Three keys arrive and one leaves; two of the
+# three are long enough to count here (the saved-bucket line with a patch
+# count in it, and the rewritten Lab-table note), and the short form of
+# the saved-bucket line is under the 25-character floor. These are each
+# language's ACTUAL count, not a round ceiling.
 _BUDGET = {
     "de": 31,
-    "es": 242,
-    "fr": 243,
-    "it": 242,
-    "ja": 242,
-    "nl": 242,
-    "no": 242,
-    "pl": 242,
-    "pt": 242,
-    "ru": 241,
-    "sv": 242,
-    "zh_CN": 241,
+    "es": 244,
+    "fr": 245,
+    "it": 244,
+    "ja": 244,
+    "nl": 244,
+    "no": 244,
+    "pl": 244,
+    "pt": 244,
+    "ru": 243,
+    "sv": 244,
+    "zh_CN": 243,
 }
 
 

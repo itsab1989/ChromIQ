@@ -292,9 +292,7 @@ WP_MODE_DEFAULT = "uR"
 #: safe to do so. These two markers are that same table, said out loud — they
 #: are DERIVED from it, so a change to the rule moves the labels with it.
 #: What the everyday scenario means before anything has been picked, so it has
-#: no patch count to reason from: the window's own factory settings for a
-#: scanner/camera input profile, which is what `USAGE-SCENARIO-DESIGN.md` says
-#: scenario 1 pre-selects.
+#: no patch count to reason from.
 #:
 #: Found by driving the window, 2026-09-06. Choose the measuring scenario, then
 #: choose everyday again with no chart loaded, and without this the settings
@@ -304,12 +302,24 @@ WP_MODE_DEFAULT = "uR"
 #: which the divergence line cannot catch here, because with no patch count
 #: there is no recipe to compare against.
 #:
+#: IT IS `SETUP_SMALL`, AND IT IS NOT THE WINDOW'S FACTORY PAIR (CL-2). The
+#: first version of this named `PTYPE_DEFAULT[False]` with `WP_MODE_DEFAULT`,
+#: which is what a fresh window shows — and that pair is a MATRIX profile type
+#: beside the white point this very module labels "(best for cLUT profiles)".
+#: It also gave the same scenario two answers at the same profile type: the
+#: rule says shaper+matrix wants "Map chart white to white", and this said it
+#: wants "Scale white to a perfect white surface". One scenario cannot mean two
+#: things, so it means the rule's own small row.
+#:
+#: What it deliberately does NOT do is move `WP_MODE_DEFAULT`. A window nobody
+#: has touched still opens exactly where B8-75 put it; that pairing is Basti's
+#: ruling and a separate question from this one.
+#:
 #: It is ONLY for the explicit click. `setup_for_patch_count(None)` still
 #: returns None, so the AUTOMATIC path never sets anything from a number
 #: nobody supplied; and the click clears the bucket's "the user has touched
 #: this" mark, so loading a chart afterwards refines all three properly.
-SETUP_EVERYDAY_UNKNOWN = {"ptype": PTYPE_DEFAULT[False], "quality": "m",
-                          "wp_mode": WP_MODE_DEFAULT}
+SETUP_EVERYDAY_UNKNOWN = dict(SETUP_SMALL)
 
 WP_MODE_RECOMMENDED = {
     SETUP_LARGE["wp_mode"]: "clut",
@@ -525,18 +535,20 @@ def ptype_advice(printer: bool, ptype: str, n_patches: "int | None") -> str:
         ).format(n=n_patches)
     if ptype == "l":
         return tr(
-            "A note on the profile type: “cLUT — Lab table” cannot describe "
-            "anything lighter than your target's own white patch.\n\n"
-            "A scanning target's white board is not very white — on a real IT8 "
-            "scan it reached only about 80 out of the scanner's 100 — so "
-            "everything brighter, which includes most bright photo paper, "
-            "comes out at exactly the lightness of that white patch with the "
-            "differences between those tones flattened away. “cLUT — XYZ "
-            "table” is the same kind of table without that ceiling, and it "
-            "measured just as accurate on the colours your target does "
-            "contain. If you would rather stay with Lab, Advanced… ▸ White "
-            "point handling ▸ “Auto-scale to avoid clipping (-u)” lifts the "
-            "ceiling. Your choice stands either way.")
+            "A note on the profile type: “cLUT — Lab table” has a ceiling, and "
+            "how high it sits depends on Advanced… ▸ White point "
+            "handling.\n\n"
+            "A Lab table cannot describe anything above that ceiling: every "
+            "tone over it comes out at one lightness, with the differences "
+            "flattened away. On “Scale white to a perfect white surface” the "
+            "ceiling is at about 114 % reflectance, brighter than a perfect "
+            "white surface, so nothing you can put on the glass reaches it and "
+            "there is nothing to worry about. On “Map chart white to white” it "
+            "drops to about 94 %, which ordinary bright photo paper does "
+            "reach. “cLUT — XYZ table” has no ceiling under any of those "
+            "settings and measured just as accurate on the colours your target "
+            "does contain, so it is the safer of the two. Your choice stands "
+            "either way, and nothing here has been changed for you.")
     if ptype == "s" and n_patches >= PTYPE_BIG_TARGET:
         return tr(
             "A note on the profile type: your target has {n} patches, which is "

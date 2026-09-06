@@ -228,8 +228,14 @@ def test_the_help_follows_the_printer_tick_in_the_real_window(_app, tmp_path):
     (False, "x", 24, "on the small side for a look-up table"),
     (False, "x", 100, ""),                  # the crossover itself: say nothing
     # the Lab ceiling, whenever Lab is chosen and the size does not overrule it
-    (False, "l", 288, "cannot describe anything lighter"),
-    (False, "l", 150, "cannot describe anything lighter"),
+    # The Lab note no longer says "cannot describe anything lighter than your
+    # target's own white patch" full stop, because since B8-75 that depends on
+    # the white-point setting and on the shipped default it is FALSE: the
+    # ceiling sits at about 114 % reflectance, above anything that can be put
+    # on the glass. What it must still do is name the ceiling and say what
+    # decides how high it is (CL-6).
+    (False, "l", 288, "has a ceiling"),
+    (False, "l", 150, "White point handling"),
     # printer mode says nothing at all: nothing was measured about it
     (True, "s", 288, ""),
     (True, "l", 24, ""),

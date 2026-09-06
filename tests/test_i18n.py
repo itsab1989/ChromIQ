@@ -609,20 +609,26 @@ def test_every_deliberate_exception_says_why():
 # rewritten with them. 26 keys in, 9 stale keys out. German is translated
 # for all 26 and does not move; the eleven others carry the English
 # source, so each of them gains 17.
+# …and again the same day, by the review of that work (CL-1, CL-6): the
+# line that says a saved bucket is being left alone rather than blaming
+# the user for ChromIQ's own choice, in its two forms, and the rewritten
+# Lab-table note, which had gone on describing the world before B8-75
+# moved the white-point default. Three keys in, one out; German
+# translated, the eleven +2 each.
 # These are each language's ACTUAL count.
 _IDENTICAL_TO_KEY = {
     "de": 117,
-    "es": 403,
-    "fr": 423,
-    "it": 415,
-    "ja": 392,
-    "nl": 432,
-    "no": 416,
-    "pl": 407,
-    "pt": 407,
-    "ru": 379,
-    "sv": 420,
-    "zh_CN": 385,
+    "es": 405,
+    "fr": 425,
+    "it": 417,
+    "ja": 394,
+    "nl": 434,
+    "no": 418,
+    "pl": 409,
+    "pt": 409,
+    "ru": 381,
+    "sv": 422,
+    "zh_CN": 387,
 }
 
 

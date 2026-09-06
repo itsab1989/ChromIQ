@@ -2713,7 +2713,16 @@ came back to it.
 
 ### B8-71 · "Usage Scenario:" — let the user say what the profile is for and let the window set it up
 - blocks release: no
-- status: DEFERRED
+- status: FIXED
+- **BUILT on 2026-09-06 under B8-78**, which supersedes this entry. Everything
+  below is why it waited and what it had to answer first; B8-78 is what was
+  built, what changed on the way, and what is still somebody else's call.
+- guarded by: `tests/test_the_window_says_what_the_profile_is_for.py` — see
+  B8-78 for the full list.
+- evidence: the two that answer THIS entry's own hard rule, that an existing
+  target must not have settings applied to it on first open:
+  test_a_bucket_with_stored_settings_is_never_set_up_on_first_open and
+  test_the_stored_set_is_read_from_the_store_and_not_from_the_visits.
 - proposed by: Knut, beta 9 — *"I think we could make the 'Profile my printer
   from this scan' option a part of several user cases, maybe called 'Usage
   Scenario:' as a heading … (this option pre-selects the -ua attribute … and
@@ -3369,7 +3378,21 @@ under it, and the gate itself is unchanged.
   test_choosing_everyday_with_nothing_loaded_still_means_everyday,
   test_the_unknown_count_fallback_is_only_for_the_explicit_click,
   test_a_hint_that_is_hidden_claims_no_height,
-  test_the_standard_target_explanation_sits_against_the_rows_around_it.
+  test_the_standard_target_explanation_sits_against_the_rows_around_it,
+  test_the_printer_guard_holds_in_the_window_where_it_is_reachable,
+  test_saving_settings_means_the_same_thing_before_and_after_a_restart,
+  test_a_saved_bucket_is_never_told_its_settings_are_a_divergence,
+  test_a_saved_bucket_with_no_chart_yet_still_says_why_nothing_happens,
+  test_a_hand_edit_is_still_named_as_a_divergence,
+  test_the_divergence_line_carries_a_warning_mark,
+  test_the_unknown_count_answer_is_the_rules_own_small_row,
+  test_the_shipped_default_white_point_did_not_move_with_it,
+  test_the_lab_note_does_not_contradict_the_profile_type_help.
+  **EIGHT MORE MUTATIONS for the review's fixes, all eight caught**, each
+  proved on disk first: both halves of CL-1a and CL-1b (including one that
+  swallows the hand-edit case, which is the half that must survive), both
+  halves of CL-4, CL-2's revert to the factory pair, and CL-6's return to
+  lifting a lifted ceiling. Twenty-nine in total across the two rounds.
   **TWENTY-ONE MUTATIONS, every one caught, and every one proved present on
   disk before its run** (`scratchpad/mutate.py`, the harness refuses to believe
   a run whose replacement it cannot find in the file). Both halves of
@@ -3440,9 +3463,77 @@ settings file, the profiles, PROVENANCE.md).
     left pane's scroll viewport — so the proof shots photograph the settings
     column on its own as well.
 
+**9 · The review (AGENT CL, 2026-09-06) found one thing worth not shipping,
+and it was real.** No blockers otherwise: twelve routes at the stored-settings
+rule and none defeated, item 3 proved to a byte (two real colprof runs
+differing in one byte, the timestamp seconds), item 5's boundary exact at
+99/100/101, and both gates re-run here (11,529 on master, 11,569 on the
+branch, the +40 accounted for file by file).
+
+  * **CL-1. Saving meant one thing before a restart and another after, and the
+    window then blamed the user for ChromIQ's own choice.** Press "Save as
+    Defaults" on a scanner bucket having changed nothing, saving exactly the
+    three settings ChromIQ chose from a 288-patch target: `_save_defaults_
+    clicked` wrote to the store but never added the bucket to `_ctx_stored`,
+    which is read once at construction, so the rule went on managing the bucket
+    until the window was reopened and then stopped for ever. And from then on
+    every chart on the other side of the crossover was met with "your settings
+    no longer match this scenario", listing three differences the user never
+    made, under a lit radio whose own gloss promises ChromIQ sets those three
+    from the size of the target. At 24 patches the settings it blamed them for
+    kept the cLUT B8-19 measured as the WORSE one there (1.68 against 1.25
+    ΔE00). Saving now means the same thing on both sides of a restart, and the
+    everyday scenario says what is true instead: the settings are being left
+    alone because they were saved, and here is what the rule would otherwise
+    have chosen. A hand edit is still named as a divergence, which is the half
+    that must not be swallowed.
+  * **CL-2.** `SETUP_EVERYDAY_UNKNOWN` paired a MATRIX profile type with the
+    white point this module labels "(best for cLUT profiles)", and gave the
+    same scenario two answers at the same profile type. It is `SETUP_SMALL`
+    now. `WP_MODE_DEFAULT` is deliberately untouched: a window nobody has
+    configured still opens where B8-75 put it, and that pairing is Basti's.
+  * **CL-4.** The divergence line had no mark, no indent and no gap, and read
+    as a fourth gloss of the scenario above it. It carries "⚠", sits at the
+    options' own indent and has air above it. The mark is added outside the
+    translated string, so no catalogue can lose it, and the two informational
+    lines deliberately do not carry one.
+  * **CL-6, and it is PRE-EXISTING.** The Lab-table live note still described
+    the world before B8-75: it told a user on the shipped default that their
+    bright paper was being flattened and sent them to "Auto-scale to avoid
+    clipping" to lift a ceiling that the profile-type help 130 lines above says
+    already sits at about 114 % reflectance, above anything that can physically
+    be put on the glass. One ⓘ, two answers, in all thirteen catalogues.
+  * **CL-8 is a correction to the proof, not to the app.** The Build button
+    does NOT ship clipped: `main.py` installs `CompositeAppFilter`, whose
+    `ButtonFontFilter` gives every button Menlo and calls `fit_button_width`.
+    A driver that builds a dialog directly skips the filter while the global
+    QSS paints Menlo anyway, so the button is sized for the wrong font: 321 px
+    with the filter against 286 px and a 110 px minimum without. Zero languages
+    affected. The drivers now install the filter, and every shot in the proof
+    folder was retaken through it. **The earlier note in this entry saying the
+    clipping is pre-existing was wrong about WHY, and is corrected here.**
+
+**10 · One thing the review floated that is NOT built, because it is Basti's.**
+A bucket whose stored triple happens to equal the rule's own answer could keep
+being managed: press "Save as Defaults" over what ChromIQ chose and nothing is
+really claimed, so the rule could go on adjusting it as targets change, and
+only a triple that DIFFERS from the rule's answer would stop it.
+
+  It is attractive and it is a behaviour change, not a fix. Two things make it
+  Basti's call and not an agent's. First, it decides what "Save as Defaults"
+  MEANS: today it means "these settings, from now on", and under this it would
+  mean "these settings, unless ChromIQ would have chosen them anyway", which is
+  a different promise from the one the button's own tooltip makes. Second, it
+  is not stable: the same save is claimed or unclaimed depending on which
+  target happened to be loaded at the moment it was pressed, so two users who
+  did the same thing get different behaviour later. The safe half of it is
+  already built, which is that the window now SAYS what the rule would have
+  chosen, so a user who wants it can take it in one glance.
+
 - what is NOT done, and is somebody else's call:
   * the eleven catalogues other than German carry English and need the ordinary
     translation pass;
+  * §10 above: whether a save that claims nothing should stop the rule;
   * the scenario glosses are three wrapped lines each, which is a lot of chrome
     above "pick your chart". `USAGE-SCENARIO-DESIGN.md` §7 raises it and offers
     a one-line form with the detail behind the ⓘ. That is Basti's to judge on

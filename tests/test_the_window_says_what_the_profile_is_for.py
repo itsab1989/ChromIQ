@@ -689,6 +689,12 @@ def test_switching_source_never_writes_the_new_modes_count_into_the_old_bucket(
         # The chart bucket, on the everyday scenario, with no chart loaded: the
         # window has no patch count of its own, so nothing here may be set from
         # the bought target's.
+        # Away and back: everyday is already lit on a fresh window, so
+        # setChecked on it emits nothing and applies nothing. Without the
+        # detour this test asserted the FACTORY settings and passed only
+        # because they happened to equal the everyday answer (CL-2 separated
+        # the two).
+        dlg._scenario_radios[sc.SCENARIO_INSTRUMENT].setChecked(True)
         dlg._scenario_radios[sc.SCENARIO_EVERYDAY].setChecked(True)
         chart_had = _three(dlg)
         assert chart_had == sc.SETUP_EVERYDAY_UNKNOWN
@@ -791,3 +797,150 @@ def test_the_standard_target_explanation_sits_against_the_rows_around_it(_app):
     finally:
         dlg.close()
         dlg.deleteLater()
+
+
+# ==========================================================================
+# 11. The review's findings (AGENT CL, 2026-09-06)
+# ==========================================================================
+def test_saving_settings_means_the_same_thing_before_and_after_a_restart(_app):
+    """CL-1, the root of it. `_ctx_stored` is read once, at construction, from
+    the settings store, which is right for the question it answers and wrong
+    the moment the store changes underneath it. "Save as Defaults" wrote to the
+    store and left the set alone, so the patch-count rule went on managing the
+    bucket until the window was closed and reopened, and then stopped for ever.
+    """
+    settings = _FakeSettings()
+    dlg = _dialog(settings)
+    try:
+        _load_chart(dlg, 288)
+        assert _three(dlg) == sc.SETUP_LARGE
+        assert "chart" not in dlg._ctx_stored
+        dlg._save_defaults_clicked()
+        assert "chart" in dlg._ctx_stored, (
+            "saving meant nothing until the window was reopened")
+        _load_chart(dlg, 24)
+        assert _three(dlg) == sc.SETUP_LARGE, (
+            "the rule went on managing a bucket the user had just saved")
+    finally:
+        dlg.deleteLater()
+    # …and the next session agrees, which it always did.
+    dlg = _dialog(settings)
+    try:
+        assert "chart" in dlg._ctx_stored
+    finally:
+        dlg.deleteLater()
+
+
+def test_a_saved_bucket_is_never_told_its_settings_are_a_divergence(_app):
+    """CL-1, the part a user reads. Save what ChromIQ itself chose from a
+    288-patch target, then open a 24-patch one: the settings now differ from
+    the rule's answer, but the user made none of those choices, and the lit
+    radio's own gloss promises ChromIQ sets those three from the target size.
+    Blaming them for ChromIQ's own choice is the fault. The window says what is
+    true instead, and names what the rule would have done."""
+    dlg = _dialog()
+    try:
+        _load_chart(dlg, 288)
+        dlg._save_defaults_clicked()
+        _load_chart(dlg, 24)
+        said = dlg._scenario_note.text()
+        assert dlg._scenario_note.isVisibleTo(dlg)
+        assert "no longer match" not in said, said
+        assert "You saved settings" in said
+        assert "24 patches" in said
+        # …and it names the answer the user can act on
+        assert "Shaper + matrix" in said and "Medium" in said
+        assert "Map chart white to white" in said
+    finally:
+        dlg.deleteLater()
+
+
+def test_a_saved_bucket_with_no_chart_yet_still_says_why_nothing_happens(_app):
+    dlg = _dialog(_saved(scenario=sc.SCENARIO_EVERYDAY))
+    try:
+        said = dlg._scenario_note.text()
+        assert "You saved settings" in said
+        assert "patches" not in said, "it named a count nobody supplied"
+    finally:
+        dlg.deleteLater()
+
+
+def test_a_hand_edit_is_still_named_as_a_divergence(_app):
+    """The other half, and it must NOT be swallowed by the fix above: a user
+    who changed one of the three deliberately is told which one."""
+    dlg = _dialog()
+    try:
+        dlg._scenario_radios[sc.SCENARIO_INSTRUMENT].setChecked(True)
+        dlg._ptype.setCurrentIndex(dlg._ptype.findData("s"))
+        said = dlg._scenario_note.text()
+        assert "no longer match" in said
+        assert "Profile type" in said
+    finally:
+        dlg.deleteLater()
+
+
+def test_the_divergence_line_carries_a_warning_mark(_app):
+    """CL-4. It is the one line in this group whose whole job is to be
+    noticed, and without a mark it read as a fourth gloss of the scenario
+    above it. The mark is added outside the translated string, so no catalogue
+    can lose it, and the informational lines do NOT carry one."""
+    dlg = _dialog()
+    try:
+        dlg._scenario_radios[sc.SCENARIO_INSTRUMENT].setChecked(True)
+        dlg._ptype.setCurrentIndex(dlg._ptype.findData("s"))
+        assert dlg._scenario_note.text().startswith("⚠ ")
+        assert dlg._scenario_note.contentsMargins().top() > 0, (
+            "the warning is hard against the gloss above it")
+        # the saved-bucket line is information, not a warning
+        dlg2 = _dialog()
+        try:
+            _load_chart(dlg2, 288)
+            dlg2._save_defaults_clicked()
+            _load_chart(dlg2, 24)
+            assert not dlg2._scenario_note.text().startswith("⚠")
+        finally:
+            dlg2.deleteLater()
+    finally:
+        dlg.deleteLater()
+
+
+def test_the_unknown_count_answer_is_the_rules_own_small_row(_app):
+    """CL-2. The first version paired a MATRIX profile type with the white
+    point this module labels "(best for cLUT profiles)", and gave the same
+    scenario two answers at the same profile type: the rule says shaper+matrix
+    wants "Map chart white to white" and this said it wants "Scale white to a
+    perfect white surface". One scenario cannot mean two things."""
+    assert sc.SETUP_EVERYDAY_UNKNOWN == sc.SETUP_SMALL
+    assert sc.SETUP_EVERYDAY_UNKNOWN["ptype"] in sc.MATRIX_ALGOS
+    assert sc.WP_MODE_RECOMMENDED[sc.SETUP_EVERYDAY_UNKNOWN["wp_mode"]] == \
+        "matrix"
+
+
+def test_the_shipped_default_white_point_did_not_move_with_it(_app):
+    """…and the thing CL-2 deliberately does NOT touch. A window nobody has
+    configured still opens where B8-75 put it; that pairing is Basti's ruling
+    and a separate question."""
+    assert sc.WP_MODE_DEFAULT == "uR"
+    dlg = _dialog()
+    try:
+        assert _three(dlg)["wp_mode"] == sc.WP_MODE_DEFAULT
+    finally:
+        dlg.deleteLater()
+
+
+def test_the_lab_note_does_not_contradict_the_profile_type_help(_app):
+    """CL-6, and it is pre-existing. This note still described the world
+    before B8-75 moved the white-point default: it told a user whose window is
+    on "Scale white to a perfect white surface" that their bright paper is
+    being flattened, and sent them to "Auto-scale to avoid clipping" to lift a
+    ceiling the profile-type help says is ALREADY at about 114 % reflectance,
+    above anything that can physically be put on the glass. One ⓘ, two
+    answers."""
+    note = sc.ptype_advice(False, "l", 288)
+    assert note
+    assert "lifts the ceiling" not in note
+    assert "Auto-scale to avoid clipping" not in note
+    assert "114 %" in note and "94 %" in note
+    _, help_body = sc.ptype_help(False)
+    for claim in ("114 %", "94 %"):
+        assert claim in help_body, "the ⓘ and its live note disagree again"
