@@ -117,9 +117,11 @@ def test_wrapped_legend_gets_its_own_rows(qapp):
     available width: 200 → 5, 260 → 3, 340 → 2, 560 → 2, 600 → 1.
 
     The wrapping threshold therefore moves with the font, and pinning a pixel
-    figure to it pins the font. The width below is derived from the labels
-    themselves, so the assertion says what it means on any metrics; the PDF
-    grab width is kept as a separate, explicit statement of what it now does.
+    figure to it pins the font. Every width below is derived from the labels
+    themselves, so each assertion says what it means on any metrics. That
+    includes the last pair: the 640 px PDF grab width was pinned here too,
+    and it is a Windows figure that fails on macOS for exactly the reason
+    this paragraph gives. See the note beside it.
     """
     from PyQt6.QtGui import QColor, QFont, QFontMetricsF
     from ui.dialogs.measurement_report_dialog import _TrendChart
@@ -141,9 +143,24 @@ def test_wrapped_legend_gets_its_own_rows(qapp):
     # …and the plot really is pushed down by the extra rows, which is the whole
     # point of counting them.
     assert chart._legend_rows(fm, 40.0, too_narrow / 2.0) > narrow
-    # What the PDF grab width does today, said out loud so a regression in
-    # either direction is visible: the labels fit one row there.
-    assert chart._legend_rows(fm, 40.0, 640 - 52.0) == 1
+    # AND THE WIDTH AT WHICH IT STOPS WRAPPING IS THE LABELS' OWN WIDTH.
+    # This line used to pin the 588 px the PDF grab leaves and assert ONE
+    # row there, which is the pixel figure the docstring above says must not
+    # be pinned, three lines after saying it. `QFont()` with no family asked
+    # for resolves to whatever the platform calls its default sans, and the
+    # five labels are 432 px of that on the Windows machine the figure was
+    # taken on and 621 px of Helvetica here, so 588 px holds one row there
+    # and two here. Measured on macOS 2026-09-06, with and without the
+    # bundled fonts registered: identical either way, 119.5 + 123.6 + 121.3
+    # + 126.2 + 130.3 = 621 px of advances, 755 px with the chips, 2 rows.
+    #
+    # So the threshold is asserted where it actually is: at exactly the
+    # width the labels and their chips need, and one pixel below it. That is
+    # the property the pinned figure was reaching for, it is stronger than
+    # the pin, and it holds in any font.
+    needed = 4.0 + sum(26 + fm.horizontalAdvance(l) for l in labels)
+    assert chart._legend_rows(fm, 40.0, needed + 0.5) == 1, needed
+    assert chart._legend_rows(fm, 40.0, needed - 1.0) == 2, needed
 
 
 def test_trend_chart_paints_at_pdf_width(qapp):
