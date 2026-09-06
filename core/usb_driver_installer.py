@@ -1,5 +1,11 @@
 """Windows-only: enumerate connected ArgyllCMS-compatible USB devices and
-install WinUSB drivers via wdi-simple (libwdi)."""
+install the libusb-win32 driver via wdi-simple (libwdi).
+
+The names in this module still say WinUSB — `has_winusb`, `install_winusb` —
+and they are wrong. What is installed, and the only thing ArgyllCMS can read an
+instrument through, is libusb-win32. See `ARGYLL_USB_SERVICE`. The names are
+left alone deliberately: three branches are live in this file and a rename
+would collide with all of them."""
 from __future__ import annotations
 
 import ctypes
@@ -120,11 +126,45 @@ def is_vendor_serial(vid: str, pid: str) -> bool:
     return (str(vid).lower(), str(pid).lower()) in VENDOR_SERIAL_DEVICES
 
 
+#: The one Windows service name that means ArgyllCMS can open the instrument.
+#:
+#: NOT A LIST, AND IT USED TO BE ONE. `("winusb", "libusb0")` was accepted here
+#: for as long as this file has existed, which made a WinUSB-bound instrument
+#: report "driver installed ✓" while `spotread` printed `** No ports found **`
+#: — a closed loop with no way out from inside the app, and ChromIQ's own Zadig
+#: instructions walked users into it by telling them to choose WinUSB.
+#:
+#: Argyll reaches a USB instrument on Windows by opening the kernel device
+#: object `\\.\libusb0-%04d`. Measured on `spotread.exe` (Argyll 3.5.0): that
+#: format string is the ONLY device path in the binary, it imports no
+#: `WinUsb_*` symbol at all, and it does not link `libusb0.dll` either — so a
+#: user-mode compatibility shim cannot stand in for the driver. Only
+#: libusb-win32's `libusb0.sys` creates that object. `usb/ArgyllCMS.inf` binds
+#: `AddService = libusb0` for all 28 devices Argyll supports, and Argyll's own
+#: changelog dates the switch at V1.5.0 (2013): "No longer using libusb for USB
+#: access… MSWin uses the libusb-win32 kernel driver."
+#:
+#: `libusbk` IS DELIBERATELY NOT HERE EITHER. Zadig offers it and users pick it,
+#: and its `libusb0.dll` shim makes it look interchangeable — but that shim is
+#: user-mode API emulation, and Argyll neither links it nor enumerates a device
+#: interface: it calls `CreateFile` on the name and then issues
+#: `LIBUSB_IOCTL_*` codes to whatever answers. Nothing in this project has
+#: measured `libusbK.sys` creating `\\.\libusb0-NNNN`, so accepting it would be
+#: asserting a compatibility claim nobody here has tested, in order to withhold
+#: help from a user whose instrument may well be dark. Argyll installs libusb0
+#: and nothing else; so does ChromIQ, and so this accepts libusb0 and nothing
+#: else.
+ARGYLL_USB_SERVICE = "libusb0"
+
+
 class UsbDevice(NamedTuple):
     vid: str        # 4-char hex, lower-case, no 0x prefix
     pid: str
     name: str
-    has_winusb: bool   # True if WinUSB or libusb0 (Argyll) driver is active
+    # True only if libusb-win32 (`libusb0`) is bound — the one driver ArgyllCMS
+    # can read an instrument through. The NAME is a leftover; see
+    # ARGYLL_USB_SERVICE above for why WinUSB is not enough.
+    has_winusb: bool
 
 
 def _wdi_simple_path() -> Path:
@@ -315,8 +355,10 @@ def attached_devices(
                           "falling back to every remembered instance", vid, pid)
                 live = instances
 
+        # ONE SERVICE, NOT A SET — see ARGYLL_USB_SERVICE. A device bound to
+        # WinUSB is not driven for our purposes: Argyll cannot open it.
         has_winusb = any(
-            str(service).lower() in ("winusb", "libusb0") for _, service in live)
+            str(service).lower() == ARGYLL_USB_SERVICE for _, service in live)
         found.append(UsbDevice(vid=vid, pid=pid, name=name, has_winusb=has_winusb))
 
     # Composite USB devices register multiple keys per VID/PID (parent + MI_xx
@@ -552,7 +594,7 @@ def install_winusb(device: UsbDevice) -> bool:
 
 
 def unbound_targets(targets: list[UsbDevice]) -> list[UsbDevice]:
-    """Re-enumerate and return which *targets* still lack a WinUSB/libusb0 driver.
+    """Re-enumerate and return which *targets* still lack the `libusb0` driver.
 
     wdi-simple can exit 0 without actually binding the driver to the live device
     — e.g. a stale "ghost" instance from a previous USB port misdirects it — so

@@ -290,8 +290,14 @@ def test_when_windows_cannot_be_asked_everything_is_shown() -> None:
 
 def test_the_comparison_is_case_insensitive_on_both_sides() -> None:
     """Windows writes instance IDs upper-case; the registry key names come back
-    in whatever case they were created with."""
-    entries = [("vid_0765&pid_6008", [("7&3b74c78&0&1", "WinUSB")])]
+    in whatever case they were created with.
+
+    REPINNED 2026-09-06: the service here was `"WinUSB"`, and asserting
+    `has_winusb=True` about it was asserting the bug — ArgyllCMS cannot open a
+    WinUSB-bound instrument. `"LibUsb0"` keeps both halves of what this test
+    is for: the vid/pid comparison ignores case, and so does the service one.
+    """
+    entries = [("vid_0765&pid_6008", [("7&3b74c78&0&1", "LibUsb0")])]
     present = {r"USB\VID_0765&PID_6008\7&3B74C78&0&1"}
     got = udi.attached_devices(entries, present)
     assert [(d.vid, d.pid, d.has_winusb) for d in got] == [("0765", "6008", True)]

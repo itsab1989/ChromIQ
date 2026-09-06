@@ -196,14 +196,23 @@ def _cr30_zadig_warning() -> str:
 
     Three outcomes used to carry their own copy of this paragraph, word for
     word. One key, used three times: a translator writes it once, and the three
-    windows cannot drift apart. `WinUSB` and `CH340` are product and chip names
-    and stay as they are in every language.
+    windows cannot drift apart. `CH340` is a chip name and stays as it is in
+    every language.
+
+    IT USED TO NAME WinUSB, AND THAT IS NOW THE WRONG HALF OF THE DANGER.
+    Every Zadig instruction in this file now tells the user to choose
+    libusb-win32, because WinUSB is the one driver ArgyllCMS cannot read an
+    instrument through. A warning that says "do not give it WinUSB" therefore
+    reads, to somebody following those instructions, as permission to give it
+    libusb-win32 — which destroys the CR30's COM port exactly as thoroughly.
+    So the warning names no driver at all: it is the ROW that must not be
+    picked, whatever is in the driver box beside it.
     """
     return tr(
         "<br><br><b>If you own a CR30:</b> do not pick the USB-serial "
         "device (CH340) in Zadig. That instrument is reached "
-        "through its COM port, and giving it WinUSB would stop "
-        "ChromIQ finding it at all.")
+        "through its COM port, and replacing its driver — with any of the "
+        "drivers Zadig offers — would stop ChromIQ finding it at all.")
 
 
 # ---------------------------------------------------------------------------
@@ -249,21 +258,18 @@ def usb_installer_text(devices, wdi_available: bool) -> "tuple[str, str | None]"
 
     # THE TICK SAID "WinUSB ✓" ABOUT A DEVICE WHOSE DRIVER IS libusb0.
     #
-    # `UsbDevice.has_winusb` accepts EITHER — `("winusb", "libusb0")`, in
-    # `core/usb_driver_installer.py` — so the flag has never meant "WinUSB is
-    # bound"; it means "a driver ArgyllCMS can use is bound". Measured on the
-    # ARM64 box, 2026-09-06, with an X-Rite i1Studio / ColorMunki (0765:6008)
-    # attached: the device's service is `libusb0` and Argyll lists it as
-    # `libusb0-0001 (X-Rite ColorMunki)` — and this line said WinUSB about it.
+    # `UsbDevice.has_winusb` USED TO accept either — `("winusb", "libusb0")`,
+    # in `core/usb_driver_installer.py` — so the flag never meant "WinUSB is
+    # bound". Measured on the ARM64 box, 2026-09-06, with an X-Rite i1Studio /
+    # ColorMunki (0765:6008) attached: the device's service is `libusb0` and
+    # Argyll lists it as `libusb0-0001 (X-Rite ColorMunki)` — and this line
+    # said WinUSB about it.
     #
-    # WHO INSTALLED THAT libusb0 IS NOT KNOWN AND DOES NOT MATTER HERE. It was
-    # not ChromIQ (see the note in `usb_install_outcome`); it is whatever was
-    # already on the machine. The point is only that the two drivers the flag
-    # accepts are not the same word, so the flag cannot be printed as one of
-    # them. It is a `tr()` key now rather than a product name, which is the
-    # right treatment either way: it is a sentence about state, not a brand,
-    # and it pairs with `driver not installed` below it so the two halves of
-    # the same question are one translatable pair.
+    # It accepts only `libusb0` now (see `ARGYLL_USB_SERVICE`), which makes the
+    # flag mean exactly one thing: ArgyllCMS can open this instrument. So the
+    # chip is a `tr()` key rather than a product name — a sentence about state,
+    # not a brand — and it pairs with `driver not installed` below it so the
+    # two halves of the same question are one translatable pair.
     lines = [
         "&nbsp;&nbsp;• {name} — <i>{state}</i>".format(
             name=d.name,
@@ -318,32 +324,60 @@ def usb_installer_text(devices, wdi_available: bool) -> "tuple[str, str | None]"
         #
         # THE FIX IS THEREFORE TO NAME NO DRIVER, not to name a different one.
         # This paragraph says what the click is FOR — "the USB driver your
-        # instrument needs, so ArgyllCMS can talk to it" — which stays true
-        # whichever `--type` is settled on, and warns that the name Windows
-        # shows will be unfamiliar, which is true of WinUSB and libusb-win32
-        # alike. A beginner needs to know their instrument will work and that a
-        # strange name is not a mistake; they do not need the fork's name.
+        # instrument needs, so ArgyllCMS can talk to it" — and warns that the
+        # name Windows shows will be unfamiliar. A beginner needs to know their
+        # instrument will work and that a strange name is not a mistake; they
+        # do not need the fork's name. (`--type` has since settled at 1,
+        # libusb-win32, but the sentence is still right and the Zadig steers
+        # below are where the driver has to be named, because there the user
+        # picks it from a dropdown themselves.)
+        #
+        # AND IT NOW SAYS THAT IT MAY REPLACE SOMETHING, WHICH IT DID NOT.
+        # Tightening `has_winusb` to `libusb0` alone means a user who followed
+        # ChromIQ's OWN old Zadig instructions — "choose WinUSB" — is now told
+        # the driver is not installed, on a machine where Device Manager shows
+        # a healthy Microsoft driver. Without this sentence the window
+        # contradicts what Windows tells them, blames nobody, explains nothing,
+        # and asks them to press a button whose effect it has not described.
+        # The COM-port half of this same window promises "ChromIQ never deletes
+        # or replaces a driver" (`core/ch34x_driver.py`); this half now does,
+        # so it has to say so. It also has to say whose mistake it was, because
+        # it was ours.
         action_text = tr(
             "Click <b>{button}</b> and ChromIQ will install the USB driver "
             "your instrument needs, so ArgyllCMS can talk to it. A Windows "
             "security prompt will appear — click Yes to continue.<br><br>"
-            "<i>Afterwards Windows may list your instrument under a driver "
+            "<i>If Windows already shows a driver for your instrument, this "
+            "replaces it; nothing else on your computer is changed. Earlier "
+            "versions of ChromIQ told people to choose WinUSB here, and "
+            "ArgyllCMS cannot read an instrument through WinUSB — so if that "
+            "is what you have, this is the repair, and you did nothing wrong. "
+            "Afterwards Windows may list your instrument under a driver "
             "name you do not recognise. That is normal — it is the driver "
             "ArgyllCMS reads instruments through. It is signed, so Windows "
             "needs no special mode, and it works on x64 and ARM64.</i>"
         ).format(button=_label_install_driver())
         btn_label = _label_install_driver()
     else:
+        # STEP 3 SAID WinUSB, AND WinUSB IS THE ONE DRIVER THAT CANNOT WORK.
+        # ArgyllCMS opens `\\.\libusb0-NNNN`, which only libusb-win32's
+        # libusb0.sys creates; `spotread.exe` carries no `WinUsb_*` symbol at
+        # all. A user who followed this sentence ended with an instrument
+        # Windows called healthy and Argyll could not see — and, until the
+        # predicate was tightened, with ChromIQ agreeing that the driver was
+        # installed. This app walked its own users into the fault it then
+        # failed to detect.
+        #
         # THE WARNING IS NOT OPTIONAL ON A MACHINE THAT MAY HAVE
-        # A CR30. "Find your colorimeter and give it WinUSB" is
+        # A CR30. "Find your colorimeter and give it a driver" is
         # right for every device this dialog knows about and
         # catastrophic for one it does not: the CR30 is reached
-        # through a COM port, and WinUSB removes it. Nothing in the
-        # app can steer the user there — but this text can, and a
+        # through a COM port, and any of Zadig's drivers removes it. Nothing in
+        # the app can steer the user there — but this text can, and a
         # user with driver trouble is exactly who follows it.
         #
-        # `Options → List All Devices`, `WinUSB` and the `Install Driver` in
-        # step 3 are ZADIG'S controls, not ours. Zadig has one English UI, so
+        # `Options → List All Devices`, `libusb-win32` and the `Install Driver`
+        # in step 3 are ZADIG'S controls, not ours. Zadig has one English UI, so
         # they stay English in every language — translating them would send the
         # user hunting for a control Zadig does not have. Only `{button}` is
         # ours. That our button and Zadig's step-3 button share a name is
@@ -353,7 +387,7 @@ def usb_installer_text(devices, wdi_available: bool) -> "tuple[str, str | None]"
             "USB driver tool. In Zadig:<br>"
             "&nbsp;&nbsp;1. Click <b>Options → List All Devices</b><br>"
             "&nbsp;&nbsp;2. Find your colorimeter in the dropdown<br>"
-            "&nbsp;&nbsp;3. Select <b>WinUSB</b> as the driver and click "
+            "&nbsp;&nbsp;3. Select <b>libusb-win32</b> as the driver and click "
             "<b>Install Driver</b>"
         ).format(button=_label_open_zadig()) + _cr30_zadig_warning()
         btn_label = _label_open_zadig()
@@ -470,30 +504,56 @@ def usb_install_outcome(*, wdi_available: bool, ran_ok: bool,
                        button=_in_prose(_label_check_again())),
             ]), False)
         if not ran_ok:
+            # THIS BRANCH OPENS ZADIG AND USED TO SAY NOTHING ABOUT IT.
+            # `offer_zadig` is True here, so pressing the button in the window
+            # this text is shown in launches Zadig — and the old sentence
+            # neither named the driver to pick nor carried the CR30 warning.
+            # Zadig's driver box defaults to WinUSB, so a user who followed the
+            # window's only instruction landed on the one driver ArgyllCMS
+            # cannot read, and a CR30 owner could reach the CH340 row with no
+            # warning at all. Both are fixed here rather than left to the
+            # user's luck.
             return (
                 tr("Automatic installation failed or was cancelled.<br>"
                    "Click <b>{button}</b> to install it manually using the "
-                   "guided tool.").format(button=_label_try_zadig()),
+                   "guided tool: pick your instrument in Zadig, choose "
+                   "<b>libusb-win32</b>, then click <b>Install Driver</b>."
+                   ).format(button=_label_try_zadig())
+                + _cr30_zadig_warning(),
                 True,
             )
         names = ", ".join(still_unbound_names) or tr("the instrument")
-        # `Replace Driver` and the `WinUSB` / `libusb-win32` choices are
-        # Zadig's; `{button}` is ours. See the note above usb_installer_text.
+        # `Replace Driver` and the `libusb-win32` choice are Zadig's;
+        # `{button}` is ours. See the note above usb_installer_text.
+        #
+        # TWO THINGS WERE WRONG HERE AND BOTH GOT WORSE WITH THE TIGHTENED
+        # PREDICATE. The old text offered "choose WinUSB (or libusb-win32)" —
+        # so the window a user reaches BECAUSE the driver did not bind sent
+        # them to bind the one driver that cannot work, and ChromIQ would then
+        # tell them again that the driver was not installed. A loop, out of the
+        # app's own mouth. And the diagnosis named only a stale USB-port
+        # instance, which was the one known cause when nobody could arrive here
+        # with a driver already bound; now the commonest way to reach this
+        # branch is exactly that — an existing binding Windows declined to
+        # replace — so the sentence names it first.
         return (
             tr("Windows reported the install finished, but the driver still "
-               "isn't bound to {names}. This often happens when the device "
-               "was previously plugged into a different USB port.<br><br>"
+               "isn't bound to {names}. That happens when a driver is already "
+               "bound and Windows declines to replace it, and it also happens "
+               "when the device was previously plugged into a different USB "
+               "port.<br><br>"
                "Click <b>{button}</b> to install it reliably: pick your "
-               "instrument in Zadig, choose <b>WinUSB</b> (or libusb-win32), "
+               "instrument in Zadig, choose <b>libusb-win32</b>, "
                "then click <b>Replace Driver</b>. Unplugging and replugging the "
                "instrument first can also help.").format(
-                   names=names, button=_label_try_zadig()),
+                   names=names, button=_label_try_zadig())
+            + _cr30_zadig_warning(),
             True,
         )
 
     if zadig_status == "launched":
         return (
-            tr("Zadig is open. Select your colorimeter, choose WinUSB, "
+            tr("Zadig is open. Select your colorimeter, choose libusb-win32, "
                "then click Install Driver.") + _cr30_zadig_warning(),
             False,
         )
@@ -502,7 +562,7 @@ def usb_install_outcome(*, wdi_available: bool, ran_ok: bool,
             tr("Zadig isn't bundled with this build, so its download page "
                "has been opened in your browser.<br>"
                "Download and run <b>Zadig</b>, then: Options → List All Devices → "
-               "select your colorimeter → choose WinUSB → Install Driver."
+               "select your colorimeter → choose libusb-win32 → Install Driver."
                ) + _cr30_zadig_warning(),
             False,
         )
