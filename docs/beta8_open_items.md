@@ -4587,3 +4587,92 @@ only a triple that DIFFERS from the rule's answer would stop it.
   40 does move it, and then every width assertion fires. The note is in the test
   file's docstring so the next person mutating this family does not conclude the
   width check is asleep.
+
+---
+
+### B8-100 · The English source faults the 4.2.0 translation pass turned up, and the Russian dash instruction that was wrong for one language
+- blocks release: no
+- status: FIXED
+- found by: the four translation agents of the 4.2.0 pass (2026-09-06), 14
+  reported items; verified against the code and on screen by Agent DA,
+  `~/Desktop/beta 9/english-source-faults/FINDINGS-agentDA.md`, which threw
+  three out and priced the rest; fixed by Agent DB, whose working is in
+  `FIXES-agentDB.md` beside it.
+- detail: a translator reads every string in the app one after another, which
+  is a review nobody else performs, and it found things no test could see.
+  Fourteen English keys were re-spelled, carrying 168 translations with
+  them, and 353 more translated values were corrected in place. The ones that mattered:
+
+  **A comma splice that changes what the sentence says at the instrument.**
+  `ui/ti2_loader.py` told a CR30 user *"Take the magnetic cap off the measuring
+  end first, with the cap on, the CR30 reads its own white tile instead of your
+  print."* Read to the first comma it is an instruction; read past it, "with
+  the cap on" attaches to taking the cap off. Three more splices in the same
+  function and one in the new-chart tooltip went with it.
+
+  **Ten of twelve catalogues sent their reader to a control that is not there.**
+  `ui/file_guide.py` names printcal's “Re-calibrate” and “Verify” modes; only
+  `ja` and `zh_CN` had translated those two words, so the GERMAN help card said
+  „Re-calibrate“ while the combo on screen reads `Nachkalibrieren  (vorhandene
+  .cal verfeinern)`. Nothing could catch it: the quotation sits inside a
+  577-character help string, so `--missing` and `--stale` see a fully
+  translated key.
+
+  **221 values across all twelve languages translated a log tag** while 523 left
+  it alone, with `[ERROR]` kept and `[WARNING]` translated in the same log
+  widget. The rule that was supposed to catch that had existed all along and
+  could not: its pattern was `^\[(?:INFO|OK|WARN|ERROR)\]`, so six of the ten
+  tags in use were invisible to it.
+
+  **Russian was told to use the en dash, and the Russian dash is the em dash.**
+  All four translation agents were told German and Norwegian use the en dash
+  where English uses the em dash, and to apply that everywhere. Right for those
+  two, and right for Polish (the półpauza, and its new strings converge on the
+  language). Wrong for Russian: measured on the untouched strings, **2,424 em
+  dashes to 37 spaced en dashes**, and the pass added 179 more. The Russian
+  dash IS the em dash (тире), and it is the copula dash as well, standing where
+  English has no dash at all.
+
+  Deliberately NOT done, per DA and re-checked here: the 95 case-only key pairs
+  (a button / heading / tooltip-title convention), the 17 curly apostrophes
+  (measured harm: zero pairs), the ~25 other prefix quotations that do resolve
+  on screen, the six remaining US `color` strings no catalogue ever shows, and
+  the French `calibration`/`étalonnage`/`calibrage` split, which is
+  pre-existing, was not made by this pass, and is its own piece of work with its
+  own reviewer.
+- fix: 14 English keys re-spelled with all 12 translations carried across
+  (`_IDENTICAL_TO_KEY` and `_BUDGET` re-measured on the merged tree and
+  UNCHANGED, which is the proof none were dropped); 221 log-tag values, 24
+  quoted control names, 77 Italian `campione`→`tassello` and 216 Russian
+  dashes corrected as values only. `ru` joins `ja` and `zh_CN` in
+  `_EM_DASH_IS_NATIVE`, with the measurement written above it.
+  `docs/design/unified_measurement_management.md` gains a `⚠ REVISED` note on
+  M-CR30-CALIBRATE-BLACK (still PROPOSED, still unapproved) and its
+  window-sounds table row is corrected to `Unexpected Colour Response`, which
+  is what §M already called it.
+- evidence: test_no_translation_quotes_a_control_by_its_english_name,
+  test_every_pinned_quotation_still_names_a_real_control,
+  test_the_detector_can_actually_see_the_fault_it_was_written_for,
+  test_russian_keeps_one_dash_and_it_is_the_em_dash,
+  test_log_prefixes_are_handled_the_same_way_throughout,
+  test_no_new_english_ui_text_uses_an_em_dash,
+  test_no_translation_adds_an_em_dash_the_english_does_not_have,
+  test_untranslated_values_do_not_creep_in_unseen,
+  test_no_string_carries_the_punctuation_a_careless_dash_swap_leaves.
+
+  Four mutations, each proved to land before the run: reverting `ru.json`
+  names all 113 keys and replacing every ` — ` in it with a comma drops the
+  count to 20 (the two halves of the Russian guard); putting one `[HINWEIS]`
+  back turns the log-tag rule red where its old shape stayed GREEN; and
+  restoring „Re-calibrate“ to the German catalogue makes both the new quoted-
+  label test and the on-screen driver fail by name.
+
+  Driven on the real `MainWindow` in German and in English, sandboxed to
+  `/tmp/chromiq-db.ini`: the live Mode combo reads `Nachkalibrieren  (…)` /
+  `Überprüfen  (…)` and the folder guide quotes exactly those; the live tick
+  boxes read `Seiten (vertikal)` / `Oben/unten (horizontal)` and the ⓘ quotes
+  both in full; the live checkbox reads `Auch Scanner-Profilierungsdateien für
+  dieses Chart speichern` and the scanner card quotes it in full.
+  `defaults read com.chromiq.ChromIQ custom_output_path` is the user's own
+  empty value afterwards, as it was before, and `calibration_mode` is still 0
+  in the real store while the driver set it in the sandbox.
