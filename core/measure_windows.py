@@ -36,7 +36,7 @@ WINDOW_ROWS = [
     (tr("Patch read failed"), tr("Patch by patch"), tr("Strip read failed")),
     (tr("Strip read quickly"), tr("Strip reading"), tr("Slow down")),
     (tr("Wrong strip read"), tr("Strip reading"), tr("Strip read failed")),
-    (tr("Unexpected Color Response"), tr("Both"), tr("Patch reading looks off")),
+    (tr("Unexpected Colour Response"), tr("Both"), tr("Patch reading looks off")),
     (tr("Strip may be misaligned"), tr("Strip reading"), tr("Strip read failed")),
     (tr("Strip read interrupted"), tr("Strip reading"), tr("Strip read failed")),
     (tr("Patches still unread"), tr("Both"), tr("Strip read failed")),

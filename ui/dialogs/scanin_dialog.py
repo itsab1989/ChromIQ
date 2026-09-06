@@ -1030,7 +1030,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         # a disappearing control and becomes a disabled option with its reason
         # beside it. This is the same widget the B8-70 fix created, moved.
         self._mode_note = self._tall_hint_label(tr(
-            "Not available for a bought target: an IT8 or ColorChecker was "
+            "Not available for a bought target: an IT8 or a ColorChecker was "
             "printed and measured by its manufacturer, not by your printer, "
             "so there is no record of the colour values that went in and "
             "nothing to compare a scan against. “Profile my printer from this "
@@ -3678,7 +3678,7 @@ class ScannerProfileDialog(_ToolDialogBase):
                 shutil.copy2(ti3, named)
             except OSError as exc:
                 self._log.appendPlainText(
-                    f"[WARN] {tr('Could not apply the profile name: {e}').format(e=exc)}")
+                    f"[WARNING] {tr('Could not apply the profile name: {e}').format(e=exc)}")
                 return ti3, self._prof_name.text().strip() or default_stem
             ti3 = named
         return ti3, self._prof_name.text().strip() or default_stem

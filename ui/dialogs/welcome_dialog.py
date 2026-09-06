@@ -770,9 +770,10 @@ WORKFLOWS: list[dict] = [
                 "save the result as a separate file with a name that says so."),
              True,
              ((tr("Why a measuring profile is a different profile"),
-               tr("A profile for looking at reports colour relative to the "
-                  "white patch of the target you scanned. A profile for "
-                  "measuring has to report the colour that is really there. "
+               tr("A profile for looking at pictures reports colour "
+                  "relative to the white patch of the target you scanned. A "
+                  "profile for measuring has to report the colour that is "
+                  "really there. "
                   "The scenario sets Profile type “cLUT — XYZ table”, Quality "
                   "“High” and, under Advanced…, White Point Handling on "
                   "“Force Absolute Colorimetric (-ua)”, which is exactly the "

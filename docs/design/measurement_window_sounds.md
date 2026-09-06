@@ -28,7 +28,7 @@ identifiers.
 | Patch read failed | Patch by patch | Strip read failed |
 | Strip read quickly | Strip reading | Slow down |
 | Wrong strip read | Strip reading | Strip read failed |
-| Unexpected Color Response | Both | Patch reading looks off |
+| Unexpected Colour Response | Both | Patch reading looks off |
 | Strip may be misaligned | Strip reading | Strip read failed |
 | Strip read interrupted | Strip reading | Strip read failed |
 | Patches still unread | Both | Strip read failed |

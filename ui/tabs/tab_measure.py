@@ -6743,7 +6743,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         if idle < self._key_watchdog.interval() / 1000.0 - 0.5:
             return
         self._log.appendPlainText(
-            "[WARN] No response from chartread after sending a key. "
+            "[WARNING] No response from chartread after sending a key. "
             "The keystroke may not have reached the instrument. "
             "Try pressing the key again, or click Stop and restart the measurement."
         )
@@ -6755,7 +6755,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
 
     def _on_keypress_failed(self, key_label: str, reason: str) -> None:
         self._log.appendPlainText(
-            f"[WARN] Could not send '{key_label}' to chartread: {reason} "
+            f"[WARNING] Could not send '{key_label}' to chartread: {reason} "
             "Click Stop and restart the measurement; if the problem persists, "
             "please report it with the log file."
         )
@@ -7050,7 +7050,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         QApplication.instance().removeEventFilter(self)
 
         dlg = QDialog(self)
-        dlg.setWindowTitle(tr("Unexpected Color Response"))
+        dlg.setWindowTitle(tr("Unexpected Colour Response"))
         dlg.setMinimumWidth(500)
 
         layout = QVBoxLayout(dlg)
@@ -7058,7 +7058,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         layout.setContentsMargins(24, 20, 24, 20)
 
         msg = QLabel(
-            tr("<b>An unexpected color response was detected (ΔE {delta_e}).</b><br><br>This usually means the instrument was not aligned correctly with the strip, was moved during the scan, or the wrong strip was read. A ΔE this high indicates the measured colors are very far from what is expected.<br><br>&nbsp;&nbsp;<b>{use_anyway}</b> — accept the reading and continue. Only use this if you are sure the scan was correct.<br><br>&nbsp;&nbsp;<b>{retry}</b> — discard this reading, re-position your instrument carefully on the correct strip, and try again.<br><br>&nbsp;&nbsp;<b>{give_up}</b> — stop the measurement without saving.").format(delta_e=delta_e,
+            tr("<b>An unexpected colour response was detected (ΔE {delta_e}).</b><br><br>This usually means the instrument was not aligned correctly with the strip, was moved during the scan, or the wrong strip was read. A ΔE this high indicates the measured colours are very far from what is expected.<br><br>&nbsp;&nbsp;<b>{use_anyway}</b>: accept the reading and continue. Only use this if you are sure the scan was correct.<br><br>&nbsp;&nbsp;<b>{retry}</b>: discard this reading, re-position your instrument carefully on the correct strip, and try again.<br><br>&nbsp;&nbsp;<b>{give_up}</b>: stop the measurement without saving.").format(delta_e=delta_e,
                     use_anyway=tr("Use Anyway"), retry=tr("Retry"),
                     give_up=tr("Give Up")),
             dlg,
@@ -8242,7 +8242,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # _on_measure_done reports the failure.
         if self._manager.save_partial_in_progress:
             self._log.appendPlainText(
-                "\n" + tr("[WARN] Instrument connection lost — still trying "
+                "\n" + tr("[WARNING] Instrument connection lost. Still trying "
                           "to save the partial measurement…")
             )
             self._log.ensureCursorVisible()

@@ -58,7 +58,13 @@ CODES = sorted(p.stem for p in I18N.glob("*.json")
 _HTML = re.compile(
     r"</?(?:b|i|u|br|p|span|div|font|sub|sup|small|big|hr|ul|ol|li|table|tr|td|th|a|code|pre)"
     r"(?:\s[^>]*)?/?>", re.I)
-_LOGP = re.compile(r"^\[(?:INFO|OK|WARN|ERROR)\]")
+#: Any bracketed log tag, not the four that were listed here until
+#: 2026-09-07. `[WARNING]`, `[NOTE]`, `[STOPPED]`, `[BUSY]`, `[Report]`
+#: and `[Engine]` were invisible to this rule, and that is where the mix
+#: was: 221 values across all twelve languages translated a tag while 523
+#: left it alone, with `[ERROR]` kept and `[WARNING]` translated in the
+#: same log widget. Every language was inconsistent with itself.
+_LOGP = re.compile(r"^\[[A-Za-z]{2,12}\]")
 _BRACE = re.compile(r"\{[^}]*\}")
 _QUOTED = re.compile(r"'[^'\n]{0,80}'|\"[^\"\n]{0,80}\"|„[^“”\n]{0,80}[“”]"
                      # Curly quotes too. Missing them made the check flag the
@@ -114,15 +120,28 @@ def _pairs(code: str):
 
 @pytest.mark.parametrize("code", CODES)
 def test_log_prefixes_are_handled_the_same_way_throughout(code):
-    """All kept in English, or all translated — never a mix in one language."""
+    """All kept in English, or all translated — never a mix in one language.
+
+    It compares the TAG, not merely whether one is there. Until 2026-09-07 the
+    check asked whether the value still began with `[INFO]`, `[OK]`, `[WARN]`
+    or `[ERROR]`, which meant a translated `[HINWEIS]` counted as "changed"
+    only because it was not one of those four — so widening the pattern to any
+    bracketed tag would have made every translation look kept. Reading the tag
+    out of both and comparing them says what the rule actually means.
+    """
     kept, changed = [], []
     for k, v in _pairs(code):
-        if _LOGP.match(k):
-            (kept if _LOGP.match(v) else changed).append(k)
+        want = _LOGP.match(k)
+        if not want:
+            continue
+        got = _LOGP.match(v)
+        (kept if got and got.group(0) == want.group(0)
+         else changed).append(k)
     assert not (kept and changed), (
         f"{code}: {len(kept)} strings keep the English log prefix and "
         f"{len(changed)} translate it, so one log prints two different tags. "
-        f"The project rule is to keep [INFO]/[OK]/[WARN]/[ERROR] as they are. "
+        f"The project rule is to keep the tag in English: it is a log "
+        f"prefix, not prose, and 523 of the 744 already did. "
         f"First offender: {changed[0][:70]!r}"
     )
 

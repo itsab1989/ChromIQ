@@ -8,7 +8,7 @@ Knut found three faces of the same fault, in strip mode on the ChromIQ engine:
 * Wrong Strip Read → Give Up → *"window 'Keep what you have measured so far?'
   appears (good), but it appears on top of the previous window … (the window
   was not closed, or it came more than once)"*
-* Unexpected Color Response → Give Up → the same.
+* Unexpected Colour Response → Give Up → the same.
 
 Two causes. The ending question was opened from inside the button handler,
 *before* ``dlg.accept()``, so it stacked on the window it belonged to. And
