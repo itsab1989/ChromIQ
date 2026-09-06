@@ -1067,6 +1067,117 @@ _P3_BASE: dict = {
 }
 
 
+# --- CR30 family (Knut, 2026-09-06) ----------------------------------------
+# His line-up for the ChnSpec CR30, curated by Basti down to the twenty worth
+# shipping: ten on A4 and ten on US Letter, portrait, one to three sheets,
+# patches 11 mm to 24 mm wide.
+#
+# THE CR30 CANNOT GO THROUGH printtarg AND NEVER DOES. Argyll has no layout for
+# it, so `chart_creator._should_use_engine` forces the ChromIQ layout engine on
+# for this instrument (data/patch_db.py says the same beside
+# EXTERNAL_INSTRUMENTS). Every chart here is therefore engine-built by
+# construction, not by choice, which is why the family is kind 3 in
+# docs/dev_builtin_presets.md.
+#
+# WHAT THE LAYOUT IS FOR. The CR30 is a ROUND instrument read patch by patch, so
+# the sheet is cut for a hand and a ruler rather than for a strip reader's jig:
+# a 26 mm clip band down the RIGHT carrying the automatic notes box, flipped
+# 180° so it reads the right way up when the page is turned, no spacers at all,
+# and helper markers every third patch. Half the line-up comes in a HEXAGONAL
+# cut as well, which packs more round patches per sheet at the same width.
+#
+# The group is "CR30" and it sits before Scanner in the dropdown and the ★
+# overlay (Basti, 2026-09-06).
+_CR30_GROUP = "CR30"
+_CR30_DIR = "assets/charts/knut/rgb/cr30"
+
+# The note printed down the clip band. Knut's own words, carried across verbatim
+# from his export.
+#
+# ⚠ ITS NUMBERS DO NOT MATCH THIS FAMILY'S MARGINS: it says 34 / 18 / 14 / 24
+# where the recipe below sets 17 / 12 / 15 / 26. It is the ColorMunki note he
+# wrote for a different jig, copied forward. It is carried as he exported it
+# rather than corrected, because what a chart prints on paper is his call, not
+# ours. Flagged for him.
+_CR30_CLIP_TEXT = (
+    "————————————————————————————————————————————————————————————————————————\n"
+    "{project} - {rundescription} - {paper} - {instrument} - {patchcount} - "
+    "{page} - {date} - {seed}\n"
+    "Top margin: 34 mm to avoid knobs underneath to get caught in page edge. "
+    "Bottom margin: 18 mm to have 12 mm white space for comfortably ending "
+    "strip.\n"
+    "Left margin: 14 mm so 'glide-rails' do not fall outside of page (needs "
+    "18 mm to patch centre). Right margin: 24 mm to allow for reading last "
+    "strip using ruler."
+)
+
+# Everything the whole family agrees on, in its RECTANGULAR cut. Paper and the
+# columns × rows grid are always per chart; see _cr30_preset below for the four
+# fields a chart may additionally own.
+_CR30_BASE: dict = {
+    # device + patch grid
+    "instrument": "CR30", "cm_density": 1, "cm_stagger": False, "hflag": False,
+    "dpi": 200, "bit16": False, "compression": "lzw", "export_pdf": False,
+    # layout — "area first" by grid, exactly as the ColorMunki and i1Pro 3 Plus
+    # families: the margins are law and the columns × rows decide the patch
+    # size, so A4 ↔ Letter is a change of paper alone.
+    "layout_mode": "area_first", "area_method": "by_grid", "area_ratio": 1.0,
+    "area_min_patch_mm": 0.0, "patch_w_mm": 0.0, "patch_h_mm": 0.0,
+    "patch_area_align": "center-left", "pscale": 1.0, "sscale": 1.0,
+    "border": 6.0, "nolimit": True,
+    "layout_explicit": True, "label_style_explicit": True,
+    # margins
+    "use_instrument_margins": False, "margin_top": 17.0,
+    "margin_right": 26.0, "margin_bottom": 12.0, "margin_left": 15.0,
+    # spacers — NONE. A CR30 is placed on one patch at a time, so a coloured
+    # spacer between patches would only cost sheet area (Basti's guided ruling
+    # is the same, see _seed_manual_layout_defaults).
+    "spacer_on": False, "spacer_mode": "none", "spacer_palette": [],
+    "spacer_overrides": {}, "edge_spacers": False, "spacer_width_mm": 0.0,
+    "inter_patch_mm": 0.0, "strip_gap_mm": 0.0, "max_strip_mm": 0.0,
+    "strip_indicator_gap_mm": 0.0, "offset_x_mm": 0.0, "offset_y_mm": 0.0,
+    # patch order
+    "randomize": True, "seed": None, "strip_pattern": "A-Z, A-Z",
+    "patch_pattern": "0-9,@-9,@-9;1-999",
+    # strip indicators
+    "show_strip_indicators": True, "show_row_indicators": None,
+    "indicator_font": "JetBrains Mono",
+    "indicator_size_mm": 0.0, "indicator_bold": False,
+    "indicator_italic": False, "indicator_rotation": 0,
+    "indicator_align": "left", "strip_label_offset_mm": 0.0,
+    "underline_mode": "off", "underline_thickness_mm": 0.5,
+    "underline_gap_mm": 0.5,
+    # helper markers + page text — every third patch, top and bottom only, so a
+    # ruler laid across the sheet lines up with the row being read.
+    "helper_markers": True, "helper_marker_edge_mm": 4.0,
+    "helper_marker_len_mm": 2.0, "helper_marker_per_patch": 3,
+    "helper_markers_top_bottom": True, "helper_markers_sides": False,
+    "text_edge_mm": 4.0, "text_edge_top_mm": 8.0, "text_edge_clip_mm": 4.0,
+    "chart_text": "", "chart_text_font": "Inter", "chart_text_size_mm": 0.0,
+    "chart_text_bold": False, "chart_text_italic": False,
+    "stamp_command": False,
+    # clip border — a 26 mm band on the right, flipped 180° so it reads upright
+    # when the sheet is turned, carrying the automatic notes box AND the note.
+    "clip_border": True, "clip_border_width_mm": 26.0, "clip_side": "right",
+    "clip_content_mode": "notes", "clip_text": _CR30_CLIP_TEXT,
+    "clip_text_font": "Inter", "clip_text_size_mm": 3.53,
+    "clip_image_path": "", "clip_image_rotation": 0, "clip_image_scale": 100.0,
+    "clip_image_offset_x_mm": 0.0, "clip_image_offset_y_mm": 0.0,
+    "clip_flip_180": True,
+}
+
+# What the HEXAGONAL cut of this family changes, and all it changes. Eight of
+# the twenty charts take it, and every one of them moves these four fields
+# together — so the row says `hexagonal=True` once instead of spelling four
+# keyword arguments out, and a reviewer can read here what the flag buys.
+# A hex chart that moves anything else (three of them pull the top and bottom
+# margins in further) still spells that out on its own row.
+_CR30_HEX: dict = {
+    "hflag": True, "margin_left": 13.0, "margin_top": 13.0,
+    "margin_bottom": 13.0, "text_edge_top_mm": 4.0,
+}
+
+
 # Pulls a "-w<number>mm" patch-width token (e.g. "-w11.5mm") out of a name.
 _WIDTH_TOKEN_RE = re.compile(r"-w\d+(?:\.\d+)?mm")
 
@@ -1108,6 +1219,7 @@ INSTRUMENT_GROUP_LABELS: dict[str, str] = {
     "ColorMunki": INSTRUMENT_LABELS["CM"],
     "i1Pro": INSTRUMENT_LABELS["i1"],
     "i1Pro 3 Plus": INSTRUMENT_LABELS["p3"],
+    "CR30": INSTRUMENT_LABELS["CR30"],
 }
 
 
@@ -1461,6 +1573,50 @@ def _p3_preset(slug: str, name: str, paper: str, cols: int, rows: int,
         group=_P3_GROUP,
         layout_recipe=dict(_P3_BASE, paper=paper, area_cols=cols,
                            area_rows=rows),
+    )
+
+
+def _cr30_preset(slug: str, name: str, paper: str, cols: int, rows: int,
+                 patches: int, pages: int, white: int, black: int, *,
+                 hexagonal: bool = False,
+                 margin_top: float | None = None,
+                 margin_bottom: float | None = None,
+                 area_min_patch_mm: float = 0.0) -> "_Ti1Preset":
+    """One chart of Knut's CR30 family (see _CR30_BASE above).
+
+    The sheet and the grid are always this chart's own. ``hexagonal`` picks the
+    hex CUT of the family, which is the four fields in ``_CR30_HEX`` and nothing
+    else; ``margin_top`` / ``margin_bottom`` / ``area_min_patch_mm`` are the
+    only fields a single chart may then still move for itself, and each one is
+    written out on the row that moves it. Everything else comes from the shared
+    base, so two charts of this family differ in what their rows say and in
+    nothing more.
+
+    ``white`` / ``black`` are the counts the bundled .ti1 declares; they only
+    make the (greyed) targen panel describe what was loaded, since the .ti1 is
+    the real patch set.
+
+    ``printtarg`` values are passed because ``_Ti1Preset`` requires them and are
+    never used: the CR30 is engine-only (``chart_creator._should_use_engine``).
+    """
+    recipe = dict(_CR30_BASE, paper=paper, area_cols=cols, area_rows=rows,
+                  area_min_patch_mm=area_min_patch_mm)
+    if hexagonal:
+        recipe.update(_CR30_HEX)
+    if margin_top is not None:
+        recipe["margin_top"] = margin_top
+    if margin_bottom is not None:
+        recipe["margin_bottom"] = margin_bottom
+    return _Ti1Preset(
+        slug, name, "CR30", paper,
+        1.0,        # printtarg -a: unused, the engine lays this family out
+        6,          # printtarg -m: likewise unused (margins live in the recipe)
+        pages,
+        ti1_asset=f"{_CR30_DIR}/{slug}/chart.ti1",
+        patches=patches, white=white, black=black,
+        tiff_16bit=False, suffix="",
+        group=_CR30_GROUP,
+        layout_recipe=recipe,
     )
 
 
@@ -1841,6 +1997,76 @@ KNUT_PRESETS: list[_Ti1Preset] = [
                "A3-3432p-3pages-Landscape-w9.0mm",
                "420x297", 44, 26, 3432, 3, 2, 2),
 
+    # --- CR30 family (Knut, 2026-09-06) -----------------------------------
+    # His ChnSpec CR30 line-up, curated to twenty by Basti. See _CR30_BASE above
+    # for the shared recipe and _CR30_HEX for what `hexagonal=True` stands for.
+    # Ordered smallest sheet first, then by patch count, which is the order the
+    # dropdown and the ★ overlay show. Rows generated by
+    # `python scripts/import_knut_presets.py cr30 <folder-of-exports> --write`.
+    _cr30_preset("cr30_a4_77p_1page_portrait_w24_0mm",
+                 "A4-77p-1page-Portrait-w24.0mm",
+                 "A4", 7, 11, 77, 1, 1, 1),
+    _cr30_preset("cr30_a4_153p_1page_portrait_w18_0mm_hexagonal",
+                 "A4-153p-1page-Portrait-w18.0mm-Hexagonal",
+                 "A4", 9, 17, 153, 1, 1, 1, hexagonal=True, area_min_patch_mm=17.5),
+    _cr30_preset("cr30_a4_160p_1page_portrait_w17_0mm",
+                 "A4-160p-1page-Portrait-w17.0mm",
+                 "A4", 10, 16, 160, 1, 1, 1),
+    _cr30_preset("cr30_a4_192p_1page_portrait_w11_0mm",
+                 "A4-192p-1page-Portrait-w11.0mm",
+                 "A4", 15, 24, 192, 1, 1, 1),
+    _cr30_preset("cr30_a4_360p_1page_portrait_w11_0mm",
+                 "A4-360p-1page-Portrait-w11.0mm",
+                 "A4", 15, 24, 360, 1, 1, 1),
+    _cr30_preset("cr30_a4_420p_1page_portrait_w11_0mm_hexagonal",
+                 "A4-420p-1page-Portrait-w11.0mm-Hexagonal",
+                 "A4", 15, 28, 420, 1, 2, 2, hexagonal=True),
+    _cr30_preset("cr30_a4_720p_2pages_portrait_w11_0mm",
+                 "A4-720p-2pages-Portrait-w11.0mm",
+                 "A4", 15, 24, 720, 2, 2, 2),
+    _cr30_preset("cr30_a4_840p_2pages_portrait_w11_0mm_hexagonal",
+                 "A4-840p-2pages-Portrait-w11.0mm-Hexagonal",
+                 "A4", 15, 28, 840, 2, 2, 2, hexagonal=True),
+    _cr30_preset("cr30_a4_1080p_3pages_portrait_w11_0mm",
+                 "A4-1080p-3pages-Portrait-w11.0mm",
+                 "A4", 15, 24, 1080, 3, 2, 2),
+    _cr30_preset("cr30_a4_1260p_3pages_portrait_w11_0mm_hexagonal",
+                 "A4-1260p-3pages-Portrait-w11.0mm-Hexagonal",
+                 "A4", 15, 28, 1260, 3, 1, 1, hexagonal=True, area_min_patch_mm=10.5),
+    _cr30_preset("cr30_letter_88p_1page_portrait_w22_0mm",
+                 "Letter-88p-1page-Portrait-w22.0mm",
+                 "Letter", 8, 11, 88, 1, 1, 1),
+    _cr30_preset("cr30_letter_150p_1page_portrait_w17_0mm",
+                 "Letter-150p-1page-Portrait-w17.0mm",
+                 "Letter", 10, 15, 150, 1, 1, 1),
+    _cr30_preset("cr30_letter_170p_1page_portrait_w16_0mm_hexagonal",
+                 "Letter-170p-1page-Portrait-w16.0mm-Hexagonal",
+                 "Letter", 10, 17, 170, 1, 1, 1, hexagonal=True, area_min_patch_mm=16.5),
+    _cr30_preset("cr30_letter_184p_1page_portrait_w11_0mm",
+                 "Letter-184p-1page-Portrait-w11.0mm",
+                 "Letter", 16, 23, 184, 1, 1, 1),
+    _cr30_preset("cr30_letter_368p_1page_portrait_w11_0mm",
+                 "Letter-368p-1page-Portrait-w11.0mm",
+                 "Letter", 16, 23, 368, 1, 1, 1),
+    _cr30_preset("cr30_letter_390p_1page_portrait_w11_0mm_hexagonal",
+                 "Letter-390p-1page-Portrait-w11.0mm-Hexagonal",
+                 "Letter", 15, 26, 390, 1, 2, 2, hexagonal=True,
+                 margin_top=11.0, margin_bottom=9.0, area_min_patch_mm=16.5),
+    _cr30_preset("cr30_letter_736p_2pages_portrait_w11_0mm",
+                 "Letter-736p-2pages-Portrait-w11.0mm",
+                 "Letter", 16, 23, 736, 2, 2, 2),
+    _cr30_preset("cr30_letter_780p_2pages_portrait_w11_0mm_hexagonal",
+                 "Letter-780p-2pages-Portrait-w11.0mm-Hexagonal",
+                 "Letter", 15, 26, 780, 2, 2, 2, hexagonal=True,
+                 margin_top=11.0, margin_bottom=9.0, area_min_patch_mm=16.5),
+    _cr30_preset("cr30_letter_1104p_3pages_portrait_w11_0mm",
+                 "Letter-1104p-3pages-Portrait-w11.0mm",
+                 "Letter", 16, 23, 1104, 3, 2, 2),
+    _cr30_preset("cr30_letter_1170p_3pages_portrait_w11_0mm_hexagonal",
+                 "Letter-1170p-3pages-Portrait-w11.0mm-Hexagonal",
+                 "Letter", 15, 26, 1170, 3, 2, 2, hexagonal=True,
+                 margin_top=11.0, margin_bottom=9.0, area_min_patch_mm=16.5),
+
     # Scanner family (#100) — Knut's flatbed-scanner printer-profiling charts.
     # Engine-built (the layout_recipe drives the ChromIQ layout engine, not
     # printtarg): a dense 4 mm SpectroScan-style grid, printed without colour
@@ -2159,7 +2385,8 @@ _KNUT_GROUP_ENTRIES = {
     grp: [(p.combo_label, p.overlay_label, p.key)
           for p in sorted((q for q in KNUT_PRESETS if q.file_group == grp),
                           key=lambda q, _g=grp: _preset_sort_key(q, _g))]
-    for grp in ("ColorMunki", "i1Pro", _P3_GROUP, "Scanner", "Red River Paper")
+    for grp in ("ColorMunki", "i1Pro", _P3_GROUP, _CR30_GROUP, "Scanner",
+                "Red River Paper")
 }
 
 
@@ -2189,6 +2416,14 @@ BUILTIN_PRESET_GROUPS: list[tuple[str, list[tuple[str, str, str]]]] = [
     # that instrument "i1Pro 3 Plus" too.
     (_group_heading(_P3_GROUP), [
         *_KNUT_GROUP_ENTRIES[_P3_GROUP],
+    ]),
+    # CR30 family (2026-09-06): Knut's ChnSpec CR30 charts, its own group
+    # because the CR30 is a round hand-held colorimeter with no Argyll layout of
+    # its own. Placed BEFORE Scanner at Basti's request: "i want them listed for
+    # the cr30 in both preset dropdowns / speechbubble overlay before the
+    # scanner section".
+    (_group_heading(_CR30_GROUP), [
+        *_KNUT_GROUP_ENTRIES[_CR30_GROUP],
     ]),
     # Scanner family (#100): engine-built charts for flatbed-scanner printer
     # profiling — its own group, since no spectrophotometer is involved.
@@ -7682,10 +7917,22 @@ class TabChart(QWidget):
             # This family prints a wide empty band down one side — the run-up the
             # instrument needs before it reaches the first patch. Say so, or it
             # reads as wasted paper.
+            #
+            # EXCEPT ON THE CR30, WHICH HAS NO RUN-UP. It is a round hand-held
+            # colorimeter set down on one patch at a time, not a strip reader
+            # rolled along a row, so there is nothing to run up to. Its band is
+            # the notes box and it is printed upside down on purpose, because
+            # the sheet is turned to read it. Saying "run-up" here would teach
+            # a CR30 owner something untrue about their own instrument.
             if rec.get("clip_border") and rec.get("clip_content_mode") == "notes":
-                ruler += ("\nThe wide white band down the side is the run-up your "
-                          "instrument needs before\nthe first patch; the chart's "
-                          "details are printed in it.")
+                if p.group == _CR30_GROUP:
+                    ruler += ("\nThe wide band down the side carries the chart's "
+                              "details. It is printed\nupside down so it reads "
+                              "the right way up when you turn the sheet.")
+                else:
+                    ruler += ("\nThe wide white band down the side is the run-up your "
+                              "instrument needs before\nthe first patch; the chart's "
+                              "details are printed in it.")
             return (
                 "Built-in chart — cannot be deleted.\n"
                 f"A ready-made {p.patches}-patch target for the {instr} on "

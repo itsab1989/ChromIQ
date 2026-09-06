@@ -17,15 +17,17 @@ def _app():
     return QApplication.instance() or QApplication([])
 
 
-def test_the_marker_counts_are_exactly_115_6_and_9():
+def test_the_marker_counts_are_exactly_135_6_and_9():
     knut = list(tc.KNUT_PRESETS)
     marked = [p for p in knut if p.has_full_layout_setup]
     unmarked = [p for p in knut if not p.has_full_layout_setup]
 
-    assert len(tc.BUILTIN_PRESET_KEYS) == 130
+    # 2026-09-06: +20 CR30 charts, every one shipping a recipe.json sidecar, so
+    # the marked count moves and the unmarked one does not.
+    assert len(tc.BUILTIN_PRESET_KEYS) == 150
     assert len(tc.PREBUILT_PRESETS) == 9        # the "by Pharmacist" rows
-    assert (len(marked), len(unmarked)) == (115, 6)
-    assert len(marked) + len(unmarked) + len(tc.PREBUILT_PRESETS) == 130
+    assert (len(marked), len(unmarked)) == (135, 6)
+    assert len(marked) + len(unmarked) + len(tc.PREBUILT_PRESETS) == 150
 
 
 def test_no_red_river_row_carries_the_marker():

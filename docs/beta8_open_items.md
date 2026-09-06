@@ -4035,3 +4035,124 @@ only a triple that DIFFERS from the rule's answer would stop it.
   (the raster test fails, the constant test does not, which is the point of
   having both); scaling `pwid` in `patch_rects_px` so the geometry moves; and
   importing the reporting helper into `workflow/layout_engine/geometry.py`.
+
+---
+
+### B8-93 · Knut's twenty CR30 charts ship as built-in presets, in their own group before Scanner
+- blocks release: no
+- status: FIXED
+- found by: Basti, 2026-09-06, handing over `New presets CR30/` (twenty
+  `.ti1` + `.json` export pairs he had curated from Knut's set) with: *"i want
+  them listed for the cr30 in both preset dropdowns / speechbubble overlay
+  before the scanner section"*. Built by Agent CT.
+- detail: a feature rather than a fault, filed here because the register is the
+  checklist. Twenty charts: ten on A4 and ten on US Letter, portrait, one to
+  three sheets, patches 11 mm to 24 mm wide, twelve rectangular and eight
+  hexagonal.
+
+  **No new mechanism was needed, and one was nearly invented.** The files are
+  the same export pairs the ColorMunki, i1Pro 3 Plus and two i1Pro families
+  were built from, so this is a `FAMILIES` entry in
+  `scripts/import_knut_presets.py` plus a `_Ti1Preset` row per chart, which is
+  what that script's own docstring says a new line-up should be. It is kind 3
+  ("ti1 to layout engine") in `docs/dev_builtin_presets.md`, and for a CR30 it
+  could not have been anything else: Argyll has no layout for the instrument,
+  so `chart_creator._should_use_engine` forces the ChromIQ engine on and
+  printtarg never sees one of these charts.
+
+  **The first family with two SHAPES.** Every one of the eight hexagonal charts
+  moves the same four fields with `hflag` (`margin_left` 13,
+  `margin_top`/`margin_bottom` 13, `text_edge_top_mm` 4, against the
+  rectangular 15/17/12/8). Rather than five keyword arguments on eight rows,
+  the shape has a name: `_CR30_HEX`, and a row says `hexagonal=True`. Three
+  Letter hex charts move their top and bottom margins further and still spell
+  those out. The importer gained the same idea as `Family.overlay`, so a chart
+  taking the cut is validated against `base | delta` and cannot hide a fifth
+  change inside the flag.
+
+  **Two names round differently, and they are Knut's, not ours.**
+  `Letter-150p-1page-Portrait-w17.0mm` prints 17.53 mm patches and
+  `Letter-170p-1page-Portrait-w16.0mm-Hexagonal` prints 16.64 mm. Both are
+  wider than the name says. The shipped recipes are byte-for-byte his exports
+  (proved: every one of the twenty reproduces its export exactly), so this is
+  his naming against his layout and the fix is his call. Pinned at what they
+  measure so a change to either end fails.
+
+  **The clip note's own numbers disagree with the margins it is printed
+  beside.** It says top 34 / bottom 18 / left 14 / right 24 mm; the recipe sets
+  17 / 12 / 15 / 26. It is the ColorMunki note copied forward. Carried verbatim
+  rather than corrected, because what a chart prints on paper is his call.
+
+  **A user preset of the same name is untouched.** Basti has all twenty saved
+  in his own presets folder. A built-in is matched by a sentinel KEY and listed
+  under its own "★ ... · built-in" label, so his files collide with neither the
+  key nor the label the dropdown filters on: they stay listed above the
+  built-ins, stay editable and stay deletable. Nothing is removed, hidden or
+  frozen.
+- fix: `ui/tabs/tab_chart.py` gains `_CR30_BASE`, `_CR30_HEX`, `_CR30_CLIP_TEXT`,
+  `_CR30_GROUP` / `_CR30_DIR`, the `_cr30_preset()` helper and twenty rows;
+  `INSTRUMENT_GROUP_LABELS` gains CR30 so the heading is the Instrument field's
+  own words ("CR30 (ChnSpec)"); `BUILTIN_PRESET_GROUPS` gains the group BEFORE
+  Scanner, which orders the Presets dropdown, the ★ overlay, the #66 "Compare
+  with profile" list and the New-chart "Load setup from preset" list together.
+  `_knut_tooltip` gains a CR30 branch: the shared engine tooltip calls a wide
+  clip band "the run-up your instrument needs before the first patch", and a
+  CR30 has no run-up, being a round hand-held colorimeter set on one patch at a
+  time. `scripts/import_knut_presets.py` gains the `cr30` family and the
+  `Overlay` mechanism. Assets: 20 x (`chart.ti1` + `recipe.json`) under
+  `assets/charts/knut/rgb/cr30/`, 676 KiB on disk (226 KB compressed).
+- proved on screen: `scripts/drive_cr30_builtin_presets.py` drives the real
+  window, reads all four preset lists back, and builds **all twenty from the
+  real dropdown** (through `activated`, which is what a click emits, not
+  `setCurrentIndex`, which applies nothing). Twenty out of twenty landed on the
+  paper, patch count, page count and patch shape their names promise, zero
+  mismatches. Screenshots and a contact sheet of all twenty sheets are on the
+  Desktop under `beta 9/cr30-builtin-presets/`; `custom_output_path` was empty
+  before the runs and is empty after them.
+- what is owed: three things, all Knut's or Basti's call, none of them changed
+  here.
+  1. **The two names that round differently** (above). Rename the chart or
+     re-cut the layout.
+  2. **The clip note's stale margin numbers** (above).
+  3. **The display name.** Each row reads
+     "★ CR30 · A4-360p-1page-Portrait-w11.0mm · Full layout setup · built-in".
+     The "Full layout setup" marker Knut asked for is not typed into the name:
+     it is earned automatically by shipping a `recipe.json`, so all twenty
+     carry it with no per-row text. Nothing is proposed beyond that, because
+     the filename already carries paper, count, pages, orientation and width.
+- evidence: all of them live in one new file, `tests/…cr30_builtin_presets.py`
+  (93 tests, everyday tier, four seconds):
+  test_twenty_charts_registered,
+  test_the_cr30_group_comes_before_the_scanner_section,
+  test_the_family_has_its_own_group_named_as_the_instrument_field_names_it,
+  test_every_chart_reaches_the_dropdown_and_the_overlay_smallest_sheet_first,
+  test_every_row_carries_the_full_layout_setup_marker,
+  test_recipe_differs_from_the_base_only_where_allowed,
+  test_the_hexagonal_cut_is_exactly_these_four_fields_and_no_others,
+  test_only_the_three_letter_hex_charts_move_a_margin_of_their_own,
+  test_the_measured_shape_of_the_family,
+  test_name_matches_the_bundled_patch_set_and_the_grid,
+  test_sidecar_recipe_matches_its_chart,
+  test_a_user_preset_named_after_one_of_these_is_left_alone,
+  test_tooltip_names_the_device_and_does_not_invent_a_run_up,
+  test_seeding_a_preset_puts_its_layout_on_the_panel,
+  test_selecting_one_greys_targen_and_leaves_the_layout_editable,
+  test_chart_builds_with_the_pages_and_patches_its_name_promises.
+
+  Nine mutations, each proved to land before the run: the base clip band 26 to
+  24 mm (1 failure); the CR30 group moved after Scanner (1); one row's grid
+  15x24 to 15x12 (2, the name test and the build test); the hex cut's
+  `margin_left` 13 to 15 (2); the CR30 tooltip branch disabled so it falls back
+  to "run-up" (1); one `recipe.json` removed from the asset tree (2); and the
+  base `margin_right` 26 to 40 mm (all 20 build tests, the two width-exception
+  ones included).
+
+  **Two of those nine taught something the family's own numbers hide, and they
+  are recorded because they nearly read as a sleeping guard.** Dropping
+  `margin_right` 26 to 22, and separately the clip band 26 to 20, each failed
+  only the shape test and moved no patch by a micron. The chart area's right
+  edge is `max(margin_right, clip_border_width_mm)` and BOTH are 26 in this
+  family, so either one alone is masked by the other. Lifting `margin_right` to
+  40 does move it, and then every width assertion fires. The note is in the test
+  file's docstring so the next person mutating this family does not conclude the
+  width check is asleep.

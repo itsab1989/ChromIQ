@@ -36,6 +36,7 @@ Usage::
     python scripts/import_knut_presets.py <family> <export-folder> [--write]
 
     family: cm  (ColorMunki)  |  p3  (i1Pro 3 Plus)  |  i1  (i1Pro, 8 mm)
+            i175 (i1Pro, 7.5 mm)  |  cr30 (ChnSpec CR30)
 
 Without ``--write`` it only validates and prints, so you can see what would
 change before anything is touched.
@@ -56,6 +57,30 @@ ASSETS = REPO / "assets" / "charts" / "knut" / "rgb"
 
 
 @dataclass(frozen=True)
+class Overlay:
+    """A named CUT of a family: one boolean the helper takes, and the block of
+    recipe fields it stands for.
+
+    Some line-ups come in two shapes that move the same handful of fields
+    together every time. The CR30 set is the first: its eight hexagonal charts
+    all carry ``hflag`` with ``margin_left`` 13, ``margin_top`` /
+    ``margin_bottom`` 13 and ``text_edge_top_mm`` 4, where the twelve
+    rectangular ones carry 15 / 17 / 12 / 8. Spelling five keyword arguments out
+    on eight rows would bury the two fields a chart really owns, so the shape
+    gets a name instead: the row says ``hexagonal=True`` and this table says
+    what that means, once.
+
+    ``discriminator`` is the recipe field whose truth picks the cut. A chart
+    that takes the overlay is then diffed against ``base | delta``, so a
+    hexagonal chart still spells out a margin it does NOT share with the other
+    seven.
+    """
+    keyword: str             # the helper's boolean keyword argument
+    discriminator: str       # recipe field whose truth selects this cut
+    delta: dict              # what the cut sets on top of the family base
+
+
+@dataclass(frozen=True)
 class Family:
     """One instrument's line-up of charts, as Knut exports them."""
     key: str                 # command-line name
@@ -66,6 +91,7 @@ class Family:
     dest: Path               # where the bundled assets land
     varying: frozenset       # recipe fields ONE chart may set for itself
     helper: str              # the tab_chart.py helper the rows call
+    overlay: "Overlay | None" = None   # optional named cut (see Overlay)
 
 
 FAMILIES: dict[str, Family] = {
@@ -121,6 +147,36 @@ FAMILIES: dict[str, Family] = {
                            "margin_right", "margin_bottom"}),
         helper="_i1_75_preset",
     ),
+    # The CR30 line-up (2026-09-06). Knut's charts for the ChnSpec CR30, cut
+    # down by Basti to the twenty worth shipping: ten on A4, ten on US Letter,
+    # one to three sheets, patches 11 mm to 24 mm wide, each size offered in a
+    # rectangular and (mostly) a hexagonal cut.
+    #
+    # It is the FIRST family with two shapes, so the first to carry an
+    # `overlay`: the base is the rectangular cut, and `hexagonal=True` stands
+    # for the four fields the hex cut moves together. A hexagonal chart that
+    # ALSO moves a margin (the three Letter 15x26 ones do) still spells that
+    # margin out, so nothing hides inside the flag.
+    #
+    # `area_min_patch_mm` is per chart here where it is 0.0 everywhere else:
+    # four of Knut's exports carry a floor (10.5 / 16.5 / 17.5 mm) and it is
+    # carried through rather than flattened.
+    #
+    # The CR30 never reaches printtarg (data/patch_db.py, and
+    # chart_creator._should_use_engine forces the engine for it), so every one
+    # of these is engine-built by construction.
+    "cr30": Family(
+        key="cr30", label="CR30", prefix="CR30-", slug_prefix="cr30_",
+        instrument="CR30", dest=ASSETS / "cr30",
+        varying=frozenset({"paper", "area_cols", "area_rows",
+                           "area_min_patch_mm", "hflag", "margin_top",
+                           "margin_bottom", "margin_left", "text_edge_top_mm"}),
+        helper="_cr30_preset",
+        overlay=Overlay("hexagonal", "hflag", {
+            "hflag": True, "margin_left": 13.0, "margin_top": 13.0,
+            "margin_bottom": 13.0, "text_edge_top_mm": 4.0,
+        }),
+    ),
 }
 
 # The names carry the layout: "<paper>-<patches>p-<pages>page(s)-<orientation>…".
@@ -149,7 +205,8 @@ def _shipped_base(fam: Family) -> dict:
                              # i175 was MISSING, so the guard was a no-op for
                              # the very family it was written for: a drifting
                              # 7.5 mm batch validated rc=0.
-                             "i175": "_I1_75_BASE"}.get(fam.key, ""), None) or {})
+                             "i175": "_I1_75_BASE",
+                             "cr30": "_CR30_BASE"}.get(fam.key, ""), None) or {})
 
 
 def slugify(name: str, fam: Family) -> str:
@@ -327,14 +384,28 @@ def emit_rows(rows: list[dict], fam: Family, base: dict) -> str:
     """
     out = []
     pad = " " * (len(fam.helper) + 5)
+    # The helper takes these positionally, so they are never keyword arguments.
+    positional = {"paper", "area_cols", "area_rows"}
     for r in rows:
+        recipe = r["layout_recipe"]
+        effective = dict(base)
         extra = ""
-        if "margin_left" in fam.varying and r["margin_left"] != base.get("margin_left"):
-            extra += f", margin_left={r['margin_left']}"
-        for field in ("margin_right", "margin_bottom"):
-            if field in fam.varying and r.get(field) != base.get(field):
-                extra += f", {field}={r[field]}"
-        if "clip_text" in fam.varying and r["clip_text"] != base.get("clip_text"):
+        ov = fam.overlay
+        if ov is not None and recipe.get(ov.discriminator):
+            # A named cut of the family: say its name, then diff what is left
+            # against what the cut already implies.
+            extra += f", {ov.keyword}=True"
+            effective.update(ov.delta)
+        for field in ("margin_left", "margin_top", "margin_right",
+                      "margin_bottom", "text_edge_top_mm",
+                      "area_min_patch_mm", "hflag"):
+            if field not in fam.varying or field in positional:
+                continue
+            if recipe.get(field) == effective.get(field):
+                continue
+            extra += f", {field}={recipe.get(field)!r}"
+        if ("clip_text" in fam.varying
+                and recipe.get("clip_text") != effective.get("clip_text")):
             # Only the ColorMunki family authors a second note (its Hand Held
             # charts); the constant sits beside the base in tab_chart.py.
             extra += ", clip_text=_CM_CLIP_TEXT_HAND_HELD"
@@ -352,7 +423,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("family", choices=sorted(FAMILIES),
                     help="which line-up these exports belong to "
-                         "(cm = ColorMunki, p3 = i1Pro 3 Plus)")
+                         "(cm = ColorMunki, p3 = i1Pro 3 Plus, "
+                         "i1 / i175 = i1Pro, cr30 = ChnSpec CR30)")
     ap.add_argument("src", type=Path, help="folder of <name>.ti1 + <name>.json")
     ap.add_argument("--write", action="store_true",
                     help="copy the assets into place (otherwise only report)")
