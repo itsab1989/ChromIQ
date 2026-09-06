@@ -63,11 +63,17 @@ def test_no_new_english_ui_text_uses_an_em_dash():
         f"(—):\n\n"
         + "\n".join(f"  [{english[s]}]\n    {_excerpt(s)}" for s in new[:12])
         + (f"\n  … and {len(new) - 12} more" if len(new) > 12 else "")
-        + "\n\nRewrite with a comma, a colon, a full stop, or brackets. The "
-          "sentence is usually clearer for it, and an em dash is one of the "
-          "clearest tells of machine-written text.\n\n"
+        + "\n\nRewrite the SENTENCE. Do not just drop a comma in where the "
+          "dash was: an em dash is often doing work, and swapping the "
+          "punctuation without re-reading the result is how a clear line "
+          "becomes a comma splice. If the sentence leans on the break, make "
+          "it two sentences. A colon works when what follows explains what "
+          "came before; brackets work when it is an aside.\n\n"
+          "Do NOT do this with a scripted find-and-replace across many "
+          "strings at once. Every one of these is read by a user and "
+          "translated into twelve languages.\n\n"
           "If a string here is one you only MOVED or reindented, it counts as "
-          "modified — clean the dash while you are in there.\n\n"
+          "modified, so clean the dash while you are in there.\n\n"
           "If the em dash is genuinely unavoidable, add the string to "
           "tests/data/em_dash_allowed.json with a one-line reason. Do not add "
           "it to the baseline: the baseline is what shipped before the rule, "
@@ -120,3 +126,36 @@ def test_the_baseline_only_ever_shrinks():
     assert not overlap, (
         f"{len(overlap)} string(s) are in both the baseline and the allowlist. "
         f"A string is either grandfathered or deliberately excepted, not both.")
+
+
+def test_no_string_carries_the_punctuation_a_careless_dash_swap_leaves():
+    """The rewrite is a judgement nothing can check. Its worst failure is not.
+
+    Removing an em dash by substituting punctuation, rather than by rewriting
+    the sentence, leaves a small family of tell-tale marks: a doubled comma
+    where the dash sat next to one already, a space before a comma, a doubled
+    colon. This does not judge whether a sentence reads well, which no test
+    can. It catches the specific wreckage of doing the substitution without
+    looking at the result, which is a thing that has actually happened here.
+
+    All four patterns measure ZERO across the app's 5,114 strings today, so
+    there is nothing to grandfather and no ratchet to rot.
+    """
+    import re
+    patterns = {
+        ",,": r",,",
+        "comma space comma": r", ,",
+        "space before a comma": r"\S ,",
+        "doubled colon": r"(?<!:)::(?!:)",
+    }
+    bad = []
+    for text, where in E.english_strings().items():
+        for name, pat in patterns.items():
+            if re.search(pat, text):
+                bad.append(f"[{where}] {name}: {_excerpt(text, 90)}")
+    assert not bad, (
+        "\n  " + "\n  ".join(bad[:12])
+        + (f"\n  … and {len(bad) - 12} more" if len(bad) > 12 else "")
+        + "\n\nThis usually means punctuation was substituted into a sentence "
+          "instead of the sentence being rewritten. Read the line aloud and "
+          "fix the sentence, not the symptom.")
