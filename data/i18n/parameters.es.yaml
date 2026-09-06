@@ -947,7 +947,6 @@ parameters:
         - "s — gamma única + matriz"
         - "S — gamma única + matriz (forzado)"
         - "m — solo matriz"
-        - "M — solo matriz (forzado)"
     "-q":
       name: "Calidad del perfil"
       tooltip_title: "Calidad del perfil (-q)"

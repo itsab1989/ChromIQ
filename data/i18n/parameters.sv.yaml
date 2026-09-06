@@ -888,7 +888,6 @@ parameters:
         - "s — enkel gamma + matris"
         - "S — enkel gamma + matris (tvingad)"
         - "m — endast matris"
-        - "M — endast matris (tvingad)"
     "-q":
       name: "Profilkvalitet"
       tooltip_title: "Profilkvalitet (-q)"

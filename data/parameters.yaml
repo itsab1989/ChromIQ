@@ -1252,7 +1252,10 @@ parameters:
     - flag: "-a"
       name: "Profile Algorithm"
       type: choice
-      choices: ["l", "x", "X", "g", "G", "s", "S", "m", "M"]
+      # No "M": colprof 3.5.0's -a switch accepts l L x X Y g G s S m and
+      # nothing else (profile/colprof.c:599-631, and measured against the
+      # binary). -aM exits 1 with "Unknown argument 'M' to algorithm flag -a".
+      choices: ["l", "x", "X", "g", "G", "s", "S", "m"]
       labels:
         - "l — Lab cLUT (recommended for RGB printers)"
         - "x — XYZ cLUT"
@@ -1262,7 +1265,6 @@ parameters:
         - "s — Single gamma + matrix"
         - "S — Single gamma + matrix (forced)"
         - "m — Matrix only"
-        - "M — Matrix only (forced)"
       default: "l"
       no_space: true
       expert_only: false

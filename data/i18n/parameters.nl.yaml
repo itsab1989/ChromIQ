@@ -911,7 +911,6 @@ parameters:
         - "s — enkele gamma + matrix"
         - "S — enkele gamma + matrix (geforceerd)"
         - "m — alleen matrix"
-        - "M — alleen matrix (geforceerd)"
     "-q":
       name: "Profielkwaliteit"
       tooltip_title: "Profielkwaliteit (-q)"

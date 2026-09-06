@@ -171,7 +171,14 @@ def warn(
                            else QMessageBox.StandardButton.Ok)
     if default is not None:
         box.setDefaultButton(default)
-    from ui.widgets import fit_message_box_buttons
+    # A LONG BODY MUST NOT TAKE THE BUTTONS OFF THE SCREEN WITH IT.
+    # `fit_message_box_buttons` widens a box for its BUTTONS and caps nothing;
+    # this caps and clamps it against the work area, widens it for its TEXT, and
+    # puts an overflowing body behind Qt's own "Show Details". Called BEFORE the
+    # button fit so the details button it may add is fitted with the rest.
+    from ui.widgets import (fit_message_box_buttons,
+                            keep_message_box_inside_the_work_area)
+    keep_message_box_inside_the_work_area(box)
     fit_message_box_buttons(box)
     box.exec()
     return box.standardButton(box.clickedButton())
@@ -392,7 +399,14 @@ def _boxed(parent, title, text, buttons, default, set_icon):
                            else QMessageBox.StandardButton.Ok)
     if default is not None:
         box.setDefaultButton(default)
-    from ui.widgets import fit_message_box_buttons
+    # A LONG BODY MUST NOT TAKE THE BUTTONS OFF THE SCREEN WITH IT.
+    # `fit_message_box_buttons` widens a box for its BUTTONS and caps nothing;
+    # this caps and clamps it against the work area, widens it for its TEXT, and
+    # puts an overflowing body behind Qt's own "Show Details". Called BEFORE the
+    # button fit so the details button it may add is fitted with the rest.
+    from ui.widgets import (fit_message_box_buttons,
+                            keep_message_box_inside_the_work_area)
+    keep_message_box_inside_the_work_area(box)
     fit_message_box_buttons(box)
     box.exec()
     return box.standardButton(box.clickedButton())

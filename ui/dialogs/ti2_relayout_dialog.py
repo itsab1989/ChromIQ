@@ -41,14 +41,14 @@ from ui.styles import SPEC_AMBER, SPEC_MAGENTA, TAB_COLORS, combo_popup_qss
 from ui.fade_scroll import FadeScrollArea
 from ui.gradient_overlay import GradientOverlay
 from ui.tab_header import SpectrumStripe as _SpectrumStripe, TabHeader
-from ui.tooltip_button import TooltipButton
+from ui.tooltip_button import InfoDialog, TooltipButton
 from ui.dialogs.tools_dialogs import _popup_pair
 from ui.theme import accent_for
 from ui.widgets import (
     NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox,
     PrefixLockedLineEdit, disabled_primary_qss, load_magenta_folder_icon,
     open_dir_dialog, open_file_dialog, primary_hover, primary_label,
-    save_file_dialog, set_ink, spectrum_cell,
+    save_file_dialog, set_ink, spectrum_cell, WorkAreaClamped,
 )
 from ui.warning_sign import inform, set_warning_icon, warn
 
@@ -477,6 +477,19 @@ _INSTRUMENTS = [
     ("3p", "i1Pro3 Plus"),
     ("CM", "ColorMunki / i1Studio"),
 ]
+
+# The custom paper W/H spin boxes, in mm. Both used to be `setRange(10, 9999)`,
+# and 4001..9999 is a range the widget OFFERS and printtarg REFUSES: its custom
+# `-p WWWxHHH` form sanity-checks each axis against 1.0..4000.0
+# (`printtarg.c:3311-3316`, and MEASURED — 4000x4000 parses, 4000.5x4000.5 does
+# not). Taken from `ti2_relayout` so there is one number, next to the argv
+# builder that has to honour it, rather than four literals in this file.
+# The floor stays 10 rather than printtarg's own 1: a page one millimetre wide
+# parses and then fails at layout time with "Paper size not long enough for a
+# single patch per row", which is a worse answer than a spin box that will not
+# go there.
+_CUSTOM_PAPER_MIN_MM = 10
+_CUSTOM_PAPER_MAX_MM = int(R.PRINTTARG_PAPER_MAX_MM)
 
 # Strip readers (i1Pro family + 3 Plus) — the instruments for which printtarg's
 # -L (suppress left clip) and -P (no per-strip patch limit) apply.
@@ -1049,12 +1062,12 @@ class _NewChartDialog(QDialog):
         cust_l.setSpacing(6)
         cust_l.addWidget(QLabel(tr("W (mm):")))
         self._paper_w = NoScrollSpinBox(self._paper_custom_row)
-        self._paper_w.setRange(10, 9999)
+        self._paper_w.setRange(_CUSTOM_PAPER_MIN_MM, _CUSTOM_PAPER_MAX_MM)
         self._paper_w.setValue(210)
         cust_l.addWidget(self._paper_w)
         cust_l.addWidget(QLabel(tr("H (mm):")))
         self._paper_h = NoScrollSpinBox(self._paper_custom_row)
-        self._paper_h.setRange(10, 9999)
+        self._paper_h.setRange(_CUSTOM_PAPER_MIN_MM, _CUSTOM_PAPER_MAX_MM)
         self._paper_h.setValue(297)
         cust_l.addWidget(self._paper_h)
         cust_l.addStretch(1)
@@ -4234,7 +4247,7 @@ class _EditorSnapshot:
         )
 
 
-class Ti2RelayoutDialog(QDialog):
+class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
     def __init__(self, runner, settings, parent: QWidget | None = None,
                  on_apply: "Callable[[Path, str], bool | None] | None" = None,
                  initial_chart: "Path | None" = None) -> None:
@@ -4253,6 +4266,15 @@ class Ti2RelayoutDialog(QDialog):
         # Wider default so the printtarg-options column doesn't clip its
         # row labels ("Margin (mm):", "Spacer -A:") or its combo content
         # ("A4 (210 × 297 mm) Portrait") on first open.
+        #
+        # THE 820 USED TO BE A PROMISE THIS WINDOW COULD NOT KEEP. It was the
+        # only number here, with no reference to the screen at all — and a
+        # 1366x768 laptop's work area is about 728 px, so the window opened 92
+        # px taller than the screen with Apply / Save… and Close, which sit at
+        # the very bottom of the right column, first over the edge. B8-72 fixed
+        # exactly this for every window in `tools_dialogs.py`; this one is a
+        # plain QDialog and inherited none of it. `WorkAreaClamped` is now
+        # where that arithmetic lives, and `showEvent` below applies it.
         self.resize(1280, 820)
         self.setMinimumSize(1000, 620)
 
@@ -4862,13 +4884,13 @@ class Ti2RelayoutDialog(QDialog):
         cust_l.setSpacing(6)
         cust_l.addWidget(QLabel(tr("W (mm):")))
         self._pt_paper_w = NoScrollSpinBox(self._pt_paper_custom_row)
-        self._pt_paper_w.setRange(10, 9999)
+        self._pt_paper_w.setRange(_CUSTOM_PAPER_MIN_MM, _CUSTOM_PAPER_MAX_MM)
         self._pt_paper_w.setValue(210)
         self._pt_paper_w.setMinimumWidth(76)
         cust_l.addWidget(self._pt_paper_w)
         cust_l.addWidget(QLabel(tr("H (mm):")))
         self._pt_paper_h = NoScrollSpinBox(self._pt_paper_custom_row)
-        self._pt_paper_h.setRange(10, 9999)
+        self._pt_paper_h.setRange(_CUSTOM_PAPER_MIN_MM, _CUSTOM_PAPER_MAX_MM)
         self._pt_paper_h.setValue(297)
         self._pt_paper_h.setMinimumWidth(76)
         cust_l.addWidget(self._pt_paper_h)
@@ -6664,13 +6686,23 @@ class Ti2RelayoutDialog(QDialog):
             return
         if self._worker is not None and self._worker.isRunning():
             return
-        # Multi-ink charts never touch printtarg (#72 decision 0): its
-        # relayout path is RGB-only and would fail loudly. RGB engine charts
-        # still run the printtarg pass first (it seeds page nav / geometry;
-        # _on_regen_done then swaps in the engine render), but for non-RGB the
-        # engine render IS the preview, directly.
-        if (self._spec is not None
-                and self._spec.color_rep.lstrip("i").upper() != "RGB"):
+        # AN ENGINE CHART NEVER TOUCHES printtarg FROM THIS WINDOW.
+        #
+        # This used to read "multi-ink charts never touch printtarg (#72
+        # decision 0) … RGB engine charts still run the printtarg pass first (it
+        # seeds page nav / geometry; _on_regen_done then swaps in the engine
+        # render)". That comment described a swap that could not happen: with
+        # `_engine_active` nailed to False for every RGB chart (see its
+        # docstring), `_on_regen_done` never reached its engine branch, so the
+        # seeding pass was the whole render — printtarg's layout of a chart
+        # printtarg had not laid out.
+        #
+        # With the predicate fixed, the seeding pass is work whose result is
+        # thrown away two lines later. For a CR30 it is worse than wasted:
+        # printtarg has no -iCR30 and refuses the chart, which is the failure
+        # Knut reported (an editor that could not be opened at all). So an
+        # engine chart goes straight to the engine, which is what draws it.
+        if self._engine_active():
             self._do_engine_preview()
             return
         out_dir = save_to or Path(self._preview_tmp.name)
@@ -6711,10 +6743,71 @@ class Ti2RelayoutDialog(QDialog):
             return bool(self._paint)
         return self._mode_spacers.isChecked() or bool(self._paint)
 
+    def _report_tool_failure(self, title: str, exc: BaseException) -> None:
+        """Say what an Argyll tool refused, in ChromIQ's words, in a window that
+        fits the screen. The tool's full output goes to the log.
+
+        **THIS WINDOW WAS THE ONLY PLACE IN THE APP THAT PUT AN ARGYLL TOOL'S
+        RAW stderr IN A MODAL.** `_on_regen_done` and `_save_as` both did
+        `warn(self, <title>, str(exc))`, and `ti2_relayout` wraps the whole of
+        `stderr` in its RuntimeError. MEASURED on the real screen with the CR30
+        failure Knut hit: 51 lines, 3055 characters, a QMessageBox 420 x 1433 px
+        on a 1079 px work area, its only button 372 px below the bottom edge.
+        And on macOS Qt discards a QMessageBox's window title by design, so the
+        words "Render failed" were never on his screen either: the body was all
+        there was, and the body was printtarg's usage text.
+
+        Every other tool failure in this app already goes two places at once —
+        the tool's own words to a scrollable log, and ChromIQ's sentence to an
+        InfoDialog (`tab_chart.py`'s build handler is the model, matching
+        against `_PRINTTARG_ERROR_PATTERNS` and falling back to quoting the tool
+        inside a sentence). This does the same, through the same table.
+
+        InfoDialog is also the window that cannot do what the QMessageBox did:
+        it puts its body in a scroll area and caps itself at 90 % of the
+        available screen height.
+        """
+        from workflow.chart_creator import match_printtarg_error, printtarg_said
+        raw = str(exc)
+        log.error("%s: %s", title, raw)
+        if isinstance(exc, R.PrinttargCannotLayOutChart):
+            # ChromIQ refused before spawning anything, so this message is
+            # ChromIQ's own. Saying "this is what the tool reported" over the
+            # top of it would be attributing our sentence to printtarg.
+            body = raw
+        elif (known := match_printtarg_error(raw)) is not None:
+            body = known[1]
+        else:
+            # `printtarg_said` falls back to the first non-empty line, so this
+            # is only ever empty for an exception with no message at all — in
+            # which case the class name is still more than the old window gave.
+            said = printtarg_said(raw) or type(exc).__name__
+            body = tr(
+                "ChromIQ could not draw this chart. Your chart files and any "
+                "measurement in this run are untouched.\n\n"
+                "This is what the tool reported:\n\n{said}\n\n"
+                "The full output is in the log."
+            ).format(said=said)
+        # AS FORGIVING ABOUT `parent` AS `warn()` HAD TO BECOME.
+        # `ui.warning_sign.warn` catches exactly this and falls back to a
+        # parentless box, because "a warning is what the app reaches for when
+        # something has ALREADY gone wrong, and it must not be the thing that
+        # raises". Replacing `warn` here inherited the duty and not the guard:
+        # `tests/test_editor_apply_leaves_no_temp_files.py` drives this handler
+        # on a dialog built through `__new__`, and `QDialog.__init__(parent)`
+        # answers `RuntimeError: super-class __init__() ... was never called` —
+        # from inside the window that exists to report a failure, turning one
+        # failure into two. A parentless window says the same words.
+        try:
+            dlg = InfoDialog(title, body, self, min_width=520)
+        except (TypeError, RuntimeError):
+            dlg = InfoDialog(title, body, None, min_width=520)
+        dlg.exec()
+
     def _on_regen_done(self, result) -> None:
         self._set_busy(False)
         if isinstance(result, Exception):
-            warn(self, tr("Render failed"), str(result))
+            self._report_tool_failure(tr("Render failed"), result)
             self._status.setText(tr("Render failed."))
             return
         self._regen = result
@@ -6854,22 +6947,51 @@ class Ti2RelayoutDialog(QDialog):
         self._show_image(show_path)
 
     def _engine_active(self) -> bool:
-        # Active when the engine panel is showing (engine chart loaded, or the
-        # engine setting is on for a new/from-scratch chart) and there's a chart
-        # to render. The .ti1 is derived from the grid, so _engine_ti1 isn't
-        # required. A loaded printtarg chart keeps printtarg (handled in
-        # _refresh_engine_panel_visible) so its real no-clip layout shows.
-        #
-        # Multi-ink charts are engine-only, ALWAYS (#72 decision 0): printtarg
-        # relayout is RGB-only by design (R.regenerate hard-fails), so a
-        # non-RGB chart forces the engine path regardless of the Manual toggle
-        # or where the chart came from.
-        if (self._spec is not None
-                and self._spec.color_rep.lstrip("i").upper() != "RGB"):
+        """Whether the ChromIQ layout engine, and not printtarg, owns this chart.
+
+        **A WIDGET'S VISIBILITY WAS LOAD-BEARING STATE, AND IT WENT DARK FOR
+        TWO MONTHS.** This used to end with
+
+            return (self._engine_panel_grp is not None
+                    and not self._engine_panel_grp.isHidden()
+                    and self._spec is not None)
+
+        i.e. it asked the engine panel whether it was showing and read that as
+        "is this an engine chart". `72c54d1f` (2026-06-29, "#93: editor - hide
+        the layout-editing panels") then made `_refresh_engine_panel_visible`
+        hide that panel unconditionally, believing the hidden widgets to be
+        inert — its own message says the chart "renders and saves unchanged
+        through the edit->apply round-trip", and the edit->apply round-trip
+        really is unchanged, because that path hands back only the .ti1.
+
+        What went with it was everything else this predicate gates. MEASURED,
+        real app, real Argyll, on an i1Pro ENGINE chart saved from this window:
+        **525 patches became 528, a 21x25 strip grid became 24x22, and
+        channels.json was gone** — because `_write_chart_into` fell through to
+        the printtarg relayout. And `_on_regen_done`'s swap to the engine render
+        could never fire, so the preview was printtarg's layout of a chart
+        printtarg had not laid out.
+
+        So it tests the thing it means. The expression below is the one
+        `_refresh_engine_panel_visible` itself used to compute before that
+        commit removed it, restored verbatim: an engine chart is one that came
+        with an engine recipe, or a new/from-scratch chart while the engine
+        setting is on. A LOADED printtarg chart keeps printtarg, so its real
+        no-clip layout still shows.
+
+        Multi-ink charts are engine-only, ALWAYS (#72 decision 0): printtarg
+        relayout is RGB-only by design (R.regenerate hard-fails), so a
+        non-RGB chart forces the engine path regardless of the Manual toggle
+        or where the chart came from.
+        """
+        if self._spec is None:
+            return False
+        if self._spec.color_rep.lstrip("i").upper() != "RGB":
             return True
-        return (self._engine_panel_grp is not None
-                and not self._engine_panel_grp.isHidden()
-                and self._spec is not None)
+        return bool(
+            self._engine_recipe is not None
+            or (bool(self._settings.get("use_chromiq_layout_engine", False))
+                and not self._loaded_printtarg_chart))
 
     def _engine_grid_ti1(self, out_path: Path) -> Path:
         """Write the current grid program as a .ti1 at *out_path* for the engine.
@@ -7456,7 +7578,9 @@ class Ti2RelayoutDialog(QDialog):
         try:
             msg = self._write_chart_into(target, name)
         except Exception as exc:  # noqa: BLE001 — surface any writer failure
-            warn(self, tr("Save failed"), str(exc))
+            # Same route as the preview failure: this one also carries a whole
+            # printtarg stderr when the writer's own render is what refused.
+            self._report_tool_failure(tr("Save failed"), exc)
             return
         inform(self, tr("Saved"), msg)
         self._status.setText(msg.splitlines()[0])
@@ -7751,7 +7875,9 @@ class Ti2RelayoutDialog(QDialog):
             try:
                 self._write_chart_into(staging, name)
             except Exception as exc:  # noqa: BLE001
-                warn(self, tr("Could not prepare chart"), str(exc))
+                # The third door into `_write_chart_into`, and therefore the
+                # third place a whole printtarg stderr could reach a modal.
+                self._report_tool_failure(tr("Could not prepare chart"), exc)
                 return
             self._status.setText(
                 tr("Applying this chart to the Create Chart tab…"))
@@ -7789,7 +7915,14 @@ class Ti2RelayoutDialog(QDialog):
         # named ones, so a known code resolves to its short label here.
         paper = paper_name_token(self._spec.paper_flag or "paper")
         parts = [instr, paper, f"{self._grid.count()}p"]
-        pages = len(self._regen.tiffs) if self._regen is not None else 0
+        # The page count comes from whichever renderer drew this chart. An
+        # engine chart has no `_regen` at all now that it no longer runs a
+        # printtarg pass it throws away (see `_regenerate`), so ask the engine's
+        # own pages — otherwise the suggested name silently loses its "2pages"
+        # token for exactly the charts ChromIQ lays out itself.
+        pages = (len(getattr(self, "_engine_tiffs", []) or [])
+                 if self._engine_active()
+                 else (len(self._regen.tiffs) if self._regen is not None else 0))
         if pages:
             parts.append("1page" if pages == 1 else f"{pages}pages")
         w, h = self._spec.paper_mm
@@ -8048,6 +8181,34 @@ class Ti2RelayoutDialog(QDialog):
         # default Qt state shows ALL four (L, P, double, triple) at
         # startup before any chart is loaded.
         self._refresh_pt_instr_visibility()
+
+    def showEvent(self, ev) -> None:  # noqa: N802
+        """Open no taller than the screen can hold, and inside the work area.
+
+        `__init__` asks for 1280x820 with no reference to the screen; on a
+        1366x768 laptop that is 92 px past the bottom edge, and the two buttons
+        that would go under it are Apply / Save… and Close. Qt's own
+        `adjustPosition` cannot help: it clamps with the size the window has at
+        that moment, which is why B8-72 had to add this pass for the tool
+        windows in the first place.
+
+        Sized once, like `_ToolDialogBase` does, so a user who resizes the
+        window is never overruled afterwards.
+        """
+        super().showEvent(ev)
+        if getattr(self, "_work_area_sized_once", False):
+            return
+        self._work_area_sized_once = True
+        cap_h = self._work_area_cap(self.height())
+        # The minimum height (620) is the floor below which this window's rows
+        # start to overlap; never resize below it, for the same reason
+        # `_keep_inside_the_work_area` does not. A work area shorter than the
+        # floor is a separate fault, and hiding it here would make it harder to
+        # find rather than fixing it.
+        want = max(self.minimumHeight(), min(self.height(), cap_h))
+        if want != self.height():
+            self.resize(self.width(), want)
+        self._keep_inside_the_work_area()
 
     def closeEvent(self, ev) -> None:  # noqa: N802
         # The window-corner X gets the same unsaved-changes guard as the

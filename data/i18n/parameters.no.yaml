@@ -882,7 +882,6 @@ parameters:
         - "s — enkel gamma + matrise"
         - "S — enkel gamma + matrise (tvunget)"
         - "m — kun matrise"
-        - "M — kun matrise (tvunget)"
     "-q":
       name: "Profilkvalitet"
       tooltip_title: "Profilkvalitet (-q)"

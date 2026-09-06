@@ -912,7 +912,6 @@ parameters:
         - "s — jedna gamma + macierz"
         - "S — jedna gamma + macierz (wymuszone)"
         - "m — tylko macierz"
-        - "M — tylko macierz (wymuszone)"
     "-q":
       name: "Jakość profilu"
       tooltip_title: "Jakość profilu (-q)"

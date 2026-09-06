@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import html
 import json
+import shlex
 import subprocess
 import sys
 import time
@@ -13109,7 +13110,14 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             patch_by_patch      = self._resolve_patch_by_patch("guided"),
             resume              = self._resume_has_anything_to_resume(
                 self._resume_cb.isChecked()),
-            extra_args          = " ".join(extra_args),
+            # `shlex.join`, not `" ".join`: `measure_manager` re-splits
+            # this with `shlex.split`, so a value containing a space is
+            # torn in two on the way back. No option row carries one
+            # today, but `data/parameters.yaml` already declares a
+            # `-X file.ccmx` row, and a path with a space is the normal
+            # case the day that is wired up. `tab_chart` does this
+            # round trip correctly already.
+            extra_args          = shlex.join(extra_args),
         )
 
     def _collect_manual(self) -> MeasureParams:
@@ -13127,7 +13135,14 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             patch_by_patch      = self._resolve_patch_by_patch("manual"),
             resume              = self._resume_has_anything_to_resume(
                 self._m_resume_cb.isChecked()),
-            extra_args          = " ".join(extra_args),
+            # `shlex.join`, not `" ".join`: `measure_manager` re-splits
+            # this with `shlex.split`, so a value containing a space is
+            # torn in two on the way back. No option row carries one
+            # today, but `data/parameters.yaml` already declares a
+            # `-X file.ccmx` row, and a path with a space is the normal
+            # case the day that is wired up. `tab_chart` does this
+            # round trip correctly already.
+            extra_args          = shlex.join(extra_args),
         )
 
     def _collect_params(self) -> MeasureParams:

@@ -2464,7 +2464,15 @@ class TabProfile(QWidget):
             ("s", "Single gamma + matrix"),
             ("S", "Single gamma + matrix (forced)"),
             ("m", "Matrix only"),
-            ("M", "Matrix only (forced)"),
+            # THERE IS NO -aM. colprof 3.5.0's algorithm switch
+            # (`profile/colprof.c:599-631`) has cases for l L x X Y g G s S m
+            # and nothing else; MEASURED against the binary, `-aM` answers
+            # "Diagnostic: Unknown argument 'M' to algorithm flag -a" and exits
+            # 1. `profile_builder.py` passes the letter through verbatim and no
+            # entry in `_COLPROF_ERROR_PATTERNS` matches that line, so picking
+            # this entry produced no profile, no window and one line in a log.
+            # Removed rather than mapped to "m": a "(forced)" variant that is
+            # silently the unforced one would be a different lie.
         ]:
             self._m_algo_combo.addItem(label, code)
         self._m_algo_combo.setObjectName("compact_input")
@@ -3507,7 +3515,15 @@ class TabProfile(QWidget):
             ("s", "Single gamma + matrix"),
             ("S", "Single gamma + matrix (forced)"),
             ("m", "Matrix only"),
-            ("M", "Matrix only (forced)"),
+            # THERE IS NO -aM. colprof 3.5.0's algorithm switch
+            # (`profile/colprof.c:599-631`) has cases for l L x X Y g G s S m
+            # and nothing else; MEASURED against the binary, `-aM` answers
+            # "Diagnostic: Unknown argument 'M' to algorithm flag -a" and exits
+            # 1. `profile_builder.py` passes the letter through verbatim and no
+            # entry in `_COLPROF_ERROR_PATTERNS` matches that line, so picking
+            # this entry produced no profile, no window and one line in a log.
+            # Removed rather than mapped to "m": a "(forced)" variant that is
+            # silently the unforced one would be a different lie.
         ]:
             self._algo_combo.addItem(label, code)
         algo_row.addWidget(self._algo_combo, stretch=1)

@@ -20,6 +20,27 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
+#: Every letter colprof's ``-a`` accepts, and no other.
+#:
+#: ChromIQ offered **M**, "Matrix only (forced)", in both the Guided and the
+#: Manual algorithm dropdown and in ``data/parameters.yaml``. colprof has no
+#: ``M``: ``profile/colprof.c:599-631`` is a ``switch (na[0])`` with cases
+#:
+#:     l  L  x  X  Y  g  G  s  S  m
+#:
+#: and a ``default:`` that calls ``usage("Unknown argument '%c' to algorithm
+#: flag -a")``. MEASURED against the 3.5.0 binary, one probe per ASCII letter:
+#: those ten parse and every other letter, ``M`` included, exits 1.
+#:
+#: And it failed in SILENCE. ``_build_args`` below appends the letter verbatim,
+#: no entry in ``_COLPROF_ERROR_PATTERNS`` matches "Unknown argument 'M' to
+#: algorithm flag -a", and the Profile tab only opens a window when a pattern
+#: matches or the FWA case fires — so the user got no profile, no dialog and one
+#: line in a log. ``tests/test_printtarg_argument_vocabulary.py`` now pins every
+#: letter the UI offers against this set.
+COLPROF_ALGORITHMS = frozenset("lLxXYgGsSm")
+
+
 # Errors that colprof can print when it fails. Each entry pairs a regex that
 # captures the dynamic part of the message (filename, value, etc.) with a
 # (key, friendly_template) tuple. The key lets the UI choose a bespoke dialog
