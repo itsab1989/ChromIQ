@@ -143,8 +143,25 @@ def test_the_stylesheet_rule_carries_the_TEXT_width(qapp):
     padding and border on top. Writing the already-padded figure there counted
     ``padding: 6px 18px`` twice, so a button asking for 140 px got a 178 px
     minimum. Four of those do not fit a 580 px panel, and Qt overlapped them.
+
+    …AND THE FLOOR IS PART OF THE RULE, WHICH THIS TEST USED TO DENY.
+    `fit_button_width` writes ``max(needed + 2, _APP_MIN_BUTTON_WIDTH)``
+    (`ui/widgets.py:318`) — the app's own standard button width, deliberately,
+    because without it the "✕" that closes the gamut view shrank from 72 px to
+    ten pixels' worth of content box. A `text <= declared <= text + 2` bound
+    says that floor is a bug.
+
+    It passed anyway for exactly one reason: under `QT_QPA_PLATFORM=offscreen`
+    on Windows the font database was EMPTY, every glyph was a box of
+    `pixelSize`, and the fake text was always wide enough to push past 72 px.
+    With the bundled fonts registered, "Print / Current Page" measures **65 px**
+    of real Inter, `fit` correctly declares **72**, and the old bound failed on
+    `assert 72 <= 67`. The app is right and the test was wrong; the floor is
+    now in the bound, and the "padding counted twice" fault it was written for
+    (140 px of text → 178 px declared) still fails it.
     """
     import re
+    from ui.widgets import _APP_MIN_BUTTON_WIDTH
     host = QWidget()
     b = QPushButton("Print\nCurrent Page", host)
     ButtonFontFilter.fit(b)
@@ -152,10 +169,11 @@ def test_the_stylesheet_rule_carries_the_TEXT_width(qapp):
     assert rule, b.styleSheet()
     declared = int(rule.group(1))
     text = _needed(b)
-    assert text <= declared <= text + 2, (
-        f"the rule declares {declared}px for {text}px of text — anything more "
-        f"than a pixel or two of rounding tolerance is padding counted a "
-        f"second time")
+    assert text <= declared <= max(text + 2, _APP_MIN_BUTTON_WIDTH), (
+        f"the rule declares {declared}px for {text}px of text (floor "
+        f"{_APP_MIN_BUTTON_WIDTH}px) — anything more than a pixel or two of "
+        f"rounding tolerance above the greater of the two is padding counted "
+        f"a second time")
 
 
 def test_the_effective_minimum_is_still_enough_for_the_text(qapp):
