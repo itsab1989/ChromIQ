@@ -3333,11 +3333,27 @@ class WelcomeDialog(QDialog):
         # an optional step, in both themes and in Neutral.
         for lbl in self._steps_host.findChildren(QLabel, "welcome_note_body"):
             lbl.setStyleSheet(f"color: {optional_fg};")
+        # AND IT IS TEXT, NOT A BUTTON, WHATEVER WIDGET IT IS BUILT FROM.
+        #
+        # The heading is a QPushButton so that Tab reaches it and Space opens
+        # it. That also means the app-wide sheet's `QPushButton` rule reaches
+        # it, and on screen that rule is **Menlo**: measured in the running app
+        # (`QFontInfo(btn.font()).family()`), the step beside it resolved to
+        # Inter and the note heading under it to Menlo, so a line of prose came
+        # out in the same monospace as "Save as PDF" and "Close". The family is
+        # taken from the step's own label rather than named here, so it follows
+        # whatever the sheet gives body text.
+        fam = ""
+        bodies = self._steps_host.findChildren(QLabel, "welcome_step_body")
+        if bodies:
+            from PyQt6.QtGui import QFontInfo
+            fam = QFontInfo(bodies[0].font()).family()
         for btn in self._steps_host.findChildren(QPushButton,
                                                  "welcome_note_head"):
             btn.setStyleSheet(
                 f"QPushButton#welcome_note_head {{ color: {optional_fg}; "
-                "background: transparent; border: none; text-align: left; "
+                + (f'font-family: "{fam}"; ' if fam else "")
+                + "background: transparent; border: none; text-align: left; "
                 "padding: 0px; }")
         if hasattr(self, "_detail_title"):
             self._detail_title.setStyleSheet(f"color: {title_fg};")

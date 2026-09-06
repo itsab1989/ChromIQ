@@ -282,7 +282,12 @@ def _notes_html(notes) -> str:
             paras = [""]
         for i, para in enumerate(paras):
             inner = "<br>".join(html.escape(ln) for ln in para.split("\n"))
-            lead = f"<b>{html.escape(str(heading))}</b> " if i == 0 else ""
+            # A FULL STOP AFTER THE HEADING, on paper only. On screen the
+            # heading is a line of its own with the body under it; run in to
+            # the body it needs a stop, or "…what each part is worth Profile
+            # type…" reads as one sentence. Looked at on the printed page.
+            lead = ("<b>%s.</b> " % html.escape(str(heading).rstrip("."))
+                    if i == 0 else "")
             out.append(f'<p class="note">{lead}{inner}</p>')
     return "".join(out)
 
@@ -346,8 +351,16 @@ def card_html(wf: dict, doc=None, lang: str = "en",
     else:
         # Numbered steps. The badge is a tab number on screen; on paper the tab
         # is named, because a printed sheet has no coloured tabs to point at.
+        #
+        # THE STEP LIST KEEPS ITS 10 px, AND `ol.tight` WAS TRIED AND THROWN
+        # OUT. A card with notes was given the tight list to claw back the
+        # four lines `printer_from_scan` spills onto a second sheet. Measured:
+        # it saved four lines and the card was still two pages, so it bought
+        # nothing and put steps 4 and 5, which have no note between them, 4 px
+        # apart — the "one continuous block" #164 raised that 10 px to fix.
+        steps = list(wf.get("steps") or ())
         parts.append("<ol>")
-        for step in wf.get("steps") or ():
+        for step in steps:
             tab, text = step[0], step[1]
             optional = bool(step[2]) if len(step) > 2 else False
             notes = step[3] if len(step) > 3 else ()
