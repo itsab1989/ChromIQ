@@ -156,6 +156,7 @@ def _every_rendered_branch():
                         False))
     for status in ("launched", "download_page", "failed", None):
         out.append(sd.usb_install_outcome(
+            stopped_watching=False,
             wdi_available=False, ran_ok=False, still_unbound_names=[],
             zadig_status=status, driver_was_missing=True,
             target_names=[I1PRO]))
@@ -163,6 +164,7 @@ def _every_rendered_branch():
         for unbound in ([], [I1PRO]):
             for missing in (True, False):
                 out.append(sd.usb_install_outcome(
+                    stopped_watching=False,
                     wdi_available=True, ran_ok=ran_ok,
                     still_unbound_names=unbound, zadig_status=None,
                     driver_was_missing=missing, target_names=[I1PRO]))
@@ -218,21 +220,25 @@ def _branches_that_put_a_user_in_front_of_zadigs_dropdown():
             sd.usb_installer_text([undriven], wdi_available=False)[0],
         "Zadig has just been launched":
             sd.usb_install_outcome(
+                stopped_watching=False,
                 wdi_available=False, ran_ok=False, still_unbound_names=[],
                 zadig_status="launched", driver_was_missing=True,
                 target_names=[I1PRO])[0],
         "Zadig must be downloaded first":
             sd.usb_install_outcome(
+                stopped_watching=False,
                 wdi_available=False, ran_ok=False, still_unbound_names=[],
                 zadig_status="download_page", driver_was_missing=True,
                 target_names=[I1PRO])[0],
         "the automatic install failed or was cancelled":
             sd.usb_install_outcome(
+                stopped_watching=False,
                 wdi_available=True, ran_ok=False, still_unbound_names=[],
                 zadig_status=None, driver_was_missing=True,
                 target_names=[I1PRO])[0],
         "the installer finished but the driver did not bind":
             sd.usb_install_outcome(
+                stopped_watching=False,
                 wdi_available=True, ran_ok=True, still_unbound_names=[I1PRO],
                 zadig_status=None, driver_was_missing=True,
                 target_names=[I1PRO])[0],
@@ -244,6 +250,7 @@ def _branches_that_put_a_user_in_front_of_zadigs_dropdown():
         # browser itself; the user ends at the same dropdown either way.
         "Zadig could not be opened at all":
             sd.usb_install_outcome(
+                stopped_watching=False,
                 wdi_available=False, ran_ok=False, still_unbound_names=[],
                 zadig_status="failed", driver_was_missing=True,
                 target_names=[I1PRO])[0],
@@ -288,12 +295,14 @@ def test_every_zadig_instruction_names_libusb_win32(code, in_language):
     outcomes = []
     for status in ("launched", "download_page", "failed", None):
         outcomes.append(sd.usb_install_outcome(
+            stopped_watching=False,
             wdi_available=False, ran_ok=False, still_unbound_names=[],
             zadig_status=status, driver_was_missing=True,
             target_names=[I1PRO]))
     for ran_ok in (True, False):
         for unbound in ([], [I1PRO]):
             outcomes.append(sd.usb_install_outcome(
+                stopped_watching=False,
                 wdi_available=True, ran_ok=ran_ok, still_unbound_names=unbound,
                 zadig_status=None, driver_was_missing=True,
                 target_names=[I1PRO]))

@@ -55,14 +55,18 @@ def test_install_winusb_refuses_it_even_when_asked_directly():
     """The belt-and-braces guard, and the one that still holds if someone edits
     the table by mistake.
 
-    ⚠ ON A NON-WINDOWS HOST THIS PASSES FOR THE WRONG REASON: wdi-simple is not
-    there, so the function returns False whether or not the guard exists.
-    Proved by removing the guard — this test stayed green and only the ordering
-    test below went red. Do not delete that one thinking this covers it.
+    ⚠ THIS USED TO PASS FOR THE WRONG REASON ON A NON-WINDOWS HOST, and the
+    warning is kept here because it is why the fix took the shape it did. While
+    `install_winusb` returned a bool, every refusal was the same `False`:
+    wdi-simple is not on a Mac, so this stayed green with the guard deleted, and
+    only the ordering test below went red. `InstallAttempt` gives the three
+    refusals three names — `REFUSED` is ChromIQ's serial guard, `NOT_WINDOWS`
+    and `NO_INSTALLER` are not — so the assertion now means what it says on
+    every platform. Do not delete the ordering test; it proves something else.
     """
     dev = inst.UsbDevice(vid="1a86", pid="7523", name="USB-SERIAL CH340",
                          has_winusb=False)
-    assert inst.install_winusb(dev) is False
+    assert inst.install_winusb(dev) is inst.InstallAttempt.REFUSED
 
 
 def test_the_refusal_comes_before_anything_is_launched(monkeypatch):
@@ -75,7 +79,7 @@ def test_the_refusal_comes_before_anything_is_launched(monkeypatch):
                             "refusing a serial device"))
     dev = inst.UsbDevice(vid="1a86", pid="7523", name="USB-SERIAL CH340",
                          has_winusb=False)
-    assert inst.install_winusb(dev) is False
+    assert inst.install_winusb(dev) is inst.InstallAttempt.REFUSED
     assert called == []
 
 
@@ -135,10 +139,12 @@ def test_every_zadig_instruction_warns_about_the_serial_device():
         "Zadig has just been launched":
             usb_install_outcome(
                 wdi_available=False, ran_ok=False, still_unbound_names=[],
+                stopped_watching=False,
                 zadig_status="launched", driver_was_missing=True)[0],
         "Zadig must be downloaded first":
             usb_install_outcome(
                 wdi_available=False, ran_ok=False, still_unbound_names=[],
+                stopped_watching=False,
                 zadig_status="download_page", driver_was_missing=True)[0],
         # THE TWO THAT USED TO HIDE. Neither carries `List All Devices` nor the
         # old "choose WinUSB" phrase, so neither was ever inside the old
@@ -148,15 +154,17 @@ def test_every_zadig_instruction_warns_about_the_serial_device():
         "the automatic install failed or was cancelled":
             usb_install_outcome(
                 wdi_available=True, ran_ok=False, still_unbound_names=[],
+                stopped_watching=False,
                 zadig_status=None, driver_was_missing=True)[0],
         "the installer finished but the driver did not bind":
             usb_install_outcome(
-                wdi_available=True, ran_ok=True,
+                wdi_available=True, ran_ok=True, stopped_watching=False,
                 still_unbound_names=["GretagMacbeth i1 Pro / i1 Pro 2"],
                 zadig_status=None, driver_was_missing=True)[0],
         "Zadig could not be opened at all":
             usb_install_outcome(
                 wdi_available=False, ran_ok=False, still_unbound_names=[],
+                stopped_watching=False,
                 zadig_status="failed", driver_was_missing=True)[0],
     }
     unwarned = sorted(why for why, text in steers.items()
@@ -196,13 +204,24 @@ def test_every_zadig_instruction_warns_about_the_serial_device():
     for status in ("launched", "download_page", "failed", None):
         everything.append(usb_install_outcome(
             wdi_available=False, ran_ok=False, still_unbound_names=[],
+            stopped_watching=False,
             zadig_status=status, driver_was_missing=True))
     for ran_ok in (True, False):
         for unbound in ([], ["GretagMacbeth i1 Pro / i1 Pro 2"]):
             everything.append(usb_install_outcome(
-                wdi_available=True, ran_ok=ran_ok,
+                wdi_available=True, ran_ok=ran_ok, stopped_watching=False,
                 still_unbound_names=unbound, zadig_status=None,
                 driver_was_missing=True))
+    # AND THE ENDING THAT SAYS ChromIQ STOPPED WATCHING. It deliberately
+    # offers no Zadig button and names Zadig nowhere: pushing somebody
+    # towards a driver tool while an elevated installer is still putting a
+    # driver in is the one action here that can leave the machine worse.
+    # It is swept with the rest so that it cannot quietly acquire one.
+    everything.append(usb_install_outcome(
+        wdi_available=True, ran_ok=False, stopped_watching=True,
+        still_unbound_names=[], zadig_status=None,
+        driver_was_missing=True))
+
     unaccounted = [
         t for t, offers in everything
         if (offers or "Zadig" in t)

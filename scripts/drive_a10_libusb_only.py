@@ -182,6 +182,7 @@ def run(lang: str) -> None:
 
     # 4 & 5. The two outcome windows that used to open Zadig in silence.
     text, offer = usb_install_outcome(
+        stopped_watching=False,
         wdi_available=True, ran_ok=True,
         still_unbound_names=["X-Rite i1 Studio"], zadig_status=None,
         driver_was_missing=True, target_names=["X-Rite i1 Studio"])
@@ -189,6 +190,7 @@ def run(lang: str) -> None:
                     f"04-did-not-bind-{lang}")
 
     text, offer = usb_install_outcome(
+        stopped_watching=False,
         wdi_available=True, ran_ok=False, still_unbound_names=[],
         zadig_status=None, driver_was_missing=True,
         target_names=["X-Rite i1 Studio"])

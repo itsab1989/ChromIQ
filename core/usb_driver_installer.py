@@ -12,6 +12,8 @@ import ctypes
 import ctypes.wintypes as wt
 import os
 import sys
+import time
+from enum import Enum
 from pathlib import Path
 from typing import NamedTuple
 
@@ -619,11 +621,242 @@ def wdi_simple_args(device: UsbDevice) -> str:
     )
 
 
-def install_winusb(device: UsbDevice) -> bool:
-    """Install the WinUSB driver for *device* via wdi-simple (elevated UAC).
+DEFAULT_INSTALL_TIMEOUT_MS = 300_000
+"""How long ChromIQ WATCHES an elevated wdi-simple before it stops watching.
 
-    Returns True if wdi-simple exits with code 0.
-    Returns False if the user cancels the UAC prompt or the install fails.
+Five minutes, and it is the SIBLING'S number: `ch34x_driver._run_elevated`
+already waits exactly this long for an elevated `pnputil`. It is deliberately
+not offered as a margin over a measurement. Measured on the bench 2026-09-06,
+a real successful install of an X-Rite i1Studio on an IDLE 2-core ARM64 VM:
+`00:41:24.501` to `00:42:13.129`, **48.6 s** against the 60 s this used to
+allow — 11.4 s of headroom on a machine doing nothing else.
+
+Most of that is libwdi creating a system restore point, which is neither our
+cost nor controllable, and it is not even a stable cost: Windows throttles it
+with `SystemRestorePointCreationFrequency` (24 h by default), so the FIRST
+install of a day is the slow one and the rest are seconds. On a machine that is
+actually busy the first one can outrun any number written here.
+
+CLAUDE.md: *"a timeout that is too TIGHT is a phantom red … budget a subprocess
+for the loaded machine, not the idle one, and make a timeout say 'did not
+finish' rather than letting it read like a crash."* Both halves are needed, and
+the SECOND is what makes the first survivable — see `InstallAttempt`. This
+number is a ceiling on how long a person is asked to sit and watch. It is not a
+promise about libwdi, and running out of it is not a failure.
+"""
+
+_WAIT_SLICE_MS = 100
+
+# `WAIT_TIMEOUT` IS 258. `STILL_ACTIVE` IS 259. They are one apart and they are
+# not the same KIND of thing: the first is what a wait returned, the second is
+# what a still-running process's exit code reads as. Reading the second because
+# the first had been thrown away is the whole of the bug this module carried
+# until 2026-09-06, so both are written down here, next to each other, where
+# the difference cannot be missed.
+WAIT_OBJECT_0 = 0x00000000
+WAIT_ABANDONED = 0x00000080
+WAIT_TIMEOUT = 0x00000102        # 258
+STILL_ACTIVE = 259               # 0x103 — an EXIT CODE. Never a wait result.
+
+ERROR_ACCESS_DENIED = 5
+ERROR_CANCELLED = 1223
+
+
+class InstallAttempt(Enum):
+    """What ChromIQ SAW when it asked Windows to install a driver.
+
+    **NOT A BOOL, AND DELIBERATELY NOT USABLE AS ONE.** `install_winusb` used
+    to return `code.value == 0`, and its caller wrote
+    `all(install_winusb(d) for d in targets)` — so every ending this function
+    can reach was squeezed through one yes/no, and the ending that is neither a
+    yes nor a no came out as "no". `__bool__` raises for that reason: the shape
+    that caused the bug cannot be written again without an exception naming it.
+
+    `STILL_RUNNING` is the member the whole class exists for. It means ChromIQ
+    stopped WATCHING — because its own budget ran out, or because the user
+    pressed the button that says so. It does **not** mean stopped installing:
+    nothing here stops an elevated driver install, nothing here tries, and
+    closing the process handle does not touch the process. Reported as a
+    failure it sends somebody to Zadig to repair a machine that is repairing
+    itself.
+    """
+
+    #: The elevated process ran and exited 0.
+    INSTALLED = "installed"
+    #: ChromIQ's own guard refused the device — it is a vendor SERIAL
+    #: instrument, and WinUSB would destroy its COM port.
+    REFUSED = "refused"
+    #: Drivers can only be installed on Windows.
+    NOT_WINDOWS = "not_windows"
+    #: `wdi_simple.exe` is not in this build, or is empty.
+    NO_INSTALLER = "no_installer"
+    #: The user answered No at the permission prompt (`ERROR_CANCELLED`).
+    CANCELLED_AT_PROMPT = "cancelled_at_prompt"
+    #: Windows refused to ask for permission at all — the managed-desktop
+    #: `ConsentPromptBehaviorUser = 0`. NOT the same as declining a prompt.
+    ELEVATION_REFUSED = "elevation_refused"
+    #: `ShellExecuteExW` failed before any prompt appeared.
+    ELEVATION_FAILED = "elevation_failed"
+    #: The process ran and exited non-zero.
+    FAILED = "failed"
+    #: Still running when ChromIQ stopped watching. NOT stopped, NOT undone,
+    #: and NOT a failure.
+    STILL_RUNNING = "still_running"
+    #: The wait ended in a way that says nothing about the install.
+    LOST_TRACK = "lost_track"
+
+    def __bool__(self) -> bool:
+        raise TypeError(
+            f"{self!r} is not a yes/no answer. 'Still running' is neither a "
+            "success nor a failure, and collapsing it into one is how a "
+            "timeout came to be reported as a failed install. Compare it to "
+            "the member you mean."
+        )
+
+
+#: Endings after which ChromIQ must NOT go on to elevate for the next
+#: instrument, when a run covers more than one.
+#:
+#: THE DEFAULT IS TO CARRY ON, and that is the fix to a second fault in the
+#: same expression as the timeout one. `all(install_winusb(d) for d in targets)`
+#: is a GENERATOR, so the first falsy answer stopped the iteration and the
+#: remaining instruments were never attempted at all — while the outcome window
+#: named them among the ones the install "did not take" on. A device that was
+#: never tried is not a device that failed.
+#:
+#: But "attempt every target unconditionally" is wrong in the other direction,
+#: and one of the reasons only exists now that the timeout is honest:
+#:
+#: * `STILL_RUNNING` / `LOST_TRACK` — an elevated wdi-simple may still be
+#:   running. Starting a second one while the first holds Windows' PnP install
+#:   lock is a way to make a good install fail, and it would ask for consent
+#:   while the last install is unfinished.
+#: * `CANCELLED_AT_PROMPT` — the user said No. Putting the prompt straight back
+#:   up is not a thing to do to somebody.
+#: * `ELEVATION_REFUSED` / `ELEVATION_FAILED` / `NOT_WINDOWS` / `NO_INSTALLER` —
+#:   nothing about the next device would go any differently.
+#:
+#: `FAILED` and `REFUSED` are deliberately NOT here. A process that ran and
+#: exited non-zero has released the lock, and the serial-device guard's refusal
+#: is about that one device and elevates nothing — in both cases the next
+#: instrument deserves its own attempt. The caller must then say which
+#: instruments it did not reach; see `usb_install_outcome`.
+HALTS_A_MULTI_DEVICE_RUN = frozenset({
+    InstallAttempt.STILL_RUNNING,
+    InstallAttempt.LOST_TRACK,
+    InstallAttempt.CANCELLED_AT_PROMPT,
+    InstallAttempt.ELEVATION_REFUSED,
+    InstallAttempt.ELEVATION_FAILED,
+    InstallAttempt.NOT_WINDOWS,
+    InstallAttempt.NO_INSTALLER,
+})
+
+
+def _watch_the_installer(kernel32, handle, *, timeout_ms: int,
+                         progress=None, label: str = "wdi-simple",
+                         ) -> InstallAttempt:
+    """Wait for an elevated installer, without going deaf while it runs.
+
+    Split out of `install_winusb` so that it can be driven WITHOUT Windows and
+    without a real elevated process: *kernel32* is any object carrying
+    `WaitForSingleObject`, `GetExitCodeProcess` and `CloseHandle`, and *handle*
+    is whatever those three accept. That seam is what
+    `tests/test_a_driver_install_that_has_not_finished_is_not_a_failure.py`
+    drives, and the thing it pins is that a `WAIT_TIMEOUT` never reaches
+    `GetExitCodeProcess` AT ALL — not that its answer is interpreted kindly.
+
+    The wait is taken in `_WAIT_SLICE_MS` slices rather than one long one, so
+    that *progress* can be called between them. *progress* receives the seconds
+    waited so far and may return `False` to say "stop watching"; the deadline is
+    measured with `time.monotonic()` and NOT by counting slices, because a slice
+    costs `_WAIT_SLICE_MS` PLUS however long *progress* takes — and *progress*
+    is the Qt event pump, which can spin a nested modal loop for minutes.
+    Counted slices would make "five minutes" mean anything at all.
+
+    Every ending closes the handle, including the ones that give up. Closing a
+    process handle releases OUR reference to the process; it does not signal,
+    stop or otherwise affect the process.
+    """
+    started = time.monotonic()
+    deadline = started + timeout_ms / 1000.0
+    try:
+        while True:
+            wait = kernel32.WaitForSingleObject(handle, _WAIT_SLICE_MS)
+            if wait != WAIT_TIMEOUT:
+                break
+            if progress is not None and \
+                    progress(time.monotonic() - started) is False:
+                log.info("%s: ChromIQ stopped watching at the user's request "
+                         "after %.1f s. The install has NOT been stopped and "
+                         "nothing has been undone.",
+                         label, time.monotonic() - started)
+                return InstallAttempt.STILL_RUNNING
+            if time.monotonic() >= deadline:
+                log.info("%s: still running after %.0f s, which is ChromIQ's "
+                         "whole budget. It has NOT been stopped and nothing "
+                         "has been undone.", label, timeout_ms / 1000.0)
+                return InstallAttempt.STILL_RUNNING
+        if wait != WAIT_OBJECT_0:
+            # `WAIT_FAILED` is 0xFFFFFFFF and arrives here as 4294967295 only
+            # because `install_winusb` sets `restype` to DWORD; ctypes would
+            # otherwise hand back a signed -1. Either way it is not
+            # WAIT_OBJECT_0 and says nothing about the install.
+            log.error("%s: the wait ended in 0x%X, which says nothing about "
+                      "the install", label, wait & 0xFFFFFFFF)
+            return InstallAttempt.LOST_TRACK
+        code = wt.DWORD()
+        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+            # AND THIS RETURN VALUE MATTERS TOO. On failure `code.value` is
+            # left at 0, and 0 is the success code — so an unchecked call turns
+            # "we could not ask" into "it worked". (The serial half still has
+            # this one, at `core/ch34x_driver.py:1561`.)
+            log.error("%s: GetExitCodeProcess failed; the exit code is not "
+                      "known and must not be guessed", label)
+            return InstallAttempt.LOST_TRACK
+    finally:
+        kernel32.CloseHandle(handle)
+    log.info("%s exit code: %d", label, code.value)
+    return (InstallAttempt.INSTALLED if code.value == 0
+            else InstallAttempt.FAILED)
+
+
+def install_winusb(device: UsbDevice, *,
+                   progress=None,
+                   timeout_ms: int = DEFAULT_INSTALL_TIMEOUT_MS,
+                   ) -> InstallAttempt:
+    """Install the USB driver for *device* via wdi-simple (elevated UAC).
+
+    Returns an `InstallAttempt`, never a bool — see that class for why, and for
+    the one member that is neither a success nor a failure.
+
+    *progress* is called with the seconds waited so far while the elevated
+    process runs, roughly ten times a second, and may return `False` to stop
+    the WAIT. The UI passes a callback that pumps Qt's event loop and reads its
+    "Stop waiting" button; nothing else in this module knows or cares that Qt
+    exists. Nothing here can stop the INSTALL, and nothing here tries.
+
+    **THIS FUNCTION USED TO END LIKE THIS:**
+
+        kernel32.WaitForSingleObject(sei.hProcess, 60_000)
+        code = wt.DWORD()
+        kernel32.GetExitCodeProcess(sei.hProcess, ctypes.byref(code))
+        return code.value == 0
+
+    Three faults in four lines, all measured on the bench 2026-09-06 against a
+    real driverless i1Studio. The budget was 60 s against an install that took
+    **48.6 s on an idle machine**. The wait's return value was discarded, so a
+    `WAIT_TIMEOUT` fell through to `GetExitCodeProcess`, which answers
+    `STILL_ACTIVE` (259) for a process that is still installing — and `259 != 0`
+    reported a FAILED install about one that was succeeding, then offered Zadig
+    to repair a machine that was repairing itself. And the whole wait sat on the
+    GUI thread: `Responding = False` for ~50 s with no spinner, no message and
+    no cursor change.
+
+    The COM-port half next door had all of this right already
+    (`core/ch34x_driver.py::_run_elevated` — 300 s, `WAIT_TIMEOUT` mapped to
+    `Reason.STILL_RUNNING`, `CloseHandle` in a `finally`, the three elevation
+    failures kept apart), and its own comment names this function as the
+    pattern it deliberately did not copy. This is that standard, arriving here.
     """
     # REFUSED OUTRIGHT, BELT AND BRACES. The table above is the guard; this is
     # the one that still holds if somebody adds a serial instrument to
@@ -634,12 +867,20 @@ def install_winusb(device: UsbDevice) -> bool:
         log.error("refusing to install WinUSB on %s (%s:%s): it is a vendor "
                   "serial device, and WinUSB would destroy its COM port",
                   device.name, device.vid, device.pid)
-        return False
+        return InstallAttempt.REFUSED
+
+    # AFTER the serial guard, never before it. On a non-Windows host every
+    # refusal used to come out as the same `False`, so
+    # `test_install_winusb_refuses_it_even_when_asked_directly` passed with the
+    # guard deleted — its own docstring says so. Three named refusals make that
+    # test mean what it says on every platform.
+    if sys.platform != "win32":
+        return InstallAttempt.NOT_WINDOWS
 
     wdi = _wdi_simple_path()
     if not wdi.exists() or wdi.stat().st_size == 0:
         log.error("wdi-simple not found or empty at %s", wdi)
-        return False
+        return InstallAttempt.NO_INSTALLER
 
     args = wdi_simple_args(device)
     log.info("Installing libusb-win32: %s %s", wdi.name, args)
@@ -647,6 +888,14 @@ def install_winusb(device: UsbDevice) -> bool:
     # ShellExecuteExW with "runas" → UAC elevation for wdi-simple only,
     # without re-launching the full ChromIQ process as admin.
     SEE_MASK_NOCLOSEPROCESS = 0x40
+    # `SEE_MASK_NOASYNC` makes ShellExecuteExW finish the shell operation before
+    # it returns, instead of leaving it to be completed asynchronously against
+    # the caller's message loop. It is what the serial half sets
+    # (`ch34x_driver._run_elevated`) and it is the reason the permission prompt
+    # is still, deliberately, frozen time: consent is answered before this call
+    # returns, and ChromIQ pumps nothing while Windows is asking. That is a
+    # second or two. The fifty seconds are afterwards, and those are pumped.
+    SEE_MASK_NOASYNC = 0x100
     SW_HIDE = 0
 
     class _SHELLEXECUTEINFOW(ctypes.Structure):
@@ -670,25 +919,38 @@ def install_winusb(device: UsbDevice) -> bool:
 
     sei = _SHELLEXECUTEINFOW()
     sei.cbSize       = ctypes.sizeof(_SHELLEXECUTEINFOW)
-    sei.fMask        = SEE_MASK_NOCLOSEPROCESS
+    sei.fMask        = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC
     sei.lpVerb       = "runas"
     sei.lpFile       = str(wdi)
     sei.lpParameters = args
     sei.nShow        = SW_HIDE
 
-    shell32  = ctypes.windll.shell32
-    kernel32 = ctypes.windll.kernel32
+    # `use_last_error=True`, so that the three ways elevation can fail stay
+    # three things. This used to log "UAC cancelled or ShellExecuteExW failed"
+    # for all of them — and `ConsentPromptBehaviorUser = 0`, an ordinary
+    # managed-desktop setting, makes it fail with NO PROMPT AT ALL, which is not
+    # the same as somebody declining one.
+    shell32  = ctypes.WinDLL("shell32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 
     if not shell32.ShellExecuteExW(ctypes.byref(sei)):
-        log.info("wdi-simple: UAC cancelled or ShellExecuteExW failed")
-        return False
+        err = ctypes.get_last_error()
+        if err == ERROR_CANCELLED:
+            log.info("wdi-simple: the user said No at the permission prompt")
+            return InstallAttempt.CANCELLED_AT_PROMPT
+        if err == ERROR_ACCESS_DENIED:
+            log.info("wdi-simple: Windows refused to ask for permission at "
+                     "all — no prompt was shown")
+            return InstallAttempt.ELEVATION_REFUSED
+        log.error("wdi-simple: ShellExecuteExW failed (%d)", err)
+        return InstallAttempt.ELEVATION_FAILED
 
-    kernel32.WaitForSingleObject(sei.hProcess, 60_000)   # 60 s timeout
-    code = wt.DWORD()
-    kernel32.GetExitCodeProcess(sei.hProcess, ctypes.byref(code))
-    kernel32.CloseHandle(sei.hProcess)
-    log.info("wdi-simple exit code: %d", code.value)
-    return code.value == 0
+    # ctypes defaults `restype` to a SIGNED int, which would hand back -1 for
+    # `WAIT_FAILED` instead of 0xFFFFFFFF. Neither is WAIT_OBJECT_0 so the
+    # outcome is the same either way, but the log line should read 0xFFFFFFFF.
+    kernel32.WaitForSingleObject.restype = wt.DWORD
+    return _watch_the_installer(kernel32, sei.hProcess,
+                                timeout_ms=timeout_ms, progress=progress)
 
 
 def unbound_targets(targets: list[UsbDevice]) -> list[UsbDevice]:

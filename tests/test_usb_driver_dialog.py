@@ -270,7 +270,8 @@ def test_a_clean_install_says_so_and_offers_nothing_further():
     proof was, the way the COM-port half's `bound` window does.
     """
     text, offer_zadig = sd.usb_install_outcome(
-        wdi_available=True, ran_ok=True, still_unbound_names=[],
+        wdi_available=True,
+        stopped_watching=False, ran_ok=True, still_unbound_names=[],
         zadig_status=None, driver_was_missing=True, target_names=[I1PRO])
     assert text == (
         "<b>It worked.</b> The driver is installed, and Windows has attached "
@@ -295,7 +296,8 @@ def test_a_success_with_no_names_is_a_sentence_of_its_own():
     plural.
     """
     text, _ = sd.usb_install_outcome(
-        wdi_available=True, ran_ok=True, still_unbound_names=[],
+        wdi_available=True,
+        stopped_watching=False, ran_ok=True, still_unbound_names=[],
         zadig_status=None, driver_was_missing=True)
     assert text.startswith(
         "<b>It worked.</b> The driver is installed, and Windows has attached "
@@ -321,7 +323,8 @@ def test_a_reinstall_that_changed_nothing_does_not_claim_an_install():
     `unbound_targets()` exists: wdi-simple can exit 0 without binding.
     """
     text, offer_zadig = sd.usb_install_outcome(
-        wdi_available=True, ran_ok=True, still_unbound_names=[],
+        wdi_available=True,
+        stopped_watching=False, ran_ok=True, still_unbound_names=[],
         zadig_status=None, driver_was_missing=False, target_names=[I1PRO])
     assert text == (
         "<b>ChromIQ cannot tell you whether that changed anything.</b>"
@@ -351,10 +354,12 @@ def test_the_two_clean_endings_are_told_apart_by_what_was_missing():
     claim.
     """
     worked, _ = sd.usb_install_outcome(
-        wdi_available=True, ran_ok=True, still_unbound_names=[],
+        wdi_available=True,
+        stopped_watching=False, ran_ok=True, still_unbound_names=[],
         zadig_status=None, driver_was_missing=True, target_names=[I1PRO])
     cannot, _ = sd.usb_install_outcome(
-        wdi_available=True, ran_ok=True, still_unbound_names=[],
+        wdi_available=True,
+        stopped_watching=False, ran_ok=True, still_unbound_names=[],
         zadig_status=None, driver_was_missing=False, target_names=[I1PRO])
     assert worked != cannot
     assert "It worked" in worked and "cannot tell" not in worked
@@ -376,7 +381,8 @@ def test_no_ending_anywhere_claims_a_driver_was_installed_successfully():
         for ran_ok in (True, False):
             for unbound in ([], [I1PRO]):
                 text, _ = sd.usb_install_outcome(
-                    wdi_available=True, ran_ok=ran_ok,
+                    wdi_available=True,
+                    stopped_watching=False, ran_ok=ran_ok,
                     still_unbound_names=unbound, zadig_status=None,
                     driver_was_missing=missing, target_names=[I1PRO])
                 assert "installed successfully" not in text, text
@@ -391,13 +397,15 @@ def test_the_outcome_cannot_be_asked_without_saying_what_was_missing():
     """
     with pytest.raises(TypeError):
         sd.usb_install_outcome(
-            wdi_available=True, ran_ok=True, still_unbound_names=[],
+            wdi_available=True,
+            stopped_watching=False, ran_ok=True, still_unbound_names=[],
             zadig_status=None)
 
 
 def test_a_failed_or_cancelled_install_offers_zadig():
     text, offer_zadig = sd.usb_install_outcome(
-        wdi_available=True, ran_ok=False, still_unbound_names=[],
+        wdi_available=True,
+        stopped_watching=False, ran_ok=False, still_unbound_names=[],
         zadig_status=None, driver_was_missing=True)
     assert text == (
         "Automatic installation failed or was cancelled.<br>"
@@ -416,14 +424,16 @@ def test_the_cancelled_wording_wins_even_when_something_is_still_unbound():
     """`ran_ok` False is checked before the unbound list — pinned so the
     ordering cannot be swapped by accident."""
     text, _ = sd.usb_install_outcome(
-        wdi_available=True, ran_ok=False, still_unbound_names=[I1PRO],
+        wdi_available=True,
+        stopped_watching=False, ran_ok=False, still_unbound_names=[I1PRO],
         zadig_status=None, driver_was_missing=True)
     assert text.startswith("Automatic installation failed or was cancelled.")
 
 
 def test_installed_but_not_bound_names_the_instrument():
     text, offer_zadig = sd.usb_install_outcome(
-        wdi_available=True, ran_ok=True, still_unbound_names=[I1PRO],
+        wdi_available=True,
+        stopped_watching=False, ran_ok=True, still_unbound_names=[I1PRO],
         zadig_status=None, driver_was_missing=True)
     assert text == (
         "Windows reported the install finished, but the driver still "
@@ -445,7 +455,8 @@ def test_installed_but_not_bound_names_the_instrument():
 
 def test_installed_but_not_bound_lists_several_instruments_comma_separated():
     text, _ = sd.usb_install_outcome(
-        wdi_available=True, ran_ok=True,
+        wdi_available=True,
+        stopped_watching=False, ran_ok=True,
         still_unbound_names=[I1PRO, SPYDER], zadig_status=None,
         driver_was_missing=True)
     assert f"isn't bound to {I1PRO}, {SPYDER}." in text
@@ -453,7 +464,8 @@ def test_installed_but_not_bound_lists_several_instruments_comma_separated():
 
 def test_zadig_launched_repeats_the_cr30_warning():
     text, offer_zadig = sd.usb_install_outcome(
-        wdi_available=False, ran_ok=False, still_unbound_names=[],
+        wdi_available=False,
+        stopped_watching=False, ran_ok=False, still_unbound_names=[],
         zadig_status="launched", driver_was_missing=True)
     assert text == (
         "Zadig is open. Select your colorimeter, choose libusb-win32, "
@@ -468,7 +480,8 @@ def test_zadig_launched_repeats_the_cr30_warning():
 
 def test_the_zadig_download_page_repeats_the_cr30_warning_too():
     text, offer_zadig = sd.usb_install_outcome(
-        wdi_available=False, ran_ok=False, still_unbound_names=[],
+        wdi_available=False,
+        stopped_watching=False, ran_ok=False, still_unbound_names=[],
         zadig_status="download_page", driver_was_missing=True)
     assert text == (
         "Zadig isn't bundled with this build, so its download page "
@@ -485,7 +498,8 @@ def test_the_zadig_download_page_repeats_the_cr30_warning_too():
 
 def test_zadig_failing_entirely_falls_back_to_the_website():
     text, offer_zadig = sd.usb_install_outcome(
-        wdi_available=False, ran_ok=False, still_unbound_names=[],
+        wdi_available=False,
+        stopped_watching=False, ran_ok=False, still_unbound_names=[],
         zadig_status="failed", driver_was_missing=True)
     assert text == (
         "Could not open Zadig or its download page. Visit "
@@ -504,7 +518,8 @@ def test_an_unknown_zadig_status_lands_on_the_website_fallback():
     """Defensive: `launch_zadig()` returns one of three strings today, and a
     fourth must not produce an empty window."""
     text, _ = sd.usb_install_outcome(
-        wdi_available=False, ran_ok=False, still_unbound_names=[],
+        wdi_available=False,
+        stopped_watching=False, ran_ok=False, still_unbound_names=[],
         zadig_status="something-new", driver_was_missing=True)
     assert text.startswith("Could not open Zadig or its download page.")
 
@@ -514,7 +529,8 @@ def test_every_zadig_steer_in_the_outcomes_carries_the_cr30_warning():
     over the source, asserted here over the rendered text instead."""
     for status in ("launched", "download_page"):
         text, _ = sd.usb_install_outcome(
-            wdi_available=False, ran_ok=False, still_unbound_names=[],
+            wdi_available=False,
+            stopped_watching=False, ran_ok=False, still_unbound_names=[],
             zadig_status=status, driver_was_missing=True)
         assert "If you own a CR30" in text
 
@@ -532,7 +548,8 @@ def test_the_text_functions_need_no_qt_and_no_windows(monkeypatch):
     assert sd.usb_installer_text([dev(I1PRO, False)], wdi_available=True)[1] == (
         "Install Driver")
     assert sd.usb_install_outcome(
-        wdi_available=True, ran_ok=True, still_unbound_names=[],
+        wdi_available=True,
+        stopped_watching=False, ran_ok=True, still_unbound_names=[],
         zadig_status=None, driver_was_missing=True)[1] is False
 
 
@@ -1406,7 +1423,8 @@ def test_the_outcomes_that_offer_zadig_name_the_zadig_button(code, in_language):
     in_language(code)
     for ran_ok, unbound in ((False, []), (True, [I1PRO])):
         text, offer = sd.usb_install_outcome(
-            wdi_available=True, ran_ok=ran_ok,
+            wdi_available=True,
+            stopped_watching=False, ran_ok=ran_ok,
             still_unbound_names=unbound, zadig_status=None,
             driver_was_missing=True)
         assert offer is True
@@ -1435,7 +1453,8 @@ def test_the_honest_ending_names_both_controls_it_points_at(code, in_language):
     from core.i18n import tr as _tr
     in_language(code)
     text, _ = sd.usb_install_outcome(
-        wdi_available=True, ran_ok=True, still_unbound_names=[],
+        wdi_available=True,
+        stopped_watching=False, ran_ok=True, still_unbound_names=[],
         zadig_status=None, driver_was_missing=False)
     assert sd._in_prose(sd._label_check_again()) in text, (
         f"[{code}] the honest ending does not name the Check again button")
@@ -1514,17 +1533,20 @@ def test_zadigs_own_controls_are_never_translated(code, in_language):
             "for it in Zadig's English interface and not find it")
 
     launched, _ = sd.usb_install_outcome(
-        wdi_available=False, ran_ok=False, still_unbound_names=[],
+        wdi_available=False,
+        stopped_watching=False, ran_ok=False, still_unbound_names=[],
         zadig_status="launched", driver_was_missing=True)
     assert "libusb-win32" in launched and "Install Driver" in launched
 
     unbound, _ = sd.usb_install_outcome(
-        wdi_available=True, ran_ok=True, still_unbound_names=[I1PRO],
+        wdi_available=True,
+        stopped_watching=False, ran_ok=True, still_unbound_names=[I1PRO],
         zadig_status=None, driver_was_missing=True)
     for control in ("libusb-win32", "Replace Driver"):
         assert control in unbound, f"[{code}] Zadig's {control!r} was translated"
 
     failed, _ = sd.usb_install_outcome(
+        stopped_watching=False,
         wdi_available=True, ran_ok=False, still_unbound_names=[],
         zadig_status=None, driver_was_missing=True)
     for control in ("libusb-win32", "Install Driver"):
@@ -1537,7 +1559,8 @@ def test_the_zadig_address_survives_every_language(code, in_language):
     language only, so it is interpolated rather than left inside the key."""
     in_language(code)
     text, _ = sd.usb_install_outcome(
-        wdi_available=False, ran_ok=False, still_unbound_names=[],
+        wdi_available=False,
+        stopped_watching=False, ran_ok=False, still_unbound_names=[],
         zadig_status="failed", driver_was_missing=True)
     assert sd.ZADIG_SITE in text
     assert sd.ZADIG_SITE == "https://zadig.akeo.ie"
@@ -1585,6 +1608,7 @@ def test_the_whole_window_is_one_language_or_the_other(in_language):
     assert "driver not installed" not in listed
 
     ok, _ = sd.usb_install_outcome(wdi_available=True, ran_ok=True,
+                                   stopped_watching=False,
                                    still_unbound_names=[], zadig_status=None,
                                    driver_was_missing=True)
     assert "installed successfully" not in ok
@@ -1594,6 +1618,7 @@ def test_the_whole_window_is_one_language_or_the_other(in_language):
     # Both endings, not just the cheerful one: the honest one is new and is
     # exactly the kind of string a translation pass forgets.
     cannot, _ = sd.usb_install_outcome(wdi_available=True, ran_ok=True,
+                                       stopped_watching=False,
                                        still_unbound_names=[],
                                        zadig_status=None,
                                        driver_was_missing=False)
@@ -1904,7 +1929,13 @@ def _fixed_hardware(monkeypatch, devices, wdi: bool):
     import core.usb_driver_installer as inst
     monkeypatch.setattr(inst, "enumerate_connected", lambda: list(devices))
     monkeypatch.setattr(inst, "unbound_targets", lambda t: [])
-    monkeypatch.setattr(inst, "install_winusb", lambda d: True)
+    # `progress=` is now passed by the caller, and the answer is no longer a
+    # bool: an install that returns instantly is one that never waits, which is
+    # the case these tests are about. See
+    # `test_an_install_that_never_waits_puts_no_window_on_the_screen`.
+    monkeypatch.setattr(
+        inst, "install_winusb",
+        lambda d, **kw: inst.InstallAttempt.INSTALLED)
     monkeypatch.setattr(sd.SettingsDialog, "_serial_states", lambda self: [])
 
     class _P:
@@ -3720,3 +3751,534 @@ def test_the_consent_buttons_fit_the_row_in_every_language(
         "[%s] in the dark appearance's font the button row wants %d px in a "
         "%d px window: %r"
         % (code, found["dark_box_needs"], found["win_w"], found["dark_row"]))
+# ===========================================================================
+# AN INSTALL THAT HAS NOT FINISHED IS NOT AN INSTALL THAT FAILED
+# ===========================================================================
+#
+# Measured on the bench 2026-09-06, driving the real app against a real
+# driverless X-Rite i1Studio: a successful install took **48.6 s** on an IDLE
+# 2-core ARM64 VM against the 60 s `install_winusb` allowed, and for the whole
+# of it `Get-Process ChromIQ` reported `Responding = False` with nothing on
+# screen. Neither fault had ever been reachable, because until the same evening
+# the installer had never installed anything — every attempt failed in 2-5 s at
+# the permission prompt, and a WORKING install is the slow case.
+#
+# The tests below are about the two things the user is shown: a window while it
+# runs, and a sentence afterwards that does not call a slow success a failure.
+
+
+def _installer_that_waits(ticks: int, ending):
+    """An `install_winusb` that actually waits, which the real one now does.
+
+    It sleeps 20 ms a tick on purpose: `ModalDriver` polls every 5 ms, so a
+    progress window that appears has to be visible long enough for the harness
+    to see it. A fake that returned instantly would make these tests pass or
+    fail on scheduling luck.
+    """
+    import time as _time
+    from core.usb_driver_installer import InstallAttempt
+
+    def _install(device, *, progress=None, timeout_ms=None):
+        for i in range(ticks):
+            _time.sleep(0.02)
+            if progress is not None and progress(float(i) / 50) is False:
+                return InstallAttempt.STILL_RUNNING
+        return ending
+
+    return _install
+
+
+def _progress_windows(dialog):
+    from PyQt6.QtWidgets import QProgressDialog
+    return dialog.findChildren(QProgressDialog)
+
+
+def test_an_install_that_never_waits_puts_no_window_on_the_screen(
+        dialog, on_windows, monkeypatch):
+    """The window is built on the FIRST TICK, not up front.
+
+    Two reasons, and the second is the one that would have cost a gate. An
+    install that ends at the permission prompt takes 2-5 s and must not get a
+    progress window flashed at it. And a modal window that appears in every
+    install path would be seen by `ModalDriver` in all seventeen driving tests
+    above — which would run their next step, `_ok_button(w).click()`, against a
+    window that has no OK button: `AttributeError` inside a QTimer slot, which
+    PyQt6 answers with `qFatal()`. That is a dead worker, not a red test.
+    """
+    _fixed_hardware(monkeypatch, [dev(I1PRO, False)], wdi=True)
+    with ModalDriver(lambda w: _button(w, "Install Driver").click(),
+                     lambda w: _ok_button(w).click()) as drv:
+        dialog._show_usb_installer()
+    assert drv.modal_count == 2
+    assert _progress_windows(dialog) == [], (
+        "a progress window was built for an install that never waited")
+
+
+def test_an_install_that_waits_says_so_on_screen(
+        dialog, on_windows, monkeypatch):
+    """FAULT 2, where the user meets it.
+
+    `Responding = False` for ~50 s, no spinner, no message, no cursor change.
+    """
+    import core.usb_driver_installer as inst
+    from core.usb_driver_installer import InstallAttempt
+    _fixed_hardware(monkeypatch, [dev(I1PRO, False)], wdi=True)
+    monkeypatch.setattr(inst, "install_winusb",
+                        _installer_that_waits(3, InstallAttempt.INSTALLED))
+    with ModalDriver(lambda w: _button(w, "Install Driver").click(),
+                     lambda w: None,
+                     lambda w: _ok_button(w).click()) as drv:
+        dialog._show_usb_installer()
+    windows = _progress_windows(dialog)
+    assert windows, "nothing was shown while the driver was installing"
+    assert I1PRO in windows[0].labelText(), (
+        "the window does not say which instrument it is installing for")
+    assert drv.modal_count == 3
+    assert I1PRO in drv.text_of(1)
+
+
+def test_the_window_that_waits_blocks_the_rest_of_the_app(
+        dialog, on_windows, monkeypatch):
+    """Keeping the window painting also keeps every other window CLICKABLE.
+
+    Modality is the answer to "can they press Install Driver again, close
+    Preferences, or start a measurement while an elevated installer runs?".
+    """
+    import core.usb_driver_installer as inst
+    from core.usb_driver_installer import InstallAttempt
+    from PyQt6.QtCore import Qt as _Qt
+    _fixed_hardware(monkeypatch, [dev(I1PRO, False)], wdi=True)
+    monkeypatch.setattr(inst, "install_winusb",
+                        _installer_that_waits(3, InstallAttempt.INSTALLED))
+    with ModalDriver(lambda w: _button(w, "Install Driver").click(),
+                     lambda w: None,
+                     lambda w: _ok_button(w).click()):
+        dialog._show_usb_installer()
+    assert _progress_windows(dialog)[0].windowModality() is \
+        _Qt.WindowModality.ApplicationModal
+
+
+def test_the_gui_really_is_pumped_while_the_driver_installs(
+        dialog, on_windows, monkeypatch):
+    """Not "a window appeared" — "the event loop ran".
+
+    A window that is shown and then never given a cycle is exactly what the
+    shipped code produced, only with no window: `WaitForSingleObject` held the
+    GUI thread for the whole install. A timer armed on the first tick has to
+    have fired by the last one.
+    """
+    import core.usb_driver_installer as inst
+    from core.usb_driver_installer import InstallAttempt
+    from PyQt6.QtCore import QTimer
+    _fixed_hardware(monkeypatch, [dev(I1PRO, False)], wdi=True)
+    fired: list = []
+
+    def _install(device, *, progress=None, timeout_ms=None):
+        import time as _time
+        QTimer.singleShot(0, lambda: fired.append(1))
+        for _ in range(4):
+            _time.sleep(0.02)
+            progress(0.0)
+        return InstallAttempt.INSTALLED
+
+    monkeypatch.setattr(inst, "install_winusb", _install)
+    with ModalDriver(lambda w: _button(w, "Install Driver").click(),
+                     lambda w: None,
+                     lambda w: _ok_button(w).click()):
+        dialog._show_usb_installer()
+    assert fired, ("nothing was dispatched while the install ran — the GUI "
+                   "thread was held, which is the whole of FAULT 2")
+
+
+def test_an_install_that_did_not_finish_is_not_called_a_failure(
+        dialog, on_windows, monkeypatch):
+    """FAULT 1, on the screen.
+
+    The shipped code read `STILL_ACTIVE` (259) as an exit code, found
+    `259 != 0`, and told the user the install had failed — 11.4 s after an
+    install that was measured at 48.6 s on an idle machine.
+    """
+    import core.usb_driver_installer as inst
+    from core.usb_driver_installer import InstallAttempt
+    _fixed_hardware(monkeypatch, [dev(I1PRO, False)], wdi=True)
+    monkeypatch.setattr(inst, "install_winusb",
+                        _installer_that_waits(2, InstallAttempt.STILL_RUNNING))
+    with ModalDriver(lambda w: _button(w, "Install Driver").click(),
+                     lambda w: None,
+                     lambda w: _ok_button(w).click()) as drv:
+        dialog._show_usb_installer()
+    said = drv.text_of(2)
+    assert "stopped waiting" in said
+    assert "failed" not in said.lower()
+    assert "Zadig" not in said, (
+        "it offers to replace a driver while one is still being installed")
+
+
+def test_stop_waiting_ends_the_wait_and_the_window_says_it_cannot_tell(
+        dialog, on_windows, monkeypatch):
+    """The button stops ChromIQ WATCHING. It cannot and does not stop the
+    install, and the sentence that follows says exactly that."""
+    import core.usb_driver_installer as inst
+    from core.usb_driver_installer import InstallAttempt
+    _fixed_hardware(monkeypatch, [dev(I1PRO, False)], wdi=True)
+    monkeypatch.setattr(inst, "install_winusb",
+                        _installer_that_waits(40, InstallAttempt.INSTALLED))
+    with ModalDriver(lambda w: _button(w, "Install Driver").click(),
+                     lambda w: _button(w, sd._label_stop_waiting()).click(),
+                     lambda w: _ok_button(w).click()) as drv:
+        dialog._show_usb_installer()
+    said = drv.text_of(2)
+    assert "cannot tell you whether that worked" in said
+    assert "Nothing was cancelled and nothing was undone" in said
+
+
+def test_the_driver_state_is_not_re_read_while_an_install_is_still_running(
+        dialog, on_windows, monkeypatch):
+    """`unbound_targets()` samples the registry AND cfgmgr32's PRESENT list —
+    exactly the device stack wdi-simple is re-enumerating. Mid-install it can be
+    wrong in either direction, and one of them re-admits the ghosts it exists to
+    see past."""
+    import core.usb_driver_installer as inst
+    from core.usb_driver_installer import InstallAttempt
+    _fixed_hardware(monkeypatch, [dev(I1PRO, False)], wdi=True)
+    asked: list = []
+    monkeypatch.setattr(inst, "unbound_targets",
+                        lambda t: asked.append(t) or [])
+    monkeypatch.setattr(inst, "install_winusb",
+                        _installer_that_waits(2, InstallAttempt.STILL_RUNNING))
+    with ModalDriver(lambda w: _button(w, "Install Driver").click(),
+                     lambda w: None,
+                     lambda w: _ok_button(w).click()):
+        dialog._show_usb_installer()
+    assert asked == [], (
+        "the device stack was sampled while an install was still running")
+
+
+@pytest.mark.parametrize("code", ALL_CODES)
+def test_the_stopped_ending_names_both_controls_it_points_at(
+        code, in_language):
+    """Modelled on `test_the_reboot_window_names_both_controls_it_points_at`,
+    and for the same reason: on a German machine the button reads ERNEUT PRÜFEN,
+    and a hard-coded English name sends the user hunting for a control that is
+    not on the screen."""
+    from core.i18n import tr
+    in_language(code)
+    text, offer_zadig = sd.usb_install_outcome(
+        wdi_available=True, ran_ok=False, stopped_watching=True,
+        still_unbound_names=[], zadig_status=None,
+        driver_was_missing=True, target_names=[I1PRO])
+    assert offer_zadig is False
+    assert sd._in_prose(sd._label_check_again()) in text, (
+        f"[{code}] it does not name the Check again button")
+    assert sd._in_prose(tr("Instrument drivers…")) in text, (
+        f"[{code}] it does not name the control that reopens the helper")
+
+
+def test_the_outcome_cannot_be_asked_without_saying_whether_it_watched_to_the_end():
+    """`stopped_watching` is REQUIRED, with no default, for the reason
+    `driver_was_missing` is: either default is one of the answers, and the one
+    that reads "we know what happened" is the bug being fixed."""
+    with pytest.raises(TypeError):
+        sd.usb_install_outcome(
+            wdi_available=True, ran_ok=True, still_unbound_names=[],
+            zadig_status=None, driver_was_missing=True, target_names=[I1PRO])
+
+
+def test_a_stopped_wait_beats_every_other_reading_of_the_same_call():
+    """Order matters: `stopped_watching` is checked FIRST. If it were checked
+    after `if not ran_ok`, the answer would be "Automatic installation failed or
+    was cancelled" plus a Zadig button — the worst possible sentence about an
+    install that is succeeding."""
+    text, offer_zadig = sd.usb_install_outcome(
+        wdi_available=True, ran_ok=False, stopped_watching=True,
+        still_unbound_names=[I1PRO], zadig_status=None,
+        driver_was_missing=True, target_names=[I1PRO])
+    assert "stopped waiting" in text
+    assert offer_zadig is False
+    assert "Zadig" not in text
+
+
+def test_the_button_that_ends_the_wait_is_not_called_cancel():
+    """`docs/design/unified_measurement_management.md` rules on this window's
+    dismissing words, and rejects Qt's **Cancel** on its other offers because
+    "there is nothing in flight to cancel … the user is declining an offer, not
+    aborting an operation".
+
+    Here something IS in flight, and it STILL cannot be cancelled: an elevated
+    driver install cannot be safely killed and ChromIQ does not try. Calling the
+    button Cancel would promise exactly the one thing this branch is careful not
+    to do, and **Not now** is wrong the other way — nothing is being offered.
+    """
+    assert sd._label_stop_waiting() == "Stop waiting"
+    for wrong in ("Cancel", "Not now", "Abort", "Stop"):
+        assert sd._label_stop_waiting() != wrong
+
+
+def test_the_window_that_waits_names_the_instrument_it_is_waiting_for():
+    """`Reinstall Driver` on a two-instrument machine fires two permission
+    prompts behind one window. A label that says only "Installing the driver…"
+    makes the second one anonymous."""
+    text = sd.usb_installing_text(I1PRO)
+    assert I1PRO in text
+    assert "restore point" in text, (
+        "the window does not say what the wait is, so ~50 s reads as a hang")
+
+
+def _recording_installer(ending):
+    """Remember which instruments were actually elevated for, and in what order."""
+    import time as _time
+    asked: list = []
+
+    def _install(device, *, progress=None, timeout_ms=None):
+        asked.append(device.name)
+        _time.sleep(0.02)
+        if progress is not None:
+            progress(0.0)
+        return ending
+
+    return asked, _install
+
+
+def test_a_failure_on_the_first_instrument_still_reaches_the_second(
+        dialog, on_windows, monkeypatch):
+    """THE SECOND FAULT IN THE SAME EXPRESSION AS THE TIMEOUT.
+
+    `all(install_winusb(d) for d in targets)` is a GENERATOR, so the first falsy
+    answer ended the iteration — and on a two-instrument machine the second
+    instrument was never elevated for at all, while `unbound_targets()`
+    correctly reported it as still unbound and the window told the user the
+    install had not taken. A device that was never tried is not a device that
+    failed.
+
+    An install that RAN and exited non-zero has released Windows' PnP install
+    lock and told us nothing about the next instrument, so the next instrument
+    gets its own attempt.
+    """
+    import core.usb_driver_installer as inst
+    from core.usb_driver_installer import InstallAttempt
+    _fixed_hardware(monkeypatch, [dev(I1PRO, True), dev(SPYDER, True)],
+                    wdi=True)
+    asked, install = _recording_installer(InstallAttempt.FAILED)
+    monkeypatch.setattr(inst, "install_winusb", install)
+    with ModalDriver(lambda w: _button(w, sd._label_reinstall_driver()).click(),
+                     lambda w: None,
+                     lambda w: _ok_button(w).click()):
+        dialog._show_usb_installer()
+    assert asked == [I1PRO, SPYDER], (
+        f"the second instrument was never attempted: {asked}")
+
+
+def test_a_refused_serial_device_does_not_cost_the_next_instrument_its_driver(
+        dialog, on_windows, monkeypatch):
+    """The other ending that must not stop the run.
+
+    ChromIQ's own guard refuses a vendor SERIAL device without elevating
+    anything — `Reinstall Driver` runs over EVERY detected device, so one
+    mistaken table entry would otherwise mean the real colorimeter beside it
+    never gets a driver either.
+    """
+    import core.usb_driver_installer as inst
+    from core.usb_driver_installer import InstallAttempt
+    _fixed_hardware(monkeypatch, [dev(I1PRO, True), dev(SPYDER, True)],
+                    wdi=True)
+    asked = []
+
+    def _install(device, *, progress=None, timeout_ms=None):
+        asked.append(device.name)
+        return (InstallAttempt.REFUSED if device.name == I1PRO
+                else InstallAttempt.INSTALLED)
+
+    monkeypatch.setattr(inst, "install_winusb", _install)
+    with ModalDriver(lambda w: _button(w, sd._label_reinstall_driver()).click(),
+                     lambda w: _ok_button(w).click()):
+        dialog._show_usb_installer()
+    assert asked == [I1PRO, SPYDER], asked
+
+
+@pytest.mark.parametrize("ending", [
+    "STILL_RUNNING", "LOST_TRACK", "CANCELLED_AT_PROMPT",
+    "ELEVATION_REFUSED", "ELEVATION_FAILED",
+])
+def test_the_endings_that_must_not_ask_a_second_time_do_not(
+        ending, dialog, on_windows, monkeypatch):
+    """Five endings after which a second elevation is wrong, not merely rude.
+
+    `STILL_RUNNING` and `LOST_TRACK` may leave an elevated wdi-simple running,
+    and starting a second one while the first holds Windows' PnP install lock is
+    a way to make a good install fail. `CANCELLED_AT_PROMPT` is the user saying
+    No — putting the prompt straight back up is not a thing to do to somebody.
+    `ELEVATION_REFUSED` / `ELEVATION_FAILED` would go identically for the next.
+    """
+    import core.usb_driver_installer as inst
+    from core.usb_driver_installer import InstallAttempt
+    _fixed_hardware(monkeypatch, [dev(I1PRO, True), dev(SPYDER, True)],
+                    wdi=True)
+    asked, install = _recording_installer(getattr(InstallAttempt, ending))
+    monkeypatch.setattr(inst, "install_winusb", install)
+    with ModalDriver(lambda w: _button(w, sd._label_reinstall_driver()).click(),
+                     lambda w: None,
+                     lambda w: _ok_button(w).click()):
+        dialog._show_usb_installer()
+    assert asked == [I1PRO], (
+        f"after {ending} it went on and elevated for a second instrument: "
+        f"{asked}")
+
+
+def test_an_instrument_that_was_never_reached_is_said_so_and_not_blamed(
+        dialog, on_windows, monkeypatch):
+    """And the window has to SAY it, which is the half that was missing.
+
+    Before, the untried instrument came back from `unbound_targets()` and was
+    named in "the driver still isn't bound to {names}" — a sentence about an
+    install that never happened.
+    """
+    import core.usb_driver_installer as inst
+    from core.usb_driver_installer import InstallAttempt
+    _fixed_hardware(monkeypatch, [dev(I1PRO, True), dev(SPYDER, True)],
+                    wdi=True)
+    asked, install = _recording_installer(InstallAttempt.CANCELLED_AT_PROMPT)
+    monkeypatch.setattr(inst, "install_winusb", install)
+    monkeypatch.setattr(inst, "unbound_targets",
+                        lambda t: [d for d in t])
+    with ModalDriver(lambda w: _button(w, sd._label_reinstall_driver()).click(),
+                     lambda w: None,
+                     lambda w: _ok_button(w).click()) as drv:
+        dialog._show_usb_installer()
+    said = drv.text_of(2)
+    assert f"stopped before it reached {SPYDER}" in said, said
+    assert "Nothing was tried there" in said
+
+
+def test_the_device_state_is_only_re_read_for_what_was_attempted(
+        dialog, on_windows, monkeypatch):
+    """`unbound_targets()` answers "is this device driven?". For an instrument
+    ChromIQ never elevated for, that is a fact about the machine and not a
+    verdict on an install, and the sentence it feeds would be false twice."""
+    import core.usb_driver_installer as inst
+    from core.usb_driver_installer import InstallAttempt
+    _fixed_hardware(monkeypatch, [dev(I1PRO, True), dev(SPYDER, True)],
+                    wdi=True)
+    asked, install = _recording_installer(InstallAttempt.CANCELLED_AT_PROMPT)
+    monkeypatch.setattr(inst, "install_winusb", install)
+    seen: list = []
+    monkeypatch.setattr(inst, "unbound_targets",
+                        lambda t: seen.append([d.name for d in t]) or [])
+    with ModalDriver(lambda w: _button(w, sd._label_reinstall_driver()).click(),
+                     lambda w: None,
+                     lambda w: _ok_button(w).click()):
+        dialog._show_usb_installer()
+    assert seen == [[I1PRO]], (
+        f"it asked about an instrument it never attempted: {seen}")
+
+
+def test_every_instrument_is_still_reached_when_each_one_lands(
+        dialog, on_windows, monkeypatch):
+    """The other half, so the guards above cannot be satisfied by never looping.
+    """
+    import core.usb_driver_installer as inst
+    from core.usb_driver_installer import InstallAttempt
+    _fixed_hardware(monkeypatch, [dev(I1PRO, True), dev(SPYDER, True)],
+                    wdi=True)
+    asked, install = _recording_installer(InstallAttempt.INSTALLED)
+    monkeypatch.setattr(inst, "install_winusb", install)
+    with ModalDriver(lambda w: _button(w, sd._label_reinstall_driver()).click(),
+                     lambda w: None,
+                     lambda w: _ok_button(w).click()):
+        dialog._show_usb_installer()
+    assert asked == [I1PRO, SPYDER]
+
+
+def test_nothing_is_said_about_instruments_that_were_all_reached():
+    """The sentence must not appear when there is nothing it could be about."""
+    text, _ = sd.usb_install_outcome(
+        wdi_available=True, ran_ok=True, stopped_watching=False,
+        still_unbound_names=[], zadig_status=None,
+        driver_was_missing=True, target_names=[I1PRO],
+        not_attempted_names=[])
+    assert "stopped before it reached" not in text
+
+
+@pytest.mark.parametrize("code", ALL_CODES)
+def test_the_unreached_sentence_is_translated_everywhere(code, in_language):
+    """A sentence appended to five different endings is exactly the kind a
+    translation pass forgets, because it is never the whole window."""
+    in_language(code)
+    text, _ = sd.usb_install_outcome(
+        wdi_available=True, ran_ok=False, stopped_watching=False,
+        still_unbound_names=[I1PRO], zadig_status=None,
+        driver_was_missing=True, target_names=[I1PRO, SPYDER],
+        not_attempted_names=[SPYDER])
+    assert SPYDER in text
+    if code != "en":
+        assert "Nothing was tried there" not in text, (
+            f"[{code}] the unreached sentence is still English")
+
+
+def test_the_deleted_parent_guard_is_not_undone_by_its_own_cleanup(
+        qapp_for_driving):
+    """The `finally` must not call into the object the guard exists for.
+
+    `_install_the_drivers` catches `RuntimeError` inside `_still_watching`
+    because, in its own words, *"the window this was parented to has been
+    deleted under us"* — and the ending that follows is the honest "ChromIQ
+    cannot tell you" one, deliberately, rather than dying with a traceback
+    after an ELEVATED install.
+
+    That guard was then undone by its own cleanup. `progress` is parented to
+    the same window, so when the parent goes the QProgressDialog goes with it,
+    and `finally: progress.close()` called into the dead C++ object. The
+    exception left a Qt slot, and PyQt6 answers an unhandled exception in a
+    slot with `qFatal()` — so the process died in the `finally` instead of the
+    `try`, which is worse than not having guarded at all.
+
+    Found by a reviewer walking the app, 2026-09-06. Related to the branch's
+    own subject: an exit path that leaves things worse than doing nothing.
+    """
+    from PyQt6 import sip
+    from PyQt6.QtWidgets import QApplication
+    from core.settings import DEFAULTS
+    from core.usb_driver_installer import InstallAttempt, UsbDevice
+    from ui.dialogs.settings_dialog import SettingsDialog
+
+    # This test DELETES its dialog on purpose, so it builds its own rather than
+    # taking the `dialog` fixture, whose teardown would then call
+    # `deleteLater()` on a dead object and fail every run.
+    class _Settings:
+        def __init__(self):
+            self._s = dict(DEFAULTS)
+
+        def get(self, k, d=None):
+            return self._s.get(k, d)
+
+        def set(self, k, v):
+            self._s[k] = v
+
+        def migrate(self):
+            pass
+
+        def reset_to_defaults(self):
+            pass
+
+    dialog = SettingsDialog(_Settings())
+
+    device = UsbDevice(vid="0765", pid="6008",
+                       name="X-Rite i1 Studio", has_winusb=False)
+    seen = {}
+
+    def install(dev, *, progress=None, timeout_ms=None):
+        seen["first"] = progress(0.1)      # builds the progress window
+        sip.delete(dialog)                 # the parent goes away under us
+        seen["after"] = progress(0.2)      # the documented guard fires
+        return InstallAttempt.STILL_RUNNING
+
+    dialog.show()
+    QApplication.processEvents()
+
+    # The assertion is that this RETURNS. Before the fix the `finally` reached
+    # a deleted object and PyQt6 turned that into qFatal() — which is not an
+    # exception a test can catch, it is a dead worker, so `pytest.raises` could
+    # never have expressed this.
+    attempts = SettingsDialog._install_the_drivers(dialog, [device], install)
+
+    assert seen == {"first": True, "after": False}
+    assert attempts == [InstallAttempt.STILL_RUNNING]
