@@ -1,5 +1,75 @@
 # Changelog
 
+## v4.1.5-beta.10
+
+**ChromIQ's USB driver installer had never installed a driver. Not for any of
+the 28 supported instruments, not on any architecture, not once, and beta 9
+shipped it.**
+
+It was found by testing the ArgyllCMS driver path against real hardware for the
+first time. Three faults were stacked so that each one hid the next, and a
+fourth appeared once they were gone. Beta 9's notes said the driver helper was
+proven end to end on real hardware: that was true of the CR30's serial bridge,
+and not of the USB half, which is what this release repairs.
+
+This beta also carries the scanner-window and white-point work that landed after
+beta 9 was tagged.
+
+### Fixed
+
+- **Windows: the USB driver installer never installed a driver.** Four faults,
+  each hiding the next. A ghost registry entry, left by the same instrument on a
+  different USB port, still had a driver recorded against it, so ChromIQ
+  believed the instrument was ready and never offered to install anything. The
+  installer passed `--driver WinUSB`, which is not a wdi-simple option, so
+  wdi-simple printed its usage text and exited 0, and ChromIQ read that zero as
+  success: it reported an installed driver every time, having installed nothing.
+  No destination was given, so the driver was extracted to wherever the elevated
+  process happened to start.
+- **Windows: ArgyllCMS cannot use WinUSB, and ChromIQ told users to choose it in
+  seven places.** An instrument bound to WinUSB is invisible to ArgyllCMS. The
+  helper installs libusb-win32 now, and the Zadig instructions no longer point
+  users at the one driver that cannot work. If you followed the old advice, the
+  helper puts it right: rebinding was tested on an X-Rite i1Studio, from
+  `** No ports found **` back to a working instrument.
+- **Windows: an install that had not finished was reported as one that failed.**
+  If ChromIQ stopped watching before Windows was done, it said the install had
+  failed or been cancelled. Nothing had been cancelled and nothing undone, and
+  the install was very likely still running. An instrument that was never tried
+  is no longer reported as one that failed either.
+- **Windows: a chart restored from a Mac was invisible, and a different one was
+  used in its place.** macOS and Windows store accented and umlauted filenames
+  differently, and NTFS keeps the two spellings apart where APFS folds them
+  together.
+- **Three controls in the scanner window opened past the bottom of the screen**
+  on shorter displays.
+- **The scanner white-point default clipped every original brighter than the
+  chart's own board.** New scanner profiles start from a better default.
+- **The white-point help said "1.00 makes no change".** It is the opposite.
+- **Nothing in ChromIQ said that a scanner profile used as an instrument must be
+  built for that purpose.** It does now.
+- **The seed box read 0** while the chart on screen had been built with
+  something else.
+- **The consent button was English in eleven languages**, and German had been
+  quietly leaking untranslated sentences.
+
+### Changed
+
+- **The driver install now says what it changes before you click.** Installing
+  the driver also puts a certificate into two of Windows' trust stores, and it
+  stays there after the driver is gone. A button opens the full notice. This
+  cannot be avoided: the driver is built for your instrument at the moment it is
+  installed, so it has to be signed then too, and ArgyllCMS's own installer does
+  the same thing. The notice says what was measured and what was not, rather
+  than implying more.
+- **The bundled CMYK profile is no longer Adobe's.** ChromIQ was redistributing
+  `USWebCoatedSWOP.icc`, which Adobe's licence does not permit us to
+  redistribute. It is replaced by ArgyllCMS's public-domain equivalent, and
+  `THIRD-PARTY-NOTICES.md` now states the terms for everything ChromIQ ships.
+- **The bundled scanner targets are marked AGPLv3**, matching ArgyllCMS, whose
+  patch geometry they carry. Measured per file rather than assumed. No
+  recognition file changed, and ChromIQ itself remains GPLv3.
+
 ## v4.1.5-beta.9
 
 **Windows can now get the driver its instrument needs without leaving ChromIQ,

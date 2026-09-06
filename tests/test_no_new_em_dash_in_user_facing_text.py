@@ -80,10 +80,26 @@ def test_no_new_english_ui_text_uses_an_em_dash():
           "and it only shrinks.")
 
 
+#: Languages whose own punctuation uses U+2014, so the rule below cannot apply
+#: to them. Chinese writes the 破折号 as `——` and Japanese uses `—`; there is no
+#: other character for the job, and the "machine-written" tell this rule exists
+#: to catch is an ENGLISH habit. This is the same reasoning that leaves the en
+#: dash alone for German and Norwegian, and it was learned the same way: the
+#: first sweep mechanically turned every em dash in these two catalogues into an
+#: en dash, which put `––` into Chinese, where it is not punctuation at all.
+_EM_DASH_IS_NATIVE = {"ja", "zh_CN"}
+
+
 def test_no_translation_adds_an_em_dash_the_english_does_not_have():
     """A translator may keep an em dash the English has. Adding one it does not
-    have puts the tell into a language nobody on this project reads closely."""
-    added = E.translations_adding_an_em_dash()
+    have puts the tell into a language nobody on this project reads closely.
+
+    Two languages are exempt, and the exemption is the point rather than a hole:
+    see `_EM_DASH_IS_NATIVE`. A rule that forces a language out of its own
+    punctuation is a worse defect than the one it is preventing.
+    """
+    added = [(lang, key) for lang, key in E.translations_adding_an_em_dash()
+             if lang not in _EM_DASH_IS_NATIVE]
     frozen = {tuple(t) for t in E.load_baseline()["translations"]}
     new = sorted((lang, key) for lang, key in added
                  if (lang, E.key_id(key)) not in frozen)
