@@ -330,7 +330,15 @@ def test_install_winusb_uses_the_builder_rather_than_a_string_of_its_own() -> No
     assert "wdi_simple_args(device)" in src, (
         "install_winusb() no longer builds its arguments through "
         "wdi_simple_args(), so nothing in this file describes what it sends")
-    stray = re.findall(r"--[a-z][a-z0-9-]*", src)
+
+    # CODE ONLY. Past the docstring (the pattern
+    # `test_the_registry_read_does_no_filtering_of_its_own` already uses on
+    # this module) and with comments cut, so that WRITING about an option is
+    # not mistaken for PASSING one — this function's whole reason to exist is
+    # the note explaining what `--driver` cost.
+    body = src.split('"""')[2]
+    body = "\n".join(line.split("#", 1)[0] for line in body.splitlines())
+    stray = re.findall(r"--[a-z][a-z0-9-]*", body)
     assert not stray, (
         f"install_winusb() spells out options of its own ({stray}); they are "
         f"outside every check in this file — put them in wdi_simple_args()")
