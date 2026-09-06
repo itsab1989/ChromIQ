@@ -394,6 +394,7 @@ def usb_install_outcome(*, wdi_available: bool, ran_ok: bool,
                         driver_was_missing: bool,
                         stopped_watching: bool,
                         target_names: "list[str] | None" = None,
+                        not_attempted_names: "list[str] | None" = None,
                         ) -> "tuple[str, bool]":
     """What the second window says, and whether it offers a Zadig button.
 
@@ -447,7 +448,34 @@ def usb_install_outcome(*, wdi_available: bool, ran_ok: bool,
     "it failed" and gets *"Automatic installation failed or was cancelled"* plus
     a Zadig button — the single worst sentence to show about an install that is
     succeeding, which is the fault this argument exists to fix.
+
+    `not_attempted_names` are the instruments ChromIQ never got as far as, and
+    they are the SECOND fault in the same expression as the timeout one. The
+    call site read `all(install_winusb(d) for d in targets)` — a GENERATOR, so
+    the first falsy answer ended the iteration and the remaining instruments
+    were never elevated for at all, while this function was then handed them
+    among `still_unbound_names` and said the install "did not take" on them. A
+    device that was never tried is not a device that failed, and it has no
+    verdict coming. It gets a sentence of its own, appended to whichever ending
+    the instruments that WERE tried have earned.
+
+    It takes a default, and `stopped_watching` deliberately does not, because
+    they are different kinds of argument: `stopped_watching` is an ANSWER, and
+    either default is one of the two answers. An empty list is not an answer —
+    it is "there is nothing further to report", which is exactly true of every
+    single-instrument run and of every caller that has not got a list.
     """
+    unreached = ", ".join(not_attempted_names or [])
+    # One sentence, no count, no pronoun — it reads for one instrument and for
+    # four without a singular/plural pair, the way the "isn't bound to {names}"
+    # sentence below already does.
+    unreached_line = tr(
+        "ChromIQ stopped before it reached {names}. Nothing was tried there, "
+        "and nothing was changed.").format(names=unreached) if unreached else ""
+
+    def _with_the_unreached(text: str) -> str:
+        return f"{text}<br><br>{unreached_line}" if unreached_line else text
+
     if wdi_available:
         if stopped_watching:
             # ChromIQ STOPPED WATCHING. IT DID NOT STOP THE INSTALL.
@@ -468,7 +496,7 @@ def usb_install_outcome(*, wdi_available: bool, ran_ok: bool,
             # replace a driver while an elevated installer is still putting one
             # in is the one action here that could leave the machine worse than
             # it started.
-            return ("<br><br>".join([
+            return (_with_the_unreached("<br><br>".join([
                 tr("<b>ChromIQ stopped waiting, and cannot tell you whether "
                    "that worked.</b>"),
                 tr("The installer had not finished when ChromIQ stopped "
@@ -480,7 +508,7 @@ def usb_install_outcome(*, wdi_available: bool, ran_ok: bool,
                    "up afresh and says whether the driver is attached now."
                    ).format(opener=_in_prose(tr("Instrument drivers…")),
                             button=_in_prose(_label_check_again())),
-            ]), False)
+            ])), False)
         if ran_ok and not still_unbound_names:
             names = ", ".join(target_names or [])
             if driver_was_missing:
@@ -503,7 +531,7 @@ def usb_install_outcome(*, wdi_available: bool, ran_ok: bool,
                     tr("<b>It worked.</b> The driver is installed, and Windows "
                        "has attached it to your instrument.")
                 )
-                return ("<br><br>".join([
+                return (_with_the_unreached("<br><br>".join([
                     heading,
                     tr("That last part is the check that matters. An installer "
                        "can finish without complaining and still fail to "
@@ -511,12 +539,12 @@ def usb_install_outcome(*, wdi_available: bool, ran_ok: bool,
                        "take its word for it — it looks the instrument up "
                        "again afterwards. The driver is there."),
                     tr("You can close this window and start measuring."),
-                ]), False)
+                ])), False)
             # Nothing was missing before, so nothing can be shown to have
             # changed. Saying "installed successfully" here is the claim this
             # branch exists to stop making. No instrument is named: there is
             # nothing to point AT, which is the whole message.
-            return ("<br><br>".join([
+            return (_with_the_unreached("<br><br>".join([
                 tr("<b>ChromIQ cannot tell you whether that changed "
                    "anything.</b>"),
                 tr("The driver was already there before you clicked, and it is "
@@ -530,26 +558,28 @@ def usb_install_outcome(*, wdi_available: bool, ran_ok: bool,
                    "again and use <b>{button}</b>.").format(
                        opener=_in_prose(tr("Instrument drivers…")),
                        button=_in_prose(_label_check_again())),
-            ]), False)
+            ])), False)
         if not ran_ok:
             return (
-                tr("Automatic installation failed or was cancelled.<br>"
-                   "Click <b>{button}</b> to install it manually using the "
-                   "guided tool.").format(button=_label_try_zadig()),
+                _with_the_unreached(
+                    tr("Automatic installation failed or was cancelled.<br>"
+                       "Click <b>{button}</b> to install it manually using the "
+                       "guided tool.").format(button=_label_try_zadig())),
                 True,
             )
         names = ", ".join(still_unbound_names) or tr("the instrument")
         # `Replace Driver` and the `WinUSB` / `libusb-win32` choices are
         # Zadig's; `{button}` is ours. See the note above usb_installer_text.
         return (
-            tr("Windows reported the install finished, but the driver still "
-               "isn't bound to {names}. This often happens when the device "
-               "was previously plugged into a different USB port.<br><br>"
-               "Click <b>{button}</b> to install it reliably: pick your "
-               "instrument in Zadig, choose <b>WinUSB</b> (or libusb-win32), "
-               "then click <b>Replace Driver</b>. Unplugging and replugging the "
-               "instrument first can also help.").format(
-                   names=names, button=_label_try_zadig()),
+            _with_the_unreached(
+                tr("Windows reported the install finished, but the driver still "
+                   "isn't bound to {names}. This often happens when the device "
+                   "was previously plugged into a different USB port.<br><br>"
+                   "Click <b>{button}</b> to install it reliably: pick your "
+                   "instrument in Zadig, choose <b>WinUSB</b> (or libusb-win32), "
+                   "then click <b>Replace Driver</b>. Unplugging and replugging "
+                   "the instrument first can also help.").format(
+                       names=names, button=_label_try_zadig())),
             True,
         )
 
@@ -5972,7 +6002,7 @@ class SettingsDialog(QDialog):
         watching, and the window that follows says exactly that.
         """
         from PyQt6.QtWidgets import QProgressDialog
-        from core.usb_driver_installer import InstallAttempt
+        from core.usb_driver_installer import HALTS_A_MULTI_DEVICE_RUN
 
         progress: "QProgressDialog | None" = None
         attempts: list = []
@@ -6006,13 +6036,14 @@ class SettingsDialog(QDialog):
                         return False
 
                 attempts.append(install(device, progress=_still_watching))
-                if attempts[-1] is not InstallAttempt.INSTALLED:
-                    # STOP AT THE FIRST ONE THAT DID NOT LAND, which is what
-                    # `all(install_winusb(d) for d in targets)` used to do by
-                    # short-circuiting. It is not only politeness about a second
-                    # permission prompt: elevating a second wdi-simple while the
-                    # first still holds Windows' PnP install lock is a way to
-                    # make a good install fail.
+                if attempts[-1] in HALTS_A_MULTI_DEVICE_RUN:
+                    # AND CARRYING ON IS THE DEFAULT. `all(install_winusb(d) for
+                    # d in targets)` was a GENERATOR, so the first falsy answer
+                    # ended the iteration and the rest were never attempted —
+                    # while the outcome window named them among the instruments
+                    # the install "did not take" on. The seven endings that do
+                    # stop the run, and why each of them does, are next to the
+                    # enum in `core/usb_driver_installer.py`.
                     break
         finally:
             if progress is not None:
@@ -6176,6 +6207,14 @@ class SettingsDialog(QDialog):
             targets = needs_install or devices
             if _wdi_available:
                 attempts = self._install_the_drivers(targets, install_winusb)
+                # WHAT WAS NEVER TRIED IS NOT WHAT FAILED. The loop stops after
+                # seven of the ten endings (see `HALTS_A_MULTI_DEVICE_RUN`), so
+                # on a two-instrument machine the tail of `targets` can be
+                # untouched — and the old `all(...)` GENERATOR did this silently
+                # for every falsy answer, then let the window name those
+                # instruments among the ones the install "did not take" on.
+                attempted = targets[:len(attempts)]
+                not_attempted = targets[len(attempts):]
                 stopped_watching = any(a is InstallAttempt.STILL_RUNNING
                                        for a in attempts)
                 # `len(attempts) == len(targets)` is not redundant with the
@@ -6204,13 +6243,21 @@ class SettingsDialog(QDialog):
                 # changed sends that same guard to its "fall back to every
                 # remembered instance" branch, which re-admits the ghosts this
                 # function exists to see past.
+                #
+                # AND IT IS ASKED ONLY ABOUT THE INSTRUMENTS THAT WERE
+                # ATTEMPTED. It answers "is this device driven?", which for one
+                # ChromIQ never elevated for is a fact about the machine and not
+                # a verdict on an install — and the sentence it feeds reads
+                # "Windows reported the install finished, but the driver still
+                # isn't bound to {names}", which would then be false twice over.
                 still_unbound = [] if stopped_watching \
-                    else unbound_targets(targets)
+                    else unbound_targets(attempted)
                 outcome_text, offer_zadig = usb_install_outcome(
                     wdi_available=True,
                     ran_ok=ran_ok,
                     stopped_watching=stopped_watching,
                     still_unbound_names=[d.name for d in still_unbound],
+                    not_attempted_names=[d.name for d in not_attempted],
                     zadig_status=None,
                     # `needs_install` is the list read BEFORE the button was
                     # pressed, so it is the only thing that can tell a repair

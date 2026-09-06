@@ -3472,6 +3472,25 @@ stops ChromIQ watching, which is what it says, and the ending above says the
 same thing again in a sentence. **Not now** was considered and is wrong for the
 same reason: nothing is being offered.*
 
+**And a sixth sentence, for an instrument ChromIQ never got to.** `Reinstall
+Driver` runs over every detected instrument, one permission prompt each, and the
+run stops after five of the endings — the user said No, Windows would not ask, or
+an elevated installer may still be running and starting a second one while it
+holds Windows' PnP install lock is a way to make a good install fail. Whatever
+the instruments that WERE tried have earned, this is appended:
+
+> ChromIQ stopped before it reached {names}. Nothing was tried there, and
+> nothing was changed.
+
+*It exists because the shipped code did the skipping SILENTLY and then blamed
+the skipped instrument: `all(install_winusb(d) for d in targets)` is a
+generator, so the first falsy answer ended the iteration, and the untried
+instrument came back from `unbound_targets()` to be named in "the driver still
+isn't bound to {names}" — a sentence about an install that never happened. It is
+one sentence with no count and no pronoun, so it reads for one instrument and for
+four without a singular/plural pair, the same way the "isn't bound to" sentence
+beside it already does.*
+
 *The permission prompt itself is still frozen time — `SEE_MASK_NOASYNC` makes
 `ShellExecuteExW` block until the shell operation completes, so ChromIQ does not
 pump events while Windows asks for consent. That is deliberate: consent must

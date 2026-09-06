@@ -3878,42 +3878,141 @@ def _recording_installer(ending):
     return asked, _install
 
 
-def test_a_device_that_did_not_land_stops_the_loop_before_the_next_one(
+def test_a_failure_on_the_first_instrument_still_reaches_the_second(
         dialog, on_windows, monkeypatch):
-    """THE FINDING OF THE MUTATION EXERCISE.
+    """THE SECOND FAULT IN THE SAME EXPRESSION AS THE TIMEOUT.
 
-    `Reinstall Driver` on a two-instrument machine runs the installer over BOTH
-    of them (`targets = needs_install or devices`), one elevation each. The
-    shipped `all(install_winusb(d) for d in targets)` stopped at the first one
-    that did not land, because `all` short-circuits — by accident of the
-    expression rather than by anybody's decision, and **nothing in this file
-    proved it**: removing the `break` from the rewritten loop survived all 561
-    other tests.
+    `all(install_winusb(d) for d in targets)` is a GENERATOR, so the first falsy
+    answer ended the iteration — and on a two-instrument machine the second
+    instrument was never elevated for at all, while `unbound_targets()`
+    correctly reported it as still unbound and the window told the user the
+    install had not taken. A device that was never tried is not a device that
+    failed.
 
-    It matters twice. A second permission prompt straight after one the user
-    declined is a thing not to do to somebody. And elevating a second
-    wdi-simple while the first still holds Windows' PnP install lock is a way to
-    make a good install fail — which would then be reported honestly, as a
-    failure ChromIQ had caused itself.
+    An install that RAN and exited non-zero has released Windows' PnP install
+    lock and told us nothing about the next instrument, so the next instrument
+    gets its own attempt.
     """
     import core.usb_driver_installer as inst
     from core.usb_driver_installer import InstallAttempt
     _fixed_hardware(monkeypatch, [dev(I1PRO, True), dev(SPYDER, True)],
                     wdi=True)
-    asked, install = _recording_installer(InstallAttempt.STILL_RUNNING)
+    asked, install = _recording_installer(InstallAttempt.FAILED)
+    monkeypatch.setattr(inst, "install_winusb", install)
+    with ModalDriver(lambda w: _button(w, sd._label_reinstall_driver()).click(),
+                     lambda w: None,
+                     lambda w: _ok_button(w).click()):
+        dialog._show_usb_installer()
+    assert asked == [I1PRO, SPYDER], (
+        f"the second instrument was never attempted: {asked}")
+
+
+def test_a_refused_serial_device_does_not_cost_the_next_instrument_its_driver(
+        dialog, on_windows, monkeypatch):
+    """The other ending that must not stop the run.
+
+    ChromIQ's own guard refuses a vendor SERIAL device without elevating
+    anything — `Reinstall Driver` runs over EVERY detected device, so one
+    mistaken table entry would otherwise mean the real colorimeter beside it
+    never gets a driver either.
+    """
+    import core.usb_driver_installer as inst
+    from core.usb_driver_installer import InstallAttempt
+    _fixed_hardware(monkeypatch, [dev(I1PRO, True), dev(SPYDER, True)],
+                    wdi=True)
+    asked = []
+
+    def _install(device, *, progress=None, timeout_ms=None):
+        asked.append(device.name)
+        return (InstallAttempt.REFUSED if device.name == I1PRO
+                else InstallAttempt.INSTALLED)
+
+    monkeypatch.setattr(inst, "install_winusb", _install)
+    with ModalDriver(lambda w: _button(w, sd._label_reinstall_driver()).click(),
+                     lambda w: _ok_button(w).click()):
+        dialog._show_usb_installer()
+    assert asked == [I1PRO, SPYDER], asked
+
+
+@pytest.mark.parametrize("ending", [
+    "STILL_RUNNING", "LOST_TRACK", "CANCELLED_AT_PROMPT",
+    "ELEVATION_REFUSED", "ELEVATION_FAILED",
+])
+def test_the_endings_that_must_not_ask_a_second_time_do_not(
+        ending, dialog, on_windows, monkeypatch):
+    """Five endings after which a second elevation is wrong, not merely rude.
+
+    `STILL_RUNNING` and `LOST_TRACK` may leave an elevated wdi-simple running,
+    and starting a second one while the first holds Windows' PnP install lock is
+    a way to make a good install fail. `CANCELLED_AT_PROMPT` is the user saying
+    No — putting the prompt straight back up is not a thing to do to somebody.
+    `ELEVATION_REFUSED` / `ELEVATION_FAILED` would go identically for the next.
+    """
+    import core.usb_driver_installer as inst
+    from core.usb_driver_installer import InstallAttempt
+    _fixed_hardware(monkeypatch, [dev(I1PRO, True), dev(SPYDER, True)],
+                    wdi=True)
+    asked, install = _recording_installer(getattr(InstallAttempt, ending))
     monkeypatch.setattr(inst, "install_winusb", install)
     with ModalDriver(lambda w: _button(w, sd._label_reinstall_driver()).click(),
                      lambda w: None,
                      lambda w: _ok_button(w).click()):
         dialog._show_usb_installer()
     assert asked == [I1PRO], (
-        "it raised a second permission prompt after the first install had not "
-        f"landed: {asked}")
+        f"after {ending} it went on and elevated for a second instrument: "
+        f"{asked}")
+
+
+def test_an_instrument_that_was_never_reached_is_said_so_and_not_blamed(
+        dialog, on_windows, monkeypatch):
+    """And the window has to SAY it, which is the half that was missing.
+
+    Before, the untried instrument came back from `unbound_targets()` and was
+    named in "the driver still isn't bound to {names}" — a sentence about an
+    install that never happened.
+    """
+    import core.usb_driver_installer as inst
+    from core.usb_driver_installer import InstallAttempt
+    _fixed_hardware(monkeypatch, [dev(I1PRO, True), dev(SPYDER, True)],
+                    wdi=True)
+    asked, install = _recording_installer(InstallAttempt.CANCELLED_AT_PROMPT)
+    monkeypatch.setattr(inst, "install_winusb", install)
+    monkeypatch.setattr(inst, "unbound_targets",
+                        lambda t: [d for d in t])
+    with ModalDriver(lambda w: _button(w, sd._label_reinstall_driver()).click(),
+                     lambda w: None,
+                     lambda w: _ok_button(w).click()) as drv:
+        dialog._show_usb_installer()
+    said = drv.text_of(2)
+    assert f"stopped before it reached {SPYDER}" in said, said
+    assert "Nothing was tried there" in said
+
+
+def test_the_device_state_is_only_re_read_for_what_was_attempted(
+        dialog, on_windows, monkeypatch):
+    """`unbound_targets()` answers "is this device driven?". For an instrument
+    ChromIQ never elevated for, that is a fact about the machine and not a
+    verdict on an install, and the sentence it feeds would be false twice."""
+    import core.usb_driver_installer as inst
+    from core.usb_driver_installer import InstallAttempt
+    _fixed_hardware(monkeypatch, [dev(I1PRO, True), dev(SPYDER, True)],
+                    wdi=True)
+    asked, install = _recording_installer(InstallAttempt.CANCELLED_AT_PROMPT)
+    monkeypatch.setattr(inst, "install_winusb", install)
+    seen: list = []
+    monkeypatch.setattr(inst, "unbound_targets",
+                        lambda t: seen.append([d.name for d in t]) or [])
+    with ModalDriver(lambda w: _button(w, sd._label_reinstall_driver()).click(),
+                     lambda w: None,
+                     lambda w: _ok_button(w).click()):
+        dialog._show_usb_installer()
+    assert seen == [[I1PRO]], (
+        f"it asked about an instrument it never attempted: {seen}")
 
 
 def test_every_instrument_is_still_reached_when_each_one_lands(
         dialog, on_windows, monkeypatch):
-    """The other half, so the guard above cannot be satisfied by never looping.
+    """The other half, so the guards above cannot be satisfied by never looping.
     """
     import core.usb_driver_installer as inst
     from core.usb_driver_installer import InstallAttempt
@@ -3926,3 +4025,29 @@ def test_every_instrument_is_still_reached_when_each_one_lands(
                      lambda w: _ok_button(w).click()):
         dialog._show_usb_installer()
     assert asked == [I1PRO, SPYDER]
+
+
+def test_nothing_is_said_about_instruments_that_were_all_reached():
+    """The sentence must not appear when there is nothing it could be about."""
+    text, _ = sd.usb_install_outcome(
+        wdi_available=True, ran_ok=True, stopped_watching=False,
+        still_unbound_names=[], zadig_status=None,
+        driver_was_missing=True, target_names=[I1PRO],
+        not_attempted_names=[])
+    assert "stopped before it reached" not in text
+
+
+@pytest.mark.parametrize("code", ALL_CODES)
+def test_the_unreached_sentence_is_translated_everywhere(code, in_language):
+    """A sentence appended to five different endings is exactly the kind a
+    translation pass forgets, because it is never the whole window."""
+    in_language(code)
+    text, _ = sd.usb_install_outcome(
+        wdi_available=True, ran_ok=False, stopped_watching=False,
+        still_unbound_names=[I1PRO], zadig_status=None,
+        driver_was_missing=True, target_names=[I1PRO, SPYDER],
+        not_attempted_names=[SPYDER])
+    assert SPYDER in text
+    if code != "en":
+        assert "Nothing was tried there" not in text, (
+            f"[{code}] the unreached sentence is still English")

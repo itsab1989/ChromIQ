@@ -484,6 +484,44 @@ class InstallAttempt(Enum):
         )
 
 
+#: Endings after which ChromIQ must NOT go on to elevate for the next
+#: instrument, when a run covers more than one.
+#:
+#: THE DEFAULT IS TO CARRY ON, and that is the fix to a second fault in the
+#: same expression as the timeout one. `all(install_winusb(d) for d in targets)`
+#: is a GENERATOR, so the first falsy answer stopped the iteration and the
+#: remaining instruments were never attempted at all — while the outcome window
+#: named them among the ones the install "did not take" on. A device that was
+#: never tried is not a device that failed.
+#:
+#: But "attempt every target unconditionally" is wrong in the other direction,
+#: and one of the reasons only exists now that the timeout is honest:
+#:
+#: * `STILL_RUNNING` / `LOST_TRACK` — an elevated wdi-simple may still be
+#:   running. Starting a second one while the first holds Windows' PnP install
+#:   lock is a way to make a good install fail, and it would ask for consent
+#:   while the last install is unfinished.
+#: * `CANCELLED_AT_PROMPT` — the user said No. Putting the prompt straight back
+#:   up is not a thing to do to somebody.
+#: * `ELEVATION_REFUSED` / `ELEVATION_FAILED` / `NOT_WINDOWS` / `NO_INSTALLER` —
+#:   nothing about the next device would go any differently.
+#:
+#: `FAILED` and `REFUSED` are deliberately NOT here. A process that ran and
+#: exited non-zero has released the lock, and the serial-device guard's refusal
+#: is about that one device and elevates nothing — in both cases the next
+#: instrument deserves its own attempt. The caller must then say which
+#: instruments it did not reach; see `usb_install_outcome`.
+HALTS_A_MULTI_DEVICE_RUN = frozenset({
+    InstallAttempt.STILL_RUNNING,
+    InstallAttempt.LOST_TRACK,
+    InstallAttempt.CANCELLED_AT_PROMPT,
+    InstallAttempt.ELEVATION_REFUSED,
+    InstallAttempt.ELEVATION_FAILED,
+    InstallAttempt.NOT_WINDOWS,
+    InstallAttempt.NO_INSTALLER,
+})
+
+
 def _watch_the_installer(kernel32, handle, *, timeout_ms: int,
                          progress=None, label: str = "wdi-simple",
                          ) -> InstallAttempt:
