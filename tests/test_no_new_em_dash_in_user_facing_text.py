@@ -87,15 +87,30 @@ def test_no_new_english_ui_text_uses_an_em_dash():
 #: dash alone for German and Norwegian, and it was learned the same way: the
 #: first sweep mechanically turned every em dash in these two catalogues into an
 #: en dash, which put `––` into Chinese, where it is not punctuation at all.
-_EM_DASH_IS_NATIVE = {"ja", "zh_CN"}
+#:
+#: **Russian is here for the same reason, and it was added after the mistake
+#: was made a second time.** During the 4.2.0 translation pass all four agents
+#: were told that German and Norwegian use the en dash where English uses the
+#: em dash, and to apply that everywhere. That is right for those two, and it
+#: is right for Polish (the półpauza), whose new strings are converging on the
+#: language. It is wrong for Russian: the Russian dash IS the em dash (тире),
+#: and it does the copula job as well, standing where English has no dash at
+#: all ("Планшетный сканер — хороший прибор"). Measured on the catalogue at
+#: the time: **2,424 em dashes in the strings nobody touched, against 216
+#: spaced en dashes**, 179 of them put there that night. Those strings were
+#: not converging on anything, they were an island moving away from the
+#: language, so they were converted back. Without this entry the rule below
+#: would then fire on the 39 of them whose English carries no dash, which is
+#: exactly the case where Russian needs one most.
+_EM_DASH_IS_NATIVE = {"ja", "ru", "zh_CN"}
 
 
 def test_no_translation_adds_an_em_dash_the_english_does_not_have():
     """A translator may keep an em dash the English has. Adding one it does not
     have puts the tell into a language nobody on this project reads closely.
 
-    Two languages are exempt, and the exemption is the point rather than a hole:
-    see `_EM_DASH_IS_NATIVE`. A rule that forces a language out of its own
+    Three languages are exempt, and the exemption is the point rather than a
+    hole: see `_EM_DASH_IS_NATIVE`. A rule that forces a language out of its own
     punctuation is a worse defect than the one it is preventing.
     """
     added = [(lang, key) for lang, key in E.translations_adding_an_em_dash()
@@ -175,3 +190,44 @@ def test_no_string_carries_the_punctuation_a_careless_dash_swap_leaves():
         + "\n\nThis usually means punctuation was substituted into a sentence "
           "instead of the sentence being rewritten. Read the line aloud and "
           "fix the sentence, not the symptom.")
+
+
+def test_russian_keeps_one_dash_and_it_is_the_em_dash():
+    """The repair of an instruction that was wrong for one language.
+
+    `_EM_DASH_IS_NATIVE` says WHY Russian is exempt. This says the catalogue
+    still agrees with the reason, because an exemption nobody measures is how
+    the island came back the first time: a later batch told to "use the en
+    dash like German and Norwegian" would pass every other test in this file
+    and quietly undo the repair.
+
+    Both halves matter. A dash with spaces around it is a dash doing a dash's
+    job, and in Russian that is U+2014; an en dash BETWEEN two non-spaces
+    (`1–50`, `20–50`) is a numeric range and is correct, so it is not counted
+    on either side.
+    """
+    import json
+    import re
+
+    cat = json.loads((ROOT / "data" / "i18n" / "ru.json")
+                     .read_text(encoding="utf-8"))
+    spaced_en = re.compile(r'(?<=\s)–(?=\s)')
+
+    offenders = sorted(k for k, v in cat.items()
+                       if not k.startswith("@") and isinstance(v, str)
+                       and spaced_en.search(v))
+    em = sum(v.count(E.EM) for k, v in cat.items()
+             if not k.startswith("@") and isinstance(v, str))
+
+    assert em > 2000, (
+        f"the Russian catalogue is down to {em} em dashes. The Russian dash "
+        f"IS the em dash; if these went somewhere, something swept them.")
+    assert not offenders, (
+        f"\n{len(offenders)} Russian value(s) use a spaced en dash where the "
+        f"language uses the em dash (тире):\n\n"
+        + "\n".join(f"  {_excerpt(cat[k], 90)}" for k in offenders[:8])
+        + (f"\n  … and {len(offenders) - 8} more" if len(offenders) > 8
+           else "")
+        + "\n\nThis is the instruction that was wrong once already: German "
+          "and Norwegian take the en dash, and so does Polish, but Russian "
+          "does not. See _EM_DASH_IS_NATIVE above before changing this.")
