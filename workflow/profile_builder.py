@@ -101,7 +101,15 @@ def output_algorithm(letter: "str | None") -> "tuple[str, bool]":
     SAY SO: a setting that quietly means something else is the failure mode
     this whole change exists to remove.
     """
-    letter = (letter or "").strip()
+    # `isinstance`, NOT `letter or ""`. A stored setting is whatever the file
+    # holds, and a damaged or hand-edited meta.json / preset .json can hold a
+    # number or a list there. `7 or ""` is 7, and `7.strip()` is an
+    # AttributeError raised from the FIRST line of `_m_apply_preset_data` —
+    # which abandons the other 42 settings in the same dict and leaves the
+    # previous target's Build Profile settings on screen. Measured, agent CV.
+    # Before this release the same value simply missed `findData` and was
+    # ignored, so treating a non-string as "nothing stored" restores that.
+    letter = (letter if isinstance(letter, str) else "").strip()
     if letter in OUTPUT_ALGORITHM_CHOICES:
         return letter, False
     if letter in _OUTPUT_ALGORITHM_FALLBACK:

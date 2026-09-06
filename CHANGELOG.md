@@ -59,7 +59,7 @@ Eleven betas, folded into one list. Everything below is measured against 4.1.4.
   measure or to calibrate.
 
 - **Twenty ready-made CR30 charts, from Knut.** Ten on A4 and ten on US Letter,
-  from 77 patches on one sheet to 1,260 across three, half of them hexagonal so
+  from 77 patches on one sheet to 1,260 across three, eight of them hexagonal so
   that more round patches fit the page. They sit in their own CR30 group in the
   Presets dropdown and in the built-in presets bubble. Picking one builds the
   chart straight away: the colours are fixed, and every layout setting can still

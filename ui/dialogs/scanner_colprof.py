@@ -142,7 +142,13 @@ def coerce_ptype(ptype: "str | None", printer: bool) -> "tuple[str, bool]":
     window filtered its list, and a build with either of those ends in a
     colprof error rather than a profile.
     """
-    letter = (ptype or "").strip()
+    # `isinstance`, NOT `ptype or ""`. `_load_context` runs inside the
+    # `toggled` slot of "Profile my printer from this scan", and an exception
+    # out of a Qt slot does not merely lose the load: PyQt hands it to
+    # `sys.excepthook` and the process aborts. Measured, agent CV: a stored
+    # ptype of 7 killed ChromIQ on the tick. A non-string means "nothing
+    # usable stored", which is what the old `findData` miss did.
+    letter = (ptype if isinstance(ptype, str) else "").strip()
     allowed = PTYPE_CHOICES_BY_MODE[bool(printer)]
     if letter in allowed:
         return letter, False
