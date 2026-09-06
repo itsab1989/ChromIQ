@@ -3430,7 +3430,7 @@ names no instrument, and it offers no Zadig button.
 > **ChromIQ stopped waiting, and cannot tell you whether that worked.**
 >
 > The installer had not finished when ChromIQ stopped watching it. Nothing was
-> cancelled and nothing was undone — Windows is very likely still installing the
+> cancelled and nothing was undone. Windows is very likely still installing the
 > driver, and it may well finish on its own.
 >
 > Give it a moment, then open **Instrument drivers** in Preferences again and
