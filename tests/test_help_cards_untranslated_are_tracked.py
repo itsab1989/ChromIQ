@@ -363,9 +363,9 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # algorithm fix landed together, so neither branch's table was right alone.
 _BUDGET = {
     "de": 4,
-    "es": 290,
-    "fr": 291,
-    "it": 290,
+    "es": 4,
+    "fr": 5,
+    "it": 4,
     "ja": 290,
     "nl": 290,
     "no": 290,

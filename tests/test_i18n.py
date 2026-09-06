@@ -642,9 +642,9 @@ def test_every_deliberate_exception_says_why():
 # on its own.
 _IDENTICAL_TO_KEY = {
     "de": 117,
-    "es": 453,
-    "fr": 473,
-    "it": 465,
+    "es": 100,
+    "fr": 121,
+    "it": 111,
     "ja": 442,
     "nl": 482,
     "no": 466,
