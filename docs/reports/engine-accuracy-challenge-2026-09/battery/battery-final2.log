@@ -1,0 +1,12 @@
+S1: A2B med 0.088 p95 0.452 | B2A med 0.288 p95 1.234 | 9s
+S2: A2B med 0.221 p95 1.777 | B2A med 0.678 p95 1.971 | 13s
+S3: A2B med 0.239 p95 0.861 | B2A med 0.388 p95 1.391 | 10s
+S4: A2B med 0.431 p95 1.265 | B2A med 0.528 p95 1.604 | 10s
+S5: A2B med 0.651 p95 1.918 | B2A med 1.337 p95 2.545 | 336s
+S6: A2B med 0.446 p95 1.606 | B2A med 0.852 p95 2.118 | 43s
+wrote /Users/Basti/Desktop/ChromIQ-engine-challenge/builds/battery-final2.json
+REGRESS S4 b2a median: 0.485 → 0.528 (+8.8%)
+REGRESS S4 b2a p95: 1.568 → 1.604 (+2.3%)
+aggregate median improvement 7.8%
+DO NOT PROMOTE
+done

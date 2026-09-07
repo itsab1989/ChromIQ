@@ -1,0 +1,33 @@
+== baseline (main tree, shipped)
+S1: A2B med 0.089 p95 0.452 | B2A med 0.288 p95 1.233 | 12s
+S2: A2B med 0.223 p95 1.775 | B2A med 0.676 p95 1.970 | 15s
+S3: A2B med 0.242 p95 0.857 | B2A med 0.390 p95 1.388 | 17s
+S4: A2B med 0.449 p95 1.508 | B2A med 0.485 p95 1.568 | 18s
+S5: A2B med 0.653 p95 1.978 | B2A med 1.874 p95 3.390 | 397s
+S6: A2B med 0.447 p95 1.605 | B2A med 0.853 p95 2.118 | 42s
+wrote /Users/Basti/Desktop/ChromIQ-engine-challenge/builds/battery-before.json
+== fixed (worktree)
+S1: A2B med 0.096 p95 0.448 | B2A med 0.287 p95 1.232 | 11s
+S2: A2B med 0.317 p95 1.412 | B2A med 0.676 p95 1.843 | 14s
+S3: A2B med 0.320 p95 0.834 | B2A med 0.449 p95 1.410 | 14s
+S4: A2B med 0.474 p95 1.511 | B2A med 0.501 p95 1.586 | 16s
+S5: A2B med 0.688 p95 1.950 | B2A med 1.636 p95 3.264 | 323s
+S6: A2B med 0.589 p95 1.978 | B2A med 1.028 p95 2.193 | 37s
+wrote /Users/Basti/Desktop/ChromIQ-engine-challenge/builds/battery-after.json
+== compare
+REGRESS S1 a2b median: 0.089 → 0.096 (+8.5%)
+REGRESS S2 a2b median: 0.223 → 0.317 (+41.8%)
+REGRESS S3 a2b median: 0.242 → 0.320 (+32.1%)
+REGRESS S3 b2a median: 0.390 → 0.449 (+15.2%)
+REGRESS S4 a2b median: 0.449 → 0.474 (+5.7%)
+REGRESS S4 b2a median: 0.485 → 0.501 (+3.3%)
+REGRESS S5 a2b median: 0.653 → 0.688 (+5.3%)
+REGRESS S6 a2b median: 0.447 → 0.589 (+31.9%)
+REGRESS S6 a2b p95: 1.605 → 1.978 (+23.2%)
+REGRESS S6 b2a median: 0.853 → 1.028 (+20.5%)
+REGRESS S6 b2a p95: 2.118 → 2.193 (+3.6%)
+REGRESS S6 a2b p99: 2.51 → 3.09
+REGRESS S6 K smoothness: TV excess 0.083 → 0.137
+GATE aggregate median improvement -5.9% < 5%
+DO NOT PROMOTE
+done
