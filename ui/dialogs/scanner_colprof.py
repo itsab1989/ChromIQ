@@ -378,20 +378,40 @@ WP_MODE_DEFAULT = "uR"
 #: wants "Scale white to a perfect white surface". One scenario cannot mean two
 #: things, so it means the rule's own small row.
 #:
-#: What it deliberately does NOT do is move `WP_MODE_DEFAULT`. A window nobody
-#: has touched still opens exactly where B8-75 put it; that pairing is Basti's
-#: ruling and a separate question from this one.
+#: What it deliberately does NOT do is move `WP_MODE_DEFAULT`: the editor's
+#: own default, the target of the stored-configuration migration and the
+#: standalone editor's "Restore defaults" all stay where the 2026-09-05 ruling
+#: put them.
 #:
-#: It is ONLY for the explicit click. `setup_for_patch_count(None)` still
-#: returns None, so the AUTOMATIC path never sets anything from a number
-#: nobody supplied; and the click clears the bucket's "the user has touched
-#: this" mark, so loading a chart afterwards refines all three properly.
+#: AND SINCE 4.2.0's FIRST REPORT IT IS THE FRESH WINDOW'S ROW AS WELL. Knut,
+#: 2026-09-07: on first open the everyday radio was lit, the type said Shaper
+#: + matrix, and Advanced said "Scale white to a perfect white surface"; his
+#: own rule says that type wants "Map chart white to white", and this module's
+#: own labels say so. Until then this row was ONLY for the explicit click, on
+#: the reasoning that `setup_for_patch_count(None)` must never set anything
+#: from a number nobody supplied. A fresh, never-saved, never-touched bucket
+#: is different: there is nothing in it to overwrite, only a factory pair the
+#: window itself contradicts. So `_maybe_auto_setup` applies this row once to
+#: such a bucket (Basti, 2026-09-07: Knut's pairing wins for the fresh
+#: window), and the count refines it the moment there is one. A saved bucket
+#: and a hand-edited one are still never touched, and the explicit click still
+#: clears the bucket's "touched" mark.
 SETUP_EVERYDAY_UNKNOWN = dict(SETUP_SMALL)
 
 WP_MODE_RECOMMENDED = {
     SETUP_LARGE["wp_mode"]: "clut",
     SETUP_SMALL["wp_mode"]: "matrix",
 }
+
+
+def wp_mode_for_type(ptype: str) -> str:
+    """The white point that pairs with *ptype* when nobody has chosen one:
+    the rule's small row for the two matrix types, the large row (which is
+    also `WP_MODE_DEFAULT`) for a lookup table. Derived from the same table
+    as the "(best for …)" markers, so the two cannot disagree."""
+    if ptype in MATRIX_ALGOS:
+        return SETUP_SMALL["wp_mode"]
+    return SETUP_LARGE["wp_mode"]
 
 #: What the default was before 2026-09-05. A stored configuration carrying this
 #: value AND no schema stamp predates the change and is migrated to

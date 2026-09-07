@@ -22,6 +22,7 @@ visits.
 """
 from __future__ import annotations
 
+import json
 import os
 import tempfile
 from pathlib import Path
@@ -270,16 +271,18 @@ def test_the_custom_state_is_a_state_and_not_a_fourth_option(_app):
 # ==========================================================================
 # 4. THE HARD RULE: a target with stored settings is left alone
 # ==========================================================================
-def _saved(ctx="chart", scenario=None, **main):
+def _saved(ctx="chart", scenario=None, adv=None, **main):
     """A settings store carrying a bucket somebody actually saved.
 
     *scenario* None is a configuration written BEFORE this feature: no scenario
     key at all, which is the whole of the migration. Pass one to get a bucket
-    saved by this version.
+    saved by this version. *adv* replaces the Advanced record; `{}` is what
+    "Save as Defaults" on a fresh window used to store.
     """
     cfg = {"main": {"ptype": "s", "quality": "m", "description": "",
                     **main},
-           "adv": {"wp_mode": "ua", sc.ADV_SCHEMA_KEY: sc.ADV_SCHEMA_VERSION}}
+           "adv": ({"wp_mode": "ua", sc.ADV_SCHEMA_KEY: sc.ADV_SCHEMA_VERSION}
+                   if adv is None else dict(adv))}
     if scenario is not None:
         cfg["scenario"] = scenario
     return _FakeSettings(scanner_colprof_configs={ctx: cfg})
@@ -732,16 +735,139 @@ def test_choosing_everyday_with_nothing_loaded_still_means_everyday(_app):
         dlg.deleteLater()
 
 
-def test_the_unknown_count_fallback_is_only_for_the_explicit_click(_app):
-    """The automatic path must never set anything from a number nobody
-    supplied, which is what `setup_for_patch_count(None) is None` says."""
+def test_a_fresh_window_opens_on_the_everyday_row_and_says_so_once(_app):
+    """Knut, 4.2.0, on the first open of the window: the everyday radio was
+    lit, the type said Shaper + matrix, and Advanced said "Scale white to a
+    perfect white surface", the entry this window marks "(best for cLUT
+    profiles)". The rule pairs that type with "Map chart white to white".
+
+    `setup_for_patch_count(None)` still answers None (a number nobody supplied
+    sets nothing), so the fresh bucket takes the everyday scenario's own row
+    for an unknown count, ONCE, and says so in the log, once. Read off the
+    WIDGET, not `_adv_vals`: on a fresh window before this fix `_adv_vals` was
+    `{}` and `_three` would have reported the default whatever was shown.
+    """
     assert sc.setup_for_patch_count(None) is None
     assert sc.scenario_setup(sc.SCENARIO_EVERYDAY, None) is None
     dlg = _dialog()
     try:
-        before = _three(dlg)
-        dlg._maybe_auto_setup()                 # no chart, no click
-        assert _three(dlg) == before
+        assert _three(dlg) == sc.SETUP_EVERYDAY_UNKNOWN
+        assert dlg._adv_editor._wp_mode.currentData() == \
+            sc.SETUP_EVERYDAY_UNKNOWN["wp_mode"]
+        assert dlg._scenario_radios[sc.SCENARIO_EVERYDAY].isChecked()
+        assert not dlg._scenario_note.isVisibleTo(dlg)
+        assert "chart" not in dlg._touched_ctx, "ChromIQ's own choice is not a hand edit"
+        log = dlg._log.toPlainText()
+        assert log.count("Nothing is loaded yet") == 1
+        assert "0 patches" not in log
+        # A second automatic pass moves nothing and says nothing more.
+        dlg._maybe_auto_setup()
+        assert _three(dlg) == sc.SETUP_EVERYDAY_UNKNOWN
+        assert dlg._log.toPlainText().count("Nothing is loaded yet") == 1
+        # …and a chart still refines all three.
+        _load_chart(dlg, 288)
+        assert _three(dlg) == sc.SETUP_LARGE
+    finally:
+        dlg.deleteLater()
+
+
+def test_the_explicit_everyday_click_with_nothing_loaded_never_says_0_patches(_app):
+    """The count-based line read "Your target has 0 patches, so ChromIQ has
+    set…" when the everyday radio was clicked with nothing loaded."""
+    dlg = _dialog()
+    try:
+        dlg._scenario_radios[sc.SCENARIO_INSTRUMENT].setChecked(True)
+        dlg._scenario_radios[sc.SCENARIO_EVERYDAY].setChecked(True)
+        assert _three(dlg) == sc.SETUP_EVERYDAY_UNKNOWN
+        log = dlg._log.toPlainText()
+        assert "0 patches" not in log
+        assert "Nothing is loaded yet" in log
+    finally:
+        dlg.deleteLater()
+
+
+def test_restore_defaults_restores_the_pair_a_fresh_window_shows(_app):
+    """Restore defaults puts the type back on Shaper + matrix, so the white
+    point goes back to the entry that pairs with it, not to the editor's own
+    cLUT-side default. The bucket is the user's from then on (touched), and
+    with nothing loaded the everyday radio stays lit with no warning, because
+    the pair IS the everyday row."""
+    dlg = _dialog()
+    try:
+        _load_chart(dlg, 288)
+        assert _three(dlg) == sc.SETUP_LARGE
+        dlg._layout = None                          # back to nothing loaded
+        dlg._restore_defaults_clicked()
+        assert _three(dlg) == sc.SETUP_EVERYDAY_UNKNOWN
+        assert dlg._adv_editor._wp_mode.currentData() == \
+            sc.SETUP_EVERYDAY_UNKNOWN["wp_mode"]
+        assert "chart" in dlg._touched_ctx
+    finally:
+        dlg.deleteLater()
+    # The standalone editor's own restore is NOT this button: it stays on
+    # WP_MODE_DEFAULT, which the migration and the editor tests pin.
+    from ui.dialogs.scanner_colprof import ScannerAdvancedDialog
+    ed = ScannerAdvancedDialog({})
+    try:
+        ed.set_wp_mode("")
+        ed.restore_defaults()
+        assert ed._wp_mode.currentData() == sc.WP_MODE_DEFAULT
+    finally:
+        ed.deleteLater()
+
+
+def test_a_hand_edit_under_an_unknown_count_is_named_in_the_note(_app):
+    """With nothing loaded the divergence line used to have no recipe to
+    compare against, so a hand edit to the cLUT white point under Shaper +
+    matrix was shown under a lit radio with no note. Now it is named."""
+    dlg = _dialog()
+    try:
+        assert _three(dlg) == sc.SETUP_EVERYDAY_UNKNOWN
+        dlg._adv_editor.set_wp_mode(sc.WP_MODE_DEFAULT)      # a hand edit
+        dlg._on_advanced_changed()
+        assert "chart" in dlg._touched_ctx
+        assert dlg._scenario_note.isVisibleTo(dlg)
+        assert "White point handling" in dlg._scenario_note.text()
+    finally:
+        dlg.deleteLater()
+
+
+def test_choosing_other_before_browsing_warns_about_nothing(_app):
+    """CL-1's shape, found by the challenge round: standard mode, the default
+    288-patch target sets the cLUT row; choose "Other…" before browsing a
+    .cht and the count is unknown again. Nothing was hand-edited, so nothing
+    may be reported as a divergence, and the settings must not move back."""
+    dlg = _dialog()
+    try:
+        dlg._mode_standard.setChecked(True)
+        assert dlg._known_patch_count() == 288
+        assert _three(dlg) == sc.SETUP_LARGE
+        i = dlg._target_combo.findData("")          # "Other… (choose a .cht file)"
+        assert i >= 0
+        dlg._target_combo.setCurrentIndex(i)
+        assert dlg._known_patch_count() is None
+        assert _three(dlg) == sc.SETUP_LARGE, "settings moved with no new count"
+        assert not dlg._scenario_note.isVisibleTo(dlg), dlg._scenario_note.text()
+        assert dlg._scenario_radios[sc.SCENARIO_EVERYDAY].isChecked()
+    finally:
+        dlg.deleteLater()
+
+
+def test_the_printer_tick_round_trip_keeps_the_fresh_chart_row(_app):
+    """Printer on, printer off: the chart bucket comes back from its snapshot
+    on the everyday row, and the printer bucket has no white point row to be
+    set at all."""
+    dlg = _dialog()
+    try:
+        assert _three(dlg) == sc.SETUP_EVERYDAY_UNKNOWN
+        dlg._printer_cb.setChecked(True)
+        assert dlg._active_ctx == "printer"
+        assert dlg._adv_editor._wp_mode is None
+        dlg._printer_cb.setChecked(False)
+        assert dlg._active_ctx == "chart"
+        assert _three(dlg) == sc.SETUP_EVERYDAY_UNKNOWN
+        assert dlg._adv_editor._wp_mode.currentData() == \
+            sc.SETUP_EVERYDAY_UNKNOWN["wp_mode"]
     finally:
         dlg.deleteLater()
 
@@ -917,15 +1043,77 @@ def test_the_unknown_count_answer_is_the_rules_own_small_row(_app):
 
 
 def test_the_shipped_default_white_point_did_not_move_with_it(_app):
-    """…and the thing CL-2 deliberately does NOT touch. A window nobody has
-    configured still opens where B8-75 put it; that pairing is Basti's ruling
-    and a separate question."""
+    """…and the thing CL-2 deliberately does NOT touch: `WP_MODE_DEFAULT`
+    stays where the 2026-09-05 ruling put it, for the editor and the
+    migration. What DID move, on Knut's 4.2.0 report and Basti's answer of
+    2026-09-07, is the FRESH WINDOW: it opens on the everyday row for an
+    unknown count, so the white point pairs with the profile type. A stored
+    bucket with an empty Advanced record still shows the editor default,
+    because a stored bucket is never set up automatically."""
     assert sc.WP_MODE_DEFAULT == "uR"
+    from ui.dialogs.scanner_colprof import ScannerAdvancedDialog
+    ed = ScannerAdvancedDialog({})
+    try:
+        assert ed._wp_mode.currentData() == sc.WP_MODE_DEFAULT
+    finally:
+        ed.deleteLater()
     dlg = _dialog()
     try:
-        assert _three(dlg)["wp_mode"] == sc.WP_MODE_DEFAULT
+        assert _three(dlg)["wp_mode"] == sc.SETUP_EVERYDAY_UNKNOWN["wp_mode"]
     finally:
         dlg.deleteLater()
+    dlg = _dialog(_saved(scenario=sc.SCENARIO_EVERYDAY, adv={}, ptype="x"))
+    try:
+        assert "chart" in dlg._ctx_stored
+        assert dlg._adv_editor._wp_mode.currentData() == sc.WP_MODE_DEFAULT
+    finally:
+        dlg.deleteLater()
+
+
+def test_a_saved_bucket_with_no_white_point_entry_pairs_with_its_saved_type(_app):
+    """Basti, 2026-09-07. "Save as Defaults" on an untouched 4.2.0 window
+    stored an EMPTY Advanced record, and an absent white point read back as
+    the editor default: Shaper + matrix beside "Scale white…", under the
+    saved-bucket note, which the fresh-window fix cannot reach (a saved bucket
+    is never set up automatically). An absent entry is not a choice: it shows
+    the entry that pairs with the saved type, once in the log, and the store
+    is NOT rewritten. A present "" or "uR" is left exactly alone."""
+    for ptype, want in (("s", ""), ("m", ""), ("x", "uR"), ("l", "uR")):
+        settings = _saved(scenario=sc.SCENARIO_EVERYDAY, adv={}, ptype=ptype)
+        before = json.dumps(settings.get("scanner_colprof_configs"), sort_keys=True)
+        dlg = _dialog(settings)
+        try:
+            assert "chart" in dlg._ctx_stored
+            assert dlg._ptype.currentData() == ptype
+            assert dlg._adv_editor._wp_mode.currentData() == want, ptype
+            assert dlg._adv_vals.get("wp_mode") == want
+            assert dlg._log.toPlainText().count("carry no white point handling") == 1
+            assert dlg._scenario_radios[sc.SCENARIO_EVERYDAY].isChecked()
+            assert "You saved settings" in dlg._scenario_note.text()
+            # nothing stored was rewritten
+            assert json.dumps(settings.get("scanner_colprof_configs"),
+                              sort_keys=True) == before
+        finally:
+            dlg.deleteLater()
+    # A PRESENT entry, deliberate or not, is the user's and is left alone.
+    for stored_wp in ("", "uR", "ua"):
+        dlg = _dialog(_saved(scenario=sc.SCENARIO_EVERYDAY,
+                             adv={"wp_mode": stored_wp,
+                                  sc.ADV_SCHEMA_KEY: sc.ADV_SCHEMA_VERSION}))
+        try:
+            assert dlg._adv_editor._wp_mode.currentData() == stored_wp
+            assert "carry no white point handling" not in dlg._log.toPlainText()
+        finally:
+            dlg.deleteLater()
+
+
+def test_the_absent_white_point_pairing_is_the_rules_own_table(_app):
+    assert sc.wp_mode_for_type("s") == sc.SETUP_SMALL["wp_mode"]
+    assert sc.wp_mode_for_type("m") == sc.SETUP_SMALL["wp_mode"]
+    assert sc.wp_mode_for_type("x") == sc.SETUP_LARGE["wp_mode"]
+    assert sc.wp_mode_for_type("l") == sc.SETUP_LARGE["wp_mode"]
+    assert sc.WP_MODE_RECOMMENDED[sc.wp_mode_for_type("s")] == "matrix"
+    assert sc.WP_MODE_RECOMMENDED[sc.wp_mode_for_type("x")] == "clut"
 
 
 def test_the_lab_note_does_not_contradict_the_profile_type_help(_app):

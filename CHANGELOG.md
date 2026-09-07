@@ -308,11 +308,26 @@ Eleven betas, folded into one list. Everything below is measured against 4.1.4.
   under one fixed name, so re-checking a run destroyed the list from the check
   before it. They are numbered now, like the quality reports beside them, and a
   file written by an older version is left exactly where it is.
-- **A new run opens on your defaults, not on the last run's settings.** The
-  instrument, the paper, the layout mode, both indicator checkboxes, the stamp
-  option, the Guided settings and the gamut options were all inherited from
-  whichever run you had been looking at, and then stored on the new run as
-  though you had chosen them.
+- **The scanner and camera window opened on a pair its own dropdown calls
+  wrong.** With nothing loaded yet, the everyday scenario was lit over Shaper +
+  matrix and "Scale white to a perfect white surface", the entry marked "best
+  for cLUT profiles"; only clicking another scenario and coming back put "Map
+  chart white to white" under the matrix type. A fresh window now opens on the
+  everyday settings for a small target and says so once in its log, a chart
+  or target still refines all three from the patch count, Restore defaults
+  restores that same pair, and a hand edit of the white point with nothing
+  loaded is named in the note. Settings you saved with "Save as Defaults" are
+  still never changed; a saved record that carries no white point entry at
+  all, which a save on an untouched window used to write, is shown with the
+  entry that pairs with the saved profile type until you save again. Reported
+  by Knut on the first open of the window.
+- **A run with no settings of its own opens on your saved defaults.**
+  Selecting a run made before 4.1.5, or a run that was created without a
+  chart, used to leave the previous run's instrument, paper, layout mode,
+  indicator checkboxes, stamp option, Guided settings and gamut options on
+  screen, and then store them as that run's own. Choosing "New run" in the run
+  bar is unchanged: it still starts from the run you were on, so a new run is
+  "like the last one, with one change".
 - **An under-exposed scan built a profile with no warning, and the app rated it
   best of the run.** Measured at 21.7 dE out. The scan is now judged before it
   is trusted, and one too dark to profile from says so instead of producing a
@@ -987,11 +1002,13 @@ faults had shipped for months without anyone meeting them.
 - **Cancel means nothing happens.** Answering Cancel to "Where should this
   measurement go?" used to be met by a second, unrelated question about copying
   chart files.
-- **A new run opens on your defaults, not on the last run's settings.** The
-  instrument, the paper, the layout mode, both indicator checkboxes, the stamp
-  option, the Guided settings and the gamut options were all inherited from
-  whichever run you had been looking at, and then stored on the new run as
-  though you had chosen them.
+- **A run with no settings of its own opens on your saved defaults.**
+  Selecting a run made before 4.1.5, or a run that was created without a
+  chart, used to leave the previous run's instrument, paper, layout mode,
+  indicator checkboxes, stamp option, Guided settings and gamut options on
+  screen, and then store them as that run's own. Choosing "New run" in the run
+  bar is unchanged: it still starts from the run you were on, so a new run is
+  "like the last one, with one change".
 - **Row numbers fit the row they name.** On a tall chart the automatic size was
   taken from the patch width, so the numbers printed over each other into an
   unreadable ladder; they are now capped at the height of a row. They also stay

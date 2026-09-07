@@ -71,7 +71,7 @@ To build a profile you need three things:
 
 1. **A printer** — any inkjet (RGB, CMYK, or extended-gamut with extra inks).
 2. **A spectrophotometer** — the device that "reads" the printed colours.
-   ChromIQ supports the X-Rite family:
+   ChromIQ supports:
 
    | Code | Instrument |
    |------|-----------|
@@ -79,6 +79,7 @@ To build a profile you need three things:
    | `p3` | i1Pro 3 Plus |
    | `CM` | ColorMunki / i1Studio / ColorChecker Studio |
    | `SS` | SpectroScan (flatbed XY table) |
+   | `CR30` | ChnSpec CR30, a low-cost hand-held spectrophotometer with no ArgyllCMS support: ChromIQ drives it itself, over USB and Bluetooth |
 
 3. **ArgyllCMS** installed on your computer — ChromIQ looks for it automatically
    and walks you through installing it if it's missing. See
@@ -219,6 +220,19 @@ The chart from Step 1 loads automatically. Follow the on-screen prompts:
 between strips (the on-screen strip highlight follows along). Misread a strip?
 The dialog offers **Retry**, **Skip Stripe**, or **Save Partial & Quit** (which
 lets you resume later with one click).
+
+With a **ChnSpec CR30** the chart is read patch by patch: ChromIQ finds the
+instrument over USB or Bluetooth, calibrates it with you step by step, draws
+the instrument's 33 mm body to scale on the patch it is asking for, and takes a
+reading on **Space** or **Enter** so the instrument is never nudged by its own
+button. A magnet near the measuring opening (a laptop lid under the paper is
+enough) makes a CR30 return its white-tile value instead of your patch;
+ChromIQ learns that value and refuses such a reading rather than writing it
+into your profile. Twenty ready-made CR30 charts are in the Presets dropdown.
+On Windows, **Preferences ▸ Instrument drivers…** installs the drivers for
+ArgyllCMS's instruments and for the CR30 from one place, and **Tools ▸
+Instruments** writes a Bluetooth report for when the instrument will not
+connect.
 
 ### Step 4 — Build Profile
 Review the `colprof` settings and click **Build Profile**. Then **Install
@@ -452,15 +466,25 @@ inspector**. The chart tools themselves are fully supported; note that
 ### Tools menu — standalone utilities
 The masthead **Tools** button opens a menu of conversions and checks you can run
 on their own, outside the five-step flow:
-- **Edit / create chart layout** — the full layout editor and colour-set
-  generator described above: reorder strips, recolour patches and spacers,
-  combine charts, generate custom colour sets, and view them in 3D.
-- **Average measurements** — combine repeat reads of the same chart for lower noise.
-- **Merge measurements** — fold extra measurements into an existing set.
-- **Convert TI1 → i1Profiler** and **Convert i1Profiler → TI1 / TI3** — move charts
-  and measurements between ChromIQ/ArgyllCMS and X-Rite i1Profiler.
-- **Verify a profile** (independent check) and **Verify against reference** —
-  validate an existing profile's accuracy without rebuilding it.
+- **Measurements**: **Read single patches** (spot readings off any material),
+  **Average measurements** (combine repeat reads of the same chart for lower
+  noise), **Merge measurements** (fold extra measurements into an existing set),
+  **Inspect a measurement**, and **Measurement report (accuracy & drift)**.
+- **Charts & patch sets**: **Edit / create chart patch set**, the full layout
+  editor and colour-set generator described above (reorder strips, recolour
+  patches and spacers, combine charts, generate custom colour sets), and
+  **Show patch distribution (3D)**.
+- **Scanner & camera**: **Create scanner or camera target (.cht + .cie)** and
+  **Build profile with scanner or camera (from a scan or photo)**.
+- **i1Profiler interchange**: **Convert TI1 → i1Profiler**, **Convert
+  i1Profiler → TI3** and **Convert i1Profiler → TI1**, to move charts and
+  measurements between ChromIQ/ArgyllCMS and X-Rite i1Profiler.
+- **Profiles**: **Inspect a profile**, **Verify a profile (independent check)**,
+  **Verify against reference**, **Create device-link profile**, **Apply a
+  device-link to an image**, and **Soft-proof / check an image**.
+- **Instruments**: **CR30 Bluetooth report (for when it will not connect)**.
+  The Windows driver installer is under **Preferences ▸ Instrument drivers…**.
+- **Language**: **Translate / edit language**.
 
 ### Your work, kept in order
 - **Every run keeps its own chart, measurement, settings and description.**
@@ -477,7 +501,9 @@ on their own, outside the five-step flow:
   checks are never overwritten, so you can watch a profile drift over months.
 
 ### A calm, modern app
-- **Light / Dark / System (Auto)** appearance that follows your OS theme live.
+- **Light, Dark and Neutral** appearance, or **System (Auto)**, which follows
+  your OS theme live. Neutral is a designed greyscale for anyone who would
+  rather the app did not use colour to say things.
 - **Sounds during measurement** — a strip accepted, a patch misread, a session
   finished. Choose a pack or your own files under **Preferences → Sounds**, so
   you can keep your eyes on the chart instead of the screen.

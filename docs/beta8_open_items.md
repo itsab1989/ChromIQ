@@ -3376,7 +3376,14 @@ under it, and the gate itself is unchanged.
   test_it_says_nothing_when_it_changed_nothing,
   test_switching_source_never_writes_the_new_modes_count_into_the_old_bucket,
   test_choosing_everyday_with_nothing_loaded_still_means_everyday,
-  test_the_unknown_count_fallback_is_only_for_the_explicit_click,
+  test_a_fresh_window_opens_on_the_everyday_row_and_says_so_once (replaces the
+  explicit-click-only pin after Knut's 4.2.0 report: the fresh window now
+  takes the same row automatically),
+  test_the_explicit_everyday_click_with_nothing_loaded_never_says_0_patches,
+  test_restore_defaults_restores_the_pair_a_fresh_window_shows,
+  test_a_hand_edit_under_an_unknown_count_is_named_in_the_note,
+  test_choosing_other_before_browsing_warns_about_nothing,
+  test_the_printer_tick_round_trip_keeps_the_fresh_chart_row,
   test_a_hint_that_is_hidden_claims_no_height,
   test_the_standard_target_explanation_sits_against_the_rows_around_it,
   test_the_printer_guard_holds_in_the_window_where_it_is_reachable,

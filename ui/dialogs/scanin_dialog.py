@@ -1327,15 +1327,66 @@ class ScannerProfileDialog(_ToolDialogBase):
         if not self._may_auto_setup(ctx):
             return
         n = self._known_patch_count()
-        if n == self._setup_count.get(ctx):
-            return                                    # nothing new to act on
         setup = scanner_colprof.setup_for_patch_count(n)
         if setup is None:
+            # NO COUNT YET. `_setup_count` is a tri-state: no key means this
+            # bucket has never been set up, None means "set up for an unknown
+            # count" (the explicit everyday click writes None too, at
+            # `_on_scenario_toggled`), an int means "set up for that count".
+            # A bucket already set up, for a count or for none, is left alone:
+            # choosing "Other…" after a 288-patch target must not move the
+            # settings back, and must not re-announce anything.
+            if ctx in self._setup_count:
+                return
+            # A FRESH BUCKET WITH NOTHING LOADED STILL MEANS EVERYDAY (Knut,
+            # 4.2.0, reported on the first open of the window): the everyday
+            # radio was lit over the window's factory pair, Shaper + matrix
+            # beside the white point this very window marks "(best for cLUT
+            # profiles)". The radio said one thing and the controls another,
+            # and the divergence line could not catch it, because with no
+            # count there was no recipe to compare against. So the automatic
+            # path answers what the explicit click already answered: the
+            # rule's own small row, `SETUP_EVERYDAY_UNKNOWN`, refined by the
+            # count the moment there is one. Basti, 2026-09-07: the fresh
+            # window pairs the white point with the profile type (Knut's
+            # rule); `WP_MODE_DEFAULT` itself stays where the 2026-09-05
+            # ruling put it, for the editor and the migration.
+            self._setup_count[ctx] = None
+            if self._apply_setup(dict(scanner_colprof.SETUP_EVERYDAY_UNKNOWN),
+                                 ctx):
+                self._say_what_nothing_loaded_starts_from()
             return
+        if n == self._setup_count.get(ctx):
+            return                                    # nothing new to act on
         self._setup_count[ctx] = n
         moved = self._apply_setup(setup, ctx)
         if moved:
             self._say_what_was_set_up(n)
+
+    def _say_what_nothing_loaded_starts_from(self) -> None:
+        """The everyday settings for an unknown target size, said once.
+
+        In the log, like `_say_what_was_set_up`: a setting that changes what
+        the next profile looks like is never changed in silence, and "0
+        patches" (what the count-based line used to print here) is not a
+        sentence anybody should read.
+        """
+        if getattr(self, "_log", None) is None:
+            return
+        self._log.appendPlainText(tr(
+            "Nothing is loaded yet, so ChromIQ starts from Profile type "
+            "“{ptype}”, Quality “{quality}” and Advanced… ▸ White point "
+            "handling “{wp}”, the everyday settings for a small target. It "
+            "refines all three from the patch count once a chart or target is "
+            "picked, unless you change one of them first."
+        ).format(
+            ptype=scanner_colprof.label_for(
+                scanner_colprof.PTYPE_CHOICES, self._ptype.currentData() or ""),
+            quality=scanner_colprof.label_for(
+                scanner_colprof.QUALITY_CHOICES, self._pq.currentData() or ""),
+            wp=scanner_colprof.label_for(
+                scanner_colprof.WP_MODE_CHOICES,
+                str(self._adv_vals.get("wp_mode", "")))))
 
     def _say_what_was_set_up(self, n: int) -> None:
         """Announce it. A setting that changes what the next profile looks
@@ -1390,10 +1441,16 @@ class ScannerProfileDialog(_ToolDialogBase):
             # settings, and the count refines them as soon as there is one.
             setup = dict(scanner_colprof.SETUP_EVERYDAY_UNKNOWN)
         if setup is not None:
-            self._setup_count[ctx] = self._known_patch_count()
+            n = self._known_patch_count()
+            self._setup_count[ctx] = n
             if self._apply_setup(setup, ctx) and \
                     key == scanner_colprof.SCENARIO_EVERYDAY:
-                self._say_what_was_set_up(self._known_patch_count() or 0)
+                # The count-based line used to be printed here with n = 0
+                # ("Your target has 0 patches, so…") when nothing was loaded.
+                if scanner_colprof.setup_for_patch_count(n) is None:
+                    self._say_what_nothing_loaded_starts_from()
+                else:
+                    self._say_what_was_set_up(n)
         self._sync_scenario_ui()
 
     def _note_user_change(self, *_args) -> None:
@@ -1485,6 +1542,19 @@ class ScannerProfileDialog(_ToolDialogBase):
             return []
         setup = scanner_colprof.scenario_setup(
             scenario, self._known_patch_count())
+        ctx = self._active_ctx
+        if (not setup and scenario == scanner_colprof.SCENARIO_EVERYDAY
+                and ctx in self._touched_ctx
+                and self._setup_count.get(ctx, 0) is None):
+            # No count, but this bucket was set up for "no count" (the
+            # everyday small row) and then hand-edited: name the edit, the
+            # way a count-based divergence is named. GATED ON THE HAND EDIT,
+            # and on the last automatic setup having been the unknown row:
+            # a bucket set up from 288 patches and then switched to "Other…"
+            # before browsing has no count either, and comparing it against
+            # the small row would warn about three values ChromIQ chose
+            # itself (CL-1 again).
+            setup = dict(scanner_colprof.SETUP_EVERYDAY_UNKNOWN)
         if not setup:
             return []
         now = {"ptype": self._ptype.currentData() or "",
@@ -3321,6 +3391,26 @@ class ScannerProfileDialog(_ToolDialogBase):
         Advanced editor's own button box.
         """
         self._adv_editor.restore_defaults()
+        # THE WINDOW'S RESTORE AND THE EDITOR'S RESTORE DIFFER ON ONE ENTRY,
+        # ON PURPOSE. The editor's own `restore_defaults` puts the white point
+        # on `WP_MODE_DEFAULT` ("Scale white to a perfect white surface", the
+        # 2026-09-05 ruling, pinned by `test_the_white_point_default_cannot_
+        # clip_a_real_original`). This button also restores the profile type,
+        # to Shaper + matrix, and this window's own dropdown marks that white
+        # point "(best for cLUT profiles)": restoring the two together would
+        # hand back the very pair Knut reported on the first open of the
+        # window (4.2.0). So in scanner mode the white point restores to the
+        # entry that pairs with the restored type, the same row a fresh window
+        # opens on (`SETUP_EVERYDAY_UNKNOWN`). Printer mode has no such row;
+        # `set_wp_mode` answers False there. Inside `_applying_setup`, so the
+        # editor's signal does not read as a hand edit of THAT control; the
+        # button as a whole is still the user's own act, marked below.
+        self._applying_setup = True
+        try:
+            self._adv_editor.set_wp_mode(
+                scanner_colprof.SETUP_EVERYDAY_UNKNOWN["wp_mode"])
+        finally:
+            self._applying_setup = False
         self._adv_vals = self._adv_editor.values()
         i = self._ptype.findData(
             scanner_colprof.PTYPE_DEFAULT[self._printer_mode()])
@@ -3511,6 +3601,35 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._prof_name.setText(main.get("description", "") or "")
         self._prof_name.blockSignals(False)
         self._adv_vals = dict(adv)
+        # A SAVED BUCKET WITH NO WHITE POINT ENTRY AT ALL PAIRS WITH ITS SAVED
+        # TYPE (Basti, 2026-09-07). "Save as Defaults" on an untouched 4.2.0
+        # window stored an EMPTY Advanced record, because `_adv_vals` was
+        # still `{}` until an Advanced control moved. Read back, an absent
+        # `wp_mode` fell through to the editor's default, "Scale white to a
+        # perfect white surface", beside the saved Shaper + matrix: the pair
+        # Knut reported, now under the saved-bucket note, which the fresh-
+        # window fix cannot reach because a saved bucket is never set up
+        # automatically. An ABSENT entry is not a choice, so it is shown as
+        # the entry that pairs with the saved type, said once in the log, and
+        # NOTHING STORED IS REWRITTEN: the store keeps its empty record until
+        # the user presses Save as Defaults again. A deliberately stored ""
+        # or "uR" is a present key and is left exactly alone. Printer buckets
+        # have no white point row.
+        if (ctx != "printer" and ctx in self._ctx_stored
+                and "wp_mode" not in self._adv_vals):
+            paired = scanner_colprof.wp_mode_for_type(ptype)
+            self._adv_vals["wp_mode"] = paired
+            if getattr(self, "_log", None) is not None:
+                self._log.appendPlainText(tr(
+                    "Your saved settings for this kind of profile carry no "
+                    "white point handling, so ChromIQ shows “{wp}”, the entry "
+                    "that pairs with the saved Profile type “{ptype}”. Nothing "
+                    "saved has been changed; press Save as Defaults to keep it."
+                ).format(
+                    wp=scanner_colprof.label_for(
+                        scanner_colprof.WP_MODE_CHOICES, paired),
+                    ptype=scanner_colprof.label_for(
+                        scanner_colprof.PTYPE_CHOICES, ptype)))
         if moved:
             self._say_the_profile_type_moved(stored_ptype, ptype)
 
