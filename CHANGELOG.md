@@ -1,5 +1,33 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **Tools ▸ Build profile with scanner or camera sits still when you press a
+  radio.** Switching "Create profile using:" between a ChromIQ chart and a
+  bought target resized the whole window, from whatever height you had dragged
+  it to back to the height it opens at: 700 px became 936 in English and 952 in
+  German. The same click also slid both of those radios 79 px down the column
+  (94 in Russian), because the explanation of why the printer scenario is not
+  offered for a bought target appeared above them. The explanation is still
+  there, in full; it now appears below the radios, where it cannot push them,
+  next to the option it tells you to choose instead.
+- **The usage-scenario help is one line each, with the rest behind the ⓘ.**
+  Three paragraphs under three radios took 150 px off the top of the left
+  column. Every word of them is now behind the ⓘ beside "Usage scenario: what
+  is this profile for?", and the three lines that stayed still say which
+  scenario to pick and that the second one builds the profile the third one
+  needs. The left column is 105 px shorter, and the window is narrower in five
+  languages as well: German 709 px to 662, Italian 707 to 663, Dutch 681 to
+  661, French 706 to 668, Spanish 697 to 679.
+- **Opening the Advanced section no longer widens the window.** It never did
+  before, but only by accident: the gloss paragraphs happened to be wide enough
+  to absorb what the Advanced editor needs. With the glosses down to one line,
+  five languages would have grown by up to 54 px on a disclosure. The pane is
+  now sized for the section it will have to show, and is still narrower than it
+  used to be in every language.
+
 ## v4.2.0
 
 **ChromIQ can now measure a chart with a CR30, the first instrument it drives

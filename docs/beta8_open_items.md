@@ -4734,3 +4734,89 @@ only a triple that DIFFERS from the rule's answer would stop it.
   passes all four gap tests and is caught only by the preview test, which is
   what that test is for. Gate: 11860 passed, 180 skipped, 3 xfailed, exit 0,
   twice, against a baseline of 11855/180/3 — the difference is these five tests.
+---
+
+### B8-102 · The scanner and camera window resized itself and moved the radio under the pointer, and its usage-scenario help filled the column
+- blocks release: no
+- status: FIXED
+- found by: Basti, beta 9, two reports on Tools ▸ Build profile with scanner or
+  camera: *"when switching the radio for 'create profile using' the window's
+  size changes sometimes a bit, things jump around a bit"* and *"the help text
+  for the usage scenarios under the 3 radio options is very extensive (which is
+  good) but it uses a lot of space there. I'd rather have the detailed info put
+  inside the tooltip"*. Measured and fixed by Agent DF; the working, the
+  on-screen before/after sheets and the driver's own logs are in
+  `~/Desktop/beta 9/scanner-window-steadiness/`.
+- detail: **the first report is two faults with different causes**, and neither
+  is the one the second report is about.
+
+  **The window resized itself.** `_sync_inline_advanced` rebuilds the Advanced
+  section whenever the settings bucket changes, and re-applied the pane width
+  for the rebuilt section by calling `_on_advanced_toggled` — the handler for
+  the user pressing the disclosure — which ends in `_refit_height()`, which
+  ends in `resize(width, max(floor, min(hint, cap)))`. Nobody had toggled
+  anything and the window was dragged back to its sizeHint height, throwing
+  away whatever height the user had chosen. On the real screen, English, with
+  the window dragged to 700 px: one click on "A standard target I own" made it
+  **936 px**. German 700 → **952**. "Sometimes" is exact: `_sync_inline_advanced`
+  early-returns when the bucket has not changed, so clicking the radio that is
+  already on does nothing. The source radio, the "Profile my printer from this
+  scan" tick and the printer usage scenario all changed the bucket.
+
+  **The radio moved out from under the pointer.** `_mode_note`, the five-line
+  B8-70 explanation of why the printer scenario is not offered for a bought
+  target, sat inside the usage-scenario block, ABOVE "Create profile using:",
+  and it appears exactly when that question is answered "a standard target".
+  Both source radios slid **+79 px** in English (y 280/300 → 359/379) and
+  German, **+94 px** in Russian, where the paragraph is six lines.
+  `_scenario_note` is the same defect with a different trigger: it is
+  re-evaluated on every source switch and is 38 px in English, 53 in German and
+  Russian, so it appears and vanishes on that click for anyone who has saved
+  defaults for one bucket and not the other.
+
+  **The glosses.** Three paragraphs under three radios: 45 + 60 + 45 = 150 px in
+  English, on top of the radios themselves, in the column
+  `USAGE-SCENARIO-DESIGN.md` §6 had already measured as full.
+- fix: three parts, and one repair to something they uncovered.
+
+  1. `_show_the_advanced_section` is split out of `_on_advanced_toggled` and
+     does not refit the window's height; `_sync_inline_advanced` calls that
+     instead. `_refit_height` stays on the disclosure the user really pressed.
+     Nothing is lost: the left column is a scroll area, so a bucket whose
+     Advanced set is taller scrolls.
+  2. The two notes move to a strip below BOTH radio groups. **Reserving the
+     space was considered and rejected**: held open permanently the pair costs
+     113 px of blank in English and 143 in Russian, it would read as the gap
+     B8-73 was about, and
+     `test_the_standard_target_explanation_sits_against_the_rows_around_it`
+     requires `_mode_note` to be exactly as tall as its own text anyway. Neither
+     note's TEXT changed, so all twelve translations came across, and
+     `_mode_note`'s closing *"Choose “A chart I made in ChromIQ” instead"* now
+     points at the line directly above it.
+  3. Each gloss is one line, levelled against the other two (`_LevelHint`) so a
+     translation that wraps cannot move the block in one language alone. The
+     full text is not rewritten for the ⓘ, it is MOVED: `_scenario_help`
+     composes the tip body from the same `tr()` literals the glosses carried, so
+     no key went stale and only 4 keys are new (three one-line glosses and the
+     heading above them). §7 of the design named the cost of this
+     (*"the reader learns why without asking"*), so both clauses that make the
+     three read as a sequence survive into the one-liners.
+  4. **And the fix uncovered a latent width fault.** "Opening Advanced never
+     widens the window" was being held by accident: the gloss paragraphs were
+     wide enough in all thirteen catalogues to absorb whatever the Advanced
+     editor needed. One-line glosses stopped paying for it and five languages
+     started widening on a disclosure (German 36 px, Italian 54, Dutch 42,
+     French 5, Spanish 1). `_measure_advanced_width` now raises `_pane_w_closed`
+     to match, which the old note there had rejected as costing every user
+     width. Measured, it costs nothing: the pane is **narrower in every
+     language than it is today** even so (de 709 → 662, it 707 → 663,
+     nl 681 → 661, fr 706 → 668, es 697 → 679, the rest unchanged).
+
+  On screen, English and German, before and after, at the height the window
+  opens at and at 700 px: window +0 px, every radio in both groups +0 px.
+- evidence: test_pressing_a_radio_moves_neither_the_window_nor_a_control,
+  test_a_bucket_change_does_not_refit_the_windows_height,
+  test_no_note_can_push_a_radio_because_none_is_above_one,
+  test_the_glosses_are_one_line_with_the_detail_behind_the_info_button,
+  test_the_worst_languages_fit_a_1280_screen,
+  test_every_language_fits_a_1280_screen

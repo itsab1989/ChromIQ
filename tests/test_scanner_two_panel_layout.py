@@ -24,11 +24,13 @@ What these guard:
 """
 from __future__ import annotations
 
+import ast
 import inspect
 import json
 import os
 import subprocess
 import sys
+import textwrap
 from pathlib import Path
 
 import pytest
@@ -167,6 +169,19 @@ def _assert_fits(res):
         f"made to fit at all")
     assert not res["handles_out_of_reach"], (
         f"{lang}: " + "; ".join(res["handles_out_of_reach"]))
+    # AND THE WINDOW SITS STILL WHEN A RADIO IS PRESSED, in this language.
+    # See `scanner_floor_probe.radio_steadiness` for the two faults and their
+    # measured size; the size is the size of a translated paragraph, which is
+    # why it is asked here rather than in English alone.
+    assert not res["jumps"], (
+        f"{lang}: pressing a radio moved the window or the controls: "
+        + "; ".join(res["jumps"][:6]))
+    # …and the three glosses are one height, so a language in which one wraps
+    # and the others do not cannot push everything below it down.
+    assert len(set(res["gloss_heights"])) == 1, (
+        f"{lang}: the three usage-scenario glosses are "
+        f"{res['gloss_heights']}px, so the block is a different height "
+        f"depending on which language you read it in")
 
 
 def test_the_height_floor_settles_in_one_pass(_app, _out_dir):
@@ -799,5 +814,152 @@ def test_a_finished_build_can_show_reveal_and_install(_app, _out_dir):
             assert dlg.rect().contains(
                 b.mapTo(dlg, b.rect().topLeft())), (
                 f"{name} is visible but lands outside the window")
+    finally:
+        dlg.deleteLater()
+
+
+# ---------------------------------------------------------------------------
+# THE WINDOW SITS STILL WHEN A RADIO IS PRESSED (B8-101, Basti, beta 9)
+# ---------------------------------------------------------------------------
+# *"when switching the radio for 'create profile using' the window's size
+# changes sometimes a bit, things jump around a bit."*
+#
+# The sweep above asks this of all thirteen catalogues, in a process each. The
+# three below ask it in English and name the MECHANISM, so a regression says
+# which of the two came back rather than only that something moved.
+def test_pressing_a_radio_moves_neither_the_window_nor_a_control(_app, _out_dir):
+    """The whole complaint, in one assertion, in English.
+
+    Measured before the fix, switching "Create profile using:" from a chart to
+    a standard target: the window jumped +96 px from 700 and +156 px from its
+    640 px floor, and BOTH source radios slid 79 px down under the pointer.
+    """
+    from tests.scanner_floor_probe import radio_steadiness
+    dlg = _make(_app, _out_dir)
+    try:
+        jumps = radio_steadiness(_app, dlg)
+        assert not jumps, "; ".join(jumps)
+    finally:
+        dlg.deleteLater()
+
+
+def test_a_bucket_change_does_not_refit_the_windows_height(_app, _out_dir):
+    """The first mechanism, pinned at its source.
+
+    `_sync_inline_advanced` rebuilds the Advanced section whenever the settings
+    bucket changes, and it re-applies the pane width for the rebuilt section.
+    It did that by calling `_on_advanced_toggled` — the handler for the user
+    pressing the disclosure — which ends in `_refit_height()`, which ends in
+    `resize(width, max(floor, min(hint, cap)))`. Nobody had toggled anything,
+    and the window was dragged back to its sizeHint height.
+
+    `_refit_height` still belongs on the disclosure the user really pressed, so
+    this is not "the window never refits"; it is "a bucket change is not a
+    toggle".
+    """
+    cls = type(_make(_app, _out_dir, show=False))
+
+    def calls(method):
+        """The methods this one CALLS. Read off the syntax tree rather than the
+        text, so a comment naming the old call is not mistaken for the call."""
+        tree = ast.parse(textwrap.dedent(inspect.getsource(method)))
+        return {n.func.attr for n in ast.walk(tree)
+                if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)}
+
+    made = calls(cls._sync_inline_advanced)
+    assert "_on_advanced_toggled" not in made, (
+        "_sync_inline_advanced calls the disclosure's toggle handler again, so "
+        "every source-radio click, printer tick and printer-scenario click "
+        "resizes the window")
+    assert "_show_the_advanced_section" in made, (
+        "_sync_inline_advanced no longer re-applies the Advanced section's "
+        "state at all")
+    assert "_refit_height" not in made, (
+        "_sync_inline_advanced refits the window's height directly, which is "
+        "the same jump by another route")
+    # …and the toggle handler itself still refits, or opening Advanced squashes
+    # the rows it just revealed.
+    assert "_refit_height" in calls(cls._on_advanced_toggled)
+    # …while the part it shares with the bucket change does not.
+    assert "_refit_height" not in calls(cls._show_the_advanced_section)
+
+
+def test_no_note_can_push_a_radio_because_none_is_above_one(_app, _out_dir):
+    """The second mechanism, pinned by geometry rather than by structure.
+
+    `_mode_note` is the five-line explanation of why the printer scenario is
+    not offered for a bought target, and it appears exactly when that question
+    is answered. While it sat inside the usage-scenario block it was ABOVE
+    "Create profile using:", so answering that question moved the question.
+    `_scenario_note` is the same defect with a different trigger.
+
+    Reserving the space for them was rejected: 113 px of permanent blank in
+    English and 143 in Russian, in a column already measured as full, and
+    `test_the_standard_target_explanation_sits_against_the_rows_around_it`
+    requires `_mode_note` to be exactly as tall as its own text anyway. So they
+    moved below both radio groups instead, where the only thing under them is
+    the input box the click swaps wholesale in any case.
+    """
+    dlg = _make(_app, _out_dir)
+    try:
+        dlg._mode_standard.setChecked(True)   # both notes can be shown here
+        dlg._scenario_note.setText("a divergence line, for the measurement")
+        dlg._scenario_note.setVisible(True)
+        _settle(_app, dlg, 10)
+        content = dlg._scroll.widget()
+
+        def top(w):
+            return w.mapTo(content, w.rect().topLeft()).y()
+
+        lowest_radio = max(
+            top(w) for w in list(dlg._scenario_radios.values())
+            + [dlg._mode_chromiq, dlg._mode_standard])
+        for name in ("_mode_note", "_scenario_note"):
+            note = getattr(dlg, name)
+            assert note.isVisible(), f"{name} was not on screen to measure"
+            assert top(note) > lowest_radio, (
+                f"{name} is at y={top(note)}, above a radio at "
+                f"y={lowest_radio} — it appears and disappears, so every radio "
+                f"below it moves when it does")
+    finally:
+        dlg.deleteLater()
+
+
+def test_the_glosses_are_one_line_with_the_detail_behind_the_info_button(
+        _app, _out_dir):
+    """Basti's second report, and the cost `USAGE-SCENARIO-DESIGN.md` §7 named.
+
+    *"the help text for the usage scenarios under the 3 radio options is very
+    extensive (which is good) but it uses a lot of space there. I'd rather have
+    the detailed info put inside the tooltip."*
+
+    §7 priced it: *"at the cost of the thing that makes the proposal work,
+    which is that the reader learns why without asking."* So the short line is
+    not a truncation, the full text is still on the window one click away, and
+    the two clauses that make the three read as a sequence rather than three
+    alternatives survive into the one-liners.
+    """
+    from ui.tooltip_button import TooltipButton
+    dlg = _make(_app, _out_dir)
+    try:
+        one_line = dlg.fontMetrics().height() + 4
+        for g in dlg._scenario_glosses:
+            assert g.height() <= one_line, (
+                f"a gloss is {g.height()}px tall, which is more than the one "
+                f"line it is supposed to be: {g.text()!r}")
+
+        body = next((t._body for t in dlg.findChildren(TooltipButton)
+                     if t._title == "Usage scenario"), None)
+        assert body, "the usage-scenario ⓘ has gone"
+        # Every scenario's FULL explanation is behind it, not only its label.
+        for _k, label, short, full in dlg._scenarios():
+            assert label in body, f"the ⓘ does not name the {label!r} scenario"
+            assert full in body, (
+                f"the detail for {label!r} was deleted rather than moved into "
+                f"the ⓘ")
+            assert short != full
+        # …and the general half is still there, unedited, so its twelve
+        # translations still resolve.
+        assert type(dlg)._SCENARIO_HELP_HEAD in body
     finally:
         dlg.deleteLater()
