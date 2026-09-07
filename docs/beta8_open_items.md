@@ -4676,3 +4676,61 @@ only a triple that DIFFERS from the rule's answer would stop it.
   `defaults read com.chromiq.ChromIQ custom_output_path` is the user's own
   empty value afterwards, as it was before, and `calibration_mode` is still 0
   in the real store while the driver set it in the sandbox.
+
+### B8-101 · The two info frames under the Create Chart preview hugged the panel separator and the window edge
+- blocks release: no
+- found by: Basti, 4.2.0, on screen: *"In the Create Chart tab under the TIFF
+  preview, the left side of the frame around the Measured from Preview section
+  touches the panel separator, and the right side of the frame around the Chart
+  layout information section touches the right side of the main window. There
+  should be a gap."* Reproduced, measured and fixed by Agent DG,
+  `~/Desktop/beta 9/create-chart-frame-gaps/FINDINGS-agentDG.md`.
+- status: FIXED
+- detail: `_info_row` in `ui/tabs/tab_chart.py` carried
+  `setContentsMargins(0, 0, 0, 0)`. Both panels are plain `QGroupBox`es and
+  `ui/styles.py` gives them `margin-top: 14px` with no left/right margin, so
+  their 1 px border is drawn at the widget's own edge and 0 px of layout margin
+  is 0 px of visible gap. Measured in the real app with `CompositeAppFilter`
+  installed, at 1700x1050: "Measured from Preview" began at x=584 with the
+  splitter handle ending at x=584, and "Chart layout information" ended at
+  x=1700 in a 1700 px window. Both gaps 0, in en/de/nl, at 900, 1440 and 1700 px
+  wide, and with the splitter driven to both extremes. It was the only frame in
+  the tab standing off nothing: the left pane's own group boxes sit at x=16 and
+  end at x=564, 16 short of the handle at 580..584.
+- fix: `_info_row.setContentsMargins(16, 0, 16, 0)`. 16 because it is the tab's
+  own inset, already used by `left_layout.setContentsMargins(16, 12, 16, 12)`
+  against both the window edge and the separator; with `right_layout`'s existing
+  bottom of 12 the two frames now sit 16/16/12, which is the left pane's own
+  inset, so the tab is symmetric about the separator. The 8 px channel between
+  the two frames (#93) is untouched.
+
+  IT WENT ON THE ROW, NOT ON `right_layout`, and that is the decision worth
+  recording. The TIFF preview above them is deliberately full bleed:
+  `ui/tiff_preview.py` sets `border-left: none` on the image label and the 4 px
+  splitter handle is painted in the very same border colour (`#d0ccc6`,
+  confirmed by a pixel scan of the rendered window), so the handle IS the
+  preview's left border. Insetting the preview would stand it off a border it
+  is wearing. Basti did not report the preview and it has not moved.
+
+  The guard lives in `tests/` as `..._info_frames_do_not_hug_the_pane_edges.py`,
+  and the driver that measured all of the above on screen is
+  `scripts/drive_dg_create_chart_frame_gaps.py`.
+
+  Width cost, measured because the two earlier frame-gap fixes insisted on it:
+  the info row's fit threshold moves by exactly the 32 px added, 1110 → 1142 in
+  English, 1203 → 1235 in German, 1245 → 1277 in Dutch. `MainWindow` opens at
+  `min(1440, screen.width())`, so all three still fit the default window with
+  room. Below that the row was already over-constrained before the change (its
+  two panels want 774 px and the right pane can be squeezed to 200), and the
+  900 px floor is cramped either way.
+- evidence: test_the_left_frame_stands_off_the_panel_separator,
+  test_the_right_frame_stands_off_the_window_edge,
+  test_the_channel_between_the_two_frames_is_untouched,
+  test_the_preview_above_them_still_bleeds_to_both_edges,
+  test_both_gaps_survive_the_narrow_window_and_a_splitter_drag.
+  Four mutations, four caught, each proved to land on disk: margins back to 0 and margins
+  halved to 8 each take the three gap tests; spacing 8 → 0 takes the channel
+  test; and moving the margin up to `right_layout` (the plausible wrong fix)
+  passes all four gap tests and is caught only by the preview test, which is
+  what that test is for. Gate: 11860 passed, 180 skipped, 3 xfailed, exit 0,
+  twice, against a baseline of 11855/180/3 — the difference is these five tests.
