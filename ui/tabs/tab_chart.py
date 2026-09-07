@@ -3474,7 +3474,34 @@ class TabChart(QWidget):
         # so it's no longer buried in the log (Knut, #93).
         self._layout_info_panel = ChartLayoutInfoPanel(right)
         _info_row = QHBoxLayout()
-        _info_row.setContentsMargins(0, 0, 0, 0)
+        # THE SIDE MARGINS ARE 16 BECAUSE EVERY OTHER FRAME IN THIS TAB IS 16.
+        # Basti, 4.2.0: "the left side of the frame around the Measured from
+        # Preview section touches the panel separator, and the right side of the
+        # frame around the Chart layout information section touches the right
+        # side of the main window. There should be a gap."
+        #
+        # Both panels are plain QGroupBoxes and ui/styles.py gives them
+        # `margin-top: 14px` with NO left/right margin, so their 1 px border is
+        # drawn at the widget's own edge: 0 px of layout margin is 0 px of
+        # visible gap, which is exactly what he saw. Measured on screen at
+        # 1700x1050: the left pane's own group boxes sit at x=16 (16 from the
+        # window edge) and end at x=564, 16 short of the splitter handle at
+        # 580..584. This row was the only frame in the tab standing off 0.
+        # 16 here makes the whole tab symmetric about the separator, and with
+        # right_layout's existing bottom of 12 these two frames get 16/16/12,
+        # which is the left pane's own (16, 12, 16, 12) inset.
+        #
+        # IT GOES ON THE ROW, NOT ON `right_layout`, because the TIFF preview
+        # above is deliberately full bleed and must not move with it.
+        # `ui/tiff_preview.py` sets `border-left: none` on the image label and
+        # the 4 px splitter handle is painted in the very same border colour, so
+        # the handle IS the preview's left border. Insetting the preview would
+        # stand it off a border it is supposed to be wearing.
+        #
+        # The separator cannot be dragged into this gap: `left.setFixedWidth(580)`
+        # pins the left pane's minimum and maximum together, so the handle does
+        # not move (setSizes to either extreme leaves 580/1116).
+        _info_row.setContentsMargins(16, 0, 16, 0)
         _info_row.setSpacing(8)
         _info_row.addWidget(self._margin_panel, stretch=3)
         _info_row.addWidget(self._layout_info_panel, stretch=2)
