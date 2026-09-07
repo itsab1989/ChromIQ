@@ -364,19 +364,27 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # RE-MEASURED 2026-09-07, after the English-source fixes for 4.2.0: all
 # twelve UNCHANGED. Fourteen keys were re-spelled and every translation
 # was carried to the new key, so nothing arrived here as a fresh echo.
+# 2026-09-07, the usage-scenario glosses (B8-101): +4 for the eleven and +0
+# for German. Each gloss became one line and its full text moved into the
+# window's own ⓘ, which is a MOVE and not a rewrite — the tip body is composed
+# from the same `tr()` literals the glosses carried, so nothing went stale and
+# no translation was lost. What arrives is four genuinely new keys: the three
+# one-line glosses and the heading above them in the tip. All four are over
+# the 25-character floor this file counts at, so all four are counted. German
+# is translated for all four.
 _BUDGET = {
     "de": 4,
-    "es": 4,
-    "fr": 5,
-    "it": 4,
-    "ja": 4,
-    "nl": 4,
-    "no": 4,
-    "pl": 4,
-    "pt": 4,
-    "ru": 3,
-    "sv": 4,
-    "zh_CN": 3,
+    "es": 8,
+    "fr": 9,
+    "it": 8,
+    "ja": 8,
+    "nl": 8,
+    "no": 8,
+    "pl": 8,
+    "pt": 8,
+    "ru": 7,
+    "sv": 8,
+    "zh_CN": 7,
 }
 
 

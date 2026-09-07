@@ -577,9 +577,47 @@ class _WrapHint(QLabel):
         super().resizeEvent(event)
         if not self.isVisible():
             return
-        want = self.heightForWidth(self.width())
+        want = self._wanted_height()
         if want > 0 and want != self.minimumHeight():
             self.setMinimumHeight(want)
+
+    def _wanted_height(self) -> int:
+        """The height this hint claims. Overridden by `_LevelHint`, which
+        claims the same height as the hints beside it."""
+        return self.heightForWidth(self.width())
+
+
+class _LevelHint(_WrapHint):
+    """A hint that takes the height of the TALLEST hint in its group.
+
+    THE GLOSSES UNDER THE THREE USAGE SCENARIOS, AND THE REASON IS THAT A ROW
+    WHICH IS SOMETIMES TALLER MOVES EVERY ROW BELOW IT. Each gloss is written
+    as one line, but "one line" is an English sentence's promise, not a
+    guarantee: the pane is a fixed width per language, a translation is longer
+    or shorter than its source, and one gloss wrapping to two lines where the
+    others do not would put the source question, its two radios and the whole
+    input area 15 px further down in that language alone.
+
+    Levelling them costs nothing in the ordinary case, where all three are one
+    line and the maximum IS one line. It only spends a row when a language
+    genuinely needs one, and then it spends the same row on all three, so the
+    block has one height in every state.
+
+    Each member computes the maximum itself and sets only its OWN minimum, so
+    there is no cross-widget write inside a resize and the guard in
+    `_WrapHint.resizeEvent` still stops the invalidation feeding itself. They
+    share a width by construction: the group is a column of rows built from
+    one loop, each with the same indent.
+    """
+
+    def __init__(self, text: str, parent, group: list) -> None:
+        super().__init__(text, parent)
+        self._group = group
+        group.append(self)
+
+    def _wanted_height(self) -> int:
+        w = self.width()
+        return max((h.heightForWidth(w) for h in self._group), default=0)
 
 
 class ScannerProfileDialog(_ToolDialogBase):
@@ -892,6 +930,14 @@ class ScannerProfileDialog(_ToolDialogBase):
         lbl.setStyleSheet(f"color:{self._hint}; font-size:12px;")
         return lbl
 
+    def _level_hint_label(self, text: str, group: list) -> QLabel:
+        """`_tall_hint_label` for one of a set of hints that must all be the
+        same height whatever a translation does to them — see `_LevelHint`."""
+        lbl = _LevelHint(text, self, group)
+        lbl.setWordWrap(True)
+        lbl.setStyleSheet(f"color:{self._hint}; font-size:12px;")
+        return lbl
+
     def _standard_mode(self) -> bool:
         return self._mode_standard.isChecked()
 
@@ -937,6 +983,77 @@ class ScannerProfileDialog(_ToolDialogBase):
     # PRE-SELECT, NEVER LOCK. Choosing a scenario applies its settings once, at
     # the moment of choosing; every control stays editable afterwards; and when
     # the settings stop matching, the window says so and changes nothing back.
+    #
+    # ONE LINE ON SCREEN, THE REST BEHIND THE ⓘ (Basti, beta 9): *"the help
+    # text for the usage scenarios under the 3 radio options is very extensive
+    # (which is good) but it uses a lot of space there. I'd rather have the
+    # detailed info put inside the tooltip."*
+    #
+    # `USAGE-SCENARIO-DESIGN.md` §7 proposed exactly this and priced it
+    # honestly: *"at the cost of the thing that makes the proposal work, which
+    # is that the reader learns why without asking."* So the short line is not
+    # a truncation of the long one. Each carries the OUTCOME plus the single
+    # fact that decides the choice, and the two clauses that make the list a
+    # sequence rather than three alternatives ("the printer scenario below uses
+    # it", "the scenario above") survive into the one-liner, because without
+    # them a user who wants a printer profile picks the third, has no measuring
+    # profile, and is stuck.
+    #
+    # The detail is not rewritten for the ⓘ, it is MOVED: the tip body is built
+    # from the very same `tr()` literals the glosses used to carry, so all
+    # twelve translations of them come across untouched. Only the short lines
+    # and the one heading above them are new keys.
+    #
+    # Measured, English, on the real column: gloss block 150 px -> 45 px.
+    def _scenarios(self) -> tuple:
+        """(key, label, one-line gloss, the full explanation) for each.
+
+        Built once, used twice: the radios take the label and the one-liner,
+        the ⓘ takes the label and the full text.
+        """
+        return (
+            (scanner_colprof.SCENARIO_EVERYDAY,
+             tr("A profile for my scanner or camera, for everyday scanning"),
+             tr("The usual choice. Scans and photos open looking right."),
+             tr("Scans and photographs open looking right, with your target's "
+                "white as white. This is the usual choice, and ChromIQ sets "
+                "the profile type, the quality and the white point from the "
+                "size of your target.")),
+            (scanner_colprof.SCENARIO_INSTRUMENT,
+             tr("A profile for my scanner, so it can stand in for a measuring "
+                "instrument"),
+             tr("For measuring, not for looking at, and the printer scenario "
+                "below uses it."),
+             tr("For measuring rather than for looking at. Sets the XYZ "
+                "look-up table, Quality “High” and White point handling "
+                "“Force Absolute Colorimetric (-ua)”, so the profile reports "
+                "the colour that is really there instead of colour measured "
+                "against your target's white. Build this one once: the "
+                "printer scenario below uses it.")),
+            (scanner_colprof.SCENARIO_PRINTER,
+             tr("A profile for my printer, measured with this scanner"),
+             tr("No spectrophotometer needed. It uses the profile from the "
+                "scenario above."),
+             tr("Print one of your charts, scan it, and ChromIQ builds the "
+                "printer's profile from the scan, with no spectrophotometer. "
+                "It needs the measuring profile from the scenario above; you "
+                "pick it below.")),
+        )
+
+    def _scenario_help(self) -> str:
+        """The ⓘ body: the general answer, then what each scenario is for.
+
+        APPENDED OUTSIDE THE EXISTING KEY, not edited into it. `tr()` is keyed
+        on the exact English source, so a word added inside the first block
+        would orphan its twelve translations (the WHICH_CHART_HELP lesson, and
+        this file's own HELP note). Both halves are whole strings that already
+        exist, so this move costs one new key, not fifteen.
+        """
+        detail = "\n\n".join(
+            f"{label}\n{full}" for _k, label, _short, full in self._scenarios())
+        return (self._SCENARIO_HELP_HEAD + "\n\n"
+                + tr("What each one is for, in full:") + "\n\n" + detail)
+
     def _build_scenario_selector(self, form) -> None:
         col = QVBoxLayout()
         col.setContentsMargins(0, 0, 0, 0)
@@ -947,63 +1064,17 @@ class ScannerProfileDialog(_ToolDialogBase):
         head.addStretch(1)
         head.addWidget(self._tip(
             tr("Usage scenario"),
-            tr("What you are going to do with the profile, which is the one "
-               "question that decides how it should be built.\n\n"
-               "Picking a scenario fills in the settings that suit it: the "
-               "profile type, the quality, and the white point handling under "
-               "Advanced…. It fills them in ONCE, at the moment you pick it. "
-               "Nothing is locked, every control stays yours to change, and "
-               "ChromIQ never quietly puts a setting back. If you do change "
-               "one, a line under the list says which setting no longer "
-               "matches the scenario and leaves it exactly as you set it.\n\n"
-               "The three are listed in the order you would do them, and the "
-               "middle one is worth reading even if you think you want the "
-               "last one: a profile for your printer is built from a scan, "
-               "and a scan is only a measurement if the scanner profile it is "
-               "read through was built to measure. That is the second "
-               "scenario, and it is the step almost everybody misses.\n\n"
-               "Everyday scanning has no fixed answer, because the right "
-               "profile type depends on how big your target is. So ChromIQ "
-               "waits until it knows the patch count and then sets all three "
-               "together: below about a hundred patches “Shaper + matrix” at "
-               "Medium with “Map chart white to white”, and at a hundred or "
-               "more the XYZ look-up table at High with “Scale white to a "
-               "perfect white surface (-u -R)”. Both are measured, on real "
-               "scans, scored only on patches the fit never saw.\n\n"
-               "One thing it will not do: touch settings you have already "
-               "saved. If you have pressed “Save as Defaults” for this kind "
-               "of profile, ChromIQ shows what you saved and sets nothing, "
-               "because the profile you build next has to be the profile you "
-               "built last unless you say otherwise.")),
+            self._scenario_help()),
             0, Qt.AlignmentFlag.AlignVCenter)
         col.addLayout(head)
 
+        #: The three glosses are levelled against one another, so a language in
+        #: which one wraps and the others do not still has one block height.
+        self._scenario_glosses: list = []
         self._scenario_group = QButtonGroup(self)
         self._scenario_group.setExclusive(True)
         self._scenario_radios: dict = {}
-        for key, label, gloss in (
-            (scanner_colprof.SCENARIO_EVERYDAY,
-             tr("A profile for my scanner or camera, for everyday scanning"),
-             tr("Scans and photographs open looking right, with your target's "
-                "white as white. This is the usual choice, and ChromIQ sets "
-                "the profile type, the quality and the white point from the "
-                "size of your target.")),
-            (scanner_colprof.SCENARIO_INSTRUMENT,
-             tr("A profile for my scanner, so it can stand in for a measuring "
-                "instrument"),
-             tr("For measuring rather than for looking at. Sets the XYZ "
-                "look-up table, Quality “High” and White point handling "
-                "“Force Absolute Colorimetric (-ua)”, so the profile reports "
-                "the colour that is really there instead of colour measured "
-                "against your target's white. Build this one once: the "
-                "printer scenario below uses it.")),
-            (scanner_colprof.SCENARIO_PRINTER,
-             tr("A profile for my printer, measured with this scanner"),
-             tr("Print one of your charts, scan it, and ChromIQ builds the "
-                "printer's profile from the scan, with no spectrophotometer. "
-                "It needs the measuring profile from the scenario above; you "
-                "pick it below.")),
-        ):
+        for key, label, gloss, _full in self._scenarios():
             rb = QRadioButton(label, self)
             self._scenario_group.addButton(rb)
             self._scenario_radios[key] = rb
@@ -1013,7 +1084,7 @@ class ScannerProfileDialog(_ToolDialogBase):
             line.addWidget(rb)
             line.addStretch(1)
             col.addLayout(line)
-            g = self._tall_hint_label(gloss)
+            g = self._level_hint_label(gloss, self._scenario_glosses)
             grow = QHBoxLayout()
             grow.setContentsMargins(0, 0, 0, 0)
             grow.addSpacing(32)
@@ -1021,14 +1092,59 @@ class ScannerProfileDialog(_ToolDialogBase):
             col.addLayout(grow)
             # A BOUND METHOD, never a lambda holding `self` on a child's signal.
             rb.toggled.connect(self._on_scenario_toggled)
+        form.addLayout(col)
 
-        # WHY THE THIRD ONE IS GREYED, said where the greying is (B8-70).
-        # The gate is technically justified and stays: printer mode reads the
-        # chart's .ti2, the list of device values that were sent to the
-        # printer, and a bought target has none. What was wrong was that the
-        # control vanished in silence. Under the scenario list it stops being
-        # a disappearing control and becomes a disabled option with its reason
-        # beside it. This is the same widget the B8-70 fix created, moved.
+    # ------------------------------------------------------------------
+    # The notes, and WHY THEY ARE BELOW BOTH RADIO GROUPS (Basti, beta 9)
+    # ------------------------------------------------------------------
+    # *"when switching the radio for 'create profile using' … things jump
+    # around a bit."*
+    #
+    # They did, and by a measured amount. `_mode_note` used to sit inside the
+    # usage-scenario block, ABOVE "Create profile using:", and it appears
+    # exactly when that question is answered "a standard target I own". So the
+    # radio the user had just clicked slid out from under the pointer:
+    #
+    #     English   both source radios  +79 px   (the note is 75 px, 5 lines)
+    #     Russian   both source radios  +94 px   (90 px, 6 lines)
+    #
+    # `_scenario_note` is the same defect with a different trigger: it is
+    # re-evaluated on every source switch (`_sync_colprof_context` ->
+    # `_sync_scenario_ui`), it is 38 px in English and 53 in German and
+    # Russian, and it appears or vanishes on that click for any user who has
+    # saved defaults for one bucket and not the other.
+    #
+    # RESERVING THE SPACE WAS CONSIDERED AND REJECTED, twice over. Held open
+    # permanently, the pair costs 113 px of blank in English and 143 in Russian
+    # — in the column `USAGE-SCENARIO-DESIGN.md` §6 already measured as having
+    # no room, and it would read as a gap, which is the fault B8-73 was about.
+    # And it cannot be done for `_mode_note` anyway:
+    # `test_the_standard_target_explanation_sits_against_the_rows_around_it`
+    # requires that note to be exactly as tall as its own text, which is the
+    # guard against that same gap.
+    #
+    # So the notes MOVE instead, to just below the source radios. Nothing above
+    # a radio changes any more, in either group, so neither group can be moved
+    # by anything; and what is below them is the input box, which the source
+    # click swaps wholesale in any case (115 px against 157 px) because that is
+    # the content the click is about. A note that pushes the answer it is
+    # explaining is not a jump.
+    #
+    # It also reads better where it now is. `_mode_note`'s last sentence is
+    # *"Choose “A chart I made in ChromIQ” instead"*, and that radio is now the
+    # line directly above it rather than three rows below.
+    #
+    # THE TEXT OF NEITHER NOTE CHANGED, so all twelve translations came across.
+    def _build_note_strip(self, form) -> None:
+        col = QVBoxLayout()
+        col.setContentsMargins(0, 0, 0, 0)
+        col.setSpacing(4)
+
+        # WHY THE THIRD SCENARIO IS GREYED (B8-70). The gate is technically
+        # justified and stays: printer mode reads the chart's .ti2, the list of
+        # device values that were sent to the printer, and a bought target has
+        # none. What was wrong was that the control vanished in silence. This
+        # is the same widget that fix created, with the same words.
         self._mode_note = self._tall_hint_label(tr(
             "Not available for a bought target: an IT8 or a ColorChecker was "
             "printed and measured by its manufacturer, not by your printer, "
@@ -1039,9 +1155,13 @@ class ScannerProfileDialog(_ToolDialogBase):
             "another program, as long as you have its .ti2 and its .cht page "
             "files."))
         self._mode_note.setVisible(False)
+        # Air above it, and aligned with the options it is about rather than
+        # flush left. The margin costs nothing while the note is hidden,
+        # because a hidden widget is skipped by the layout.
+        self._mode_note.setContentsMargins(0, 8, 0, 0)
         nrow = QHBoxLayout()
         nrow.setContentsMargins(0, 0, 0, 0)
-        nrow.addSpacing(32)
+        nrow.addSpacing(14)
         nrow.addWidget(self._mode_note, 1)
         col.addLayout(nrow)
 
@@ -1049,12 +1169,9 @@ class ScannerProfileDialog(_ToolDialogBase):
         #: no scenario, no radio is lit and this line names the difference.
         self._scenario_note = self._tall_hint_label("")
         self._scenario_note.setVisible(False)
-        # SEPARATED FROM THE LIST, AND ALIGNED WITH THE OPTIONS RATHER THAN
-        # WITH THEIR GLOSSES (CL-4). Flush left and hard against the last
-        # gloss, it read as a fourth gloss belonging to the printer scenario.
-        # It is about the whole list, so it sits at the options' own indent,
-        # with air above it; the top margin costs nothing while it is hidden,
-        # because a hidden widget is skipped by the layout.
+        # ALIGNED WITH THE OPTIONS RATHER THAN WITH THEIR GLOSSES (CL-4). Flush
+        # left and hard against the last gloss, it read as a fourth gloss
+        # belonging to the printer scenario.
         self._scenario_note.setContentsMargins(0, 8, 0, 0)
         srow = QHBoxLayout()
         srow.setContentsMargins(0, 0, 0, 0)
@@ -1062,6 +1179,40 @@ class ScannerProfileDialog(_ToolDialogBase):
         srow.addWidget(self._scenario_note, 1)
         col.addLayout(srow)
         form.addLayout(col)
+
+    #: The general half of the usage-scenario ⓘ, unchanged and therefore
+    #: still carrying its twelve translations. `_scenario_help` appends the
+    #: per-scenario detail to it rather than editing it, because `tr()` is
+    #: keyed on the exact English source.
+    _SCENARIO_HELP_HEAD = tr(
+        "What you are going to do with the profile, which is the one "
+        "question that decides how it should be built.\n\n"
+        "Picking a scenario fills in the settings that suit it: the "
+        "profile type, the quality, and the white point handling under "
+        "Advanced…. It fills them in ONCE, at the moment you pick it. "
+        "Nothing is locked, every control stays yours to change, and "
+        "ChromIQ never quietly puts a setting back. If you do change "
+        "one, a line under the list says which setting no longer "
+        "matches the scenario and leaves it exactly as you set it.\n\n"
+        "The three are listed in the order you would do them, and the "
+        "middle one is worth reading even if you think you want the "
+        "last one: a profile for your printer is built from a scan, "
+        "and a scan is only a measurement if the scanner profile it is "
+        "read through was built to measure. That is the second "
+        "scenario, and it is the step almost everybody misses.\n\n"
+        "Everyday scanning has no fixed answer, because the right "
+        "profile type depends on how big your target is. So ChromIQ "
+        "waits until it knows the patch count and then sets all three "
+        "together: below about a hundred patches “Shaper + matrix” at "
+        "Medium with “Map chart white to white”, and at a hundred or "
+        "more the XYZ look-up table at High with “Scale white to a "
+        "perfect white surface (-u -R)”. Both are measured, on real "
+        "scans, scored only on patches the fit never saw.\n\n"
+        "One thing it will not do: touch settings you have already "
+        "saved. If you have pressed “Save as Defaults” for this kind "
+        "of profile, ChromIQ shows what you saved and sets nothing, "
+        "because the profile you build next has to be the profile you "
+        "built last unless you say otherwise.")
 
     # -- the three gates that decide whether anything may be set for you ----
     #
@@ -1956,6 +2107,9 @@ class ScannerProfileDialog(_ToolDialogBase):
         # source question has only one valid answer.
         self._build_scenario_selector(form)
         self._build_mode_selector(form)
+        # BELOW BOTH RADIO GROUPS, so nothing that appears can move a control
+        # the user is aiming at. See `_build_note_strip` for the measurement.
+        self._build_note_strip(form)
         self._build_chromiq_inputs(form)
         self._build_standard_inputs(form)
 
@@ -2763,11 +2917,32 @@ class ScannerProfileDialog(_ToolDialogBase):
         clipped the whole column against a fixed pane with no scrollbar to
         recover it.
 
-        Two widths, then, and the pane takes the one the current state needs.
-        Making the window permanently as wide as an open Advanced would cost
-        every user width for a section that starts closed; the disclosure
-        already re-fits the window's height when it is toggled, so it asks for
-        the width it needs at the same moment.
+        AND THE CLOSED WIDTH FOLLOWS IT UP, WHICH IT DID NOT USED TO. This
+        method used to leave `_pane_w_closed` alone, so a language whose
+        Advanced editor needs more than the rest of its left column got a
+        window that grew when the disclosure was opened. Nothing caught it
+        because nothing paid it: the usage-scenario glosses were three
+        paragraphs, wide enough in all thirteen catalogues to absorb whatever
+        Advanced wanted, and the invariant was being held by accident. The
+        moment those glosses became one line each (B8-101) the accident
+        stopped, and five languages started widening the window on a
+        disclosure: German by 36 px, Italian 54, Dutch 42, French 5,
+        Spanish 1.
+
+        The old note here said making the pane permanently as wide as an open
+        Advanced *"would cost every user width for a section that starts
+        closed"*. Measured, it costs nothing at all against what ships: with
+        the shorter glosses the pane is **narrower in every language than it is
+        today**, this maximum included.
+
+            en 596 -> 596     it 707 -> 663     pt 641 -> 641
+            de 709 -> 662     nl 681 -> 661     ru 652 -> 652
+            fr 706 -> 668     no 596 -> 596     sv 596 -> 596
+            es 697 -> 679     pl 610 -> 610     ja/zh 596 -> 596
+
+        So the two names remain, and today they hold the same number in all
+        thirteen: the pane has one width, and opening the section moves
+        nothing at all rather than moving the whole window.
         """
         if getattr(self, "_pane_w_closed", None) is None:
             return                      # not sized yet; showEvent will do it
@@ -2776,6 +2951,7 @@ class ScannerProfileDialog(_ToolDialogBase):
             self._pane_w_closed,
             self._adv_inline_body.minimumSizeHint().width() + self._pane_bar_w
             + m.left() + m.right() + self._BAR_GAP + 4 + self._PANE_GAP)
+        self._pane_w_closed = self._pane_w_open
 
     def _fit_floor_to_the_smallest_screen(self) -> None:
         """Bring the window's floor down to something a 1080p laptop can show.
@@ -3079,7 +3255,10 @@ class ScannerProfileDialog(_ToolDialogBase):
         # A printer profile's options are the wider set, so the width the pane
         # needs when the section is open moves with the context.
         self._measure_advanced_width()
-        self._on_advanced_toggled(self._adv_inline_head.isChecked())
+        # NOT `_on_advanced_toggled`: nobody toggled anything. Re-apply the
+        # state the section is already in, and leave the window's height where
+        # the user put it. See `_show_the_advanced_section`.
+        self._show_the_advanced_section(self._adv_inline_head.isChecked())
 
     def _on_advanced_changed(self, *_args) -> None:
         """An Advanced control moved: it is the live value from now on."""
@@ -3092,15 +3271,46 @@ class ScannerProfileDialog(_ToolDialogBase):
             self._touched_ctx.add(self._active_ctx)
             self._sync_scenario_ui()
 
-    def _on_advanced_toggled(self, on: bool) -> None:
+    def _show_the_advanced_section(self, on: bool) -> None:
+        """Put the Advanced section into the open or closed state, and nothing
+        else. The window's HEIGHT is deliberately not touched here.
+
+        SPLIT OUT OF `_on_advanced_toggled` BECAUSE THE OTHER CALLER IS NOT A
+        TOGGLE, AND THE WINDOW JUMPED FOR IT. `_sync_inline_advanced` rebuilds
+        this section whenever the settings bucket changes and then has to
+        re-apply the pane width for it — and it did that by calling the
+        disclosure's own handler, which ends in `_refit_height()`, which ends
+        in `resize(width, max(floor, min(hint, cap)))`. So every source-radio
+        click, every "Profile my printer from this scan" tick and every click
+        on the printer usage scenario dragged the window back up to its
+        sizeHint height and threw away the height the user had chosen.
+
+        Measured on the running window, English/German/Russian alike, clicking
+        "Create profile using:" from a chart to a standard target:
+
+            window at 760 px  ->  796   (+36)
+            window at 700 px  ->  796   (+96)
+            window at 640 px  ->  796  (+156, and 640 is the floor)
+
+        Nothing is lost by not refitting: the left column is a scroll area, so
+        a bucket whose Advanced set is taller scrolls rather than needing the
+        window to grow. `_refit_height` stays exactly where it belongs, on the
+        disclosure the user actually pressed.
+        """
         self._adv_inline_body.setVisible(on)
-        # Advanced's own controls are wider than the rest of the left column;
-        # the fixed pane widens for them and gives the width back when the
-        # section closes. See showEvent for why it is not simply always wide.
+        # The pane is sized for the section it will have to show, so these two
+        # widths are the same number in all thirteen catalogues and this line
+        # moves nothing today. It stays because the arithmetic that makes them
+        # equal lives in `_measure_advanced_width`, not here, and a pane that
+        # silently stopped following its own two widths would be the next
+        # accident. See `_measure_advanced_width` for the measurement.
         if getattr(self, "_pane_w_open", None) is not None:
             self._left_pane_w.setFixedWidth(
                 self._pane_w_open if on else self._pane_w_closed)
             self._refresh_min_width()
+
+    def _on_advanced_toggled(self, on: bool) -> None:
+        self._show_the_advanced_section(on)
         self._refit_height()
 
     def _restore_defaults_clicked(self) -> None:

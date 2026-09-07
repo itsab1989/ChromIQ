@@ -279,6 +279,122 @@ def require_language(lang):
     return got
 
 
+#: THE WINDOW MUST NOT MOVE WHEN A RADIO IS PRESSED (Basti, beta 9): *"when
+#: switching the radio for 'create profile using' the window's size changes
+#: sometimes a bit, things jump around a bit."* It did both, and the two halves
+#: had different causes:
+#:
+#:  * the window was dragged back to its sizeHint height on every switch that
+#:    changed the settings bucket, because `_sync_inline_advanced` re-applied
+#:    the Advanced pane width by calling the disclosure's own toggle handler,
+#:    which ends in `_refit_height()`. Measured: a window at 700 px jumped to
+#:    796, one at its 640 px floor jumped 156 px;
+#:  * `_mode_note`, the five-line "why the printer option is not offered for a
+#:    bought target" paragraph, sat ABOVE "Create profile using:" and appears
+#:    exactly when that question is answered "a standard target", so both
+#:    source radios slid 79 px down in English and 94 in Russian.
+#:
+#: Measured here in every language, because the size of the fault is the size
+#: of a translated paragraph.
+def _steadiness_anchors(dlg):
+    """The controls a radio click must never move: every radio in both groups.
+
+    Not the input boxes below them. The source click swaps a whole sub-panel
+    (115 px against 157 px in English) because that is the content the click is
+    ABOUT, and content that changes is not a jump. A radio is what the pointer
+    is on.
+    """
+    out = {"source: a chart I made in ChromIQ": dlg._mode_chromiq,
+           "source: a standard target I own": dlg._mode_standard}
+    for key, rb in dlg._scenario_radios.items():
+        out[f"scenario: {key}"] = rb
+    return out
+
+
+def _anchor_ys(dlg):
+    content = dlg._scroll.widget()
+    return {name: w.mapTo(content, w.rect().topLeft()).y()
+            for name, w in _steadiness_anchors(dlg).items()}
+
+
+def radio_steadiness(app, dlg):
+    """Click every radio in both groups, at two window heights, and report
+    everything that moved. An empty list is the whole of the requirement.
+
+    Two heights, because the resize half of the fault is invisible at the
+    height the window opens at: `_refit_height` resizes TO the sizeHint, so a
+    window already at its sizeHint does not appear to move. It is only a user
+    who has made the window shorter who sees it, which is why the report said
+    "sometimes".
+    """
+    from ui.dialogs import scanner_colprof as sc
+
+    def chart():
+        dlg._mode_chromiq.setChecked(True)
+
+    def standard():
+        dlg._mode_standard.setChecked(True)
+
+    def scenario(key):
+        def go():
+            rb = dlg._scenario_radios[key]
+            if rb.isEnabled():
+                rb.setChecked(True)
+        return go
+
+    # Each transition is (a state to start from, the click, what to call it).
+    # Every one starts from a named state, so the order of this list cannot
+    # change what any single row measures.
+    transitions = [
+        (chart, standard, "Create profile using: chart -> standard target"),
+        (standard, chart, "Create profile using: standard target -> chart"),
+        (scenario(sc.SCENARIO_EVERYDAY), scenario(sc.SCENARIO_INSTRUMENT),
+         "Usage scenario: everyday -> measuring instrument"),
+        (scenario(sc.SCENARIO_INSTRUMENT), scenario(sc.SCENARIO_PRINTER),
+         "Usage scenario: measuring instrument -> printer"),
+        (scenario(sc.SCENARIO_PRINTER), scenario(sc.SCENARIO_EVERYDAY),
+         "Usage scenario: printer -> everyday"),
+    ]
+
+    opens_at = dlg.height()
+    findings = []
+    for height in (opens_at, 700):
+        for start, click, label in transitions:
+            dlg._mode_chromiq.setChecked(True)
+            dlg._scenario_radios[sc.SCENARIO_EVERYDAY].setChecked(True)
+            start()
+            dlg.resize(dlg.width(), height)
+            settle(app, dlg, 8)
+            was_h, was = dlg.height(), _anchor_ys(dlg)
+            click()
+            settle(app, dlg, 8)
+            now_h, now = dlg.height(), _anchor_ys(dlg)
+            if now_h != was_h:
+                findings.append(
+                    f"at {height}px, {label}: the WINDOW changed height "
+                    f"{was_h} -> {now_h}")
+            for name, y in was.items():
+                if now[name] != y:
+                    findings.append(
+                        f"at {height}px, {label}: “{name}” moved "
+                        f"{y} -> {now[name]} ({now[name] - y:+d}px)")
+    dlg._mode_chromiq.setChecked(True)
+    dlg._scenario_radios[sc.SCENARIO_EVERYDAY].setChecked(True)
+    dlg.resize(dlg.width(), opens_at)
+    settle(app, dlg, 8)
+    return findings
+
+
+def gloss_heights(dlg):
+    """The height of each usage-scenario gloss, in pixels.
+
+    They are levelled (`_LevelHint`), so a language in which one wraps and the
+    others do not still has ONE block height and the rows below it do not move
+    in that language alone.
+    """
+    return [g.height() for g in dlg._scenario_glosses]
+
+
 def measure(app, lang, out_dir):
     from core.i18n import set_language
     set_language(lang)
@@ -347,6 +463,14 @@ def measure(app, lang, out_dir):
     dlg._adv_inline_head.setChecked(False)
     settle(app, dlg)
 
+    # …and now the same window's STEADINESS: what a radio click moves, in this
+    # language, at the height it opens at and at one the user has shrunk.
+    dlg._mode_chromiq.setChecked(True)
+    dlg._printer_cb.setChecked(False)
+    settle(app, dlg)
+    jumps = radio_steadiness(app, dlg)
+    glosses = gloss_heights(dlg)
+
     # The handles, with a real target loaded, at the size the window opens and
     # at the floor it reports. Both are language-dependent: the left pane is
     # fixed at the width this language needs, so the preview beside it is a
@@ -385,6 +509,11 @@ def measure(app, lang, out_dir):
         "unreadable": cut,
         "combos_checked": combos_seen,
         "opens_at": opened[0],
+        # Everything a radio click moved. Empty is the requirement.
+        "jumps": jumps,
+        # The three usage-scenario glosses, which are levelled against one
+        # another, so these three numbers must be one number.
+        "gloss_heights": glosses,
         "handles": handles,
         "handles_out_of_reach": [f"{tag}: {name} {reach:.0%}"
                                  for tag, hs in handles.items()

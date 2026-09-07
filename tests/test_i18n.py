@@ -647,19 +647,29 @@ def test_every_deliberate_exception_says_why():
 # the one move that loses twelve translations at once. The table not
 # moving is the proof that every one of them was carried across rather
 # than left to fall back to English.
+# …and again on 2026-09-07, by the usage-scenario glosses (B8-101). Basti:
+# *"the help text for the usage scenarios under the 3 radio options is very
+# extensive (which is good) but it uses a lot of space there. I'd rather have
+# the detailed info put inside the tooltip."* Each gloss is now one line and
+# the full text moved into the window's own ⓘ. The MOVE cost nothing: the tip
+# body is composed from the same `tr()` literals the glosses carried, so all
+# twelve translations came across and no key went stale. 4 keys in (three
+# one-line glosses and the heading above them in the tip), 0 out. German is
+# translated for all 4 and does not move; the eleven others carry the English
+# source under the beta rule, so each of them gains 4.
 _IDENTICAL_TO_KEY = {
     "de": 117,
-    "es": 100,
-    "fr": 121,
-    "it": 111,
-    "ja": 87,
-    "nl": 128,
-    "no": 112,
-    "pl": 104,
-    "pt": 102,
-    "ru": 75,
-    "sv": 114,
-    "zh_CN": 81,
+    "es": 104,
+    "fr": 125,
+    "it": 115,
+    "ja": 91,
+    "nl": 132,
+    "no": 116,
+    "pl": 108,
+    "pt": 106,
+    "ru": 79,
+    "sv": 118,
+    "zh_CN": 85,
 }
 
 
