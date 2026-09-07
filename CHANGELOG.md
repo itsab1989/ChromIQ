@@ -213,14 +213,15 @@ Eleven betas, folded into one list. Everything below is measured against 4.1.4.
   is a review nobody else performs, and it turned up things no test could see.
   The CR30 patch instruction said *"Take the magnetic cap off the measuring end
   first, with the cap on, the CR30 reads its own white tile"* — read past the
-  second comma and "with the cap on" attaches to taking the cap off. Four more
+  second comma and "with the cap on" attaches to taking the cap off. Five more
   sentences ran two clauses together on a comma. A help card told you to tick
   "Also save scanner-profiling files" when the box says *for this chart* too,
   and another quoted "Sides" and "Top/bottom" for boxes that read *Sides
   (vertical)* and *Top/bottom (horizontal)*. One window was titled "Check the
   dark calibration" over a body about the dark reference, while the rest of the
   app calls that act a black calibration. The connection-lost line said
-  `[WARN]` where the line under it says `[WARNING]`. And "Unexpected Color
+  `[WARN]` where the line under it says `[ERROR]`, and the app was evenly split
+  between the two spellings. And "Unexpected Color
   Response" is now "Unexpected Colour Response", which is how the app spells
   colour everywhere else, including in the help card that quotes this window.
 - **A help card no longer names a control in English in a window that renames
