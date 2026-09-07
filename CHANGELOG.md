@@ -28,8 +28,9 @@ Eleven betas, folded into one list. Everything below is measured against 4.1.4.
   the protocol notes, the captures and the experiments that turned out wrong are
   public at https://github.com/itsab1989/chromiq-cr30-research. Used so far on
   macOS over USB and over Bluetooth and on Windows on ARM over USB, each with a
-  real instrument and a real chart; Linux, and Bluetooth on Windows, should work
-  and nobody has tried them.
+  real instrument and a real chart, and over Bluetooth on Windows 11, where a
+  user reported connecting, calibrating and measuring without trouble. Linux
+  should work and nobody has tried it.
 - **A magnet at the measuring opening can no longer spoil a reading in
   silence.** A magnet makes a CR30 take a white calibration instead of a
   measurement and hand back its stored white-tile value, which looks like an
