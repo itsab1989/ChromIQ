@@ -29,10 +29,16 @@ never measured could be five times too high.**
 
 - **The patch count for an unusual sheet size could be wildly wrong.** Asked how
   many patches fit on a sheet ChromIQ has no measurement for, it searched a
-  range that started above the real answer, found nothing, and reported the
-  guess it had started from. For a 10 x 15 cm card it said 443 where the true
-  number is 90. Reachable before these presets existed, through the custom page
-  size in the layout panel.
+  range that started above the real answer, never found anything, and then
+  reported the guess it had started from. It said 443 for a 10 x 15 cm card
+  that holds 90, 443 for a 13 x 18 cm one that holds 169, and 443 for a
+  6 x 9 cm wallet print that holds 16. It now searches from a single patch, so
+  every sheet an instrument can lay a strip on gets a measured answer, and
+  every paper ChromIQ already had a measurement for is unchanged to the patch.
+  Reachable before these presets existed, through the custom page size in the
+  layout panel. One case is still open and is a different problem: on a sheet
+  too small to hold even one patch, ChromIQ still shows a number instead of
+  saying the paper does not fit the instrument.
 
 ### Documentation
 
