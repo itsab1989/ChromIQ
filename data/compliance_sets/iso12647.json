@@ -1,0 +1,5 @@
+{
+  "_readme": "Tolerance values of the two ISO value sets of the Measurement Report (issue #182). This file is DELIBERATELY EMPTY: whether the numbers of a paid standard may be shipped as factory values is an open licensing decision (#182, question S-2). Until it is answered every ISO cell reads '?' in the Report limits window, the ISO and Custom sets cannot be chosen for a run, and nothing is masked or hidden. Structure when filled: {\"iso_12647_7\": {\"<row id>\": number | [number, \"should\"]}, \"iso_12647_8\": {...}}; row ids are those of workflow/compliance_sets.py ROWS.",
+  "iso_12647_7": {},
+  "iso_12647_8": {}
+}
