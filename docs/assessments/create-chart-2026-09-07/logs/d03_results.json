@@ -1,0 +1,2765 @@
+[
+  {
+    "tag": "m01-area-bywidth-auto",
+    "note": "area-first, by width, min auto",
+    "ok": true,
+    "secs": 3.4,
+    "estimate_before": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "actual_after": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.3,
+        8.55
+      ],
+      "pitch": null
+    },
+    "estimate_after": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "margin_before": {
+      "status": "",
+      "notes": "",
+      "text": "Generate a preview to measure its margins."
+    },
+    "margin_after": {
+      "status": "Margins: OK",
+      "visible": true,
+      "notes": "",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.0 | 0.786 | 19.0 | Patch width (in strip reading direction) | 8.3 | 0.327 | Strip length | 238.0 | 9.370 | Margins: OK"
+    },
+    "margins_ui": {
+      "t": [
+        38.0,
+        false
+      ],
+      "r": [
+        9.0,
+        false
+      ],
+      "b": [
+        19.0,
+        false
+      ],
+      "l": [
+        26.0,
+        false
+      ]
+    },
+    "recipe": {
+      "layout_mode": "area_first",
+      "area_method": "by_width",
+      "area_cols": 0,
+      "area_rows": 0,
+      "area_ratio": 1.0,
+      "area_min_patch_mm": 0.0,
+      "patch_w_mm": 0.0,
+      "patch_h_mm": 0.0,
+      "pscale": 1.0,
+      "margin_top": 38.0,
+      "margin_right": 9.0,
+      "margin_bottom": 19.0,
+      "margin_left": 26.0,
+      "use_instrument_margins": true,
+      "patch_area_align": "top-left",
+      "clip_border": true,
+      "nolimit": false,
+      "max_strip_mm": 0.0,
+      "paper": "A4"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 525 patches (25\u00d721), 1 page, random start 1931776946",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 2 strips"
+    ],
+    "serious": [],
+    "ti2": {
+      "ti2_sets": 525,
+      "ti2_steps_in_pass": 25,
+      "ti2_passes": "21",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A3-LayoutModes.ti2"
+    },
+    "n_tiffs": 1,
+    "dialogs": [],
+    "unexpected": []
+  },
+  {
+    "tag": "m02-area-bywidth-min12",
+    "note": "area-first by width, min patch width 12 mm",
+    "ok": true,
+    "secs": 2.7,
+    "estimate_before": {
+      "total": 238,
+      "fillup": 0,
+      "page_patches": 238,
+      "rows": 17,
+      "cols": 14,
+      "pages": 1,
+      "patch": [
+        12.49,
+        13.05
+      ],
+      "pitch": null
+    },
+    "actual_after": {
+      "total": 238,
+      "fillup": 0,
+      "page_patches": 238,
+      "rows": 17,
+      "cols": 14,
+      "pages": 1,
+      "patch": [
+        12.53,
+        13.04
+      ],
+      "pitch": null
+    },
+    "estimate_after": {
+      "total": 238,
+      "fillup": 0,
+      "page_patches": 238,
+      "rows": 17,
+      "cols": 14,
+      "pages": 1,
+      "patch": [
+        12.49,
+        13.05
+      ],
+      "pitch": null
+    },
+    "margin_before": {
+      "status": "Margins: OK",
+      "notes": "",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.0 | 0.786 | 19.0 | Patch width (in strip reading direction) | 8.3 | 0.327 | Strip length | 238.0 | 9.370 | Margins: OK"
+    },
+    "margin_after": {
+      "status": "Margins: OK",
+      "visible": true,
+      "notes": "",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.2 | 0.361 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.1 | 0.793 | 19.0 | Patch width (in strip reading direction) | 12.5 | 0.493 | Strip length | 237.8 | 9.363 | Margins: OK"
+    },
+    "margins_ui": {
+      "t": [
+        38.0,
+        false
+      ],
+      "r": [
+        9.0,
+        false
+      ],
+      "b": [
+        19.0,
+        false
+      ],
+      "l": [
+        26.0,
+        false
+      ]
+    },
+    "recipe": {
+      "layout_mode": "area_first",
+      "area_method": "by_width",
+      "area_cols": 0,
+      "area_rows": 0,
+      "area_ratio": 1.0,
+      "area_min_patch_mm": 12.0,
+      "patch_w_mm": 0.0,
+      "patch_h_mm": 0.0,
+      "pscale": 1.0,
+      "margin_top": 38.0,
+      "margin_right": 9.0,
+      "margin_bottom": 19.0,
+      "margin_left": 26.0,
+      "use_instrument_margins": true,
+      "patch_area_align": "top-left",
+      "clip_border": true,
+      "nolimit": false,
+      "max_strip_mm": 0.0,
+      "paper": "A4"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 238 patches (17\u00d714), 1 page, random start 1348490822",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 2 strips"
+    ],
+    "serious": [],
+    "ti2": {
+      "ti2_sets": 238,
+      "ti2_steps_in_pass": 17,
+      "ti2_passes": "14",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A3-LayoutModes.ti2"
+    },
+    "n_tiffs": 1,
+    "dialogs": [],
+    "unexpected": []
+  },
+  {
+    "tag": "m03-area-grid-cols10",
+    "note": "by grid, 10 columns, rows auto",
+    "ok": true,
+    "secs": 2.2,
+    "estimate_before": {
+      "total": 120,
+      "fillup": 0,
+      "page_patches": 120,
+      "rows": 12,
+      "cols": 10,
+      "pages": 1,
+      "patch": [
+        17.49,
+        18.91
+      ],
+      "pitch": null
+    },
+    "actual_after": {
+      "total": 120,
+      "fillup": 0,
+      "page_patches": 120,
+      "rows": 12,
+      "cols": 10,
+      "pages": 1,
+      "patch": [
+        17.53,
+        18.88
+      ],
+      "pitch": null
+    },
+    "estimate_after": {
+      "total": 120,
+      "fillup": 0,
+      "page_patches": 120,
+      "rows": 12,
+      "cols": 10,
+      "pages": 1,
+      "patch": [
+        17.49,
+        18.91
+      ],
+      "pitch": null
+    },
+    "margin_before": {
+      "status": "Margins: OK",
+      "notes": "",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.2 | 0.361 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.1 | 0.793 | 19.0 | Patch width (in strip reading direction) | 12.5 | 0.493 | Strip length | 237.8 | 9.363 | Margins: OK"
+    },
+    "margin_after": {
+      "status": "Margins: OK",
+      "visible": true,
+      "notes": "",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.1 | 0.790 | 19.0 | Patch width (in strip reading direction) | 17.5 | 0.690 | Strip length | 237.9 | 9.367 | Margins: OK"
+    },
+    "margins_ui": {
+      "t": [
+        38.0,
+        false
+      ],
+      "r": [
+        9.0,
+        false
+      ],
+      "b": [
+        19.0,
+        false
+      ],
+      "l": [
+        26.0,
+        false
+      ]
+    },
+    "recipe": {
+      "layout_mode": "area_first",
+      "area_method": "by_grid",
+      "area_cols": 10,
+      "area_rows": 0,
+      "area_ratio": 1.0,
+      "area_min_patch_mm": 0.0,
+      "patch_w_mm": 0.0,
+      "patch_h_mm": 0.0,
+      "pscale": 1.0,
+      "margin_top": 38.0,
+      "margin_right": 9.0,
+      "margin_bottom": 19.0,
+      "margin_left": 26.0,
+      "use_instrument_margins": true,
+      "patch_area_align": "top-left",
+      "clip_border": true,
+      "nolimit": false,
+      "max_strip_mm": 0.0,
+      "paper": "A4"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 120 patches (12\u00d710), 1 page, random start 861943348",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 3 strips"
+    ],
+    "serious": [],
+    "ti2": {
+      "ti2_sets": 120,
+      "ti2_steps_in_pass": 12,
+      "ti2_passes": "10",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A3-LayoutModes.ti2"
+    },
+    "n_tiffs": 1,
+    "dialogs": [],
+    "unexpected": []
+  },
+  {
+    "tag": "m04-area-grid-rows20",
+    "note": "by grid, cols auto, 20 rows",
+    "ok": true,
+    "secs": 2.6,
+    "estimate_before": {
+      "total": 300,
+      "fillup": 0,
+      "page_patches": 300,
+      "rows": 20,
+      "cols": 15,
+      "pages": 1,
+      "patch": [
+        11.66,
+        10.95
+      ],
+      "pitch": null
+    },
+    "actual_after": {
+      "total": 300,
+      "fillup": 0,
+      "page_patches": 300,
+      "rows": 20,
+      "cols": 15,
+      "pages": 1,
+      "patch": [
+        11.68,
+        10.92
+      ],
+      "pitch": null
+    },
+    "estimate_after": {
+      "total": 300,
+      "fillup": 0,
+      "page_patches": 300,
+      "rows": 20,
+      "cols": 15,
+      "pages": 1,
+      "patch": [
+        11.66,
+        10.95
+      ],
+      "pitch": null
+    },
+    "margin_before": {
+      "status": "Margins: OK",
+      "notes": "",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.1 | 0.790 | 19.0 | Patch width (in strip reading direction) | 17.5 | 0.690 | Strip length | 237.9 | 9.367 | Margins: OK"
+    },
+    "margin_after": {
+      "status": "Margins: OK",
+      "visible": true,
+      "notes": "",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.0 | 0.786 | 19.0 | Patch width (in strip reading direction) | 11.7 | 0.460 | Strip length | 238.0 | 9.370 | Margins: OK"
+    },
+    "margins_ui": {
+      "t": [
+        38.0,
+        false
+      ],
+      "r": [
+        9.0,
+        false
+      ],
+      "b": [
+        19.0,
+        false
+      ],
+      "l": [
+        26.0,
+        false
+      ]
+    },
+    "recipe": {
+      "layout_mode": "area_first",
+      "area_method": "by_grid",
+      "area_cols": 0,
+      "area_rows": 20,
+      "area_ratio": 1.0,
+      "area_min_patch_mm": 0.0,
+      "patch_w_mm": 0.0,
+      "patch_h_mm": 0.0,
+      "pscale": 1.0,
+      "margin_top": 38.0,
+      "margin_right": 9.0,
+      "margin_bottom": 19.0,
+      "margin_left": 26.0,
+      "use_instrument_margins": true,
+      "patch_area_align": "top-left",
+      "clip_border": true,
+      "nolimit": false,
+      "max_strip_mm": 0.0,
+      "paper": "A4"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 300 patches (20\u00d715), 1 page, random start 412531242",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 1 strip"
+    ],
+    "serious": [],
+    "ti2": {
+      "ti2_sets": 300,
+      "ti2_steps_in_pass": 20,
+      "ti2_passes": "15",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A3-LayoutModes.ti2"
+    },
+    "n_tiffs": 1,
+    "dialogs": [],
+    "unexpected": []
+  },
+  {
+    "tag": "m05-area-grid-12x18",
+    "note": "by grid, 12 cols x 18 rows pinned",
+    "ok": true,
+    "secs": 2.4,
+    "estimate_before": {
+      "total": 216,
+      "fillup": 0,
+      "page_patches": 216,
+      "rows": 18,
+      "cols": 12,
+      "pages": 1,
+      "patch": [
+        14.58,
+        12.27
+      ],
+      "pitch": null
+    },
+    "actual_after": {
+      "total": 216,
+      "fillup": 0,
+      "page_patches": 216,
+      "rows": 18,
+      "cols": 12,
+      "pages": 1,
+      "patch": [
+        14.56,
+        12.28
+      ],
+      "pitch": null
+    },
+    "estimate_after": {
+      "total": 216,
+      "fillup": 0,
+      "page_patches": 216,
+      "rows": 18,
+      "cols": 12,
+      "pages": 1,
+      "patch": [
+        14.58,
+        12.27
+      ],
+      "pitch": null
+    },
+    "margin_before": {
+      "status": "Margins: OK",
+      "notes": "",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.0 | 0.786 | 19.0 | Patch width (in strip reading direction) | 11.7 | 0.460 | Strip length | 238.0 | 9.370 | Margins: OK"
+    },
+    "margin_after": {
+      "status": "Margins: OK",
+      "visible": true,
+      "notes": "",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.0 | 0.354 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.1 | 0.793 | 19.0 | Patch width (in strip reading direction) | 14.6 | 0.573 | Strip length | 237.8 | 9.363 | Margins: OK"
+    },
+    "margins_ui": {
+      "t": [
+        38.0,
+        false
+      ],
+      "r": [
+        9.0,
+        false
+      ],
+      "b": [
+        19.0,
+        false
+      ],
+      "l": [
+        26.0,
+        false
+      ]
+    },
+    "recipe": {
+      "layout_mode": "area_first",
+      "area_method": "by_grid",
+      "area_cols": 12,
+      "area_rows": 18,
+      "area_ratio": 1.0,
+      "area_min_patch_mm": 0.0,
+      "patch_w_mm": 0.0,
+      "patch_h_mm": 0.0,
+      "pscale": 1.0,
+      "margin_top": 38.0,
+      "margin_right": 9.0,
+      "margin_bottom": 19.0,
+      "margin_left": 26.0,
+      "use_instrument_margins": true,
+      "patch_area_align": "top-left",
+      "clip_border": true,
+      "nolimit": false,
+      "max_strip_mm": 0.0,
+      "paper": "A4"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 216 patches (18\u00d712), 1 page, random start 1703024572",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 3 strips"
+    ],
+    "serious": [],
+    "ti2": {
+      "ti2_sets": 216,
+      "ti2_steps_in_pass": 18,
+      "ti2_passes": "12",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A3-LayoutModes.ti2"
+    },
+    "n_tiffs": 1,
+    "dialogs": [],
+    "unexpected": []
+  },
+  {
+    "tag": "m06-area-ratio150",
+    "note": "area-first, height 150 % of width",
+    "ok": true,
+    "secs": 3.0,
+    "estimate_before": {
+      "total": 357,
+      "fillup": 0,
+      "page_patches": 357,
+      "rows": 17,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        13.05
+      ],
+      "pitch": null
+    },
+    "actual_after": {
+      "total": 357,
+      "fillup": 0,
+      "page_patches": 357,
+      "rows": 17,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.3,
+        13.04
+      ],
+      "pitch": null
+    },
+    "estimate_after": {
+      "total": 357,
+      "fillup": 0,
+      "page_patches": 357,
+      "rows": 17,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        13.05
+      ],
+      "pitch": null
+    },
+    "margin_before": {
+      "status": "Margins: OK",
+      "notes": "",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.0 | 0.354 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.1 | 0.793 | 19.0 | Patch width (in strip reading direction) | 14.6 | 0.573 | Strip length | 237.8 | 9.363 | Margins: OK"
+    },
+    "margin_after": {
+      "status": "Margins: OK",
+      "visible": true,
+      "notes": "",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.1 | 0.793 | 19.0 | Patch width (in strip reading direction) | 8.3 | 0.327 | Strip length | 237.8 | 9.363 | Margins: OK"
+    },
+    "margins_ui": {
+      "t": [
+        38.0,
+        false
+      ],
+      "r": [
+        9.0,
+        false
+      ],
+      "b": [
+        19.0,
+        false
+      ],
+      "l": [
+        26.0,
+        false
+      ]
+    },
+    "recipe": {
+      "layout_mode": "area_first",
+      "area_method": "by_width",
+      "area_cols": 0,
+      "area_rows": 0,
+      "area_ratio": 1.5,
+      "area_min_patch_mm": 0.0,
+      "patch_w_mm": 0.0,
+      "patch_h_mm": 0.0,
+      "pscale": 1.0,
+      "margin_top": 38.0,
+      "margin_right": 9.0,
+      "margin_bottom": 19.0,
+      "margin_left": 26.0,
+      "use_instrument_margins": true,
+      "patch_area_align": "top-left",
+      "clip_border": true,
+      "nolimit": false,
+      "max_strip_mm": 0.0,
+      "paper": "A4"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 357 patches (17\u00d721), 1 page, random start 817630822",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 2 strips"
+    ],
+    "serious": [],
+    "ti2": {
+      "ti2_sets": 357,
+      "ti2_steps_in_pass": 17,
+      "ti2_passes": "21",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A3-LayoutModes.ti2"
+    },
+    "n_tiffs": 1,
+    "dialogs": [],
+    "unexpected": []
+  },
+  {
+    "tag": "m07-patchfirst-auto",
+    "note": "patch-first, size auto",
+    "ok": true,
+    "secs": 2.8,
+    "estimate_before": {
+      "total": 441,
+      "fillup": 0,
+      "page_patches": 441,
+      "rows": 21,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.0,
+        10.0
+      ],
+      "pitch": null
+    },
+    "actual_after": {
+      "total": 441,
+      "fillup": 0,
+      "page_patches": 441,
+      "rows": 21,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.04,
+        9.99
+      ],
+      "pitch": null
+    },
+    "estimate_after": {
+      "total": 441,
+      "fillup": 0,
+      "page_patches": 441,
+      "rows": 21,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.0,
+        10.0
+      ],
+      "pitch": null
+    },
+    "margin_before": {
+      "status": "Margins: OK",
+      "notes": "",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.1 | 0.793 | 19.0 | Patch width (in strip reading direction) | 8.3 | 0.327 | Strip length | 237.8 | 9.363 | Margins: OK"
+    },
+    "margin_after": {
+      "status": "Margins: OK",
+      "visible": true,
+      "notes": "",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 16.0 | 0.631 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 28.0 | 1.103 | 19.0 | Patch width (in strip reading direction) | 8.0 | 0.317 | Strip length | 230.0 | 9.053 | Margins: OK"
+    },
+    "margins_ui": {
+      "t": [
+        38.0,
+        false
+      ],
+      "r": [
+        9.0,
+        false
+      ],
+      "b": [
+        19.0,
+        false
+      ],
+      "l": [
+        26.0,
+        false
+      ]
+    },
+    "recipe": {
+      "layout_mode": "patch_first",
+      "area_method": "by_width",
+      "area_cols": 0,
+      "area_rows": 0,
+      "area_ratio": 1.0,
+      "area_min_patch_mm": 0.0,
+      "patch_w_mm": 0.0,
+      "patch_h_mm": 0.0,
+      "pscale": 1.0,
+      "margin_top": 38.0,
+      "margin_right": 9.0,
+      "margin_bottom": 19.0,
+      "margin_left": 26.0,
+      "use_instrument_margins": true,
+      "patch_area_align": "top-left",
+      "clip_border": true,
+      "nolimit": false,
+      "max_strip_mm": 0.0,
+      "paper": "A4"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 441 patches (21\u00d721), 1 page, random start 1199624218",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 2 strips"
+    ],
+    "serious": [],
+    "ti2": {
+      "ti2_sets": 441,
+      "ti2_steps_in_pass": 21,
+      "ti2_passes": "21",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A3-LayoutModes.ti2"
+    },
+    "n_tiffs": 1,
+    "dialogs": [],
+    "unexpected": []
+  },
+  {
+    "tag": "m08-patchfirst-15x15",
+    "note": "patch-first, 15 x 15 mm",
+    "ok": true,
+    "secs": 2.2,
+    "estimate_before": {
+      "total": 154,
+      "fillup": 0,
+      "page_patches": 154,
+      "rows": 14,
+      "cols": 11,
+      "pages": 1,
+      "patch": [
+        15.0,
+        15.0
+      ],
+      "pitch": null
+    },
+    "actual_after": {
+      "total": 154,
+      "fillup": 0,
+      "page_patches": 154,
+      "rows": 14,
+      "cols": 11,
+      "pages": 1,
+      "patch": [
+        14.99,
+        14.99
+      ],
+      "pitch": null
+    },
+    "estimate_after": {
+      "total": 154,
+      "fillup": 0,
+      "page_patches": 154,
+      "rows": 14,
+      "cols": 11,
+      "pages": 1,
+      "patch": [
+        15.0,
+        15.0
+      ],
+      "pitch": null
+    },
+    "margin_before": {
+      "status": "Margins: OK",
+      "notes": "",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 16.0 | 0.631 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 28.0 | 1.103 | 19.0 | Patch width (in strip reading direction) | 8.0 | 0.317 | Strip length | 230.0 | 9.053 | Margins: OK"
+    },
+    "margin_after": {
+      "status": "Margins: OK",
+      "visible": true,
+      "notes": "",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 19.0 | 0.748 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 35.0 | 1.380 | 19.0 | Patch width (in strip reading direction) | 15.0 | 0.590 | Strip length | 222.9 | 8.777 | Margins: OK"
+    },
+    "margins_ui": {
+      "t": [
+        38.0,
+        false
+      ],
+      "r": [
+        9.0,
+        false
+      ],
+      "b": [
+        19.0,
+        false
+      ],
+      "l": [
+        26.0,
+        false
+      ]
+    },
+    "recipe": {
+      "layout_mode": "patch_first",
+      "area_method": "by_width",
+      "area_cols": 0,
+      "area_rows": 0,
+      "area_ratio": 1.0,
+      "area_min_patch_mm": 0.0,
+      "patch_w_mm": 15.0,
+      "patch_h_mm": 15.0,
+      "pscale": 1.0,
+      "margin_top": 38.0,
+      "margin_right": 9.0,
+      "margin_bottom": 19.0,
+      "margin_left": 26.0,
+      "use_instrument_margins": true,
+      "patch_area_align": "top-left",
+      "clip_border": true,
+      "nolimit": false,
+      "max_strip_mm": 0.0,
+      "paper": "A4"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 154 patches (14\u00d711), 1 page, random start 387822838"
+    ],
+    "serious": [],
+    "ti2": {
+      "ti2_sets": 154,
+      "ti2_steps_in_pass": 14,
+      "ti2_passes": "11",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A3-LayoutModes.ti2"
+    },
+    "n_tiffs": 1,
+    "dialogs": [],
+    "unexpected": []
+  },
+  {
+    "tag": "m09-patchfirst-scale2",
+    "note": "patch-first, patch scale 2.0",
+    "ok": true,
+    "secs": 2.5,
+    "estimate_before": {
+      "total": 100,
+      "fillup": 0,
+      "page_patches": 100,
+      "rows": 10,
+      "cols": 10,
+      "pages": 1,
+      "patch": [
+        16.0,
+        20.0
+      ],
+      "pitch": null
+    },
+    "actual_after": {
+      "total": 100,
+      "fillup": 0,
+      "page_patches": 100,
+      "rows": 10,
+      "cols": 10,
+      "pages": 1,
+      "patch": [
+        16.0,
+        20.07
+      ],
+      "pitch": null
+    },
+    "estimate_after": {
+      "total": 100,
+      "fillup": 0,
+      "page_patches": 100,
+      "rows": 10,
+      "cols": 10,
+      "pages": 1,
+      "patch": [
+        16.0,
+        20.0
+      ],
+      "pitch": null
+    },
+    "margin_before": {
+      "status": "Margins: OK",
+      "notes": "",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 19.0 | 0.748 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 35.0 | 1.380 | 19.0 | Patch width (in strip reading direction) | 15.0 | 0.590 | Strip length | 222.9 | 8.777 | Margins: OK"
+    },
+    "margin_after": {
+      "status": "Margins: OK",
+      "visible": true,
+      "notes": "",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 24.0 | 0.944 | 9.0 | Top (to first patch) | 40.0 | 1.573 | 38.0 | Bottom (to first patch) | 39.0 | 1.536 | 19.0 | Patch width (in strip reading direction) | 16.0 | 0.630 | Strip length | 218.0 | 8.583 | Margins: OK"
+    },
+    "margins_ui": {
+      "t": [
+        38.0,
+        false
+      ],
+      "r": [
+        9.0,
+        false
+      ],
+      "b": [
+        19.0,
+        false
+      ],
+      "l": [
+        26.0,
+        false
+      ]
+    },
+    "recipe": {
+      "layout_mode": "patch_first",
+      "area_method": "by_width",
+      "area_cols": 0,
+      "area_rows": 0,
+      "area_ratio": 1.0,
+      "area_min_patch_mm": 0.0,
+      "patch_w_mm": 0.0,
+      "patch_h_mm": 0.0,
+      "pscale": 2.0,
+      "margin_top": 38.0,
+      "margin_right": 9.0,
+      "margin_bottom": 19.0,
+      "margin_left": 26.0,
+      "use_instrument_margins": true,
+      "patch_area_align": "top-left",
+      "clip_border": true,
+      "nolimit": false,
+      "max_strip_mm": 0.0,
+      "paper": "A4"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 100 patches (10\u00d710), 1 page, random start 543544805",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 2 strips"
+    ],
+    "serious": [],
+    "ti2": {
+      "ti2_sets": 100,
+      "ti2_steps_in_pass": 10,
+      "ti2_passes": "10",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A3-LayoutModes.ti2"
+    },
+    "n_tiffs": 1,
+    "dialogs": [],
+    "unexpected": []
+  },
+  {
+    "tag": "m10-patchfirst-align-center",
+    "note": "patch-first, align centre",
+    "ok": true,
+    "secs": 2.8,
+    "estimate_before": {
+      "total": 441,
+      "fillup": 0,
+      "page_patches": 441,
+      "rows": 21,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.0,
+        10.0
+      ],
+      "pitch": null
+    },
+    "actual_after": {
+      "total": 441,
+      "fillup": 0,
+      "page_patches": 441,
+      "rows": 21,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.04,
+        9.99
+      ],
+      "pitch": null
+    },
+    "estimate_after": {
+      "total": 441,
+      "fillup": 0,
+      "page_patches": 441,
+      "rows": 21,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.0,
+        10.0
+      ],
+      "pitch": null
+    },
+    "margin_before": {
+      "status": "Margins: OK",
+      "notes": "",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 24.0 | 0.944 | 9.0 | Top (to first patch) | 40.0 | 1.573 | 38.0 | Bottom (to first patch) | 39.0 | 1.536 | 19.0 | Patch width (in strip reading direction) | 16.0 | 0.630 | Strip length | 218.0 | 8.583 | Margins: OK"
+    },
+    "margin_after": {
+      "status": "Margins: OK",
+      "visible": true,
+      "notes": "",
+      "text": "mm | inch | min | Left (to first patch) | 29.5 | 1.160 | 26.0 | Right (to first patch) | 12.5 | 0.491 | 9.0 | Top (to first patch) | 43.0 | 1.693 | 38.0 | Bottom (to first patch) | 24.0 | 0.946 | 19.0 | Patch width (in strip reading direction) | 8.0 | 0.317 | Strip length | 230.0 | 9.053 | Margins: OK"
+    },
+    "margins_ui": {
+      "t": [
+        38.0,
+        false
+      ],
+      "r": [
+        9.0,
+        false
+      ],
+      "b": [
+        19.0,
+        false
+      ],
+      "l": [
+        26.0,
+        false
+      ]
+    },
+    "recipe": {
+      "layout_mode": "patch_first",
+      "area_method": "by_width",
+      "area_cols": 0,
+      "area_rows": 0,
+      "area_ratio": 1.0,
+      "area_min_patch_mm": 0.0,
+      "patch_w_mm": 0.0,
+      "patch_h_mm": 0.0,
+      "pscale": 1.0,
+      "margin_top": 38.0,
+      "margin_right": 9.0,
+      "margin_bottom": 19.0,
+      "margin_left": 26.0,
+      "use_instrument_margins": true,
+      "patch_area_align": "center",
+      "clip_border": true,
+      "nolimit": false,
+      "max_strip_mm": 0.0,
+      "paper": "A4"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 441 patches (21\u00d721), 1 page, random start 1534143379",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 2 strips"
+    ],
+    "serious": [],
+    "ti2": {
+      "ti2_sets": 441,
+      "ti2_steps_in_pass": 21,
+      "ti2_passes": "21",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A3-LayoutModes.ti2"
+    },
+    "n_tiffs": 1,
+    "dialogs": [],
+    "unexpected": []
+  },
+  {
+    "tag": "m11-patchfirst-align-bottomright",
+    "note": "patch-first, align bottom-right",
+    "ok": true,
+    "secs": 2.8,
+    "estimate_before": {
+      "total": 441,
+      "fillup": 0,
+      "page_patches": 441,
+      "rows": 21,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.0,
+        10.0
+      ],
+      "pitch": null
+    },
+    "actual_after": {
+      "total": 441,
+      "fillup": 0,
+      "page_patches": 441,
+      "rows": 21,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        7.96,
+        9.99
+      ],
+      "pitch": null
+    },
+    "estimate_after": {
+      "total": 441,
+      "fillup": 0,
+      "page_patches": 441,
+      "rows": 21,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.0,
+        10.0
+      ],
+      "pitch": null
+    },
+    "margin_before": {
+      "status": "Margins: OK",
+      "notes": "",
+      "text": "mm | inch | min | Left (to first patch) | 29.5 | 1.160 | 26.0 | Right (to first patch) | 12.5 | 0.491 | 9.0 | Top (to first patch) | 43.0 | 1.693 | 38.0 | Bottom (to first patch) | 24.0 | 0.946 | 19.0 | Patch width (in strip reading direction) | 8.0 | 0.317 | Strip length | 230.0 | 9.053 | Margins: OK"
+    },
+    "margin_after": {
+      "status": "Margins: OK",
+      "visible": true,
+      "notes": "",
+      "text": "mm | inch | min | Left (to first patch) | 33.0 | 1.300 | 26.0 | Right (to first patch) | 9.0 | 0.354 | 9.0 | Top (to first patch) | 47.0 | 1.850 | 38.0 | Bottom (to first patch) | 20.0 | 0.786 | 19.0 | Patch width (in strip reading direction) | 8.0 | 0.313 | Strip length | 230.0 | 9.057 | Margins: OK"
+    },
+    "margins_ui": {
+      "t": [
+        38.0,
+        false
+      ],
+      "r": [
+        9.0,
+        false
+      ],
+      "b": [
+        19.0,
+        false
+      ],
+      "l": [
+        26.0,
+        false
+      ]
+    },
+    "recipe": {
+      "layout_mode": "patch_first",
+      "area_method": "by_width",
+      "area_cols": 0,
+      "area_rows": 0,
+      "area_ratio": 1.0,
+      "area_min_patch_mm": 0.0,
+      "patch_w_mm": 0.0,
+      "patch_h_mm": 0.0,
+      "pscale": 1.0,
+      "margin_top": 38.0,
+      "margin_right": 9.0,
+      "margin_bottom": 19.0,
+      "margin_left": 26.0,
+      "use_instrument_margins": true,
+      "patch_area_align": "bottom-right",
+      "clip_border": true,
+      "nolimit": false,
+      "max_strip_mm": 0.0,
+      "paper": "A4"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 441 patches (21\u00d721), 1 page, random start 606272270",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 4 strips"
+    ],
+    "serious": [],
+    "ti2": {
+      "ti2_sets": 441,
+      "ti2_steps_in_pass": 21,
+      "ti2_passes": "21",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A3-LayoutModes.ti2"
+    },
+    "n_tiffs": 1,
+    "dialogs": [],
+    "unexpected": []
+  },
+  {
+    "tag": "m12-area-fixed300",
+    "note": "area-first by width, FIXED -f 300",
+    "ok": true,
+    "secs": 2.4,
+    "estimate_before": {
+      "total": 450,
+      "fillup": 9,
+      "page_patches": 450,
+      "rows": 25,
+      "cols": 18,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "actual_after": {
+      "total": 304,
+      "fillup": 4,
+      "page_patches": 304,
+      "rows": 19,
+      "cols": 16,
+      "pages": 1,
+      "patch": [
+        10.92,
+        11.51
+      ],
+      "pitch": null
+    },
+    "estimate_after": {
+      "total": 325,
+      "fillup": 21,
+      "page_patches": 325,
+      "rows": 25,
+      "cols": 13,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "margin_before": {
+      "status": "Margins: OK",
+      "notes": "",
+      "text": "mm | inch | min | Left (to first patch) | 33.0 | 1.300 | 26.0 | Right (to first patch) | 9.0 | 0.354 | 9.0 | Top (to first patch) | 47.0 | 1.850 | 38.0 | Bottom (to first patch) | 20.0 | 0.786 | 19.0 | Patch width (in strip reading direction) | 8.0 | 0.313 | Strip length | 230.0 | 9.057 | Margins: OK"
+    },
+    "margin_after": {
+      "status": "Margins: OK",
+      "visible": true,
+      "notes": "",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.1 | 0.793 | 19.0 | Patch width (in strip reading direction) | 10.9 | 0.430 | Strip length | 237.8 | 9.363 | Margins: OK"
+    },
+    "margins_ui": {
+      "t": [
+        38.0,
+        false
+      ],
+      "r": [
+        9.0,
+        false
+      ],
+      "b": [
+        19.0,
+        false
+      ],
+      "l": [
+        26.0,
+        false
+      ]
+    },
+    "recipe": {
+      "layout_mode": "area_first",
+      "area_method": "by_width",
+      "area_cols": 0,
+      "area_rows": 0,
+      "area_ratio": 1.0,
+      "area_min_patch_mm": 0.0,
+      "patch_w_mm": 0.0,
+      "patch_h_mm": 0.0,
+      "pscale": 1.0,
+      "margin_top": 38.0,
+      "margin_right": 9.0,
+      "margin_bottom": 19.0,
+      "margin_left": 26.0,
+      "use_instrument_margins": true,
+      "patch_area_align": "top-left",
+      "clip_border": true,
+      "nolimit": false,
+      "max_strip_mm": 0.0,
+      "paper": "A4"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 304 patches (19\u00d716), 1 page, random start 1632187709",
+      "[ChromIQ layout engine] patch count: 300 designed + 4 paper-white fill-up patches completing the last strip = 304 total. Instruments read whole strips; the fill-up patches are measured like any others.",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 2 strips"
+    ],
+    "serious": [],
+    "ti2": {
+      "ti2_sets": 304,
+      "ti2_steps_in_pass": 19,
+      "ti2_passes": "16",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A3-LayoutModes.ti2"
+    },
+    "n_tiffs": 1,
+    "dialogs": [
+      "clicked 'OK'"
+    ],
+    "unexpected": []
+  },
+  {
+    "tag": "m13-patchfirst-fixed300",
+    "note": "patch-first, FIXED -f 300",
+    "ok": true,
+    "secs": 2.0,
+    "estimate_before": {
+      "total": 315,
+      "fillup": 11,
+      "page_patches": 315,
+      "rows": 21,
+      "cols": 15,
+      "pages": 1,
+      "patch": [
+        8.0,
+        10.0
+      ],
+      "pitch": null
+    },
+    "actual_after": {
+      "total": 315,
+      "fillup": 15,
+      "page_patches": 315,
+      "rows": 21,
+      "cols": 15,
+      "pages": 1,
+      "patch": [
+        8.04,
+        9.99
+      ],
+      "pitch": null
+    },
+    "estimate_after": {
+      "total": 315,
+      "fillup": 0,
+      "page_patches": 315,
+      "rows": 21,
+      "cols": 15,
+      "pages": 1,
+      "patch": [
+        8.0,
+        10.0
+      ],
+      "pitch": null
+    },
+    "margin_before": {
+      "status": "Margins: OK",
+      "notes": "",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.1 | 0.793 | 19.0 | Patch width (in strip reading direction) | 10.9 | 0.430 | Strip length | 237.8 | 9.363 | Margins: OK"
+    },
+    "margin_after": {
+      "status": "Margins: OK",
+      "visible": true,
+      "notes": "",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 64.0 | 2.521 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 28.0 | 1.103 | 19.0 | Patch width (in strip reading direction) | 8.0 | 0.317 | Strip length | 230.0 | 9.053 | Margins: OK"
+    },
+    "margins_ui": {
+      "t": [
+        38.0,
+        false
+      ],
+      "r": [
+        9.0,
+        false
+      ],
+      "b": [
+        19.0,
+        false
+      ],
+      "l": [
+        26.0,
+        false
+      ]
+    },
+    "recipe": {
+      "layout_mode": "patch_first",
+      "area_method": "by_width",
+      "area_cols": 0,
+      "area_rows": 0,
+      "area_ratio": 1.0,
+      "area_min_patch_mm": 0.0,
+      "patch_w_mm": 0.0,
+      "patch_h_mm": 0.0,
+      "pscale": 1.0,
+      "margin_top": 38.0,
+      "margin_right": 9.0,
+      "margin_bottom": 19.0,
+      "margin_left": 26.0,
+      "use_instrument_margins": true,
+      "patch_area_align": "top-left",
+      "clip_border": true,
+      "nolimit": false,
+      "max_strip_mm": 0.0,
+      "paper": "A4"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 315 patches (21\u00d715), 1 page, random start 598585871",
+      "[ChromIQ layout engine] patch count: 300 designed + 15 paper-white fill-up patches completing the last strip = 315 total. Instruments read whole strips; the fill-up patches are measured like any others.",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 1 strip"
+    ],
+    "serious": [],
+    "ti2": {
+      "ti2_sets": 315,
+      "ti2_steps_in_pass": 21,
+      "ti2_passes": "15",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A3-LayoutModes.ti2"
+    },
+    "n_tiffs": 1,
+    "dialogs": [
+      "clicked 'OK'",
+      "clicked 'OK'"
+    ],
+    "unexpected": []
+  },
+  {
+    "tag": "m14-grid12x18-fixed300",
+    "note": "by grid 12x18 pinned, FIXED -f 300",
+    "ok": true,
+    "secs": 2.7,
+    "estimate_before": {
+      "total": 324,
+      "fillup": 9,
+      "page_patches": 216,
+      "rows": 18,
+      "cols": 12,
+      "pages": 2,
+      "patch": [
+        14.58,
+        12.27
+      ],
+      "pitch": null
+    },
+    "actual_after": {
+      "total": 306,
+      "fillup": 6,
+      "page_patches": 216,
+      "rows": 18,
+      "cols": 12,
+      "pages": 2,
+      "patch": [
+        14.56,
+        12.28
+      ],
+      "pitch": null
+    },
+    "estimate_after": {
+      "total": 306,
+      "fillup": 0,
+      "page_patches": 216,
+      "rows": 18,
+      "cols": 12,
+      "pages": 2,
+      "patch": [
+        14.58,
+        12.27
+      ],
+      "pitch": null
+    },
+    "margin_before": {
+      "status": "Margins: OK",
+      "notes": "",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 64.0 | 2.521 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 28.0 | 1.103 | 19.0 | Patch width (in strip reading direction) | 8.0 | 0.317 | Strip length | 230.0 | 9.053 | Margins: OK"
+    },
+    "margin_after": {
+      "status": "Margins: OK",
+      "visible": true,
+      "notes": "",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.0 | 0.354 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.1 | 0.793 | 19.0 | Patch width (in strip reading direction) | 14.6 | 0.573 | Strip length | 237.8 | 9.363 | Margins: OK"
+    },
+    "margins_ui": {
+      "t": [
+        38.0,
+        false
+      ],
+      "r": [
+        9.0,
+        false
+      ],
+      "b": [
+        19.0,
+        false
+      ],
+      "l": [
+        26.0,
+        false
+      ]
+    },
+    "recipe": {
+      "layout_mode": "area_first",
+      "area_method": "by_grid",
+      "area_cols": 12,
+      "area_rows": 18,
+      "area_ratio": 1.0,
+      "area_min_patch_mm": 0.0,
+      "patch_w_mm": 0.0,
+      "patch_h_mm": 0.0,
+      "pscale": 1.0,
+      "margin_top": 38.0,
+      "margin_right": 9.0,
+      "margin_bottom": 19.0,
+      "margin_left": 26.0,
+      "use_instrument_margins": true,
+      "patch_area_align": "top-left",
+      "clip_border": true,
+      "nolimit": false,
+      "max_strip_mm": 0.0,
+      "paper": "A4"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 306 patches (18\u00d75), 2 pages, random start 26016906",
+      "[ChromIQ layout engine] patch count: 300 designed + 6 paper-white fill-up patches completing the last strip = 306 total. Instruments read whole strips; the fill-up patches are measured like any others.",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 1 strip"
+    ],
+    "serious": [],
+    "ti2": {
+      "ti2_sets": 306,
+      "ti2_steps_in_pass": 18,
+      "ti2_passes": "12,5",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A3-LayoutModes.ti2"
+    },
+    "n_tiffs": 2,
+    "dialogs": [
+      "clicked 'OK'",
+      "clicked 'OK'"
+    ],
+    "unexpected": []
+  },
+  {
+    "tag": "g01-own-6666",
+    "note": "own margins 6/6/6/6, instrument margins off",
+    "ok": true,
+    "secs": 3.8,
+    "estimate_before": {
+      "total": 682,
+      "fillup": 0,
+      "page_patches": 682,
+      "rows": 31,
+      "cols": 22,
+      "pages": 1,
+      "patch": [
+        8.09,
+        8.15
+      ],
+      "pitch": null
+    },
+    "actual_after": {
+      "total": 682,
+      "fillup": 0,
+      "page_patches": 682,
+      "rows": 31,
+      "cols": 22,
+      "pages": 1,
+      "patch": [
+        8.13,
+        8.13
+      ],
+      "pitch": null
+    },
+    "estimate_after": {
+      "total": 682,
+      "fillup": 0,
+      "page_patches": 682,
+      "rows": 31,
+      "cols": 22,
+      "pages": 1,
+      "patch": [
+        8.09,
+        8.15
+      ],
+      "pitch": null
+    },
+    "margin_before": {
+      "status": "Margins: OK",
+      "notes": "",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.0 | 0.354 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.1 | 0.793 | 19.0 | Patch width (in strip reading direction) | 14.6 | 0.573 | Strip length | 237.8 | 9.363 | Margins: OK"
+    },
+    "margin_after": {
+      "status": "",
+      "visible": false,
+      "notes": "\u26a0 Top margin is too small for the strip labels \u2014 they overflow toward the page edge.\n\n\u26a0 Strip length 282 mm exceeds the 240 mm instrument ruler \u2014 the strip may not fit your jig",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 6.0 | Right (to first patch) | 6.0 | 0.238 | 6.0 | Top (to first patch) | 7.0 | 0.277 | 6.0 | Bottom (to first patch) | 7.7 | 0.303 | 6.0 | Patch width (in strip reading direction) | 8.1 | 0.320 | Strip length | 282.3 | 11.113"
+    },
+    "margins_ui": {
+      "t": [
+        6.0,
+        true
+      ],
+      "r": [
+        6.0,
+        true
+      ],
+      "b": [
+        6.0,
+        true
+      ],
+      "l": [
+        6.0,
+        true
+      ]
+    },
+    "recipe": {
+      "layout_mode": "area_first",
+      "area_method": "by_width",
+      "area_cols": 0,
+      "area_rows": 0,
+      "area_ratio": 1.0,
+      "area_min_patch_mm": 0.0,
+      "patch_w_mm": 0.0,
+      "patch_h_mm": 0.0,
+      "pscale": 1.0,
+      "margin_top": 6.0,
+      "margin_right": 6.0,
+      "margin_bottom": 6.0,
+      "margin_left": 6.0,
+      "use_instrument_margins": false,
+      "patch_area_align": "top-left",
+      "clip_border": true,
+      "nolimit": false,
+      "max_strip_mm": 0.0,
+      "paper": "A4"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 682 patches (31\u00d722), 1 page, random start 1354885208",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 3 strips"
+    ],
+    "serious": [],
+    "ti2": {
+      "ti2_sets": 682,
+      "ti2_steps_in_pass": 31,
+      "ti2_passes": "22",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A3-LayoutModes.ti2"
+    },
+    "n_tiffs": 1,
+    "dialogs": [
+      "clicked 'OK'",
+      "clicked 'OK'"
+    ],
+    "unexpected": []
+  },
+  {
+    "tag": "g02-own-0000",
+    "note": "own margins 0/0/0/0",
+    "ok": true,
+    "secs": 3.8,
+    "estimate_before": {
+      "total": 736,
+      "fillup": 0,
+      "page_patches": 736,
+      "rows": 32,
+      "cols": 23,
+      "pages": 1,
+      "patch": [
+        7.99,
+        8.25
+      ],
+      "pitch": null
+    },
+    "actual_after": {
+      "total": 736,
+      "fillup": 0,
+      "page_patches": 736,
+      "rows": 32,
+      "cols": 23,
+      "pages": 1,
+      "patch": [
+        7.96,
+        8.21
+      ],
+      "pitch": null
+    },
+    "estimate_after": {
+      "total": 736,
+      "fillup": 0,
+      "page_patches": 736,
+      "rows": 32,
+      "cols": 23,
+      "pages": 1,
+      "patch": [
+        7.99,
+        8.25
+      ],
+      "pitch": null
+    },
+    "margin_before": {
+      "status": "",
+      "notes": "\u26a0 Top margin is too small for the strip labels \u2014 they overflow toward the page edge.\n\n\u26a0 Strip length 282 mm exceeds the 240 mm instrument ruler \u2014 the strip may not fit your jig",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 6.0 | Right (to first patch) | 6.0 | 0.238 | 6.0 | Top (to first patch) | 7.0 | 0.277 | 6.0 | Bottom (to first patch) | 7.7 | 0.303 | 6.0 | Patch width (in strip reading direction) | 8.1 | 0.320 | Strip length | 282.3 | 11.113"
+    },
+    "margin_after": {
+      "status": "",
+      "visible": false,
+      "notes": "\u26a0 Top margin is too small for the strip labels \u2014 they overflow toward the page edge.\n\n\u26a0 Strip length 295 mm exceeds the 240 mm instrument ruler \u2014 the strip may not fit your jig",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 0.0 | Right (to first patch) | 0.2 | 0.008 | 0.0 | Top (to first patch) | 1.0 | 0.040 | 0.0 | Bottom (to first patch) | 1.0 | 0.040 | 0.0 | Patch width (in strip reading direction) | 8.0 | 0.313 | Strip length | 295.0 | 11.613"
+    },
+    "margins_ui": {
+      "t": [
+        0.0,
+        true
+      ],
+      "r": [
+        0.0,
+        true
+      ],
+      "b": [
+        0.0,
+        true
+      ],
+      "l": [
+        0.0,
+        true
+      ]
+    },
+    "recipe": {
+      "layout_mode": "area_first",
+      "area_method": "by_width",
+      "area_cols": 0,
+      "area_rows": 0,
+      "area_ratio": 1.0,
+      "area_min_patch_mm": 0.0,
+      "patch_w_mm": 0.0,
+      "patch_h_mm": 0.0,
+      "pscale": 1.0,
+      "margin_top": 0.0,
+      "margin_right": 0.0,
+      "margin_bottom": 0.0,
+      "margin_left": 0.0,
+      "use_instrument_margins": false,
+      "patch_area_align": "top-left",
+      "clip_border": true,
+      "nolimit": false,
+      "max_strip_mm": 0.0,
+      "paper": "A4"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 736 patches (32\u00d723), 1 page, random start 940648721",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 5 strips"
+    ],
+    "serious": [],
+    "ti2": {
+      "ti2_sets": 736,
+      "ti2_steps_in_pass": 32,
+      "ti2_passes": "23",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A3-LayoutModes.ti2"
+    },
+    "n_tiffs": 1,
+    "dialogs": [
+      "clicked 'OK'",
+      "clicked 'OK'"
+    ],
+    "unexpected": []
+  },
+  {
+    "tag": "g03-own-60606060",
+    "note": "own margins 60/60/60/60 (max)",
+    "ok": true,
+    "secs": 2.5,
+    "estimate_before": {
+      "total": 209,
+      "fillup": 0,
+      "page_patches": 209,
+      "rows": 19,
+      "cols": 11,
+      "pages": 1,
+      "patch": [
+        8.18,
+        8.26
+      ],
+      "pitch": null
+    },
+    "actual_after": {
+      "total": 209,
+      "fillup": 0,
+      "page_patches": 209,
+      "rows": 19,
+      "cols": 11,
+      "pages": 1,
+      "patch": [
+        8.13,
+        8.3
+      ],
+      "pitch": null
+    },
+    "estimate_after": {
+      "total": 209,
+      "fillup": 0,
+      "page_patches": 209,
+      "rows": 19,
+      "cols": 11,
+      "pages": 1,
+      "patch": [
+        8.18,
+        8.26
+      ],
+      "pitch": null
+    },
+    "margin_before": {
+      "status": "",
+      "notes": "\u26a0 Top margin is too small for the strip labels \u2014 they overflow toward the page edge.\n\n\u26a0 Strip length 295 mm exceeds the 240 mm instrument ruler \u2014 the strip may not fit your jig",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 0.0 | Right (to first patch) | 0.2 | 0.008 | 0.0 | Top (to first patch) | 1.0 | 0.040 | 0.0 | Bottom (to first patch) | 1.0 | 0.040 | 0.0 | Patch width (in strip reading direction) | 8.0 | 0.313 | Strip length | 295.0 | 11.613"
+    },
+    "margin_after": {
+      "status": "Margins: OK",
+      "visible": true,
+      "notes": "",
+      "text": "mm | inch | min | Left (to first patch) | 60.0 | 2.363 | 60.0 | Right (to first patch) | 60.1 | 2.364 | 60.0 | Top (to first patch) | 61.0 | 2.400 | 60.0 | Bottom (to first patch) | 61.0 | 2.403 | 60.0 | Patch width (in strip reading direction) | 8.1 | 0.320 | Strip length | 175.0 | 6.890 | Margins: OK"
+    },
+    "margins_ui": {
+      "t": [
+        60.0,
+        true
+      ],
+      "r": [
+        60.0,
+        true
+      ],
+      "b": [
+        60.0,
+        true
+      ],
+      "l": [
+        60.0,
+        true
+      ]
+    },
+    "recipe": {
+      "layout_mode": "area_first",
+      "area_method": "by_width",
+      "area_cols": 0,
+      "area_rows": 0,
+      "area_ratio": 1.0,
+      "area_min_patch_mm": 0.0,
+      "patch_w_mm": 0.0,
+      "patch_h_mm": 0.0,
+      "pscale": 1.0,
+      "margin_top": 60.0,
+      "margin_right": 60.0,
+      "margin_bottom": 60.0,
+      "margin_left": 60.0,
+      "use_instrument_margins": false,
+      "patch_area_align": "top-left",
+      "clip_border": true,
+      "nolimit": false,
+      "max_strip_mm": 0.0,
+      "paper": "A4"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 209 patches (19\u00d711), 1 page, random start 109352420",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 2 strips"
+    ],
+    "serious": [],
+    "ti2": {
+      "ti2_sets": 209,
+      "ti2_steps_in_pass": 19,
+      "ti2_passes": "11",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A3-LayoutModes.ti2"
+    },
+    "n_tiffs": 1,
+    "dialogs": [
+      "clicked 'OK'",
+      "clicked 'OK'"
+    ],
+    "unexpected": []
+  },
+  {
+    "tag": "g04-own-20-clipside-5",
+    "note": "own margins 20/20/20 and left 5 (under the clip band)",
+    "ok": true,
+    "secs": 3.4,
+    "estimate_before": {
+      "total": 540,
+      "fillup": 0,
+      "page_patches": 540,
+      "rows": 27,
+      "cols": 20,
+      "pages": 1,
+      "patch": [
+        8.19,
+        8.48
+      ],
+      "pitch": null
+    },
+    "actual_after": {
+      "total": 540,
+      "fillup": 0,
+      "page_patches": 540,
+      "rows": 27,
+      "cols": 20,
+      "pages": 1,
+      "patch": [
+        8.21,
+        8.47
+      ],
+      "pitch": null
+    },
+    "estimate_after": {
+      "total": 540,
+      "fillup": 0,
+      "page_patches": 540,
+      "rows": 27,
+      "cols": 20,
+      "pages": 1,
+      "patch": [
+        8.19,
+        8.48
+      ],
+      "pitch": null
+    },
+    "margin_before": {
+      "status": "Margins: OK",
+      "notes": "",
+      "text": "mm | inch | min | Left (to first patch) | 60.0 | 2.363 | 60.0 | Right (to first patch) | 60.1 | 2.364 | 60.0 | Top (to first patch) | 61.0 | 2.400 | 60.0 | Bottom (to first patch) | 61.0 | 2.403 | 60.0 | Patch width (in strip reading direction) | 8.1 | 0.320 | Strip length | 175.0 | 6.890 | Margins: OK"
+    },
+    "margin_after": {
+      "status": "",
+      "visible": false,
+      "notes": "\u26a0 Strip length 255 mm exceeds the 240 mm instrument ruler \u2014 the strip may not fit your jig",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 5.0 | Right (to first patch) | 20.2 | 0.794 | 20.0 | Top (to first patch) | 21.0 | 0.827 | 20.0 | Bottom (to first patch) | 21.1 | 0.830 | 20.0 | Patch width (in strip reading direction) | 8.2 | 0.323 | Strip length | 254.9 | 10.037"
+    },
+    "margins_ui": {
+      "t": [
+        20.0,
+        true
+      ],
+      "r": [
+        20.0,
+        true
+      ],
+      "b": [
+        20.0,
+        true
+      ],
+      "l": [
+        5.0,
+        true
+      ]
+    },
+    "recipe": {
+      "layout_mode": "area_first",
+      "area_method": "by_width",
+      "area_cols": 0,
+      "area_rows": 0,
+      "area_ratio": 1.0,
+      "area_min_patch_mm": 0.0,
+      "patch_w_mm": 0.0,
+      "patch_h_mm": 0.0,
+      "pscale": 1.0,
+      "margin_top": 20.0,
+      "margin_right": 20.0,
+      "margin_bottom": 20.0,
+      "margin_left": 5.0,
+      "use_instrument_margins": false,
+      "patch_area_align": "top-left",
+      "clip_border": true,
+      "nolimit": false,
+      "max_strip_mm": 0.0,
+      "paper": "A4"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 540 patches (27\u00d720), 1 page, random start 787867941",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 2 strips"
+    ],
+    "serious": [],
+    "ti2": {
+      "ti2_sets": 540,
+      "ti2_steps_in_pass": 27,
+      "ti2_passes": "20",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A3-LayoutModes.ti2"
+    },
+    "n_tiffs": 1,
+    "dialogs": [
+      "clicked 'OK'",
+      "clicked 'OK'"
+    ],
+    "unexpected": []
+  },
+  {
+    "tag": "g05-instr-back-on",
+    "note": "instrument margins back on (restores 38/9/19/26?)",
+    "ok": true,
+    "secs": 3.4,
+    "estimate_before": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "actual_after": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.3,
+        8.55
+      ],
+      "pitch": null
+    },
+    "estimate_after": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "margin_before": {
+      "status": "",
+      "notes": "\u26a0 Strip length 255 mm exceeds the 240 mm instrument ruler \u2014 the strip may not fit your jig",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 5.0 | Right (to first patch) | 20.2 | 0.794 | 20.0 | Top (to first patch) | 21.0 | 0.827 | 20.0 | Bottom (to first patch) | 21.1 | 0.830 | 20.0 | Patch width (in strip reading direction) | 8.2 | 0.323 | Strip length | 254.9 | 10.037"
+    },
+    "margin_after": {
+      "status": "Margins: OK",
+      "visible": true,
+      "notes": "",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.0 | 0.786 | 19.0 | Patch width (in strip reading direction) | 8.3 | 0.327 | Strip length | 238.0 | 9.370 | Margins: OK"
+    },
+    "margins_ui": {
+      "t": [
+        38.0,
+        false
+      ],
+      "r": [
+        9.0,
+        false
+      ],
+      "b": [
+        19.0,
+        false
+      ],
+      "l": [
+        26.0,
+        false
+      ]
+    },
+    "recipe": {
+      "layout_mode": "area_first",
+      "area_method": "by_width",
+      "area_cols": 0,
+      "area_rows": 0,
+      "area_ratio": 1.0,
+      "area_min_patch_mm": 0.0,
+      "patch_w_mm": 0.0,
+      "patch_h_mm": 0.0,
+      "pscale": 1.0,
+      "margin_top": 38.0,
+      "margin_right": 9.0,
+      "margin_bottom": 19.0,
+      "margin_left": 26.0,
+      "use_instrument_margins": true,
+      "patch_area_align": "top-left",
+      "clip_border": true,
+      "nolimit": false,
+      "max_strip_mm": 0.0,
+      "paper": "A4"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 525 patches (25\u00d721), 1 page, random start 2093392956",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 3 strips"
+    ],
+    "serious": [],
+    "ti2": {
+      "ti2_sets": 525,
+      "ti2_steps_in_pass": 25,
+      "ti2_passes": "21",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A3-LayoutModes.ti2"
+    },
+    "n_tiffs": 1,
+    "dialogs": [
+      "clicked 'OK'",
+      "clicked 'OK'"
+    ],
+    "unexpected": []
+  },
+  {
+    "tag": "g06-A3-portrait-ruler",
+    "note": "i1 A3 portrait, 43-patch strips: ruler note?",
+    "ok": true,
+    "secs": 6.5,
+    "estimate_before": {
+      "total": 1376,
+      "fillup": 0,
+      "page_patches": 1376,
+      "rows": 43,
+      "cols": 32,
+      "pages": 1,
+      "patch": [
+        8.18,
+        8.32
+      ],
+      "pitch": null
+    },
+    "actual_after": {
+      "total": 1376,
+      "fillup": 0,
+      "page_patches": 1376,
+      "rows": 43,
+      "cols": 32,
+      "pages": 1,
+      "patch": [
+        8.21,
+        8.3
+      ],
+      "pitch": null
+    },
+    "estimate_after": {
+      "total": 1376,
+      "fillup": 0,
+      "page_patches": 1376,
+      "rows": 43,
+      "cols": 32,
+      "pages": 1,
+      "patch": [
+        8.18,
+        8.32
+      ],
+      "pitch": null
+    },
+    "margin_before": {
+      "status": "Margins: OK",
+      "notes": "",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.0 | 0.786 | 19.0 | Patch width (in strip reading direction) | 8.3 | 0.327 | Strip length | 238.0 | 9.370 | Margins: OK"
+    },
+    "margin_after": {
+      "status": "",
+      "visible": false,
+      "notes": "\u26a0 Top margin is too small for the strip labels \u2014 they overflow toward the page edge.\n\n\u26a0 Strip length 400 mm exceeds the 240 mm instrument ruler \u2014 the strip may not fit your jig",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 9.0 | Right (to first patch) | 9.2 | 0.363 | 9.0 | Top (to first patch) | 10.0 | 0.393 | 9.0 | Bottom (to first patch) | 10.2 | 0.402 | 9.0 | Patch width (in strip reading direction) | 8.2 | 0.323 | Strip length | 399.8 | 15.740"
+    },
+    "margins_ui": {
+      "t": [
+        9.0,
+        false
+      ],
+      "r": [
+        9.0,
+        false
+      ],
+      "b": [
+        9.0,
+        false
+      ],
+      "l": [
+        9.0,
+        false
+      ]
+    },
+    "recipe": {
+      "layout_mode": "area_first",
+      "area_method": "by_width",
+      "area_cols": 0,
+      "area_rows": 0,
+      "area_ratio": 1.0,
+      "area_min_patch_mm": 0.0,
+      "patch_w_mm": 0.0,
+      "patch_h_mm": 0.0,
+      "pscale": 1.0,
+      "margin_top": 9.0,
+      "margin_right": 9.0,
+      "margin_bottom": 9.0,
+      "margin_left": 9.0,
+      "use_instrument_margins": true,
+      "patch_area_align": "top-left",
+      "clip_border": true,
+      "nolimit": false,
+      "max_strip_mm": 0.0,
+      "paper": "A3"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 1376 patches (43\u00d732), 1 page, random start 1495455176",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 7 strips"
+    ],
+    "serious": [],
+    "ti2": {
+      "ti2_sets": 1376,
+      "ti2_steps_in_pass": 43,
+      "ti2_passes": "32",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "297.0x420.0",
+      "ti2_file": "A3-LayoutModes.ti2"
+    },
+    "n_tiffs": 1,
+    "dialogs": [
+      "clicked 'OK'",
+      "clicked 'OK'"
+    ],
+    "unexpected": []
+  },
+  {
+    "tag": "g07-A3-maxstrip200",
+    "note": "A3 portrait, Max strip 200 mm",
+    "ok": true,
+    "secs": 6.5,
+    "estimate_before": {
+      "total": 1376,
+      "fillup": 0,
+      "page_patches": 1376,
+      "rows": 43,
+      "cols": 32,
+      "pages": 1,
+      "patch": [
+        8.18,
+        8.32
+      ],
+      "pitch": null
+    },
+    "actual_after": {
+      "total": 1376,
+      "fillup": 0,
+      "page_patches": 1376,
+      "rows": 43,
+      "cols": 32,
+      "pages": 1,
+      "patch": [
+        8.21,
+        8.3
+      ],
+      "pitch": null
+    },
+    "estimate_after": {
+      "total": 1376,
+      "fillup": 0,
+      "page_patches": 1376,
+      "rows": 43,
+      "cols": 32,
+      "pages": 1,
+      "patch": [
+        8.18,
+        8.32
+      ],
+      "pitch": null
+    },
+    "margin_before": {
+      "status": "",
+      "notes": "\u26a0 Top margin is too small for the strip labels \u2014 they overflow toward the page edge.\n\n\u26a0 Strip length 400 mm exceeds the 240 mm instrument ruler \u2014 the strip may not fit your jig",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 9.0 | Right (to first patch) | 9.2 | 0.363 | 9.0 | Top (to first patch) | 10.0 | 0.393 | 9.0 | Bottom (to first patch) | 10.2 | 0.402 | 9.0 | Patch width (in strip reading direction) | 8.2 | 0.323 | Strip length | 399.8 | 15.740"
+    },
+    "margin_after": {
+      "status": "",
+      "visible": false,
+      "notes": "\u26a0 Top margin is too small for the strip labels \u2014 they overflow toward the page edge.\n\n\u26a0 Strip length 400 mm exceeds the 240 mm instrument ruler \u2014 the strip may not fit your jig",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 9.0 | Right (to first patch) | 9.2 | 0.363 | 9.0 | Top (to first patch) | 10.0 | 0.393 | 9.0 | Bottom (to first patch) | 10.2 | 0.402 | 9.0 | Patch width (in strip reading direction) | 8.2 | 0.323 | Strip length | 399.8 | 15.740"
+    },
+    "margins_ui": {
+      "t": [
+        9.0,
+        false
+      ],
+      "r": [
+        9.0,
+        false
+      ],
+      "b": [
+        9.0,
+        false
+      ],
+      "l": [
+        9.0,
+        false
+      ]
+    },
+    "recipe": {
+      "layout_mode": "area_first",
+      "area_method": "by_width",
+      "area_cols": 0,
+      "area_rows": 0,
+      "area_ratio": 1.0,
+      "area_min_patch_mm": 0.0,
+      "patch_w_mm": 0.0,
+      "patch_h_mm": 0.0,
+      "pscale": 1.0,
+      "margin_top": 9.0,
+      "margin_right": 9.0,
+      "margin_bottom": 9.0,
+      "margin_left": 9.0,
+      "use_instrument_margins": true,
+      "patch_area_align": "top-left",
+      "clip_border": true,
+      "nolimit": false,
+      "max_strip_mm": 200.0,
+      "paper": "A3"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 1376 patches (43\u00d732), 1 page, random start 193121679",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 7 strips"
+    ],
+    "serious": [],
+    "ti2": {
+      "ti2_sets": 1376,
+      "ti2_steps_in_pass": 43,
+      "ti2_passes": "32",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "297.0x420.0",
+      "ti2_file": "A3-LayoutModes.ti2"
+    },
+    "n_tiffs": 1,
+    "dialogs": [
+      "clicked 'OK'",
+      "clicked 'OK'"
+    ],
+    "unexpected": []
+  },
+  {
+    "tag": "g08-A3-nolimit",
+    "note": "A3 portrait, Don't cap strip length",
+    "ok": true,
+    "secs": 6.5,
+    "estimate_before": {
+      "total": 1376,
+      "fillup": 0,
+      "page_patches": 1376,
+      "rows": 43,
+      "cols": 32,
+      "pages": 1,
+      "patch": [
+        8.18,
+        8.32
+      ],
+      "pitch": null
+    },
+    "actual_after": {
+      "total": 1376,
+      "fillup": 0,
+      "page_patches": 1376,
+      "rows": 43,
+      "cols": 32,
+      "pages": 1,
+      "patch": [
+        8.21,
+        8.3
+      ],
+      "pitch": null
+    },
+    "estimate_after": {
+      "total": 1376,
+      "fillup": 0,
+      "page_patches": 1376,
+      "rows": 43,
+      "cols": 32,
+      "pages": 1,
+      "patch": [
+        8.18,
+        8.32
+      ],
+      "pitch": null
+    },
+    "margin_before": {
+      "status": "",
+      "notes": "\u26a0 Top margin is too small for the strip labels \u2014 they overflow toward the page edge.\n\n\u26a0 Strip length 400 mm exceeds the 240 mm instrument ruler \u2014 the strip may not fit your jig",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 9.0 | Right (to first patch) | 9.2 | 0.363 | 9.0 | Top (to first patch) | 10.0 | 0.393 | 9.0 | Bottom (to first patch) | 10.2 | 0.402 | 9.0 | Patch width (in strip reading direction) | 8.2 | 0.323 | Strip length | 399.8 | 15.740"
+    },
+    "margin_after": {
+      "status": "",
+      "visible": false,
+      "notes": "\u26a0 Top margin is too small for the strip labels \u2014 they overflow toward the page edge.\n\n\u26a0 Strip length 400 mm exceeds the 240 mm instrument ruler \u2014 the strip may not fit your jig",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 9.0 | Right (to first patch) | 9.2 | 0.363 | 9.0 | Top (to first patch) | 10.0 | 0.393 | 9.0 | Bottom (to first patch) | 10.2 | 0.402 | 9.0 | Patch width (in strip reading direction) | 8.2 | 0.323 | Strip length | 399.8 | 15.740"
+    },
+    "margins_ui": {
+      "t": [
+        9.0,
+        false
+      ],
+      "r": [
+        9.0,
+        false
+      ],
+      "b": [
+        9.0,
+        false
+      ],
+      "l": [
+        9.0,
+        false
+      ]
+    },
+    "recipe": {
+      "layout_mode": "area_first",
+      "area_method": "by_width",
+      "area_cols": 0,
+      "area_rows": 0,
+      "area_ratio": 1.0,
+      "area_min_patch_mm": 0.0,
+      "patch_w_mm": 0.0,
+      "patch_h_mm": 0.0,
+      "pscale": 1.0,
+      "margin_top": 9.0,
+      "margin_right": 9.0,
+      "margin_bottom": 9.0,
+      "margin_left": 9.0,
+      "use_instrument_margins": true,
+      "patch_area_align": "top-left",
+      "clip_border": true,
+      "nolimit": true,
+      "max_strip_mm": 0.0,
+      "paper": "A3"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 1376 patches (43\u00d732), 1 page, random start 1280784773",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 5 strips"
+    ],
+    "serious": [],
+    "ti2": {
+      "ti2_sets": 1376,
+      "ti2_steps_in_pass": 43,
+      "ti2_passes": "32",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "297.0x420.0",
+      "ti2_file": "A3-LayoutModes.ti2"
+    },
+    "n_tiffs": 1,
+    "dialogs": [
+      "clicked 'OK'",
+      "clicked 'OK'"
+    ],
+    "unexpected": []
+  },
+  {
+    "tag": "g09-threshold-change",
+    "before_thr": {
+      "L": 26,
+      "R": 9,
+      "T": 38,
+      "B": 19,
+      "desc": "i1Pro ruler / jig"
+    },
+    "after_thr": {
+      "L": 26,
+      "R": 9,
+      "T": 38,
+      "B": 19,
+      "desc": "i1Pro ruler / jig"
+    },
+    "panel_margins": {
+      "t": 38.0,
+      "r": 9.0,
+      "b": 19.0,
+      "l": 26.0
+    },
+    "estimate_no_regen": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "margin_status": "",
+    "margin_notes": "\u26a0 Strip length 400 mm exceeds the 240 mm instrument ruler \u2014 the strip may not fit your jig",
+    "drive": {
+      "done": false,
+      "err": null
+    }
+  },
+  {
+    "tag": "g10-generate-after-threshold",
+    "note": "Generate with T=50 / ruler 200 thresholds",
+    "ok": true,
+    "secs": 3.4,
+    "estimate_before": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "actual_after": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.3,
+        8.55
+      ],
+      "pitch": null
+    },
+    "estimate_after": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "margin_before": {
+      "status": "",
+      "notes": "\u26a0 Strip length 400 mm exceeds the 240 mm instrument ruler \u2014 the strip may not fit your jig",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 9.0 | Right (to first patch) | 9.2 | 0.363 | 9.0 | Top (to first patch) | 10.0 | 0.393 | 9.0 | Bottom (to first patch) | 10.2 | 0.402 | 9.0 | Patch width (in strip reading direction) | 8.2 | 0.323 | Strip length | 399.8 | 15.740"
+    },
+    "margin_after": {
+      "status": "Margins: OK",
+      "visible": true,
+      "notes": "",
+      "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.0 | 0.786 | 19.0 | Patch width (in strip reading direction) | 8.3 | 0.327 | Strip length | 238.0 | 9.370 | Margins: OK"
+    },
+    "margins_ui": {
+      "t": [
+        38.0,
+        false
+      ],
+      "r": [
+        9.0,
+        false
+      ],
+      "b": [
+        19.0,
+        false
+      ],
+      "l": [
+        26.0,
+        false
+      ]
+    },
+    "recipe": {
+      "layout_mode": "area_first",
+      "area_method": "by_width",
+      "area_cols": 0,
+      "area_rows": 0,
+      "area_ratio": 1.0,
+      "area_min_patch_mm": 0.0,
+      "patch_w_mm": 0.0,
+      "patch_h_mm": 0.0,
+      "pscale": 1.0,
+      "margin_top": 38.0,
+      "margin_right": 9.0,
+      "margin_bottom": 19.0,
+      "margin_left": 26.0,
+      "use_instrument_margins": true,
+      "patch_area_align": "top-left",
+      "clip_border": true,
+      "nolimit": false,
+      "max_strip_mm": 0.0,
+      "paper": "A4"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 525 patches (25\u00d721), 1 page, random start 1715524490",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 2 strips"
+    ],
+    "serious": [],
+    "ti2": {
+      "ti2_sets": 525,
+      "ti2_steps_in_pass": 25,
+      "ti2_passes": "21",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A3-LayoutModes.ti2"
+    },
+    "n_tiffs": 1,
+    "dialogs": [
+      "clicked 'OK'",
+      "UNEXPECTED"
+    ],
+    "unexpected": [
+      {
+        "class": "SettingsDialog",
+        "title": "ChromIQ Preferences",
+        "text": "Experimental features \u2014 enabled at your own risk. Verify every result before you rely on it. | Accuracy | ChromIQ can play a short sound as you measure \u2014 a tick as each patch is read, a bell when a strip is done, a warning if a reading looks off, and a little fanfare when everything's finished. It's a hands-free way to know how the measurement is going without watching the screen. | Turn sounds on with the \u201cPlay sounds during measurement\u201d box on the Measure tab. Here you choose which sound plays for each event \u2014 pick \u201cOff (no sound)\u201d for any you'd rather keep silent, and press \u201cPlay\u201d to hear o",
+        "buttons": [
+          "Play",
+          "Play",
+          "Play",
+          "Play",
+          "Play",
+          "Play",
+          "Play",
+          "Play",
+          "Reveal",
+          "Reveal",
+          "Reveal",
+          "Reveal",
+          "Reveal",
+          "New seed",
+          "Export template (PNG + PDF)\u2026",
+          "Restore factory defaults",
+          "Open presets folder",
+          "Export\u2026",
+          "Import\u2026",
+          "Restore default thresholds",
+          "Test binaries",
+          "Auto-detect",
+          "Download latest ArgyllCMS\u2026",
+          "Restore Factory Defaults",
+          "Report a Bug\u2026",
+          "Request a Feature\u2026",
+          "Check for Updates",
+          "OK",
+          "Cancel"
+        ],
+        "answer": "UNEXPECTED",
+        "closed_via": "clicked 'Cancel'"
+      }
+    ]
+  }
+]

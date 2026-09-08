@@ -1,0 +1,110 @@
+{
+  "clipped-guided-1280": [],
+  "clipped-manual-1280": [],
+  "clipped-frames-1280": [
+    [
+      "QLabel",
+      "Links (bis zum ersten Feld)",
+      167,
+      129
+    ],
+    [
+      "QLabel",
+      "Rechts (bis zum ersten Feld)",
+      177,
+      129
+    ],
+    [
+      "QLabel",
+      "Oben (bis zum ersten Feld)",
+      168,
+      129
+    ],
+    [
+      "QLabel",
+      "Unten (bis zum ersten Feld)",
+      172,
+      129
+    ],
+    [
+      "QLabel",
+      "Feldbreite (in Streifen-Leserichtung)",
+      224,
+      129
+    ],
+    [
+      "WrappingCheckBox",
+      "Messger\u00e4te-Rand-Hilfslinien in der Vorschau anzeigen (gepunktete Linie",
+      481,
+      272
+    ],
+    [
+      "WrappingCheckBox",
+      "Rand-Hilfslinien in der Vorschau anzeigen (lange gepunktete Linien)",
+      441,
+      272
+    ],
+    [
+      "QLabel",
+      "auf dem Bildschirm",
+      93,
+      72
+    ],
+    [
+      "QLabel",
+      "Messfelder (diese Seite)",
+      151,
+      122
+    ],
+    [
+      "QLabel",
+      "Messfelder pro Streifen",
+      146,
+      122
+    ],
+    [
+      "QLabel",
+      "Streifen (diese Seite)",
+      130,
+      122
+    ],
+    [
+      "QLabel",
+      "Messfeldgr\u00f6\u00dfe (mm)",
+      130,
+      122
+    ]
+  ],
+  "clipped-guided-1700": [],
+  "clipped-manual-1700": [],
+  "clipped-frames-1700": [
+    [
+      "QLabel",
+      "auf dem Bildschirm",
+      93,
+      72
+    ]
+  ],
+  "prefs": {
+    "tab_names": [
+      "Allgemein",
+      "Messger\u00e4te-Grenzwerte",
+      "Chart-Layout",
+      "Scanner-Grenzwerte",
+      "Pfade",
+      "Berichte",
+      "Messung",
+      "T\u00f6ne",
+      "Beta"
+    ],
+    "clipped-prefs-Allgemein": [],
+    "clipped-prefs-Messger\u00e4te-Grenzwerte": [],
+    "clipped-prefs-Chart-Layout": [],
+    "clipped-prefs-Scanner-Grenzwerte": [],
+    "clipped-prefs-Pfade": [],
+    "clipped-prefs-Berichte": [],
+    "clipped-prefs-Messung": [],
+    "clipped-prefs-T\u00f6ne": [],
+    "clipped-prefs-Beta": []
+  }
+}

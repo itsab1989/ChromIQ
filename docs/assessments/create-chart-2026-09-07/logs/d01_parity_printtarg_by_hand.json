@@ -1,0 +1,58 @@
+{
+  "cmd": "/Applications/Argyll/bin/printtarg -v -ii1 -pA4 -t300 -M6 /private/tmp/claude-502/-Users-Basti-develop-ChromIQ/43fe026d-47c0-4e05-aad3-52c64d8d9eca/scratchpad/a1_parity/parity",
+  "rc": 0,
+  "stdout": "Paper chosen is A4\t[210.0 x 297.0 mm]\nPatches = 400\nTest patches per row = 21\nRows per page = 21, patches per page = 441\nRows in last strip = 20, patches in last row = 1\nTotal pages needed = 1\nWorst case delta E = 0.000000\nWorst case direction distinction delta E = 56.836132\nOptimising layout for strip reader:\n 0%\n 0%\n 1%\n 2%\n 3%\n 4%\n 5%\n 6%\n 7%\n 7%\n 8%\n 9%\n10%\n11%\n12%\n13%\n14%\n15%\n16%\n17%\n18%\n19%\n20%\n21%\n21%\n22%\n23%\n24%\n25%\n26%\n27%\n28%\n29%\n30%\n31%\n32%\n33%\n34%\n35%\n35%\n36%\n37%\n38%\n39%\n40%\n41%\n42%\n43%\n44%\n45%\n46%\n47%\n48%\n49%\n49%\n50%\n51%\n52%\n53%\n54%\n55%\n56%\n57%\n58%\n59%\n60%\n61%\n62%\n63%\n63%\n64%\n65%\n66%\n67%\n68%\n69%\n70%\n71%\n72%\n73%\n74%\n75%\n76%\n77%\n77%\n78%\n79%\n80%\n81%\n82%\n83%\n84%\n85%\n86%\n87%\n88%\n89%\n90%\n91%\n91%\n92%\n93%\n94%\n95%\n96%\n97%\n98%\n99%\n100%\n100%\nAfter optimisation, worst delta E = 88.660488\nWorst case direction distinction delta E = 84.218809\nCreating file '/private/tmp/claude-502/-Users-Basti-develop-ChromIQ/43fe026d-47c0-4e05-aad3-52c64d8d9eca/scratchpad/a1_parity/parity.tif'\n",
+  "stderr": "",
+  "inventory": {
+    "dir": "/private/tmp/claude-502/-Users-Basti-develop-ChromIQ/43fe026d-47c0-4e05-aad3-52c64d8d9eca/scratchpad/a1_parity",
+    "files": [
+      [
+        "parity.ti1",
+        25327
+      ],
+      [
+        "parity.ti2",
+        27465
+      ],
+      [
+        "parity.tif",
+        1025327
+      ]
+    ],
+    "tiffs": [
+      {
+        "file": "parity.tif",
+        "size_px": [
+          2480,
+          3508
+        ],
+        "mode": "RGB",
+        "dpi": [
+          300.000003555709,
+          300.000003555709
+        ],
+        "bits": [
+          8,
+          8,
+          8
+        ],
+        "compression": "tiff_lzw",
+        "bytes": 1025327
+      }
+    ],
+    "channels": null,
+    "ti2_sets": 420,
+    "ti2_steps_in_pass": 21,
+    "ti2_passes": "20",
+    "ti2_patch_length": null,
+    "ti2_patch_width": null,
+    "ti2_instrument": "GretagMacbeth i1 Pro",
+    "ti2_paper": "210.0x297.0",
+    "ti2_file": "parity.ti2"
+  },
+  "L": {
+    "cmd": "/Applications/Argyll/bin/printtarg -v -ii1 -pA4 -t300 -M6 -L /private/tmp/claude-502/-Users-Basti-develop-ChromIQ/43fe026d-47c0-4e05-aad3-52c64d8d9eca/scratchpad/a1_parity/parity_L",
+    "rc": 0,
+    "stdout": "Paper chosen is A4\t[210.0 x 297.0 mm]\nPatches = 400\nTest patches per row = 21\nRows per page = 24, patches per page = 504\nRows in last strip = 20, patches in last row = 1\nTotal pages needed = 1\nWorst case delta E = 0.000000\nWorst case direction distinction delta E = 57.307675\nOptimising layout for strip reader:\n 0%\n 0%\n 1%\n 2%\n 3%\n 4%\n 5%\n 6%\n 7%\n 7%\n 8%\n 9%\n10%\n11%\n12%\n13%\n14%\n15%\n16%\n17%\n18%\n19%\n20%\n21%\n21%\n22%\n23%\n24%\n25%\n26%\n27%\n28%\n29%\n30%\n31%\n32%\n33%\n34%\n35%\n35%\n36%\n37%\n38%\n39%\n40%\n41%\n42%\n43%\n44%\n45%\n46%\n47%\n48%\n49%\n49%\n50%\n51%\n52%\n53%\n54%\n55%\n56%\n57%\n58%\n59%\n60%\n61%\n62%\n63%\n63%\n64%\n65%\n66%\n67%\n68%\n69%\n70%\n71%\n72%\n73%\n74%\n75%\n76%\n77%\n77%\n78%\n79%\n80%\n81%\n82%\n83%\n84%\n85%\n86%\n87%\n88%\n89%\n90%\n91%\n91%\n92%\n93%\n94%\n95%\n96%\n97%\n98%\n99%\n100%\n100%\nAfter optimisation, worst delta E = 87.998607\nWorst case direction distinction delta E = 86.986525\nCreating file '/private/tmp/claude-502/-Users-Basti-develop-ChromIQ/43fe026d-47c0-4e05-aad3-52c64d8d9eca/scratchpad/a1_parity/parity_L.tif'\n"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "layout_info_visible": true,
+  "layout_info_text": "on screen | estimate | Total patches | 400 | 420 | \u2026 of those, fill-up | 10 | 0 | Patches (this page) | 112 | 105 | Patches per strip | 16 | 15 | Strips (this page) | 7 | 7 | Pages | 4 | 4 | Patch size (mm) | 28.02\u00d713.97 | 28\u00d714",
+  "layout_info_actual": {
+    "total": 400,
+    "fillup": 10,
+    "page_patches": 112,
+    "rows": 16,
+    "cols": 7,
+    "pages": 4,
+    "patch": [
+      28.02,
+      13.97
+    ],
+    "pitch": null
+  },
+  "layout_info_estimate": {
+    "total": 420,
+    "fillup": 0,
+    "page_patches": 105,
+    "rows": 15,
+    "cols": 7,
+    "pages": 4,
+    "patch": [
+      28.0,
+      14.0
+    ],
+    "pitch": null
+  },
+  "margin_panel_visible": true,
+  "margin_panel_text": "mm | inch | min | Left (to first patch) | 6.0 | 0.237 | 6.0 | Right (to first patch) | 8.0 | 0.314 | 6.0 | Top (to first patch) | 33.0 | 1.300 | 33.0 | Bottom (to first patch) | 25.0 | 0.983 | 10.0 | Patch width (in strip reading direction) | 28.0 | 1.103 | Strip length | 239.0 | 9.410 | Margins: OK",
+  "margin_status": "Margins: OK"
+}

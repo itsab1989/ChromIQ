@@ -1,0 +1,468 @@
+{
+  "A_failed_build": {
+    "files_before": [
+      "R2-Engine.channels.json",
+      "R2-Engine.ti1",
+      "R2-Engine.ti2",
+      "R2-Engine.tif",
+      "cache/new_run.json",
+      "exports/R2-Engine-colours.txt",
+      "exports/R2-Engine-i1profiler.pxf",
+      "exports/R2-Engine-i1profiler.txt",
+      "meta.json"
+    ],
+    "files_after": [
+      "R2-Engine.channels.json",
+      "R2-Engine.ti1",
+      "R2-Engine.ti2",
+      "R2-Engine.tif",
+      "cache/new_run.json",
+      "meta.json"
+    ],
+    "missing_after": [
+      "exports/R2-Engine-colours.txt",
+      "exports/R2-Engine-i1profiler.pxf",
+      "exports/R2-Engine-i1profiler.txt"
+    ],
+    "new_after": [],
+    "ti2_before": {
+      "sets": "525",
+      "steps": "25",
+      "passes": "21",
+      "patch_len": null,
+      "patch_w": null,
+      "instr": "GretagMacbeth i1 Pro",
+      "paper": "210.0x297.0",
+      "created": "Mo Sep 07 10:18:24 2026"
+    },
+    "ti2_after": {
+      "sets": "525",
+      "steps": "25",
+      "passes": "21",
+      "patch_len": null,
+      "patch_w": null,
+      "instr": "GretagMacbeth i1 Pro",
+      "paper": "210.0x297.0",
+      "created": "Mo Sep 07 10:18:24 2026"
+    },
+    "dialogs": [],
+    "errors": [
+      "[WARNING] workflow.chart_creator: engine patch estimate failed: paper too short: a single pass of patches does not fit (8.0 mm available)",
+      "[WARNING] workflow.chart_creator: _binary_search found no valid capacity in [221, 1107]; falling back to scaled estimate 443",
+      "[ERROR] workflow.chart_creator: ChromIQ layout engine failed"
+    ],
+    "preview_pages": 0,
+    "status_visible": false,
+    "tab_log_tail": "s.\nRe-seeding\nIt 19: Maxmv = 0.001690, MinPoint = 6.939, Min = 6.380, Avg. = 10.993, Max = 13.758, 0.0 secs.\nRe-seeding\nIt 20: Maxmv = 0.001679, MinPoint = 6.939, Min = 6.380, Avg. = 10.991, Max = 13.725, 0.0 secs.\nAfter optimization: MinPoint = 6.939, Min = 6.380, Avg. = 10.991, Max = 13.725\nTotal number of patches = 443\nExecution time = 0.793944 seconds\n[ChromIQ layout engine] building chart from the targen .ti1\u2026\n[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.\n[ERROR] ChromIQ layout engine: paper too short: a single pass of patches does not fit (8.0 mm available)\n[ERROR] Chart generation failed."
+  },
+  "A_roundtrip": {
+    "preview_pages": 1,
+    "actual": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.3,
+        8.55
+      ],
+      "pitch": null
+    },
+    "status": "Margins: OK",
+    "panel_paper": "A4 (210 \u00d7 297 mm) Portrait",
+    "custom": [
+      20.0,
+      20.0
+    ],
+    "patch": [
+      0.0,
+      0.0
+    ],
+    "layout_mode": "area_first"
+  },
+  "B": {
+    "built": {
+      "total": 9513,
+      "fillup": 13,
+      "page_patches": 441,
+      "rows": 21,
+      "cols": 21,
+      "pages": 22,
+      "patch": [
+        8.04,
+        9.99
+      ],
+      "pitch": null
+    },
+    "spins_after_build": [
+      1,
+      1
+    ],
+    "spins_after_reopen": [
+      20,
+      20,
+      false,
+      false
+    ],
+    "auto_after_reopen": false,
+    "f_after_reopen": 9513,
+    "spins_after_auto": [
+      20,
+      20
+    ],
+    "spins_after_pages1": [
+      1,
+      20
+    ],
+    "est_after_pages1": {
+      "total": 315,
+      "fillup": 11,
+      "page_patches": 315,
+      "rows": 21,
+      "cols": 15,
+      "pages": 1,
+      "patch": [
+        8.0,
+        10.0
+      ],
+      "pitch": null
+    },
+    "built_after": {
+      "total": 315,
+      "fillup": 11,
+      "page_patches": 315,
+      "rows": 21,
+      "cols": 15,
+      "pages": 1,
+      "patch": [
+        8.04,
+        9.99
+      ],
+      "pitch": null
+    },
+    "est_after": {
+      "total": 315,
+      "fillup": 11,
+      "page_patches": 315,
+      "rows": 21,
+      "cols": 15,
+      "pages": 1,
+      "patch": [
+        8.0,
+        10.0
+      ],
+      "pitch": null
+    }
+  },
+  "C": {
+    "tc918eg": {
+      "picked": true,
+      "engine_before": true,
+      "engine_after": false,
+      "engine_enabled": true,
+      "info": "Manual mode \u2014 your current configuration (1 page \u00b7 Auto grey/white/black):\ntargen -d2 -f9513 -e8 -B8 -G -g128 chart\nprinttarg -ii1 -pA4 -t300 -m10 -M10 -R 99999 -c chart",
+      "actual": {
+        "total": 1173,
+        "fillup": 13,
+        "page_patches": 1173,
+        "rows": 23,
+        "cols": 51,
+        "pages": 1,
+        "patch": [
+          8.97,
+          10.37
+        ],
+        "pitch": null
+      },
+      "est": null,
+      "status": "\u26a0 Left margin 5.3 mm is below the 6 mm instrument minimum",
+      "notes": "",
+      "margins": "mm | inch | min | Left (to first patch) | 5.3 | 0.208 | 6.0 | Right (to first patch) | 19.9 | 0.783 | 6.0 | Top (to first patch) | 34.3 | 1.350 | 33.0 | Bottom (to first patch) | 28.3 | 1.114 | 10.0 | Patch width (in strip reading direction",
+      "override_pt": [
+        true,
+        false
+      ]
+    },
+    "knut_i1_162": {
+      "picked": true,
+      "engine_before": false,
+      "engine_after": true,
+      "engine_enabled": true,
+      "info": "Built-in preset \u2014 fixed patch set (1 page):\nUses the bundled 162-patch .ti1 (targen skipped).\nprinttarg -ii1 -pA4 -t200 -a0.95 -m10 -M10 -R 99999 -c chart\nChange a targen setting above to build a fresh chart instead.\nLayout preset: i1 \u00b7 A4 portrait \u00b7 clip   \u25cf modified",
+      "actual": {
+        "total": 162,
+        "fillup": 0,
+        "page_patches": 162,
+        "rows": 27,
+        "cols": 6,
+        "pages": 1,
+        "patch": [
+          7.49,
+          8.13
+        ],
+        "pitch": null
+      },
+      "est": {
+        "total": 162,
+        "fillup": 0,
+        "page_patches": 162,
+        "rows": 27,
+        "cols": 6,
+        "pages": 1,
+        "patch": [
+          7.49,
+          8.11
+        ],
+        "pitch": null
+      },
+      "status": "Margins: OK",
+      "notes": "",
+      "margins": "mm | inch | min | Left (to first patch) | 26.0 | 1.025 | 26.0 | Right (to first patch) | 139.0 | 5.473 | 4.0 | Top (to first patch) | 38.0 | 1.495 | 38.0 | Bottom (to first patch) | 19.0 | 0.748 | 19.0 | Patch width (in strip reading direct",
+      "override_pt": [
+        false,
+        false
+      ]
+    },
+    "cr30_153": {
+      "picked": false,
+      "engine_before": true,
+      "engine_after": true,
+      "engine_enabled": true,
+      "info": "Built-in preset \u2014 fixed patch set (1 page):\nUses the bundled 162-patch .ti1 (targen skipped).\nprinttarg -ii1 -pA4 -t200 -a0.95 -m10 -M10 -R 99999 -c chart\nChange a targen setting above to build a fresh chart instead.\nLayout preset: i1 \u00b7 A4 portrait \u00b7 clip   \u25cf modified",
+      "actual": {
+        "total": 162,
+        "fillup": 0,
+        "page_patches": 162,
+        "rows": 27,
+        "cols": 6,
+        "pages": 1,
+        "patch": [
+          7.49,
+          8.13
+        ],
+        "pitch": null
+      },
+      "est": {
+        "total": 162,
+        "fillup": 0,
+        "page_patches": 162,
+        "rows": 27,
+        "cols": 6,
+        "pages": 1,
+        "patch": [
+          7.49,
+          8.11
+        ],
+        "pitch": null
+      },
+      "status": "Margins: OK",
+      "notes": "",
+      "margins": "mm | inch | min | Left (to first patch) | 26.0 | 1.025 | 26.0 | Right (to first patch) | 139.0 | 5.473 | 4.0 | Top (to first patch) | 38.0 | 1.495 | 38.0 | Bottom (to first patch) | 19.0 | 0.748 | 19.0 | Patch width (in strip reading direct",
+      "override_pt": [
+        false,
+        false
+      ]
+    },
+    "none": {
+      "picked": true,
+      "engine_before": true,
+      "engine_after": true,
+      "engine_enabled": true,
+      "info": "Manual mode \u2014 your current configuration (1 page \u00b7 Auto patch count \u00b7 Auto grey/white/black):\ntargen -d2 -f0 -e4 -B4 -G -g33 chart\nChromIQ layout engine \u00b7 i1 \u00b7 A4 portrait \u00b7 200 dpi \u00b7 margins 38/4/19/26 mm \u00b7 area-fit 24\u00d727 \u00b7 clip border on \u00b7 no strip-length cap \u00b7 align center-left\nLayout preset: i1 \u00b7 A4 portrait \u00b7 clip   \u25cf modified",
+      "actual": {
+        "total": 162,
+        "fillup": 0,
+        "page_patches": 162,
+        "rows": 27,
+        "cols": 6,
+        "pages": 1,
+        "patch": [
+          7.49,
+          8.13
+        ],
+        "pitch": null
+      },
+      "est": {
+        "total": 648,
+        "fillup": 0,
+        "page_patches": 648,
+        "rows": 27,
+        "cols": 24,
+        "pages": 1,
+        "patch": [
+          7.49,
+          8.11
+        ],
+        "pitch": null
+      },
+      "status": "Margins: OK",
+      "notes": "",
+      "margins": "mm | inch | min | Left (to first patch) | 26.0 | 1.025 | 26.0 | Right (to first patch) | 139.0 | 5.473 | 4.0 | Top (to first patch) | 38.0 | 1.495 | 38.0 | Bottom (to first patch) | 19.0 | 0.748 | 19.0 | Patch width (in strip reading direct",
+      "override_pt": [
+        false,
+        false
+      ]
+    },
+    "reveal": {
+      "opened": [],
+      "tooltip": "Open this tab's presets folder in Finder.\nEach preset is a plain .json file \u2014 copy one to a colleague\nand they can drop it into their own folder to share.",
+      "enabled": true
+    }
+  },
+  "D": {
+    "engine_run_after_load": "Run 2 (overwrite)",
+    "actual": {
+      "total": 306,
+      "fillup": 2,
+      "page_patches": 6,
+      "rows": 3,
+      "cols": 2,
+      "pages": 51,
+      "patch": [
+        60.03,
+        59.94
+      ],
+      "pitch": null
+    },
+    "est": {
+      "total": 6,
+      "fillup": 0,
+      "page_patches": 6,
+      "rows": 3,
+      "cols": 2,
+      "pages": 1,
+      "patch": [
+        60.0,
+        60.0
+      ],
+      "pitch": null
+    },
+    "dialogs": [
+      {
+        "class": "QMessageBox",
+        "title": "",
+        "text": "Where should this patch set's chart go? | You loaded the patch set <b>external_patchset.ti1</b>.<br><br>A profile project is open: <b>R2-Engine</b>. Where should the chart these patches make be built?<br><br>What each button does:<br><br>&nbsp;&nbsp;\u2022&nbsp; <b>Replace run 1</b>: Build the chart into <b>run 1</b>. That run's current chart, measurement and printer profile \u2014 together with every folder inside it, including its reports and verifications \u2014 move to <code>runs/run1/old/</code> first, and the new chart is saved in <code>runs/run1/</code>. Nothing is deleted. Everything moves because a new chart no longer matches the measurement, profile or checks made from the old one.<br><br>&nbsp;&nbsp;\u2022&nbsp; <b>Build it as a new run instead</b>: Build the chart in a brand-new run of <b>R2-Engine</b> instead, so everything in <b>run 1</b> stays exactly as it is. The Profile-run bar moves to the new run.<br><br>&nbsp;&nbsp;\u2022&nbsp; <b>Replace only the chart</b>: Swap the chart in <b>run 1</b> and leave everything else standing: the measurement, the profile, the reports and the verifications stay put, and nothing moves to <code>old/</code>. <b>ChromIQ cannot check that these patches are the ones your measurement was taken with</b> \u2014 only you can, and if they are not, the run keeps a measurement that no longer matches its chart. No chart settings file was found beside it, so only the patches are replaced and the settings now on screen decide the layout.<br><br>&nbsp;&nbsp;\u2022&nbsp; <b>Start a new project</b>: Start a fresh profile project from these patches. You'll be asked for the project name (pre-filled as <b>external_patchset</b> \u2014 change it or keep it). The current project <b>R2-Engine</b> is left untouched; the new project gets its own folder and its own run 1.<br><br>&nbsp;&nbsp;\u2022&nbsp; <b>Cancel</b>: nothing is opened, copied or changed, and the file you picked is left exactly as it is.",
+        "buttons": [
+          "Cancel",
+          "Replace run 1",
+          "Build it as a new run instead",
+          "Replace only the chart",
+          "Start a new project"
+        ],
+        "answer": "clicked 'Build it as a new run instead'",
+        "expected": "Where should this patch set"
+      }
+    ],
+    "preset_ti1": "/Users/Basti/Desktop/Create Chart Assessment/Evidence/external_patchset.ti1",
+    "override_row": [
+      true,
+      false
+    ],
+    "high_state": {
+      "run": "Run 2 (overwrite)",
+      "preset_ti1": "/Users/Basti/Desktop/Create Chart Assessment/Evidence/external_patchset.ti1",
+      "override_row": [
+        true,
+        false
+      ],
+      "engine_enabled": true,
+      "engine_on": true,
+      "info": "Manual mode \u2014 your current configuration (1 page \u00b7 Auto patch count \u00b7 Auto grey/white/black):\ntargen -d2 -f0 -e4 -B4 -G -g28 chart\nChromIQ layout engine \u00b7 i1 \u00b7 A4 portrait \u00b7 300 dpi \u00b7 margins 38/9/19/26 mm \u00b7 patch 60\u00d760 mm \u00b7 clip border on\nLayout preset: i1 \u00b7 A4 portrait \u00b7 clip   \u25cf modified",
+      "targen_grp_visible": true,
+      "f_value": 0,
+      "ti1_sets_before": 300,
+      "est": {
+        "total": 6,
+        "fillup": 0,
+        "page_patches": 6,
+        "rows": 3,
+        "cols": 2,
+        "pages": 1,
+        "patch": [
+          60.0,
+          60.0
+        ],
+        "pitch": null
+      }
+    },
+    "high_after": {
+      "run": "Run 2 (overwrite)",
+      "actual": {
+        "total": 306,
+        "fillup": 2,
+        "page_patches": 6,
+        "rows": 3,
+        "cols": 2,
+        "pages": 51,
+        "patch": [
+          60.03,
+          59.94
+        ],
+        "pitch": null
+      },
+      "ti1_sets_after": 304,
+      "ti2": {
+        "sets": "306",
+        "steps": "3",
+        "passes": "2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2",
+        "patch_len": null,
+        "patch_w": null,
+        "instr": "GretagMacbeth i1 Pro",
+        "paper": "210.0x297.0",
+        "created": "Mo Sep 07 10:19:48 2026"
+      },
+      "targen_ran": [],
+      "engine_or_printtarg": [],
+      "log_tail": " be stopped, so the window will not respond until it is finished.\n[ChromIQ layout engine] 306 patches (3\u00d72), 51 pages, random start 270542419\n[ChromIQ layout engine] patch count: 304 designed + 2 paper-white fill-up patches completing the last strip = 306 total. Instruments read whole strips; the fill-up patches are measured like any others.\n[ChromIQ layout engine] note: low patch/spacer contrast in 1 strip\nwrote R2-Engine-colours.txt\nwrote R2-Engine-i1profiler.txt\nwrote R2-Engine-i1profiler.pxf"
+    }
+  },
+  "E": {
+    "type_set": true,
+    "type": "Calibration",
+    "run": "Project calibration",
+    "loc": "Location being edited: ChromIQ-assessment/Demo-Full-RGB/cal/",
+    "generate_enabled": true,
+    "stop_visible": false,
+    "cal_meta_calibration_used": [
+      [
+        "run1",
+        ""
+      ],
+      [
+        "run2",
+        ""
+      ],
+      [
+        "run3",
+        ""
+      ],
+      [
+        "run4",
+        ""
+      ]
+    ],
+    "dialogs": [
+      {
+        "class": "QMessageBox",
+        "title": "",
+        "text": "This project already has a finished calibration, and generating a new chart starts that work again from the beginning. | You would need to print the new chart and measure it before this project has a calibration once more.\n\nThese move to the project's \u201ccal/old\u201d folder, in a folder named with today's date \u2014 nothing is deleted, and you can go back to them at any time:\n  \u2022  the calibration chart\n  \u2022  its measurement\n  \u2022  the calibration file (.cal) made from it",
+        "buttons": [
+          "Replace the calibration",
+          "Cancel"
+        ],
+        "answer": "clicked 'Cancel'",
+        "expected": "already has a finished calibration"
+      }
+    ],
+    "trace_lines": [
+      "[DEBUG] ui.tabs.tab_chart: could not list runs built on the calibration"
+    ],
+    "generate_after": true
+  },
+  "unexpected": [],
+  "serious": [
+    "[ERROR] workflow.chart_creator: ChromIQ layout engine failed"
+  ]
+}

@@ -1,0 +1,5 @@
+# R-029 F-029 the replace-calibration question can never list the runs built on it
+Verdict: CONFIRMED
+Grade: OBSERVED (R05 E): calibration mode switched on for the session, Demo-Full-RGB, Run type Calibration (location cal/), Generate: "This project already has a finished calibration, and generating a new chart starts that work again from the beginning" with Replace the calibration / Cancel (Cancel pressed); the app log carries "[DEBUG] ui.tabs.tab_chart: could not list runs built on the calibration". Code read agrees: `Run` has `meta_path`, not `meta` (tab_chart.py:16446).
+Note: in this demo project no run's meta.json has `calibration_used` set, so the sentence would be empty here even if the helper worked; Agent 1's claim that Demo-Full-RGB run1 carries `calibration_used` did not hold on the copy I read (all four empty). The defect is real regardless (the helper raises on the first run).
+Spec: calibration_run_type.md §4.4 asks the window to name what depends on the calibration; agrees with Agent 1. Severity medium (agree).

@@ -1,0 +1,85 @@
+=== diff of ~/ChromIQ top-level vs baseline (must be empty) ===
+diff exit=0
+=== defaults read com.chromiq.ChromIQ custom_output_path (must be empty) ===
+value=[]
+=== plist unchanged vs baseline? ===
+plist byte-identical to baseline
+=== presets store untouched? (real one) ===
+Only in baseline-before-assessment/presets: .DS_Store
+Only in baseline-before-assessment/presets: Build Profile
+Only in baseline-before-assessment/presets: Chart Layout
+Only in baseline-before-assessment/presets: Check & Refine
+Only in baseline-before-assessment/presets: Create Chart
+Only in baseline-before-assessment/presets: Measure
+Only in baseline-before-assessment/presets: Picture Looks
+Files /Users/Basti/Library/Preferences/ChromIQ/presets/.DS_Store and baseline-before-assessment/presets/presets/.DS_Store differ
+Files /Users/Basti/Library/Preferences/ChromIQ/presets/Chart Layout/i1_A4R_clip.json and baseline-before-assessment/presets/presets/Chart Layout/i1_A4R_clip.json differ
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-A4-1080p-3pages-Portrait-w11.0mm.json
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-A4-1080p-3pages-Portrait-w11.0mm.ti1
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-A4-1260p-3pages-Portrait-w11.0mm-Hexagonal.json
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-A4-1260p-3pages-Portrait-w11.0mm-Hexagonal.ti1
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-A4-153p-1page-Portrait-w18.0mm-Hexagonal.json
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-A4-153p-1page-Portrait-w18.0mm-Hexagonal.ti1
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-A4-160p-1page-Portrait-w17.0mm.json
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-A4-160p-1page-Portrait-w17.0mm.ti1
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-A4-192p-1page-Portrait-w11.0mm.json
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-A4-192p-1page-Portrait-w11.0mm.ti1
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-A4-360p-1page-Portrait-w11.0mm.json
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-A4-360p-1page-Portrait-w11.0mm.ti1
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-A4-420p-1page-Portrait-w11.0mm-Hexagonal.json
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-A4-420p-1page-Portrait-w11.0mm-Hexagonal.ti1
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-A4-720p-2pages-Portrait-w11.0mm.json
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-A4-720p-2pages-Portrait-w11.0mm.ti1
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-A4-77p-1page-Portrait-w24.0mm.json
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-A4-77p-1page-Portrait-w24.0mm.ti1
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-A4-840p-2pages-Portrait-w11.0mm-Hexagonal.json
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-A4-840p-2pages-Portrait-w11.0mm-Hexagonal.ti1
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-Letter-1104p-3pages-Portrait-w11.0mm.json
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-Letter-1104p-3pages-Portrait-w11.0mm.ti1
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-Letter-1170p-3pages-Portrait-w11.0mm-Hexagonal.json
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-Letter-1170p-3pages-Portrait-w11.0mm-Hexagonal.ti1
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-Letter-150p-1page-Portrait-w17.0mm.json
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-Letter-150p-1page-Portrait-w17.0mm.ti1
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-Letter-170p-1page-Portrait-w16.0mm-Hexagonal.json
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-Letter-170p-1page-Portrait-w16.0mm-Hexagonal.ti1
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-Letter-184p-1page-Portrait-w11.0mm.json
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-Letter-184p-1page-Portrait-w11.0mm.ti1
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-Letter-368p-1page-Portrait-w11.0mm.json
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-Letter-368p-1page-Portrait-w11.0mm.ti1
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-Letter-390p-1page-Portrait-w11.0mm-Hexagonal.json
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-Letter-390p-1page-Portrait-w11.0mm-Hexagonal.ti1
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-Letter-736p-2pages-Portrait-w11.0mm.json
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-Letter-736p-2pages-Portrait-w11.0mm.ti1
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-Letter-780p-2pages-Portrait-w11.0mm-Hexagonal.json
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-Letter-780p-2pages-Portrait-w11.0mm-Hexagonal.ti1
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-Letter-88p-1page-Portrait-w22.0mm.json
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/Create Chart: CR30-Letter-88p-1page-Portrait-w22.0mm.ti1
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets: Picture Looks
+Only in /Users/Basti/Library/Preferences/ChromIQ/presets/presets: presets
+presets diff exit=1
+Mo  7 Sep 2026 09:41:54 CEST
+=== real presets store: files modified during the assessment (since 07:20 today) ===
+count=0
+=== files named *Assess* in the real store: 0
+=== ~/ChromIQ: any file modified during the assessment ===
+count=0
+=== sandbox ini custom_output_path ===
+custom_output_path=/Users/Basti/ChromIQ-assessment
+=== assessment projects created ===
+A1-EngineVsPrinttarg
+A10-Extremes
+A2-Instruments
+A3-LayoutModes
+A5-Furniture
+B1-Guided
+B7-Delete
+Demo-Full-RGB
+Demo-Legacy-v1
+Demo-Legacy-v2
+Demo-Verify-History
+Mo  7 Sep 2026 09:42:51 CEST
+
+=== CORRECTED preset check by the coordinator, 2026-09-07 ===
+Agent 1 compared the real store top level with the baseline nested legacy folder (presets/presets), so the lines above are misaligned.
+Correct command: diff -r -x .DS_Store ~/Library/Preferences/ChromIQ/presets "<Evidence>/baseline-before-assessment/presets"
+Result: REAL-PRESETS-IDENTICAL-TO-BASELINE (exit 0). The CR30 preset files it listed date from 2026-09-06, before the assessment.

@@ -1,0 +1,84 @@
+{
+  "chart-layout-default-fresh": {
+    "align": "center",
+    "layout_mode": "patch_first",
+    "info": "t\nChromIQ layout engine \u00b7 i1 \u00b7 A4 portrait \u00b7 300 dpi \u00b7 margins 38/9/19/26 mm \u00b7 clip border on \u00b7 align center\nLayout preset: i1 \u00b7 A4 portrait \u00b7 clip   \u25cf modified",
+    "store": [
+      "i1_A4R_clip.json",
+      "i1_A4_clip.json"
+    ]
+  },
+  "a7-clean": {
+    "fired": false,
+    "after_s": 6.27,
+    "flags": {
+      "in_flight": false,
+      "owned": false,
+      "last_sig_set": true
+    }
+  },
+  "a7-after-preset": {
+    "fired": false,
+    "after_s": 6.21,
+    "flags": {
+      "in_flight": false,
+      "owned": false,
+      "preset_ti1": "/Users/Basti/Desktop/Create Chart Assessment/Test Runs/sandbox/presets/Create Chart/AssessPresetB.ti1",
+      "pending_editor": "None"
+    },
+    "info": "Auto patch count \u00b7 Auto grey/white/black):\nLays out the existing patch set (targen skipped).\nprinttarg -ii1 -pA4R -t300 -L -a0.95 -m10 -M10 chart\nLayout preset: i1 \u00b7 A4 landscape \u00b7 noclip   \u25cf modified"
+  },
+  "a7-after-none": {
+    "fired": false,
+    "flags": {
+      "in_flight": false,
+      "preset_ti1": "None"
+    }
+  },
+  "x-1patch": {
+    "estimate": {
+      "total": 20,
+      "fillup": 0,
+      "page_patches": 20,
+      "rows": 20,
+      "cols": 1,
+      "pages": 1,
+      "patch": [
+        12.0,
+        12.0
+      ],
+      "pitch": null
+    },
+    "ok": true,
+    "stopped": false,
+    "secs": 2.8,
+    "actual": {
+      "total": 20,
+      "fillup": 10,
+      "page_patches": 20,
+      "rows": 20,
+      "cols": 1,
+      "pages": 1,
+      "patch": [
+        12.02,
+        12.02
+      ],
+      "pitch": null
+    },
+    "status": "",
+    "notes": "\u26a0 The left margin was widened from 26.0 mm to 29.7 mm to fit the row indicators. The labels start 26.0 mm in from the page edge and their text needs 2.7 mm. \u201cClip\u201d is set to 4.0 mm and is not what is holding them out there, so lowering it moves nothing \u2014 the note under \u201cText distance from edge\u201d names what is. To get that paper back, switch \u201cShow row indicators\u201d off or use a smaller label size.",
+    "margin_text": "mm | inch | min | Left (to first patch) | 29.7 | 1.170 | 26.0 | Right (to first patch) | 168.3 | 6.624 | 9.0 | Top (to first patch) | 38.0 | 1.497 | 38.0 | Bottom (to first patch) | 19.0 | 0.750 | 19.0 | Patch width (in strip reading direction) | 12.0 | 0.473 ",
+    "dialogs": [
+      [
+        "Rename Printer Profile",
+        "clicked 'Create \"A10-Extremes\" and keep \"B1-Guided\"'"
+      ]
+    ],
+    "serious": [],
+    "errors": [],
+    "engine": [
+      "[ChromIQ layout engine] patch count: 10 designed + 10 paper-white fill-up patches completing the last strip = 20 total. Instruments read whole strips; the fill-up patches are measured like any others.",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 1 strip"
+    ]
+  }
+}
