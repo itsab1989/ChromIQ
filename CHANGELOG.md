@@ -1,5 +1,45 @@
 # Changelog
 
+## v4.2.1
+
+**Two ready-made charts for the paper sizes photo paper is actually sold in.
+Nelson Lau designed a 600-patch target for a 10 x 15 cm card and a 648-patch
+one for 13 x 18 cm, both for the i1Pro, and ChromIQ had nothing for either size
+before now. Also: the patch count ChromIQ reported for a sheet size it had
+never measured could be five times too high.**
+
+### New
+
+- **Two photo-card charts, by Pharmacist.** Create Chart, Manual, at the top of
+  the i1Pro group in the Presets list and in the star overlay: a 600-patch
+  target on four 10 x 15 cm cards and a 648-patch one on three 13 x 18 cm
+  cards. Picking one asks for a name and copies the finished chart into the
+  run, the way the other nine "by Pharmacist" charts work, so no chart is
+  generated and nothing has to be laid out. Both are packed denser than
+  ArgyllCMS lays an i1Pro chart out (that is what fits 600 patches on four
+  small cards instead of the seven printtarg would need), and both print almost
+  edge to edge, so the preset says what that means for your printer before you
+  choose it.
+- **A chart preset can now be laid out for a sheet size that is not in the
+  paper list.** These two are the first that are. Unlocking "Edit page layout"
+  shows the sheet the chart was made for as a custom size with its width and
+  height filled in, instead of quietly saying A4.
+
+### Fixed
+
+- **The patch count for an unusual sheet size could be wildly wrong.** Asked how
+  many patches fit on a sheet ChromIQ has no measurement for, it searched a
+  range that started above the real answer, found nothing, and reported the
+  guess it had started from. For a 10 x 15 cm card it said 443 where the true
+  number is 90. Reachable before these presets existed, through the custom page
+  size in the layout panel.
+
+### Documentation
+
+- The licensing notes now describe the eleven bundled "by Pharmacist" charts
+  properly: they are Nelson Lau's own work, sent as finished files rather than
+  generated from a recipe in this repository, and he is credited by name.
+
 ## v4.2.0
 
 **ChromIQ can now measure a chart with a CR30, the first instrument it drives
