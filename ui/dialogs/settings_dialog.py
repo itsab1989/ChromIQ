@@ -3653,7 +3653,17 @@ class SettingsDialog(QDialog):
             _ink(est, "#909090", level="faint")
             form.addWidget(est, row, 5)
             self._pace_estimate[key] = est
-            hz.valueChanged.connect(self._refresh_pace_estimates)
+            # `self._pace_hz.get(key)`, NOT the loop's `hz`. A row without a
+            # rate box (the CR30) never binds `hz`, so this line would reach
+            # back to the PREVIOUS row's widget and connect it a second time --
+            # measured: the SpectroScan's box ended up with three receivers
+            # where every other row had two. Harmless while the CR30 is last in
+            # MODEL_DEFAULTS, and an UnboundLocalError that takes the whole
+            # Preferences dialog down the moment it is not. The comment eleven
+            # lines above records that exact failure happening once already.
+            _hz_box = self._pace_hz.get(key)
+            if _hz_box is not None:
+                _hz_box.valueChanged.connect(self._refresh_pace_estimates)
             pp.valueChanged.connect(self._refresh_pace_estimates)
             mn.valueChanged.connect(self._refresh_pace_estimates)
 

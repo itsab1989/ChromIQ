@@ -52,7 +52,8 @@ try:
 except ImportError:
     pass
 
-from PyQt6.QtCore import QLocale, QSettings                     # noqa: E402
+from PyQt6.QtCore import QLocale, QSettings, Qt                 # noqa: E402
+from PyQt6.QtTest import QTest                                   # noqa: E402
 from PyQt6.QtGui import QFontDatabase                           # noqa: E402
 from PyQt6.QtWidgets import (QApplication, QDialog, QGroupBox,  # noqa: E402
                              QLabel, QListWidget, QMessageBox,
@@ -185,11 +186,36 @@ def part2(app) -> int:
     tab._user_switch_mode("guided")
     pump(app, 1200)
 
+    seen_activated: list[int] = []
+    tab._instr_combo.activated.connect(seen_activated.append)
+
     def pick(code):
+        """Choose an instrument THROUGH THE OPEN POPUP, with the keyboard.
+
+        Not `setCurrentIndex`: that is what the APP does to itself, and the
+        density memory deliberately does not restore on it. A person picking a
+        row makes Qt emit `activated`, and this drives the real popup so that
+        distinction is exercised rather than assumed.
+        """
         i = tab._instr_combo.findData(code)
-        tab._instr_combo.setCurrentIndex(i)
-        tab._instr_combo.currentIndexChanged.emit(i)
+        before = len(seen_activated)
+        combo = tab._instr_combo
+        combo.showPopup()
+        pump(app, 350)
+        view = combo.view()
+        view.setCurrentIndex(combo.model().index(i, 0))
+        pump(app, 150)
+        QTest.keyClick(view, Qt.Key.Key_Return)
         pump(app, 700)
+        if combo.currentData() != code or len(seen_activated) == before:
+            # Some styles close the popup without a key event; fall back to the
+            # two signals a real selection emits, and say so.
+            combo.hidePopup()
+            combo.setCurrentIndex(i)
+            combo.activated.emit(i)
+            pump(app, 500)
+            print(f"          (popup keyboard pick did not take for {code}; "
+                  "used the signals a real selection emits)")
 
     def line(tag):
         print(f"          {tag:<28} instr={tab._instr_combo.currentData()!r:<7} "
@@ -234,6 +260,10 @@ def part2(app) -> int:
     if not tab._dd_check.isChecked():
         print("        >>> the CR30 lost its hexagons"); bad += 1
 
+    print(f"        activated fired {len(seen_activated)} times "
+          "(a real selection, never an app-driven setCurrentIndex)")
+    if not seen_activated:
+        print("        >>> no user pick was ever registered"); bad += 1
     win.close()
     pump(app, 400)
     return bad

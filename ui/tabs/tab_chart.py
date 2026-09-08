@@ -3844,6 +3844,8 @@ class TabChart(QWidget):
             self._instr_combo.addItem(label, code)
         self._instr_combo.currentIndexChanged.connect(self._update_patch_count)
         self._instr_combo.currentIndexChanged.connect(self._update_dd_visibility)
+        # USER PICKS ONLY. See `_on_user_picked_instrument`.
+        self._instr_combo.activated.connect(self._on_user_picked_instrument)
         self._instr_combo.currentIndexChanged.connect(self._rebuild_paper_combo)
         row.addWidget(self._instr_combo, stretch=1)
         row.addWidget(TooltipButton(
@@ -3909,6 +3911,7 @@ class TabChart(QWidget):
         #: with, and reopening a project seeds the widgets from that.
         self._dd_memory: dict[str, bool] = {}
         self._dd_instr: str | None = None
+        self._dd_writing = False
         self._dd_check = QCheckBox(tr("Double density"), inner)
         self._dd_check.toggled.connect(self._update_patch_count)
         self._dd_check.toggled.connect(self._on_guided_dd_toggled)
@@ -12729,6 +12732,23 @@ class TabChart(QWidget):
         if instr in self._DD_FAMILIES:
             self._dd_memory[instr] = bool(self._dd_check.isChecked())
 
+    def _set_dd_without_remembering(self, checked: bool) -> None:
+        """Move the widget without filing the result as an answer.
+
+        Clearing the box because the option underneath it changed meaning is
+        not the person saying "no" to the new option, and restoring a
+        remembered value is not a fresh answer either. Both would otherwise
+        land in `_dd_memory` through `toggled` and wipe what they were meant to
+        preserve: picking ColorMunki after SpectroScan cleared the widget,
+        filed False against ColorMunki, and then "restored" that False over the
+        True the person had actually chosen.
+        """
+        self._dd_writing = True
+        try:
+            self._dd_check.setChecked(bool(checked))
+        finally:
+            self._dd_writing = False
+
     def _update_dd_visibility(self) -> None:
         instr = self._instr_combo.currentData() or "i1"
         # ONE TICK, THREE MEANINGS, AND IT USED TO CARRY BETWEEN THEM.
@@ -12754,12 +12774,33 @@ class TabChart(QWidget):
         # Both go away with one change: each family keeps its own answer.
         # The i1/p3 branch still force-unchecks the WIDGET, because -h must not
         # reach printtarg for them, but the remembered value survives that.
+        # THE RESTORE IS NOT HERE, AND THAT WAS A REGRESSION WORTH THE SCAR.
+        # This method runs on EVERY instrument change, including the many the
+        # app makes for itself: seeding the panel from a run's .ti2, the
+        # Guided/Manual mirror, applying a preset. A first version restored the
+        # remembered tick here, so loading a project went:
+        #
+        #   stored state applied  ->  CR30, box OFF          (correct)
+        #   app seeds the instrument from the chart -> CM
+        #   restore fires        ->  CM's session memory, ON (WRONG)
+        #
+        # and the run was then written back with rig double density it never
+        # had. That is the same fault this whole change exists to remove,
+        # arriving through a door the app opened itself, and it breaks §4c D-4
+        # as well: the app's own write is not an answer.
+        #
+        # So the restore lives on `activated`, which Qt emits only for a person
+        # choosing a row. What DOES belong here is clearing a tick whose meaning
+        # has just changed: the widget must never go on showing "Double density"
+        # ticked because somebody asked for hexagons on a different instrument,
+        # however the instrument came to change. Clearing is not remembering, so
+        # it goes through `_set_dd_without_remembering`.
         prev = getattr(self, "_dd_instr", None)
-        if prev is not None and prev != instr:
-            self._remember_dd_for(prev)
         self._dd_instr = instr
-        if instr in self._DD_FAMILIES and instr != prev:
-            self._dd_check.setChecked(bool(self._dd_memory.get(instr, False)))
+        if (prev is not None and prev != instr
+                and self._DD_FAMILIES.get(prev) != self._DD_FAMILIES.get(instr)
+                and self._dd_check.isChecked()):
+            self._set_dd_without_remembering(False)
         # -h is meaningful on CM (double density via rig) and SS (hexagon
         # patches), but has different semantics → relabel and retitle.
         if instr == "CM":
@@ -12880,10 +12921,27 @@ class TabChart(QWidget):
         if not nsl_visible and self._nsl_check.isChecked():
             self._nsl_check.setChecked(False)
 
+    def _on_user_picked_instrument(self, _idx: int) -> None:
+        """A PERSON chose an instrument: show that instrument's own answer.
+
+        `activated` fires only for a real selection, never for the app's own
+        `setCurrentIndex`. That distinction is the whole fix: a run's stored
+        density value must survive the instrument seeding that follows a load.
+        """
+        instr = self._instr_combo.currentData() or ""
+        if instr in self._DD_FAMILIES:
+            self._set_dd_without_remembering(
+                bool(self._dd_memory.get(instr, False)))
+
     def _on_guided_dd_toggled(self, checked: bool) -> None:
-        # File it against the instrument it was ticked FOR, so a later switch
-        # away and back returns the user's own answer rather than whatever the
-        # last instrument happened to leave behind.
+        if getattr(self, "_dd_writing", False):
+            return                      # the app moved it, not the person
+        # File it against the instrument the widget is currently speaking for.
+        # `toggled`, not `clicked`, on purpose: a value that arrived from a
+        # run's stored state is this instrument's answer too, and must be
+        # remembered so that leaving and coming back returns it rather than a
+        # blank. What must NOT happen is restoring on an app-driven instrument
+        # change, and that is prevented at the other end (`activated`).
         self._remember_dd_for(self._instr_combo.currentData() or "")
         if checked and self._td_check.isChecked():
             self._td_check.setChecked(False)

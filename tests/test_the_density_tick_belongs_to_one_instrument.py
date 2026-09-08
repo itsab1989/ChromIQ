@@ -56,11 +56,24 @@ def tab(qapp, tmp_path):
 
 
 def _pick(tab, code: str) -> None:
-    """Change the instrument the way a person changes it."""
+    """Change the instrument the way a PERSON changes it.
+
+    `activated` too, not only `currentIndexChanged`: Qt emits `activated` only
+    for a real selection, and that is the signal the density memory restores
+    on. A test that emitted only `currentIndexChanged` would be describing what
+    the app does to itself, which is the case that must NOT restore.
+    """
     i = tab._instr_combo.findData(code)
     assert i >= 0, f"{code} is not offered in Guided"
     tab._instr_combo.setCurrentIndex(i)
     tab._instr_combo.currentIndexChanged.emit(i)
+    tab._instr_combo.activated.emit(i)
+
+
+def _app_moves_instrument_to(tab, code: str) -> None:
+    """What the APP does when it seeds the panel from a run, a chart or a
+    preset: a plain `setCurrentIndex`. No `activated`, because nobody chose."""
+    tab._instr_combo.setCurrentIndex(tab._instr_combo.findData(code))
 
 
 def _state(tab) -> tuple[bool, bool, str]:
@@ -173,3 +186,48 @@ def test_an_untouched_instrument_starts_off(tab):
     for an instrument they have never visited, so it starts unticked."""
     _pick(tab, "CR30")
     assert tab._dd_check.isChecked() is False
+
+
+# ---------------------------------------------------------------------------
+# the regression this nearly shipped with
+# ---------------------------------------------------------------------------
+def test_a_runs_stored_answer_survives_the_app_seeding_the_instrument(tab):
+    """THE ONE THAT ESCAPED THE FIRST TIME, and escaped the whole gate with it.
+
+    A first version restored the remembered tick on every instrument change,
+    including the ones the app makes for itself. Loading a project then went:
+    stored state applied (CR30, off), app seeds the instrument from the run's
+    own chart (CM), memory restores CM's session value (on) -- and the run was
+    written back carrying rig double density it never had.
+
+    The assertion is on `_shared_get`, not on the widget, because that is what
+    is written into `meta.json`. A widget-only assertion passed throughout.
+    """
+    _pick(tab, "CM")
+    tab._dd_check.setChecked(True)          # the person's answer, this session
+    tab._apply_ui_state({
+        "mode": "guided",
+        "guided": {"instrument": "CR30", "paper": "A4", "pages": 1,
+                   "double_density": False, "triple_density": False,
+                   "left_border": False, "no_strip_limit": False,
+                   "precond": ""},
+    })
+    _app_moves_instrument_to(tab, "CM")     # the .ti2 seeding, the mirror, …
+    assert tab._shared_get("guided")["double_density"] is False, (
+        "the session memory overwrote the run's stored answer and would be "
+        "written back into meta.json (per_target_settings.md §4c D-4: the "
+        "app's own write is not an answer)"
+    )
+
+
+def test_the_app_moving_the_instrument_never_restores_anything(tab):
+    """The same rule stated without a project: only a person's pick restores."""
+    _pick(tab, "CR30")
+    tab._dd_check.setChecked(True)
+    _app_moves_instrument_to(tab, "CM")
+    assert tab._dd_check.isChecked() is False
+    _app_moves_instrument_to(tab, "CR30")
+    assert tab._dd_check.isChecked() is False, \
+        "an app-driven change restored a remembered value"
+    _pick(tab, "CR30")                       # …but a person's pick does
+    assert tab._dd_check.isChecked() is True
