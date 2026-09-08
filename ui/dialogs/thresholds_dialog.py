@@ -320,6 +320,18 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
             return self._run_editable
         return SET_BY_ID[col].editable
 
+    @staticmethod
+    def _cell_text(lim: Limit) -> str:
+        """A read-only cell in the SAME number format as the spin boxes beside
+        it: the spin boxes follow the system locale (a German machine shows
+        2,00), so a plain "2.0" next to them read as a different number. Seen on
+        screen, 2026-09-08."""
+        if lim.is_numeric:
+            from PyQt6.QtCore import QLocale
+            txt = QLocale.system().toString(float(lim.number), "f", 2)
+            return f"({txt})" if lim.is_should else txt
+        return limit_text(lim)
+
     def _make_cell(self, col: str, row_id: str) -> QWidget:
         from workflow.compliance_sets import ROW_BY_ID
         row = ROW_BY_ID[row_id]
@@ -332,7 +344,7 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                     and row.status in ("now", "build", "ref")
                     and lim.kind in ("value", "should", "none", "unknown"))
         if not editable:
-            lab = QLabel(limit_text(lim), self)
+            lab = QLabel(self._cell_text(lim), self)
             lab.setAlignment(Qt.AlignmentFlag.AlignRight)
             lab.setFixedWidth(CELL_W)
             if lim.kind == "unmeasurable" and row.note:
@@ -477,7 +489,7 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                 if isinstance(w, NoScrollDoubleSpinBox):
                     w.setValue(float(lim.number) if lim.is_numeric else 0.0)
                 elif isinstance(w, QLabel):
-                    w.setText(limit_text(lim))
+                    w.setText(self._cell_text(lim))
         finally:
             self._syncing = False
 

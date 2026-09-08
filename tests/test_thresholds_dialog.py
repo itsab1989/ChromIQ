@@ -157,7 +157,9 @@ def test_this_run_column_is_locked_until_unlocked_and_written_once_on_close(qapp
     s, dlg = _dlg(qapp, tmp_path, run=run, run_editable=False)
     try:
         w = _cell(dlg, "__run__", "all_de00_avg")
-        assert isinstance(w, QLabel) and w.text() == "2.0"
+        from PyQt6.QtCore import QLocale
+        # read-only cells use the spin boxes' locale (2,00 on a German machine)
+        assert isinstance(w, QLabel) and w.text() == QLocale.system().toString(2.0, "f", 2)
         notes = [x.text() for x in dlg._column_widgets["__run__"] if isinstance(x, QLabel)]
         assert any("Unlock" in t for t in notes)
         dlg.accept()
