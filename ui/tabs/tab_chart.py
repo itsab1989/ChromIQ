@@ -233,8 +233,8 @@ MUNKI_TARGEN = {
 # files into a fresh ~/ChromIQ/<name> folder (renamed to <name>…) and loads them.
 # targen AND printtarg are skipped entirely — the param panels are greyed out
 # while such a preset is active, because none of those options apply.
-# The four "by Pharmacist" targets below are the full built-in line-up
-# (two i1Pro, two ColorMunki) — every one a prebuilt-files preset.
+# The eleven "by Pharmacist" targets below are the full prebuilt-files
+# line-up (seven i1Pro, four ColorMunki) — every one a prebuilt-files preset.
 # Labels follow the same convention as Knut's presets — instrument · paper +
 # patch count + page count, then the set name + "by Pharmacist". (Patch width and
 # orientation, which Knut's names carry, aren't stored for these pre-rendered
@@ -266,6 +266,59 @@ EXT1944_A4_PRESET_KEY = "__chromiq_ext1944_a4_builtin__"
 EXT1944_A4_PRESET_LABEL = "★  i1Pro · A4-1944p-3pages extended target by Pharmacist  ·  built-in"
 EXT1944_LETTER_PRESET_KEY = "__chromiq_ext1944_letter_builtin__"
 EXT1944_LETTER_PRESET_LABEL = "★  i1Pro · Letter-1944p-3pages extended target by Pharmacist  ·  built-in"
+# Photo-card targets (Nelson Lau, 2026-09-08): the first built-ins for the two
+# sizes photo paper actually comes in, 10 x 15 cm and 13 x 18 cm. Both are laid
+# out denser than Argyll's own i1 geometry allows (7.3 / 7.6 mm patch length
+# against printtarg's 10 mm floor, 0.56 mm spacers against its 1 mm), which is
+# what puts 600 patches on four small cards instead of the seven sheets
+# `printtarg -ii1 -p100x150` needs. That is the same trade every "by Pharmacist"
+# i1Pro chart already shipping makes; these two just take it a step further.
+#
+# THE PAPER IS SPELLED TWO WAYS ON PURPOSE, AND BOTH ARE RIGHT WHERE THEY ARE.
+# The LABEL says "10x15cm" because that is what is printed on the packet of
+# paper the user is holding, and a label is prose. The DEFAULT TARGET NAME says
+# "100x150" because that is what `paper_name_token` and
+# `_paper_name_and_orientation` produce for a custom size, and the name becomes
+# a folder, a file stem and the "Chart layout" line stamped on the sheet. A
+# name that disagreed with the one the app generates for the same sheet would
+# be the inconsistency, not this.
+#
+# NO COLOUR-SET NAME, unlike every other row in this family. They are two
+# DIFFERENT sets (only 256 device values in common, and different neutral
+# ramps), so one shared name would say they are a pair when they are not, and
+# "photo card" would only repeat the paper token. Nelson has been asked for
+# real set names; adding them later is a label change, and the key is the
+# identity, so nothing breaks when they arrive.
+PHOTOCARD600_PRESET_KEY = "__chromiq_photocard600_builtin__"
+PHOTOCARD600_PRESET_LABEL = "★  i1Pro · 10x15cm-600p-4pages by Pharmacist  ·  built-in"
+PHOTOCARD648_PRESET_KEY = "__chromiq_photocard648_builtin__"
+PHOTOCARD648_PRESET_LABEL = "★  i1Pro · 13x18cm-648p-3pages by Pharmacist  ·  built-in"
+
+# Extra tooltip lines for prebuilt presets that need one. Keyed by preset key;
+# absent means the shared body is the whole tooltip.
+#
+# THESE TWO SHEETS CARRY INK TO WITHIN ~1 MM OF THE PAPER EDGE (measured on
+# every page: 1.0 to 1.6 mm on the 13 x 18, 1.3 to 5.0 mm on the 10 x 15),
+# where every other bundled chart keeps 12 mm or more at top and bottom. The
+# patches themselves stay 12 mm from the bottom and 5 to 7 mm from the right,
+# so a bordered print still measures; what it trims is the crop marks and part
+# of the printed identification text. Nelson prints "print with borderless
+# setting" on the sheet itself, and the Print tab warns against borderless
+# because the driver's expansion enlarges the page. Both are right about
+# different things, so the tooltip says what is actually at stake instead of
+# taking a side.
+PREBUILT_PRESET_NOTES = {
+    PHOTOCARD600_PRESET_KEY: (
+        "This sheet is printed almost edge to edge, so a bordered print will\n"
+        "trim the crop marks and some of the text at the edges. The patches\n"
+        "sit far enough in to be measured either way. If your printer driver\n"
+        "can print borderless with expansion turned off, use that; if it\n"
+        "cannot, print with borders, because an enlarged chart is worse than\n"
+        "trimmed crop marks."
+    ),
+}
+PREBUILT_PRESET_NOTES[PHOTOCARD648_PRESET_KEY] = \
+    PREBUILT_PRESET_NOTES[PHOTOCARD600_PRESET_KEY]
 
 # key -> (asset stem under assets/charts, default target name). Charts are filed
 # by creator/colorspace/instrument/paper/target; the stem locates <stem>.ti1,
@@ -285,7 +338,23 @@ PREBUILT_PRESETS = {
     TC918EG_CM_A3_PRESET_KEY:  ("assets/charts/pharmacist/rgb/colormunki/a3plus/tc918eg/tc918eg", "ColorMunki-A3+-1160p-1page-TC9.18 extended greys by Pharmacist"),
     EXT1944_A4_PRESET_KEY:     ("assets/charts/pharmacist/rgb/i1pro/a4/extended1944/extended1944",     "i1Pro-A4-1944p-3pages-extended target by Pharmacist"),
     EXT1944_LETTER_PRESET_KEY: ("assets/charts/pharmacist/rgb/i1pro/letter/extended1944/extended1944", "i1Pro-Letter-1944p-3pages-extended target by Pharmacist"),
+    PHOTOCARD600_PRESET_KEY:   ("assets/charts/pharmacist/rgb/i1pro/100x150/photocard600/photocard600", "i1Pro-100x150-600p-4pages by Pharmacist"),
+    PHOTOCARD648_PRESET_KEY:   ("assets/charts/pharmacist/rgb/i1pro/130x180/photocard648/photocard648", "i1Pro-130x180-648p-3pages by Pharmacist"),
 }
+
+#: Paper folders whose name is not a printtarg ``-p`` code, mapped to one.
+#: A folder named ``<W>x<H>`` (millimetres) IS a valid printtarg custom size and
+#: needs no entry — see :func:`_prebuilt_paper_code`.
+_PREBUILT_PAPER_CODES = {"a4": "A4", "a3": "A3", "a3plus": "329x483",
+                         "letter": "Letter"}
+#: The same folders, as something to read. A ``<W>x<H>`` folder falls through to
+#: a generated "W × H mm" label, with the two photo-card sizes named the way the
+#: paper is sold rather than in millimetres alone.
+_PREBUILT_PAPER_LABELS = {"a4": "A4", "a3": "A3", "a3plus": "A3+",
+                          "letter": "US Letter",
+                          "100x150": "10 × 15 cm (100 × 150 mm)",
+                          "130x180": "13 × 18 cm (130 × 180 mm)"}
+_PREBUILT_CUSTOM_PAPER = re.compile(r"^(\d+)x(\d+)$")
 
 
 def _prebuilt_paper(key: str) -> str:
@@ -293,11 +362,20 @@ def _prebuilt_paper(key: str) -> str:
 
     The asset stem is ``.../<instrument>/<paper>/<target>/<target>``, so the
     paper folder is the third path component from the end. Returned as a display
-    label for the tooltip; unknown sizes fall through upper-cased."""
+    label for the tooltip.
+
+    A folder named ``<W>x<H>`` is a size in millimetres and reads back as
+    "W × H mm" unless :data:`_PREBUILT_PAPER_LABELS` names it better. Anything
+    else falls through upper-cased, as it always did."""
     stem = PREBUILT_PRESETS.get(key, ("",))[0]
     parts = stem.split("/")
     paper = parts[-3] if len(parts) >= 3 else ""
-    return {"a4": "A4", "a3": "A3", "a3plus": "A3+", "letter": "US Letter"}.get(paper, paper.upper() or "A4")
+    if paper in _PREBUILT_PAPER_LABELS:
+        return _PREBUILT_PAPER_LABELS[paper]
+    m = _PREBUILT_CUSTOM_PAPER.match(paper)
+    if m:
+        return f"{m.group(1)} × {m.group(2)} mm"
+    return paper.upper() or "A4"
 
 # --- Knut's TC9.18 + Spyderprint-greys presets -----------------------------
 # A family of built-in presets that all share ONE bundled 1168-patch .ti1
@@ -1316,7 +1394,7 @@ class _Ti1Preset:
         load — ``builtin_preset_recipe(self.key) is not None``. Measured on the
         shipped set: **130 rows, 115 marked.** The six Red River charts carry a
         ``layout_recipe`` (geometry) but no ``recipe.json`` (the colour-set
-        design the editor loads), so they are unmarked; the nine "by Pharmacist"
+        design the editor loads), so they are unmarked; the eleven "by Pharmacist"
         charts are ``PREBUILT_PRESETS`` rows, not ``_Ti1Preset`` objects, so they
         never reach this property at all. 115 + 6 + 9 = 130.
 
@@ -2337,6 +2415,7 @@ BUILTIN_PRESET_LABELS = frozenset({
     TC300_PRESET_LABEL, ABW702_PRESET_LABEL,
     TC924_CM_A3_PRESET_LABEL, TC918EG_CM_A3_PRESET_LABEL,
     EXT1944_A4_PRESET_LABEL, EXT1944_LETTER_PRESET_LABEL,
+    PHOTOCARD600_PRESET_LABEL, PHOTOCARD648_PRESET_LABEL,
 }) | {p.combo_label for p in KNUT_PRESETS}
 
 # Built-in presets grouped by the instrument they target — the single source of
@@ -2403,7 +2482,15 @@ BUILTIN_PRESET_GROUPS: list[tuple[str, list[tuple[str, str, str]]]] = [
         *_KNUT_GROUP_ENTRIES["ColorMunki"],
     ]),
     (_group_heading("i1Pro"), [
-        # A4 first (ascending patch count), then US-Letter — keep paper grouped.
+        # Smallest sheet first. That is all this block has ever done (it ran
+        # A4-1110, A4-1160, A4-1944, Letter-1160, Letter-1944: paper, then
+        # count), and these are the two smallest sheets ChromIQ ships a chart
+        # for. Not Knut's paper-then-width-then-count rule, which belongs to the
+        # Knut families below: a prebuilt bundle stores no patch width, which is
+        # why these labels carry none.
+        (PHOTOCARD600_PRESET_LABEL, "10x15cm-600p-4pages by Pharmacist", PHOTOCARD600_PRESET_KEY),
+        (PHOTOCARD648_PRESET_LABEL, "13x18cm-648p-3pages by Pharmacist", PHOTOCARD648_PRESET_KEY),
+        # A4 next (ascending patch count), then US-Letter — keep paper grouped.
         (ABW1110_PRESET_LABEL, "A4-1110p-2pages ABW-optimized by Pharmacist",  ABW1110_PRESET_KEY),
         (TC918EG_A4_PRESET_LABEL,     "A4-1160p-2pages TC9.18 extended greys by Pharmacist",     TC918EG_A4_PRESET_KEY),
         (EXT1944_A4_PRESET_LABEL,     "A4-1944p-3pages extended target by Pharmacist",     EXT1944_A4_PRESET_KEY),
@@ -2440,7 +2527,7 @@ BUILTIN_PRESET_GROUPS: list[tuple[str, list[tuple[str, str, str]]]] = [
 
 def _marked_overlay_label(key: str, label: str) -> str:
     """The ★-overlay row for a built-in: its overlay label plus the "Full layout
-    setup" marker when the preset carries one. The nine prebuilt ("by
+    setup" marker when the preset carries one. The eleven prebuilt ("by
     Pharmacist") rows are not _Ti1Presets, so they are returned unchanged —
     which is exactly Knut's rule."""
     p = KNUT_PRESETS_BY_KEY.get(key)
@@ -7849,9 +7936,14 @@ class TabChart(QWidget):
             "target right away; you can adjust any setting and regenerate."
         )
 
-    def _prebuilt_tooltip(self, paper: str) -> str:
-        """Tooltip text for a prebuilt-files built-in preset."""
-        return (
+    def _prebuilt_tooltip(self, paper: str, note: str = "") -> str:
+        """Tooltip text for a prebuilt-files built-in preset.
+
+        *note* is appended as its own paragraph when the chart needs something
+        said about it that the shared body cannot say (see
+        :data:`PREBUILT_PRESET_NOTES`).
+        """
+        body = (
             "Built-in chart — cannot be deleted.\n"
             f"A complete, ready-made target laid out for {paper}.\n"
             "Picking it asks for a name, then copies the bundled patch set\n"
@@ -7859,6 +7951,7 @@ class TabChart(QWidget):
             "no targen or printtarg is run, so those panels are greyed out.\n"
             "The copied TIFFs are loaded straight into the preview."
         )
+        return f"{body}\n\n{note}" if note else body
 
     def _populate_preset_combo(self, presets: dict, select_name: str | None = None) -> None:
         self._preset_combo.blockSignals(True)
@@ -7928,7 +8021,8 @@ class TabChart(QWidget):
         """Combo/overlay tooltip for any built-in preset (per its kind)."""
         if key in KNUT_PRESET_KEYS:
             return self._knut_tooltip(key)
-        return self._prebuilt_tooltip(_prebuilt_paper(key))
+        return self._prebuilt_tooltip(_prebuilt_paper(key),
+                                      PREBUILT_PRESET_NOTES.get(key, ""))
 
     @staticmethod
     def _knut_tooltip(key: str) -> str:
@@ -8735,7 +8829,7 @@ class TabChart(QWidget):
                 #
                 # A BUILT-IN WITH NO DESIGN CLEARS THE RECORD, IT DOES NOT LEAVE IT.
                 # 15 of the built-ins are fixed .ti1 charts with no recipe — the
-                # nine "by Pharmacist" ones and the six Red River ones. `None` here
+                # eleven "by Pharmacist" ones and the six Red River ones. `None` here
                 # means "don't touch", so building one of those into a run that had
                 # previously held a preset left the PREVIOUS preset's design on the
                 # run, describing a chart it did not build. From there it was copied
@@ -10842,13 +10936,28 @@ class TabChart(QWidget):
 
     @staticmethod
     def _prebuilt_paper_code(key: str) -> str:
-        """printtarg -p code a prebuilt preset is laid out for, from its asset path."""
+        """printtarg -p code a prebuilt preset is laid out for, from its asset path.
+
+        A FOLDER NAMED ``<W>x<H>`` IS ALREADY THE ANSWER. printtarg takes a
+        custom size that way (``-p100x150`` lays out a real sheet, verified),
+        and :meth:`ui.parameter_widget.ParameterWidget.set_value` routes a value
+        it cannot find in the combo to the "Custom (enter dimensions)" row and
+        fills the W / H boxes. So the photo-card sheets need no entry in
+        ``PAPER_SIZES`` and no new dropdown item for every user: the panel shows
+        Custom 100 x 150, which is the truth.
+
+        The fallback stays ``"A4"`` and is now unreachable for a well-formed
+        asset path. It used to be reachable, silently: an unknown paper folder
+        put A4 in the layout panel, so unlocking the layout and re-generating
+        laid a photo-card chart out on A4 with nothing said.
+        """
         stem = PREBUILT_PRESETS.get(key, ("",))[0]
         parts = stem.split("/")
         paper = parts[-3] if len(parts) >= 3 else ""
-        # Map the asset folder name to a valid printtarg -p code (see PAPER_SIZES).
-        return {"a4": "A4", "a3": "A3", "a3plus": "329x483",
-                "letter": "Letter"}.get(paper, "A4")
+        if _PREBUILT_CUSTOM_PAPER.match(paper):
+            return paper
+        # Map a named asset folder to a valid printtarg -p code (see PAPER_SIZES).
+        return _PREBUILT_PAPER_CODES.get(paper, "A4")
 
     def _leave_prebuilt(self) -> None:
         """Clear prebuilt-files state and re-enable the param panels."""

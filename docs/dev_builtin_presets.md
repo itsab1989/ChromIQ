@@ -15,7 +15,7 @@ mechanism works end-to-end and how to add, rename, or re-file one.
 
 Built-ins now come in **three kinds**:
 
-1. **prebuilt-files** (the ten "by Pharmacist" charts) — a complete, ready-made
+1. **prebuilt-files** (the eleven "by Pharmacist" charts) — a complete, ready-made
    target is bundled and just copied into the run; **no targen/printtarg**.
 2. **ti1 → printtarg** (the 17 "TC9.18+Spyderprint Grays" charts, see the
    dedicated section below) — one shared `.ti1` is bundled and **printtarg is run
@@ -65,13 +65,15 @@ bundle should be regenerated. That happened once: the i1Pro/A4 `tc924` set,
 whose patch V16 rendered white where the `.ti2` said grey. It was parked, and
 then removed outright in #164 rather than regenerated.
 
-The ten shipped presets (all RGB). Labels follow the same
+The eleven shipped presets (all RGB). Labels follow the same
 `Instrument · Paper-NNNNp-Mpages Name by Pharmacist` convention as the
 ti1→printtarg presets below (patch width / orientation omitted — not stored for
 these pre-rendered charts):
 
 | Label (in the dropdown)                                       | Instrument | Asset leaf |
 |---------------------------------------------------------------|------------|------------|
+| ★ i1Pro · 10x15cm-600p-4pages by Pharmacist                   | i1Pro      | `i1pro/100x150/photocard600` |
+| ★ i1Pro · 13x18cm-648p-3pages by Pharmacist                   | i1Pro      | `i1pro/130x180/photocard648` |
 | ★ i1Pro · A4-1110p-2pages ABW-optimized by Pharmacist         | i1Pro      | `i1pro/a4/abw1110` |
 | ★ i1Pro · A4-1160p-2pages TC9.18 extended greys by Pharmacist | i1Pro      | `i1pro/a4/tc918eg` |
 | ★ i1Pro · Letter-1160p-2pages TC9.18 extended greys by Pharmacist | i1Pro  | `i1pro/letter/tc918eg` |
@@ -86,6 +88,31 @@ The `tc918eg` pair is the same patch set in two page sizes; the page size lives
 in the label (and is read back from the asset path by `_prebuilt_paper` for the
 tooltip), so the two entries are distinguishable in both the dropdown and the
 overlay.
+
+**The two photo-card charts (Nelson Lau, 2026-09-08) are the first whose paper
+folder is a size rather than a name**, and that is a mechanism, not a one-off. A
+folder called `<W>x<H>` (millimetres) is already a valid printtarg `-p` custom
+size, so `_prebuilt_paper_code` returns it verbatim and
+`ParameterWidget.set_value` routes it to the layout panel's "Custom (enter
+dimensions)" row with the W and H boxes filled. Nothing has to be added to
+`data.patch_db.PAPER_SIZES` for a new sheet size, which matters: that list feeds
+seven other hand-maintained tables (the `-p` choices in `parameters.yaml`, the
+`labels` overlay in thirteen translations, the layout engine's papers, the
+`.ti2` reverse map, the Patch Set Editor's own order, `EXCLUDED_PAPERS` and
+`ENGINE_EXCLUDED_PAPERS`) plus sixteen measured capacity tables. Adding a size
+to the dropdown WITHOUT its capacity rows makes the app report a five-fold
+over-estimate: measured, `_binary_search` answers **443** for a 100x150 sheet
+whose true i1 capacity is **90**.
+
+`_prebuilt_paper` gives such a folder a readable label, and
+`_PREBUILT_PAPER_LABELS` names one better where the paper is sold under a name
+("10 × 15 cm (100 × 150 mm)" rather than "100 × 150 mm").
+
+These two also carry a `PREBUILT_PRESET_NOTES` entry, an extra tooltip
+paragraph for a chart that needs something said about it. Theirs is that the
+sheet is printed almost edge to edge: ink reaches within about 1 mm of the paper
+on the 13 x 18, where every other bundled chart keeps 12 mm or more top and
+bottom.
 
 ---
 

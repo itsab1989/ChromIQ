@@ -20,6 +20,8 @@ BUNDLES = [
     "assets/charts/pharmacist/rgb/colormunki/a3plus/tc918eg/tc918eg",
     "assets/charts/pharmacist/rgb/colormunki/a4/abw702/abw702",
     "assets/charts/pharmacist/rgb/colormunki/a4/tc300/tc300",
+    "assets/charts/pharmacist/rgb/i1pro/100x150/photocard600/photocard600",
+    "assets/charts/pharmacist/rgb/i1pro/130x180/photocard648/photocard648",
     "assets/charts/pharmacist/rgb/i1pro/a4/abw1110/abw1110",
     "assets/charts/pharmacist/rgb/i1pro/a4/extended1944/extended1944",
     "assets/charts/pharmacist/rgb/i1pro/a4/tc918eg/tc918eg",

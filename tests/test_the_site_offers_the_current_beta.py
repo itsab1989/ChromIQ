@@ -40,3 +40,26 @@ def test_the_download_buttons_still_point_at_the_stable_release():
     text = SITE.read_text(encoding="utf-8")
     assert text.count("releases/latest") >= 1, (
         "the Download buttons should offer the stable release, not a beta")
+
+
+def test_the_site_says_how_many_presets_there_really_are():
+    """The same rot, one number over: the page advertises a preset count by
+    hand.
+
+    It has been wrong before. The commit before this one was titled "the site
+    said 130 presets and a beta CR30" and moved it to 150; adding a single
+    built-in makes it wrong again, silently, because nothing else reads it.
+    The registry is the truth, so ask the registry.
+    """
+    import os
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from ui.tabs.tab_chart import BUILTIN_PRESET_KEYS
+
+    n = len(BUILTIN_PRESET_KEYS)
+    text = SITE.read_text(encoding="utf-8")
+    claimed = {int(m) for m in re.findall(r"(\d+) ready-made chart presets", text)}
+    assert claimed, "the site no longer names a preset count at all"
+    assert claimed == {n}, (
+        f"docs/index.html advertises {sorted(claimed)} ready-made chart "
+        f"presets; the registry holds {n}"
+    )

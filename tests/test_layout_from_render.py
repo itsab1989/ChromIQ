@@ -92,6 +92,7 @@ def test_derive_refuses_wrong_reference(engine_chart, tmp_path):
 
 @pytest.mark.parametrize("leaf", [
     "rgb/colormunki/a4/tc300", "rgb/i1pro/a4/abw1110",
+    "rgb/i1pro/100x150/photocard600", "rgb/i1pro/130x180/photocard648",
 ])
 def test_prebuilt_bundles_carry_verified_geometry(leaf):
     """The bundled prebuilt charts ship a derived channels.json the scanner

@@ -3,9 +3,9 @@ preset", and the tooltip now says so.
 
 Knut asked why they were not listed. They arrived as finished patch-set files
 with no design behind them, so there is no setup to load — but nothing on
-screen said that, and a list that silently omits nine charts reads as a fault.
+screen said that, and a list that silently omits eleven charts reads as a fault.
 Basti chose a sentence in the tooltip over listing them greyed, on the grounds
-that nine permanently dead entries make the list worse.
+that eleven permanently dead entries make the list worse.
 """
 import pytest
 
