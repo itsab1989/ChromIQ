@@ -224,10 +224,24 @@ DEFAULTS: dict[str, Any] = {
     # run's reports/ folder after every measurement, so reports of the same
     # chart accrue and can be compared over time (ink/printer/instrument drift).
     "save_measurement_report":   True,
-    # Measurement Report Pass thresholds (ΔE00) — the defaults the report opens
-    # with; the user can change them here and per-report in the window (Knut).
-    "report_pass_threshold_avg": 2.0,
-    "report_pass_threshold_max": 3.0,
+    # Measurement Report limit sets (#182). The two old keys
+    # `report_pass_threshold_avg` / `_max` (one number for the three averages,
+    # one for the two maxima) were replaced by per-row limits in named sets;
+    # schema 23 folds a changed pair into `compliance_set_overrides` on the
+    # ChromIQ default set so nobody's verdicts move. The overrides blob is
+    # `{set_id: {row_id: number | null}}` and holds only the cells the user
+    # changed, so a changed factory value still reaches everyone who did not.
+    "compliance_set_overrides":  "",
+    # The limit set a NEW profile run is bound to at its first verification
+    # measurement (Knut D18/D20: Preferences holds the defaults).
+    "compliance_default_set":    "chromiq_default",
+    # Knut D20: a run's limits are fixed by its first verification measurement
+    # unless this allows the report window's "Unlock" to be ticked afterwards.
+    "compliance_allow_edit_after_measurement": False,
+    # Which limit-set columns the Report limits window shows when opened from
+    # Preferences (JSON list of set ids; "" = all). Per RUN when opened from
+    # the report window (Knut K-b), stored in the run's meta.json instead.
+    "compliance_columns_shown":  "",
     # Measurement Report title/filename prefixes (#130, Knut). The report picks
     # the profiling or verification prefix from whether its measurements carry
     # the CHROMIQ_VERIFICATION marker; the full title/filename is
@@ -711,6 +725,44 @@ def serialize_margin_thresholds(table: dict[str, dict[str, Any]]) -> str:
     return json.dumps(table, ensure_ascii=False)
 
 
+def parse_compliance_overrides(raw: str) -> dict[str, dict[str, Any]]:
+    """Decode the stored limit-set overrides (``""`` → none). Only the shape
+    ``{set_id: {row_id: number | None}}`` survives; anything else is dropped
+    with a warning rather than crashing the report."""
+    import json
+
+    if not raw:
+        return {}
+    try:
+        doc = json.loads(raw)
+    except (ValueError, TypeError):
+        log.warning("Corrupt compliance_set_overrides blob, ignoring it")
+        return {}
+    if not isinstance(doc, dict):
+        return {}
+    out: dict[str, dict[str, Any]] = {}
+    for set_id, cells in doc.items():
+        if not isinstance(cells, dict):
+            continue
+        clean: dict[str, Any] = {}
+        for rid, v in cells.items():
+            if v is None:
+                clean[str(rid)] = None
+            else:
+                try:
+                    clean[str(rid)] = float(v)
+                except (TypeError, ValueError):
+                    continue
+        out[str(set_id)] = clean
+    return out
+
+
+def serialize_compliance_overrides(table: dict[str, dict[str, Any]]) -> str:
+    import json
+
+    return json.dumps(table, ensure_ascii=False, sort_keys=True) if table else ""
+
+
 def margin_combo_key(instrument: str, paper: str, orientation: str) -> str:
     """Canonical "<instrument>|<paper> <Orientation>" threshold key."""
     paper = (paper or "").strip()
@@ -769,7 +821,7 @@ def thresholds_for_combo(
 # Bump when a shipped default changes in a way that must reach users who have
 # the OLD default persisted. Settings → Save writes every key, so a stored
 # value otherwise pins a user to the old behaviour for good.
-SETTINGS_SCHEMA = 22
+SETTINGS_SCHEMA = 23
 
 # key → the old default(s) it must no longer be stuck on. Only a stored value
 # EQUAL to one of the old defaults is dropped (so it falls through to the new
@@ -919,11 +971,56 @@ class AppSettings:
         if self._migrate_factory_project_name():
             dropped.append("chart_target_name (no invented project name on a "
                            "fresh start)")
+        if self._migrate_report_thresholds_to_sets():
+            dropped.append("report_pass_threshold_avg/max (now limit sets; a "
+                           "changed pair lives on in compliance_set_overrides)")
         self._qs.setValue("settings_schema", SETTINGS_SCHEMA)
         if dropped:
             log.info("Settings migrated to schema %d; dropped stale defaults: %s",
                      SETTINGS_SCHEMA, ", ".join(dropped))
         return dropped
+
+    def _migrate_report_thresholds_to_sets(self) -> bool:
+        """schema 23 (#182): the two Measurement Report thresholds become
+        per-row limits in named limit sets.
+
+        The old "average" number judged the three average rows and the old
+        "maximum" the two maximum rows. A stored value that merely echoes the
+        factory 2.0 / 3.0 is dropped and the user follows the ChromIQ default
+        set exactly as before. A value the user MOVED is written as an
+        override on the ChromIQ default set, per value (a user who moved only
+        the average must not get a pointless maximum override), so every
+        verdict they see tomorrow is the one they saw yesterday. The two old
+        keys are then removed, and this runs once: Settings → Save writes
+        every key, so leaving them would re-create them for ever.
+        """
+        raw_avg = self._qs.value("report_pass_threshold_avg", None)
+        raw_max = self._qs.value("report_pass_threshold_max", None)
+        if raw_avg is None and raw_max is None:
+            return False
+        from workflow.compliance_sets import OLD_AVG_ROWS, OLD_MAX_ROWS
+
+        def _num(raw):
+            try:
+                return float(str(raw).replace(",", "."))
+            except (TypeError, ValueError):
+                return None
+
+        changed: dict[str, Any] = {}
+        avg, mx = _num(raw_avg), _num(raw_max)
+        if avg is not None and avg > 0 and abs(avg - 2.0) > 1e-9:
+            changed.update({r: avg for r in OLD_AVG_ROWS})
+        if mx is not None and mx > 0 and abs(mx - 3.0) > 1e-9:
+            changed.update({r: mx for r in OLD_MAX_ROWS})
+        if changed:
+            table = parse_compliance_overrides(
+                str(self._qs.value("compliance_set_overrides", "") or ""))
+            table.setdefault("chromiq_default", {}).update(changed)
+            self._qs.setValue("compliance_set_overrides",
+                              serialize_compliance_overrides(table))
+        self._qs.remove("report_pass_threshold_avg")
+        self._qs.remove("report_pass_threshold_max")
+        return True
 
     def _migrate_factory_project_name(self) -> bool:
         """schema 22: "Printer profile project name" starts EMPTY.
@@ -1300,6 +1397,17 @@ class AppSettings:
 
     def set_margin_thresholds(self, table: dict[str, dict[str, Any]]) -> None:
         self.set("margin_thresholds", serialize_margin_thresholds(table))
+
+    # ------------------------------------------------------------------
+    # Measurement Report limit-set overrides (#182; JSON blob)
+    # ------------------------------------------------------------------
+    def get_compliance_overrides(self) -> dict[str, dict[str, Any]]:
+        """``{set_id: {row_id: number | None}}``: only the cells the user
+        changed in the Report limits window, for the editable sets."""
+        return parse_compliance_overrides(str(self.get("compliance_set_overrides", "") or ""))
+
+    def set_compliance_overrides(self, table: dict[str, dict[str, Any]]) -> None:
+        self.set("compliance_set_overrides", serialize_compliance_overrides(table))
 
     # ------------------------------------------------------------------
     # Strip-indicator styling defaults (Knut #93)

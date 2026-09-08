@@ -833,6 +833,29 @@ class RunMeta:
     # where its files came from without letting it claim to BE the source run.
     # Knut, 2026-08-01: "meta.json not copied. duplicated_from: runN note added."
     duplicated_from: str | None = None
+    # #182 (Knut, D9/D20/D23/K-b): the Measurement Report's LIMIT SET belongs
+    # to the profile run, and every dated verification under
+    # runs/runN/verifications/ is judged with it. Bound at the run's first
+    # verification measurement (or when the user picks a set in the report
+    # window before that), the set's limits are COPIED here, so a later change
+    # to the set in Preferences never re-grades a run that was already judged.
+    # "" / {} mean "not bound yet", which is every run written before this
+    # existed; such a run is judged with the Preferences default and bound the
+    # first time a report is stamped for it.
+    compliance_set_id: str = ""
+    #: the set's English label at binding time, shown when the id is no longer
+    #: known to a later ChromIQ ("<label> (historical)", D23)
+    compliance_set_label: str = ""
+    #: {row_id: limit as JSON}: the run's own copy of the limits (D20 "copied
+    #: into the report, where they may be edited")
+    compliance_thresholds: dict = field(default_factory=dict)
+    compliance_bound_at: str = ""
+    #: "Unlock this run's limits" was ticked: the copy may differ from any set
+    #: and every dated report of the run was recalculated (D23)
+    compliance_unlocked: bool = False
+    #: K-b: which limit-set columns the Report limits window shows for this
+    #: run; [] = all
+    compliance_columns: list = field(default_factory=list)
 
     @classmethod
     def fresh(cls, run_id: str, parent: str | None = None) -> "RunMeta":
@@ -2381,6 +2404,34 @@ class Verification:
 
     def exists(self) -> bool:                 return self.measurement_ti3.exists()
 
+    def archive_reports(self, when: "datetime | None" = None) -> "Path | None":
+        """**Copy** every saved report of this dated verification into
+        ``reports/old/<timestamp>/`` and return that folder, or None when
+        there was nothing to archive.
+
+        #182 (D23, R4): unlocking a run's limits recalculates every dated
+        report of the run, and a record that is about to be rewritten is kept
+        first, never deleted. A COPY, not a move, because the live file is
+        rewritten in place under its own name so the history keeps one report
+        per date (CH-29/CH-30). ``list_reports`` looks only one level deep, so
+        nothing under ``old/`` is ever listed as a run.
+        """
+        import shutil
+        live = sorted(self.reports_dir.glob("report_*.json")) \
+            if self.reports_dir.is_dir() else []
+        if not live:
+            return None
+        stamp = (when or datetime.now()).strftime("%Y-%m-%d_%H%M%S")
+        target = self.reports_dir / "old" / stamp
+        n = 1
+        while target.exists():
+            n += 1
+            target = self.reports_dir / "old" / f"{stamp}_{n}"
+        target.mkdir(parents=True, exist_ok=True)
+        for p in live:
+            shutil.copy2(p, target / p.name)
+        return target
+
 
 # ---------------------------------------------------------------------------
 # Project — the work_dir root
@@ -2465,6 +2516,10 @@ DUPLICATE_META_FRESH: frozenset = frozenset({
     # Lifecycle, and nothing in the app reads or writes it — leave it at the
     # fresh default rather than propagate a state nothing maintains.
     "status",
+    # #182: the copy has no verifications/, so nothing has been judged with
+    # its limits yet: the binding moment is fresh and the copy starts locked
+    # ("duplicating a run carries the chosen set and clears the binding").
+    "compliance_bound_at", "compliance_unlocked",
 })
 
 DUPLICATE_META_CARRY: frozenset = frozenset({
@@ -2485,6 +2540,10 @@ DUPLICATE_META_CARRY: frozenset = frozenset({
     "parent_run", "preconditioning_source_run",
     # TI2-editor state, which cannot be recovered from the .ti2 alone.
     "editor_layout", "editor_basename", "editor_recipe",
+    # #182: the chosen limit set, its copied limits and the column choice
+    # travel with the run they describe.
+    "compliance_set_id", "compliance_set_label", "compliance_thresholds",
+    "compliance_columns",
 })
 
 
