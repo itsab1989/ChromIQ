@@ -400,3 +400,82 @@ def test_the_exact_five_gestures_that_stuck_it(tab):
     assert tab._td_check.isChecked() is True
     tab._td_check.setChecked(False)
     assert tab._collect_guided().triple_density is False
+
+
+# ---------------------------------------------------------------------------
+# THE TWO LINES THAT MAKE THEM MUTUALLY EXCLUSIVE
+# ---------------------------------------------------------------------------
+#
+# Found by the review of the commit that added the invariant above: deleting
+# EITHER exclusion line — `_on_guided_dd_toggled`'s `_td_check.setChecked(False)`
+# or `_on_guided_td_toggled`'s `_dd_check.setChecked(False)` — left all 12,010
+# tests green while producing both boxes ticked in six gestures.
+#
+# The invariant test could not see it because of the same order-blindness its
+# author had already fixed once: it ticks triple density first, and the
+# `isEnabled()` guard then stops it ever ticking the density box on top, so the
+# pair is never both set. These two ask the question directly, from both
+# directions, with no guard in the way.
+@pytest.mark.parametrize("first,second", [("_td_check", "_dd_check"),
+                                          ("_dd_check", "_td_check")])
+def test_ticking_one_density_option_clears_the_other(tab, first, second):
+    _pick(tab, "CM")           # the only instrument that offers both
+    getattr(tab, first).setChecked(True)
+    assert getattr(tab, first).isChecked() is True
+    # …and now force the other on the way a lost exclusion line would allow.
+    box = getattr(tab, second)
+    box.setEnabled(True)       # a missing line leaves it enabled; this is the
+    box.setChecked(True)       # gesture that then becomes possible
+    assert not (tab._td_check.isChecked() and tab._dd_check.isChecked()), (
+        f"{first} and {second} are both ticked. They are alternatives: "
+        "Triple density lays the sheet out with the i1Pro geometry and tags it "
+        "for the ColorMunki, Double density halves the patch pitch for the rig. "
+        "A chart cannot be both."
+    )
+
+
+def test_both_density_options_never_reach_one_build(tab):
+    """The consequence, at the only place that matters: what gets built."""
+    _pick(tab, "CM")
+    tab._td_check.setChecked(True)
+    tab._dd_check.setEnabled(True)
+    tab._dd_check.setChecked(True)
+    p = tab._collect_guided()
+    assert not (p.triple_density and p.double_density), (
+        f"the build carries both: triple_density={p.triple_density} "
+        f"double_density={p.double_density}"
+    )
+
+
+def test_choosing_triple_density_is_remembered_as_not_double_density(tab):
+    """T9. The exclusion line cannot be relied on to update the memory.
+
+    `setChecked(False)` on a box that is ALREADY False emits no `toggled`, so
+    ticking Triple density after the APP has cleared the density box leaves a
+    stale True filed against that instrument. The next pick restores it, the
+    triple-density choice disappears, and THE CHART BUILDS WITH THE OTHER
+    OPTION. Master keeps the tick.
+
+    The app-driven move in the middle is the whole point: unticking the box by
+    hand emits `toggled` and hides the fault, which is why a first probe of
+    this said "clean".
+    """
+    _pick(tab, "CM")
+    tab._dd_check.setChecked(True)
+    # the app moves the instrument away and back; the clear is deliberate and
+    # deliberately does not write the memory
+    tab._instr_combo.setCurrentIndex(tab._instr_combo.findData("SS"))
+    tab._instr_combo.setCurrentIndex(tab._instr_combo.findData("CM"))
+    assert tab._dd_check.isChecked() is False, "the premise failed"
+
+    tab._td_check.setChecked(True)
+    _pick(tab, "CM")
+
+    assert tab._td_check.isChecked() is True, \
+        "a stale density memory swapped the triple-density choice"
+    p = tab._collect_guided()
+    assert p.triple_density is True and p.double_density is False, (
+        f"the chart builds triple_density={p.triple_density} "
+        f"double_density={p.double_density}: the rig option the person did "
+        "not choose"
+    )

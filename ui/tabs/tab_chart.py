@@ -270,8 +270,14 @@ EXT1944_LETTER_PRESET_LABEL = "★  i1Pro · Letter-1944p-3pages extended target
 # sizes photo paper actually comes in, 10 x 15 cm and 13 x 18 cm. Both are laid
 # out denser than Argyll's own i1 geometry allows (7.3 / 7.6 mm patch length
 # against printtarg's 10 mm floor, 0.56 mm spacers against its 1 mm), which is
-# what puts 600 patches on four small cards instead of the seven sheets
-# `printtarg -ii1 -p100x150` needs. That is the same trade every "by Pharmacist"
+# what puts 600 patches on four small cards instead of the NINE sheets
+# `printtarg -ii1 -p100x150 -t300 -a0.95 -m10 -M10` needs, which is exactly the
+# command ChromIQ builds for an i1Pro on that sheet. (Seven is what comes out
+# with `-L` added, and ChromIQ does not add it: `-L` in Guided comes from
+# `chart_disable_left_border` (core/settings.py), which ships False. Measured
+# twice with the leftover pages deleted between runs, because not deleting them
+# is how "seven" got written here in the first place.)
+# That is the same trade every "by Pharmacist"
 # i1Pro chart already shipping makes; these two just take it a step further.
 #
 # THE PAPER IS SPELLED TWO WAYS ON PURPOSE, AND BOTH ARE RIGHT WHERE THEY ARE.
@@ -13012,6 +13018,27 @@ class TabChart(QWidget):
             self._dd_check.setChecked(False)
         self._dd_check.setEnabled(not checked)
         self._dd_tooltip.setEnabled(not checked)
+        if not getattr(self, "_td_writing", False):
+            # AND FILE WHAT THAT MEANS FOR THE DENSITY BOX, UNCONDITIONALLY.
+            #
+            # `setChecked(False)` on a box that is ALREADY False emits no
+            # `toggled`, so the line above cannot be relied on to update the
+            # density memory. Choosing triple density still means "not double
+            # density" for this instrument, and the memory has to say so, or a
+            # stale True comes back and swaps the person's answer:
+            #
+            #   ColorMunki, tick Double density        memory {CM: True}
+            #   the app moves the instrument away and back   (clears the box,
+            #                                          deliberately without
+            #                                          writing the memory)
+            #   tick Triple density   -> the exclusion is a no-op, memory stale
+            #   pick ColorMunki       -> Double density restored, Triple density
+            #                            gone, and the chart BUILDS that way
+            #
+            # Measured against master, which keeps the tick. Found by the review
+            # of the commit before this one; my own probe missed it because I
+            # unticked the box by hand, which does emit.
+            self._remember_dd_for(self._instr_combo.currentData() or "")
         # Triple density forces -L internally — stash the user's lb_check
         # value and force it on; restore on untoggle.
         if checked:

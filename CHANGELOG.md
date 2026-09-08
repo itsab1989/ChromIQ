@@ -21,8 +21,8 @@ times too high.**
   run, the way the other nine "by Pharmacist" charts work, so no chart is
   generated and nothing has to be laid out. Both are packed denser than
   ArgyllCMS lays an i1Pro chart out, which is what fits 600 patches on four
-  small cards where printtarg needs nine sheets at its own defaults, or seven
-  at the ones ChromIQ starts an i1Pro with. Both print almost edge to edge, so
+  small cards where printtarg needs nine sheets, at its own defaults and at the
+  ones ChromIQ starts an i1Pro with alike. Both print almost edge to edge, so
   the preset says what that means for your printer before you choose it.
 - **A chart preset can now be laid out for a sheet size that is not in the
   paper list.** These two are the first that are. Unlocking "Edit page layout"
