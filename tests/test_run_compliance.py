@@ -149,9 +149,9 @@ def test_edited_copy_columns_and_unlock_round_trip(tmp_path):
 # ---- the partition and the archive ------------------------------------------------
 
 def test_the_six_fields_are_classified_as_the_record_says():
-    assert {"compliance_set_id", "compliance_set_label", "compliance_thresholds",
-            "compliance_columns"} <= DUPLICATE_META_CARRY
-    assert {"compliance_bound_at", "compliance_unlocked"} <= DUPLICATE_META_FRESH
+    assert {"compliance_set_id", "compliance_set_label", "compliance_columns"} <= DUPLICATE_META_CARRY
+    assert {"compliance_bound_at", "compliance_unlocked",
+            "compliance_thresholds"} <= DUPLICATE_META_FRESH
     m = RunMeta.from_dict({"run_id": "run1", "compliance_thresholds": {"a": 1},
                            "something_from_the_future": 1})
     assert m.compliance_thresholds == {"a": 1} and m.compliance_set_id == ""
@@ -167,10 +167,27 @@ def test_archive_reports_copies_and_never_moves(tmp_path):
     from datetime import datetime
     when = datetime(2026, 9, 8, 12, 0, 0)
     a = v.archive_reports(when)
-    b = v.archive_reports(when)                         # same second: a second folder
+    assert v.archive_reports(when) is None              # identical content: no second copy (N2)
+    live.write_text(json.dumps({"schema": 7, "changed": True}), encoding="utf-8")
+    b = v.archive_reports(when)                         # changed content, same second: a second folder
     assert a == v.reports_dir / "old" / "2026-09-08_120000"
     assert b == v.reports_dir / "old" / "2026-09-08_120000_2"
     assert live.exists() and (a / live.name).exists() and (b / live.name).exists()
     # the archive is invisible to the report listing
     from workflow.measurement_report import list_reports
     assert list_reports(v.dir) == [live]
+
+
+def test_a_duplicated_run_carries_the_choice_of_set_but_is_bound_afresh(tmp_path):
+    """F13: the record's words, "carries the chosen set and clears the binding"."""
+    proj, run = _project(tmp_path)
+    rc.bind_run(run, "chromiq_tight", {})
+    lim = factory_limits("chromiq_tight"); lim["all_de00_avg"] = Limit.value(0.7)
+    rc.set_run_limits(run, lim)
+    dup_run = proj.duplicate_run(run)
+    rl = rc.run_limits(dup_run, {}, "chromiq_default")
+    assert not rl.bound and not rl.edited
+    assert rl.set_id == "chromiq_tight"                     # the choice travels
+    assert rl.limits["all_de00_avg"] == Limit.value(1.0)     # not the source's edit
+    bound = rc.ensure_bound(dup_run, {}, "chromiq_default")
+    assert bound.bound and bound.set_id == "chromiq_tight"

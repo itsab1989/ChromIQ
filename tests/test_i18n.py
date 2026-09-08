@@ -665,19 +665,23 @@ def test_every_deliberate_exception_says_why():
 # the FIVE verdict words PASS / FAIL / COND / INFO / N-A, which Knut ruled as
 # English tokens (K-f) and which read the same in German. The eleven others
 # carry the English source under the beta rule, so each gains 137.
+# Same day, after the adversarial review: 17 sentences added (the Overall
+# summaries, the two write-failure windows, the reworded provenance and COND
+# texts) and six long texts re-keyed after a rewording; German carries all of
+# them, the eleven others gain the difference.
 _IDENTICAL_TO_KEY = {
-    "de": 122,
-    "es": 241,
-    "fr": 262,
-    "it": 252,
-    "ja": 228,
-    "nl": 269,
-    "no": 253,
-    "pl": 245,
-    "pt": 243,
-    "ru": 216,
-    "sv": 255,
-    "zh_CN": 222,
+    "de": 121,
+    "es": 259,
+    "fr": 280,
+    "it": 270,
+    "ja": 246,
+    "nl": 286,
+    "no": 271,
+    "pl": 263,
+    "pt": 261,
+    "ru": 234,
+    "sv": 272,
+    "zh_CN": 240,
 }
 
 

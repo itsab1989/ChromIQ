@@ -2416,19 +2416,35 @@ class Verification:
         per date (CH-29/CH-30). ``list_reports`` looks only one level deep, so
         nothing under ``old/`` is ever listed as a run.
         """
+        import hashlib
         import shutil
         live = sorted(self.reports_dir.glob("report_*.json")) \
             if self.reports_dir.is_dir() else []
         if not live:
             return None
+        old_root = self.reports_dir / "old"
+        # Only content that has no copy yet (review F11, N2): a second unlock,
+        # or a set change after the unlock, must not duplicate an identical
+        # archive, and a report stamped after the unlock must still get one.
+        have: set = set()
+        if old_root.is_dir():
+            for c in old_root.glob("*/report_*.json"):
+                try:
+                    have.add(hashlib.sha256(c.read_bytes()).hexdigest())
+                except OSError:
+                    continue
+        todo = [p for p in live
+                if hashlib.sha256(p.read_bytes()).hexdigest() not in have]
+        if not todo:
+            return None
         stamp = (when or datetime.now()).strftime("%Y-%m-%d_%H%M%S")
-        target = self.reports_dir / "old" / stamp
+        target = old_root / stamp
         n = 1
         while target.exists():
             n += 1
-            target = self.reports_dir / "old" / f"{stamp}_{n}"
+            target = old_root / f"{stamp}_{n}"
         target.mkdir(parents=True, exist_ok=True)
-        for p in live:
+        for p in todo:
             shutil.copy2(p, target / p.name)
         return target
 
@@ -2520,6 +2536,9 @@ DUPLICATE_META_FRESH: frozenset = frozenset({
     # its limits yet: the binding moment is fresh and the copy starts locked
     # ("duplicating a run carries the chosen set and clears the binding").
     "compliance_bound_at", "compliance_unlocked",
+    # …and the COPY of the limits: the duplicate is bound afresh, to the set
+    # it carries, at its own first verification (review F13).
+    "compliance_thresholds",
 })
 
 DUPLICATE_META_CARRY: frozenset = frozenset({
@@ -2542,8 +2561,7 @@ DUPLICATE_META_CARRY: frozenset = frozenset({
     "editor_layout", "editor_basename", "editor_recipe",
     # #182: the chosen limit set, its copied limits and the column choice
     # travel with the run they describe.
-    "compliance_set_id", "compliance_set_label", "compliance_thresholds",
-    "compliance_columns",
+    "compliance_set_id", "compliance_set_label", "compliance_columns",
 })
 
 

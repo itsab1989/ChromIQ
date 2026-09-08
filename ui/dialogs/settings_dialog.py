@@ -5805,6 +5805,8 @@ class SettingsDialog(QDialog):
         store_compliance_overrides(s, buf.get("overrides") or {})
         s.set("compliance_default_set",
               str(buf.get("default_set") or "chromiq_default"))
+        if "columns" in buf:
+            s.set("compliance_columns_shown", str(buf.get("columns") or ""))
         s.set("compliance_allow_edit_after_measurement",
               bool(self._compliance_allow_edit_check.isChecked()))
         s.set("report_title_profiling",

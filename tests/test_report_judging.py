@@ -153,8 +153,15 @@ def test_two_steps_are_not_a_ramp(tmp_path):
 
 # ---- grading rules ---------------------------------------------------------------
 
+def _run_dir(tmp_path):
+    """A real run folder: only the run's OWN chart is a profiling sheet (F1)."""
+    d = tmp_path / "P" / "runs" / "run1"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
 def test_a_profiling_measurement_is_not_graded_a_verification_is(tmp_path):
-    prof = mr.build_report(_write_ti3(tmp_path / "p.ti3", _colours(), verification=False))
+    prof = mr.build_report(_write_ti3(_run_dir(tmp_path) / "P.ti3", _colours(), verification=False))
     ver = mr.build_report(_write_ti3(tmp_path / "v.ti3", _colours()))
     assert not mr.is_graded_sheet(prof)
     assert mr.is_graded_sheet(ver)
@@ -235,7 +242,7 @@ def test_the_old_two_number_form_still_works(tmp_path):
 
 
 def test_a_profiling_report_is_stamped_as_not_graded(tmp_path):
-    rep = mr.build_report(_write_ti3(tmp_path / "p.ti3", _colours(), verification=False))
+    rep = mr.build_report(_write_ti3(_run_dir(tmp_path) / "P.ti3", _colours(), verification=False))
     mr.stamp_verdict(rep, factory_limits("chromiq_default"))
     assert rep["verdict"]["graded"] is False and rep["verdict"]["all_pass"] is None
     assert rep["verdict"]["overall"] == INFO
@@ -269,3 +276,31 @@ def test_report_scope_warns_when_two_limit_sets_meet():
     kinds = [w["kind"] for w in scope["warnings"]]
     assert "compliance" in kinds
     assert mr.report_scope([run("ChromIQ default", "2026-01-01T10:00:00")] * 2)["warnings"] == []
+
+
+def test_a_verification_without_the_marker_is_still_a_verification_by_its_folder(tmp_path):
+    """F1: sheets measured before the marker keyword existed live in
+    runs/runN/verifications/<date>/ and keep their verdict; a file in no run is
+    judged as before; only the run's own profiling chart is INFO."""
+    from core.file_manager import Project
+    proj = Project.create(tmp_path / "P", "P")
+    run = proj.current_run(); run.ensure_dir()
+    v = run.new_verification(); v.ensure_dir()
+    unmarked = _write_ti3(v.dir / f"{run.verify_stem}.ti3", _colours(), verification=False)
+    rep = mr.build_report(unmarked)
+    assert rep["sheet_kind"] == "verification" and rep["is_verification"]
+    assert mr.is_graded_sheet(rep)
+    prof = mr.build_report(_write_ti3(run.dir / "P.ti3", _colours(), verification=False))
+    assert prof["sheet_kind"] == "profiling" and not mr.is_graded_sheet(prof)
+    (tmp_path / "Downloads").mkdir()
+    ext = mr.build_report(_write_ti3(tmp_path / "Downloads" / "x.ti3", _colours(), verification=False))
+    assert ext["sheet_kind"] == "standalone" and mr.is_graded_sheet(ext)
+
+
+def test_a_report_without_a_grey_block_says_not_computed_not_no_greys():
+    rows = {r["row_id"]: r for r in mr.judge(
+        {"is_verification": True, "sheet_kind": "verification",
+         "de00": {"avg_all": 1.0, "avg_low95": 1.0, "avg_high5": 1.0, "max_all": 1.0,
+                  "max_low95": 1.0, "n": 30}},
+        factory_limits("chromiq_default"))}
+    assert rows["grey_balance_neutral_ramp_avg"]["reason"] == mr.REASON_NOT_COMPUTED

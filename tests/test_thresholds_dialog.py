@@ -213,3 +213,38 @@ def test_a_default_radio_exists_only_for_selectable_sets(qapp, tmp_path):
         assert factory_limits("iso_12647_7")["all_de00_avg"] == Limit.unknown()
     finally:
         dlg.deleteLater()
+
+
+def test_this_run_recommendation_survives_a_trip_through_zero(qapp, tmp_path):
+    """F4: turning a bracketed cell to 0 and back must keep it a recommendation."""
+    proj = Project.create(tmp_path / "P", "P")
+    run = proj.current_run(); run.ensure_dir()
+    rc.bind_run(run, "chromiq_default", {})
+    s, dlg = _dlg(qapp, tmp_path, run=run, run_editable=True)
+    try:
+        sb = _cell(dlg, "__run__", "grey_balance_neutral_ramp_avg")
+        sb.setValue(0.0)
+        sb.setValue(2.0)
+        assert dlg._run_limits["grey_balance_neutral_ramp_avg"] == Limit.should(2.0)
+        dlg.accept()
+        assert run.load_meta().compliance_thresholds["grey_balance_neutral_ramp_avg"] == [2.0, "should"]
+    finally:
+        dlg.deleteLater()
+
+
+def test_column_choice_from_preferences_waits_in_the_buffer(qapp, tmp_path):
+    """F12: from Preferences, Cancel must drop a hidden column like any edit."""
+    buf = {"overrides": {}, "default_set": "chromiq_default"}
+    s, dlg = _dlg(qapp, tmp_path, buffer=buf)
+    try:
+        dlg._column_checks["iso_12647_7"].setChecked(False)
+        assert "iso_12647_7" not in json.loads(buf["columns"])
+        assert s.get("compliance_columns_shown") == ""
+    finally:
+        dlg.deleteLater()
+    # …and a buffer with a choice is what the window opens on next time
+    s2, dlg2 = _dlg(qapp, tmp_path / "b", buffer=buf)
+    try:
+        assert not dlg2._column_checks["iso_12647_7"].isChecked()
+    finally:
+        dlg2.deleteLater()

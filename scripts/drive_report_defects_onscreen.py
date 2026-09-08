@@ -202,6 +202,10 @@ def main() -> int:
     (r2.dir / "Q.ti2").write_text(_TI2, encoding="utf-8")
     q_ti3 = r2.dir / "Q.ti3"
     q_ti3.write_text(_TI3, encoding="utf-8")
+    # #182: a run's own profiling sheet is never graded, so the sheet this
+    # defect is about must be a verification (marked, as the Measure tab marks it)
+    from workflow.ti3_analysis import mark_verification_ti3
+    q_ti3 = mark_verification_ti3(q_ti3)
     reports = r2.dir / "reports"
     reports.mkdir(exist_ok=True)
 

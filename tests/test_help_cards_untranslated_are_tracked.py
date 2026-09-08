@@ -381,19 +381,21 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 #: M messages, and the limit-set table's row notes and set blurbs. German is
 #: translated for all of them and stays at 4. The eleven carry the English
 #: source under the beta rule; the full pass happens before the final release.
+#: Same day, after the adversarial review: the Overall summary sentences, the two
+#: write-failure windows and the reworded provenance and gamut texts add 16 more.
 _BUDGET = {
     "de": 4,
-    "es": 98,
-    "fr": 99,
-    "it": 98,
-    "ja": 98,
-    "nl": 98,
-    "no": 98,
-    "pl": 98,
-    "pt": 98,
-    "ru": 97,
-    "sv": 98,
-    "zh_CN": 97,
+    "es": 114,
+    "fr": 115,
+    "it": 114,
+    "ja": 114,
+    "nl": 114,
+    "no": 114,
+    "pl": 114,
+    "pt": 114,
+    "ru": 113,
+    "sv": 114,
+    "zh_CN": 113,
 }
 
 

@@ -167,6 +167,21 @@ def _design_xyz_is_d65(keywords: "dict[str, str]") -> bool:
     return near(_WHITE_D65) < near(_WHITE_D50)
 
 
+def _sheet_kind(ti3_path: "Path | str") -> str:
+    """``verification`` (in ``runs/runN/verifications/<date>/`` or a ``-verify``
+    stem), ``profiling`` (the run's own chart, directly in ``runs/runN/``) or
+    ``standalone`` (in no run: an import, a file in Downloads)."""
+    import re as _re
+    p = Path(ti3_path)
+    d = p.parent
+    from core.file_manager import VERIFICATIONS_DIRNAME
+    if p.stem.endswith("-verify") or d.parent.name == VERIFICATIONS_DIRNAME:
+        return "verification"
+    if _re.match(r"^run\d+$", d.name) and d.parent.name == "runs":
+        return "profiling"
+    return "standalone"
+
+
 def _find_reference_ti2(ti3_path: Path) -> Path:
     """Locate the design ``.ti2`` for a measurement (#130). A verification lives
     in ``runs/runN/verifications/<date>/`` and holds only its ``.ti3``, so the
@@ -470,7 +485,14 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
         # True when this measurement is a colour-managed verification (carries
         # CHROMIQ_VERIFICATION) — chooses the report's title/scope wording and
         # keeps verification trends separate from profiling ones (#130).
-        "is_verification": is_verification_ti3(data),
+        "is_verification": is_verification_ti3(data) or _sheet_kind(ti3_path) == "verification",
+        # #182 (review F1): a sheet's KIND from where it lives, not from the
+        # marker keyword alone. A verification measured before the keyword
+        # existed (June 2026) sits in runs/runN/verifications/<date>/ and must
+        # stay a graded verification; a file that is in no run at all (an
+        # i1Profiler export in Downloads) is judged as it always was.
+        "sheet_kind": ("verification" if is_verification_ti3(data)
+                       else _sheet_kind(ti3_path)),
     }
 
     # Paper white (lightest) and darkest black by measured L*.
@@ -1238,6 +1260,7 @@ REASON_NO_RAMP = "no_ramp"
 REASON_SMALL_SAMPLE = "small_sample"
 REASON_PRINTING_UNRECORDED = "printing_unrecorded"
 REASON_NO_CORNERS = "no_corners"
+REASON_NOT_COMPUTED = "not_computed"     # the block is missing from this report
 
 
 def _distinct_levels(levels: "list[float]", tol: float = GREY_LEVEL_TOL) -> int:
@@ -1338,15 +1361,20 @@ def ramps_block(rgb100, lab, ref: "dict[str, tuple]",
 def is_graded_sheet(report: dict) -> bool:
     """Whether a measurement is judged against limits at all.
 
-    Graded: a verification sheet with a reference that is not a raw drift check.
-    Not graded (every row INFO): a raw drift check (:func:`is_drift_check`),
-    and a measurement that is not a verification at all, i.e. the run's own
-    profiling chart, which is printed raw by definition and whose distance from
-    the chart's design says nothing a limit could judge (CH-16). ONE rule for
-    the stored verdict and the window, as :func:`is_drift_check` already is.
+    Graded: a verification sheet, or a file that is in no run at all (an
+    i1Profiler export, a file in Downloads), with a reference, that is not a
+    raw drift check. Not graded (every row INFO): a raw drift check
+    (:func:`is_drift_check`), and the run's own PROFILING chart, which is
+    printed raw by definition and whose distance from the chart's design says
+    nothing a limit could judge (CH-16). The kind comes from ``sheet_kind``
+    (where the file lives, review F1), so a verification measured before the
+    marker keyword existed keeps its verdict. ONE rule for the stored verdict
+    and the window, as :func:`is_drift_check` already is.
     """
     report = report or {}
-    if not report.get("is_verification"):
+    kind = report.get("sheet_kind") or (
+        "verification" if report.get("is_verification") else "profiling")
+    if kind == "profiling":
         return False
     if is_drift_check(report):
         return False
@@ -1406,8 +1434,10 @@ def row_values(report: dict) -> "dict[str, dict]":
             and report.get("reference_source") in ("design", "device")):
         grey_graded = False
     if not gb:
-        put("grey_balance_neutral_ramp_avg", None, REASON_NO_GREYS)
-        put("grey_balance_neutral_ramp_max", None, REASON_NO_GREYS)
+        # an older report, or one whose measurement file could not be read
+        # again: the block is absent, which is not the same as "no greys" (N9)
+        put("grey_balance_neutral_ramp_avg", None, REASON_NOT_COMPUTED)
+        put("grey_balance_neutral_ramp_max", None, REASON_NOT_COMPUTED)
     elif gb.get("eligible") and gb.get("avg") is not None:
         put("grey_balance_neutral_ramp_avg", gb["avg"],
             REASON_PRINTING_UNRECORDED if grey_graded is False else None, grey_graded)

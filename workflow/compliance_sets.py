@@ -622,6 +622,27 @@ def row_verdict(limit: Limit, value: "float | None", graded: bool) -> "str | Non
     return COND if limit.is_should else FAIL
 
 
+#: The column summary's sentences (English source; the extractor sweeps this
+#: dict, review F6). Filled with {checked} {total} {failed} {cond} {not_computed}.
+SUMMARY_REASONS: "dict[str, str]" = {
+    "empty": "This limit set defines no limits.",
+    "not_graded": "This sheet is not graded; its numbers are shown for information.",
+    "fail": "{failed} of {checked} values checked are over this limit set's limits.",
+    "iso": "{checked} of {total} values checked, all within this limit set's "
+           "values. This limit set holds a standard's published values applied "
+           "to your chart; it is not a test against that standard, and the "
+           "values not checked are listed below.",
+    "cond_both": "{checked} of {total} values checked, none over a required "
+                 "limit; {not_computed} not computed and {cond} over a "
+                 "recommended value.",
+    "cond_missing": "{checked} of {total} values checked, none over a required "
+                    "limit; {not_computed} not computed on this chart.",
+    "cond_recommended": "{checked} of {total} values checked, none over a "
+                        "required limit; {cond} over a recommended value.",
+    "pass": "Every value this limit set requires was checked and is within its limit.",
+}
+
+
 @dataclass(frozen=True)
 class Summary:
     word: str
@@ -652,37 +673,27 @@ def set_summary(rows: "list[tuple[Limit, str | None]]", *, set_is_iso: bool,
     """
     bearing = [(lim, w) for lim, w in rows if lim.is_numeric]
     total = len(bearing)
+    R = SUMMARY_REASONS
     if total == 0:
-        return Summary(N_A, 0, 0, 0, 0, 0, "This limit set defines no limits.")
+        return Summary(N_A, 0, 0, 0, 0, 0, R["empty"])
     failed = sum(1 for _l, w in bearing if w == FAIL)
     cond = sum(1 for _l, w in bearing if w == COND)
     not_computed = sum(1 for _l, w in bearing if w == N_A)
     checked = sum(1 for _l, w in bearing if w in (PASS, FAIL, COND))
     if not graded:
-        return Summary(INFO, checked, total, failed, cond, not_computed,
-                       "This sheet is not graded; its numbers are shown for "
-                       "information.")
+        return Summary(INFO, checked, total, failed, cond, not_computed, R["not_graded"])
     if failed:
-        return Summary(FAIL, checked, total, failed, cond, not_computed,
-                       "{failed} of {checked} values checked are over this "
-                       "limit set's limits.")
+        return Summary(FAIL, checked, total, failed, cond, not_computed, R["fail"])
     required_missing = sum(1 for lim, w in bearing
                            if w == N_A and not lim.is_should)
     if set_is_iso:
-        return Summary(COND, checked, total, failed, cond, not_computed,
-                       "{checked} of {total} values checked, all within this "
-                       "limit set's values. This limit set holds a standard's "
-                       "published values applied to your chart; it is not a "
-                       "test against that standard, and the values not checked "
-                       "are listed below.")
+        return Summary(COND, checked, total, failed, cond, not_computed, R["iso"])
     if cond or required_missing:
-        return Summary(COND, checked, total, failed, cond, not_computed,
-                       "{checked} of {total} values checked, none over a "
-                       "required limit; {not_computed} not computed and "
-                       "{cond} over a recommended value.")
-    return Summary(PASS, checked, total, failed, cond, not_computed,
-                   "Every value this limit set requires was checked and is "
-                   "within its limit.")
+        # no "0 over a recommended value" clauses (text review)
+        key = ("cond_both" if (cond and not_computed)
+               else "cond_missing" if not_computed else "cond_recommended")
+        return Summary(COND, checked, total, failed, cond, not_computed, R[key])
+    return Summary(PASS, checked, total, failed, cond, not_computed, R["pass"])
 
 
 def summary_text(s: Summary) -> str:

@@ -65,7 +65,21 @@ open decisions are listed on the issue.
   N-A instead of a number computed from one patch.
 - **A profiling measurement is no longer graded.** The run's own chart is
   printed raw, so its distance from the chart's design was a permanent Fail
-  that said nothing about the printer; it now reads INFO throughout.
+  that said nothing about the printer; it now reads INFO throughout. What counts
+  as a verification is decided by where the file lives, not only by the marker
+  ChromIQ writes since June: a sheet in a run's `verifications/<date>/` folder,
+  or one whose name ends in `-verify`, is a verification and keeps its verdict,
+  and a measurement that is in no ChromIQ run at all (an i1Profiler export you
+  add to the report) is judged as it always was.
+- **A report is never rewritten before its previous version is kept.** Every
+  recalculation copies each dated report into its `reports/old` folder first,
+  only if that exact content has no copy there yet; a date whose copy cannot be
+  written is left exactly as it was and named in a window.
+- **A duplicated run keeps its source's choice of limit set but not the copy of
+  its numbers**: it is bound afresh, to that set, at its own first verification
+  measurement.
+- The detail table's "Threshold" column is now "Limit", and its rows carry the
+  same names as the results grid.
 - The report window's help, tooltips and "How to read" chapter are rewritten
   around limit sets.
 

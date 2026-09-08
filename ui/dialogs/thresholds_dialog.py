@@ -139,10 +139,19 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         inner.setSpacing(10)
         outer.addLayout(inner)
 
-        sub = QLabel(tr(
+        sub_text = tr(
             "Rows are grouped by the patches a limit is written over. A "
-            "statistic ChromIQ computes and a standard also limits is one row."),
-            self)
+            "statistic ChromIQ computes and a standard also limits is one row.")
+        if not any(sid in set(selectable_set_ids(self._overrides))
+                   for sid in ("iso_12647_7", "iso_12647_8")):
+            sub_text += " " + tr(
+                "The ISO value sets are not yet available in this version, and "
+                "the two Custom sets that start from them are empty: whether a "
+                "standard's numbers may ship inside ChromIQ is still being "
+                "decided. A cell reading ? is a limit the standard defines and "
+                "ChromIQ does not show yet; you may type your own number into a "
+                "Custom column from your own copy of the standard.")
+        sub = QLabel(sub_text, self)
         sub.setWordWrap(True)
         inner.addWidget(sub)
 
@@ -177,6 +186,10 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         self._grid.setVerticalSpacing(3)
         self._grid.setContentsMargins(0, 0, 0, 0)
         self._build_grid()
+        # F7: with setWidgetResizable the body shrinks to the viewport and the
+        # last column is clipped; pinning the body's minimum width to what it
+        # paints brings the horizontal scroll bar back
+        body.setMinimumWidth(body.sizeHint().width())
         self._scroll.setWidget(body)
         self._fades = attach_edge_fades(self._scroll, surface="dialog")
         self._fades.set_appearance(resolve_mode(settings.get("appearance", "auto")))
@@ -218,6 +231,8 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                 ids = None
         else:
             raw = str(self._settings.get("compliance_columns_shown", "") or "")
+            if self._buffer is not None and "columns" in self._buffer:
+                raw = str(self._buffer.get("columns") or "")
             if raw:
                 try:
                     ids = json.loads(raw)
@@ -249,7 +264,7 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
             hdr.setStyleSheet("font-weight: bold;")
             hdr.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom)
             hdr.setWordWrap(True)
-            hdr.setFixedWidth(CELL_W + 20)
+            hdr.setMinimumWidth(CELL_W + 20)
             g.addWidget(hdr, 0, ci)
             self._column_widgets.setdefault(col, []).append(hdr)
             # row 1: the read-only mark / Restore this column / locked note
@@ -259,7 +274,8 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                                  "the report window to change these"), self)
                 note.setStyleSheet(faint)
                 note.setWordWrap(True)
-                note.setFixedWidth(CELL_W + 20)
+                note.setMinimumWidth(CELL_W + 20)
+                note.setMaximumWidth(CELL_W + 80)
                 g.addWidget(note, 1, ci)
                 self._column_widgets[col].append(note)
             elif editable:
@@ -267,6 +283,7 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                 btn.setProperty("set_id", col)
                 btn.setStyleSheet("QPushButton { padding: 1px 6px; font-size: 10px;"
                                   " min-height: 22px; max-height: 22px; }")
+                btn.setMinimumWidth(btn.sizeHint().width())      # F6: German is longer
                 btn.clicked.connect(self._on_restore_column)
                 g.addWidget(btn, 1, ci)
                 self._column_widgets[col].append(btn)
@@ -397,11 +414,18 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         if not col or not row_id:
             return
         if col == RUN_COLUMN:
-            cur = self._run_limits.get(row_id, Limit.none())
+            # F4: a recommendation stays a recommendation when a cell passes
+            # through 0. The kind comes from the run's SET (as effective_limits
+            # decides it), not from the cell's last state; a historical set
+            # falls back to the cell.
+            if self._run_set_id in SET_BY_ID:
+                base = effective_limits(self._run_set_id, self._overrides).get(row_id, Limit.none())
+            else:
+                base = self._run_limits.get(row_id, Limit.none())
             if value <= 0.0:
                 new = Limit.none()
             else:
-                new = Limit.should(value) if cur.is_should else Limit.value(value)
+                new = Limit.should(value) if base.is_should else Limit.value(value)
             self._run_limits[row_id] = new
             self._run_dirty = True
             return
@@ -449,6 +473,10 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                 set_run_columns(self._run, shown if len(shown) < len(SET_BY_ID) else [])
             except OSError as exc:
                 log.warning("could not store the column choice: %s", exc)
+        elif self._buffer is not None:
+            # F12: from Preferences the choice waits for Save like every other
+            # setting on that tab
+            self._buffer["columns"] = json.dumps(shown) if len(shown) < len(SET_BY_ID) else ""
         else:
             self._settings.set("compliance_columns_shown",
                                json.dumps(shown) if len(shown) < len(SET_BY_ID) else "")

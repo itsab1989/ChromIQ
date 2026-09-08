@@ -191,6 +191,8 @@ def _gap() -> str:
 
 
 def _fmt(v, dec: int = 2) -> str:
+    if isinstance(v, str):
+        return html.escape(v)          # already formatted (the 3-decimal FAIL case)
     return f"{v:.{dec}f}" if isinstance(v, (int, float)) else "—"
 
 
@@ -550,7 +552,7 @@ class MeasurementReportDialog(QDialog):
             "  • Colour accuracy: the ΔE00 (colour difference) figures, split so "
             "the bulk of the chart (all patches, and the best 95 %) is separated "
             "from the few hardest patches (the worst 5 %). Each is judged against "
-            "your Pass thresholds. 0 is perfect, 1–2 is barely visible, 10+ is "
+            "the run's limit set. 0 is perfect, 1–2 is barely visible, 10+ is "
             "clearly wrong.\n"
             "  • Trend over time: the same metrics plotted across every saved "
             "measurement, so a slow rise or a sudden jump stands out at a glance.\n"
@@ -785,13 +787,13 @@ class MeasurementReportDialog(QDialog):
             tr("Show detailed data for each run"),
             tr("Adds the full breakdown for every run in the report, each on "
                "a page of its own: the colour-accuracy table with its "
-               "Pass/Fail verdicts against your thresholds, paper white and "
+               "verdict words against the run's limit set, paper white and "
                "darkest black, the eight cube corners, and the worst patches "
                "with their expected and measured colours side by side.\n\n"
                "Handy when you want to see WHY a run passed or failed, not "
-               "just that it did — for example which patches pushed the "
-               "average over your threshold.\n\n"
-               "It makes the report, and the saved PDF, considerably longer — "
+               "just that it did: for example which patches pushed the "
+               "average over its limit.\n\n"
+               "It makes the report, and the saved PDF, considerably longer, "
                "which is why it starts unticked."),
             self, min_width=440, color=SPEC_GREEN))
         out_row.addStretch(1)
@@ -812,6 +814,8 @@ class MeasurementReportDialog(QDialog):
         self._judged_label = QLabel(tr("Judged against:"), self)
         judged_row.addWidget(self._judged_label)
         self._set_combo = NoScrollComboBox(self)
+        from PyQt6.QtWidgets import QComboBox
+        self._set_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         self._set_combo.setMinimumWidth(220)
         self._set_combo.currentIndexChanged.connect(self._on_set_chosen)
         judged_row.addWidget(self._set_combo)
@@ -833,7 +837,8 @@ class MeasurementReportDialog(QDialog):
                "every later dated verification of the run is judged the same "
                "way and your history stays comparable.\n\n"
                "Show limits… opens the whole table: every set side by side, "
-               "with this run's own copy in its first column.\n\n"
+               "and, when the measurement is in a project, this run's own copy "
+               "in its first column.\n\n"
                "Unlock this run's limits: once a verification has been "
                "measured the run's numbers are fixed, on purpose. Ticking "
                "this is a deliberate decision to change them: every dated "
@@ -853,9 +858,19 @@ class MeasurementReportDialog(QDialog):
         self._mismatch.setWordWrap(False)
         self._mismatch.setTextFormat(Qt.TextFormat.PlainText)
         self._mismatch_full = ""
+        _mode = resolve_mode(settings.get("appearance", "auto"))
+        if _mode == "dark":
+            _strip = ("border: 1px solid #b08040; color: #f0b35a;"
+                      " background: rgba(240,180,80,0.14);")
+        elif _mode == "neutral":
+            _strip = (f"border: 1px solid {neutral_styles.NM_BORDER_HI};"
+                      f" color: {neutral_styles.NM_TEXT_MAIN};"
+                      f" background: {neutral_styles.NM_BG_SURFACE};")
+        else:
+            _strip = ("border: 1px solid #c8922a; color: #8a5a00;"
+                      " background: rgba(240,180,80,0.12);")
         self._mismatch.setStyleSheet(
-            "QLabel { border: 1px solid #c8922a; border-radius: 4px;"
-            " padding: 6px 10px; color: #8a5a00; background: rgba(240,180,80,0.12); }")
+            "QLabel { border-radius: 4px; padding: 6px 10px; " + _strip + " }")
         self._mismatch.setVisible(False)
         top_v.addWidget(self._mismatch)
 
@@ -1757,8 +1772,11 @@ class MeasurementReportDialog(QDialog):
             allow = bool(self._settings.get(
                 "compliance_allow_edit_after_measurement", False))
             self._unlock_check.setEnabled(
-                run is not None and not several and may_unlock(run, allow)
-                and has_measured_verification(run))
+                run is not None and not several
+                and ((may_unlock(run, allow) and has_measured_verification(run))
+                     or bool(lim.unlocked)))     # F5: re-locking is always allowed
+            # F6: the button's text changes, so its width must follow it
+            self._limits_btn.setMinimumWidth(self._limits_btn.sizeHint().width())
             self._set_combo.setEnabled(not several and (run is None or not locked))
             self._limits_btn.setText(tr("Edit limits…") if (run is not None
                                                             and not locked)
@@ -1793,13 +1811,23 @@ class MeasurementReportDialog(QDialog):
             return
         lines = full.splitlines()
         first = lines[0]
-        # the rows come first on the one line: they are what the user acts on
+        # the rows come first: they are what the user acts on (review F8)
         rows = [l.strip().lstrip("•").strip() for l in lines[1:] if l.strip().startswith("•")]
         one = first + ": " + "; ".join(rows) if rows else first
+        from PyQt6.QtCore import QRect
         from PyQt6.QtGui import QFontMetrics
+        fm = QFontMetrics(self._mismatch.font())
         width = max(200, self.width() - 60)
-        self._mismatch.setText(QFontMetrics(self._mismatch.font()).elidedText(
-            one, Qt.TextElideMode.ElideRight, width))
+        # two wrapped lines when they suffice; one elided line otherwise, so
+        # the window still fits an 800 px screen
+        needed = fm.boundingRect(QRect(0, 0, width - 20, 10_000),
+                                 int(Qt.TextFlag.TextWordWrap), one).height()
+        if needed <= 2 * fm.lineSpacing() + 2:
+            self._mismatch.setWordWrap(True)
+            self._mismatch.setText(one)
+        else:
+            self._mismatch.setWordWrap(False)
+            self._mismatch.setText(fm.elidedText(one, Qt.TextElideMode.ElideRight, width))
         self._mismatch.setToolTip(full)
         self._mismatch.setVisible(True)
 
@@ -1833,6 +1861,8 @@ class MeasurementReportDialog(QDialog):
                                       "information only"),
             "no_corners": tr("the chart has no patch at the colour corners this "
                              "row needs"),
+            "not_computed": tr("this value was not computed for this report; "
+                               "the measurement file could not be read again"),
         }
         return texts.get(code or "", "")
 
@@ -1980,9 +2010,10 @@ class MeasurementReportDialog(QDialog):
             ).format(label=label)
         if r.get("_fresh"):
             return tr(
-                "This measurement has no saved report of its own, so its "
-                "results are worked out now, against this run's limit set "
-                "{label}. Save the report to keep this verdict."
+                "This date has no saved report of its own, so its words are "
+                "worked out now against this run's limit set {label}. A report "
+                "is saved when a measurement is made with “Save a measurement "
+                "report after each measurement” ticked in Preferences → Reports."
             ).format(label=label)
         return tr(
             "Nothing is wrong with this report. It was saved by a version of "
@@ -2076,7 +2107,10 @@ class MeasurementReportDialog(QDialog):
             return
         from workflow.run_compliance import set_run_unlocked
         if not on:
-            set_run_unlocked(ctx.run, False)
+            try:
+                set_run_unlocked(ctx.run, False)
+            except OSError as exc:
+                self._say_not_written(ctx.run, exc)
             self._forget_limits()
             self._refresh()
             return
@@ -2096,11 +2130,30 @@ class MeasurementReportDialog(QDialog):
             finally:
                 self._syncing_limits = False
             return
-        set_run_unlocked(ctx.run, True)
-        self._archive_run_reports()
+        try:
+            set_run_unlocked(ctx.run, True)
+        except OSError as exc:
+            # F3: the run folder could not be written; the box must not claim
+            # an unlock the disk refused
+            self._say_not_written(ctx.run, exc)
+            self._syncing_limits = True
+            try:
+                self._unlock_check.setChecked(False)
+            finally:
+                self._syncing_limits = False
+            return
         self._forget_limits()
         self._recalculate_run()
         self._refresh()
+
+    def _say_not_written(self, run, exc) -> None:
+        from ui.warning_sign import warn
+        log.warning("could not write %s: %s", run.meta_path, exc)
+        warn(self, tr("The run folder could not be written"),
+             tr("ChromIQ could not save the change to this run's folder:\n{path}\n\n"
+                "The folder or its files may be read-only, on a disk that is "
+                "full, or open in another program. Nothing was changed. Make the "
+                "folder writable and try again.").format(path=str(run.dir)))
 
     def _on_open_limits(self) -> None:
         from ui.dialogs.thresholds_dialog import ThresholdsDialog
@@ -2117,37 +2170,43 @@ class MeasurementReportDialog(QDialog):
             self._recalculate_run()
         self._refresh()
 
-    def _archive_run_reports(self) -> None:
-        """Keep every dated report of the window's run before it is rewritten
-        (R4: archive, never delete). Once per unlock (CH-29)."""
+    def _recalculate_run(self) -> None:
+        """Re-stamp every saved report of the window's run with the run's
+        current limits, rewriting each file in place (D23), once per
+        deliberate act (CH-29), and refresh the loaded history to match.
+
+        ARCHIVE FIRST, PER DATE, AND NEVER REWRITE WHAT COULD NOT BE ARCHIVED
+        (R4, review F2/F11). ``Verification.archive_reports`` copies only
+        content that has no copy yet, so a report stamped after the unlock
+        gets its copy before its first rewrite and a repeat changes nothing.
+        A date whose archive fails is left exactly as it is and named in a
+        window.
+        """
         ctx = self._run_ctx
         if ctx is None:
             return
         from datetime import datetime as _dt
-        when = _dt.now()
-        for v in ctx.run.verifications():
-            try:
-                v.archive_reports(when)
-            except OSError as exc:
-                log.warning("could not archive reports of %s: %s", v.dir, exc)
-
-    def _recalculate_run(self) -> None:
-        """Re-stamp every saved report of the window's run with the run's
-        current limits, rewriting each file in place (D23; CH-29: once, not
-        per keystroke), and refresh the loaded history to match."""
-        ctx = self._run_ctx
-        if ctx is None:
-            return
         from PyQt6.QtGui import QCursor
         from workflow.measurement_report import (list_reports,
                                                  rewrite_report,
                                                  stamp_verdict)
         from workflow.run_compliance import run_limits
         lim = run_limits(ctx.run, self._overrides(), self._default_set_id())
+        when = _dt.now()
+        skipped: list[str] = []
         QApplication.setOverrideCursor(QCursor(Qt.CursorShape.WaitCursor))
         try:
             for v in ctx.run.verifications():
-                for path in list_reports(v.dir):
+                paths = list_reports(v.dir)
+                if not paths:
+                    continue
+                try:
+                    v.archive_reports(when)
+                except OSError as exc:
+                    log.warning("could not archive reports of %s: %s", v.dir, exc)
+                    skipped.append(v.id)
+                    continue
+                for path in paths:
                     try:
                         rep = json.loads(read_text(path))
                     except Exception:  # noqa: BLE001
@@ -2158,13 +2217,27 @@ class MeasurementReportDialog(QDialog):
                         rewrite_report(path, rep)
                     except OSError as exc:
                         log.warning("could not rewrite %s: %s", path, exc)
-            # the history in memory: the same records, refreshed
+                        skipped.append(v.id)
+            # the history in memory: the same records, refreshed (the dates
+            # left untouched on disk are left untouched here as well)
             for r in self._history:
-                if str(r.get("_origin_dir", "")).startswith(str(ctx.run.dir)):
+                origin = str(r.get("_origin_dir", ""))
+                if origin.startswith(str(ctx.run.dir)) \
+                        and Path(origin).name not in skipped:
                     stamp_verdict(r, lim.limits, set_id=lim.set_id,
                                   set_label=lim.label_en, edited=lim.edited)
         finally:
             QApplication.restoreOverrideCursor()
+        if skipped:
+            from ui.warning_sign import warn
+            warn(self, tr("Some dated reports were left as they were"),
+                 tr("The previous report of these dates could not be copied "
+                    "into their reports/old folder, so their reports were NOT "
+                    "recalculated and keep the verdict they had:\n{dates}\n\n"
+                    "A report is never rewritten before its previous version is "
+                    "kept. Make those folders writable and change the limits "
+                    "again to recalculate them.").format(
+                        dates="\n".join(sorted(set(skipped)))))
 
     def _runs_for_report(self) -> list:
         """Every saved run of the loaded printer(s) when 'Show all measurement
@@ -2404,14 +2477,17 @@ class MeasurementReportDialog(QDialog):
                 "of five words. PASS: the measured value is within the limit for "
                 "that row. FAIL: it is over the limit. COND (short for "
                 "conditional): nothing failed, but the result comes with a "
-                "documented exception; either the row is a recommendation rather "
-                "than a requirement and the value is over it, or the set contains "
-                "rows this chart could not supply, so the set as a whole was only "
-                "partly checked. INFO: the number is shown for your information; "
+                "documented exception. For a row it means the row is a "
+                "recommendation rather than a requirement and the value is over "
+                "it. For a column's Overall it means a recommendation was "
+                "exceeded, or the set contains rows this chart could not supply, "
+                "so the set as a whole was only partly checked. INFO: the number "
+                "is shown for your information; "
                 "this set puts no limit on it, or the sheet is a profiling "
                 "measurement or a raw drift check, which are never graded. N-A "
-                "(not applicable): the row does not apply here, and the reason is "
-                "written beside it, for example the chart has too few grey steps. "
+                "(not applicable): the row does not apply here; the reason is shown "
+                "when you point at the cell and is listed under the results, for "
+                "example the chart has too few grey steps. "
                 "A column's Overall word is PASS only when every row the set "
                 "requires was checked and passed. The columns named after a "
                 "standard hold that standard's published tolerance values applied "
@@ -2439,16 +2515,16 @@ class MeasurementReportDialog(QDialog):
             "</ul>"
             "<p>" + html.escape(tr(
                 "Some of a chart's design colours can be brighter or more "
-                "saturated than this printer and paper can physically produce "
-                "— no profile can print them, however good it is. Where the "
+                "saturated than this printer and paper can physically produce; "
+                "no profile can print them, however good it is. Where the "
                 "report can tell (it asks the run's profile), it splits the "
                 "colour-accuracy figures into two groups: “Within the "
-                "profile's gamut” — the colours that were genuinely "
-                "printable, the fair measure of accuracy — and “Beyond "
-                "it” — the unreachable ones, whose distance describes the "
+                "profile's gamut”, the colours that were genuinely "
+                "printable, the fair measure of accuracy, and “Beyond "
+                "it”, the unreachable ones, whose distance describes the "
                 "limit of the gamut, not a mistake of the profile. Every "
-                "patch stays counted and visible; the Pass/Fail verdict "
-                "judges the within-gamut figures.")) + "</p>"
+                "patch stays counted and visible; the verdict words "
+                "judge the within-gamut figures.")) + "</p>"
             "<p>" + html.escape(tr(
                 "The ΔE figures measure a whole chain in one number: the "
                 "profile's conversion of each colour to printer values, the "
@@ -2512,8 +2588,9 @@ class MeasurementReportDialog(QDialog):
             if word == N_A and x.get("reason"):
                 tip = self._reason_sentence(x.get("reason"), r)
             elif word == COND:
-                tip = tr("CONDITIONAL: within a recommended value that this "
-                         "limit set does not require, or over it")
+                tip = tr("CONDITIONAL: over a value this limit set recommends "
+                         "but does not require. Nothing failed; the exceedance "
+                         "is documented.")
             title = f" title='{html.escape(tip)}'" if tip else ""
             return (f"<td align='center'{title} style='color:{col};"
                     f"font-weight:{weight}'>{html.escape(word_label(word))}</td>")
@@ -2982,7 +3059,7 @@ class MeasurementReportDialog(QDialog):
                     + "".join(f"<th align='right' style='{thb}'>"
                               + html.escape(c) + "</th>" for c in cols)
                     + f"<th align='right' style='{thb}'>"
-                    + html.escape(tr("Threshold")) + "</th>"
+                    + html.escape(tr("Limit")) + "</th>"
                     f"<th align='center' style='{thb}'>"
                     + html.escape(tr("Result")) + "</th></tr>")
             trs = [head]
@@ -3008,6 +3085,14 @@ class MeasurementReportDialog(QDialog):
                     for j, v in enumerate(values))
                 thr = "—" if threshold is None else (
                     f"({_fmt(threshold)})" if should else _fmt(threshold))
+                # F9 / CS Q12: a FAIL whose two-decimal value reads like the
+                # limit shows three decimals, so a failing value never looks
+                # like a passing one
+                if (word == FAIL and threshold is not None and values
+                        and isinstance(values[0], (int, float))
+                        and _fmt(values[0]) == _fmt(threshold)):
+                    values = list(values)
+                    values[0] = f"{values[0]:.3f}"
                 return (f"<tr{bg}><td style='padding-right:14px'>{html.escape(label)}</td>"
                         + tds +
                         f"<td align='right'>{thr}</td>"
@@ -3017,8 +3102,9 @@ class MeasurementReportDialog(QDialog):
                 k = row.get("key")
                 rid = row.get("row_id") or k
                 rowdef = ROW_BY_ID.get(rid)
-                label = (_METRIC_LABELS[k]() if k in _METRIC_LABELS
-                         else (tr(rowdef.label) if rowdef else str(rid)))
+                # one vocabulary with the results grid (N5): the row's label
+                label = (tr(rowdef.label) if rowdef
+                         else (_METRIC_LABELS[k]() if k in _METRIC_LABELS else str(rid)))
                 if split and k in de:
                     values = [d_in.get(k), d_out.get(k), de.get(k)]
                 elif split:
@@ -3069,12 +3155,12 @@ class MeasurementReportDialog(QDialog):
                 elif rd.get("avg") is not None:
                     drift_txt = tr(
                         "Drift since the previous raw check ({prev}): "
-                        "average {avg} ΔE00, maximum {max} — this print "
+                        "average {avg} ΔE00, maximum {max}: this print "
                         "measured against that print, patch by patch, "
                         "{n} patches. Small numbers mean your printer still "
-                        "behaves as it did then; growing numbers mean drift "
-                        "— worth re-profiling when they matter to you. "
-                        "(Pass/Fail against the profile thresholds is not "
+                        "behaves as it did then; growing numbers mean drift, "
+                        "worth re-profiling when they matter to you. "
+                        "(PASS and FAIL against the run's limit set are not "
                         "shown here: a raw sheet is not expected to match "
                         "the design closely, so it would fail even a "
                         "perfectly healthy printer.)").format(

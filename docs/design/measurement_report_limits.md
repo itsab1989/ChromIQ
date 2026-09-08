@@ -111,10 +111,15 @@ limit; COND when over a recommended one; INFO when the set puts no limit on
 the row, or the sheet is not graded; N-A when the chart or the reference
 cannot supply the row, with the reason beside it.
 
-A sheet is **graded** only when it is a verification measurement with a
-reference that is not a raw drift check. A profiling measurement (the run's
-own chart, printed raw) is never graded: every row INFO. This changes 4.2.0,
-where a profiling sheet printed FAIL against the chart's design.
+A sheet is **graded** unless it is the run's own **profiling** chart (a file
+directly in `runs/runN/`, printed raw by definition) or a raw drift check.
+What a sheet *is* comes from where it lives: a file in
+`runs/runN/verifications/<date>/`, or one whose stem ends in `-verify`, is a
+verification whether or not it carries the `CHROMIQ_VERIFICATION` keyword (the
+keyword exists only since June 2026); a file in no run at all (an i1Profiler
+export added to the report) is graded as 4.2.0 graded it. Only the profiling
+chart changes: every row INFO where 4.2.0 printed FAIL against the chart's
+design.
 
 Per column (Overall): N-A when the set has no limit-bearing row; INFO when the
 sheet is not graded; FAIL when any row fails; COND for every ISO column (its
@@ -138,10 +143,16 @@ Overall cell carries its reason as text. The report never prints the word
 * The run's limits are **locked** once a verification has been measured. The
   report window's "Unlock this run's limits" may be ticked only when the
   Preferences checkbox allows it, after a confirmation naming the run and the
-  number of dated verifications. Unlocking archives every dated report once
-  (`reports/old/<timestamp>/`, a copy) and recalculates every dated report of
-  that run once, rewriting each file in place (Knut D23; nothing is deleted).
-  Changing the set or the run's numbers afterwards recalculates once more.
+  number of dated verifications. Every recalculation (the unlock itself, a set
+  change, a change of the run's numbers) first copies each dated report whose
+  content has no copy yet into `reports/old/<timestamp>/`, then rewrites the
+  file in place (Knut D23; nothing is deleted). A date whose copy cannot be
+  written is not rewritten and is named in a window. Identical content is never
+  copied twice. A ticked "Unlock" can always be unticked, even after Preferences
+  stops allowing edits, so a run can be locked again.
+* A **duplicated run** carries its source's choice of set and column visibility
+  but not the copy of its numbers: it is bound afresh, to that set, at its own
+  first verification measurement.
 * A run whose set id a later ChromIQ no longer knows keeps its values and
   verdicts and shows the set as "(historical)" (Knut D23).
 * A measurement that is not in a run (an imported file in Downloads) is judged

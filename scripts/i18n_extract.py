@@ -90,6 +90,7 @@ def _compliance_set_keys() -> set[str]:
         if st.blurb:
             out.add(st.blurb)
     out |= set(cs.GROUP_LABELS.values())
+    out |= set(cs.SUMMARY_REASONS.values())        # the Overall sentences (review F6)
     return out
 
 
