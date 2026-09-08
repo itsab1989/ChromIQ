@@ -139,8 +139,8 @@ def main() -> int:
                              QSettings.Format.IniFormat)
     settings.set("custom_output_path", str(work))
     settings.set("save_measurement_report", True)
-    settings.set("report_pass_threshold_avg", 2.0)
-    settings.set("report_pass_threshold_max", 3.0)
+    settings.set("compliance_set_overrides", "")          # #182: factory limit sets
+    settings.set("compliance_default_set", "chromiq_default")
 
     # ------------------------------------------------------------------
     print("\n== DEFECT 1 · a failed report is told on screen ==")
@@ -239,10 +239,11 @@ def main() -> int:
     scroll_to(dlg, "Report Results", app)
     shot(dlg, out, "03b-report-results-at-2.0-3.0.png")
 
-    # THE COMPLAINT, DRIVEN: loosen the thresholds far enough that anything
-    # judged live would flip to Pass.
-    dlg._avg_thr_spin.setValue(9.0)
-    dlg._max_thr_spin.setValue(9.0)
+    # THE COMPLAINT, DRIVEN: loosen the limits far enough that anything
+    # judged live would flip to PASS (#182: the Quick check set, 4.0 / 6.0).
+    _i = dlg._set_combo.findData("chromiq_quick")
+    dlg._set_combo.setCurrentIndex(_i)
+    dlg._on_set_chosen(_i)
     pump(app, 700)
     scroll_to(dlg, "Report Results", app)
     shot(dlg, out, "04-report-results-after-thresholds-9.0.png")

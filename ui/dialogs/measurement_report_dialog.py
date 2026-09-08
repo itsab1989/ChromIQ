@@ -10,6 +10,7 @@ the same chart can be compared, revealing ink / printer / instrument drift.
 from __future__ import annotations
 
 import html
+import json
 from datetime import datetime
 from pathlib import Path
 
@@ -66,6 +67,11 @@ _METRIC_LABELS = {
     "std":       lambda: tr("Spread (std. dev.)"),
 }
 _ACCURACY_ROW_KEYS = ("avg_all", "avg_low95", "avg_high5", "max_all", "max_low95")
+#: the limit-set row id of each old de00 key (a recorded verdict written
+#: before #182 carries only the key)
+_ROW_ID_OF = {"avg_all": "all_de00_avg", "avg_low95": "best95_de00_avg",
+              "avg_high5": "worst5_de00_avg", "max_all": "all_de00_max",
+              "max_low95": "all_de00_p95"}
 # Line colour per accuracy metric for the colour-accuracy trend chart.
 _METRIC_LINE = {
     "avg_all":   "#56d6a5", "avg_low95": "#37bcd6", "avg_high5": "#e0864b",
@@ -89,13 +95,13 @@ _LIGHT_REPORT = {
     # #1e8e3e reached 4.20:1, #d9534f 3.96:1 and #888888 3.54:1, all short of
     # the 4.5:1 body-text minimum on the very paper the PDF is printed on.
     "pass": "#197a35", "fail": "#c0392b", "error": "#c0392b",
-    "swatch_edge": "#999999",
+    "cond": "#9a5b00", "swatch_edge": "#999999",
 }
 _DARK_REPORT = {
     "text": "#e6e6e6", "head": "#e6e6e6", "dim": "#b8b8b8", "faint": "#9a9a9a",
     "rule": "#5a5a5a", "hair": "#3a3a3a", "zebra": "#272727", "panel": "#232323",
     "pass": "#4fd77a", "fail": "#ff6f61", "error": "#ff6f61",
-    "swatch_edge": "#6a6a6a",
+    "cond": "#f0b35a", "swatch_edge": "#6a6a6a",
 }
 #: Neutral. NO HUE CARRIES A VERDICT HERE: the report already writes the words
 #: "Pass" and "Fail" in bold beside every colour it sets, so the greens and
@@ -115,7 +121,7 @@ _NEUTRAL_REPORT = {
     "rule": neutral_styles.NM_BORDER,      "hair": neutral_styles.NM_DISABLED,
     "zebra": neutral_styles.NM_BG_SURFACE, "panel": neutral_styles.NM_BG_SURFACE,
     "pass": neutral_styles.NM_TEXT_FAINT,  "fail": neutral_styles.NM_TEXT_MAIN,
-    "error": neutral_styles.NM_TEXT_MAIN,
+    "error": neutral_styles.NM_TEXT_MAIN,  "cond": neutral_styles.NM_TEXT_DIM,
     "swatch_edge": neutral_styles.NM_BORDER,
 }
 #: ``{appearance: palette}``. The two picks below were
@@ -505,17 +511,17 @@ class MeasurementReportDialog(QDialog):
             "it into a clear Pass/Fail verdict you can track over time. The real "
             "power is comparison: because the design reference never changes, the "
             "way the numbers move between dated reports of the same printer is a "
-            "clean signal of drift — ageing inks, a printer slowly wandering, or "
+            "clean signal of drift: ageing inks, a printer slowly wandering, or "
             "an instrument going off.\n\n"
             "Two ways to use it\n"
-            "  • Profiling runs — after building a profile, check how faithfully "
+            "  • Profiling runs: after building a profile, check how faithfully "
             "the chart reproduced.\n"
-            "  • Verification runs — the most valuable habit: print a small chart "
+            "  • Verification runs: the most valuable habit: print a small chart "
             "THROUGH your finished profile (a colour-managed print, the "
             "“Verification measurement” option on the Measure tab), measure it "
             "every so often, and save a report each time. When the Pass/Fail "
             "results start slipping, that's your sign the printer has drifted far "
-            "enough to re-profile. A tiny verification chart is enough — you're "
+            "enough to re-profile. A tiny verification chart is enough; you're "
             "watching the trend, not building a profile.\n\n"
             "Building the report\n"
             "The report covers a list of profiles' measurements, shown in the "
@@ -524,44 +530,49 @@ class MeasurementReportDialog(QDialog):
             "“Remove Profile's Measurements…” / “Clear List” to take profiles out. "
             "“Show all measurement runs” switches between the single loaded "
             "measurement and every run of every listed profile. The trend graphs "
-            "need at least two runs — with a single run each graph is drawn empty "
+            "need at least two runs; with a single run each graph is drawn empty "
             "and says so. Only combine profiles from the SAME printer (see "
             "below).\n\n"
             "The sections\n"
-            "  • Report Scope — which profiles and instruments are in the report, "
+            "  • Report Scope: which profiles and instruments are in the report, "
             "the run count and date range. IMPORTANT: the report cannot tell which "
             "printer a measurement came from. It is up to YOU to only include runs "
             "from the same printer. A good habit is a clear name in “Printer "
-            "profile project name” on the “1. Create Chart” tab — include the "
-            "printer and the paper, for example — so profiles from one printer "
+            "profile project name” on the “1. Create Chart” tab (include the "
+            "printer and the paper, for example), so profiles from one printer "
             "are easy to pick out. As a safety net "
             "the report still warns you if the runs you loaded use different "
             "instruments, or if a chart is missing any of the eight cube corners "
             "(which would make its cube-corner figures unreliable).\n"
-            "  • Report Results — a Pass/Fail grid: each colour-accuracy metric "
-            "against each run. Green passes, red fails.\n"
-            "  • Colour accuracy — the ΔE00 (colour difference) figures, split so "
+            "  • Report Results: one of five words per row and run (PASS, FAIL, "
+            "COND, INFO, N-A), with the column's Overall word and what it was "
+            "judged against.\n"
+            "  • Colour accuracy: the ΔE00 (colour difference) figures, split so "
             "the bulk of the chart (all patches, and the best 95 %) is separated "
             "from the few hardest patches (the worst 5 %). Each is judged against "
             "your Pass thresholds. 0 is perfect, 1–2 is barely visible, 10+ is "
             "clearly wrong.\n"
-            "  • Trend over time — the same metrics plotted across every saved "
+            "  • Trend over time: the same metrics plotted across every saved "
             "measurement, so a slow rise or a sudden jump stands out at a glance.\n"
-            "  • Overview of Measurement Metrics — every metric for every run in "
+            "  • Overview of Measurement Metrics: every metric for every run in "
             "one table.\n"
-            "  • Detailed data per run (optional) — the full breakdown for each "
+            "  • Detailed data per run (optional): the full breakdown for each "
             "run: the accuracy table, paper white & black, the cube corners and "
             "the sixteen worst patches.\n\n"
-            "Pass thresholds\n"
-            "You set two limits. The Average threshold (default 2.0 ΔE) judges the "
-            "three average metrics; the Maximum threshold (default 3.0 ΔE) judges "
-            "the two maximum metrics. A metric passes when it is at or below its "
-            "limit. Tighten them for critical work, loosen them for a quick check.\n\n"
+            "Limit sets\n"
+            "A limit set is one column of the limits table: the numbers a report "
+            "is judged against, one per row. ChromIQ default (2.0 on the averages, "
+            "3.0 on the maxima) is the right choice for checking a profile you "
+            "built; ChromIQ tight is half of that, Quick check twice. The set is "
+            "chosen once per profile run and every dated verification of that "
+            "run is judged with the same numbers, so your history stays "
+            "comparable. Open the limits table with “Show limits…” to see every "
+            "set side by side; edit the sets in Preferences → Reports.\n\n"
             "Options\n"
-            "  • Show all measurement runs — the whole printer's history, not just "
+            "  • Show all measurement runs: the whole printer's history, not just "
             "the loaded one.\n"
-            "  • Show detailed data for each run — add the per-run breakdown.\n"
-            "  • Save report as PDF — a ChromIQ-styled PDF you can keep or share; "
+            "  • Show detailed data for each run: add the per-run breakdown.\n"
+            "  • Save report as PDF: a ChromIQ-styled PDF you can keep or share; "
             "it opens automatically. Reveal folder opens where it was saved.\n\n"
             "Using i1Profiler measurements\n"
             "You can feed this report measurements made in i1Profiler (handy when "
@@ -570,16 +581,16 @@ class MeasurementReportDialog(QDialog):
             "  1. Export the measurement from i1Profiler as a text file.\n"
             "  2. Convert it with Tools → “Convert i1Profiler → TI3”, then add the "
             "resulting .ti3 here with “Add Profile's Measurements…”.\n"
-            "That's all — you get the full colour-accuracy figures, no extra "
+            "That's all; you get the full colour-accuracy figures, no extra "
             "reference file needed. ChromIQ works out each patch's expected colour "
-            "from the device values recorded in the file — the RGB / ink code "
+            "from the device values recorded in the file (the RGB / ink code "
             "values sent to the printer, which are the chart's fixed design and "
-            "the same for every print, so the reference stays just as static "
+            "the same for every print), so the reference stays just as static "
             "across runs as a .ti2 would. (If a matching .ti2 happens to sit next "
             "to the .ti3, that's used instead.) The instrument is read from the "
             "i1Profiler file during conversion.\n"
             "Keeping things tidy: convert into the same folder as your i1Profiler "
-            "files, add the .ti3, and save the PDF report right there — your "
+            "files, add the .ti3, and save the PDF report right there, so your "
             "i1Profiler work stays together and separate from ChromIQ's own "
             "profile folders.\n\n"
             "Screen and print colours here are approximate; the numbers come from "
@@ -786,48 +797,66 @@ class MeasurementReportDialog(QDialog):
         out_row.addStretch(1)
         top_v.addLayout(out_row)
 
-        # Pass/Fail thresholds — the average threshold judges the three average
-        # metrics, the maximum threshold the two maximum metrics (Knut).
-        from ui.widgets import NoScrollDoubleSpinBox
-        from workflow.measurement_report import DEFAULT_PASS_AVG, DEFAULT_PASS_MAX
-        # Open with the user's configured defaults (Preferences → Reports), falling
-        # back to the built-in 2.0 / 3.0 (Knut).
-        avg0 = float(settings.get("report_pass_threshold_avg", DEFAULT_PASS_AVG))
-        max0 = float(settings.get("report_pass_threshold_max", DEFAULT_PASS_MAX))
-        thr_row = QHBoxLayout()
-        thr_row.addWidget(QLabel(tr("Pass threshold — Average:"), self))
-        self._avg_thr_spin = NoScrollDoubleSpinBox(self)
-        self._avg_thr_spin.setDecimals(1); self._avg_thr_spin.setRange(0.1, 100.0)
-        self._avg_thr_spin.setSingleStep(0.5); self._avg_thr_spin.setSuffix(" ΔE")
-        self._avg_thr_spin.setValue(avg0)
-        self._avg_thr_spin.valueChanged.connect(
-            lambda v: (settings.set("report_pass_threshold_avg", v),
-                       self._refresh()))
-        thr_row.addWidget(self._avg_thr_spin)
-        thr_row.addSpacing(14)
-        thr_row.addWidget(QLabel(tr("Maximum:"), self))
-        self._max_thr_spin = NoScrollDoubleSpinBox(self)
-        self._max_thr_spin.setDecimals(1); self._max_thr_spin.setRange(0.1, 100.0)
-        self._max_thr_spin.setSingleStep(0.5); self._max_thr_spin.setSuffix(" ΔE")
-        self._max_thr_spin.setValue(max0)
-        self._max_thr_spin.valueChanged.connect(
-            lambda v: (settings.set("report_pass_threshold_max", v),
-                       self._refresh()))
-        thr_row.addWidget(self._max_thr_spin)
-        thr_row.addWidget(TooltipButton(
-            tr("Pass thresholds"),
-            tr("The colour-accuracy verdict. A metric passes when its measured "
-               "ΔE00 is at or below its threshold. The Average threshold is "
-               "compared against the three average metrics (all patches, the best "
-               "95%, and the worst 5%); the Maximum threshold against the two "
-               "maximum metrics (all patches, and the best 95%). Typical starting "
-               "points are 2.0 for the average and 3.0 for the maximum — tighten "
-               "them for critical work, loosen them for a quick health check.\n\n"
-               "The values a report starts with are the defaults set in "
-               "Preferences → Reports (Pass Threshold Average and Maximum)."),
-            self, color=SPEC_GREEN))
-        thr_row.addStretch(1)
-        top_v.addLayout(thr_row)
+        # #182 (Knut D8, D20): the two Pass-threshold spin boxes are gone. A
+        # report is judged against the LIMIT SET bound to its profile run; the
+        # row below names it, opens the limits table, and carries the one
+        # deliberate act that may change a run's limits after its first
+        # verification: "Unlock". Every connection is a bound method: a lambda
+        # capturing `self` on a child widget's signal is the shape that
+        # segfaulted the app (CLAUDE.md).
+        from ui.widgets import NoScrollComboBox
+        self._run_ctx = None          # workflow.run_compliance.RunContext | None
+        self._limits = None           # RunLimits the window judges with
+        self._syncing_limits = False
+        judged_row = QHBoxLayout()
+        self._judged_label = QLabel(tr("Judged against:"), self)
+        judged_row.addWidget(self._judged_label)
+        self._set_combo = NoScrollComboBox(self)
+        self._set_combo.setMinimumWidth(220)
+        self._set_combo.currentIndexChanged.connect(self._on_set_chosen)
+        judged_row.addWidget(self._set_combo)
+        self._limits_btn = QPushButton(tr("Show limits…"), self)
+        self._limits_btn.setStyleSheet(_compact_btn)
+        self._limits_btn.clicked.connect(self._on_open_limits)
+        judged_row.addWidget(self._limits_btn)
+        judged_row.addSpacing(10)
+        self._unlock_check = QCheckBox(
+            tr("Unlock this run's limits (recalculates its dated reports)"), self)
+        self._unlock_check.toggled.connect(self._on_unlock_toggled)
+        judged_row.addWidget(self._unlock_check)
+        judged_row.addWidget(TooltipButton(
+            tr("Judged against"),
+            tr("Every row of the results is compared with one limit set: one "
+               "column of the limits table, chosen once per profile run. The "
+               "first verification you measure binds the run to the default "
+               "set from Preferences and copies its numbers into the run, so "
+               "every later dated verification of the run is judged the same "
+               "way and your history stays comparable.\n\n"
+               "Show limits… opens the whole table: every set side by side, "
+               "with this run's own copy in its first column.\n\n"
+               "Unlock this run's limits: once a verification has been "
+               "measured the run's numbers are fixed, on purpose. Ticking "
+               "this is a deliberate decision to change them: every dated "
+               "report of this run is then recalculated with the numbers you "
+               "set, and the previous reports are kept in a reports/old folder "
+               "first. It can be ticked only when Preferences → Reports allows "
+               "editing after the first measurement.\n\n"
+               "A measurement that is not in a ChromIQ project (an imported "
+               "file) is judged with the default set for this session only; "
+               "nothing is stored for it."),
+            self, min_width=460, color=SPEC_GREEN))
+        judged_row.addStretch(1)
+        top_v.addLayout(judged_row)
+        # The strip (Knut D25): shown only when the chart cannot supply a row
+        # the set limits; hidden, not blank, when there is nothing to say.
+        self._mismatch = QLabel(self)
+        self._mismatch.setWordWrap(True)
+        self._mismatch.setTextFormat(Qt.TextFormat.PlainText)
+        self._mismatch.setStyleSheet(
+            "QLabel { border: 1px solid #c8922a; border-radius: 4px;"
+            " padding: 6px 10px; color: #8a5a00; background: rgba(240,180,80,0.12); }")
+        self._mismatch.setVisible(False)
+        top_v.addWidget(self._mismatch)
 
         # Unlike-scaled metrics can't share one axis (Knut), so group them into
         # separate tabbed charts. Paper white (~L*100) and black (~L*10) are too
@@ -1000,7 +1029,8 @@ class MeasurementReportDialog(QDialog):
                         # the old judgement across untouched or the rebuild
                         # becomes the very re-grading #182 is about.
                         kept = {k: rep[k] for k in
-                                ("pass_thresholds", "verdict") if k in rep}
+                                ("pass_thresholds", "verdict", "compliance")
+                                if k in rep}
                         rep = build_report(run_ti3, argyll_bin=self._argyll_bin())
                         if created:
                             rep["created"] = created
@@ -1037,6 +1067,7 @@ class MeasurementReportDialog(QDialog):
                     try:
                         rep = build_report(cand, argyll_bin=self._argyll_bin())
                         rep["_origin_dir"] = str(d)
+                        rep["_fresh"] = True       # never saved: graded live
                         runs.append(rep)
                     except Exception:  # noqa: BLE001 — one bad date must
                         continue       # not empty the whole history
@@ -1292,6 +1323,8 @@ class MeasurementReportDialog(QDialog):
     def _refresh(self) -> None:
         """Repaint both the trend charts and the report body (they share the same
         run set, so both react to Show-all / thresholds / the profile list)."""
+        self._forget_limits()
+        self._sync_limit_controls()
         self._refresh_trend()
         self._render()
 
@@ -1604,85 +1637,506 @@ class MeasurementReportDialog(QDialog):
         return _C["zebra"]
 
     def _thresholds(self) -> "tuple[float, float]":
-        """The (average, maximum) ΔE00 Pass thresholds from the input fields, or
-        the module defaults before those fields are built."""
-        from workflow.measurement_report import DEFAULT_PASS_AVG, DEFAULT_PASS_MAX
-        avg = getattr(self, "_avg_thr_spin", None)
-        mx = getattr(self, "_max_thr_spin", None)
-        return (float(avg.value()) if avg is not None else DEFAULT_PASS_AVG,
-                float(mx.value()) if mx is not None else DEFAULT_PASS_MAX)
+        """The (average, maximum) ΔE00 pair the trend chart draws as guide
+        lines: the all-patch rows of the limit set this window judges with."""
+        from workflow.compliance_sets import legacy_pair
+        lim = self._window_limits()
+        return legacy_pair(lim.limits if lim is not None else {})
 
-    # ---- the verdict a report was SAVED with, not the one today's spin
-    # ---- boxes would give it (#182) ------------------------------------
+    # ---- #182: which limit set, whose run, and the lock ----------------------
     #
-    # The thresholds are a GLOBAL setting, re-read every time this window is
-    # built, and until 4.1.5-beta.9 a saved report stored neither them nor the
-    # verdict it was given. So nudging one spin box silently re-graded every
-    # historical report the user had ever made, and a dated record that
-    # changes its own verdict after the fact is not a record.
+    # The report used to judge against two GLOBAL numbers, re-read from the
+    # spin boxes at display time; a saved report stored neither them nor its
+    # verdict, and nudging a spin box re-graded every historical report. Now
+    # (Knut, D9/D20/D23/D33):
     #
-    # Knut, #182, 2026-09-04: *"Verdict should be saved for each dated run."*
-    #
-    # A report that carries a recorded verdict shows THAT, and the spin boxes
-    # cannot move it. A report saved before this existed has none, so it is
-    # still judged live — blanking it would delete a working feature from every
-    # report on disk — but it says so, in the row the grid grew for it and in
-    # the note under its own accuracy table. What it must never do is claim in
-    # silence to have been judged by numbers that were set years later.
+    #   * a report saved with a verdict shows THAT verdict, and nothing in this
+    #     window moves it, except the one deliberate act below;
+    #   * a report without one (saved by an older ChromIQ, or built just now
+    #     from a date that was never saved) is graded live against ITS RUN's
+    #     limit set, and says so;
+    #   * the set belongs to the profile run; changing it, or its numbers, is
+    #     "Unlock": every dated report of that run is archived once and
+    #     recalculated once (CH-29), never on every keystroke.
 
+    def _overrides(self) -> dict:
+        get = getattr(self._settings, "get_compliance_overrides", None)
+        if callable(get):
+            try:
+                return get() or {}
+            except Exception:  # noqa: BLE001
+                return {}
+        from core.settings import parse_compliance_overrides
+        return parse_compliance_overrides(
+            str(self._settings.get("compliance_set_overrides", "") or ""))
+
+    def _default_set_id(self) -> str:
+        return str(self._settings.get("compliance_default_set", "chromiq_default")
+                   or "chromiq_default")
+
+    def _context_run(self):
+        """The RunContext of the FIRST source's original file, or None for a
+        file that is not in a run (CH-14: a run context exists only for
+        runs/runN/<file> and runs/runN/verifications/<date>/<file>)."""
+        from workflow.run_compliance import run_context_for
+        if not self._sources:
+            return run_context_for(self._ti3) if self._ti3 else None
+        return run_context_for(self._sources[0]["origin"])
+
+    def _distinct_run_dirs(self) -> "set[str]":
+        """How many different PROFILE RUNS the window holds (CH-13)."""
+        from workflow.run_compliance import run_context_for
+        dirs: set = set()
+        for src in self._sources:
+            ctx = run_context_for(src["origin"])
+            dirs.add(str(ctx.run.dir) if ctx else f"external:{src['origin']}")
+        return dirs
+
+    def _window_limits(self):
+        """The RunLimits the window's own controls act on (the first run's)."""
+        if self._limits is None:
+            from workflow.run_compliance import run_limits
+            ctx = self._context_run()
+            self._run_ctx = ctx
+            self._limits = run_limits(ctx.run if ctx else None, self._overrides(),
+                                      self._default_set_id())
+        return self._limits
+
+    def _limits_for(self, r: dict):
+        """The RunLimits a REPORT is judged with live: its own run's, or the
+        window's when it is not in a run (an imported file)."""
+        from workflow.run_compliance import run_context_for, run_limits
+        origin = r.get("_origin_dir")
+        ti3 = r.get("ti3")
+        if origin and ti3:
+            ctx = run_context_for(Path(origin) / str(ti3))
+            if ctx is not None:
+                cache = getattr(self, "_limits_cache", None)
+                if cache is None:
+                    cache = self._limits_cache = {}
+                key = str(ctx.run.dir)
+                if key not in cache:
+                    cache[key] = run_limits(ctx.run, self._overrides(),
+                                            self._default_set_id())
+                return cache[key]
+        return self._window_limits()
+
+    def _forget_limits(self) -> None:
+        """Drop what was read from disk so the next look re-reads it. A
+        session-only choice for a file that is in no run (CH-14) is kept: there
+        is nothing on disk to re-read it from."""
+        self._limits_cache = {}
+        ctx = self._context_run()
+        self._run_ctx = ctx
+        if ctx is not None or self._limits is None or self._limits.bound:
+            self._limits = None
+
+    def _sync_limit_controls(self) -> None:
+        """Fill the pulldown, set the lock, name the run, fill the strip."""
+        if getattr(self, "_set_combo", None) is None:
+            return
+        from workflow.compliance_sets import SET_BY_ID, selectable_set_ids
+        from workflow.run_compliance import (has_measured_verification,
+                                             is_locked, may_unlock)
+        lim = self._window_limits()
+        ctx = self._run_ctx
+        run = ctx.run if ctx else None
+        self._syncing_limits = True
+        try:
+            self._set_combo.clear()
+            ids = selectable_set_ids(self._overrides())
+            if lim.set_id not in ids:
+                self._set_combo.addItem(lim.set_label, lim.set_id)
+            for sid in ids:
+                self._set_combo.addItem(SET_BY_ID[sid].label and
+                                        tr(SET_BY_ID[sid].label), sid)
+                self._set_combo.setItemData(
+                    self._set_combo.count() - 1, tr(SET_BY_ID[sid].blurb),
+                    Qt.ItemDataRole.ToolTipRole)
+            idx = self._set_combo.findData(lim.set_id)
+            self._set_combo.setCurrentIndex(max(0, idx))
+            several = len(self._distinct_run_dirs()) > 1
+            locked = is_locked(run)
+            self._unlock_check.blockSignals(True)
+            self._unlock_check.setChecked(bool(lim.unlocked))
+            self._unlock_check.blockSignals(False)
+            allow = bool(self._settings.get(
+                "compliance_allow_edit_after_measurement", False))
+            self._unlock_check.setEnabled(
+                run is not None and not several and may_unlock(run, allow)
+                and has_measured_verification(run))
+            self._set_combo.setEnabled(not several and (run is None or not locked))
+            self._limits_btn.setText(tr("Edit limits…") if (run is not None
+                                                            and not locked)
+                                     else tr("Show limits…"))
+            self._limits_btn.setEnabled(not several)
+            if several:
+                self._judged_label.setText(tr("Judged against:"))
+                tip = tr("Several measurement runs are loaded. Open the report "
+                         "on one run to change its limits.")
+            elif run is not None:
+                self._judged_label.setText(
+                    tr("Judged against ({run}):").format(run=run.dir.name))
+                tip = ""
+            else:
+                self._judged_label.setText(tr("Judged against:"))
+                tip = tr("This measurement is not in a ChromIQ project, so the "
+                         "choice is not stored anywhere.")
+            for w in (self._set_combo, self._unlock_check, self._limits_btn):
+                w.setToolTip(tip)
+            self._mismatch.setText(self._mismatch_text())
+            self._mismatch.setVisible(bool(self._mismatch.text()))
+        finally:
+            self._syncing_limits = False
+
+    # -- reasons a row was not computed, as sentences --------------------------
+    def _reason_sentence(self, code: "str | None", r: "dict | None" = None) -> str:
+        r = r or {}
+        gb = r.get("grey_balance") or {}
+        texts = {
+            "no_greys": tr("the chart has no grey patches (R = G = B)"),
+            "too_few_steps": tr("the chart has {k} grey steps, at least 8 are "
+                                "needed from white to black").format(
+                                    k=gb.get("levels", 0)),
+            "no_white": tr("the grey ramp does not reach white"),
+            "no_black": tr("the grey ramp does not reach black"),
+            "no_reference": tr("there is no reference value for these patches"),
+            "needs_reference_file": tr("this row needs a reference file for the "
+                                       "printing condition; the chart's design "
+                                       "has no aim for it"),
+            "no_ramp": tr("the chart has no tone ramp with at least three steps "
+                          "between 30 % and 70 %"),
+            "small_sample": tr("the chart has {n} patches; at least 20 are needed "
+                               "to split off the worst 5 %").format(
+                                   n=r.get("patches", "?")),
+            "printing_unrecorded": tr("how this sheet was printed is not "
+                                      "recorded, so this value is shown for "
+                                      "information only"),
+            "no_corners": tr("the chart has no patch at the colour corners this "
+                             "row needs"),
+        }
+        return texts.get(code or "", "")
+
+    def _not_computed(self, r: dict) -> "list[tuple[str, str]]":
+        """``[(row label, reason sentence)]`` for the rows of *r*'s verdict
+        that read N-A because the chart or the reference cannot supply them."""
+        from workflow.compliance_sets import N_A, ROW_BY_ID
+        rows, _rec = self._verdict_rows(r)
+        out = []
+        for row in rows:
+            if row.get("word") != N_A:
+                continue
+            rid = row.get("row_id") or row.get("key")
+            label = tr(ROW_BY_ID[rid].label) if rid in ROW_BY_ID else str(rid)
+            out.append((label, self._reason_sentence(row.get("reason"), r)))
+        return out
+
+    def _mismatch_text(self) -> str:
+        """The D25 strip: what this chart cannot supply for the chosen set."""
+        r = self._report
+        if not r:
+            return ""
+        from workflow.compliance_sets import N_A
+        rows, _rec = self._verdict_rows(r)
+        missing = [(row.get("row_id") or row.get("key"), row.get("reason"))
+                   for row in rows if row.get("word") == N_A
+                   and row.get("reason") not in (None, "printing_unrecorded")]
+        if not missing:
+            return ""
+        from workflow.compliance_sets import ROW_BY_ID
+        from workflow.measurement_messages import M_REPORT_CHART_MISMATCH
+        lines = []
+        for rid, reason in missing:
+            label = tr(ROW_BY_ID[rid].label) if rid in ROW_BY_ID else str(rid)
+            lines.append("• " + label + ": " + self._reason_sentence(reason, r))
+        lim = self._window_limits()
+        title, body = M_REPORT_CHART_MISMATCH.render(
+            set=lim.set_label, rows="\n".join(lines))
+        return title + "\n" + body
+
+    # ---- the verdict a report shows ---------------------------------------------
     def _recorded(self, r: dict) -> "dict | None":
         """The verdict *r* was saved with, or None if it carries none."""
         from workflow.measurement_report import recorded_verdict
         return recorded_verdict(r)
 
     def _verdict_rows(self, r: dict) -> "tuple[list, bool]":
-        """``(rows, recorded)`` for one run's colour-accuracy verdict.
+        """``(rows, recorded)`` for one run's verdict.
 
         *recorded* is True when the rows come off the saved report and False
-        when they were worked out just now from the window's thresholds. The
-        rows are copied, because callers blank them for a drift check.
+        when they were worked out just now against the run's limit set. Rows
+        are copied, because callers blank them for a drift check. A recorded
+        row written before the words existed gets its word from its ``pass``
+        and the record's ``graded`` flag.
         """
+        from workflow.compliance_sets import FAIL, INFO, N_A, PASS
         rec = self._recorded(r)
         if rec is not None:
-            return [dict(x) for x in rec["rows"]], True
-        from workflow.measurement_report import accuracy_verdict, graded_de00
-        avg_thr, max_thr = self._thresholds()
-        return accuracy_verdict(graded_de00(r)[0], avg_thr, max_thr)[0], False
+            rows = [dict(x) for x in rec["rows"]]
+            for row in rows:
+                row.setdefault("row_id", _ROW_ID_OF.get(row.get("key"), row.get("key")))
+                if "word" not in row:
+                    if row.get("pass") is True:
+                        row["word"] = PASS
+                    elif row.get("pass") is False:
+                        row["word"] = FAIL
+                    else:
+                        row["word"] = INFO if rec.get("graded") is False else N_A
+            return rows, True
+        from workflow.measurement_report import judge
+        return judge(r, self._limits_for(r).limits), False
+
+    def _column_summary(self, r: dict):
+        """The one word for a run's column, with its numbers."""
+        from workflow.compliance_sets import Limit, Summary, set_summary
+        from workflow.measurement_report import (is_graded_sheet,
+                                                 recorded_compliance)
+        rec = self._recorded(r)
+        if rec is not None and isinstance(rec.get("summary"), dict) and rec.get("overall"):
+            sm = rec["summary"]
+            return Summary(rec["overall"], int(sm.get("checked", 0)),
+                           int(sm.get("total", 0)), int(sm.get("failed", 0)),
+                           int(sm.get("cond", 0)), int(sm.get("not_computed", 0)),
+                           str(sm.get("reason", "")))
+        rows, recorded = self._verdict_rows(r)
+        if recorded:
+            comp = recorded_compliance(r) or {}
+            from workflow.compliance_sets import SET_BY_ID, limits_from_json
+            limits = limits_from_json(comp.get("thresholds")) if comp else {}
+            set_id = str(comp.get("set_id", "")) if comp else ""
+            if not limits:
+                # an older record: two numbers, all-patch rows
+                from workflow.measurement_report import (limits_from_pair,
+                                                         recorded_thresholds)
+                pair = recorded_thresholds(r)
+                limits = limits_from_pair(*pair) if pair else {}
+        else:
+            lim = self._limits_for(r)
+            limits, set_id = lim.limits, lim.set_id
+            from workflow.compliance_sets import SET_BY_ID
+        pairs = [(limits.get(row.get("row_id"), Limit.none())
+                  if isinstance(limits.get(row.get("row_id")), Limit)
+                  else Limit.none(), row.get("word")) for row in rows]
+        s = SET_BY_ID.get(set_id)
+        graded = (bool(rec.get("graded")) if rec is not None
+                  else is_graded_sheet(r))
+        return set_summary(pairs, set_is_iso=bool(s and s.kind == "iso"),
+                           graded=graded)
+
+    def _judged_label_for(self, r: dict) -> str:
+        """What a column was judged against, for the grid and the provenance."""
+        from workflow.measurement_report import (recorded_compliance,
+                                                 recorded_thresholds)
+        comp = recorded_compliance(r)
+        if comp is not None:
+            from workflow.compliance_sets import set_label
+            label = set_label(str(comp.get("set_id", "")), str(comp.get("set_label", "")))
+            if comp.get("set_id") == "pair":
+                thr = recorded_thresholds(r)
+                label = (tr("two thresholds ({avg} / {max})").format(
+                    avg=f"{thr[0]:.1f}", max=f"{thr[1]:.1f}") if thr else label)
+            if comp.get("edited"):
+                label += " " + tr("(edited)")
+            return label
+        thr = recorded_thresholds(r)
+        if thr is not None:
+            return tr("two thresholds ({avg} / {max})").format(
+                avg=f"{thr[0]:.1f}", max=f"{thr[1]:.1f}")
+        lim = self._limits_for(r)
+        label = lim.set_label + (" " + tr("(edited)") if lim.edited else "")
+        if r.get("_fresh"):
+            return label + " " + tr("(not saved)")
+        return label
 
     def _verdict_provenance(self, r: dict, recorded: bool) -> str:
-        """The sentence under one run's accuracy table saying where its Pass
-        and Fail came from — the saved record, or this window, now."""
-        from workflow.measurement_report import recorded_thresholds
-        thr = recorded_thresholds(r)
-        if recorded and thr:
+        """The sentence under one run's accuracy table saying where its words
+        came from: the saved record, or this run's limit set, now."""
+        label = self._judged_label_for(r)
+        if recorded:
             return tr(
                 "This verdict was recorded when the report was saved, against "
-                "an average threshold of {avg} ΔE00 and a maximum of {max}. It "
-                "is what this measurement was judged to be at the time, so the "
-                "thresholds set at the top of this window do not change it."
-            ).format(avg=f"{thr[0]:.1f}", max=f"{thr[1]:.1f}")
-        avg_thr, max_thr = self._thresholds()
+                "the limit set {label}. It is what this measurement was judged "
+                "to be at the time, and this run's current limits do not "
+                "change it. Only unlocking the run's limits recalculates it."
+            ).format(label=label)
+        if r.get("_fresh"):
+            return tr(
+                "This measurement has no saved report of its own, so its "
+                "results are worked out now, against this run's limit set "
+                "{label}. Save the report to keep this verdict."
+            ).format(label=label)
         return tr(
             "Nothing is wrong with this report. It was saved by a version of "
             "ChromIQ that did not yet keep the verdict together with the "
-            "measurements, so no Pass or Fail of its own was stored for it. "
-            "The results above are therefore worked out now, against the "
-            "thresholds set at the top of this window ({avg} and {max} "
-            "ΔE00): they are not the verdict this sheet was given on the day "
-            "it was measured, and changing those thresholds will change them."
-        ).format(avg=f"{avg_thr:.1f}", max=f"{max_thr:.1f}")
+            "measurements, so no PASS or FAIL of its own was stored for it. "
+            "The results above are therefore worked out now, against this "
+            "run's limit set {label}: they are not the verdict this sheet was "
+            "given on the day it was measured, and changing this run's limits "
+            "will change them."
+        ).format(label=label)
 
     def _thresholds_cell(self, r: dict) -> str:
         """The Report Results row that says what a column was judged against."""
-        from workflow.measurement_report import recorded_thresholds
         if _is_raw_drift(r):
             txt = "—"
+        elif self._recorded(r) is None and not r.get("_fresh"):
+            txt = tr("not recorded")
         else:
-            thr = recorded_thresholds(r)
-            txt = (f"{thr[0]:.1f} / {thr[1]:.1f}" if thr
-                   else tr("not recorded"))
+            txt = self._judged_label_for(r)
         return (f"<td align='center' style='color:{_C['faint']};"
                 f"font-size:10px'>{html.escape(txt)}</td>")
+
+    def _summary_cell(self, r: dict) -> str:
+        """The Overall row: the column's one word, its reason as tooltip."""
+        from workflow.compliance_sets import (COND, FAIL, PASS, summary_text,
+                                              word_label)
+        if _is_raw_drift(r):
+            return (f"<td align='center' style='color:{_C['faint']}'>"
+                    + html.escape(tr("drift")) + "</td>")
+        sm = self._column_summary(r)
+        col = {PASS: _C["pass"], FAIL: _C["fail"], COND: _C["cond"]}.get(
+            sm.word, _C["faint"])
+        return (f"<td align='center' title='{html.escape(summary_text(sm))}' "
+                f"style='color:{col};font-weight:bold'>"
+                + html.escape(word_label(sm.word)) + "</td>")
+
+    # ---- the deliberate acts: choose a set, unlock, edit -----------------------
+    def _confirm(self, title: str, text: str) -> bool:
+        """A yes/no question. One method, so a driver can answer it."""
+        from PyQt6.QtWidgets import QMessageBox
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Question)
+        box.setWindowTitle(title)
+        box.setText(text)
+        box.setStandardButtons(QMessageBox.StandardButton.Ok
+                               | QMessageBox.StandardButton.Cancel)
+        box.setDefaultButton(QMessageBox.StandardButton.Cancel)
+        return box.exec() == QMessageBox.StandardButton.Ok
+
+    def _on_set_chosen(self, index: int) -> None:
+        if self._syncing_limits or index < 0:
+            return
+        set_id = self._set_combo.itemData(index)
+        lim = self._window_limits()
+        if not set_id or set_id == lim.set_id:
+            return
+        ctx = self._run_ctx
+        if ctx is None:
+            # Not in a run: a session-only choice, nothing stored (CH-14).
+            from workflow.compliance_sets import SET_BY_ID, effective_limits
+            from workflow.run_compliance import RunLimits
+            self._limits = RunLimits(set_id, tr(SET_BY_ID[set_id].label),
+                                     effective_limits(set_id, self._overrides()),
+                                     label_en=SET_BY_ID[set_id].label, bound=False)
+            self._refresh()
+            return
+        from workflow.run_compliance import bind_run
+        try:
+            bind_run(ctx.run, set_id, self._overrides())
+        except OSError as exc:
+            log.warning("could not store the limit set on %s: %s", ctx.run.dir, exc)
+        self._forget_limits()
+        if self._unlock_check.isChecked():
+            self._recalculate_run()
+        self._refresh()
+
+    def _on_unlock_toggled(self, on: bool) -> None:
+        if self._syncing_limits:
+            return
+        ctx = self._run_ctx
+        if ctx is None:
+            return
+        from workflow.run_compliance import set_run_unlocked
+        if not on:
+            set_run_unlocked(ctx.run, False)
+            self._forget_limits()
+            self._refresh()
+            return
+        n_dates = sum(1 for v in ctx.run.verifications() if v.exists())
+        ok = self._confirm(
+            tr("Unlock this run's limits?"),
+            tr("This run ({run}) has {n} dated verifications. Unlocking lets you "
+               "change the run's limit set and its numbers. Every dated report of "
+               "this run will then be recalculated with the numbers you set, and "
+               "the previous reports are kept first, in a reports/old folder "
+               "beside each date.\n\nNothing is deleted. Continue?").format(
+                run=ctx.run.dir.name, n=n_dates))
+        if not ok:
+            self._syncing_limits = True
+            try:
+                self._unlock_check.setChecked(False)
+            finally:
+                self._syncing_limits = False
+            return
+        set_run_unlocked(ctx.run, True)
+        self._archive_run_reports()
+        self._forget_limits()
+        self._recalculate_run()
+        self._refresh()
+
+    def _on_open_limits(self) -> None:
+        from ui.dialogs.thresholds_dialog import ThresholdsDialog
+        ctx = self._run_ctx
+        lim = self._window_limits()
+        dlg = ThresholdsDialog(self._settings, self,
+                               run=ctx.run if ctx else None,
+                               run_editable=bool(ctx and lim.unlocked))
+        dlg.exec()
+        changed = dlg.run_limits_changed
+        dlg.deleteLater()
+        self._forget_limits()
+        if changed and ctx is not None:
+            self._recalculate_run()
+        self._refresh()
+
+    def _archive_run_reports(self) -> None:
+        """Keep every dated report of the window's run before it is rewritten
+        (R4: archive, never delete). Once per unlock (CH-29)."""
+        ctx = self._run_ctx
+        if ctx is None:
+            return
+        from datetime import datetime as _dt
+        when = _dt.now()
+        for v in ctx.run.verifications():
+            try:
+                v.archive_reports(when)
+            except OSError as exc:
+                log.warning("could not archive reports of %s: %s", v.dir, exc)
+
+    def _recalculate_run(self) -> None:
+        """Re-stamp every saved report of the window's run with the run's
+        current limits, rewriting each file in place (D23; CH-29: once, not
+        per keystroke), and refresh the loaded history to match."""
+        ctx = self._run_ctx
+        if ctx is None:
+            return
+        from PyQt6.QtGui import QCursor
+        from workflow.measurement_report import (list_reports,
+                                                 rewrite_report,
+                                                 stamp_verdict)
+        from workflow.run_compliance import run_limits
+        lim = run_limits(ctx.run, self._overrides(), self._default_set_id())
+        QApplication.setOverrideCursor(QCursor(Qt.CursorShape.WaitCursor))
+        try:
+            for v in ctx.run.verifications():
+                for path in list_reports(v.dir):
+                    try:
+                        rep = json.loads(read_text(path))
+                    except Exception:  # noqa: BLE001
+                        continue
+                    stamp_verdict(rep, lim.limits, set_id=lim.set_id,
+                                  set_label=lim.label_en, edited=lim.edited)
+                    try:
+                        rewrite_report(path, rep)
+                    except OSError as exc:
+                        log.warning("could not rewrite %s: %s", path, exc)
+            # the history in memory: the same records, refreshed
+            for r in self._history:
+                if str(r.get("_origin_dir", "")).startswith(str(ctx.run.dir)):
+                    stamp_verdict(r, lim.limits, set_id=lim.set_id,
+                                  set_label=lim.label_en, edited=lim.edited)
+        finally:
+            QApplication.restoreOverrideCursor()
 
     def _runs_for_report(self) -> list:
         """Every saved run of the loaded printer(s) when 'Show all measurement
@@ -1854,6 +2308,22 @@ class MeasurementReportDialog(QDialog):
                         "The trend changes meaning at the point where the "
                         "method changed:"))
                     + "</div><ul>" + lis + "</ul>")
+            elif w["kind"] == "compliance":
+                # #182 (D9): one limit set per profile run; two in one report
+                # means archived history or two projects, and the reader must
+                # see where the yardstick changed.
+                lis = "".join(
+                    "<li>" + html.escape(o["run"]) + ": "
+                    + html.escape(tr("judged against {set}").format(set=o["set"]))
+                    + "</li>" for o in w["runs"])
+                blocks.append(
+                    "<div><b>" + html.escape(tr(
+                        "Warning: these reports were not all judged against "
+                        "the same limit set.")) + "</b> "
+                    + html.escape(tr(
+                        "The words in one column are not comparable with the "
+                        "words in another where the limit set differs:"))
+                    + "</div><ul>" + lis + "</ul>")
             elif w["kind"] == "corners":
                 lis = "".join(
                     "<li>" + html.escape(o["run"]) + " — "
@@ -1882,10 +2352,15 @@ class MeasurementReportDialog(QDialog):
                 "different.")) + "</p>"
             "<ul>"
             "<li>" + html.escape(tr(
-                "Colour accuracy — the ΔE00 across the patches, split so you can "
-                "see the bulk of the chart (all patches and the best 95%) apart "
-                "from the few hardest patches (the worst 5%). Each metric is judged "
-                "against your Pass thresholds.")) + "</li>"
+                "Colour accuracy: the ΔE00 across the patches, split so you can "
+                "see the bulk of the chart (all patches and the best 95 %) apart "
+                "from the few hardest patches (the worst 5 %). Each row is judged "
+                "against the run's limit set.")) + "</li>"
+            "<li>" + html.escape(tr(
+                "Grey balance: how far each grey patch (R = G = B) sits from a "
+                "neutral grey, ignoring lightness. ΔCh is the distance in a* and "
+                "b* only. Computed from the chart's grey ramp when it has at "
+                "least 8 steps from white to black.")) + "</li>"
             "<li>" + html.escape(tr(
                 "Paper white & darkest black — the brightest and deepest patches "
                 "(L*), a quick health check of your paper and maximum ink.")) + "</li>"
@@ -1894,6 +2369,27 @@ class MeasurementReportDialog(QDialog):
                 "and secondary inks. These say as much about your inks as about "
                 "the instrument.")) + "</li>"
             "</ul>"
+            "<p><b>" + html.escape(tr("The five verdict words.")) + "</b> "
+            + html.escape(tr(
+                "A limit set is one column of the limits table: the numbers a "
+                "report is judged against. Every row of the results ends in one "
+                "of five words. PASS: the measured value is within the limit for "
+                "that row. FAIL: it is over the limit. COND (short for "
+                "conditional): nothing failed, but the result comes with a "
+                "documented exception; either the row is a recommendation rather "
+                "than a requirement and the value is over it, or the set contains "
+                "rows this chart could not supply, so the set as a whole was only "
+                "partly checked. INFO: the number is shown for your information; "
+                "this set puts no limit on it, or the sheet is a profiling "
+                "measurement or a raw drift check, which are never graded. N-A "
+                "(not applicable): the row does not apply here, and the reason is "
+                "written beside it, for example the chart has too few grey steps. "
+                "A column's Overall word is PASS only when every row the set "
+                "requires was checked and passed. The columns named after a "
+                "standard hold that standard's published tolerance values applied "
+                "to the chart you printed; they are not a test of the standard's "
+                "own chart, so their Overall is COND at best, and this report "
+                "never says that anything conforms to a standard.")) + "</p>"
             "<p>" + html.escape(tr(
                 "What the numbers mean depends on how the chart was printed:")) + "</p>"
             "<ul>"
@@ -1959,27 +2455,47 @@ class MeasurementReportDialog(QDialog):
                 + "</td></tr></table>")
 
     def _report_results_html(self, runs: list) -> str:
-        """Report Results: a Pass/Fail grid, rows = the five threshold metrics,
-        columns = dated runs (≤6 per table, continuing below). Pass green, Fail
-        red (Knut)."""
-        avg_thr, max_thr = self._thresholds()
-        verd = {id(r): {x["key"]: x["pass"] for x in self._verdict_rows(r)[0]}
-                for r in runs}
+        """Report Results: the verdict grid, rows = every row the runs' limit
+        sets judge, columns = dated runs (≤6 per table, continuing below).
+        Cells are the five words (Knut, K-f): PASS green, FAIL red, COND amber,
+        INFO and N-A faint. Under them the Overall word per column and what each
+        column was judged against."""
+        from workflow.compliance_sets import (COND, FAIL, N_A, PASS, ROW_BY_ID,
+                                              ROWS, word_label)
+        verd = {}
+        for r in runs:
+            rows, _rec = self._verdict_rows(r)
+            verd[id(r)] = {(x.get("row_id") or x.get("key")): x for x in rows}
+        present = [row.id for row in ROWS
+                   if any(row.id in verd[id(r)] for r in runs)]
 
-        def pf(r, key):
+        def cell(r, rid):
             if _is_raw_drift(r):
                 return (f"<td align='center' style='color:{_C['faint']}'>"
                         + html.escape(tr("drift")) + "</td>")
-            p = verd[id(r)].get(key)
-            if p is None:
+            x = verd[id(r)].get(rid)
+            if x is None:
                 return "<td align='center'>—</td>"
-            col = _C["pass"] if p else _C["fail"]
-            txt = tr("Pass") if p else tr("Fail")
-            return (f"<td align='center' style='color:{col};font-weight:bold'>"
-                    f"{html.escape(txt)}</td>")
+            word = x.get("word") or (PASS if x.get("pass") else FAIL)
+            col = {PASS: _C["pass"], FAIL: _C["fail"], COND: _C["cond"]}.get(
+                word, _C["faint"])
+            weight = "bold" if word in (PASS, FAIL, COND) else "normal"
+            tip = ""
+            if word == N_A and x.get("reason"):
+                tip = self._reason_sentence(x.get("reason"), r)
+            elif word == COND:
+                tip = tr("CONDITIONAL: within a recommended value that this "
+                         "limit set does not require, or over it")
+            title = f" title='{html.escape(tip)}'" if tip else ""
+            return (f"<td align='center'{title} style='color:{col};"
+                    f"font-weight:{weight}'>{html.escape(word_label(word))}</td>")
 
-        row_getters = [(_METRIC_LABELS[k](), (lambda r, k=k: pf(r, k)))
-                       for k in _ACCURACY_ROW_KEYS]
+        def label_of(rid):
+            row = ROW_BY_ID.get(rid)
+            return tr(row.label) if row else _METRIC_LABELS.get(rid, lambda: rid)()
+
+        row_getters = [(label_of(rid), (lambda r, rid=rid: cell(r, rid)))
+                       for rid in present]
         detail_on = (getattr(self, "_detail_check", None) is not None
                      and self._detail_check.isChecked())
         if detail_on:
@@ -1997,45 +2513,65 @@ class MeasurementReportDialog(QDialog):
         if any(r.get("gamut_split") for r in runs):
             intro += " " + tr(
                 "Where a sheet's colours are split into within / beyond the "
-                "profile's gamut, Pass and Fail judge the within-gamut "
-                "figures — colours the profile could never print are not "
+                "profile's gamut, the words judge the within-gamut "
+                "figures; colours the profile could never print are not "
                 "counted against it.")
-        # Always start Report Results on a fresh page — the how-to-read section
-        # can be long, so it reads cleaner on its own page (Knut).
-        # One row saying what each column was judged against, so a recorded
-        # verdict and a live one can never be read as the same thing (#182).
-        row_getters.append((tr("Pass thresholds"), self._thresholds_cell))
+        # One row for the column's one word, one saying what each column was
+        # judged against, so a recorded verdict and a live one can never be
+        # read as the same thing (#182).
+        row_getters.append((tr("Overall"), self._summary_cell))
+        row_getters.append((tr("Judged against"), self._thresholds_cell))
         note_css = f"color:{_C['faint']};font-size:10px;margin-top:2px"
-        drift_note = ""
+        notes = ""
         if any(_is_raw_drift(r) for r in runs):
-            drift_note = (
+            notes += (
                 f"<div style='{note_css}'>" + html.escape(tr(
                     "Columns marked “drift” are sheets printed raw, without "
-                    "the profile — they are not expected to match the design "
-                    "closely, so Pass and Fail would be unfair to a "
+                    "the profile: they are not expected to match the design "
+                    "closely, so PASS and FAIL would be unfair to a "
                     "perfectly healthy printer. For those sheets the "
                     "detailed chapter shows how far the printer has moved "
                     "since the previous raw check instead.")) + "</div>")
         # APPENDED, never assigned: a report can hold a raw-drift sheet AND a
         # column with no recorded verdict, and the first draft of this block
         # overwrote the drift note whenever it did.
-        if any(self._recorded(r) is None and not _is_raw_drift(r) for r in runs):
-            drift_note += (
+        if any(self._recorded(r) is None and not _is_raw_drift(r)
+               and not r.get("_fresh") for r in runs):
+            notes += (
                 f"<div style='{note_css}'>" + html.escape(tr(
-                    "A column whose thresholds read “not recorded” is not a "
+                    "A column judged against “not recorded” is not a "
                     "fault, and nothing is missing from it. That report was "
                     "saved by a version of ChromIQ that did not yet keep the "
-                    "verdict together with the measurements, so its Pass and "
-                    "Fail are worked out now, against the thresholds set in "
-                    "this window — and moving those thresholds will change "
-                    "them. Every report saved from now on keeps the verdict "
-                    "it was given on the day, and the thresholds above no "
-                    "longer change it.")) + "</div>")
+                    "verdict together with the measurements, so its words "
+                    "are worked out now, against the run's limit set, and "
+                    "changing that run's limits will change them. Every "
+                    "report saved from now on keeps the verdict it was given "
+                    "on the day.")) + "</div>")
+        if any(r.get("_fresh") for r in runs):
+            notes += (
+                f"<div style='{note_css}'>" + html.escape(tr(
+                    "A column marked “(not saved)” is a measurement with no "
+                    "saved report of its own; its words are worked out now "
+                    "against the run's limit set.")) + "</div>")
+        # D25: what was not computed, and why, repeated in the report text.
+        seen: dict = {}
+        for r in runs:
+            if _is_raw_drift(r):
+                continue
+            for label, why in self._not_computed(r):
+                seen.setdefault((label, why), True)
+        if seen:
+            notes += (f"<div style='{note_css}'><b>" + html.escape(tr(
+                "Not computed on this chart:")) + "</b> " + html.escape("; ".join(
+                    f"{label} ({why})" for (label, why) in seen)) + " " + html.escape(tr(
+                    "A row that was not computed says nothing about the "
+                    "printer; add the missing patches to the chart in Create "
+                    "Chart to have it checked.")) + "</div>")
         return (_h2(tr("Report Results"), page_break=True) + _gap()
                 + f"<div style='color:{_C['dim']};margin-bottom:4px'>" + html.escape(intro)
                 + "</div>" + _gap()
                 + self._chunked_metric_tables(runs, row_getters)
-                + drift_note)
+                + notes)
 
     def _comparison_table_html(self, runs: list) -> str:
         """Side-by-side: the full metric set across every run (columns = dated
@@ -2408,6 +2944,7 @@ class MeasurementReportDialog(QDialog):
                 for row in rows:
                     row["pass"] = None
                     row["threshold"] = None
+                    row["word"] = None
             thb = f"border-bottom:1.5px solid {_C['rule']}"
             cols = ([tr("Within gamut"), tr("Beyond it"), tr("All patches")]
                     if split else [tr("Measured ΔE00")])
@@ -2422,30 +2959,51 @@ class MeasurementReportDialog(QDialog):
                     + html.escape(tr("Result")) + "</th></tr>")
             trs = [head]
 
-            def row_html(i, label, values, threshold, verdict, bold_first=True):
+            from workflow.compliance_sets import (COND, FAIL, PASS, ROW_BY_ID,
+                                                  word_label)
+
+            def row_html(i, label, values, threshold, word, should=False,
+                         bold_first=True, tip=""):
                 bg = f" style='background:{self._ZEBRA_BG}'" if i % 2 == 1 else ""
-                if verdict is None:
+                if word is None:
                     res = "—"
                 else:
-                    col = _C["pass"] if verdict else _C["fail"]
-                    res = (f"<span style='color:{col};font-weight:bold'>"
-                           + html.escape(tr("Pass") if verdict else tr("Fail"))
-                           + "</span>")
+                    col = {PASS: _C["pass"], FAIL: _C["fail"],
+                           COND: _C["cond"]}.get(word, _C["faint"])
+                    weight = "bold" if word in (PASS, FAIL, COND) else "normal"
+                    title = f" title='{html.escape(tip)}'" if tip else ""
+                    res = (f"<span{title} style='color:{col};font-weight:{weight}'>"
+                           + html.escape(word_label(word)) + "</span>")
                 tds = "".join(
                     "<td align='right'>" + ("<b>" if bold_first and j == 0 else "")
                     + _fmt(v) + ("</b>" if bold_first and j == 0 else "") + "</td>"
                     for j, v in enumerate(values))
+                thr = "—" if threshold is None else (
+                    f"({_fmt(threshold)})" if should else _fmt(threshold))
                 return (f"<tr{bg}><td style='padding-right:14px'>{html.escape(label)}</td>"
                         + tds +
-                        f"<td align='right'>{_fmt(threshold) if threshold is not None else '—'}</td>"
+                        f"<td align='right'>{thr}</td>"
                         f"<td align='center'>{res}</td></tr>")
 
             for i, row in enumerate(rows):
-                k = row["key"]
-                values = ([d_in.get(k), d_out.get(k), de.get(k)]
-                          if split else [row["value"]])
-                trs.append(row_html(i, _METRIC_LABELS[k](), values,
-                                    row["threshold"], row["pass"]))
+                k = row.get("key")
+                rid = row.get("row_id") or k
+                rowdef = ROW_BY_ID.get(rid)
+                label = (_METRIC_LABELS[k]() if k in _METRIC_LABELS
+                         else (tr(rowdef.label) if rowdef else str(rid)))
+                if split and k in de:
+                    values = [d_in.get(k), d_out.get(k), de.get(k)]
+                elif split:
+                    values = [row.get("value"), None, None]
+                else:
+                    values = [row.get("value")]
+                word = row.get("word")
+                if word is None and row.get("pass") is not None:
+                    word = PASS if row["pass"] else FAIL
+                tip = (self._reason_sentence(row.get("reason"), r)
+                       if row.get("reason") else "")
+                trs.append(row_html(i, label, values, row.get("threshold"), word,
+                                    should=bool(row.get("should")), tip=tip))
             # Spread is reported for completeness but carries no threshold (Knut).
             trs.append(row_html(
                 len(rows), _METRIC_LABELS["std"](),

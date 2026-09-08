@@ -59,6 +59,9 @@ def _report(**over) -> dict:
         "chart": "P",
         "ti3": "P.ti3",
         "patches": 100,
+        # #182: a profiling sheet is never graded, so the fixture is a
+        # verification sheet, which is what a graded verdict belongs to.
+        "is_verification": True,
         "de00": {"avg_all": 2.5, "avg_low95": 2.5, "avg_high5": 2.5,
                  "max_all": 2.5, "max_low95": 2.5, "std": 0.4},
     }
@@ -73,7 +76,8 @@ def test_stamping_records_the_thresholds_and_the_verdict():
     r = mr.stamp_verdict(_report(), 2.0, 3.0)
     assert r["pass_thresholds"] == {"avg": 2.0, "max": 3.0}
     v = r["verdict"]
-    assert {row["key"] for row in v["rows"]} == {k for k, _ in mr.ACCURACY_METRICS}
+    # the five ChromIQ rows keep their old keys; #182 adds rows beside them
+    assert {row["key"] for row in v["rows"]} >= {k for k, _ in mr.ACCURACY_METRICS}
     # 2.5 fails the 2.0 average threshold and passes the 3.0 maximum one.
     by_key = {row["key"]: row for row in v["rows"]}
     assert by_key["avg_all"]["pass"] is False
@@ -96,14 +100,16 @@ def test_the_verdict_is_stamped_before_it_is_saved_not_after():
         "the verdict is stamped after the file is written, so the file has none"
 
 
-def test_the_thresholds_come_from_the_settings_not_the_module_defaults():
-    """The user's configured thresholds are what the measurement was judged
-    against. Falling back to 2.0/3.0 would record a verdict nobody asked for."""
-    src = inspect.getsource(
-        __import__("ui.tabs.tab_measure", fromlist=["TabMeasure"])
-        .TabMeasure._maybe_save_measurement_report)
-    assert "report_pass_threshold_avg" in src
-    assert "report_pass_threshold_max" in src
+def test_the_limits_come_from_the_run_not_the_module_defaults():
+    """#182: the measurement is judged with the limit set bound to ITS RUN
+    (copied into meta.json at the first verification), never with the module's
+    2.0/3.0 and never with a global setting read at display time."""
+    tab = __import__("ui.tabs.tab_measure", fromlist=["TabMeasure"]).TabMeasure
+    src = inspect.getsource(tab._maybe_save_measurement_report)
+    assert "_report_limits_for" in src
+    assert "DEFAULT_PASS" not in src and "report_pass_threshold" not in src
+    src2 = inspect.getsource(tab._report_limits_for)
+    assert "ensure_bound" in src2 and "run_context_for" in src2
 
 
 def test_a_gamut_split_is_judged_on_its_within_gamut_figures():
@@ -181,13 +187,24 @@ def test_a_damaged_verdict_block_reads_as_no_verdict_not_as_a_crash():
 # --------------------------------------------------------------------------
 # 3. What the window shows
 # --------------------------------------------------------------------------
-def _dialog(qapp, tmp_path, avg=2.0, mx=3.0):
+def _dialog(qapp, tmp_path, set_id="chromiq_default"):
+    """A window on no run at all: its limit set is a session-only choice."""
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
     s = AppSettings()
     s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
-    s.set("report_pass_threshold_avg", avg)
-    s.set("report_pass_threshold_max", mx)
-    return MeasurementReportDialog(s, None)
+    dlg = MeasurementReportDialog(s, None)
+    _choose(dlg, set_id)
+    return dlg
+
+
+def _choose(dlg, set_id):
+    """Pick a limit set in the window's pulldown (the user's gesture)."""
+    dlg._sync_limit_controls()
+    idx = dlg._set_combo.findData(set_id)
+    assert idx >= 0, set_id
+    dlg._set_combo.setCurrentIndex(idx)
+    dlg._on_set_chosen(idx)
+    assert dlg._window_limits().set_id == set_id
 
 
 def test_the_window_shows_the_recorded_verdict_not_todays(qapp, tmp_path):
@@ -195,7 +212,7 @@ def test_the_window_shows_the_recorded_verdict_not_todays(qapp, tmp_path):
     now opens with the thresholds loosened to 9.0, which would grade the same
     numbers Pass — and must not."""
     saved = mr.stamp_verdict(_report(), 2.0, 3.0)
-    dlg = _dialog(qapp, tmp_path, avg=9.0, mx=9.0)
+    dlg = _dialog(qapp, tmp_path, set_id="chromiq_quick")     # 4.0 would pass 2.5
     try:
         rows, recorded = dlg._verdict_rows(saved)
         assert recorded is True
@@ -204,18 +221,18 @@ def test_the_window_shows_the_recorded_verdict_not_todays(qapp, tmp_path):
         dlg.deleteLater()
 
 
-def test_moving_a_spin_box_does_not_move_a_recorded_verdict(qapp, tmp_path):
+def test_changing_the_windows_limit_set_does_not_move_a_recorded_verdict(
+        qapp, tmp_path):
     """The complaint, driven end to end: the same report object, the window's
-    thresholds changed underneath it, the verdict unchanged."""
+    limit set changed underneath it, the verdict unchanged."""
     saved = mr.stamp_verdict(_report(), 2.0, 3.0)
     dlg = _dialog(qapp, tmp_path)
     try:
         before = dlg._report_results_html([saved])
-        dlg._avg_thr_spin.setValue(9.0)
-        dlg._max_thr_spin.setValue(9.0)
+        _choose(dlg, "chromiq_quick")
         after = dlg._report_results_html([saved])
         assert before == after, \
-            "the saved report was re-graded when a threshold moved"
+            "the saved report was re-graded when the limit set changed"
         # …and the grid says what it was judged against, so a reader can tell
         # a recorded verdict from a live one without opening the file.
         assert "2.0 / 3.0" in after
@@ -228,7 +245,7 @@ def test_a_report_with_no_recorded_verdict_is_still_graded_and_says_so(
     """Blanking every historical report would delete a working feature from
     every file the user owns. It is graded live — and the page says the numbers
     are today's, not the ones in force when the sheet was measured."""
-    old = _report()
+    old = _report(is_verification=True)
     dlg = _dialog(qapp, tmp_path)
     try:
         rows, recorded = dlg._verdict_rows(old)
@@ -237,21 +254,22 @@ def test_a_report_with_no_recorded_verdict_is_still_graded_and_says_so(
         html = dlg._report_results_html([old])
         assert "not recorded" in html
         note = dlg._verdict_provenance(old, recorded)
-        assert "Nothing is wrong with this report" in note and "2.0" in note
+        assert "Nothing is wrong with this report" in note
+        assert "ChromIQ default" in note          # the set it is judged with now
     finally:
         dlg.deleteLater()
 
 
-def test_an_old_report_is_re_graded_when_a_spin_box_moves(qapp, tmp_path):
+def test_an_old_report_is_re_graded_when_the_limit_set_changes(qapp, tmp_path):
     """The other side of the same coin, pinned deliberately: for a report that
-    carries no verdict the spin boxes still work, because that is all there is.
-    If this ever stops being true it is a decision, not a drift."""
-    old = _report()
+    carries no verdict the run's limit set still decides, because that is all
+    there is. If this ever stops being true it is a decision, not a drift."""
+    old = _report(is_verification=True)
     dlg = _dialog(qapp, tmp_path)
     try:
         assert {r["key"]: r["pass"]
                 for r in dlg._verdict_rows(old)[0]}["avg_all"] is False
-        dlg._avg_thr_spin.setValue(9.0)
+        _choose(dlg, "chromiq_quick")                        # average limit 4.0
         assert {r["key"]: r["pass"]
                 for r in dlg._verdict_rows(old)[0]}["avg_all"] is True
     finally:
@@ -263,10 +281,11 @@ def test_the_recorded_thresholds_are_the_ones_printed_in_the_detail_table(
     """The Threshold column of a run's own accuracy table is part of the
     record: 2.0 and 3.0, whatever the window is set to now."""
     saved = mr.stamp_verdict(_report(), 2.0, 3.0)
-    dlg = _dialog(qapp, tmp_path, avg=9.0, mx=9.0)
+    dlg = _dialog(qapp, tmp_path, set_id="chromiq_quick")     # 4.0 / 6.0
     try:
         html = dlg._run_detail_html(saved)
-        assert "9.0" not in html, "the detail table used today's thresholds"
+        assert "4.00" not in html and "6.00" not in html, \
+            "the detail table used today's limits"
         assert "recorded when the report was saved" in html
     finally:
         dlg.deleteLater()
@@ -305,7 +324,7 @@ def test_a_stale_rebuild_carries_the_recorded_verdict_across(qapp, tmp_path):
     (run / "reports" / "report_2026-01-02_10-00-00.json").write_text(
         json.dumps(old), encoding="utf-8")
 
-    dlg = _dialog(qapp, tmp_path, avg=9.0, mx=9.0)
+    dlg = _dialog(qapp, tmp_path, set_id="chromiq_quick")
     try:
         _name, runs = dlg._gather_runs(run / "c.ti3")
         assert len(runs) == 1
@@ -333,7 +352,7 @@ def test_an_unrecorded_verdict_does_not_read_as_a_fault(qapp, tmp_path):
         assert "did not yet keep the verdict" in note
         # …and it must not read as a fresh verdict either: it says the numbers
         # are today's and that moving the thresholds moves them.
-        assert "changing those thresholds will change them" in note
+        assert "changing this run's limits will change them" in note
         grid = dlg._report_results_html([_report()])
         assert "is not a fault" in grid
     finally:

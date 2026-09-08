@@ -137,8 +137,10 @@ def test_report_options_are_remembered(qapp, tmp_path):
         assert not dlg._detail_check.isChecked()
         dlg._detail_check.setChecked(True)
         dlg._all_runs_check.setChecked(False)
-        dlg._avg_thr_spin.setValue(1.5)
-        dlg._max_thr_spin.setValue(4.0)
+        # #182: the limit set is the RUN's, stored in its meta.json
+        idx = dlg._set_combo.findData("chromiq_tight")
+        dlg._set_combo.setCurrentIndex(idx)
+        dlg._on_set_chosen(idx)
     finally:
         dlg.deleteLater()
 
@@ -146,8 +148,8 @@ def test_report_options_are_remembered(qapp, tmp_path):
     try:
         assert dlg2._detail_check.isChecked()
         assert not dlg2._all_runs_check.isChecked()
-        assert dlg2._avg_thr_spin.value() == 1.5
-        assert dlg2._max_thr_spin.value() == 4.0
+        assert dlg2._window_limits().set_id == "chromiq_tight"
+        assert run.load_meta().compliance_set_id == "chromiq_tight"
     finally:
         dlg2.deleteLater()
 

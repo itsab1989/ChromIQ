@@ -12893,35 +12893,58 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             target = Path(custom).expanduser() if custom else default_output_root()
         reveal_in_file_manager(target)
 
+    def _report_limits_for(self, ti3):
+        """The limit set this measurement is judged with (#182, D9/D20).
+
+        A verification measurement BINDS its profile run to the Preferences
+        default set the first time (the set's limits are copied into the run's
+        meta.json); every later dated verification of that run is judged with
+        the same copy. Done here, before and independent of the autosave
+        setting (CH-2): the lock and the binding are one event. A file that is
+        not in a run (an import in Downloads) is judged with the default and
+        nothing is written. A binding that cannot be written is logged, never
+        reported as a failed report.
+        """
+        from workflow.run_compliance import (ensure_bound, run_context_for,
+                                             run_limits)
+        overrides = self._settings.get_compliance_overrides()
+        default_set = str(self._settings.get("compliance_default_set",
+                                             "chromiq_default"))
+        ctx = run_context_for(ti3)
+        if ctx is None:
+            return run_limits(None, overrides, default_set)
+        if ctx.verification is not None:
+            return ensure_bound(ctx.run, overrides, default_set)
+        return run_limits(ctx.run, overrides, default_set)
+
     def _maybe_save_measurement_report(self, ti3) -> None:
         """When the Settings option is on, build + save a dated accuracy report
         next to the chart after a measurement, so reports accrue for
         over-time comparison (Knut). Best-effort — never blocks or errors the
         measurement flow."""
+        from pathlib import Path as _P
+        ti3 = _P(ti3)
+        try:
+            limits = self._report_limits_for(ti3)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("limit set for %s not resolved: %s", ti3, exc)
+            from workflow.run_compliance import run_limits
+            limits = run_limits(None, None)
         if not bool(self._settings.get("save_measurement_report", False)):
             return
         try:
-            from workflow.measurement_report import (
-                DEFAULT_PASS_AVG, DEFAULT_PASS_MAX, build_report, save_report,
-                stamp_verdict)
-            from pathlib import Path as _P
-            ti3 = _P(ti3)
+            from workflow.measurement_report import (build_report, save_report,
+                                                     stamp_verdict)
             if ti3.suffix.lower() != ".ti3" or not ti3.exists():
                 return
             report = build_report(
                 ti3, argyll_bin=str(self._settings.get("argyll_bin_path", "") or ""))
             # #182, Knut 2026-09-04: *"Verdict should be saved for each dated
-            # run."* The thresholds are a GLOBAL setting, so a report that
-            # stored neither them nor its verdict was re-graded by whatever the
-            # spin boxes said the next time anybody opened the window. Stamped
-            # HERE, with the thresholds in force at the moment of the
-            # measurement, and never again afterwards.
-            stamp_verdict(
-                report,
-                float(self._settings.get("report_pass_threshold_avg",
-                                         DEFAULT_PASS_AVG)),
-                float(self._settings.get("report_pass_threshold_max",
-                                         DEFAULT_PASS_MAX)))
+            # run."* Stamped HERE, with the run's own copy of its limit set as
+            # it stands at the moment of the measurement, and never again
+            # afterwards unless the user unlocks the run's limits (D23).
+            stamp_verdict(report, limits.limits, set_id=limits.set_id,
+                          set_label=limits.label_en, edited=limits.edited)
             path = save_report(report, ti3.parent)
             self._log.appendPlainText(
                 tr("[Report] Measurement report saved: {name}").format(

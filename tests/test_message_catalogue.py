@@ -124,6 +124,14 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # too — so a second window at Generate time
                                  # interrupted a decision already made.
                                  "M-PATCHSET-MISSING",
+                                 # #182, 2026-09-08: the Measurement Report is
+                                 # judged against a limit set bound to the run.
+                                 # The strip for rows the chart cannot supply
+                                 # (Knut D25) and the not-certification note at
+                                 # the foot of the Report limits window (D11,
+                                 # D24); the wording waits for Knut (K-g).
+                                 "M-REPORT-CHART-MISMATCH",
+                                 "M-THRESHOLDS-NOT-CERTIFICATION",
                                  "M-CM-NO-CCTIFF", "M-CM-CONVERT-FAILED",
                                  "M-CM-PROFCHECK-CONVERTED",
                                  # Feature B — wording agreed verbatim with

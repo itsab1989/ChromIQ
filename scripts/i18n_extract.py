@@ -64,7 +64,33 @@ def extract_keys() -> set[str]:
             elif isinstance(arg, ast.Name) and arg.id in consts:
                 keys.add(consts[arg.id])
     keys |= _message_catalogue_keys()
+    keys |= _compliance_set_keys()
     return keys
+
+
+def _compliance_set_keys() -> set[str]:
+    """The Measurement Report's limit-set table (#182): row labels, row notes,
+    set labels, set blurbs and group labels are data in
+    `workflow/compliance_sets.py` and reach the screen through `tr(row.label)`,
+    an attribute the AST walk above cannot see. Swept from the module itself,
+    like the message catalogue, so nothing has to be remembered."""
+    try:
+        from workflow import compliance_sets as cs
+    except Exception as exc:  # noqa: BLE001
+        print(f"warning: could not import workflow.compliance_sets ({exc})",
+              file=sys.stderr)
+        return set()
+    out: set[str] = set()
+    for row in cs.ROWS:
+        out.add(row.label)
+        if row.note:
+            out.add(row.note)
+    for st in cs.SETS:
+        out.add(st.label)
+        if st.blurb:
+            out.add(st.blurb)
+    out |= set(cs.GROUP_LABELS.values())
+    return out
 
 
 # ---------------------------------------------------------------------------

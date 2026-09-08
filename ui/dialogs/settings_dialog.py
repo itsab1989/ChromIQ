@@ -4012,38 +4012,53 @@ class SettingsDialog(QDialog):
         sg.addLayout(_rep_row)
         v.addWidget(save_grp)
 
-        # Default Pass thresholds the Measurement Report opens with (Knut).
-        defaults_grp = QGroupBox(tr("Measurement Report Defaults"), self)
+        # #182 (Knut K1/K-c): the limits live in their own window; this frame
+        # keeps only the button that opens it and the one checkbox that gates
+        # editing a run's limits after its first verification measurement.
+        defaults_grp = QGroupBox(tr("Measurement Report limits"), self)
         gl = QVBoxLayout(defaults_grp)
         gl.setSpacing(8)
-        thr_row = QHBoxLayout()
-        thr_row.addWidget(QLabel(tr("Pass threshold — Average:"), self))
-        self._report_avg_thr_spin = NoScrollDoubleSpinBox(self)
-        self._report_avg_thr_spin.setDecimals(1)
-        self._report_avg_thr_spin.setRange(0.1, 100.0)
-        self._report_avg_thr_spin.setSingleStep(0.5)
-        self._report_avg_thr_spin.setSuffix(" ΔE")
-        thr_row.addWidget(self._report_avg_thr_spin)
-        thr_row.addSpacing(14)
-        thr_row.addWidget(QLabel(tr("Maximum:"), self))
-        self._report_max_thr_spin = NoScrollDoubleSpinBox(self)
-        self._report_max_thr_spin.setDecimals(1)
-        self._report_max_thr_spin.setRange(0.1, 100.0)
-        self._report_max_thr_spin.setSingleStep(0.5)
-        self._report_max_thr_spin.setSuffix(" ΔE")
-        thr_row.addWidget(self._report_max_thr_spin)
-        thr_row.addStretch()
-        thr_row.addWidget(TooltipButton(
-            tr("Pass thresholds"),
-            tr("The colour-accuracy verdict. A metric passes when its measured "
-               "ΔE00 is at or below its threshold. The Average threshold is "
-               "compared against the three average metrics (all patches, the best "
-               "95%, and the worst 5%); the Maximum threshold against the two "
-               "maximum metrics (all patches, and the best 95%). Typical starting "
-               "points are 2.0 for the average and 3.0 for the maximum — tighten "
-               "them for critical work, loosen them for a quick health check."),
+        _lim_row = QHBoxLayout()
+        self._report_limits_btn = QPushButton(tr("Report limits…"), self)
+        self._report_limits_btn.clicked.connect(self._open_report_limits)
+        _lim_row.addWidget(self._report_limits_btn)
+        _lim_row.addStretch()
+        _lim_row.addWidget(TooltipButton(
+            tr("Report limits"),
+            tr("Opens the table of limit sets: every column a Measurement "
+               "Report can be judged against, side by side. ChromIQ's own three "
+               "sets and the two Custom sets can be edited there; the two ISO "
+               "columns are read-only. The table also marks which set a new "
+               "profile run is bound to at its first verification "
+               "measurement.\n\n"
+               "Changes made in that window are kept when you press Save here "
+               "and dropped with Cancel, like every other setting on this "
+               "tab.\n\n"
+               "Restore Factory Defaults at the bottom of this window resets "
+               "the edited sets as well; a profile run that already carries "
+               "its own copy of a set is not touched by it."),
             self))
-        gl.addLayout(thr_row)
+        gl.addLayout(_lim_row)
+        _allow_row = QHBoxLayout()
+        self._compliance_allow_edit_check = QCheckBox(
+            tr("Allow editing of thresholds after the first verification "
+               "measurement"), self)
+        _allow_row.addWidget(self._compliance_allow_edit_check)
+        _allow_row.addStretch()
+        _allow_row.addWidget(TooltipButton(
+            tr("Allow editing of thresholds after the first verification measurement"),
+            tr("A profile run's limits are fixed by its first verification "
+               "measurement, on purpose: every later dated verification of that "
+               "run is judged with the same numbers, so the history stays "
+               "comparable. That is the normal, safe state.\n\n"
+               "With this on, the Measurement Report window offers “Unlock this "
+               "run's limits” for a run that already has measurements. Unlocking "
+               "recalculates every dated report of that run with the numbers you "
+               "then set; the previous reports are kept in a reports/old folder "
+               "first, nothing is deleted.\n\n"
+               "Default: off"),
+            self))
+        gl.addLayout(_allow_row)
         v.addWidget(defaults_grp)
 
         # Report title/filename prefixes (#130, Knut). The report picks the
@@ -4821,10 +4836,14 @@ class SettingsDialog(QDialog):
             bool(s.get("engine_all_modes", False)))
         self._save_report_check.setChecked(
             bool(s.get("save_measurement_report", True)))
-        self._report_avg_thr_spin.setValue(
-            float(s.get("report_pass_threshold_avg", 2.0)))
-        self._report_max_thr_spin.setValue(
-            float(s.get("report_pass_threshold_max", 3.0)))
+        # #182: the limit-set edits are buffered here and written on Save
+        # (CH-19), exactly like the other controls on the Reports tab.
+        self._compliance_buffer = {
+            "overrides": s.get_compliance_overrides(),
+            "default_set": str(s.get("compliance_default_set", "chromiq_default")),
+        }
+        self._compliance_allow_edit_check.setChecked(
+            bool(s.get("compliance_allow_edit_after_measurement", False)))
         self._report_title_prof_edit.setText(
             str(s.get("report_title_profiling",
                       "Measurement Report - Profiling of Printer")))
@@ -5779,8 +5798,12 @@ class SettingsDialog(QDialog):
         s.set("scanner_hex_charts", self._scanner_hex_check.isChecked())
         s.set("splash_classic", self._splash_classic_check.isChecked())
         s.set("save_measurement_report", self._save_report_check.isChecked())
-        s.set("report_pass_threshold_avg", float(self._report_avg_thr_spin.value()))
-        s.set("report_pass_threshold_max", float(self._report_max_thr_spin.value()))
+        buf = getattr(self, "_compliance_buffer", None) or {}
+        s.set_compliance_overrides(buf.get("overrides") or {})
+        s.set("compliance_default_set",
+              str(buf.get("default_set") or "chromiq_default"))
+        s.set("compliance_allow_edit_after_measurement",
+              bool(self._compliance_allow_edit_check.isChecked()))
         s.set("report_title_profiling",
               self._report_title_prof_edit.text().strip()
               or "Measurement Report - Profiling of Printer")
@@ -6632,6 +6655,21 @@ class SettingsDialog(QDialog):
                                    tr("Try Zadig") if offer_zadig else None):
                 launch_zadig()
             break
+
+    def _open_report_limits(self) -> None:
+        """#182: the limits table, editing this dialog's buffer (written on
+        Save, dropped on Cancel)."""
+        from ui.dialogs.thresholds_dialog import ThresholdsDialog
+        buf = getattr(self, "_compliance_buffer", None)
+        if buf is None:
+            buf = self._compliance_buffer = {
+                "overrides": self._settings.get_compliance_overrides(),
+                "default_set": str(self._settings.get("compliance_default_set",
+                                                      "chromiq_default")),
+            }
+        dlg = ThresholdsDialog(self._settings, self, buffer=buf)
+        dlg.exec()
+        dlg.deleteLater()
 
     def _restore_defaults(self) -> None:
         self._settings.reset_to_defaults()

@@ -657,19 +657,27 @@ def test_every_deliberate_exception_says_why():
 # one-line glosses and the heading above them in the tip), 0 out. German is
 # translated for all 4 and does not move; the eleven others carry the English
 # source under the beta rule, so each of them gains 4.
+# 2026-09-08, #182: the Measurement Report is judged against LIMIT SETS. 137
+# keys in (the report window's Judged-against row, its five verdict words and
+# their definitions, the Report limits window, the Preferences frame, the
+# limit-set table's row and set labels), 15 out (the two Pass-threshold spin
+# boxes and their help). German is translated for all 137; it moves by exactly
+# the FIVE verdict words PASS / FAIL / COND / INFO / N-A, which Knut ruled as
+# English tokens (K-f) and which read the same in German. The eleven others
+# carry the English source under the beta rule, so each gains 137.
 _IDENTICAL_TO_KEY = {
-    "de": 117,
-    "es": 104,
-    "fr": 125,
-    "it": 115,
-    "ja": 91,
-    "nl": 132,
-    "no": 116,
-    "pl": 108,
-    "pt": 106,
-    "ru": 79,
-    "sv": 118,
-    "zh_CN": 85,
+    "de": 122,
+    "es": 241,
+    "fr": 262,
+    "it": 252,
+    "ja": 228,
+    "nl": 269,
+    "no": 253,
+    "pl": 245,
+    "pt": 243,
+    "ru": 216,
+    "sv": 255,
+    "zh_CN": 222,
 }
 
 

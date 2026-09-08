@@ -93,7 +93,8 @@ class RunLimits:
     set_id: str
     set_label: str                       # translated, ready to show
     limits: "dict[str, Limit]"
-    bound: bool                          # a copy is stored on the run
+    label_en: str = ""                   # the English label, for records on disk
+    bound: bool = False                  # a copy is stored on the run
     unlocked: bool = False
     edited: bool = False                 # the copy differs from the set (CH-15)
     known: bool = True                   # the set id still exists (D23)
@@ -114,13 +115,17 @@ def run_limits(run: "Run | None", overrides: "dict | None",
     meta = run.load_meta() if run is not None else None
     if meta is None or not meta.compliance_set_id:
         return RunLimits(default_set, set_label(default_set),
-                         effective_limits(default_set, overrides), bound=False)
+                         effective_limits(default_set, overrides),
+                         label_en=SET_BY_ID[default_set].label, bound=False)
     limits = limits_from_json(meta.compliance_thresholds)
     known = is_known_set(meta.compliance_set_id)
     return RunLimits(
         meta.compliance_set_id,
         set_label(meta.compliance_set_id, meta.compliance_set_label),
-        limits, bound=True, unlocked=bool(meta.compliance_unlocked),
+        limits,
+        label_en=(SET_BY_ID[meta.compliance_set_id].label if known
+                  else (meta.compliance_set_label or meta.compliance_set_id)),
+        bound=True, unlocked=bool(meta.compliance_unlocked),
         edited=is_edited(limits, meta.compliance_set_id, overrides) if known else False,
         known=known, columns=list(meta.compliance_columns or []))
 

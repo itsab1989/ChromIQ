@@ -2189,7 +2189,37 @@ def scan_align_refusal(reason: str) -> Message:
     return SCAN_ALIGN_REFUSALS.get(reason, M_SCAN_ALIGN_NOT_FOUND)
 
 
+# --- PROPOSED (#182, Knut D25): the chart cannot supply a row the limit set
+# limits — Measurement Report window, the strip under "Judged against", and
+# repeated in the report text -------------------------------------------------
+M_REPORT_CHART_MISMATCH = _m(
+    "M-REPORT-CHART-MISMATCH",
+    "Some limits cannot be checked on this chart",
+    "The limit set {set} puts a limit on values this chart cannot supply, so "
+    "these rows read N-A (not applicable):\n{rows}\n\n"
+    "A row that was not computed says nothing about the printer. To have it "
+    "checked, add the missing patches to the chart in Create Chart (for the "
+    "grey balance: “Neutral grey ramp” with 16 steps), print the new chart and "
+    "measure it again.",
+    approved=False)
+
+# --- PROPOSED (#182, Knut D11/D24): the note at the foot of the Report limits
+# window ----------------------------------------------------------------------
+M_THRESHOLDS_NOT_CERTIFICATION = _m(
+    "M-THRESHOLDS-NOT-CERTIFICATION",
+    "ChromIQ measures against published values; it does not certify",
+    "The columns named after a standard hold that standard's published "
+    "tolerance values, applied to the chart you printed. They are not a test "
+    "of the standard's own control strip and chart, so a report can never say "
+    "that a print conforms to a standard. What ChromIQ does is measure as many "
+    "of the standard's values as your chart allows, say which it checked and "
+    "which it did not, and let you follow them over time.\n\n"
+    "Rows marked ✕ are requirements ChromIQ cannot measure at all; they stay in "
+    "the table so you can see what the standard asks: {rows}",
+    approved=False)
+
 CATALOGUE = {m.id: m for m in (
+    M_REPORT_CHART_MISMATCH, M_THRESHOLDS_NOT_CERTIFICATION,
     M_REPLACE_PARTIAL, M_REPLACE_COMPLETE, M_TI3_MISMATCH,
     M_REPLACE_UNCOUNTABLE,
     M_IMPORT_REPLACE_CONFIRM, M_IMPORT_REPLACE_PROJECT_CONFIRM,
