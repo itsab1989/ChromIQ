@@ -17,6 +17,7 @@ DESIGN = ROOT / "docs" / "design"
 
 BINDING = [
     "unified_measurement_management.md",
+    "measurement_report_limits.md",
     "per_run_description.md",
     "measurement_exit_strategy.md",
     "per_target_settings.md",

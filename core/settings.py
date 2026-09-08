@@ -763,6 +763,30 @@ def serialize_compliance_overrides(table: dict[str, dict[str, Any]]) -> str:
     return json.dumps(table, ensure_ascii=False, sort_keys=True) if table else ""
 
 
+def compliance_overrides_of(settings: Any) -> dict[str, dict[str, Any]]:
+    """The limit-set overrides held by ANY settings-like object (something
+    with ``get``). The dialogs take fakes in tests and duck-typed stores in
+    drivers, so they must not require :class:`AppSettings` itself."""
+    get = getattr(settings, "get_compliance_overrides", None)
+    if callable(get):
+        try:
+            return get() or {}
+        except Exception:  # noqa: BLE001
+            return {}
+    try:
+        return parse_compliance_overrides(str(settings.get("compliance_set_overrides", "") or ""))
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def store_compliance_overrides(settings: Any, table: dict[str, dict[str, Any]]) -> None:
+    put = getattr(settings, "set_compliance_overrides", None)
+    if callable(put):
+        put(table)
+        return
+    settings.set("compliance_set_overrides", serialize_compliance_overrides(table))
+
+
 def margin_combo_key(instrument: str, paper: str, orientation: str) -> str:
     """Canonical "<instrument>|<paper> <Orientation>" threshold key."""
     paper = (paper or "").strip()

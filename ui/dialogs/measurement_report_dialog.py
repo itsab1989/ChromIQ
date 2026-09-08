@@ -850,8 +850,9 @@ class MeasurementReportDialog(QDialog):
         # The strip (Knut D25): shown only when the chart cannot supply a row
         # the set limits; hidden, not blank, when there is nothing to say.
         self._mismatch = QLabel(self)
-        self._mismatch.setWordWrap(True)
+        self._mismatch.setWordWrap(False)
         self._mismatch.setTextFormat(Qt.TextFormat.PlainText)
+        self._mismatch_full = ""
         self._mismatch.setStyleSheet(
             "QLabel { border: 1px solid #c8922a; border-radius: 4px;"
             " padding: 6px 10px; color: #8a5a00; background: rgba(240,180,80,0.12); }")
@@ -1660,15 +1661,8 @@ class MeasurementReportDialog(QDialog):
     #     recalculated once (CH-29), never on every keystroke.
 
     def _overrides(self) -> dict:
-        get = getattr(self._settings, "get_compliance_overrides", None)
-        if callable(get):
-            try:
-                return get() or {}
-            except Exception:  # noqa: BLE001
-                return {}
-        from core.settings import parse_compliance_overrides
-        return parse_compliance_overrides(
-            str(self._settings.get("compliance_set_overrides", "") or ""))
+        from core.settings import compliance_overrides_of
+        return compliance_overrides_of(self._settings)
 
     def _default_set_id(self) -> str:
         return str(self._settings.get("compliance_default_set", "chromiq_default")
@@ -1784,10 +1778,35 @@ class MeasurementReportDialog(QDialog):
                          "choice is not stored anywhere.")
             for w in (self._set_combo, self._unlock_check, self._limits_btn):
                 w.setToolTip(tip)
-            self._mismatch.setText(self._mismatch_text())
-            self._mismatch.setVisible(bool(self._mismatch.text()))
+            self._set_strip(self._mismatch_text())
         finally:
             self._syncing_limits = False
+
+    def _set_strip(self, full: str) -> None:
+        """One line on screen, elided to the window; the whole message as the
+        strip's tooltip and, always, in the report text (D25). A multi-line
+        strip pushed the window past an 800 px screen."""
+        self._mismatch_full = full or ""
+        if not full:
+            self._mismatch.setVisible(False)
+            self._mismatch.setToolTip("")
+            return
+        lines = full.splitlines()
+        first = lines[0]
+        # the rows come first on the one line: they are what the user acts on
+        rows = [l.strip().lstrip("•").strip() for l in lines[1:] if l.strip().startswith("•")]
+        one = first + ": " + "; ".join(rows) if rows else first
+        from PyQt6.QtGui import QFontMetrics
+        width = max(200, self.width() - 60)
+        self._mismatch.setText(QFontMetrics(self._mismatch.font()).elidedText(
+            one, Qt.TextElideMode.ElideRight, width))
+        self._mismatch.setToolTip(full)
+        self._mismatch.setVisible(True)
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        if getattr(self, "_mismatch_full", ""):
+            self._set_strip(self._mismatch_full)
 
     # -- reasons a row was not computed, as sentences --------------------------
     def _reason_sentence(self, code: "str | None", r: "dict | None" = None) -> str:
@@ -2004,8 +2023,9 @@ class MeasurementReportDialog(QDialog):
     def _confirm(self, title: str, text: str) -> bool:
         """A yes/no question. One method, so a driver can answer it."""
         from PyQt6.QtWidgets import QMessageBox
+        from ui.warning_sign import set_question_icon
         box = QMessageBox(self)
-        box.setIcon(QMessageBox.Icon.Question)
+        set_question_icon(box)
         box.setWindowTitle(title)
         box.setText(text)
         box.setStandardButtons(QMessageBox.StandardButton.Ok
@@ -2036,8 +2056,10 @@ class MeasurementReportDialog(QDialog):
         except OSError as exc:
             log.warning("could not store the limit set on %s: %s", ctx.run.dir, exc)
         self._forget_limits()
-        if self._unlock_check.isChecked():
-            self._recalculate_run()
+        # The pulldown is live only for an unlocked run or one with nothing
+        # measured yet, so every saved report of the run (if any) follows the
+        # new set now, once (D23, CH-29).
+        self._recalculate_run()
         self._refresh()
 
     def _on_unlock_toggled(self, on: bool) -> None:

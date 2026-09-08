@@ -128,7 +128,9 @@ def test_locked_follows_the_first_measurement_and_the_unlock_flag(tmp_path):
     assert rc.may_unlock(run, allow_after_measurement=True)
     rc.set_run_unlocked(run, True)
     assert not rc.is_locked(run)
-    assert rc.run_limits(run, {}).unlocked is False     # unlocked but never bound: no copy
+    # the flag is the run's own even before it is bound (a legacy run that a
+    # user unlocks must not read as locked again on the next look)
+    assert rc.run_limits(run, {}).unlocked is True and not rc.run_limits(run, {}).bound
     assert not rc.is_locked(None) and not rc.may_unlock(None, True)
 
 

@@ -4838,9 +4838,11 @@ class SettingsDialog(QDialog):
             bool(s.get("save_measurement_report", True)))
         # #182: the limit-set edits are buffered here and written on Save
         # (CH-19), exactly like the other controls on the Reports tab.
+        from core.settings import compliance_overrides_of
         self._compliance_buffer = {
-            "overrides": s.get_compliance_overrides(),
-            "default_set": str(s.get("compliance_default_set", "chromiq_default")),
+            "overrides": compliance_overrides_of(s),
+            "default_set": str(s.get("compliance_default_set", "chromiq_default")
+                               or "chromiq_default"),
         }
         self._compliance_allow_edit_check.setChecked(
             bool(s.get("compliance_allow_edit_after_measurement", False)))
@@ -5798,8 +5800,9 @@ class SettingsDialog(QDialog):
         s.set("scanner_hex_charts", self._scanner_hex_check.isChecked())
         s.set("splash_classic", self._splash_classic_check.isChecked())
         s.set("save_measurement_report", self._save_report_check.isChecked())
+        from core.settings import store_compliance_overrides
         buf = getattr(self, "_compliance_buffer", None) or {}
-        s.set_compliance_overrides(buf.get("overrides") or {})
+        store_compliance_overrides(s, buf.get("overrides") or {})
         s.set("compliance_default_set",
               str(buf.get("default_set") or "chromiq_default"))
         s.set("compliance_allow_edit_after_measurement",
@@ -6662,8 +6665,9 @@ class SettingsDialog(QDialog):
         from ui.dialogs.thresholds_dialog import ThresholdsDialog
         buf = getattr(self, "_compliance_buffer", None)
         if buf is None:
+            from core.settings import compliance_overrides_of
             buf = self._compliance_buffer = {
-                "overrides": self._settings.get_compliance_overrides(),
+                "overrides": compliance_overrides_of(self._settings),
                 "default_set": str(self._settings.get("compliance_default_set",
                                                       "chromiq_default")),
             }

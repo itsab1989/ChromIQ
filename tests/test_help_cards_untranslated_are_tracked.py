@@ -372,19 +372,28 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # one-line glosses and the heading above them in the tip. All four are over
 # the 25-character floor this file counts at, so all four are counted. German
 # is translated for all four.
+#: 2026-09-08, #182: the Measurement Report is judged against LIMIT SETS. 90
+#: substantial strings in each of the eleven placeholder languages: the report
+#: window's help block (rewritten, so its twelve translations were lost with the
+#: key), the Judged-against tooltips, the five-word definition paragraph, the
+#: Report limits window's help and legend, the Preferences frame's two tooltips,
+#: the unlock confirmation, the provenance sentences, the two proposed section
+#: M messages, and the limit-set table's row notes and set blurbs. German is
+#: translated for all of them and stays at 4. The eleven carry the English
+#: source under the beta rule; the full pass happens before the final release.
 _BUDGET = {
     "de": 4,
-    "es": 8,
-    "fr": 9,
-    "it": 8,
-    "ja": 8,
-    "nl": 8,
-    "no": 8,
-    "pl": 8,
-    "pt": 8,
-    "ru": 7,
-    "sv": 8,
-    "zh_CN": 7,
+    "es": 98,
+    "fr": 99,
+    "it": 98,
+    "ja": 98,
+    "nl": 98,
+    "no": 98,
+    "pl": 98,
+    "pt": 98,
+    "ru": 97,
+    "sv": 98,
+    "zh_CN": 97,
 }
 
 

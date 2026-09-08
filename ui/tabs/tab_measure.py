@@ -12907,9 +12907,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         """
         from workflow.run_compliance import (ensure_bound, run_context_for,
                                              run_limits)
-        overrides = self._settings.get_compliance_overrides()
+        from core.settings import compliance_overrides_of
+        overrides = compliance_overrides_of(self._settings)
         default_set = str(self._settings.get("compliance_default_set",
-                                             "chromiq_default"))
+                                             "chromiq_default") or "chromiq_default")
         ctx = run_context_for(ti3)
         if ctx is None:
             return run_limits(None, overrides, default_set)

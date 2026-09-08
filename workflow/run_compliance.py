@@ -114,9 +114,14 @@ def run_limits(run: "Run | None", overrides: "dict | None",
         default_set = DEFAULT_SET_ID
     meta = run.load_meta() if run is not None else None
     if meta is None or not meta.compliance_set_id:
+        # Unbound (every run written before this existed, or one whose first
+        # verification has not happened yet): the Preferences default. The
+        # lock flag and the column choice are the run's own even so.
         return RunLimits(default_set, set_label(default_set),
                          effective_limits(default_set, overrides),
-                         label_en=SET_BY_ID[default_set].label, bound=False)
+                         label_en=SET_BY_ID[default_set].label, bound=False,
+                         unlocked=bool(meta.compliance_unlocked) if meta else False,
+                         columns=list(meta.compliance_columns or []) if meta else [])
     limits = limits_from_json(meta.compliance_thresholds)
     known = is_known_set(meta.compliance_set_id)
     return RunLimits(

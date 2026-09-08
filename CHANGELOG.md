@@ -1,5 +1,79 @@
 # Changelog
 
+## v4.2.1-beta.1
+
+**The Measurement Report now judges a print against a named limit set instead
+of two loose numbers, and it says in plain words what it checked, what it could
+not, and why.** This is the first slice of issue #182, built from Knut's rulings
+of 4 to 7 September. It is a beta: the design is recorded in
+`docs/design/measurement_report_limits.md` as awaiting confirmation, and the
+open decisions are listed on the issue.
+
+### New
+
+- **Limit sets.** A limit set is one column of a table: the numbers a report is
+  judged against, one per row. ChromIQ ships three of its own: *ChromIQ default
+  (recommended)* with 2.0 on the averages and 3.0 on the maxima, *ChromIQ
+  tight* at half of that, and *Quick check* at twice. Two columns hold the
+  published values of ISO 12647-7:2016 and ISO 12647-8:2021 and two Custom
+  columns start from them; those four are empty in this beta, every cell reads
+  "?", and they cannot be chosen for a run, because whether a paid standard's
+  numbers may ship as factory values is still an open question on the issue.
+- **The set belongs to the profile run.** The first verification you measure
+  binds the run to the default set and copies its numbers into the run, so
+  every later dated verification of that run is judged the same way and the
+  history stays comparable. A later change in Preferences does not reach a run
+  that is already bound.
+- **Five verdict words** in place of Pass and Fail: PASS, FAIL, COND (short
+  for conditional: nothing failed, but with a documented exception), INFO (the
+  number is shown, nothing is judged) and N-A (not applicable, with the reason
+  beside it). Every row and every column's Overall word uses them, and the
+  report's "How to read" chapter defines each one. The report never says that
+  anything conforms to a standard.
+- **Grey balance.** Two new rows measure how far each grey patch sits from a
+  neutral grey (ΔCh, the distance in a\* and b\* only), average and largest,
+  from a chart's grey ramp of at least 8 steps from white to black. In
+  ChromIQ's own sets these are recommendations shown in brackets, so an
+  exceedance reads COND and never FAIL until a healthy printer has been
+  measured to set the numbers on evidence.
+- **The Report limits window** (Preferences ▸ Reports ▸ "Report limits…", and
+  "Show limits…" in the report window) shows every set side by side, grouped
+  by the patches a limit is written over. ChromIQ's three sets and the two
+  Custom sets can be edited there, each column has "Restore this column", a
+  row of checkboxes chooses which columns are shown, and a radio marks the
+  default for new runs. Opened from the report window it adds a first column,
+  "This run", with the run's own copy of its limits.
+- **A strip under "Judged against"** names what the printed chart cannot
+  supply (too few grey steps, fewer than 20 patches, no tone ramp) and what to
+  add to it in Create Chart. The same note is repeated in the report text.
+- **Unlock this run's limits.** A run's numbers are fixed by its first
+  verification, on purpose. When Preferences ▸ Reports allows editing after
+  the first measurement, the report window offers to unlock a run: after a
+  confirmation that names the run and its dated verifications, every dated
+  report of the run is archived once into a `reports/old` folder beside each
+  date and recalculated once with the numbers you set. Nothing is deleted.
+
+### Changed
+
+- **The two Pass-threshold boxes are gone** from the report window and from
+  Preferences ▸ Reports; the limits table replaces them. A value you had moved
+  away from 2.0 / 3.0 is carried over as your own version of ChromIQ default,
+  so no report you own changes its verdict.
+- **The 95th percentile is the nearest-rank value**, one patch higher than
+  before on about half of all chart sizes. Saved reports keep their numbers;
+  only a report built anew changes. Below 20 patches the worst-5 % row reads
+  N-A instead of a number computed from one patch.
+- **A profiling measurement is no longer graded.** The run's own chart is
+  printed raw, so its distance from the chart's design was a permanent Fail
+  that said nothing about the printer; it now reads INFO throughout.
+- The report window's help, tooltips and "How to read" chapter are rewritten
+  around limit sets.
+
+### Fixed
+
+- A dated verification that had a saved report was listed twice in the
+  Measurement Report window (a demo project showed ten rows for five dates).
+
 ## v4.2.0
 
 **ChromIQ can now measure a chart with a CR30, the first instrument it drives

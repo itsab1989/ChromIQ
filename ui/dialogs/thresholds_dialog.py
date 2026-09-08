@@ -74,8 +74,9 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         #: {"overrides": {...}, "default_set": str} owned by Preferences, or
         #: None when edits go straight to the settings (report-window door)
         self._buffer = buffer
+        from core.settings import compliance_overrides_of
         self._overrides = (dict(buffer.get("overrides") or {}) if buffer is not None
-                           else settings.get_compliance_overrides())
+                           else compliance_overrides_of(settings))
         self._default_set = str((buffer or {}).get("default_set")
                                 or settings.get("compliance_default_set",
                                                 "chromiq_default"))
@@ -323,9 +324,13 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         from workflow.compliance_sets import ROW_BY_ID
         row = ROW_BY_ID[row_id]
         lim = self._limits_of(col).get(row_id, Limit.none())
+        # A Custom column inherits its ISO parent's cells; while S-2 is open
+        # those read ? and the user may still type their own number (the
+        # fallback the licensing question was asked with). So an editable
+        # column's cell is a spin box unless the ROW is out of ChromIQ's reach.
         editable = (self._column_editable(col)
                     and row.status in ("now", "build", "ref")
-                    and lim.kind in ("value", "should", "none"))
+                    and lim.kind in ("value", "should", "none", "unknown"))
         if not editable:
             lab = QLabel(limit_text(lim), self)
             lab.setAlignment(Qt.AlignmentFlag.AlignRight)
@@ -454,7 +459,8 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         if self._buffer is not None:
             self._buffer["overrides"] = {k: dict(v) for k, v in self._overrides.items()}
         else:
-            self._settings.set_compliance_overrides(self._overrides)
+            from core.settings import store_compliance_overrides
+            store_compliance_overrides(self._settings, self._overrides)
         # a Custom column inherits nothing from its parent's overrides, but the
         # selectable set of columns can change when a column is emptied
         for col, rb in self._default_radios.items():

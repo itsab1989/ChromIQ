@@ -255,7 +255,7 @@ def test_rewrite_keeps_the_file_name_and_replaces_the_content(tmp_path):
     p = tmp_path / "report_2026-01-01_10-00-00.json"
     p.write_text("{}", encoding="utf-8")
     assert mr.rewrite_report(p, {"a": 1}) == p
-    assert json.loads(p.read_text()) == {"a": 1}
+    assert json.loads(p.read_text(encoding="utf-8")) == {"a": 1}
     assert list(tmp_path.iterdir()) == [p]
 
 
