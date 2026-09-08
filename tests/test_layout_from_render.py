@@ -139,3 +139,58 @@ def test_capture_fallback_derives_from_render(engine_chart, tmp_path):
     assert doc["layout"]["engine"] == "derived"
     from workflow.scanin_target import has_scanner_geometry
     assert has_scanner_geometry(work / "t.channels.json")
+
+
+# ---------------------------------------------------------------------------
+# THE SIDECAR IS ONLY AS GOOD AS THE RASTER IT CAME FROM
+# ---------------------------------------------------------------------------
+#
+# Everything above reads the committed `channels.json` and checks it against the
+# committed `.ti2`. Neither of those is the picture. A bundle whose PAGES were
+# regenerated, re-ordered, cropped or dropped would sail through: the sidecar
+# and the .ti2 still agree with each other, and nothing looks at the pixels.
+# Measured — deleting `photocard600_04.tif` left the tests above green.
+#
+# So re-run the derivation the way `scripts/derive_prebuilt_geometry.py` does
+# and require the answer to be the one on disk. That is a colour-verified,
+# patch-by-patch comparison of every page against the .ti2, which is exactly the
+# gate a new bundle has to pass before it may ship without geometry at all.
+
+_PHOTOCARDS = ["rgb/i1pro/100x150/photocard600", "rgb/i1pro/130x180/photocard648"]
+
+
+def _rederive(leaf: str) -> tuple[dict, dict]:
+    d = ASSETS / leaf
+    ti2 = next(d.glob("*.ti2"))
+    pages = sorted(d.glob(f"{ti2.stem}_*.tif")) or [d / f"{ti2.stem}.tif"]
+    fresh = derive_layout_from_render(pages, ti2)
+    stored = json.loads((d / f"{ti2.stem}.channels.json")
+                        .read_text(encoding="utf-8"))["layout"]
+    return fresh, stored
+
+
+@pytest.mark.parametrize("leaf", _PHOTOCARDS)
+def test_the_shipped_geometry_still_matches_the_shipped_pages(leaf):
+    """Half a second per bundle, so the two newest ride in the everyday tier."""
+    fresh, stored = _rederive(leaf)
+    assert fresh == stored, (
+        f"{leaf}: the pages and the committed channels.json no longer agree. "
+        "Re-run scripts/derive_prebuilt_geometry.py, and if it FAILS the "
+        "bundle itself is wrong — correct-or-absent, never guessed."
+    )
+
+
+@pytest.mark.slow
+def test_every_prebuilt_bundle_still_matches_its_own_pages():
+    """The same check across all eleven. 14 s, so it is the slow tier's."""
+    bad = []
+    for ti2 in sorted((ASSETS / "rgb").rglob("*.ti2")):
+        leaf = str(ti2.parent.relative_to(ASSETS))
+        try:
+            fresh, stored = _rederive(leaf)
+        except RenderGeometryError as exc:
+            bad.append(f"{leaf}: derivation FAILED ({exc})")
+            continue
+        if fresh != stored:
+            bad.append(f"{leaf}: pages and channels.json disagree")
+    assert not bad, "\n".join(bad)
