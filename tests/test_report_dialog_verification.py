@@ -147,3 +147,21 @@ def test_lca_dir_helper():
     assert D._lca_dir([base / "run1" / "verifications" / "d1",
                        base / "run1" / "verifications" / "d2"]) == base / "run1" / "verifications"
     assert D._lca_dir([base / "run1"]) == base / "run1"                  # single → itself
+
+
+def test_a_dated_verification_with_a_saved_report_is_listed_once(tmp_path):
+    """Found on screen 2026-09-08 (Demo-Verify-History: 10 rows for 5 dates).
+    A saved report records the measurement's bare file name, so the
+    "already covered" check that compared folder names against it matched
+    nothing, and every dated verification that HAD a saved report was rebuilt
+    a second time from its .ti3 and listed twice. One date, one row."""
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    from workflow.measurement_report import build_report, save_report
+    vti3 = _verification_project(tmp_path)
+    save_report(build_report(vti3), vti3.parent)          # the autosaved report
+    assert len(list((vti3.parent / "reports").glob("report_*.json"))) == 1
+
+    dlg = MeasurementReportDialog(_Settings(), initial_ti3=vti3)
+    _name, runs = dlg._gather_runs(vti3)
+    assert len(runs) == 1, [r.get("created") for r in runs]
+    dlg.deleteLater()

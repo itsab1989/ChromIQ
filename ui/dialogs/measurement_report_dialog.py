@@ -1021,8 +1021,14 @@ class MeasurementReportDialog(QDialog):
         from core.file_manager import VERIFICATIONS_DIRNAME
         vroot = ti3.parent.parent
         if vroot.name == VERIFICATIONS_DIRNAME:
-            covered = {Path(r.get("ti3", "")).parent.name
-                       for r in runs if r.get("ti3")}
+            # A saved report's "ti3" is the measurement's bare FILE NAME
+            # (build_report keeps no path), so its parent is "" and nothing
+            # was ever counted as covered: every date that HAD a saved report
+            # was rebuilt a second time and listed twice (found on screen,
+            # 2026-09-08, Demo-Verify-History: 10 rows for 5 dates). The
+            # dated folder is the origin recorded two lines above.
+            covered = {Path(r["_origin_dir"]).name
+                       for r in runs if r.get("_origin_dir")}
             for d in sorted(p for p in vroot.iterdir() if p.is_dir()):
                 if d.name in covered or d.name == "old":
                     continue
