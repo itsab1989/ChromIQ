@@ -231,3 +231,45 @@ def test_the_app_moving_the_instrument_never_restores_anything(tab):
         "an app-driven change restored a remembered value"
     _pick(tab, "CR30")                       # …but a person's pick does
     assert tab._dd_check.isChecked() is True
+
+
+# ---------------------------------------------------------------------------
+# D-C: the siblings that were destroying a chosen value
+# ---------------------------------------------------------------------------
+#
+# Reported to Basti as "left_border survives hidden", which turned out to be the
+# one of the four behaving correctly. `-P` and Triple density were the fault:
+# they force-unchecked on hide, and the loss was permanent, silent, and written
+# into the run as its own answer. §4c D-2 says an instrument change may not
+# overwrite a value they have chosen; the app already states the right doctrine
+# in capitals for the same problem on the Measure tab. Approved 2026-09-08.
+#
+# `_dd_check` deliberately still clears: that widget is three different options
+# depending on the instrument, so its tick means something else after a switch.
+# These two mean nothing at all to an instrument that hides them, which is
+# exactly why they are safe to keep.
+@pytest.mark.parametrize("box,owner,visitor", [
+    ("_nsl_check", "i1", "CR30"),      # -P belongs to the strip readers
+    ("_td_check", "CM", "i1"),         # triple density to the ColorMunki
+    ("_lb_check", "i1", "CR30"),       # already correct; must stay correct
+])
+def test_a_control_the_other_instrument_hides_keeps_its_value(
+        tab, box, owner, visitor):
+    _pick(tab, owner)
+    getattr(tab, box).setChecked(True)
+    _pick(tab, visitor)
+    assert getattr(tab, box).isHidden(), f"{box} should be hidden on {visitor}"
+    _pick(tab, owner)
+    assert getattr(tab, box).isChecked() is True, (
+        f"{box} was thrown away by a look at {visitor} "
+        "(per_target_settings.md §4c D-2)"
+    )
+
+
+def test_the_density_box_is_the_deliberate_exception(tab):
+    """It is not one option the instrument ignores, it is three options sharing
+    a widget, so its tick must not survive a change of meaning."""
+    _pick(tab, "CR30")
+    tab._dd_check.setChecked(True)
+    _pick(tab, "CM")
+    assert tab._dd_check.isChecked() is False

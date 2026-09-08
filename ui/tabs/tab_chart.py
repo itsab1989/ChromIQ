@@ -12898,8 +12898,24 @@ class TabChart(QWidget):
         # represent the ColorMunki rig accessory. For SS the dd checkbox
         # is hexagon-patches (no rig involved) so we hide the label.
         self._for_rig_label.setVisible(instr == "CM")
-        if not td_visible and self._td_check.isChecked():
-            self._td_check.setChecked(False)
+        # HIDDEN, NOT CLEARED (Basti, 2026-09-08). This used to force-uncheck,
+        # and the loss was permanent and silent: tick Triple density on a
+        # ColorMunki, glance at an i1Pro, come back, and it is gone, with the
+        # next write filing the absence as the run's own answer. §4c D-2 says an
+        # instrument change may not overwrite a value they have chosen, and the
+        # app already states the right doctrine in capitals for the same problem
+        # on the Measure tab (`_apply_cr30_dead_options`: "DISABLE ONLY, NEVER
+        # UNTICK. The saved value belongs to the target").
+        #
+        # Nothing escapes by leaving it: triple density reaches printtarg only
+        # for a ColorMunki, gated where the arguments are built, so a stale tick
+        # on an i1Pro changes no chart. What it does is come back when the
+        # ColorMunki does.
+        #
+        # `_dd_check` is NOT the same case and keeps its clear: that one widget
+        # is three different options depending on the instrument, so leaving its
+        # tick would carry a CR30's hexagons into a ColorMunki's rig density.
+        # A change of SUBJECT, not a control the instrument merely ignores.
         # -L only affects strip instruments (i1, p3). CM reads patches
         # individually and SS is an XY flatbed — both ignore -L. Even with
         # the ChromIQ-style clipping border on, the toggle stays visible:
@@ -12918,8 +12934,9 @@ class TabChart(QWidget):
         nsl_visible = instr in {"i1", "p3"} and not self._td_check.isChecked()
         self._nsl_check.setVisible(nsl_visible)
         self._nsl_tooltip.setVisible(nsl_visible)
-        if not nsl_visible and self._nsl_check.isChecked():
-            self._nsl_check.setChecked(False)
+        # Hidden, not cleared, for the same reason as triple density above.
+        # -P belongs to the strip readers; it cannot reach printtarg for anyone
+        # else, and a value the person ticked is theirs to keep.
 
     def _on_user_picked_instrument(self, _idx: int) -> None:
         """A PERSON chose an instrument: show that instrument's own answer.
@@ -15146,6 +15163,76 @@ class TabChart(QWidget):
         # "generated the chart but went to manual module on its own and i think
         # colormunki was still selected there". His run1 holds mode=manual,
         # guided={instrument: CM, paper: A4}, and that is what came back.
+        if "engine_on" in stored and not built_here:
+            try:
+                on = bool(stored["engine_on"])
+                self._settings.set("use_chromiq_layout_engine", on)
+                self._set_engine_checked(on)
+            except Exception:      # noqa: BLE001
+                log.debug("ui-state: engine toggle not applied")
+        rec_d = stored.get("engine_recipe")
+        # NOT WHILE THAT LAYOUT IS BEING BUILT WITH. Building a chart makes the
+        # run its own — creating or re-aligning it fires the target-switch
+        # handler, which loads the run's *stored* Create Chart state right on top
+        # of the layout the build is using. The chart on disk was then correct
+        # and the panel was not, and with "Update the preview automatically" on,
+        # the panel won two seconds later: Basti, 2026-08-16, picking the
+        # 84-patch Hand Held preset — built at 7 columns with a 6 mm left margin,
+        # replaced by a re-layout at 17 columns and 14 mm, so "same amount of
+        # patches but less wide". His log named the path outright:
+        #   chart build (user): chart.ti1, A4, 7x12 grid, margins … L6.0
+        #   layout panel set_recipe [load_target_settings ← _apply_ui_state]  ×4
+        #   chart build (live preview): …, 17x12 grid, margins … L14.0
+        # A build in flight IS the newer state, so it wins here, and the next
+        # write files it as the run's own. Every other stored value still loads —
+        # only the layout being built with is protected.
+        if isinstance(rec_d, dict) and built_here:
+            log.debug("ui-state: kept the layout this build used "
+                      "(the run's stored copy is the older one)")
+        elif isinstance(rec_d, dict):
+            try:
+                import dataclasses as _dc
+
+                from workflow.layout_engine.presets import LayoutRecipe
+                names = {f.name for f in _dc.fields(LayoutRecipe)}
+                rec = LayoutRecipe(
+                    **{k: v for k, v in rec_d.items() if k in names})
+                self._set_engine_recipe(rec)
+            except Exception:      # noqa: BLE001
+                log.debug("ui-state: engine recipe not applied", exc_info=True)
+        # THE GUIDED ROW IS APPLIED LAST, AND THE ORDER IS THE FIX.
+        #
+        # It used to be applied FIRST, and then lost. The engine block below
+        # moves the layout panel; the panel mirrors its instrument into the
+        # printtarg widgets (`_sync_manual_selection_from_panel`), and
+        # `_link_instrument_controls` mirrors that back into Guided. So the
+        # last writer won, and the last writer was a recipe -- either the run's
+        # own, or, when it had none, the GLOBAL `manual_engine_recipe` that
+        # "Save as Defaults" leaves behind. Captured by stack trace, not
+        # guessed:
+        #
+        #   _apply_ui_state -> guided instrument = CR30        (correct)
+        #   _apply_ui_state -> _init_manual_layout_panel
+        #        -> layout panel loads the saved default (CM)
+        #        -> _sync_manual_selection_from_panel -> _mirror("manual")
+        #        -> guided instrument = CM                     (WRONG)
+        #
+        # and the next write filed CM as the run's own instrument, with
+        # `double_density` following it. That is a CR30 project reopening as a
+        # ColorMunki, which is what Basti reported on 2026-09-08, and it is a
+        # self-sustaining loop: the wrong value is stored, and the stored wrong
+        # value then supplies the next load.
+        #
+        # It breaks three binding rules at once: 2.0 (the target's own record
+        # is the single writer), 4c D-2 (an instrument change may not overwrite
+        # a value they have chosen) and 4c D-4 (saved defaults are not an
+        # answer).
+        #
+        # Suppressing the mirror instead was the tempting fix and is worse: it
+        # leaves Manual and the panel on CM while Guided says CR30, so the two
+        # modes disagree and the NEXT write stores that disagreement. Ordering
+        # removes the conflict rather than hiding it.
+
         guided = stored.get("guided")
         if isinstance(guided, dict) and built_here:
             log.debug("ui-state: kept the Guided row this build used "
@@ -15186,44 +15273,14 @@ class TabChart(QWidget):
                     self._shared_set("guided", fld, val)
                 except Exception:      # noqa: BLE001
                     log.debug("ui-state: guided %s not applied", fld)
-        if "engine_on" in stored and not built_here:
-            try:
-                on = bool(stored["engine_on"])
-                self._settings.set("use_chromiq_layout_engine", on)
-                self._set_engine_checked(on)
-            except Exception:      # noqa: BLE001
-                log.debug("ui-state: engine toggle not applied")
-        rec_d = stored.get("engine_recipe")
-        # NOT WHILE THAT LAYOUT IS BEING BUILT WITH. Building a chart makes the
-        # run its own — creating or re-aligning it fires the target-switch
-        # handler, which loads the run's *stored* Create Chart state right on top
-        # of the layout the build is using. The chart on disk was then correct
-        # and the panel was not, and with "Update the preview automatically" on,
-        # the panel won two seconds later: Basti, 2026-08-16, picking the
-        # 84-patch Hand Held preset — built at 7 columns with a 6 mm left margin,
-        # replaced by a re-layout at 17 columns and 14 mm, so "same amount of
-        # patches but less wide". His log named the path outright:
-        #   chart build (user): chart.ti1, A4, 7x12 grid, margins … L6.0
-        #   layout panel set_recipe [load_target_settings ← _apply_ui_state]  ×4
-        #   chart build (live preview): …, 17x12 grid, margins … L14.0
-        # A build in flight IS the newer state, so it wins here, and the next
-        # write files it as the run's own. Every other stored value still loads —
-        # only the layout being built with is protected.
-        if isinstance(rec_d, dict) and built_here:
-            log.debug("ui-state: kept the layout this build used "
-                      "(the run's stored copy is the older one)")
-        elif isinstance(rec_d, dict):
-            try:
-                import dataclasses as _dc
-
-                from workflow.layout_engine.presets import LayoutRecipe
-                names = {f.name for f in _dc.fields(LayoutRecipe)}
-                rec = LayoutRecipe(
-                    **{k: v for k, v in rec_d.items() if k in names})
-                self._set_engine_recipe(rec)
-            except Exception:      # noqa: BLE001
-                log.debug("ui-state: engine recipe not applied", exc_info=True)
-        elif not built_here:
+        # …AND THE ABSENT-RECIPE BRANCH RUNS AFTER IT, WHICH IS NOT AN
+        # INCONSISTENCY. A recipe that is PRESENT is a writer, so it must go
+        # before the guided row and lose to it. A recipe that is ABSENT resets
+        # the panel to neutral, and that reset READS the guided row: it must
+        # therefore see the row already restored, or it re-seeds the panel from
+        # the run before this one. Moving both halves up broke exactly that,
+        # and `test_a_fresh_run_opens_on_its_own_defaults.py` caught it.
+        if not isinstance(rec_d, dict) and not built_here:
             # ABSENT MEANS NEUTRAL here too, and this is the one that matters
             # most: `_adopt_new_run_settings` writes a record with
             # `create_chart_settings` present and `create_chart_ui` empty, and
