@@ -2,11 +2,15 @@
 
 ## v4.2.1
 
-**Two ready-made charts for the paper sizes photo paper is actually sold in.
-Nelson Lau designed a 600-patch target for a 10 x 15 cm card and a 648-patch
-one for 13 x 18 cm, both for the i1Pro, and ChromIQ had nothing for either size
-before now. Also: the patch count ChromIQ reported for a sheet size it had
-never measured could be five times too high.**
+**Two ready-made charts for the paper sizes photo paper is actually sold in,
+and four faults found while checking them. Nelson Lau designed a 600-patch
+target for a 10 x 15 cm card and a 648-patch one for 13 x 18 cm, both for the
+i1Pro, and ChromIQ had nothing for either size before now. Along the way: a
+project built for a CR30 stopped reopening as a ColorMunki and slowly becoming
+one, Preferences stopped telling CR30 owners their instrument reads at 100 Hz,
+a setting you chose stopped being thrown away when you looked at another
+instrument, and the patch count for an unusual sheet size stopped being five
+times too high.**
 
 ### New
 
@@ -16,10 +20,10 @@ never measured could be five times too high.**
   cards. Picking one asks for a name and copies the finished chart into the
   run, the way the other nine "by Pharmacist" charts work, so no chart is
   generated and nothing has to be laid out. Both are packed denser than
-  ArgyllCMS lays an i1Pro chart out (that is what fits 600 patches on four
-  small cards instead of the seven printtarg would need), and both print almost
-  edge to edge, so the preset says what that means for your printer before you
-  choose it.
+  ArgyllCMS lays an i1Pro chart out, which is what fits 600 patches on four
+  small cards where printtarg needs nine sheets at its own defaults, or seven
+  at the ones ChromIQ starts an i1Pro with. Both print almost edge to edge, so
+  the preset says what that means for your printer before you choose it.
 - **A chart preset can now be laid out for a sheet size that is not in the
   paper list.** These two are the first that are. Unlocking "Edit page layout"
   shows the sheet the chart was made for as a custom size with its width and
@@ -27,18 +31,38 @@ never measured could be five times too high.**
 
 ### Fixed
 
-- **The patch count for an unusual sheet size could be wildly wrong.** Asked how
-  many patches fit on a sheet ChromIQ has no measurement for, it searched a
+- **A project built for a CR30 came back as a ColorMunki, and then became
+  one.** Opening it restored the Create Chart row for the instrument you built
+  with, and then the layout panel loaded either the run's own stored layout or
+  the one "Save as Defaults" had left behind, and that overwrote the
+  instrument. Whatever was showing was then filed as the project's own answer
+  the next time anything was written, so the wrong instrument stuck and
+  supplied the next open. Projects already carrying the wrong instrument are
+  not repaired: correct the instrument once in Create Chart and it stays.
+- **A setting you chose was thrown away by looking at another instrument.**
+  "No strip-length limit" and "Triple density" were silently unticked when an
+  instrument that has no such option was selected, and the loss was written
+  into the run. They now come back with the instrument they belong to. The
+  "Double density" / "Hexagon patches" box, which is a different option on
+  each instrument, keeps its own answer for each of them, so hexagons chosen
+  for a CR30 can no longer arrive on a ColorMunki as the double density that
+  needs the measuring rig.
+- **Preferences said a CR30 takes 100 readings a second, "from its
+  specification".** That was the i1Pro's figure, and a CR30 takes one reading
+  each time you press its button. The row now says so, and its information
+  button explains what the instrument really does and that nothing on that row
+  affects how a CR30 is read.
+- **The patch count for an unusual sheet size could be wildly wrong.** Asked
+  how many patches fit on a sheet ChromIQ has no measurement for, it searched a
   range that started above the real answer, never found anything, and then
   reported the guess it had started from. It said 443 for a 10 x 15 cm card
   that holds 90, 443 for a 13 x 18 cm one that holds 169, and 443 for a
   6 x 9 cm wallet print that holds 16. It now searches from a single patch, so
   every sheet an instrument can lay a strip on gets a measured answer, and
   every paper ChromIQ already had a measurement for is unchanged to the patch.
-  Reachable before these presets existed, through the custom page size in the
-  layout panel. One case is still open and is a different problem: on a sheet
-  too small to hold even one patch, ChromIQ still shows a number instead of
-  saying the paper does not fit the instrument.
+  One case is still open and is a different problem: on a sheet too small to
+  hold even one patch, ChromIQ still shows a number instead of saying the paper
+  does not fit the instrument.
 
 ### Documentation
 

@@ -318,3 +318,85 @@ def test_both_density_boxes_are_never_ticked_at_once(tab):
     _pick(tab, "CM")
     assert not (tab._td_check.isChecked() and tab._dd_check.isChecked()), \
         "both density options are ticked at the same time"
+
+
+# ---------------------------------------------------------------------------
+# THE INVARIANT NOTHING ASSERTED, WHICH IS WHY 12,000 TESTS MISSED IT
+# ---------------------------------------------------------------------------
+#
+# Every test above asks what a tick IS. None asked whether the person can still
+# change it. A ticked box that is disabled is a setting nobody can undo, and it
+# reaches the build: five gestures produced exactly that, with the chart built
+# `triple_density=True` and the run storing it, unrecoverable. On screen it
+# rendered with no tick mark at all, which is the hazard `tab_measure.py`
+# already documents from Basti's 2026-08-28 report.
+_DENSITY_BOXES = ("_dd_check", "_td_check")
+
+
+def _no_stuck_box(tab) -> str:
+    for name in _DENSITY_BOXES:
+        box = getattr(tab, name)
+        if box.isChecked() and not box.isEnabled():
+            return f"{name} is ticked and cannot be unticked"
+    return ""
+
+
+@pytest.mark.parametrize("route", [
+    ("CM", "SS", "CM"),
+    ("CM", "CR30", "CM"),
+    ("CM", "i1", "CM"),
+    ("SS", "CM", "SS"),
+    ("CR30", "CM", "CR30"),
+    ("CM", "SS", "CR30", "CM"),
+    ("CM", "i1", "SS", "CM"),
+])
+def test_no_density_box_is_ever_ticked_and_unclickable(tab, route):
+    """Tick whatever the instrument offers at each stop, then check the pair.
+
+    The failing route was ColorMunki + Triple density, SpectroScan + Hexagon
+    patches, back to ColorMunki.
+    """
+    for code in route:
+        _pick(tab, code)
+        # TRIPLE DENSITY FIRST. The two exclude each other, so ticking the
+        # density box first disables triple density and the route never reaches
+        # the state that fails. An earlier version of this test did exactly
+        # that and stayed green under the mutation it was written for.
+        for name in ("_td_check", "_dd_check"):
+            box = getattr(tab, name)
+            if not box.isHidden() and box.isEnabled():
+                box.setChecked(True)
+        assert not _no_stuck_box(tab), \
+            f"at {code} in {route}: {_no_stuck_box(tab)}"
+
+
+def test_the_two_density_options_stay_mutually_exclusive(tab):
+    """One excludes the other by design. Whichever is ticked, the other must be
+    both unticked and disabled, so the pair can never both reach a build."""
+    _pick(tab, "CM")
+    tab._td_check.setChecked(True)
+    assert tab._dd_check.isChecked() is False and not tab._dd_check.isEnabled()
+    tab._td_check.setChecked(False)
+    assert tab._dd_check.isEnabled(), "the density box stayed greyed"
+    tab._dd_check.setChecked(True)
+    assert tab._td_check.isChecked() is False and not tab._td_check.isEnabled()
+
+
+def test_the_exact_five_gestures_that_stuck_it(tab):
+    """Reproduced by the final review before the release, and worth keeping in
+    the shape it was found: ColorMunki, tick Triple density, SpectroScan, tick
+    Hexagon patches, back to ColorMunki."""
+    _pick(tab, "CM")
+    tab._td_check.setChecked(True)
+    _pick(tab, "SS")
+    tab._dd_check.setChecked(True)
+    _pick(tab, "CM")
+    assert tab._td_check.isEnabled(), (
+        "Triple density came back ticked and greyed: nobody can undo it, and "
+        "the chart builds with it"
+    )
+    assert not _no_stuck_box(tab), _no_stuck_box(tab)
+    # …and the person's own choice from gesture 2 is still there to undo.
+    assert tab._td_check.isChecked() is True
+    tab._td_check.setChecked(False)
+    assert tab._collect_guided().triple_density is False

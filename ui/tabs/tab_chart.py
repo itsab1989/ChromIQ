@@ -12976,15 +12976,30 @@ class TabChart(QWidget):
             self._set_td_without_remembering(True)
 
     def _on_guided_dd_toggled(self, checked: bool) -> None:
-        if getattr(self, "_dd_writing", False):
-            return                      # the app moved it, not the person
-        # File it against the instrument the widget is currently speaking for.
-        # `toggled`, not `clicked`, on purpose: a value that arrived from a
-        # run's stored state is this instrument's answer too, and must be
-        # remembered so that leaving and coming back returns it rather than a
-        # blank. What must NOT happen is restoring on an app-driven instrument
-        # change, and that is prevented at the other end (`activated`).
-        self._remember_dd_for(self._instr_combo.currentData() or "")
+        # ONLY THE MEMORY WRITE IS THE PERSON'S ALONE. An early `return` here
+        # guarded the whole method for one release-candidate day, and it took
+        # the ENABLE with it: when the app cleared this box on an instrument
+        # change, `_td_check` was never re-enabled, and the triple-density
+        # memory then ticked a box nobody could untick.
+        #
+        #   ColorMunki, tick Triple density -> SpectroScan, tick Hexagon
+        #   patches -> ColorMunki  =  both boxes greyed, Triple density
+        #   ticked, chart built with triple_density=True, run storing
+        #   `triple_density: true, left_border: true`, and no gesture to
+        #   recover. On screen it rendered with no tick mark at all, which is
+        #   the hazard `tab_measure.py` already documents from Basti's
+        #   2026-08-28 report.
+        #
+        # The mutual exclusion and the enabled state must follow the tick
+        # whoever moved it. Only `_remember_dd_for` cares who.
+        if not getattr(self, "_dd_writing", False):
+            # `toggled`, not `clicked`, on purpose: a value that arrived from a
+            # run's stored state is this instrument's answer too, and must be
+            # remembered so that leaving and coming back returns it rather than
+            # a blank. What must NOT happen is restoring on an app-driven
+            # instrument change, and that is prevented at the other end
+            # (`activated`).
+            self._remember_dd_for(self._instr_combo.currentData() or "")
         if checked and self._td_check.isChecked():
             self._td_check.setChecked(False)
         self._td_check.setEnabled(not checked)
