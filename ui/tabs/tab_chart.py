@@ -3904,6 +3904,11 @@ class TabChart(QWidget):
         self._for_rig_label = QLabel(tr("For rig:"), inner)
         self._for_rig_label.setMinimumWidth(instr_label.sizeHint().width())
         dd_row.addWidget(self._for_rig_label)
+        #: The tick, per instrument family — see `_update_dd_visibility`.
+        #: Session-scoped on purpose: the run stores the value it was BUILT
+        #: with, and reopening a project seeds the widgets from that.
+        self._dd_memory: dict[str, bool] = {}
+        self._dd_instr: str | None = None
         self._dd_check = QCheckBox(tr("Double density"), inner)
         self._dd_check.toggled.connect(self._update_patch_count)
         self._dd_check.toggled.connect(self._on_guided_dd_toggled)
@@ -12712,8 +12717,49 @@ class TabChart(QWidget):
         self._paper_combo.setCurrentIndex(max(idx, 0))
         self._update_patch_count()
 
+    #: Which instruments the one "-h" checkbox means something for, and what it
+    #: means. It is not one option shown in three places: it is THREE options
+    #: sharing a widget, relabelled per instrument (see `_update_dd_visibility`).
+    _DD_FAMILIES = {"CM": "double density (needs the ColorMunki rig)",
+                    "CR30": "hexagon patches",
+                    "SS": "hexagon patches"}
+
+    def _remember_dd_for(self, instr: str) -> None:
+        """File the tick under the instrument it was made for."""
+        if instr in self._DD_FAMILIES:
+            self._dd_memory[instr] = bool(self._dd_check.isChecked())
+
     def _update_dd_visibility(self) -> None:
         instr = self._instr_combo.currentData() or "i1"
+        # ONE TICK, THREE MEANINGS, AND IT USED TO CARRY BETWEEN THEM.
+        #
+        # `_dd_check` is "Double density" on a ColorMunki, "Hexagon patches" on
+        # a CR30 and on a SpectroScan, and hidden on an i1Pro. Nothing used to
+        # remember which of those the tick belonged to, so it simply stayed
+        # where it was. Proven on screen, 2026-09-08:
+        #
+        #   CR30 + hexagons ON  ->  switch to ColorMunki  ->  "Double density"
+        #   ticked, on a chart the user never asked to be dense
+        #
+        # and Double density is the one that REQUIRES the physical rig — its own
+        # tooltip says the instrument "will misread" without it. So a chart the
+        # user could not measure, from a control they never touched for that
+        # instrument.
+        #
+        # The reverse was a quieter loss: a deliberate ColorMunki tick was
+        # force-unchecked on the way to an i1Pro (the `else` branch below) and
+        # never restored, so glancing at another instrument and coming back
+        # silently dropped it.
+        #
+        # Both go away with one change: each family keeps its own answer.
+        # The i1/p3 branch still force-unchecks the WIDGET, because -h must not
+        # reach printtarg for them, but the remembered value survives that.
+        prev = getattr(self, "_dd_instr", None)
+        if prev is not None and prev != instr:
+            self._remember_dd_for(prev)
+        self._dd_instr = instr
+        if instr in self._DD_FAMILIES and instr != prev:
+            self._dd_check.setChecked(bool(self._dd_memory.get(instr, False)))
         # -h is meaningful on CM (double density via rig) and SS (hexagon
         # patches), but has different semantics → relabel and retitle.
         if instr == "CM":
@@ -12835,6 +12881,10 @@ class TabChart(QWidget):
             self._nsl_check.setChecked(False)
 
     def _on_guided_dd_toggled(self, checked: bool) -> None:
+        # File it against the instrument it was ticked FOR, so a later switch
+        # away and back returns the user's own answer rather than whatever the
+        # last instrument happened to leave behind.
+        self._remember_dd_for(self._instr_combo.currentData() or "")
         if checked and self._td_check.isChecked():
             self._td_check.setChecked(False)
         self._td_check.setEnabled(not checked)
