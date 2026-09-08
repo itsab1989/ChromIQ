@@ -115,7 +115,18 @@ def _offenders(catalogues):
                 label = cat.get(control, control)
                 if phrase.lower() in label.lower():
                     continue                  # this language keeps it English
-                if phrase in _quotations(cat.get(key, "")):
+                value = cat.get(key, "")
+                if value == key:
+                    # 2026-09-08: an untranslated PLACEHOLDER is the English
+                    # source itself, and the English source quotes the English
+                    # control by construction. The fault this detector was
+                    # written for is a TRANSLATION that kept the English name
+                    # of a control the language renames; a placeholder is not
+                    # a translation, and the beta rule keeps new strings
+                    # English until the pre-release pass (the #182 report help
+                    # block was the first long placeholder to quote controls).
+                    continue
+                if phrase in _quotations(value):
                     out.append((code, phrase, label, key))
     return sorted(out)
 

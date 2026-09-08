@@ -15,9 +15,9 @@
 
 **These specifications are binding.** Knut's rule (2026-08-06): they are
 consulted before code in this area changes, and a fault that contradicts them
-is reported and approved before it is fixed. Here every section is still
-awaiting confirmation, so the binding part today is the *record* of what was
-built and why, not a confirmed behaviour.
+is reported and approved before it is fixed. Here every section still waits
+for confirmation, so the binding part today is the *record* of what was built
+and why, not a confirmed behaviour.
 
 Related documents: `unified_measurement_management.md` (the life of a
 measurement; §M-PROPOSED holds this feature's two messages),

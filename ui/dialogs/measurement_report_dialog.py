@@ -2031,7 +2031,13 @@ class MeasurementReportDialog(QDialog):
         box.setStandardButtons(QMessageBox.StandardButton.Ok
                                | QMessageBox.StandardButton.Cancel)
         box.setDefaultButton(QMessageBox.StandardButton.Cancel)
-        return box.exec() == QMessageBox.StandardButton.Ok
+        ok_btn = box.button(QMessageBox.StandardButton.Ok)
+        box.exec()
+        # NOT `box.exec() == StandardButton.Ok`: exec() returns an int and a
+        # PyQt6 enum member never equals an int, so that comparison is always
+        # False and the unlock could never happen. Found by the on-screen
+        # driver, 2026-09-08; the unit test had stubbed this method.
+        return box.clickedButton() is ok_btn
 
     def _on_set_chosen(self, index: int) -> None:
         if self._syncing_limits or index < 0:

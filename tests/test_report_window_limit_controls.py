@@ -188,3 +188,29 @@ def test_the_words_reach_the_grid_and_the_pdf_body(qapp, tmp_path):
             or True
     finally:
         dlg.deleteLater()
+
+
+def test_the_confirmation_answers_yes_when_ok_is_really_clicked(qapp, tmp_path):
+    """Found on screen 2026-09-08: `QMessageBox.exec()` returns an int and a
+    PyQt6 enum member never equals an int, so `exec() == StandardButton.Ok`
+    was always False and nobody could unlock a run. This test clicks the real
+    button from a timer instead of stubbing the method."""
+    from PyQt6.QtCore import QTimer
+    from PyQt6.QtWidgets import QMessageBox
+    proj, run, ti3s = _verified_run(tmp_path, dates=1)
+    dlg = _dialog(_settings(tmp_path), ti3s[-1])
+    try:
+        answers = []
+
+        def press(which):
+            box = QApplication.activeModalWidget()
+            assert isinstance(box, QMessageBox), type(box)
+            box.button(which).click()
+
+        QTimer.singleShot(150, lambda: press(QMessageBox.StandardButton.Ok))
+        answers.append(dlg._confirm("t", "ok?"))
+        QTimer.singleShot(150, lambda: press(QMessageBox.StandardButton.Cancel))
+        answers.append(dlg._confirm("t", "cancel?"))
+        assert answers == [True, False]
+    finally:
+        dlg.deleteLater()
