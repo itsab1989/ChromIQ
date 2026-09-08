@@ -92,8 +92,13 @@ def test_the_preset_is_registered_everywhere_one_registry_feeds(key):
 
 
 def test_the_photo_cards_head_the_i1pro_group():
-    """Knut's rule for this group is smallest sheet first, and these are the
-    two smallest sheets ChromIQ has ever shipped a chart for."""
+    """Smallest sheet first, which is all this block has ever done: it ran
+    A4-1110, A4-1160, A4-1944, Letter-1160, Letter-1944, i.e. paper then count.
+    These are the two smallest sheets ChromIQ ships a chart for.
+
+    NOT Knut's paper-then-width-then-count rule, which belongs to the Knut
+    families further down the same group: a prebuilt bundle stores no patch
+    width, which is why these labels carry none."""
     group = next(entries for name, entries in BUILTIN_PRESET_GROUPS
                  if name.startswith("i1Pro /"))
     assert [r[2] for r in group[:2]] == [PHOTOCARD600_PRESET_KEY,
@@ -275,3 +280,22 @@ def test_no_other_prebuilt_preset_grew_a_note_by_accident():
     for key in set(PREBUILT_PRESETS) - set(KEYS):
         assert TabChart._prebuilt_tooltip(None, _prebuilt_paper(key)) == \
             TabChart._prebuilt_tooltip(None, _prebuilt_paper(key), "")
+
+
+@pytest.mark.parametrize("folder,mm", [
+    ("100x150", True), ("130x180", True), ("60x90", True), ("210x297", True),
+    # NOT millimetres: these are real ChromIQ paper codes meaning INCHES.
+    ("4x6", False), ("11x17", False), ("127x178", False), ("203x254", False),
+    ("329x483", False), ("483x329", False), ("594x420", False), ("420x297", False),
+    ("a4", False), ("letter", False), ("", False),
+])
+def test_a_folder_named_like_an_inch_paper_is_not_read_as_millimetres(folder, mm):
+    """`4x6` is a ChromIQ paper code for 4 by 6 INCHES (102 x 152 mm).
+
+    A future photo-card bundle filed under `.../i1pro/4x6/...` would otherwise
+    be described as a 4 by 6 MILLIMETRE sheet and seed printtarg with `-p4x6`
+    meaning something else again. The check is against `PAPER_LABELS`, so it
+    cannot drift from the papers the rest of the app offers.
+    """
+    from ui.tabs.tab_chart import _prebuilt_paper_is_mm
+    assert _prebuilt_paper_is_mm(folder) is mm

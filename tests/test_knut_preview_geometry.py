@@ -59,12 +59,12 @@ def test_bugC_patch_size_uses_the_sidecars_own_dpi():
 
 @pytest.mark.parametrize("stem", BUNDLES)
 def test_bugC_every_prebuilt_bundle_reports_its_true_patch_size(stem):
-    """All nine bundled presets are 360 dpi and none carries a recipe."""
+    """Every bundled preset is 360 dpi and none carries a recipe."""
     from ui.tabs.tab_chart import TabChart
     lay = _layout(stem)
     rects = lay["patches"]
     w, h, pitch = TabChart._chart_patch_size_mm(resource_path(f"{stem}.ti2"))
-    assert pitch == 0.0          # none of the nine is a honeycomb
+    assert pitch == 0.0          # not one of them is a honeycomb
     assert w == pytest.approx(rects[0]["w"] * MM / lay["dpi"], abs=0.01)
     assert h == pytest.approx(rects[0]["h"] * MM / lay["dpi"], abs=0.01)
 

@@ -354,7 +354,18 @@ _PREBUILT_PAPER_LABELS = {"a4": "A4", "a3": "A3", "a3plus": "A3+",
                           "letter": "US Letter",
                           "100x150": "10 × 15 cm (100 × 150 mm)",
                           "130x180": "13 × 18 cm (130 × 180 mm)"}
+#: A ``<W>x<H>`` folder is a size in MILLIMETRES — but only when ChromIQ does
+#: not already know that spelling as a named paper. ``4x6`` and ``11x17`` are
+#: real `PAPER_SIZES` codes meaning INCHES (4x6" = 102 x 152 mm), so a bundle
+#: filed under `.../i1pro/4x6/...` must not be read as a 4 by 6 millimetre
+#: sheet. Checked against `PAPER_LABELS` rather than a second hard-coded list,
+#: so it cannot drift from the paper the rest of the app offers.
 _PREBUILT_CUSTOM_PAPER = re.compile(r"^(\d+)x(\d+)$")
+
+
+def _prebuilt_paper_is_mm(folder: str) -> bool:
+    """True when a ``<W>x<H>`` folder name really is millimetres."""
+    return bool(_PREBUILT_CUSTOM_PAPER.match(folder)) and folder not in PAPER_LABELS
 
 
 def _prebuilt_paper(key: str) -> str:
@@ -372,7 +383,9 @@ def _prebuilt_paper(key: str) -> str:
     paper = parts[-3] if len(parts) >= 3 else ""
     if paper in _PREBUILT_PAPER_LABELS:
         return _PREBUILT_PAPER_LABELS[paper]
-    m = _PREBUILT_CUSTOM_PAPER.match(paper)
+    if paper in PAPER_LABELS:            # a named ChromIQ code (4x6", 11x17"…)
+        return PAPER_LABELS[paper]
+    m = _PREBUILT_CUSTOM_PAPER.match(paper) if _prebuilt_paper_is_mm(paper) else None
     if m:
         return f"{m.group(1)} × {m.group(2)} mm"
     return paper.upper() or "A4"
@@ -10954,7 +10967,9 @@ class TabChart(QWidget):
         stem = PREBUILT_PRESETS.get(key, ("",))[0]
         parts = stem.split("/")
         paper = parts[-3] if len(parts) >= 3 else ""
-        if _PREBUILT_CUSTOM_PAPER.match(paper):
+        if paper in PAPER_LABELS:        # already a printtarg -p code
+            return paper
+        if _prebuilt_paper_is_mm(paper):
             return paper
         # Map a named asset folder to a valid printtarg -p code (see PAPER_SIZES).
         return _PREBUILT_PAPER_CODES.get(paper, "A4")
