@@ -17,6 +17,7 @@ Pure Python (numpy) — no Argyll process. Reuses ``ti3_analysis``.
 from __future__ import annotations
 
 import json
+import math
 import re
 import statistics
 from datetime import datetime
@@ -384,20 +385,27 @@ def _stats(vals: "list[float]") -> dict:
         return {"n": 0}
     a = np.sort(np.asarray(vals, float))
     n = int(a.size)
-    if n >= 2:
-        k = max(1, min(n - 1, int(round(n * 0.95))))   # size of the lowest-95 % set
-    else:
-        k = n
-    low = a[:k]                              # the best 95 % (>=1 patch)
-    high = a[k:] if k < n else a[-1:]        # the worst 5 % (>=1 patch)
+    # #182 (CS-METRICS-SPEC §2.1, CH-28): the 95th percentile is the NEAREST-RANK
+    # value, rank ceil(0.95 n), the ordinary meaning of the term and the one
+    # the standards' rows use. `round(0.95 n)` was one rank lower on 48 % of
+    # chart sizes, i.e. the lenient side. The same rank splits "best 95 %" from
+    # "worst 5 %", so "95th percentile" and "largest of the best 95 %" are the
+    # same patch by construction. Below 20 patches the worst-5 % set is EMPTY
+    # (floor(0.05 n) = 0): its average is None, and the best 95 % is every
+    # patch, which `small_sample` says so the report can say it too.
+    k = max(1, min(n, int(math.ceil(n * 0.95))))
+    low = a[:k]                              # the best 95 %
+    high = a[k:]                             # the worst 5 % (empty below n = 20)
     return {
         "n": n,
         "avg_all":   round(float(a.mean()), 3),
         "avg_low95": round(float(low.mean()), 3),
-        "avg_high5": round(float(high.mean()), 3),
+        "avg_high5": round(float(high.mean()), 3) if high.size else None,
         "max_all":   round(float(a.max()), 3),
         "max_low95": round(float(low.max()), 3),
         "std":       round(float(a.std(ddof=1)) if n > 1 else 0.0, 3),
+        "p95_rule":  "nearest-rank",
+        "small_sample": bool(high.size == 0),
         # aliases kept for the trend series (report_trend reads mean/max/p95)
         "mean":  round(float(a.mean()), 3),
         "max":   round(float(a.max()), 3),
@@ -694,6 +702,14 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
                 "expected_lab": [round(v, 2) for v in ref[data.sample_ids[i]]],
                 "measured_lab": [round(v, 2) for v in lab[i]],
             } for de, i in worst]
+
+    # #182: the grey ramp and the 30 to 70 % tone ramps, under the same
+    # yardstick as everything above. Both blocks are written even when the
+    # chart cannot supply them, with the reason, so the report can say
+    # "not computed, and why" (Knut, D25) instead of leaving a row blank.
+    if rgb100 is not None:
+        report["grey_balance"] = grey_balance_block(rgb100, lab, ref, data.sample_ids)
+        report["ramps_30_70"] = ramps_block(rgb100, lab, ref, data.sample_ids)
     return report
 
 
@@ -985,24 +1001,66 @@ def graded_de00(report: dict) -> "tuple[dict, str]":
     return {}, VERDICT_SOURCE_NONE
 
 
-def stamp_verdict(report: dict, avg_thr: float, max_thr: float) -> dict:
-    """Record the thresholds and the verdict ON the report, and return it.
+def stamp_verdict(report: dict, limits_or_avg, max_thr: "float | None" = None,
+                  *, set_id: str = "", set_label: str = "",
+                  edited: bool = False) -> dict:
+    """Record the limit set and the verdict ON the report, and return it.
 
-    Called once, by whoever is about to :func:`save_report` — never at display
-    time. Mutates and returns *report* so it reads as one step at the call site.
+    Called once, by whoever is about to :func:`save_report` (or, after an
+    unlock, :func:`rewrite_report`), never at display time. Mutates and returns
+    *report* so it reads as one step at the call site.
+
+    New form: ``stamp_verdict(report, limits, set_id=…, set_label=…)`` with
+    *limits* a ``{row_id: Limit}`` mapping (a run's copy, see
+    ``workflow.run_compliance``). Old form kept for callers and tests that
+    still speak in two numbers: ``stamp_verdict(report, avg, max)``.
+
+    What is written (#182, all additive, ``REPORT_SCHEMA`` stays 7):
+
+    * ``pass_thresholds = {"avg", "max"}``: the all-patch average and maximum
+      limits, so every reader of the old block still works;
+    * ``compliance = {"set_id", "set_label", "thresholds", "edited"}``: the
+      set and the run's copy of its limits at the moment of judging;
+    * ``verdict = {"rows", "all_pass", "source", "graded", "overall",
+      "summary"}``: one row per judged row with its word, and the column's
+      one word with the numbers behind it.
     """
-    de, source = graded_de00(report)
-    graded = not is_drift_check(report)
-    rows, all_pass = accuracy_verdict(de, avg_thr, max_thr)
-    report["pass_thresholds"] = {"avg": float(avg_thr), "max": float(max_thr)}
+    from workflow.compliance_sets import (FAIL, N_A, PASS, legacy_pair,
+                                          limits_to_json)
+    if isinstance(limits_or_avg, (int, float)):
+        limits = limits_from_pair(float(limits_or_avg), float(max_thr))
+        if not set_id:
+            set_id, set_label = "pair", "two thresholds"
+    else:
+        limits = dict(limits_or_avg)
+        if not set_id:
+            set_id, set_label = "chromiq_default", "ChromIQ default (recommended)"
+    _de, source = graded_de00(report)
+    graded = is_graded_sheet(report)
+    rows = judge(report, limits)
+    summary = summarise(report, limits, rows, set_id)
+    judged = [r for r in rows if r["word"] in (PASS, FAIL)]
+    avg_thr, mx_thr = legacy_pair(limits)
+    report["pass_thresholds"] = {"avg": float(avg_thr), "max": float(mx_thr)}
+    report["compliance"] = {
+        "set_id": set_id,
+        "set_label": set_label,
+        "thresholds": limits_to_json(limits),
+        "edited": bool(edited),
+    }
     report["verdict"] = {
         "rows": rows,
-        # A drift check is not graded at all, and `None` says so without
-        # pretending the sheet passed or failed.
-        "all_pass": (all_pass if graded and source != VERDICT_SOURCE_NONE
+        # A sheet that is not graded carries None, not a pass and not a fail.
+        "all_pass": (all(r["word"] == PASS for r in judged)
+                     if graded and source != VERDICT_SOURCE_NONE and judged
                      else None),
         "source": source,
         "graded": graded,
+        "overall": summary.word if source != VERDICT_SOURCE_NONE else N_A,
+        "summary": {"checked": summary.checked, "total": summary.total,
+                    "failed": summary.failed, "cond": summary.conditional,
+                    "not_computed": summary.not_computed,
+                    "reason": summary.reason},
     }
     return report
 
@@ -1106,5 +1164,378 @@ def report_scope(runs: "list[dict]") -> dict:
                          for r in verifs],
             })
 
+    # #182 (D9): every dated verification of one profile run is judged with
+    # one limit set. Two sets in one report can only come from archived
+    # history or from runs of different projects, and the reader must see
+    # where the yardstick changed.
+    sets = {}
+    for r in runs:
+        c = recorded_compliance(r)
+        if c:
+            sets[str(c.get("set_label") or c.get("set_id"))] = True
+    if len(sets) > 1:
+        warnings.append({
+            "kind": "compliance",
+            "runs": [{"run": _run_label(r),
+                      "set": str((recorded_compliance(r) or {}).get("set_label")
+                                 or (recorded_compliance(r) or {}).get("set_id")
+                                 or "")}
+                     for r in runs if recorded_compliance(r)],
+        })
+
     return {"profiles": prof_list, "total": len(runs),
             "date_range": date_range, "warnings": warnings}
+
+
+# ---------------------------------------------------------------------------
+# #182: the grey ramp, the tone ramps, and the per-row values a limit set judges
+# ---------------------------------------------------------------------------
+#
+# A row of the limits table is a statistic over a POPULATION of patches. The
+# five ΔE00 rows are the statistics `_stats` has always produced; the two
+# grey-balance rows and the tone-ramp row are computed here. The rules are
+# CS-METRICS-SPEC §1.3 and §4 as amended by the challenge (CH-10):
+#
+#   grey ramp   = every patch with max(R,G,B) − min(R,G,B) ≤ 1.0 device units;
+#                 eligible when it has at least 8 distinct levels (levels within
+#                 0.5 count as one, the PAPER patch counts as a level), reaches
+#                 ≥ 90 at the light end and ≤ 10 at the dark end. The
+#                 statistics leave the bare paper out (its ΔCh is 0 by
+#                 construction under the media-relative yardstick and the
+#                 paper's own tint under the absolute one; the report has a
+#                 paper-white row) and keep the composite black in.
+#   ΔCh         = hypot(Δa*, Δb*) against each patch's REFERENCE value under the
+#                 report's yardstick (ISO 12647-7:2016 §3.2; the same arithmetic
+#                 as the standards' near-neutral rows, so shape A's merged row
+#                 is one arithmetic). Not TR 015's substrate-relative aim: a
+#                 perfect relative-intent print scores 0 here and up to 1.78 ΔCh
+#                 there (measured, CS §1.3).
+#   tone ramps  = per device axis, the patches whose other two channels are
+#                 within 1.0 of 100; tone value TV = 100 − channel; the row uses
+#                 30 ≤ TV ≤ 70 and needs ≥ 3 distinct TVs with the outermost
+#                 ≥ 20 apart. The R=G=B ramp is the fourth axis (the K analogue).
+#                 |ΔL*| against the reference, largest.
+GREY_SPREAD_TOL = 1.0
+GREY_LEVEL_TOL = 0.5
+GREY_MIN_LEVELS = 8
+GREY_LIGHTEST_MIN = 90.0
+GREY_DARKEST_MAX = 10.0
+GREY_PAPER_LEVEL = 99.5
+RAMP_OTHER_CHANNELS_MIN = 99.0
+RAMP_TV_LOW, RAMP_TV_HIGH = 30.0, 70.0
+RAMP_MIN_STEPS = 3
+RAMP_MIN_SPAN = 20.0
+
+#: Reason codes for a row that could not be computed. The report window turns
+#: them into sentences through tr(); the JSON keeps the code.
+REASON_NO_GREYS = "no_greys"
+REASON_TOO_FEW_STEPS = "too_few_steps"
+REASON_NO_WHITE = "no_white"
+REASON_NO_BLACK = "no_black"
+REASON_NO_REFERENCE = "no_reference"
+REASON_NEEDS_REFERENCE_FILE = "needs_reference_file"
+REASON_NO_RAMP = "no_ramp"
+REASON_SMALL_SAMPLE = "small_sample"
+REASON_PRINTING_UNRECORDED = "printing_unrecorded"
+REASON_NO_CORNERS = "no_corners"
+
+
+def _distinct_levels(levels: "list[float]", tol: float = GREY_LEVEL_TOL) -> int:
+    """How many distinct values a sorted list holds when values within *tol*
+    of each other count as one."""
+    n = 0
+    last = None
+    for v in sorted(levels):
+        if last is None or v - last > tol:
+            n += 1
+            last = v
+    return n
+
+
+def grey_balance_block(rgb100, lab, ref: "dict[str, tuple]",
+                       sample_ids: "list[str]") -> dict:
+    """The grey-ramp block of a report (see the notes above)."""
+    rgb = np.asarray(rgb100, dtype=float)
+    idx = [i for i in range(len(sample_ids))
+           if float(rgb[i].max() - rgb[i].min()) <= GREY_SPREAD_TOL]
+    block: dict = {"n_greys": len(idx), "levels": 0, "eligible": False,
+                   "reason": None, "avg": None, "max": None, "per_level": []}
+    if not idx:
+        block["reason"] = REASON_NO_GREYS
+        return block
+    levels = [float(rgb[i].mean()) for i in idx]
+    block["levels"] = _distinct_levels(levels)
+    if block["levels"] < GREY_MIN_LEVELS:
+        block["reason"] = REASON_TOO_FEW_STEPS
+    elif max(levels) < GREY_LIGHTEST_MIN:
+        block["reason"] = REASON_NO_WHITE
+    elif min(levels) > GREY_DARKEST_MAX:
+        block["reason"] = REASON_NO_BLACK
+    else:
+        block["eligible"] = True
+    per: list[dict] = []
+    for i in idx:
+        level = float(rgb[i].mean())
+        if level >= GREY_PAPER_LEVEL:
+            continue                       # the bare paper: not in the statistics
+        r = ref.get(sample_ids[i]) if ref else None
+        if r is None:
+            continue
+        dch = math.hypot(lab[i][1] - r[1], lab[i][2] - r[2])
+        per.append({"level": round(level, 1), "dch": round(float(dch), 3),
+                    "loc": sample_ids[i]})
+    block["per_level"] = sorted(per, key=lambda d: -d["level"])
+    if block["eligible"]:
+        if not per:
+            block["eligible"] = False
+            block["reason"] = REASON_NO_REFERENCE
+        else:
+            vals = [d["dch"] for d in per]
+            block["avg"] = round(float(np.mean(vals)), 3)
+            block["max"] = round(float(np.max(vals)), 3)
+    return block
+
+
+def ramps_block(rgb100, lab, ref: "dict[str, tuple]",
+                sample_ids: "list[str]") -> dict:
+    """The 30 to 70 % tone-ramp block of a report (ISO 12647-8:2021 4.2.7 is
+    the row that reads it; a *should*)."""
+    rgb = np.asarray(rgb100, dtype=float)
+    axes: dict = {}
+    overall_max = None
+    any_eligible = False
+    for name, ch, others in (("R", 0, (1, 2)), ("G", 1, (0, 2)), ("B", 2, (0, 1)),
+                             ("grey", None, ())):
+        if ch is None:
+            members = [i for i in range(len(sample_ids))
+                       if float(rgb[i].max() - rgb[i].min()) <= GREY_SPREAD_TOL]
+            tv_of = lambda i: 100.0 - float(rgb[i].mean())   # noqa: E731
+        else:
+            members = [i for i in range(len(sample_ids))
+                       if all(float(rgb[i][o]) >= RAMP_OTHER_CHANNELS_MIN for o in others)]
+            tv_of = lambda i, ch=ch: 100.0 - float(rgb[i][ch])   # noqa: E731
+        band = [i for i in members if RAMP_TV_LOW <= tv_of(i) <= RAMP_TV_HIGH]
+        tvs = [tv_of(i) for i in band]
+        distinct = _distinct_levels(tvs)
+        span = (max(tvs) - min(tvs)) if tvs else 0.0
+        eligible = distinct >= RAMP_MIN_STEPS and span >= RAMP_MIN_SPAN
+        dls = []
+        for i in band:
+            r = ref.get(sample_ids[i]) if ref else None
+            if r is not None:
+                dls.append(abs(float(lab[i][0]) - float(r[0])))
+        axis = {"steps": distinct, "span": round(span, 1), "eligible": eligible,
+                "max_dl": round(float(max(dls)), 3) if (eligible and dls) else None}
+        axes[name] = axis
+        if eligible and dls:
+            any_eligible = True
+            overall_max = max(overall_max or 0.0, axis["max_dl"])
+    return {"axes": axes, "eligible": any_eligible,
+            "reason": None if any_eligible else REASON_NO_RAMP,
+            "max_dl": round(float(overall_max), 3) if overall_max is not None else None}
+
+
+def is_graded_sheet(report: dict) -> bool:
+    """Whether a measurement is judged against limits at all.
+
+    Graded: a verification sheet with a reference that is not a raw drift check.
+    Not graded (every row INFO): a raw drift check (:func:`is_drift_check`),
+    and a measurement that is not a verification at all, i.e. the run's own
+    profiling chart, which is printed raw by definition and whose distance from
+    the chart's design says nothing a limit could judge (CH-16). ONE rule for
+    the stored verdict and the window, as :func:`is_drift_check` already is.
+    """
+    report = report or {}
+    if not report.get("is_verification"):
+        return False
+    if is_drift_check(report):
+        return False
+    return graded_de00(report)[1] != VERDICT_SOURCE_NONE
+
+
+def _hue_difference_ab(lab_a, lab_b) -> float:
+    """CIE 1976 metric hue difference ΔH*ab, unsigned (CS Q6)."""
+    dl = float(lab_a[0]) - float(lab_b[0])
+    da = float(lab_a[1]) - float(lab_b[1])
+    db = float(lab_a[2]) - float(lab_b[2])
+    de_ab2 = dl * dl + da * da + db * db
+    ca = math.hypot(float(lab_a[1]), float(lab_a[2]))
+    cb = math.hypot(float(lab_b[1]), float(lab_b[2]))
+    dc = ca - cb
+    return math.sqrt(max(0.0, de_ab2 - dl * dl - dc * dc))
+
+
+def row_values(report: dict) -> "dict[str, dict]":
+    """``{row_id: {"value", "reason", "graded"}}`` for every row ChromIQ can
+    compute from *report*. ``value`` is None with a reason code when the chart
+    or the reference cannot supply the row; ``graded`` is False for a row that
+    is shown for information only on this sheet (CH-17), None to inherit the
+    sheet's own grading.
+    """
+    report = report or {}
+    de, source = graded_de00(report)
+    out: "dict[str, dict]" = {}
+
+    def put(rid, value, reason=None, graded=None):
+        out[rid] = {"value": (float(value) if value is not None else None),
+                    "reason": reason, "graded": graded}
+
+    # -- the five ΔE00 rows
+    from workflow.compliance_sets import ROWS
+    if source == VERDICT_SOURCE_NONE:
+        for r in ROWS:
+            if r.metric_key:
+                put(r.id, None, REASON_NO_REFERENCE)
+    else:
+        for r in ROWS:
+            if not r.metric_key:
+                continue
+            v = de.get(r.metric_key)
+            if v is None:
+                put(r.id, None, REASON_SMALL_SAMPLE if de.get("small_sample")
+                    else REASON_NO_REFERENCE)
+            else:
+                put(r.id, v)
+
+    # -- grey balance (INFO when nobody recorded how the sheet was printed and
+    #    the reference is the chart's design: in absolute Lab the paper's own
+    #    tint would fail the row, CH-17)
+    gb = report.get("grey_balance") or {}
+    grey_graded = None
+    if (not report.get("printing")
+            and report.get("reference_source") in ("design", "device")):
+        grey_graded = False
+    if not gb:
+        put("grey_balance_neutral_ramp_avg", None, REASON_NO_GREYS)
+        put("grey_balance_neutral_ramp_max", None, REASON_NO_GREYS)
+    elif gb.get("eligible") and gb.get("avg") is not None:
+        put("grey_balance_neutral_ramp_avg", gb["avg"],
+            REASON_PRINTING_UNRECORDED if grey_graded is False else None, grey_graded)
+        put("grey_balance_neutral_ramp_max", gb["max"],
+            REASON_PRINTING_UNRECORDED if grey_graded is False else None, grey_graded)
+    else:
+        put("grey_balance_neutral_ramp_avg", None, gb.get("reason") or REASON_NO_GREYS)
+        put("grey_balance_neutral_ramp_max", None, gb.get("reason") or REASON_NO_GREYS)
+
+    # -- the 30 to 70 % ramps
+    rp = report.get("ramps_30_70") or {}
+    if rp.get("eligible") and rp.get("max_dl") is not None:
+        put("ramps_30_70_dl_max", rp["max_dl"])
+    else:
+        put("ramps_30_70_dl_max", None, rp.get("reason") or REASON_NO_RAMP)
+
+    # -- rows that need a reference for the printing condition: computable
+    #    from the corners only against a colorimetric reference (CS Q9)
+    corners = {c.get("name"): c for c in (report.get("corners") or [])}
+    if report.get("reference_source") == "colorimetric":
+        w = corners.get("W")
+        if w and w.get("present") and w.get("de") is not None:
+            put("substrate_de00_max", w["de"])
+        else:
+            put("substrate_de00_max", None, REASON_NO_CORNERS)
+        solid = [corners[k]["de"] for k in ("C", "M", "Y", "K")
+                 if corners.get(k) and corners[k].get("present")
+                 and corners[k].get("de") is not None]
+        if solid:
+            put("solids_de00_max", max(solid))
+        else:
+            put("solids_de00_max", None, REASON_NO_CORNERS)
+        hues = [_hue_difference_ab(corners[k]["lab"], corners[k]["expected_lab"])
+                for k in ("C", "M", "Y")
+                if corners.get(k) and corners[k].get("present")
+                and corners[k].get("expected_lab") is not None]
+        if hues:
+            put("cmy_solids_dhab_max", max(hues))
+        else:
+            put("cmy_solids_dhab_max", None, REASON_NO_CORNERS)
+    else:
+        for rid in ("substrate_de00_max", "solids_de00_max", "cmy_solids_dhab_max"):
+            put(rid, None, REASON_NEEDS_REFERENCE_FILE)
+    return out
+
+
+def judge(report: dict, limits: "dict") -> "list[dict]":
+    """Every row of one report against one limit set.
+
+    Returns rows in table order, one per row that produces a verdict word:
+    ``{"row_id", "key", "value", "threshold", "should", "pass", "word",
+    "reason"}``. ``key`` is the old ``de00`` key for the five ChromIQ rows (so
+    older readers of the verdict block still find ``avg_all`` and friends) and
+    the row id otherwise; ``pass`` keeps the old True / False / None shape
+    (True for PASS, False for FAIL, None for every other word).
+    """
+    from workflow.compliance_sets import (FAIL, PASS, ROWS, Limit,
+                                          row_verdict)
+    graded_sheet = is_graded_sheet(report)
+    values = row_values(report)
+    rows: list[dict] = []
+    for r in ROWS:
+        lim = limits.get(r.id)
+        if lim is None or not isinstance(lim, Limit):
+            lim = Limit.none()
+        cell = values.get(r.id)
+        value = cell["value"] if cell else None
+        graded = graded_sheet
+        if cell and cell.get("graded") is False:
+            graded = False
+        word = row_verdict(lim, value, graded)
+        if word is None:
+            continue
+        rows.append({
+            "row_id": r.id,
+            "key": r.metric_key or r.id,
+            "value": value,
+            "threshold": lim.number if lim.is_numeric else None,
+            "should": bool(lim.is_should),
+            "pass": True if word == PASS else (False if word == FAIL else None),
+            "word": word,
+            "reason": (cell or {}).get("reason"),
+        })
+    return rows
+
+
+def summarise(report: dict, limits: "dict", rows: "list[dict]", set_id: str):
+    """The column summary for *rows* (see :func:`compliance_sets.set_summary`)."""
+    from workflow.compliance_sets import SET_BY_ID, Limit, set_summary
+    s = SET_BY_ID.get(set_id)
+    pairs = []
+    for row in rows:
+        lim = limits.get(row["row_id"])
+        pairs.append((lim if isinstance(lim, Limit) else Limit.none(), row["word"]))
+    return set_summary(pairs, set_is_iso=bool(s and s.kind == "iso"),
+                       graded=is_graded_sheet(report))
+
+
+def limits_from_pair(avg_thr: float, max_thr: float) -> "dict":
+    """The old two-number model as a limit set: the average threshold on the
+    three average rows, the maximum threshold on the two maximum rows."""
+    from workflow.compliance_sets import (OLD_AVG_ROWS, OLD_MAX_ROWS, Limit,
+                                          factory_limits)
+    limits = factory_limits("chromiq_default")
+    for rid in OLD_AVG_ROWS:
+        limits[rid] = Limit.value(avg_thr)
+    for rid in OLD_MAX_ROWS:
+        limits[rid] = Limit.value(max_thr)
+    return limits
+
+
+def recorded_compliance(report: dict) -> "dict | None":
+    """The limit-set block a report was SAVED with, or None (an older
+    ChromIQ, or a damaged block). None never means "it failed"."""
+    c = (report or {}).get("compliance")
+    if not isinstance(c, dict) or not isinstance(c.get("thresholds"), dict):
+        return None
+    return c
+
+
+def rewrite_report(path: "str | Path", report: dict) -> Path:
+    """Write *report* back to the file it came from, same name, same date.
+
+    #182 (CH-29): recalculating a run's dated reports after an unlock must not
+    call :func:`save_report`, which names the file by now() and would leave two
+    live reports per date. The caller archives first (``Verification.
+    archive_reports``); this only rewrites.
+    """
+    path = Path(path)
+    path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    return path
