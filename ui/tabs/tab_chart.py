@@ -3912,6 +3912,8 @@ class TabChart(QWidget):
         self._dd_memory: dict[str, bool] = {}
         self._dd_instr: str | None = None
         self._dd_writing = False
+        self._td_memory = False
+        self._td_writing = False
         self._dd_check = QCheckBox(tr("Double density"), inner)
         self._dd_check.toggled.connect(self._update_patch_count)
         self._dd_check.toggled.connect(self._on_guided_dd_toggled)
@@ -12727,6 +12729,19 @@ class TabChart(QWidget):
                     "CR30": "hexagon patches",
                     "SS": "hexagon patches"}
 
+    def _remember_td(self) -> None:
+        """Triple density has exactly one owner, the ColorMunki, so its memory
+        is one bool rather than a map."""
+        if (self._instr_combo.currentData() or "") == "CM":
+            self._td_memory = bool(self._td_check.isChecked())
+
+    def _set_td_without_remembering(self, checked: bool) -> None:
+        self._td_writing = True
+        try:
+            self._td_check.setChecked(bool(checked))
+        finally:
+            self._td_writing = False
+
     def _remember_dd_for(self, instr: str) -> None:
         """File the tick under the instrument it was made for."""
         if instr in self._DD_FAMILIES:
@@ -12898,24 +12913,32 @@ class TabChart(QWidget):
         # represent the ColorMunki rig accessory. For SS the dd checkbox
         # is hexagon-patches (no rig involved) so we hide the label.
         self._for_rig_label.setVisible(instr == "CM")
-        # HIDDEN, NOT CLEARED (Basti, 2026-09-08). This used to force-uncheck,
-        # and the loss was permanent and silent: tick Triple density on a
-        # ColorMunki, glance at an i1Pro, come back, and it is gone, with the
-        # next write filing the absence as the run's own answer. §4c D-2 says an
-        # instrument change may not overwrite a value they have chosen, and the
-        # app already states the right doctrine in capitals for the same problem
-        # on the Measure tab (`_apply_cr30_dead_options`: "DISABLE ONLY, NEVER
-        # UNTICK. The saved value belongs to the target").
+        # REMEMBERED, THEN CLEARED (Basti approved the keep, 2026-09-08; the
+        # clear came back from the regression round the same day).
         #
-        # Nothing escapes by leaving it: triple density reaches printtarg only
-        # for a ColorMunki, gated where the arguments are built, so a stale tick
-        # on an i1Pro changes no chart. What it does is come back when the
-        # ColorMunki does.
+        # It used to force-uncheck and never restore, so a Triple density the
+        # person ticked on a ColorMunki was gone for good after a look at an
+        # i1Pro, and the loss was filed as the run's own answer. §4c D-2 forbids
+        # that. So the choice is remembered and comes back with the ColorMunki.
         #
-        # `_dd_check` is NOT the same case and keeps its clear: that one widget
-        # is three different options depending on the instrument, so leaving its
-        # tick would carry a CR30's hexagons into a ColorMunki's rig density.
-        # A change of SUBJECT, not a control the instrument merely ignores.
+        # BUT SIMPLY LEAVING IT TICKED WAS WORSE, AND I TOLD BASTI OTHERWISE.
+        # The claim was "it cannot reach printtarg for an instrument that
+        # ignores it, so nothing builds differently". False: `_td_check` reaches
+        # printtarg THROUGH `_lb_check`. `_on_guided_td_toggled` forces the left
+        # border on and restores it only on untoggle, and the two visibility
+        # lines below are computed as "i1/p3 AND NOT triple density". Measured
+        # on an i1Pro after ticking Triple density on a ColorMunki: `-L` in the
+        # command, `disable_left_border` True, the `-P` and left-border rows
+        # gone from the panel with no way back, the density box disabled, and
+        # the run storing `triple_density: true, left_border: true`.
+        #
+        # `-P` next door is genuinely safe and is genuinely left alone: measured
+        # the same way, `no_strip_limit` stays False on an instrument that hides
+        # it, in both trees.
+        if not td_visible:
+            self._remember_td()
+            if self._td_check.isChecked():
+                self._set_td_without_remembering(False)
         # -L only affects strip instruments (i1, p3). CM reads patches
         # individually and SS is an XY flatbed — both ignore -L. Even with
         # the ChromIQ-style clipping border on, the toggle stays visible:
@@ -12949,6 +12972,8 @@ class TabChart(QWidget):
         if instr in self._DD_FAMILIES:
             self._set_dd_without_remembering(
                 bool(self._dd_memory.get(instr, False)))
+        if instr == "CM" and getattr(self, "_td_memory", False):
+            self._set_td_without_remembering(True)
 
     def _on_guided_dd_toggled(self, checked: bool) -> None:
         if getattr(self, "_dd_writing", False):
@@ -12966,6 +12991,8 @@ class TabChart(QWidget):
         self._td_tooltip.setEnabled(not checked)
 
     def _on_guided_td_toggled(self, checked: bool) -> None:
+        if not getattr(self, "_td_writing", False):
+            self._remember_td()
         if checked and self._dd_check.isChecked():
             self._dd_check.setChecked(False)
         self._dd_check.setEnabled(not checked)

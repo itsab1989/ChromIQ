@@ -253,6 +253,9 @@ def test_the_app_moving_the_instrument_never_restores_anything(tab):
     ("_td_check", "CM", "i1"),         # triple density to the ColorMunki
     ("_lb_check", "i1", "CR30"),       # already correct; must stay correct
 ])
+# `_td_check` reaches this by MEMORY, not by being left ticked: see
+# `test_a_hidden_triple_density_cannot_reach_the_chart` below for why the
+# difference matters. `-P` and `left_border` are simply left alone.
 def test_a_control_the_other_instrument_hides_keeps_its_value(
         tab, box, owner, visitor):
     _pick(tab, owner)
@@ -273,3 +276,45 @@ def test_the_density_box_is_the_deliberate_exception(tab):
     tab._dd_check.setChecked(True)
     _pick(tab, "CM")
     assert tab._dd_check.isChecked() is False
+
+
+def test_a_hidden_triple_density_cannot_reach_the_chart(tab):
+    """WHY TRIPLE DENSITY IS REMEMBERED RATHER THAN LEFT TICKED.
+
+    I told Basti it "cannot reach printtarg for an instrument that ignores it,
+    so nothing builds differently", and approved a fix on that. It was false.
+    `_td_check` reaches printtarg THROUGH `_lb_check`: `_on_guided_td_toggled`
+    forces the left border on, and the `-P` and left-border rows are computed as
+    "i1/p3 AND NOT triple density". Measured on an i1Pro after ticking Triple
+    density on a ColorMunki: `-L` in the command, two rows gone from the panel
+    with no way back, the density box disabled, and the run storing
+    `triple_density: true, left_border: true`.
+    """
+    _pick(tab, "CM")
+    tab._td_check.setChecked(True)
+    _pick(tab, "i1")
+
+    p = tab._collect_guided()
+    assert p.triple_density is False, "a ColorMunki mode reached an i1Pro chart"
+    assert p.disable_left_border is False, (
+        "triple density forced -L on an i1Pro chart through the left-border box"
+    )
+    stored = tab._shared_get("guided")
+    assert stored["triple_density"] is False
+    assert stored["left_border"] is False
+    # …and the panel is still usable: these two rows are the ones that vanished
+    assert not tab._nsl_check.isHidden(), "the -P row is gone from the i1Pro"
+    assert not tab._lb_check.isHidden(), "the left-border row is gone"
+    assert tab._dd_check.isEnabled(), "the density box is stuck disabled"
+
+
+def test_both_density_boxes_are_never_ticked_at_once(tab):
+    """They are mutually exclusive by design, and leaving triple density ticked
+    across an instrument change made the pair reachable."""
+    _pick(tab, "CM")
+    tab._td_check.setChecked(True)
+    _pick(tab, "CR30")
+    tab._dd_check.setChecked(True)
+    _pick(tab, "CM")
+    assert not (tab._td_check.isChecked() and tab._dd_check.isChecked()), \
+        "both density options are ticked at the same time"
