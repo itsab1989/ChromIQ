@@ -1813,7 +1813,11 @@ class MeasurementReportDialog(QDialog):
         first = lines[0]
         # the rows come first: they are what the user acts on (review F8)
         rows = [l.strip().lstrip("•").strip() for l in lines[1:] if l.strip().startswith("•")]
-        one = first + ": " + "; ".join(rows) if rows else first
+        # the row NAMES only (the reasons and what to add are the tooltip and
+        # the report text), so three rows still fit two lines (review F8)
+        names = [r.split(":")[0].strip() for r in rows]
+        one = (first + ": " + "; ".join(names) + ". "
+               + tr("Point here for the reasons and what to add to the chart.")) if rows else first
         from PyQt6.QtCore import QRect
         from PyQt6.QtGui import QFontMetrics
         fm = QFontMetrics(self._mismatch.font())

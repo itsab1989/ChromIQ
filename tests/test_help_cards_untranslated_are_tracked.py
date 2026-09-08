@@ -385,17 +385,17 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 #: write-failure windows and the reworded provenance and gamut texts add 16 more.
 _BUDGET = {
     "de": 4,
-    "es": 114,
-    "fr": 115,
-    "it": 114,
-    "ja": 114,
-    "nl": 114,
-    "no": 114,
-    "pl": 114,
-    "pt": 114,
-    "ru": 113,
-    "sv": 114,
-    "zh_CN": 113,
+    "es": 115,
+    "fr": 116,
+    "it": 115,
+    "ja": 115,
+    "nl": 115,
+    "no": 115,
+    "pl": 115,
+    "pt": 115,
+    "ru": 114,
+    "sv": 115,
+    "zh_CN": 114,
 }
 
 

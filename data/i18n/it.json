@@ -2715,6 +2715,7 @@
  "Plays when the measuring instrument reports a problem — a disconnection, a wrong position, or a communication error.": "Viene emesso quando lo strumento di misura segnala un problema — una disconnessione, una posizione errata o un errore di comunicazione.",
  "Please enter a name.": "Inserisci un nome.",
  "Please select a printer before printing.": "Seleziona una stampante prima di stampare.",
+ "Point here for the reasons and what to add to the chart.": "Point here for the reasons and what to add to the chart.",
  "Port index passed to chartread via -c.\n\nMost setups use 1. When chartread starts it prints a numbered\nlist of detected instruments — set this to the number shown\nnext to your spectrophotometer in that list.\n\nOnly change it if you have more than one instrument connected\nat the same time.": "Indice di porta passato a chartread tramite -c.\n\nLa maggior parte delle configurazioni usa 1. All'avvio chartread\nstampa una lista numerata degli strumenti rilevati — imposta qui il\nnumero mostrato accanto al tuo spettrofotometro in quella lista.\n\nCambialo solo se hai più di uno strumento collegato\ncontemporaneamente.",
  "Positioning, not speed": "Posizionamento, non velocità",
  "Positive (default)": "Positivo (predefinito)",

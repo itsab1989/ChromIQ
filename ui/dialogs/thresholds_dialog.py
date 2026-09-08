@@ -541,7 +541,8 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
             return
         area = screen.availableGeometry()
         body = self._scroll.widget()
-        natural_w = (body.sizeHint().width() + 44 + 16) if body else 1200
+        # body + the dialog's side insets + the vertical scroll bar + a margin
+        natural_w = (body.sizeHint().width() + 44 + 16 + 24) if body else 1200
         w = max(self.minimumWidth(), min(natural_w, area.width() - 40))
         h = min(self.sizeHint().height() + 400, self._work_area_cap(area.height() - 40))
         self.resize(w, h)

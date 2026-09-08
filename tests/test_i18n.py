@@ -671,17 +671,17 @@ def test_every_deliberate_exception_says_why():
 # them, the eleven others gain the difference.
 _IDENTICAL_TO_KEY = {
     "de": 121,
-    "es": 259,
-    "fr": 280,
-    "it": 270,
-    "ja": 246,
-    "nl": 286,
-    "no": 271,
-    "pl": 263,
-    "pt": 261,
-    "ru": 234,
-    "sv": 272,
-    "zh_CN": 240,
+    "es": 260,
+    "fr": 281,
+    "it": 271,
+    "ja": 247,
+    "nl": 287,
+    "no": 272,
+    "pl": 264,
+    "pt": 262,
+    "ru": 235,
+    "sv": 273,
+    "zh_CN": 241,
 }
 
 

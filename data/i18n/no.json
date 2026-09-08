@@ -2715,6 +2715,7 @@
  "Plays when the measuring instrument reports a problem — a disconnection, a wrong position, or a communication error.": "Spilles av når måleinstrumentet melder om et problem — en frakobling, en feil posisjon eller en kommunikasjonsfeil.",
  "Please enter a name.": "Skriv inn et navn.",
  "Please select a printer before printing.": "Velg en skriver før du skriver ut.",
+ "Point here for the reasons and what to add to the chart.": "Point here for the reasons and what to add to the chart.",
  "Port index passed to chartread via -c.\n\nMost setups use 1. When chartread starts it prints a numbered\nlist of detected instruments — set this to the number shown\nnext to your spectrophotometer in that list.\n\nOnly change it if you have more than one instrument connected\nat the same time.": "Portindeks som sendes til chartread via -c.\n\nDe fleste oppsett bruker 1. Når chartread starter, skriver det ut en\nnummerert liste over oppdagede instrumenter — sett dette til tallet\nsom står ved siden av spektrofotometeret ditt i den listen.\n\nEndre det bare hvis du har mer enn ett instrument tilkoblet samtidig.",
  "Positioning, not speed": "Plassering, ikke fart",
  "Positive (default)": "Positiv (standard)",

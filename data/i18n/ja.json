@@ -2715,6 +2715,7 @@
  "Plays when the measuring instrument reports a problem — a disconnection, a wrong position, or a communication error.": "測定器が問題を報告したときに鳴ります — 切断、位置の誤り、通信エラーなどです。",
  "Please enter a name.": "名前を入力してください。",
  "Please select a printer before printing.": "印刷の前にプリンターを選択してください。",
+ "Point here for the reasons and what to add to the chart.": "Point here for the reasons and what to add to the chart.",
  "Port index passed to chartread via -c.\n\nMost setups use 1. When chartread starts it prints a numbered\nlist of detected instruments — set this to the number shown\nnext to your spectrophotometer in that list.\n\nOnly change it if you have more than one instrument connected\nat the same time.": "-c 経由で chartread に渡されるポート番号です。\n\nほとんどの環境では1を使います。chartread は起動時に検出した\n測定器の番号付きリストを表示します — そのリストであなたの\n分光測色計の横に表示された番号を設定してください。\n\n複数の測定器を同時に接続している場合のみ変更してください。",
  "Positioning, not speed": "速度ではなく位置の問題",
  "Positive (default)": "ポジ（デフォルト）",

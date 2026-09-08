@@ -2715,6 +2715,7 @@
  "Plays when the measuring instrument reports a problem — a disconnection, a wrong position, or a communication error.": "当测量仪器报告问题时播放 — 断开连接、位置不对，或者通信错误。",
  "Please enter a name.": "请输入一个名称。",
  "Please select a printer before printing.": "打印前请先选择打印机。",
+ "Point here for the reasons and what to add to the chart.": "Point here for the reasons and what to add to the chart.",
  "Port index passed to chartread via -c.\n\nMost setups use 1. When chartread starts it prints a numbered\nlist of detected instruments — set this to the number shown\nnext to your spectrophotometer in that list.\n\nOnly change it if you have more than one instrument connected\nat the same time.": "通过 -c 传给chartread的端口序号。\n\n大多数环境用1。chartread启动时会打印检测到的仪器编号\n列表 — 把这里设成列表中你的分光光度计旁边显示的数字。\n\n只有同时连接多台仪器时才需要改。",
  "Positioning, not speed": "位置问题，不是速度问题",
  "Positive (default)": "正片（默认）",
