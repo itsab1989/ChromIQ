@@ -383,8 +383,25 @@ def build(
     # that kept its unresized reservation is exactly the bug this block was
     # written for, and it does not care which device is reading the sheet.
     if geom.hexagonal and (patch_w or patch_h):
-        hxeh = plen / 6.0
-        hxew = 0.25 * pwid
+        # RESIZING A HEXAGON RESIZES BOTH ITS OVERHANGS, and the turn decides
+        # which one is which. `_build_base` already made that distinction --
+        # apex = a sixth, stagger = a quarter, on opposite axes for the two
+        # orientations -- and this block used to restate only the pointy half,
+        # so a rotated chart with any patch size set came out with the two
+        # reserves swapped: hxeh 2.0200 where 3.0300 was needed and hxew 2.6241
+        # where 1.7494 was.
+        #
+        # It under-reserved the STAGGER, so ink printed 1.0 mm outside the
+        # margin the user set, and over-reserved the APEX, so 0.9 mm of page
+        # was thrown away on the other axis. It fires on every area-first build
+        # (`geom_from_build_kwargs` derives patch_w/patch_h and feeds them back
+        # here) and on every Manual patch size, which is to say almost always.
+        if geom.hex_flat_top:
+            hxeh = 0.25 * plen       # stagger, up and down
+            hxew = pwid / 6.0        # apex, side to side
+        else:
+            hxeh = plen / 6.0        # apex, up and down
+            hxew = 0.25 * pwid       # stagger, side to side
     row_stagger = 0.0
     if key == "CM" and cm_stagger:
         row_stagger = 0.5 * (plen + 0.5 * pspa)

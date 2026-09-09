@@ -280,9 +280,11 @@ def measure_from_engine(
     # it again here double-counted it by w/4: 3.0 mm at a 12 mm hexagon, 5.0 mm
     # at 20 mm, reported as margin that does not exist. The hexagon's flat sides
     # span exactly the staggered slot, so no horizontal expansion is right.
-    from workflow.hex_support import recipe_is_hexagonal
+    from workflow.hex_support import recipe_is_flat_top, recipe_is_hexagonal
     if recipe_is_hexagonal(rec):
-        if (rec or {}).get("hex_flat_top"):
+        # RESOLVED, never the raw flag: a recipe can carry a tick made on a
+        # CR30 long after the user has moved to another instrument.
+        if recipe_is_flat_top(rec):
             # ROTATED: THE OVERHANG CHANGES AXIS, and the sentence above
             # inverts with it. The flat sides are now the top and bottom, so
             # they span exactly the slot vertically and no VERTICAL expansion is

@@ -155,6 +155,33 @@ def hex_patch_height_mm(row_pitch_mm: float) -> float:
     return float(row_pitch_mm) * HEX_HEIGHT_FACTOR
 
 
+def recipe_is_flat_top(recipe) -> bool:
+    """True for a ROTATED honeycomb, resolved the way the BUILDER resolves it.
+
+    THE FLAG ALONE IS NOT THE ANSWER, and reading it raw was a shipped defect.
+    `hex_flat_top` rides in the recipe and hiding the control must never untick
+    it, so a tick made on a CR30 is still in the recipe after the user moves to
+    a SpectroScan or back to square patches. `_build_base` guards against that
+    by writing `Geom.hex_flat_top` only inside its `key == "CR30" and hflag`
+    branch -- but the SIDECAR records the recipe, not the Geom, so every reader
+    that asked the recipe directly answered True for a SpectroScan honeycomb and
+    even for a rectangular chart. Measured: the Measure overlay then drew
+    flat-top hexagons over pointy-top ink, and the margin inspector moved the
+    apex allowance to the wrong axis.
+
+    So the resolution lives here, once, and matches `_build_base` exactly.
+    """
+    if recipe is None:
+        return False
+    if isinstance(recipe, dict):
+        inst = recipe.get("instrument")
+        flat = recipe.get("hex_flat_top")
+    else:
+        inst = getattr(recipe, "instrument", None)
+        flat = getattr(recipe, "hex_flat_top", None)
+    return bool(flat) and str(inst) == "CR30" and recipe_is_hexagonal(recipe)
+
+
 def recipe_is_hexagonal(recipe) -> bool:
     """True for a hexagonal-patch recipe (a ``LayoutRecipe`` or the dict form).
 
@@ -238,7 +265,7 @@ def chart_is_flat_top(chart_path: "str | Path | None") -> bool:
             if cj.is_file():
                 data = json.loads(read_text(cj))
                 recipe = (data.get("layout") or {}).get("recipe") or {}
-                return bool(recipe.get("hex_flat_top", False))
+                return recipe_is_flat_top(recipe)
         except Exception:
             continue
     return False

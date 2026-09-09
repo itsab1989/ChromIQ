@@ -1477,7 +1477,17 @@ def render_pages(
                 _band_right = (min(_floor_px + _row_band_px, _rx)
                                if _floor_px > 0 else _rx)
                 for _j in range(len(col_slots)):
-                    _ry = (px(place.y_of(_j)) + px(place.y_of(_j) + place.plen)) // 2
+                    # ...AND FOLLOW THE STRIP THIS LABEL BELONGS TO. `_ry` was
+                    # the UNSTAGGERED slot centre, which is right for every
+                    # chart whose leftmost strip does not move -- true of the
+                    # ColorMunki rig stagger, because that shifts only ODD
+                    # strips and the labels sit beside strip 0. A rotated
+                    # honeycomb staggers EVERY strip, strip 0 upward by a
+                    # quarter patch, so each number was drawn 3.0 mm below the
+                    # patch it names, on every row of every page. Found by eye
+                    # in a rendered sheet.
+                    _ry = ((px(place.y_of(_j)) + px(place.y_of(_j) + place.plen))
+                           // 2) + _stag
                     _txt = label_patch(_j + 1)
                     _tw = int(draw.textlength(_txt, font=_row_font))
                     # CLAMP AT THE PAPER EDGE. In area-first the row band is

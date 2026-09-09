@@ -33,6 +33,7 @@ widget only where the guarantee is about the widget.
 from __future__ import annotations
 
 import dataclasses
+import json
 import math
 import os
 
@@ -289,3 +290,193 @@ def test_a_recipe_written_before_this_field_loads_with_the_turn_off():
     d = LayoutRecipe(instrument="CR30", paper="A4", hflag=True).to_dict()
     d.pop("hex_flat_top", None)
     assert LayoutRecipe.from_dict(d).hex_flat_top is False
+
+
+# ---------------------------------------------------------------------------
+# what an adversarial review found afterwards
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize("flat_top", [False, True])
+def test_resizing_a_patch_keeps_the_right_overhang_on_the_right_axis(flat_top):
+    """P6, AND IT PRINTED OUTSIDE THE USER'S MARGIN.
+
+    `build()` re-derives the two overhangs whenever a patch size is set, and it
+    restated only the pointy-top halves: `hxeh = plen/6`, `hxew = 0.25*pwid`. On
+    a rotated chart those are the wrong way round, so the STAGGER reserve came
+    out 2.0200 mm where 3.0300 was needed and the APEX reserve 2.6241 where
+    1.7494 was.
+
+    Under-reserving the stagger is ink outside the margin: measured on a sheet
+    with all four margins set to 20 mm, the rotated chart reached 19.050 mm top
+    and 18.965 mm bottom. Over-reserving the apex threw away 0.9 mm of page on
+    the other axis.
+
+    It fires on EVERY area-first build, because `geom_from_build_kwargs` derives
+    `patch_w`/`patch_h` and feeds them straight back in, and on every Manual
+    patch size. Which is to say: almost always.
+    """
+    base = I.build("CR30", hflag=True, hex_flat_top=flat_top)
+    g = I.build("CR30", hflag=True, hex_flat_top=flat_top,
+                patch_w=base.pwid * 1.01, patch_h=base.plen * 1.01)
+    if flat_top:
+        assert g.hxeh == pytest.approx(g.plen / 4.0), "the stagger reserve"
+        assert g.hxew == pytest.approx(g.pwid / 6.0), "the apex reserve"
+    else:
+        assert g.hxeh == pytest.approx(g.plen / 6.0)
+        assert g.hxew == pytest.approx(0.25 * g.pwid)
+
+
+def test_a_resized_rotated_chart_stays_inside_its_margins():
+    """The same fault measured where the user meets it: on paper."""
+    import tempfile
+    from pathlib import Path
+
+    import numpy as np
+    from PIL import Image
+
+    from workflow.layout_engine import chart as le_chart
+
+    d = Path(tempfile.mkdtemp())
+    lines = ["CTI1", "", 'DESCRIPTOR "m"', 'ORIGINATOR "ChromIQ"',
+             'KEYWORD "SAMPLE_LOC"', "NUMBER_OF_FIELDS 7", "BEGIN_DATA_FORMAT",
+             "SAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z", "END_DATA_FORMAT",
+             "NUMBER_OF_SETS 200", "BEGIN_DATA"]
+    for i in range(200):
+        lines.append(f"{i+1} 20.0 20.0 20.0 40 45 50")
+    lines += ["END_DATA", ""]
+    ti1 = d / "p.ti1"
+    ti1.write_text("\n".join(lines), encoding="utf-8")
+
+    M, dpi = 20.0, 600
+    for flat_top in (False, True):
+        out = d / f"ft{flat_top}"
+        out.mkdir()
+        le_chart.build_chart(ti1, out / "c", instrument="CR30", paper="A4",
+                             hflag=True, hex_flat_top=flat_top, dpi=dpi,
+                             randomize=False, spacer_mode="none",
+                             margins=(M, M, M, M), patch_w=12.12, patch_h=14.0,
+                             draw_indicators=False)
+        a = np.asarray(Image.open(sorted(out.glob("*.tif"))[0])
+                       .convert("RGB")).astype(int)
+        ys, xs = np.nonzero(np.any(a < 250, axis=2))
+        mm = 25.4 / dpi
+        edges = {"top": ys.min() * mm, "left": xs.min() * mm,
+                 "bottom": (a.shape[0] - 1 - ys.max()) * mm,
+                 "right": (a.shape[1] - 1 - xs.max()) * mm}
+        outside = {k: v for k, v in edges.items() if v < M - 0.1}
+        assert not outside, (
+            f"flat_top={flat_top}: ink printed outside a {M} mm margin: "
+            f"{ {k: round(v, 3) for k, v in outside.items()} }"
+        )
+
+
+def test_a_row_number_sits_on_the_patch_it_names():
+    """P8, FOUND BY EYE IN A RENDERED SHEET. The row label's y was the
+    UNSTAGGERED slot centre, which is right for every chart whose leftmost strip
+    does not move -- true of the ColorMunki rig stagger, which shifts only ODD
+    strips while the labels sit beside strip 0. A rotated honeycomb staggers
+    EVERY strip, strip 0 upward by a quarter patch, so each number was drawn
+    3.006 mm below the patch it names, on every row of every page.
+
+    MEASURED OFF THE RENDERED SHEET. A first version of this test recomputed the
+    label's position from the same expression the renderer uses and so stayed
+    green under a mutation that put the bug straight back -- the third time in
+    this work that recomputing instead of reading the ink produced a test that
+    could not fail. It compares the CENTROID of all row-label ink against the
+    centroid of the patch centres it labels, which a uniform offset moves and
+    which needs no fragile per-glyph grouping.
+    """
+    import tempfile
+    from pathlib import Path
+
+    import numpy as np
+    from PIL import Image
+
+    from workflow.layout_engine import chart as le_chart
+
+    d = Path(tempfile.mkdtemp())
+    lines = ["CTI1", "", 'DESCRIPTOR "r"', 'ORIGINATOR "ChromIQ"',
+             'KEYWORD "SAMPLE_LOC"', "NUMBER_OF_FIELDS 7", "BEGIN_DATA_FORMAT",
+             "SAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z", "END_DATA_FORMAT",
+             "NUMBER_OF_SETS 200", "BEGIN_DATA"]
+    for i in range(200):
+        lines.append(f"{i+1} 40.0 40.0 40.0 40 45 50")
+    lines += ["END_DATA", ""]
+    ti1 = d / "p.ti1"
+    ti1.write_text("\n".join(lines), encoding="utf-8")
+
+    dpi = 600
+    mm = 25.4 / dpi
+    offs: dict[bool, float] = {}
+    for flat_top in (False, True):
+        out = d / f"ft{flat_top}"
+        out.mkdir()
+        le_chart.build_chart(ti1, out / "c", instrument="CR30", paper="A4",
+                             hflag=True, hex_flat_top=flat_top, dpi=dpi,
+                             randomize=False, spacer_mode="none")
+        img = np.asarray(Image.open(sorted(out.glob("*.tif"))[0])
+                         .convert("RGB")).astype(int)
+        # THE SIDECAR'S OWN RECTS, not a geometry rebuilt here. `build_chart`
+        # goes through `geom_from_build_kwargs`, which reserves a 9.4 mm row
+        # band and moves the left margin with it; rebuilding from
+        # `instruments.build` gives a different sheet entirely, and a probe that
+        # did that reported the labels 50 mm out of place on BOTH orientations.
+        strips = json.loads((out / "c.strips.json").read_text(encoding="utf-8"))
+        rects = [r for r in strips["patches"] if r.get("page", 0) == 0]
+        steps = strips["steps_in_pass"]
+        # STRIP 0 BY SLOT INDEX, not by "leftmost x": on a pointy sheet the
+        # patches zigzag, so the leftmost x belongs to alternating steps of two
+        # different strips and is not the column the labels name.
+        col = sorted(rects[:steps], key=lambda r: r["y"])
+        left_x = min(r["x"] for r in rects)
+
+        # THE ROW-LABEL BAND ONLY, which is the ~7.5 mm strip immediately left
+        # of the patches. "Everything left of the patch field" also catches the
+        # CR30's clip/notes band, whose rotated text runs most of the page
+        # height and dragged the centroid 50 mm on both orientations.
+        band_px = int(round(9.0 * dpi / 25.4))
+        x1 = max(1, left_x - 6)
+        x0 = max(0, x1 - band_px)
+        band = np.all(img[:, x0:x1] < 60, axis=2)
+        ys = np.nonzero(band.any(axis=1))[0]
+        assert len(ys), "no row-label ink found at all"
+        # only the rows this column spans, so the strip letters along the top
+        # cannot drag the centroid
+        lo = min(r["y"] for r in col)
+        hi = max(r["y"] + r["h"] for r in col)
+        ys = ys[(ys >= lo) & (ys <= hi)]
+        assert len(ys) > 50, f"only {len(ys)} rows of label ink in range"
+        label_centre = float(ys.mean())
+        patch_centre = float(np.mean([r["y"] + r["h"] / 2.0 for r in col]))
+        offs[flat_top] = (label_centre - patch_centre) * mm
+
+    # COMPARE THE TWO ORIENTATIONS, do not judge either alone. A centroid over
+    # digit ink carries a systematic bias of about 1.5 mm, because "1" and "18"
+    # are not the same shape and the top and bottom rows are clipped
+    # differently. That bias is identical on both sheets, so it cancels -- and
+    # the fault this guards is a 3.006 mm shift of ONE of them.
+    drift = abs(offs[True] - offs[False])
+    assert drift < 1.0, (
+        f"the row numbers sit {drift:.3f} mm further from their patches on a "
+        f"rotated sheet than on a pointy one (pointy {offs[False]:+.3f} mm, "
+        f"rotated {offs[True]:+.3f} mm): the labels are not following the "
+        "strip's stagger"
+    )
+
+
+@pytest.mark.parametrize("key", ["SS", "i1", "CM"])
+@pytest.mark.parametrize("hflag", [True, False])
+def test_the_sidecar_flag_is_resolved_and_not_read_raw(key, hflag):
+    """P7, AND IT IS THE ca0f639c SHAPE ONE LEVEL UP. The Geom is protected by a
+    single writer, but the SIDECAR records the recipe, and hiding the control
+    must never untick it -- so a tick made on a CR30 is still in the recipe
+    after the user moves to a SpectroScan. Every reader that asked the recipe
+    directly answered True for a SpectroScan honeycomb, and for a rectangular
+    chart, and the Measure overlay then drew flat-top hexagons over pointy ink.
+    """
+    from workflow.hex_support import recipe_is_flat_top
+    rec = {"instrument": key, "hflag": hflag, "hex_flat_top": True}
+    assert recipe_is_flat_top(rec) is False
+    assert recipe_is_flat_top(
+        {"instrument": "CR30", "hflag": False, "hex_flat_top": True}) is False
+    assert recipe_is_flat_top(
+        {"instrument": "CR30", "hflag": True, "hex_flat_top": True}) is True
