@@ -1097,6 +1097,100 @@ def _turned_chart_sidecar(tmp_path, *, turned, n=345, paper="A4", scale=1.0,
     return json.loads((out / "c.strips.json").read_text(encoding="utf-8"))
 
 
+def _pale_ti1(path, n):
+    """A patch set light enough that black label ink is unambiguous.
+
+    A random-coloured chart puts dark patches under the letters, and four probes
+    in this series read one as text. Pale patches remove the question.
+    """
+    lines = ["CTI1", "", 'DESCRIPTOR "pale"', 'ORIGINATOR "ChromIQ"',
+             'KEYWORD "SAMPLE_LOC"', "NUMBER_OF_FIELDS 7",
+             "BEGIN_DATA_FORMAT",
+             "SAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z",
+             "END_DATA_FORMAT", f"NUMBER_OF_SETS {n}", "BEGIN_DATA"]
+    for i in range(n):
+        lines.append(f"{i+1} {88+(i%5)}.0 {90+(i%4)}.0 {92+(i%3)}.0 "
+                     "80.0 85.0 90.0")
+    lines += ["END_DATA", ""]
+    path.write_text("\n".join(lines), encoding="utf-8")
+    return path
+
+
+def _letter_heights(tmp_path, *, turned, n=345, paper="A4", **over):
+    """The drawn height of every strip letter, measured from the PAGE.
+
+    THE SIDECAR CANNOT ANSWER THIS AND A REVIEWER PROVED IT. Comparing the
+    recorded patch box against `label_band_bottom_px` is circular: the reserve
+    that moves the box IS that number plus half a millimetre, and both come from
+    `ind_px`. Drawing the labels 20 px lower -- letters visibly beheaded, "A"
+    into a lambda, "C" into a gamma -- left all six of those assertions green.
+
+    So this reads ink. A patch is painted after its label, so a letter it covers
+    comes out SHORTER, and the height of the topmost dark run above each strip
+    is what a reader would call "is the letter whole".
+    """
+    import json
+    from dataclasses import replace
+
+    import numpy as np
+    import tifffile
+
+    from workflow.layout_engine import chart as le_chart
+    from workflow.layout_engine.presets import default_recipe
+
+    src = _pale_ti1(tmp_path / f"pale{n}.ti1", n)
+    r = replace(default_recipe("CR30", paper), hflag=True, hex_flat_top=turned,
+                randomize=False, spacer_mode="none", spacer_on=False, **over)
+    out = tmp_path / ("h_%s_%s_%s_%s" % (
+        turned, n, paper,
+        "_".join(f"{k}{v}" for k, v in sorted(over.items())) or "plain"))
+    out.mkdir()
+    le_chart.build_from_recipe(src, out / "c", r)
+    side = json.loads((out / "c.strips.json").read_text(encoding="utf-8"))
+    page = np.asarray(tifffile.imread(str(sorted(out.glob("*.tif"))[0])))
+    g = page[..., :3].max(axis=2) if page.ndim == 3 else page
+    dark = g < 120
+
+    # The first patch of EVERY strip, raised and lowered alike: taking only the
+    # boxes at the very top selects the raised half of a turned sheet, and the
+    # alternation is the whole symptom.
+    first: dict = {}
+    for p in sorted((q for q in side["patches"] if q["page"] == 0),
+                    key=lambda q: (q["x"], q["y"])):
+        first.setdefault(p["x"], p)
+
+    heights = []
+    for p in first.values():
+        col = dark[:p["y"] + p["h"], p["x"]:p["x"] + p["w"]]
+        rows = np.flatnonzero(col.any(axis=1))
+        if not len(rows):
+            heights.append(0)
+            continue
+        top = int(rows[0])
+        r_ = top
+        while r_ < col.shape[0] and col[r_].any():
+            r_ += 1
+        heights.append(r_ - top)
+    return heights
+
+
+def _letters_are_whole(tmp_path, *, turned, label, **over):
+    """Assert no strip letter is shorter than on a sheet with room to spare.
+
+    The control is the same chart with a 30 mm top margin, where nothing can
+    reach the letters. It is a second render, not a recomputation, so the two
+    sides of the comparison share no arithmetic.
+    """
+    real = _letter_heights(tmp_path, turned=turned, **over)
+    roomy = _letter_heights(tmp_path, turned=turned, margin_top=30.0, **over)
+    assert real and roomy, "no strip letters were drawn at all"
+    assert min(real) >= min(roomy) - 2, (
+        f"{label}: the shortest strip letter is {min(real)} px where the same "
+        f"chart with room to spare draws {min(roomy)} px, so a patch is "
+        f"printed over it. Heights: {sorted(real)}"
+    )
+
+
 def test_a_turned_honeycomb_never_prints_a_strip_letter_on_a_patch(tmp_path):
     """The raised strips of a turned honeycomb climbed into the label band.
 
@@ -1113,9 +1207,13 @@ def test_a_turned_honeycomb_never_prints_a_strip_letter_on_a_patch(tmp_path):
     control, because an absolute clearance says nothing on its own.
     """
     for n in (150, 345, 690):
-        turned = _turned_chart_sidecar(tmp_path, turned=True, n=n)
-        pointy = _turned_chart_sidecar(tmp_path, turned=False, n=n)
-        for name, side in (("turned", turned), ("pointy", pointy)):
+        for name, turned in (("turned", True), ("pointy", False)):
+            # The measurement that matters: the letters themselves.
+            _letters_are_whole(tmp_path, turned=turned,
+                               label=f"{name} chart of {n} patches", n=n)
+            # ...and the recorded geometry, as a second leg. On its own this is
+            # circular -- see `_letter_heights` -- but it names the millimetre.
+            side = _turned_chart_sidecar(tmp_path, turned=turned, n=n)
             band = side["label_band_bottom_px"]
             top = min(p["y"] for p in side["patches"] if p["page"] == 0)
             mm = 25.4 / side["dpi"]
@@ -1208,6 +1306,7 @@ def test_the_letters_clear_the_ink_however_they_are_styled(tmp_path, label, over
     renderer can say. Each row here is one of those settings, and each is read
     off the sidecar rather than recomputed.
     """
+    _letters_are_whole(tmp_path, turned=True, label=f"with {label}", **over)
     scale = over.pop("pscale", 1.0)
     side = _turned_chart_sidecar(tmp_path, turned=True, n=345, scale=scale,
                                  **over)
