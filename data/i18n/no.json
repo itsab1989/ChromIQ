@@ -1028,6 +1028,7 @@
  "Coloured (per strip)": "Farget (per stripe)",
  "Colours from this profile's gamut": "Farger fra denne profilens gamut",
  "Colours to test": "Farger å teste",
+ "Column pitch (mm)": "Kolonneavstand (mm)",
  "Columns marked “drift” are sheets printed raw, without the profile — they are not expected to match the design closely, so Pass and Fail would be unfair to a perfectly healthy printer. For those sheets the detailed chapter shows how far the printer has moved since the previous raw check instead.": "Kolonner merket «drift» er ark skrevet ut rått, uten profilen — de skal ikke treffe designet tett, så Bestått og Ikke bestått ville vært urettferdig mot en helt frisk skriver. For de arkene viser detaljkapittelet i stedet hvor langt skriveren har flyttet seg siden forrige rå sjekk.",
  "Combine method:": "Kombineringsmetode:",
  "Combine repeated scans by:": "Kombiner gjentatte skann med:",

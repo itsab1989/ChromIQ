@@ -749,8 +749,16 @@ def test_the_sample_cap_shrinks_with_the_ring(ring):
     """
     from workflow.scanin_runner import hex_max_sample_fraction as cap
     g = I.build("CR30", hflag=True)
-    base = cap(g.pwid, g.plen)
-    got = cap(g.pwid, g.plen, ring_mm=ring)
+    # IN THE UNITS THE APP USES, WHICH ARE PIXELS. The first version of this
+    # test called the function in millimetres for both arguments and so never
+    # touched the path `scanin_dialog` takes: it reads `patch_rects_px`, which
+    # is pixels, and was handed a millimetre ring beside it. The cap then
+    # depended on the chart's RESOLUTION, 62/63/63 % at 200/300/600 dpi for one
+    # physical chart, where 49 % is the answer at all three.
+    dpi = 300.0
+    S = dpi / 25.4
+    base = cap(g.pwid * S, g.plen * S)
+    got = cap(g.pwid * S, g.plen * S, ring_mm=ring * S)
     if ring == 0:
         assert got == pytest.approx(base)
     else:
@@ -760,55 +768,82 @@ def test_the_sample_cap_shrinks_with_the_ring(ring):
         )
     # and the same either way up, because it is the same hexagon turned
     r = I.build("CR30", hflag=True, hex_flat_top=True)
-    assert cap(r.pwid, r.plen, flat_top=True, ring_mm=ring) == \
+    assert cap(r.pwid * S, r.plen * S, flat_top=True, ring_mm=ring * S) == \
         pytest.approx(got, abs=1e-9)
+    # ...and the cap must not depend on the resolution, which is what a unit
+    # mismatch always shows up as.
+    for other in (200.0, 600.0):
+        t = other / 25.4
+        assert cap(g.pwid * t, g.plen * t, ring_mm=ring * t) == \
+            pytest.approx(got, abs=1e-6), (
+                f"the cap changed with the resolution at {other} dpi, so the "
+                "slot and the ring are in different units"
+            )
 
 
-def test_the_margin_inspector_allows_for_the_ring():
-    """F10, also unsafe-direction. #159 moved a honeycomb's spacer out of the
-    pitch and into `hex_ring_mm`, so the inspector's edge-spacer allowance --
-    which reads `pspa` -- silently became 0 on every honeycomb and it
-    over-reported bottom clearance by 0.879 mm. An edge band reaches ring/2
-    OUTWARD past the hexagon, and that is the outermost ink on the sheet."""
+def test_the_margin_inspector_reports_where_the_ink_actually_is():
+    """F10 and G1, and the invariant is stronger than the one this replaces.
+
+    The first version asserted that switching edge spacers ON must SHRINK every
+    reported margin, which was true while nothing reserved for the band. Now
+    the layout reserves it, so the patch block moves in and the margins come
+    out the same either way -- which is the point. Asserting the old premise
+    would have forced the reservation back out again.
+
+    So compare the report against the RENDERED INK instead. That is what the
+    tool is for, it holds whether or not anything is reserved, and it catches
+    the apex factor: the band reaches `0.5774 * ring` past the points and
+    `0.5 * ring` past the flats, so an allowance of ring/2 on all four sides
+    over-reported clearance by 0.13-0.22 mm at the default ring and 0.60 mm at
+    the clamp maximum, on the two sides carrying the apexes -- and which two
+    those are swaps with the orientation.
+    """
     import json
+
+    import numpy as np
+    from PIL import Image
 
     from workflow.margin_inspector import measure_from_engine
 
     d = Path(tempfile.mkdtemp())
-    ti1 = _ti1(d, 150)
-    reports = {}
-    for edge in (False, True):
-        out = d / f"e{edge}"
-        out.mkdir()
-        le_chart.build_chart(ti1, out / "c", instrument="CR30", paper="A4",
-                             hflag=True, dpi=300, randomize=False,
-                             spacer_mode="colored", edge_spacers=edge)
-        cj = out / "c.channels.json"
-        # the sidecar the app writes; build_chart leaves only .strips.json
-        strips = json.loads((out / "c.strips.json").read_text(encoding="utf-8"))
-        cj.write_text(json.dumps({"ink_channels": ["r", "g", "b"], "layout": {
-            "engine": "chromiq", "engine_version": 1, "dpi": 300,
-            "paper_mm": [210.0, 297.0], "patches": strips["patches"],
-            "recipe": {"instrument": "CR30", "paper": "A4", "hflag": True,
-                       "spacer_mode": "colored", "edge_spacers": edge}}}),
-            encoding="utf-8")
-        got = measure_from_engine(cj)
-        assert got and got[0], "the inspector could not read the chart"
-        reports[edge] = got[0]
+    ti1 = _ti1(d, 210)
+    dpi = 600
+    for flat_top in (False, True):
+        for edge in (False, True):
+            out = d / f"m{flat_top}{edge}"
+            out.mkdir()
+            le_chart.build_chart(out and ti1, out / "c", instrument="CR30",
+                                 paper="A4", hflag=True, hex_flat_top=flat_top,
+                                 dpi=dpi, randomize=False,
+                                 spacer_mode="colored", spacer_palette=NO_WHITE,
+                                 edge_spacers=edge, draw_indicators=False)
+            strips = json.loads((out / "c.strips.json")
+                                .read_text(encoding="utf-8"))
+            cj = out / "c.channels.json"
+            cj.write_text(json.dumps({"ink_channels": ["r", "g", "b"], "layout": {
+                "engine": "chromiq", "engine_version": 1, "dpi": dpi,
+                "paper_mm": [210.0, 297.0], "patches": strips["patches"],
+                "recipe": {"instrument": "CR30", "paper": "A4", "hflag": True,
+                           "hex_flat_top": flat_top, "spacer_mode": "colored",
+                           "edge_spacers": edge}}}), encoding="utf-8")
+            got = measure_from_engine(cj)
+            assert got and got[0], "the inspector could not read the chart"
+            rep = got[0]
 
-    # Turning edge spacers ON puts ink further out on all four sides, so every
-    # reported margin must SHRINK. Before this fix the allowance read `pspa`,
-    # which #159 sets to 0 on a honeycomb, so the two reports were identical
-    # and the tool over-reported bottom clearance by 0.879 mm -- in the unsafe
-    # direction, on the one tool whose job is saying whether the ink clears the
-    # paper edge.
-    off, on = reports[False], reports[True]
-    for side in ("top_mm", "bottom_mm", "left_mm", "right_mm"):
-        a, b = getattr(off, side), getattr(on, side)
-        assert b < a - 0.1, (
-            f"{side}: edge spacers on reports {b:.3f} mm and off reports "
-            f"{a:.3f} mm, so the ring's outward band is not allowed for"
-        )
+            img = np.asarray(Image.open(sorted(out.glob("*.tif"))[0])
+                             .convert("RGB")).astype(int)
+            ys, xs = np.nonzero(np.any(img < 250, axis=2))
+            mm = 25.4 / dpi
+            real = {"top_mm": ys.min() * mm, "left_mm": xs.min() * mm,
+                    "bottom_mm": (img.shape[0] - 1 - ys.max()) * mm}
+            for side, actual in real.items():
+                said = getattr(rep, side)
+                assert said <= actual + 0.35, (
+                    f"flat_top={flat_top} edge={edge} {side}: the inspector "
+                    f"reports {said:.3f} mm of clearance where the ink is "
+                    f"{actual:.3f} mm from the edge -- it OVER-reports, which "
+                    "is the unsafe direction"
+                )
 
 
 # ---------------------------------------------------------------------------
@@ -907,3 +942,52 @@ def test_the_lattice_change_moved_no_rectangular_chart():
             assert len(gaps) <= 2, (
                 f"{key} strip {strip}: the row pitch wanders over {sorted(gaps)}"
             )
+
+
+@pytest.mark.parametrize("flat_top", [False, True])
+@pytest.mark.parametrize("edge", [False, True])
+@pytest.mark.parametrize("ring", [1.3, 4.157])
+def test_a_honeycomb_never_prints_outside_its_margins(flat_top, edge, ring):
+    """G5, A REGRESSION, and the probe that missed it is the lesson.
+
+    A side facing the paper carries the FULL spacer by itself and reaches
+    outward past the hexagon, which is what Basti asked for -- but nothing told
+    the layout, so with "Edge spacers" on the ink printed 0.70 mm past a 20 mm
+    margin at the default ring and 2.43 mm at the clamp maximum, on both
+    orientations. The branch point measures 20.066 mm in the same probe, so it
+    was introduced here.
+
+    Reserving `ring/2` on both axes left 0.10 mm and 0.27 mm still outside,
+    because moving an edge outward by `d` moves the VERTEX by `d / cos 30`: the
+    band is `0.5774 * ring` past the apexes and `0.5 * ring` past the flats,
+    and which axis carries the apexes swaps with the orientation.
+
+    THE FIRST VERSION OF THIS PROBE FOUND NOTHING, on a flat grey chart where
+    every patch is the same colour and the band is never drawn at all. Varied
+    patch colours and a palette without white are what make it visible.
+    """
+    import numpy as np
+    from PIL import Image
+
+    d = Path(tempfile.mkdtemp())
+    ti1 = _ti1(d, 210)
+    M, dpi = 20.0, 600
+    out = d / "o"
+    out.mkdir()
+    le_chart.build_chart(ti1, out / "c", instrument="CR30", paper="A4",
+                         hflag=True, hex_flat_top=flat_top, dpi=dpi,
+                         randomize=False, spacer_mode="colored",
+                         spacer_palette=NO_WHITE, edge_spacers=edge,
+                         spacer_width=ring, margins=(M, M, M, M),
+                         draw_indicators=False)
+    a = np.asarray(Image.open(sorted(out.glob("*.tif"))[0])
+                   .convert("RGB")).astype(int)
+    ys, xs = np.nonzero(np.any(a < 250, axis=2))
+    mm = 25.4 / dpi
+    edges = {"top": ys.min() * mm, "left": xs.min() * mm,
+             "bottom": (a.shape[0] - 1 - ys.max()) * mm}
+    outside = {k: round(v, 3) for k, v in edges.items() if v < M - 0.02}
+    assert not outside, (
+        f"flat_top={flat_top} edge_spacers={edge} ring={ring}: ink printed "
+        f"outside a {M} mm margin at {outside}"
+    )

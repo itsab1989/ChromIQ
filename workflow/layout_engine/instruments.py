@@ -441,6 +441,36 @@ def build(
         # times the 1.3 mm default -- so it constrains nobody who is not already
         # destroying the chart.
         _ring = min(_ring, 0.8 * min(pwid, plen) / 2.0)
+        # AND THE OUTER BAND HAS TO BE RESERVED, or it prints off the edge of
+        # the user's margin. A side facing the paper carries the FULL spacer by
+        # itself and reaches `ring/2` OUTWARD past the hexagon, which is what
+        # Basti asked for ("the spacers on the outside should probably be
+        # double if turned on") -- but nothing told the layout, so the ink went
+        # 0.70 mm past a 20 mm margin at the default ring and 2.43 mm at the
+        # clamp maximum, on both orientations. Measured against the branch
+        # point, which stays at 20.066 mm, so it was a regression and not an
+        # inherited fault.
+        #
+        # The apexes stick out furthest, so the allowance goes on both
+        # overhangs; a honeycomb reserves `2*hxeh` along the strip and `2*hxew`
+        # across it, and the band needs half a ring on each side of each.
+        if edge_spacers:
+            # AND THE APEX GROWS FASTER THAN THE FLAT SIDES. Moving an edge
+            # outward by `d` along its normal moves the VERTEX by `d / cos 30`,
+            # so a ring/2 band reaches `0.5774 * ring` past the points and only
+            # `0.5 * ring` past the flats. Reserving ring/2 on both axes left
+            # the rotated sheet 0.10 mm outside a 20 mm margin at the default
+            # and 0.27 mm at the clamp maximum. The apex is on the y axis for a
+            # pointy honeycomb and on the x axis for a turned one, so the
+            # allowance swaps with the orientation exactly as the overhangs do.
+            _flat_side = _ring / 2.0
+            _apex = _ring / 2.0 * 2.0 / math.sqrt(3.0)
+            if geom.hex_flat_top:
+                hxeh += _flat_side
+                hxew += _apex
+            else:
+                hxeh += _apex
+                hxew += _flat_side
     return replace(geom, margin_t=mt, margin_r=mr, margin_b=mb, margin_l=ml,
                    plen=plen, pwid=pwid, rrsp=rrsp, pspa=pspa, hex_ring_mm=_ring, mxrowl=mxrowl,
                    hxeh=hxeh, hxew=hxew, row_stagger_mm=row_stagger,

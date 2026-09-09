@@ -1028,6 +1028,7 @@
  "Coloured (per strip)": "Цветная (по полосам)",
  "Colours from this profile's gamut": "Цвета из охвата этого профиля",
  "Colours to test": "Цветов для проверки",
+ "Column pitch (mm)": "Шаг столбцов (мм)",
  "Columns marked “drift” are sheets printed raw, without the profile — they are not expected to match the design closely, so Pass and Fail would be unfair to a perfectly healthy printer. For those sheets the detailed chapter shows how far the printer has moved since the previous raw check instead.": "Столбцы с пометкой «дрейф» — листы, напечатанные без профиля — они и не должны близко совпадать с проектом, поэтому Пройдено и Не пройдено были бы несправедливы к совершенно здоровому принтеру. Для таких листов подробная глава вместо этого показывает, насколько принтер сместился с предыдущей проверки без профиля.",
  "Combine method:": "Метод объединения:",
  "Combine repeated scans by:": "Объединять повторные сканы:",

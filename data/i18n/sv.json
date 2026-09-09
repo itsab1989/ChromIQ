@@ -1028,6 +1028,7 @@
  "Coloured (per strip)": "Färgad (per remsa)",
  "Colours from this profile's gamut": "Färger från den här profilens gamut",
  "Colours to test": "Färger att testa",
+ "Column pitch (mm)": "Kolumnavstånd (mm)",
  "Columns marked “drift” are sheets printed raw, without the profile — they are not expected to match the design closely, so Pass and Fail would be unfair to a perfectly healthy printer. For those sheets the detailed chapter shows how far the printer has moved since the previous raw check instead.": "Kolumner märkta ”drift” är ark utskrivna rått, utan profilen — de förväntas inte träffa designen nära, så Godkänd och Underkänd vore orättvist mot en helt frisk skrivare. För de arken visar detaljkapitlet i stället hur långt skrivaren har rört sig sedan föregående råa kontroll.",
  "Combine method:": "Kombineringsmetod:",
  "Combine repeated scans by:": "Kombinera upprepade skanningar med:",

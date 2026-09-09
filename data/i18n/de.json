@@ -1028,6 +1028,7 @@
  "Coloured (per strip)": "Farbig (pro Streifen)",
  "Colours from this profile's gamut": "Farben aus dem Gamut dieses Profils",
  "Colours to test": "Zu testende Farben",
+ "Column pitch (mm)": "Spaltenabstand (mm)",
  "Columns marked “drift” are sheets printed raw, without the profile — they are not expected to match the design closely, so Pass and Fail would be unfair to a perfectly healthy printer. For those sheets the detailed chapter shows how far the printer has moved since the previous raw check instead.": "Spalten mit „Drift“ sind Blätter, die roh, ohne das Profil, gedruckt wurden — sie sollen dem Design gar nicht genau entsprechen, Bestanden und Nicht bestanden wären also unfair gegenüber einem völlig gesunden Drucker. Für diese Blätter zeigt das Detail-Kapitel stattdessen, wie weit sich der Drucker seit der vorigen Roh-Prüfung bewegt hat.",
  "Combine method:": "Kombinationsmethode:",
  "Combine repeated scans by:": "Wiederholte Scans kombinieren mit:",

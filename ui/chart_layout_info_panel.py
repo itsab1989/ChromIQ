@@ -83,6 +83,10 @@ class ChartLayoutInfoPanel(QGroupBox):
             ("cols", tr("Strips (this page)")),
             ("pages", tr("Pages")),
             ("patch", tr("Patch size (mm)")),
+            # RENAMED AT RUNTIME ON A TURNED HONEYCOMB. See `set_pitch_axis`:
+            # on a rotated sheet the second number is a COLUMN pitch across the
+            # page, not a row pitch down a strip, and the panel printed 10.39 mm
+            # under "Row pitch" where the sheet's rows are 12.00 mm apart.
             ("pitch", tr("Row pitch (mm)")),
         )
         for r, (key, label) in enumerate(rows, start=1):
@@ -192,6 +196,21 @@ class ChartLayoutInfoPanel(QGroupBox):
     def clear_actual(self) -> None:
         self._actual = None
         self._render()
+
+    def set_pitch_axis(self, flat_top: bool) -> None:
+        """Name the pitch row for the orientation the chart is actually in.
+
+        `_panel_patch_size_mm`'s docstring says the caller has to name this
+        axis, because the interlocking pitch is a ROW pitch down a strip on a
+        pointy honeycomb and a COLUMN pitch across the page on a turned one.
+        The recipe summary line does name it; this panel did not, and printed a
+        turned chart's 10.39 mm column pitch under "Row pitch" while its rows
+        are 12.00 mm apart.
+        """
+        name = self._row_names.get("pitch")
+        if name is not None:
+            name.setText(tr("Column pitch (mm)") if flat_top
+                         else tr("Row pitch (mm)"))
 
     def set_estimate(self, *, total: int, rows: int, cols: int, pages: int,
                      patch_w: float = 0.0, patch_h: float = 0.0,

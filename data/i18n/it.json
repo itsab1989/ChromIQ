@@ -1028,6 +1028,7 @@
  "Coloured (per strip)": "A colori (per striscia)",
  "Colours from this profile's gamut": "Colori dal gamut di questo profilo",
  "Colours to test": "Colori da testare",
+ "Column pitch (mm)": "Passo di colonna (mm)",
  "Columns marked “drift” are sheets printed raw, without the profile — they are not expected to match the design closely, so Pass and Fail would be unfair to a perfectly healthy printer. For those sheets the detailed chapter shows how far the printer has moved since the previous raw check instead.": "Le colonne segnate «deriva» sono fogli stampati in raw, senza il profilo — non ci si aspetta che corrispondano da vicino al progetto, quindi Superato e Non superato sarebbero ingiusti verso una stampante perfettamente sana. Per quei fogli il capitolo dettagliato mostra invece quanto la stampante si è mossa dal controllo raw precedente.",
  "Combine method:": "Metodo di combinazione:",
  "Combine repeated scans by:": "Combina le scansioni ripetute con:",

@@ -24,6 +24,8 @@ so no black-and-white twin render is needed.
 """
 from __future__ import annotations
 
+import math
+
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -261,8 +263,8 @@ def measure_from_engine(
             from workflow.layout_engine.presets import LayoutRecipe
             _valid = {f.name for f in _fields(LayoutRecipe)}
             _rc = LayoutRecipe(**{k: v for k, v in rec.items() if k in _valid})
-            _g = instruments.geom_from_build_kwargs(_rc.build_kwargs())
-            _sp_px = round(_g.pspa * dpi / _MM_PER_INCH)
+            _geom = instruments.geom_from_build_kwargs(_rc.build_kwargs())
+            _sp_px = round(_geom.pspa * dpi / _MM_PER_INCH)
             if _sp_px > 0:
                 y0 -= _sp_px
                 y1 += _sp_px
@@ -277,14 +279,24 @@ def measure_from_engine(
             # side facing the paper has no neighbour to share the gap with
             # (raster.render_pages). It is the outermost ink on the sheet, so it
             # is what the margins have to be measured to.
-            _ring_px = round(
-                float(getattr(_g, "hex_ring_mm", 0.0) or 0.0) / 2.0
-                * dpi / _MM_PER_INCH)
-            if _ring_px > 0:
-                y0 -= _ring_px
-                y1 += _ring_px
-                x0 -= _ring_px
-                x1 += _ring_px
+            # ...and the APEX reaches further than the flat sides: moving an
+            # edge outward by d along its normal moves the vertex by d/cos 30,
+            # so the band is 0.5774*ring past the points and 0.5*ring past the
+            # flats. Using ring/2 on all four sides over-reported clearance by
+            # 0.13-0.22 mm at the default and 0.60 mm at the clamp maximum, on
+            # the two sides that carry the apexes -- and which two those are
+            # swaps with the orientation.
+            _r = float(getattr(_geom, "hex_ring_mm", 0.0) or 0.0) / 2.0
+            _flat_px = round(_r * dpi / _MM_PER_INCH)
+            _apex_px = round(_r * 2.0 / math.sqrt(3.0) * dpi / _MM_PER_INCH)
+            if _flat_px > 0 or _apex_px > 0:
+                _vert, _horz = ((_flat_px, _apex_px)
+                                if getattr(_geom, "hex_flat_top", False)
+                                else (_apex_px, _flat_px))
+                y0 -= _vert
+                y1 += _vert
+                x0 -= _horz
+                x1 += _horz
         except Exception:  # pragma: no cover - defensive; fall back to patch rects
             pass
 

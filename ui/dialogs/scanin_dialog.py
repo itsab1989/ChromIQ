@@ -4349,9 +4349,18 @@ class ScannerProfileDialog(_ToolDialogBase):
                 # no reason. `hex_max_sample_fraction` grew a `flat_top`
                 # argument for this and had no caller, which is how a
                 # documented improvement fails to ship.
+                # ONE UNIT. `ws`/`hs` are PIXELS, straight off `patch_rects_px`;
+                # `ring_mm` is millimetres. Passing them together subtracted 1.3
+                # from a 141 px slot and produced a cap that DEPENDED ON THE
+                # CHART'S RESOLUTION -- 62 / 63 / 63 % at 200 / 300 / 600 dpi
+                # for the same physical chart -- where the answer is 49 % at all
+                # three. The test that was supposed to guard this called the
+                # function in millimetres for both, a path the app never takes.
+                _dpi = float((self._layout or {}).get("dpi") or 0.0)
+                _ring_px = (ring_mm * _dpi / 25.4) if _dpi > 0 else 0.0
                 frac = hex_max_sample_fraction(ws[len(ws) // 2], hs[len(hs) // 2],
                                                flat_top=flat_top,
-                                               ring_mm=ring_mm)
+                                               ring_mm=_ring_px)
                 cap = max(20, min(80, int(frac * 100.0)))   # floor: never round UP
         if cap != self._sample_area.maximum():
             # setMaximum pulls a too-large value down and emits valueChanged, so

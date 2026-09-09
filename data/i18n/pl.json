@@ -1028,6 +1028,7 @@
  "Coloured (per strip)": "Kolorowa (na pasek)",
  "Colours from this profile's gamut": "Kolory z gamutu tego profilu",
  "Colours to test": "Kolory do sprawdzenia",
+ "Column pitch (mm)": "Odstęp kolumn (mm)",
  "Columns marked “drift” are sheets printed raw, without the profile — they are not expected to match the design closely, so Pass and Fail would be unfair to a perfectly healthy printer. For those sheets the detailed chapter shows how far the printer has moved since the previous raw check instead.": "Kolumny oznaczone „dryf” to arkusze wydrukowane surowo, bez profilu — nie mają blisko odpowiadać projektowi, więc Zaliczone i Niezaliczone byłyby niesprawiedliwe wobec całkiem zdrowej drukarki. Dla tych arkuszy rozdział szczegółowy pokazuje zamiast tego, jak daleko drukarka przesunęła się od poprzedniej surowej kontroli.",
  "Combine method:": "Metoda łączenia:",
  "Combine repeated scans by:": "Łącz powtórzone skany metodą:",

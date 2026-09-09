@@ -1028,6 +1028,7 @@
   "Coloured (per strip)": "カラー（ストリップごと）",
   "Colours from this profile's gamut": "このプロファイルの色域からの色",
   "Colours to test": "テストする色数",
+  "Column pitch (mm)": "列ピッチ (mm)",
   "Columns marked “drift” are sheets printed raw, without the profile — they are not expected to match the design closely, so Pass and Fail would be unfair to a perfectly healthy printer. For those sheets the detailed chapter shows how far the printer has moved since the previous raw check instead.": "「ドリフト」と記された列は、プロファイルなしでそのまま印刷されたシートです — 設計に近く一致することは期待されていないため、合格／不合格では完全に健康なプリンターにも不当です。それらのシートについては、詳細の章が代わりに、前回のそのまま印刷チェックからプリンターがどれだけ動いたかを示します。",
   "Combine method:": "結合方法:",
   "Combine repeated scans by:": "繰り返しスキャンの結合方法：",

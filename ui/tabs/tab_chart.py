@@ -17847,9 +17847,13 @@ class TabChart(QWidget):
             # both ends, so tip to tip it is plen·4/3. Knut read 11.3 × 9.78 for a
             # patch that is 11.3 × 13.05 (#B8-80). Both numbers are worth having,
             # so both are shown, and the pitch is named as the pitch.
+            _flat = bool(getattr(geom, "hex_flat_top", False))
             _pw, _ph, _pitch = _panel_patch_size_mm(
-                geom.pwid, geom.plen, instruments.is_hexagonal(geom),
-                bool(getattr(geom, "hex_flat_top", False)))
+                geom.pwid, geom.plen, instruments.is_hexagonal(geom), _flat)
+            # ...and name the axis, because on a turned sheet that number is a
+            # COLUMN pitch across the page and not a row pitch down a strip.
+            if hasattr(panel, "set_pitch_axis"):
+                panel.set_pitch_axis(_flat)
             panel.set_estimate(total=lay.total_patches, rows=rows, cols=cols,
                                pages=lay.pages, patch_w=_pw, patch_h=_ph,
                                page_patches=n0, row_pitch=_pitch,

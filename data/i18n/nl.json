@@ -1028,6 +1028,7 @@
  "Coloured (per strip)": "Gekleurd (per strook)",
  "Colours from this profile's gamut": "Kleuren uit het gamut van dit profiel",
  "Colours to test": "Te testen kleuren",
+ "Column pitch (mm)": "Kolomafstand (mm)",
  "Columns marked “drift” are sheets printed raw, without the profile — they are not expected to match the design closely, so Pass and Fail would be unfair to a perfectly healthy printer. For those sheets the detailed chapter shows how far the printer has moved since the previous raw check instead.": "Kolommen met “drift” zijn vellen die raw, zonder het profiel, zijn afgedrukt — ze horen niet dicht bij het ontwerp uit te komen, dus Geslaagd en Gezakt zouden oneerlijk zijn voor een volkomen gezonde printer. Voor die vellen toont het detailhoofdstuk in plaats daarvan hoe ver de printer is verschoven sinds de vorige raw-controle.",
  "Combine method:": "Combinatiemethode:",
  "Combine repeated scans by:": "Herhaalde scans combineren met:",

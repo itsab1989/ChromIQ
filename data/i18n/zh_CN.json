@@ -1028,6 +1028,7 @@
   "Coloured (per strip)": "彩色（按色条）",
   "Colours from this profile's gamut": "来自此配置文件色域的颜色",
   "Colours to test": "要测试的颜色",
+  "Column pitch (mm)": "列距（毫米）",
   "Columns marked “drift” are sheets printed raw, without the profile — they are not expected to match the design closely, so Pass and Fail would be unfair to a perfectly healthy printer. For those sheets the detailed chapter shows how far the printer has moved since the previous raw check instead.": "标为「漂移」的列是未通过配置文件、原样打印的纸张 —— 它们本来就不应与设计紧密一致，因此合格/不合格对完全健康的打印机是不公平的。对这些纸张，详细章节改为显示打印机自上一次原样检查以来移动了多少。",
   "Combine method:": "合并方法:",
   "Combine repeated scans by:": "重复扫描的合并方式：",
