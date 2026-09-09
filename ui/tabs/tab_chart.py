@@ -17853,7 +17853,7 @@ class TabChart(QWidget):
             # ...and name the axis, because on a turned sheet that number is a
             # COLUMN pitch across the page and not a row pitch down a strip.
             if hasattr(panel, "set_pitch_axis"):
-                panel.set_pitch_axis(_flat)
+                panel.set_pitch_axis(_flat, column="estimate")
             panel.set_estimate(total=lay.total_patches, rows=rows, cols=cols,
                                pages=lay.pages, patch_w=_pw, patch_h=_ph,
                                page_patches=n0, row_pitch=_pitch,
@@ -17910,7 +17910,7 @@ class TabChart(QWidget):
             # own recipe is what decides the label.
             if hasattr(panel, "set_pitch_axis"):
                 from workflow.hex_support import chart_is_flat_top as _cift
-                panel.set_pitch_axis(_cift(ti2))
+                panel.set_pitch_axis(_cift(ti2), column="actual")
             panel.set_actual(total=total, rows=rows, cols=cols, pages=len(tiffs),
                              patch_w=pw, patch_h=ph, page_patches=page_patches,
                              row_pitch=pitch, fillup=fillup)

@@ -741,9 +741,26 @@ def test_the_scanner_mesh_is_told_the_orientation_by_a_resolver():
     assert "hex_flat_top" in {f.name for f in __import__("dataclasses")
                               .fields(GridSpec)}, \
         "GridSpec cannot carry the orientation at all"
-    src = inspect.getsource(scanin_dialog)
-    assert "flat_top=_flat" in src and "recipe_is_flat_top" in src, (
-        "the scanner dialog builds its mesh without resolving the orientation"
+    # NOT A SUBSTRING. The version this replaces asserted `"flat_top=_flat" in
+    # src`, which is satisfied by `_flat = False` sitting anywhere above it:
+    # setting that line's right-hand side to False restored the whole defect --
+    # pointy cells 30 degrees off the ink on every turned chart, photographed --
+    # and the full everyday gate stayed green at 12,475 passed. That is the
+    # seventh self-validating test in this feature.
+    #
+    # So drive the real dialog instead and read what it produced: the mesh's own
+    # orientation, and the sample cap, both of which come from the same resolved
+    # value. A `_flat` stuck at False fails both.
+    dlg = _scanner_dialog_over_a_turned_chart()
+    assert dlg is not None, "could not open the scanner dialog over a chart"
+    grid = dlg._marquee._grid
+    assert getattr(grid, "hex_flat_top", None) is True, (
+        "the dialog built its mesh without the orientation, so the alignment "
+        "guide draws pointy cells over flat-top ink"
+    )
+    assert dlg._sample_area.maximum() == 64, (
+        f"the sample cap is {dlg._sample_area.maximum()} %; 63 is the pointy "
+        "formula on a transposed slot, so the orientation did not reach it"
     )
     # ...and the mesh really does change shape with it
     pats = [{"page": 0, "loc": f"A{i}", "x": 100 + (i % 5) * 120,
@@ -761,3 +778,123 @@ def test_the_scanner_mesh_is_told_the_orientation_by_a_resolver():
         out[flat] = (max(xs) - min(xs), max(ys) - min(ys))
     assert out[False][0] < out[False][1], "the pointy cell is not taller than wide"
     assert out[True][0] > out[True][1], "the turned cell is not wider than tall"
+
+
+def _scanner_dialog_over_a_turned_chart():
+    """A real ScannerProfileDialog over a real rotated honeycomb, or None.
+
+    Built rather than faked: the point of the test above is that the value
+    reaches the dialog through the app's own wiring, so anything short of the
+    dialog would be testing the wiring's replacement.
+    """
+    import json
+    import tempfile
+    from pathlib import Path
+
+    from PyQt6.QtWidgets import QDialog, QMessageBox
+
+    from workflow.layout_engine import chart as le_chart
+
+    d = Path(tempfile.mkdtemp())
+    lines = ["CTI1", "", 'DESCRIPTOR "mesh"', 'ORIGINATOR "ChromIQ"',
+             'KEYWORD "SAMPLE_LOC"', "NUMBER_OF_FIELDS 7", "BEGIN_DATA_FORMAT",
+             "SAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z", "END_DATA_FORMAT",
+             "NUMBER_OF_SETS 150", "BEGIN_DATA"]
+    for i in range(150):
+        lines.append(f"{i+1} {(i*7)%90+5}.0 {(i*13)%90+5}.0 {(i*29)%90+5}.0 40 45 50")
+    lines += ["END_DATA", ""]
+    ti1 = d / "p.ti1"
+    ti1.write_text("\n".join(lines), encoding="utf-8")
+    out = d / "o"
+    out.mkdir()
+    le_chart.build_chart(ti1, out / "c", instrument="CR30", paper="A4",
+                         hflag=True, hex_flat_top=True, dpi=300,
+                         randomize=False, spacer_mode="none")
+    strips = json.loads((out / "c.strips.json").read_text(encoding="utf-8"))
+    (out / "c.channels.json").write_text(json.dumps({
+        "ink_channels": ["r", "g", "b"], "layout": {
+            "engine": "chromiq", "engine_version": 1, "dpi": 300,
+            "paper_mm": [210.0, 297.0], "patches": strips["patches"],
+            # spacer_mode MUST match how the chart was built. Left out, the
+            # recipe defaults to spacers ON, `ring_mm_of` returns 1.3 mm and
+            # the cap correctly drops to 49 % for the ring -- which is the code
+            # behaving, and a fixture saying something the sheet does not.
+            "recipe": {"instrument": "CR30", "paper": "A4", "hflag": True,
+                       "hex_flat_top": True, "spacer_mode": "none"}}}),
+        encoding="utf-8")
+
+    QDialog.exec = lambda self: 1                  # type: ignore[assignment]
+    for m in ("warning", "critical", "information", "question"):
+        setattr(QMessageBox, m, staticmethod(lambda *a, **k: 0))
+    try:
+        from core.argyll_runner import ArgyllRunner
+        from core.settings import AppSettings
+        from PyQt6.QtCore import QSettings
+        from ui.dialogs.scanin_dialog import ScannerProfileDialog
+        s = AppSettings()
+        s._qs = QSettings(str(d / "s.ini"), QSettings.Format.IniFormat)
+        dlg = ScannerProfileDialog(ArgyllRunner(s), s, None)
+        dlg._layout = json.loads((out / "c.channels.json").read_text(encoding="utf-8"))["layout"]
+        dlg._load_page_grid()
+        return dlg
+    except Exception as exc:      # noqa: BLE001
+        import os
+        if os.environ.get("CHROMIQ_TEST_LOUD"):
+            raise
+        print(f"scanner dialog could not be opened: {type(exc).__name__}: {exc}")
+        return None
+
+
+def test_the_pitch_row_never_names_an_axis_the_two_columns_disagree_on(qapp):
+    """J7, AND THE THIRD RECURRENCE OF THE SAME FAULT.
+
+    The "Chart layout information" panel has two columns: the chart ON DISK on
+    the left, and what the current settings would build on the right. One row
+    NAME serves both. With "Auto-update preview" off -- the state the two-column
+    panel exists for -- those columns routinely describe different charts, and
+    whichever path ran last overwrote the other's label. The panel then printed
+    "Patch size 13.89 x 12.02" above "Row pitch 10.41" for a sheet whose rows
+    are 12.02 mm apart.
+
+    Naming it from ONE column is wrong whichever column is picked. When they
+    disagree there is no true answer to print, so it says neither.
+    """
+    from ui.chart_layout_info_panel import ChartLayoutInfoPanel
+    p = ChartLayoutInfoPanel()
+    name = p._row_names["pitch"]
+
+    p.set_pitch_axis(False, column="actual")
+    p.set_pitch_axis(False, column="estimate")
+    assert "Row" in name.text(), name.text()
+
+    p.set_pitch_axis(True, column="actual")
+    p.set_pitch_axis(True, column="estimate")
+    assert "Column" in name.text(), name.text()
+
+    # ...and the case that made this a bug three times over
+    p.set_pitch_axis(True, column="actual")
+    p.set_pitch_axis(False, column="estimate")
+    txt = name.text()
+    assert "Row" not in txt and "Column" not in txt, (
+        f"the row is called {txt!r} while the two columns describe charts of "
+        "different orientations, so it is wrong for one of them"
+    )
+
+    # the estimate arriving last must not win either
+    p.set_pitch_axis(False, column="actual")
+    p.set_pitch_axis(True, column="estimate")
+    txt = name.text()
+    assert "Row" not in txt and "Column" not in txt, txt
+
+
+def test_an_empty_panel_claims_no_orientation(qapp):
+    """A column that has never been filled must not vote. Otherwise a fresh
+    panel would read as a pointy chart before anything is loaded, and the first
+    turned chart would look like a disagreement."""
+    from ui.chart_layout_info_panel import ChartLayoutInfoPanel
+    p = ChartLayoutInfoPanel()
+    p.set_pitch_axis(True, column="actual")
+    assert "Column" in p._row_names["pitch"].text(), (
+        "the untouched estimate column voted, so one filled column cannot name "
+        "the axis"
+    )

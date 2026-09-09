@@ -42,6 +42,10 @@ class ChartLayoutInfoPanel(QGroupBox):
         self._actual_labels: dict[str, QLabel] = {}
         self._estimate_labels: dict[str, QLabel] = {}
         self._row_names: dict[str, QLabel] = {}
+        #: Which axis the pitch row means, per column. None until a column has
+        #: been filled, so an empty panel does not claim an orientation.
+        self._pitch_axis: dict[str, "bool | None"] = {
+            "actual": None, "estimate": None}
         self._build_ui()
         self._render()
 
@@ -194,22 +198,45 @@ class ChartLayoutInfoPanel(QGroupBox):
         self._render()
 
     def clear_actual(self) -> None:
+        self._pitch_axis["actual"] = None
+        self.set_pitch_axis(bool(self._pitch_axis["estimate"]),
+                            column="estimate") \
+            if self._pitch_axis["estimate"] is not None else None
         self._actual = None
         self._render()
 
-    def set_pitch_axis(self, flat_top: bool) -> None:
-        """Name the pitch row for the orientation the chart is actually in.
+    def set_pitch_axis(self, flat_top: bool, *, column: str = "estimate") -> None:
+        """Name the pitch row for the orientation, per COLUMN.
 
-        `_panel_patch_size_mm`'s docstring says the caller has to name this
-        axis, because the interlocking pitch is a ROW pitch down a strip on a
-        pointy honeycomb and a COLUMN pitch across the page on a turned one.
-        The recipe summary line does name it; this panel did not, and printed a
-        turned chart's 10.39 mm column pitch under "Row pitch" while its rows
-        are 12.00 mm apart.
+        The interlocking pitch is a ROW pitch down a strip on a pointy
+        honeycomb and a COLUMN pitch across the page on a turned one, so the
+        row has to say which. `_panel_patch_size_mm`'s docstring puts that duty
+        on the caller.
+
+        ONE NAME SERVES TWO COLUMNS THAT NEED NOT DESCRIBE THE SAME CHART, and
+        that is what made the first two attempts at this wrong. The left column
+        is the chart ON DISK and the right is what the current settings would
+        build; with "Auto-update preview" off -- the state the two-column panel
+        exists for -- they routinely differ, and whichever path ran last
+        overwrote the other's label. The panel then printed "Patch size
+        13.89 x 12.02" above "Row pitch 10.41" for a sheet whose rows are 12.02
+        mm apart.
+
+        So both are remembered and the name is a function of the pair: when
+        they agree it names the axis, and when they disagree it says neither,
+        because there is no single true answer to print.
         """
+        if column not in ("actual", "estimate"):
+            return
+        self._pitch_axis[column] = bool(flat_top)
         name = self._row_names.get("pitch")
-        if name is not None:
-            name.setText(tr("Column pitch (mm)") if flat_top
+        if name is None:
+            return
+        seen = {v for v in self._pitch_axis.values() if v is not None}
+        if len(seen) != 1:
+            name.setText(tr("Patch pitch (mm)"))
+        else:
+            name.setText(tr("Column pitch (mm)") if seen.pop()
                          else tr("Row pitch (mm)"))
 
     def set_estimate(self, *, total: int, rows: int, cols: int, pages: int,
