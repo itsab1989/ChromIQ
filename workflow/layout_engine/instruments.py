@@ -205,6 +205,17 @@ class Geom:
     # SpectroScan honeycomb cannot reach the page, because no SpectroScan Geom
     # can ever carry it. `ca0f639c` was that fault with "disabled" for "hidden".
     hex_flat_top: bool = False
+    # A honeycomb's spacer, as a RING around each patch rather than a bar
+    # between rows (#159). Full width of the gap between two neighbouring
+    # patches, in mm; each patch gives up half of it, so the two half-bands abut
+    # into one shared spacer.
+    #
+    # IT IS SEPARATE FROM `pspa` BECAUSE IT COSTS NO PAGE. `pspa` is added to
+    # the pitch, so a bar pushes the lattice apart and costs patches; a ring
+    # comes out of the patch's own area and the lattice keeps tessellating.
+    # `build()` moves the value across once the user's spacer-width override has
+    # been applied, so the Spacer size box goes on meaning the same thing.
+    hex_ring_mm: float = 0.0
     # Physical strip-length limit of the instrument's ruler/jig (mm); 0 = none
     # (ColorMunki/SpectroScan have no ruler). In area-first the strip is NOT capped
     # to this (the margin box is law — fill it), but a strip longer than the ruler
@@ -389,8 +400,22 @@ def build(
             mr = max(mr, clip_w)
         else:
             ml = max(ml, clip_w)
+    # A HONEYCOMB'S SPACER IS A RING, NOT A BAR, and this is where the two part
+    # company -- AFTER the Spacer size override above, so that box keeps its
+    # meaning.
+    #
+    # Measured on a CR30 A4 honeycomb with spacers switched on: the bar left 22
+    # full-width black rules across the sheet, each covering 75 % of the apex of
+    # every patch in the row above, and it opened 6.64 % of white slivers along
+    # the diagonals, because it grows the pitch on ONE axis while a honeycomb
+    # interlocks in three directions. Turning the honeycomb halved that (2.35 %)
+    # and could not remove it. A ring is the only spacer shape that gives a
+    # honeycomb a uniform gap.
+    _ring = 0.0
+    if geom.hexagonal and pspa > 0:
+        _ring, pspa = pspa, 0.0
     return replace(geom, margin_t=mt, margin_r=mr, margin_b=mb, margin_l=ml,
-                   plen=plen, pwid=pwid, rrsp=rrsp, pspa=pspa, mxrowl=mxrowl,
+                   plen=plen, pwid=pwid, rrsp=rrsp, pspa=pspa, hex_ring_mm=_ring, mxrowl=mxrowl,
                    hxeh=hxeh, hxew=hxew, row_stagger_mm=row_stagger,
                    strip_indicator_gap=sig, rlwi=rlwi,
                    offset_x=offset_x, offset_y=offset_y,

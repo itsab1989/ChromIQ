@@ -265,11 +265,33 @@ def test_the_guard_would_catch_a_lock_that_fired_on_everything(panel, monkeypatc
 # Recorded from `origin/master` @ 848e6965 (v4.1.5-beta.10), BEFORE the lock
 # existed. A greyed control is a UI change and must be nothing else: every one
 # of these is a chart somebody may already have printed.
+#
+# FOUR ROWS WERE DELIBERATELY RE-FROZEN ON 2026-09-09, and only four. #159
+# turned a honeycomb's spacer from a BAR between rows into a RING around each
+# patch, on Basti's own proposal. A bar is added to the pitch and so costs
+# patches; a ring comes out of the patch's own area and costs none, so the
+# pitch a honeycomb reserves for its spacer is given back.
+#
+# The four are exactly the CR30 honeycombs, and the table proves the change is
+# confined to them: every rectangular row and every SpectroScan row below is
+# byte-identical, the SpectroScan because its honeycomb never had a spacer to
+# convert (pspa = 0.00). The old values are kept beside the new ones because
+# this IS a change to a chart somebody may have printed, and the reason it is
+# allowed is that what it replaces was measurably wrong: the bar covered 75 %
+# of the apex of every patch in the row above and opened 6.64 % of the sheet
+# into white slivers along the diagonals.
 FROZEN = {
-    ("CR30", True, "by_grid", 15, 20, 1.0, 0.0, "A4"): (10.85, 9.39, 15, 26, 390),
-    ("CR30", True, "by_grid", 15, 20, 1.0, 0.0, "A3"): (16.42, 14.22, 15, 26, 390),
-    ("CR30", True, "by_grid", 0, 20, 1.0, 0.0, "A4"): (15.95, 13.82, 10, 18, 180),
-    ("CR30", True, "by_width", 0, 0, 1.5, 8.0, "A4"): (8.29, 7.18, 20, 33, 660),
+    # was (10.85, 9.39, 15, 26, 390) with the bar
+    ("CR30", True, "by_grid", 15, 20, 1.0, 0.0, "A4"): (10.85, 9.39, 15, 30, 450),
+    # was (16.42, 14.22, 15, 26, 390)
+    ("CR30", True, "by_grid", 15, 20, 1.0, 0.0, "A3"): (16.42, 14.22, 15, 28, 420),
+    # was (15.95, 13.82, 10, 18, 180). THE ONE THAT LOSES PATCHES, and it is
+    # not a regression: with the pitch no longer eaten by the spacer, area-first
+    # solves to a BIGGER patch (15.95 -> 17.63 mm) and fits one strip fewer.
+    # The user asked for area-first; it gave them more area.
+    ("CR30", True, "by_grid", 0, 20, 1.0, 0.0, "A4"): (17.63, 15.27, 9, 18, 162),
+    # was (8.29, 7.18, 20, 33, 660)
+    ("CR30", True, "by_width", 0, 0, 1.5, 8.0, "A4"): (8.29, 7.18, 20, 39, 780),
     ("CR30", False, "by_grid", 15, 20, 1.0, 0.0, "A4"): (11.19, 13.01, 15, 20, 300),
     ("CR30", False, "by_width", 0, 0, 1.5, 8.0, "A4"): (8.1, 12.33, 21, 21, 441),
     ("SS", True, "by_grid", 15, 20, 1.0, 0.0, "A4"): (10.96, 9.49, 15, 29, 435),

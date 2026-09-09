@@ -1207,6 +1207,7 @@ def render_pages(
     from .instruments import is_hexagonal as _is_hex
     ss_hex = _is_hex(geom)
     _flat_top = bool(getattr(geom, "hex_flat_top", False))
+    _ring_px = px(float(getattr(geom, "hex_ring_mm", 0.0) or 0.0)) if ss_hex else 0
     # Row-number band width (SpectroScan labels the grid 2-D): 0 for instruments
     # without it. Drawn to the left of the patches, the band placement reserves.
     _row_band_px = px(getattr(geom, "rlwi", 0.0))
@@ -1311,6 +1312,25 @@ def render_pages(
         _clip_text = _resolve_with(clip_text, _pctx)
         first = page * pppage
         last = min(total, first + pppage)
+
+        def _neighbour_rgb(nb, _first=first, _last=last):
+            """Colour of the patch at ``(strip, step)``, or None for the paper.
+
+            None is what `spacer_for_mode` already means by "no neighbour on
+            that side", so a patch at the edge of the field colours its outer
+            sides against itself alone and the rule needs no special case.
+            A neighbour on ANOTHER PAGE is paper too, which is correct: the
+            sheet really does end there.
+            """
+            if nb is None:
+                return None
+            _gs, _jj = nb
+            if _gs < 0 or _jj < 0 or _jj >= steps:
+                return None
+            _slot = _gs * steps + _jj
+            if not (_first <= _slot < _last):
+                return None
+            return rgb_by_slot[_slot]
         n_on_page = last - first
         n_passes = (n_on_page + steps - 1) // steps
 
@@ -1502,9 +1522,56 @@ def render_pages(
                 if ss_hex:
                     _pts = _hexagon_points(x0, y0, xR - x0, yB - y0, j,
                                            flat_top=_flat_top)
-                    draw.polygon(_pts, fill=rgb)
-                    if collect_device_geom:
-                        _geom_rows.append(("hex", _pts, dev_by_slot[gslot]))
+                    if _ring_px > 0 and spacer_mode != "none":
+                        # A RING, ONE SIDE AT A TIME. Each of the six sides
+                        # faces exactly one neighbour, so it takes the ordinary
+                        # pair colour against that patch -- which keeps "Black &
+                        # white" meaning what it means, and, because that rule
+                        # is symmetric, makes this patch's half-band and the
+                        # neighbour's half-band the same colour. The two halves
+                        # then abut into ONE shared spacer, which is what Basti
+                        # asked for. A side with no neighbour faces the paper.
+                        # EVERY PATCH IS INSET BY THE SAME AMOUNT, edge or
+                        # not, so every patch on the sheet is the same size and
+                        # the instrument reads the same area everywhere. What
+                        # changes at the edge of the field is only what is
+                        # PAINTED in the band, never how big the patch is.
+                        _in = hexagon.inset(_pts, _ring_px / 2.0)
+                        _in = [(round(_x), round(_y)) for _x, _y in _in]
+                        # ...and the OUTSIDE of the sheet is where the bracket
+                        # goes. A side with a neighbour carries half the spacer
+                        # and the neighbour carries the other half, so the gap
+                        # between two patches is one full width. A side facing
+                        # the paper has no neighbour to share with, so with
+                        # "Edge spacers" on it is drawn a full width by itself,
+                        # reaching OUTWARD past the hexagon: Basti, 2026-09-09,
+                        # *"the spacers on the outside should probably be double
+                        # if turned on"*. With it off, the outer band is left as
+                        # paper, which is the same bracket-free look a strip
+                        # reader's chart has.
+                        _out = hexagon.inset(_pts, -_ring_px / 2.0)
+                        _out = [(round(_x), round(_y)) for _x, _y in _out]
+                        for _side, _nb in enumerate(hexagon.side_neighbours(
+                                global_strip, j, flat_top=_flat_top)):
+                            _nrgb = _neighbour_rgb(_nb)
+                            _edge = _nrgb is None
+                            if _edge and not edge_spacers:
+                                continue
+                            _fill = contrast.spacer_for_mode(
+                                spacer_mode, rgb, _nrgb, spacer_palette)
+                            _far = _out if _edge else _pts
+                            _q = [_far[_side], _far[(_side + 1) % 6],
+                                  _in[(_side + 1) % 6], _in[_side]]
+                            draw.polygon(_q, fill=_fill)
+                            if collect_device_geom:
+                                _geom_rows.append(("spacer_poly", _q, _fill))
+                        draw.polygon(_in, fill=rgb)
+                        if collect_device_geom:
+                            _geom_rows.append(("hex", _in, dev_by_slot[gslot]))
+                    else:
+                        draw.polygon(_pts, fill=rgb)
+                        if collect_device_geom:
+                            _geom_rows.append(("hex", _pts, dev_by_slot[gslot]))
                 else:
                     if _fill_rect(draw, [x0, y0, xR - 1, yB - 1], rgb) \
                             and collect_device_geom:

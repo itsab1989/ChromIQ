@@ -49,6 +49,8 @@ dependency-free module keeps both of those true and avoids paying for
 """
 from __future__ import annotations
 
+import math
+
 # The apexes reach 1/6 of the slot height beyond the slot at each end, so the
 # drawn hexagon is 4/3 of the slot tall. `instruments.py` reserves exactly this
 # as `hxeh`, and `test_a_hexagon_is_taller_than_its_row_pitch.py` measures the
@@ -140,6 +142,102 @@ def vertices(x0: float, y0: float, w: float, ph: float,
     if round_to_int:
         return [(round(x), round(y)) for x, y in pts]
     return pts
+
+
+def side_neighbours(strip: int, step: int, *, flat_top: bool
+                    ) -> "list[tuple[int, int] | None]":
+    """``(strip, step)`` of the patch facing each of the six sides, in the same
+    order as :func:`vertices` and :func:`ring_quads`.
+
+    A ring's side is shared with exactly one neighbour, so each side can be
+    coloured by the ordinary pair rule against that patch. `spacer_for_mode` is
+    symmetric in its two arguments (checked over 20,000 random pairs), so this
+    patch's half-band and the neighbour's half-band come out the same colour and
+    the two halves read as ONE shared spacer, which is what Basti asked for:
+    *"two touching patches should share a spacer on the side that touches."*
+
+    Indices may be out of range; the caller resolves them and treats a miss as
+    the paper.
+
+    POINTY-TOP, ring order (top apex, upper-right, lower-right, bottom apex,
+    lower-left, upper-left) so the sides are UR-diagonal, RIGHT flat,
+    LR-diagonal, LL-diagonal, LEFT flat, UL-diagonal. The lattice staggers x by
+    the STEP's parity, so a step above or below sits half a patch to one side
+    and the diagonal neighbours change strip with that parity.
+
+    FLAT-TOP, ring order (left apex, upper-left, upper-right, right apex,
+    lower-right, lower-left) so the sides are UL-diagonal, TOP flat,
+    UR-diagonal, LR-diagonal, BOTTOM flat, LL-diagonal. Here the lattice
+    staggers y by the STRIP's parity, so the flat sides are shared within the
+    strip and it is the diagonals that cross to the neighbouring strips.
+    """
+    p, j = strip, step
+    if flat_top:
+        # even strips sit HIGH (dy negative), odd strips sit LOW
+        up = -1 if p % 2 == 0 else 0
+        return [
+            (p - 1, j + up),          # upper-left diagonal
+            (p, j - 1),               # TOP flat side, same strip
+            (p + 1, j + up),          # upper-right diagonal
+            (p + 1, j + up + 1),      # lower-right diagonal
+            (p, j + 1),               # BOTTOM flat side, same strip
+            (p - 1, j + up + 1),      # lower-left diagonal
+        ]
+    # even steps sit LEFT (dx negative), odd steps sit RIGHT
+    right = 0 if j % 2 == 0 else 1
+    return [
+        (p + right, j - 1),           # upper-right diagonal
+        (p + 1, j),                   # RIGHT flat side, same step
+        (p + right, j + 1),           # lower-right diagonal
+        (p + right - 1, j + 1),       # lower-left diagonal
+        (p - 1, j),                   # LEFT flat side, same step
+        (p + right - 1, j - 1),       # upper-left diagonal
+    ]
+
+
+def inset(pts: "list[tuple[float, float]]", d: float
+          ) -> "list[tuple[float, float]]":
+    """The same hexagon shrunk by *d* perpendicular to every edge.
+
+    A regular hexagon inset by a uniform distance is still a regular hexagon,
+    concentric and similar, so this is a scale about the centre. The apothem
+    (centre to the middle of an edge) is what *d* is taken off, and for a
+    regular hexagon every vertex sits at the same ratio to it, which is why one
+    factor does all six edges at once.
+
+    Used to make room for the spacer RING: the gap between two neighbouring
+    patches is `2*d`, taken out of the patches' own area rather than out of the
+    page, so a ring costs no patches.
+    """
+    n = len(pts)
+    cx = sum(x for x, _ in pts) / n
+    cy = sum(y for _, y in pts) / n
+    # apothem = distance from the centre to an edge midpoint; take the smallest,
+    # so a slightly irregular polygon still insets inside itself.
+    ap = min(math.dist((cx, cy),
+                       ((pts[i][0] + pts[(i + 1) % n][0]) / 2.0,
+                        (pts[i][1] + pts[(i + 1) % n][1]) / 2.0))
+             for i in range(n))
+    if ap <= 0:
+        return list(pts)
+    k = max(0.0, (ap - d) / ap)
+    return [(cx + (x - cx) * k, cy + (y - cy) * k) for x, y in pts]
+
+
+def ring_quads(outer: "list[tuple[float, float]]",
+               inner: "list[tuple[float, float]]"
+               ) -> "list[list[tuple[float, float]]]":
+    """The six trapezoids between *outer* and *inner*, in vertex order.
+
+    Quad *i* is the band along the edge from vertex *i* to vertex *i+1*, which
+    is the side facing exactly one neighbour. That is what lets each side take
+    its own colour: Basti, 2026-09-09, *"maybe each of the six sides can have
+    different colors"*. A side is then coloured by the ordinary pair rule
+    against the patch it faces, so "Black & white" keeps meaning what it means.
+    """
+    n = len(outer)
+    return [[outer[i], outer[(i + 1) % n], inner[(i + 1) % n], inner[i]]
+            for i in range(n)]
 
 
 def contains(x0: float, y0: float, w: float, ph: float,
