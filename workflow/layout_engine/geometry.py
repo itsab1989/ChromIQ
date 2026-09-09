@@ -569,10 +569,24 @@ def patch_rects_px(geom: Geom, paper_w_mm: float, paper_h_mm: float,
                 # THE SAME STAGGER THE RENDERER APPLIES, from the same place
                 # and to the same precision.
                 _dxf = hexagon.stagger_dx(_fw, j, round_to_int=False)
-            _x0 = int(round(_fx + _dxf))
-            _x1 = int(round(_fx + _fw + _dxf))
-            _y0 = int(round(_fy + _dyf))
-            _y1 = int(round(_fy + _fh + _dyf))
+            if _ss_hex:
+                _x0 = int(round(_fx + _dxf))
+                _x1 = int(round(_fx + _fw + _dxf))
+                _y0 = int(round(_fy + _dyf))
+                _y1 = int(round(_fy + _fh + _dyf))
+            else:
+                # A RECTANGULAR CHART KEEPS ITS OWN ARITHMETIC, TO THE LETTER.
+                # `round((y + plen) * S)` and `round(y*S + plen*S)` are not the
+                # same number in floating point: on a DTP41 Letter sheet at
+                # 300 dpi they disagree on 4 of 23 row bottoms, which put 64 of
+                # 368 recorded boxes a pixel below the ink. Only a honeycomb
+                # needs the single rounding, because only a honeycomb has a
+                # stagger to fold in; every other chart is left exactly as it
+                # was, and the commit that claimed "rectangular charts are
+                # untouched" is now true of the RECTS as well as the pages.
+                _x0, _y0 = px(place.x_of(p)), px(place.y_of(j)) + _stag
+                _x1 = px(place.x_of(p) + place.pwid)
+                _y1 = px(place.y_of(j) + place.plen) + _stag
             out.append({
                 "page": page, "slot": gslot, "loc": loc,
                 "x": _x0, "y": _y0,

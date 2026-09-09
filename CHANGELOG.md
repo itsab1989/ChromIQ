@@ -42,10 +42,11 @@ count for an unusual sheet size stopped being five times too high.**
   a strip no longer sits half a patch to the side, so a strip you read patch by
   patch runs straight down the page and a ruler lies along it. The strips and
   rows come out a different length, so the number of patches on a sheet can
-  move a little, and which way depends on the paper. At the standard patch size
-  and the default margins: A4 portrait 416 becomes 396, A4 landscape 414 becomes
-  405, A3 874 becomes 864, and Letter 384 becomes 399. Watch the count beside
-  the preview.
+  move a little, and which way depends on the paper: on A4 portrait it comes
+  down by a few percent, and on A4 landscape, A3 and Letter it goes up. The
+  exact figure depends on your margins, patch size and spacer settings, so read
+  it off "Calculated Patches" beside the preview rather than from a number
+  here.
 - **Ruler helper markers work on a hexagonal chart.** They were refused on any
   honeycomb, on the grounds that it has no straight rows to lay a ruler
   against. It has: a honeycomb's patch centres sit on straight lines, and on

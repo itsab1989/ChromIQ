@@ -695,7 +695,12 @@ def test_no_reader_outside_the_engine_asks_the_flag_raw():
                "workflow/layout_engine/area_fit.py",
                "workflow/layout_engine/chart.py",
                "workflow/hex_support.py",
-               "ui/dialogs/layout_options_panel.py"}
+               "ui/dialogs/layout_options_panel.py",
+               # The scanner marquee holds the orientation as its OWN state, on
+               # the GridSpec, the way the preview holds `_hex_flat_top`. It is
+               # fed from `recipe_is_flat_top` at the one call site, which the
+               # next test pins so this allowance cannot become a hole.
+               "ui/scan_grid_marquee.py"}
     offenders = []
     for path in list(root.glob("ui/**/*.py")) + list(root.glob("workflow/**/*.py")):
         rel = path.relative_to(root).as_posix()
@@ -718,3 +723,41 @@ def test_no_reader_outside_the_engine_asks_the_flag_raw():
         "these read the flag without resolving it against the instrument and "
         "the patch shape:\n  " + "\n  ".join(offenders)
     )
+
+
+def test_the_scanner_mesh_is_told_the_orientation_by_a_resolver():
+    """The allowance above is only safe while the mesh's own state is FED by a
+    resolver. H5: `GridSpec` had no orientation at all and `_cell_uv` called
+    `hexagon.vertices()` with no `flat_top`, so the alignment guide drew pointy
+    cells 30 degrees off the ink on every turned honeycomb. scanin still read
+    the right area -- the sampled box is rectangular and comes from the
+    recorded rects -- but the picture the user aligns BY was wrong, which is
+    the one job that overlay has."""
+    import inspect
+
+    from ui.dialogs import scanin_dialog
+    from ui.scan_grid_marquee import GridSpec, ScanGridMarquee
+
+    assert "hex_flat_top" in {f.name for f in __import__("dataclasses")
+                              .fields(GridSpec)}, \
+        "GridSpec cannot carry the orientation at all"
+    src = inspect.getsource(scanin_dialog)
+    assert "flat_top=_flat" in src and "recipe_is_flat_top" in src, (
+        "the scanner dialog builds its mesh without resolving the orientation"
+    )
+    # ...and the mesh really does change shape with it
+    pats = [{"page": 0, "loc": f"A{i}", "x": 100 + (i % 5) * 120,
+             "y": 100 + (i // 5) * 100, "w": 118, "h": 98} for i in range(15)]
+    out = {}
+    for flat in (False, True):
+        g = GridSpec.from_patches(pats, hexagonal=True, flat_top=flat)
+        m = ScanGridMarquee.__new__(ScanGridMarquee)
+        m._grid, m._cell_uv_cache, m._sample_frac = g, None, 0.5
+        u, v, _stride = m._cell_uv()
+        asp = g.aspect or 1.0
+        cell = list(zip(u[:6], v[:6]))
+        xs = [c[0] * asp for c in cell]
+        ys = [c[1] for c in cell]
+        out[flat] = (max(xs) - min(xs), max(ys) - min(ys))
+    assert out[False][0] < out[False][1], "the pointy cell is not taller than wide"
+    assert out[True][0] > out[True][1], "the turned cell is not wider than tall"

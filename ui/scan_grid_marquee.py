@@ -231,6 +231,14 @@ class GridSpec:
     nrows: int = 0        # allowed) → the overlay replicates rectarg's integer edges
     cells: list[tuple[int, int]] | None = None
     hexagonal: bool = False
+    #: True when that honeycomb is TURNED (#159), so the mesh stands its cells
+    #: on a flat side like the ink does. Without it the alignment guide drew
+    #: pointy cells 30 degrees off every patch of a rotated chart -- scanin
+    #: still read the right area, because the sampled box is rectangular and
+    #: comes from the recorded rects, but the picture the user aligns BY was
+    #: wrong, which is worse than useless on the one overlay whose job is
+    #: showing where the patches are.
+    hex_flat_top: bool = False
     # ^ True for a SpectroScan hexagonal chart: the CELLS are drawn as the
     # patch's true shape so the user can see the mesh sitting on the hexagons.
     # The SAMPLED area stays rectangular — that is what a CHT carries and what
@@ -295,7 +303,8 @@ class GridSpec:
         return nc, nr, [(xi[gx(p)], yi[gy(p)]) for p in patches]
 
     @classmethod
-    def from_patches(cls, patches: list[dict], hexagonal: bool = False) -> "GridSpec":
+    def from_patches(cls, patches: list[dict], hexagonal: bool = False,
+                     flat_top: bool = False) -> "GridSpec":
         """Build from engine ``channels.json["layout"]["patches"]`` (top-left px).
         Uses the patch-area bounding box to normalise; page filtering is the
         caller's job (pass one page's patches).
@@ -354,7 +363,8 @@ class GridSpec:
         ink = ((-gx / sw, -gy / sh, 1.0 + gx / sw, 1.0 + gy / sh)
                if (gx or gy) else None)
         return cls(rects, aspect=sw / sh, ncols=nc, nrows=nr, cells=cells,
-                   exact_rects=True, ink_rect=ink, hexagonal=hexagonal)
+                   exact_rects=True, ink_rect=ink, hexagonal=hexagonal,
+                   hex_flat_top=bool(flat_top))
 
     @classmethod
     def from_cht(cls, text: str) -> "GridSpec":
@@ -792,6 +802,7 @@ class ScanGridMarquee(QWidget):
         from workflow.scanin_runner import sample_margin
         asp = self._grid.aspect or 1.0
         hexed = self._grid.hexagonal
+        _flat = bool(getattr(self._grid, "hex_flat_top", False))
         stride = (6 if hexed else 4) + 4
         pts: list[tuple[float, float]] = []
         for (u, v, w, hh) in self._grid.rects:
@@ -800,7 +811,7 @@ class ScanGridMarquee(QWidget):
                 # place that shape is written, so the mesh reads as the chart
                 # rather than resembling it. Unrounded: this is unit-square
                 # space, where an integer would collapse the cell.
-                pts += hexagon.vertices(u, v, w, hh)
+                pts += hexagon.vertices(u, v, w, hh, flat_top=_flat)
             else:
                 pts += [(u, v), (u + w, v), (u + w, v + hh), (u, v + hh)]
             mg = sample_margin(w * asp, hh, self._sample_frac)

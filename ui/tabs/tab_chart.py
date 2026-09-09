@@ -17902,6 +17902,15 @@ class TabChart(QWidget):
             designed = _number_of_sets(Path(ti2).with_suffix(".ti1"))
             fillup = (total - designed
                       if designed is not None and 0 <= total - designed else None)
+            # NAME THE AXIS HERE TOO. `set_pitch_axis` was called only from the
+            # estimate path, so ONE CLICK after building a turned chart the
+            # ACTUAL column read "Row pitch (mm) 10.41" beside "Patch size
+            # 13.89 x 12.02" -- G10's original symptom, verbatim, in the other
+            # column. The chart on disk is what this column reports, so its
+            # own recipe is what decides the label.
+            if hasattr(panel, "set_pitch_axis"):
+                from workflow.hex_support import chart_is_flat_top as _cift
+                panel.set_pitch_axis(_cift(ti2))
             panel.set_actual(total=total, rows=rows, cols=cols, pages=len(tiffs),
                              patch_w=pw, patch_h=ph, page_patches=page_patches,
                              row_pitch=pitch, fillup=fillup)

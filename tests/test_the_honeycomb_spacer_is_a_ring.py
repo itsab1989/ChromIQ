@@ -921,27 +921,56 @@ def test_the_recorded_box_and_the_ink_round_the_same_way():
 
 
 def test_the_lattice_change_moved_no_rectangular_chart():
-    """The lattice touches `patch_rects_px`, which every chart goes through, so
-    a rectangular one must come out unchanged. Asserted structurally rather
-    than against a stored hash, so it cannot go stale: with no hexagon the
-    stagger is zero, and `round(a + 0)` must equal the old `round(a)`, with an
-    INTEGER strip offset added afterwards either way."""
+    """H3, THE SIXTH SELF-VALIDATING TEST IN THIS FEATURE.
+
+    The version this replaces read only `r["y"]` and checked the row pitch did
+    not wander. A reviewer made EVERY recorded box 3 px wider and 3 px taller,
+    proved the mutation landed, and it passed in 0.34 s.
+
+    The lattice touches `patch_rects_px`, which every chart goes through, so a
+    rectangular one must come out UNCHANGED -- and "unchanged" means the whole
+    rect, not one corner of it. It is pinned against the arithmetic the
+    pre-lattice tree used, spelled out here, because that is the thing that must
+    not move: `round((y + plen) * S)` and `round(y*S + plen*S)` are different
+    numbers in floating point, and on a DTP41 Letter sheet at 300 dpi they
+    disagreed on 4 of 23 row bottoms, putting 64 of 368 boxes a pixel below the
+    ink.
+    """
     from workflow.layout_engine import geometry as _G
+    from workflow.layout_engine import papers as _papers
+
     for key in ("i1", "p3", "CM", "41", "51"):
-        g = I.build(key)
-        lay = _G.compute(g, *A4, 300)
-        rects = _G.patch_rects_px(g, *A4, lay, 300)
-        assert rects, f"{key} laid out nothing"
-        # every slot is exactly the pitch apart, with no half-pixel wander
-        by_strip: dict[int, list[int]] = {}
-        steps = lay.steps_in_pass
-        for k, r in enumerate(rects[:steps * 3]):
-            by_strip.setdefault(k // steps, []).append(r["y"])
-        for strip, ys in by_strip.items():
-            gaps = {b - a for a, b in zip(ys, ys[1:])}
-            assert len(gaps) <= 2, (
-                f"{key} strip {strip}: the row pitch wanders over {sorted(gaps)}"
-            )
+        for paper in ("A4", "Letter", "A3"):
+            for dpi in (300, 600):
+                w, h = _papers.dimensions_mm(paper)
+                g = I.build(key)
+                lay = _G.compute(g, w, h, 368)
+                rects = _G.patch_rects_px(g, w, h, lay, dpi)
+                assert rects, f"{key}/{paper} laid out nothing"
+                place = _G.placement(g, w, h, lay)
+                S = dpi / 25.4
+                steps = lay.steps_in_pass
+
+                def px(v):
+                    return int(round(v * S))
+
+                for k, r in enumerate(rects[:steps * 2]):
+                    strip, step = k // steps, k % steps
+                    stag = (px(getattr(g, "row_stagger_mm", 0.0))
+                            if (strip & 1) else 0)
+                    want = {
+                        "x": px(place.x_of(strip)),
+                        "y": px(place.y_of(step)) + stag,
+                        "w": max(1, px(place.x_of(strip) + place.pwid)
+                                 - px(place.x_of(strip))),
+                        "h": max(1, px(place.y_of(step) + place.plen) + stag
+                                 - (px(place.y_of(step)) + stag)),
+                    }
+                    for field, v in want.items():
+                        assert r[field] == v, (
+                            f"{key}/{paper}/{dpi} patch {k}: {field} is "
+                            f"{r[field]}, the pre-lattice arithmetic gives {v}"
+                        )
 
 
 @pytest.mark.parametrize("flat_top", [False, True])

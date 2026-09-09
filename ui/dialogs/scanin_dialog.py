@@ -4303,12 +4303,11 @@ class ScannerProfileDialog(_ToolDialogBase):
             hexagonal = (recipe_is_hexagonal(self._layout.get("recipe"))
                          or settings_are_hexagonal(
                              getattr(self, "_chart_settings", None)))
-            self._marquee.set_grid(GridSpec.from_patches(patches,
-                                                         hexagonal=hexagonal))
-            self._clamp_sample_area(
-                patches, hexagonal,
-                recipe_is_flat_top(self._layout.get("recipe")),
-                _ring_mm_of(self._layout.get("recipe")))
+            _flat = recipe_is_flat_top(self._layout.get("recipe"))
+            self._marquee.set_grid(GridSpec.from_patches(
+                patches, hexagonal=hexagonal, flat_top=_flat))
+            self._clamp_sample_area(patches, hexagonal, _flat,
+                                    _ring_mm_of(self._layout.get("recipe")))
         else:
             cht_pages = self._layout.get("cht_pages") or []
             self._marquee.set_grid(
