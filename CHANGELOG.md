@@ -43,9 +43,12 @@ count for an unusual sheet size stopped being five times too high.**
   patch runs straight down the page and a ruler lies along it. The strips and
   rows come out a different length, so the number of patches on a sheet can
   move a little, in either direction, and by how much depends on the paper as
-  well as on your margins, patch size and spacer settings. Read it off the
-  "Chart layout information" panel, which shows the count for the layout you
-  actually have.
+  well as on your margins, patch size and spacer settings. Measured at the
+  standard settings it is 26 patches more on A2 and 24 more on Legal, against 15
+  fewer on Letter landscape and 14 fewer on A4. A chart that only just fitted on
+  one sheet can therefore need a second one, so check before you print. Read it
+  off the "Chart layout information" panel, which shows the count for the layout
+  you actually have.
 - **Ruler helper markers work on a hexagonal chart.** They were refused on any
   honeycomb, on the grounds that it has no straight rows to lay a ruler
   against. It has: a honeycomb's patch centres sit on straight lines, and on
@@ -70,6 +73,16 @@ count for an unusual sheet size stopped being five times too high.**
 
 ### Fixed
 
+- **The Linux build had no languages in it, and neither Linux nor Windows had
+  the bundled scanner targets.** ChromIQ ships thirteen languages and a set of
+  ready-made scanner charts, and the packaging list that says which files go
+  into a build had drifted apart between the three platforms: the macOS build
+  carried both, the Windows one carried only the languages, and the Linux one
+  carried neither. Nothing announced it. On Linux the language list in Settings
+  simply offered English and nothing else, and on Linux and Windows the scanner
+  targets that Scanner Profiling offers were not there to open. Both are in all
+  three builds now, and a check keeps the three lists level so a file cannot go
+  missing from one platform again without somebody saying why.
 - **A project built for a CR30 came back as a ColorMunki, and then became
   one.** Opening it restored the Create Chart row for the instrument you built
   with, and then the layout panel loaded either the run's own stored layout or
