@@ -1,0 +1,677 @@
+{
+  "a8-saved-recipe": {
+    "instrument": "i1",
+    "paper": "A4R",
+    "layout_mode": "patch_first",
+    "area_method": "by_grid",
+    "patch_w_mm": 12.0,
+    "patch_h_mm": 12.0,
+    "margin_top": 15.0,
+    "margin_right": 15.0,
+    "margin_bottom": 15.0,
+    "margin_left": 15.0,
+    "use_instrument_margins": false,
+    "clip_border": false,
+    "clip_content_mode": "off",
+    "chart_text": "Preset {project}",
+    "helper_markers": true,
+    "show_row_indicators": true,
+    "pscale": 1.0,
+    "spacer_mode": "none",
+    "indicator_size_mm": 1.41,
+    "randomize": true,
+    "dpi": 300,
+    "hflag": false
+  },
+  "a8-save-dialog-defaults": {
+    "Add a descriptive prefix": true,
+    "Generate the chart immediately when this preset is selected": true,
+    "Build from the currently loaded patch set (attach its .ti1)": true
+  },
+  "a8-save": {
+    "seen": true,
+    "err": null,
+    "in_combo": true,
+    "combo_current": "AssessPresetA",
+    "files": [
+      "AssessPresetA.json",
+      "AssessPresetA.ti1",
+      "i1Pro-A4-525p-3pages-Landscape-AssessPresetA.json",
+      "i1Pro-A4-525p-3pages-Landscape-AssessPresetA.ti1",
+      "i1Pro-A4-525p-3pages-Landscape-AssessPresetB.json",
+      "i1Pro-A4-525p-3pages-Landscape-AssessPresetB.ti1"
+    ]
+  },
+  "a8-reload": {
+    "diff_vs_saved": {},
+    "engine": true,
+    "panel_enabled": true,
+    "generate_enabled": true,
+    "combo": "\u25b6  i1Pro-A4-525p-3pages-Landscape-AssessPresetA",
+    "override_printtarg": [
+      false,
+      false
+    ],
+    "info": "lack):\ntargen -d2 -f0 -e4 -B4 -G -g32 chart\nChromIQ layout engine \u00b7 i1 \u00b7 A4 landscape \u00b7 300 dpi \u00b7 margin 15 mm \u00b7 patch 12\u00d712 mm \u00b7 clip border off \u00b7 align center-left\nLayout preset: i1 \u00b7 A4 landscape \u00b7 noclip   \u25cf modified",
+    "built": {
+      "total": 532,
+      "fillup": 7,
+      "page_patches": 308,
+      "rows": 14,
+      "cols": 22,
+      "pages": 2,
+      "patch": [
+        12.02,
+        11.94
+      ],
+      "pitch": null
+    }
+  },
+  "a8-edit-after-load": {
+    "indicator_size_now": 5.0,
+    "combo": "\u25b6  i1Pro-A4-525p-3pages-Landscape-AssessPresetA",
+    "modified_marker": "chart\nLayout preset: i1 \u00b7 A4 landscape \u00b7 noclip   \u25cf modified"
+  },
+  "a8-overwrite": {
+    "seen": true,
+    "dialogs": [
+      [
+        "",
+        "UNEXPECTED"
+      ]
+    ],
+    "files": [
+      "AssessPresetA.json",
+      "AssessPresetA.ti1",
+      "i1Pro-A4-525p-3pages-Landscape-AssessPresetA.json",
+      "i1Pro-A4-525p-3pages-Landscape-AssessPresetA.ti1",
+      "i1Pro-A4-525p-3pages-Landscape-AssessPresetB.json",
+      "i1Pro-A4-525p-3pages-Landscape-AssessPresetB.ti1"
+    ]
+  },
+  "a8-delete": {
+    "seen": true,
+    "in_combo": true,
+    "files": [
+      "AssessPresetA.json",
+      "AssessPresetA.ti1",
+      "i1Pro-A4-525p-3pages-Landscape-AssessPresetB.json",
+      "i1Pro-A4-525p-3pages-Landscape-AssessPresetB.ti1"
+    ],
+    "combo_after": "none",
+    "recipe_after_delete": {
+      "instrument": "i1",
+      "paper": "A4R",
+      "layout_mode": "patch_first",
+      "area_method": "by_grid",
+      "patch_w_mm": 12.0,
+      "patch_h_mm": 12.0,
+      "margin_top": 15.0,
+      "margin_right": 15.0,
+      "margin_bottom": 15.0,
+      "margin_left": 15.0,
+      "use_instrument_margins": false,
+      "clip_border": false,
+      "clip_content_mode": "off",
+      "chart_text": "Preset {project}",
+      "helper_markers": true,
+      "show_row_indicators": true,
+      "pscale": 1.0,
+      "spacer_mode": "none",
+      "indicator_size_mm": 1.76,
+      "randomize": true,
+      "dpi": 300,
+      "hflag": false
+    }
+  },
+  "a8-saveB": {
+    "seen": true,
+    "files": [
+      "AssessPresetA.json",
+      "AssessPresetA.ti1",
+      "AssessPresetB.json",
+      "AssessPresetB.ti1",
+      "i1Pro-A4-525p-3pages-Landscape-AssessPresetB.json",
+      "i1Pro-A4-525p-3pages-Landscape-AssessPresetB.ti1"
+    ]
+  },
+  "a8-builtin-tc918eg-a4-printtarg-kind": {
+    "engine_before": true,
+    "engine_after": false,
+    "engine_enabled": true,
+    "info": "Manual mode \u2014 your current configuration (1 page \u00b7 Auto patch count \u00b7 Auto grey/white/black):\ntargen -d2 -f0 -e4 -B4 -G -g8 chart\nprinttarg -ii1 -pA4R -t300 -L -m15 -M15 -n chart",
+    "actual": {
+      "total": 1160,
+      "fillup": 0,
+      "page_patches": 580,
+      "rows": 29,
+      "cols": 20,
+      "pages": 2,
+      "patch": [
+        8.33,
+        7.69
+      ],
+      "pitch": null
+    },
+    "estimate": null,
+    "recipe": {
+      "instrument": "i1",
+      "paper": "A4R",
+      "layout_mode": "patch_first",
+      "area_method": "by_grid",
+      "patch_w_mm": 12.0,
+      "patch_h_mm": 12.0,
+      "margin_top": 15.0,
+      "margin_right": 15.0,
+      "margin_bottom": 15.0,
+      "margin_left": 15.0,
+      "use_instrument_margins": false,
+      "clip_border": false,
+      "clip_content_mode": "off",
+      "chart_text": "Preset {project}",
+      "helper_markers": true,
+      "show_row_indicators": true,
+      "pscale": 1.0,
+      "spacer_mode": "none",
+      "indicator_size_mm": 1.41,
+      "randomize": true,
+      "dpi": 300,
+      "hflag": false
+    },
+    "panel_enabled": false,
+    "targen_grp_enabled": true,
+    "generate_enabled": true,
+    "override_targen": [
+      true,
+      false
+    ],
+    "override_printtarg": [
+      true,
+      false
+    ],
+    "margin_status": "\u26a0 Top margin 36.3 mm is below the 38 mm instrument minimum\n\u26a0 Bottom margin 11.7 mm is below the 19 mm instrument minimum",
+    "margin_notes": "",
+    "log_tail": [
+      "Copied prebuilt patch set into /Users/Basti/ChromIQ-assessment/A5-Furniture/runs/run1 (2 pages). targen and printtarg skipped."
+    ],
+    "dialogs": [],
+    "files": [
+      "A5-Furniture.channels.json",
+      "A5-Furniture.ti1",
+      "A5-Furniture.ti2",
+      "A5-Furniture_01.tif",
+      "A5-Furniture_02.tif",
+      "meta.json"
+    ]
+  },
+  "a8-builtin-knut-i1-w75-162p-fulllayout": {
+    "engine_before": false,
+    "engine_after": true,
+    "engine_enabled": true,
+    "info": "Built-in preset \u2014 fixed patch set (1 page):\nUses the bundled 162-patch .ti1 (targen skipped).\nprinttarg -ii1 -pA4 -t200 -L -m15 -M15 -n chart\nChange a targen setting above to build a fresh chart instead.\nLayout preset: i1 \u00b7 A4 portrait \u00b7 clip   \u25cf modified",
+    "actual": {
+      "total": 162,
+      "fillup": 0,
+      "page_patches": 162,
+      "rows": 27,
+      "cols": 6,
+      "pages": 1,
+      "patch": [
+        7.49,
+        8.13
+      ],
+      "pitch": null
+    },
+    "estimate": {
+      "total": 162,
+      "fillup": 0,
+      "page_patches": 162,
+      "rows": 27,
+      "cols": 6,
+      "pages": 1,
+      "patch": [
+        7.49,
+        8.11
+      ],
+      "pitch": null
+    },
+    "recipe": {
+      "instrument": "i1",
+      "paper": "A4",
+      "layout_mode": "area_first",
+      "area_method": "by_grid",
+      "patch_w_mm": 0.0,
+      "patch_h_mm": 0.0,
+      "margin_top": 38.0,
+      "margin_right": 4.0,
+      "margin_bottom": 19.0,
+      "margin_left": 26.0,
+      "use_instrument_margins": false,
+      "clip_border": true,
+      "clip_content_mode": "notes",
+      "chart_text": "",
+      "helper_markers": true,
+      "show_row_indicators": null,
+      "pscale": 1.0,
+      "spacer_mode": "colored",
+      "indicator_size_mm": 4.23,
+      "randomize": true,
+      "dpi": 200,
+      "hflag": false
+    },
+    "panel_enabled": true,
+    "targen_grp_enabled": true,
+    "generate_enabled": true,
+    "override_targen": [
+      true,
+      false
+    ],
+    "override_printtarg": [
+      false,
+      false
+    ],
+    "margin_status": "Margins: OK",
+    "margin_notes": "",
+    "log_tail": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 162 patches (27\u00d76), 1 page, random start 2056966181",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 3 strips"
+    ],
+    "dialogs": [],
+    "files": [
+      "A5-Furniture.channels.json",
+      "A5-Furniture.ti1",
+      "A5-Furniture.ti2",
+      "A5-Furniture.tif",
+      "meta.json"
+    ]
+  },
+  "a8-builtin-knut-cr30-153p-hex": {
+    "engine_before": true,
+    "engine_after": true,
+    "engine_enabled": true,
+    "info": "Built-in preset \u2014 fixed patch set (1 page):\nUses the bundled 153-patch .ti1 (targen skipped).\nprinttarg -iCR30 -pA4 -t200 -m15 -M15 chart\nChange a targen setting above to build a fresh chart instead.\nLayout preset: CR30 \u00b7 A4 portrait \u00b7 hex   \u25cf modified",
+    "actual": {
+      "total": 153,
+      "fillup": 0,
+      "page_patches": 153,
+      "rows": 17,
+      "cols": 9,
+      "pages": 1,
+      "patch": [
+        17.78,
+        20.49
+      ],
+      "pitch": 15.37
+    },
+    "estimate": {
+      "total": 153,
+      "fillup": 0,
+      "page_patches": 153,
+      "rows": 17,
+      "cols": 9,
+      "pages": 1,
+      "patch": [
+        17.85,
+        20.61
+      ],
+      "pitch": 15.46
+    },
+    "recipe": {
+      "instrument": "CR30",
+      "paper": "A4",
+      "layout_mode": "area_first",
+      "area_method": "by_grid",
+      "patch_w_mm": 0.0,
+      "patch_h_mm": 0.0,
+      "margin_top": 13.0,
+      "margin_right": 26.0,
+      "margin_bottom": 13.0,
+      "margin_left": 13.0,
+      "use_instrument_margins": false,
+      "clip_border": true,
+      "clip_content_mode": "notes",
+      "chart_text": "",
+      "helper_markers": true,
+      "show_row_indicators": null,
+      "pscale": 1.0,
+      "spacer_mode": "none",
+      "indicator_size_mm": 0.0,
+      "randomize": true,
+      "dpi": 200,
+      "hflag": true
+    },
+    "panel_enabled": true,
+    "targen_grp_enabled": true,
+    "generate_enabled": true,
+    "override_targen": [
+      true,
+      false
+    ],
+    "override_printtarg": [
+      false,
+      false
+    ],
+    "margin_status": "",
+    "margin_notes": "\u26a0 The left margin was widened from 13.0 mm to 14.4 mm to fit the row indicators. The labels start 4.0 mm in from the page edge (the larger of \u201cClip\u201d under \u201cText distance from edge\u201d and the width of the clip border) and their text needs 9.4 mm. To get that paper back, switch \u201cShow row indicators\u201d off, use a smaller label size, or reduce \u201cClip\u201d.",
+    "log_tail": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 153 patches (17\u00d79), 1 page, random start 115210301",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 1 strip"
+    ],
+    "dialogs": [],
+    "files": [
+      "A5-Furniture.channels.json",
+      "A5-Furniture.ti1",
+      "A5-Furniture.ti2",
+      "A5-Furniture.tif",
+      "meta.json"
+    ]
+  },
+  "a8-builtin-knut-scanner-a4-3430p": {
+    "engine_before": true,
+    "engine_after": true,
+    "engine_enabled": true,
+    "info": "Built-in preset \u2014 fixed patch set (1 page):\nUses the bundled 3430-patch .ti1 (targen skipped).\nprinttarg -iSS -pA4R -t300 -m15 -M15 chart\nChange a targen setting above to build a fresh chart instead.\nLayout preset: SS \u00b7 A4 landscape \u00b7 flat   \u25cf modified",
+    "actual": {
+      "total": 3430,
+      "fillup": 0,
+      "page_patches": 3430,
+      "rows": 49,
+      "cols": 70,
+      "pages": 1,
+      "patch": [
+        3.98,
+        4.06
+      ],
+      "pitch": null
+    },
+    "estimate": {
+      "total": 3430,
+      "fillup": 0,
+      "page_patches": 3430,
+      "rows": 49,
+      "cols": 70,
+      "pages": 1,
+      "patch": [
+        4.0,
+        4.04
+      ],
+      "pitch": null
+    },
+    "recipe": {
+      "instrument": "SS",
+      "paper": "A4R",
+      "layout_mode": "area_first",
+      "area_method": "by_width",
+      "patch_w_mm": 0.0,
+      "patch_h_mm": 0.0,
+      "margin_top": 8.0,
+      "margin_right": 4.0,
+      "margin_bottom": 4.0,
+      "margin_left": 4.0,
+      "use_instrument_margins": false,
+      "clip_border": true,
+      "clip_content_mode": "off",
+      "chart_text": "",
+      "helper_markers": false,
+      "show_row_indicators": null,
+      "pscale": 1.0,
+      "spacer_mode": "colored",
+      "indicator_size_mm": 0.0,
+      "randomize": false,
+      "dpi": 300,
+      "hflag": false
+    },
+    "panel_enabled": true,
+    "targen_grp_enabled": true,
+    "generate_enabled": true,
+    "override_targen": [
+      true,
+      false
+    ],
+    "override_printtarg": [
+      false,
+      false
+    ],
+    "margin_status": "",
+    "margin_notes": "\u26a0 The left margin was widened from 4.0 mm to 8.9 mm to fit the row indicators. The labels start 4.0 mm in from the page edge (the larger of \u201cClip\u201d under \u201cText distance from edge\u201d and the width of the clip border) and their text needs 3.9 mm. To get that paper back, switch \u201cShow row indicators\u201d off, use a smaller label size, or reduce \u201cClip\u201d.\n\n\u26a0 Top margin is too small for the strip labels \u2014 they overflow toward the page edge.",
+    "log_tail": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 3430 patches (49\u00d770), 1 page, random start 289471670",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 3 strips"
+    ],
+    "dialogs": [],
+    "files": [
+      "A5-Furniture.channels.json",
+      "A5-Furniture.ti1",
+      "A5-Furniture.ti2",
+      "A5-Furniture.tif",
+      "meta.json"
+    ]
+  },
+  "a8-after-none": {
+    "engine": true,
+    "recipe": {
+      "instrument": "SS",
+      "paper": "A4R",
+      "layout_mode": "area_first",
+      "area_method": "by_width",
+      "patch_w_mm": 0.0,
+      "patch_h_mm": 0.0,
+      "margin_top": 8.0,
+      "margin_right": 4.0,
+      "margin_bottom": 4.0,
+      "margin_left": 4.0,
+      "use_instrument_margins": false,
+      "clip_border": true,
+      "clip_content_mode": "off",
+      "chart_text": "",
+      "helper_markers": false,
+      "show_row_indicators": null,
+      "pscale": 1.0,
+      "spacer_mode": "colored",
+      "indicator_size_mm": 0.0,
+      "randomize": false,
+      "dpi": 300,
+      "hflag": false
+    },
+    "panel_enabled": true,
+    "info": "o grey/white/black):\ntargen -d2 -f0 -e6 -B6 -G -g59 chart\nChromIQ layout engine \u00b7 SS \u00b7 A4 landscape \u00b7 300 dpi \u00b7 margins 8/4/4/4 mm \u00b7 area-fit \u22654 mm\nLayout preset: SS \u00b7 A4 landscape \u00b7 flat   \u25cf modified"
+  },
+  "a9-editor": {
+    "seen": true,
+    "err": null,
+    "diff_editor_vs_tab": {},
+    "apply_enabled": true,
+    "apply_dialog_buttons": [
+      "Overwrite",
+      "Save As\u2026",
+      "Cancel"
+    ],
+    "tab_recipe_diff_after_apply": {},
+    "applied_active": false,
+    "actual_before": {
+      "total": 304,
+      "fillup": 4,
+      "page_patches": 304,
+      "rows": 19,
+      "cols": 16,
+      "pages": 1,
+      "patch": [
+        10.92,
+        11.51
+      ],
+      "pitch": null
+    },
+    "actual_after": {
+      "total": 304,
+      "fillup": 0,
+      "page_patches": 304,
+      "rows": 19,
+      "cols": 16,
+      "pages": 1,
+      "patch": [
+        10.92,
+        11.51
+      ],
+      "pitch": null
+    },
+    "estimate_after": {
+      "total": 329,
+      "fillup": 25,
+      "page_patches": 329,
+      "rows": 47,
+      "cols": 7,
+      "pages": 1,
+      "patch": [
+        4.06,
+        4.08
+      ],
+      "pitch": null
+    },
+    "info": "your current configuration (1 page \u00b7 Auto grey/white/black):\ntargen -d2 -f300 -e3 -B3 -G -g17 chart\nChromIQ layout engine \u00b7 i1 \u00b7 A4 portrait \u00b7 300 dpi \u00b7 margins 38/9/19/26 mm \u00b7 area-fit \u22654 mm \u00b7 clip border on\nLayout preset: i1 \u00b7 A4 portrait \u00b7 clip   \u25cf modified",
+    "override_targen": [
+      true,
+      false
+    ],
+    "override_printtarg": [
+      false,
+      false
+    ],
+    "panel_enabled": true,
+    "generate_enabled": true,
+    "log_tail": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 304 patches (19\u00d716), 1 page, random start 31091927",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 3 strips"
+    ]
+  },
+  "a9-generate-after-apply": {
+    "actual": {
+      "total": 304,
+      "fillup": 0,
+      "page_patches": 304,
+      "rows": 19,
+      "cols": 16,
+      "pages": 1,
+      "patch": [
+        10.92,
+        11.51
+      ],
+      "pitch": null
+    },
+    "recipe": {
+      "instrument": "i1",
+      "paper": "A4",
+      "layout_mode": "area_first",
+      "area_method": "by_width",
+      "patch_w_mm": 0.0,
+      "patch_h_mm": 0.0,
+      "margin_top": 38.0,
+      "margin_right": 9.0,
+      "margin_bottom": 19.0,
+      "margin_left": 26.0,
+      "use_instrument_margins": true,
+      "clip_border": true,
+      "clip_content_mode": "off",
+      "chart_text": "",
+      "helper_markers": false,
+      "show_row_indicators": null,
+      "pscale": 1.0,
+      "spacer_mode": "colored",
+      "indicator_size_mm": 0.0,
+      "randomize": false,
+      "dpi": 300,
+      "hflag": false
+    },
+    "applied_active": false,
+    "info": "\ntargen -d2 -f300 -e3 -B3 -G -g17 chart\nChromIQ layout engine \u00b7 i1 \u00b7 A4 portrait \u00b7 300 dpi \u00b7 margins 38/9/19/26 mm \u00b7 area-fit \u22654 mm \u00b7 clip border on\nLayout preset: i1 \u00b7 A4 portrait \u00b7 clip   \u25cf modified"
+  },
+  "f003": {
+    "before": {
+      "-i": "i1",
+      "-p": "A4",
+      "-L": false,
+      "-a": 1.0,
+      "-m": 6
+    },
+    "cmd_before": "printtarg -ii1 -pA4 -t300 -M6 -r -c chart",
+    "during": {
+      "-i": "i1",
+      "-p": "A4",
+      "-L": true,
+      "-a": 1.0,
+      "-m": 6
+    },
+    "right_after": {
+      "-i": "i1",
+      "-p": "A4",
+      "-L": true,
+      "-a": 1.0,
+      "-m": 6
+    },
+    "after_3s": {
+      "-i": "i1",
+      "-p": "A4",
+      "-L": true,
+      "-a": 1.0,
+      "-m": 6
+    },
+    "meta": {
+      "printtarg-L": {
+        "enabled": true,
+        "value": true
+      },
+      "printtarg-a": {
+        "enabled": true,
+        "value": 1.0
+      },
+      "printtarg-m": {
+        "enabled": false,
+        "value": 6
+      }
+    },
+    "sidecar_create_chart_settings": {
+      "printtarg-L": {
+        "enabled": true,
+        "value": true
+      },
+      "printtarg-a": {
+        "enabled": true,
+        "value": 1.0
+      }
+    },
+    "sidecar_printtarg_fields": [
+      {
+        "flag": "-L",
+        "value": true,
+        "enabled": true
+      },
+      {
+        "flag": "-a",
+        "value": 1.0,
+        "enabled": true
+      }
+    ],
+    "run": "/Users/Basti/ChromIQ-assessment/A5-Furniture/runs/run2",
+    "log_cmd": []
+  },
+  "a7-debounce": {
+    "builds_for_two_nudges_150ms_apart": 0,
+    "first_build_after_s": 5.56
+  },
+  "a7-notes": {
+    "builds_for_notes_edit": 0
+  },
+  "a7-helper-markers": {
+    "builds_for_helper_marker_toggle": 0
+  },
+  "a7-spacer-colour": {
+    "builds_for_spacer_bw": 0
+  }
+}

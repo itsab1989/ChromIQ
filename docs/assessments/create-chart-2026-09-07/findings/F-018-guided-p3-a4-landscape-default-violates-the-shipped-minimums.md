@@ -1,0 +1,15 @@
+# F-018 Guided, i1Pro 3 Plus, A4 landscape, nothing changed: the chart it builds is flagged red by the shipped i1Pro 3+ minimums
+Area: guided / layout engine
+Grade: OBSERVED (screen); cause INFERRED (the Guided clamp did not raise the left and top margins)
+Attended: unattended
+Type: bug
+Severity: high
+Expected: Guided is the beginner's path and always builds with the engine; `ChartCreator._apply_margin_thresholds` promises to "raise the layout's margins so the patch area meets the user's margin thresholds for this instrument/paper combo" on the non-recipe (Guided) path. A default Guided chart should therefore pass its own inspector.
+Actual: GUIDED, Instrument i1Pro 3 Plus, Paper A4 (297 x 210) Landscape, 1 page, both boxes unticked. Headline 112, built 112 (7 per strip x 16 strips, 16 x 20.07 mm). Measured from Preview: Left 26.0 (min 28.0), Right 15.0 (9.0), Top 33.4 (40.0), Bottom 20.4 (9.0). Verdict: "Left margin 26.0 mm is below the 28 mm instrument minimum" and "Top margin 33.4 mm is below the 40 mm instrument minimum", in red, on an untouched Guided chart. The Guided info line says "margin 6 mm · clip border on". Guided i1Pro A4 portrait (484) and ColorMunki A4 (105) passed their tables in the same run, so the clamp works for those.
+Why it matters: A first chart for an i1Pro 3 Plus owner on the most common landscape sheet arrives red, with no control in Guided to fix it (Guided has no margin boxes). The user's only options are to ignore the warning or to switch to Manual.
+Steps to reproduce (click by click): New project name in GUIDED. Instrument "i1Pro 3 Plus". Paper size "A4 (297 x 210 mm) Landscape". Number of pages 1. Generate Chart. Read the two red lines under the preview.
+Evidence: Screenshots/B1-guided/g-p3-A4R-1p-after.png, Test Runs/logs/d06_results.json (g-p3-A4R-1p: status, margin_text, channels recipe margins 6/6/6/6).
+Spec or source cited: workflow/chart_creator.py:_apply_margin_thresholds and margins_fit.clamp_margins_to_thresholds; core/settings.py _I1P3_PRIMARY (28/9/40/9) applied to "A4 Landscape" via the schema-7 jig rows. The 26 mm left is the clip band (instruments.build raises the clip-side margin to the clip width, which here is BELOW the 28 mm minimum, so the clamp's 28 appears to be overridden by the clip logic, or never applied for the landscape key). docs/dev_margin_inspector.md orientation table: for a landscape sheet the run-up edges are Left/Right, so a 28 mm left is the jig's run-up, not a cosmetic value.
+Possible solutions (no code): A. Make the Guided clamp win over the clip-band floor (max of the two), and verify every instrument x paper x orientation Guided default against the seed table in a test (the D02 matrix shows Manual already gets 28 mm with instrument margins on). B. If the p3 A4 landscape seeds are wrong, correct them (owner's call, they are his jig numbers).
+Regression risk if changed: Medium; every Guided p3 landscape chart changes geometry (fewer strips).
+Needs owner decision: yes. Are the i1Pro 3+ A4 landscape minimums (28 left, 40 top) right? If so, Guided must honour them.

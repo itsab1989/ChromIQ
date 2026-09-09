@@ -1,0 +1,74 @@
+{
+  "f004": {
+    "stamp_before": true,
+    "after_engine_off": true,
+    "after_engine_on": false
+  },
+  "f009": {
+    "use_instr_visible": true,
+    "checked": true,
+    "margins": {
+      "t": [
+        6.0,
+        false
+      ],
+      "r": [
+        6.0,
+        false
+      ],
+      "b": [
+        6.0,
+        false
+      ],
+      "l": [
+        11.1,
+        false
+      ]
+    },
+    "tip": ""
+  },
+  "f011": {
+    "dialogs": [
+      [
+        "QMessageBox",
+        "Replace the current clip-border text with the example table? | ",
+        [
+          "OK"
+        ],
+        "clicked 'OK'"
+      ]
+    ],
+    "text_after": "my own clip text",
+    "mode_after": "text"
+  },
+  "f026": {
+    "size": [
+      1280,
+      800
+    ],
+    "clipped_margin_panel": [
+      [
+        "Bottom (to first patch)",
+        135,
+        132
+      ],
+      [
+        "Patch width (in strip reading direction)",
+        234,
+        132
+      ]
+    ],
+    "clipped_info_panel": [],
+    "clipped_left_pane": []
+  },
+  "guided_boxes": {
+    "base": "484!",
+    "L_on": "550!",
+    "P_on": "528!",
+    "lb_text": "Suppress left clip border (-L)",
+    "nsl_text": "Don't limit strip length (-P)",
+    "guided_info": "Guided mode applies these fixed settings:\ntargen -d2 -G -e4 -B4 -g28 chart\nChromIQ layout engine \u00b7 i1 \u00b7 A4 \u00b7 300 dpi \u00b7 margin 10 mm \u00b7 patch \u00d70.95 \u00b7 clip border on"
+  },
+  "unexpected": [],
+  "serious": []
+}

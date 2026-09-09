@@ -1,0 +1,760 @@
+2026-09-07 10:06:04,143 [WARNING] core.settings: Settings SANDBOXED to /Users/Basti/Desktop/Create Chart Assessment/Test Runs/sandbox/chromiq-assessment.ini (CHROMIQ_SETTINGS_FILE is set) — the real preferences are untouched
+2026-09-07 10:06:04,143 [DEBUG] core.settings: Settings loaded from /Users/Basti/Desktop/Create Chart Assessment/Test Runs/sandbox/chromiq-assessment.ini
+2026-09-07 10:06:04,143 [DEBUG] ui.theme: Appearance applied: setting=neutral mode=neutral
+2026-09-07 10:06:04,143 [INFO] review: app built: v4.2.0 appearance=neutral lang=en settings=/Users/Basti/Desktop/Create Chart Assessment/Test Runs/sandbox/chromiq-assessment.ini presets=/Users/Basti/Desktop/Create Chart Assessment/Test Runs/sandbox/presets projects=/Users/Basti/ChromIQ-assessment
+2026-09-07 10:06:04,583 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [_refresh_manual_command_preview:5501  ←  _init_manual_layout_panel:5630  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:04,604 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:04,605 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:04,605 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:04,605 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:04,605 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:04,605 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:04,622 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:04,622 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:04,622 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:04,622 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:04,622 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:04,622 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:05,954 [INFO] ui.main_window: MainWindow initialised
+2026-09-07 10:06:06,461 [INFO] ui.main_window: ---- Tab → 1. Create Chart ----
+2026-09-07 10:06:06,475 [DEBUG] ui.theme: Appearance applied: setting=neutral mode=neutral
+2026-09-07 10:06:06,622 [INFO] ui.main_window: ---- Tab → 1. Create Chart ----
+2026-09-07 10:06:08,731 [DEBUG] core.settings: settings.set session_target_name = 'Demo-Full-RGB'
+2026-09-07 10:06:08,731 [DEBUG] core.settings: settings.set session_project_root = ''
+2026-09-07 10:06:08,732 [DEBUG] core.file_manager: Target name set to: Demo-Full-RGB (root /Users/Basti/ChromIQ-assessment/Demo-Full-RGB)
+2026-09-07 10:06:08,737 [INFO] core.file_manager: opened the EXISTING project at /Users/Basti/ChromIQ-assessment/Demo-Full-RGB (4 run(s) on disk)
+2026-09-07 10:06:08,745 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 10:06:08,746 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:08,776 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:08,776 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:08,776 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:08,776 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:08,776 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:08,776 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:08,798 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:08,798 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:08,798 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:08,798 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:08,798 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:08,798 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:08,826 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 10:06:08,826 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:08,844 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:08,844 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:08,844 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:08,844 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:08,844 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:08,844 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:08,861 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:08,861 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:08,861 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:08,861 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:08,861 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:08,861 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:08,888 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 10:06:08,888 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:08,906 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:08,906 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:08,906 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:08,906 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:08,906 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:08,906 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:08,923 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:08,923 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:08,923 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:08,923 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:08,923 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:08,923 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:08,948 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 10:06:08,948 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:08,966 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:08,966 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:08,966 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:08,966 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:08,966 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:08,966 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:08,982 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:08,983 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:08,983 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:08,983 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:08,983 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:08,983 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:09,013 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 10:06:09,019 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [_display_run_chart:6588  ←  _restore_chart_settings:11047  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:09,036 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:09,036 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:09,036 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:09,036 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:09,036 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:09,036 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:09,038 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:09,038 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:09,038 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:09,038 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:09,038 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:09,038 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:09,047 [INFO] ui.tabs.tab_chart: chart loaded: 1 page(s) counted from the page images (field was 1, now 1)
+2026-09-07 10:06:09,048 [INFO] ui.tabs.tab_chart: Create Chart: this run's own patch set (Demo-Full-RGB.ti1) is attached, so regenerating reproduces it
+2026-09-07 10:06:09,049 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 10:06:09,052 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 10:06:09,055 [DEBUG] ui.tabs.tab_chart: the chart sidecar moved 1 parameters and 1 ui values away from the target's own
+2026-09-07 10:06:09,058 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 10:06:09,062 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 10:06:09,062 [INFO] ui.main_window: Session restored: target=Demo-Full-RGB run=run4
+2026-09-07 10:06:10,567 [INFO] review: open_project('Demo-Full-RGB') -> run bar reads 'Run 4 (overwrite)' ok=True
+2026-09-07 10:06:11,477 [INFO] review: runs=[('Run 1 (overwrite)', 'run1'), ('Run 2 (overwrite)', 'run2'), ('Run 3 (overwrite)', 'run3'), ('Run 4 (overwrite)', 'run4'), ('New run', '\x00new')] types=[('Profiling', 'profiling'), ('Verification', 'verification')]
+2026-09-07 10:06:11,479 [INFO] review: icc per run: {'run1': ['Demo-Full-RGB.icc'], 'run2': ['Demo-Full-RGB.icc', 'preconditioning.icc'], 'run3': [], 'run4': []}
+2026-09-07 10:06:11,484 [DEBUG] ui.tabs.tab_chart: create-chart settings written for run4 (40 parameters + ui state)
+2026-09-07 10:06:11,495 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 10:06:11,495 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:11,526 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:11,526 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:11,526 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:11,526 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:11,526 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:11,526 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:11,551 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:11,551 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:11,551 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:11,551 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:11,551 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:11,551 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:11,583 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 10:06:11,583 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:11,601 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:11,601 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:11,601 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:11,601 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:11,601 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:11,601 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:11,620 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:11,620 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:11,620 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:11,620 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:11,620 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:11,620 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:11,647 [DEBUG] ui.tiff_preview: TiffPreview: loaded 4 page(s)
+2026-09-07 10:06:11,655 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [_display_run_chart:6588  ←  _restore_chart_settings:11047  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:11,673 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:11,673 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:11,673 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:11,673 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:11,673 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:11,673 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:11,698 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:11,698 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:11,698 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:11,698 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:11,698 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:11,698 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:11,701 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:11,701 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:11,701 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:11,701 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:11,701 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:11,701 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:11,705 [INFO] ui.tabs.tab_chart: chart loaded: 4 page(s) counted from the page images (field was 4, now 4)
+2026-09-07 10:06:11,707 [DEBUG] ui.tiff_preview: TiffPreview: loaded 4 page(s)
+2026-09-07 10:06:11,708 [DEBUG] ui.tiff_preview: TiffPreview: loaded 4 page(s)
+2026-09-07 10:06:11,712 [DEBUG] ui.tabs.tab_chart: the chart sidecar moved 1 parameters and 2 ui values away from the target's own
+2026-09-07 10:06:13,911 [INFO] review:   STATE run3 Profiling Guided: gen=True stop=False inflight=False bar='Run 3 (overwrite)'/'Profiling' status='Margins: OK' actual=400 est=420
+2026-09-07 10:06:14,113 [INFO] review:   shot Review/Screenshots/R03-f024-gamut/00-run3-profiling-guided.png  (3400x2100)
+2026-09-07 10:06:14,122 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 10:06:14,122 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:14,138 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:14,138 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:14,138 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:14,139 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:14,139 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:14,139 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:14,157 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:14,157 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:14,157 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:14,157 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:14,157 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:14,157 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:14,176 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:14,176 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:14,176 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:14,176 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:14,176 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:14,176 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:14,267 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:14,267 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:14,267 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:14,267 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:14,267 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:14,267 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:14,309 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 10:06:14,309 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:14,344 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:14,344 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:14,344 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:14,344 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:14,344 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:14,344 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:14,379 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:14,379 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:14,379 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:14,379 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:14,379 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:14,379 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:14,406 [DEBUG] ui.tiff_preview: TiffPreview: loaded 0 page(s)
+2026-09-07 10:06:14,407 [DEBUG] core.settings: settings.set session_ti1_path = ''
+2026-09-07 10:06:16,083 [INFO] review:   STATE run3 Verification Guided (before gamut): gen=True stop=False inflight=False bar='Run 3 (overwrite)'/'Verification' status='Margins: OK' actual=400 est=325
+2026-09-07 10:06:16,234 [INFO] review:   shot Review/Screenshots/R03-f024-gamut/01-verif-guided-before-gamut.png  (3400x2100)
+2026-09-07 10:06:17,650 [INFO] review:   STATE run3 Verification GAMUT (no profile): gen=False stop=True inflight=True bar='Run 3 (overwrite)'/'Verification' status='Margins: OK' actual=400 est=325
+2026-09-07 10:06:17,809 [INFO] review:   shot Review/Screenshots/R03-f024-gamut/02-gamut-no-profile.png  (3400x2100)
+2026-09-07 10:06:18,837 [INFO] review:   STATE Guided after gamut: gen=False stop=True inflight=True bar='Run 3 (overwrite)'/'Verification' status='Margins: OK' actual=400 est=484
+2026-09-07 10:06:18,998 [INFO] review:   shot Review/Screenshots/R03-f024-gamut/03-guided-after-gamut.png  (3400x2100)
+2026-09-07 10:06:20,048 [INFO] review:   STATE Manual after gamut: gen=False stop=True inflight=True bar='Run 3 (overwrite)'/'Verification' status='Margins: OK' actual=400 est=325
+2026-09-07 10:06:20,209 [INFO] review:   shot Review/Screenshots/R03-f024-gamut/04-manual-after-gamut.png  (3400x2100)
+2026-09-07 10:06:20,213 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 10:06:20,214 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:20,249 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:20,249 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:20,249 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:20,249 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:20,249 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:20,249 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:20,282 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:20,282 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:20,283 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:20,283 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:20,283 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:20,283 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:20,312 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 10:06:20,312 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:20,330 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:20,330 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:20,330 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:20,330 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:20,330 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:20,330 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:20,347 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:20,347 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:20,347 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:20,347 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:20,347 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:20,347 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:20,373 [DEBUG] ui.tiff_preview: TiffPreview: loaded 4 page(s)
+2026-09-07 10:06:20,376 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [_display_run_chart:6588  ←  _restore_chart_settings:11047  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:20,395 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:20,395 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:20,395 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:20,395 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:20,395 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:20,395 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:20,418 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:20,418 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:20,418 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:20,418 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:20,418 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:20,418 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:20,420 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:20,420 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:20,420 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:20,420 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:20,420 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:20,420 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:20,421 [INFO] ui.tabs.tab_chart: chart loaded: 4 page(s) counted from the page images (field was 4, now 4)
+2026-09-07 10:06:20,423 [DEBUG] ui.tiff_preview: TiffPreview: loaded 4 page(s)
+2026-09-07 10:06:20,424 [DEBUG] ui.tiff_preview: TiffPreview: loaded 4 page(s)
+2026-09-07 10:06:20,429 [DEBUG] ui.tabs.tab_chart: the chart sidecar moved 1 parameters and 2 ui values away from the target's own
+2026-09-07 10:06:22,406 [INFO] review:   STATE Profiling after gamut: gen=False stop=True inflight=True bar='Run 3 (overwrite)'/'Profiling' status='Margins: OK' actual=400 est=420
+2026-09-07 10:06:22,556 [INFO] review:   shot Review/Screenshots/R03-f024-gamut/05-profiling-after-gamut.png  (3400x2100)
+2026-09-07 10:06:22,565 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 10:06:22,565 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:22,581 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:22,582 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:22,582 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:22,582 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:22,582 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:22,582 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:22,601 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:22,601 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:22,601 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:22,601 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:22,601 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:22,601 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:22,620 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:22,620 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:22,620 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:22,620 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:22,620 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:22,621 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:22,686 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 10:06:22,687 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:22,722 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:22,722 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:22,722 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:22,722 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:22,722 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:22,722 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:22,758 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:22,758 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:22,758 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:22,758 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:22,758 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:22,758 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:22,785 [DEBUG] ui.tiff_preview: TiffPreview: loaded 3 page(s)
+2026-09-07 10:06:22,825 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [_display_run_chart:6588  ←  _restore_chart_settings:11047  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:22,865 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:22,866 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:22,866 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:22,866 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:22,866 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:22,866 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:22,905 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:22,905 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:22,905 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:22,905 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:22,905 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:22,905 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:22,926 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:22,926 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:22,926 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:22,926 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:22,926 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:22,926 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:22,930 [INFO] ui.tabs.tab_chart: chart loaded: 3 page(s) counted from the page images (field was 3, now 3)
+2026-09-07 10:06:22,932 [DEBUG] ui.tiff_preview: TiffPreview: loaded 3 page(s)
+2026-09-07 10:06:22,934 [DEBUG] ui.tiff_preview: TiffPreview: loaded 3 page(s)
+2026-09-07 10:06:22,937 [DEBUG] ui.tabs.tab_chart: the chart sidecar moved 1 parameters and 2 ui values away from the target's own
+2026-09-07 10:06:22,938 [INFO] ui.tabs.tab_profile: Build Profile: measurement follows the bar → /Users/Basti/ChromIQ-assessment/Demo-Full-RGB/runs/run2/Demo-Full-RGB.ti3
+2026-09-07 10:06:24,915 [INFO] review:   STATE run2 Profiling after gamut leak: gen=False stop=True inflight=True bar='Run 2 (overwrite)'/'Profiling' status='Margins: OK' actual=240 est=315
+2026-09-07 10:06:24,931 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 10:06:24,932 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:24,968 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:24,968 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:24,968 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:24,968 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:24,968 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:24,968 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:24,997 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:24,997 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:24,997 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:24,997 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:24,997 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:24,997 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:25,039 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:25,039 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:25,039 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:25,039 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:25,039 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:25,039 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:25,069 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 10:06:25,069 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:25,087 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:25,087 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:25,087 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:25,087 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:25,087 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:25,087 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:25,106 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:25,106 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:25,106 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:25,106 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:25,106 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:25,106 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:25,134 [DEBUG] ui.tiff_preview: TiffPreview: loaded 4 page(s)
+2026-09-07 10:06:25,143 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [_display_run_chart:6588  ←  _restore_chart_settings:11047  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:25,162 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:25,162 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:25,162 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:25,162 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:25,162 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:25,162 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:25,186 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:25,186 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:25,186 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:25,186 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:25,186 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:25,186 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:25,190 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:25,190 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:25,190 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:25,190 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:25,190 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:25,190 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:25,193 [INFO] ui.tabs.tab_chart: chart loaded: 4 page(s) counted from the page images (field was 4, now 4)
+2026-09-07 10:06:25,195 [DEBUG] ui.tiff_preview: TiffPreview: loaded 4 page(s)
+2026-09-07 10:06:25,196 [DEBUG] ui.tiff_preview: TiffPreview: loaded 4 page(s)
+2026-09-07 10:06:25,200 [DEBUG] ui.tabs.tab_chart: the chart sidecar moved 1 parameters and 2 ui values away from the target's own
+2026-09-07 10:06:27,178 [INFO] review:   STATE run3 again: gen=False stop=True inflight=True bar='Run 3 (overwrite)'/'Profiling' status='Margins: OK' actual=400 est=420
+2026-09-07 10:06:27,885 [INFO] review:   STATE after clicking the greyed Generate: gen=False stop=True inflight=True bar='Run 3 (overwrite)'/'Profiling' status='Margins: OK' actual=400 est=420
+2026-09-07 10:06:27,885 [DEBUG] core.settings: settings.set session_target_name = 'A1-EngineVsPrinttarg'
+2026-09-07 10:06:27,885 [DEBUG] core.settings: settings.set session_project_root = ''
+2026-09-07 10:06:27,886 [DEBUG] core.file_manager: Target name set to: A1-EngineVsPrinttarg (root /Users/Basti/ChromIQ-assessment/A1-EngineVsPrinttarg)
+2026-09-07 10:06:27,892 [INFO] core.file_manager: opened the EXISTING project at /Users/Basti/ChromIQ-assessment/A1-EngineVsPrinttarg (2 run(s) on disk)
+2026-09-07 10:06:27,896 [DEBUG] ui.tabs.tab_chart: create-chart settings written for run2 (40 parameters + ui state)
+2026-09-07 10:06:27,911 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 10:06:27,911 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:27,937 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:27,937 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:27,937 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:27,937 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:27,937 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:27,937 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:27,961 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:27,961 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:27,961 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:27,961 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:27,961 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:27,961 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:27,983 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:27,983 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:27,983 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:27,983 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:27,983 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:27,983 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:28,011 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 10:06:28,011 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:28,029 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:28,029 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:28,029 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:28,029 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:28,029 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:28,029 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:28,048 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:28,048 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:28,048 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:28,048 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:28,048 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:28,048 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:28,077 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 10:06:28,077 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:28,095 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:28,095 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:28,095 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:28,095 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:28,095 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:28,095 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:28,114 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:28,114 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:28,114 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:28,114 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:28,114 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:28,114 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:28,140 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 10:06:28,141 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:28,158 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:28,158 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:28,158 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:28,158 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:28,158 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:28,158 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:28,177 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:28,177 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:28,177 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:28,177 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:28,177 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:28,177 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:28,204 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 10:06:28,418 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = False
+2026-09-07 10:06:28,420 [INFO] ui.tabs.tab_chart: chart loaded: 1 page(s) counted from the page images (field was 4, now 1)
+2026-09-07 10:06:28,421 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 10:06:28,423 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 10:06:28,530 [INFO] ui.tabs.tab_measure: Uniform strip detection: 20 strips, block x=123–885 (scaled)
+2026-09-07 10:06:28,532 [DEBUG] ui.tabs.tab_chart: the chart sidecar moved 6 parameters and 1 ui values away from the target's own
+2026-09-07 10:06:28,534 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 10:06:28,644 [INFO] ui.tabs.tab_measure: Uniform strip detection: 20 strips, block x=123–885 (scaled)
+2026-09-07 10:06:28,646 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 10:06:28,646 [INFO] ui.main_window: Session restored: target=A1-EngineVsPrinttarg run=run2
+2026-09-07 10:06:30,153 [INFO] review: open_project('A1-EngineVsPrinttarg') -> run bar reads 'Run 2 (overwrite)' ok=True
+2026-09-07 10:06:31,856 [INFO] review:   STATE A1-EngineVsPrinttarg opened: gen=False stop=True inflight=True bar='Run 2 (overwrite)'/'Profiling' status='Margins: OK' actual=420 est=484
+2026-09-07 10:06:32,018 [INFO] review:   shot Review/Screenshots/R03-f024-gamut/06-other-project-after-leak.png  (3400x2100)
+2026-09-07 10:06:32,018 [DEBUG] core.settings: settings.set session_target_name = 'Demo-Full-RGB'
+2026-09-07 10:06:32,018 [DEBUG] core.settings: settings.set session_project_root = ''
+2026-09-07 10:06:32,019 [DEBUG] core.file_manager: Target name set to: Demo-Full-RGB (root /Users/Basti/ChromIQ-assessment/Demo-Full-RGB)
+2026-09-07 10:06:32,020 [INFO] core.file_manager: opened the EXISTING project at /Users/Basti/ChromIQ-assessment/Demo-Full-RGB (4 run(s) on disk)
+2026-09-07 10:06:32,020 [DEBUG] ui.tabs.tab_chart: create-chart settings written for run2 (40 parameters + ui state)
+2026-09-07 10:06:32,022 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 10:06:32,022 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 10:06:32,023 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:32,040 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:32,040 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:32,040 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:32,040 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:32,040 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:32,040 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:32,044 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:32,044 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:32,044 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:32,044 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:32,044 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:32,044 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:32,056 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 10:06:32,056 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:32,074 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:32,074 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:32,074 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:32,074 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:32,074 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:32,074 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:32,078 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:32,078 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:32,078 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:32,078 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:32,078 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:32,078 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:32,092 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 10:06:32,092 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:32,110 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:32,110 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:32,110 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:32,110 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:32,110 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:32,110 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:32,113 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:32,114 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:32,114 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:32,114 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:32,114 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:32,114 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:32,125 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 10:06:32,125 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:32,142 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:32,142 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:32,142 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:32,142 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:32,142 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:32,142 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:32,145 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:32,145 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:32,145 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:32,145 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:32,145 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:32,145 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:32,157 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 10:06:32,166 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [_display_run_chart:6588  ←  _restore_chart_settings:11047  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:32,184 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:32,184 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:32,184 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:32,184 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:32,184 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:32,184 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:32,188 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:32,188 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:32,188 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:32,188 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:32,188 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:32,188 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:32,199 [INFO] ui.tabs.tab_chart: chart loaded: 1 page(s) counted from the page images (field was 1, now 1)
+2026-09-07 10:06:32,200 [INFO] ui.tabs.tab_chart: Create Chart: this run's own patch set (Demo-Full-RGB.ti1) is attached, so regenerating reproduces it
+2026-09-07 10:06:32,200 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 10:06:32,201 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 10:06:32,207 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 10:06:32,210 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 10:06:32,210 [INFO] ui.main_window: Session restored: target=Demo-Full-RGB run=run4
+2026-09-07 10:06:33,718 [INFO] review: open_project('Demo-Full-RGB') -> run bar reads 'Run 4 (overwrite)' ok=True
+2026-09-07 10:06:35,449 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = False
+2026-09-07 10:06:35,449 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = False
+2026-09-07 10:06:35,451 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:35,481 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:35,481 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:35,481 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:35,481 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:35,481 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:35,481 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:35,507 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:35,507 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:35,507 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:35,507 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:35,507 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:35,507 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:35,538 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = False
+2026-09-07 10:06:35,538 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:35,556 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:35,556 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:35,556 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:35,556 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:35,556 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:35,556 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:35,575 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:35,575 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:35,575 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:35,575 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:35,575 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:35,575 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:35,603 [DEBUG] ui.tiff_preview: TiffPreview: loaded 3 page(s)
+2026-09-07 10:06:35,611 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 10:06:35,611 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [_on_manual_engine_toggled:5062  ←  _convert_printtarg_to_engine:5156  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:35,629 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:35,629 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:35,629 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:35,629 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:35,629 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:35,629 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:35,648 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:35,648 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:35,648 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:35,648 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:35,648 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:35,648 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:35,715 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:35,715 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:35,715 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:35,715 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:35,715 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:35,715 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:35,717 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [_display_run_chart:6588  ←  _restore_chart_settings:11047  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:35,736 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:35,736 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:35,736 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:35,736 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:35,736 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:35,736 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:35,761 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:35,761 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:35,761 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:35,761 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:35,761 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:35,761 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:35,765 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:35,765 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:35,765 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:35,765 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:35,765 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:35,765 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:35,769 [INFO] ui.tabs.tab_chart: chart loaded: 3 page(s) counted from the page images (field was 3, now 3)
+2026-09-07 10:06:35,770 [DEBUG] ui.tiff_preview: TiffPreview: loaded 3 page(s)
+2026-09-07 10:06:35,772 [DEBUG] ui.tiff_preview: TiffPreview: loaded 3 page(s)
+2026-09-07 10:06:35,775 [DEBUG] ui.tabs.tab_chart: the chart sidecar moved 3 parameters and 2 ui values away from the target's own
+2026-09-07 10:06:37,258 [DEBUG] ui.tabs.tab_chart: create-chart settings written for run2 (40 parameters + ui state)
+2026-09-07 10:06:37,275 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 10:06:37,276 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:37,301 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:37,301 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:37,301 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:37,301 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:37,301 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:37,301 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:37,323 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:37,323 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:37,323 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:37,323 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:37,323 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:37,323 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:37,346 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:37,346 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:37,346 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:37,346 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:37,346 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:37,346 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:37,538 [INFO] workflow.gamut_target: gamut selection: 5715 of 5960 master colours in gamut (full margin), 1 requested, 1 chosen (0 neutral) + 8 corners
+2026-09-07 10:06:37,579 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 10:06:37,579 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:37,613 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:37,613 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:37,613 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:37,613 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:37,613 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:37,613 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:37,648 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:37,648 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:37,648 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:37,648 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:37,648 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:37,648 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:37,694 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 10:06:37,719 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [_display_run_chart:6588  ←  _restore_chart_settings:11047  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:37,758 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:37,758 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:37,758 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:37,758 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:37,758 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:37,758 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:37,798 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:37,798 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:37,798 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:37,798 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:37,798 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:37,798 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:37,816 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:37,816 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:37,816 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:37,816 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:37,816 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:37,816 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:37,821 [INFO] ui.tabs.tab_chart: chart loaded: 1 page(s) counted from the page images (field was 1, now 1)
+2026-09-07 10:06:37,824 [INFO] ui.tabs.tab_chart: Create Chart: this run's own patch set (Demo-Full-RGB-verify.ti1) is attached, so regenerating reproduces it
+2026-09-07 10:06:37,825 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 10:06:37,826 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 10:06:37,828 [DEBUG] ui.tabs.tab_chart: the chart sidecar moved 2 parameters and 3 ui values away from the target's own
+2026-09-07 10:06:41,594 [INFO] review:   STATE run2 Verification GAMUT (has profile): gen=True stop=False inflight=False bar='Run 2 (overwrite)'/'Verification' status='Margins: OK' actual=75 est=105
+2026-09-07 10:06:41,756 [INFO] review:   shot Review/Screenshots/R03-f024-gamut/07-gamut-with-profile-run2.png  (3400x2100)
+2026-09-07 10:06:42,770 [INFO] review:   STATE Guided after gamut on run2: gen=True stop=False inflight=False bar='Run 2 (overwrite)'/'Verification' status='Margins: OK' actual=75 est=105
+2026-09-07 10:06:42,776 [DEBUG] ui.tabs.tab_chart: create-chart settings written for verifications (40 parameters + ui state)
+2026-09-07 10:06:42,795 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 10:06:42,796 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:42,822 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:42,822 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:42,822 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:42,822 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:42,822 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:42,822 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:42,844 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:42,844 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:42,844 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:42,845 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:42,845 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:42,845 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:42,866 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:42,866 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:42,866 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:42,866 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:42,866 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:42,866 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:42,894 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 10:06:42,894 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:42,912 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:42,912 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:42,912 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:42,912 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:42,912 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:42,912 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:42,931 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:42,931 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:42,931 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:42,931 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:42,931 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:42,931 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:42,959 [DEBUG] ui.tiff_preview: TiffPreview: loaded 3 page(s)
+2026-09-07 10:06:42,966 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [_display_run_chart:6588  ←  _restore_chart_settings:11047  ←  _set_engine_recipe:17986]
+2026-09-07 10:06:42,985 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:42,985 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:42,985 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:42,985 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:42,985 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:42,985 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:43,009 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:43,009 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:43,009 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:43,009 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:43,009 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:43,009 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:43,012 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 10:06:43,012 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 10:06:43,012 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 10:06:43,013 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 10:06:43,013 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 10:06:43,013 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 10:06:43,016 [INFO] ui.tabs.tab_chart: chart loaded: 3 page(s) counted from the page images (field was 3, now 3)
+2026-09-07 10:06:43,018 [DEBUG] ui.tiff_preview: TiffPreview: loaded 3 page(s)
+2026-09-07 10:06:43,019 [DEBUG] ui.tiff_preview: TiffPreview: loaded 3 page(s)
+2026-09-07 10:06:43,023 [DEBUG] ui.tabs.tab_chart: the chart sidecar moved 3 parameters and 2 ui values away from the target's own
+2026-09-07 10:06:44,693 [INFO] review:   STATE run2 Profiling: gen=True stop=False inflight=False bar='Run 2 (overwrite)'/'Profiling' status='Margins: OK' actual=240 est=315
+2026-09-07 10:06:44,720 [DEBUG] ui.tiff_preview: TiffPreview: loaded 0 page(s)
+2026-09-07 10:06:44,722 [DEBUG] core.settings: settings.set session_ti1_path = ''
+2026-09-07 10:06:46,400 [INFO] review:   STATE New run (empty): gen=True stop=False inflight=False bar='New run'/'Profiling' status='Margins: OK' actual=240 est=1452
+2026-09-07 10:06:46,548 [INFO] review:   shot Review/Screenshots/R03-f024-gamut/08-new-run-frames.png  (3400x2100)
+2026-09-07 10:06:46,548 [INFO] review:   json Review/Test Runs/logs/r03_results.json
+2026-09-07 10:06:46,549 [INFO] review: unexpected=[] serious=[]
+2026-09-07 10:06:46,549 [DEBUG] core.settings: settings.set window_geometry = PyQt6.QtCore.QByteArray(b'\x01\xd9\xd0\xcb\x00\x03\x00\x00\x00\x00\x00\n\x00\x00\x00&\x00\x00\x06\xad\x00\x00\x04[\x00\x00\x00\n\x00\x00\x00B\x00\x00\x06\xad\x00\x00\x04[\x00\x00\x00\x00\x00\x00\x00\x00\x06\xc0\x00\x00\x00\n\x00\x00\x00B\x00\x00\x06\xad\x00\x00\x04[')
+2026-09-07 10:06:46,549 [DEBUG] core.settings: settings.set window_maximized = False
+2026-09-07 10:06:46,549 [DEBUG] core.settings: settings.set window_fullscreen = False
+2026-09-07 10:06:46,763 [DEBUG] core.settings: settings.set active_tab = 0
+2026-09-07 10:06:46,763 [DEBUG] core.settings: settings.set session_target_name = 'Demo-Full-RGB'
+2026-09-07 10:06:46,763 [DEBUG] core.settings: settings.set session_project_root = ''
+2026-09-07 10:06:46,763 [INFO] core.argyll_runner: ArgyllRunner: cleanup complete

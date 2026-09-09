@@ -1,0 +1,2962 @@
+[
+  {
+    "tag": "f01-baseline-notes",
+    "note": "clip on, notes box",
+    "ok": true,
+    "secs": 3.4,
+    "est_before": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.3,
+        8.55
+      ],
+      "pitch": null
+    },
+    "est_after": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "margin_text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.0 | 0.786 | 19.0 | Patch width (in strip reading direction) | 8.3 | 0.327 | Strip length | 238.0 | 9.370 | Margins: OK",
+    "status": "Margins: OK",
+    "notes": "",
+    "files": [
+      "A5-Furniture.channels.json",
+      "A5-Furniture.ti1",
+      "A5-Furniture.ti2",
+      "A5-Furniture.tif",
+      "cache/new_run.json",
+      "exports/A5-Furniture-colours.txt",
+      "exports/A5-Furniture-i1profiler.pxf",
+      "exports/A5-Furniture-i1profiler.txt",
+      "meta.json"
+    ],
+    "tiffs": [
+      {
+        "file": "A5-Furniture.tif",
+        "size_px": [
+          2480,
+          3508
+        ],
+        "mode": "RGB",
+        "dpi": [
+          300.0,
+          300.0
+        ],
+        "bits": [
+          8,
+          8,
+          8
+        ],
+        "compression": "tiff_lzw",
+        "bytes": 1174738
+      }
+    ],
+    "ti2": {
+      "ti2_sets": 525,
+      "ti2_steps_in_pass": 25,
+      "ti2_passes": "21",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A5-Furniture.ti2"
+    },
+    "recipe": {
+      "clip_content_mode": "notes",
+      "clip_side": "left",
+      "clip_border_width_mm": 26.0,
+      "clip_flip_180": false,
+      "show_strip_indicators": true,
+      "show_row_indicators": null,
+      "indicator_size_mm": 0.0,
+      "indicator_bold": false,
+      "indicator_rotation": 0,
+      "underline_mode": "off",
+      "chart_text": "",
+      "chart_text_size_mm": 0.0,
+      "stamp_command": false,
+      "edge_spacers": false,
+      "helper_markers": false,
+      "offset_x_mm": 0.0,
+      "offset_y_mm": 0.0,
+      "export_pdf": false,
+      "bit16": false,
+      "compression": "lzw",
+      "spacer_mode": "colored",
+      "randomize": true,
+      "seed": null,
+      "clip_image_path": ""
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 525 patches (25\u00d721), 1 page, random start 1777240688",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 1 strip",
+      "wrote A5-Furniture-colours.txt",
+      "wrote A5-Furniture-i1profiler.txt",
+      "wrote A5-Furniture-i1profiler.pxf"
+    ],
+    "serious": [],
+    "unexpected": []
+  },
+  {
+    "tag": "f02-clip-text",
+    "note": "clip content: custom text with tokens",
+    "ok": true,
+    "secs": 3.4,
+    "est_before": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.3,
+        8.55
+      ],
+      "pitch": null
+    },
+    "est_after": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "margin_text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.0 | 0.786 | 19.0 | Patch width (in strip reading direction) | 8.3 | 0.327 | Strip length | 238.0 | 9.370 | Margins: OK",
+    "status": "Margins: OK",
+    "notes": "",
+    "files": [
+      "A5-Furniture.channels.json",
+      "A5-Furniture.ti1",
+      "A5-Furniture.ti2",
+      "A5-Furniture.tif",
+      "cache/new_run.json",
+      "exports/A5-Furniture-colours.txt",
+      "exports/A5-Furniture-i1profiler.pxf",
+      "exports/A5-Furniture-i1profiler.txt",
+      "meta.json"
+    ],
+    "tiffs": [
+      {
+        "file": "A5-Furniture.tif",
+        "size_px": [
+          2480,
+          3508
+        ],
+        "mode": "RGB",
+        "dpi": [
+          300.0,
+          300.0
+        ],
+        "bits": [
+          8,
+          8,
+          8
+        ],
+        "compression": "tiff_lzw",
+        "bytes": 1124093
+      }
+    ],
+    "ti2": {
+      "ti2_sets": 525,
+      "ti2_steps_in_pass": 25,
+      "ti2_passes": "21",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A5-Furniture.ti2"
+    },
+    "recipe": {
+      "clip_content_mode": "text",
+      "clip_side": "left",
+      "clip_border_width_mm": 26.0,
+      "clip_flip_180": false,
+      "show_strip_indicators": true,
+      "show_row_indicators": null,
+      "indicator_size_mm": 0.0,
+      "indicator_bold": false,
+      "indicator_rotation": 0,
+      "underline_mode": "off",
+      "chart_text": "",
+      "chart_text_size_mm": 0.0,
+      "stamp_command": false,
+      "edge_spacers": false,
+      "helper_markers": false,
+      "offset_x_mm": 0.0,
+      "offset_y_mm": 0.0,
+      "export_pdf": false,
+      "bit16": false,
+      "compression": "lzw",
+      "spacer_mode": "colored",
+      "randomize": true,
+      "seed": null,
+      "clip_image_path": ""
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 525 patches (25\u00d721), 1 page, random start 546950929",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 3 strips",
+      "wrote A5-Furniture-colours.txt",
+      "wrote A5-Furniture-i1profiler.txt",
+      "wrote A5-Furniture-i1profiler.pxf"
+    ],
+    "serious": [],
+    "unexpected": []
+  },
+  {
+    "tag": "f03-clip-example",
+    "note": "clip content: example table",
+    "ok": true,
+    "secs": 3.3,
+    "est_before": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.3,
+        8.55
+      ],
+      "pitch": null
+    },
+    "est_after": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "margin_text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.0 | 0.786 | 19.0 | Patch width (in strip reading direction) | 8.3 | 0.327 | Strip length | 238.0 | 9.370 | Margins: OK",
+    "status": "Margins: OK",
+    "notes": "",
+    "files": [
+      "A5-Furniture.channels.json",
+      "A5-Furniture.ti1",
+      "A5-Furniture.ti2",
+      "A5-Furniture.tif",
+      "cache/new_run.json",
+      "exports/A5-Furniture-colours.txt",
+      "exports/A5-Furniture-i1profiler.pxf",
+      "exports/A5-Furniture-i1profiler.txt",
+      "meta.json"
+    ],
+    "tiffs": [
+      {
+        "file": "A5-Furniture.tif",
+        "size_px": [
+          2480,
+          3508
+        ],
+        "mode": "RGB",
+        "dpi": [
+          300.0,
+          300.0
+        ],
+        "bits": [
+          8,
+          8,
+          8
+        ],
+        "compression": "tiff_lzw",
+        "bytes": 1128885
+      }
+    ],
+    "ti2": {
+      "ti2_sets": 525,
+      "ti2_steps_in_pass": 25,
+      "ti2_passes": "21",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A5-Furniture.ti2"
+    },
+    "recipe": {
+      "clip_content_mode": "text",
+      "clip_side": "left",
+      "clip_border_width_mm": 26.0,
+      "clip_flip_180": false,
+      "show_strip_indicators": true,
+      "show_row_indicators": null,
+      "indicator_size_mm": 0.0,
+      "indicator_bold": false,
+      "indicator_rotation": 0,
+      "underline_mode": "off",
+      "chart_text": "",
+      "chart_text_size_mm": 0.0,
+      "stamp_command": false,
+      "edge_spacers": false,
+      "helper_markers": false,
+      "offset_x_mm": 0.0,
+      "offset_y_mm": 0.0,
+      "export_pdf": false,
+      "bit16": false,
+      "compression": "lzw",
+      "spacer_mode": "colored",
+      "randomize": true,
+      "seed": null,
+      "clip_image_path": ""
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 525 patches (25\u00d721), 1 page, random start 415808292",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 4 strips",
+      "wrote A5-Furniture-colours.txt",
+      "wrote A5-Furniture-i1profiler.txt",
+      "wrote A5-Furniture-i1profiler.pxf"
+    ],
+    "serious": [],
+    "unexpected": [
+      {
+        "class": "QMessageBox",
+        "title": "",
+        "text": "Replace the current clip-border text with the example table? | ",
+        "buttons": [
+          "OK"
+        ],
+        "answer": "UNEXPECTED",
+        "closed_via": "clicked 'OK'"
+      }
+    ]
+  },
+  {
+    "tag": "f04-clip-branding",
+    "note": "clip content: branding",
+    "ok": true,
+    "secs": 3.3,
+    "est_before": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.3,
+        8.55
+      ],
+      "pitch": null
+    },
+    "est_after": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "margin_text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.0 | 0.786 | 19.0 | Patch width (in strip reading direction) | 8.3 | 0.327 | Strip length | 238.0 | 9.370 | Margins: OK",
+    "status": "Margins: OK",
+    "notes": "",
+    "files": [
+      "A5-Furniture.channels.json",
+      "A5-Furniture.ti1",
+      "A5-Furniture.ti2",
+      "A5-Furniture.tif",
+      "cache/new_run.json",
+      "exports/A5-Furniture-colours.txt",
+      "exports/A5-Furniture-i1profiler.pxf",
+      "exports/A5-Furniture-i1profiler.txt",
+      "meta.json"
+    ],
+    "tiffs": [
+      {
+        "file": "A5-Furniture.tif",
+        "size_px": [
+          2480,
+          3508
+        ],
+        "mode": "RGB",
+        "dpi": [
+          300.0,
+          300.0
+        ],
+        "bits": [
+          8,
+          8,
+          8
+        ],
+        "compression": "tiff_lzw",
+        "bytes": 1140705
+      }
+    ],
+    "ti2": {
+      "ti2_sets": 525,
+      "ti2_steps_in_pass": 25,
+      "ti2_passes": "21",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A5-Furniture.ti2"
+    },
+    "recipe": {
+      "clip_content_mode": "branding",
+      "clip_side": "left",
+      "clip_border_width_mm": 26.0,
+      "clip_flip_180": false,
+      "show_strip_indicators": true,
+      "show_row_indicators": null,
+      "indicator_size_mm": 0.0,
+      "indicator_bold": false,
+      "indicator_rotation": 0,
+      "underline_mode": "off",
+      "chart_text": "",
+      "chart_text_size_mm": 0.0,
+      "stamp_command": false,
+      "edge_spacers": false,
+      "helper_markers": false,
+      "offset_x_mm": 0.0,
+      "offset_y_mm": 0.0,
+      "export_pdf": false,
+      "bit16": false,
+      "compression": "lzw",
+      "spacer_mode": "colored",
+      "randomize": true,
+      "seed": null,
+      "clip_image_path": ""
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 525 patches (25\u00d721), 1 page, random start 336807787",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 1 strip",
+      "wrote A5-Furniture-colours.txt",
+      "wrote A5-Furniture-i1profiler.txt",
+      "wrote A5-Furniture-i1profiler.pxf"
+    ],
+    "serious": [],
+    "unexpected": []
+  },
+  {
+    "tag": "f05-clip-off",
+    "note": "clip content: off (border stays)",
+    "ok": true,
+    "secs": 3.1,
+    "est_before": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.3,
+        8.55
+      ],
+      "pitch": null
+    },
+    "est_after": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "margin_text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.0 | 0.786 | 19.0 | Patch width (in strip reading direction) | 8.3 | 0.327 | Strip length | 238.0 | 9.370 | Margins: OK",
+    "status": "Margins: OK",
+    "notes": "",
+    "files": [
+      "A5-Furniture.channels.json",
+      "A5-Furniture.ti1",
+      "A5-Furniture.ti2",
+      "A5-Furniture.tif",
+      "cache/new_run.json",
+      "exports/A5-Furniture-colours.txt",
+      "exports/A5-Furniture-i1profiler.pxf",
+      "exports/A5-Furniture-i1profiler.txt",
+      "meta.json"
+    ],
+    "tiffs": [
+      {
+        "file": "A5-Furniture.tif",
+        "size_px": [
+          2480,
+          3508
+        ],
+        "mode": "RGB",
+        "dpi": [
+          300.0,
+          300.0
+        ],
+        "bits": [
+          8,
+          8,
+          8
+        ],
+        "compression": "tiff_lzw",
+        "bytes": 1040206
+      }
+    ],
+    "ti2": {
+      "ti2_sets": 525,
+      "ti2_steps_in_pass": 25,
+      "ti2_passes": "21",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A5-Furniture.ti2"
+    },
+    "recipe": {
+      "clip_content_mode": "off",
+      "clip_side": "left",
+      "clip_border_width_mm": 26.0,
+      "clip_flip_180": false,
+      "show_strip_indicators": true,
+      "show_row_indicators": null,
+      "indicator_size_mm": 0.0,
+      "indicator_bold": false,
+      "indicator_rotation": 0,
+      "underline_mode": "off",
+      "chart_text": "",
+      "chart_text_size_mm": 0.0,
+      "stamp_command": false,
+      "edge_spacers": false,
+      "helper_markers": false,
+      "offset_x_mm": 0.0,
+      "offset_y_mm": 0.0,
+      "export_pdf": false,
+      "bit16": false,
+      "compression": "lzw",
+      "spacer_mode": "colored",
+      "randomize": true,
+      "seed": null,
+      "clip_image_path": ""
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 525 patches (25\u00d721), 1 page, random start 888256494",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 2 strips",
+      "wrote A5-Furniture-colours.txt",
+      "wrote A5-Furniture-i1profiler.txt",
+      "wrote A5-Furniture-i1profiler.pxf"
+    ],
+    "serious": [],
+    "unexpected": []
+  },
+  {
+    "tag": "f06-clip-image",
+    "note": "clip content: imported image",
+    "ok": true,
+    "secs": 3.3,
+    "est_before": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.3,
+        8.55
+      ],
+      "pitch": null
+    },
+    "est_after": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "margin_text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.0 | 0.786 | 19.0 | Patch width (in strip reading direction) | 8.3 | 0.327 | Strip length | 238.0 | 9.370 | Margins: OK",
+    "status": "Margins: OK",
+    "notes": "",
+    "files": [
+      "A5-Furniture.channels.json",
+      "A5-Furniture.ti1",
+      "A5-Furniture.ti2",
+      "A5-Furniture.tif",
+      "cache/new_run.json",
+      "exports/A5-Furniture-colours.txt",
+      "exports/A5-Furniture-i1profiler.pxf",
+      "exports/A5-Furniture-i1profiler.txt",
+      "meta.json"
+    ],
+    "tiffs": [
+      {
+        "file": "A5-Furniture.tif",
+        "size_px": [
+          2480,
+          3508
+        ],
+        "mode": "RGB",
+        "dpi": [
+          300.0,
+          300.0
+        ],
+        "bits": [
+          8,
+          8,
+          8
+        ],
+        "compression": "tiff_lzw",
+        "bytes": 1132706
+      }
+    ],
+    "ti2": {
+      "ti2_sets": 525,
+      "ti2_steps_in_pass": 25,
+      "ti2_passes": "21",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A5-Furniture.ti2"
+    },
+    "recipe": {
+      "clip_content_mode": "image",
+      "clip_side": "left",
+      "clip_border_width_mm": 26.0,
+      "clip_flip_180": false,
+      "show_strip_indicators": true,
+      "show_row_indicators": null,
+      "indicator_size_mm": 0.0,
+      "indicator_bold": false,
+      "indicator_rotation": 0,
+      "underline_mode": "off",
+      "chart_text": "",
+      "chart_text_size_mm": 0.0,
+      "stamp_command": false,
+      "edge_spacers": false,
+      "helper_markers": false,
+      "offset_x_mm": 0.0,
+      "offset_y_mm": 0.0,
+      "export_pdf": false,
+      "bit16": false,
+      "compression": "lzw",
+      "spacer_mode": "colored",
+      "randomize": true,
+      "seed": null,
+      "clip_image_path": "/Users/Basti/Desktop/Create Chart Assessment/Evidence/clip_test_logo.png"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 525 patches (25\u00d721), 1 page, random start 1273419454",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 1 strip",
+      "wrote A5-Furniture-colours.txt",
+      "wrote A5-Furniture-i1profiler.txt",
+      "wrote A5-Furniture-i1profiler.pxf"
+    ],
+    "serious": [],
+    "unexpected": []
+  },
+  {
+    "tag": "f07-clip-right-w40-flip",
+    "note": "clip on the right, 40 mm, flipped",
+    "ok": true,
+    "secs": 3.2,
+    "est_before": {
+      "total": 468,
+      "fillup": 0,
+      "page_patches": 468,
+      "rows": 26,
+      "cols": 18,
+      "pages": 1,
+      "patch": [
+        7.99,
+        8.19
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 468,
+      "fillup": 0,
+      "page_patches": 468,
+      "rows": 26,
+      "cols": 18,
+      "pages": 1,
+      "patch": [
+        8.04,
+        8.13
+      ],
+      "pitch": null
+    },
+    "est_after": {
+      "total": 468,
+      "fillup": 0,
+      "page_patches": 468,
+      "rows": 26,
+      "cols": 18,
+      "pages": 1,
+      "patch": [
+        7.99,
+        8.19
+      ],
+      "pitch": null
+    },
+    "margin_text": "mm | inch | min | Left (to first patch) | 26.2 | 1.030 | 26.0 | Right (to first patch) | 40.0 | 1.574 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.1 | 0.790 | 19.0 | Patch width (in strip reading direction) | 8.0 | 0.317 | Strip length | 237.9 | 9.367 | Margins: OK",
+    "status": "Margins: OK",
+    "notes": "",
+    "files": [
+      "A5-Furniture.channels.json",
+      "A5-Furniture.ti1",
+      "A5-Furniture.ti2",
+      "A5-Furniture.tif",
+      "cache/new_run.json",
+      "exports/A5-Furniture-colours.txt",
+      "exports/A5-Furniture-i1profiler.pxf",
+      "exports/A5-Furniture-i1profiler.txt",
+      "meta.json"
+    ],
+    "tiffs": [
+      {
+        "file": "A5-Furniture.tif",
+        "size_px": [
+          2480,
+          3508
+        ],
+        "mode": "RGB",
+        "dpi": [
+          300.0,
+          300.0
+        ],
+        "bits": [
+          8,
+          8,
+          8
+        ],
+        "compression": "tiff_lzw",
+        "bytes": 1003645
+      }
+    ],
+    "ti2": {
+      "ti2_sets": 468,
+      "ti2_steps_in_pass": 26,
+      "ti2_passes": "18",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A5-Furniture.ti2"
+    },
+    "recipe": {
+      "clip_content_mode": "notes",
+      "clip_side": "right",
+      "clip_border_width_mm": 40.0,
+      "clip_flip_180": true,
+      "show_strip_indicators": true,
+      "show_row_indicators": null,
+      "indicator_size_mm": 0.0,
+      "indicator_bold": false,
+      "indicator_rotation": 0,
+      "underline_mode": "off",
+      "chart_text": "",
+      "chart_text_size_mm": 0.0,
+      "stamp_command": false,
+      "edge_spacers": false,
+      "helper_markers": false,
+      "offset_x_mm": 0.0,
+      "offset_y_mm": 0.0,
+      "export_pdf": false,
+      "bit16": false,
+      "compression": "lzw",
+      "spacer_mode": "colored",
+      "randomize": true,
+      "seed": null,
+      "clip_image_path": "/Users/Basti/Desktop/Create Chart Assessment/Evidence/clip_test_logo.png"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 468 patches (26\u00d718), 1 page, random start 1705062976",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 2 strips",
+      "wrote A5-Furniture-colours.txt",
+      "wrote A5-Furniture-i1profiler.txt",
+      "wrote A5-Furniture-i1profiler.pxf"
+    ],
+    "serious": [],
+    "unexpected": []
+  },
+  {
+    "tag": "f08-no-strip-indicators",
+    "note": "strip indicators off",
+    "ok": true,
+    "secs": 3.0,
+    "est_before": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.3,
+        8.55
+      ],
+      "pitch": null
+    },
+    "est_after": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "margin_text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.0 | 0.786 | 19.0 | Patch width (in strip reading direction) | 8.3 | 0.327 | Strip length | 238.0 | 9.370 | Margins: OK",
+    "status": "Margins: OK",
+    "notes": "",
+    "files": [
+      "A5-Furniture.channels.json",
+      "A5-Furniture.ti1",
+      "A5-Furniture.ti2",
+      "A5-Furniture.tif",
+      "cache/new_run.json",
+      "exports/A5-Furniture-colours.txt",
+      "exports/A5-Furniture-i1profiler.pxf",
+      "exports/A5-Furniture-i1profiler.txt",
+      "meta.json"
+    ],
+    "tiffs": [
+      {
+        "file": "A5-Furniture.tif",
+        "size_px": [
+          2480,
+          3508
+        ],
+        "mode": "RGB",
+        "dpi": [
+          300.0,
+          300.0
+        ],
+        "bits": [
+          8,
+          8,
+          8
+        ],
+        "compression": "tiff_lzw",
+        "bytes": 1165100
+      }
+    ],
+    "ti2": {
+      "ti2_sets": 525,
+      "ti2_steps_in_pass": 25,
+      "ti2_passes": "21",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A5-Furniture.ti2"
+    },
+    "recipe": {
+      "clip_content_mode": "notes",
+      "clip_side": "left",
+      "clip_border_width_mm": 26.0,
+      "clip_flip_180": false,
+      "show_strip_indicators": false,
+      "show_row_indicators": null,
+      "indicator_size_mm": 0.0,
+      "indicator_bold": false,
+      "indicator_rotation": 0,
+      "underline_mode": "off",
+      "chart_text": "",
+      "chart_text_size_mm": 0.0,
+      "stamp_command": false,
+      "edge_spacers": false,
+      "helper_markers": false,
+      "offset_x_mm": 0.0,
+      "offset_y_mm": 0.0,
+      "export_pdf": false,
+      "bit16": false,
+      "compression": "lzw",
+      "spacer_mode": "colored",
+      "randomize": true,
+      "seed": null,
+      "clip_image_path": "/Users/Basti/Desktop/Create Chart Assessment/Evidence/clip_test_logo.png"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 525 patches (25\u00d721), 1 page, random start 484871861",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 4 strips",
+      "wrote A5-Furniture-colours.txt",
+      "wrote A5-Furniture-i1profiler.txt",
+      "wrote A5-Furniture-i1profiler.pxf"
+    ],
+    "serious": [],
+    "unexpected": []
+  },
+  {
+    "tag": "f09-row-indicators",
+    "note": "row indicators on",
+    "ok": true,
+    "secs": 3.5,
+    "est_before": {
+      "total": 500,
+      "fillup": 0,
+      "page_patches": 500,
+      "rows": 25,
+      "cols": 20,
+      "pages": 1,
+      "patch": [
+        8.34,
+        8.56
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 500,
+      "fillup": 0,
+      "page_patches": 500,
+      "rows": 25,
+      "cols": 20,
+      "pages": 1,
+      "patch": [
+        8.3,
+        8.55
+      ],
+      "pitch": null
+    },
+    "est_after": {
+      "total": 500,
+      "fillup": 0,
+      "page_patches": 500,
+      "rows": 25,
+      "cols": 20,
+      "pages": 1,
+      "patch": [
+        8.34,
+        8.56
+      ],
+      "pitch": null
+    },
+    "margin_text": "mm | inch | min | Left (to first patch) | 34.0 | 1.340 | 26.0 | Right (to first patch) | 9.2 | 0.361 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.0 | 0.786 | 19.0 | Patch width (in strip reading direction) | 8.3 | 0.327 | Strip length | 238.0 | 9.370",
+    "status": "",
+    "notes": "\u26a0 The left margin was widened from 26.0 mm to 34.0 mm to fit the row indicators. The labels start 26.0 mm in from the page edge and their text needs 7.0 mm. \u201cClip\u201d is set to 4.0 mm and is not what is holding them out there, so lowering it moves nothing \u2014 the note under \u201cText distance from edge\u201d names what is. To get that paper back, switch \u201cShow row indicators\u201d off or use a smaller label size.",
+    "files": [
+      "A5-Furniture.channels.json",
+      "A5-Furniture.ti1",
+      "A5-Furniture.ti2",
+      "A5-Furniture.tif",
+      "cache/new_run.json",
+      "exports/A5-Furniture-colours.txt",
+      "exports/A5-Furniture-i1profiler.pxf",
+      "exports/A5-Furniture-i1profiler.txt",
+      "meta.json"
+    ],
+    "tiffs": [
+      {
+        "file": "A5-Furniture.tif",
+        "size_px": [
+          2480,
+          3508
+        ],
+        "mode": "RGB",
+        "dpi": [
+          300.0,
+          300.0
+        ],
+        "bits": [
+          8,
+          8,
+          8
+        ],
+        "compression": "tiff_lzw",
+        "bytes": 1144316
+      }
+    ],
+    "ti2": {
+      "ti2_sets": 500,
+      "ti2_steps_in_pass": 25,
+      "ti2_passes": "20",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A5-Furniture.ti2"
+    },
+    "recipe": {
+      "clip_content_mode": "notes",
+      "clip_side": "left",
+      "clip_border_width_mm": 26.0,
+      "clip_flip_180": false,
+      "show_strip_indicators": true,
+      "show_row_indicators": true,
+      "indicator_size_mm": 0.0,
+      "indicator_bold": false,
+      "indicator_rotation": 0,
+      "underline_mode": "off",
+      "chart_text": "",
+      "chart_text_size_mm": 0.0,
+      "stamp_command": false,
+      "edge_spacers": false,
+      "helper_markers": false,
+      "offset_x_mm": 0.0,
+      "offset_y_mm": 0.0,
+      "export_pdf": false,
+      "bit16": false,
+      "compression": "lzw",
+      "spacer_mode": "colored",
+      "randomize": true,
+      "seed": null,
+      "clip_image_path": "/Users/Basti/Desktop/Create Chart Assessment/Evidence/clip_test_logo.png"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 500 patches (25\u00d720), 1 page, random start 1208439656",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 3 strips",
+      "wrote A5-Furniture-colours.txt",
+      "wrote A5-Furniture-i1profiler.txt",
+      "wrote A5-Furniture-i1profiler.pxf"
+    ],
+    "serious": [],
+    "unexpected": []
+  },
+  {
+    "tag": "f10-indicator-6mm-bold-rot90",
+    "note": "indicator 6 mm bold rotated 90",
+    "ok": true,
+    "secs": 3.5,
+    "est_before": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.3,
+        8.55
+      ],
+      "pitch": null
+    },
+    "est_after": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "margin_text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.0 | 0.786 | 19.0 | Patch width (in strip reading direction) | 8.3 | 0.327 | Strip length | 238.0 | 9.370 | Margins: OK",
+    "status": "Margins: OK",
+    "notes": "",
+    "files": [
+      "A5-Furniture.channels.json",
+      "A5-Furniture.ti1",
+      "A5-Furniture.ti2",
+      "A5-Furniture.tif",
+      "cache/new_run.json",
+      "exports/A5-Furniture-colours.txt",
+      "exports/A5-Furniture-i1profiler.pxf",
+      "exports/A5-Furniture-i1profiler.txt",
+      "meta.json"
+    ],
+    "tiffs": [
+      {
+        "file": "A5-Furniture.tif",
+        "size_px": [
+          2480,
+          3508
+        ],
+        "mode": "RGB",
+        "dpi": [
+          300.0,
+          300.0
+        ],
+        "bits": [
+          8,
+          8,
+          8
+        ],
+        "compression": "tiff_lzw",
+        "bytes": 1167859
+      }
+    ],
+    "ti2": {
+      "ti2_sets": 525,
+      "ti2_steps_in_pass": 25,
+      "ti2_passes": "21",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A5-Furniture.ti2"
+    },
+    "recipe": {
+      "clip_content_mode": "notes",
+      "clip_side": "left",
+      "clip_border_width_mm": 26.0,
+      "clip_flip_180": false,
+      "show_strip_indicators": true,
+      "show_row_indicators": false,
+      "indicator_size_mm": 2.12,
+      "indicator_bold": true,
+      "indicator_rotation": 90,
+      "underline_mode": "off",
+      "chart_text": "",
+      "chart_text_size_mm": 0.0,
+      "stamp_command": false,
+      "edge_spacers": false,
+      "helper_markers": false,
+      "offset_x_mm": 0.0,
+      "offset_y_mm": 0.0,
+      "export_pdf": false,
+      "bit16": false,
+      "compression": "lzw",
+      "spacer_mode": "colored",
+      "randomize": true,
+      "seed": null,
+      "clip_image_path": "/Users/Basti/Desktop/Create Chart Assessment/Evidence/clip_test_logo.png"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 525 patches (25\u00d721), 1 page, random start 722224094",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 2 strips",
+      "wrote A5-Furniture-colours.txt",
+      "wrote A5-Furniture-i1profiler.txt",
+      "wrote A5-Furniture-i1profiler.pxf"
+    ],
+    "serious": [],
+    "unexpected": []
+  },
+  {
+    "tag": "f11-underline-black",
+    "note": "underline black",
+    "ok": true,
+    "secs": 3.3,
+    "est_before": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.3,
+        8.55
+      ],
+      "pitch": null
+    },
+    "est_after": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "margin_text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.0 | 0.786 | 19.0 | Patch width (in strip reading direction) | 8.3 | 0.327 | Strip length | 238.0 | 9.370 | Margins: OK",
+    "status": "Margins: OK",
+    "notes": "",
+    "files": [
+      "A5-Furniture.channels.json",
+      "A5-Furniture.ti1",
+      "A5-Furniture.ti2",
+      "A5-Furniture.tif",
+      "cache/new_run.json",
+      "exports/A5-Furniture-colours.txt",
+      "exports/A5-Furniture-i1profiler.pxf",
+      "exports/A5-Furniture-i1profiler.txt",
+      "meta.json"
+    ],
+    "tiffs": [
+      {
+        "file": "A5-Furniture.tif",
+        "size_px": [
+          2480,
+          3508
+        ],
+        "mode": "RGB",
+        "dpi": [
+          300.0,
+          300.0
+        ],
+        "bits": [
+          8,
+          8,
+          8
+        ],
+        "compression": "tiff_lzw",
+        "bytes": 1172677
+      }
+    ],
+    "ti2": {
+      "ti2_sets": 525,
+      "ti2_steps_in_pass": 25,
+      "ti2_passes": "21",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A5-Furniture.ti2"
+    },
+    "recipe": {
+      "clip_content_mode": "notes",
+      "clip_side": "left",
+      "clip_border_width_mm": 26.0,
+      "clip_flip_180": false,
+      "show_strip_indicators": true,
+      "show_row_indicators": false,
+      "indicator_size_mm": 0.0,
+      "indicator_bold": false,
+      "indicator_rotation": 0,
+      "underline_mode": "black",
+      "chart_text": "",
+      "chart_text_size_mm": 0.0,
+      "stamp_command": false,
+      "edge_spacers": false,
+      "helper_markers": false,
+      "offset_x_mm": 0.0,
+      "offset_y_mm": 0.0,
+      "export_pdf": false,
+      "bit16": false,
+      "compression": "lzw",
+      "spacer_mode": "colored",
+      "randomize": true,
+      "seed": null,
+      "clip_image_path": "/Users/Basti/Desktop/Create Chart Assessment/Evidence/clip_test_logo.png"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 525 patches (25\u00d721), 1 page, random start 1645357615",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 4 strips",
+      "wrote A5-Furniture-colours.txt",
+      "wrote A5-Furniture-i1profiler.txt",
+      "wrote A5-Furniture-i1profiler.pxf"
+    ],
+    "serious": [],
+    "unexpected": []
+  },
+  {
+    "tag": "f12-sheet-text",
+    "note": "sheet text with tokens, 5 mm",
+    "ok": true,
+    "secs": 3.3,
+    "est_before": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.3,
+        8.55
+      ],
+      "pitch": null
+    },
+    "est_after": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "margin_text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.0 | 0.786 | 19.0 | Patch width (in strip reading direction) | 8.3 | 0.327 | Strip length | 238.0 | 9.370 | Margins: OK",
+    "status": "Margins: OK",
+    "notes": "",
+    "files": [
+      "A5-Furniture.channels.json",
+      "A5-Furniture.ti1",
+      "A5-Furniture.ti2",
+      "A5-Furniture.tif",
+      "cache/new_run.json",
+      "exports/A5-Furniture-colours.txt",
+      "exports/A5-Furniture-i1profiler.pxf",
+      "exports/A5-Furniture-i1profiler.txt",
+      "meta.json"
+    ],
+    "tiffs": [
+      {
+        "file": "A5-Furniture.tif",
+        "size_px": [
+          2480,
+          3508
+        ],
+        "mode": "RGB",
+        "dpi": [
+          300.0,
+          300.0
+        ],
+        "bits": [
+          8,
+          8,
+          8
+        ],
+        "compression": "tiff_lzw",
+        "bytes": 1180338
+      }
+    ],
+    "ti2": {
+      "ti2_sets": 525,
+      "ti2_steps_in_pass": 25,
+      "ti2_passes": "21",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A5-Furniture.ti2"
+    },
+    "recipe": {
+      "clip_content_mode": "notes",
+      "clip_side": "left",
+      "clip_border_width_mm": 26.0,
+      "clip_flip_180": false,
+      "show_strip_indicators": true,
+      "show_row_indicators": false,
+      "indicator_size_mm": 0.0,
+      "indicator_bold": false,
+      "indicator_rotation": 0,
+      "underline_mode": "off",
+      "chart_text": "Sheet {project} \u00b7 {date} \u00b7 {patches} patches \u00b7 {rundescription}",
+      "chart_text_size_mm": 1.76,
+      "stamp_command": false,
+      "edge_spacers": false,
+      "helper_markers": false,
+      "offset_x_mm": 0.0,
+      "offset_y_mm": 0.0,
+      "export_pdf": false,
+      "bit16": false,
+      "compression": "lzw",
+      "spacer_mode": "colored",
+      "randomize": true,
+      "seed": null,
+      "clip_image_path": "/Users/Basti/Desktop/Create Chart Assessment/Evidence/clip_test_logo.png"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 525 patches (25\u00d721), 1 page, random start 1766312399",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 4 strips",
+      "wrote A5-Furniture-colours.txt",
+      "wrote A5-Furniture-i1profiler.txt",
+      "wrote A5-Furniture-i1profiler.pxf"
+    ],
+    "serious": [],
+    "unexpected": []
+  },
+  {
+    "tag": "f13-stamp",
+    "note": "stamp layout summary",
+    "ok": true,
+    "secs": 3.4,
+    "est_before": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.3,
+        8.55
+      ],
+      "pitch": null
+    },
+    "est_after": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "margin_text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.0 | 0.786 | 19.0 | Patch width (in strip reading direction) | 8.3 | 0.327 | Strip length | 238.0 | 9.370 | Margins: OK",
+    "status": "Margins: OK",
+    "notes": "",
+    "files": [
+      "A5-Furniture.channels.json",
+      "A5-Furniture.ti1",
+      "A5-Furniture.ti2",
+      "A5-Furniture.tif",
+      "cache/new_run.json",
+      "exports/A5-Furniture-colours.txt",
+      "exports/A5-Furniture-i1profiler.pxf",
+      "exports/A5-Furniture-i1profiler.txt",
+      "meta.json"
+    ],
+    "tiffs": [
+      {
+        "file": "A5-Furniture.tif",
+        "size_px": [
+          2480,
+          3508
+        ],
+        "mode": "RGB",
+        "dpi": [
+          300.0,
+          300.0
+        ],
+        "bits": [
+          8,
+          8,
+          8
+        ],
+        "compression": "tiff_lzw",
+        "bytes": 1186089
+      }
+    ],
+    "ti2": {
+      "ti2_sets": 525,
+      "ti2_steps_in_pass": 25,
+      "ti2_passes": "21",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A5-Furniture.ti2"
+    },
+    "recipe": {
+      "clip_content_mode": "notes",
+      "clip_side": "left",
+      "clip_border_width_mm": 26.0,
+      "clip_flip_180": false,
+      "show_strip_indicators": true,
+      "show_row_indicators": false,
+      "indicator_size_mm": 0.0,
+      "indicator_bold": false,
+      "indicator_rotation": 0,
+      "underline_mode": "off",
+      "chart_text": "",
+      "chart_text_size_mm": 0.0,
+      "stamp_command": true,
+      "edge_spacers": false,
+      "helper_markers": false,
+      "offset_x_mm": 0.0,
+      "offset_y_mm": 0.0,
+      "export_pdf": false,
+      "bit16": false,
+      "compression": "lzw",
+      "spacer_mode": "colored",
+      "randomize": true,
+      "seed": null,
+      "clip_image_path": "/Users/Basti/Desktop/Create Chart Assessment/Evidence/clip_test_logo.png"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 525 patches (25\u00d721), 1 page, random start 472364274",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 3 strips",
+      "wrote A5-Furniture-colours.txt",
+      "wrote A5-Furniture-i1profiler.txt",
+      "wrote A5-Furniture-i1profiler.pxf"
+    ],
+    "serious": [],
+    "unexpected": []
+  },
+  {
+    "tag": "f14-edge-spacers",
+    "note": "edge spacers",
+    "ok": true,
+    "secs": 3.4,
+    "est_before": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.3,
+        8.55
+      ],
+      "pitch": null
+    },
+    "est_after": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "margin_text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 38.0 | 1.497 | 38.0 | Bottom (to first patch) | 19.0 | 0.746 | 19.0 | Patch width (in strip reading direction) | 8.3 | 0.327 | Strip length | 240.0 | 9.450 | Margins: OK",
+    "status": "Margins: OK",
+    "notes": "",
+    "files": [
+      "A5-Furniture.channels.json",
+      "A5-Furniture.ti1",
+      "A5-Furniture.ti2",
+      "A5-Furniture.tif",
+      "cache/new_run.json",
+      "exports/A5-Furniture-colours.txt",
+      "exports/A5-Furniture-i1profiler.pxf",
+      "exports/A5-Furniture-i1profiler.txt",
+      "meta.json"
+    ],
+    "tiffs": [
+      {
+        "file": "A5-Furniture.tif",
+        "size_px": [
+          2480,
+          3508
+        ],
+        "mode": "RGB",
+        "dpi": [
+          300.0,
+          300.0
+        ],
+        "bits": [
+          8,
+          8,
+          8
+        ],
+        "compression": "tiff_lzw",
+        "bytes": 1170815
+      }
+    ],
+    "ti2": {
+      "ti2_sets": 525,
+      "ti2_steps_in_pass": 25,
+      "ti2_passes": "21",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A5-Furniture.ti2"
+    },
+    "recipe": {
+      "clip_content_mode": "notes",
+      "clip_side": "left",
+      "clip_border_width_mm": 26.0,
+      "clip_flip_180": false,
+      "show_strip_indicators": true,
+      "show_row_indicators": false,
+      "indicator_size_mm": 0.0,
+      "indicator_bold": false,
+      "indicator_rotation": 0,
+      "underline_mode": "off",
+      "chart_text": "",
+      "chart_text_size_mm": 0.0,
+      "stamp_command": false,
+      "edge_spacers": true,
+      "helper_markers": false,
+      "offset_x_mm": 0.0,
+      "offset_y_mm": 0.0,
+      "export_pdf": false,
+      "bit16": false,
+      "compression": "lzw",
+      "spacer_mode": "colored",
+      "randomize": true,
+      "seed": null,
+      "clip_image_path": "/Users/Basti/Desktop/Create Chart Assessment/Evidence/clip_test_logo.png"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 525 patches (25\u00d721), 1 page, random start 748438145",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 2 strips",
+      "wrote A5-Furniture-colours.txt",
+      "wrote A5-Furniture-i1profiler.txt",
+      "wrote A5-Furniture-i1profiler.pxf"
+    ],
+    "serious": [],
+    "unexpected": []
+  },
+  {
+    "tag": "f15-helper-markers",
+    "note": "helper markers printed (default 2 mm edge, 2 mm long, 3 per patch)",
+    "ok": true,
+    "secs": 3.7,
+    "est_before": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.3,
+        8.55
+      ],
+      "pitch": null
+    },
+    "est_after": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "margin_text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.0 | 0.786 | 19.0 | Patch width (in strip reading direction) | 8.3 | 0.327 | Strip length | 238.0 | 9.370 | Margins: OK",
+    "status": "Margins: OK",
+    "notes": "",
+    "files": [
+      "A5-Furniture.channels.json",
+      "A5-Furniture.ti1",
+      "A5-Furniture.ti2",
+      "A5-Furniture.tif",
+      "cache/new_run.json",
+      "exports/A5-Furniture-colours.txt",
+      "exports/A5-Furniture-i1profiler.pxf",
+      "exports/A5-Furniture-i1profiler.txt",
+      "meta.json"
+    ],
+    "tiffs": [
+      {
+        "file": "A5-Furniture.tif",
+        "size_px": [
+          2480,
+          3508
+        ],
+        "mode": "RGB",
+        "dpi": [
+          300.0,
+          300.0
+        ],
+        "bits": [
+          8,
+          8,
+          8
+        ],
+        "compression": "tiff_lzw",
+        "bytes": 1179514
+      }
+    ],
+    "ti2": {
+      "ti2_sets": 525,
+      "ti2_steps_in_pass": 25,
+      "ti2_passes": "21",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A5-Furniture.ti2"
+    },
+    "recipe": {
+      "clip_content_mode": "notes",
+      "clip_side": "left",
+      "clip_border_width_mm": 26.0,
+      "clip_flip_180": false,
+      "show_strip_indicators": true,
+      "show_row_indicators": false,
+      "indicator_size_mm": 0.0,
+      "indicator_bold": false,
+      "indicator_rotation": 0,
+      "underline_mode": "off",
+      "chart_text": "",
+      "chart_text_size_mm": 0.0,
+      "stamp_command": false,
+      "edge_spacers": false,
+      "helper_markers": true,
+      "offset_x_mm": 0.0,
+      "offset_y_mm": 0.0,
+      "export_pdf": false,
+      "bit16": false,
+      "compression": "lzw",
+      "spacer_mode": "colored",
+      "randomize": true,
+      "seed": null,
+      "clip_image_path": "/Users/Basti/Desktop/Create Chart Assessment/Evidence/clip_test_logo.png"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 525 patches (25\u00d721), 1 page, random start 2062002896",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 2 strips",
+      "wrote A5-Furniture-colours.txt",
+      "wrote A5-Furniture-i1profiler.txt",
+      "wrote A5-Furniture-i1profiler.pxf"
+    ],
+    "serious": [],
+    "unexpected": []
+  },
+  {
+    "tag": "f16-offset-10-10",
+    "note": "page X/Y offset 10/10 mm",
+    "ok": true,
+    "secs": 3.2,
+    "est_before": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.38,
+        8.55
+      ],
+      "pitch": null
+    },
+    "est_after": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "margin_text": "mm | inch | min | Left (to first patch) | 36.0 | 1.417 | 26.0 | Right (to first patch) | 0.0 | 0.000 | 9.0 | Top (to first patch) | 49.0 | 1.930 | 38.0 | Bottom (to first patch) | 10.0 | 0.393 | 19.0 | Patch width (in strip reading direction) | 8.4 | 0.330 | Strip length | 238.0 | 9.370 | \u26a0 Right margin 0.0 mm is below the 9 mm ",
+    "status": "\u26a0 Right margin 0.0 mm is below the 9 mm instrument minimum\n\u26a0 Bottom margin 10.0 mm is below the 19 mm instrument minimum",
+    "notes": "",
+    "files": [
+      "A5-Furniture.channels.json",
+      "A5-Furniture.ti1",
+      "A5-Furniture.ti2",
+      "A5-Furniture.tif",
+      "cache/new_run.json",
+      "exports/A5-Furniture-colours.txt",
+      "exports/A5-Furniture-i1profiler.pxf",
+      "exports/A5-Furniture-i1profiler.txt",
+      "meta.json"
+    ],
+    "tiffs": [
+      {
+        "file": "A5-Furniture.tif",
+        "size_px": [
+          2480,
+          3508
+        ],
+        "mode": "RGB",
+        "dpi": [
+          300.0,
+          300.0
+        ],
+        "bits": [
+          8,
+          8,
+          8
+        ],
+        "compression": "tiff_lzw",
+        "bytes": 1142876
+      }
+    ],
+    "ti2": {
+      "ti2_sets": 525,
+      "ti2_steps_in_pass": 25,
+      "ti2_passes": "21",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A5-Furniture.ti2"
+    },
+    "recipe": {
+      "clip_content_mode": "notes",
+      "clip_side": "left",
+      "clip_border_width_mm": 26.0,
+      "clip_flip_180": false,
+      "show_strip_indicators": true,
+      "show_row_indicators": false,
+      "indicator_size_mm": 0.0,
+      "indicator_bold": false,
+      "indicator_rotation": 0,
+      "underline_mode": "off",
+      "chart_text": "",
+      "chart_text_size_mm": 0.0,
+      "stamp_command": false,
+      "edge_spacers": false,
+      "helper_markers": false,
+      "offset_x_mm": 10.0,
+      "offset_y_mm": 10.0,
+      "export_pdf": false,
+      "bit16": false,
+      "compression": "lzw",
+      "spacer_mode": "colored",
+      "randomize": true,
+      "seed": null,
+      "clip_image_path": "/Users/Basti/Desktop/Create Chart Assessment/Evidence/clip_test_logo.png"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 525 patches (25\u00d721), 1 page, random start 896879735",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 2 strips",
+      "wrote A5-Furniture-colours.txt",
+      "wrote A5-Furniture-i1profiler.txt",
+      "wrote A5-Furniture-i1profiler.pxf"
+    ],
+    "serious": [],
+    "unexpected": []
+  },
+  {
+    "tag": "f17-spacers-bw",
+    "note": "spacers black & white",
+    "ok": true,
+    "secs": 3.3,
+    "est_before": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.3,
+        8.55
+      ],
+      "pitch": null
+    },
+    "est_after": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "margin_text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.0 | 0.786 | 19.0 | Patch width (in strip reading direction) | 8.3 | 0.327 | Strip length | 238.0 | 9.370 | Margins: OK",
+    "status": "Margins: OK",
+    "notes": "",
+    "files": [
+      "A5-Furniture.channels.json",
+      "A5-Furniture.ti1",
+      "A5-Furniture.ti2",
+      "A5-Furniture.tif",
+      "cache/new_run.json",
+      "exports/A5-Furniture-colours.txt",
+      "exports/A5-Furniture-i1profiler.pxf",
+      "exports/A5-Furniture-i1profiler.txt",
+      "meta.json"
+    ],
+    "tiffs": [
+      {
+        "file": "A5-Furniture.tif",
+        "size_px": [
+          2480,
+          3508
+        ],
+        "mode": "RGB",
+        "dpi": [
+          300.0,
+          300.0
+        ],
+        "bits": [
+          8,
+          8,
+          8
+        ],
+        "compression": "tiff_lzw",
+        "bytes": 1138716
+      }
+    ],
+    "ti2": {
+      "ti2_sets": 525,
+      "ti2_steps_in_pass": 25,
+      "ti2_passes": "21",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A5-Furniture.ti2"
+    },
+    "recipe": {
+      "clip_content_mode": "notes",
+      "clip_side": "left",
+      "clip_border_width_mm": 26.0,
+      "clip_flip_180": false,
+      "show_strip_indicators": true,
+      "show_row_indicators": false,
+      "indicator_size_mm": 0.0,
+      "indicator_bold": false,
+      "indicator_rotation": 0,
+      "underline_mode": "off",
+      "chart_text": "",
+      "chart_text_size_mm": 0.0,
+      "stamp_command": false,
+      "edge_spacers": false,
+      "helper_markers": false,
+      "offset_x_mm": 0.0,
+      "offset_y_mm": 0.0,
+      "export_pdf": false,
+      "bit16": false,
+      "compression": "lzw",
+      "spacer_mode": "bw",
+      "randomize": true,
+      "seed": null,
+      "clip_image_path": "/Users/Basti/Desktop/Create Chart Assessment/Evidence/clip_test_logo.png"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 525 patches (25\u00d721), 1 page, random start 136111173",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 4 strips",
+      "wrote A5-Furniture-colours.txt",
+      "wrote A5-Furniture-i1profiler.txt",
+      "wrote A5-Furniture-i1profiler.pxf"
+    ],
+    "serious": [],
+    "unexpected": []
+  },
+  {
+    "tag": "f18-spacers-none",
+    "note": "spacers none",
+    "ok": true,
+    "secs": 3.5,
+    "est_before": {
+      "total": 588,
+      "fillup": 0,
+      "page_patches": 588,
+      "rows": 28,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.57
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 588,
+      "fillup": 0,
+      "page_patches": 588,
+      "rows": 28,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.3,
+        8.55
+      ],
+      "pitch": null
+    },
+    "est_after": {
+      "total": 588,
+      "fillup": 0,
+      "page_patches": 588,
+      "rows": 28,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.57
+      ],
+      "pitch": null
+    },
+    "margin_text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 38.0 | 1.497 | 38.0 | Bottom (to first patch) | 19.0 | 0.750 | 19.0 | Patch width (in strip reading direction) | 8.3 | 0.327 | Strip length | 239.9 | 9.447 | Margins: OK",
+    "status": "Margins: OK",
+    "notes": "",
+    "files": [
+      "A5-Furniture.channels.json",
+      "A5-Furniture.ti1",
+      "A5-Furniture.ti2",
+      "A5-Furniture.tif",
+      "cache/new_run.json",
+      "exports/A5-Furniture-colours.txt",
+      "exports/A5-Furniture-i1profiler.pxf",
+      "exports/A5-Furniture-i1profiler.txt",
+      "meta.json"
+    ],
+    "tiffs": [
+      {
+        "file": "A5-Furniture.tif",
+        "size_px": [
+          2480,
+          3508
+        ],
+        "mode": "RGB",
+        "dpi": [
+          300.0,
+          300.0
+        ],
+        "bits": [
+          8,
+          8,
+          8
+        ],
+        "compression": "tiff_lzw",
+        "bytes": 1235030
+      }
+    ],
+    "ti2": {
+      "ti2_sets": 588,
+      "ti2_steps_in_pass": 28,
+      "ti2_passes": "21",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A5-Furniture.ti2"
+    },
+    "recipe": {
+      "clip_content_mode": "notes",
+      "clip_side": "left",
+      "clip_border_width_mm": 26.0,
+      "clip_flip_180": false,
+      "show_strip_indicators": true,
+      "show_row_indicators": false,
+      "indicator_size_mm": 0.0,
+      "indicator_bold": false,
+      "indicator_rotation": 0,
+      "underline_mode": "off",
+      "chart_text": "",
+      "chart_text_size_mm": 0.0,
+      "stamp_command": false,
+      "edge_spacers": false,
+      "helper_markers": false,
+      "offset_x_mm": 0.0,
+      "offset_y_mm": 0.0,
+      "export_pdf": false,
+      "bit16": false,
+      "compression": "lzw",
+      "spacer_mode": "none",
+      "randomize": true,
+      "seed": null,
+      "clip_image_path": "/Users/Basti/Desktop/Create Chart Assessment/Evidence/clip_test_logo.png"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 588 patches (28\u00d721), 1 page, random start 898155309",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 3 strips",
+      "wrote A5-Furniture-colours.txt",
+      "wrote A5-Furniture-i1profiler.txt",
+      "wrote A5-Furniture-i1profiler.pxf"
+    ],
+    "serious": [],
+    "unexpected": []
+  },
+  {
+    "tag": "x01-export-pdf",
+    "note": "also export a PDF",
+    "ok": true,
+    "secs": 3.4,
+    "est_before": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.3,
+        8.55
+      ],
+      "pitch": null
+    },
+    "est_after": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "margin_text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.0 | 0.786 | 19.0 | Patch width (in strip reading direction) | 8.3 | 0.327 | Strip length | 238.0 | 9.370 | Margins: OK",
+    "status": "Margins: OK",
+    "notes": "",
+    "files": [
+      "A5-Furniture.channels.json",
+      "A5-Furniture.pdf",
+      "A5-Furniture.ti1",
+      "A5-Furniture.ti2",
+      "A5-Furniture.tif",
+      "cache/new_run.json",
+      "exports/A5-Furniture-colours.txt",
+      "exports/A5-Furniture-i1profiler.pxf",
+      "exports/A5-Furniture-i1profiler.txt",
+      "meta.json"
+    ],
+    "tiffs": [
+      {
+        "file": "A5-Furniture.tif",
+        "size_px": [
+          2480,
+          3508
+        ],
+        "mode": "RGB",
+        "dpi": [
+          300.0,
+          300.0
+        ],
+        "bits": [
+          8,
+          8,
+          8
+        ],
+        "compression": "tiff_lzw",
+        "bytes": 1172735
+      }
+    ],
+    "ti2": {
+      "ti2_sets": 525,
+      "ti2_steps_in_pass": 25,
+      "ti2_passes": "21",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A5-Furniture.ti2"
+    },
+    "recipe": {
+      "clip_content_mode": "notes",
+      "clip_side": "left",
+      "clip_border_width_mm": 26.0,
+      "clip_flip_180": false,
+      "show_strip_indicators": true,
+      "show_row_indicators": false,
+      "indicator_size_mm": 0.0,
+      "indicator_bold": false,
+      "indicator_rotation": 0,
+      "underline_mode": "off",
+      "chart_text": "",
+      "chart_text_size_mm": 0.0,
+      "stamp_command": false,
+      "edge_spacers": false,
+      "helper_markers": false,
+      "offset_x_mm": 0.0,
+      "offset_y_mm": 0.0,
+      "export_pdf": true,
+      "bit16": false,
+      "compression": "lzw",
+      "spacer_mode": "colored",
+      "randomize": true,
+      "seed": null,
+      "clip_image_path": "/Users/Basti/Desktop/Create Chart Assessment/Evidence/clip_test_logo.png"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 525 patches (25\u00d721), 1 page, random start 1117486195",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 4 strips",
+      "wrote A5-Furniture-colours.txt",
+      "wrote A5-Furniture-i1profiler.txt",
+      "wrote A5-Furniture-i1profiler.pxf"
+    ],
+    "serious": [],
+    "unexpected": []
+  },
+  {
+    "tag": "x02-16bit-zlib",
+    "note": "16-bit zlib",
+    "ok": true,
+    "secs": 3.2,
+    "est_before": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.3,
+        8.55
+      ],
+      "pitch": null
+    },
+    "est_after": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "margin_text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.0 | 0.786 | 19.0 | Patch width (in strip reading direction) | 8.3 | 0.327 | Strip length | 238.0 | 9.370 | Margins: OK",
+    "status": "Margins: OK",
+    "notes": "",
+    "files": [
+      "A5-Furniture.channels.json",
+      "A5-Furniture.ti1",
+      "A5-Furniture.ti2",
+      "A5-Furniture.tif",
+      "cache/new_run.json",
+      "exports/A5-Furniture-colours.txt",
+      "exports/A5-Furniture-i1profiler.pxf",
+      "exports/A5-Furniture-i1profiler.txt",
+      "meta.json"
+    ],
+    "tiffs": [
+      {
+        "file": "A5-Furniture.tif",
+        "size_px": [
+          2480,
+          3508
+        ],
+        "mode": "RGB",
+        "dpi": [
+          300.0,
+          300.0
+        ],
+        "bits": [
+          16,
+          16,
+          16
+        ],
+        "compression": "tiff_adobe_deflate",
+        "bytes": 425425
+      }
+    ],
+    "ti2": {
+      "ti2_sets": 525,
+      "ti2_steps_in_pass": 25,
+      "ti2_passes": "21",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A5-Furniture.ti2"
+    },
+    "recipe": {
+      "clip_content_mode": "notes",
+      "clip_side": "left",
+      "clip_border_width_mm": 26.0,
+      "clip_flip_180": false,
+      "show_strip_indicators": true,
+      "show_row_indicators": false,
+      "indicator_size_mm": 0.0,
+      "indicator_bold": false,
+      "indicator_rotation": 0,
+      "underline_mode": "off",
+      "chart_text": "",
+      "chart_text_size_mm": 0.0,
+      "stamp_command": false,
+      "edge_spacers": false,
+      "helper_markers": false,
+      "offset_x_mm": 0.0,
+      "offset_y_mm": 0.0,
+      "export_pdf": false,
+      "bit16": true,
+      "compression": "zlib",
+      "spacer_mode": "colored",
+      "randomize": true,
+      "seed": null,
+      "clip_image_path": "/Users/Basti/Desktop/Create Chart Assessment/Evidence/clip_test_logo.png"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 525 patches (25\u00d721), 1 page, random start 1441113165",
+      "wrote A5-Furniture-colours.txt",
+      "wrote A5-Furniture-i1profiler.txt",
+      "wrote A5-Furniture-i1profiler.pxf"
+    ],
+    "serious": [],
+    "unexpected": []
+  },
+  {
+    "tag": "s01-seed-12345-a",
+    "note": "fixed seed 12345, first",
+    "ok": true,
+    "secs": 3.4,
+    "est_before": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.3,
+        8.55
+      ],
+      "pitch": null
+    },
+    "est_after": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "margin_text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.0 | 0.786 | 19.0 | Patch width (in strip reading direction) | 8.3 | 0.327 | Strip length | 238.0 | 9.370 | Margins: OK",
+    "status": "Margins: OK",
+    "notes": "",
+    "files": [
+      "A5-Furniture.channels.json",
+      "A5-Furniture.ti1",
+      "A5-Furniture.ti2",
+      "A5-Furniture.tif",
+      "cache/new_run.json",
+      "exports/A5-Furniture-colours.txt",
+      "exports/A5-Furniture-i1profiler.pxf",
+      "exports/A5-Furniture-i1profiler.txt",
+      "meta.json"
+    ],
+    "tiffs": [
+      {
+        "file": "A5-Furniture.tif",
+        "size_px": [
+          2480,
+          3508
+        ],
+        "mode": "RGB",
+        "dpi": [
+          300.0,
+          300.0
+        ],
+        "bits": [
+          8,
+          8,
+          8
+        ],
+        "compression": "tiff_lzw",
+        "bytes": 1172629
+      }
+    ],
+    "ti2": {
+      "ti2_sets": 525,
+      "ti2_steps_in_pass": 25,
+      "ti2_passes": "21",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A5-Furniture.ti2"
+    },
+    "recipe": {
+      "clip_content_mode": "notes",
+      "clip_side": "left",
+      "clip_border_width_mm": 26.0,
+      "clip_flip_180": false,
+      "show_strip_indicators": true,
+      "show_row_indicators": false,
+      "indicator_size_mm": 0.0,
+      "indicator_bold": false,
+      "indicator_rotation": 0,
+      "underline_mode": "off",
+      "chart_text": "",
+      "chart_text_size_mm": 0.0,
+      "stamp_command": false,
+      "edge_spacers": false,
+      "helper_markers": false,
+      "offset_x_mm": 0.0,
+      "offset_y_mm": 0.0,
+      "export_pdf": false,
+      "bit16": false,
+      "compression": "lzw",
+      "spacer_mode": "colored",
+      "randomize": true,
+      "seed": 12345,
+      "clip_image_path": "/Users/Basti/Desktop/Create Chart Assessment/Evidence/clip_test_logo.png"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 525 patches (25\u00d721), 1 page, random start 12345",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 5 strips",
+      "wrote A5-Furniture-colours.txt",
+      "wrote A5-Furniture-i1profiler.txt",
+      "wrote A5-Furniture-i1profiler.pxf"
+    ],
+    "serious": [],
+    "unexpected": []
+  },
+  {
+    "tag": "s02-seed-12345-b",
+    "note": "fixed seed 12345, second",
+    "ok": true,
+    "secs": 3.4,
+    "est_before": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.3,
+        8.55
+      ],
+      "pitch": null
+    },
+    "est_after": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "margin_text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.0 | 0.786 | 19.0 | Patch width (in strip reading direction) | 8.3 | 0.327 | Strip length | 238.0 | 9.370 | Margins: OK",
+    "status": "Margins: OK",
+    "notes": "",
+    "files": [
+      "A5-Furniture.channels.json",
+      "A5-Furniture.ti1",
+      "A5-Furniture.ti2",
+      "A5-Furniture.tif",
+      "cache/new_run.json",
+      "exports/A5-Furniture-colours.txt",
+      "exports/A5-Furniture-i1profiler.pxf",
+      "exports/A5-Furniture-i1profiler.txt",
+      "meta.json"
+    ],
+    "tiffs": [
+      {
+        "file": "A5-Furniture.tif",
+        "size_px": [
+          2480,
+          3508
+        ],
+        "mode": "RGB",
+        "dpi": [
+          300.0,
+          300.0
+        ],
+        "bits": [
+          8,
+          8,
+          8
+        ],
+        "compression": "tiff_lzw",
+        "bytes": 1172629
+      }
+    ],
+    "ti2": {
+      "ti2_sets": 525,
+      "ti2_steps_in_pass": 25,
+      "ti2_passes": "21",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A5-Furniture.ti2"
+    },
+    "recipe": {
+      "clip_content_mode": "notes",
+      "clip_side": "left",
+      "clip_border_width_mm": 26.0,
+      "clip_flip_180": false,
+      "show_strip_indicators": true,
+      "show_row_indicators": false,
+      "indicator_size_mm": 0.0,
+      "indicator_bold": false,
+      "indicator_rotation": 0,
+      "underline_mode": "off",
+      "chart_text": "",
+      "chart_text_size_mm": 0.0,
+      "stamp_command": false,
+      "edge_spacers": false,
+      "helper_markers": false,
+      "offset_x_mm": 0.0,
+      "offset_y_mm": 0.0,
+      "export_pdf": false,
+      "bit16": false,
+      "compression": "lzw",
+      "spacer_mode": "colored",
+      "randomize": true,
+      "seed": 12345,
+      "clip_image_path": "/Users/Basti/Desktop/Create Chart Assessment/Evidence/clip_test_logo.png"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 525 patches (25\u00d721), 1 page, random start 12345",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 5 strips",
+      "wrote A5-Furniture-colours.txt",
+      "wrote A5-Furniture-i1profiler.txt",
+      "wrote A5-Furniture-i1profiler.pxf"
+    ],
+    "serious": [],
+    "unexpected": []
+  },
+  {
+    "tag": "seed",
+    "identical": true,
+    "seed": 12345
+  },
+  {
+    "tag": "a00-auto-baseline",
+    "note": "baseline before auto-update",
+    "ok": true,
+    "secs": 3.4,
+    "est_before": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.3,
+        8.55
+      ],
+      "pitch": null
+    },
+    "est_after": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "margin_text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.0 | 0.786 | 19.0 | Patch width (in strip reading direction) | 8.3 | 0.327 | Strip length | 238.0 | 9.370 | Margins: OK",
+    "status": "Margins: OK",
+    "notes": "",
+    "files": [
+      "A5-Furniture.channels.json",
+      "A5-Furniture.ti1",
+      "A5-Furniture.ti2",
+      "A5-Furniture.tif",
+      "cache/new_run.json",
+      "exports/A5-Furniture-colours.txt",
+      "exports/A5-Furniture-i1profiler.pxf",
+      "exports/A5-Furniture-i1profiler.txt",
+      "meta.json"
+    ],
+    "tiffs": [
+      {
+        "file": "A5-Furniture.tif",
+        "size_px": [
+          2480,
+          3508
+        ],
+        "mode": "RGB",
+        "dpi": [
+          300.0,
+          300.0
+        ],
+        "bits": [
+          8,
+          8,
+          8
+        ],
+        "compression": "tiff_lzw",
+        "bytes": 1170635
+      }
+    ],
+    "ti2": {
+      "ti2_sets": 525,
+      "ti2_steps_in_pass": 25,
+      "ti2_passes": "21",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "A5-Furniture.ti2"
+    },
+    "recipe": {
+      "clip_content_mode": "notes",
+      "clip_side": "left",
+      "clip_border_width_mm": 26.0,
+      "clip_flip_180": false,
+      "show_strip_indicators": true,
+      "show_row_indicators": false,
+      "indicator_size_mm": 0.0,
+      "indicator_bold": false,
+      "indicator_rotation": 0,
+      "underline_mode": "off",
+      "chart_text": "",
+      "chart_text_size_mm": 0.0,
+      "stamp_command": false,
+      "edge_spacers": false,
+      "helper_markers": false,
+      "offset_x_mm": 0.0,
+      "offset_y_mm": 0.0,
+      "export_pdf": false,
+      "bit16": false,
+      "compression": "lzw",
+      "spacer_mode": "colored",
+      "randomize": true,
+      "seed": null,
+      "clip_image_path": "/Users/Basti/Desktop/Create Chart Assessment/Evidence/clip_test_logo.png"
+    },
+    "engine_log": [
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 525 patches (25\u00d721), 1 page, random start 608356910",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 2 strips",
+      "wrote A5-Furniture-colours.txt",
+      "wrote A5-Furniture-i1profiler.txt",
+      "wrote A5-Furniture-i1profiler.pxf"
+    ],
+    "serious": [],
+    "unexpected": []
+  },
+  {
+    "tag": "auto-update",
+    "fired": true,
+    "delay_s": 1.37,
+    "files_rewritten": [
+      "A5-Furniture.channels.json",
+      "A5-Furniture.ti1",
+      "A5-Furniture.ti2",
+      "A5-Furniture.tif",
+      "A5-Furniture_01.tif",
+      "A5-Furniture_02.tif",
+      "meta.json"
+    ],
+    "actual": {
+      "total": 540,
+      "fillup": 15,
+      "page_patches": 340,
+      "rows": 20,
+      "cols": 17,
+      "pages": 2,
+      "patch": [
+        10.33,
+        10.67
+      ],
+      "pitch": null
+    },
+    "est": {
+      "total": 340,
+      "fillup": 0,
+      "page_patches": 340,
+      "rows": 20,
+      "cols": 17,
+      "pages": 1,
+      "patch": [
+        10.29,
+        10.6
+      ],
+      "pitch": null
+    }
+  },
+  {
+    "tag": "auto-update-debounce",
+    "builds_for_two_nudges": 0,
+    "fired_on_notes": true
+  }
+]

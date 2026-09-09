@@ -1,0 +1,21 @@
+{
+  "layout_info_visible": true,
+  "layout_info_text": "on screen | estimate | Total patches | \u2014 | 484 | \u2026 of those, fill-up | \u2014 | 0 | Patches (this page) | \u2014 | 484 | Patches per strip | \u2014 | 22 | Strips (this page) | \u2014 | 22 | Pages | \u2014 | 1 | Patch size (mm) | \u2014 | 7.6\u00d79.5",
+  "layout_info_actual": null,
+  "layout_info_estimate": {
+    "total": 484,
+    "fillup": 0,
+    "page_patches": 484,
+    "rows": 22,
+    "cols": 22,
+    "pages": 1,
+    "patch": [
+      7.6,
+      9.5
+    ],
+    "pitch": null
+  },
+  "margin_panel_visible": true,
+  "margin_panel_text": "Generate a preview to measure its margins.",
+  "margin_status": ""
+}

@@ -1,0 +1,293 @@
+{
+  "i1": {
+    "label": "i1Pro / i1Pro 2 / i1Pro 3",
+    "modes": [
+      [
+        "On",
+        "clip"
+      ],
+      [
+        "Off \u2014 more patches",
+        "noclip"
+      ]
+    ],
+    "mode_label": "Clip border:",
+    "papers": [
+      "A2",
+      "594x420",
+      "329x483",
+      "483x329",
+      "A3",
+      "420x297",
+      "11x17",
+      "Legal",
+      "A4",
+      "A4R",
+      "Letter",
+      "LetterR",
+      "203x254",
+      "127x178",
+      "4x6",
+      "__custom__"
+    ],
+    "layout_mode": "patch_first",
+    "area_method": "by_width",
+    "helper_markers_enabled": true,
+    "clip_group_visible": false,
+    "use_instr_margins": [
+      true,
+      false
+    ],
+    "margins": {
+      "t": 6.0,
+      "r": 6.0,
+      "b": 6.0,
+      "l": 6.0
+    },
+    "patch_xy": [
+      0.0,
+      0.0
+    ],
+    "pscale": 1.0,
+    "sscale": 1.0,
+    "spacer_mode": "colored",
+    "spacer_width": 0.0,
+    "max_strip": 0.0,
+    "nolimit": false,
+    "dpi": 300,
+    "pages": 4
+  },
+  "p3": {
+    "label": "i1Pro 3 Plus",
+    "modes": [
+      [
+        "On",
+        "clip"
+      ],
+      [
+        "Off \u2014 more patches",
+        "noclip"
+      ]
+    ],
+    "mode_label": "Clip border:",
+    "papers": [
+      "A2",
+      "594x420",
+      "329x483",
+      "483x329",
+      "A3",
+      "420x297",
+      "11x17",
+      "Legal",
+      "A4",
+      "A4R",
+      "Letter",
+      "LetterR",
+      "203x254",
+      "__custom__"
+    ],
+    "layout_mode": "patch_first",
+    "area_method": "by_width",
+    "helper_markers_enabled": true,
+    "clip_group_visible": false,
+    "use_instr_margins": [
+      true,
+      false
+    ],
+    "margins": {
+      "t": 6.0,
+      "r": 6.0,
+      "b": 6.0,
+      "l": 6.0
+    },
+    "patch_xy": [
+      0.0,
+      0.0
+    ],
+    "pscale": 1.0,
+    "sscale": 1.0,
+    "spacer_mode": "colored",
+    "spacer_width": 0.0,
+    "max_strip": 0.0,
+    "nolimit": false,
+    "dpi": 300,
+    "pages": 4
+  },
+  "CM": {
+    "label": "ColorMunki / i1Studio / ColorChecker Studio",
+    "modes": [
+      [
+        "Hand-held",
+        "freehand"
+      ],
+      [
+        "High density (rig)",
+        "high"
+      ],
+      [
+        "Extra-high density",
+        "extrahigh"
+      ]
+    ],
+    "mode_label": "Density:",
+    "papers": [
+      "A2",
+      "594x420",
+      "329x483",
+      "483x329",
+      "A3",
+      "420x297",
+      "11x17",
+      "Legal",
+      "A4",
+      "A4R",
+      "Letter",
+      "LetterR",
+      "203x254",
+      "127x178",
+      "4x6",
+      "__custom__"
+    ],
+    "layout_mode": "patch_first",
+    "area_method": "by_width",
+    "helper_markers_enabled": true,
+    "clip_group_visible": false,
+    "use_instr_margins": [
+      true,
+      false
+    ],
+    "margins": {
+      "t": 6.0,
+      "r": 6.0,
+      "b": 6.0,
+      "l": 6.0
+    },
+    "patch_xy": [
+      0.0,
+      0.0
+    ],
+    "pscale": 1.0,
+    "sscale": 1.0,
+    "spacer_mode": "colored",
+    "spacer_width": 0.0,
+    "max_strip": 0.0,
+    "nolimit": false,
+    "dpi": 300,
+    "pages": 4
+  },
+  "SS": {
+    "label": "SpectroScan (flatbed)",
+    "modes": [
+      [
+        "Rectangular",
+        "flat"
+      ],
+      [
+        "Hexagonal \u2014 denser",
+        "hex"
+      ]
+    ],
+    "mode_label": "Patch shape:",
+    "papers": [
+      "A2",
+      "329x483",
+      "483x329",
+      "A3",
+      "420x297",
+      "11x17",
+      "Legal",
+      "A4",
+      "A4R",
+      "Letter",
+      "LetterR",
+      "203x254",
+      "127x178",
+      "4x6",
+      "__custom__"
+    ],
+    "layout_mode": "patch_first",
+    "area_method": "by_width",
+    "helper_markers_enabled": true,
+    "clip_group_visible": false,
+    "use_instr_margins": [
+      true,
+      false
+    ],
+    "margins": {
+      "t": 6.0,
+      "r": 6.0,
+      "b": 6.0,
+      "l": 6.0
+    },
+    "patch_xy": [
+      0.0,
+      0.0
+    ],
+    "pscale": 1.0,
+    "sscale": 1.0,
+    "spacer_mode": "colored",
+    "spacer_width": 0.0,
+    "max_strip": 0.0,
+    "nolimit": false,
+    "dpi": 300,
+    "pages": 4
+  },
+  "CR30": {
+    "label": "CR30 (ChnSpec, patch by patch)",
+    "modes": [
+      [
+        "Rectangular",
+        "flat"
+      ],
+      [
+        "Hexagonal \u2014 denser",
+        "hex"
+      ]
+    ],
+    "mode_label": "Patch shape:",
+    "papers": [
+      "A2",
+      "594x420",
+      "329x483",
+      "483x329",
+      "A3",
+      "420x297",
+      "11x17",
+      "Legal",
+      "A4",
+      "A4R",
+      "Letter",
+      "LetterR",
+      "203x254",
+      "127x178",
+      "4x6",
+      "__custom__"
+    ],
+    "layout_mode": "patch_first",
+    "area_method": "by_width",
+    "helper_markers_enabled": true,
+    "clip_group_visible": false,
+    "use_instr_margins": [
+      true,
+      false
+    ],
+    "margins": {
+      "t": 6.0,
+      "r": 6.0,
+      "b": 6.0,
+      "l": 6.0
+    },
+    "patch_xy": [
+      0.0,
+      0.0
+    ],
+    "pscale": 1.0,
+    "sscale": 1.0,
+    "spacer_mode": "colored",
+    "spacer_width": 0.0,
+    "max_strip": 0.0,
+    "nolimit": false,
+    "dpi": 300,
+    "pages": 4
+  }
+}

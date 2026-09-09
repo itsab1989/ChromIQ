@@ -1,0 +1,1122 @@
+2026-09-07 09:00:21,842 [WARNING] core.settings: Settings SANDBOXED to /Users/Basti/Desktop/Create Chart Assessment/Test Runs/sandbox/chromiq-assessment.ini (CHROMIQ_SETTINGS_FILE is set) — the real preferences are untouched
+2026-09-07 09:00:21,842 [DEBUG] core.settings: Settings loaded from /Users/Basti/Desktop/Create Chart Assessment/Test Runs/sandbox/chromiq-assessment.ini
+2026-09-07 09:00:21,842 [DEBUG] ui.theme: Appearance applied: setting=neutral mode=neutral
+2026-09-07 09:00:21,842 [INFO] assess: app built: v4.2.0 appearance=neutral lang=en settings=/Users/Basti/Desktop/Create Chart Assessment/Test Runs/sandbox/chromiq-assessment.ini
+2026-09-07 09:00:22,277 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [_refresh_manual_command_preview:5501  ←  _init_manual_layout_panel:5630  ←  _set_engine_recipe:17986]
+2026-09-07 09:00:22,279 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 09:00:22,279 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:00:22,279 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:00:22,279 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:00:22,279 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:00:22,279 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:00:22,299 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 09:00:22,299 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:00:22,299 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:00:22,299 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:00:22,299 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:00:22,299 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:00:22,315 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 09:00:22,315 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:00:22,315 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:00:22,315 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:00:22,315 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:00:22,315 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:00:23,657 [INFO] ui.main_window: MainWindow initialised
+2026-09-07 09:00:24,184 [INFO] ui.main_window: ---- Tab → 1. Create Chart ----
+2026-09-07 09:00:24,199 [DEBUG] ui.theme: Appearance applied: setting=neutral mode=neutral
+2026-09-07 09:00:24,343 [INFO] ui.main_window: ---- Tab → 1. Create Chart ----
+2026-09-07 09:00:28,200 [INFO] assess:   armed: dialog ~'Give this project a name' -> click '<reject>' 
+2026-09-07 09:00:30,664 [INFO] assess:   shot Screenshots/B1-guided/g-i1-A4-1p-before.png  (3400x2100)
+2026-09-07 09:00:30,664 [INFO] assess:   armed: dialog ~'quite fill' -> click 'OK' 
+2026-09-07 09:00:30,664 [INFO] assess:   armed: dialog ~'already' -> click 'Continue this project' 
+2026-09-07 09:00:30,664 [INFO] ui.tabs.tab_chart: chart build (Generate Chart) in guided: patch set targen | manual panel: A4, 0x0 grid, margins T38.0 R9.0 B19.0 L26.0
+2026-09-07 09:00:30,664 [INFO] ui.tabs.tab_chart: chart build (Generate Chart) in guided: engine kwargs {'instrument': 'i1', 'paper': 'A4', 'border': 10.0}
+2026-09-07 09:00:30,665 [DEBUG] core.settings: settings.set session_ti3_path = ''
+2026-09-07 09:00:30,665 [DEBUG] core.settings: settings.set session_icc_path = ''
+2026-09-07 09:00:30,665 [DEBUG] core.settings: settings.set session_cal_ti3_path = ''
+2026-09-07 09:00:30,665 [DEBUG] core.file_manager: Target name set to: B1-Guided (root /Users/Basti/ChromIQ-assessment/B1-Guided)
+2026-09-07 09:00:30,666 [INFO] core.file_manager: created a NEW project 'B1-Guided' at /Users/Basti/ChromIQ-assessment/B1-Guided
+2026-09-07 09:00:30,669 [INFO] core.file_manager: Created project at /Users/Basti/ChromIQ-assessment/B1-Guided
+2026-09-07 09:00:30,669 [INFO] ui.tabs.tab_chart: run description + chart notes written to run1
+2026-09-07 09:00:30,670 [INFO] ui.tabs.tab_chart: create-chart settings seeded into the new project's run1
+2026-09-07 09:00:30,671 [INFO] workflow.chart_creator: Chart generation: 484 patches, instrument=i1 paper=A4 disable_lb=False
+2026-09-07 09:00:30,671 [INFO] workflow.chart_creator: targen args: ['-v', '-d2', '-f484', '-e4', '-B4', '-G', '-g28', 'B1-Guided']
+2026-09-07 09:00:30,671 [INFO] core.argyll_runner: Run: /Applications/Argyll/bin/targen -v -d2 -f484 -e4 -B4 -G -g28 B1-Guided  [cwd=/Users/Basti/ChromIQ-assessment/B1-Guided/runs/run1]
+2026-09-07 09:00:30,728 [DEBUG] core.argyll_runner: [argyll] iRGB test chart
+2026-09-07 09:00:30,728 [DEBUG] core.argyll_runner: [argyll] White patches = 4
+2026-09-07 09:00:30,728 [DEBUG] core.argyll_runner: [argyll] Black patches = 4
+2026-09-07 09:00:30,728 [DEBUG] core.argyll_runner: [argyll] Composite Grey steps = 28
+2026-09-07 09:00:30,728 [DEBUG] core.argyll_runner: [argyll] Full spread patches = 484
+2026-09-07 09:00:30,729 [DEBUG] core.argyll_runner: [argyll] Degree of adaptation: 0.100
+2026-09-07 09:00:30,729 [DEBUG] core.argyll_runner: [argyll] Adaptation weights: Device = 0.935, Perceptual = 0.065, Curvature = 0.010
+2026-09-07 09:00:30,729 [DEBUG] core.argyll_runner: [argyll] Perceptual cache resolution = 9
+2026-09-07 09:00:30,729 [DEBUG] core.argyll_runner: [argyll] Seeding cache...done
+2026-09-07 09:00:30,729 [DEBUG] core.argyll_runner: [argyll] Acceleration grid res = 8
+2026-09-07 09:00:30,730 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:00:30,730 [DEBUG] core.argyll_runner: [argyll] There are 28 unique fixed points to add (34 total fixed points)
+2026-09-07 09:00:30,730 [DEBUG] core.argyll_runner: [argyll] There are 450 far spread points to add
+2026-09-07 09:00:30,730 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:00:30,730 [DEBUG] core.argyll_runner: [argyll] Added 12/478
+2026-09-07 09:00:30,730 [DEBUG] core.argyll_runner: [argyll] Added 23/478
+2026-09-07 09:00:30,743 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:00:30,743 [DEBUG] core.argyll_runner: [argyll] Added 34/478
+2026-09-07 09:00:30,743 [DEBUG] core.argyll_runner: [argyll] Added 45/478
+2026-09-07 09:00:30,744 [DEBUG] core.argyll_runner: [argyll] Added 56/478
+2026-09-07 09:00:30,744 [DEBUG] core.argyll_runner: [argyll] Added 67/478
+2026-09-07 09:00:30,744 [DEBUG] core.argyll_runner: [argyll] Added 78/478
+2026-09-07 09:00:30,745 [DEBUG] core.argyll_runner: [argyll] Added 89/478
+2026-09-07 09:00:30,745 [DEBUG] core.argyll_runner: [argyll] Added 100/478
+2026-09-07 09:00:30,746 [DEBUG] core.argyll_runner: [argyll] Added 111/478
+2026-09-07 09:00:30,746 [DEBUG] core.argyll_runner: [argyll] Added 122/478
+2026-09-07 09:00:30,747 [DEBUG] core.argyll_runner: [argyll] Added 133/478
+2026-09-07 09:00:30,748 [DEBUG] core.argyll_runner: [argyll] Added 144/478
+2026-09-07 09:00:30,749 [DEBUG] core.argyll_runner: [argyll] Added 155/478
+2026-09-07 09:00:30,750 [DEBUG] core.argyll_runner: [argyll] Added 166/478
+2026-09-07 09:00:30,751 [DEBUG] core.argyll_runner: [argyll] Added 177/478
+2026-09-07 09:00:30,752 [DEBUG] core.argyll_runner: [argyll] Added 188/478
+2026-09-07 09:00:30,753 [DEBUG] core.argyll_runner: [argyll] Added 199/478
+2026-09-07 09:00:30,755 [DEBUG] core.argyll_runner: [argyll] Added 210/478
+2026-09-07 09:00:30,774 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:00:30,775 [DEBUG] core.argyll_runner: [argyll] Added 221/478
+2026-09-07 09:00:30,775 [DEBUG] core.argyll_runner: [argyll] Added 232/478
+2026-09-07 09:00:30,775 [DEBUG] core.argyll_runner: [argyll] Added 243/478
+2026-09-07 09:00:30,775 [DEBUG] core.argyll_runner: [argyll] Added 254/478
+2026-09-07 09:00:30,776 [DEBUG] core.argyll_runner: [argyll] Added 265/478
+2026-09-07 09:00:30,776 [DEBUG] core.argyll_runner: [argyll] Added 276/478
+2026-09-07 09:00:30,777 [DEBUG] core.argyll_runner: [argyll] Added 287/478
+2026-09-07 09:00:30,777 [DEBUG] core.argyll_runner: [argyll] Added 298/478
+2026-09-07 09:00:30,778 [DEBUG] core.argyll_runner: [argyll] Added 309/478
+2026-09-07 09:00:30,779 [DEBUG] core.argyll_runner: [argyll] Added 320/478
+2026-09-07 09:00:30,780 [DEBUG] core.argyll_runner: [argyll] Added 331/478
+2026-09-07 09:00:30,781 [DEBUG] core.argyll_runner: [argyll] Added 342/478
+2026-09-07 09:00:30,782 [DEBUG] core.argyll_runner: [argyll] Added 353/478
+2026-09-07 09:00:30,783 [DEBUG] core.argyll_runner: [argyll] Added 364/478
+2026-09-07 09:00:30,784 [DEBUG] core.argyll_runner: [argyll] Added 375/478
+2026-09-07 09:00:30,785 [DEBUG] core.argyll_runner: [argyll] Added 386/478
+2026-09-07 09:00:30,787 [DEBUG] core.argyll_runner: [argyll] Added 397/478
+2026-09-07 09:00:30,788 [DEBUG] core.argyll_runner: [argyll] Added 408/478
+2026-09-07 09:00:30,789 [DEBUG] core.argyll_runner: [argyll] Added 419/478
+2026-09-07 09:00:30,791 [DEBUG] core.argyll_runner: [argyll] Added 430/478
+2026-09-07 09:00:30,793 [DEBUG] core.argyll_runner: [argyll] Added 441/478
+2026-09-07 09:00:30,794 [DEBUG] core.argyll_runner: [argyll] Added 452/478
+2026-09-07 09:00:30,796 [DEBUG] core.argyll_runner: [argyll] Added 463/478
+2026-09-07 09:00:30,798 [DEBUG] core.argyll_runner: [argyll] Added 474/478
+2026-09-07 09:00:30,800 [DEBUG] core.argyll_runner: [argyll] Added 478/478
+2026-09-07 09:00:31,606 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:00:31,607 [DEBUG] core.argyll_runner: [argyll] After seeding points: MinPoint = 4.919, Min = 4.126, Avg. = 11.229, Max = 15.046, 0.1 secs
+2026-09-07 09:00:31,607 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:31,607 [DEBUG] core.argyll_runner: [argyll] It 1: Maxmv = 0.092004, MinPoint = 2.652, Min = 5.671, Avg. = 11.183, Max = 15.452, 0.0 secs.
+2026-09-07 09:00:31,608 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:31,608 [DEBUG] core.argyll_runner: [argyll] It 2: Maxmv = 0.087010, MinPoint = 4.790, Min = 3.989, Avg. = 11.061, Max = 14.244, 0.0 secs.
+2026-09-07 09:00:31,608 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:31,608 [DEBUG] core.argyll_runner: [argyll] It 3: Maxmv = 0.091398, MinPoint = 5.128, Min = 5.671, Avg. = 11.013, Max = 14.516, 0.0 secs.
+2026-09-07 09:00:31,609 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:31,609 [DEBUG] core.argyll_runner: [argyll] It 4: Maxmv = 0.079269, MinPoint = 4.391, Min = 5.671, Avg. = 10.985, Max = 14.305, 0.0 secs.
+2026-09-07 09:00:31,609 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:31,609 [DEBUG] core.argyll_runner: [argyll] It 5: Maxmv = 0.067850, MinPoint = 6.168, Min = 5.671, Avg. = 10.937, Max = 14.007, 0.0 secs.
+2026-09-07 09:00:31,610 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:31,610 [DEBUG] core.argyll_runner: [argyll] It 6: Maxmv = 0.056846, MinPoint = 6.038, Min = 5.671, Avg. = 10.898, Max = 13.407, 0.0 secs.
+2026-09-07 09:00:31,610 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:31,610 [DEBUG] core.argyll_runner: [argyll] It 7: Maxmv = 0.058144, MinPoint = 6.168, Min = 5.671, Avg. = 10.824, Max = 13.967, 0.0 secs.
+2026-09-07 09:00:31,611 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:31,611 [DEBUG] core.argyll_runner: [argyll] It 8: Maxmv = 0.046240, MinPoint = 6.168, Min = 5.671, Avg. = 10.756, Max = 13.554, 0.0 secs.
+2026-09-07 09:00:31,611 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:31,611 [DEBUG] core.argyll_runner: [argyll] It 9: Maxmv = 0.045576, MinPoint = 6.168, Min = 5.671, Avg. = 10.731, Max = 13.388, 0.0 secs.
+2026-09-07 09:00:31,612 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:31,612 [DEBUG] core.argyll_runner: [argyll] It 10: Maxmv = 0.043497, MinPoint = 6.168, Min = 5.671, Avg. = 10.713, Max = 13.385, 0.0 secs.
+2026-09-07 09:00:31,612 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:31,612 [DEBUG] core.argyll_runner: [argyll] It 11: Maxmv = 0.040317, MinPoint = 6.168, Min = 5.671, Avg. = 10.684, Max = 12.938, 0.0 secs.
+2026-09-07 09:00:31,613 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:31,613 [DEBUG] core.argyll_runner: [argyll] It 12: Maxmv = 0.035347, MinPoint = 6.168, Min = 5.671, Avg. = 10.675, Max = 13.265, 0.0 secs.
+2026-09-07 09:00:31,613 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:31,613 [DEBUG] core.argyll_runner: [argyll] It 13: Maxmv = 0.028701, MinPoint = 6.168, Min = 5.671, Avg. = 10.663, Max = 12.922, 0.0 secs.
+2026-09-07 09:00:31,614 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:31,614 [DEBUG] core.argyll_runner: [argyll] It 14: Maxmv = 0.021658, MinPoint = 6.168, Min = 5.671, Avg. = 10.650, Max = 12.924, 0.0 secs.
+2026-09-07 09:00:31,614 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:31,614 [DEBUG] core.argyll_runner: [argyll] It 15: Maxmv = 0.013639, MinPoint = 6.168, Min = 5.671, Avg. = 10.650, Max = 12.750, 0.0 secs.
+2026-09-07 09:00:31,615 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:31,615 [DEBUG] core.argyll_runner: [argyll] It 16: Maxmv = 0.009747, MinPoint = 6.168, Min = 5.671, Avg. = 10.642, Max = 12.745, 0.0 secs.
+2026-09-07 09:00:31,615 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:31,615 [DEBUG] core.argyll_runner: [argyll] It 17: Maxmv = 0.009464, MinPoint = 6.168, Min = 5.671, Avg. = 10.640, Max = 12.652, 0.0 secs.
+2026-09-07 09:00:31,616 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:31,616 [DEBUG] core.argyll_runner: [argyll] It 18: Maxmv = 0.004327, MinPoint = 6.168, Min = 5.671, Avg. = 10.642, Max = 12.583, 0.0 secs.
+2026-09-07 09:00:31,616 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:31,616 [DEBUG] core.argyll_runner: [argyll] It 19: Maxmv = 0.001921, MinPoint = 6.168, Min = 5.671, Avg. = 10.641, Max = 12.580, 0.0 secs.
+2026-09-07 09:00:31,617 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:31,617 [DEBUG] core.argyll_runner: [argyll] It 20: Maxmv = 0.001543, MinPoint = 6.168, Min = 5.671, Avg. = 10.642, Max = 12.582, 0.0 secs.
+2026-09-07 09:00:31,617 [DEBUG] core.argyll_runner: [argyll] After optimization: MinPoint = 6.168, Min = 5.671, Avg. = 10.642, Max = 12.582
+2026-09-07 09:00:31,618 [DEBUG] core.argyll_runner: [argyll] Total number of patches = 484
+2026-09-07 09:00:31,618 [DEBUG] core.argyll_runner: [argyll] Execution time = 0.875839 seconds
+2026-09-07 09:00:31,618 [INFO] core.argyll_runner: ArgyllRunner: finished with code 0
+2026-09-07 09:00:31,678 [DEBUG] workflow.chart_creator: Wrote channel sidecar B1-Guided.channels.json: ['r', 'g', 'b']
+2026-09-07 09:00:31,757 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:00:31,757 [INFO] ui.tabs.tab_chart: Preview loaded: 1 TIFF(s)
+2026-09-07 09:00:31,771 [DEBUG] ui.tabs.tab_chart: create-chart settings written for run1 (40 parameters + ui state)
+2026-09-07 09:00:31,772 [DEBUG] ui.tabs.tab_chart: ui-state: kept the Guided row this build used (the run's stored copy is the older one)
+2026-09-07 09:00:31,772 [DEBUG] ui.tabs.tab_chart: ui-state: kept the layout this build used (the run's stored copy is the older one)
+2026-09-07 09:00:31,773 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:00:31,776 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:00:34,354 [INFO] assess:   shot Screenshots/B1-guided/g-i1-A4-1p-after.png  (3400x2100)
+2026-09-07 09:00:34,712 [INFO] assess:   json Test Runs/logs/d06_results.json
+2026-09-07 09:00:34,712 [INFO] assess: [g-i1-A4-1p] headline='484!' built=(484, 22, 22, 1) est_before=(484, 22, 22) parity={'sets': '484', 'steps': '22', 'passes': '22', 'instr': 'GretagMacbeth i1 Pro', 'paper': '210.0x297.0'} pages=1 cmd=ations/Argyll/bin/printtarg -ii1 -pA4 -t300 -a0.95 -m10 -M10 B1-Guided
+2026-09-07 09:00:37,171 [INFO] assess:   shot Screenshots/B1-guided/g-CM-A4-1p-before.png  (3400x2100)
+2026-09-07 09:00:37,172 [INFO] assess:   armed: dialog ~'quite fill' -> click 'OK' 
+2026-09-07 09:00:37,172 [INFO] assess:   armed: dialog ~'already' -> click 'Continue this project' 
+2026-09-07 09:00:37,172 [INFO] ui.tabs.tab_chart: chart build (Generate Chart) in guided: patch set targen | manual panel: A4, 0x0 grid, margins T38.0 R9.0 B19.0 L26.0
+2026-09-07 09:00:37,172 [INFO] ui.tabs.tab_chart: chart build (Generate Chart) in guided: engine kwargs {'instrument': 'CM', 'paper': 'A4', 'border': 6.0}
+2026-09-07 09:00:37,174 [DEBUG] core.settings: settings.set session_ti3_path = ''
+2026-09-07 09:00:37,174 [DEBUG] core.settings: settings.set session_icc_path = ''
+2026-09-07 09:00:37,174 [DEBUG] core.settings: settings.set session_cal_ti3_path = ''
+2026-09-07 09:00:37,174 [DEBUG] core.file_manager: Target name set to: B1-Guided (root /Users/Basti/ChromIQ-assessment/B1-Guided)
+2026-09-07 09:00:37,174 [INFO] core.file_manager: opened the EXISTING project at /Users/Basti/ChromIQ-assessment/B1-Guided (1 run(s) on disk)
+2026-09-07 09:00:37,177 [INFO] workflow.chart_creator: Chart generation: 105 patches, instrument=CM paper=A4 disable_lb=False
+2026-09-07 09:00:37,177 [INFO] workflow.chart_creator: targen args: ['-v', '-d2', '-f105', '-e2', '-B2', '-G', '-g8', 'B1-Guided']
+2026-09-07 09:00:37,177 [INFO] core.argyll_runner: Run: /Applications/Argyll/bin/targen -v -d2 -f105 -e2 -B2 -G -g8 B1-Guided  [cwd=/Users/Basti/ChromIQ-assessment/B1-Guided/runs/run1]
+2026-09-07 09:00:37,239 [DEBUG] core.argyll_runner: [argyll] iRGB test chart
+2026-09-07 09:00:37,240 [DEBUG] core.argyll_runner: [argyll] White patches = 2
+2026-09-07 09:00:37,240 [DEBUG] core.argyll_runner: [argyll] Black patches = 2
+2026-09-07 09:00:37,240 [DEBUG] core.argyll_runner: [argyll] Composite Grey steps = 8
+2026-09-07 09:00:37,240 [DEBUG] core.argyll_runner: [argyll] Full spread patches = 105
+2026-09-07 09:00:37,240 [DEBUG] core.argyll_runner: [argyll] Degree of adaptation: 0.100
+2026-09-07 09:00:37,240 [DEBUG] core.argyll_runner: [argyll] Adaptation weights: Device = 0.935, Perceptual = 0.065, Curvature = 0.010
+2026-09-07 09:00:37,241 [DEBUG] core.argyll_runner: [argyll] Perceptual cache resolution = 7
+2026-09-07 09:00:37,241 [DEBUG] core.argyll_runner: [argyll] Seeding cache...done
+2026-09-07 09:00:37,241 [DEBUG] core.argyll_runner: [argyll] Acceleration grid res = 5
+2026-09-07 09:00:37,241 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:00:37,241 [DEBUG] core.argyll_runner: [argyll] There are 8 unique fixed points to add (10 total fixed points)
+2026-09-07 09:00:37,241 [DEBUG] core.argyll_runner: [argyll] There are 95 far spread points to add
+2026-09-07 09:00:37,242 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:00:37,242 [DEBUG] core.argyll_runner: [argyll] Added 12/103
+2026-09-07 09:00:37,242 [DEBUG] core.argyll_runner: [argyll] Added 23/103
+2026-09-07 09:00:37,242 [DEBUG] core.argyll_runner: [argyll] Added 34/103
+2026-09-07 09:00:37,242 [DEBUG] core.argyll_runner: [argyll] Added 45/103
+2026-09-07 09:00:37,243 [DEBUG] core.argyll_runner: [argyll] Added 56/103
+2026-09-07 09:00:37,244 [DEBUG] core.argyll_runner: [argyll] Added 67/103
+2026-09-07 09:00:37,244 [DEBUG] core.argyll_runner: [argyll] Added 78/103
+2026-09-07 09:00:37,245 [DEBUG] core.argyll_runner: [argyll] Added 89/103
+2026-09-07 09:00:37,246 [DEBUG] core.argyll_runner: [argyll] Added 100/103
+2026-09-07 09:00:37,247 [DEBUG] core.argyll_runner: [argyll] Added 103/103
+2026-09-07 09:00:37,382 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:00:37,383 [DEBUG] core.argyll_runner: [argyll] After seeding points: MinPoint = 10.374, Min = 6.929, Avg. = 19.330, Max = 24.309, 0.0 secs
+2026-09-07 09:00:37,383 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:37,384 [DEBUG] core.argyll_runner: [argyll] It 1: Maxmv = 0.163526, MinPoint = 9.486, Min = 8.454, Avg. = 19.240, Max = 26.553, 0.0 secs.
+2026-09-07 09:00:37,384 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:37,384 [DEBUG] core.argyll_runner: [argyll] It 2: Maxmv = 0.158970, MinPoint = 8.367, Min = 10.736, Avg. = 19.138, Max = 25.552, 0.0 secs.
+2026-09-07 09:00:37,384 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:37,385 [DEBUG] core.argyll_runner: [argyll] It 3: Maxmv = 0.144175, MinPoint = 11.846, Min = 10.147, Avg. = 19.066, Max = 25.127, 0.0 secs.
+2026-09-07 09:00:37,385 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:37,385 [DEBUG] core.argyll_runner: [argyll] It 4: Maxmv = 0.110017, MinPoint = 13.321, Min = 11.536, Avg. = 18.973, Max = 23.809, 0.0 secs.
+2026-09-07 09:00:37,385 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:37,386 [DEBUG] core.argyll_runner: [argyll] It 5: Maxmv = 0.098790, MinPoint = 14.717, Min = 11.683, Avg. = 18.953, Max = 25.533, 0.0 secs.
+2026-09-07 09:00:37,386 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:37,386 [DEBUG] core.argyll_runner: [argyll] It 6: Maxmv = 0.089150, MinPoint = 16.223, Min = 10.727, Avg. = 18.748, Max = 24.797, 0.0 secs.
+2026-09-07 09:00:37,386 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:37,387 [DEBUG] core.argyll_runner: [argyll] It 7: Maxmv = 0.070582, MinPoint = 14.114, Min = 12.316, Avg. = 18.847, Max = 24.240, 0.0 secs.
+2026-09-07 09:00:37,387 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:37,387 [DEBUG] core.argyll_runner: [argyll] It 8: Maxmv = 0.080995, MinPoint = 17.415, Min = 10.940, Avg. = 18.679, Max = 24.615, 0.0 secs.
+2026-09-07 09:00:37,387 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:37,388 [DEBUG] core.argyll_runner: [argyll] It 9: Maxmv = 0.076056, MinPoint = 15.544, Min = 10.350, Avg. = 18.704, Max = 23.574, 0.0 secs.
+2026-09-07 09:00:37,388 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:37,388 [DEBUG] core.argyll_runner: [argyll] It 10: Maxmv = 0.056502, MinPoint = 17.418, Min = 11.590, Avg. = 18.591, Max = 23.565, 0.0 secs.
+2026-09-07 09:00:37,388 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:37,389 [DEBUG] core.argyll_runner: [argyll] It 11: Maxmv = 0.049921, MinPoint = 18.340, Min = 11.501, Avg. = 18.582, Max = 23.627, 0.0 secs.
+2026-09-07 09:00:37,389 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:37,389 [DEBUG] core.argyll_runner: [argyll] It 12: Maxmv = 0.045158, MinPoint = 17.418, Min = 10.994, Avg. = 18.544, Max = 23.505, 0.0 secs.
+2026-09-07 09:00:37,389 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:37,390 [DEBUG] core.argyll_runner: [argyll] It 13: Maxmv = 0.044659, MinPoint = 17.565, Min = 10.607, Avg. = 18.519, Max = 23.289, 0.0 secs.
+2026-09-07 09:00:37,390 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:37,390 [DEBUG] core.argyll_runner: [argyll] It 14: Maxmv = 0.036084, MinPoint = 18.858, Min = 11.371, Avg. = 18.503, Max = 24.484, 0.0 secs.
+2026-09-07 09:00:37,390 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:37,391 [DEBUG] core.argyll_runner: [argyll] It 15: Maxmv = 0.022764, MinPoint = 18.136, Min = 11.220, Avg. = 18.474, Max = 23.457, 0.0 secs.
+2026-09-07 09:00:37,391 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:37,391 [DEBUG] core.argyll_runner: [argyll] It 16: Maxmv = 0.022174, MinPoint = 17.589, Min = 11.082, Avg. = 18.476, Max = 23.695, 0.0 secs.
+2026-09-07 09:00:37,391 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:37,392 [DEBUG] core.argyll_runner: [argyll] It 17: Maxmv = 0.012599, MinPoint = 17.164, Min = 11.004, Avg. = 18.478, Max = 23.553, 0.0 secs.
+2026-09-07 09:00:37,392 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:37,392 [DEBUG] core.argyll_runner: [argyll] It 18: Maxmv = 0.009889, MinPoint = 18.028, Min = 10.985, Avg. = 18.480, Max = 23.751, 0.0 secs.
+2026-09-07 09:00:37,392 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:37,393 [DEBUG] core.argyll_runner: [argyll] It 19: Maxmv = 0.003724, MinPoint = 17.874, Min = 10.981, Avg. = 18.478, Max = 23.613, 0.0 secs.
+2026-09-07 09:00:37,393 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:37,393 [DEBUG] core.argyll_runner: [argyll] It 20: Maxmv = 0.004079, MinPoint = 18.196, Min = 10.979, Avg. = 18.470, Max = 23.463, 0.0 secs.
+2026-09-07 09:00:37,393 [DEBUG] core.argyll_runner: [argyll] After optimization: MinPoint = 18.196, Min = 10.979, Avg. = 18.470, Max = 23.463
+2026-09-07 09:00:37,394 [DEBUG] core.argyll_runner: [argyll] Total number of patches = 105
+2026-09-07 09:00:37,394 [DEBUG] core.argyll_runner: [argyll] Execution time = 0.154360 seconds
+2026-09-07 09:00:37,394 [INFO] core.argyll_runner: ArgyllRunner: finished with code 0
+2026-09-07 09:00:37,433 [DEBUG] workflow.chart_creator: Wrote channel sidecar B1-Guided.channels.json: ['r', 'g', 'b']
+2026-09-07 09:00:37,506 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:00:37,506 [INFO] ui.tabs.tab_chart: Preview loaded: 1 TIFF(s)
+2026-09-07 09:00:37,513 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:00:37,514 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:00:37,518 [DEBUG] ui.tabs.tab_chart: create-chart settings written for run1 (40 parameters + ui state)
+2026-09-07 09:00:39,865 [INFO] assess:   shot Screenshots/B1-guided/g-CM-A4-1p-after.png  (3400x2100)
+2026-09-07 09:00:40,298 [INFO] assess:   json Test Runs/logs/d06_results.json
+2026-09-07 09:00:40,298 [INFO] assess: [g-CM-A4-1p] headline='105!' built=(105, 15, 7, 1) est_before=(105, 15, 7) parity={'sets': '105', 'steps': '15', 'passes': '6,1', 'instr': 'X-Rite ColorMunki', 'paper': '210.0x297.0'} pages=2 cmd=/Applications/Argyll/bin/printtarg -iCM -pA4 -t300 -M6 B1-Guided
+2026-09-07 09:00:42,729 [INFO] assess:   shot Screenshots/B1-guided/g-p3-A4R-1p-before.png  (3400x2100)
+2026-09-07 09:00:42,730 [INFO] assess:   armed: dialog ~'quite fill' -> click 'OK' 
+2026-09-07 09:00:42,730 [INFO] assess:   armed: dialog ~'already' -> click 'Continue this project' 
+2026-09-07 09:00:42,730 [INFO] ui.tabs.tab_chart: chart build (Generate Chart) in guided: patch set targen | manual panel: A4, 0x0 grid, margins T38.0 R9.0 B19.0 L26.0
+2026-09-07 09:00:42,730 [INFO] ui.tabs.tab_chart: chart build (Generate Chart) in guided: engine kwargs {'instrument': 'p3', 'paper': 'A4R', 'border': 6.0}
+2026-09-07 09:00:42,731 [DEBUG] core.settings: settings.set session_ti3_path = ''
+2026-09-07 09:00:42,731 [DEBUG] core.settings: settings.set session_icc_path = ''
+2026-09-07 09:00:42,731 [DEBUG] core.settings: settings.set session_cal_ti3_path = ''
+2026-09-07 09:00:42,731 [DEBUG] core.file_manager: Target name set to: B1-Guided (root /Users/Basti/ChromIQ-assessment/B1-Guided)
+2026-09-07 09:00:42,731 [INFO] core.file_manager: opened the EXISTING project at /Users/Basti/ChromIQ-assessment/B1-Guided (1 run(s) on disk)
+2026-09-07 09:00:42,734 [INFO] workflow.chart_creator: Chart generation: 112 patches, instrument=p3 paper=A4R disable_lb=False
+2026-09-07 09:00:42,734 [INFO] workflow.chart_creator: targen args: ['-v', '-d2', '-f112', '-e2', '-B2', '-G', '-g8', 'B1-Guided']
+2026-09-07 09:00:42,734 [INFO] core.argyll_runner: Run: /Applications/Argyll/bin/targen -v -d2 -f112 -e2 -B2 -G -g8 B1-Guided  [cwd=/Users/Basti/ChromIQ-assessment/B1-Guided/runs/run1]
+2026-09-07 09:00:42,799 [DEBUG] core.argyll_runner: [argyll] iRGB test chart
+2026-09-07 09:00:42,799 [DEBUG] core.argyll_runner: [argyll] White patches = 2
+2026-09-07 09:00:42,800 [DEBUG] core.argyll_runner: [argyll] Black patches = 2
+2026-09-07 09:00:42,800 [DEBUG] core.argyll_runner: [argyll] Composite Grey steps = 8
+2026-09-07 09:00:42,800 [DEBUG] core.argyll_runner: [argyll] Full spread patches = 112
+2026-09-07 09:00:42,800 [DEBUG] core.argyll_runner: [argyll] Degree of adaptation: 0.100
+2026-09-07 09:00:42,800 [DEBUG] core.argyll_runner: [argyll] Adaptation weights: Device = 0.935, Perceptual = 0.065, Curvature = 0.010
+2026-09-07 09:00:42,800 [DEBUG] core.argyll_runner: [argyll] Perceptual cache resolution = 7
+2026-09-07 09:00:42,801 [DEBUG] core.argyll_runner: [argyll] Seeding cache...done
+2026-09-07 09:00:42,801 [DEBUG] core.argyll_runner: [argyll] Acceleration grid res = 5
+2026-09-07 09:00:42,801 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:00:42,801 [DEBUG] core.argyll_runner: [argyll] There are 8 unique fixed points to add (10 total fixed points)
+2026-09-07 09:00:42,801 [DEBUG] core.argyll_runner: [argyll] There are 102 far spread points to add
+2026-09-07 09:00:42,801 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:00:42,801 [DEBUG] core.argyll_runner: [argyll] Added 12/110
+2026-09-07 09:00:42,801 [DEBUG] core.argyll_runner: [argyll] Added 23/110
+2026-09-07 09:00:42,802 [DEBUG] core.argyll_runner: [argyll] Added 34/110
+2026-09-07 09:00:42,802 [DEBUG] core.argyll_runner: [argyll] Added 45/110
+2026-09-07 09:00:42,803 [DEBUG] core.argyll_runner: [argyll] Added 56/110
+2026-09-07 09:00:42,803 [DEBUG] core.argyll_runner: [argyll] Added 67/110
+2026-09-07 09:00:42,804 [DEBUG] core.argyll_runner: [argyll] Added 78/110
+2026-09-07 09:00:42,805 [DEBUG] core.argyll_runner: [argyll] Added 89/110
+2026-09-07 09:00:42,806 [DEBUG] core.argyll_runner: [argyll] Added 100/110
+2026-09-07 09:00:42,807 [DEBUG] core.argyll_runner: [argyll] Added 110/110
+2026-09-07 09:00:42,967 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:00:42,968 [DEBUG] core.argyll_runner: [argyll] After seeding points: MinPoint = 7.431, Min = 7.773, Avg. = 18.738, Max = 24.685, 0.0 secs
+2026-09-07 09:00:42,968 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:42,968 [DEBUG] core.argyll_runner: [argyll] It 1: Maxmv = 0.175928, MinPoint = 5.458, Min = 7.777, Avg. = 18.722, Max = 25.654, 0.0 secs.
+2026-09-07 09:00:42,969 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:42,969 [DEBUG] core.argyll_runner: [argyll] It 2: Maxmv = 0.156190, MinPoint = 12.853, Min = 8.514, Avg. = 18.423, Max = 23.361, 0.0 secs.
+2026-09-07 09:00:42,969 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:42,970 [DEBUG] core.argyll_runner: [argyll] It 3: Maxmv = 0.105916, MinPoint = 12.783, Min = 9.800, Avg. = 18.545, Max = 24.970, 0.0 secs.
+2026-09-07 09:00:42,970 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:42,970 [DEBUG] core.argyll_runner: [argyll] It 4: Maxmv = 0.116051, MinPoint = 13.719, Min = 11.172, Avg. = 18.449, Max = 23.778, 0.0 secs.
+2026-09-07 09:00:42,970 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:42,971 [DEBUG] core.argyll_runner: [argyll] It 5: Maxmv = 0.093513, MinPoint = 12.961, Min = 8.968, Avg. = 18.402, Max = 23.444, 0.0 secs.
+2026-09-07 09:00:42,971 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:42,971 [DEBUG] core.argyll_runner: [argyll] It 6: Maxmv = 0.101280, MinPoint = 12.249, Min = 11.794, Avg. = 18.323, Max = 23.642, 0.0 secs.
+2026-09-07 09:00:42,972 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:42,972 [DEBUG] core.argyll_runner: [argyll] It 7: Maxmv = 0.086319, MinPoint = 14.148, Min = 10.595, Avg. = 18.347, Max = 23.896, 0.0 secs.
+2026-09-07 09:00:42,972 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:42,972 [DEBUG] core.argyll_runner: [argyll] It 8: Maxmv = 0.072246, MinPoint = 16.238, Min = 11.066, Avg. = 18.328, Max = 23.601, 0.0 secs.
+2026-09-07 09:00:42,973 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:42,973 [DEBUG] core.argyll_runner: [argyll] It 9: Maxmv = 0.073704, MinPoint = 14.398, Min = 11.323, Avg. = 18.216, Max = 23.219, 0.0 secs.
+2026-09-07 09:00:42,973 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:42,973 [DEBUG] core.argyll_runner: [argyll] It 10: Maxmv = 0.060719, MinPoint = 15.951, Min = 11.644, Avg. = 18.189, Max = 23.578, 0.0 secs.
+2026-09-07 09:00:42,974 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:42,974 [DEBUG] core.argyll_runner: [argyll] It 11: Maxmv = 0.058151, MinPoint = 15.558, Min = 11.060, Avg. = 18.111, Max = 21.863, 0.0 secs.
+2026-09-07 09:00:42,974 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:42,974 [DEBUG] core.argyll_runner: [argyll] It 12: Maxmv = 0.047756, MinPoint = 16.523, Min = 10.553, Avg. = 18.081, Max = 22.874, 0.0 secs.
+2026-09-07 09:00:42,975 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:42,975 [DEBUG] core.argyll_runner: [argyll] It 13: Maxmv = 0.042114, MinPoint = 15.645, Min = 12.153, Avg. = 18.010, Max = 21.859, 0.0 secs.
+2026-09-07 09:00:42,975 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:42,975 [DEBUG] core.argyll_runner: [argyll] It 14: Maxmv = 0.031815, MinPoint = 18.509, Min = 12.385, Avg. = 17.985, Max = 22.165, 0.0 secs.
+2026-09-07 09:00:42,976 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:42,976 [DEBUG] core.argyll_runner: [argyll] It 15: Maxmv = 0.028807, MinPoint = 16.426, Min = 12.295, Avg. = 17.953, Max = 22.121, 0.0 secs.
+2026-09-07 09:00:42,976 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:42,976 [DEBUG] core.argyll_runner: [argyll] It 16: Maxmv = 0.022262, MinPoint = 18.541, Min = 12.191, Avg. = 17.944, Max = 22.223, 0.0 secs.
+2026-09-07 09:00:42,977 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:42,977 [DEBUG] core.argyll_runner: [argyll] It 17: Maxmv = 0.018270, MinPoint = 17.670, Min = 12.306, Avg. = 17.926, Max = 22.069, 0.0 secs.
+2026-09-07 09:00:42,977 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:42,978 [DEBUG] core.argyll_runner: [argyll] It 18: Maxmv = 0.008754, MinPoint = 17.592, Min = 12.370, Avg. = 17.923, Max = 21.899, 0.0 secs.
+2026-09-07 09:00:42,978 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:42,978 [DEBUG] core.argyll_runner: [argyll] It 19: Maxmv = 0.004351, MinPoint = 17.451, Min = 12.363, Avg. = 17.929, Max = 21.863, 0.0 secs.
+2026-09-07 09:00:42,978 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:42,979 [DEBUG] core.argyll_runner: [argyll] It 20: Maxmv = 0.003506, MinPoint = 17.308, Min = 12.326, Avg. = 17.925, Max = 21.805, 0.0 secs.
+2026-09-07 09:00:42,979 [DEBUG] core.argyll_runner: [argyll] After optimization: MinPoint = 17.308, Min = 12.326, Avg. = 17.925, Max = 21.805
+2026-09-07 09:00:42,979 [DEBUG] core.argyll_runner: [argyll] Total number of patches = 112
+2026-09-07 09:00:42,979 [DEBUG] core.argyll_runner: [argyll] Execution time = 0.169938 seconds
+2026-09-07 09:00:42,980 [INFO] core.argyll_runner: ArgyllRunner: finished with code 0
+2026-09-07 09:00:43,029 [DEBUG] workflow.chart_creator: Wrote channel sidecar B1-Guided.channels.json: ['r', 'g', 'b']
+2026-09-07 09:00:43,104 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:00:43,104 [INFO] ui.tabs.tab_chart: Preview loaded: 1 TIFF(s)
+2026-09-07 09:00:43,111 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:00:43,111 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:00:43,116 [DEBUG] ui.tabs.tab_chart: create-chart settings written for run1 (40 parameters + ui state)
+2026-09-07 09:00:45,723 [INFO] assess:   shot Screenshots/B1-guided/g-p3-A4R-1p-after.png  (3400x2100)
+2026-09-07 09:00:46,003 [INFO] assess:   json Test Runs/logs/d06_results.json
+2026-09-07 09:00:46,003 [INFO] assess: [g-p3-A4R-1p] headline='112!' built=(112, 7, 16, 1) est_before=(112, 7, 16) parity={'sets': '112', 'steps': '7', 'passes': '16', 'instr': 'GretagMacbeth i1 Pro', 'paper': '297.0x210.0'} pages=1 cmd=/Applications/Argyll/bin/printtarg -i3p -pA4R -t300 -M6 B1-Guided
+2026-09-07 09:00:48,451 [INFO] assess:   shot Screenshots/B1-guided/g-i1-A4-2p-before.png  (3400x2100)
+2026-09-07 09:00:48,452 [INFO] assess:   armed: dialog ~'quite fill' -> click 'OK' 
+2026-09-07 09:00:48,452 [INFO] assess:   armed: dialog ~'already' -> click 'Continue this project' 
+2026-09-07 09:00:48,452 [INFO] ui.tabs.tab_chart: chart build (Generate Chart) in guided: patch set targen | manual panel: A4, 0x0 grid, margins T38.0 R9.0 B19.0 L26.0
+2026-09-07 09:00:48,452 [INFO] ui.tabs.tab_chart: chart build (Generate Chart) in guided: engine kwargs {'instrument': 'i1', 'paper': 'A4', 'border': 10.0}
+2026-09-07 09:00:48,453 [DEBUG] core.settings: settings.set session_ti3_path = ''
+2026-09-07 09:00:48,453 [DEBUG] core.settings: settings.set session_icc_path = ''
+2026-09-07 09:00:48,453 [DEBUG] core.settings: settings.set session_cal_ti3_path = ''
+2026-09-07 09:00:48,453 [DEBUG] core.file_manager: Target name set to: B1-Guided (root /Users/Basti/ChromIQ-assessment/B1-Guided)
+2026-09-07 09:00:48,453 [INFO] core.file_manager: opened the EXISTING project at /Users/Basti/ChromIQ-assessment/B1-Guided (1 run(s) on disk)
+2026-09-07 09:00:48,455 [INFO] workflow.chart_creator: Chart generation: 968 patches, instrument=i1 paper=A4 disable_lb=False
+2026-09-07 09:00:48,455 [INFO] workflow.chart_creator: targen args: ['-v', '-d2', '-f968', '-e6', '-B6', '-G', '-g55', 'B1-Guided']
+2026-09-07 09:00:48,455 [INFO] core.argyll_runner: Run: /Applications/Argyll/bin/targen -v -d2 -f968 -e6 -B6 -G -g55 B1-Guided  [cwd=/Users/Basti/ChromIQ-assessment/B1-Guided/runs/run1]
+2026-09-07 09:00:48,519 [DEBUG] core.argyll_runner: [argyll] iRGB test chart
+2026-09-07 09:00:48,519 [DEBUG] core.argyll_runner: [argyll] White patches = 6
+2026-09-07 09:00:48,519 [DEBUG] core.argyll_runner: [argyll] Black patches = 6
+2026-09-07 09:00:48,519 [DEBUG] core.argyll_runner: [argyll] Composite Grey steps = 55
+2026-09-07 09:00:48,520 [DEBUG] core.argyll_runner: [argyll] Full spread patches = 968
+2026-09-07 09:00:48,520 [DEBUG] core.argyll_runner: [argyll] Degree of adaptation: 0.100
+2026-09-07 09:00:48,520 [DEBUG] core.argyll_runner: [argyll] Adaptation weights: Device = 0.935, Perceptual = 0.065, Curvature = 0.010
+2026-09-07 09:00:48,520 [DEBUG] core.argyll_runner: [argyll] Perceptual cache resolution = 11
+2026-09-07 09:00:48,520 [DEBUG] core.argyll_runner: [argyll] Seeding cache...done
+2026-09-07 09:00:48,521 [DEBUG] core.argyll_runner: [argyll] Acceleration grid res = 11
+2026-09-07 09:00:48,521 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:00:48,521 [DEBUG] core.argyll_runner: [argyll] There are 55 unique fixed points to add (65 total fixed points)
+2026-09-07 09:00:48,521 [DEBUG] core.argyll_runner: [argyll] There are 903 far spread points to add
+2026-09-07 09:00:48,521 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:00:48,521 [DEBUG] core.argyll_runner: [argyll] Added 12/958
+2026-09-07 09:00:48,521 [DEBUG] core.argyll_runner: [argyll] Added 23/958
+2026-09-07 09:00:48,522 [DEBUG] core.argyll_runner: [argyll] Added 34/958
+2026-09-07 09:00:48,541 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:00:48,541 [DEBUG] core.argyll_runner: [argyll] Added 45/958
+2026-09-07 09:00:48,541 [DEBUG] core.argyll_runner: [argyll] Added 56/958
+2026-09-07 09:00:48,542 [DEBUG] core.argyll_runner: [argyll] Added 67/958
+2026-09-07 09:00:48,542 [DEBUG] core.argyll_runner: [argyll] Added 78/958
+2026-09-07 09:00:48,542 [DEBUG] core.argyll_runner: [argyll] Added 89/958
+2026-09-07 09:00:48,543 [DEBUG] core.argyll_runner: [argyll] Added 100/958
+2026-09-07 09:00:48,543 [DEBUG] core.argyll_runner: [argyll] Added 111/958
+2026-09-07 09:00:48,544 [DEBUG] core.argyll_runner: [argyll] Added 122/958
+2026-09-07 09:00:48,545 [DEBUG] core.argyll_runner: [argyll] Added 133/958
+2026-09-07 09:00:48,546 [DEBUG] core.argyll_runner: [argyll] Added 144/958
+2026-09-07 09:00:48,547 [DEBUG] core.argyll_runner: [argyll] Added 155/958
+2026-09-07 09:00:48,548 [DEBUG] core.argyll_runner: [argyll] Added 166/958
+2026-09-07 09:00:48,549 [DEBUG] core.argyll_runner: [argyll] Added 177/958
+2026-09-07 09:00:48,551 [DEBUG] core.argyll_runner: [argyll] Added 188/958
+2026-09-07 09:00:48,552 [DEBUG] core.argyll_runner: [argyll] Added 199/958
+2026-09-07 09:00:48,554 [DEBUG] core.argyll_runner: [argyll] Added 210/958
+2026-09-07 09:00:48,555 [DEBUG] core.argyll_runner: [argyll] Added 221/958
+2026-09-07 09:00:48,557 [DEBUG] core.argyll_runner: [argyll] Added 232/958
+2026-09-07 09:00:48,560 [DEBUG] core.argyll_runner: [argyll] Added 243/958
+2026-09-07 09:00:48,562 [DEBUG] core.argyll_runner: [argyll] Added 254/958
+2026-09-07 09:00:48,577 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:00:48,577 [DEBUG] core.argyll_runner: [argyll] Added 265/958
+2026-09-07 09:00:48,578 [DEBUG] core.argyll_runner: [argyll] Added 276/958
+2026-09-07 09:00:48,578 [DEBUG] core.argyll_runner: [argyll] Added 287/958
+2026-09-07 09:00:48,578 [DEBUG] core.argyll_runner: [argyll] Added 298/958
+2026-09-07 09:00:48,579 [DEBUG] core.argyll_runner: [argyll] Added 309/958
+2026-09-07 09:00:48,579 [DEBUG] core.argyll_runner: [argyll] Added 320/958
+2026-09-07 09:00:48,580 [DEBUG] core.argyll_runner: [argyll] Added 331/958
+2026-09-07 09:00:48,581 [DEBUG] core.argyll_runner: [argyll] Added 342/958
+2026-09-07 09:00:48,582 [DEBUG] core.argyll_runner: [argyll] Added 353/958
+2026-09-07 09:00:48,583 [DEBUG] core.argyll_runner: [argyll] Added 364/958
+2026-09-07 09:00:48,584 [DEBUG] core.argyll_runner: [argyll] Added 375/958
+2026-09-07 09:00:48,586 [DEBUG] core.argyll_runner: [argyll] Added 386/958
+2026-09-07 09:00:48,587 [DEBUG] core.argyll_runner: [argyll] Added 397/958
+2026-09-07 09:00:48,589 [DEBUG] core.argyll_runner: [argyll] Added 408/958
+2026-09-07 09:00:48,591 [DEBUG] core.argyll_runner: [argyll] Added 419/958
+2026-09-07 09:00:48,592 [DEBUG] core.argyll_runner: [argyll] Added 430/958
+2026-09-07 09:00:48,594 [DEBUG] core.argyll_runner: [argyll] Added 441/958
+2026-09-07 09:00:48,597 [DEBUG] core.argyll_runner: [argyll] Added 452/958
+2026-09-07 09:00:48,599 [DEBUG] core.argyll_runner: [argyll] Added 463/958
+2026-09-07 09:00:48,601 [DEBUG] core.argyll_runner: [argyll] Added 474/958
+2026-09-07 09:00:48,604 [DEBUG] core.argyll_runner: [argyll] Added 485/958
+2026-09-07 09:00:48,607 [DEBUG] core.argyll_runner: [argyll] Added 496/958
+2026-09-07 09:00:48,609 [DEBUG] core.argyll_runner: [argyll] Added 507/958
+2026-09-07 09:00:48,612 [DEBUG] core.argyll_runner: [argyll] Added 518/958
+2026-09-07 09:00:48,615 [DEBUG] core.argyll_runner: [argyll] Added 529/958
+2026-09-07 09:00:48,619 [DEBUG] core.argyll_runner: [argyll] Added 540/958
+2026-09-07 09:00:48,622 [DEBUG] core.argyll_runner: [argyll] Added 551/958
+2026-09-07 09:00:48,625 [DEBUG] core.argyll_runner: [argyll] Added 562/958
+2026-09-07 09:00:48,629 [DEBUG] core.argyll_runner: [argyll] Added 573/958
+2026-09-07 09:00:48,633 [DEBUG] core.argyll_runner: [argyll] Added 584/958
+2026-09-07 09:00:48,636 [DEBUG] core.argyll_runner: [argyll] Added 595/958
+2026-09-07 09:00:48,640 [DEBUG] core.argyll_runner: [argyll] Added 606/958
+2026-09-07 09:00:48,645 [DEBUG] core.argyll_runner: [argyll] Added 617/958
+2026-09-07 09:00:48,649 [DEBUG] core.argyll_runner: [argyll] Added 628/958
+2026-09-07 09:00:48,653 [DEBUG] core.argyll_runner: [argyll] Added 639/958
+2026-09-07 09:00:48,658 [DEBUG] core.argyll_runner: [argyll] Added 650/958
+2026-09-07 09:00:48,663 [DEBUG] core.argyll_runner: [argyll] Added 661/958
+2026-09-07 09:00:48,667 [DEBUG] core.argyll_runner: [argyll] Added 672/958
+2026-09-07 09:00:48,686 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:00:48,687 [DEBUG] core.argyll_runner: [argyll] Added 683/958
+2026-09-07 09:00:48,687 [DEBUG] core.argyll_runner: [argyll] Added 694/958
+2026-09-07 09:00:48,687 [DEBUG] core.argyll_runner: [argyll] Added 705/958
+2026-09-07 09:00:48,688 [DEBUG] core.argyll_runner: [argyll] Added 716/958
+2026-09-07 09:00:48,688 [DEBUG] core.argyll_runner: [argyll] Added 727/958
+2026-09-07 09:00:48,689 [DEBUG] core.argyll_runner: [argyll] Added 738/958
+2026-09-07 09:00:48,690 [DEBUG] core.argyll_runner: [argyll] Added 749/958
+2026-09-07 09:00:48,690 [DEBUG] core.argyll_runner: [argyll] Added 760/958
+2026-09-07 09:00:48,692 [DEBUG] core.argyll_runner: [argyll] Added 771/958
+2026-09-07 09:00:48,693 [DEBUG] core.argyll_runner: [argyll] Added 782/958
+2026-09-07 09:00:48,694 [DEBUG] core.argyll_runner: [argyll] Added 793/958
+2026-09-07 09:00:48,695 [DEBUG] core.argyll_runner: [argyll] Added 804/958
+2026-09-07 09:00:48,697 [DEBUG] core.argyll_runner: [argyll] Added 815/958
+2026-09-07 09:00:48,698 [DEBUG] core.argyll_runner: [argyll] Added 826/958
+2026-09-07 09:00:48,700 [DEBUG] core.argyll_runner: [argyll] Added 837/958
+2026-09-07 09:00:48,702 [DEBUG] core.argyll_runner: [argyll] Added 848/958
+2026-09-07 09:00:48,704 [DEBUG] core.argyll_runner: [argyll] Added 859/958
+2026-09-07 09:00:48,706 [DEBUG] core.argyll_runner: [argyll] Added 870/958
+2026-09-07 09:00:48,709 [DEBUG] core.argyll_runner: [argyll] Added 881/958
+2026-09-07 09:00:48,711 [DEBUG] core.argyll_runner: [argyll] Added 892/958
+2026-09-07 09:00:48,714 [DEBUG] core.argyll_runner: [argyll] Added 903/958
+2026-09-07 09:00:48,716 [DEBUG] core.argyll_runner: [argyll] Added 914/958
+2026-09-07 09:00:48,719 [DEBUG] core.argyll_runner: [argyll] Added 925/958
+2026-09-07 09:00:48,722 [DEBUG] core.argyll_runner: [argyll] Added 936/958
+2026-09-07 09:00:48,725 [DEBUG] core.argyll_runner: [argyll] Added 947/958
+2026-09-07 09:00:48,728 [DEBUG] core.argyll_runner: [argyll] Added 958/958
+2026-09-07 09:00:50,440 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:00:50,441 [DEBUG] core.argyll_runner: [argyll] After seeding points: MinPoint = 3.080, Min = 2.829, Avg. = 8.763, Max = 11.132, 0.1 secs
+2026-09-07 09:00:50,442 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:50,442 [DEBUG] core.argyll_runner: [argyll] It 1: Maxmv = 0.082223, MinPoint = 2.192, Min = 2.829, Avg. = 8.745, Max = 12.143, 0.1 secs.
+2026-09-07 09:00:50,442 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:50,442 [DEBUG] core.argyll_runner: [argyll] It 2: Maxmv = 0.085595, MinPoint = 2.986, Min = 2.829, Avg. = 8.688, Max = 11.817, 0.1 secs.
+2026-09-07 09:00:50,443 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:50,443 [DEBUG] core.argyll_runner: [argyll] It 3: Maxmv = 0.070309, MinPoint = 3.080, Min = 2.829, Avg. = 8.646, Max = 12.022, 0.1 secs.
+2026-09-07 09:00:50,443 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:50,443 [DEBUG] core.argyll_runner: [argyll] It 4: Maxmv = 0.065447, MinPoint = 2.751, Min = 2.829, Avg. = 8.567, Max = 11.731, 0.1 secs.
+2026-09-07 09:00:50,444 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:50,444 [DEBUG] core.argyll_runner: [argyll] It 5: Maxmv = 0.066424, MinPoint = 3.080, Min = 2.829, Avg. = 8.534, Max = 11.044, 0.1 secs.
+2026-09-07 09:00:50,444 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:50,444 [DEBUG] core.argyll_runner: [argyll] It 6: Maxmv = 0.049950, MinPoint = 3.080, Min = 2.829, Avg. = 8.505, Max = 10.925, 0.1 secs.
+2026-09-07 09:00:50,445 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:50,445 [DEBUG] core.argyll_runner: [argyll] It 7: Maxmv = 0.041787, MinPoint = 3.080, Min = 2.829, Avg. = 8.476, Max = 10.814, 0.1 secs.
+2026-09-07 09:00:50,445 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:50,445 [DEBUG] core.argyll_runner: [argyll] It 8: Maxmv = 0.037310, MinPoint = 3.080, Min = 2.829, Avg. = 8.437, Max = 10.434, 0.1 secs.
+2026-09-07 09:00:50,446 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:50,446 [DEBUG] core.argyll_runner: [argyll] It 9: Maxmv = 0.034694, MinPoint = 3.080, Min = 2.829, Avg. = 8.412, Max = 10.371, 0.1 secs.
+2026-09-07 09:00:50,446 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:50,446 [DEBUG] core.argyll_runner: [argyll] It 10: Maxmv = 0.028854, MinPoint = 3.080, Min = 2.829, Avg. = 8.389, Max = 10.492, 0.1 secs.
+2026-09-07 09:00:50,447 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:50,447 [DEBUG] core.argyll_runner: [argyll] It 11: Maxmv = 0.031590, MinPoint = 3.080, Min = 2.829, Avg. = 8.383, Max = 10.107, 0.1 secs.
+2026-09-07 09:00:50,447 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:50,447 [DEBUG] core.argyll_runner: [argyll] It 12: Maxmv = 0.021391, MinPoint = 3.080, Min = 2.829, Avg. = 8.373, Max = 10.078, 0.1 secs.
+2026-09-07 09:00:50,448 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:50,448 [DEBUG] core.argyll_runner: [argyll] It 13: Maxmv = 0.016747, MinPoint = 3.080, Min = 2.829, Avg. = 8.364, Max = 10.186, 0.1 secs.
+2026-09-07 09:00:50,448 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:50,448 [DEBUG] core.argyll_runner: [argyll] It 14: Maxmv = 0.015110, MinPoint = 3.080, Min = 2.829, Avg. = 8.355, Max = 9.907, 0.1 secs.
+2026-09-07 09:00:50,449 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:50,449 [DEBUG] core.argyll_runner: [argyll] It 15: Maxmv = 0.010568, MinPoint = 3.080, Min = 2.829, Avg. = 8.349, Max = 9.923, 0.1 secs.
+2026-09-07 09:00:50,449 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:50,449 [DEBUG] core.argyll_runner: [argyll] It 16: Maxmv = 0.007712, MinPoint = 3.080, Min = 2.829, Avg. = 8.346, Max = 9.807, 0.1 secs.
+2026-09-07 09:00:50,450 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:50,450 [DEBUG] core.argyll_runner: [argyll] It 17: Maxmv = 0.005510, MinPoint = 3.080, Min = 2.829, Avg. = 8.345, Max = 9.837, 0.1 secs.
+2026-09-07 09:00:50,450 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:50,451 [DEBUG] core.argyll_runner: [argyll] It 18: Maxmv = 0.003015, MinPoint = 3.080, Min = 2.829, Avg. = 8.344, Max = 9.789, 0.1 secs.
+2026-09-07 09:00:50,451 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:50,451 [DEBUG] core.argyll_runner: [argyll] It 19: Maxmv = 0.001272, MinPoint = 3.080, Min = 2.829, Avg. = 8.344, Max = 9.806, 0.1 secs.
+2026-09-07 09:00:50,451 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:50,451 [DEBUG] core.argyll_runner: [argyll] It 20: Maxmv = 0.001243, MinPoint = 3.080, Min = 2.829, Avg. = 8.344, Max = 9.770, 0.1 secs.
+2026-09-07 09:00:50,452 [DEBUG] core.argyll_runner: [argyll] After optimization: MinPoint = 3.080, Min = 2.829, Avg. = 8.344, Max = 9.770
+2026-09-07 09:00:50,452 [DEBUG] core.argyll_runner: [argyll] Total number of patches = 968
+2026-09-07 09:00:50,452 [DEBUG] core.argyll_runner: [argyll] Execution time = 1.926491 seconds
+2026-09-07 09:00:50,453 [INFO] core.argyll_runner: ArgyllRunner: finished with code 0
+2026-09-07 09:00:50,564 [DEBUG] workflow.chart_creator: Wrote channel sidecar B1-Guided.channels.json: ['r', 'g', 'b']
+2026-09-07 09:00:50,720 [DEBUG] ui.tiff_preview: TiffPreview: loaded 2 page(s)
+2026-09-07 09:00:50,720 [INFO] ui.tabs.tab_chart: Preview loaded: 2 TIFF(s)
+2026-09-07 09:00:50,739 [DEBUG] ui.tiff_preview: TiffPreview: loaded 2 page(s)
+2026-09-07 09:00:50,742 [DEBUG] ui.tiff_preview: TiffPreview: loaded 2 page(s)
+2026-09-07 09:00:50,749 [DEBUG] ui.tabs.tab_chart: create-chart settings written for run1 (40 parameters + ui state)
+2026-09-07 09:00:53,320 [INFO] assess:   shot Screenshots/B1-guided/g-i1-A4-2p-after.png  (3400x2100)
+2026-09-07 09:00:54,006 [INFO] assess:   json Test Runs/logs/d06_results.json
+2026-09-07 09:00:54,006 [INFO] assess: [g-i1-A4-2p] headline='968!' built=(968, 22, 22, 2) est_before=(968, 22, 22) parity={'sets': '968', 'steps': '22', 'passes': '22,22', 'instr': 'GretagMacbeth i1 Pro', 'paper': '210.0x297.0'} pages=2 cmd=ations/Argyll/bin/printtarg -ii1 -pA4 -t300 -a0.95 -m10 -M10 B1-Guided
+2026-09-07 09:00:57,152 [INFO] assess: guided toggles: {'base': '484!', 'clip_toggled': '550!', 'clip_est': {'total': 550, 'fillup': 0, 'page_patches': 550, 'rows': 22, 'cols': 25, 'pages': 1, 'patch': (7.6, 9.5), 'pitch': None}, 'nsl': '528!', 'nsl_est': {'total': 528, 'fillup': 0, 'page_patches': 528, 'rows': 24, 'cols': 22, 'pages': 1, 'patch': (7.6, 9.5), 'pitch': None}, 'lb_label': 'Suppress left clip border (-L)', 'nsl_label': "Don't limit strip length (-P)"}
+2026-09-07 09:00:57,153 [INFO] assess:   json Test Runs/logs/d06_results.json
+2026-09-07 09:00:59,610 [INFO] assess:   shot Screenshots/B1-guided/g-CM-A4-1p-b-before.png  (3400x2100)
+2026-09-07 09:00:59,611 [INFO] assess:   armed: dialog ~'quite fill' -> click 'OK' 
+2026-09-07 09:00:59,611 [INFO] assess:   armed: dialog ~'already' -> click 'Continue this project' 
+2026-09-07 09:00:59,611 [INFO] ui.tabs.tab_chart: chart build (Generate Chart) in guided: patch set targen | manual panel: A4, 0x0 grid, margins T38.0 R9.0 B19.0 L26.0
+2026-09-07 09:00:59,611 [INFO] ui.tabs.tab_chart: chart build (Generate Chart) in guided: engine kwargs {'instrument': 'CM', 'paper': 'A4', 'border': 6.0}
+2026-09-07 09:00:59,612 [DEBUG] core.settings: settings.set session_ti3_path = ''
+2026-09-07 09:00:59,612 [DEBUG] core.settings: settings.set session_icc_path = ''
+2026-09-07 09:00:59,612 [DEBUG] core.settings: settings.set session_cal_ti3_path = ''
+2026-09-07 09:00:59,612 [DEBUG] core.file_manager: Target name set to: B1-Guided (root /Users/Basti/ChromIQ-assessment/B1-Guided)
+2026-09-07 09:00:59,612 [INFO] core.file_manager: opened the EXISTING project at /Users/Basti/ChromIQ-assessment/B1-Guided (1 run(s) on disk)
+2026-09-07 09:00:59,614 [INFO] workflow.chart_creator: Chart generation: 105 patches, instrument=CM paper=A4 disable_lb=False
+2026-09-07 09:00:59,614 [INFO] workflow.chart_creator: targen args: ['-v', '-d2', '-f105', '-e2', '-B2', '-G', '-g8', 'B1-Guided']
+2026-09-07 09:00:59,614 [INFO] core.argyll_runner: Run: /Applications/Argyll/bin/targen -v -d2 -f105 -e2 -B2 -G -g8 B1-Guided  [cwd=/Users/Basti/ChromIQ-assessment/B1-Guided/runs/run1]
+2026-09-07 09:00:59,679 [DEBUG] core.argyll_runner: [argyll] iRGB test chart
+2026-09-07 09:00:59,680 [DEBUG] core.argyll_runner: [argyll] White patches = 2
+2026-09-07 09:00:59,680 [DEBUG] core.argyll_runner: [argyll] Black patches = 2
+2026-09-07 09:00:59,680 [DEBUG] core.argyll_runner: [argyll] Composite Grey steps = 8
+2026-09-07 09:00:59,680 [DEBUG] core.argyll_runner: [argyll] Full spread patches = 105
+2026-09-07 09:00:59,680 [DEBUG] core.argyll_runner: [argyll] Degree of adaptation: 0.100
+2026-09-07 09:00:59,680 [DEBUG] core.argyll_runner: [argyll] Adaptation weights: Device = 0.935, Perceptual = 0.065, Curvature = 0.010
+2026-09-07 09:00:59,680 [DEBUG] core.argyll_runner: [argyll] Perceptual cache resolution = 7
+2026-09-07 09:00:59,681 [DEBUG] core.argyll_runner: [argyll] Seeding cache...done
+2026-09-07 09:00:59,681 [DEBUG] core.argyll_runner: [argyll] Acceleration grid res = 5
+2026-09-07 09:00:59,681 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:00:59,681 [DEBUG] core.argyll_runner: [argyll] There are 8 unique fixed points to add (10 total fixed points)
+2026-09-07 09:00:59,681 [DEBUG] core.argyll_runner: [argyll] There are 95 far spread points to add
+2026-09-07 09:00:59,681 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:00:59,682 [DEBUG] core.argyll_runner: [argyll] Added 12/103
+2026-09-07 09:00:59,682 [DEBUG] core.argyll_runner: [argyll] Added 23/103
+2026-09-07 09:00:59,682 [DEBUG] core.argyll_runner: [argyll] Added 34/103
+2026-09-07 09:00:59,682 [DEBUG] core.argyll_runner: [argyll] Added 45/103
+2026-09-07 09:00:59,683 [DEBUG] core.argyll_runner: [argyll] Added 56/103
+2026-09-07 09:00:59,683 [DEBUG] core.argyll_runner: [argyll] Added 67/103
+2026-09-07 09:00:59,684 [DEBUG] core.argyll_runner: [argyll] Added 78/103
+2026-09-07 09:00:59,685 [DEBUG] core.argyll_runner: [argyll] Added 89/103
+2026-09-07 09:00:59,686 [DEBUG] core.argyll_runner: [argyll] Added 100/103
+2026-09-07 09:00:59,688 [DEBUG] core.argyll_runner: [argyll] Added 103/103
+2026-09-07 09:00:59,833 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:00:59,834 [DEBUG] core.argyll_runner: [argyll] After seeding points: MinPoint = 10.374, Min = 6.929, Avg. = 19.330, Max = 24.309, 0.0 secs
+2026-09-07 09:00:59,834 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:59,834 [DEBUG] core.argyll_runner: [argyll] It 1: Maxmv = 0.163526, MinPoint = 9.486, Min = 8.454, Avg. = 19.240, Max = 26.553, 0.0 secs.
+2026-09-07 09:00:59,835 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:59,835 [DEBUG] core.argyll_runner: [argyll] It 2: Maxmv = 0.158970, MinPoint = 8.367, Min = 10.736, Avg. = 19.138, Max = 25.552, 0.0 secs.
+2026-09-07 09:00:59,835 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:59,835 [DEBUG] core.argyll_runner: [argyll] It 3: Maxmv = 0.144175, MinPoint = 11.846, Min = 10.147, Avg. = 19.066, Max = 25.127, 0.0 secs.
+2026-09-07 09:00:59,836 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:59,836 [DEBUG] core.argyll_runner: [argyll] It 4: Maxmv = 0.110017, MinPoint = 13.321, Min = 11.536, Avg. = 18.973, Max = 23.809, 0.0 secs.
+2026-09-07 09:00:59,836 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:59,836 [DEBUG] core.argyll_runner: [argyll] It 5: Maxmv = 0.098790, MinPoint = 14.717, Min = 11.683, Avg. = 18.953, Max = 25.533, 0.0 secs.
+2026-09-07 09:00:59,837 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:59,837 [DEBUG] core.argyll_runner: [argyll] It 6: Maxmv = 0.089150, MinPoint = 16.223, Min = 10.727, Avg. = 18.748, Max = 24.797, 0.0 secs.
+2026-09-07 09:00:59,837 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:59,838 [DEBUG] core.argyll_runner: [argyll] It 7: Maxmv = 0.070582, MinPoint = 14.114, Min = 12.316, Avg. = 18.847, Max = 24.240, 0.0 secs.
+2026-09-07 09:00:59,838 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:59,838 [DEBUG] core.argyll_runner: [argyll] It 8: Maxmv = 0.080995, MinPoint = 17.415, Min = 10.940, Avg. = 18.679, Max = 24.615, 0.0 secs.
+2026-09-07 09:00:59,838 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:59,839 [DEBUG] core.argyll_runner: [argyll] It 9: Maxmv = 0.076056, MinPoint = 15.544, Min = 10.350, Avg. = 18.704, Max = 23.574, 0.0 secs.
+2026-09-07 09:00:59,839 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:59,839 [DEBUG] core.argyll_runner: [argyll] It 10: Maxmv = 0.056502, MinPoint = 17.418, Min = 11.590, Avg. = 18.591, Max = 23.565, 0.0 secs.
+2026-09-07 09:00:59,839 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:59,840 [DEBUG] core.argyll_runner: [argyll] It 11: Maxmv = 0.049921, MinPoint = 18.340, Min = 11.501, Avg. = 18.582, Max = 23.627, 0.0 secs.
+2026-09-07 09:00:59,840 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:59,840 [DEBUG] core.argyll_runner: [argyll] It 12: Maxmv = 0.045158, MinPoint = 17.418, Min = 10.994, Avg. = 18.544, Max = 23.505, 0.0 secs.
+2026-09-07 09:00:59,840 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:59,841 [DEBUG] core.argyll_runner: [argyll] It 13: Maxmv = 0.044659, MinPoint = 17.565, Min = 10.607, Avg. = 18.519, Max = 23.289, 0.0 secs.
+2026-09-07 09:00:59,841 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:59,841 [DEBUG] core.argyll_runner: [argyll] It 14: Maxmv = 0.036084, MinPoint = 18.858, Min = 11.371, Avg. = 18.503, Max = 24.484, 0.0 secs.
+2026-09-07 09:00:59,842 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:59,842 [DEBUG] core.argyll_runner: [argyll] It 15: Maxmv = 0.022764, MinPoint = 18.136, Min = 11.220, Avg. = 18.474, Max = 23.457, 0.0 secs.
+2026-09-07 09:00:59,842 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:59,842 [DEBUG] core.argyll_runner: [argyll] It 16: Maxmv = 0.022174, MinPoint = 17.589, Min = 11.082, Avg. = 18.476, Max = 23.695, 0.0 secs.
+2026-09-07 09:00:59,843 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:59,843 [DEBUG] core.argyll_runner: [argyll] It 17: Maxmv = 0.012599, MinPoint = 17.164, Min = 11.004, Avg. = 18.478, Max = 23.553, 0.0 secs.
+2026-09-07 09:00:59,843 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:59,843 [DEBUG] core.argyll_runner: [argyll] It 18: Maxmv = 0.009889, MinPoint = 18.028, Min = 10.985, Avg. = 18.480, Max = 23.751, 0.0 secs.
+2026-09-07 09:00:59,844 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:59,844 [DEBUG] core.argyll_runner: [argyll] It 19: Maxmv = 0.003724, MinPoint = 17.874, Min = 10.981, Avg. = 18.478, Max = 23.613, 0.0 secs.
+2026-09-07 09:00:59,844 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:00:59,844 [DEBUG] core.argyll_runner: [argyll] It 20: Maxmv = 0.004079, MinPoint = 18.196, Min = 10.979, Avg. = 18.470, Max = 23.463, 0.0 secs.
+2026-09-07 09:00:59,845 [DEBUG] core.argyll_runner: [argyll] After optimization: MinPoint = 18.196, Min = 10.979, Avg. = 18.470, Max = 23.463
+2026-09-07 09:00:59,845 [DEBUG] core.argyll_runner: [argyll] Total number of patches = 105
+2026-09-07 09:00:59,845 [DEBUG] core.argyll_runner: [argyll] Execution time = 0.154864 seconds
+2026-09-07 09:00:59,846 [INFO] core.argyll_runner: ArgyllRunner: finished with code 0
+2026-09-07 09:00:59,887 [DEBUG] workflow.chart_creator: Wrote channel sidecar B1-Guided.channels.json: ['r', 'g', 'b']
+2026-09-07 09:00:59,962 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:00:59,962 [INFO] ui.tabs.tab_chart: Preview loaded: 1 TIFF(s)
+2026-09-07 09:00:59,968 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:00:59,969 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:00:59,973 [DEBUG] ui.tabs.tab_chart: create-chart settings written for run1 (40 parameters + ui state)
+2026-09-07 09:01:02,310 [INFO] assess:   shot Screenshots/B1-guided/g-CM-A4-1p-b-after.png  (3400x2100)
+2026-09-07 09:01:02,755 [INFO] assess:   json Test Runs/logs/d06_results.json
+2026-09-07 09:01:02,755 [INFO] assess: [g-CM-A4-1p-b] headline='105!' built=(105, 15, 7, 1) est_before=(105, 15, 7) parity={'sets': '105', 'steps': '15', 'passes': '6,1', 'instr': 'X-Rite ColorMunki', 'paper': '210.0x297.0'} pages=2 cmd=/Applications/Argyll/bin/printtarg -iCM -pA4 -t300 -M6 B1-Guided
+2026-09-07 09:01:02,766 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [_transfer_guided_to_manual:6881  ←  _apply_guided_engine_recipe:7151  ←  _set_engine_recipe:17986]
+2026-09-07 09:01:02,806 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 09:01:02,806 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:01:02,806 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:01:02,806 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:01:02,806 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:01:02,806 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:01:02,844 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 09:01:02,844 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:01:02,844 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:01:02,844 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:01:02,844 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:01:02,844 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:01:02,866 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 09:01:02,867 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:01:02,867 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:01:02,867 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:01:02,867 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:01:02,867 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:01:04,454 [INFO] assess:   shot Screenshots/B1-guided/t01-manual-after-guided-build.png  (3400x2100)
+2026-09-07 09:01:04,454 [INFO] assess: transfer: {'engine_check': True, 'instr': 'CM', 'paper': 'A4', 'mode': 'freehand', 'recipe': {'instrument': 'CM', 'paper': 'A4', 'cm_density': 1, 'layout_mode': 'patch_first', 'margin_top': 6.0, 'margin_right': 6.0, 'margin_bottom': 6.0, 'margin_left': 6.0, 'use_instrument_margins': False, 'pscale': 1.0, 'patch_area_align': 'center-left', 'spacer_mode': 'colored'}, 'estimate': {'total': 105, 'fillup': 0, 'page_patches': 105, 'rows': 15, 'cols': 7, 'pages': 1, 'patch': (28.0, 14.0), 'pitch': None}, 'actual': {'total': 105, 'fillup': 0, 'page_patches': 105, 'rows': 15, 'cols': 7, 'pages': 1, 'patch': (28.02, 14.05), 'pitch': None}, 'info': '1 page · Auto patch count · Auto grey/white/black):\ntargen -d2 -f0 -e2 -B2 -G -g8 chart\nChromIQ layout engine · CM · A4 portrait · 300 dpi · margin 6 mm · hand-held · align center-left\nLayout preset: CM · A4 portrait · freehand   ● modified', 'auto_patches': True, 'pages': 1, 'f': 0}
+2026-09-07 09:01:04,455 [INFO] assess:   json Test Runs/logs/d06_results.json
+2026-09-07 09:01:04,455 [INFO] assess:   armed: dialog ~'quite fill' -> click 'OK' 
+2026-09-07 09:01:04,455 [INFO] assess:   armed: dialog ~'already' -> click 'Continue this project' 
+2026-09-07 09:01:04,455 [INFO] ui.tabs.tab_chart: chart build (Generate Chart) in manual: patch set targen | manual panel: A4, 0x0 grid, margins T6.0 R6.0 B6.0 L6.0
+2026-09-07 09:01:04,455 [DEBUG] core.settings: settings.set session_ti3_path = ''
+2026-09-07 09:01:04,456 [DEBUG] core.settings: settings.set session_icc_path = ''
+2026-09-07 09:01:04,456 [DEBUG] core.settings: settings.set session_cal_ti3_path = ''
+2026-09-07 09:01:04,456 [DEBUG] core.file_manager: Target name set to: B1-Guided (root /Users/Basti/ChromIQ-assessment/B1-Guided)
+2026-09-07 09:01:04,456 [INFO] core.file_manager: opened the EXISTING project at /Users/Basti/ChromIQ-assessment/B1-Guided (1 run(s) on disk)
+2026-09-07 09:01:04,467 [INFO] workflow.chart_creator: Chart generation: 105 patches, instrument=CM paper=A4 disable_lb=False
+2026-09-07 09:01:04,467 [INFO] workflow.chart_creator: targen args: ['-v', '-d2', '-f105', '-e2', '-B2', '-G', '-g8', 'B1-Guided']
+2026-09-07 09:01:04,467 [INFO] core.argyll_runner: Run: /Applications/Argyll/bin/targen -v -d2 -f105 -e2 -B2 -G -g8 B1-Guided  [cwd=/Users/Basti/ChromIQ-assessment/B1-Guided/runs/run1]
+2026-09-07 09:01:04,531 [DEBUG] core.argyll_runner: [argyll] iRGB test chart
+2026-09-07 09:01:04,532 [DEBUG] core.argyll_runner: [argyll] White patches = 2
+2026-09-07 09:01:04,532 [DEBUG] core.argyll_runner: [argyll] Black patches = 2
+2026-09-07 09:01:04,532 [DEBUG] core.argyll_runner: [argyll] Composite Grey steps = 8
+2026-09-07 09:01:04,532 [DEBUG] core.argyll_runner: [argyll] Full spread patches = 105
+2026-09-07 09:01:04,532 [DEBUG] core.argyll_runner: [argyll] Degree of adaptation: 0.100
+2026-09-07 09:01:04,532 [DEBUG] core.argyll_runner: [argyll] Adaptation weights: Device = 0.935, Perceptual = 0.065, Curvature = 0.010
+2026-09-07 09:01:04,533 [DEBUG] core.argyll_runner: [argyll] Perceptual cache resolution = 7
+2026-09-07 09:01:04,533 [DEBUG] core.argyll_runner: [argyll] Seeding cache...done
+2026-09-07 09:01:04,533 [DEBUG] core.argyll_runner: [argyll] Acceleration grid res = 5
+2026-09-07 09:01:04,533 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:01:04,533 [DEBUG] core.argyll_runner: [argyll] There are 8 unique fixed points to add (10 total fixed points)
+2026-09-07 09:01:04,533 [DEBUG] core.argyll_runner: [argyll] There are 95 far spread points to add
+2026-09-07 09:01:04,534 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:01:04,534 [DEBUG] core.argyll_runner: [argyll] Added 12/103
+2026-09-07 09:01:04,534 [DEBUG] core.argyll_runner: [argyll] Added 23/103
+2026-09-07 09:01:04,534 [DEBUG] core.argyll_runner: [argyll] Added 34/103
+2026-09-07 09:01:04,535 [DEBUG] core.argyll_runner: [argyll] Added 45/103
+2026-09-07 09:01:04,535 [DEBUG] core.argyll_runner: [argyll] Added 56/103
+2026-09-07 09:01:04,536 [DEBUG] core.argyll_runner: [argyll] Added 67/103
+2026-09-07 09:01:04,536 [DEBUG] core.argyll_runner: [argyll] Added 78/103
+2026-09-07 09:01:04,537 [DEBUG] core.argyll_runner: [argyll] Added 89/103
+2026-09-07 09:01:04,538 [DEBUG] core.argyll_runner: [argyll] Added 100/103
+2026-09-07 09:01:04,539 [DEBUG] core.argyll_runner: [argyll] Added 103/103
+2026-09-07 09:01:04,687 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:01:04,688 [DEBUG] core.argyll_runner: [argyll] After seeding points: MinPoint = 10.374, Min = 6.929, Avg. = 19.330, Max = 24.309, 0.0 secs
+2026-09-07 09:01:04,688 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:04,688 [DEBUG] core.argyll_runner: [argyll] It 1: Maxmv = 0.163526, MinPoint = 9.486, Min = 8.454, Avg. = 19.240, Max = 26.553, 0.0 secs.
+2026-09-07 09:01:04,688 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:04,689 [DEBUG] core.argyll_runner: [argyll] It 2: Maxmv = 0.158970, MinPoint = 8.367, Min = 10.736, Avg. = 19.138, Max = 25.552, 0.0 secs.
+2026-09-07 09:01:04,689 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:04,689 [DEBUG] core.argyll_runner: [argyll] It 3: Maxmv = 0.144175, MinPoint = 11.846, Min = 10.147, Avg. = 19.066, Max = 25.127, 0.0 secs.
+2026-09-07 09:01:04,690 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:04,690 [DEBUG] core.argyll_runner: [argyll] It 4: Maxmv = 0.110017, MinPoint = 13.321, Min = 11.536, Avg. = 18.973, Max = 23.809, 0.0 secs.
+2026-09-07 09:01:04,690 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:04,690 [DEBUG] core.argyll_runner: [argyll] It 5: Maxmv = 0.098790, MinPoint = 14.717, Min = 11.683, Avg. = 18.953, Max = 25.533, 0.0 secs.
+2026-09-07 09:01:04,691 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:04,691 [DEBUG] core.argyll_runner: [argyll] It 6: Maxmv = 0.089150, MinPoint = 16.223, Min = 10.727, Avg. = 18.748, Max = 24.797, 0.0 secs.
+2026-09-07 09:01:04,691 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:04,691 [DEBUG] core.argyll_runner: [argyll] It 7: Maxmv = 0.070582, MinPoint = 14.114, Min = 12.316, Avg. = 18.847, Max = 24.240, 0.0 secs.
+2026-09-07 09:01:04,692 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:04,692 [DEBUG] core.argyll_runner: [argyll] It 8: Maxmv = 0.080995, MinPoint = 17.415, Min = 10.940, Avg. = 18.679, Max = 24.615, 0.0 secs.
+2026-09-07 09:01:04,692 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:04,692 [DEBUG] core.argyll_runner: [argyll] It 9: Maxmv = 0.076056, MinPoint = 15.544, Min = 10.350, Avg. = 18.704, Max = 23.574, 0.0 secs.
+2026-09-07 09:01:04,693 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:04,693 [DEBUG] core.argyll_runner: [argyll] It 10: Maxmv = 0.056502, MinPoint = 17.418, Min = 11.590, Avg. = 18.591, Max = 23.565, 0.0 secs.
+2026-09-07 09:01:04,693 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:04,693 [DEBUG] core.argyll_runner: [argyll] It 11: Maxmv = 0.049921, MinPoint = 18.340, Min = 11.501, Avg. = 18.582, Max = 23.627, 0.0 secs.
+2026-09-07 09:01:04,694 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:04,694 [DEBUG] core.argyll_runner: [argyll] It 12: Maxmv = 0.045158, MinPoint = 17.418, Min = 10.994, Avg. = 18.544, Max = 23.505, 0.0 secs.
+2026-09-07 09:01:04,694 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:04,694 [DEBUG] core.argyll_runner: [argyll] It 13: Maxmv = 0.044659, MinPoint = 17.565, Min = 10.607, Avg. = 18.519, Max = 23.289, 0.0 secs.
+2026-09-07 09:01:04,695 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:04,695 [DEBUG] core.argyll_runner: [argyll] It 14: Maxmv = 0.036084, MinPoint = 18.858, Min = 11.371, Avg. = 18.503, Max = 24.484, 0.0 secs.
+2026-09-07 09:01:04,695 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:04,695 [DEBUG] core.argyll_runner: [argyll] It 15: Maxmv = 0.022764, MinPoint = 18.136, Min = 11.220, Avg. = 18.474, Max = 23.457, 0.0 secs.
+2026-09-07 09:01:04,696 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:04,696 [DEBUG] core.argyll_runner: [argyll] It 16: Maxmv = 0.022174, MinPoint = 17.589, Min = 11.082, Avg. = 18.476, Max = 23.695, 0.0 secs.
+2026-09-07 09:01:04,696 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:04,696 [DEBUG] core.argyll_runner: [argyll] It 17: Maxmv = 0.012599, MinPoint = 17.164, Min = 11.004, Avg. = 18.478, Max = 23.553, 0.0 secs.
+2026-09-07 09:01:04,697 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:04,697 [DEBUG] core.argyll_runner: [argyll] It 18: Maxmv = 0.009889, MinPoint = 18.028, Min = 10.985, Avg. = 18.480, Max = 23.751, 0.0 secs.
+2026-09-07 09:01:04,697 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:04,698 [DEBUG] core.argyll_runner: [argyll] It 19: Maxmv = 0.003724, MinPoint = 17.874, Min = 10.981, Avg. = 18.478, Max = 23.613, 0.0 secs.
+2026-09-07 09:01:04,698 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:04,698 [DEBUG] core.argyll_runner: [argyll] It 20: Maxmv = 0.004079, MinPoint = 18.196, Min = 10.979, Avg. = 18.470, Max = 23.463, 0.0 secs.
+2026-09-07 09:01:04,698 [DEBUG] core.argyll_runner: [argyll] After optimization: MinPoint = 18.196, Min = 10.979, Avg. = 18.470, Max = 23.463
+2026-09-07 09:01:04,699 [DEBUG] core.argyll_runner: [argyll] Total number of patches = 105
+2026-09-07 09:01:04,699 [DEBUG] core.argyll_runner: [argyll] Execution time = 0.154436 seconds
+2026-09-07 09:01:04,699 [INFO] core.argyll_runner: ArgyllRunner: finished with code 0
+2026-09-07 09:01:04,742 [DEBUG] workflow.chart_creator: Wrote channel sidecar B1-Guided.channels.json: ['r', 'g', 'b']
+2026-09-07 09:01:04,820 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:01:04,820 [INFO] ui.tabs.tab_chart: Preview loaded: 1 TIFF(s)
+2026-09-07 09:01:04,828 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:01:04,829 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:01:04,833 [DEBUG] ui.tabs.tab_chart: create-chart settings written for run1 (40 parameters + ui state)
+2026-09-07 09:01:07,019 [INFO] assess: manual generate after transfer: {'actual': {'total': 105, 'fillup': 0, 'page_patches': 105, 'rows': 15, 'cols': 7, 'pages': 1, 'patch': (28.02, 14.05), 'pitch': None}, 'estimate': {'total': 105, 'fillup': 0, 'page_patches': 105, 'rows': 15, 'cols': 7, 'pages': 1, 'patch': (28.0, 14.0), 'pitch': None}, 'guided_built': {'total': 105, 'fillup': 0, 'page_patches': 105, 'rows': 15, 'cols': 7, 'pages': 1, 'patch': (28.02, 14.05), 'pitch': None}}
+2026-09-07 09:01:07,022 [INFO] assess:   json Test Runs/logs/d06_results.json
+2026-09-07 09:01:07,181 [INFO] assess:   shot Screenshots/B1-guided/t02-manual-generate-after-transfer.png  (3400x2100)
+2026-09-07 09:01:07,182 [INFO] assess:   armed: dialog ~'quite fill' -> click 'OK' 
+2026-09-07 09:01:07,182 [INFO] assess:   armed: dialog ~'already' -> click 'Continue this project' 
+2026-09-07 09:01:07,194 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=none/False gaps=0.0/0.0  [_on_preset_selected:8907  ←  _restore_user_preset:9029  ←  _set_engine_recipe:17986]
+2026-09-07 09:01:07,195 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 09:01:07,195 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:01:07,195 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:01:07,195 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:01:07,195 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:01:07,195 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:01:07,221 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 09:01:07,221 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:01:07,221 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:01:07,221 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:01:07,221 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:01:07,221 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:01:07,247 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 09:01:07,247 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:01:07,247 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:01:07,247 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:01:07,247 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:01:07,247 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:01:07,253 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 09:01:07,254 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:01:07,254 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:01:07,254 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:01:07,254 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:01:07,254 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:01:09,980 [INFO] assess: presetB after restart: {'found': True, 'diff': {}, 'combo': 'AssessPresetB', 'engine': True}
+2026-09-07 09:01:09,982 [INFO] assess:   json Test Runs/logs/d06_results.json
+2026-09-07 09:01:10,142 [INFO] assess:   shot Screenshots/A8-presets/q20-presetB-after-restart.png  (3400x2100)
+2026-09-07 09:01:10,919 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 09:01:10,919 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:01:10,919 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:01:10,919 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:01:10,919 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:01:10,919 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:01:11,129 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 09:01:11,129 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:01:11,129 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:01:11,129 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:01:11,129 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:01:11,129 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:01:11,147 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 09:01:11,147 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:01:11,147 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:01:11,147 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:01:11,147 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:01:11,147 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:01:11,331 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 09:01:11,331 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:01:11,331 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:01:11,331 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:01:11,331 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:01:11,331 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:01:11,525 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 09:01:11,525 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:01:11,525 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:01:11,525 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:01:11,525 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:01:11,525 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:01:11,940 [INFO] assess:   armed: dialog ~'quite fill' -> click 'OK' 
+2026-09-07 09:01:11,940 [INFO] assess:   armed: dialog ~'already' -> click 'Continue this project' 
+2026-09-07 09:01:11,941 [INFO] ui.tabs.tab_chart: chart build (Generate Chart) in manual: patch set targen | manual panel: A4, 0x0 grid, margins T38.0 R9.0 B19.0 L26.0
+2026-09-07 09:01:11,944 [DEBUG] core.settings: settings.set session_ti3_path = ''
+2026-09-07 09:01:11,944 [DEBUG] core.settings: settings.set session_icc_path = ''
+2026-09-07 09:01:11,944 [DEBUG] core.settings: settings.set session_cal_ti3_path = ''
+2026-09-07 09:01:11,945 [DEBUG] core.file_manager: Target name set to: B1-Guided (root /Users/Basti/ChromIQ-assessment/B1-Guided)
+2026-09-07 09:01:11,946 [INFO] core.file_manager: opened the EXISTING project at /Users/Basti/ChromIQ-assessment/B1-Guided (1 run(s) on disk)
+2026-09-07 09:01:11,976 [INFO] workflow.chart_creator: Chart generation: 280 patches, instrument=i1 paper=A4 disable_lb=True
+2026-09-07 09:01:11,976 [INFO] workflow.chart_creator: targen args: ['-v', '-d2', '-f280', '-e3', '-B3', '-G', '-g16', 'B1-Guided']
+2026-09-07 09:01:11,976 [INFO] core.argyll_runner: Run: /Applications/Argyll/bin/targen -v -d2 -f280 -e3 -B3 -G -g16 B1-Guided  [cwd=/Users/Basti/ChromIQ-assessment/B1-Guided/runs/run1]
+2026-09-07 09:01:12,050 [DEBUG] core.argyll_runner: [argyll] iRGB test chart
+2026-09-07 09:01:12,051 [DEBUG] core.argyll_runner: [argyll] White patches = 3
+2026-09-07 09:01:12,051 [DEBUG] core.argyll_runner: [argyll] Black patches = 3
+2026-09-07 09:01:12,051 [DEBUG] core.argyll_runner: [argyll] Composite Grey steps = 16
+2026-09-07 09:01:12,051 [DEBUG] core.argyll_runner: [argyll] Full spread patches = 280
+2026-09-07 09:01:12,051 [DEBUG] core.argyll_runner: [argyll] Degree of adaptation: 0.100
+2026-09-07 09:01:12,051 [DEBUG] core.argyll_runner: [argyll] Adaptation weights: Device = 0.935, Perceptual = 0.065, Curvature = 0.010
+2026-09-07 09:01:12,052 [DEBUG] core.argyll_runner: [argyll] Perceptual cache resolution = 7
+2026-09-07 09:01:12,052 [DEBUG] core.argyll_runner: [argyll] Seeding cache...done
+2026-09-07 09:01:12,052 [DEBUG] core.argyll_runner: [argyll] Acceleration grid res = 7
+2026-09-07 09:01:12,052 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:01:12,052 [DEBUG] core.argyll_runner: [argyll] There are 16 unique fixed points to add (20 total fixed points)
+2026-09-07 09:01:12,052 [DEBUG] core.argyll_runner: [argyll] There are 260 far spread points to add
+2026-09-07 09:01:12,053 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:01:12,053 [DEBUG] core.argyll_runner: [argyll] Added 12/276
+2026-09-07 09:01:12,053 [DEBUG] core.argyll_runner: [argyll] Added 23/276
+2026-09-07 09:01:12,053 [DEBUG] core.argyll_runner: [argyll] Added 34/276
+2026-09-07 09:01:12,053 [DEBUG] core.argyll_runner: [argyll] Added 45/276
+2026-09-07 09:01:12,054 [DEBUG] core.argyll_runner: [argyll] Added 56/276
+2026-09-07 09:01:12,054 [DEBUG] core.argyll_runner: [argyll] Added 67/276
+2026-09-07 09:01:12,055 [DEBUG] core.argyll_runner: [argyll] Added 78/276
+2026-09-07 09:01:12,056 [DEBUG] core.argyll_runner: [argyll] Added 89/276
+2026-09-07 09:01:12,057 [DEBUG] core.argyll_runner: [argyll] Added 100/276
+2026-09-07 09:01:12,058 [DEBUG] core.argyll_runner: [argyll] Added 111/276
+2026-09-07 09:01:12,059 [DEBUG] core.argyll_runner: [argyll] Added 122/276
+2026-09-07 09:01:12,061 [DEBUG] core.argyll_runner: [argyll] Added 133/276
+2026-09-07 09:01:12,082 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:01:12,083 [DEBUG] core.argyll_runner: [argyll] Added 144/276
+2026-09-07 09:01:12,083 [DEBUG] core.argyll_runner: [argyll] Added 155/276
+2026-09-07 09:01:12,083 [DEBUG] core.argyll_runner: [argyll] Added 166/276
+2026-09-07 09:01:12,084 [DEBUG] core.argyll_runner: [argyll] Added 177/276
+2026-09-07 09:01:12,084 [DEBUG] core.argyll_runner: [argyll] Added 188/276
+2026-09-07 09:01:12,085 [DEBUG] core.argyll_runner: [argyll] Added 199/276
+2026-09-07 09:01:12,086 [DEBUG] core.argyll_runner: [argyll] Added 210/276
+2026-09-07 09:01:12,086 [DEBUG] core.argyll_runner: [argyll] Added 221/276
+2026-09-07 09:01:12,087 [DEBUG] core.argyll_runner: [argyll] Added 232/276
+2026-09-07 09:01:12,089 [DEBUG] core.argyll_runner: [argyll] Added 243/276
+2026-09-07 09:01:12,090 [DEBUG] core.argyll_runner: [argyll] Added 254/276
+2026-09-07 09:01:12,091 [DEBUG] core.argyll_runner: [argyll] Added 265/276
+2026-09-07 09:01:12,093 [DEBUG] core.argyll_runner: [argyll] Added 276/276
+2026-09-07 09:01:12,510 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:01:12,510 [DEBUG] core.argyll_runner: [argyll] After seeding points: MinPoint = 6.978, Min = 5.697, Avg. = 13.504, Max = 17.950, 0.0 secs
+2026-09-07 09:01:12,511 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:12,511 [DEBUG] core.argyll_runner: [argyll] It 1: Maxmv = 0.128899, MinPoint = 6.898, Min = 4.518, Avg. = 13.625, Max = 17.809, 0.0 secs.
+2026-09-07 09:01:12,511 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:12,512 [DEBUG] core.argyll_runner: [argyll] It 2: Maxmv = 0.114820, MinPoint = 5.731, Min = 7.247, Avg. = 13.453, Max = 17.822, 0.0 secs.
+2026-09-07 09:01:12,512 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:12,512 [DEBUG] core.argyll_runner: [argyll] It 3: Maxmv = 0.088511, MinPoint = 8.226, Min = 6.769, Avg. = 13.361, Max = 17.646, 0.0 secs.
+2026-09-07 09:01:12,512 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:12,513 [DEBUG] core.argyll_runner: [argyll] It 4: Maxmv = 0.096072, MinPoint = 7.916, Min = 8.430, Avg. = 13.248, Max = 17.387, 0.0 secs.
+2026-09-07 09:01:12,513 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:12,513 [DEBUG] core.argyll_runner: [argyll] It 5: Maxmv = 0.077786, MinPoint = 10.379, Min = 8.475, Avg. = 13.243, Max = 17.291, 0.0 secs.
+2026-09-07 09:01:12,513 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:12,514 [DEBUG] core.argyll_runner: [argyll] It 6: Maxmv = 0.067522, MinPoint = 11.020, Min = 9.040, Avg. = 13.209, Max = 16.508, 0.0 secs.
+2026-09-07 09:01:12,514 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:12,514 [DEBUG] core.argyll_runner: [argyll] It 7: Maxmv = 0.069312, MinPoint = 10.139, Min = 9.088, Avg. = 13.165, Max = 16.421, 0.0 secs.
+2026-09-07 09:01:12,514 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:12,515 [DEBUG] core.argyll_runner: [argyll] It 8: Maxmv = 0.049451, MinPoint = 10.286, Min = 9.100, Avg. = 13.149, Max = 16.576, 0.0 secs.
+2026-09-07 09:01:12,515 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:12,515 [DEBUG] core.argyll_runner: [argyll] It 9: Maxmv = 0.043954, MinPoint = 10.974, Min = 9.391, Avg. = 13.149, Max = 16.014, 0.0 secs.
+2026-09-07 09:01:12,516 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:12,516 [DEBUG] core.argyll_runner: [argyll] It 10: Maxmv = 0.037715, MinPoint = 11.125, Min = 8.882, Avg. = 13.099, Max = 15.567, 0.0 secs.
+2026-09-07 09:01:12,516 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:12,516 [DEBUG] core.argyll_runner: [argyll] It 11: Maxmv = 0.038275, MinPoint = 11.125, Min = 9.392, Avg. = 13.089, Max = 15.864, 0.0 secs.
+2026-09-07 09:01:12,517 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:12,517 [DEBUG] core.argyll_runner: [argyll] It 12: Maxmv = 0.028423, MinPoint = 11.125, Min = 8.867, Avg. = 13.079, Max = 15.807, 0.0 secs.
+2026-09-07 09:01:12,517 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:12,517 [DEBUG] core.argyll_runner: [argyll] It 13: Maxmv = 0.027003, MinPoint = 11.125, Min = 9.107, Avg. = 13.088, Max = 15.509, 0.0 secs.
+2026-09-07 09:01:12,518 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:12,518 [DEBUG] core.argyll_runner: [argyll] It 14: Maxmv = 0.020056, MinPoint = 11.125, Min = 9.031, Avg. = 13.052, Max = 15.487, 0.0 secs.
+2026-09-07 09:01:12,518 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:12,518 [DEBUG] core.argyll_runner: [argyll] It 15: Maxmv = 0.017798, MinPoint = 11.125, Min = 9.083, Avg. = 13.081, Max = 15.684, 0.0 secs.
+2026-09-07 09:01:12,519 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:12,519 [DEBUG] core.argyll_runner: [argyll] It 16: Maxmv = 0.011890, MinPoint = 11.125, Min = 9.026, Avg. = 13.072, Max = 15.663, 0.0 secs.
+2026-09-07 09:01:12,519 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:12,519 [DEBUG] core.argyll_runner: [argyll] It 17: Maxmv = 0.010417, MinPoint = 11.125, Min = 8.785, Avg. = 13.068, Max = 15.574, 0.0 secs.
+2026-09-07 09:01:12,520 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:12,520 [DEBUG] core.argyll_runner: [argyll] It 18: Maxmv = 0.006133, MinPoint = 11.125, Min = 8.937, Avg. = 13.066, Max = 15.425, 0.0 secs.
+2026-09-07 09:01:12,520 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:12,520 [DEBUG] core.argyll_runner: [argyll] It 19: Maxmv = 0.001857, MinPoint = 11.125, Min = 8.887, Avg. = 13.067, Max = 15.420, 0.0 secs.
+2026-09-07 09:01:12,521 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:01:12,521 [DEBUG] core.argyll_runner: [argyll] It 20: Maxmv = 0.001855, MinPoint = 11.125, Min = 8.841, Avg. = 13.065, Max = 15.421, 0.0 secs.
+2026-09-07 09:01:12,521 [DEBUG] core.argyll_runner: [argyll] After optimization: MinPoint = 11.125, Min = 8.841, Avg. = 13.065, Max = 15.421
+2026-09-07 09:01:12,522 [DEBUG] core.argyll_runner: [argyll] Total number of patches = 280
+2026-09-07 09:01:12,522 [DEBUG] core.argyll_runner: [argyll] Execution time = 0.461630 seconds
+2026-09-07 09:01:12,522 [INFO] core.argyll_runner: ArgyllRunner: finished with code 0
+2026-09-07 09:01:12,577 [DEBUG] workflow.chart_creator: Wrote channel sidecar B1-Guided.channels.json: ['r', 'g', 'b']
+2026-09-07 09:01:12,657 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:01:12,657 [INFO] ui.tabs.tab_chart: Preview loaded: 1 TIFF(s)
+2026-09-07 09:01:12,668 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:01:12,669 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:01:12,673 [DEBUG] ui.tabs.tab_chart: create-chart settings written for run1 (40 parameters + ui state)
+2026-09-07 09:01:14,769 [INFO] assess:   armed: dialog ~'Auto-update preview is on' -> click 'Close' 
+2026-09-07 09:01:14,769 [DEBUG] core.settings: settings.set auto_update_preview = True
+2026-09-07 09:01:14,877 [INFO] assess:   DIALOG expected [_InfoDialog] 'Auto-update preview is on' -> clicked 'Close'
+2026-09-07 09:01:15,878 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 09:01:15,878 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:01:15,878 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:01:15,878 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:01:15,878 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:01:15,878 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:01:16,196 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 09:01:16,196 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:01:16,196 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:01:16,196 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:01:16,196 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:01:16,196 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:01:16,659 [INFO] ui.tabs.tab_chart: chart build (live preview) in manual: patch set B1-Guided.ti1 | manual panel: A4, 0x0 grid, margins T38.0 R9.0 B19.0 L26.0
+2026-09-07 09:01:16,662 [DEBUG] core.settings: settings.set session_ti3_path = ''
+2026-09-07 09:01:16,662 [DEBUG] core.settings: settings.set session_icc_path = ''
+2026-09-07 09:01:16,662 [DEBUG] core.settings: settings.set session_cal_ti3_path = ''
+2026-09-07 09:01:16,662 [DEBUG] core.file_manager: Target name set to: B1-Guided (root /Users/Basti/ChromIQ-assessment/B1-Guided)
+2026-09-07 09:01:16,663 [INFO] core.file_manager: opened the EXISTING project at /Users/Basti/ChromIQ-assessment/B1-Guided (1 run(s) on disk)
+2026-09-07 09:01:16,745 [DEBUG] workflow.chart_creator: Wrote channel sidecar B1-Guided.channels.json: ['r', 'g', 'b']
+2026-09-07 09:01:16,823 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:01:16,823 [INFO] ui.tabs.tab_chart: Preview loaded: 1 TIFF(s)
+2026-09-07 09:01:16,833 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:01:16,834 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:01:16,838 [DEBUG] ui.tabs.tab_chart: create-chart settings written for run1 (40 parameters + ui state)
+2026-09-07 09:01:22,333 [INFO] assess:   TIMEOUT waiting 6000 ms for first auto build
+2026-09-07 09:01:36,900 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 09:01:36,900 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:01:36,900 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:01:36,900 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:01:36,900 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:01:36,900 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:01:37,368 [INFO] ui.tabs.tab_chart: chart build (live preview) in manual: patch set B1-Guided.ti1 | manual panel: A4, 0x0 grid, margins T38.0 R9.0 B19.0 L26.0
+2026-09-07 09:01:37,370 [DEBUG] core.settings: settings.set session_ti3_path = ''
+2026-09-07 09:01:37,370 [DEBUG] core.settings: settings.set session_icc_path = ''
+2026-09-07 09:01:37,370 [DEBUG] core.settings: settings.set session_cal_ti3_path = ''
+2026-09-07 09:01:37,370 [DEBUG] core.file_manager: Target name set to: B1-Guided (root /Users/Basti/ChromIQ-assessment/B1-Guided)
+2026-09-07 09:01:37,371 [INFO] core.file_manager: opened the EXISTING project at /Users/Basti/ChromIQ-assessment/B1-Guided (1 run(s) on disk)
+2026-09-07 09:01:37,493 [DEBUG] workflow.chart_creator: Wrote channel sidecar B1-Guided.channels.json: ['r', 'g', 'b']
+2026-09-07 09:01:37,644 [DEBUG] ui.tiff_preview: TiffPreview: loaded 2 page(s)
+2026-09-07 09:01:37,644 [INFO] ui.tabs.tab_chart: Preview loaded: 2 TIFF(s)
+2026-09-07 09:01:37,655 [DEBUG] ui.tiff_preview: TiffPreview: loaded 2 page(s)
+2026-09-07 09:01:37,656 [DEBUG] ui.tiff_preview: TiffPreview: loaded 2 page(s)
+2026-09-07 09:01:37,660 [DEBUG] ui.tabs.tab_chart: create-chart settings written for run1 (40 parameters + ui state)
+2026-09-07 09:01:41,596 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 09:01:41,596 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:01:41,596 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:01:41,597 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:01:41,597 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:01:41,597 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:01:42,065 [INFO] ui.tabs.tab_chart: chart build (live preview) in manual: patch set B1-Guided.ti1 | manual panel: A4, 0x0 grid, margins T38.0 R9.0 B19.0 L26.0
+2026-09-07 09:01:42,067 [DEBUG] core.settings: settings.set session_ti3_path = ''
+2026-09-07 09:01:42,067 [DEBUG] core.settings: settings.set session_icc_path = ''
+2026-09-07 09:01:42,067 [DEBUG] core.settings: settings.set session_cal_ti3_path = ''
+2026-09-07 09:01:42,067 [DEBUG] core.file_manager: Target name set to: B1-Guided (root /Users/Basti/ChromIQ-assessment/B1-Guided)
+2026-09-07 09:01:42,068 [INFO] core.file_manager: opened the EXISTING project at /Users/Basti/ChromIQ-assessment/B1-Guided (1 run(s) on disk)
+2026-09-07 09:01:42,192 [DEBUG] workflow.chart_creator: Wrote channel sidecar B1-Guided.channels.json: ['r', 'g', 'b']
+2026-09-07 09:01:42,348 [DEBUG] ui.tiff_preview: TiffPreview: loaded 2 page(s)
+2026-09-07 09:01:42,348 [INFO] ui.tabs.tab_chart: Preview loaded: 2 TIFF(s)
+2026-09-07 09:01:42,358 [DEBUG] ui.tiff_preview: TiffPreview: loaded 2 page(s)
+2026-09-07 09:01:42,360 [DEBUG] ui.tiff_preview: TiffPreview: loaded 2 page(s)
+2026-09-07 09:01:42,363 [DEBUG] ui.tabs.tab_chart: create-chart settings written for run1 (40 parameters + ui state)
+2026-09-07 09:01:46,138 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 09:01:46,138 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:01:46,138 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:01:46,138 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:01:46,138 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:01:46,138 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:01:46,766 [INFO] ui.tabs.tab_chart: chart build (live preview) in manual: patch set B1-Guided.ti1 | manual panel: A4R, 0x0 grid, margins T38.0 R9.0 B9.0 L26.0
+2026-09-07 09:01:46,768 [DEBUG] core.settings: settings.set session_ti3_path = ''
+2026-09-07 09:01:46,768 [DEBUG] core.settings: settings.set session_icc_path = ''
+2026-09-07 09:01:46,768 [DEBUG] core.settings: settings.set session_cal_ti3_path = ''
+2026-09-07 09:01:46,769 [DEBUG] core.file_manager: Target name set to: B1-Guided (root /Users/Basti/ChromIQ-assessment/B1-Guided)
+2026-09-07 09:01:46,770 [INFO] core.file_manager: opened the EXISTING project at /Users/Basti/ChromIQ-assessment/B1-Guided (1 run(s) on disk)
+2026-09-07 09:01:46,888 [DEBUG] workflow.chart_creator: Wrote channel sidecar B1-Guided.channels.json: ['r', 'g', 'b']
+2026-09-07 09:01:47,042 [DEBUG] ui.tiff_preview: TiffPreview: loaded 2 page(s)
+2026-09-07 09:01:47,042 [INFO] ui.tabs.tab_chart: Preview loaded: 2 TIFF(s)
+2026-09-07 09:01:47,053 [DEBUG] ui.tiff_preview: TiffPreview: loaded 2 page(s)
+2026-09-07 09:01:47,054 [DEBUG] ui.tiff_preview: TiffPreview: loaded 2 page(s)
+2026-09-07 09:01:47,057 [DEBUG] ui.tabs.tab_chart: create-chart settings written for run1 (40 parameters + ui state)
+2026-09-07 09:01:53,516 [INFO] assess: A7 real click: {'builds_for_two_nudges_150ms_apart': 0, 'first_build_after_s': 6.49, 'actual': {'total': 280, 'fillup': 0, 'page_patches': 280, 'rows': 20, 'cols': 14, 'pages': 1, 'patch': (12.02, 12.02), 'pitch': None}, 'estimate': {'total': 280, 'fillup': 0, 'page_patches': 280, 'rows': 20, 'cols': 14, 'pages': 1, 'patch': (12.0, 12.0), 'pitch': None}} notes=0 helper=0 spacer=0 sheettext=0 paper=0
+2026-09-07 09:01:53,678 [INFO] assess:   shot Screenshots/A7-auto-preview/a20-real-click-tests.png  (3400x2100)
+2026-09-07 09:01:53,678 [DEBUG] core.settings: settings.set auto_update_preview = False
+2026-09-07 09:01:54,146 [INFO] assess:   json Test Runs/logs/d06_results.json
+2026-09-07 09:01:54,176 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 09:01:54,176 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:01:54,176 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:01:54,176 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:01:54,176 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:01:54,176 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:01:54,355 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 09:01:54,355 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:01:54,355 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:01:54,355 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:01:54,355 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:01:54,355 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:01:54,529 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 09:01:54,529 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:01:54,529 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:01:54,529 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:01:54,529 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:01:54,529 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:01:54,711 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 09:01:54,711 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:01:54,711 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:01:54,711 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:01:54,711 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:01:54,711 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:01:54,735 [WARNING] core.settings: Settings SANDBOXED to /Users/Basti/Desktop/Create Chart Assessment/Test Runs/sandbox/chromiq-assessment.ini (CHROMIQ_SETTINGS_FILE is set) — the real preferences are untouched
+2026-09-07 09:01:54,735 [DEBUG] core.settings: Settings loaded from /Users/Basti/Desktop/Create Chart Assessment/Test Runs/sandbox/chromiq-assessment.ini
+2026-09-07 09:01:54,982 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [_build_ui:3247  ←  _build_chart_layout_tab:5207  ←  _load_layout_combo:5553]
+2026-09-07 09:01:55,150 [WARNING] core.settings: Settings SANDBOXED to /Users/Basti/Desktop/Create Chart Assessment/Test Runs/sandbox/chromiq-assessment.ini (CHROMIQ_SETTINGS_FILE is set) — the real preferences are untouched
+2026-09-07 09:01:55,150 [DEBUG] core.settings: Settings loaded from /Users/Basti/Desktop/Create Chart Assessment/Test Runs/sandbox/chromiq-assessment.ini
+2026-09-07 09:01:57,446 [INFO] assess:   shot Screenshots/A8-presets/q30-prefs-chart-layout-i1-A4.png  (2080x1772)
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set argyll_bin_path = '/Applications/Argyll/bin'
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set custom_output_path = '/Users/Basti/ChromIQ-assessment'
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set restore_last_tab = False
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set restore_last_session = False
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set update_notify = True
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set gamut_themed_colors = True
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set use_native_file_dialogs = False
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set calibration_mode = False
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set show_location_being_edited = True
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set hide_log_output = True
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set chromiq_refinement = False
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set averaging_enabled = False
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set declutter_on_load = True
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set show_splash = True
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set profile_engine_beta = False
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set gammap_mode = 'fast'
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set chartread_engine = 'chromiq'
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set engine_all_modes = False
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set scanner_hex_charts = False
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set splash_classic = False
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set save_measurement_report = True
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set report_pass_threshold_avg = 2.0
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set report_pass_threshold_max = 3.0
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set report_title_profiling = 'Measurement Report - Profiling of Printer'
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set report_title_verification = 'Measurement Report - Verification of Profile'
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set report_add_profile_name = True
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set patch_read_warn_de = 50.0
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set patch_warn_outlier_fence = True
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set cal_auto_retries = 3
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set fast_instrument_connect = True
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set misalign_safenet = False
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set measure_progress_bar = True
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set use_native_print_dialog = True
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set pdf_print_fallback = False
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set confirm_before_printing = True
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set appearance = 'neutral'
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set language = 'en'
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set i1pro_default_preset = 'm10_a0.95'
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set i1pro_chromiq_clip_style = False
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set grey_ramp_reference = 560
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set scanner_selfcheck_peak = 30.0
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set scanner_selfcheck_avg = 12.0
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set scanner_check_agreement = 0.85
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set scanner_flank_limit = 0.2
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set scanner_flank_min_boxes = 2
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set scanner_flank_min_cells = 8
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set profile_install_dir = ''
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set sound_folder = ''
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set sound_choice_patch_ok = 'tick'
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set sound_choice_patch_out_of_tol = 'bump'
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set sound_choice_strip_ok = 'bell'
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set sound_choice_strip_fail = 'failure'
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set sound_choice_instrument_error = 'error'
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set sound_choice_slow_down = 'slowdown'
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set sound_choice_measurement_finished = 'chime-long'
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set sound_choice_profile_built = 'applause'
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set sound_warm_up_device = False
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set pace_hint_enabled = True
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set pace_sample_hz_i1pro = 100.0
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set pace_sample_hz_i1pro2 = 200.0
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set pace_sample_hz_i1pro3 = 400.0
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set pace_sample_hz_i1pro3plus = 400.0
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set pace_sample_hz_colormunki = 50.0
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set pace_sample_hz_spectroscan = 250.0
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set pace_sample_hz_cr30 = 100.0
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set pace_min_samples_i1pro = 20
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set pace_min_samples_i1pro2 = 20
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set pace_min_samples_i1pro3 = 33
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set pace_min_samples_i1pro3plus = 66
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set pace_min_samples_colormunki = 20
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set pace_min_samples_spectroscan = 0
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set pace_min_samples_cr30 = 0
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set pace_estimate_patches_i1pro = 25
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set pace_estimate_patches_i1pro2 = 25
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set pace_estimate_patches_i1pro3 = 30
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set pace_estimate_patches_i1pro3plus = 15
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set pace_estimate_patches_colormunki = 15
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set pace_estimate_patches_spectroscan = 0
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set pace_estimate_patches_cr30 = 0
+2026-09-07 09:01:57,447 [DEBUG] core.settings: settings.set pace_marginal_percent = 10
+2026-09-07 09:01:57,448 [DEBUG] core.settings: settings.set margin_inspector_show = True
+2026-09-07 09:01:57,448 [DEBUG] core.settings: settings.set layout_info_show = True
+2026-09-07 09:01:57,448 [DEBUG] core.settings: settings.set margin_violation_notify = True
+2026-09-07 09:01:57,448 [DEBUG] core.settings: settings.set margin_thresholds = '{"i1Pro|A4 Portrait": {"L": 26.0, "R": 9.0, "T": 38.0, "B": 19.0, "desc": "i1Pro ruler / jig"}, "i1Pro|A4 Landscape": {"L": 26, "R": 9, "T": 38, "B": 9, "desc": "i1Pro ruler / jig"}, "i1Pro|Letter Portrait": {"L": 26, "R": 9, "T": 38, "B": 9, "desc": "i1Pro ruler / jig"}, "i1Pro|Letter Landscape": {"L": 26, "R": 9, "T": 38, "B": 9, "desc": "i1Pro ruler / jig"}, "i1Pro|A3 Portrait": {"L": 9, "R": 9, "T": 9, "B": 9, "desc": "i1Pro ruler / jig"}, "i1Pro|A3 Landscape": {"L": 26, "R": 9, "T": 38, "B": 19, "desc": "i1Pro ruler / jig"}, "i1Pro|A3+ Portrait": {"L": 9, "R": 9, "T": 9, "B": 9, "desc": "i1Pro ruler / jig"}, "i1Pro|A3+ Landscape": {"L": 9, "R": 9, "T": 9, "B": 9, "desc": "i1Pro ruler / jig"}, "i1Pro|A2 Portrait": {"L": 9, "R": 9, "T": 9, "B": 9, "desc": "i1Pro ruler / jig"}, "i1Pro|A2 Landscape": {"L": 9, "R": 9, "T": 9, "B": 9, "desc": "i1Pro ruler / jig"}, "i1Pro|Tabloid Portrait": {"L": 9, "R": 9, "T": 9, "B": 9, "desc": "i1Pro ruler / jig"}, "i1Pro|Tabloid Landscape": {"L": 26, "R": 9, "T": 38, "B": 9, "desc": "i1Pro ruler / jig"}, "i1Pro|Legal Portrait": {"L": 9, "R": 9, "T": 9, "B": 9, "desc": "i1Pro ruler / jig"}, "i1Pro|Legal Landscape": {"L": 9, "R": 9, "T": 9, "B": 9, "desc": "i1Pro ruler / jig"}, "i1Pro 3+|A4 Portrait": {"L": 28, "R": 9, "T": 40, "B": 9, "desc": "i1Pro 3+ ruler / jig"}, "i1Pro 3+|A4 Landscape": {"L": 28, "R": 9, "T": 40, "B": 9, "desc": "i1Pro 3+ ruler / jig"}, "i1Pro 3+|Letter Portrait": {"L": 28, "R": 9, "T": 40, "B": 9, "desc": "i1Pro 3+ ruler / jig"}, "i1Pro 3+|Letter Landscape": {"L": 28, "R": 9, "T": 40, "B": 9, "desc": "i1Pro 3+ ruler / jig"}, "i1Pro 3+|A3 Portrait": {"L": 9, "R": 9, "T": 9, "B": 9, "desc": "i1Pro 3+ ruler / jig"}, "i1Pro 3+|A3 Landscape": {"L": 28, "R": 9, "T": 40, "B": 9, "desc": "i1Pro 3+ ruler / jig"}, "i1Pro 3+|A3+ Portrait": {"L": 9, "R": 9, "T": 9, "B": 9, "desc": "i1Pro 3+ ruler / jig"}, "i1Pro 3+|A3+ Landscape": {"L": 9, "R": 9, "T": 9, "B": 9, "desc": "i1Pro 3+ ruler / jig"}, "i1Pro 3+|A2 Portrait": {"L": 9, "R": 9, "T": 9, "B": 9, "desc": "i1Pro 3+ ruler / jig"}, "i1Pro 3+|A2 Landscape": {"L": 9, "R": 9, "T": 9, "B": 9, "desc": "i1Pro 3+ ruler / jig"}, "i1Pro 3+|Tabloid Portrait": {"L": 9, "R": 9, "T": 9, "B": 9, "desc": "i1Pro 3+ ruler / jig"}, "i1Pro 3+|Tabloid Landscape": {"L": 28, "R": 9, "T": 40, "B": 9, "desc": "i1Pro 3+ ruler / jig"}, "i1Pro 3+|Legal Portrait": {"L": 9, "R": 9, "T": 9, "B": 9, "desc": "i1Pro 3+ ruler / jig"}, "i1Pro 3+|Legal Landscape": {"L": 9, "R": 9, "T": 9, "B": 9, "desc": "i1Pro 3+ ruler / jig"}, "ColorMunki|A4 Portrait": {"L": 6, "R": 6, "T": 33, "B": 10, "desc": "ColorMunki ruler / jig"}, "ColorMunki|A4 Landscape": {"L": 6, "R": 6, "T": 33, "B": 10, "desc": "ColorMunki ruler / jig"}, "ColorMunki|Letter Portrait": {"L": 6, "R": 6, "T": 33, "B": 10, "desc": "ColorMunki ruler / jig"}, "ColorMunki|Letter Landscape": {"L": 6, "R": 6, "T": 33, "B": 10, "desc": "ColorMunki ruler / jig"}, "ColorMunki|A3 Portrait": {"L": 6, "R": 6, "T": 33, "B": 10, "desc": "ColorMunki ruler / jig"}, "ColorMunki|A3 Landscape": {"L": 6, "R": 6, "T": 33, "B": 10, "desc": "ColorMunki ruler / jig"}, "ColorMunki|A3+ Portrait": {"L": 6, "R": 6, "T": 33, "B": 10, "desc": "ColorMunki ruler / jig"}, "ColorMunki|A3+ Landscape": {"L": 6, "R": 6, "T": 33, "B": 10, "desc": "ColorMunki ruler / jig"}, "ColorMunki|A2 Portrait": {"L": 6, "R": 6, "T": 33, "B": 10, "desc": "ColorMunki ruler / jig"}, "ColorMunki|A2 Landscape": {"L": 6, "R": 6, "T": 33, "B": 10, "desc": "ColorMunki ruler / jig"}, "ColorMunki|Tabloid Portrait": {"L": 6, "R": 6, "T": 33, "B": 10, "desc": "ColorMunki ruler / jig"}, "ColorMunki|Tabloid Landscape": {"L": 6, "R": 6, "T": 33, "B": 10, "desc": "ColorMunki ruler / jig"}, "ColorMunki|Legal Portrait": {"L": 6, "R": 6, "T": 33, "B": 10, "desc": "ColorMunki ruler / jig"}, "ColorMunki|Legal Landscape": {"L": 6, "R": 6, "T": 33, "B": 10, "desc": "ColorMunki ruler / jig"}}'
+2026-09-07 09:01:57,448 [DEBUG] core.settings: settings.set strip_indicator_font = 'JetBrains Mono'
+2026-09-07 09:01:57,448 [DEBUG] core.settings: settings.set strip_indicator_size_mm = 0.0
+2026-09-07 09:01:57,448 [DEBUG] core.settings: settings.set strip_indicator_bold = False
+2026-09-07 09:01:57,448 [DEBUG] core.settings: settings.set strip_indicator_italic = False
+2026-09-07 09:01:57,448 [DEBUG] core.settings: settings.set strip_indicator_rotation = 0
+2026-09-07 09:01:57,448 [DEBUG] core.settings: settings.set strip_indicator_align = 'left'
+2026-09-07 09:01:57,448 [DEBUG] core.settings: settings.set strip_label_offset_mm = 0.0
+2026-09-07 09:01:57,448 [DEBUG] core.settings: settings.set strip_underline_mode = 'off'
+2026-09-07 09:01:57,448 [DEBUG] core.settings: settings.set strip_underline_thickness_mm = 0.5
+2026-09-07 09:01:57,448 [DEBUG] core.settings: settings.set strip_underline_gap_mm = 0.5
+2026-09-07 09:01:57,448 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 09:01:57,448 [INFO] ui.dialogs.settings_dialog: Settings saved
+2026-09-07 09:01:58,532 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 09:01:58,533 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:01:58,533 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:01:58,533 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:01:58,533 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:01:58,533 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:01:59,037 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 09:01:59,037 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:01:59,037 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:01:59,037 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:01:59,037 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:01:59,037 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:02:00,126 [INFO] assess: chart layout default: {'drive': {'seen': True, 'err': None, 'mode_items': [('On', 'clip'), ('Off — more patches', 'noclip')], 'clip_items': None, 'before': {'align': 'top-left', 'layout_mode': 'area_first', 'margins': {'t': 6.0, 'r': 6.0, 'b': 6.0, 'l': 6.0}, 'use_instr': True}, 'saved_hint': 'Showing the layout you saved for this combination. Other paper sizes have layouts saved too.', 'calc': "<span style='color:#101010;font-weight:600'>≈ 462 patches per sheet</span>"}, 'store_file': ['i1_A4R_clip.json', 'i1_A4_clip.json'], 'manual_after': {'align': 'center-left', 'layout_mode': 'area_first', 'info': '9/19/26 mm · area-fit auto×auto · clip border on · align center-left\nLayout preset: i1 · A4 portrait · clip   ● modified'}}
+2026-09-07 09:02:00,284 [INFO] assess:   shot Screenshots/A8-presets/q31-manual-after-chart-layout-default.png  (3400x2100)
+2026-09-07 09:02:00,284 [INFO] assess:   json Test Runs/logs/d06_results.json
+2026-09-07 09:02:00,284 [INFO] assess: unexpected: [] serious: []
+2026-09-07 09:02:00,285 [DEBUG] ui.tabs.tab_chart: create-chart settings written for run1 (40 parameters + ui state)
+2026-09-07 09:02:00,285 [DEBUG] core.settings: settings.set window_geometry = PyQt6.QtCore.QByteArray(b'\x01\xd9\xd0\xcb\x00\x03\x00\x00\x00\x00\x00\n\x00\x00\x00&\x00\x00\x06\xad\x00\x00\x04[\x00\x00\x00\n\x00\x00\x00B\x00\x00\x06\xad\x00\x00\x04[\x00\x00\x00\x00\x00\x00\x00\x00\x06\xc0\x00\x00\x00\n\x00\x00\x00B\x00\x00\x06\xad\x00\x00\x04[')
+2026-09-07 09:02:00,285 [DEBUG] core.settings: settings.set window_maximized = False
+2026-09-07 09:02:00,285 [DEBUG] core.settings: settings.set window_fullscreen = False
+2026-09-07 09:02:00,499 [DEBUG] core.settings: settings.set active_tab = 0
+2026-09-07 09:02:00,500 [DEBUG] core.settings: settings.set session_target_name = 'B1-Guided'
+2026-09-07 09:02:00,500 [DEBUG] core.settings: settings.set session_project_root = ''
+2026-09-07 09:02:00,500 [INFO] core.argyll_runner: ArgyllRunner: cleanup complete

@@ -1,0 +1,378 @@
+{
+  "focus_manual": [
+    "PrefixLockedLineEdit(|R2-Guided)",
+    "PrefixLockedLineEdit(|e.g. PhotoRag Baryta, gloss, large c)",
+    "PrefixLockedLineEdit(|e.g. Canon Pro-1000 / Hahnem\u00fchle Pho)",
+    "QCheckBox(|Stamp settings used on the chart)",
+    "_CappedComboBox(|none)",
+    "QPushButton(icon_btn|)",
+    "QPushButton(icon_btn|)",
+    "FadeScrollArea(|)",
+    "QCheckBox(|Use the ChromIQ layout engine instea)",
+    "ElidingComboBox(compact_input|i1Pro / i1Pro 2 / i1Pro 3)",
+    "ElidingComboBox(compact_input|On)",
+    "ElidingComboBox(compact_input|A4 (210 \u00d7 297 mm) Portrait)",
+    "WrappingCheckBox(|Show strip indicators)",
+    "WrappingCheckBox(|Show row indicators)",
+    "ElidingComboBox(compact_input|Prioritise patch size, then fit to p)",
+    "NoScrollDoubleSpinBox(compact_input|0,950)",
+    "NoScrollDoubleSpinBox(compact_input|auto)",
+    "NoScrollDoubleSpinBox(compact_input|auto)",
+    "WrappingCheckBox(|Randomise patch order)",
+    "WrappingCheckBox(|Use a fixed seed (reproducible))",
+    "NoScrollSpinBox(compact_input|1507744785)",
+    "QPushButton(compact_input|New seed)",
+    "NoScrollDoubleSpinBox(compact_input|6,0)",
+    "NoScrollDoubleSpinBox(compact_input|6,0)",
+    "NoScrollDoubleSpinBox(compact_input|6,0)",
+    "NoScrollDoubleSpinBox(compact_input|6,0)",
+    "WrappingCheckBox(|Use instrument margins)",
+    "NoScrollSpinBox(compact_input|300 dpi)",
+    "WrappingCheckBox(|Don't cap strip length)",
+    "NoScrollDoubleSpinBox(compact_input|auto)",
+    "NoScrollDoubleSpinBox(compact_input|0,0)",
+    "NoScrollDoubleSpinBox(compact_input|0,0)",
+    "QLineEdit(compact_input|A-Z, A-Z)",
+    "QLineEdit(compact_input|0-9,@-9,@-9;1-999)",
+    "ElidingComboBox(compact_input|Centre-left)",
+    "NoScrollDoubleSpinBox(compact_input|26,0)",
+    "QPushButton(|Reset to preset)",
+    "QPushButton(|Update preset)",
+    "QPushButton(|Edit defaults\u2026)",
+    "QCheckBox(|Auto-update preview when a layout se)",
+    "QPushButton(primary|Generate Chart)",
+    "QPushButton(|Save as Defaults)",
+    "WrappingCheckBox(|Show instrument-margin guide lines o)",
+    "WrappingCheckBox(|Show margin guide lines on preview ()",
+    "WrappingCheckBox(|Show measurement coordinates on poin)",
+    "_AnnouncingComboBox(compact_input|Run 1 (overwrite))",
+    "_AnnouncingComboBox(compact_input|Profiling)",
+    "SpectrumTabBar(|)",
+    "QPushButton(mode_btn|GUIDED)",
+    "QPushButton(mode_btn|MANUAL)",
+    "PrefixLockedLineEdit(|R2-Guided)"
+  ],
+  "focus_guided": [
+    "PrefixLockedLineEdit(|R2-Guided)",
+    "PrefixLockedLineEdit(|e.g. PhotoRag Baryta, gloss, large c)",
+    "NoScrollComboBox(|i1Pro / i1Pro 2 / i1Pro 3)",
+    "NoScrollComboBox(|A4 (210 \u00d7 297 mm) Portrait)",
+    "NoScrollSpinBox(|2)",
+    "QCheckBox(|Suppress left clip border (-L))",
+    "QCheckBox(|Don't limit strip length (-P))",
+    "QCheckBox(|Refinement profile)",
+    "QPushButton(primary|Generate Chart)",
+    "QPushButton(|Save as Defaults)",
+    "WrappingCheckBox(|Show instrument-margin guide lines o)",
+    "WrappingCheckBox(|Show margin guide lines on preview ()",
+    "WrappingCheckBox(|Show measurement coordinates on poin)",
+    "_AnnouncingComboBox(compact_input|Run 1 (overwrite))",
+    "_AnnouncingComboBox(compact_input|Profiling)",
+    "SpectrumTabBar(|)",
+    "QPushButton(mode_btn|GUIDED)",
+    "QPushButton(mode_btn|MANUAL)",
+    "FadeScrollArea(|)",
+    "PrefixLockedLineEdit(|R2-Guided)",
+    "PrefixLockedLineEdit(|e.g. PhotoRag Baryta, gloss, large c)",
+    "NoScrollComboBox(|i1Pro / i1Pro 2 / i1Pro 3)",
+    "NoScrollComboBox(|A4 (210 \u00d7 297 mm) Portrait)",
+    "NoScrollSpinBox(|2)",
+    "QCheckBox(|Suppress left clip border (-L))",
+    "QCheckBox(|Don't limit strip length (-P))",
+    "QCheckBox(|Refinement profile)",
+    "QPushButton(primary|Generate Chart)",
+    "QPushButton(|Save as Defaults)",
+    "WrappingCheckBox(|Show instrument-margin guide lines o)",
+    "WrappingCheckBox(|Show margin guide lines on preview ()"
+  ],
+  "delete_run": {
+    "dialogs": [
+      [
+        "",
+        "This is the only run in the project, so deleting it would leave nothing behind\n\nRun 1 is the only run in \u201cR2-Guided\u201d. A project always has at least one run, so this run cannot be deleted on its own \u2014 deleting it would leave a project with nowhere to work.\n\nYou have two ways forward:\n\n\u2022  Empty the run \u2014 keep run 1 but delete its chart, measurement, profile, reports and verifications, so you start again from a clean run 1. That means everything inside the run folder, including anything kept in its",
+        [
+          "Cancel",
+          "Empty run 1",
+          "Delete the whole project"
+        ],
+        "clicked 'Cancel'"
+      ]
+    ],
+    "runs_after": [
+      "run1"
+    ]
+  },
+  "expert": {
+    "set": {
+      "printtarg -A": {
+        "raw": 1.5,
+        "enabled": true,
+        "args": [
+          "-A",
+          "1.50"
+        ],
+        "visible": false,
+        "expert": true
+      },
+      "printtarg -R": {
+        "raw": 4242,
+        "enabled": true,
+        "args": [
+          "-R",
+          "4242"
+        ],
+        "visible": false,
+        "expert": true
+      },
+      "targen -N": {
+        "raw": 0.9,
+        "enabled": true,
+        "args": [
+          "-N",
+          "0.90"
+        ],
+        "visible": false,
+        "expert": true
+      },
+      "printtarg -n": {
+        "raw": true,
+        "enabled": true,
+        "args": [
+          "-n"
+        ],
+        "visible": false,
+        "expert": true
+      }
+    },
+    "preview": "Manual mode \u2014 your current configuration (1 page \u00b7 Auto patch count \u00b7 Auto grey/white/black):\ntargen -d2 -f0 -e4 -B4 -G -g28 -N 0.90 chart\nprinttarg -ii1 -pA4 -t300 -a0.95 -M6 -R 4242 -n chart",
+    "executed": [
+      "[INFO] core.argyll_runner: Run: /Applications/Argyll/bin/targen -v -d2 -f550 -e4 -B4 -G -g31 -N 0.90 R2-Guided  [cwd=/Users/Basti/ChromIQ-assessment/R2-Guided/runs/run1]",
+      "[INFO] core.argyll_runner: Run: /Applications/Argyll/bin/printtarg -ii1 -pA4 -t300 -a0.95 -M6 -R 4242 -n R2-Guided  [cwd=/Users/Basti/ChromIQ-assessment/R2-Guided/runs/run1]"
+    ],
+    "actual": {
+      "total": 550,
+      "fillup": 0,
+      "page_patches": 550,
+      "rows": 25,
+      "cols": 22,
+      "pages": 1,
+      "patch": null,
+      "pitch": null
+    },
+    "errors": []
+  },
+  "expert_engine": {
+    "preview": "Manual mode \u2014 your current configuration (1 page \u00b7 Auto patch count \u00b7 Auto grey/white/black):\ntargen -d2 -f0 -e4 -B4 -G -g28 chart\nChromIQ layout engine \u00b7 i1 \u00b7 A4 portrait \u00b7 300 dpi \u00b7 margin 6 mm \u00b7 patch \u00d70.95 \u00b7 clip border on \u00b7 align center-left\nLayout preset: i1 \u00b7 A4 portrait \u00b7 clip   \u25cf modified",
+    "A_visible": false
+  },
+  "refine_empty": {
+    "checked": true,
+    "path_enabled": true,
+    "info": "Guided mode applies these fixed settings:\ntargen -d2 -G -e4 -B4 -g28 chart\nChromIQ layout engine \u00b7 i1 \u00b7 A4 \u00b7 300 dpi \u00b7 margin 10 mm \u00b7 patch \u00d70.95 \u00b7 clip border on\nPick a profile to refine from (Browse",
+    "gen_enabled": true,
+    "dialogs": [],
+    "targen": [
+      "[INFO] core.argyll_runner: Run: /Applications/Argyll/bin/targen -v -d2 -f484 -e4 -B4 -G -g28 R2-Guided  [cwd=/Users/Basti/ChromIQ-assessment/R2-Guided/runs/run1]"
+    ],
+    "errors": [],
+    "loc": "Location being edited: ChromIQ-assessment/R2-Guided/runs/run1/"
+  },
+  "refine_icc": {
+    "icc_exists": true,
+    "info": "Guided mode applies these fixed settings:\ntargen -d2 -G -e4 -B4 -g28 chart\nChromIQ layout engine \u00b7 i1 \u00b7 A4 \u00b7 300 dpi \u00b7 margin 10 mm \u00b7 patch \u00d70.95 \u00b7 clip border on\nPick a profile to refine from (Browse\u2026 above).",
+    "runs_before": [
+      "run1"
+    ],
+    "dialogs": [
+      [
+        "SlowChartDialog",
+        "This chart is taking longer than usual",
+        "This chart is taking longer than usual | ChromIQ hasn't frozen \u2014 your chart is still being built in the background. With certain pre-conditioning profiles, Argyll's standard way of arranging the colour patches can slow down dramatically on larger (multi-page) charts, and that's what's happening here",
+        [
+          "Keep waiting",
+          "Rebuild with faster layout",
+          "Cancel"
+        ],
+        "accept()"
+      ],
+      [
+        "SlowChartDialog",
+        "This chart is taking longer than usual",
+        "This chart is taking longer than usual | ChromIQ hasn't frozen \u2014 your chart is still being built in the background. With certain pre-conditioning profiles, Argyll's standard way of arranging the colour patches can slow down dramatically on larger (multi-page) charts, and that's what's happening here",
+        [
+          "Keep waiting",
+          "Rebuild with faster layout",
+          "Cancel"
+        ],
+        "UNEXPECTED"
+      ]
+    ],
+    "targen": [
+      "[INFO] core.argyll_runner: Run: /Applications/Argyll/bin/targen -v -d2 -f484 -e4 -B4 -G -n28 -c /Users/Basti/ChromIQ-assessment/R2-Guided/runs/run1/preconditioning.icc R2-Guided  [cwd=/Users/Basti/ChromIQ-assessment/R2-Guided/runs/run1]"
+    ],
+    "errors": [],
+    "loc": "Location being edited: ChromIQ-assessment/R2-Guided/runs/run1/",
+    "runs_after": [
+      "run1"
+    ],
+    "run_files": [
+      "R2-Guided.channels.json",
+      "R2-Guided.ti1",
+      "R2-Guided.ti2",
+      "R2-Guided.tif",
+      "meta.json",
+      "preconditioning.icc"
+    ],
+    "actual": {
+      "total": 484,
+      "fillup": 0,
+      "page_patches": 484,
+      "rows": 22,
+      "cols": 22,
+      "pages": 1,
+      "patch": [
+        7.62,
+        9.48
+      ],
+      "pitch": null
+    }
+  },
+  "removed": {
+    "R2-Guided.tif": {
+      "preview_pages": 0,
+      "status": "Margins: OK",
+      "status_visible": true,
+      "actual": {
+        "total": 484,
+        "fillup": 0,
+        "page_patches": 484,
+        "rows": 22,
+        "cols": 22,
+        "pages": 1,
+        "patch": [
+          7.62,
+          9.48
+        ],
+        "pitch": null
+      },
+      "notice": null,
+      "dialogs": [],
+      "errors": [],
+      "gen_enabled": true,
+      "run_files_now": [
+        "R2-Guided.channels.json",
+        "R2-Guided.ti1",
+        "R2-Guided.ti2",
+        "cache",
+        "meta.json",
+        "preconditioning.icc"
+      ],
+      "info_line": null
+    },
+    "R2-Guided.ti2": {
+      "preview_pages": 0,
+      "status": "Margins: OK",
+      "status_visible": true,
+      "actual": {
+        "total": 484,
+        "fillup": 0,
+        "page_patches": 484,
+        "rows": 22,
+        "cols": 22,
+        "pages": 1,
+        "patch": [
+          7.62,
+          9.48
+        ],
+        "pitch": null
+      },
+      "notice": null,
+      "dialogs": [],
+      "errors": [],
+      "gen_enabled": true,
+      "run_files_now": [
+        "R2-Guided.channels.json",
+        "R2-Guided.ti1",
+        "R2-Guided.tif",
+        "cache",
+        "meta.json",
+        "preconditioning.icc"
+      ],
+      "info_line": null
+    },
+    "R2-Guided.channels.json": {
+      "preview_pages": 1,
+      "status": "Margins: OK",
+      "status_visible": true,
+      "actual": {
+        "total": 484,
+        "fillup": 0,
+        "page_patches": 484,
+        "rows": 22,
+        "cols": 22,
+        "pages": 1,
+        "patch": null,
+        "pitch": null
+      },
+      "notice": null,
+      "dialogs": [],
+      "errors": [],
+      "gen_enabled": true,
+      "run_files_now": [
+        "R2-Guided.ti1",
+        "R2-Guided.ti2",
+        "R2-Guided.tif",
+        "cache",
+        "meta.json",
+        "preconditioning.icc"
+      ],
+      "info_line": null
+    },
+    "R2-Guided.ti1": {
+      "preview_pages": 1,
+      "status": "Margins: OK",
+      "status_visible": true,
+      "actual": {
+        "total": 484,
+        "fillup": null,
+        "page_patches": 484,
+        "rows": 22,
+        "cols": 22,
+        "pages": 1,
+        "patch": [
+          7.62,
+          9.48
+        ],
+        "pitch": null
+      },
+      "notice": null,
+      "dialogs": [],
+      "errors": [],
+      "gen_enabled": true,
+      "run_files_now": [
+        "R2-Guided.channels.json",
+        "R2-Guided.ti2",
+        "R2-Guided.tif",
+        "cache",
+        "meta.json",
+        "preconditioning.icc"
+      ],
+      "info_line": null
+    }
+  },
+  "unexpected": [
+    {
+      "class": "SlowChartDialog",
+      "title": "This chart is taking longer than usual",
+      "text": "This chart is taking longer than usual | ChromIQ hasn't frozen \u2014 your chart is still being built in the background. With certain pre-conditioning profiles, Argyll's standard way of arranging the colour patches can slow down dramatically on larger (multi-page) charts, and that's what's happening here.\n\nYou have three choices:\n\n\u2022 Keep waiting \u2014 let it finish with the highest-quality patch layout. Be aware this may take a very long time, and there's no reliable way to predict how long.\n\n\u2022 Rebuild with the faster layout (recommended) \u2014 ChromIQ stops this attempt and immediately rebuilds the same chart, with the same profile and the same number of patches, using a different patch-arrangement meth",
+      "buttons": [
+        "Keep waiting",
+        "Rebuild with faster layout",
+        "Cancel"
+      ],
+      "answer": "UNEXPECTED",
+      "closed_via": "clicked 'Cancel'"
+    }
+  ],
+  "serious": []
+}

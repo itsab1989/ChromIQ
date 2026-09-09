@@ -1,0 +1,115 @@
+09:16:14 app built: v4.2.0 appearance=neutral lang=en settings=/Users/Basti/Desktop/Create Chart Assessment/Test Runs/sandbox/chromiq-assessment.ini
+09:16:20 open_project('A10-Extremes') -> run bar reads 'Run 1 (overwrite)' ok=True
+09:16:25   armed: dialog ~'quite fill' -> click 'OK' 
+09:16:25   armed: dialog ~'already' -> click 'Continue this project' 
+09:16:29 60 mm patch on 20x20: {'estimate': None, 'info': 'rgen -d2 -f0 -e4 -B4 -G -g8 chart\nChromIQ layout engine · i1 · 20x20 · 300 dpi · margins 6/6/6/26 mm · patch 60×60 mm · clip border on · align center-left\nLayout preset: i1 · 20x20 · clip   ● modified', 'generate_enabled': True, 'ok': True, 'stopped': False, 'secs': 4.3, 'actual': None, 'status': '', 'notes': '', 'margin_text': 'Generate a preview to measure its margins.', 'dialogs': [], 'serious': ['[ERROR] workflow.chart_creator: ChromIQ layout engine failed'], 'errors': ['[ERROR] ChromIQ layout engine: paper too short: a single pass of patches does not fit (8.0 mm available)', '[ERROR] Chart generation failed.'], 'engine': ['[ChromIQ layout engine] building chart from the targen .ti1…', '[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.']}
+09:16:29   shot Screenshots/A10-extremes/x03-patch-bigger-than-page.png  (3400x2100)
+09:16:29   json Test Runs/logs/d07b_results.json
+09:16:31   armed: dialog ~'quite fill' -> click 'OK' 
+09:16:31   armed: dialog ~'already' -> click 'Continue this project' 
+09:16:38 margins 50 on 100x100: {'estimate': None, 'info': 'rey/white/black):\ntargen -d2 -f0 -e4 -B4 -G -g8 chart\nChromIQ layout engine · i1 · 100x100 · 300 dpi · margin 50 mm · clip border on · align center-left\nLayout preset: i1 · 100x100 · clip   ● modified', 'ok': True, 'stopped': False, 'secs': 6.6, 'actual': None, 'status': '', 'notes': '', 'margin_text': 'Generate a preview to measure its margins.', 'dialogs': [], 'serious': ['[ERROR] workflow.chart_creator: ChromIQ layout engine failed'], 'errors': ['[ERROR] ChromIQ layout engine: paper too short: a single pass of patches does not fit (-11.1 mm available)', '[ERROR] Chart generation failed.'], 'engine': ['[ChromIQ layout engine] building chart from the targen .ti1…', '[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.']}
+09:16:38   shot Screenshots/A10-extremes/x04-margins-no-room.png  (3400x2100)
+09:16:38   json Test Runs/logs/d07b_results.json
+09:16:40   armed: dialog ~'quite fill' -> click 'OK' 
+09:16:40   armed: dialog ~'already' -> click 'Continue this project' 
+09:23:28   TIMEOUT waiting 240000 ms for build to finish
+09:23:30 grid 200x500: {'estimate': {'total': 991800, 'fillup': 0, 'page_patches': 49590, 'rows': 285, 'cols': 174, 'pages': 20, 'patch': (1.0, 1.0), 'pitch': None}, 'info': '2 -f0 -e4 -B4 -G -g29 chart\nChromIQ layout engine · i1 · A4 portrait · 300 dpi · margin 6 mm · area-fit 200×500 · clip border on · align center-left\nLayout preset: i1 · A4 portrait · clip   ● modified', 'ok': False, 'stopped': False, 'secs': 410.5, 'actual': {'total': 49590, 'fillup': 0, 'page_patches': 49590, 'rows': 285, 'cols': 174, 'pages': 1, 'patch': (1.02, 1.02), 'pitch': None}, 'status': '', 'notes': '⚠ The left margin was widened from 6.0 mm to 29.7 mm to fit the row indicators. The labels start 26.0 mm in from the page edge and their text needs 2.7 mm. “Clip” is set to 4.0 mm and is not what is holding them out there, so lowering it moves nothing — the note under “Text distance from edge” names what is. To get that paper back, switch “Show row indicators” off or use a smaller label size.\n\n⚠ Bottom margin is too small for the sheet text — it overflows toward the page edge.\n\n⚠ Strip length 285 mm exceeds the 240 mm instrument ruler — the strip may not fit your jig', 'margin_text': 'mm | inch | min | Left (to first patch) | 29.7 | 1.170 | 6.0 | Right (to first patch) | 6.3 | 0.248 | 6.0 | Top (to first patch) | 6.0 | 0.237 | 6.0 | Bottom (to first patch) | 6.0 | 0.236 | 6.0 | Patch width (in strip reading direction) | 1.0 | 0.040 | Strip ', 'dialogs': [], 'serious': [], 'errors': [], 'engine': ['[ChromIQ layout engine] 49590 patches (285×174), 1 page, random start 1205384006', '[ChromIQ layout engine] note: low patch/spacer contrast in 74 strips']}
+09:23:31   shot Screenshots/A10-extremes/x05-grid-200x500.png  (3400x2100)
+09:23:31   json Test Runs/logs/d07b_results.json
+09:23:33   armed: dialog ~'quite fill' -> click 'OK' 
+09:23:33   armed: dialog ~'already' -> click 'Continue this project' 
+09:23:35 dpi 72: ok=True secs=2.5 tiffs=[{'file': 'A10-Extremes.tif', 'size_px': (283, 283), 'mode': 'RGB', 'dpi': (72.0, 72.0), 'bits': (8, 8, 8), 'compression': 'tiff_lzw', 'bytes': 20997}] actual={'total': 63, 'fillup': 0, 'page_patches': 63, 'rows': 9, 'cols': 7, 'pages': 1, 'patch': (8.82, 9.88), 'pitch': None}
+09:23:35   json Test Runs/logs/d07b_results.json
+09:23:36   armed: dialog ~'quite fill' -> click 'OK' 
+09:23:36   armed: dialog ~'already' -> click 'Continue this project' 
+09:23:41 dpi 1200: ok=True secs=4.9 tiffs=[{'file': 'A10-Extremes.tif', 'size_px': (4724, 4724), 'mode': 'RGB', 'dpi': (1200.0, 1200.0), 'bits': (8, 8, 8), 'compression': 'tiff_lzw', 'bytes': 1378108}] actual={'total': 80, 'fillup': 0, 'page_patches': 80, 'rows': 10, 'cols': 8, 'pages': 1, 'patch': (8.04, 8.81), 'pitch': None}
+09:23:41   json Test Runs/logs/d07b_results.json
+09:23:44   armed: dialog ~'quite fill' -> click 'OK' 
+09:23:44   armed: dialog ~'already' -> click 'Continue this project' 
+09:23:51 20 pages CM: {'estimate': {'total': 960, 'fillup': 0, 'page_patches': 48, 'rows': 8, 'cols': 6, 'pages': 20, 'patch': (29.04, 31.75), 'pitch': None}, 'ok': True, 'stopped': False, 'secs': 6.7, 'actual': {'total': 960, 'fillup': 0, 'page_patches': 48, 'rows': 8, 'cols': 6, 'pages': 20, 'patch': (29.04, 31.75), 'pitch': None}, 'status': '', 'notes': '⚠ The left margin was widened from 6.0 mm to 29.7 mm to fit the row indicators. The labels start 26.0 mm in from the page edge and their text needs 2.7 mm. “Clip” is set to 4.0 mm and is not what is holding them out there, so lowering it moves nothing — the note under “Text distance from edge” names what is. To get that paper back, switch “Show row indicators” off or use a smaller label size.', 'margin_text': 'mm | inch | min | Left (to first patch) | 29.7 | 1.170 | 6.0 | Right (to first patch) | 6.0 | 0.238 | 6.0 | Top (to first patch) | 33.0 | 1.300 | 33.0 | Bottom (to first patch) | 10.0 | 0.393 | 10.0 | Patch width (in strip reading direction) | 29.0 | 1.143 | S', 'dialogs': [], 'serious': [], 'errors': [], 'engine': ['[ChromIQ layout engine] 960 patches (8×6), 20 pages, random start 1205384006', '[ChromIQ layout engine] note: low patch/spacer contrast in 6 strips']}
+09:23:51   shot Screenshots/A10-extremes/x06-20-pages-CM.png  (3400x2100)
+09:23:51   json Test Runs/logs/d07b_results.json
+09:23:53   armed: dialog ~'quite fill' -> click 'OK' 
+09:23:53   armed: dialog ~'already' -> click 'Continue this project' 
+09:23:58 custom 20.0x20.0: {'estimate': None, 'info': 'ChromIQ layout engine · i1 · 20x20 · 300 dpi · margins 6/6/6/26 mm · area-fit · clip border on · align center-left\nLayout preset: i1 · 20x20 · clip   ● modified', 'ok': True, 'stopped': False, 'secs': 4.7, 'actual': None, 'status': '', 'notes': '', 'margin_text': 'Generate a preview to measure its margins.', 'dialogs': [], 'serious': ['[ERROR] workflow.chart_creator: ChromIQ layout engine failed'], 'errors': ['[ERROR] ChromIQ layout engine: paper too short: a single pass of patches does not fit (8.0 mm available)', '[ERROR] Chart generation failed.'], 'engine': ['[ChromIQ layout engine] building chart from the targen .ti1…', '[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.']}
+09:23:59 custom 2000.0x2000.0: {'estimate': {'total': 1210300, 'fillup': 0, 'page_patches': 60515, 'rows': 247, 'cols': 245, 'pages': 20, 'patch': (8.01, 8.04), 'pitch': None}, 'info': 'layout engine · i1 · 2000x2000 · 300 dpi · margins 6/6/6/26 mm · area-fit · clip border on · align center-left\nLayout preset: i1 · 2000x2000 · clip   ● modified'}
+09:23:59   json Test Runs/logs/d07b_results.json
+09:24:00   armed: dialog ~'Give this project a name' -> click '<reject>' 
+09:24:00   armed: dialog ~'Rename Printer Profile' -> click 'Cancel' 
+09:24:00   armed: dialog ~'already' -> click 'Cancel' 
+09:24:04 name empty: dialogs=[] field_after='' loc='ion being edited: ChromIQ-assessment/A10-Extremes/runs/run1/'
+09:24:04   shot Screenshots/B12-names-files/n-empty.png  (3400x2100)
+09:24:04   json Test Runs/logs/d07b_results.json
+09:24:05   armed: dialog ~'Give this project a name' -> click '<reject>' 
+09:24:05   armed: dialog ~'Rename Printer Profile' -> click 'Cancel' 
+09:24:05   armed: dialog ~'already' -> click 'Cancel' 
+09:24:09 name duplicate-open: dialogs=[] field_after='A10-Extremes' loc='ion being edited: ChromIQ-assessment/A10-Extremes/runs/run1/'
+09:24:09   shot Screenshots/B12-names-files/n-duplicate-open.png  (3400x2100)
+09:24:09   json Test Runs/logs/d07b_results.json
+09:24:09   armed: dialog ~'Give this project a name' -> click '<reject>' 
+09:24:09   armed: dialog ~'Rename Printer Profile' -> click 'Cancel' 
+09:24:09   armed: dialog ~'already' -> click 'Cancel' 
+09:24:13 name duplicate-other: dialogs=[] field_after='A1-EngineVsPrinttarg' loc='g edited: ChromIQ-assessment/A1-EngineVsPrinttarg/runs/run1/'
+09:24:14   shot Screenshots/B12-names-files/n-duplicate-other.png  (3400x2100)
+09:24:14   json Test Runs/logs/d07b_results.json
+09:24:15   armed: dialog ~'Give this project a name' -> click '<reject>' 
+09:24:15   armed: dialog ~'Rename Printer Profile' -> click 'Cancel' 
+09:24:15   armed: dialog ~'already' -> click 'Cancel' 
+09:24:15   DIALOG expected [TargetChangeDialog] 'Rename Printer Profile' -> clicked 'Cancel'
+09:24:17 name umlauts: dialogs=[('Rename Printer Profile', "clicked 'Cancel'")] field_after='Ümläut Äpfel Øre' loc='g edited: ChromIQ-assessment/A1-EngineVsPrinttarg/runs/run1/'
+09:24:17   shot Screenshots/B12-names-files/n-umlauts.png  (3400x2100)
+09:24:17   json Test Runs/logs/d07b_results.json
+09:24:19   armed: dialog ~'Give this project a name' -> click '<reject>' 
+09:24:19   armed: dialog ~'Rename Printer Profile' -> click 'Cancel' 
+09:24:19   armed: dialog ~'already' -> click 'Cancel' 
+09:24:19   DIALOG expected [QDialog] 'Give this project a name' -> reject()
+09:24:21 name long250: dialogs=[('Give this project a name', 'reject()')] field_after='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' loc='g edited: ChromIQ-assessment/A1-EngineVsPrinttarg/runs/run1/'
+09:24:21   shot Screenshots/B12-names-files/n-long250.png  (3400x2100)
+09:24:21   json Test Runs/logs/d07b_results.json
+09:24:23   armed: dialog ~'Give this project a name' -> click '<reject>' 
+09:24:23   armed: dialog ~'Rename Printer Profile' -> click 'Cancel' 
+09:24:23   armed: dialog ~'already' -> click 'Cancel' 
+09:24:23   DIALOG expected [QDialog] 'Give this project a name' -> reject()
+09:24:25 name slash-colon: dialogs=[('Give this project a name', 'reject()')] field_after='a/b:c' loc='g edited: ChromIQ-assessment/A1-EngineVsPrinttarg/runs/run1/'
+09:24:25   shot Screenshots/B12-names-files/n-slash-colon.png  (3400x2100)
+09:24:25   json Test Runs/logs/d07b_results.json
+09:24:27   armed: dialog ~'Give this project a name' -> click '<reject>' 
+09:24:27   armed: dialog ~'Rename Printer Profile' -> click 'Cancel' 
+09:24:27   armed: dialog ~'already' -> click 'Cancel' 
+09:24:27   DIALOG expected [TargetChangeDialog] 'Rename Printer Profile' -> clicked 'Cancel'
+09:24:28 name trailing-spaces: dialogs=[('Rename Printer Profile', "clicked 'Cancel'")] field_after='  trailing  ' loc='g edited: ChromIQ-assessment/A1-EngineVsPrinttarg/runs/run1/'
+09:24:29   shot Screenshots/B12-names-files/n-trailing-spaces.png  (3400x2100)
+09:24:29   json Test Runs/logs/d07b_results.json
+09:24:30   armed: dialog ~'Give this project a name' -> click '<reject>' 
+09:24:30   armed: dialog ~'Rename Printer Profile' -> click 'Cancel' 
+09:24:30   armed: dialog ~'already' -> click 'Cancel' 
+09:24:31   DIALOG expected [QDialog] 'Give this project a name' -> reject()
+09:24:32 name windows-reserved: dialogs=[('Give this project a name', 'reject()')] field_after='CON' loc='g edited: ChromIQ-assessment/A1-EngineVsPrinttarg/runs/run1/'
+09:24:32   shot Screenshots/B12-names-files/n-windows-reserved.png  (3400x2100)
+09:24:32   json Test Runs/logs/d07b_results.json
+09:24:34   armed: dialog ~'Give this project a name' -> click '<reject>' 
+09:24:34   armed: dialog ~'Rename Printer Profile' -> click 'Cancel' 
+09:24:34   armed: dialog ~'already' -> click 'Cancel' 
+09:24:34   DIALOG expected [QDialog] 'Give this project a name' -> reject()
+09:24:36 name leading-dot: dialogs=[('Give this project a name', 'reject()')] field_after='.dot' loc='g edited: ChromIQ-assessment/A1-EngineVsPrinttarg/runs/run1/'
+09:24:36   shot Screenshots/B12-names-files/n-leading-dot.png  (3400x2100)
+09:24:36   json Test Runs/logs/d07b_results.json
+09:24:36 projects on disk now: ['A1-EngineVsPrinttarg', 'A10-Extremes', 'A2-Instruments', 'A3-LayoutModes', 'A5-Furniture', 'B1-Guided', 'Demo-Full-RGB', 'Demo-Legacy-v1', 'Demo-Legacy-v2', 'Demo-Verify-History']
+09:24:38 open_project('A1-EngineVsPrinttarg') -> run bar reads 'Run 2 (overwrite)' ok=True
+09:24:49 run bar mid-edit: {'before': {'margin_t': 38.0, 'use_instr': True, 'text': ''}, 'on_run2': {'margin_t': 6.0, 'text': '', 'engine': False}, 'back_on_run1': {'margin_t': 38.0, 'use_instr': True, 'text': '', 'engine': True}, 'stored_run1': {'margin_top': 44.0, 'chart_text': 'mid-edit', 'use_instr': False}}
+09:24:49   shot Screenshots/B7-runbar/r01-back-on-run1.png  (3400x2100)
+09:24:49   json Test Runs/logs/d07b_results.json
+09:24:51   armed: dialog ~'Rename Printer Profile' -> click 'Create "B7-Delete" and keep' 
+09:24:51   armed: dialog ~'quite fill' -> click 'OK' 
+09:24:51   armed: dialog ~'already' -> click 'Continue this project' 
+09:24:51   DIALOG expected [TargetChangeDialog] 'Rename Printer Profile' -> clicked 'Create "B7-Delete" and keep "A1-EngineVsPrinttarg"'
+09:24:53   removed project folder B7-Delete while it is open
+09:24:55   armed: dialog ~'Give this project a name' -> click '<reject>' 
+09:24:55   armed: dialog ~'already' -> click 'Cancel' 
+09:24:55   armed: dialog ~'Rename' -> click 'Cancel' 
+09:24:57   shot Screenshots/B7-runbar/r02-after-folder-deleted-and-generate.png  (3400x2100)
+09:24:59   shot Screenshots/B7-runbar/r03-new-run-after-folder-deleted.png  (3400x2100)
+09:24:59 deleted folder: {'built': None, 'existed': True, 'run_bar_after_rm': 'Run 1 (overwrite)', 'location_after_rm': 'Location being edited: ChromIQ-assessment/B7-Delete/runs/run1/', 'generate_after_rm': {'dialogs': [], 'folder_recreated': True, 'files': ['Where are my files.txt', 'project.json', 'runs/run1/B7-Delete.ti1', 'runs/run1/cache/new_run.json', 'runs/run1/meta.json'], 'log_tail': 'iRGB test chart\nWhite patches = 4\nBlack patches = 4\nComposite Grey steps = 8\nTotal number of patches = 14\nExecution time = 0.000320 seconds\n[ChromIQ layout engine] building chart from the targen .ti1…\n[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.\n[ERROR] ChromIQ layout engine: paper too short: a single pass of patches does not fit (-30.0 mm available)\n[ERROR] Chart generation failed.', 'serious': ['[ERROR] workflow.chart_creator: ChromIQ layout engine failed', '[ERROR] workflow.chart_creator: ChromIQ layout engine failed', '[ERROR] workflow.chart_creator: ChromIQ layout engine failed']}, 'new_run_after_rm': {'run_bar': 'New run', 'location': 'Location being edited: ChromIQ-assessment/B7-Delete/runs/run2/', 'serious': ['[ERROR] workflow.chart_creator: ChromIQ layout engine failed', '[ERROR] workflow.chart_creator: ChromIQ layout engine failed', '[ERROR] workflow.chart_creator: ChromIQ layout engine failed']}}
+09:24:59   json Test Runs/logs/d07b_results.json
+09:24:59 unexpected: [] serious: ['[ERROR] workflow.chart_creator: ChromIQ layout engine failed', '[ERROR] workflow.chart_creator: ChromIQ layout engine failed', '[ERROR] workflow.chart_creator: ChromIQ layout engine failed', '[ERROR] workflow.chart_creator: ChromIQ layout engine failed', '[ERROR] workflow.chart_creator: ChromIQ layout engine failed', '[ERROR] workflow.chart_creator: ChromIQ layout engine failed', '[ERROR] workflow.chart_creator: ChromIQ layout engine failed', '[ERROR] workflow.chart_creator: ChromIQ layout engine failed']
+exit=0
