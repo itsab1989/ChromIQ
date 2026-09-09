@@ -1083,7 +1083,7 @@ def _hexagon_points(x0: int, y0: int, w: int, ph: int, step: int,
         # applied by the caller (which knows the strip) rather than here. This
         # function only turns the shape.
         return hexagon.vertices(x0, y0, w, ph, flat_top=True, round_to_int=True)
-    dx = hexagon.stagger_dx(w, step)
+    dx = hexagon.stagger_dx(w, step, round_to_int=not isinstance(w, float))
     return hexagon.vertices(x0 + dx, y0, w, ph, round_to_int=True)
 
 
@@ -1207,6 +1207,7 @@ def render_pages(
     from .instruments import is_hexagonal as _is_hex
     ss_hex = _is_hex(geom)
     _flat_top = bool(getattr(geom, "hex_flat_top", False))
+    _S = dpi / 25.4
     _ring_px = px(float(getattr(geom, "hex_ring_mm", 0.0) or 0.0)) if ss_hex else 0
     # Row-number band width (SpectroScan labels the grid 2-D): 0 for instruments
     # without it. Drawn to the left of the patches, the band placement reserves.
@@ -1358,8 +1359,14 @@ def render_pages(
             # `patch_rects_px` derives it from exactly the same expression, and
             # the two must agree to the pixel or the recorded box describes a
             # place no ink is.
+            # The ROUNDED offset is what the row labels and the recorded rects
+            # use; the vertices take the exact one, so neighbouring strips share
+            # their edge coordinates.
+            _stag_f = float(_stag)
             if ss_hex and _flat_top:
                 _stag += hexagon.stagger_dy(px(place.plen), global_strip)
+                _stag_f += hexagon.stagger_dy(place.plen * _S, global_strip,
+                                              round_to_int=False)
             col_slots = list(range(first + p * steps,
                                    min(last, first + (p + 1) * steps)))
             if draw_indicators:
@@ -1530,7 +1537,11 @@ def render_pages(
                 yB = px(place.y_of(j) + place.plen) + _stag    # patch bottom edge
                 rgb = rgb_by_slot[gslot]
                 if ss_hex:
-                    _pts = _hexagon_points(x0, y0, xR - x0, yB - y0, j,
+                    # EXACT POSITIONS, ROUNDED ONCE AT THE VERTEX.
+                    _fx = place.x_of(p) * _S
+                    _fy = place.y_of(j) * _S + _stag_f
+                    _pts = _hexagon_points(_fx, _fy, place.pwid * _S,
+                                           place.plen * _S, j,
                                            flat_top=_flat_top)
                     if _ring_px > 0 and spacer_mode != "none":
                         # A RING, ONE SIDE AT A TIME. Each of the six sides

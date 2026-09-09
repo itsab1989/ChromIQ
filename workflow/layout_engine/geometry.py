@@ -508,6 +508,7 @@ def patch_rects_px(geom: Geom, paper_w_mm: float, paper_h_mm: float,
     # highlight, the margin inspector, scanin_target) rather than a visible bug.
     from .instruments import is_hexagonal as _is_hex
     _ss_hex = _is_hex(geom)
+    _S = dpi / 25.4
     out: list[dict] = []
     for page in range(layout.pages):
         first = page * pppage
@@ -531,9 +532,21 @@ def patch_rects_px(geom: Geom, paper_w_mm: float, paper_h_mm: float,
             # both edges and taking the difference makes the record match the
             # paint exactly — the same rule the overlay already follows on its
             # own side.
-            _x0, _y0 = px(place.x_of(p)), px(place.y_of(j)) + _stag
-            _x1 = px(place.x_of(p) + place.pwid)
-            _y1 = px(place.y_of(j) + place.plen) + _stag
+            # ONE ROUNDING, FROM THE EXACT POSITION, EXACTLY AS THE RENDERER
+            # DOES IT. `raster` derives every hexagon vertex from the exact
+            # millimetre position and rounds once; rounding the slot first and
+            # then adding a separately-rounded stagger gives
+            # `round(a) + round(b)` where the ink is at `round(a + b)`, and the
+            # two differ by up to a pixel. That is the drift the overlay, the
+            # scanner target and the margin inspector all inherit, because they
+            # read these rects. Basti, 2026-09-09: the lattice fix "must be
+            # respected for the overlays in the measure tab as well and for the
+            # scanner profiling".
+            _fx = place.x_of(p) * _S
+            _fy = place.y_of(j) * _S + _stag
+            _fw = place.pwid * _S
+            _fh = place.plen * _S
+            _dxf = _dyf = 0.0
             # SPECTROSCAN HEXAGONS SIT ±¼ WIDTH OFF THEIR SLOT. `raster
             # ._hexagon_points` staggers every hexagon horizontally by the
             # patch's index in the strip, which is what makes the rows
@@ -550,16 +563,16 @@ def patch_rects_px(geom: Geom, paper_w_mm: float, paper_h_mm: float,
                 # the patch's place in it, so consecutive columns interlock and
                 # each column runs straight down the page. That straight column
                 # is the whole point of the option.
-                _dy = hexagon.stagger_dy(px(place.plen), (first // steps) + p)
-                _y0 += _dy
-                _y1 += _dy
+                _dyf = hexagon.stagger_dy(_fh, (first // steps) + p,
+                                          round_to_int=False)
             elif _ss_hex:
-                # THE SAME STAGGER THE RENDERER APPLIES, from the same place.
-                # These two roundings must agree exactly or the recorded box
-                # describes a place no ink is.
-                _dx = hexagon.stagger_dx(_x1 - _x0, j)
-                _x0 += _dx
-                _x1 += _dx
+                # THE SAME STAGGER THE RENDERER APPLIES, from the same place
+                # and to the same precision.
+                _dxf = hexagon.stagger_dx(_fw, j, round_to_int=False)
+            _x0 = int(round(_fx + _dxf))
+            _x1 = int(round(_fx + _fw + _dxf))
+            _y0 = int(round(_fy + _dyf))
+            _y1 = int(round(_fy + _fh + _dyf))
             out.append({
                 "page": page, "slot": gslot, "loc": loc,
                 "x": _x0, "y": _y0,

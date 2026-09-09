@@ -570,41 +570,44 @@ def test_the_outside_band_is_a_full_width_spacer(flat_top):
 
 @pytest.mark.parametrize("flat_top", [False, True])
 @pytest.mark.parametrize("spacer_mode", ["none", "colored"])
-@pytest.mark.parametrize("dpi", [
-    pytest.param(300, marks=pytest.mark.xfail(strict=True, reason=(
-        "KNOWN, MEASURED, PRE-EXISTING, NOT FIXED HERE. A honeycomb leaves bare "
-        "paper along the seams between its patches. Three hexagons meet at every "
-        "apex and each rounds its vertices independently, from slot bounds that "
-        "are themselves rounded per strip: at 300 dpi a 12.0000 mm pitch comes "
-        "out 142 px on most strips and 141 on some, so one hexagon's right edge "
-        "lands on x=566 and its neighbour's left edge on 567. It is IDENTICAL "
-        "with spacers off, so the ring did not cause it; a dark ring only made "
-        "it visible, which is how Basti found it. "
-        "IT IS NOT A '300 DPI' PROBLEM, and an earlier note here said it was. "
-        "Swept over 150/200/300/360/400/600/720 dpi on a 300-patch A4, seam "
-        "pixels: SS pointy 80/0/0/0/81/54/372; CR30 pointy 78/192/365/1222/48/"
-        "0/0; CR30 rotated 0/40/250/214/0/0/0. It is arbitrary in the "
-        "resolution, every hex-capable instrument has it at some resolutions, "
-        "and NO resolution is clean for all of them, so 'render higher' is not "
-        "a workaround. "
-        "THREE FIXES WERE TRIED AND ALL COST MORE THAN THEY PAID: growing every "
-        "hexagon half a pixel closed it but made neighbours visibly overlap and "
-        "widened an SS patch by 3 px, breaking the measured four-thirds "
-        "relation; deriving one stagger for the whole page closed the vertical "
-        "seams and opened more diagonal ones, 270 -> 714; drawing each polygon's "
-        "own outline in its fill colour took 270 -> 264. The real fix is a "
-        "shared vertex lattice, where neighbouring hexagons take the SAME "
-        "rounded coordinates for the edge they share, and that is its own piece "
-        "of work.")), id="300"),
-    600,
-])
+@pytest.mark.parametrize("dpi", [150, 200, 300, 360, 400, 600, 720])
 def test_a_honeycomb_has_no_seams_between_its_patches(flat_top, spacer_mode, dpi):
-    """No bare paper between the patches of a honeycomb.
+    """FIXED, after three cheap attempts that each measured worse.
 
-    Green at 600 dpi and an expected failure at 300, which is the DEFAULT a
-    chart is built at (`chart.build_chart`, `LayoutRecipe.dpi`), so this is a
-    defect a user meets and not a curiosity. Strict, so the day somebody fixes
-    it this test says so instead of quietly passing.
+    Basti found it in a proof sheet: *"on the right there is a black spacer
+    with white points in it"*, and then asked the question that cracked it:
+    *"why does this still happen and why only in some places?"*
+
+    IT WAS THE ROUNDING CHANGEOVERS. A row pitch of 10.392 mm is 81.83 px at
+    200 dpi, so most rows rounded to a slot 82 px tall and every sixth to 81.
+    The apex overhang `t6 = ph/6` was taken from THAT ROW'S OWN rounded height
+    -- 13.667 against 13.500 -- so at a boundary between an 82 row and an 81
+    row, one hexagon's bottom apex and the next row's upper shoulder came from
+    different numbers and landed a pixel apart: measured apex 393 against
+    shoulder 392 at row 3, and 964 against 965 at row 10. Every other boundary
+    agreed and showed only the 3 px of corner noise every join has. Not "some
+    places": exactly the changeovers, at a period set by the pitch and the
+    resolution, which is also why the SpectroScan's counts differed from the
+    CR30's.
+
+    THE FIX IS THAT EVERY VERTEX COMES FROM THE EXACT MILLIMETRE POSITION AND
+    IS ROUNDED ONCE. A honeycomb has only two distinct y-levels per row pitch,
+    and the next row's top apex is the SAME EXPRESSION as this row's lower
+    shoulders (`y_of(j) + 5*plen/6` either way), so rounding that expression
+    once makes the two land on the same pixel by construction. `patch_rects_px`
+    rounds from the same exact positions, so the recorded box stays in lockstep
+    with the ink instead of being `round(a) + round(b)` where the ink is at
+    `round(a + b)`.
+
+    Three cheaper fixes were tried and every one measured WORSE, which is why
+    this test sweeps seven resolutions rather than the two it used to:
+      * growing every hexagon half a pixel: closed it, but made neighbours
+        visibly overlap and widened an SS patch by 3 px;
+      * one stagger for the whole page: 270 -> 714, closing the vertical family
+        and opening the diagonal one;
+      * one canonical apex height: SS at 400 dpi 81 -> 1405, CR30 at 600 dpi
+        0 -> 1712, because inside a hexagon the lower shoulders sit at
+        `y0 + 5*t6` and that only equals `yB - t6` when t6 is that row's sixth.
     """
     _res, img, _ = _render(flat_top, spacer_mode, dpi=dpi, palette=NO_WHITE)
     ys, xs = np.nonzero(np.any(img < 250, axis=2))
@@ -806,3 +809,101 @@ def test_the_margin_inspector_allows_for_the_ring():
             f"{side}: edge spacers on reports {b:.3f} mm and off reports "
             f"{a:.3f} mm, so the ring's outward band is not allowed for"
         )
+
+
+# ---------------------------------------------------------------------------
+# the shared vertex lattice
+# ---------------------------------------------------------------------------
+def test_the_recorded_box_and_the_ink_round_the_same_way():
+    """THE LOCKSTEP THE LATTICE FIX DEPENDS ON, and the thing Basti asked for
+    when he said it "must be respected for the overlays in the measure tab as
+    well and for the scanner profiling".
+
+    `raster` derives every vertex from the exact millimetre position and rounds
+    once. If `patch_rects_px` rounded the slot first and then added a
+    separately-rounded stagger it would record `round(a) + round(b)` where the
+    ink is at `round(a + b)`, and everything reading those rects -- the Measure
+    overlay, the scanner target, the margin inspector -- would inherit up to a
+    pixel of drift. Measured before the lockstep: 1.65 px. After: 0.60 to 1.01.
+    """
+    import json
+
+    import numpy as np
+    from PIL import Image
+
+    d = Path(tempfile.mkdtemp())
+    N = 300
+
+    def col(i):
+        return (i // 100) * 30 + 5, ((i // 10) % 10) * 10 + 3, (i % 10) * 10 + 3
+
+    lines = ["CTI1", "", 'DESCRIPTOR "lock"', 'ORIGINATOR "ChromIQ"',
+             'KEYWORD "SAMPLE_LOC"', "NUMBER_OF_FIELDS 7", "BEGIN_DATA_FORMAT",
+             "SAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z", "END_DATA_FORMAT",
+             f"NUMBER_OF_SETS {N}", "BEGIN_DATA"]
+    for i in range(N):
+        r, g_, b = col(i)
+        lines.append(f"{i+1} {r}.0 {g_}.0 {b}.0 40 45 50")
+    lines += ["END_DATA", ""]
+    ti1 = d / "p.ti1"
+    ti1.write_text("\n".join(lines), encoding="utf-8")
+
+    for key, flat_top, dpi in (("SS", False, 300), ("CR30", False, 300),
+                               ("CR30", True, 300), ("CR30", True, 600)):
+        out = d / f"{key}{flat_top}{dpi}"
+        out.mkdir()
+        le_chart.build_chart(ti1, out / "c", instrument=key, paper="A4",
+                             hflag=True, hex_flat_top=flat_top, dpi=dpi,
+                             randomize=False, spacer_mode="none")
+        img = np.asarray(Image.open(sorted(out.glob("*.tif"))[0])
+                         .convert("RGB")).astype(int)
+        pats = [q for q in json.loads((out / "c.strips.json")
+                                      .read_text(encoding="utf-8"))["patches"]
+                if q.get("page", 0) == 0]
+        worst, checked = 0.0, 0
+        for r in pats:
+            cx, cy = r["x"] + r["w"] // 2, r["y"] + r["h"] // 2
+            if not (0 <= cy < img.shape[0] and 0 <= cx < img.shape[1]):
+                continue
+            c = tuple(img[cy, cx])
+            if c == (255, 255, 255):
+                continue
+            pad = max(r["w"], r["h"])
+            y0, y1 = max(0, cy - pad), min(img.shape[0], cy + pad)
+            x0, x1 = max(0, cx - pad), min(img.shape[1], cx + pad)
+            m = np.all(img[y0:y1, x0:x1] == np.array(c), axis=2)
+            ys, xs = np.nonzero(m)
+            if len(xs) < 50:
+                continue
+            worst = max(worst, ((xs.mean() + x0 - cx) ** 2
+                                + (ys.mean() + y0 - cy) ** 2) ** 0.5)
+            checked += 1
+        assert checked > 200, f"{key}: only {checked} patches measured"
+        assert worst < 1.3, (
+            f"{key} flat_top={flat_top} at {dpi} dpi: the recorded box centre "
+            f"is {worst:.2f} px from the ink centroid"
+        )
+
+
+def test_the_lattice_change_moved_no_rectangular_chart():
+    """The lattice touches `patch_rects_px`, which every chart goes through, so
+    a rectangular one must come out unchanged. Asserted structurally rather
+    than against a stored hash, so it cannot go stale: with no hexagon the
+    stagger is zero, and `round(a + 0)` must equal the old `round(a)`, with an
+    INTEGER strip offset added afterwards either way."""
+    from workflow.layout_engine import geometry as _G
+    for key in ("i1", "p3", "CM", "41", "51"):
+        g = I.build(key)
+        lay = _G.compute(g, *A4, 300)
+        rects = _G.patch_rects_px(g, *A4, lay, 300)
+        assert rects, f"{key} laid out nothing"
+        # every slot is exactly the pitch apart, with no half-pixel wander
+        by_strip: dict[int, list[int]] = {}
+        steps = lay.steps_in_pass
+        for k, r in enumerate(rects[:steps * 3]):
+            by_strip.setdefault(k // steps, []).append(r["y"])
+        for strip, ys in by_strip.items():
+            gaps = {b - a for a, b in zip(ys, ys[1:])}
+            assert len(gaps) <= 2, (
+                f"{key} strip {strip}: the row pitch wanders over {sorted(gaps)}"
+            )
