@@ -386,3 +386,46 @@ polygon-distance model of this said the diagonals still touch at a 1.3 mm
 spacer. It was wrong, and the rendered sheet is what showed it: the model
 carried the stagger as plen/4 while the pitch had grown to plen+pspa, so it
 described a lattice the renderer does not draw. Measure the ink.
+
+### WHY THE SEAM NUMBERS DIFFER BETWEEN THE SPECTROSCAN AND THE CR30
+
+Basti: *"but it is funny that for the spectroscan the numbers are different
+than for the cr30"*. They are, and it is not about the devices.
+
+**The seam is a property of where a patch pitch lands on the PIXEL GRID, not of
+the instrument.** A CR30 patch is 12.0 mm and a SpectroScan patch is 7.0 mm, so
+at the same resolution the two land at different fractional pixel positions and
+round differently. Measured, fractional part of the pitch in pixels against seam
+count:
+
+| chart | dpi | frac(pwid px) | frac(plen px) | seams | where |
+|---|---|---|---|---|---|
+| SS | 150 | 0.339 | 0.800 | 80 | vertical |
+| SS | 200 | 0.118 | 0.734 | 0 | - |
+| SS | 300 | 0.677 | 0.601 | 0 | - |
+| SS | 400 | 0.236 | 0.467 | 81 | vertical |
+| SS | 600 | 0.354 | 0.201 | 54 | vertical |
+| SS | 720 | 0.425 | 0.841 | 372 | mixed |
+| CR30 | 300 | 0.732 | 0.744 | 365 | mixed |
+| CR30 | 360 | 0.079 | 0.293 | **1222** | mixed |
+| CR30 | 600 | 0.465 | 0.488 | 0 | - |
+| CR30 | 720 | 0.157 | 0.585 | 0 | - |
+| CR30 rot | 300 | 0.744 | 0.732 | 250 | mixed |
+| CR30 rot | 400 | 0.658 | 0.976 | 0 | - |
+
+**No single-variable rule fits**, and that was checked rather than assumed: the
+CR30 at 200 dpi and at 600 dpi have almost the same `frac(pwid px)` (0.488 and
+0.465) and 192 seams against 0. Two distinct staggers does not predict it
+either (SS at 300 dpi has two staggers and zero seams). It is the JOINT effect
+of three independent roundings — the strip's x bounds, the slot's y bounds, and
+the apex offset `t6 = ph/6` on top of both.
+
+**THE STRUCTURAL FINDING, and it is the useful one.** Classifying each seam by
+its shape: they are predominantly along the **VERTICAL flat sides**, where two
+hexagons of the same row meet, or mixed. Never purely diagonal.
+
+That explains why the "one stagger for the whole page" attempt made things
+worse (270 -> 714): it closed the vertical family and opened the diagonal one.
+A fix that addresses one family alone will always do that. The shared vertex
+lattice has to make neighbouring hexagons take the SAME rounded coordinates on
+EVERY shared edge, flat and diagonal together, or it is not a fix.
