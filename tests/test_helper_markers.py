@@ -577,3 +577,169 @@ def test_the_panel_warns_when_the_only_comb_that_prints_is_unticked(qapp):
         "no dashes will be printed and the panel says nothing, because the "
         "greyed top/bottom box answered for the live one"
     )
+
+
+# ---------------------------------------------------------------------------
+# THE TURN MOVES THE STRAIGHT AXIS, AND THIS FILE COULD NOT SEE IT.
+#
+# Every test above was written for a pointy honeycomb and hard-codes its
+# answer: "on a honeycomb, where the engine silently refuses to draw it" is
+# said of the TOP AND BOTTOM comb, which is exactly the comb a TURNED honeycomb
+# does draw. The word `flat_top` did not appear in this file at all, and the
+# shipped fault was green through nine adversarial rounds: mutating the engine
+# so a turned comb reverted to sides left all 70 tests passing, and so did
+# mutating the panel towards the fix.
+# ---------------------------------------------------------------------------
+
+def _turned_panel(turned: bool):
+    """A layout panel showing a CR30 honeycomb, turned or not.
+
+    The three gates the turn is written behind all name the instrument, so a
+    panel that is not on CR30 has no turn to read. Set the selectors the way a
+    user would and let the panel resolve it, which is the thing under test.
+    """
+    p = _panel()
+    if getattr(p, "instr", None) is not None:
+        for i in range(p.instr.count()):
+            if str(p.instr.itemData(i) or "") == "CR30":
+                p.instr.setCurrentIndex(i)
+                break
+    else:
+        # A bare panel has no selectors of its own -- the same state
+        # Preferences > Chart Layout and the relayout dialog are in -- and
+        # `_area_is_hexagonal` then reads the last recipe loaded. Set what that
+        # path reads, so the resolver under test is the real one.
+        p._inst = "CR30"
+    if getattr(p, "mode", None) is not None:
+        for i in range(p.mode.count()):
+            if str(p.mode.itemData(i) or "") == "hex":
+                p.mode.setCurrentIndex(i)
+                break
+    else:
+        p._recipe_hflag = True
+    p.hex_flat_top_cb.setChecked(bool(turned))
+    assert p._area_is_hexagonal(), "the panel does not think this is a honeycomb"
+    return p
+
+
+def _engine_draws(turned: bool, *, top_bottom: bool, sides: bool):
+    """Which combs `helper_marker_lines_mm` actually returns, for real.
+
+    The panel's job is to leave live exactly the switch the engine honours, so
+    the engine is asked directly rather than restated. Returns True when any
+    line comes back.
+    """
+    from dataclasses import replace
+
+    from workflow.layout_engine import geometry, instruments
+    from workflow.layout_engine.presets import default_recipe
+
+    r = replace(default_recipe("CR30", "A4"), hflag=True, hex_flat_top=turned,
+                helper_markers=True, helper_markers_top_bottom=top_bottom,
+                helper_markers_sides=sides)
+    g = instruments.geom_from_build_kwargs(r.build_kwargs())
+    lay = geometry.compute(g, 210.0, 297.0, 150)
+    lines = geometry.helper_marker_lines_mm(
+        g, 210.0, 297.0, lay,
+        top_bottom=top_bottom, sides=sides,
+        edge_mm=2.0, length_mm=2.0, per_patch=3)
+    return bool(lines)
+
+
+@pytest.mark.parametrize("turned", [True, False])
+def test_the_live_comb_is_the_one_the_engine_draws(qapp, turned):
+    """The switch left live must be the switch that puts ink on the sheet.
+
+    Measured before the fix, in the real window, and identical for BOTH
+    orientations: `top_bottom checked=True enabled=False | sides checked=True
+    enabled=True`. On a turned sheet that greys the comb that prints and offers
+    the one that does nothing.
+    """
+    p = _turned_panel(turned)
+    p.helper_markers_cb.setChecked(True)
+    p.set_helper_markers_supported(False, one_axis_only=True)
+
+    live_tb = p.helper_markers_top_bottom.isEnabled()
+    live_sd = p.helper_markers_sides.isEnabled()
+    assert live_tb != live_sd, (
+        f"turned={turned}: exactly one comb can print on a honeycomb, but the "
+        f"panel leaves top/bottom={live_tb} and sides={live_sd}"
+    )
+    assert live_tb is turned, (
+        f"turned={turned}: the panel leaves the top and bottom comb "
+        f"{'greyed' if not live_tb else 'live'}, and the engine "
+        f"{'draws' if turned else 'refuses'} it"
+    )
+
+
+@pytest.mark.parametrize("turned", [True, False])
+def test_the_engine_honours_exactly_the_axis_the_panel_leaves_live(qapp, turned):
+    """The other half of the same claim, asked of the engine.
+
+    Without this the panel could be self-consistent and still wrong: the two
+    sides of the rule are in different modules and both have to be measured.
+    """
+    assert _engine_draws(turned, top_bottom=True, sides=False) is turned, (
+        f"turned={turned}: asking for the top and bottom comb alone "
+        f"{'drew nothing' if turned else 'drew something'}"
+    )
+    assert _engine_draws(turned, top_bottom=False, sides=True) is (not turned), (
+        f"turned={turned}: asking for the side comb alone "
+        f"{'drew something' if turned else 'drew nothing'}"
+    )
+
+
+@pytest.mark.parametrize("turned", [True, False])
+def test_ticking_the_markers_on_does_not_hand_back_the_dead_comb(qapp, turned):
+    """The `_hm_rows` re-enable path has to grey the same comb.
+
+    It hard-coded `helper_markers_top_bottom`, so on a turned sheet ticking the
+    master box handed the user back the comb that draws nothing AND left the
+    working one live: both boxes on, one of them a lie.
+    """
+    p = _turned_panel(turned)
+    p.helper_markers_cb.setChecked(False)
+    p.set_helper_markers_supported(False, one_axis_only=True)
+    p.helper_markers_cb.setChecked(True)          # what a user does next
+    assert p.helper_markers_top_bottom.isEnabled() is turned
+    assert p.helper_markers_sides.isEnabled() is (not turned)
+
+
+@pytest.mark.parametrize("turned", [True, False])
+def test_the_greyed_comb_says_why_and_names_the_right_axis(qapp, turned):
+    """A tooltip that describes the other orientation is worse than none.
+
+    Before the fix a turned sheet read "The left and right dashes line up
+    exactly and stay available", on a chart where they are the ones that do not.
+    """
+    p = _turned_panel(turned)
+    p.set_helper_markers_supported(False, one_axis_only=True)
+    dead = p.helper_markers_sides if turned else p.helper_markers_top_bottom
+    live = p.helper_markers_top_bottom if turned else p.helper_markers_sides
+    tip = dead.toolTip().lower()
+    assert tip, "the greyed comb gives no reason at all"
+    if turned:
+        assert "left and right" in tip and "top and bottom dashes" in tip, tip
+    else:
+        assert "top and bottom" in tip and "left and right dashes" in tip, tip
+    assert live.isEnabled() or not p.helper_markers_cb.isChecked()
+
+
+@pytest.mark.parametrize("turned", [True, False])
+def test_no_dashes_is_said_when_and_only_when_none_will_print(qapp, turned):
+    """Unticking the ONE live box must produce the notice, and ticking it must
+    silence it. Before the fix a turned sheet did the opposite of both."""
+    p = _turned_panel(turned)
+    p.helper_markers_cb.setChecked(True)
+    p.set_helper_markers_supported(False, one_axis_only=True)
+    live = p.helper_markers_top_bottom if turned else p.helper_markers_sides
+
+    live.setChecked(True)
+    assert p._helper_marker_edge_warning_text() == "", (
+        "the panel warns that nothing will print while the comb that does "
+        "print is ticked"
+    )
+    live.setChecked(False)
+    assert p._helper_marker_edge_warning_text() != "", (
+        "the panel is silent while nothing will print at all"
+    )

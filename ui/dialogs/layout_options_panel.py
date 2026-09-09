@@ -3269,6 +3269,24 @@ class LayoutOptionsPanel(QWidget):
             inst = str(self.instr.currentData() or "")
         cb.setVisible(self._area_is_hexagonal() and inst == "CR30")
 
+    def _area_is_turned_hex(self) -> bool:
+        """Whether the honeycomb on screen is TURNED, from the live selectors.
+
+        The same three gates as `_sync_hex_flat_top_visibility`, and asked here
+        rather than passed in, so the turn keeps ONE reader on this screen. A
+        caller that computed it separately would be a second writer, which is
+        the mistake `d1adbe31` made.
+        """
+        cb = getattr(self, "hex_flat_top_cb", None)
+        if cb is None or not cb.isChecked():
+            return False
+        # The same fallback `_area_is_hexagonal` uses: this panel has no
+        # selectors of its own in Preferences > Chart Layout or the relayout
+        # dialog, and there the last recipe loaded is the honest answer.
+        inst = ((self.instr.currentData() if getattr(self, "instr", None)
+                 is not None else getattr(self, "_inst", "i1")) or "i1")
+        return self._area_is_hexagonal() and str(inst) == "CR30"
+
     def _area_is_hexagonal(self) -> bool:
         """Whether the chart on screen is a honeycomb.
 
@@ -4331,7 +4349,11 @@ class LayoutOptionsPanel(QWidget):
         # switches greyed because the master tick was off, and then, ticking
         # it, found the side one live on a honeycomb.
         if getattr(self, "_hm_one_axis_only", False):
-            self.helper_markers_top_bottom.setEnabled(False)
+            # …and it is the comb that DRAWS NOTHING that stays down, which on a
+            # turned honeycomb is the side one. See `set_helper_markers_supported`.
+            (self.helper_markers_sides
+             if getattr(self, "_hm_axis_is_top_bottom", False)
+             else self.helper_markers_top_bottom).setEnabled(False)
 
     def _update_helper_marker_edge_warning(self, *_a) -> None:
         """Say it when the markers are on but no edge is ticked.
@@ -4383,14 +4405,21 @@ class LayoutOptionsPanel(QWidget):
         *one_axis_only* is the honeycomb case, and it is not the same as
         unsupported. A honeycomb's patch centres lie on straight lines along
         three directions, and on any page exactly one of the two page axes is
-        one of them. It is the one DOWN the page: the stagger is applied to x,
-        so the centres are uniform in y and zigzag by half a patch width in x.
-        Measured on A4 portrait, worst distance from a centre to its nearest
-        dash — CR30 sides 0.0310 mm against top/bottom 2.9830 mm; SS sides
-        0.0250 mm against 1.7450 mm. So the LEFT AND RIGHT dashes land and the
-        top and bottom ones would mark the seam between two columns. The group
-        stays usable and only the top/bottom switch is greyed, with its own
-        reason.
+        one of them. WHICH ONE FOLLOWS THE TURN, and reading it as always the
+        same axis is what made this wrong for nine rounds.
+
+        On a POINTY honeycomb the stagger is applied to x, so the centres are
+        uniform in y and zigzag by half a patch width in x: the left and right
+        dashes land and the top and bottom ones would mark the seam between two
+        columns. Measured on A4 portrait, worst distance from a centre to its
+        nearest dash: CR30 sides 0.0310 mm against top/bottom 2.9830 mm; SS
+        sides 0.0250 mm against 1.7450 mm.
+
+        TURNING the honeycomb moves the stagger to y and indexes it by strip,
+        so the straight axis becomes the other one and the engine draws the top
+        and bottom comb instead. `geometry.helper_marker_lines_mm` says so in
+        two branches; this panel now asks `_area_is_turned_hex` and greys the
+        comb that draws NOTHING, whichever it is.
 
         This replaces a blanket refusal whose premise was measurably false, on
         Basti's ruling of 2026-09-09: *"can't they be turned on by the user if
@@ -4415,9 +4444,31 @@ class LayoutOptionsPanel(QWidget):
         # capitals for the same problem. What falls silent is the engine, which
         # drops the side comb for a honeycomb by itself.
         self._hm_one_axis_only = bool(one_axis_only)
-        self.helper_markers_top_bottom.setEnabled(supported and not one_axis_only)
+        # WHICH COMB SURVIVES FOLLOWS THE TURN, AND FOR NINE ROUNDS IT DID NOT.
+        # `helper_marker_lines_mm` draws the side comb on a pointy honeycomb and
+        # the TOP AND BOTTOM comb on a turned one, because turning the patches
+        # moves the straight axis. This panel greyed the top/bottom switch in
+        # both cases, so on a turned sheet it greyed the comb that prints and
+        # offered the one that does nothing: the tooltip was false, unticking
+        # the only live box made the panel say "No dashes will be printed" while
+        # the sheet printed a full comb, and the dashes that did print could not
+        # be switched off at all.
+        self._hm_axis_is_top_bottom = bool(one_axis_only) and self._area_is_turned_hex()
+        _live = (self.helper_markers_top_bottom if self._hm_axis_is_top_bottom
+                 else self.helper_markers_sides)
+        _dead = (self.helper_markers_sides if self._hm_axis_is_top_bottom
+                 else self.helper_markers_top_bottom)
+        _live.setEnabled(supported)
+        _dead.setEnabled(supported and not one_axis_only)
         if one_axis_only:
-            self.helper_markers_top_bottom.setToolTip(tr(
+            _dead.setToolTip(tr(
+                "Not available on a turned honeycomb. Its columns sit at an "
+                "even spacing across the page, but every second column is "
+                "shifted half a patch up or down, so dashes along the left and "
+                "right edges would point at the seam between two rows rather "
+                "than at the patches. The top and bottom dashes line up exactly "
+                "and stay available.")
+                if self._hm_axis_is_top_bottom else tr(
                 "Not available on hexagonal patches. A honeycomb's rows sit at "
                 "an even spacing down the page, but every second row is shifted "
                 "half a patch sideways, so dashes along the top and bottom edges "
