@@ -60,11 +60,19 @@ from workflow.layout_engine import geometry as G, instruments as I
 A4_W, A4_H = 210.0, 297.0
 
 
-def _lines(key="CM", w=A4_W, h=A4_H, n=400, edge=2.0, length=2.0, **build):
+def _lines(key="CM", w=A4_W, h=A4_H, n=400, edge=2.0, length=2.0,
+           top_bottom=True, sides=True, **build):
+    """`**build` goes to the INSTRUMENT; the two comb switches go to the comb.
+
+    They were one bag of keyword arguments until a honeycomb needed one comb
+    without the other, at which point `sides=False` would have been handed to
+    `instruments.build` and raised rather than testing anything.
+    """
     geom = I.build(key, **build)
     lay = G.compute(geom, w, h, n)
-    return geom, lay, G.helper_marker_lines_mm(geom, w, h, lay,
-                                               edge_mm=edge, length_mm=length)
+    return geom, lay, G.helper_marker_lines_mm(
+        geom, w, h, lay, edge_mm=edge, length_mm=length,
+        top_bottom=top_bottom, sides=sides)
 
 
 def _verticals(lines):
@@ -301,11 +309,55 @@ def test_every_rectangular_instrument(key):
     assert lines, key
 
 
-def test_hexagonal_spectroscan_gets_no_markers():
-    """A honeycomb has no straight rows for a ruler to follow, so rather than
-    drawing something misleading it draws nothing."""
-    _, _, lines = _lines(key="SS", n=200, hflag=True)
-    assert lines == []
+def test_a_honeycomb_gets_the_comb_for_the_axis_it_is_straight_along():
+    """THIS REPLACES "a honeycomb gets no markers at all", AND THE OLD RULE WAS
+    WRONG, not merely cautious.
+
+    Its premise was that "a honeycomb has no rows to line a ruler up with".
+    Measured on a real CR30 sheet, a honeycomb's patch centres lie on straight
+    lines along three directions, 0 and +/-60 degrees, and on any page exactly
+    ONE of the two page axes is one of them. Today that axis is ACROSS the page:
+    between strips, `dy = 0.0000` at a 12.0000 mm pitch. It is the axis DOWN a
+    strip that zigzags, by a quarter of the patch width each way.
+
+    So the top and bottom comb, which steps across the page with the strips,
+    lands on every patch; the side comb, which steps down the page, would point
+    at the gaps between them. One is offered, the other is dropped by the engine
+    whatever the caller asks for.
+
+    Basti ruled on 2026-09-09 that these should simply be available: *"can't
+    they be turned on by the user if he wants? they are optional anyway and
+    benefitial here but only as an option i think."* They default to off.
+    """
+    _, _, top_only = _lines(key="SS", n=200, hflag=True, sides=False)
+    assert top_only, "the straight axis lost its comb"
+
+    _, _, sides_only = _lines(key="SS", n=200, hflag=True, top_bottom=False)
+    assert sides_only == [], (
+        "the side comb was drawn on a honeycomb: those dashes would mark a line "
+        "the patches step away from"
+    )
+
+    _, _, both = _lines(key="SS", n=200, hflag=True)
+    assert both == top_only, (
+        "asking for both gave something other than the straight comb alone"
+    )
+
+
+def test_a_honeycomb_with_every_comb_off_still_gets_nothing():
+    """The user's own off switch still wins over the new availability."""
+    _, _, none = _lines(key="SS", n=200, hflag=True,
+                        top_bottom=False, sides=False)
+    assert none == []
+
+
+def test_square_patches_are_completely_unaffected(): 
+    """The change must be invisible to every non-hexagonal chart: both combs,
+    each alone, and neither."""
+    for tb, sd in ((True, True), (True, False), (False, True)):
+        _, _, lines = _lines(key="SS", n=200, hflag=False,
+                             top_bottom=tb, sides=sd)
+        assert lines, f"square patches lost their markers at {tb=} {sd=}"
 
 
 def test_a_flat_spectroscan_still_gets_them():
@@ -380,3 +432,68 @@ def test_markers_that_would_meet_in_the_middle_are_refused():
 def test_a_zero_length_marker_draws_nothing():
     _, _, lines = _lines(length=0.0)
     assert lines == []
+
+
+# ---------------------------------------------------------------------------
+# the panel: the side switch must STAY down once it is put down
+# ---------------------------------------------------------------------------
+def _panel(qtbot=None):
+    """A bare layout panel, no tab and no settings around it."""
+    from ui.dialogs.layout_options_panel import LayoutOptionsPanel
+    return LayoutOptionsPanel()
+
+
+def test_ticking_the_markers_on_does_not_hand_back_the_side_comb(qapp):
+    """FOUND ON SCREEN, NOT OFFSCREEN, AND IT WOULD HAVE SHIPPED.
+
+    `helper_markers_sides` is one of the widgets in `_hm_rows`, and
+    `_update_helper_marker_rows` re-enables every widget in those rows whenever
+    the master box is ticked. `set_helper_markers_supported` greys the side
+    switch ONCE, when the instrument changes; the user then ticks "Print helper
+    markers" and gets it straight back, on a honeycomb, where the engine
+    silently refuses to draw it. Greyed then live is worse than never greyed:
+    the control looks armed and does nothing.
+
+    The driver caught it because it did what a user does, in that order. Every
+    offscreen test until now called the two methods the other way round.
+    """
+    p = _panel()
+    p.helper_markers_cb.setChecked(False)
+    p.set_helper_markers_supported(False, one_axis_only=True)
+    assert not p.helper_markers_sides.isEnabled()
+
+    p.helper_markers_cb.setChecked(True)          # what the user does next
+    assert p.helper_markers_top_bottom.isEnabled(), \
+        "the comb that DOES print went down with the master tick"
+    assert not p.helper_markers_sides.isEnabled(), (
+        "ticking the markers on handed back the side comb on a honeycomb, "
+        "where the engine draws nothing for it"
+    )
+
+
+def test_the_side_comb_comes_back_when_the_patches_do(qapp):
+    """The greying is a property of the chart, not a one-way door. Square
+    patches must restore it, or a user who turns hexagons off is stuck."""
+    p = _panel()
+    p.helper_markers_cb.setChecked(True)
+    p.set_helper_markers_supported(False, one_axis_only=True)
+    assert not p.helper_markers_sides.isEnabled()
+
+    p.set_helper_markers_supported(True)          # back to square patches
+    assert p.helper_markers_sides.isEnabled(), \
+        "the side comb stayed greyed after the honeycomb was turned off"
+    p.helper_markers_cb.setChecked(False)
+    p.helper_markers_cb.setChecked(True)
+    assert p.helper_markers_sides.isEnabled(), \
+        "and it was taken away again by the next toggle"
+
+
+def test_the_saved_choice_is_never_unticked_by_the_greying(qapp):
+    """DISABLE, NEVER UNTICK. The value belongs to the target and must survive
+    for the day the same chart is laid out with square patches."""
+    p = _panel()
+    p.helper_markers_sides.setChecked(True)
+    p.set_helper_markers_supported(False, one_axis_only=True)
+    p.helper_markers_cb.setChecked(True)
+    assert p.helper_markers_sides.isChecked(), \
+        "the honeycomb threw away a choice that belongs to the target"

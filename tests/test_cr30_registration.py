@@ -644,18 +644,38 @@ def test_a_flat_chart_has_one_x_per_column(inst) -> None:
 
 
 @pytest.mark.parametrize("inst", ["CR30", "SS"])
-def test_a_honeycomb_gets_no_ruler_helper_markers(inst) -> None:
-    """#152's rule, and it follows the SHAPE, not the instrument: a honeycomb
-    has no rows to line a ruler against."""
+def test_a_honeycomb_gets_the_comb_it_is_straight_along(inst) -> None:
+    """#152 used to say a honeycomb gets NO markers, because "a honeycomb has no
+    rows to line a ruler against". That premise was measured false on a real
+    CR30 sheet: patch centres lie on straight lines along three directions, and
+    on any page exactly one of the two page axes is one of them. Today it is the
+    axis ACROSS the page, where `dy = 0.0000` between strips.
+
+    So a honeycomb keeps the top and bottom comb, which lands on every patch,
+    and loses the side comb, which would point at the gaps. Basti's ruling,
+    2026-09-09. It still follows the SHAPE and not the instrument, which is why
+    this runs for the CR30 and the SpectroScan alike.
+    """
     w, h = papers.dimensions_mm("A4")
-    for mode, expect_markers in (("flat", True), ("hex", False)):
+    for mode in ("flat", "hex"):
         r = presets.default_recipe(inst, "A4", mode=mode)
         g = instruments.geom_from_build_kwargs(
             {**r.build_kwargs(), "instrument": inst, "paper": "A4"})
         lay = geometry.compute(g, w, h, 120)
-        lines = geometry.helper_marker_lines_mm(g, w, h, lay,
-                                                edge_mm=2.0, length_mm=4.0)
-        assert bool(lines) is expect_markers, f"{inst}/{mode}"
+
+        def comb(**kw):
+            return geometry.helper_marker_lines_mm(
+                g, w, h, lay, edge_mm=2.0, length_mm=4.0, **kw)
+
+        assert comb(sides=False), f"{inst}/{mode}: lost the top and bottom comb"
+        if mode == "hex":
+            assert comb(top_bottom=False) == [], (
+                f"{inst}/hex: the side comb was drawn, and its dashes would "
+                "mark a line the patches step away from")
+            assert comb() == comb(sides=False), \
+                f"{inst}/hex: asking for both gave more than the straight comb"
+        else:
+            assert comb(top_bottom=False), f"{inst}/flat: lost the side comb"
 
 
 def test_hex_capability_is_asked_of_the_geometry_not_a_list() -> None:

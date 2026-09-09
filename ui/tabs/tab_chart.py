@@ -18355,7 +18355,11 @@ class TabChart(QWidget):
         if panel is None or not hasattr(panel, "set_helper_markers_supported"):
             return
         try:
-            panel.set_helper_markers_supported(not self._chart_is_hexagonal())
+            # A honeycomb is not "unsupported" any more: it carries the comb
+            # for the axis its patches are straight along. Only the other
+            # switch is greyed. See `helper_marker_lines_mm`.
+            _hex = self._chart_is_hexagonal()
+            panel.set_helper_markers_supported(not _hex, one_axis_only=_hex)
         except Exception:      # noqa: BLE001 — never block the inspector
             log.debug("could not set helper-marker availability", exc_info=True)
 
@@ -18424,8 +18428,9 @@ class TabChart(QWidget):
             return None
         if not getattr(self, "_margin_tiffs", None) or self._margin_ti2 is None:
             return None
-        if self._chart_is_hexagonal():
-            return None
+        # The preview overlay follows the same rule as the sheet: a honeycomb
+        # gets the comb it is straight along, so it is drawn rather than
+        # refused. `helper_marker_lines_mm` drops the axis that cannot line up.
         from workflow.layout_engine.presets import LayoutRecipe
         from workflow.layout_engine import instruments, geometry, papers
         ch = Path(self._margin_ti2).with_suffix(".channels.json")

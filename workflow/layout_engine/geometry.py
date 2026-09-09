@@ -690,9 +690,26 @@ def helper_marker_lines_mm(geom: Geom, paper_w_mm: float, paper_h_mm: float,
     height offset, thus the markers land the correct place if you just use the
     first strip as the reference."*
 
-    Hexagonal charts return no markers at all — SpectroScan or CR30 (#159): a
-    honeycomb has no rows to line a ruler up with. This is #152's rule, and it
-    follows the SHAPE, not the instrument.
+    **A honeycomb gets the comb for the axis it is straight along, and not the
+    other.** This replaces a blanket refusal, and the premise of that refusal was
+    measurably false. It used to say "a honeycomb has no rows to line a ruler up
+    with" (#152) and return nothing at all for a SpectroScan or a CR30. Measured
+    on a real CR30 sheet: a honeycomb has straight lines of patch centres along
+    three directions, 0° and ±60°, and on any page exactly ONE of the two page
+    axes is one of them. On today's pointy-top sheet the straight one is ACROSS
+    the page: `dy = 0.0000` between strips, at a 12.0000 mm pitch. What zigzags
+    is the other axis, by ±¼ of the patch width.
+
+    So the top/bottom comb, which steps across the page with the strips, lines up
+    exactly; the side comb, which steps down the page with the patches, would
+    mark a line the patches are not on. The first is offered, the second is not,
+    and a caller that asks for the second on a honeycomb gets nothing rather than
+    a comb of dashes that points at the gaps between patches.
+
+    Basti, 2026-09-09: *"can't they be turned on by the user if he wants? they
+    are optional anyway and benefitial here but only as an option i think."*
+    They now can, and they still default to off. Nothing here is switched on for
+    anybody who does not ask for it.
 
     Markers may cross a margin label or the clip-border text; that is accepted —
     *"overlapping is acceptable. User must adapt settings for the markers,
@@ -703,7 +720,13 @@ def helper_marker_lines_mm(geom: Geom, paper_w_mm: float, paper_h_mm: float,
     """
     from .instruments import is_hexagonal as _is_hex
     if _is_hex(geom):
-        return []
+        # ONE AXIS, NOT NONE. See the docstring: the comb that steps ACROSS the
+        # page follows a straight line of patch centres on a pointy-top
+        # honeycomb; the one that steps down the page would mark the zigzag.
+        # Drop the second rather than the pair.
+        sides = False
+        if not top_bottom:
+            return []
     if paper_w_mm <= 0 or paper_h_mm <= 0 or length_mm <= 0:
         return []
     if not top_bottom and not sides:

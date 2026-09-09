@@ -4261,6 +4261,15 @@ class LayoutOptionsPanel(QWidget):
                 if isinstance(w, TooltipButton):
                     continue
                 w.setEnabled(on)
+        # AND THE SIDE COMB STAYS DOWN ON A HONEYCOMB. It is one of the widgets
+        # in `_hm_rows`, so without this line ticking the markers on hands it
+        # straight back: `set_helper_markers_supported` greys it once, when the
+        # instrument changes, and this method runs every time the box is
+        # toggled. Caught by the on-screen driver, which found both edge
+        # switches greyed because the master tick was off, and then, ticking
+        # it, found the side one live on a honeycomb.
+        if getattr(self, "_hm_one_axis_only", False):
+            self.helper_markers_sides.setEnabled(False)
 
     def _update_helper_marker_edge_warning(self, *_a) -> None:
         """Say it when the markers are on but no edge is ticked.
@@ -4292,19 +4301,32 @@ class LayoutOptionsPanel(QWidget):
         return ""
 
     def set_helper_markers_supported(self, supported: bool,
-                                     reason: str = "") -> None:
+                                     reason: str = "",
+                                     *, one_axis_only: bool = False) -> None:
         """Grey the ruler-marker controls out when the chart cannot carry them.
 
-        A hexagonal SpectroScan chart is a honeycomb — it has no rows to lay a
-        ruler against, so the dashes are meaningless there and the engine draws
-        none. Knut asked (#152) for the reason to be readable rather than the
-        box simply going dead, so it goes on the group and on every control
-        inside it, which is what a hover reaches.
+        Knut asked (#152) for the reason to be readable rather than the box
+        simply going dead, so it goes on the group and on every control inside
+        it, which is what a hover reaches.
+
+        *one_axis_only* is the honeycomb case, and it is not the same as
+        unsupported. A honeycomb's patch centres lie on straight lines along
+        three directions, and on any page exactly one of the two page axes is
+        one of them: today that is ACROSS the page, measured at `dy = 0.0000`
+        between strips. So the top and bottom dashes line up exactly and the
+        side ones would mark a line the patches are not on. The group stays
+        usable and only the side switch is greyed, with its own reason.
+
+        This replaces a blanket refusal whose premise was measurably false, on
+        Basti's ruling of 2026-09-09: *"can't they be turned on by the user if
+        he wants? they are optional anyway."* They can now, and they still
+        default to off.
         """
         grp = getattr(self, "_helper_markers_grp", None)
         if grp is None:
             return
-        grp.setEnabled(bool(supported))
+        supported = bool(supported) or bool(one_axis_only)
+        grp.setEnabled(supported)
         tip = "" if supported else (reason or tr(
             "This chart's patches are hexagons, which have no rows to lay a "
             "ruler against — so helper markers cannot be printed on it."))
@@ -4312,6 +4334,20 @@ class LayoutOptionsPanel(QWidget):
                   self.helper_marker_len, self.helper_marker_per_patch,
                   self.helper_markers_top_bottom, self.helper_markers_sides):
             w.setToolTip(tip)
+        # DISABLE, NEVER UNTICK. The saved value belongs to the target and must
+        # survive for the day the same chart is laid out with square patches
+        # that can honour it, which is the doctrine `tab_measure.py` states in
+        # capitals for the same problem. What falls silent is the engine, which
+        # drops the side comb for a honeycomb by itself.
+        self._hm_one_axis_only = bool(one_axis_only)
+        self.helper_markers_sides.setEnabled(supported and not one_axis_only)
+        if one_axis_only:
+            self.helper_markers_sides.setToolTip(tr(
+                "Not available on hexagonal patches. A honeycomb's patches sit "
+                "in straight lines across the page but step sideways as they go "
+                "down it, so dashes along the left and right edges would point "
+                "at the gaps between patches rather than at the patches. The "
+                "top and bottom dashes line up exactly and stay available."))
         if supported:
             self._update_helper_marker_rows()
 
