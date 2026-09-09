@@ -515,25 +515,30 @@ def test_the_outside_band_is_a_full_width_spacer(flat_top):
 @pytest.mark.parametrize("spacer_mode", ["none", "colored"])
 @pytest.mark.parametrize("dpi", [
     pytest.param(300, marks=pytest.mark.xfail(strict=True, reason=(
-        "KNOWN, MEASURED, PRE-EXISTING, NOT FIXED HERE. A honeycomb rendered at "
-        "300 dpi leaves ~270 pixels of bare paper along the seams between "
-        "patches (223 rotated). Three hexagons meet at every apex and each "
-        "rounds its own vertices independently, from slot bounds that are "
-        "themselves rounded per strip: at 300 dpi a 12.0000 mm pitch comes out "
-        "142 px on most strips and 141 on some, so one hexagon's right edge "
+        "KNOWN, MEASURED, PRE-EXISTING, NOT FIXED HERE. A honeycomb leaves bare "
+        "paper along the seams between its patches. Three hexagons meet at every "
+        "apex and each rounds its vertices independently, from slot bounds that "
+        "are themselves rounded per strip: at 300 dpi a 12.0000 mm pitch comes "
+        "out 142 px on most strips and 141 on some, so one hexagon's right edge "
         "lands on x=566 and its neighbour's left edge on 567. It is IDENTICAL "
         "with spacers off, so the ring did not cause it; a dark ring only made "
-        "it visible, which is how Basti found it (2026-09-09: 'there is a black "
-        "spacer with white points in it'). Gone entirely at 600 dpi. "
-        "TWO FIXES WERE TRIED AND BOTH COST MORE THAN THEY PAID: growing every "
+        "it visible, which is how Basti found it. "
+        "IT IS NOT A '300 DPI' PROBLEM, and an earlier note here said it was. "
+        "Swept over 150/200/300/360/400/600/720 dpi on a 300-patch A4, seam "
+        "pixels: SS pointy 80/0/0/0/81/54/372; CR30 pointy 78/192/365/1222/48/"
+        "0/0; CR30 rotated 0/40/250/214/0/0/0. It is arbitrary in the "
+        "resolution, every hex-capable instrument has it at some resolutions, "
+        "and NO resolution is clean for all of them, so 'render higher' is not "
+        "a workaround. "
+        "THREE FIXES WERE TRIED AND ALL COST MORE THAN THEY PAID: growing every "
         "hexagon half a pixel closed it but made neighbours visibly overlap and "
         "widened an SS patch by 3 px, breaking the measured four-thirds "
         "relation; deriving one stagger for the whole page closed the vertical "
-        "seams and opened more diagonal ones, 270 -> 714. Drawing each polygon's "
-        "own outline in its fill colour is not it either: 270 -> 264. The real "
-        "fix is a shared vertex lattice, where neighbouring hexagons take the "
-        "SAME rounded coordinates for the edge they share, and that is its own "
-        "piece of work.")), id="300"),
+        "seams and opened more diagonal ones, 270 -> 714; drawing each polygon's "
+        "own outline in its fill colour took 270 -> 264. The real fix is a "
+        "shared vertex lattice, where neighbouring hexagons take the SAME "
+        "rounded coordinates for the edge they share, and that is its own piece "
+        "of work.")), id="300"),
     600,
 ])
 def test_a_honeycomb_has_no_seams_between_its_patches(flat_top, spacer_mode, dpi):
