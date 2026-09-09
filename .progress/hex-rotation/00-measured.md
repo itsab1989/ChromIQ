@@ -429,3 +429,57 @@ worse (270 -> 714): it closed the vertical family and opened the diagonal one.
 A fix that addresses one family alone will always do that. The shared vertex
 lattice has to make neighbouring hexagons take the SAME rounded coordinates on
 EVERY shared edge, flat and diagonal together, or it is not a fix.
+
+### THE SEAM, FULLY DIAGNOSED (2026-09-09) — it is a ROUNDING CHANGEOVER
+
+Basti, looking at a proof shot: *"between row 10 and 11 and 15 and 16 some
+hexes still have those white pixels where they are supposed to touch. why does
+this still happen and why only in some places?"*
+
+Measured on the chart in that screenshot (SpectroScan honeycomb, 12 mm patches,
+200 dpi, A4). Seam pixels per row boundary:
+
+| row j | boundary y | exact y | slot height ph | seam px |
+|---|---|---|---|---|
+| 1, 2 | 215, 297 | | 82 | 3 |
+| **3** | 379 | 378.56 | **81** | **46** |
+| 4..8 | | | 82 | 3 |
+| 9 | 870 | 869.53 | **81** | 3 |
+| **10** | 951 | 951.36 | 82 | **41** |
+| 11..14 | | | 82 | 3 |
+| **15** | 1361 | 1360.51 | **81** | **46** |
+| 16..19 | | | 82 | 3 |
+| 20 | 1770 | 1769.65 | **81** | 3 |
+| **21** | 1851 | 1851.48 | 82 | **41** |
+
+**The mechanism, exactly.** The row pitch is 10.392 mm = **81.83 px** at 200
+dpi, so most rows round to a slot 82 px tall and roughly every sixth rounds to
+81. The apex overhang is `t6 = ph/6`, computed from THAT ROW'S OWN rounded
+height, so a row of 82 gets 13.667 and a row of 81 gets 13.500. At a boundary
+where the two neighbours round differently, one hexagon's bottom apex and the
+next row's upper shoulder are derived from different numbers and land **one
+pixel apart** — measured, `apex 393 / shoulder 392` at j=3 and `964 / 965` at
+j=10. Every other boundary lands on the same pixel and shows only the 3 px of
+corner noise every join has.
+
+So: **not "some places" at random — exactly the boundaries where the rounding
+of the slot height changes**, which is every sixth row at this pitch and dpi,
+and at a different period for every other pitch and dpi. That is also why the
+counts differ between the SpectroScan and the CR30 (12.0 mm vs 7.0 mm patches
+land differently on the same grid).
+
+**THE OBVIOUS FIX IS WRONG, AND IT WAS TRIED.** Since `yB` of row j-1 already
+equals `y0` of row j exactly, deriving `t6` from ONE canonical height would
+make apex and shoulder identical by construction. Measured across the matrix it
+made things WORSE — SS at 400 dpi went 81 -> 1405 seam pixels, CR30 at 600 went
+0 -> 1712 — because within a single hexagon the lower shoulders sit at
+`y0 + 5*t6` and that must equal `yB - t6`, which only holds when `t6 = ph/6`
+for that row's own ph. A canonical t6 fixes the join between hexagons and
+breaks the hexagon.
+
+**So the fix really is the whole shared vertex lattice**: every vertex derived
+from one lattice with a constant pitch, rather than each slot rounding its own
+bounds and then its own sixth. That changes patch positions sub-pixel and
+touches the recorded rects, so it is its own commit with its own gate and its
+own before/after manifest. Three cheap fixes have now been tried and measured
+worse; do not try a fourth without reading this section.
