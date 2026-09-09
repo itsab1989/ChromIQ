@@ -3,14 +3,18 @@
 ## v4.2.1
 
 **Two ready-made charts for the paper sizes photo paper is actually sold in,
-and four faults found while checking them. Nelson Lau designed a 600-patch
-target for a 10 x 15 cm card and a 648-patch one for 13 x 18 cm, both for the
-i1Pro, and ChromIQ had nothing for either size before now. Along the way: a
-project built for a CR30 stopped reopening as a ColorMunki and slowly becoming
-one, Preferences stopped telling CR30 owners their instrument reads at 100 Hz,
-a setting you chose stopped being thrown away when you looked at another
-instrument, and the patch count for an unusual sheet size stopped being five
-times too high.**
+and a honeycomb that can now be turned so its strips run straight. Nelson Lau
+designed a 600-patch target for a 10 x 15 cm card and a 648-patch one for
+13 x 18 cm, both for the i1Pro, and ChromIQ had nothing for either size before
+now. A CR30's hexagonal chart gains an option to stand its patches on a flat
+side instead of a point, which makes every strip run straight down the page
+instead of zigzagging; its spacer becomes a ring around each patch rather than
+a bar between rows; and the ruler helper markers, which a honeycomb could not
+have at all, are available on both. Along the way: a project built for a CR30
+stopped reopening as a ColorMunki and slowly becoming one, Preferences stopped
+telling CR30 owners their instrument reads at 100 Hz, a setting you chose
+stopped being thrown away when you looked at another instrument, and the patch
+count for an unusual sheet size stopped being five times too high.**
 
 ### New
 
@@ -28,6 +32,39 @@ times too high.**
   paper list.** These two are the first that are. Unlocking "Edit page layout"
   shows the sheet the chart was made for as a custom size with its width and
   height filled in, instead of quietly saying A4.
+- **Straight strips: the CR30 honeycomb can be turned 30 degrees.** Create
+  Chart, Manual, Expert Options, Patches & spacers, and only while the
+  instrument is a CR30 with Hexagon patches on. It is off unless you turn it
+  on, and it is saved with the target and inside a preset like any other layout
+  setting. The patches themselves do not change: it is the same hexagon, the
+  same size, stood on a flat side instead of a point, so nothing is stretched
+  and each patch holds the same ink. What changes is that every second patch in
+  a strip no longer sits half a patch to the side, so a strip you read patch by
+  patch runs straight down the page and a ruler lies along it. The strips and
+  rows come out a different length, so the number of patches on a sheet can
+  move a little either way: on A4 portrait 368 becomes 360, on A4 landscape 368
+  becomes 378, on Letter 352 becomes 361. Watch the count beside the preview.
+- **Ruler helper markers work on a hexagonal chart.** They were refused on any
+  honeycomb, on the grounds that it has no straight rows to lay a ruler
+  against. It has: a honeycomb's patch centres sit on straight lines, and on
+  any page one of the two page axes is one of them. The comb that lines up is
+  drawn and the other is greyed with the reason, and which is which follows the
+  turn above. This reaches the SpectroScan's honeycomb too, which had no
+  markers before either.
+- **A honeycomb's spacer is drawn around each patch instead of between rows.**
+  Switching Spacers on for a hexagonal chart used to paint a bar across the
+  sheet between one row and the next, which covered three quarters of the point
+  of every patch above it and pulled the diagonals apart into slivers of bare
+  paper. It is now a ring around each patch, which separates all six of its
+  neighbours instead of two, and each of the six sides takes its own colour
+  against the patch it faces, so "Black & white" still means black and white.
+  Two patches that touch share one spacer on the side that touches. Because the
+  ring comes out of the patch's own area rather than out of the page, switching
+  spacers on no longer costs you patches: a sheet that held 9 strips of 26 with
+  them off still holds 9 strips of 26 with them on, where it used to drop to 23.
+  **A hexagonal CR30 project rebuilt with spacers switched on will lay out
+  differently from before** for that reason; rectangular charts and the
+  SpectroScan are unaffected.
 
 ### Fixed
 
