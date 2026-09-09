@@ -93,3 +93,12 @@ assets/app_icon.ico
 # the Desktop now, but belt and braces: never commit one from anywhere.
 cr30-bluetooth-report*.txt
 scripts/offscreen_font_probe/_results/
+
+# THE #182 RESEARCH NOTES STAY OUT OF THE REPOSITORY, DELIBERATELY.
+# `.progress/` is otherwise tracked -- 32 files of it are committed -- so a
+# single `git add -A` would publish these. They quote tolerance VALUES read out
+# of ISO 12647-7 and ISO 12647-8, and the whole point of the permission enquiry
+# is that those values are not in the public repository and not in any posted
+# picture. Publishing them by accident would make the enquiry's own premise
+# false while it is still unanswered.
+.progress/issue-182/
