@@ -136,6 +136,15 @@ class Geom:
     # the sentinel so it behaves exactly as before. (#93)
     label_band_mm: float = -1.0   # actual strip-label + underline band height
     bottom_reserve_mm: float = 0.0   # actual bottom sheet-text + stamp height
+    # WHERE THE LABELS' INK ACTUALLY ENDS, measured DOWN FROM `leader_top`, and
+    # not the same number as `label_band_mm` above. The reserve measures an
+    # auto-sized label by its ink bbox and knows nothing of the user's
+    # `strip_label_offset_mm`; the RENDERER draws the band at the font's full
+    # pixel size and moves it by that offset. On every layout but one the gap
+    # between the two is slack nobody notices. On a turned honeycomb there is no
+    # slack -- see `geometry._turned_hex` -- so the guard there needs the drawn
+    # figure, and only the renderer can supply it. 0 = not computed.
+    label_ink_bottom_mm: float = 0.0
     # Bracket each strip with a leading + trailing spacer (printtarg parity).
     # When OFF the two end gaps are reclaimed for patches (denser than printtarg).
     edge_spacers: bool = False
@@ -192,6 +201,30 @@ class Geom:
     # NOT inferred from hxeh/hxew: the ColorMunki's row stagger sets hxeh
     # without being hexagonal, so those floats answer a different question.
     hexagonal: bool = False
+    # Which way up the honeycomb sits. False (the default, and every chart built
+    # before #159) is pointy-top: apexes at the top and bottom, strips zigzagging
+    # sideways. True is the same hexagon turned 30 degrees, so the apexes point
+    # left and right and each strip runs STRAIGHT down the page.
+    #
+    # THIS FIELD IS THE ONLY THING DOWNSTREAM MAY ASK, AND IT HAS ONE WRITER:
+    # the `key == "CR30" and hflag` branch of `_build_base`. Nothing reads the
+    # recipe's flag directly. That is what makes the option inert by
+    # construction on every other instrument: a tick made on a CR30, left
+    # standing in the recipe (hiding must never untick) and then carried to a
+    # SpectroScan honeycomb cannot reach the page, because no SpectroScan Geom
+    # can ever carry it. `ca0f639c` was that fault with "disabled" for "hidden".
+    hex_flat_top: bool = False
+    # A honeycomb's spacer, as a RING around each patch rather than a bar
+    # between rows (#159). Full width of the gap between two neighbouring
+    # patches, in mm; each patch gives up half of it, so the two half-bands abut
+    # into one shared spacer.
+    #
+    # IT IS SEPARATE FROM `pspa` BECAUSE IT COSTS NO PAGE. `pspa` is added to
+    # the pitch, so a bar pushes the lattice apart and costs patches; a ring
+    # comes out of the patch's own area and the lattice keeps tessellating.
+    # `build()` moves the value across once the user's spacer-width override has
+    # been applied, so the Spacer size box goes on meaning the same thing.
+    hex_ring_mm: float = 0.0
     # Physical strip-length limit of the instrument's ruler/jig (mm); 0 = none
     # (ColorMunki/SpectroScan have no ruler). In area-first the strip is NOT capped
     # to this (the margin box is law — fill it), but a strip longer than the ruler
@@ -263,6 +296,7 @@ def build(
     pscale: float = 1.0,
     sscale: float = 1.0,
     hflag: bool = False,
+    hex_flat_top: bool = False,
     density: int = 1,
     spacer_on: bool = True,
     border: float = 6.0,
@@ -300,7 +334,8 @@ def build(
     ``border`` still drives the instrument leader and clip-holder base.
     """
     geom = _build_base(
-        key, pscale=pscale, sscale=sscale, hflag=hflag, density=density,
+        key, pscale=pscale, sscale=sscale, hflag=hflag,
+        hex_flat_top=hex_flat_top, density=density,
         spacer_on=spacer_on, border=border, nolpcbord=nolpcbord, nolimit=nolimit,
         clip_border_width=clip_border_width, clip_band=clip_band)
     mt, mr, mb, ml = margins if margins else (geom.border,) * 4
@@ -357,8 +392,25 @@ def build(
     # that kept its unresized reservation is exactly the bug this block was
     # written for, and it does not care which device is reading the sheet.
     if geom.hexagonal and (patch_w or patch_h):
-        hxeh = plen / 6.0
-        hxew = 0.25 * pwid
+        # RESIZING A HEXAGON RESIZES BOTH ITS OVERHANGS, and the turn decides
+        # which one is which. `_build_base` already made that distinction --
+        # apex = a sixth, stagger = a quarter, on opposite axes for the two
+        # orientations -- and this block used to restate only the pointy half,
+        # so a rotated chart with any patch size set came out with the two
+        # reserves swapped: hxeh 2.0200 where 3.0300 was needed and hxew 2.6241
+        # where 1.7494 was.
+        #
+        # It under-reserved the STAGGER, so ink printed 1.0 mm outside the
+        # margin the user set, and over-reserved the APEX, so 0.9 mm of page
+        # was thrown away on the other axis. It fires on every area-first build
+        # (`geom_from_build_kwargs` derives patch_w/patch_h and feeds them back
+        # here) and on every Manual patch size, which is to say almost always.
+        if geom.hex_flat_top:
+            hxeh = 0.25 * plen       # stagger, up and down
+            hxew = pwid / 6.0        # apex, side to side
+        else:
+            hxeh = plen / 6.0        # apex, up and down
+            hxew = 0.25 * pwid       # stagger, side to side
     row_stagger = 0.0
     if key == "CM" and cm_stagger:
         row_stagger = 0.5 * (plen + 0.5 * pspa)
@@ -374,8 +426,62 @@ def build(
             mr = max(mr, clip_w)
         else:
             ml = max(ml, clip_w)
+    # A HONEYCOMB'S SPACER IS A RING, NOT A BAR, and this is where the two part
+    # company -- AFTER the Spacer size override above, so that box keeps its
+    # meaning.
+    #
+    # Measured on a CR30 A4 honeycomb with spacers switched on: the bar left 22
+    # full-width black rules across the sheet, each covering 75 % of the apex of
+    # every patch in the row above, and it opened 6.64 % of white slivers along
+    # the diagonals, because it grows the pitch on ONE axis while a honeycomb
+    # interlocks in three directions. Turning the honeycomb halved that (2.35 %)
+    # and could not remove it. A ring is the only spacer shape that gives a
+    # honeycomb a uniform gap.
+    _ring = 0.0
+    if geom.hexagonal and pspa > 0:
+        _ring, pspa = pspa, 0.0
+        # AND A RING CANNOT EAT THE PATCH. "Spacer size" accepts 0-300 mm, and
+        # on a rectangular chart a huge one merely wastes the page. A ring comes
+        # out of the patch's own area, so past the hexagon's inradius it turns
+        # the shape inside out: at 40 mm a CR30 A4 honeycomb printed 11.94 mm
+        # inside a 20 mm margin, and at 300 mm it covered the sheet.
+        #
+        # The cap is generous -- 4.16 mm on a standard 12 mm CR30 patch, three
+        # times the 1.3 mm default -- so it constrains nobody who is not already
+        # destroying the chart.
+        _ring = min(_ring, 0.8 * min(pwid, plen) / 2.0)
+        # AND THE OUTER BAND HAS TO BE RESERVED, or it prints off the edge of
+        # the user's margin. A side facing the paper carries the FULL spacer by
+        # itself and reaches `ring/2` OUTWARD past the hexagon, which is what
+        # Basti asked for ("the spacers on the outside should probably be
+        # double if turned on") -- but nothing told the layout, so the ink went
+        # 0.70 mm past a 20 mm margin at the default ring and 2.43 mm at the
+        # clamp maximum, on both orientations. Measured against the branch
+        # point, which stays at 20.066 mm, so it was a regression and not an
+        # inherited fault.
+        #
+        # The apexes stick out furthest, so the allowance goes on both
+        # overhangs; a honeycomb reserves `2*hxeh` along the strip and `2*hxew`
+        # across it, and the band needs half a ring on each side of each.
+        if edge_spacers:
+            # AND THE APEX GROWS FASTER THAN THE FLAT SIDES. Moving an edge
+            # outward by `d` along its normal moves the VERTEX by `d / cos 30`,
+            # so a ring/2 band reaches `0.5774 * ring` past the points and only
+            # `0.5 * ring` past the flats. Reserving ring/2 on both axes left
+            # the rotated sheet 0.10 mm outside a 20 mm margin at the default
+            # and 0.27 mm at the clamp maximum. The apex is on the y axis for a
+            # pointy honeycomb and on the x axis for a turned one, so the
+            # allowance swaps with the orientation exactly as the overhangs do.
+            _flat_side = _ring / 2.0
+            _apex = _ring / 2.0 * 2.0 / math.sqrt(3.0)
+            if geom.hex_flat_top:
+                hxeh += _flat_side
+                hxew += _apex
+            else:
+                hxeh += _apex
+                hxew += _flat_side
     return replace(geom, margin_t=mt, margin_r=mr, margin_b=mb, margin_l=ml,
-                   plen=plen, pwid=pwid, rrsp=rrsp, pspa=pspa, mxrowl=mxrowl,
+                   plen=plen, pwid=pwid, rrsp=rrsp, pspa=pspa, hex_ring_mm=_ring, mxrowl=mxrowl,
                    hxeh=hxeh, hxew=hxew, row_stagger_mm=row_stagger,
                    strip_indicator_gap=sig, rlwi=rlwi,
                    offset_x=offset_x, offset_y=offset_y,
@@ -395,7 +501,7 @@ def build(
 # (clip_border_width once did exactly that — #93). This is the single source of
 # truth shared by every capacity calculation.
 GEOM_BUILD_KEYS = (
-    "hflag", "density", "spacer_on", "pscale", "sscale", "border", "margins",
+    "hflag", "hex_flat_top", "density", "spacer_on", "pscale", "sscale", "border", "margins",
     "patch_w", "patch_h", "spacer_width", "inter_patch", "strip_gap", "max_strip",
     "strip_indicator_gap", "row_indicators", "offset_x", "offset_y",
     "nolpcbord", "nolimit",
@@ -464,6 +570,7 @@ def _build_base(
     pscale: float = 1.0,
     sscale: float = 1.0,
     hflag: bool = False,
+    hex_flat_top: bool = False,
     density: int = 1,
     spacer_on: bool = True,
     border: float = 6.0,
@@ -723,7 +830,32 @@ def _build_base(
         # (the rows interleave), pokes plen/6 past its slot top and bottom and
         # a quarter of its width past each side. hxeh/hxew reserve exactly
         # those two overhangs so the honeycomb cannot print past the margin.
-        if hflag:
+        # TWO OVERHANGS, TWO DIFFERENT KINDS OF NUMBER, and the turn exchanges
+        # which kind sits on which axis. `hxeh`/`hxew` are not simply "extra
+        # height" and "extra width" here:
+        #
+        #   pointy-top   hxeh = plen/6  the APEX reserve    (up and down)
+        #                hxew = pwid/4  the STAGGER reserve (side to side)
+        #   flat-top     hxew = pwid/6  the APEX reserve    (side to side)
+        #                hxeh = plen/4  the STAGGER reserve (up and down)
+        #
+        # Reusing the ColorMunki's `row_stagger` block for this would overwrite
+        # `hxeh` with 0.25*plen and silently destroy the apex reserve. It would
+        # come out arithmetically right on this orientation only because two
+        # unrelated quantities happen to share a variable, so the flat-top
+        # branch sets both itself and says which is which.
+        pwid = pscale * 12.0
+        if hflag and hex_flat_top:
+            # The SAME hexagon, turned 30 degrees. The slot transposes with it:
+            # across the flats stays 12 mm and moves to the vertical, and the
+            # 13.856 mm point-to-point moves to the horizontal. Nothing is
+            # stretched, which is Basti's ruling of 2026-09-09 ("the rotation
+            # should not stretch them"), measured as six equal sides.
+            plen = pscale * 12.0
+            pwid = pscale * math.sqrt(0.75) * 12.0
+            hxew = pwid / 6.0             # apex, now sideways
+            hxeh = plen / 4.0             # stagger, now up and down
+        elif hflag:
             plen = pscale * math.sqrt(0.75) * 12.0
             hxeh = plen / 6.0
             hxew = pscale * 0.25 * 12.0
@@ -752,7 +884,7 @@ def _build_base(
         # not for whether it is on.
         return Geom(
             key=key, plen=plen, pspa=spacer(1.3), tspa=0.0,
-            pwid=pscale * 12.0, rrsp=pscale * 12.0,
+            pwid=pwid, rrsp=pwid,
             lspa=border + txhisl, lcar=0.0, txhisl=txhisl, pglth=5.0,
             border=border, lbord=_band, hxeh=hxeh, hxew=hxew, clwi=0.0, rlwi=ROW_LABEL_BAND_MM,
             mxpprow=MAXPPROW, mxrowl=MAXROWLEN, rpstrip=999, nextrap=0,
@@ -760,6 +892,10 @@ def _build_base(
             padlrow=False, target_name=name,
             has_clip_border=_band > 0, extra_keywords=extra,
             hexagonal=bool(hflag),
+            # THE ONE WRITE. `and hflag` is not belt and braces: it is what
+            # makes the flag inert when the honeycomb is off, so a recipe
+            # carrying it cannot change a rectangular chart either.
+            hex_flat_top=bool(hflag and hex_flat_top),
         )
 
     # ---- X-Rite DTP41 ---------------------------------------------------

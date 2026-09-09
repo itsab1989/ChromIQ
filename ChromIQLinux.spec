@@ -143,7 +143,17 @@ a = Analysis(
     binaries=[*_ic_binaries, *_we_binaries, *_np_binaries, *_xcb_binaries],
     datas=[
         ('assets',               'assets'),
+        # THE THREE SPECS MUST BUNDLE THE SAME DATA, AND FOR A LONG TIME THEY
+        # DID NOT. macOS shipped `data/i18n` and `data/scanner_targets`;
+        # Windows shipped only the first and Linux neither, so a Linux build
+        # offered ENGLISH ONLY -- `core.i18n.available_languages` lists what it
+        # finds in `data/i18n`, and it found nothing -- and neither Windows nor
+        # Linux carried the bundled scanner targets that
+        # `workflow/standard_targets.py` reads through `resource_path`.
+        # `tests/test_the_three_specs_bundle_the_same_data.py` keeps them level.
         ('data/parameters.yaml', 'data'),
+        ('data/i18n',            'data/i18n'),
+        ('data/scanner_targets', 'data/scanner_targets'),
         (certifi_where,          'certifi'),
         *_gammap_datas,
         *_engine_datas,

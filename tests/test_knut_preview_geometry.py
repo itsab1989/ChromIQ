@@ -20,6 +20,8 @@ BUNDLES = [
     "assets/charts/pharmacist/rgb/colormunki/a3plus/tc918eg/tc918eg",
     "assets/charts/pharmacist/rgb/colormunki/a4/abw702/abw702",
     "assets/charts/pharmacist/rgb/colormunki/a4/tc300/tc300",
+    "assets/charts/pharmacist/rgb/i1pro/100x150/photocard600/photocard600",
+    "assets/charts/pharmacist/rgb/i1pro/130x180/photocard648/photocard648",
     "assets/charts/pharmacist/rgb/i1pro/a4/abw1110/abw1110",
     "assets/charts/pharmacist/rgb/i1pro/a4/extended1944/extended1944",
     "assets/charts/pharmacist/rgb/i1pro/a4/tc918eg/tc918eg",
@@ -57,12 +59,12 @@ def test_bugC_patch_size_uses_the_sidecars_own_dpi():
 
 @pytest.mark.parametrize("stem", BUNDLES)
 def test_bugC_every_prebuilt_bundle_reports_its_true_patch_size(stem):
-    """All nine bundled presets are 360 dpi and none carries a recipe."""
+    """Every bundled preset is 360 dpi and none carries a recipe."""
     from ui.tabs.tab_chart import TabChart
     lay = _layout(stem)
     rects = lay["patches"]
     w, h, pitch = TabChart._chart_patch_size_mm(resource_path(f"{stem}.ti2"))
-    assert pitch == 0.0          # none of the nine is a honeycomb
+    assert pitch == 0.0          # not one of them is a honeycomb
     assert w == pytest.approx(rects[0]["w"] * MM / lay["dpi"], abs=0.01)
     assert h == pytest.approx(rects[0]["h"] * MM / lay["dpi"], abs=0.01)
 

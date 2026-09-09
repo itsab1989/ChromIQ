@@ -1,0 +1,450 @@
+{
+  "g_p3_A4R": {
+    "headline": "544<span style=\"color: #101010; font-style: italic;\">!</span>",
+    "snap": {
+      "layout_info_visible": true,
+      "layout_info_text": "on screen | estimate | Total patches | 544 | 544 | \u2026 of those, fill-up | 0 | 0 | Patches (this page) | 544 | 544 | Patches per strip | 16 | 16 | Strips (this page) | 34 | 34 | Pages | 1 | 1 | Patch size (mm) | 7.62\u00d79.48 | 7.6\u00d79.5",
+      "layout_info_actual": {
+        "total": 544,
+        "fillup": 0,
+        "page_patches": 544,
+        "rows": 16,
+        "cols": 34,
+        "pages": 1,
+        "patch": [
+          7.62,
+          9.48
+        ],
+        "pitch": null
+      },
+      "layout_info_estimate": {
+        "total": 544,
+        "fillup": 0,
+        "page_patches": 544,
+        "rows": 16,
+        "cols": 34,
+        "pages": 1,
+        "patch": [
+          7.6,
+          9.5
+        ],
+        "pitch": null
+      },
+      "margin_panel_visible": true,
+      "margin_panel_text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 12.6 | 0.496 | 9.0 | Top (to first patch) | 29.5 | 1.160 | 38.0 | Bottom (to first patch) | 12.5 | 0.491 | 9.0 | Patch width (in strip reading direction) | 7.6 | 0.300 | Strip length | 168.1 | 6.617 | \u26a0 Top margin 29.5 mm is below the 38 mm instrument minimum",
+      "margin_status": "\u26a0 Top margin 29.5 mm is below the 38 mm instrument minimum",
+      "margin_status_visible": true,
+      "margin_notes": "",
+      "generate_enabled": true,
+      "stop_visible": false,
+      "preview_pages": 1,
+      "built_ok": true,
+      "errors": [],
+      "engine_lines": [
+        "[DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)",
+        "[DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)",
+        "[DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)"
+      ]
+    },
+    "recipe_margins": [
+      6.0,
+      6.0,
+      6.0,
+      6.0
+    ],
+    "use_instr": false,
+    "margins_chosen_by_user": null,
+    "clamp_lines": [],
+    "guided_info": "Guided mode applies these fixed settings:\ntargen -d2 -G -e4 -B4 -g30 chart\nChromIQ layout engine \u00b7 i1 \u00b7 A4R \u00b7 300 dpi \u00b7 margin 10 mm \u00b7 patch \u00d70.95 \u00b7 clip border on",
+    "tab_log_tail": "\nRe-seeding\nIt 18: Maxmv = 0.004328, MinPoint = 5.743, Min = 5.280, Avg. = 10.214, Max = 11.949, 0.0 secs.\nRe-seeding\nIt 19: Maxmv = 0.001399, MinPoint = 5.743, Min = 5.280, Avg. = 10.216, Max = 11.960, 0.0 secs.\nRe-seeding\nIt 20: Maxmv = 0.001373, MinPoint = 5.743, Min = 5.280, Avg. = 10.217, Max = 11.971, 0.0 secs.\nAfter optimization: MinPoint = 5.743, Min = 5.280, Avg. = 10.217, Max = 11.971\nTotal number of patches = 544\nExecution time = 0.990794 seconds\n[ChromIQ layout engine] building chart from the targen .ti1\u2026\n[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.\n[ChromIQ layout engine] 544 patches (16\u00d734), 1 page, random start 984409332\n[ChromIQ layout engine] note: low patch/spacer contrast in 2 strips\nwrote R2-Guided-colours.txt\nwrote R2-Guided-i1profiler.txt\nwrote R2-Guided-i1profiler.pxf"
+  },
+  "g_i1_A4": {
+    "headline": "484<span style=\"color: #101010; font-style: italic;\">!</span>",
+    "snap": {
+      "layout_info_visible": true,
+      "layout_info_text": "on screen | estimate | Total patches | 484 | 484 | \u2026 of those, fill-up | 0 | 0 | Patches (this page) | 484 | 484 | Patches per strip | 22 | 22 | Strips (this page) | 22 | 22 | Pages | 1 | 1 | Patch size (mm) | 7.62\u00d79.48 | 7.6\u00d79.5",
+      "layout_info_actual": {
+        "total": 484,
+        "fillup": 0,
+        "page_patches": 484,
+        "rows": 22,
+        "cols": 22,
+        "pages": 1,
+        "patch": [
+          7.62,
+          9.48
+        ],
+        "pitch": null
+      },
+      "layout_info_estimate": {
+        "total": 484,
+        "fillup": 0,
+        "page_patches": 484,
+        "rows": 22,
+        "cols": 22,
+        "pages": 1,
+        "patch": [
+          7.6,
+          9.5
+        ],
+        "pitch": null
+      },
+      "margin_panel_visible": true,
+      "margin_panel_text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 16.8 | 0.661 | 9.0 | Top (to first patch) | 41.6 | 1.637 | 38.0 | Bottom (to first patch) | 24.6 | 0.970 | 19.0 | Patch width (in strip reading direction) | 7.6 | 0.300 | Strip length | 230.8 | 9.087 | Margins: OK",
+      "margin_status": "Margins: OK",
+      "margin_status_visible": true,
+      "margin_notes": "",
+      "generate_enabled": true,
+      "stop_visible": false,
+      "preview_pages": 1,
+      "built_ok": true,
+      "errors": [],
+      "engine_lines": [
+        "[DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)",
+        "[DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)",
+        "[DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)"
+      ]
+    },
+    "recipe_margins": [
+      6.0,
+      6.0,
+      6.0,
+      6.0
+    ],
+    "use_instr": false,
+    "margins_chosen_by_user": null,
+    "clamp_lines": [],
+    "guided_info": "Guided mode applies these fixed settings:\ntargen -d2 -G -e4 -B4 -g28 chart\nChromIQ layout engine \u00b7 i1 \u00b7 A4 \u00b7 300 dpi \u00b7 margin 10 mm \u00b7 patch \u00d70.95 \u00b7 clip border on",
+    "tab_log_tail": "nPoint = 6.168, Min = 5.671, Avg. = 10.640, Max = 12.652, 0.0 secs.\nRe-seeding\nIt 18: Maxmv = 0.004327, MinPoint = 6.168, Min = 5.671, Avg. = 10.642, Max = 12.583, 0.0 secs.\nRe-seeding\nIt 19: Maxmv = 0.001921, MinPoint = 6.168, Min = 5.671, Avg. = 10.641, Max = 12.580, 0.0 secs.\nRe-seeding\nIt 20: Maxmv = 0.001543, MinPoint = 6.168, Min = 5.671, Avg. = 10.642, Max = 12.582, 0.0 secs.\nAfter optimization: MinPoint = 6.168, Min = 5.671, Avg. = 10.642, Max = 12.582\nTotal number of patches = 484\nExecution time = 0.876330 seconds\n[ChromIQ layout engine] building chart from the targen .ti1\u2026\n[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.\n[ChromIQ layout engine] 484 patches (22\u00d722), 1 page, random start 1327233963\nwrote R2-Guided-colours.txt\nwrote R2-Guided-i1profiler.txt\nwrote R2-Guided-i1profiler.pxf"
+  },
+  "g_CM_A4": {
+    "headline": "105<span style=\"color: #101010; font-style: italic;\">!</span>",
+    "snap": {
+      "layout_info_visible": true,
+      "layout_info_text": "on screen | estimate | Total patches | 105 | 105 | \u2026 of those, fill-up | 0 | 0 | Patches (this page) | 105 | 105 | Patches per strip | 15 | 15 | Strips (this page) | 7 | 7 | Pages | 1 | 1 | Patch size (mm) | 28.02\u00d714.05 | 28\u00d714",
+      "layout_info_actual": {
+        "total": 105,
+        "fillup": 0,
+        "page_patches": 105,
+        "rows": 15,
+        "cols": 7,
+        "pages": 1,
+        "patch": [
+          28.02,
+          14.05
+        ],
+        "pitch": null
+      },
+      "layout_info_estimate": {
+        "total": 105,
+        "fillup": 0,
+        "page_patches": 105,
+        "rows": 15,
+        "cols": 7,
+        "pages": 1,
+        "patch": [
+          28.0,
+          14.0
+        ],
+        "pitch": null
+      },
+      "margin_panel_visible": true,
+      "margin_panel_text": "mm | inch | min | Left (to first patch) | 6.0 | 0.237 | 6.0 | Right (to first patch) | 8.0 | 0.314 | 6.0 | Top (to first patch) | 39.5 | 1.553 | 33.0 | Bottom (to first patch) | 31.5 | 1.240 | 10.0 | Patch width (in strip reading direction) | 28.0 | 1.103 | Strip length | 226.1 | 8.900 | Margins: OK",
+      "margin_status": "Margins: OK",
+      "margin_status_visible": true,
+      "margin_notes": "",
+      "generate_enabled": true,
+      "stop_visible": false,
+      "preview_pages": 1,
+      "built_ok": true,
+      "errors": [],
+      "engine_lines": [
+        "[DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)",
+        "[DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)",
+        "[DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)"
+      ]
+    },
+    "recipe_margins": [
+      6.0,
+      6.0,
+      6.0,
+      6.0
+    ],
+    "use_instr": false,
+    "margins_chosen_by_user": null,
+    "clamp_lines": [],
+    "guided_info": "Guided mode applies these fixed settings:\ntargen -d2 -G -e2 -B2 -g8 chart\nChromIQ layout engine \u00b7 CM \u00b7 A4 \u00b7 300 dpi \u00b7 margin 6 mm \u00b7 hand-held",
+    "tab_log_tail": "eding\nIt 18: Maxmv = 0.009889, MinPoint = 18.028, Min = 10.985, Avg. = 18.480, Max = 23.751, 0.0 secs.\nRe-seeding\nIt 19: Maxmv = 0.003724, MinPoint = 17.874, Min = 10.981, Avg. = 18.478, Max = 23.613, 0.0 secs.\nRe-seeding\nIt 20: Maxmv = 0.004079, MinPoint = 18.196, Min = 10.979, Avg. = 18.470, Max = 23.463, 0.0 secs.\nAfter optimization: MinPoint = 18.196, Min = 10.979, Avg. = 18.470, Max = 23.463\nTotal number of patches = 105\nExecution time = 0.160607 seconds\n[ChromIQ layout engine] building chart from the targen .ti1\u2026\n[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.\n[ChromIQ layout engine] 105 patches (15\u00d77), 1 page, random start 748839233\n[ChromIQ layout engine] note: low patch/spacer contrast in 1 strip\nwrote R2-Guided-colours.txt\nwrote R2-Guided-i1profiler.txt\nwrote R2-Guided-i1profiler.pxf"
+  },
+  "g_i1_A4R": {
+    "headline": "544<span style=\"color: #101010; font-style: italic;\">!</span>",
+    "snap": {
+      "layout_info_visible": true,
+      "layout_info_text": "on screen | estimate | Total patches | 544 | 544 | \u2026 of those, fill-up | 0 | 0 | Patches (this page) | 544 | 544 | Patches per strip | 16 | 16 | Strips (this page) | 34 | 34 | Pages | 1 | 1 | Patch size (mm) | 7.62\u00d79.48 | 7.6\u00d79.5",
+      "layout_info_actual": {
+        "total": 544,
+        "fillup": 0,
+        "page_patches": 544,
+        "rows": 16,
+        "cols": 34,
+        "pages": 1,
+        "patch": [
+          7.62,
+          9.48
+        ],
+        "pitch": null
+      },
+      "layout_info_estimate": {
+        "total": 544,
+        "fillup": 0,
+        "page_patches": 544,
+        "rows": 16,
+        "cols": 34,
+        "pages": 1,
+        "patch": [
+          7.6,
+          9.5
+        ],
+        "pitch": null
+      },
+      "margin_panel_visible": true,
+      "margin_panel_text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 12.6 | 0.496 | 9.0 | Top (to first patch) | 29.5 | 1.160 | 38.0 | Bottom (to first patch) | 12.5 | 0.491 | 9.0 | Patch width (in strip reading direction) | 7.6 | 0.300 | Strip length | 168.1 | 6.617 | \u26a0 Top margin 29.5 mm is below the 38 mm instrument minimum",
+      "margin_status": "\u26a0 Top margin 29.5 mm is below the 38 mm instrument minimum",
+      "margin_status_visible": true,
+      "margin_notes": "",
+      "generate_enabled": true,
+      "stop_visible": false,
+      "preview_pages": 1,
+      "built_ok": true,
+      "errors": [],
+      "engine_lines": [
+        "[DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)",
+        "[DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)",
+        "[DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)"
+      ]
+    },
+    "recipe_margins": [
+      6.0,
+      6.0,
+      6.0,
+      6.0
+    ],
+    "use_instr": false,
+    "margins_chosen_by_user": null,
+    "clamp_lines": [],
+    "guided_info": "Guided mode applies these fixed settings:\ntargen -d2 -G -e4 -B4 -g30 chart\nChromIQ layout engine \u00b7 i1 \u00b7 A4R \u00b7 300 dpi \u00b7 margin 10 mm \u00b7 patch \u00d70.95 \u00b7 clip border on",
+    "tab_log_tail": "Re-seeding\nIt 18: Maxmv = 0.004328, MinPoint = 5.743, Min = 5.280, Avg. = 10.214, Max = 11.949, 0.0 secs.\nRe-seeding\nIt 19: Maxmv = 0.001399, MinPoint = 5.743, Min = 5.280, Avg. = 10.216, Max = 11.960, 0.0 secs.\nRe-seeding\nIt 20: Maxmv = 0.001373, MinPoint = 5.743, Min = 5.280, Avg. = 10.217, Max = 11.971, 0.0 secs.\nAfter optimization: MinPoint = 5.743, Min = 5.280, Avg. = 10.217, Max = 11.971\nTotal number of patches = 544\nExecution time = 0.995487 seconds\n[ChromIQ layout engine] building chart from the targen .ti1\u2026\n[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.\n[ChromIQ layout engine] 544 patches (16\u00d734), 1 page, random start 1342276284\n[ChromIQ layout engine] note: low patch/spacer contrast in 3 strips\nwrote R2-Guided-colours.txt\nwrote R2-Guided-i1profiler.txt\nwrote R2-Guided-i1profiler.pxf"
+  },
+  "g_p3_A4": {
+    "headline": "484<span style=\"color: #101010; font-style: italic;\">!</span>",
+    "snap": {
+      "layout_info_visible": true,
+      "layout_info_text": "on screen | estimate | Total patches | 484 | 484 | \u2026 of those, fill-up | 0 | 0 | Patches (this page) | 484 | 484 | Patches per strip | 22 | 22 | Strips (this page) | 22 | 22 | Pages | 1 | 1 | Patch size (mm) | 7.62\u00d79.48 | 7.6\u00d79.5",
+      "layout_info_actual": {
+        "total": 484,
+        "fillup": 0,
+        "page_patches": 484,
+        "rows": 22,
+        "cols": 22,
+        "pages": 1,
+        "patch": [
+          7.62,
+          9.48
+        ],
+        "pitch": null
+      },
+      "layout_info_estimate": {
+        "total": 484,
+        "fillup": 0,
+        "page_patches": 484,
+        "rows": 22,
+        "cols": 22,
+        "pages": 1,
+        "patch": [
+          7.6,
+          9.5
+        ],
+        "pitch": null
+      },
+      "margin_panel_visible": true,
+      "margin_panel_text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 16.8 | 0.661 | 9.0 | Top (to first patch) | 41.6 | 1.637 | 38.0 | Bottom (to first patch) | 24.6 | 0.970 | 19.0 | Patch width (in strip reading direction) | 7.6 | 0.300 | Strip length | 230.8 | 9.087 | Margins: OK",
+      "margin_status": "Margins: OK",
+      "margin_status_visible": true,
+      "margin_notes": "",
+      "generate_enabled": true,
+      "stop_visible": false,
+      "preview_pages": 1,
+      "built_ok": true,
+      "errors": [],
+      "engine_lines": [
+        "[DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)",
+        "[DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)",
+        "[DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)"
+      ]
+    },
+    "recipe_margins": [
+      6.0,
+      6.0,
+      6.0,
+      6.0
+    ],
+    "use_instr": false,
+    "margins_chosen_by_user": null,
+    "clamp_lines": [],
+    "guided_info": "Guided mode applies these fixed settings:\ntargen -d2 -G -e4 -B4 -g28 chart\nChromIQ layout engine \u00b7 i1 \u00b7 A4 \u00b7 300 dpi \u00b7 margin 10 mm \u00b7 patch \u00d70.95 \u00b7 clip border on",
+    "tab_log_tail": "nPoint = 6.168, Min = 5.671, Avg. = 10.640, Max = 12.652, 0.0 secs.\nRe-seeding\nIt 18: Maxmv = 0.004327, MinPoint = 6.168, Min = 5.671, Avg. = 10.642, Max = 12.583, 0.0 secs.\nRe-seeding\nIt 19: Maxmv = 0.001921, MinPoint = 6.168, Min = 5.671, Avg. = 10.641, Max = 12.580, 0.0 secs.\nRe-seeding\nIt 20: Maxmv = 0.001543, MinPoint = 6.168, Min = 5.671, Avg. = 10.642, Max = 12.582, 0.0 secs.\nAfter optimization: MinPoint = 6.168, Min = 5.671, Avg. = 10.642, Max = 12.582\nTotal number of patches = 484\nExecution time = 0.879884 seconds\n[ChromIQ layout engine] building chart from the targen .ti1\u2026\n[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.\n[ChromIQ layout engine] 484 patches (22\u00d722), 1 page, random start 1128547695\nwrote R2-Guided-colours.txt\nwrote R2-Guided-i1profiler.txt\nwrote R2-Guided-i1profiler.pxf"
+  },
+  "f007_start": {
+    "thresholds": {
+      "L": 26.0,
+      "R": 9.0,
+      "T": 38.0,
+      "B": 19.0,
+      "desc": "i1Pro ruler / jig"
+    },
+    "panel_margins": {
+      "t": 38.0,
+      "r": 9.0,
+      "b": 19.0,
+      "l": 26.0
+    },
+    "est": {
+      "total": 621,
+      "fillup": 0,
+      "page_patches": 621,
+      "rows": 27,
+      "cols": 23,
+      "pages": 1,
+      "patch": [
+        7.6,
+        7.9
+      ],
+      "pitch": null
+    }
+  },
+  "f007_after_prefs": {
+    "thresholds": {
+      "L": 26.0,
+      "R": 9.0,
+      "T": 50.0,
+      "B": 19.0,
+      "desc": "i1Pro ruler / jig"
+    },
+    "panel_margins": {
+      "t": 38.0,
+      "r": 9.0,
+      "b": 19.0,
+      "l": 26.0
+    },
+    "use_instr": true,
+    "est": {
+      "total": 621,
+      "fillup": 0,
+      "page_patches": 621,
+      "rows": 27,
+      "cols": 23,
+      "pages": 1,
+      "patch": [
+        7.6,
+        7.9
+      ],
+      "pitch": null
+    },
+    "prefs": {
+      "done": true,
+      "err": null,
+      "pressed": "OK"
+    }
+  },
+  "f007_built": {
+    "snap": {
+      "layout_info_visible": true,
+      "layout_info_text": "on screen | estimate | Total patches | 621 | 621 | \u2026 of those, fill-up | 0 | 0 | Patches (this page) | 621 | 621 | Patches per strip | 27 | 27 | Strips (this page) | 23 | 23 | Pages | 1 | 1 | Patch size (mm) | 7.62\u00d77.87 | 7.6\u00d77.9",
+      "layout_info_actual": {
+        "total": 621,
+        "fillup": 0,
+        "page_patches": 621,
+        "rows": 27,
+        "cols": 23,
+        "pages": 1,
+        "patch": [
+          7.62,
+          7.87
+        ],
+        "pitch": null
+      },
+      "layout_info_estimate": {
+        "total": 621,
+        "fillup": 0,
+        "page_patches": 621,
+        "rows": 27,
+        "cols": 23,
+        "pages": 1,
+        "patch": [
+          7.6,
+          7.9
+        ],
+        "pitch": null
+      },
+      "margin_panel_visible": true,
+      "margin_panel_text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.2 | 0.361 | 9.0 | Top (to first patch) | 38.9 | 1.533 | 50.0 | Bottom (to first patch) | 20.1 | 0.790 | 19.0 | Patch width (in strip reading direction) | 7.6 | 0.300 | Strip length | 238.0 | 9.370 | \u26a0 Top margin 38.9 mm is below the 50 mm instrument minimum",
+      "margin_status": "\u26a0 Top margin 38.9 mm is below the 50 mm instrument minimum",
+      "margin_status_visible": true,
+      "margin_notes": "",
+      "generate_enabled": true,
+      "stop_visible": false,
+      "preview_pages": 1,
+      "built_ok": true,
+      "errors": [],
+      "engine_lines": [
+        "[DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)",
+        "[DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)",
+        "[DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)"
+      ]
+    },
+    "panel_margins": {
+      "t": 38.0,
+      "r": 9.0,
+      "b": 19.0,
+      "l": 26.0
+    }
+  },
+  "f007_retick": {
+    "panel_margins": {
+      "t": 50.0,
+      "r": 9.0,
+      "b": 19.0,
+      "l": 26.0
+    },
+    "est": {
+      "total": 598,
+      "fillup": 0,
+      "page_patches": 598,
+      "rows": 26,
+      "cols": 23,
+      "pages": 1,
+      "patch": [
+        7.6,
+        7.78
+      ],
+      "pitch": null
+    }
+  },
+  "f007_restored": {
+    "thresholds": {
+      "L": 26.0,
+      "R": 9.0,
+      "T": 38.0,
+      "B": 19.0,
+      "desc": "i1Pro ruler / jig"
+    },
+    "panel_margins": {
+      "t": 50.0,
+      "r": 9.0,
+      "b": 19.0,
+      "l": 26.0
+    }
+  },
+  "unexpected": [],
+  "serious": []
+}

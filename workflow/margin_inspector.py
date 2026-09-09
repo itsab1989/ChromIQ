@@ -24,6 +24,8 @@ so no black-and-white twin render is needed.
 """
 from __future__ import annotations
 
+import math
+
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -261,11 +263,40 @@ def measure_from_engine(
             from workflow.layout_engine.presets import LayoutRecipe
             _valid = {f.name for f in _fields(LayoutRecipe)}
             _rc = LayoutRecipe(**{k: v for k, v in rec.items() if k in _valid})
-            _g = instruments.geom_from_build_kwargs(_rc.build_kwargs())
-            _sp_px = round(_g.pspa * dpi / _MM_PER_INCH)
+            _geom = instruments.geom_from_build_kwargs(_rc.build_kwargs())
+            _sp_px = round(_geom.pspa * dpi / _MM_PER_INCH)
             if _sp_px > 0:
                 y0 -= _sp_px
                 y1 += _sp_px
+            # A HONEYCOMB'S EDGE SPACER IS A RING SEGMENT, AND `pspa` IS NOW 0
+            # FOR IT. #159 moved a honeycomb's spacer out of the pitch and into
+            # `hex_ring_mm`, so the branch above silently allowed nothing on
+            # every hexagonal chart and this tool over-reported bottom clearance
+            # by 0.879 mm -- in the UNSAFE direction, on the one tool whose job
+            # is telling the user whether the ink clears the paper edge.
+            #
+            # An edge band reaches ring/2 OUTWARD past the hexagon, because the
+            # side facing the paper has no neighbour to share the gap with
+            # (raster.render_pages). It is the outermost ink on the sheet, so it
+            # is what the margins have to be measured to.
+            # ...and the APEX reaches further than the flat sides: moving an
+            # edge outward by d along its normal moves the vertex by d/cos 30,
+            # so the band is 0.5774*ring past the points and 0.5*ring past the
+            # flats. Using ring/2 on all four sides over-reported clearance by
+            # 0.13-0.22 mm at the default and 0.60 mm at the clamp maximum, on
+            # the two sides that carry the apexes -- and which two those are
+            # swaps with the orientation.
+            _r = float(getattr(_geom, "hex_ring_mm", 0.0) or 0.0) / 2.0
+            _flat_px = round(_r * dpi / _MM_PER_INCH)
+            _apex_px = round(_r * 2.0 / math.sqrt(3.0) * dpi / _MM_PER_INCH)
+            if _flat_px > 0 or _apex_px > 0:
+                _vert, _horz = ((_flat_px, _apex_px)
+                                if getattr(_geom, "hex_flat_top", False)
+                                else (_apex_px, _flat_px))
+                y0 -= _vert
+                y1 += _vert
+                x0 -= _horz
+                x1 += _horz
         except Exception:  # pragma: no cover - defensive; fall back to patch rects
             pass
 
@@ -280,11 +311,26 @@ def measure_from_engine(
     # it again here double-counted it by w/4: 3.0 mm at a 12 mm hexagon, 5.0 mm
     # at 20 mm, reported as margin that does not exist. The hexagon's flat sides
     # span exactly the staggered slot, so no horizontal expansion is right.
-    from workflow.hex_support import recipe_is_hexagonal
+    from workflow.hex_support import recipe_is_flat_top, recipe_is_hexagonal
     if recipe_is_hexagonal(rec):
-        h_px = max(r["h"] for r in rects)
-        y0 -= h_px / 6.0          # upper apex of the top row
-        y1 += h_px / 6.0          # lower apex of the bottom row
+        # RESOLVED, never the raw flag: a recipe can carry a tick made on a
+        # CR30 long after the user has moved to another instrument.
+        if recipe_is_flat_top(rec):
+            # ROTATED: THE OVERHANG CHANGES AXIS, and the sentence above
+            # inverts with it. The flat sides are now the top and bottom, so
+            # they span exactly the slot vertically and no VERTICAL expansion is
+            # right; the apexes stick out sideways instead. Left alone, this
+            # tool understates the left and right margins by pwid/6 (1.73 mm at
+            # a 12 mm hexagon) and overstates the top and bottom by the same,
+            # which is the opposite of useful on the one tool whose whole job is
+            # telling the user whether the ink clears the paper edge.
+            w_px = max(r["w"] for r in rects)
+            x0 -= w_px / 6.0      # left apex of the first column
+            x1 += w_px / 6.0      # right apex of the last column
+        else:
+            h_px = max(r["h"] for r in rects)
+            y0 -= h_px / 6.0      # upper apex of the top row
+            y1 += h_px / 6.0      # lower apex of the bottom row
 
     report = MarginReport(
         left_mm=max(0.0, x0 * px2mm),

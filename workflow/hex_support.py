@@ -131,6 +131,19 @@ def hex_two_heights_note() -> str:
         "information shows you both.")
 
 
+def hex_patch_width_mm(column_pitch_mm: float) -> float:
+    """The drawn WIDTH of a rotated hexagon, from its column pitch.
+
+    The mirror of :func:`hex_patch_height_mm`, and a SEPARATE function rather
+    than a flag on that one, so nothing already calling it can silently change
+    meaning. `HEX_HEIGHT_FACTOR` is the right number (4/3) on both orientations;
+    only the axis it applies to changes, which is why it is not renamed either.
+
+    Report only, never geometry.
+    """
+    return float(column_pitch_mm) * HEX_HEIGHT_FACTOR
+
+
 def hex_patch_height_mm(row_pitch_mm: float) -> float:
     """Tip-to-tip height (mm) of a hexagon whose slot / row pitch is
     *row_pitch_mm*. See :data:`HEX_HEIGHT_FACTOR`.
@@ -140,6 +153,33 @@ def hex_patch_height_mm(row_pitch_mm: float) -> float:
     apex overhang (``hxeh``) already, and a chart built before this existed must
     still come out byte-identical."""
     return float(row_pitch_mm) * HEX_HEIGHT_FACTOR
+
+
+def recipe_is_flat_top(recipe) -> bool:
+    """True for a ROTATED honeycomb, resolved the way the BUILDER resolves it.
+
+    THE FLAG ALONE IS NOT THE ANSWER, and reading it raw was a shipped defect.
+    `hex_flat_top` rides in the recipe and hiding the control must never untick
+    it, so a tick made on a CR30 is still in the recipe after the user moves to
+    a SpectroScan or back to square patches. `_build_base` guards against that
+    by writing `Geom.hex_flat_top` only inside its `key == "CR30" and hflag`
+    branch -- but the SIDECAR records the recipe, not the Geom, so every reader
+    that asked the recipe directly answered True for a SpectroScan honeycomb and
+    even for a rectangular chart. Measured: the Measure overlay then drew
+    flat-top hexagons over pointy-top ink, and the margin inspector moved the
+    apex allowance to the wrong axis.
+
+    So the resolution lives here, once, and matches `_build_base` exactly.
+    """
+    if recipe is None:
+        return False
+    if isinstance(recipe, dict):
+        inst = recipe.get("instrument")
+        flat = recipe.get("hex_flat_top")
+    else:
+        inst = getattr(recipe, "instrument", None)
+        flat = getattr(recipe, "hex_flat_top", None)
+    return bool(flat) and str(inst) == "CR30" and recipe_is_hexagonal(recipe)
 
 
 def recipe_is_hexagonal(recipe) -> bool:
@@ -196,6 +236,41 @@ def settings_are_hexagonal(create_chart_settings) -> bool:
         return False
 
 
+def chart_is_flat_top(chart_path: "str | Path | None") -> bool:
+    """True when the chart at *chart_path* is a ROTATED (flat-top) honeycomb.
+
+    A POSITIVE SIGNAL, read off the sidecar's own recipe, and that is the point
+    of it. `tab_measure._apply_hex_stagger` decides a sidecar is a pre-2026-08-13
+    vintage by noticing that every patch of a column shares one x. A rotated
+    honeycomb has one x per column BY DESIGN, so that fingerprint calls every
+    rotated chart legacy and shifts every box by a quarter patch. The fix is to
+    ask the chart what it is rather than to make the fingerprint cleverer.
+
+    Fails closed on a missing or unreadable sidecar, which is the safe direction
+    here: a chart built before this field existed reads False and keeps exactly
+    the behaviour it has always had.
+    """
+    if not chart_path:
+        return False
+    p = Path(chart_path)
+    candidates = []
+    if p.name.endswith(".channels.json"):
+        candidates.append(p)
+    else:
+        candidates.append(artefact(p, ".channels.json"))
+        for _ext in (".ti1", ".ti2", ".ti3"):
+            candidates.append(artefact(without_ext(p, _ext), ".channels.json"))
+    for cj in candidates:
+        try:
+            if cj.is_file():
+                data = json.loads(read_text(cj))
+                recipe = (data.get("layout") or {}).get("recipe") or {}
+                return recipe_is_flat_top(recipe)
+        except Exception:
+            continue
+    return False
+
+
 def chart_is_hexagonal(chart_path: "str | Path | None") -> bool:
     """True when the chart at *chart_path* was made with SpectroScan hexagonal
     patches, read from its ``channels.json`` sidecar. Accepts a .ti1/.ti2/
@@ -226,3 +301,28 @@ def chart_is_hexagonal(chart_path: "str | Path | None") -> bool:
         except Exception:
             continue
     return False
+
+
+def ring_mm_of(recipe) -> float:
+    """The spacer RING width a chart was built with, in mm, or 0.0.
+
+    Resolved through `instruments`, not read off the recipe: the ring is
+    `pspa` moved across by `build()` and then clamped, so the recipe's
+    "spacer width" is a request and this is the answer. A chart with spacers
+    switched off, or a rectangular one, gets 0.0.
+    """
+    if recipe is None or not recipe_is_hexagonal(recipe):
+        return 0.0
+    try:
+        from dataclasses import fields as _fields
+
+        from workflow.layout_engine import instruments
+        from workflow.layout_engine.presets import LayoutRecipe
+        if isinstance(recipe, dict):
+            valid = {f.name for f in _fields(LayoutRecipe)}
+            recipe = LayoutRecipe(**{k: v for k, v in recipe.items()
+                                     if k in valid})
+        geom = instruments.geom_from_build_kwargs(recipe.build_kwargs())
+        return float(getattr(geom, "hex_ring_mm", 0.0) or 0.0)
+    except Exception:      # noqa: BLE001 — a cap that cannot be computed is 0
+        return 0.0

@@ -3468,14 +3468,16 @@ class SettingsDialog(QDialog):
         v.addWidget(intro)
 
         note = QLabel(tr(
-            "Every instrument takes a fixed number of readings per second, so "
+            "Most instruments take a fixed number of readings per second, so "
             "how long a patch takes decides how many readings it gets. Set that "
             "rate, how many patches one of your strips holds, and the minimum "
-            "readings you want per patch — the reading speed at the end of each "
-            "row follows from those three, and each instrument's ⓘ works it "
-            "through. The defaults suit each instrument; raise the minimum for "
-            "more careful measurements, or set it to “Off” to silence the hint "
-            "for that instrument."), self)
+            "readings you want per patch, and the reading speed at the end of "
+            "each row follows from those three. Each instrument's ⓘ works it "
+            "through. An instrument that is placed on one patch at a time takes "
+            "a single reading per press instead, so it shows N/A and nothing on "
+            "its row is used. The defaults suit each instrument; raise the "
+            "minimum for more careful measurements, or set it to “Off” to "
+            "silence the hint for that instrument."), self)
         note.setWordWrap(True)
         _ink(note, "#909090", " font-size: 11px;", level="faint")
         v.addWidget(note)
@@ -3553,19 +3555,50 @@ class SettingsDialog(QDialog):
                 MODEL_DEFAULTS.items(), start=1):
             form.addWidget(QLabel(labels.get(key, key), self), row, 0)
 
-            hz = NoScrollDoubleSpinBox(self)
-            hz.setRange(*SAMPLE_HZ_RANGE)
-            hz.setDecimals(0)
-            hz.setSuffix(tr(" Hz"))
-            hz.setMaximumWidth(140)
-            hz.setValue(float(self._settings.get(f"pace_sample_hz_{key}", hz_default)
-                              or hz_default))
-            hz.setToolTip(tr(
-                "How many readings this instrument takes each second, from its "
-                "specification. ChromIQ uses it to work out how many readings a "
-                "patch received from how long it took."))
-            form.addWidget(hz, row, 1)
-            self._pace_hz[key] = hz
+            # THE CR30 GETS NO BOX HERE, AND THAT IS THE POINT (Basti,
+            # 2026-09-08). A CR30 takes one reading per button press; it does
+            # not sample continuously, so "readings per second" has nothing to
+            # say about it and nothing in ChromIQ reads the value for a CR30
+            # (the pace model runs off `strip_measured`, and a CR30 never emits
+            # a strip). It shipped showing 100 Hz "from its specification",
+            # which was the i1Pro's number copied a day before the CR30's was
+            # measured.
+            #
+            # A LABEL, NOT A GREYED SPIN BOX, for two measured reasons. A
+            # disabled QDoubleSpinBox still answers .value(), so the save loop
+            # below would go on persisting `pace_sample_hz_cr30` exactly as
+            # before. And expressing a sub-10 figure at all would mean widening
+            # the shared SAMPLE_HZ_RANGE (letting somebody set the i1Pro to
+            # 1 Hz, i.e. 20 s per patch) and raising `setDecimals` for all seven
+            # rows, which on a de_DE machine prints "100,0 Hz" on the other six.
+            #
+            # `tr("N/A")` is the string the Patches cell beside it already uses,
+            # so this costs no new catalogue key. Leaving the key out of
+            # `_pace_hz` is what stops it being written on Save — see the
+            # comment there — and needs no settings-schema bump, which would
+            # re-run twelve unrelated migrations against every user's store.
+            if key == "cr30":
+                na = QLabel(tr("N/A"), self)
+                _ink(na, "#909090", level="faint")
+                na.setToolTip(tr(
+                    "A CR30 takes one reading each time you press its button, "
+                    "so there is no per-second rate to apply. Nothing on this "
+                    "row changes how a CR30 is read."))
+                form.addWidget(na, row, 1)
+            else:
+                hz = NoScrollDoubleSpinBox(self)
+                hz.setRange(*SAMPLE_HZ_RANGE)
+                hz.setDecimals(0)
+                hz.setSuffix(tr(" Hz"))
+                hz.setMaximumWidth(140)
+                hz.setValue(float(self._settings.get(f"pace_sample_hz_{key}", hz_default)
+                                  or hz_default))
+                hz.setToolTip(tr(
+                    "How many readings this instrument takes each second, from its "
+                    "specification. ChromIQ uses it to work out how many readings a "
+                    "patch received from how long it took."))
+                form.addWidget(hz, row, 1)
+                self._pace_hz[key] = hz
 
             # How long a strip is, for this instrument's figure. Changing it
             # shows straight away what the row's setting means for YOUR charts.
@@ -3620,7 +3653,17 @@ class SettingsDialog(QDialog):
             _ink(est, "#909090", level="faint")
             form.addWidget(est, row, 5)
             self._pace_estimate[key] = est
-            hz.valueChanged.connect(self._refresh_pace_estimates)
+            # `self._pace_hz.get(key)`, NOT the loop's `hz`. A row without a
+            # rate box (the CR30) never binds `hz`, so this line would reach
+            # back to the PREVIOUS row's widget and connect it a second time --
+            # measured: the SpectroScan's box ended up with three receivers
+            # where every other row had two. Harmless while the CR30 is last in
+            # MODEL_DEFAULTS, and an UnboundLocalError that takes the whole
+            # Preferences dialog down the moment it is not. The comment eleven
+            # lines above records that exact failure happening once already.
+            _hz_box = self._pace_hz.get(key)
+            if _hz_box is not None:
+                _hz_box.valueChanged.connect(self._refresh_pace_estimates)
             pp.valueChanged.connect(self._refresh_pace_estimates)
             mn.valueChanged.connect(self._refresh_pace_estimates)
 
@@ -3736,7 +3779,11 @@ class SettingsDialog(QDialog):
         number after the @ is always the one in that row's box.
         """
         for key, lbl in getattr(self, "_pace_estimate", {}).items():
-            hz = float(self._pace_hz[key].value())
+            # `.get()`, because a row may have no rate box at all: the CR30's
+            # cell is a plain "N/A" label. 0.0 lands on the "no limit" branch
+            # below, which is what that row showed before and still shows.
+            _hz_box = self._pace_hz.get(key)
+            hz = float(_hz_box.value()) if _hz_box is not None else 0.0
             mn = int(self._pace_min[key].value())
             patches = int(self._pace_patches[key].value())
             if mn <= 0 or hz <= 0:
@@ -5849,6 +5896,15 @@ class SettingsDialog(QDialog):
         # Measurement pace (#131 Phase 2)
         if hasattr(self, "_pace_enable"):
             s.set("pace_hint_enabled", self._pace_enable.isChecked())
+            # Only the rows that HAVE a rate box. The CR30 is deliberately
+            # absent from `_pace_hz`, so its key stops being written here — the
+            # one place a stale `pace_sample_hz_cr30` could otherwise be
+            # refreshed on every Save. A value already stored by an older build
+            # is left where it is rather than migrated away: it is inert (a
+            # CR30's min_samples is Off, and `_pace_config` throws the rate away
+            # on that branch), and dropping it would mean bumping the settings
+            # schema, which re-runs every other migration against stores that
+            # have already been through them.
             for _key, _hz in self._pace_hz.items():
                 s.set(f"pace_sample_hz_{_key}", float(_hz.value()))
             for _key, _mn in self._pace_min.items():

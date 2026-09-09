@@ -1,0 +1,19 @@
+# F-024 One visit to FROM PROFILE GAMUT on a run without a profile disables Generate Chart, and shows Stop, in every module and run type afterwards
+Area: gamut / manual / guided
+Grade: OBSERVED (ordered on screen in D08b; also seen in D00, D08 on three other screens)
+Attended: unattended
+Type: bug
+Severity: high
+Expected: The gamut module's "no profile, nothing to generate" state belongs to that module. Clicking GUIDED or MANUAL, or setting Run type back to Profiling, gives Generate back; Stop is shown only while a build runs.
+Actual (D08b, Demo-Full-RGB run3, which has no .icc):
+- Run type Verification, GUIDED: Generate enabled, Stop hidden, `_chart_build_in_flight()` False, the agreed info box "There's no finished profile in this run yet ... You can go ahead and create the chart" visible.
+- Click FROM PROFILE GAMUT: Generate disabled, Stop visible, in-flight True (no build running).
+- Click GUIDED: Generate still disabled, Stop still visible. Click MANUAL: same. Run type back to Profiling: same.
+In D08 the same session went on to the Calibration target (Generate disabled, Stop visible, no way to build, so the calibration test read as "does nothing") and to opening Demo-Legacy-v1 (Generate disabled on an ordinary profiling run, Screenshots/B12-names-files/l01-legacy-v1-opened.png). In D08b, with a fresh session, the Calibration target had Generate enabled and asked its proper question, so the earlier state was this leak, not calibration behaviour. D00 showed the same Stop-beside-disabled-Generate in the gamut module without a profile.
+Why it matters: A user who looks at the gamut module once, on a run whose profile is not built yet, loses Generate Chart in every module until something else re-enables it (a build finishing cannot, because the button is off; in D08 nothing re-enabled it across two more projects). The Guided box saying "You can go ahead and create the chart" then sits above a greyed button. The visible Stop makes it look as if a build is stuck.
+Steps to reproduce (click by click): Open a project whose current run has no profile. Run type: Verification. Click FROM PROFILE GAMUT (Generate greys, Stop appears). Click GUIDED. Generate is still grey. Set Run type to Profiling. Still grey.
+Evidence: Test Runs/logs/d08b_results.json (verif-guided-before-gamut, verif-gamut, verif-guided-after-gamut, verif-manual-after-gamut, profiling-after), Screenshots/B3-gamut/g10-guided-verification-before-gamut.png, g11-manual-verification-after-gamut.png, g04-guided-verification-run3.png, Screenshots/00-launch/10-gamut-module.png, Screenshots/B4-calibration/c01-calibration-selected.png (leaked state) versus c10-fresh-session.png (correct state).
+Spec or source cited: ui/tabs/tab_chart.py:15840 `self._generate_btn.setEnabled(has and not self._runner.is_running)` in `_refresh_gamut_state`; nothing symmetrical runs in `_switch_mode` for guided/manual; `_chart_build_in_flight` (18581) reads the button's disabled state as "a build is in flight", and the Stop button follows that via the eventFilter at 13405, which is why Stop appears. docs/design/verification_printing_and_target.md and the #133 no-profile wording expect Guided and Manual to remain able to build a chart without a profile.
+Possible solutions (no code): A. Make `_switch_mode` (and the run-type change) recompute Generate's enabled state for the module now on screen. B. Keep the gamut module's rule inside the module (a disabled Generate only while the gamut module is the one shown). C. Stop deriving "in flight" from the button's enabled state; track the build explicitly, so Stop cannot appear at rest.
+Regression risk if changed: Low-medium; the enabled state of Generate is touched from thirteen places (grep `_generate_btn.setEnabled`), so a central rule is safer than a fourteenth call.
+Needs owner decision: no

@@ -42,6 +42,10 @@ class ChartLayoutInfoPanel(QGroupBox):
         self._actual_labels: dict[str, QLabel] = {}
         self._estimate_labels: dict[str, QLabel] = {}
         self._row_names: dict[str, QLabel] = {}
+        #: Which axis the pitch row means, per column. None until a column has
+        #: been filled, so an empty panel does not claim an orientation.
+        self._pitch_axis: dict[str, "bool | None"] = {
+            "actual": None, "estimate": None}
         self._build_ui()
         self._render()
 
@@ -83,6 +87,10 @@ class ChartLayoutInfoPanel(QGroupBox):
             ("cols", tr("Strips (this page)")),
             ("pages", tr("Pages")),
             ("patch", tr("Patch size (mm)")),
+            # RENAMED AT RUNTIME ON A TURNED HONEYCOMB. See `set_pitch_axis`:
+            # on a rotated sheet the second number is a COLUMN pitch across the
+            # page, not a row pitch down a strip, and the panel printed 10.39 mm
+            # under "Row pitch" where the sheet's rows are 12.00 mm apart.
             ("pitch", tr("Row pitch (mm)")),
         )
         for r, (key, label) in enumerate(rows, start=1):
@@ -190,8 +198,35 @@ class ChartLayoutInfoPanel(QGroupBox):
         self._render()
 
     def clear_actual(self) -> None:
+        self._forget_pitch_axis("actual")
         self._actual = None
         self._render()
+
+    def set_pitch_axis(self, flat_top: bool, *, column: str = "estimate") -> None:
+        """Name the pitch row for the orientation, per COLUMN.
+
+        The interlocking pitch is a ROW pitch down a strip on a pointy
+        honeycomb and a COLUMN pitch across the page on a turned one, so the
+        row has to say which. `_panel_patch_size_mm`'s docstring puts that duty
+        on the caller.
+
+        ONE NAME SERVES TWO COLUMNS THAT NEED NOT DESCRIBE THE SAME CHART, and
+        that is what made the first two attempts at this wrong. The left column
+        is the chart ON DISK and the right is what the current settings would
+        build; with "Auto-update preview" off -- the state the two-column panel
+        exists for -- they routinely differ, and whichever path ran last
+        overwrote the other's label. The panel then printed "Patch size
+        13.89 x 12.02" above "Row pitch 10.41" for a sheet whose rows are 12.02
+        mm apart.
+
+        So both are remembered and the name is a function of the pair: when
+        they agree it names the axis, and when they disagree it says neither,
+        because there is no single true answer to print.
+        """
+        if column not in ("actual", "estimate"):
+            return
+        self._pitch_axis[column] = bool(flat_top)
+        self._name_the_pitch_row()
 
     def set_estimate(self, *, total: int, rows: int, cols: int, pages: int,
                      patch_w: float = 0.0, patch_h: float = 0.0,
@@ -204,12 +239,67 @@ class ChartLayoutInfoPanel(QGroupBox):
         self._render()
 
     def clear_estimate(self) -> None:
+        self._forget_pitch_axis("estimate")
         self._estimate = None
         self._render()
 
     def show_placeholder(self) -> None:
+        self._forget_pitch_axis("actual")
+        self._forget_pitch_axis("estimate")
         self._actual = self._estimate = None
         self._render()
+
+    def _forget_pitch_axis(self, column: str) -> None:
+        """A CLEARED COLUMN STOPS VOTING ON THE ROW'S NAME.
+
+        K1: every path that empties a column has to withdraw its claim, or the
+        row goes on naming an axis for a column that is no longer shown -- or,
+        worse, keeps saying "Patch pitch" because it still believes two columns
+        disagree when only one is left. Measured on screen as
+        `Patch size 13.89 x 12.02 / Patch pitch 10.41  --`, where the only
+        pitch present is unambiguously a column pitch.
+        """
+        self._pitch_axis[column] = None
+        self._name_the_pitch_row()
+
+    def _name_the_pitch_row(self) -> None:
+        """ONLY A COLUMN THAT IS SHOWING A PITCH GETS A VOTE.
+
+        K1(b): the vote is recorded from the chart's orientation, but a
+        rectangular chart has no interlocking pitch at all -- the panel prints
+        "--" for it -- and its `flat_top=False` was still counted. So a turned
+        honeycomb beside a rectangular estimate looked like a DISAGREEMENT and
+        the row fell back to the neutral "Patch pitch (mm)", refusing to name
+        the axis of the only pitch on the panel. Photographed in Manual and in
+        Guided, where the estimate is an i1-style rectangular layout:
+
+            Patch size (mm)      13.89x12.02       12x12
+            Patch pitch (mm)           10.41         --
+
+        A column whose data is loaded and whose pitch is `None` therefore
+        abstains. A column with no data YET keeps its vote: that is the state
+        between `set_pitch_axis` and the `set_actual`/`set_estimate` that
+        follows it, and dropping it there would make the name flicker.
+        """
+        name = self._row_names.get("pitch")
+        if name is None:
+            return
+        seen = set()
+        for col, data in (("actual", self._actual),
+                          ("estimate", self._estimate)):
+            vote = self._pitch_axis.get(col)
+            if vote is None:
+                continue                       # never filled, or cleared
+            if data is not None and data.get("pitch") is None:
+                continue                       # on screen, but with no pitch
+            seen.add(bool(vote))
+        if len(seen) == 1:
+            name.setText(tr("Column pitch (mm)") if seen.pop()
+                         else tr("Row pitch (mm)"))
+        elif len(seen) > 1:
+            name.setText(tr("Patch pitch (mm)"))
+        else:
+            name.setText(tr("Row pitch (mm)"))  # nothing to name it from
 
     # ------------------------------------------------------------------
     def _render(self) -> None:
@@ -219,6 +309,10 @@ class ChartLayoutInfoPanel(QGroupBox):
             return
         self._placeholder.setVisible(False)
         self._table.setVisible(True)
+        # The pitch row's NAME depends on which columns are showing a pitch,
+        # and that changes with the data, not only with the vote. See
+        # `_name_the_pitch_row`.
+        self._name_the_pitch_row()
         def _fmt(key, v):
             if v is None:
                 return _DASH

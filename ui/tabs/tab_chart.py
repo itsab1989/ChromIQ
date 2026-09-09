@@ -123,6 +123,35 @@ def _panel_patch_height_mm(slot_h_mm: float,
     return (hex_patch_height_mm(h), h)
 
 
+def _panel_patch_size_mm(slot_w_mm: float, slot_h_mm: float,
+                         hexagonal: bool,
+                         flat_top: bool = False) -> "tuple[float, float, float]":
+    """``(patch width, patch height, pitch)`` for the panel, both orientations.
+
+    `_panel_patch_height_mm` above answers the pointy case and is left exactly
+    as it is, because a dozen call sites and a test file depend on its meaning.
+    This one wraps it and adds the turn, where **the correction changes axis**:
+
+    * pointy-top, the flat sides are left and right, so the slot is as wide as
+      the patch and only the HEIGHT is understated (by 4/3);
+    * flat-top, the flat sides are the top and bottom, so the slot is as tall as
+      the patch and only the WIDTH is understated, by the same 4/3.
+
+    Report only, never geometry. The third number is the interlocking pitch, and
+    it is a ROW pitch down a strip on a pointy sheet and a COLUMN pitch across
+    the page on a turned one, which is why the caller has to name it.
+    """
+    from workflow.hex_support import hex_patch_width_mm
+    w = float(slot_w_mm or 0.0)
+    h = float(slot_h_mm or 0.0)
+    if not hexagonal or w <= 0 or h <= 0:
+        return (w, h, 0.0)
+    if flat_top:
+        return (hex_patch_width_mm(w), h, w)
+    ph, pitch = _panel_patch_height_mm(h, True)
+    return (w, ph, pitch)
+
+
 def _number_of_sets(path) -> int | None:
     """``NUMBER_OF_SETS`` from a CGATS .ti1/.ti2, or None if unreadable."""
     try:
@@ -233,8 +262,8 @@ MUNKI_TARGEN = {
 # files into a fresh ~/ChromIQ/<name> folder (renamed to <name>…) and loads them.
 # targen AND printtarg are skipped entirely — the param panels are greyed out
 # while such a preset is active, because none of those options apply.
-# The four "by Pharmacist" targets below are the full built-in line-up
-# (two i1Pro, two ColorMunki) — every one a prebuilt-files preset.
+# The eleven "by Pharmacist" targets below are the full prebuilt-files
+# line-up (seven i1Pro, four ColorMunki) — every one a prebuilt-files preset.
 # Labels follow the same convention as Knut's presets — instrument · paper +
 # patch count + page count, then the set name + "by Pharmacist". (Patch width and
 # orientation, which Knut's names carry, aren't stored for these pre-rendered
@@ -266,6 +295,65 @@ EXT1944_A4_PRESET_KEY = "__chromiq_ext1944_a4_builtin__"
 EXT1944_A4_PRESET_LABEL = "★  i1Pro · A4-1944p-3pages extended target by Pharmacist  ·  built-in"
 EXT1944_LETTER_PRESET_KEY = "__chromiq_ext1944_letter_builtin__"
 EXT1944_LETTER_PRESET_LABEL = "★  i1Pro · Letter-1944p-3pages extended target by Pharmacist  ·  built-in"
+# Photo-card targets (Nelson Lau, 2026-09-08): the first built-ins for the two
+# sizes photo paper actually comes in, 10 x 15 cm and 13 x 18 cm. Both are laid
+# out denser than Argyll's own i1 geometry allows (7.3 / 7.6 mm patch length
+# against printtarg's 10 mm floor, 0.56 mm spacers against its 1 mm), which is
+# what puts 600 patches on four small cards instead of the NINE sheets
+# `printtarg -ii1 -p100x150 -t300 -a0.95 -m10 -M10` needs, which is exactly the
+# command ChromIQ builds for an i1Pro on that sheet. (Seven is what comes out
+# with `-L` added, and ChromIQ does not add it: `-L` in Guided comes from
+# `chart_disable_left_border` (core/settings.py), which ships False. Measured
+# twice with the leftover pages deleted between runs, because not deleting them
+# is how "seven" got written here in the first place.)
+# That is the same trade every "by Pharmacist"
+# i1Pro chart already shipping makes; these two just take it a step further.
+#
+# THE PAPER IS SPELLED TWO WAYS ON PURPOSE, AND BOTH ARE RIGHT WHERE THEY ARE.
+# The LABEL says "10x15cm" because that is what is printed on the packet of
+# paper the user is holding, and a label is prose. The DEFAULT TARGET NAME says
+# "100x150" because that is what `paper_name_token` and
+# `_paper_name_and_orientation` produce for a custom size, and the name becomes
+# a folder, a file stem and the "Chart layout" line stamped on the sheet. A
+# name that disagreed with the one the app generates for the same sheet would
+# be the inconsistency, not this.
+#
+# NO COLOUR-SET NAME, unlike every other row in this family. They are two
+# DIFFERENT sets (only 256 device values in common, and different neutral
+# ramps), so one shared name would say they are a pair when they are not, and
+# "photo card" would only repeat the paper token. Nelson has been asked for
+# real set names; adding them later is a label change, and the key is the
+# identity, so nothing breaks when they arrive.
+PHOTOCARD600_PRESET_KEY = "__chromiq_photocard600_builtin__"
+PHOTOCARD600_PRESET_LABEL = "★  i1Pro · 10x15cm-600p-4pages by Pharmacist  ·  built-in"
+PHOTOCARD648_PRESET_KEY = "__chromiq_photocard648_builtin__"
+PHOTOCARD648_PRESET_LABEL = "★  i1Pro · 13x18cm-648p-3pages by Pharmacist  ·  built-in"
+
+# Extra tooltip lines for prebuilt presets that need one. Keyed by preset key;
+# absent means the shared body is the whole tooltip.
+#
+# THESE TWO SHEETS CARRY INK TO WITHIN ~1 MM OF THE PAPER EDGE (measured on
+# every page: 1.0 to 1.6 mm on the 13 x 18, 1.3 to 5.0 mm on the 10 x 15),
+# where every other bundled chart keeps 12 mm or more at top and bottom. The
+# patches themselves stay 12 mm from the bottom and 5 to 7 mm from the right,
+# so a bordered print still measures; what it trims is the crop marks and part
+# of the printed identification text. Nelson prints "print with borderless
+# setting" on the sheet itself, and the Print tab warns against borderless
+# because the driver's expansion enlarges the page. Both are right about
+# different things, so the tooltip says what is actually at stake instead of
+# taking a side.
+PREBUILT_PRESET_NOTES = {
+    PHOTOCARD600_PRESET_KEY: (
+        "This sheet is printed almost edge to edge, so a bordered print will\n"
+        "trim the crop marks and some of the text at the edges. The patches\n"
+        "sit far enough in to be measured either way. If your printer driver\n"
+        "can print borderless with expansion turned off, use that; if it\n"
+        "cannot, print with borders, because an enlarged chart is worse than\n"
+        "trimmed crop marks."
+    ),
+}
+PREBUILT_PRESET_NOTES[PHOTOCARD648_PRESET_KEY] = \
+    PREBUILT_PRESET_NOTES[PHOTOCARD600_PRESET_KEY]
 
 # key -> (asset stem under assets/charts, default target name). Charts are filed
 # by creator/colorspace/instrument/paper/target; the stem locates <stem>.ti1,
@@ -285,7 +373,34 @@ PREBUILT_PRESETS = {
     TC918EG_CM_A3_PRESET_KEY:  ("assets/charts/pharmacist/rgb/colormunki/a3plus/tc918eg/tc918eg", "ColorMunki-A3+-1160p-1page-TC9.18 extended greys by Pharmacist"),
     EXT1944_A4_PRESET_KEY:     ("assets/charts/pharmacist/rgb/i1pro/a4/extended1944/extended1944",     "i1Pro-A4-1944p-3pages-extended target by Pharmacist"),
     EXT1944_LETTER_PRESET_KEY: ("assets/charts/pharmacist/rgb/i1pro/letter/extended1944/extended1944", "i1Pro-Letter-1944p-3pages-extended target by Pharmacist"),
+    PHOTOCARD600_PRESET_KEY:   ("assets/charts/pharmacist/rgb/i1pro/100x150/photocard600/photocard600", "i1Pro-100x150-600p-4pages by Pharmacist"),
+    PHOTOCARD648_PRESET_KEY:   ("assets/charts/pharmacist/rgb/i1pro/130x180/photocard648/photocard648", "i1Pro-130x180-648p-3pages by Pharmacist"),
 }
+
+#: Paper folders whose name is not a printtarg ``-p`` code, mapped to one.
+#: A folder named ``<W>x<H>`` (millimetres) IS a valid printtarg custom size and
+#: needs no entry — see :func:`_prebuilt_paper_code`.
+_PREBUILT_PAPER_CODES = {"a4": "A4", "a3": "A3", "a3plus": "329x483",
+                         "letter": "Letter"}
+#: The same folders, as something to read. A ``<W>x<H>`` folder falls through to
+#: a generated "W × H mm" label, with the two photo-card sizes named the way the
+#: paper is sold rather than in millimetres alone.
+_PREBUILT_PAPER_LABELS = {"a4": "A4", "a3": "A3", "a3plus": "A3+",
+                          "letter": "US Letter",
+                          "100x150": "10 × 15 cm (100 × 150 mm)",
+                          "130x180": "13 × 18 cm (130 × 180 mm)"}
+#: A ``<W>x<H>`` folder is a size in MILLIMETRES — but only when ChromIQ does
+#: not already know that spelling as a named paper. ``4x6`` and ``11x17`` are
+#: real `PAPER_SIZES` codes meaning INCHES (4x6" = 102 x 152 mm), so a bundle
+#: filed under `.../i1pro/4x6/...` must not be read as a 4 by 6 millimetre
+#: sheet. Checked against `PAPER_LABELS` rather than a second hard-coded list,
+#: so it cannot drift from the paper the rest of the app offers.
+_PREBUILT_CUSTOM_PAPER = re.compile(r"^(\d+)x(\d+)$")
+
+
+def _prebuilt_paper_is_mm(folder: str) -> bool:
+    """True when a ``<W>x<H>`` folder name really is millimetres."""
+    return bool(_PREBUILT_CUSTOM_PAPER.match(folder)) and folder not in PAPER_LABELS
 
 
 def _prebuilt_paper(key: str) -> str:
@@ -293,11 +408,22 @@ def _prebuilt_paper(key: str) -> str:
 
     The asset stem is ``.../<instrument>/<paper>/<target>/<target>``, so the
     paper folder is the third path component from the end. Returned as a display
-    label for the tooltip; unknown sizes fall through upper-cased."""
+    label for the tooltip.
+
+    A folder named ``<W>x<H>`` is a size in millimetres and reads back as
+    "W × H mm" unless :data:`_PREBUILT_PAPER_LABELS` names it better. Anything
+    else falls through upper-cased, as it always did."""
     stem = PREBUILT_PRESETS.get(key, ("",))[0]
     parts = stem.split("/")
     paper = parts[-3] if len(parts) >= 3 else ""
-    return {"a4": "A4", "a3": "A3", "a3plus": "A3+", "letter": "US Letter"}.get(paper, paper.upper() or "A4")
+    if paper in _PREBUILT_PAPER_LABELS:
+        return _PREBUILT_PAPER_LABELS[paper]
+    if paper in PAPER_LABELS:            # a named ChromIQ code (4x6", 11x17"…)
+        return PAPER_LABELS[paper]
+    m = _PREBUILT_CUSTOM_PAPER.match(paper) if _prebuilt_paper_is_mm(paper) else None
+    if m:
+        return f"{m.group(1)} × {m.group(2)} mm"
+    return paper.upper() or "A4"
 
 # --- Knut's TC9.18 + Spyderprint-greys presets -----------------------------
 # A family of built-in presets that all share ONE bundled 1168-patch .ti1
@@ -1316,7 +1442,7 @@ class _Ti1Preset:
         load — ``builtin_preset_recipe(self.key) is not None``. Measured on the
         shipped set: **130 rows, 115 marked.** The six Red River charts carry a
         ``layout_recipe`` (geometry) but no ``recipe.json`` (the colour-set
-        design the editor loads), so they are unmarked; the nine "by Pharmacist"
+        design the editor loads), so they are unmarked; the eleven "by Pharmacist"
         charts are ``PREBUILT_PRESETS`` rows, not ``_Ti1Preset`` objects, so they
         never reach this property at all. 115 + 6 + 9 = 130.
 
@@ -2337,6 +2463,7 @@ BUILTIN_PRESET_LABELS = frozenset({
     TC300_PRESET_LABEL, ABW702_PRESET_LABEL,
     TC924_CM_A3_PRESET_LABEL, TC918EG_CM_A3_PRESET_LABEL,
     EXT1944_A4_PRESET_LABEL, EXT1944_LETTER_PRESET_LABEL,
+    PHOTOCARD600_PRESET_LABEL, PHOTOCARD648_PRESET_LABEL,
 }) | {p.combo_label for p in KNUT_PRESETS}
 
 # Built-in presets grouped by the instrument they target — the single source of
@@ -2403,7 +2530,15 @@ BUILTIN_PRESET_GROUPS: list[tuple[str, list[tuple[str, str, str]]]] = [
         *_KNUT_GROUP_ENTRIES["ColorMunki"],
     ]),
     (_group_heading("i1Pro"), [
-        # A4 first (ascending patch count), then US-Letter — keep paper grouped.
+        # Smallest sheet first. That is all this block has ever done (it ran
+        # A4-1110, A4-1160, A4-1944, Letter-1160, Letter-1944: paper, then
+        # count), and these are the two smallest sheets ChromIQ ships a chart
+        # for. Not Knut's paper-then-width-then-count rule, which belongs to the
+        # Knut families below: a prebuilt bundle stores no patch width, which is
+        # why these labels carry none.
+        (PHOTOCARD600_PRESET_LABEL, "10x15cm-600p-4pages by Pharmacist", PHOTOCARD600_PRESET_KEY),
+        (PHOTOCARD648_PRESET_LABEL, "13x18cm-648p-3pages by Pharmacist", PHOTOCARD648_PRESET_KEY),
+        # A4 next (ascending patch count), then US-Letter — keep paper grouped.
         (ABW1110_PRESET_LABEL, "A4-1110p-2pages ABW-optimized by Pharmacist",  ABW1110_PRESET_KEY),
         (TC918EG_A4_PRESET_LABEL,     "A4-1160p-2pages TC9.18 extended greys by Pharmacist",     TC918EG_A4_PRESET_KEY),
         (EXT1944_A4_PRESET_LABEL,     "A4-1944p-3pages extended target by Pharmacist",     EXT1944_A4_PRESET_KEY),
@@ -2440,7 +2575,7 @@ BUILTIN_PRESET_GROUPS: list[tuple[str, list[tuple[str, str, str]]]] = [
 
 def _marked_overlay_label(key: str, label: str) -> str:
     """The ★-overlay row for a built-in: its overlay label plus the "Full layout
-    setup" marker when the preset carries one. The nine prebuilt ("by
+    setup" marker when the preset carries one. The eleven prebuilt ("by
     Pharmacist") rows are not _Ti1Presets, so they are returned unchanged —
     which is exactly Knut's rule."""
     p = KNUT_PRESETS_BY_KEY.get(key)
@@ -3744,6 +3879,8 @@ class TabChart(QWidget):
             self._instr_combo.addItem(label, code)
         self._instr_combo.currentIndexChanged.connect(self._update_patch_count)
         self._instr_combo.currentIndexChanged.connect(self._update_dd_visibility)
+        # USER PICKS ONLY. See `_on_user_picked_instrument`.
+        self._instr_combo.activated.connect(self._on_user_picked_instrument)
         self._instr_combo.currentIndexChanged.connect(self._rebuild_paper_combo)
         row.addWidget(self._instr_combo, stretch=1)
         row.addWidget(TooltipButton(
@@ -3804,6 +3941,14 @@ class TabChart(QWidget):
         self._for_rig_label = QLabel(tr("For rig:"), inner)
         self._for_rig_label.setMinimumWidth(instr_label.sizeHint().width())
         dd_row.addWidget(self._for_rig_label)
+        #: The tick, per instrument family — see `_update_dd_visibility`.
+        #: Session-scoped on purpose: the run stores the value it was BUILT
+        #: with, and reopening a project seeds the widgets from that.
+        self._dd_memory: dict[str, bool] = {}
+        self._dd_instr: str | None = None
+        self._dd_writing = False
+        self._td_memory = False
+        self._td_writing = False
         self._dd_check = QCheckBox(tr("Double density"), inner)
         self._dd_check.toggled.connect(self._update_patch_count)
         self._dd_check.toggled.connect(self._on_guided_dd_toggled)
@@ -7849,9 +7994,14 @@ class TabChart(QWidget):
             "target right away; you can adjust any setting and regenerate."
         )
 
-    def _prebuilt_tooltip(self, paper: str) -> str:
-        """Tooltip text for a prebuilt-files built-in preset."""
-        return (
+    def _prebuilt_tooltip(self, paper: str, note: str = "") -> str:
+        """Tooltip text for a prebuilt-files built-in preset.
+
+        *note* is appended as its own paragraph when the chart needs something
+        said about it that the shared body cannot say (see
+        :data:`PREBUILT_PRESET_NOTES`).
+        """
+        body = (
             "Built-in chart — cannot be deleted.\n"
             f"A complete, ready-made target laid out for {paper}.\n"
             "Picking it asks for a name, then copies the bundled patch set\n"
@@ -7859,6 +8009,7 @@ class TabChart(QWidget):
             "no targen or printtarg is run, so those panels are greyed out.\n"
             "The copied TIFFs are loaded straight into the preview."
         )
+        return f"{body}\n\n{note}" if note else body
 
     def _populate_preset_combo(self, presets: dict, select_name: str | None = None) -> None:
         self._preset_combo.blockSignals(True)
@@ -7928,7 +8079,8 @@ class TabChart(QWidget):
         """Combo/overlay tooltip for any built-in preset (per its kind)."""
         if key in KNUT_PRESET_KEYS:
             return self._knut_tooltip(key)
-        return self._prebuilt_tooltip(_prebuilt_paper(key))
+        return self._prebuilt_tooltip(_prebuilt_paper(key),
+                                      PREBUILT_PRESET_NOTES.get(key, ""))
 
     @staticmethod
     def _knut_tooltip(key: str) -> str:
@@ -8735,7 +8887,7 @@ class TabChart(QWidget):
                 #
                 # A BUILT-IN WITH NO DESIGN CLEARS THE RECORD, IT DOES NOT LEAVE IT.
                 # 15 of the built-ins are fixed .ti1 charts with no recipe — the
-                # nine "by Pharmacist" ones and the six Red River ones. `None` here
+                # eleven "by Pharmacist" ones and the six Red River ones. `None` here
                 # means "don't touch", so building one of those into a run that had
                 # previously held a preset left the PREVIOUS preset's design on the
                 # run, describing a chart it did not build. From there it was copied
@@ -10842,13 +10994,30 @@ class TabChart(QWidget):
 
     @staticmethod
     def _prebuilt_paper_code(key: str) -> str:
-        """printtarg -p code a prebuilt preset is laid out for, from its asset path."""
+        """printtarg -p code a prebuilt preset is laid out for, from its asset path.
+
+        A FOLDER NAMED ``<W>x<H>`` IS ALREADY THE ANSWER. printtarg takes a
+        custom size that way (``-p100x150`` lays out a real sheet, verified),
+        and :meth:`ui.parameter_widget.ParameterWidget.set_value` routes a value
+        it cannot find in the combo to the "Custom (enter dimensions)" row and
+        fills the W / H boxes. So the photo-card sheets need no entry in
+        ``PAPER_SIZES`` and no new dropdown item for every user: the panel shows
+        Custom 100 x 150, which is the truth.
+
+        The fallback stays ``"A4"`` and is now unreachable for a well-formed
+        asset path. It used to be reachable, silently: an unknown paper folder
+        put A4 in the layout panel, so unlocking the layout and re-generating
+        laid a photo-card chart out on A4 with nothing said.
+        """
         stem = PREBUILT_PRESETS.get(key, ("",))[0]
         parts = stem.split("/")
         paper = parts[-3] if len(parts) >= 3 else ""
-        # Map the asset folder name to a valid printtarg -p code (see PAPER_SIZES).
-        return {"a4": "A4", "a3": "A3", "a3plus": "329x483",
-                "letter": "Letter"}.get(paper, "A4")
+        if paper in PAPER_LABELS:        # already a printtarg -p code
+            return paper
+        if _prebuilt_paper_is_mm(paper):
+            return paper
+        # Map a named asset folder to a valid printtarg -p code (see PAPER_SIZES).
+        return _PREBUILT_PAPER_CODES.get(paper, "A4")
 
     def _leave_prebuilt(self) -> None:
         """Clear prebuilt-files state and re-enable the param panels."""
@@ -12377,8 +12546,22 @@ class TabChart(QWidget):
             # as "patch" said a 11.3 × 9.78 mm patch about one that prints
             # 11.3 × 13.05. Both numbers are real, so name both.
             from workflow.hex_support import (hex_patch_height_mm,
+                                              hex_patch_width_mm,
+                                              recipe_is_flat_top,
                                               recipe_is_hexagonal)
-            if recipe_is_hexagonal(r):
+            # RESOLVED, not the raw flag: a recipe carries a tick made on a
+            # CR30 long after the user has moved to another instrument, so a
+            # SpectroScan honeycomb was reported as 10.67 x 6.93 mm "column
+            # pitch" when it prints 8.00 x 9.24 mm on a row pitch.
+            if recipe_is_flat_top(r):
+                # ROTATED: both numbers move, in opposite directions, and so
+                # does the LABEL. On a turned sheet the typed short axis is a
+                # COLUMN pitch across the page, not a row pitch down a strip,
+                # and it is the width that grows by 4/3.
+                bits.append(tr("patch {w:.2f}×{h:g} mm, column pitch {p:g} mm")
+                            .format(w=hex_patch_width_mm(r.patch_w_mm),
+                                    h=r.patch_h_mm, p=r.patch_w_mm))
+            elif recipe_is_hexagonal(r):
                 bits.append(tr("patch {w:g}×{h:.2f} mm, row pitch {p:g} mm")
                             .format(w=r.patch_w_mm,
                                     h=hex_patch_height_mm(r.patch_h_mm),
@@ -12588,8 +12771,100 @@ class TabChart(QWidget):
         self._paper_combo.setCurrentIndex(max(idx, 0))
         self._update_patch_count()
 
+    #: Which instruments the one "-h" checkbox means something for, and what it
+    #: means. It is not one option shown in three places: it is THREE options
+    #: sharing a widget, relabelled per instrument (see `_update_dd_visibility`).
+    _DD_FAMILIES = {"CM": "double density (needs the ColorMunki rig)",
+                    "CR30": "hexagon patches",
+                    "SS": "hexagon patches"}
+
+    def _remember_td(self) -> None:
+        """Triple density has exactly one owner, the ColorMunki, so its memory
+        is one bool rather than a map."""
+        if (self._instr_combo.currentData() or "") == "CM":
+            self._td_memory = bool(self._td_check.isChecked())
+
+    def _set_td_without_remembering(self, checked: bool) -> None:
+        self._td_writing = True
+        try:
+            self._td_check.setChecked(bool(checked))
+        finally:
+            self._td_writing = False
+
+    def _remember_dd_for(self, instr: str) -> None:
+        """File the tick under the instrument it was made for."""
+        if instr in self._DD_FAMILIES:
+            self._dd_memory[instr] = bool(self._dd_check.isChecked())
+
+    def _set_dd_without_remembering(self, checked: bool) -> None:
+        """Move the widget without filing the result as an answer.
+
+        Clearing the box because the option underneath it changed meaning is
+        not the person saying "no" to the new option, and restoring a
+        remembered value is not a fresh answer either. Both would otherwise
+        land in `_dd_memory` through `toggled` and wipe what they were meant to
+        preserve: picking ColorMunki after SpectroScan cleared the widget,
+        filed False against ColorMunki, and then "restored" that False over the
+        True the person had actually chosen.
+        """
+        self._dd_writing = True
+        try:
+            self._dd_check.setChecked(bool(checked))
+        finally:
+            self._dd_writing = False
+
     def _update_dd_visibility(self) -> None:
         instr = self._instr_combo.currentData() or "i1"
+        # ONE TICK, THREE MEANINGS, AND IT USED TO CARRY BETWEEN THEM.
+        #
+        # `_dd_check` is "Double density" on a ColorMunki, "Hexagon patches" on
+        # a CR30 and on a SpectroScan, and hidden on an i1Pro. Nothing used to
+        # remember which of those the tick belonged to, so it simply stayed
+        # where it was. Proven on screen, 2026-09-08:
+        #
+        #   CR30 + hexagons ON  ->  switch to ColorMunki  ->  "Double density"
+        #   ticked, on a chart the user never asked to be dense
+        #
+        # and Double density is the one that REQUIRES the physical rig — its own
+        # tooltip says the instrument "will misread" without it. So a chart the
+        # user could not measure, from a control they never touched for that
+        # instrument.
+        #
+        # The reverse was a quieter loss: a deliberate ColorMunki tick was
+        # force-unchecked on the way to an i1Pro (the `else` branch below) and
+        # never restored, so glancing at another instrument and coming back
+        # silently dropped it.
+        #
+        # Both go away with one change: each family keeps its own answer.
+        # The i1/p3 branch still force-unchecks the WIDGET, because -h must not
+        # reach printtarg for them, but the remembered value survives that.
+        # THE RESTORE IS NOT HERE, AND THAT WAS A REGRESSION WORTH THE SCAR.
+        # This method runs on EVERY instrument change, including the many the
+        # app makes for itself: seeding the panel from a run's .ti2, the
+        # Guided/Manual mirror, applying a preset. A first version restored the
+        # remembered tick here, so loading a project went:
+        #
+        #   stored state applied  ->  CR30, box OFF          (correct)
+        #   app seeds the instrument from the chart -> CM
+        #   restore fires        ->  CM's session memory, ON (WRONG)
+        #
+        # and the run was then written back with rig double density it never
+        # had. That is the same fault this whole change exists to remove,
+        # arriving through a door the app opened itself, and it breaks §4c D-4
+        # as well: the app's own write is not an answer.
+        #
+        # So the restore lives on `activated`, which Qt emits only for a person
+        # choosing a row. What DOES belong here is clearing a tick whose meaning
+        # has just changed: the widget must never go on showing "Double density"
+        # ticked because somebody asked for hexagons on a different instrument,
+        # however the instrument came to change. Clearing is not remembering, so
+        # it goes through `_set_dd_without_remembering`.
+        prev = getattr(self, "_dd_instr", None)
+        self._dd_instr = instr
+        if (prev is not None and prev != instr
+                and self._DD_FAMILIES.get(prev) != self._DD_FAMILIES.get(instr)
+                and self._dd_check.isChecked()):
+            self._set_dd_without_remembering(False)
         # -h is meaningful on CM (double density via rig) and SS (hexagon
         # patches), but has different semantics → relabel and retitle.
         if instr == "CM":
@@ -12626,15 +12901,15 @@ class TabChart(QWidget):
             self._dd_tooltip._body = tr(
                 "Switches the CR30 chart from rectangular to hexagonal "
                 "patches. Rectangular is the default.\n\n"
-                "The CR30 is a ROUND instrument — a 33 mm barrel reading "
-                "through a 4 mm circular window — and a round window can never "
+                "The CR30 is a ROUND instrument: a 33 mm barrel reading "
+                "through a 4 mm circular window, and a round window can never "
                 "use the corners of a square patch. Hexagons are the tightest "
                 "way to pack round openings into a sheet (90.7 % of the area "
                 "is within reach of a circle, against 78.5 % for squares), so "
                 "you keep the same 4 mm of clearance all round the window "
                 "while each patch uses less paper. Measured on A4 at the "
                 "standard size and default margins: 345 patches rectangular, "
-                "405 hexagonal. The gain depends on the paper — on A3 it is "
+                "405 hexagonal. The gain depends on the paper; on A3 it is "
                 "much smaller.\n\n"
                 "It is also reasonable to expect a honeycomb to be easier to "
                 "aim at, since its six sides close in on the centre of the "
@@ -12644,12 +12919,13 @@ class TabChart(QWidget):
                 "No extra hardware, and nothing changes about how you measure. "
                 "The shape only matters to an instrument that has to travel "
                 "along a row of patches, and the CR30 never does.\n\n"
-                "Two costs, both real. The scanner and camera tools turn a "
+                "One cost, and one limit. The scanner and camera tools turn a "
                 "honeycomb chart away unless you switch them on for it in "
-                "Preferences → Beta; and the ruler helper markers are not "
-                "drawn on a honeycomb, because it has no straight rows to line "
-                "a ruler against.\n\n"
-                "Has no effect on i1Pro, i1Pro 3 Plus or ColorMunki — the "
+                "Preferences → Beta; and of the two ruler helper marker combs "
+                "only the left and right one is drawn, because a honeycomb's "
+                "rows are evenly spaced down the page but every second row is "
+                "shifted half a patch sideways.\n\n"
+                "Has no effect on i1Pro, i1Pro 3 Plus or ColorMunki: the "
                 "option is hidden when those are selected."
             )
             self._dd_tooltip._min_width = 600
@@ -12687,8 +12963,32 @@ class TabChart(QWidget):
         # represent the ColorMunki rig accessory. For SS the dd checkbox
         # is hexagon-patches (no rig involved) so we hide the label.
         self._for_rig_label.setVisible(instr == "CM")
-        if not td_visible and self._td_check.isChecked():
-            self._td_check.setChecked(False)
+        # REMEMBERED, THEN CLEARED (Basti approved the keep, 2026-09-08; the
+        # clear came back from the regression round the same day).
+        #
+        # It used to force-uncheck and never restore, so a Triple density the
+        # person ticked on a ColorMunki was gone for good after a look at an
+        # i1Pro, and the loss was filed as the run's own answer. §4c D-2 forbids
+        # that. So the choice is remembered and comes back with the ColorMunki.
+        #
+        # BUT SIMPLY LEAVING IT TICKED WAS WORSE, AND I TOLD BASTI OTHERWISE.
+        # The claim was "it cannot reach printtarg for an instrument that
+        # ignores it, so nothing builds differently". False: `_td_check` reaches
+        # printtarg THROUGH `_lb_check`. `_on_guided_td_toggled` forces the left
+        # border on and restores it only on untoggle, and the two visibility
+        # lines below are computed as "i1/p3 AND NOT triple density". Measured
+        # on an i1Pro after ticking Triple density on a ColorMunki: `-L` in the
+        # command, `disable_left_border` True, the `-P` and left-border rows
+        # gone from the panel with no way back, the density box disabled, and
+        # the run storing `triple_density: true, left_border: true`.
+        #
+        # `-P` next door is genuinely safe and is genuinely left alone: measured
+        # the same way, `no_strip_limit` stays False on an instrument that hides
+        # it, in both trees.
+        if not td_visible:
+            self._remember_td()
+            if self._td_check.isChecked():
+                self._set_td_without_remembering(False)
         # -L only affects strip instruments (i1, p3). CM reads patches
         # individually and SS is an XY flatbed — both ignore -L. Even with
         # the ChromIQ-style clipping border on, the toggle stays visible:
@@ -12707,20 +13007,82 @@ class TabChart(QWidget):
         nsl_visible = instr in {"i1", "p3"} and not self._td_check.isChecked()
         self._nsl_check.setVisible(nsl_visible)
         self._nsl_tooltip.setVisible(nsl_visible)
-        if not nsl_visible and self._nsl_check.isChecked():
-            self._nsl_check.setChecked(False)
+        # Hidden, not cleared, for the same reason as triple density above.
+        # -P belongs to the strip readers; it cannot reach printtarg for anyone
+        # else, and a value the person ticked is theirs to keep.
+
+    def _on_user_picked_instrument(self, _idx: int) -> None:
+        """A PERSON chose an instrument: show that instrument's own answer.
+
+        `activated` fires only for a real selection, never for the app's own
+        `setCurrentIndex`. That distinction is the whole fix: a run's stored
+        density value must survive the instrument seeding that follows a load.
+        """
+        instr = self._instr_combo.currentData() or ""
+        if instr in self._DD_FAMILIES:
+            self._set_dd_without_remembering(
+                bool(self._dd_memory.get(instr, False)))
+        if instr == "CM" and getattr(self, "_td_memory", False):
+            self._set_td_without_remembering(True)
 
     def _on_guided_dd_toggled(self, checked: bool) -> None:
+        # ONLY THE MEMORY WRITE IS THE PERSON'S ALONE. An early `return` here
+        # guarded the whole method for one release-candidate day, and it took
+        # the ENABLE with it: when the app cleared this box on an instrument
+        # change, `_td_check` was never re-enabled, and the triple-density
+        # memory then ticked a box nobody could untick.
+        #
+        #   ColorMunki, tick Triple density -> SpectroScan, tick Hexagon
+        #   patches -> ColorMunki  =  both boxes greyed, Triple density
+        #   ticked, chart built with triple_density=True, run storing
+        #   `triple_density: true, left_border: true`, and no gesture to
+        #   recover. On screen it rendered with no tick mark at all, which is
+        #   the hazard `tab_measure.py` already documents from Basti's
+        #   2026-08-28 report.
+        #
+        # The mutual exclusion and the enabled state must follow the tick
+        # whoever moved it. Only `_remember_dd_for` cares who.
+        if not getattr(self, "_dd_writing", False):
+            # `toggled`, not `clicked`, on purpose: a value that arrived from a
+            # run's stored state is this instrument's answer too, and must be
+            # remembered so that leaving and coming back returns it rather than
+            # a blank. What must NOT happen is restoring on an app-driven
+            # instrument change, and that is prevented at the other end
+            # (`activated`).
+            self._remember_dd_for(self._instr_combo.currentData() or "")
         if checked and self._td_check.isChecked():
             self._td_check.setChecked(False)
         self._td_check.setEnabled(not checked)
         self._td_tooltip.setEnabled(not checked)
 
     def _on_guided_td_toggled(self, checked: bool) -> None:
+        if not getattr(self, "_td_writing", False):
+            self._remember_td()
         if checked and self._dd_check.isChecked():
             self._dd_check.setChecked(False)
         self._dd_check.setEnabled(not checked)
         self._dd_tooltip.setEnabled(not checked)
+        if not getattr(self, "_td_writing", False):
+            # AND FILE WHAT THAT MEANS FOR THE DENSITY BOX, UNCONDITIONALLY.
+            #
+            # `setChecked(False)` on a box that is ALREADY False emits no
+            # `toggled`, so the line above cannot be relied on to update the
+            # density memory. Choosing triple density still means "not double
+            # density" for this instrument, and the memory has to say so, or a
+            # stale True comes back and swaps the person's answer:
+            #
+            #   ColorMunki, tick Double density        memory {CM: True}
+            #   the app moves the instrument away and back   (clears the box,
+            #                                          deliberately without
+            #                                          writing the memory)
+            #   tick Triple density   -> the exclusion is a no-op, memory stale
+            #   pick ColorMunki       -> Double density restored, Triple density
+            #                            gone, and the chart BUILDS that way
+            #
+            # Measured against master, which keeps the tick. Found by the review
+            # of the commit before this one; my own probe missed it because I
+            # unticked the box by hand, which does emit.
+            self._remember_dd_for(self._instr_combo.currentData() or "")
         # Triple density forces -L internally — stash the user's lb_check
         # value and force it on; restore on untoggle.
         if checked:
@@ -14914,6 +15276,76 @@ class TabChart(QWidget):
         # "generated the chart but went to manual module on its own and i think
         # colormunki was still selected there". His run1 holds mode=manual,
         # guided={instrument: CM, paper: A4}, and that is what came back.
+        if "engine_on" in stored and not built_here:
+            try:
+                on = bool(stored["engine_on"])
+                self._settings.set("use_chromiq_layout_engine", on)
+                self._set_engine_checked(on)
+            except Exception:      # noqa: BLE001
+                log.debug("ui-state: engine toggle not applied")
+        rec_d = stored.get("engine_recipe")
+        # NOT WHILE THAT LAYOUT IS BEING BUILT WITH. Building a chart makes the
+        # run its own — creating or re-aligning it fires the target-switch
+        # handler, which loads the run's *stored* Create Chart state right on top
+        # of the layout the build is using. The chart on disk was then correct
+        # and the panel was not, and with "Update the preview automatically" on,
+        # the panel won two seconds later: Basti, 2026-08-16, picking the
+        # 84-patch Hand Held preset — built at 7 columns with a 6 mm left margin,
+        # replaced by a re-layout at 17 columns and 14 mm, so "same amount of
+        # patches but less wide". His log named the path outright:
+        #   chart build (user): chart.ti1, A4, 7x12 grid, margins … L6.0
+        #   layout panel set_recipe [load_target_settings ← _apply_ui_state]  ×4
+        #   chart build (live preview): …, 17x12 grid, margins … L14.0
+        # A build in flight IS the newer state, so it wins here, and the next
+        # write files it as the run's own. Every other stored value still loads —
+        # only the layout being built with is protected.
+        if isinstance(rec_d, dict) and built_here:
+            log.debug("ui-state: kept the layout this build used "
+                      "(the run's stored copy is the older one)")
+        elif isinstance(rec_d, dict):
+            try:
+                import dataclasses as _dc
+
+                from workflow.layout_engine.presets import LayoutRecipe
+                names = {f.name for f in _dc.fields(LayoutRecipe)}
+                rec = LayoutRecipe(
+                    **{k: v for k, v in rec_d.items() if k in names})
+                self._set_engine_recipe(rec)
+            except Exception:      # noqa: BLE001
+                log.debug("ui-state: engine recipe not applied", exc_info=True)
+        # THE GUIDED ROW IS APPLIED LAST, AND THE ORDER IS THE FIX.
+        #
+        # It used to be applied FIRST, and then lost. The engine block below
+        # moves the layout panel; the panel mirrors its instrument into the
+        # printtarg widgets (`_sync_manual_selection_from_panel`), and
+        # `_link_instrument_controls` mirrors that back into Guided. So the
+        # last writer won, and the last writer was a recipe -- either the run's
+        # own, or, when it had none, the GLOBAL `manual_engine_recipe` that
+        # "Save as Defaults" leaves behind. Captured by stack trace, not
+        # guessed:
+        #
+        #   _apply_ui_state -> guided instrument = CR30        (correct)
+        #   _apply_ui_state -> _init_manual_layout_panel
+        #        -> layout panel loads the saved default (CM)
+        #        -> _sync_manual_selection_from_panel -> _mirror("manual")
+        #        -> guided instrument = CM                     (WRONG)
+        #
+        # and the next write filed CM as the run's own instrument, with
+        # `double_density` following it. That is a CR30 project reopening as a
+        # ColorMunki, which is what Basti reported on 2026-09-08, and it is a
+        # self-sustaining loop: the wrong value is stored, and the stored wrong
+        # value then supplies the next load.
+        #
+        # It breaks three binding rules at once: 2.0 (the target's own record
+        # is the single writer), 4c D-2 (an instrument change may not overwrite
+        # a value they have chosen) and 4c D-4 (saved defaults are not an
+        # answer).
+        #
+        # Suppressing the mirror instead was the tempting fix and is worse: it
+        # leaves Manual and the panel on CM while Guided says CR30, so the two
+        # modes disagree and the NEXT write stores that disagreement. Ordering
+        # removes the conflict rather than hiding it.
+
         guided = stored.get("guided")
         if isinstance(guided, dict) and built_here:
             log.debug("ui-state: kept the Guided row this build used "
@@ -14954,44 +15386,14 @@ class TabChart(QWidget):
                     self._shared_set("guided", fld, val)
                 except Exception:      # noqa: BLE001
                     log.debug("ui-state: guided %s not applied", fld)
-        if "engine_on" in stored and not built_here:
-            try:
-                on = bool(stored["engine_on"])
-                self._settings.set("use_chromiq_layout_engine", on)
-                self._set_engine_checked(on)
-            except Exception:      # noqa: BLE001
-                log.debug("ui-state: engine toggle not applied")
-        rec_d = stored.get("engine_recipe")
-        # NOT WHILE THAT LAYOUT IS BEING BUILT WITH. Building a chart makes the
-        # run its own — creating or re-aligning it fires the target-switch
-        # handler, which loads the run's *stored* Create Chart state right on top
-        # of the layout the build is using. The chart on disk was then correct
-        # and the panel was not, and with "Update the preview automatically" on,
-        # the panel won two seconds later: Basti, 2026-08-16, picking the
-        # 84-patch Hand Held preset — built at 7 columns with a 6 mm left margin,
-        # replaced by a re-layout at 17 columns and 14 mm, so "same amount of
-        # patches but less wide". His log named the path outright:
-        #   chart build (user): chart.ti1, A4, 7x12 grid, margins … L6.0
-        #   layout panel set_recipe [load_target_settings ← _apply_ui_state]  ×4
-        #   chart build (live preview): …, 17x12 grid, margins … L14.0
-        # A build in flight IS the newer state, so it wins here, and the next
-        # write files it as the run's own. Every other stored value still loads —
-        # only the layout being built with is protected.
-        if isinstance(rec_d, dict) and built_here:
-            log.debug("ui-state: kept the layout this build used "
-                      "(the run's stored copy is the older one)")
-        elif isinstance(rec_d, dict):
-            try:
-                import dataclasses as _dc
-
-                from workflow.layout_engine.presets import LayoutRecipe
-                names = {f.name for f in _dc.fields(LayoutRecipe)}
-                rec = LayoutRecipe(
-                    **{k: v for k, v in rec_d.items() if k in names})
-                self._set_engine_recipe(rec)
-            except Exception:      # noqa: BLE001
-                log.debug("ui-state: engine recipe not applied", exc_info=True)
-        elif not built_here:
+        # …AND THE ABSENT-RECIPE BRANCH RUNS AFTER IT, WHICH IS NOT AN
+        # INCONSISTENCY. A recipe that is PRESENT is a writer, so it must go
+        # before the guided row and lose to it. A recipe that is ABSENT resets
+        # the panel to neutral, and that reset READS the guided row: it must
+        # therefore see the row already restored, or it re-seeds the panel from
+        # the run before this one. Moving both halves up broke exactly that,
+        # and `test_a_fresh_run_opens_on_its_own_defaults.py` caught it.
+        if not isinstance(rec_d, dict) and not built_here:
             # ABSENT MEANS NEUTRAL here too, and this is the one that matters
             # most: `_adopt_new_run_settings` writes a record with
             # `create_chart_settings` present and `create_chart_ui` empty, and
@@ -17445,10 +17847,15 @@ class TabChart(QWidget):
             # both ends, so tip to tip it is plen·4/3. Knut read 11.3 × 9.78 for a
             # patch that is 11.3 × 13.05 (#B8-80). Both numbers are worth having,
             # so both are shown, and the pitch is named as the pitch.
-            _ph, _pitch = _panel_patch_height_mm(geom.plen,
-                                                 instruments.is_hexagonal(geom))
+            _flat = bool(getattr(geom, "hex_flat_top", False))
+            _pw, _ph, _pitch = _panel_patch_size_mm(
+                geom.pwid, geom.plen, instruments.is_hexagonal(geom), _flat)
+            # ...and name the axis, because on a turned sheet that number is a
+            # COLUMN pitch across the page and not a row pitch down a strip.
+            if hasattr(panel, "set_pitch_axis"):
+                panel.set_pitch_axis(_flat, column="estimate")
             panel.set_estimate(total=lay.total_patches, rows=rows, cols=cols,
-                               pages=lay.pages, patch_w=geom.pwid, patch_h=_ph,
+                               pages=lay.pages, patch_w=_pw, patch_h=_ph,
                                page_patches=n0, row_pitch=_pitch,
                                fillup=getattr(lay, "padding", None))
         except Exception:
@@ -17495,6 +17902,15 @@ class TabChart(QWidget):
             designed = _number_of_sets(Path(ti2).with_suffix(".ti1"))
             fillup = (total - designed
                       if designed is not None and 0 <= total - designed else None)
+            # NAME THE AXIS HERE TOO. `set_pitch_axis` was called only from the
+            # estimate path, so ONE CLICK after building a turned chart the
+            # ACTUAL column read "Row pitch (mm) 10.41" beside "Patch size
+            # 13.89 x 12.02" -- G10's original symptom, verbatim, in the other
+            # column. The chart on disk is what this column reports, so its
+            # own recipe is what decides the label.
+            if hasattr(panel, "set_pitch_axis"):
+                from workflow.hex_support import chart_is_flat_top as _cift
+                panel.set_pitch_axis(_cift(ti2), column="actual")
             panel.set_actual(total=total, rows=rows, cols=cols, pages=len(tiffs),
                              patch_w=pw, patch_h=ph, page_patches=page_patches,
                              row_pitch=pitch, fillup=fillup)
@@ -17531,10 +17947,12 @@ class TabChart(QWidget):
                 return (0.0, 0.0, 0.0)
             r0 = rects[0]
             slot_h = r0["h"] * 25.4 / dpi
-            from workflow.hex_support import recipe_is_hexagonal
-            ph, pitch = _panel_patch_height_mm(slot_h,
-                                               recipe_is_hexagonal(recipe))
-            return (r0["w"] * 25.4 / dpi, ph, pitch)
+            from workflow.hex_support import (recipe_is_flat_top,
+                                              recipe_is_hexagonal)
+            pw, ph, pitch = _panel_patch_size_mm(
+                r0["w"] * 25.4 / dpi, slot_h, recipe_is_hexagonal(recipe),
+                recipe_is_flat_top(recipe))
+            return (pw, ph, pitch)
         except Exception:
             return (0.0, 0.0, 0.0)
 
@@ -17997,7 +18415,11 @@ class TabChart(QWidget):
         if panel is None or not hasattr(panel, "set_helper_markers_supported"):
             return
         try:
-            panel.set_helper_markers_supported(not self._chart_is_hexagonal())
+            # A honeycomb is not "unsupported" any more: it carries the comb
+            # for the axis its patches are straight along. Only the other
+            # switch is greyed. See `helper_marker_lines_mm`.
+            _hex = self._chart_is_hexagonal()
+            panel.set_helper_markers_supported(not _hex, one_axis_only=_hex)
         except Exception:      # noqa: BLE001 — never block the inspector
             log.debug("could not set helper-marker availability", exc_info=True)
 
@@ -18066,8 +18488,9 @@ class TabChart(QWidget):
             return None
         if not getattr(self, "_margin_tiffs", None) or self._margin_ti2 is None:
             return None
-        if self._chart_is_hexagonal():
-            return None
+        # The preview overlay follows the same rule as the sheet: a honeycomb
+        # gets the comb it is straight along, so it is drawn rather than
+        # refused. `helper_marker_lines_mm` drops the axis that cannot line up.
         from workflow.layout_engine.presets import LayoutRecipe
         from workflow.layout_engine import instruments, geometry, papers
         ch = Path(self._margin_ti2).with_suffix(".channels.json")

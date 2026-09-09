@@ -219,12 +219,12 @@ class LayoutOptionsPanel(QWidget):
                        "never use the corners of a square patch, so on a "
                        "square grid that paper is spent for nothing. Hexagons "
                        "are the tightest way to pack round openings into a "
-                       "sheet — 90.7 % of the area is within reach of a "
-                       "circle, against 78.5 % for squares — so you keep the "
+                       "sheet: 90.7 % of the area is within reach of a "
+                       "circle, against 78.5 % for squares, so you keep the "
                        "same 4 mm of clearance all round the window while each "
                        "patch uses less paper. Measured on A4 at the standard "
                        "size and default margins: 345 patches rectangular, 405 "
-                       "hexagonal. The gain depends on the paper — on A3 it is "
+                       "hexagonal. The gain depends on the paper; on A3 it is "
                        "much smaller.\n\n"
                        "It is also reasonable to expect a honeycomb to be "
                        "easier to aim at, since its six sides close in on the "
@@ -234,22 +234,23 @@ class LayoutOptionsPanel(QWidget):
                        "is the packing above.\n\n"
                        "The shape costs a CR30 nothing to read. It matters "
                        "only to an instrument that has to travel ALONG a row "
-                       "of patches, and a CR30 never does — you lift it onto "
+                       "of patches, and a CR30 never does. You lift it onto "
                        "one patch, press the button on the instrument, and "
                        "lift it onto the next.\n\n"
-                       "Two costs, both real. The scanner and camera tools "
+                       "One cost, and one limit. The scanner and camera tools "
                        "turn a honeycomb chart away unless you switch them on "
-                       "for it in Preferences → Beta; and the ruler helper "
-                       "markers are not drawn on a honeycomb, because it has "
-                       "no straight rows to line a ruler against. If you want "
-                       "either of those, stay on Rectangular.\n\n"
+                       "for it in Preferences → Beta; and of the two ruler "
+                       "helper marker combs only the left and right one is "
+                       "drawn, because a honeycomb's rows are evenly spaced "
+                       "down the page but every second row is shifted half a "
+                       "patch sideways.\n\n"
                        "Either shape is a grid with row indicators down the left "
                        "and column letters along the top, so you can always "
                        "find the patch ChromIQ is asking for. Patch size is "
                        "PROVISIONAL: 12 mm is a reasoned starting point, "
                        "chosen because the CR30's body hides the patch once "
                        "you set it down and you are aiming from the cells "
-                       "around it — but the smallest patch a CR30 can read "
+                       "around it, but the smallest patch a CR30 can read "
                        "has never been measured. Make them bigger in Patch "
                        "size below if you find yourself missing patches."))
         return (tr("Layout mode"),
@@ -434,6 +435,10 @@ class LayoutOptionsPanel(QWidget):
             # `hasattr`, and `_sync_layout_mode` runs the same update once the
             # panel is built.
             self.mode.currentIndexChanged.connect(self._update_area_hex_locks)
+            # The turn is offered only on a honeycomb, so the SHAPE decides its
+            # visibility as much as the instrument does.
+            self.mode.currentIndexChanged.connect(
+                self._sync_hex_flat_top_visibility)
             self._on_instr_changed()
 
         def mm(special_auto: bool = False, top: float = 300.0) -> NoScrollDoubleSpinBox:
@@ -1088,6 +1093,40 @@ class LayoutOptionsPanel(QWidget):
                "doesn't reduce the patch count. Turn it on if you prefer the "
                "printtarg look or want an extra separator at the strip ends."),
             self), 10, 2)
+
+        # ---- Straight strips: the honeycomb, turned 30 degrees (#159) ----
+        #
+        # It lives HERE, in Expert Options -> Patches & spacers, on Basti's
+        # ruling of 2026-09-09. It is a property of the patch lattice, which is
+        # what this group is about, and it is an expert choice rather than one
+        # every CR30 user has to meet.
+        self.hex_flat_top_cb = WrappingCheckBox(
+            tr("Straight strips (turn the honeycomb 30°)"), self)
+        self.hex_flat_top_cb.toggled.connect(self._emit)
+        g.addWidget(self.hex_flat_top_cb, 11, 1)
+        g.addWidget(TooltipButton(
+            tr("Straight strips"),
+            tr("Turns the honeycomb 30°, so every strip runs straight down the "
+               "page instead of zigzagging from side to side.\n\n"
+               "The patches themselves do not change. It is the same hexagon, "
+               "the same size, simply stood on a flat side instead of a point, "
+               "so nothing is stretched and each patch holds the same amount of "
+               "ink. What changes is how the strips line up: on the standard "
+               "honeycomb every second patch in a strip sits half a patch to the "
+               "side, and with this on they sit one under another.\n\n"
+               "Why you might want it. A strip you read patch by patch is easier "
+               "to follow when it is straight, and a straight strip is easier to "
+               "lay a ruler along. The ruler helper markers follow the turn with "
+               "it: on a standard honeycomb the left and right dashes are the "
+               "ones that line up with the patches, and on a turned one it is "
+               "the top and bottom dashes.\n\n"
+               "What it costs. The strips and rows come out a different length, "
+               "so the number of patches on a sheet can move a little in either "
+               "direction. Watch the patch count beside the preview and adjust "
+               "the margins or patch size if you want it back.\n\n"
+               "Only for the CR30 with hexagon patches. The option is hidden "
+               "otherwise, and has no effect on any other chart."),
+            self), 11, 2)
         _expert_v.addWidget(ps)
 
         # ---- Randomisation ----
@@ -2389,6 +2428,11 @@ class LayoutOptionsPanel(QWidget):
         if hasattr(self, "cm_stagger_cb"):
             self.cm_stagger_cb.setVisible(inst == "CM")
             self._cm_stagger_tip.setVisible(inst == "CM")
+        # HIDE, NEVER UNTICK, and never disable: a box that is set and
+        # unclickable is the `ca0f639c` shape. The value stays in the recipe and
+        # simply cannot reach any other instrument's Geom, because `_build_base`
+        # writes `hex_flat_top` only in the CR30 honeycomb branch.
+        self._sync_hex_flat_top_visibility()
 
     def _on_instr_changed(self, *_a) -> None:
         from workflow.layout_engine import papers
@@ -3207,6 +3251,42 @@ class LayoutOptionsPanel(QWidget):
     # ------------------------------------------------------------------
     # A HONEYCOMB HAS ONE FREE DIMENSION, AND THE PANEL OFFERED TWO.
     # ------------------------------------------------------------------
+    def _sync_hex_flat_top_visibility(self) -> None:
+        """Show the turn only on a CR30 honeycomb.
+
+        `_area_is_hexagonal()` alone is NOT the test: it ends in
+        `instruments.hex_capable(inst)`, which is True for the SpectroScan, and
+        Basti ruled the turn is CR30-only (2026-09-09, answer 2: *"in this case
+        no for the spectrosscan"*). Naming the instrument here is the third of
+        the three gates that all name it; the others are in `_build_base` and in
+        `area_fit.derive_area_patch_size`.
+        """
+        cb = getattr(self, "hex_flat_top_cb", None)
+        if cb is None:
+            return
+        inst = ""
+        if getattr(self, "instr", None) is not None:
+            inst = str(self.instr.currentData() or "")
+        cb.setVisible(self._area_is_hexagonal() and inst == "CR30")
+
+    def _area_is_turned_hex(self) -> bool:
+        """Whether the honeycomb on screen is TURNED, from the live selectors.
+
+        The same three gates as `_sync_hex_flat_top_visibility`, and asked here
+        rather than passed in, so the turn keeps ONE reader on this screen. A
+        caller that computed it separately would be a second writer, which is
+        the mistake `d1adbe31` made.
+        """
+        cb = getattr(self, "hex_flat_top_cb", None)
+        if cb is None or not cb.isChecked():
+            return False
+        # The same fallback `_area_is_hexagonal` uses: this panel has no
+        # selectors of its own in Preferences > Chart Layout or the relayout
+        # dialog, and there the last recipe loaded is the honest answer.
+        inst = ((self.instr.currentData() if getattr(self, "instr", None)
+                 is not None else getattr(self, "_inst", "i1")) or "i1")
+        return self._area_is_hexagonal() and str(inst) == "CR30"
+
     def _area_is_hexagonal(self) -> bool:
         """Whether the chart on screen is a honeycomb.
 
@@ -4261,6 +4341,19 @@ class LayoutOptionsPanel(QWidget):
                 if isinstance(w, TooltipButton):
                     continue
                 w.setEnabled(on)
+        # AND THE SIDE COMB STAYS DOWN ON A HONEYCOMB. It is one of the widgets
+        # in `_hm_rows`, so without this line ticking the markers on hands it
+        # straight back: `set_helper_markers_supported` greys it once, when the
+        # instrument changes, and this method runs every time the box is
+        # toggled. Caught by the on-screen driver, which found both edge
+        # switches greyed because the master tick was off, and then, ticking
+        # it, found the side one live on a honeycomb.
+        if getattr(self, "_hm_one_axis_only", False):
+            # …and it is the comb that DRAWS NOTHING that stays down, which on a
+            # turned honeycomb is the side one. See `set_helper_markers_supported`.
+            (self.helper_markers_sides
+             if getattr(self, "_hm_axis_is_top_bottom", False)
+             else self.helper_markers_top_bottom).setEnabled(False)
 
     def _update_helper_marker_edge_warning(self, *_a) -> None:
         """Say it when the markers are on but no edge is ticked.
@@ -4281,8 +4374,17 @@ class LayoutOptionsPanel(QWidget):
     def _helper_marker_edge_warning_text(self) -> str:
         """The warning, or ``""`` when at least one edge will actually print."""
         on = bool(self.helper_markers_cb.isChecked())
-        none_ticked = not (self.helper_markers_top_bottom.isChecked()
-                           or self.helper_markers_sides.isChecked())
+        # ONLY THE BOXES THAT CAN ACTUALLY PRINT COUNT. On a honeycomb the
+        # top/bottom comb is greyed and its stored tick is deliberately left
+        # standing (disable, never untick), so an `or` across both boxes is
+        # always satisfied — the user unticks the one live box, the engine
+        # prints nothing, and the panel says nothing because the greyed box
+        # answered for it. Ask each box whether it is enabled as well as ticked.
+        will_print = ((self.helper_markers_top_bottom.isChecked()
+                       and self.helper_markers_top_bottom.isEnabled())
+                      or (self.helper_markers_sides.isChecked()
+                          and self.helper_markers_sides.isEnabled()))
+        none_ticked = not will_print
         if on and none_ticked:
             # "…at least one edge ABOVE" was true of a label printed under the
             # two boxes and is false of an ⓘ that sits on the row above them.
@@ -4292,19 +4394,43 @@ class LayoutOptionsPanel(QWidget):
         return ""
 
     def set_helper_markers_supported(self, supported: bool,
-                                     reason: str = "") -> None:
+                                     reason: str = "",
+                                     *, one_axis_only: bool = False) -> None:
         """Grey the ruler-marker controls out when the chart cannot carry them.
 
-        A hexagonal SpectroScan chart is a honeycomb — it has no rows to lay a
-        ruler against, so the dashes are meaningless there and the engine draws
-        none. Knut asked (#152) for the reason to be readable rather than the
-        box simply going dead, so it goes on the group and on every control
-        inside it, which is what a hover reaches.
+        Knut asked (#152) for the reason to be readable rather than the box
+        simply going dead, so it goes on the group and on every control inside
+        it, which is what a hover reaches.
+
+        *one_axis_only* is the honeycomb case, and it is not the same as
+        unsupported. A honeycomb's patch centres lie on straight lines along
+        three directions, and on any page exactly one of the two page axes is
+        one of them. WHICH ONE FOLLOWS THE TURN, and reading it as always the
+        same axis is what made this wrong for nine rounds.
+
+        On a POINTY honeycomb the stagger is applied to x, so the centres are
+        uniform in y and zigzag by half a patch width in x: the left and right
+        dashes land and the top and bottom ones would mark the seam between two
+        columns. Measured on A4 portrait, worst distance from a centre to its
+        nearest dash: CR30 sides 0.0310 mm against top/bottom 2.9830 mm; SS
+        sides 0.0250 mm against 1.7450 mm.
+
+        TURNING the honeycomb moves the stagger to y and indexes it by strip,
+        so the straight axis becomes the other one and the engine draws the top
+        and bottom comb instead. `geometry.helper_marker_lines_mm` says so in
+        two branches; this panel now asks `_area_is_turned_hex` and greys the
+        comb that draws NOTHING, whichever it is.
+
+        This replaces a blanket refusal whose premise was measurably false, on
+        Basti's ruling of 2026-09-09: *"can't they be turned on by the user if
+        he wants? they are optional anyway."* They can now, and they still
+        default to off.
         """
         grp = getattr(self, "_helper_markers_grp", None)
         if grp is None:
             return
-        grp.setEnabled(bool(supported))
+        supported = bool(supported) or bool(one_axis_only)
+        grp.setEnabled(supported)
         tip = "" if supported else (reason or tr(
             "This chart's patches are hexagons, which have no rows to lay a "
             "ruler against — so helper markers cannot be printed on it."))
@@ -4312,8 +4438,48 @@ class LayoutOptionsPanel(QWidget):
                   self.helper_marker_len, self.helper_marker_per_patch,
                   self.helper_markers_top_bottom, self.helper_markers_sides):
             w.setToolTip(tip)
+        # DISABLE, NEVER UNTICK. The saved value belongs to the target and must
+        # survive for the day the same chart is laid out with square patches
+        # that can honour it, which is the doctrine `tab_measure.py` states in
+        # capitals for the same problem. What falls silent is the engine, which
+        # drops the side comb for a honeycomb by itself.
+        self._hm_one_axis_only = bool(one_axis_only)
+        # WHICH COMB SURVIVES FOLLOWS THE TURN, AND FOR NINE ROUNDS IT DID NOT.
+        # `helper_marker_lines_mm` draws the side comb on a pointy honeycomb and
+        # the TOP AND BOTTOM comb on a turned one, because turning the patches
+        # moves the straight axis. This panel greyed the top/bottom switch in
+        # both cases, so on a turned sheet it greyed the comb that prints and
+        # offered the one that does nothing: the tooltip was false, unticking
+        # the only live box made the panel say "No dashes will be printed" while
+        # the sheet printed a full comb, and the dashes that did print could not
+        # be switched off at all.
+        self._hm_axis_is_top_bottom = bool(one_axis_only) and self._area_is_turned_hex()
+        _live = (self.helper_markers_top_bottom if self._hm_axis_is_top_bottom
+                 else self.helper_markers_sides)
+        _dead = (self.helper_markers_sides if self._hm_axis_is_top_bottom
+                 else self.helper_markers_top_bottom)
+        _live.setEnabled(supported)
+        _dead.setEnabled(supported and not one_axis_only)
+        if one_axis_only:
+            _dead.setToolTip(tr(
+                "Not available on a turned honeycomb. Its columns sit at an "
+                "even spacing across the page, but every second column is "
+                "shifted half a patch up or down, so dashes along the left and "
+                "right edges would point at the seam between two rows rather "
+                "than at the patches. The top and bottom dashes line up exactly "
+                "and stay available.")
+                if self._hm_axis_is_top_bottom else tr(
+                "Not available on hexagonal patches. A honeycomb's rows sit at "
+                "an even spacing down the page, but every second row is shifted "
+                "half a patch sideways, so dashes along the top and bottom edges "
+                "would point at the seam between two columns rather than at the "
+                "patches. The left and right dashes line up exactly and stay "
+                "available."))
         if supported:
             self._update_helper_marker_rows()
+        # The greying itself can create or clear the contradiction, so the
+        # notice is refreshed here too and not only on a user toggle.
+        self._update_helper_marker_edge_warning()
 
     @contextmanager
     def _clip_preview_batched(self):
@@ -4423,6 +4589,7 @@ class LayoutOptionsPanel(QWidget):
         self.spacer_width.setValue(r.spacer_width_mm)
         self.edge_spacers_cb.setChecked(bool(r.edge_spacers))
         self.cm_stagger_cb.setChecked(bool(getattr(r, "cm_stagger", False)))
+        self.hex_flat_top_cb.setChecked(bool(getattr(r, "hex_flat_top", False)))
         self._spacer_overrides = {str(k): v for k, v in (r.spacer_overrides or {}).items()}
         _pal = list(r.spacer_palette or [])
         self.custom_spacer_cb.setChecked(bool(_pal))
@@ -4602,6 +4769,10 @@ class LayoutOptionsPanel(QWidget):
         r.spacer_on = r.spacer_mode != "none"
         r.edge_spacers = self.edge_spacers_cb.isChecked()
         r.cm_stagger = self.cm_stagger_cb.isChecked()
+        # Read the BOX, not "the box if it happens to be visible": hiding must
+        # never change the stored answer, and the build gate is what makes the
+        # value inert elsewhere.
+        r.hex_flat_top = self.hex_flat_top_cb.isChecked()
         r.spacer_width_mm = self.spacer_width.value()
         r.layout_mode = self.layout_mode.currentData() or "patch_first"
         r.area_method = self.area_method.currentData() or "by_width"

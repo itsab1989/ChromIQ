@@ -1,0 +1,578 @@
+[
+  {
+    "title": "About the margin inspector",
+    "body": "This little panel checks that the chart you just made will be easy to measure.\n\nMany spectrophotometers (like the i1Pro or ColorMunki) are slid along the printed chart by hand, often in a ruler or holder (sometimes called a jig or rig). For that to work, the coloured patches need a bit of blank white paper around them \u2014 if a patch sits too close to the edge of the page, the instrument can run off the paper or bump the ruler, and the reading fails. This panel helps you catch that before you print.\n\nWhat the numbers mean:\n\u2022 Left, Right, Top, Bottom \u2014 how much white space there is between each edge of the paper and the first PATCH, shown in both millimetres and inches.\n\n  These can read larger than the margins you set, and usually should. Two things sit in that space on purpose. Some charts print row indicators down the left and strip letters across the top, so you can find one patch among hundreds \u2014 that lettering needs room. And patches come in whole units, so the grid almost never divides the width exactly; the leftover is shared at both ends to keep the block centred on the page. Neither is the app ignoring your margins: they are the smallest white border you asked for, and this panel reports what the patches actually got.\n\u2022 Patch width \u2014 how wide one patch is across a strip.\n\u2022 Strip length \u2014 how long each strip of patches is (handy because some jigs have a maximum, e.g. 240 mm for the i1Pro).\n\nThe 'min' column is the smallest each margin should be for your ruler or jig. If a margin is below its minimum, that row turns red and a short warning appears; when everything is fine you'll see a friendly green 'Margins: OK'.\n\nYou decide those minimums yourself: open Preferences \u2192 Instrument Margins and set them for each instrument and paper size (the starting values are sensible defaults you can adjust to your own ruler). They're only a helpful warning \u2014 you can always go ahead and print anyway.\n\nThe three tick boxes below draw these numbers onto the preview in different w"
+  },
+  {
+    "title": "Instrument-margin guide lines",
+    "body": "Draws the minimum margins your instrument needs straight onto the preview, as short dotted lines \u2014 one for each edge of the paper.\n\nUse it to see at a glance whether the patches keep far enough from the edges: a patch area that stays inside all four dotted lines is good to go. A line is black where that margin is fine and red where it is too tight, so a problem edge finds you rather than the other way round.\n\nYou also get a thin solid rectangle marking the true edge of the sheet, because the page is drawn slightly inside the preview's white border \u2014 a 0 mm margin would sit right on that line.\n\nThe minimums are yours to set: Preferences \u2192 Instrument Margins, per instrument and paper size.\n\nDefault: off."
+  },
+  {
+    "title": "Margin guide lines",
+    "body": "Draws a long dotted line at each of the four margins ChromIQ has just MEASURED \u2014 right where the patch area meets the white paper.\n\nThis is the double-check for the numbers above: if the Left figure says 8.0 mm, this line shows you where those 8 mm end. It is a different thing from the instrument-margin lines above, which show what your ruler NEEDS rather than what the chart HAS \u2014 and you can have both sets on at once to compare them.\n\nDefault: off."
+  },
+  {
+    "title": "Measurement coordinates on pointer",
+    "body": "Turns your mouse into a ruler.\n\nTick it and wherever you move the pointer over the chart, a thin cross-hair marks the exact spot and its position is shown next to it \u2014 measured from the top-left corner of the PAPER itself, not the preview's outer edge. The top line is millimetres to one decimal, the line below it inches to three.\n\nIt is the easiest way to check a real distance on screen: hover over the edge of a patch, or over a margin, and read off exactly where it sits.\n\nDefault: off."
+  },
+  {
+    "title": "About chart layout information",
+    "body": "This panel shows the SIZE and SHAPE of your chart \u2014 how many colour patches it has, how they're arranged, and how many pages it needs \u2014 so you can judge a chart before (and after) you make it.\n\nWhat the rows mean:\n\u2022 Total patches \u2014 how many colour squares the whole chart holds. More patches usually means a more accurate profile, but a bigger chart to print and measure.\n\u2022 \u2026 of those, fill-up \u2014 how many of the total are paper-white fill-up patches. Measuring instruments read whole strips, so when your designed patches don't fill the last strip exactly, it is topped up with plain paper-white patches (Argyll's printtarg does the same). That's why the total can be a little higher than the number of patches you designed \u2014 for example 896 designed becoming 910 printed. The fill-up patches are measured like any others and are harmless; nothing of yours is lost or changed.\n\u2022 Patches per strip \u2014 how many patches sit in one strip (a strip is a single column the instrument reads from top to bottom).\n\u2022 Strips (this page) \u2014 how many of those strips fit across the page you're looking at.\n\u2022 Pages \u2014 how many sheets the chart spans.\n\u2022 Patch size \u2014 how big each patch is (width \u00d7 height in mm). With \u201cPrioritise chart area\u201d this is worked out for you; very small patches can be hard for the instrument to read.\n\nThe two columns:\n\u2022 on screen \u2014 the real numbers of the chart currently in the preview.\n\u2022 estimate \u2014 what the settings you have right now would produce if you generate. This is shown while the ChromIQ layout engine is switched on, because the engine can work the layout out exactly in advance.\n\nChange a setting (patch size, paper, margins, alignment\u2026) and the estimate updates live. Any number that would come out different from the chart on screen turns amber \u2014 so you can see the effect of a change before re-generating the chart.\n\nHexagonal patches have two heights, and they are not the same number.\nHexagons interlock, so a row of them starts before the row above has finished and the"
+  },
+  {
+    "title": "Step 1 \u2014 Make a test chart",
+    "body": "This is where you design the sheet of colour patches your printer will print. The patches are how ChromIQ later \"learns\" how your printer reproduces colour.\n\nBefore you start:\n\u2022 Pick the printer and paper you actually want to profile \u2014 the profile will only be accurate for that exact combination.\n\u2022 Have a rough idea of how careful you want to be. More patches = more accuracy, but also more ink and paper.\n\nFirst, name your profiling project.\nThe \"Printer profile project name\" field at the top is the name of this whole job. It becomes the project folder, every file ChromIQ makes along the way (chart, measurements, ICC profile) and the name written inside the profile itself \u2014 so what you see later in, say, macOS ColorSync Utility matches the folder exactly. A good name describes the printer, the paper and the quality, e.g. Canon_Pro1000_PhotoRagBaryta_i1Pro3_High. Change your mind? Just edit the name \u2014 ChromIQ offers to rename the folder and files to match (until the profile has been built, after which you copy it to a new name instead). Your work is saved automatically; there's no Save button to remember.\n\nComing back to a profile later?\nClick \u201cOpen Project\u201d at the top left of the window \u2014 the first of the three small buttons beside the ChromIQ logo \u2014 to reopen a profile you started before. Its chart, measurements and any finished profile are all exactly where you left them. It asks for the profile's \"project.json\" file inside your ChromIQ folder.\n\nYou have three ways to make a chart \u2014 from quickest to most hands-on:\n\n\u2630  Built-in presets \u2014 the presets button in the header, top right (its icon looks like a small list).\nClick it to open a little menu of ready-made, professionally tuned charts, grouped by the measuring instrument they're made for (i1Pro or ColorMunki). Pick one and ChromIQ drops the finished chart straight into your profile \u2014 under the name you chose above, without changing it \u2014 so there are no settings to understand and nothing to get wrong. This is the"
+  },
+  {
+    "title": "Measurement Instrument",
+    "body": "Tells the chart generator which spectrophotometer you will use to read the printed chart. The patch grid is built around that instrument's strip width, patch size and spacing \u2014 so getting this right is essential.\n\n  \u2022  i1Pro / i1Pro 2 / i1Pro 3 \u2014 handheld strip reader, the most common choice. Reads a column of patches in one sweep.\n\n  \u2022  i1Pro 3 Plus \u2014 larger-aperture version of the i1Pro 3. Reads bigger patches, so far fewer fit per sheet (~5\u00d7 less than the regular i1Pro).\n\n  \u2022  ColorMunki / i1Studio / ColorChecker Studio \u2014 entry-level device. Reads one patch at a time on its own; with the optional measuring rig it pairs them up (see the Double Density option).\n\n  \u2022  SpectroScan \u2014 flatbed XY scanner. A motorised arm reads each patch individually, so it packs far more colours per sheet than any strip reader.\n\nPicking the wrong instrument produces a chart your device cannot align to or read reliably \u2014 you'll see \"patches not found\" or alignment errors when measuring.\n\nIn Guided mode the layout adapts to this choice automatically.\n\n  \u2022  CR30 (ChnSpec) \u2014 a small hand-held colorimeter that reads ONE patch at a time. You put it on a patch, press the button on the instrument, and ChromIQ records that patch and highlights the next one. The chart is a plain grid of squares with row indicators and column letters so you can always find the patch being asked for.\n\n     Two things to know before you choose it. Its patch size is PROVISIONAL \u2014 12 mm squares, a reasoned starting point rather than a measured minimum \u2014 so make them larger if you find yourself missing patches. And every patch is a hand placement and a button press of about two seconds, so a full A4 sheet of around 345 patches takes well over ten minutes. Pick a patch count you are happy to sit through.\n\n     A CR30 chart is always laid out by ChromIQ's own layout engine, and can only be read by ChromIQ \u2014 standard ArgyllCMS chartread does not know this instrument and will refuse the chart."
+  },
+  {
+    "title": "Double Density (-h)",
+    "body": "Doubles the number of patches that fit in each measurement strip when using a ColorMunki / i1Studio / ColorChecker Studio.\n\nREQUIRES the physical measuring rig accessory \u2014 a clear plastic guide that mounts the instrument over the chart. Without the rig the device cannot align to the tighter patch spacing and will misread.\n\nWith the rig you get roughly twice as many patches per page, which means either a more detailed profile from the same number of sheets, or the same profile quality on fewer sheets. Recommended for anyone with the rig \u2014 it's a strict upgrade on patch density.\n\nHas no effect on i1Pro, i1Pro 3 Plus or SpectroScan \u2014 the option is hidden when those are selected."
+  },
+  {
+    "title": "Triple Density (i1Pro layout emulation)",
+    "body": "ColorMunki + rig only. The chart is generated with the i1Pro strip layout (tighter, smaller patches than a native ColorMunki chart), then the produced .ti2 is rewritten so chartread still talks to your ColorMunki. Result: roughly 3\u00d7 the patch count of a plain ColorMunki chart at the same paper size \u2014 a more detailed profile from the same number of sheets, or the same profile quality on far fewer sheets.\n\nREQUIRES the physical measuring rig accessory. Without the rig the ColorMunki cannot track the tighter i1-style strips.\n\nMutually exclusive with Double density \u2014 pick one or the other.\n\nHas no effect on i1Pro, i1Pro 3 Plus or SpectroScan \u2014 the option is hidden when those are selected."
+  },
+  {
+    "title": "Paper Size",
+    "body": "Sets the dimensions of each sheet in the printed chart. The chart always fills the page edge to edge \u2014 bigger paper fits more patches, which means a more detailed profile from fewer sheets.\n\nPick the same size you will actually print on, including its orientation. Strip readers (i1Pro family) read top-to-bottom, so:\n\n  \u2022  Portrait \u2014 longer strips, fewer of them. Standard choice.\n\n  \u2022  Landscape \u2014 shorter strips, more of them. Use this when your printer feeds landscape more reliably, or when a portrait sheet would leave the last strip too close to the paper edge.\n\nSome paper sizes are hidden depending on the selected instrument:\n\n  \u2022  A3 Portrait is hidden for i1Pro \u2014 the landscape variant fits ~43% more patches.\n\n  \u2022  Small photo formats (5\u00d77\", 4\u00d76\") are hidden for i1Pro 3 Plus \u2014 its large patches don't leave a usable profile on those.\n\nIf you change paper size mid-workflow, the recommended patch count and page count update automatically."
+  },
+  {
+    "title": "Number of Pages",
+    "body": "How many physical sheets the chart spans. Each sheet is filled with as many patches as fit for the selected paper, instrument and layout \u2014 so total patches = patches-per-page \u00d7 pages.\n\nMore pages means more colour samples, which produces a more accurate profile. The trade-off is more ink, more paper and a longer reading session. Rough guide:\n\n  \u2022  1 page \u2014 quick check or single-sheet workflows (~500 patches on A4 with an i1Pro). Fine for casual profiling.\n\n  \u2022  2-3 pages \u2014 recommended for everyday photo printing. Good balance of accuracy versus effort.\n\n  \u2022  4-5+ pages \u2014 professional or fine-art workflows where the profile needs to nail tricky tonal transitions and out-of-gamut colours.\n\nHow many patches you actually need depends on your printer's colour gamut, ink set and how non-linear it behaves. When in doubt, more is better."
+  },
+  {
+    "title": "Suppress Left Clip Border (-L)",
+    "body": "Removes the left-edge paper-clip border, gaining ~15 mm for extra patches.\nEnable unless you use a physical page-clamp jig.  Recommended: ON."
+  },
+  {
+    "title": "Don't Limit Strip Length (-P)",
+    "body": "Removes printtarg's built-in strip-length cap (~250 mm) so each measurement strip runs full-bleed across the paper.\n\nWhy it helps:\nOn larger papers (A2, A3+, 11\u00d717, Legal, A3-landscape) the cap ends strips early \u2014 well before the page edge \u2014 and printtarg rebalances the layout to keep strips equal-length. With -P the strips can use the full paper width/height, so noticeably more patches fit per sheet \u2014 up to ~2.5\u00d7 more on A2, smaller gains on A4 (where the cap barely bit anyway).\n\nTrade-off:\nLong strips take longer to read in one sweep. Most i1Pro / i1Pro 3 / i1Pro 3 Plus users will be fine \u2014 modern hardware tracks long strips reliably. If you have an older instrument that struggles with strips near the paper edge, leave this off.\n\nOnly affects i1Pro family strip readers. Hidden for ColorMunki (per-patch reader) and SpectroScan (XY flatbed) \u2014 -P has no effect on either layout."
+  },
+  {
+    "title": "Refinement Profile (Pre-conditioning)",
+    "body": "Use this to make a second, noticeably better profile after you have already built and confirmed a working one for the same printer + paper.\n\nHow it helps:\nYour first profile tells ChromIQ which colours your printer gets right and which it struggles with. When you turn this option on, ChromIQ uses that knowledge to place the new test patches more cleverly \u2014 sampling more in the regions your printer reproduces least accurately, and fewer in the regions it already nails. The end result is a profile that is more accurate where it matters, without needing more patches overall.\n\nWhen to use it:\n\u2022 You already have a first ICC profile (.icc or .icm) built from this same printer + paper combination.\n\u2022 You want to invest one more round of printing and measuring to get a noticeably better profile, especially for tricky papers (matte, baryta, fine-art).\n\nWhen NOT to use it:\n\u2022 On a first-ever profile for this paper \u2014 leave this off and just build the normal way.\n\u2022 If you don't have a working profile yet for this exact paper/printer.\n\nTip: the more pages you print on the refinement pass, the more benefit the cleverer patch placement gives you."
+  },
+  {
+    "title": "Printer profile project name",
+    "body": "The name of this whole profiling project \u2014 think of it as the job's title. It becomes the project folder on disk, the base name of every file ChromIQ makes along the way (chart, measurements, the finished ICC profile) and the profile's own embedded description \u2014 so what you see later in, for example, macOS ColorSync Utility matches the folder and files exactly.\n\n(The \u201cprinter profile\u201d itself is the .icc / .icm file this project produces at the end. Naming the project after the printer and paper keeps that file easy to recognise.)\n\nChoose a name that identifies this printer and paper at a glance. A good name describes the printer (name or abbreviation), the paper (type/id and substrate such as glossy or matte), the colour space, the measurement instrument and the profile quality \u2014 e.g. Canon_Pro1000_PhotoRagBaryta_RGB_i1Pro3_High. Use underscores or dashes instead of spaces.\n\nYou can rename it later: change the name here and ChromIQ offers to rename the folder and files to match \u2014 until the profile has been built, after which you copy it to a new name instead."
+  },
+  {
+    "title": "Run Description",
+    "body": "Optional, and empty unless you fill it in.\n\nA project usually holds several runs, and they are easy to confuse once there are a few. This is where you say what makes this one different: the paper, the finish, the chart size, or whatever you vary. It is only a description \u2014 it does not change any file name.\n\nMany people find it easiest to settle on a pattern and stick to it. For example, with the project named for the printer, paper make, size and instrument:\n\n    Printer profile project name:  Canon_Pro1000_Hahnemuehle_A4_i1Pro\n    Run 1 Description:  PhotoRagBaryta_Glossy_Large\n    Run 2 Description:  PhotoRagBaryta_Glossy_Small\n    Run 3 Description:  PhotoRagBaryta_Matte_Large\n\nWhatever you type here is added to the end of the profile's own description in the tab where you build the profile \u2014 that tab is called \u201c4. Build Profile\u201d, or \u201c4. Calibration & Profiling\u201d when calibration options are switched on in Preferences \u2014 so the finished .icc carries it too. Unless you have written your own description there, which is never overwritten.\n\nTHIS STAYS WITH THE RUN. Restoring an earlier chart with \u201cRestore Used Chart\u201d does not change it, because it describes the run and not the sheet of paper."
+  },
+  {
+    "title": "Create Chart for Calibration",
+    "body": "Use this before running printcal to create a printer linearisation curve.\n\nWhen enabled:\n  \u2022 Output files are prefixed with 'cal_' (e.g. cal_MyChart.ti1)\n  \u2022 Patch count is set to 0 (auto), white and black patches set to 0\n  \u2022 Single channel steps set to 20, randomisation disabled\n  \u2022 Good distribution (-G) is disabled\n\nGenerate the chart, print it, and measure it. The resulting cal_*.ti3\nfile is automatically routed to the Create Calibration File module\nin the Calibration & Profiling tab.\n\nExisting cal_* files in your working folder are preserved when this\noption is OFF, so your .cal file survives the next chart generation."
+  },
+  {
+    "title": "Printer profile project name",
+    "body": "The name of this whole profiling project \u2014 think of it as the job's title. It becomes the project folder on disk, the base name of every file ChromIQ makes along the way (chart, measurements, the finished ICC profile) and the profile's own embedded description \u2014 so what you see later in, for example, macOS ColorSync Utility matches the folder and files exactly.\n\n(The \u201cprinter profile\u201d itself is the .icc / .icm file this project produces at the end. Naming the project after the printer and paper keeps that file easy to recognise.)\n\nChoose a name that identifies this printer and paper at a glance. A good name describes the printer (name or abbreviation), the paper (type/id and substrate such as glossy or matte), the colour space, the measurement instrument and the profile quality \u2014 e.g. Canon_Pro1000_PhotoRagBaryta_RGB_i1Pro3_High. Use underscores or dashes instead of spaces.\n\nYou can rename it later: change the name here and ChromIQ offers to rename the folder and files to match \u2014 until the profile has been built, after which you copy it to a new name instead."
+  },
+  {
+    "title": "Run Description",
+    "body": "Optional, and empty unless you fill it in.\n\nA project usually holds several runs, and they are easy to confuse once there are a few. This is where you say what makes this one different: the paper, the finish, the chart size, or whatever you vary. It is only a description \u2014 it does not change any file name.\n\nMany people find it easiest to settle on a pattern and stick to it. For example, with the project named for the printer, paper make, size and instrument:\n\n    Printer profile project name:  Canon_Pro1000_Hahnemuehle_A4_i1Pro\n    Run 1 Description:  PhotoRagBaryta_Glossy_Large\n    Run 2 Description:  PhotoRagBaryta_Glossy_Small\n    Run 3 Description:  PhotoRagBaryta_Matte_Large\n\nWhatever you type here is added to the end of the profile's own description in the tab where you build the profile \u2014 that tab is called \u201c4. Build Profile\u201d, or \u201c4. Calibration & Profiling\u201d when calibration options are switched on in Preferences \u2014 so the finished .icc carries it too. Unless you have written your own description there, which is never overwritten.\n\nTHIS STAYS WITH THE RUN. Restoring an earlier chart with \u201cRestore Used Chart\u201d does not change it, because it describes the run and not the sheet of paper."
+  },
+  {
+    "title": "Chart Notes",
+    "body": "Optional free-text label stamped onto the right edge of the chart TIFFs alongside the targen and printtarg commands that produced them. Useful for recording the exact printer/paper combination this chart was made for, so you can match it to the right ICC profile months later. Patch pixels are not modified \u2014 only the white margin to the right of the patches is stamped."
+  },
+  {
+    "title": "Stamp Commands",
+    "body": "Prints the exact settings that produced this chart along its right edge, so the sheet explains itself.\n\nWhat is stamped depends on how the chart was laid out: with the ChromIQ layout engine it is the targen command and the engine's own layout settings, and with printtarg it is the targen and printtarg command lines. The ChromIQ version is included either way, beside Argyll's own vertical ID line.\n\nWHY YOU MIGHT WANT IT: months later you can read the printed sheet and make exactly the same chart again, without having to remember what you chose.\n\nSwitch it off if you would rather keep the right margin clean and print only your own chart notes \u2014 or leave the sheet completely unmarked by clearing the notes box as well."
+  },
+  {
+    "title": "Left Clip Info",
+    "body": "Fills the wide blank strip on the LEFT side of the chart \u2014 the space printtarg reserves for the i1Pro 2 / i1Pro 3 Plus scanning-table clip \u2014 with two rotated text columns:\n\n\u2022 Outer column: a one-line chart summary (patch count + paper size), a print-driver reminder (borderless, no expansion, retain size, color management off), and a fill-in-the-blank form line for date, printer, ink set, profile name, paper and driver settings.\n\u2022 Inner column: orientation instructions for the i1Pro scanning table \u2014 which edge faces up and how to seat the sheet in the clip.\n\nThis option is only available when:\n  \u2022 The instrument is i1Pro / i1Pro 2 or i1Pro 3 Plus.\n  \u2022 'Suppress left clip border' is OFF (so the clip strip is actually reserved).\n  \u2022 The paper size is A4 / Letter or larger \u2014 smaller sheets have no room for legible rotated text.\n\nThe row hides automatically when these conditions aren't met. Patch pixels are never modified \u2014 only the otherwise-empty left clip strip is stamped."
+  },
+  {
+    "title": "Manual Presets",
+    "body": "Save and recall named snapshots of all Manual mode settings.\n\n  +  Save current parameter values as a new named preset.\n  \u2212  Delete the currently selected preset.\n  \u25a2  Open this tab's presets folder in Finder.\n\nSelect a preset from the dropdown to instantly restore all\nvalues. The Default entry always resets to built-in defaults.\n\nPresets are stored as plain .json files \u2014 one per preset \u2014\nin a ChromIQ folder under your system's Preferences / AppData\n/ config location. Use the folder button (\u25a2) on the right of\nthe preset row to open it. To share a preset, copy the .json\nout of that folder and send it to a colleague; to install a\nshared preset, drop the .json into the matching folder on the\ntarget machine and ChromIQ will pick it up on the next launch.\n\nThe target name field is not saved with presets.\nPresets persist between sessions."
+  },
+  {
+    "title": "ChromIQ layout engine",
+    "body": "When ON, ChromIQ builds your test charts itself instead of calling ArgyllCMS printtarg. The engine packs the colour patches more efficiently, can put useful information where printtarg leaves blank space, and lets you fully customise the layout below per instrument and paper. The engine is the default for new charts; printtarg stays one untick away.\n\nWhen OFF the chart is made by printtarg exactly as before. This switch only affects how charts are CREATED; printing and measuring existing charts always work the same way, so it is safe to switch back at any time.\n\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nWhat each one gives you\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\nOnly with the ChromIQ engine:\n  \u2022 more patches on every sheet\n  \u2022 you choose the patch size\n  \u2022 you choose each margin separately\n  \u2022 the instrument's own margins are enforced\n  \u2022 spacer size and colour are yours to set\n  \u2022 notes and a record area printed on the sheet\n  \u2022 a clip border to cut along\n  \u2022 multi-ink (CMY+N) charts\n  \u2022 the layout is saved with the chart and can be reopened\n  \u2022 the live patch preview while measuring\n  \u2022 scanner-target geometry\n  \u2022 reading-pace guidance (with the reading engine too)\n\nThe same either way:\n  \u2022 the chart is read and profiled identically\n  \u2022 every ArgyllCMS tool accepts it unchanged\n\nBoth produce a chart ArgyllCMS reads and profiles in exactly the same way \u2014 the difference is what the sheet looks like and how much you can decide about it."
+  },
+  {
+    "title": "Device Type (-d)",
+    "body": "Defines the colorant combination of your output device.\n\nPrint spaces are subtractive: device value 0 = white (no ink),\nmaximum = black (full ink).  Video/display spaces are additive:\ndevice value 0 = black, maximum = white.\n\nCommon choices:\n  \u2022 Print grey (-d 0)  \u2014 single-channel greyscale printer\n  \u2022 Video grey (-d 1)  \u2014 single-channel display/monitor\n  \u2022 Print RGB (-d 2)   \u2014 standard RGB inkjet (default, recommended)\n  \u2022 Video RGB (-d 3)   \u2014 RGB display/monitor\n  \u2022 CMYK (-d 4)        \u2014 four-colour inkjet or offset press\n  \u2022 CMY (-d 5)         \u2014 three-colour, no separate black channel\n\nOptions 6\u201315 are for specialty multi-channel inkjet printers with\nadditional inks (light cyan/magenta, orange, green, violet, etc.).\nUse -D (Expert) to fine-tune the colorant set if needed."
+  },
+  {
+    "title": "Total Patch Count (-f)",
+    "body": "Sets the total number of colour patches.  More patches = better\nprofile accuracy but longer print and measurement time.\nTypical ranges for RGB inkjet:\n  \u2022 Quick test: 400\u2013600\n  \u2022 Standard:   800\u20131200\n  \u2022 High quality: 1500\u20132000\n  \u2022 Very high:  2500\u20133000\n\nAuto (next to the spinbox): when ticked, the patch count is\ncomputed live from the chosen paper, instrument, double-density,\nleft-border, patch scale, margin, and the Pages spinbox in the\nprinttarg section \u2014 picking the largest value that fills exactly\nthat many sheets with no empty space.  The spinbox is greyed out\nwhile Auto is on and shows the current estimate.  For custom\nlayouts (non-default patch scale or margin) Auto runs a short\nbinary search against targen, so the value may take a second\nto update.\n\nIn Guided mode this is computed automatically from the\npatches-per-page database \u00d7 selected page count.\nSet to 0 in Guided mode to use automatic calculation."
+  },
+  {
+    "title": "White Patches (-e)",
+    "body": "How many pure paper-white patches to add to the chart. The\ninstrument measures these to learn exactly how white your paper\nis, which anchors the bright end of the profile. 4 is a good\ndefault; very glossy papers can benefit from a few more.\n\nAuto (checkbox):\nTurn on \"Auto\" and ChromIQ picks this number for you, based on\nhow many patches the whole chart holds \u2014 so a small one-page\nchart gets a few white patches and a big multi-page chart gets\nmore, without you having to think about it.\n\nHow the Auto number is worked out:\n  \u2022 A chart of about 560 patches gets 4 white patches.\n  \u2022 Every time the chart roughly doubles in size, the count\n    grows by 50 % (4 \u2192 6 \u2192 8 \u2026).\n  \u2022 It never goes above 8 (more than that just wastes space)\n    and never below 2.\n\nWhen Auto is on, this box is greyed out and shows \"Auto\". Turn\nit off any time to type your own number."
+  },
+  {
+    "title": "Black Patches (-B)",
+    "body": "How many maximum-ink (device black) patches to add to the chart.\nThe instrument measures these to learn the darkest tone your\nprinter can produce, which anchors the shadow end of the profile.\n4 is a good default for RGB printers.\n\nAuto (checkbox):\nTurn on \"Auto\" and ChromIQ picks this number for you, based on\nhow many patches the whole chart holds \u2014 a small chart gets a\nfew black patches, a big chart gets more.\n\nHow the Auto number is worked out:\n  \u2022 A chart of about 560 patches gets 4 black patches.\n  \u2022 Every time the chart roughly doubles in size, the count\n    grows by 50 % (4 \u2192 6 \u2192 8 \u2026).\n  \u2022 It never goes above 8 and never below 2.\n\nWhen Auto is on, this box is greyed out and shows \"Auto\". Turn\nit off any time to type your own number."
+  },
+  {
+    "title": "Grey Axis Steps (-g)",
+    "body": "Extra neutral grey patches placed evenly from white to black.\nThese help the profile reproduce greys cleanly, without colour\ncasts \u2014 important for black-and-white photos and neutral tones.\nRough guide if you set it by hand: 0 for a quick profile,\n50\u2013100 for a standard one, 128+ for high quality.\n\nAuto (checkbox):\nTurn on \"Auto\" and ChromIQ picks this number for you, scaled to\nhow many patches the whole chart holds \u2014 a bigger chart gets a\nlonger, finer grey ramp.\n\nHow the Auto number is worked out:\n  \u2022 A chart of about 560 patches gets 32 grey steps.\n  \u2022 Every time the chart roughly doubles in size, the steps\n    double too (32 \u2192 64 \u2192 128).\n  \u2022 It never goes above 128 and never below 8.\n\nWhen Auto is on, this box is greyed out and shows \"Auto\". Turn\nit off any time to type your own number.\n\n(Guided mode always sets this automatically using the same idea.)"
+  },
+  {
+    "title": "Thorough Optimisation (-G)",
+    "body": "Makes targen spend extra time placing the patches as evenly as\npossible across your printer's colour gamut. The patch set is\nthe same kind (OFPS \u2014 Optimised Farthest Point Sampling, the\ndefault distribution) either way; this just switches it from\n\"fast\" mode to \"good\" mode.\n\nRecommended ON for any chart you will actually print and\nmeasure: a few extra seconds of computer time during chart\ngeneration gives you a measurably better profile.\n\nTurn OFF only if you're iterating quickly on chart settings and\ndon't care about absolute patch quality (e.g. testing print\nlayouts before committing to a final chart).\n\nHas no effect when \"Patch Distribution\" is set to anything other\nthan OFPS \u2014 the alternative distributions (random, quasi-random,\nbody-centered cubic, \u2026) ignore this flag."
+  },
+  {
+    "title": "Single Channel Steps (-s)",
+    "body": "Adds extra single-channel ramp patches (R, G, B separately).\nUseful for characterising individual ink behaviour.\nTypical: 0 for quick, 20\u201350 for standard, 50\u2013100 for high."
+  },
+  {
+    "title": "Add/Remove Colorant (-D)",
+    "body": "Modifies the colorant set established by Device Type (-d) by adding\nor removing one individual colorant.  If the chosen colorant is\nalready present in the set it is removed; if absent it is added.\n\nTypical uses:\n  \u2022 Add Orange (-D 5) to standard CMYK for extended gamut\n  \u2022 Add Light Cyan (-D 11) / Light Magenta (-D 12) to CMYK\n    for smoother highlight gradients\n\nEnable multiple slots to stack additional colorants (each enabled\nslot reveals the next, up to 11 total modifications).\n\nLeave this disabled for standard device types 0\u20135."
+  },
+  {
+    "title": "Add/Remove Colorant (-D)",
+    "body": "Modifies the colorant set established by Device Type (-d) by adding\nor removing one individual colorant.  If the chosen colorant is\nalready present in the set it is removed; if absent it is added.\n\nTypical uses:\n  \u2022 Add Orange (-D 5) to standard CMYK for extended gamut\n  \u2022 Add Light Cyan (-D 11) / Light Magenta (-D 12) to CMYK\n    for smoother highlight gradients\n\nEnable multiple slots to stack additional colorants (each enabled\nslot reveals the next, up to 11 total modifications).\n\nLeave this disabled for standard device types 0\u20135."
+  },
+  {
+    "title": "Add/Remove Colorant (-D)",
+    "body": "Modifies the colorant set established by Device Type (-d) by adding\nor removing one individual colorant.  If the chosen colorant is\nalready present in the set it is removed; if absent it is added.\n\nTypical uses:\n  \u2022 Add Orange (-D 5) to standard CMYK for extended gamut\n  \u2022 Add Light Cyan (-D 11) / Light Magenta (-D 12) to CMYK\n    for smoother highlight gradients\n\nEnable multiple slots to stack additional colorants (each enabled\nslot reveals the next, up to 11 total modifications).\n\nLeave this disabled for standard device types 0\u20135."
+  },
+  {
+    "title": "Add/Remove Colorant (-D)",
+    "body": "Modifies the colorant set established by Device Type (-d) by adding\nor removing one individual colorant.  If the chosen colorant is\nalready present in the set it is removed; if absent it is added.\n\nTypical uses:\n  \u2022 Add Orange (-D 5) to standard CMYK for extended gamut\n  \u2022 Add Light Cyan (-D 11) / Light Magenta (-D 12) to CMYK\n    for smoother highlight gradients\n\nEnable multiple slots to stack additional colorants (each enabled\nslot reveals the next, up to 11 total modifications).\n\nLeave this disabled for standard device types 0\u20135."
+  },
+  {
+    "title": "Add/Remove Colorant (-D)",
+    "body": "Modifies the colorant set established by Device Type (-d) by adding\nor removing one individual colorant.  If the chosen colorant is\nalready present in the set it is removed; if absent it is added.\n\nTypical uses:\n  \u2022 Add Orange (-D 5) to standard CMYK for extended gamut\n  \u2022 Add Light Cyan (-D 11) / Light Magenta (-D 12) to CMYK\n    for smoother highlight gradients\n\nEnable multiple slots to stack additional colorants (each enabled\nslot reveals the next, up to 11 total modifications).\n\nLeave this disabled for standard device types 0\u20135."
+  },
+  {
+    "title": "Add/Remove Colorant (-D)",
+    "body": "Modifies the colorant set established by Device Type (-d) by adding\nor removing one individual colorant.  If the chosen colorant is\nalready present in the set it is removed; if absent it is added.\n\nTypical uses:\n  \u2022 Add Orange (-D 5) to standard CMYK for extended gamut\n  \u2022 Add Light Cyan (-D 11) / Light Magenta (-D 12) to CMYK\n    for smoother highlight gradients\n\nEnable multiple slots to stack additional colorants (each enabled\nslot reveals the next, up to 11 total modifications).\n\nLeave this disabled for standard device types 0\u20135."
+  },
+  {
+    "title": "Add/Remove Colorant (-D)",
+    "body": "Modifies the colorant set established by Device Type (-d) by adding\nor removing one individual colorant.  If the chosen colorant is\nalready present in the set it is removed; if absent it is added.\n\nTypical uses:\n  \u2022 Add Orange (-D 5) to standard CMYK for extended gamut\n  \u2022 Add Light Cyan (-D 11) / Light Magenta (-D 12) to CMYK\n    for smoother highlight gradients\n\nEnable multiple slots to stack additional colorants (each enabled\nslot reveals the next, up to 11 total modifications).\n\nLeave this disabled for standard device types 0\u20135."
+  },
+  {
+    "title": "Add/Remove Colorant (-D)",
+    "body": "Modifies the colorant set established by Device Type (-d) by adding\nor removing one individual colorant.  If the chosen colorant is\nalready present in the set it is removed; if absent it is added.\n\nTypical uses:\n  \u2022 Add Orange (-D 5) to standard CMYK for extended gamut\n  \u2022 Add Light Cyan (-D 11) / Light Magenta (-D 12) to CMYK\n    for smoother highlight gradients\n\nEnable multiple slots to stack additional colorants (each enabled\nslot reveals the next, up to 11 total modifications).\n\nLeave this disabled for standard device types 0\u20135."
+  },
+  {
+    "title": "Add/Remove Colorant (-D)",
+    "body": "Modifies the colorant set established by Device Type (-d) by adding\nor removing one individual colorant.  If the chosen colorant is\nalready present in the set it is removed; if absent it is added.\n\nTypical uses:\n  \u2022 Add Orange (-D 5) to standard CMYK for extended gamut\n  \u2022 Add Light Cyan (-D 11) / Light Magenta (-D 12) to CMYK\n    for smoother highlight gradients\n\nEnable multiple slots to stack additional colorants (each enabled\nslot reveals the next, up to 11 total modifications).\n\nLeave this disabled for standard device types 0\u20135."
+  },
+  {
+    "title": "Add/Remove Colorant (-D)",
+    "body": "Modifies the colorant set established by Device Type (-d) by adding\nor removing one individual colorant.  If the chosen colorant is\nalready present in the set it is removed; if absent it is added.\n\nTypical uses:\n  \u2022 Add Orange (-D 5) to standard CMYK for extended gamut\n  \u2022 Add Light Cyan (-D 11) / Light Magenta (-D 12) to CMYK\n    for smoother highlight gradients\n\nEnable multiple slots to stack additional colorants (each enabled\nslot reveals the next, up to 11 total modifications).\n\nLeave this disabled for standard device types 0\u20135."
+  },
+  {
+    "title": "Add/Remove Colorant (-D)",
+    "body": "Modifies the colorant set established by Device Type (-d) by adding\nor removing one individual colorant.  If the chosen colorant is\nalready present in the set it is removed; if absent it is added.\n\nTypical uses:\n  \u2022 Add Orange (-D 5) to standard CMYK for extended gamut\n  \u2022 Add Light Cyan (-D 11) / Light Magenta (-D 12) to CMYK\n    for smoother highlight gradients\n\nEnable multiple slots to stack additional colorants (each enabled\nslot reveals the next, up to 11 total modifications).\n\nLeave this disabled for standard device types 0\u20135."
+  },
+  {
+    "title": "Pre-conditioning Profile (-c)",
+    "body": "An existing ICC profile for this printer/paper combination used\nto pre-condition the patch distribution in perceptual space.\nUsing a previous profile here produces patches more evenly\ndistributed in the output gamut, leading to better accuracy on\na second profiling pass.  Leave blank for a first-time profile."
+  },
+  {
+    "title": "Calibration Override (-C)",
+    "body": "Optional .cal file whose calibration curves are applied when estimating\nthe ink limit for patch generation.  Overrides any .cal embedded in\nthe ICC target .ti3 file produced by a previous profiling pass.\n\nUse this when you have a validated device calibration (e.g. from\nprintcal/applycal) and want targen to account for it when computing\nhow many patches are needed in the shadow region.\n\nType \"none\" in the field (without quotes) to explicitly prevent any\n.cal from being used, even if one is embedded in the .ti3.\n\nLeave blank for most workflows \u2014 only needed when you are managing\na separate calibration curve independently from the profile."
+  },
+  {
+    "title": "Neutral Axis Steps (-n)",
+    "body": "Adds extra wedge patches along the perceptually-true neutral\naxis of your printer + paper, as defined by the pre-conditioning\nICC profile loaded via -c.\n\nHow it differs from -g (Grey Axis Steps):\n  \u2022 -g walks RGB device values (R = G = B): 0/0/0, 32/32/32,\n    64/64/64 \u2026 That assumes equal device values print as a\n    neutral grey, which is only true on a perfectly linearised\n    printer.  On a real printer the \"device grey ramp\" usually\n    has a colour cast.\n  \u2022 -n asks the supplied profile: \"what RGB values does THIS\n    printer actually need to reproduce a neutral L*a*b*\n    (a* = b* = 0) patch at each lightness step?\"  Those\n    (typically non-equal) RGB values get added as patches.\n\nHow it differs from -N (Neutral Axis Emphasis):\n  \u2022 -N is a 0\u20131 dial that biases the existing OFPS patch\n    distribution toward the neutral region.  It does not add\n    named steps.\n  \u2022 -n adds explicit, profile-derived neutral patches on top\n    of whatever the rest of the distribution produces.\n\nWhen to use it:\n  \u2022 You already have a first-pass ICC profile for this paper\n    and you're building a refinement chart.  Load that profile\n    under Pre-conditioning Profile (-c), then set -n to 32\u201364\n    to densely characterise the corrected neutral axis.\n  \u2022 For a first-time chart with no -c, leave this at 0 \u2014\n    without a pre-conditioning profile there is no \"true\"\n    neutral axis to sample from, and -g already covers the\n    device-space ramp.\n\nTypical refinement values: 32 for routine work, 64 for\nfine-art / proofing where neutrality is critical.\n\nRequires -c to be set; has no effect otherwise."
+  },
+  {
+    "title": "Neutral Axis Emphasis (-N)",
+    "body": "Controls how strongly patches cluster near the neutral axis.\n0.0 = no emphasis, 1.0 = maximum clustering near grey.\nDefault 0.5 is appropriate for most printers."
+  },
+  {
+    "title": "Dark Region Emphasis (-V)",
+    "body": "Adds extra patches in dark (shadow) areas of the gamut.\n1.0 = no emphasis (default).  Increase to 2.0\u20133.0 for printers\nwith complex shadow behaviour (e.g. matte fine-art papers)."
+  },
+  {
+    "title": "Total Ink Limit (-l)",
+    "body": "The maximum total amount of ink the printer is allowed to lay\ndown on the paper, as a percentage. 100 % = one full ink layer,\n200 % = two full layers (e.g. 100C + 100K), and so on.\n\nWhy it matters (especially for CMYK / CMYK+N):\nWithout a limit, targen happily generates patches like 100C +\n100M + 100Y + 100K = 400 %. That much wet ink can puddle, dry\nslowly, mottle, or even tear the paper \u2014 and the profile built\nfrom such patches predicts colours your printer can't actually\nproduce.\n\nHow to choose a value:\n  \u2022 Most CMYK inkjets:        260 \u2013 320 %\n  \u2022 Coated / glossy papers:   320 \u2013 360 %\n  \u2022 Newsprint, low-quality:   220 \u2013 260 %\n  \u2022 Extended-gamut (CMYKOGV): 400 \u2013 500 %  (more inks share\n                                           the total budget)\n\nIf unsure, check your printer's documentation or paper profile\nguidance, or measure: print a small ink-limit test wedge and\npick the highest value that dries cleanly without bleeding.\n\nFor RGB workflows: usually leave this disabled \u2014 RGB inkjets\nhandle their own ink limiting internally, so targen doesn't\nneed to budget across channels.\n\nTick the checkbox to enable."
+  },
+  {
+    "title": "Patch Distribution (-t / -r / -R / -q / -Q / -i / -I)",
+    "body": "How targen decides where to place each colour patch in the\nprinter's gamut. Different algorithms give different trade-offs\nbetween coverage, evenness, and speed.\n\nPick ONE. These are mutually exclusive \u2014 selecting any of them\nreplaces the default OFPS placement entirely.\n\nOFPS (default, recommended):\nOptimised Farthest Point Sampling. Iteratively places each new\npatch as far as possible from every existing patch, producing\nthe most even coverage of any algorithm here. Slower than the\nalternatives but the gold standard for profile quality. Pair\nwith \"Thorough Optimisation (-G)\" for best results.\n\nIncremental Far Point (-t):\nA simpler farthest-point method. Faster than OFPS, slightly\nless even. Use when OFPS is too slow on very large patch counts\nand you accept a small quality drop.\n\nRandom \u2014 device space (-r):\nUniformly random patches in raw device values (e.g. RGB).\nFastest possible, but coverage in *perceived* colour is uneven\n\u2014 wastes patches in regions our eye barely distinguishes.\n\nRandom \u2014 perceptual space (-R):\nUniformly random in perceived colour (Lab). Better than -r if\nyou must use random, since patches are spread evenly by what\nthe eye sees. Still less optimal than OFPS for the same count.\n\nQuasi-random space-filling (-q / -Q):\nLow-discrepancy sequences (Sobol-like) that fill space more\nevenly than true random without OFPS's iterative cost.\n-q in device space, -Q in perceptual space. A good middle\nground when OFPS is too slow.\n\nBody-centered cubic lattice (-i / -I):\nA fixed regular lattice (each patch surrounded by 8 neighbours\nin a cube pattern). Deterministic and very even, but inflexible\n\u2014 exact patch counts that fit the lattice are limited. -i in\ndevice space, -I in perceptual space.\n\nMost users should leave this on OFPS."
+  },
+  {
+    "title": "OFPS Adaptation (-A)",
+    "body": "How strongly OFPS bends its even-coverage rule to follow the\nshape of a Pre-conditioning Profile (-c). Only meaningful when\nOFPS is the chosen Patch Distribution AND a -c profile is set.\n\n0.0 = ignore the profile completely \u2014 pure even coverage in\n      device space, as if no -c were given.\n1.0 = follow the profile fully \u2014 concentrate patches where the\n      profile says the printer's gamut is interesting (i.e. the\n      shape of the actual colour space).\n\nDefault in targen is 0.10 (mild) for a first pass and 1.0 when\n-c is set; ChromIQ leaves this at 0.10 unless you explicitly\nchange it so you don't get a surprise behaviour switch.\n\nIncrease toward 1.0 for refinement passes where you trust the\nfirst profile and want the second chart to densely sample the\nprinter's real gamut rather than empty corners of device space.\n\nTick the checkbox to enable."
+  },
+  {
+    "title": "Cube Interior Steps (-m)",
+    "body": "Adds a regular grid of patches *inside* the printer's colour\ncube \u2014 N steps along each axis (N\u00d7N\u00d7N for RGB, etc.). These\nare placed *in addition to* the patches you've chosen with\n-f, -g, -s, and the other counters.\n\nSet to 0 (default) to skip \u2014 almost always the right choice.\nOFPS already covers the cube interior more efficiently.\n\nWhen to use it:\n  \u2022 Repeatability across machines: a fixed grid is the same\n    every time, regardless of which OFPS placements targen\n    picked, which can help compare profiles across runs.\n  \u2022 Diagnostic charts where you want predictable, named cube\n    positions.\n\nTypical values when used: 3 \u2013 6 (steps per axis). Numbers\ngrow fast \u2014 6 steps in RGB is 216 patches, 8 is 512.\n\nTick the checkbox to enable."
+  },
+  {
+    "title": "Cube Surface Steps (-M)",
+    "body": "Adds a regular grid of patches on the *surface* of the printer's\ncolour cube \u2014 N steps along each face. Patches go on the\noutside (primaries, secondaries, gamut edge) but not in the\ninterior.\n\nSet to 0 (default) to skip.\n\nWhen to use it:\n  \u2022 You specifically want to nail down the gamut boundary and\n    primary/secondary corners without the interior overhead\n    of -m.\n  \u2022 Comparing how different inks/papers shift the gamut\n    envelope \u2014 surface patches are the ones most affected.\n\nTypical values when used: 4 \u2013 8 steps per face.\n\nTick the checkbox to enable."
+  },
+  {
+    "title": "Body-Centered Cubic Steps (-b)",
+    "body": "Adds patches on a body-centered cubic (BCC) lattice \u2014 denser\nthan a plain cube grid because it places points at both the\ncube corners and the cube centres. N is the number of\nsubdivisions along each axis.\n\nSet to 0 (default) to skip \u2014 this is a niche knob.\n\nWhen to use it:\n  \u2022 You want regular, lattice-aligned patch positions but\n    with better packing than -m gives, without going all the\n    way to OFPS.\n  \u2022 Research / repeatability scenarios where the BCC structure\n    itself is the point.\n\nNote: this is the *step counter* form (adds to your patch list);\nfor a chart whose *entire* distribution is BCC, use the\n\"Patch Distribution\" selector above and pick the body-centered\ncubic option there.\n\nTick the checkbox to enable."
+  },
+  {
+    "title": "Edit patch recipe",
+    "body": "Edit the patch recipe (targen settings)\n\nThis preset comes with a ready-made set of colour patches, so the targen settings above are locked. Tick this box only if you really want to change which colours get printed.\n\nImportant: targen decides WHICH colours are on the chart. The moment you change anything here, ChromIQ can no longer reuse the preset's carefully chosen patches \u2014 it will build a brand-new set of colours from scratch. The chart is still perfectly valid, but it will NOT be the same as the preset, and the preset's hand-tuning no longer applies.\n\nLeave this unticked unless you specifically need a different patch set."
+  },
+  {
+    "title": "Measurement Instrument (-i)",
+    "body": "Tells the chart generator which spectrophotometer you will use to\nread the printed chart. The patch grid is built around that\ninstrument's strip width, patch size and spacing \u2014 so getting\nthis right is essential.\n\n  \u2022  i1Pro / i1Pro 2 / i1Pro 3 \u2014 handheld strip reader, the most\n     common choice. Reads a column of patches in one sweep.\n\n  \u2022  i1Pro 3 Plus \u2014 larger-aperture version of the i1Pro 3.\n     Reads bigger patches, so far fewer fit per sheet (~5\u00d7 less\n     than the regular i1Pro).\n\n  \u2022  ColorMunki / i1Studio / ColorChecker Studio \u2014 entry-level\n     device. Reads one patch at a time on its own; with the\n     optional measuring rig it pairs them up (see Double Density).\n\n  \u2022  SpectroScan \u2014 flatbed XY scanner. A motorised arm reads\n     each patch individually, so it packs far more colours per\n     sheet than any strip reader.\n\n  \u2022  CR30 (ChnSpec) \u2014 small hand-held colorimeter that reads\n     ONE patch at a time. You place it on a patch and press the\n     button on the instrument; ChromIQ records that patch and\n     highlights the next one. The chart is a plain grid with row\n     numbers and column letters so you can find the patch being\n     asked for. Its patch size is PROVISIONAL (12 mm squares \u2014\n     a reasoned starting point, not a measured minimum), and each\n     patch is a placement and a press of about two seconds, so a\n     full A4 sheet of ~345 patches is a long sitting. A CR30 chart is\n     ALWAYS laid out by ChromIQ's own layout engine, and can\n     only be read by ChromIQ \u2014 standard ArgyllCMS chartread does\n     not know this instrument and refuses the chart.\n\n  \u2022  i1iSis (via i1Profiler) \u2014 automatic sheet-fed chart reader.\n     ChromIQ cannot drive this device directly: instead it will\n     save the patch list in i1Profiler's own format alongside\n     the chart, and you finish the workflow there (print, scan,\n     build profile). ChromIQ's Print and Measure tabs are not\n     used for this device.\n\nPicking the wrong instrument produces a chart your"
+  },
+  {
+    "title": "Double Density (-h)",
+    "body": "Doubles the number of patches that fit in each measurement strip when using a ColorMunki / i1Studio / ColorChecker Studio.\n\nREQUIRES the physical measuring rig accessory \u2014 a clear plastic guide that mounts the instrument over the chart. Without the rig the device cannot align to the tighter patch spacing and will misread.\n\nWith the rig you get roughly twice as many patches per page, which means either a more detailed profile from the same number of sheets, or the same profile quality on fewer sheets. Recommended for anyone with the rig \u2014 it's a strict upgrade on patch density.\n\nHas no effect on i1Pro, i1Pro 3 Plus or SpectroScan \u2014 the option is hidden when those are selected."
+  },
+  {
+    "title": "Triple Density (i1Pro layout emulation)",
+    "body": "ColorMunki + rig only. Generates the chart with the i1Pro strip layout (printtarg -ii1) plus the tuned scale / margin / strip-limit overrides needed for the ColorMunki to read it, then rewrites the produced .ti2 so chartread still talks to your ColorMunki. Result: roughly 3\u00d7 the patch count of a plain ColorMunki chart at the same paper size.\n\nREQUIRES the physical measuring rig accessory.\n\nMutually exclusive with Double density. Ticking this stashes the current -a / -m / -P widget values and sets them to the triple-density preset (1.3 / 5 / on); unticking restores the stashed values.\n\nHas no effect on i1Pro, i1Pro 3 Plus or SpectroScan \u2014 the option is hidden when those are selected."
+  },
+  {
+    "title": "Paper Size (-p)",
+    "body": "Sets the dimensions of each sheet in the printed chart. The chart\nalways fills the page edge to edge \u2014 bigger paper fits more\npatches, which means a more detailed profile from fewer sheets.\n\nPick the same size you will actually print on, including its\norientation. Strip readers (i1Pro family) read top-to-bottom, so:\n\n  \u2022  Portrait \u2014 longer strips, fewer of them. Standard choice.\n\n  \u2022  Landscape (A4R, LetterR, 420\u00d7297\u2026) \u2014 shorter strips, more\n     of them. Use this when your printer feeds landscape more\n     reliably, or when a portrait sheet would leave the last\n     strip too close to the paper edge.\n\nSelect \"Custom\" to enter exact width and height in millimetres\nwhen none of the named sizes match the paper you're using.\n\nIf you change paper size, the patch count and page count in the\ncommand preview update automatically."
+  },
+  {
+    "title": "TIFF Resolution (-t)",
+    "body": "Output resolution for the TIFF raster chart files.\n300 DPI is recommended for strip-reading instruments and gives\na good balance of file size and patch clarity.\nUse 200 DPI for very large charts to reduce file size.\nHigher values (600+) are rarely needed and produce large files."
+  },
+  {
+    "title": "Suppress Left Clip Border (-L)",
+    "body": "Removes the left-edge paper-clip border strip, reclaiming\n~15 mm of page width for additional patch columns.\nEnable this unless you are using a physical page-clamp jig.\nAll values in the patch database assume this flag is ON."
+  },
+  {
+    "title": "Patch Size Scale (-a)",
+    "body": "Scales the patch and spacer dimensions uniformly.\n1.0 is the default (instrument-optimised size).\nIncrease to 1.5\u20132.0 on rough / textured papers where the\ninstrument needs a larger measurement area.\nDecreasing below 1.0 fits more patches per page but may\ncause read errors on some instruments.\nNote: changing this value from the default triggers a\nlive binary-search recalculation instead of the fast lookup."
+  },
+  {
+    "title": "Declare Extra Inks as Alpha Channels (-N)",
+    "body": "Only for charts with more than four inks, and only if the\nsoftware you hand the TIFF to asks for it.\n\nA TIFF says what its first channels are, but has no standard\nway to name a fifth, sixth or seventh ink.  This option marks\nthe extra ones as \"alpha\" channels, which is the flag some\nRIPs look for.\n\nEVERY INK IS WRITTEN TO THE FILE EITHER WAY.  This changes how\nthey are labelled, not what is in them, and ChromIQ's own\nprinting does not need it.\n\nLeave it off unless your RIP's documentation asks for the\nextra inks to be declared.  Some readers treat an alpha\nchannel as transparency rather than ink, so switching it on\nblindly can do more harm than leaving it alone."
+  },
+  {
+    "title": "Pages (Auto patch count)",
+    "body": "How many physical sheets the chart should span. This control drives the Auto checkbox next to targen \u2192 Total Patch Count above: when Auto is on, ChromIQ picks the patch count that fills exactly this many sheets \u2014 using the current paper, instrument, double-density / hexagon, left-border, patch scale and margin settings. Total patches = patches-per-page \u00d7 pages.\n\nMore pages means more colour samples, which produces a more accurate profile. The trade-off is more ink, more paper and a longer reading session. Rough guide:\n\n  \u2022  1 page \u2014 quick check or single-sheet workflows (~500 patches on A4 with an i1Pro). Fine for casual profiling.\n\n  \u2022  2-3 pages \u2014 recommended for everyday photo printing. Good balance of accuracy versus effort.\n\n  \u2022  4-5+ pages \u2014 professional or fine-art workflows where the profile needs to nail tricky tonal transitions and out-of-gamut colours.\n\nThis control is greyed out when Auto is off \u2014 without Auto, printtarg just uses as many sheets as the explicit Total Patch Count requires."
+  },
+  {
+    "title": "Margin (-m / -M)",
+    "body": "Sets the margin in millimetres for both the printable area (-m)\nand the TIFF file dimensions (-M).  Both are kept in sync.\n6 mm matches most printer minimum margins.  Reduce only if\nyour printer supports borderless printing.\n\nSelecting an i1Pro / i1Pro 2 / i1Pro 3 / i1Pro 3 Plus instrument\nauto-bumps this to 10 mm so the strip-reader optics don't drift\nonto the bare paper edge (\"not enough patches read\" errors).\nSwitching to ColorMunki / SpectroScan returns it to 6 mm. A\ncustom value (anything other than 6 or 10) is preserved across\ninstrument changes.\n\nPatch-per-page lookup tables exist for 6 and 10 mm only \u2014 other\nvalues trigger a live binary-search recalculation."
+  },
+  {
+    "title": "No Randomisation (-r)",
+    "body": "By default printtarg randomises patch positions to reduce\ninstrument drift artefacts.  Enable this flag only if you\nare testing a specific patch sequence or if your instrument\nrequires ordered patches."
+  },
+  {
+    "title": "Force B&W Spacers (-b)",
+    "body": "Forces inter-strip spacers to be black/white instead of\ncoloured.  Does not affect patch count or layout geometry.\n\nHas no effect when \"No Spacers\" (-n) is enabled \u2014 this option\nis greyed out and excluded from the printtarg command in that\ncase."
+  },
+  {
+    "title": "Don't Limit Strip Length (-P)",
+    "body": "By default printtarg caps strip length so that every strip\nfits within the paper without overflow.  Enabling this flag\nremoves that limit, allowing very long strips.\nUseful for narrow roll paper or when you want as few strips\nas possible for a given patch count.\nWarning: if the patch count is high, strips may extend\nbeyond the paper edge \u2014 verify the generated TIFF before\nprinting."
+  },
+  {
+    "title": "Apply Calibration to Patches (-K)",
+    "body": "Use this when your printer has no built-in calibration system\n\u2014 i.e. the printer driver or RIP cannot apply a calibration\ncurve on its own.\n\nYou first run Argyll's printcal to produce a .cal file that\ndescribes how to linearise the printer.  Then you pass that\n.cal here: printtarg remaps every patch colour value through\nthe calibration curves before generating the chart, so the\nprinted target already reflects calibrated device behaviour.\nThe .cal is also embedded in the .ti2 file so that colprof\ncan reference it when building the ICC profile.\n\nTypical use: desktop inkjet printers without built-in\nlinearisation, driven directly from a TIFF with no\nintervening RIP.\n\nMutually exclusive with \"Include Calibration\" (-I) \u2014 only\none calibration option can be active at a time."
+  },
+  {
+    "title": "Include Calibration Without Applying (-I)",
+    "body": "Use this when your printer or RIP already applies a\ncalibration curve natively \u2014 for example, a production inkjet\nRIP with its own linearisation LUT, or a printer with\nbuilt-in density calibration.\n\nIn this case you do not want printtarg to remap the patch\nvalues (the printer handles that itself), but you do want\ncolprof to know about the calibration.  -I embeds the .cal\nfile into the .ti2 output as metadata only, leaving all patch\nvalues untouched.\n\nTypical use: professional inkjet RIPs (e.g. EFI Fiery,\nWasatch, ColorBurst) or printers with built-in linearisation\nthat is active during the profiling print run.\n\nMutually exclusive with \"Apply Calibration\" (-K) \u2014 only one\ncalibration option can be active at a time."
+  },
+  {
+    "title": "Disable TIFF Compression (-C)",
+    "body": "Outputs uncompressed TIFF files instead of the default LZW\ncompression.  Uncompressed files are larger but universally\ncompatible with all RIPs and printer drivers.\nEnable this if your print workflow refuses or mangles\ncompressed TIFFs."
+  },
+  {
+    "title": "Dither 8-bit Output (-D)",
+    "body": "When generating an 8-bit TIFF, uses error-diffusion dithering\nto down-sample from internal 16-bit precision.  This reduces\nbanding in smooth gradients that would otherwise be caused by\nquantisation.\nOnly has an effect when 8-bit TIFF output is selected."
+  },
+  {
+    "title": "Suppress CUPS CMM Header (-U)",
+    "body": "Removes the 'cupsJobTicket: cups-disable-cmm' comment from\nPostScript and EPS output files.  Some CUPS versions react\ndifferently to this comment.\nThis option only affects PS/EPS output and has no effect on\nTIFF files.  Enable only if you are experiencing unexpected\ncolour management being applied during printing."
+  },
+  {
+    "title": "Randomisation Seed (-R)",
+    "body": "Sets the starting seed for the patch randomisation algorithm.\nUsing the same seed with the same patch count always produces\nthe same patch layout, making charts fully reproducible.\nUseful for research or when you need to regenerate an\nidentical chart at a later date.\nHas no effect when \"Preserve Patch Order\" (-r) is enabled."
+  },
+  {
+    "title": "Quantize Patch Values (-Q)",
+    "body": "Rounds all patch colour values to fit within the specified\nbit depth before generating the chart.  For example, -Q 8\nrounds all values to 8-bit (256-level) precision.\nUse this when your printer pipeline introduces banding at a\nspecific bit depth and you want to test at exactly that\nprecision level."
+  },
+  {
+    "title": "Spacer-Only Scale (-A)",
+    "body": "Applies an additional scaling factor to the spacer bars only,\nwithout changing the patch dimensions set by -a.\nValues above 1.0 make spacers wider; below 1.0 make them\nnarrower.  Useful for instruments that need extra separation\nbetween strips or when you want to reclaim space by narrowing\nspacers while keeping patch size constant.\n\nHas no effect when \"No Spacers\" (-n) is enabled \u2014 this option\nis greyed out and excluded from the printtarg command in that\ncase."
+  },
+  {
+    "title": "No Spacers (-n)",
+    "body": "Removes all spacer bars between patches and strips.  Spacers\nnormally help the instrument identify strip boundaries and\ndirection.\nDisable spacers only if your measurement workflow explicitly\ndoes not rely on them (e.g. some flatbed scanner setups).\n\nWhen enabled, \"Force B&W Spacers\" (-b) and \"Spacer-Only Scale\"\n(-A) are automatically disabled since both only affect spacers."
+  },
+  {
+    "title": "Force Colored Spacers (-c)",
+    "body": "Forces inter-patch spacer areas to be rendered in colour\nrather than the default (which may be black/white depending\non the instrument profile).  Can improve strip recognition\non some colour inkjet devices where black spacers have low\ncontrast against dark patches."
+  },
+  {
+    "title": "Edit page layout",
+    "body": "Edit the page layout (printtarg settings)\n\nThis preset is already arranged on the page for you, so the printtarg settings above are locked. Tick this box if you'd like to re-arrange the same patches differently \u2014 for example a different paper size, margin or patch size.\n\nGood news: changing only these layout settings keeps the preset's exact colour patches. ChromIQ simply re-lays that same set of colours onto the page using your new settings.\n\n(To change the colours themselves, use the \"Edit patch recipe\" box on the targen panel instead \u2014 but note that produces a different, non-matching set of patches.)"
+  },
+  {
+    "title": "Instrument",
+    "body": "The measuring device you'll read the printed chart with. It sets the patch size, strip length and overall layout the chart is built for, so pick the one you actually own \u2014 a chart laid out for one instrument may not read correctly on another."
+  },
+  {
+    "title": "Paper and pages",
+    "body": "Paper is the sheet size you'll print on \u2014 the profile is only valid for the paper you actually use. Pages is how many sheets to spread the patches across: more pages = more patches total (and more ink and paper)."
+  },
+  {
+    "title": "Create layout",
+    "body": "Two ways to decide patch size against how many fit. Whichever you pick, its own settings appear directly below this box.\n\n\u2022 Prioritise patch size \u2014 you set the patch size, or a scale to grow and shrink the instrument's standard size, and ChromIQ fits as many patches as it can. Simple, but the last strip may not reach the far margin. Leave the size on \u201cauto\u201d and ChromIQ uses the size your instrument prefers.\n\n\u2022 Prioritise chart area \u2014 you decide the GRID and ChromIQ sizes the patches so it fills the space inside your margins. Two ways to describe the grid: by patch width, where you give the smallest patch you are willing to read and ChromIQ fits as many as that allows; or by columns and rows, where you say how many strips and how many patches per strip you want. Either way the patch area lands exactly where you defined it, and you trade patch size for the grid you asked for. Watch that the patches don't get too small for your instrument to read."
+  },
+  {
+    "title": "Patch size",
+    "body": "Width \u00d7 height of each patch in millimetres. Leave at \u201cauto\u201d (0) to use the instrument's recommended size (scaled by Patch scale). A value below ~6 mm can make the chart hard to read.\n\nHexagonal patches have two heights, and they are not the same number.\nHexagons interlock, so a row of them starts before the row above has finished and the patches sit closer together than they are tall. The ROW PITCH is that closer spacing, centre to centre down a strip. It decides how many patches fit on the page, and it is the height you set in the Patch size boxes. The PATCH is the hexagon itself, measured top tip to bottom tip, and it is a third taller: set 9.78 mm and you get a patch 13.05 mm from tip to tip, taller than it is wide. Chart layout information shows you both."
+  },
+  {
+    "title": "Patch scale",
+    "body": "Grows or shrinks every patch (and its spacer) together. 1.0 is the instrument's standard size. Below 1.0 fits more patches per sheet but each is harder for the instrument to read reliably \u2014 watch the warning if patches get too small."
+  },
+  {
+    "title": "Calculation method",
+    "body": "How to work out the patch grid inside the area:\n\n\u2022 By patch width \u2014 you set the smallest patch width (and a height %); ChromIQ fits as many as possible at that size and grows them to fill the area. You know the strip width you want, without juggling column counts.\n\n\u2022 By columns / rows \u2014 you set exactly how many strips and patches-per-strip; ChromIQ sizes the patches to fit. Full control of the grid, but you tune the counts to land on a patch size you like.\n\nBoth fill the same patch area defined by the margins."
+  },
+  {
+    "title": "Minimum patch width",
+    "body": "The smallest strip (patch) width your instrument can read reliably. ChromIQ fits as many strips as possible at this width, then grows them slightly so the grid fills the area exactly. The patch height follows the height % below."
+  },
+  {
+    "title": "Minimum patch height",
+    "body": "The patch height as a percentage of its width. 100% keeps height = width (square); 150% makes each patch half again as tall as it is wide; below 100% makes them wider than tall. It's a minimum \u2014 the engine grows the patches from here to fill the chart area."
+  },
+  {
+    "title": "Strips (columns)",
+    "body": "How many strips (columns of patches) to fit across the page. ChromIQ makes the patches exactly wide enough that this many strips span the usable width, so the block reaches the margins evenly.\n\nLeave it on \u201cauto\u201d and ChromIQ picks a count that gives a patch close to your instrument's natural patch size \u2014 the size it was designed to read \u2014 then fills the width to that count."
+  },
+  {
+    "title": "Patches per strip (rows)",
+    "body": "How many patches to stack down each strip. ChromIQ makes the patches exactly tall enough that this many fit the usable height.\n\nLeave it on \u201cauto\u201d and ChromIQ picks a count that gives a patch close to your instrument's natural patch size \u2014 the size it was designed to read \u2014 then fills the height to that count."
+  },
+  {
+    "title": "Strip indicators",
+    "body": "The small label printed above each strip so you always know which strip you're measuring and in what order. They are usually letters (A, B, C\u2026), and they follow the chart's own strip pattern, so a chart set to numbers is labelled 1, 2, 3 instead. Turn off only if you have another way to keep the strips straight.\n\nWhere they sit. They hang from the top edge of the paper at the distance you set in \u201cTop\u201d under \u201cText distance from edge\u201d, and they never slide down into the patches. If the top margin is too small to hold a whole label, the label moves up towards the paper edge rather than over the first row. Example, A4 portrait with \u201cTop\u201d at 4 mm and letters about 7 mm tall: with a 15 mm top margin the letters are printed between 4 mm and 11 mm from the top edge, leaving 4 mm of air above the first row of patches. Narrow the top margin to 10 mm and there is no longer room for both, so the letters move up to between 3 mm and 10 mm, which is closer to the paper edge than the 4 mm you asked for, and that is reported under the preview.\n\nThe band is as tall as the letters at the size you chose and it lives inside the top margin, so switching this on can leave room for fewer or slightly smaller patches. If the top margin cannot hold it, that is reported under the preview.\n\nThe row indicators down the left-hand side work the same way, with \u201cClip\u201d in place of \u201cTop\u201d. Their own help has the arithmetic. Set the font, size and underline style in Preferences \u2192 Chart Layout."
+  },
+  {
+    "title": "Row indicators",
+    "body": "Prints a label down the left-hand side of the chart for every row of patches. They are usually numbers (1, 2, 3\u2026), and they follow whatever the chart's own patch pattern says, so a chart set to letters is labelled A, B, C instead. Together with the strip letters along the top it gives the sheet a two-way coordinate, so a patch can be found the way a square is found on a map: strip A, row 12.\n\nThis is most useful when you place the instrument on one patch at a time, such as a SpectroScan or a CR30, which is why those two have always printed it. You can also switch the strip letters off and keep only these, which is what you want when every patch is read on its own. Turn it on for any chart you want to read by hand, or off to get the space back.\n\nWhere the labels sit. They start at a fixed distance from the left edge of the paper, and you choose that distance yourself with \u201cClip\u201d under \u201cText distance from edge\u201d. If the chart has a clip border down the same edge, the labels start at the border's width instead whenever that is the larger of the two, so the border cannot be printed on top of them. The band itself is as wide as the widest label at the size you chose, plus 1 mm of air to the left of the text.\n\nHow much paper it takes. The left margin has to hold the whole band, so ChromIQ widens it when the one you asked for is too narrow. The width it needs is the starting distance, plus the width of the label text, plus 1 mm before it and 1 mm after it. Two worked examples, both A4 portrait:\n  \u2022  No clip border, \u201cClip\u201d set to 4 mm, two-digit numbers about 5 mm wide. The labels start 4 mm in from the paper edge, the band is 6 mm wide, and the patches start at 11 mm. Ask for a 6 mm left margin and you get 11 mm.\n  \u2022  A 26 mm clip border on the left, the same labels. The labels start at 26 mm, because the border is wider than \u201cClip\u201d, and the patches start at 33 mm. Ask for a 26 mm left margin and you get 33 mm.\nWhenever the margin is widened like that, it is reported under "
+  },
+  {
+    "title": "Clip border",
+    "body": "Whether a CLIP BORDER is printed \u2014 the white strip the measuring rail grips so it can pull the chart through. Turning it off frees that space for more patches; only do so if your rig doesn't need it. Choose which edge it sits on, and what it carries (a notes box, text or a logo), in the Clip-border content section."
+  },
+  {
+    "title": "Clip border",
+    "body": "Reserve a clip-border strip on this chart (the same option the i1Pro has). On reserves a band you can fill with a notes box, text or a logo in the Clip-border content section below; Off uses the whole page for patches. Choose which edge it sits on in that section.\n\nIf you also print the ruler helper markers (the short dashes along the page edges, switched on under the preview), a dash can cross this band. That is allowed on purpose \u2014 the dashes keep step with the patches wherever they fall. If one lands awkwardly, move it with its own \u201cDistance from page edge\u201d, or make it shorter."
+  },
+  {
+    "title": "Offset every second strip",
+    "body": "ColorMunki only: shifts every second strip down by half a patch so the columns interleave like a brick wall \u2014 matching ArgyllCMS printtarg's measuring-rig layout. Reserves a little space at the top and bottom for the offset, so the patch count drops slightly. Leave off for a plain aligned grid."
+  },
+  {
+    "title": "Randomisation",
+    "body": "Patches are shuffled across the sheet so a streak of similar colours can't bias a strip \u2014 leave this on. The seed is the number that drives the shuffle: with a fixed seed the exact same layout is reproduced every build (handy for re-printing an identical chart), otherwise a fresh seed is drawn each time. Press New seed to draw one now; it's saved with the chart so you can always recreate it. After every build the Seed box shows the number the chart on screen was shuffled with, even while the box is greyed out \u2014 tick \u201cUse a fixed seed\u201d to build that exact layout again."
+  },
+  {
+    "title": "Use instrument margins",
+    "body": "Fill the four page margins from the per-instrument minimums set in Preferences \u2192 Instrument Limits for this instrument and paper, and lock them so the patch area always clears your reading jig. They refill automatically when you change instrument or paper. Untick to type your own margins."
+  },
+  {
+    "title": "Margins",
+    "body": "Blank borders kept clear of patches on each edge \u2014 Top, Right, Bottom, Left, in mm. Most printers can't print to the very edge, so keep a few mm here; the smallest of the four also sets the instrument's leader/clip base.\n\nWhen the clip border is on, the margin on the clip edge (Left or Right, set by \u201cSide\u201d under Clip-border content) shares that edge with the clip-border width: the larger of the two is what's reserved. If the clip-border width is wider than this margin, it wins and the margin box is outlined in red to show it's being overridden."
+  },
+  {
+    "title": "Clip border width",
+    "body": "Width of the clip border \u2014 the blank band reserved down one edge of the page for the clip that holds the sheet against the scanner bed. Make it wider if your clip covers more of the page; the patches start just past it. Only applies to the i1Pro / i1Pro 3 in clip-border mode (printtarg fixes this at 26 mm).\n\nWorks together with the page margin on the same edge (Left or Right, set by \u201cSide\u201d under Clip-border content): the reserved clip zone is whichever of the two is larger. If that margin is wider than this width, the margin wins and this value is ignored \u2014 the box is outlined in red to show it. Raise this above the margin to make the clip zone wider than the margin."
+  },
+  {
+    "title": "Resolution",
+    "body": "Pixel density of the printed chart TIFF, in dots per inch. 300 dpi is a good default; higher makes a larger file with no real benefit for solid colour patches."
+  },
+  {
+    "title": "Max strip length",
+    "body": "Caps how long a single strip (column of patches) may get, in mm. Leave at \u201cauto\u201d to use the instrument's limit (set per instrument/paper in Preferences \u2192 Instrument Limits). Some scanners can't read a strip past a certain length; lower this if long strips misread. Only used in \u201cPrioritise patch size\u201d \u2014 area-first fills the page and warns if a strip is longer than the instrument's ruler instead."
+  },
+  {
+    "title": "Chart offset",
+    "body": "Shifts the whole patch block right (X) and down (Y) on the sheet, in mm. Usually 0 \u2014 use it to nudge the layout away from a printer's unprintable area or to line up with a pre-printed sheet. Only used in \u201cPrioritise patch size\u201d; area-first places the block by the margins."
+  },
+  {
+    "title": "Strip pattern",
+    "body": "How each strip (column of patches) is labelled \u2014 the first part of a patch's location, e.g. the \u201cA\u201d in A12. ChromIQ reads this the way ArgyllCMS's printtarg does; in practice it decides whether strips are labelled with LETTERS or NUMBERS.\n\nValid examples:\n\u2022 A-Z, A-Z \u2014 the default: letters A, B, C \u2026 Z, then AA, AB, AC \u2026 once past 26 strips (like spreadsheet columns).\n\u2022 A-Z \u2014 plain letters A, B, C \u2026 (same result while a chart has 26 strips or fewer).\n\u2022 1-999 \u2014 numbers 1, 2, 3 \u2026\n\u2022 0-9 \u2014 also numbers 1, 2, 3 \u2026\n\nRule: any pattern that contains \u201cA-Z\u201d labels with letters; anything else counts in plain numbers (no zero-padding). This works together with the Patch pattern below \u2014 the two combine into each location label, strip then patch (e.g. strip \u201cA\u201d + patch \u201c12\u201d = A12). Leave the default unless you're matching a specific reading-sheet scheme."
+  },
+  {
+    "title": "Patch pattern",
+    "body": "How patches within a strip are labelled \u2014 the second part of a location, e.g. the \u201c12\u201d in A12. The patch label is joined to the strip label to form each patch's full location (strip then patch, e.g. A12).\n\nThe one rule that always applies: if the pattern contains \u201cA-Z\u201d you get LETTERS, otherwise you get NUMBERS.\n\nCommon patterns:\n\u2022 0-9,@-9,@-9;1-999 \u2014 the default: numbers 1, 2, 3 \u2026\n\u2022 1-999 \u2014 numbers 1, 2, 3 \u2026 (simpler, same result).\n\u2022 A-Z, A-Z \u2014 letters A, B, C \u2026 Z, AA, AB \u2026.\n\u2022 A-Z \u2014 plain letters A, B, C \u2026.\n\nAbout the \u201c@\u201d and zeros (ArgyllCMS notation, used by the classic printtarg engine):\n\u2022 \u201c@\u201d means \u201cthis digit may be left blank\u201d. It is what stops the default from writing leading zeros \u2014 you get 1, 2, \u2026 9, 10 rather than 001, 002 \u2026\n\u2022 To start counting at 0 instead of 1, include 0 in the range, e.g. 0-999 \u2192 0, 1, 2 \u2026.\n\u2022 To keep every number the same width WITH leading zeros (01, 02, \u2026 09, 10), use a fixed-width digit range such as 00-99 (two digits) or 000-999 (three).\n\nNote: ChromIQ's own layout engine keeps patch numbers simple (1, 2, 3 \u2026) whatever the digit details; the \u201c@\u201d and leading-zero options above take effect when a chart is built with the classic printtarg engine. Leave the default unless you're matching a specific scheme."
+  },
+  {
+    "title": "Patch area alignment",
+    "body": "Where the whole patch block sits within the page once the margins are kept clear. The patches rarely fill the usable area exactly, so this decides where the leftover white space goes.\n\n\u201cTop-left\u201d pins the block to the top-left corner (the leftover sits at the right and bottom); \u201cCentre\u201d puts the spare space evenly around it; \u201cBottom-right\u201d pins it to the opposite corner, and so on. It only moves the block \u2014 the patch count and size don't change. Margins / thresholds are still respected."
+  },
+  {
+    "title": "Don't cap strip length",
+    "body": "Removes the strip-length limit entirely (printtarg -P), letting a strip run the full usable height. Only enable if your instrument can read an unlimited-length strip; otherwise leave it off. Only used in \u201cPrioritise patch size\u201d \u2014 area-first already fills the page, so it's hidden there."
+  },
+  {
+    "title": "Spacers",
+    "body": "The thin separator drawn between patches in a strip so the instrument can tell where one patch ends and the next begins. \u201cColoured\u201d picks a high-contrast colour per gap (default, most reliable); \u201cBlack & white\u201d uses plain black/white; \u201cNone\u201d removes them \u2014 only if your instrument doesn't need gaps."
+  },
+  {
+    "title": "Spacer size",
+    "body": "How thick the separator between patches is, in mm (it runs along the strip, between consecutive patches). Leave at \u201cauto\u201d (0) for the instrument default; increase it only if your scanner has trouble finding the patch edges."
+  },
+  {
+    "title": "Spacer scale",
+    "body": "Scales only the spacer thickness, leaving patch size alone. 1.0 is standard; raise it for fatter gaps without making the patches bigger."
+  },
+  {
+    "title": "Inter-patch gap",
+    "body": "Makes the spacer between patches thicker, in mm \u2014 extra blank separation along the strip. Usually 0; raise it only if patches bleed into each other on your printer/paper."
+  },
+  {
+    "title": "Strip-indicator gap",
+    "body": "How far the strip's letter label sits below the top edge of the page, in mm. At 0 the labels hug the minimum text-edge distance at the very top; raising it slides them down, toward the patches, to fine-tune where the labels print."
+  },
+  {
+    "title": "Strip gap",
+    "body": "Extra blank space added sideways between neighbouring strips (columns of patches), in mm. Usually 0, which packs the strips as tightly as the instrument allows to fit the most patches per sheet. Raise it if your scanner needs a wider gutter between strips, or to spread a sparse chart out \u2014 each millimetre here means fewer strips fit, so the patch count drops."
+  },
+  {
+    "title": "Custom spacer colours",
+    "body": "By default the engine separates patches with spacers drawn from the five ChromIQ accent colours plus white and black, automatically picking the one with the most contrast at each gap so the instrument can always find the patch edges (white and black give it a strong choice against very dark or very light patches). Turn this on to choose your own set instead \u2014 click a swatch to change it. The engine still auto-picks the highest-contrast one from your set per gap, so keep them varied (and watch the low-contrast warning)."
+  },
+  {
+    "title": "Edge spacers",
+    "body": "Adds a spacer before the first patch and after the last patch of every strip \u2014 the way ArgyllCMS printtarg does. It's optional: the instrument finds each strip from the white border the layout already leaves at both ends, so this isn't needed for reliable reading. It fits in space the layout already reserves, so it doesn't reduce the patch count. Turn it on if you prefer the printtarg look or want an extra separator at the strip ends."
+  },
+  {
+    "title": "Bit depth",
+    "body": "Colour precision of the chart TIFF. 8-bit is standard and right for almost everyone. 16-bit doubles the file size and only helps if your whole print path is genuinely 16-bit \u2014 otherwise it makes no visible difference."
+  },
+  {
+    "title": "Compression",
+    "body": "How the chart TIFF is compressed. LZW (default) and Zlib are lossless and shrink the file; \u201cNone\u201d writes it uncompressed (largest, most compatible). All keep the exact colours."
+  },
+  {
+    "title": "Also export a PDF",
+    "body": "Saves a press-ready PDF of the chart next to the usual TIFF \u2014 the TIFF is still made, this just adds a PDF copy.\n\nWhen it helps:\n\u2022 Your print shop or RIP prefers PDF, or asks for one.\n\u2022 You want a file that prints at the exact paper size, with no print dialog quietly scaling it down.\n\u2022 Multi-ink charts (CMYK and CMYK + extra inks): the PDF carries each ink as its own named channel, so a RIP knows exactly which ink is which.\n\nThe PDF is drawn as true vector \u2014 the patches are exact device colours and the labels stay crisp at any zoom \u2014 and it uses the same fonts as the chart. All pages are in one file.\n\nOne rule matters more than the rest: nothing between this file and the paper may convert the colours. That is not the same advice as for the TIFF, and the reason is in the PDF format rather than in any one system. Both files hold raw device values with no colour profile attached, which is what a chart needs \u2014 but where a TIFF is a picture whose numbers get passed along, a PDF lets whatever opens it decide that those numbers meant some particular colour space, and convert them. Measured on macOS, a pure red patch of 255,0,0 came back as 234,51,35. On Linux, the PDF interpreter behind most print queues assigns a default colour profile unless it is told not to. On Windows it depends entirely on the application you print from. How far the colours move depends on the machine and the program, so the same file can look fine on one and be badly wrong on another.\n\nNone of which means a chart PDF cannot be printed properly \u2014 it can, and there are three ways to be sure of it:\n\u2022 Send it straight to the print queue, which is what ChromIQ does with its own charts.\n\u2022 Give it to a RIP with colour management switched off \u2014 what this export is really for.\n\u2022 Print from an application with an explicit setting for it, such as \u201cSame as source (no colour management)\u201d.\n\nWhat you cannot do is assume it. The case that goes wrong is an ordinary viewer that simply draws the page and offers no suc"
+  },
+  {
+    "title": "Ruler helper markers",
+    "body": "Prints short dashes along all four edges of the sheet, so you can lay a ruler against the paper and line your instrument up with a row of patches.\n\nWhat you get: a dash at the centre of every patch and one between each pair, evenly spaced the whole way along. They follow your patch spacing automatically, so they stay correct whatever else you change.\n\nYou need this if you read a chart with a hand-held instrument along a ruler. Leave it off for a chart you read without one \u2014 the dashes cost nothing but ink, and some people prefer a clean sheet.\n\nPress Generate Chart after changing this: the dashes are printed onto the sheet, and the preview only shows you where they will land. If \u201cAuto-update preview when a layout setting changes\u201d is ticked, the sheet is rebuilt for you and there is nothing more to do.\n\nDefault: off."
+  },
+  {
+    "title": "Distance from page edge",
+    "body": "How far in from the edge of the paper each dash starts, in millimetres.\n\nSmall values (1\u20132 mm) keep the dashes out of the way of everything else on the sheet. Larger values move them inward, which helps if your printer cannot print close to the paper edge \u2014 many printers leave a few millimetres unprinted.\n\nIf a dash would land where the strip labels or the clip-border text sit, they may overlap: move whichever one is in the way.\n\nDefault: 2.0 mm."
+  },
+  {
+    "title": "Marker length",
+    "body": "How long each dash is, measured inward from where it starts.\n\nLonger dashes are easier to see and to line a ruler against; shorter ones stay further from the patches. 2\u20134 mm suits most charts.\n\nThe four sets of dashes never cross in the corners \u2014 a dash is left out where it would run into the dashes coming from the edge next to it.\n\nDefault: 2.0 mm."
+  },
+  {
+    "title": "Markers per patch",
+    "body": "How many dashes fall along a single patch, counting the one at each end.\n\n3 gives you a dash where two patches meet, one in the middle of the patch, and one where the next patch begins \u2014 the usual choice. Raise it if you want finer steps to line your ruler up against: 5 puts three dashes inside each patch instead of one. Lower it to 2 for a single dash where patches meet and nothing in between.\n\nEvery gap stays exactly the same size whichever number you pick. With an even number there is no dash at the centre of the patch \u2014 the middle one is replaced by two sitting either side of it.\n\nDefault: 3."
+  },
+  {
+    "title": "Show markers for",
+    "body": "Which edges of the sheet get the dashes.\n\nTick \u201cSides (vertical)\u201d for the dashes down the left and right edges. These are the ones that line up with the rows of patches, so they are what you want when you read a strip with a hand-held instrument. Tick \u201cTop/bottom (horizontal)\u201d for the dashes along the top and bottom edges, which line up with the strips across the page.\n\nUntick the set you don't need and it simply isn't printed: less ink on the sheet, and nothing in the way of your margins or the clip-border text. The set you keep then reaches into the corners as well, because there is no longer another set there to bump into.\n\nWith both unticked no dashes are printed at all, the same as turning the markers off. Leave it that way and this \u24d8 says so, at the top, before this help.\n\nDefault: both ticked."
+  },
+  {
+    "title": "Sheet text",
+    "body": "Optional text printed in the bottom margin of every sheet. Use Insert \u25be to drop in a placeholder \u2014 it's replaced with a human-readable value when the chart is built: {project} (profile name), {page} (\u201cpage 1/3\u201d), {date}, {paper} (e.g. \u201cA4 landscape\u201d), {instrument} (e.g. \u201ci1Pro3+\u201d), {patchcount}, {pages}, {seed}, {dpi}. The Preview line shows how it will read."
+  },
+  {
+    "title": "Sheet-text font",
+    "body": "Typeface, size and style of the custom sheet text in the bottom margin. Size \u201cauto\u201d uses a sensible default; Bold / Italic grey out for fonts that don't offer them."
+  },
+  {
+    "title": "Stamp layout summary",
+    "body": "Prints a one-line summary of how the chart was made (engine, instrument, paper, dpi, patch count, seed) in the bottom margin. Handy for re-creating an identical chart later from the printed sheet alone."
+  },
+  {
+    "title": "Text distance from edge",
+    "body": "The minimum distance from the paper edge to the text on each side that can carry text: Top = strip labels, Bottom = sheet text, Clip = the clip-border / notes band and the row indicator labels down the left. Increase a value if your printer clips text near that edge. These are independent of the page margins; if a margin is too small for its text, the text overflows toward this line, and the \u24d8 beside the measured margins under the preview says so.\n\nIf you also print the ruler helper markers (the short dashes along the page edges, switched on under the preview), a dash can land on top of this text. Nothing is hidden or moved automatically, because the dashes have to keep step with the patches to be useful. Move whichever one is in the way: give the text more room here, or shift the dashes with their own \u201cDistance from page edge\u201d."
+  },
+  {
+    "title": "Indicator font",
+    "body": "Typeface, size and style of BOTH sets of labels \u2014 the strip letters across the top and the row numbers down the left. Bundled fonts are listed first, then every font installed on your system. Size \u201cauto\u201d fits the strip letters to the strip width, and the row numbers follow the same size; the left margin widens or narrows with them, so changing the font or the size re-lays the page. Bold applies to both. Italic greys out for fonts that don't offer it, which includes both of the bundled ones.\n\nSaved with this chart and its presets. Preferences \u2192 Chart Layout only sets the starting values for a new chart."
+  },
+  {
+    "title": "Underline",
+    "body": "Draws a thin rule under each strip's letter label. Coloured (5 segments) splits the rule into the five ChromIQ accent colours side by side under every strip; Coloured (per strip) instead cycles one accent colour per strip so neighbours read apart; Black is a plain rule. Use the thickness and distance to taste.\n\nSaved with this chart and its presets. Preferences \u2192 Chart Layout only sets the starting values for a new chart."
+  },
+  {
+    "title": "Underline thickness",
+    "body": "How thick the rule under the strip labels is drawn, in millimetres. A thicker line is easier to spot at a glance; a thinner one is more subtle. Only matters when the Underline above is set to something other than Off.\n\nSaved with this chart and its presets. Preferences \u2192 Chart Layout only sets the starting values for a new chart."
+  },
+  {
+    "title": "Underline distance",
+    "body": "How far below the strip label the rule sits, in millimetres. Increase it to give the label a little breathing room above the line.\n\nSaved with this chart and its presets. Preferences \u2192 Chart Layout only sets the starting values for a new chart."
+  },
+  {
+    "title": "Indicator rotation",
+    "body": "Turns the little letter printed above each strip so it reads in the direction you want. 0\u00b0 is normal, upright text. 90\u00b0 and 270\u00b0 lay it on its side \u2014 useful when the strips are very narrow (an upright letter would be wider than the strip) or so the labels face you the way you actually hold the sheet while measuring. 180\u00b0 prints it upside-down, for when you feed the page in from the other end. If you're not sure, leave it at 0\u00b0.\n\nLeft / Centered / Right (only available at 90\u00b0 / 270\u00b0) set how a two-letter label lines up: Left keeps the first letter on a fixed line nearest the patches so the label grows away from them, Right anchors the last letter, and Centered splits the difference.\n\nSaved with this chart and its presets. Preferences \u2192 Chart Layout only sets the starting values for a new chart."
+  },
+  {
+    "title": "Label offset",
+    "body": "Moves the strip letters up or down without moving the patches. By default the labels sit flush just under the top margin; a positive value lowers them toward the patches, a negative value raises them into the margin. The patch area doesn't change, so this doesn't affect how many patches fit.\n\nSaved with this chart and its presets. Preferences \u2192 Chart Layout only sets the starting values for a new chart."
+  },
+  {
+    "title": "Clip-border content",
+    "body": "Available only when Clip border is turned On (in the Layout section above) \u2014 with it Off there is no clip border to fill, so these options do nothing.\n\nFills the blank band down the clip edge of the page that the scanner clip reserves. Custom text accepts the same {project}/{date}/\u2026 tokens as the sheet text; Notes box prints a ready-made record \u2014 chart facts filled in automatically (patches, instrument, paper, page, profile name, date) plus labelled lines to hand-write the printer, ink set, paper and media settings; ChromIQ branding stamps the wordmark; Imported image places a logo. Export template gives you an exact-size PNG and PDF to design a graphic in another tool."
+  },
+  {
+    "title": "Flip writing direction",
+    "body": "Turns the clip-border content 180\u00b0 from the way it normally reads. A clip border on the Right side is printed upside-down by default, so it reads the right way up when you look at the sheet from that side. If you'd rather it read the same direction as the info line stamped along the bottom of the sheet, tick this. It works on either side, so you can also flip a Left-side clip."
+  },
+  {
+    "title": "Clip border side",
+    "body": "Which edge of the page the clip border sits on \u2014 Left or Right. Choose whichever matches how you feed the chart into your instrument's ruler. The patches fill the rest of the page; the patch count is the same either way.\n\nThis also decides which page margin the clip-border width shares an edge with: Left \u2192 the Left margin, Right \u2192 the Right margin. On that edge the wider of the two (margin or clip-border width) is what gets reserved; the smaller one is outlined in red to show it's overridden."
+  },
+  {
+    "title": "Clip-border text",
+    "body": "The text printed up the clip-border strip (the tall band along one edge that holds the instrument's calibration area). Type freely, and use Insert \u25be to drop in either a placeholder or a blank line to write on:\n\nPlaceholders are replaced with real values when the chart is built:\n  \u2022 {project} \u2014 your printer-profile name\n  \u2022 {page} \u2014 this page, e.g. \u201cpage 1/3\u201d\n  \u2022 {date} \u2014 the build date\n  \u2022 {paper} \u2014 paper size and orientation\n  \u2022 {instrument} \u2014 the instrument name\n  \u2022 {patchcount} \u2014 the number of patches (with the word \u201cpatches\u201d)\n  \u2022 {pages} \u2014 the total number of pages\n  \u2022 {seed} \u2014 the shuffle seed (shown as \u201cseed 1234\u201d), which lets you reproduce the exact patch order later\n  \u2022 {dpi} \u2014 the resolution (with \u201cdpi\u201d)\n\nBlank lines to write on \u2014 \u201cUnderline \u2014 long/short\u201d inserts a run of underscores (10 or 5). Put several in a row for a longer line; they join with no gap unless you type a space between them. Handy for a hand-written date or paper name.\n\nThe font and size below apply to this text."
+  },
+  {
+    "title": "Clip text font & size",
+    "body": "Typeface and size for the clip-strip text. Size is in mm; leave it at \u201cauto\u201d to let ChromIQ fit the text to the strip width. Set a smaller size when the auto text looks too large and you want to keep the strip narrow / maximise patch space. Applies to the custom-text clip content; the Notes-box record has its own auto layout."
+  },
+  {
+    "title": "Content fit",
+    "body": "Places whatever the clip border is carrying \u2014 an imported image, or the ChromIQ branding with your own lines under it.\n\n  \u2022 Rotate turns an imported image by whole degrees. The branding always reads up the strip, so rotation does not apply to it \u2014 use \u201cFlip 180\u00b0\u201d above to turn it the other way round.\n  \u2022 Scale is a percentage of the size that fits the band: 100 % is the automatic fit, less makes it smaller, more makes it bigger.\n\nAnything you push past the edge of the band is cut off, and the Preview below shows that before it reaches paper.\n\nDefault: 0\u00b0, 100 %."
+  },
+  {
+    "title": "Content move",
+    "body": "Shifts the image or the branding inside the clip border, in millimetres.\n\n  \u2022 X moves it ACROSS the clip border \u2014 towards the paper edge, or towards the patches.\n  \u2022 Y moves it ALONG the clip border \u2014 up or down the sheet.\n\nBoth start at 0, which centres the content in the clip border. Watch the Preview: what leaves the clip border is not printed."
+  },
+  {
+    "title": "Clip area measurements",
+    "body": "The size of the printable clip-border strip \u2014 width \u00d7 height in millimetres \u2014 where your text or branding is placed.\n\nWhere the numbers come from:\n  \u2022 Width is the \u201cClip border width\u201d you set above (or the clip-side page margin, whichever is larger \u2014 the engine reserves the bigger of the two on that edge).\n  \u2022 Height is the paper height minus the top and bottom text distances (so the strip clears the very edges), for the current paper and orientation.\n\nIt updates live as you change the clip-border width, the margins, the paper or the orientation, so you can see how much room your text has before you print."
+  },
+  {
+    "title": "Printer calibration",
+    "body": "Attach an ArgyllCMS calibration (.cal) that linearises your printer so the chart's tones come out evenly spaced. \u201cApply & embed (-K)\u201d bakes the calibration into the printed patch values and also records it in the chart file \u2014 pick this if you have a .cal and want it used. \u201cEmbed only (-I)\u201d just records it without changing the patches; use this when your printer or RIP already linearises on its own. Leave it on \u201cNone\u201d if you don't use a calibration."
+  },
+  {
+    "title": "How many colours to test",
+    "body": "How many of the reference colours this chart will test. More colours means a finer picture of your profile \u2014 and more patches to print and measure, which is where the real cost sits: the same 1 500 colours are a few sheets on an i1Pro and a long afternoon on a ColorMunki.\n\nThe line under these options does the arithmetic for you: it shows how many of the reference colours your profile can print at all, what your chart will hold, and roughly how many sheets that is with the layout you have set in the MANUAL module.\n\nA guide from practice: around 400 colours is a solid everyday check, 800\u20131 000 matches what professional packages use with a handheld instrument, and beyond that is worth it mainly with an automated table or the scanner workflow, where reading costs you nothing.\n\nSmaller checks stay comparable with larger ones: every colour of a 400-colour chart is also part of a 1 000-colour chart made from the same profile, so their figures describe the same patches. The eight cube corners are always added on top, whatever you choose here.\n\nAuto \u2014 fill the pages. Tick this and ChromIQ works the number out for you: it takes the page count and the layout you set in the section below, fills those pages completely, and keeps the 8 cube corners inside the total. The box shows the computed number and follows every layout change.\n\nGreys have a fixed share: about one patch in eight goes to white, black and evenly spaced grey steps \u2014 a drifting printer shows in the greys first, so every chart keeps a proper grey wedge without letting it crowd out the colours. Everything else is spread through every hue region your profile can print.\n\nDefault: 400 colours."
+  },
+  {
+    "title": "How close to the edge of the printable range to go",
+    "body": "Your profile describes a range of printable colours, and that range has an edge. Right at the edge, even a good profile struggles: the maths gets less reliable, the printer lays down the most ink, and two prints of the same patch differ the most. A colour can be technically printable yet unreliable to hit.\n\nStay safely inside (recommended). Keeps targets away from the very edge of what your printer and paper can do. Best for judging profile quality: differences you measure are the profile's doing, not the edge's.\n\nUse the full printable range. Includes colours right up to the edge. Useful when you want to know how the profile behaves at its limits \u2014 expect higher errors there, and expect them to vary more between prints.\n\nWhichever you choose is written into the chart's stored reference and onto the report, so two sets of figures are never compared without knowing which rule made them.\n\nThe eight cube corners ignore this setting on purpose: they measure how far your ink and paper reach, so pulling them inward would defeat them. They are reported in their own section, never mixed into the accuracy figures.\n\nDefault: stay safely inside."
+  },
+  {
+    "title": "Which rendering intent builds this chart",
+    "body": "When this chart is made, ChromIQ asks your profile for the ink amounts that produce each reference colour, and the rendering intent is the rule for that question \u2014 chosen here, once, and used both for building the chart and for reading its measurement, so the two can never disagree.\n\nAbsolute colorimetric (recommended). The paper's own shade counts as part of every colour. A warm or blueish paper shows up in the figures, exactly as it does in the commercial verification practice this module replaces \u2014 so choose this when you want numbers you can set beside figures produced that way.\n\nMedia-relative (relative colorimetric). The paper's white is treated as white, and every colour is judged relative to it. This isolates the profile's accuracy from the paper's tint, so it best answers \u201cis my profile accurate?\u201d on its own terms. The numbers come out lower on warm or brightened papers \u2014 not because anything is better, but because the paper is no longer counted against the profile.\n\nYour choice is stored in the chart's reference file and printed on the report.\n\nDefault: absolute colorimetric."
+  },
+  {
+    "title": "Building a chart from this profile's gamut",
+    "body": "This module builds a verification chart out of colours chosen by the profile you have already made, instead of colours chosen by a patch generator.\n\nWhy that is worth doing: an ordinary verification chart reprints the very same colours your profiling chart used, so it answers \u201chas anything drifted since I made this profile?\u201d \u2014 a genuinely useful question, but not the same as \u201chow accurate is it?\u201d. This module answers the second one. It asks the profile which colours it claims it can print, prints exactly those, measures them, and shows you how far the print landed from what the profile promised.\n\nThe colours come from ChromIQ's reference set \u2014 one fixed, published list, spread evenly across light and dark, muted and saturated, with extra attention on the greys where your eye is fussiest. For your chart, ChromIQ keeps only the colours this profile can actually reach, so no patch is wasted on a colour that was never possible on this paper. Two profiles get two different charts, because their gamuts differ \u2014 and repeated checks of the same profile always get the same colours, so this month's figures compare patch by patch with last month's.\n\nWhat stays the same: everything below the colours. The sheet is laid out by printtarg or by the ChromIQ layout engine exactly as in the MANUAL module, with every option either of them gives you.\n\nOne thing to know before printing: this chart already has your profile applied. The Print Chart tab notices that by itself and selects \u201cRaw\u201d \u2014 you do not need to set anything.\n\nHow this compares with the other checks: this module is the everyday accuracy check \u2014 it grades the profile against its own promise, colour by colour. Printing an ordinary verification chart through the profile instead gives the strict as-measured reading professionals use, and printing one from your own application with the profile applied checks your whole printing chain. The Dictionary entry \u201cWhich verification should I use?\u201d compares all three."
+  },
+  {
+    "title": "Auto-update preview",
+    "body": "When this is on, the chart preview refreshes by itself every time you change a layout setting \u2014 margins, patch size, columns, spacers, the clip border, and so on \u2014 so you can see the effect immediately without clicking Generate Chart each time.\n\nHow it works:\n\u2022 It only starts once you've generated (or loaded) a chart, so there's always something to update.\n\u2022 It re-uses the patches already in your chart and just re-lays them out, so the refresh is quick \u2014 it does NOT pick new colours or re-run the patch generator.\n\u2022 While it's on, ChromIQ won't pop up the \u201cthere's a little room left on the last page\u201d reminder after each change \u2014 that would be in the way when you're tuning the layout live. You can still open the patch-set editor any time to add or remove patches.\n\nTurn it off to go back to updating the preview only when you click Generate Chart."
+  }
+]

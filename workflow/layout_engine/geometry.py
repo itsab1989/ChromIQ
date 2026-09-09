@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from . import hexagon
 from .instruments import Geom
 
 
@@ -34,6 +35,60 @@ class Layout:
     @property
     def fits_one_page(self) -> bool:
         return self.pages <= 1
+
+
+
+#: White the strip letters must keep between themselves and the first patch.
+#: Six pixels at 300 dpi -- enough that the gap reads as a gap on paper. Without
+#: it a turned honeycomb at patch scale 1.5 came out with the letters and the
+#: hexagons sharing an edge, measured at exactly 0.00 mm.
+LABEL_INK_CLEARANCE_MM = 0.5
+
+
+def _turned_hex(g) -> bool:
+    """A honeycomb turned so its strips run straight down the page.
+
+    Read through `hexagonal` as well as the flag, because `hex_flat_top` is
+    written once, in `instruments._build_base`, and is False for every layout
+    that is not a CR30 honeycomb with the turn on -- but a reader that trusted a
+    raw recipe flag instead has been the bug twice.
+    """
+    return bool(getattr(g, "hexagonal", False)
+                and getattr(g, "hex_flat_top", False))
+
+
+
+def _top_reserve_for_a_turned_hex(g, mints: float, txhi: float,
+                                  *, margins_are_law: bool) -> float:
+    """`mints`, raised if the strip letters would otherwise be drawn on the ink.
+
+    Only a turned honeycomb needs this, and only a turned honeycomb gets it: on
+    every other layout the patch block already starts below the labels and this
+    returns *mints* unchanged. See the note in `compute`.
+
+    The figure that matters is where the labels' ink ENDS, which is
+    `leader_top + label_ink_bottom_mm` -- the renderer's own drawn height, its
+    underline and the user's `strip_label_offset_mm`. Reserving the band's
+    nominal height instead left four ordinary settings still printing letters on
+    patches: an explicit 6 mm label (the drawn band is 1.44 mm taller than the
+    reserve), a label offset of +3 mm (the reserve does not know about it at
+    all), an underline (0.25 mm), and patch scale 1.5 or 2.0 (which lands the
+    two exactly level).
+    """
+    if not _turned_hex(g):
+        return mints
+    ink = float(getattr(g, "label_ink_bottom_mm", 0.0) or 0.0)
+    if ink <= 0.0:                       # indicators off, or nothing rendered yet
+        return mints
+    if margins_are_law:
+        # Mirrors `placement`'s own clamp: the band hangs at the text-edge
+        # distance from the PAGE EDGE, sliding up when the top margin cannot
+        # hold it, and never below the page edge.
+        leader_top = max(0.0, min(g.text_edge_top_mm + g.strip_indicator_gap,
+                                  g.margin_t - txhi))
+    else:
+        leader_top = g.margin_t
+    return max(mints, leader_top + ink + LABEL_INK_CLEARANCE_MM)
 
 
 def compute(geom: Geom, paper_w_mm: float, paper_h_mm: float, npat: int,
@@ -80,6 +135,27 @@ def compute(geom: Geom, paper_w_mm: float, paper_h_mm: float, npat: int,
         # the usable length.
         mints = g.margin_t
         minbs = g.margin_b
+        # A TURNED HONEYCOMB PUTS INK AT THE VERY TOP OF THE PATCH AREA, WHERE EVERY
+        # OTHER LAYOUT LEAVES A GAP, AND THE STRIP LETTERS WERE PRINTED ON IT.
+        #
+        # The block is shifted down by `hxeh` so a hexagon's apex clears the top
+        # reserve. On a pointy sheet `hxeh` is the apex overshoot (plen/6) and the
+        # slot's own top is that far below the patch-area top, which is the slack the
+        # label band has always sat in. On a FLAT-TOP sheet `hxeh` is the STAGGER
+        # reserve (plen/4) and the raised strips -- every even one -- come straight
+        # back up through it, so the topmost ink lands exactly ON the patch-area top.
+        # Measured on the app's own sidecar at 300 dpi, A4, CR30, at 150, 345 and 690
+        # patches alike: label band bottom 74 px, topmost patch box 71 px, so the
+        # letters were printed three pixels INTO the first row of hexagons. The
+        # pointy control on the same recipe clears by 8 px.
+        #
+        # `placement` already refuses to put the band behind the patches, but its
+        # fallback is to slide the band UP toward the page edge, and a band taller
+        # than the top margin runs out of page before it runs out of overlap. The
+        # patch area is what has to move, so on a turned honeycomb it starts below
+        # the band. Margins are still law: this only ever pushes the ink DOWN.
+        mints = _top_reserve_for_a_turned_hex(g, mints, txhi,
+                                              margins_are_law=True)
         arowl = ph - mints - minbs - 2.0 * g.hxeh
     else:
         # Default (printtarg-style): the margins are floored by the instrument's
@@ -87,6 +163,8 @@ def compute(geom: Geom, paper_w_mm: float, paper_h_mm: float, npat: int,
         # band is reserved on top — so furniture reduces the patch count.
         mints = max(g.margin_t + txhi + g.lcar, eff_lspa)
         minbs = max(g.margin_b, g.tspa, g.bottom_reserve_mm)
+        mints = _top_reserve_for_a_turned_hex(g, mints, txhi,
+                                              margins_are_law=False)
         arowl = ph - mints - minbs - 2.0 * g.hxeh - g.strip_indicator_gap
     # The physical ruler cap (i1Pro 240 mm jig etc.) applies in patch-first mode —
     # ALSO when "Use instrument margins" makes the margins the law (its "max strip
@@ -247,9 +325,17 @@ def placement(geom: Geom, paper_w_mm: float, paper_h_mm: float, layout: Layout) 
     if g.margins_are_law:
         mints = g.margin_t
         minbs = g.margin_b
+        # Mirrors `compute()` exactly -- see the note there. The two MUST agree:
+        # capacity is worked out in one and the ink is placed by the other, and
+        # giving the band its room in only one of them walked the last row
+        # 0.978 mm off the bottom margin on A4 Rotated.
+        mints = _top_reserve_for_a_turned_hex(g, mints, txhi,
+                                              margins_are_law=True)
     else:
         mints = max(g.margin_t + txhi + g.lcar, eff_lspa) + g.strip_indicator_gap
         minbs = max(g.margin_b, g.tspa, g.bottom_reserve_mm)
+        mints = _top_reserve_for_a_turned_hex(g, mints, txhi,
+                                              margins_are_law=False)
     # The strip block carries a leading + trailing spacer only when edge spacers
     # are on; off, those gaps are reclaimed (matching compute()), so the first
     # patch sits at the block top. _lead is the leading gap.
@@ -507,6 +593,7 @@ def patch_rects_px(geom: Geom, paper_w_mm: float, paper_h_mm: float,
     # highlight, the margin inspector, scanin_target) rather than a visible bug.
     from .instruments import is_hexagonal as _is_hex
     _ss_hex = _is_hex(geom)
+    _S = dpi / 25.4
     out: list[dict] = []
     for page in range(layout.pages):
         first = page * pppage
@@ -530,9 +617,21 @@ def patch_rects_px(geom: Geom, paper_w_mm: float, paper_h_mm: float,
             # both edges and taking the difference makes the record match the
             # paint exactly — the same rule the overlay already follows on its
             # own side.
-            _x0, _y0 = px(place.x_of(p)), px(place.y_of(j)) + _stag
-            _x1 = px(place.x_of(p) + place.pwid)
-            _y1 = px(place.y_of(j) + place.plen) + _stag
+            # ONE ROUNDING, FROM THE EXACT POSITION, EXACTLY AS THE RENDERER
+            # DOES IT. `raster` derives every hexagon vertex from the exact
+            # millimetre position and rounds once; rounding the slot first and
+            # then adding a separately-rounded stagger gives
+            # `round(a) + round(b)` where the ink is at `round(a + b)`, and the
+            # two differ by up to a pixel. That is the drift the overlay, the
+            # scanner target and the margin inspector all inherit, because they
+            # read these rects. Basti, 2026-09-09: the lattice fix "must be
+            # respected for the overlays in the measure tab as well and for the
+            # scanner profiling".
+            _fx = place.x_of(p) * _S
+            _fy = place.y_of(j) * _S + _stag
+            _fw = place.pwid * _S
+            _fh = place.plen * _S
+            _dxf = _dyf = 0.0
             # SPECTROSCAN HEXAGONS SIT ±¼ WIDTH OFF THEIR SLOT. `raster
             # ._hexagon_points` staggers every hexagon horizontally by the
             # patch's index in the strip, which is what makes the rows
@@ -543,10 +642,36 @@ def patch_rects_px(geom: Geom, paper_w_mm: float, paper_h_mm: float,
             # inherited it, the expected-vs-measured overlay and the scanner
             # target's patch boxes alike (workflow/scanin_target.py reads these
             # very rects), so recording the stagger corrects both at once.
+            if _ss_hex and geom.hex_flat_top:
+                # ROTATED: THE STAGGER MOVES AXIS AND INDEX AT THE SAME TIME.
+                # It is applied to y, and indexed by the STRIP rather than by
+                # the patch's place in it, so consecutive columns interlock and
+                # each column runs straight down the page. That straight column
+                # is the whole point of the option.
+                _dyf = hexagon.stagger_dy(_fh, (first // steps) + p,
+                                          round_to_int=False)
+            elif _ss_hex:
+                # THE SAME STAGGER THE RENDERER APPLIES, from the same place
+                # and to the same precision.
+                _dxf = hexagon.stagger_dx(_fw, j, round_to_int=False)
             if _ss_hex:
-                _dx = round(-(_x1 - _x0) / 4) if j % 2 == 0 else round((_x1 - _x0) / 4)
-                _x0 += _dx
-                _x1 += _dx
+                _x0 = int(round(_fx + _dxf))
+                _x1 = int(round(_fx + _fw + _dxf))
+                _y0 = int(round(_fy + _dyf))
+                _y1 = int(round(_fy + _fh + _dyf))
+            else:
+                # A RECTANGULAR CHART KEEPS ITS OWN ARITHMETIC, TO THE LETTER.
+                # `round((y + plen) * S)` and `round(y*S + plen*S)` are not the
+                # same number in floating point: on a DTP41 Letter sheet at
+                # 300 dpi they disagree on 4 of 23 row bottoms, which put 64 of
+                # 368 recorded boxes a pixel below the ink. Only a honeycomb
+                # needs the single rounding, because only a honeycomb has a
+                # stagger to fold in; every other chart is left exactly as it
+                # was, and the commit that claimed "rectangular charts are
+                # untouched" is now true of the RECTS as well as the pages.
+                _x0, _y0 = px(place.x_of(p)), px(place.y_of(j)) + _stag
+                _x1 = px(place.x_of(p) + place.pwid)
+                _y1 = px(place.y_of(j) + place.plen) + _stag
             out.append({
                 "page": page, "slot": gslot, "loc": loc,
                 "x": _x0, "y": _y0,
@@ -690,9 +815,26 @@ def helper_marker_lines_mm(geom: Geom, paper_w_mm: float, paper_h_mm: float,
     height offset, thus the markers land the correct place if you just use the
     first strip as the reference."*
 
-    Hexagonal charts return no markers at all — SpectroScan or CR30 (#159): a
-    honeycomb has no rows to line a ruler up with. This is #152's rule, and it
-    follows the SHAPE, not the instrument.
+    **A honeycomb gets the comb for the axis it is straight along, and not the
+    other.** This replaces a blanket refusal, and the premise of that refusal was
+    measurably false. It used to say "a honeycomb has no rows to line a ruler up
+    with" (#152) and return nothing at all for a SpectroScan or a CR30. Measured
+    on a real CR30 sheet: a honeycomb has straight lines of patch centres along
+    three directions, 0° and ±60°, and on any page exactly ONE of the two page
+    axes is one of them. On today's pointy-top sheet the straight one is ACROSS
+    the page: `dy = 0.0000` between strips, at a 12.0000 mm pitch. What zigzags
+    is the other axis, by ±¼ of the patch width.
+
+    So the top/bottom comb, which steps across the page with the strips, lines up
+    exactly; the side comb, which steps down the page with the patches, would
+    mark a line the patches are not on. The first is offered, the second is not,
+    and a caller that asks for the second on a honeycomb gets nothing rather than
+    a comb of dashes that points at the gaps between patches.
+
+    Basti, 2026-09-09: *"can't they be turned on by the user if he wants? they
+    are optional anyway and benefitial here but only as an option i think."*
+    They now can, and they still default to off. Nothing here is switched on for
+    anybody who does not ask for it.
 
     Markers may cross a margin label or the clip-border text; that is accepted —
     *"overlapping is acceptable. User must adapt settings for the markers,
@@ -703,7 +845,43 @@ def helper_marker_lines_mm(geom: Geom, paper_w_mm: float, paper_h_mm: float,
     """
     from .instruments import is_hexagonal as _is_hex
     if _is_hex(geom):
-        return []
+        # ONE AXIS, NOT NONE — AND IT IS THE SIDES, WHICH IS THE OPPOSITE OF
+        # WHAT THIS BLOCK FIRST SAID.
+        #
+        # The stagger that makes a honeycomb a honeycomb is applied to **x**,
+        # indexed by the patch's position DOWN its strip (`patch_rects_px`
+        # :551). So the centres are exactly uniform in y and zigzag by half a
+        # patch width in x. The comb that steps down the page therefore lands on
+        # every row, and the comb that steps across it marks the seam between
+        # two columns.
+        #
+        # Measured on A4 portrait, worst distance from a patch centre to the
+        # nearest dash:
+        #
+        #             top/bottom      sides
+        #     CR30      2.9830 mm    0.0310 mm
+        #     SS        1.7450 mm    0.0250 mm
+        #
+        # The first version of this block kept the top/bottom comb, on a reading
+        # of "dy = 0.0000 between strips" that was evidence for the OTHER one:
+        # `dy` between strips says the columns start level, which is a fact
+        # about x. The docstring warns about exactly this — "the names are the
+        # EDGE, never the axis … anyone naming these after the segment gets them
+        # backwards" — and it was still got backwards.
+        if geom.hex_flat_top:
+            # ROTATED, AND THE AXES INVERT AGAIN. The turn moves the stagger to
+            # y and indexes it by the STRIP, so the centres become uniform in x
+            # and zigzag in y: the mirror of the case below, one orientation
+            # along. Basti, 2026-09-09, asked whether the top and bottom markers
+            # would then be allowed: *"those are the ones that make sense once
+            # the honeycomb is rotated."* They are, and only they are.
+            sides = False
+            if not top_bottom:
+                return []
+        else:
+            top_bottom = False
+            if not sides:
+                return []
     if paper_w_mm <= 0 or paper_h_mm <= 0 or length_mm <= 0:
         return []
     if not top_bottom and not sides:

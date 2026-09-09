@@ -83,6 +83,7 @@ def test_all_fields_persist_through_named_dict():
         strip_label_offset_mm=-1.5, indicator_rotation=90,
         indicator_align="center", edge_spacers=True,
         patch_area_align="center-right", cm_stagger=True, export_pdf=True,
+        hex_flat_top=True,
         hflag=True, use_instrument_margins=False, layout_mode="patch_first",
         area_method="by_grid", area_cols=12, area_rows=18, area_ratio=1.25,
         area_min_patch_mm=6.0, strip_gap_mm=2.5)

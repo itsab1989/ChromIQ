@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from workflow.layout_engine import hexagon
 from core.i18n import tr
 from core.logger import get_logger
 from ui import neutral_styles
@@ -753,6 +754,10 @@ class TiffPreview(QWidget):
         # zigzag (staggered hexagons) instead of a straight rect, and the swipe
         # arrow is hidden (an XY table reads patch-by-patch — nothing to swipe).
         self._hex_zigzag: bool = False
+        #: Which way up that honeycomb is. Read off the chart's own
+        #: sidecar recipe, the same route `set_hex_zigzag` takes, so the
+        #: overlay can never disagree with the ink about the orientation.
+        self._hex_flat_top: bool = False
         #: No swipe exists for this chart's instrument (a CR30 is placed on one
         #: patch at a time and triggered by its own button), so the scan arrow
         #: must not be drawn. Kept SEPARATE from _hex_zigzag, which suppresses
@@ -1475,7 +1480,7 @@ class TiffPreview(QWidget):
         for loc, rect in boxes.items():
             if not rect.contains(ix, iy):
                 continue
-            if self._hex_zigzag and not self._in_hexagon(rect, ix, iy):
+            if self._hex_zigzag and not self._in_hexagon(rect, ix, iy, self._hex_flat_top):
                 continue        # a box corner belongs to the neighbour, not here
             return loc, rect
         if self._hex_zigzag:
@@ -1483,12 +1488,13 @@ class TiffPreview(QWidget):
             # outside every rect. Fall back to the nearest patch whose hexagon
             # really contains the point.
             for loc, rect in boxes.items():
-                if self._in_hexagon(rect, ix, iy):
+                if self._in_hexagon(rect, ix, iy, self._hex_flat_top):
                     return loc, rect
         return None
 
     @staticmethod
-    def _in_hexagon(b: "QRect", x: float, y: float) -> bool:
+    def _in_hexagon(b: "QRect", x: float, y: float,
+                    flat_top: bool = False) -> bool:
         """Is (x, y) inside the hexagon drawn for patch box *b*?
 
         The box and the hexagon are not the same shape: the box's four corners
@@ -1497,18 +1503,8 @@ class TiffPreview(QWidget):
         a corner selected a patch whose ink is not there (7.2–7.7 % of the click
         area, and 86–92 % of corner clicks).
         """
-        h = b.height()
-        t6 = h / 6.0
-        cx = b.x() + b.width() / 2.0
-        dx = abs(x - cx) / (b.width() / 2.0) if b.width() else 1.0
-        if dx > 1.0:
-            return False
-        # flat sides between the shoulders, sloping to the apexes beyond them
-        top = b.y() + t6 - dx * t6 * 2.0 if False else b.y() + t6 * (1.0 - dx) - t6 * dx
-        # the apex is t6 above the box top at dx = 0, the shoulder t6 below it at dx = 1
-        top = b.y() - t6 + dx * 2.0 * t6
-        bot = b.y() + h + t6 - dx * 2.0 * t6
-        return top <= y <= bot
+        return hexagon.contains(b.x(), b.y(), b.width(), b.height(), x, y,
+                                flat_top=flat_top)
 
     def set_patch_overlay(self, page: int,
                           items: "list[tuple[QRect, QColor, QColor, bool]]",
@@ -1641,13 +1637,21 @@ class TiffPreview(QWidget):
         bracket each strip (#43). Read from the chart geometry by the caller."""
         self._edge_spacer_px = max(0, int(px or 0))
 
-    def set_hex_zigzag(self, on: bool) -> None:
-        """Enable the hexagonal-column highlight mode (SpectroScan hex charts):
-        the strip outline follows the staggered hexagon zigzag and the swipe
-        arrow is suppressed. No-op change is ignored to avoid needless repaints."""
+    def set_hex_zigzag(self, on: bool, *, flat_top: bool = False) -> None:
+        """Enable the hexagonal-column highlight mode (hexagonal charts): the
+        strip outline follows the hexagon lattice and the swipe arrow is
+        suppressed. No-op change is ignored to avoid needless repaints.
+
+        *flat_top* turns the whole overlay 30 degrees with the chart: the patch
+        outline, the expected-vs-measured clip, the strip outline and the click
+        hit test. All four are pointy-top otherwise, and on a rotated sheet each
+        would draw or test the wrong shape.
+        """
         on = bool(on)
-        if on != self._hex_zigzag:
+        flat = bool(flat_top) and on
+        if on != self._hex_zigzag or flat != self._hex_flat_top:
             self._hex_zigzag = on
+            self._hex_flat_top = flat
             self._repaint_label()
 
     def set_aim_overlay(self, enabled: bool, aperture_px: float = 0.0,
@@ -1707,16 +1711,31 @@ class TiffPreview(QWidget):
         # last hexagon's bottom apex, up every right edge, and close over the
         # first hexagon's top apex. The intermediate apexes are internal seams,
         # correctly omitted, so it's a single clean hexagon-zigzag outline.
+        flat = self._hex_flat_top
+
         def verts(b: QRect):
-            left, right = b.left(), b.right() + 1
-            cx = b.x() + b.width() / 2.0
-            y0, h = b.y(), b.height()
-            t6 = h / 6.0
-            return {
-                "top": (cx, y0 - t6), "ur": (right, y0 + t6),
-                "lr": (right, y0 + 5 * t6), "bot": (cx, y0 + h + t6),
-                "ll": (left, y0 + 5 * t6), "ul": (left, y0 + t6),
-            }
+            # One shape, from hexagon.py, named for the corners this outline
+            # walks. UNROUNDED, deliberately: see the note under the transform.
+            #
+            # THE NAMES ARE THE OUTLINE'S ROLES, NOT COMPASS POINTS, and the
+            # rotation is why they have to be. `hexagon.vertices` returns the
+            # ring starting at the apex; on a pointy hexagon that apex is at the
+            # TOP and the two flat sides are left and right, so the walk below
+            # goes down one side and up the other. On a flat-top hexagon the
+            # apexes are at the left and right and the flat sides are the top
+            # and bottom — but a strip is still a COLUMN, so the walk is still
+            # down one side and up the other, and the roles map straight across:
+            # what was the top apex is now the upper-left shoulder, and so on.
+            # Rotating the ring by one position is exactly that relabelling.
+            v = hexagon.vertices(b.left(), b.y(), b.right() + 1 - b.left(),
+                                 b.height(), flat_top=flat)
+            if flat:
+                # ring is (l.apex, ul, ur, r.apex, lr, ll); the walk wants
+                # top→ul→ll→bot up the far side, so name them by role:
+                lapex, ul, ur, rapex, lr, ll = v
+                return {"top": ur, "ur": rapex, "lr": lr, "bot": ll,
+                        "ll": lapex, "ul": ul}
+            return dict(zip(("top", "ur", "lr", "bot", "ll", "ul"), v))
 
         # NOT rounded. Snapping the vertices looks like the fix for the uneven
         # halo and is not: it measured worse (spread 0.14 -> 0.21 device px),
@@ -1744,29 +1763,19 @@ class TiffPreview(QWidget):
         return path
 
     @staticmethod
-    def _patch_hexagon(b: QRect, s: float, ox: float, oy: float) -> "QPainterPath":
-        """A closed hexagon outline for a single SpectroScan patch box, matching
-        the same pointy-top/flat-side geometry the strip zigzag uses. Used to
+    def _patch_hexagon(b: QRect, s: float, ox: float, oy: float,
+                       flat_top: bool = False) -> "QPainterPath":
+        """A closed hexagon outline for a single SpectroScan patch box, drawn from
+        `hexagon.vertices`, so it IS the strip zigzag's geometry rather than a
+        second copy promising to match it. Used to
         draw unread hex patches as their true shape in "Show only measured
         patches" (Knut) — a rectangle grid there is wrong for a hex chart."""
-        left, right = b.left(), b.right() + 1
-        cx = b.x() + b.width() / 2.0
-        y0, h = b.y(), b.height()
-        t6 = h / 6.0
-
-        def X(v: float) -> float:
-            return v * s + ox
-
-        def Y(v: float) -> float:
-            return v * s + oy
-
+        pts = hexagon.vertices(b.left(), b.y(), b.right() + 1 - b.left(),
+                               b.height(), flat_top=flat_top)
         path = QPainterPath()
-        path.moveTo(X(cx), Y(y0 - t6))               # top apex
-        path.lineTo(X(right), Y(y0 + t6))            # upper right
-        path.lineTo(X(right), Y(y0 + 5 * t6))        # lower right
-        path.lineTo(X(cx), Y(y0 + h + t6))           # bottom apex
-        path.lineTo(X(left), Y(y0 + 5 * t6))         # lower left
-        path.lineTo(X(left), Y(y0 + t6))             # upper left
+        for i, (vx, vy) in enumerate(pts):
+            xy = (vx * s + ox, vy * s + oy)
+            (path.moveTo if i == 0 else path.lineTo)(*xy)
         path.closeSubpath()
         return path
 
@@ -2727,7 +2736,7 @@ class TiffPreview(QWidget):
                     # honeycomb; no dedup needed the way rectangles need it.
                     painter.setBrush(Qt.BrushStyle.NoBrush)
                     for b in pats:
-                        painter.drawPath(self._patch_hexagon(b, s, ox, oy))
+                        painter.drawPath(self._patch_hexagon(b, s, ox, oy, self._hex_flat_top))
                     continue
                 left_is_border = (i == 0) or read_map.get(i - 1, False)
                 # The left edge is normally deduped against the unread column to
@@ -2770,7 +2779,7 @@ class TiffPreview(QWidget):
                 b = (rect if isinstance(rect, QRect)
                      else QRect(int(rect.x()), int(rect.y()),
                                 int(rect.width()), int(rect.height())))
-                hexp = self._patch_hexagon(b, s, ox, oy)
+                hexp = self._patch_hexagon(b, s, ox, oy, self._hex_flat_top)
                 # Fill by PATH intersection, never a clip: a clip path is hard-
                 # edged and left a faint seam around every patch (Knut, zoomed in).
                 # A hairline stroke in the fill colour closes the sub-pixel gaps
@@ -2985,7 +2994,7 @@ class TiffPreview(QWidget):
             # already draws the true shape (Knut); this is the same rule for the
             # patch being read next. (Sebastian, on screen: "i saw a square
             # overlay over the hex patch".)
-            _hex = self._patch_hexagon(r, s, ox, oy) if self._hex_zigzag else None
+            _hex = self._patch_hexagon(r, s, ox, oy, self._hex_flat_top) if self._hex_zigzag else None
             # A WHOLE NUMBER OF DEVICE PIXELS EACH SIDE.
             #
             # The white is (halo - ring)/2 wide on each side. At 5.0 over 2.5
@@ -3070,7 +3079,7 @@ class TiffPreview(QWidget):
                 # …and the same for the hover outline, which says "click here
                 # to read this one".
                 if self._hex_zigzag:
-                    painter.drawPath(self._patch_hexagon(hr, s, ox, oy))
+                    painter.drawPath(self._patch_hexagon(hr, s, ox, oy, self._hex_flat_top))
                 else:
                     painter.drawRect(x0, y0, x1 - x0, y1 - y0)
 

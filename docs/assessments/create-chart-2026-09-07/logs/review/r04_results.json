@@ -1,0 +1,624 @@
+{
+  "matrix": [
+    {
+      "instr": "i1",
+      "paper": "A4",
+      "mode": "clip",
+      "est": {
+        "total": 525,
+        "fillup": 0,
+        "page_patches": 525,
+        "rows": 25,
+        "cols": 21,
+        "pages": 1,
+        "patch": [
+          8.33,
+          8.56
+        ],
+        "pitch": null
+      },
+      "actual": {
+        "total": 525,
+        "fillup": 0,
+        "page_patches": 525,
+        "rows": 25,
+        "cols": 21,
+        "pages": 1,
+        "patch": [
+          8.3,
+          8.55
+        ],
+        "pitch": null
+      },
+      "same": true,
+      "status": "Margins: OK",
+      "notes": "",
+      "errors": []
+    },
+    {
+      "instr": "p3",
+      "paper": "420x297",
+      "mode": "clip",
+      "est": {
+        "total": 299,
+        "fillup": 0,
+        "page_patches": 299,
+        "rows": 13,
+        "cols": 23,
+        "pages": 1,
+        "patch": [
+          16.65,
+          16.92
+        ],
+        "pitch": null
+      },
+      "actual": {
+        "total": 299,
+        "fillup": 0,
+        "page_patches": 299,
+        "rows": 13,
+        "cols": 23,
+        "pages": 1,
+        "patch": [
+          16.59,
+          16.93
+        ],
+        "pitch": null
+      },
+      "same": true,
+      "status": "",
+      "notes": "\u26a0 Strip length 244 mm exceeds the 220 mm instrument ruler \u2014 the strip may not fit your jig",
+      "errors": []
+    },
+    {
+      "instr": "CM",
+      "paper": "A4R",
+      "mode": "high",
+      "est": {
+        "total": 209,
+        "fillup": 0,
+        "page_patches": 209,
+        "rows": 11,
+        "cols": 19,
+        "pages": 1,
+        "patch": [
+          13.94,
+          14.09
+        ],
+        "pitch": null
+      },
+      "actual": {
+        "total": 209,
+        "fillup": 0,
+        "page_patches": 209,
+        "rows": 11,
+        "cols": 19,
+        "pages": 1,
+        "patch": [
+          13.97,
+          14.05
+        ],
+        "pitch": null
+      },
+      "same": true,
+      "status": "Margins: OK",
+      "notes": "",
+      "errors": []
+    },
+    {
+      "instr": "SS",
+      "paper": "A4",
+      "mode": "hex",
+      "est": {
+        "total": 1058,
+        "fillup": 0,
+        "page_patches": 1058,
+        "rows": 46,
+        "cols": 23,
+        "pages": 1,
+        "patch": [
+          7.0,
+          8.08
+        ],
+        "pitch": 6.06
+      },
+      "actual": {
+        "total": 1058,
+        "fillup": 0,
+        "page_patches": 1058,
+        "rows": 46,
+        "cols": 23,
+        "pages": 1,
+        "patch": [
+          7.03,
+          8.02
+        ],
+        "pitch": 6.01
+      },
+      "same": true,
+      "status": "",
+      "notes": "\u26a0 The left margin was widened from 11.1 mm to 33.1 mm to fit the row indicators. The labels start 26.0 mm in from the page edge and their text needs 6.1 mm. \u201cClip\u201d is set to 4.0 mm and is not what is holding them out there, so lowering it moves nothing \u2014 the note under \u201cText distance from edge\u201d names what is. To get that paper back, switch \u201cShow row indicators\u201d off or use a smaller label size.",
+      "errors": []
+    },
+    {
+      "instr": "CR30",
+      "paper": "custom",
+      "mode": "flat",
+      "est": {
+        "total": 195,
+        "fillup": 0,
+        "page_patches": 195,
+        "rows": 15,
+        "cols": 13,
+        "pages": 1,
+        "patch": [
+          12.0,
+          12.0
+        ],
+        "pitch": null
+      },
+      "actual": {
+        "total": 195,
+        "fillup": 0,
+        "page_patches": 195,
+        "rows": 15,
+        "cols": 13,
+        "pages": 1,
+        "patch": [
+          12.02,
+          12.02
+        ],
+        "pitch": null
+      },
+      "same": true,
+      "status": "",
+      "notes": "\u26a0 The left margin was widened from 14.4 mm to 36.4 mm to fit the row indicators. The labels start 26.0 mm in from the page edge and their text needs 9.4 mm. \u201cClip\u201d is set to 4.0 mm and is not what is holding them out there, so lowering it moves nothing \u2014 the note under \u201cText distance from edge\u201d names what is. To get that paper back, switch \u201cShow row indicators\u201d off or use a smaller label size.",
+      "errors": []
+    },
+    {
+      "instr": "i1",
+      "paper": "Letter",
+      "mode": "clip",
+      "est": {
+        "total": 462,
+        "fillup": 0,
+        "page_patches": 462,
+        "rows": 21,
+        "cols": 22,
+        "pages": 1,
+        "patch": [
+          8.0,
+          10.0
+        ],
+        "pitch": null
+      },
+      "actual": {
+        "total": 462,
+        "fillup": 0,
+        "page_patches": 462,
+        "rows": 21,
+        "cols": 22,
+        "pages": 1,
+        "patch": [
+          8.04,
+          9.99
+        ],
+        "pitch": null
+      },
+      "same": true,
+      "status": "Margins: OK",
+      "notes": "",
+      "errors": []
+    }
+  ],
+  "furn_base": {
+    "est": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.3,
+        8.55
+      ],
+      "pitch": null
+    },
+    "margins": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.0 | 0.786 | 19.0 "
+  },
+  "furn_labels_off": {
+    "est": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.3,
+        8.55
+      ],
+      "pitch": null
+    },
+    "margins": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.0 | 0.786 | 19.0 | Patch width (in st",
+    "notes": ""
+  },
+  "f005_instr_on": {
+    "est": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.3,
+        8.55
+      ],
+      "pitch": null
+    },
+    "margins": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 38.0 | Bottom (to first patch) | 20.0 | 0.786 | 19.0 | Patch width (in st",
+    "panel_margins": {
+      "t": 38.0,
+      "r": 9.0,
+      "b": 19.0,
+      "l": 26.0
+    }
+  },
+  "f005_own10": {
+    "noclip": {
+      "est": {
+        "total": 667,
+        "fillup": 0,
+        "page_patches": 667,
+        "rows": 29,
+        "cols": 23,
+        "pages": 1,
+        "patch": [
+          8.26,
+          8.51
+        ],
+        "pitch": null
+      },
+      "actual": {
+        "total": 667,
+        "fillup": 0,
+        "page_patches": 667,
+        "rows": 29,
+        "cols": 23,
+        "pages": 1,
+        "patch": [
+          8.3,
+          8.47
+        ],
+        "pitch": null
+      },
+      "margins": "mm | inch | min | Left (to first patch) | 10.0 | 0.393 | 10.0 | Right (to first patch) | 10.0 | 0.394 | 10.0 | Top (to first patch) | 11.0 | 0.433 | 10.0 | Bottom (to first patch) | 11.2 | 0.443 | 10.0 | Patch width (in "
+    },
+    "clip": {
+      "est": {
+        "total": 609,
+        "fillup": 0,
+        "page_patches": 609,
+        "rows": 29,
+        "cols": 21,
+        "pages": 1,
+        "patch": [
+          8.28,
+          8.51
+        ],
+        "pitch": null
+      },
+      "actual": {
+        "total": 609,
+        "fillup": 0,
+        "page_patches": 609,
+        "rows": 29,
+        "cols": 21,
+        "pages": 1,
+        "patch": [
+          8.3,
+          8.47
+        ],
+        "pitch": null
+      },
+      "margins": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 10.0 | Right (to first patch) | 10.1 | 0.398 | 10.0 | Top (to first patch) | 11.0 | 0.433 | 10.0 | Bottom (to first patch) | 11.2 | 0.443 | 10.0 | Patch width (in "
+    }
+  },
+  "f006_A3": {
+    "status": "",
+    "status_visible": false,
+    "notes": "\u26a0 Top margin is too small for the strip labels \u2014 they overflow toward the page edge.\n\n\u26a0 Strip length 400 mm exceeds the 240 mm instrument ruler \u2014 the strip may not fit your jig",
+    "actual": {
+      "total": 1376,
+      "fillup": 0,
+      "page_patches": 1376,
+      "rows": 43,
+      "cols": 32,
+      "pages": 1,
+      "patch": [
+        8.21,
+        8.3
+      ],
+      "pitch": null
+    },
+    "tip_hover": "About the margin inspector\n\n\u26a0 Top margin is too small for the strip labels \u2014 they overflow toward the page edge.\n\nClick for details"
+  },
+  "f008": {
+    "area_cap200_est": {
+      "total": 1376,
+      "fillup": 0,
+      "page_patches": 1376,
+      "rows": 43,
+      "cols": 32,
+      "pages": 1,
+      "patch": [
+        8.18,
+        8.32
+      ],
+      "pitch": null
+    },
+    "area_cap200_actual": {
+      "total": 1376,
+      "fillup": 0,
+      "page_patches": 1376,
+      "rows": 43,
+      "cols": 32,
+      "pages": 1,
+      "patch": [
+        8.21,
+        8.3
+      ],
+      "pitch": null
+    },
+    "area_cap200_notes": "\u26a0 Top margin is too small for the strip labels \u2014 they overflow toward the page edge.\n\n\u26a0 Strip length 400 mm exceeds the 240 mm instrument ruler \u2014 the strip may not fit your jig",
+    "area_cap200_nolimit_est": {
+      "total": 1376,
+      "fillup": 0,
+      "page_patches": 1376,
+      "rows": 43,
+      "cols": 32,
+      "pages": 1,
+      "patch": [
+        8.18,
+        8.32
+      ],
+      "pitch": null
+    },
+    "patch_cap200_nolimit_est": {
+      "total": 576,
+      "fillup": 0,
+      "page_patches": 576,
+      "rows": 18,
+      "cols": 32,
+      "pages": 1,
+      "patch": [
+        8.0,
+        10.0
+      ],
+      "pitch": null
+    },
+    "patch_cap200_nolimit_actual": {
+      "total": 576,
+      "fillup": 0,
+      "page_patches": 576,
+      "rows": 18,
+      "cols": 32,
+      "pages": 1,
+      "patch": [
+        8.04,
+        9.99
+      ],
+      "pitch": null
+    },
+    "patch_cap200_est": {
+      "total": 576,
+      "fillup": 0,
+      "page_patches": 576,
+      "rows": 18,
+      "cols": 32,
+      "pages": 1,
+      "patch": [
+        8.0,
+        10.0
+      ],
+      "pitch": null
+    },
+    "max_strip_tip": "",
+    "nolimit_tip": ""
+  },
+  "f012": {
+    "valid_errors": [],
+    "bad_errors": [],
+    "text_preview": "Sheet {project} {patches}"
+  },
+  "f021": {
+    "before": {
+      "panel_pages": 1,
+      "printtarg_spin": 1,
+      "spin_max": 20,
+      "panel_max": 20
+    },
+    "built_9500": {
+      "total": 9513,
+      "fillup": 13,
+      "page_patches": 441,
+      "rows": 21,
+      "cols": 21,
+      "pages": 22,
+      "patch": [
+        8.04,
+        9.99
+      ],
+      "pitch": null
+    },
+    "after_build": {
+      "panel_pages": 1,
+      "printtarg_spin": 1
+    },
+    "after_auto_pages1": {
+      "panel_pages": 1,
+      "printtarg_spin": 1,
+      "est": {
+        "total": 441,
+        "fillup": 0,
+        "page_patches": 441,
+        "rows": 21,
+        "cols": 21,
+        "pages": 1,
+        "patch": [
+          8.0,
+          10.0
+        ],
+        "pitch": null
+      }
+    },
+    "built_after": {
+      "total": 441,
+      "fillup": 0,
+      "page_patches": 441,
+      "rows": 21,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.04,
+        9.99
+      ],
+      "pitch": null
+    },
+    "est_after": {
+      "total": 441,
+      "fillup": 0,
+      "page_patches": 441,
+      "rows": 21,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.0,
+        10.0
+      ],
+      "pitch": null
+    }
+  },
+  "f019": {
+    "est_before": null,
+    "generate_enabled": true,
+    "dialogs": [
+      {
+        "class": "QMessageBox",
+        "title": "",
+        "text": "This chart uses hexagonal patches, and the scanner and camera tools are set to turn those away.\n\nNot because they cannot work \u2014 they can. A hexagonal chart has been read and profiled successfully, and the two things that used to go wrong have both been dealt with: ScanIn, the Argyll program that finds the chart in your scan, is no longer asked to work out the perspective for itself once you have placed the four corners, which is what used to make it give up on a honeycomb; and the area read inside each patch is now limited automatically to what fits within the hexagon, so it cannot reach into the patches next door.\n\nWhat has not been proven is finding a honeycomb chart in a scan without your help \u2014 so the tools ask for the four corners, and the whole thing is still switched off until you say otherwise.\n\nTo try it, turn on \u201cAllow hexagonal charts in the scanner and camera tools\u201d in Preferences \u2192 Beta, place the four corners yourself, and check the result before you trust the profile.\n\nOtherwise, make the chart with square patches: in Create Chart, with the SpectroScan selected, set the layout to \u201cRectangular\u201d. | ",
+        "buttons": [
+          "OK"
+        ],
+        "answer": "clicked 'OK'",
+        "expected": "hexagon"
+      },
+      {
+        "class": "QMessageBox",
+        "title": "",
+        "text": "Your patch set doesn't quite fill the last page \u2014 there's space for about 189 more patches on it (the page holds about 441 in total).\n\nThat's perfectly fine to print as it is; the empty area is just blank paper. If you'd rather have a tidy, completely full page, you have two easy options in the patch-set editor:\n\n\u2022 Add a few more patches to fill the gap, or\n\u2022 Remove a few so the set ends neatly on the previous page.\n\nThe page layout itself \u2014 instrument, paper, margins and patch size \u2014 stays exactly as you've set it here in Create Chart; only the colours in the set change. Click \u201cEdit patch set\u2026\u201d to open the editor now, or \u201cOK\u201d to keep the chart as it is. | ",
+        "buttons": [
+          "OK",
+          "Edit patch set\u2026"
+        ],
+        "answer": "clicked 'OK'",
+        "expected": "quite fill"
+      }
+    ],
+    "errors": [
+      "[WARNING] workflow.chart_creator: engine patch estimate failed: paper too short: a single pass of patches does not fit (8.0 mm available)",
+      "[ERROR] workflow.chart_creator: ChromIQ layout engine failed"
+    ],
+    "files_same": false,
+    "files_before": 9,
+    "files_after": 6,
+    "preview_pages": 0,
+    "status": "Margins: OK",
+    "status_visible": false,
+    "info_actual": null,
+    "tab_log_tail": "725, 0.0 secs.\nAfter optimization: MinPoint = 6.939, Min = 6.380, Avg. = 10.991, Max = 13.725\nTotal number of patches = 443\nExecution time = 0.826674 seconds\n[ChromIQ layout engine] building chart from the targen .ti1\u2026\n[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.\n[ERROR] ChromIQ layout engine: paper too short: a single pass of patches does not fit (8.0 mm available)\n[ERROR] Chart generation failed."
+  },
+  "save_defaults": {
+    "had_before": false,
+    "after_keys": [
+      "area_cols",
+      "area_method",
+      "area_min_patch_mm",
+      "area_ratio",
+      "area_rows",
+      "bit16",
+      "border",
+      "chart_text",
+      "chart_text_bold",
+      "chart_text_font",
+      "chart_text_italic",
+      "chart_text_size_mm"
+    ],
+    "after_paper": "A4",
+    "dialogs": [
+      {
+        "class": "QMessageBox",
+        "title": "",
+        "text": "Your patch set doesn't quite fill the last page \u2014 there's space for about 189 more patches on it (the page holds about 441 in total).\n\nThat's perfectly fine to print as it is; the empty area is just blank paper. If you'd rather have a tidy, completely full page, you have two easy options in the patch-set editor:\n\n\u2022 Add a few more patches to fill the gap, or\n\u2022 Remove a few so the set ends neatly on the previous page.\n\nThe page layout itself \u2014 instrument, paper, margins and patch size \u2014 stays exactly as you've set it here in Create Chart; only the colours in the set change. Click \u201cEdit patch set\u2026\u201d to open the editor now, or \u201cOK\u201d to keep the chart as it is. | ",
+        "buttons": [
+          "OK",
+          "Edit patch set\u2026"
+        ],
+        "answer": "clicked 'OK'",
+        "expected": "quite fill"
+      }
+    ],
+    "lines": [
+      "[DEBUG] core.settings: settings.set manual_auto_black = True",
+      "[DEBUG] core.settings: settings.set manual_pages = 1",
+      "[DEBUG] core.settings: settings.set manual_printtarg__triple_density = False",
+      "[DEBUG] core.settings: settings.set manual_engine_recipe = {'instrument': 'i1', 'paper': 'A4', 'dpi': 300, 'randomize': True, 'seed': None, 'hflag': False, 'cm_density': 1, 'cm_stagger': False, 'spacer_on': True, 'spacer_mode': 'colored', 'spacer_palette': [], 'spacer_overrides': {}, 'edge_spacers': False, 'patch_area_align': 'top-left', 'pscale': 1.0, 'sscale': 1.0, 'border': 6.0, 'margin_top': 38.0, 'margin_right': 9.0, 'margin_bottom': 19.0, 'margin_left': 26.0, 'use_instrument_margins': True, 'patch_w_mm': 60.0, 'patch_h_mm': 60.0, 'layout_mode': 'patch_first', 'area_method': 'by_width', 'area_cols': 0, 'area_rows': 0, 'area_ratio': 1.0, 'area_min_patch_mm': 0.0, 'layout_explicit': True, 'spacer_width_mm': 0.0, 'inter_patch_mm': 0.0, 'strip_gap_mm': 0.0, 'max_strip_mm': 0.0, 'strip_indicator_gap_mm': 0.0, 'offset_x_mm': 0.0, 'offset_y_mm': 0.0, 'bit16': False, 'compression': 'lzw', 'export_pdf': False, 'show_strip_indicators': True, 'show_row_indicators': None, 'label_style_explicit': False, 'indicator_font': 'JetBrains Mono', 'indicator_size_mm': 0.0, 'indicator_bold': False, 'indicator_italic': False, 'indicator_rotation': 0, 'indicator_align': 'left', 'strip_label_offset_mm': 0.0, 'underline_mode': 'off', 'underline_thickness_mm': 0.5, 'underline_gap_mm': 0.5, 'chart_text': '', 'chart_text_font': 'Inter', 'chart_text_size_mm': 0.0, 'chart_text_bold': False, 'chart_text_italic': False, 'helper_markers': False, 'helper_marker_edge_mm': 2.0, 'helper_marker_len_mm': 2.0, 'helper_marker_per_patch': 3, 'helper_markers_top_bottom': True, 'helper_markers_sides': True, 'text_edge_mm': 4.0, 'text_edge_top_mm': 4.0, 'text_edge_clip_mm': 4.0, 'stamp_command': False, 'clip_border': True, 'clip_border_width_mm': 26.0, 'clip_side': 'left', 'clip_content_mode': 'notes', 'clip_text': '', 'clip_text_font': 'Inter', 'clip_text_size_mm': 0.0, 'clip_image_path': '', 'clip_image_rotation': 0, 'clip_image_scale': 100.0, 'clip_image_offset_x_mm': 0.0, 'clip_image_offset_y_mm': 0.0, 'clip_flip_180': False, 'nolimit': False, 'strip_pattern': 'A-Z, A-Z', 'patch_pattern': '0-9,@-9,@-9;1-999'}",
+      "[INFO] ui.tabs.tab_chart: Chart defaults saved"
+    ]
+  },
+  "unexpected": [],
+  "serious": [
+    "[ERROR] workflow.chart_creator: ChromIQ layout engine failed"
+  ]
+}

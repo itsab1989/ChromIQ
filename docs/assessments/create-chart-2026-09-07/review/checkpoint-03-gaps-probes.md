@@ -1,0 +1,37 @@
+# Checkpoint 03 (Agent 2): the gaps Agent 1 listed, first-time-user probes, low findings
+
+Time: 10:25 to 11:00. Drivers: r06_crossproject_probes.py (killed by me at 10:39 after it blocked on a dialog my watcher could not see; no human clicked anything), r06b_probes.py (killed by the shell watchdog at 550 s: the last-page hint does not close on Escape, see N-7), r07_gaps.py (complete), r08_lows.py (complete). Logs: Review/Test Runs/logs/r06*.log, r07*.log, r08*.log and the *_results.json of r06b (partial, in log), r07, r08. Shots: Review/Screenshots/R06-crossproject-probes, R07-gaps, R08-lows. One screen capture taken to diagnose the block showed only the desktop (with a personal photo) and was deleted at once; it is not evidence.
+
+Watcher note: R06 blocked because `QApplication.activeModalWidget()` returned None for the last-page hint when it was exec'd from a process-finished slot (stack sampled: QDialog::exec under a QSocketNotifier slot). r_lib now also scans visible modal top-level dialogs; R06b, R07 and R08 then answered every dialog by name.
+
+## Gaps closed
+| gap (Agent 1: not reached) | result | grade |
+|---|---|---|
+| expert targen/printtarg rows | engine off: printtarg -R 4242, -n, targen -N 0.90 appear in the preview line and in the executed commands identically; printtarg -A 1.5 is dropped from both because -n is on, exactly as its own tooltip says. Under the engine the printtarg expert rows are hidden and the preview carries no printtarg line. Minor: the preview says "-f0 ... -g28" while the executed command was "-f550 ... -g31" (Auto count resolved at build time) | OBSERVED |
+| Save as Defaults | writes `manual_engine_recipe` (every engine key, incl. a 60 mm patch-first layout I had on screen) plus `manual_pages`, `manual_auto_*`; one log line "Chart defaults saved", no dialog, nothing visible with the log hidden | OBSERVED |
+| Refinement profile row (Guided) | ticked with an empty path: Generate builds a plain chart (targen without -c), no dialog, no log line; the fixed-settings line says "Pick a profile to refine from (Browse... above)". With Demo-Full-RGB run1's .icc: targen ran with `-c .../run1/preconditioning.icc -n28`, the profile was copied into the SAME run (run1/preconditioning.icc; no new run), and after ~30 s the "This chart is taking longer than usual" window appeared (Keep waiting / Rebuild with faster layout / Cancel); the second appearance was cancelled by my watcher | OBSERVED |
+| preset reveal button | opens the presets folder through `open <folder>` (core/preset_store.py), a Finder window appears; no dialog, no error | OBSERVED |
+| run folder with files removed by hand (R2-Guided run1) | .tif removed: NO PREVIEW, notice "No chart for this profile run yet ... (If you had a chart here before, its files may have been moved or deleted, just create it again.)", no error; .ti2 removed: same notice although the .tif exists; channels.json removed: preview shows, frames measured from the TIFF; .ti1 removed: nothing visible changes. In every case the two frames still show the missing chart's numbers (484, Margins: OK), F-002 family. No crash, no dialog | OBSERVED |
+| keyboard focus order | Manual: name, description, notes, Stamp, preset combo, two of the three preset icon buttons, the scroll area, engine toggle, instrument, clip mode, paper, strip indicators, row indicators, layout mode, patch scale, patch size x/y, randomise, fixed seed, seed, New seed, four margins, instrument margins, dpi, Don't cap, max strip, offsets, patterns (top-down, sensible). Guided: name, description, instrument, paper, pages, -L, -P, Refinement, Generate, Save as Defaults, the three frame check boxes, then the run bar (run, type), the tab bar, GUIDED, MANUAL, back to the name field. The (i) help buttons and the disabled Refinement path/browse are not in the chain, so help is not reachable by keyboard | OBSERVED |
+| F-027 cross-project | through the REAL Open Project route (`open_project_manifest`): opening Demo-Full-RGB (run4 arms its own attached set) and then R2-Guided cleared the armed path (`_preset_ti1_path` None) and Generate ran targen for R2-Guided's own 968; only the "Edit patch recipe (override preset)" row stayed visible on R2-Guided (stale presentation). Through the session-restore route the armed set DID survive (R05: R2-Engine run1 rebuilt from Demo-Full-RGB.ti1 without targen), but a user cannot take that route between projects | OBSERVED |
+| F-003 mechanism | named in checkpoint 01 | OBSERVED |
+| scanner path from an engine hex chart | not drivable without an instrument: the .cht/.cie is built only in the Measure tab's completion path (`_maybe_build_scanner_target`, gated by the run's scanner_target flag) and `build_scanin_target_from_paths` needs the measured .ti3. Not reached | UNKNOWN |
+
+## First-time-user probes (all OBSERVED)
+1. Fresh window, no project, Guided, empty name, Generate: "Give this project a name" dialog (Continue / Cancel) with a good explanation. Correct.
+2. Typing another EXISTING project's name (R2-High) in Manual on R2-Guided and pressing Generate: no dialog; the app switched to R2-High, its current run2, "create-chart settings seeded into the new project's run2", and overwrote run2's printtarg chart with a 968-patch engine chart. Consistent with the deferred chart-overwrite ruling, and it crosses projects silently (Agent 1's B7.3; seen twice).
+3. Manual, Auto count off, -f 0: accepted, targen -f0 runs, a 22-patch chart of neutrals is built, no word.
+4. -f 50 with Pages: the Pages spin is greyed at a fixed count (shows the old 2); 66 patches on 1 page. Fine.
+5. Double click on Generate: one targen run, one build. Fine.
+6. Preset "+": "Save Preset" dialog with a name field and a suggested name; Cancel works (empty-name Save not tried).
+7. Escape on the "doesn't quite fill the last page" window: nothing happens. The box has OK and "Edit patch set..." and no reject button, so Escape (and the red close button) cannot dismiss it; the driver waited on it until killed (N-7).
+8. Delete run from the bar with the only run: "This is the only run in the project ..." with Empty run 1 / Delete the whole project / Cancel, Cancel default. Correct.
+
+## Low findings re-tested
+F-004 CONFIRMED (Stamp ticked: engine off leaves it, engine on unticks it; the coupling is real). F-009 CONFIRMED (SS: box ticked, four boxes locked at 6/6/6/11.1, no tooltip on the box). F-011 PARTLY RIGHT: the question has one OK button, but the text is NOT replaced: after OK the Content selector is back on "Custom text" and the text is untouched, because `_load_example_clip_table` accepts only `QMessageBox.StandardButton.Yes` and the box offers no Yes (layout_options_panel.py ~2640). So the example table can never be loaded while the box holds text. F-026 CONFIRMED at 1280 x 800 by font metrics (Bottom label 135 px needed, 132 px available; Patch width 234 vs 132). Guided -L / -P boxes: 484 -> 550 / 528 (Agent 1's B1.2, agree).
+
+## Sandbox proof (11:00, no driver running)
+- `diff <(find ~/ChromIQ -maxdepth 1 | sort) Evidence/baseline-before-assessment/chromiq_home_dirs.txt`: empty, exit 0.
+- `defaults read com.chromiq.ChromIQ custom_output_path`: empty string, exit 0.
+- `diff -r -x .DS_Store ~/Library/Preferences/ChromIQ/presets Evidence/baseline-before-assessment/presets`: empty, exit 0.
+- `cmp` of the real plist against the baseline copy: identical. Files modified since 09:50 under ~/ChromIQ: 0; under ~/Library/Preferences/ChromIQ: 0.

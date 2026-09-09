@@ -1,13 +1,19 @@
 # Changelog
 
-## v4.2.1-beta.1
+## v4.3.0-beta.1
 
-**The Measurement Report now judges a print against a named limit set instead
-of two loose numbers, and it says in plain words what it checked, what it could
-not, and why.** This is the first slice of issue #182, built from Knut's rulings
-of 4 to 7 September. It is a beta: the design is recorded in
-`docs/design/measurement_report_limits.md` as awaiting confirmation, and the
-open decisions are listed on the issue.
+**Everything in 4.2.1, plus the first slice of the new Measurement Report.** The
+report now judges a print against a named limit set instead of two loose
+numbers, and it says in plain words what it checked, what it could not, and why.
+Built from Knut's rulings of 4 to 7 September. It is a beta: the design is
+recorded in `docs/design/measurement_report_limits.md` as awaiting confirmation,
+and the open decisions are listed on issue #182.
+
+Because it carries 4.2.1 whole, it also has the two photo-card charts, the CR30
+honeycomb that can be turned so its strips run straight, its ring spacer and its
+ruler markers, and every fix in that release, including the one that gave the
+Linux build its thirteen languages back. Those are listed under 4.2.1 below and
+are not repeated here.
 
 ### New
 
@@ -87,6 +93,128 @@ open decisions are listed on the issue.
 
 - A dated verification that had a saved report was listed twice in the
   Measurement Report window (a demo project showed ten rows for five dates).
+
+## v4.2.1
+
+**Two ready-made charts for the paper sizes photo paper is actually sold in,
+and a honeycomb that can now be turned so its strips run straight. Nelson Lau
+designed a 600-patch target for a 10 x 15 cm card and a 648-patch one for
+13 x 18 cm, both for the i1Pro, and ChromIQ had nothing for either size before
+now. A CR30's hexagonal chart gains an option to stand its patches on a flat
+side instead of a point, which makes every strip run straight down the page
+instead of zigzagging; its spacer becomes a ring around each patch rather than
+a bar between rows; and the ruler helper markers, which a honeycomb could not
+have at all, are available on both. Along the way: a project built for a CR30
+stopped reopening as a ColorMunki and slowly becoming one, Preferences stopped
+telling CR30 owners their instrument reads at 100 Hz, a setting you chose
+stopped being thrown away when you looked at another instrument, and the patch
+count for an unusual sheet size stopped being five times too high.**
+
+### New
+
+- **Two photo-card charts, by Pharmacist.** Create Chart, Manual, at the top of
+  the i1Pro group in the Presets list and in the star overlay: a 600-patch
+  target on four 10 x 15 cm cards and a 648-patch one on three 13 x 18 cm
+  cards. Picking one asks for a name and copies the finished chart into the
+  run, the way the other nine "by Pharmacist" charts work, so no chart is
+  generated and nothing has to be laid out. Both are packed denser than
+  ArgyllCMS lays an i1Pro chart out, which is what fits 600 patches on four
+  small cards where printtarg needs nine sheets, at its own defaults and at the
+  ones ChromIQ starts an i1Pro with alike. Both print almost edge to edge, so
+  the preset says what that means for your printer before you choose it.
+- **A chart preset can now be laid out for a sheet size that is not in the
+  paper list.** These two are the first that are. Unlocking "Edit page layout"
+  shows the sheet the chart was made for as a custom size with its width and
+  height filled in, instead of quietly saying A4.
+- **Straight strips: the CR30 honeycomb can be turned 30 degrees.** Create
+  Chart, Manual, Expert Options, Patches & spacers, and only while the
+  instrument is a CR30 with Hexagon patches on. It is off unless you turn it
+  on, and it is saved with the target and inside a preset like any other layout
+  setting. The patches themselves do not change: it is the same hexagon, the
+  same size, stood on a flat side instead of a point, so nothing is stretched
+  and each patch holds the same ink. What changes is that every second patch in
+  a strip no longer sits half a patch to the side, so a strip you read patch by
+  patch runs straight down the page and a ruler lies along it. The strips and
+  rows come out a different length, so the number of patches on a sheet can
+  move a little, in either direction, and by how much depends on the paper as
+  well as on your margins, patch size and spacer settings. Measured at the
+  standard settings it is 26 patches more on A2 and 24 more on Legal, against 15
+  fewer on Letter landscape and 14 fewer on A4. A chart that only just fitted on
+  one sheet can therefore need a second one, so check before you print. Read it
+  off the "Chart layout information" panel, which shows the count for the layout
+  you actually have.
+- **Ruler helper markers work on a hexagonal chart.** They were refused on any
+  honeycomb, on the grounds that it has no straight rows to lay a ruler
+  against. It has: a honeycomb's patch centres sit on straight lines, and on
+  any page one of the two page axes is one of them. The comb that lines up is
+  drawn and the other is greyed with the reason, and which is which follows the
+  turn above. This reaches the SpectroScan's honeycomb too, which had no
+  markers before either.
+- **A honeycomb's spacer is drawn around each patch instead of between rows.**
+  Switching Spacers on for a hexagonal chart used to paint a bar across the
+  sheet between one row and the next, which covered three quarters of the point
+  of every patch above it and pulled the diagonals apart into slivers of bare
+  paper. It is now a ring around each patch, which separates all six of its
+  neighbours instead of two, and each of the six sides takes its own colour
+  against the patch it faces, so "Black & white" still means black and white.
+  Two patches that touch share one spacer on the side that touches. Because the
+  ring comes out of the patch's own area rather than out of the page, switching
+  spacers on no longer costs you patches: a sheet that held 9 strips of 26 with
+  them off still holds 9 strips of 26 with them on, where it used to drop to 23.
+  **A hexagonal CR30 project rebuilt with spacers switched on will lay out
+  differently from before** for that reason; rectangular charts and the
+  SpectroScan are unaffected.
+
+### Fixed
+
+- **The Linux build had no languages in it, and neither Linux nor Windows had
+  the bundled scanner targets.** ChromIQ ships thirteen languages and a set of
+  ready-made scanner charts, and the packaging list that says which files go
+  into a build had drifted apart between the three platforms: the macOS build
+  carried both, the Windows one carried only the languages, and the Linux one
+  carried neither. Nothing announced it. On Linux the language list in Settings
+  simply offered English and nothing else, and on Linux and Windows the scanner
+  targets that Scanner Profiling offers were not there to open. Both are in all
+  three builds now, and a check keeps the three lists level so a file cannot go
+  missing from one platform again without somebody saying why.
+- **A project built for a CR30 came back as a ColorMunki, and then became
+  one.** Opening it restored the Create Chart row for the instrument you built
+  with, and then the layout panel loaded either the run's own stored layout or
+  the one "Save as Defaults" had left behind, and that overwrote the
+  instrument. Whatever was showing was then filed as the project's own answer
+  the next time anything was written, so the wrong instrument stuck and
+  supplied the next open. Projects already carrying the wrong instrument are
+  not repaired: correct the instrument once in Create Chart and it stays.
+- **A setting you chose was thrown away by looking at another instrument.**
+  "No strip-length limit" and "Triple density" were silently unticked when an
+  instrument that has no such option was selected, and the loss was written
+  into the run. They now come back with the instrument they belong to. The
+  "Double density" / "Hexagon patches" box, which is a different option on
+  each instrument, keeps its own answer for each of them, so hexagons chosen
+  for a CR30 can no longer arrive on a ColorMunki as the double density that
+  needs the measuring rig.
+- **Preferences said a CR30 takes 100 readings a second, "from its
+  specification".** That was the i1Pro's figure, and a CR30 takes one reading
+  each time you press its button. The row now says so, and its information
+  button explains what the instrument really does and that nothing on that row
+  affects how a CR30 is read.
+- **The patch count for an unusual sheet size could be wildly wrong.** Asked
+  how many patches fit on a sheet ChromIQ has no measurement for, it searched a
+  range that started above the real answer, never found anything, and then
+  reported the guess it had started from. It said 443 for a 10 x 15 cm card
+  that holds 90, 443 for a 13 x 18 cm one that holds 169, and 443 for a
+  6 x 9 cm wallet print that holds 16. It now searches from a single patch, so
+  every sheet an instrument can lay a strip on gets a measured answer, and
+  every paper ChromIQ already had a measurement for is unchanged to the patch.
+  One case is still open and is a different problem: on a sheet too small to
+  hold even one patch, ChromIQ still shows a number instead of saying the paper
+  does not fit the instrument.
+
+### Documentation
+
+- The licensing notes now describe the eleven bundled "by Pharmacist" charts
+  properly: they are Nelson Lau's own work, sent as finished files rather than
+  generated from a recipe in this repository, and he is credited by name.
 
 ## v4.2.0
 

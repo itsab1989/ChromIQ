@@ -1,0 +1,536 @@
+{
+  "s0_profiling_guided": {
+    "generate_enabled": true,
+    "stop_visible": false,
+    "in_flight": false,
+    "runner_running": false,
+    "run_bar": "Run 3 (overwrite)",
+    "type": "Profiling",
+    "noprofile_box_visible": false,
+    "preview_notice": null,
+    "margin_status": "Margins: OK",
+    "margin_text": "mm | inch | min | Left (to first patch) | 6.0 | 0.237 | 6.0 | Right (to first patch) | 8.0 | 0.314 | 6.0 | Top (to first patch) | 33.0 | 1.300 | 33.0 | Bottom (",
+    "info_actual": {
+      "total": 400,
+      "fillup": 10,
+      "page_patches": 112,
+      "rows": 16,
+      "cols": 7,
+      "pages": 4,
+      "patch": [
+        28.02,
+        13.97
+      ],
+      "pitch": null
+    },
+    "info_est": {
+      "total": 420,
+      "fillup": 0,
+      "page_patches": 105,
+      "rows": 15,
+      "cols": 7,
+      "pages": 4,
+      "patch": [
+        28.0,
+        14.0
+      ],
+      "pitch": null
+    }
+  },
+  "s1_verif_guided": {
+    "generate_enabled": true,
+    "stop_visible": false,
+    "in_flight": false,
+    "runner_running": false,
+    "run_bar": "Run 3 (overwrite)",
+    "type": "Verification",
+    "noprofile_box_visible": true,
+    "preview_notice": null,
+    "margin_status": "Margins: OK",
+    "margin_text": "mm | inch | min | Left (to first patch) | 6.0 | 0.237 | 6.0 | Right (to first patch) | 8.0 | 0.314 | 6.0 | Top (to first patch) | 33.0 | 1.300 | 33.0 | Bottom (",
+    "info_actual": {
+      "total": 400,
+      "fillup": 10,
+      "page_patches": 112,
+      "rows": 16,
+      "cols": 7,
+      "pages": 4,
+      "patch": [
+        28.02,
+        13.97
+      ],
+      "pitch": null
+    },
+    "info_est": {
+      "total": 325,
+      "fillup": 21,
+      "page_patches": 325,
+      "rows": 25,
+      "cols": 13,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    }
+  },
+  "s2_gamut": {
+    "generate_enabled": false,
+    "stop_visible": true,
+    "in_flight": true,
+    "runner_running": false,
+    "run_bar": "Run 3 (overwrite)",
+    "type": "Verification",
+    "noprofile_box_visible": false,
+    "preview_notice": null,
+    "margin_status": "Margins: OK",
+    "margin_text": "mm | inch | min | Left (to first patch) | 6.0 | 0.237 | 6.0 | Right (to first patch) | 8.0 | 0.314 | 6.0 | Top (to first patch) | 33.0 | 1.300 | 33.0 | Bottom (",
+    "info_actual": {
+      "total": 400,
+      "fillup": 10,
+      "page_patches": 112,
+      "rows": 16,
+      "cols": 7,
+      "pages": 4,
+      "patch": [
+        28.02,
+        13.97
+      ],
+      "pitch": null
+    },
+    "info_est": {
+      "total": 325,
+      "fillup": 21,
+      "page_patches": 325,
+      "rows": 25,
+      "cols": 13,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "empty_text": "<b>This run needs a finished profile first</b><br><br>This way of making a chart asks your profile which colours it believes your printer can produce, and then tests exactly those. Run 3 doesn't have a profile yet, so there's nothing to ask.<br><br>How to get one:<br>  1. Set Run type to Profiling.<"
+  },
+  "s3_guided_after": {
+    "generate_enabled": false,
+    "stop_visible": true,
+    "in_flight": true,
+    "runner_running": false,
+    "run_bar": "Run 3 (overwrite)",
+    "type": "Verification",
+    "noprofile_box_visible": true,
+    "preview_notice": null,
+    "margin_status": "Margins: OK",
+    "margin_text": "mm | inch | min | Left (to first patch) | 6.0 | 0.237 | 6.0 | Right (to first patch) | 8.0 | 0.314 | 6.0 | Top (to first patch) | 33.0 | 1.300 | 33.0 | Bottom (",
+    "info_actual": {
+      "total": 400,
+      "fillup": 10,
+      "page_patches": 112,
+      "rows": 16,
+      "cols": 7,
+      "pages": 4,
+      "patch": [
+        28.02,
+        13.97
+      ],
+      "pitch": null
+    },
+    "info_est": {
+      "total": 484,
+      "fillup": 0,
+      "page_patches": 484,
+      "rows": 22,
+      "cols": 22,
+      "pages": 1,
+      "patch": [
+        7.6,
+        9.5
+      ],
+      "pitch": null
+    }
+  },
+  "s4_manual_after": {
+    "generate_enabled": false,
+    "stop_visible": true,
+    "in_flight": true,
+    "runner_running": false,
+    "run_bar": "Run 3 (overwrite)",
+    "type": "Verification",
+    "noprofile_box_visible": true,
+    "preview_notice": null,
+    "margin_status": "Margins: OK",
+    "margin_text": "mm | inch | min | Left (to first patch) | 6.0 | 0.237 | 6.0 | Right (to first patch) | 8.0 | 0.314 | 6.0 | Top (to first patch) | 33.0 | 1.300 | 33.0 | Bottom (",
+    "info_actual": {
+      "total": 400,
+      "fillup": 10,
+      "page_patches": 112,
+      "rows": 16,
+      "cols": 7,
+      "pages": 4,
+      "patch": [
+        28.02,
+        13.97
+      ],
+      "pitch": null
+    },
+    "info_est": {
+      "total": 325,
+      "fillup": 21,
+      "page_patches": 325,
+      "rows": 25,
+      "cols": 13,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    }
+  },
+  "s5_profiling_after": {
+    "generate_enabled": false,
+    "stop_visible": true,
+    "in_flight": true,
+    "runner_running": false,
+    "run_bar": "Run 3 (overwrite)",
+    "type": "Profiling",
+    "noprofile_box_visible": false,
+    "preview_notice": null,
+    "margin_status": "Margins: OK",
+    "margin_text": "mm | inch | min | Left (to first patch) | 6.0 | 0.237 | 6.0 | Right (to first patch) | 8.0 | 0.314 | 6.0 | Top (to first patch) | 33.0 | 1.300 | 33.0 | Bottom (",
+    "info_actual": {
+      "total": 400,
+      "fillup": 10,
+      "page_patches": 112,
+      "rows": 16,
+      "cols": 7,
+      "pages": 4,
+      "patch": [
+        28.02,
+        13.97
+      ],
+      "pitch": null
+    },
+    "info_est": {
+      "total": 420,
+      "fillup": 0,
+      "page_patches": 105,
+      "rows": 15,
+      "cols": 7,
+      "pages": 4,
+      "patch": [
+        28.0,
+        14.0
+      ],
+      "pitch": null
+    }
+  },
+  "s6_run2": {
+    "generate_enabled": false,
+    "stop_visible": true,
+    "in_flight": true,
+    "runner_running": false,
+    "run_bar": "Run 2 (overwrite)",
+    "type": "Profiling",
+    "noprofile_box_visible": false,
+    "preview_notice": null,
+    "margin_status": "Margins: OK",
+    "margin_text": "mm | inch | min | Left (to first patch) | 6.0 | 0.237 | 6.0 | Right (to first patch) | 8.0 | 0.314 | 6.0 | Top (to first patch) | 33.0 | 1.300 | 33.0 | Bottom (",
+    "info_actual": {
+      "total": 240,
+      "fillup": 0,
+      "page_patches": 112,
+      "rows": 16,
+      "cols": 7,
+      "pages": 3,
+      "patch": [
+        28.02,
+        13.97
+      ],
+      "pitch": null
+    },
+    "info_est": {
+      "total": 315,
+      "fillup": 11,
+      "page_patches": 105,
+      "rows": 15,
+      "cols": 7,
+      "pages": 3,
+      "patch": [
+        28.0,
+        14.0
+      ],
+      "pitch": null
+    }
+  },
+  "s7_run3_again": {
+    "generate_enabled": false,
+    "stop_visible": true,
+    "in_flight": true,
+    "runner_running": false,
+    "run_bar": "Run 3 (overwrite)",
+    "type": "Profiling",
+    "noprofile_box_visible": false,
+    "preview_notice": null,
+    "margin_status": "Margins: OK",
+    "margin_text": "mm | inch | min | Left (to first patch) | 6.0 | 0.237 | 6.0 | Right (to first patch) | 8.0 | 0.314 | 6.0 | Top (to first patch) | 33.0 | 1.300 | 33.0 | Bottom (",
+    "info_actual": {
+      "total": 400,
+      "fillup": 10,
+      "page_patches": 112,
+      "rows": 16,
+      "cols": 7,
+      "pages": 4,
+      "patch": [
+        28.02,
+        13.97
+      ],
+      "pitch": null
+    },
+    "info_est": {
+      "total": 420,
+      "fillup": 0,
+      "page_patches": 105,
+      "rows": 15,
+      "cols": 7,
+      "pages": 4,
+      "patch": [
+        28.0,
+        14.0
+      ],
+      "pitch": null
+    }
+  },
+  "s8_click_disabled": {
+    "generate_enabled": false,
+    "stop_visible": true,
+    "in_flight": true,
+    "runner_running": false,
+    "run_bar": "Run 3 (overwrite)",
+    "type": "Profiling",
+    "noprofile_box_visible": false,
+    "preview_notice": null,
+    "margin_status": "Margins: OK",
+    "margin_text": "mm | inch | min | Left (to first patch) | 6.0 | 0.237 | 6.0 | Right (to first patch) | 8.0 | 0.314 | 6.0 | Top (to first patch) | 33.0 | 1.300 | 33.0 | Bottom (",
+    "info_actual": {
+      "total": 400,
+      "fillup": 10,
+      "page_patches": 112,
+      "rows": 16,
+      "cols": 7,
+      "pages": 4,
+      "patch": [
+        28.02,
+        13.97
+      ],
+      "pitch": null
+    },
+    "info_est": {
+      "total": 420,
+      "fillup": 0,
+      "page_patches": 105,
+      "rows": 15,
+      "cols": 7,
+      "pages": 4,
+      "patch": [
+        28.0,
+        14.0
+      ],
+      "pitch": null
+    }
+  },
+  "s9_other_project": {
+    "generate_enabled": false,
+    "stop_visible": true,
+    "in_flight": true,
+    "runner_running": false,
+    "run_bar": "Run 2 (overwrite)",
+    "type": "Profiling",
+    "noprofile_box_visible": false,
+    "preview_notice": null,
+    "margin_status": "Margins: OK",
+    "margin_text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 23.9 | 0.940 | 9.0 | Top (to first patch) | 41.0 | 1.613 | 38.0 | Botto",
+    "info_actual": {
+      "total": 420,
+      "fillup": 20,
+      "page_patches": 420,
+      "rows": 21,
+      "cols": 20,
+      "pages": 1,
+      "patch": null,
+      "pitch": null
+    },
+    "info_est": {
+      "total": 484,
+      "fillup": 0,
+      "page_patches": 484,
+      "rows": 22,
+      "cols": 22,
+      "pages": 1,
+      "patch": [
+        7.6,
+        9.5
+      ],
+      "pitch": null
+    }
+  },
+  "s10_gamut_with_profile": {
+    "generate_enabled": true,
+    "stop_visible": false,
+    "in_flight": false,
+    "runner_running": false,
+    "run_bar": "Run 2 (overwrite)",
+    "type": "Verification",
+    "noprofile_box_visible": false,
+    "preview_notice": null,
+    "margin_status": "Margins: OK",
+    "margin_text": "mm | inch | min | Left (to first patch) | 6.0 | 0.237 | 6.0 | Right (to first patch) | 64.0 | 2.521 | 6.0 | Top (to first patch) | 40.5 | 1.593 | 6.0 | Bottom (",
+    "info_actual": {
+      "total": 75,
+      "fillup": 11,
+      "page_patches": 75,
+      "rows": 15,
+      "cols": 5,
+      "pages": 1,
+      "patch": [
+        28.02,
+        14.05
+      ],
+      "pitch": null
+    },
+    "info_est": {
+      "total": 105,
+      "fillup": 0,
+      "page_patches": 105,
+      "rows": 15,
+      "cols": 7,
+      "pages": 1,
+      "patch": [
+        28.0,
+        14.0
+      ],
+      "pitch": null
+    }
+  },
+  "s11_guided_after_profile_gamut": {
+    "generate_enabled": true,
+    "stop_visible": false,
+    "in_flight": false,
+    "runner_running": false,
+    "run_bar": "Run 2 (overwrite)",
+    "type": "Verification",
+    "noprofile_box_visible": false,
+    "preview_notice": null,
+    "margin_status": "Margins: OK",
+    "margin_text": "mm | inch | min | Left (to first patch) | 6.0 | 0.237 | 6.0 | Right (to first patch) | 64.0 | 2.521 | 6.0 | Top (to first patch) | 40.5 | 1.593 | 6.0 | Bottom (",
+    "info_actual": {
+      "total": 75,
+      "fillup": 11,
+      "page_patches": 75,
+      "rows": 15,
+      "cols": 5,
+      "pages": 1,
+      "patch": [
+        28.02,
+        14.05
+      ],
+      "pitch": null
+    },
+    "info_est": {
+      "total": 105,
+      "fillup": 0,
+      "page_patches": 105,
+      "rows": 15,
+      "cols": 7,
+      "pages": 1,
+      "patch": [
+        28.0,
+        14.0
+      ],
+      "pitch": null
+    }
+  },
+  "s12_profiling_run2": {
+    "generate_enabled": true,
+    "stop_visible": false,
+    "in_flight": false,
+    "runner_running": false,
+    "run_bar": "Run 2 (overwrite)",
+    "type": "Profiling",
+    "noprofile_box_visible": false,
+    "preview_notice": null,
+    "margin_status": "Margins: OK",
+    "margin_text": "mm | inch | min | Left (to first patch) | 6.0 | 0.237 | 6.0 | Right (to first patch) | 8.0 | 0.314 | 6.0 | Top (to first patch) | 33.0 | 1.300 | 33.0 | Bottom (",
+    "info_actual": {
+      "total": 240,
+      "fillup": 0,
+      "page_patches": 112,
+      "rows": 16,
+      "cols": 7,
+      "pages": 3,
+      "patch": [
+        28.02,
+        13.97
+      ],
+      "pitch": null
+    },
+    "info_est": {
+      "total": 315,
+      "fillup": 0,
+      "page_patches": 105,
+      "rows": 15,
+      "cols": 7,
+      "pages": 3,
+      "patch": [
+        28.0,
+        14.0
+      ],
+      "pitch": null
+    }
+  },
+  "s13_new_run": {
+    "generate_enabled": true,
+    "stop_visible": false,
+    "in_flight": false,
+    "runner_running": false,
+    "run_bar": "New run",
+    "type": "Profiling",
+    "noprofile_box_visible": false,
+    "preview_notice": null,
+    "margin_status": "Margins: OK",
+    "margin_text": "mm | inch | min | Left (to first patch) | 6.0 | 0.237 | 6.0 | Right (to first patch) | 8.0 | 0.314 | 6.0 | Top (to first patch) | 33.0 | 1.300 | 33.0 | Bottom (",
+    "info_actual": {
+      "total": 240,
+      "fillup": 0,
+      "page_patches": 112,
+      "rows": 16,
+      "cols": 7,
+      "pages": 3,
+      "patch": [
+        28.02,
+        13.97
+      ],
+      "pitch": null
+    },
+    "info_est": {
+      "total": 1452,
+      "fillup": 0,
+      "page_patches": 484,
+      "rows": 22,
+      "cols": 22,
+      "pages": 3,
+      "patch": [
+        7.6,
+        9.5
+      ],
+      "pitch": null
+    },
+    "margin_visible": true,
+    "info_visible": true
+  },
+  "unexpected": [],
+  "serious": []
+}

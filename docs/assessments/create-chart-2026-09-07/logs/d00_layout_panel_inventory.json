@@ -1,0 +1,3479 @@
+{
+  "area_cols": {
+    "type": "NoScrollSpinBox",
+    "min": 0,
+    "max": 200,
+    "value": 0,
+    "enabled": true,
+    "visible": false,
+    "special": "auto"
+  },
+  "area_method": {
+    "type": "combo",
+    "items": [
+      [
+        "By patch width",
+        "by_width"
+      ],
+      [
+        "By columns / rows",
+        "by_grid"
+      ]
+    ],
+    "current": "by_width",
+    "visible": false,
+    "enabled": true
+  },
+  "area_min_patch": {
+    "type": "NoScrollDoubleSpinBox",
+    "min": 0.0,
+    "max": 100.0,
+    "value": 0.0,
+    "enabled": true,
+    "visible": false,
+    "decimals": 1,
+    "step": 0.5,
+    "special": "auto"
+  },
+  "area_ratio": {
+    "type": "NoScrollDoubleSpinBox",
+    "min": 10.0,
+    "max": 1000.0,
+    "value": 100.0,
+    "enabled": true,
+    "visible": false,
+    "decimals": 0,
+    "step": 10.0,
+    "suffix": " %"
+  },
+  "area_rows": {
+    "type": "NoScrollSpinBox",
+    "min": 0,
+    "max": 500,
+    "value": 0,
+    "enabled": true,
+    "visible": false,
+    "special": "auto"
+  },
+  "bit_depth": {
+    "type": "combo",
+    "items": [
+      [
+        "8-bit",
+        8
+      ],
+      [
+        "16-bit",
+        16
+      ]
+    ],
+    "current": 8,
+    "visible": false,
+    "enabled": true
+  },
+  "cal_mode": {
+    "type": "combo",
+    "items": [
+      [
+        "None",
+        "off"
+      ],
+      [
+        "Apply & embed (-K)",
+        "apply"
+      ],
+      [
+        "Embed only (-I)",
+        "embed"
+      ]
+    ],
+    "current": "off",
+    "visible": false,
+    "enabled": true
+  },
+  "cal_path_edit": {
+    "type": "line",
+    "text": "",
+    "visible": false
+  },
+  "chart_text": {
+    "type": "line",
+    "text": "",
+    "visible": false
+  },
+  "chart_text_font": {
+    "type": "combo",
+    "items": [
+      [
+        "JetBrains Mono",
+        "JetBrains Mono"
+      ],
+      [
+        "Inter",
+        "Inter"
+      ],
+      [
+        "Instrument Serif",
+        "Instrument Serif"
+      ],
+      [
+        "",
+        null
+      ],
+      [
+        ".Apple Symbols Fallback",
+        ".Apple Symbols Fallback"
+      ],
+      [
+        ".AppleSystemUIFont",
+        ".AppleSystemUIFont"
+      ],
+      [
+        ".Times Fallback",
+        ".Times Fallback"
+      ],
+      [
+        "Academy Engraved LET",
+        "Academy Engraved LET"
+      ],
+      [
+        "Al Bayan",
+        "Al Bayan"
+      ],
+      [
+        "Al Nile",
+        "Al Nile"
+      ],
+      [
+        "Al Tarikh",
+        "Al Tarikh"
+      ],
+      [
+        "American Typewriter",
+        "American Typewriter"
+      ],
+      [
+        "Andale Mono",
+        "Andale Mono"
+      ],
+      [
+        "Apple Braille",
+        "Apple Braille"
+      ],
+      [
+        "Apple Chancery",
+        "Apple Chancery"
+      ],
+      [
+        "Apple Color Emoji",
+        "Apple Color Emoji"
+      ],
+      [
+        "Apple SD Gothic Neo",
+        "Apple SD Gothic Neo"
+      ],
+      [
+        "Apple Symbols",
+        "Apple Symbols"
+      ],
+      [
+        "AppleGothic",
+        "AppleGothic"
+      ],
+      [
+        "AppleMyungjo",
+        "AppleMyungjo"
+      ],
+      [
+        "Arial",
+        "Arial"
+      ],
+      [
+        "Arial Black",
+        "Arial Black"
+      ],
+      [
+        "Arial Hebrew",
+        "Arial Hebrew"
+      ],
+      [
+        "Arial Hebrew Scholar",
+        "Arial Hebrew Scholar"
+      ],
+      [
+        "Arial Narrow",
+        "Arial Narrow"
+      ],
+      [
+        "Arial Rounded MT Bold",
+        "Arial Rounded MT Bold"
+      ],
+      [
+        "Arial Unicode MS",
+        "Arial Unicode MS"
+      ],
+      [
+        "Avenir",
+        "Avenir"
+      ],
+      [
+        "Avenir Next",
+        "Avenir Next"
+      ],
+      [
+        "Avenir Next Condensed",
+        "Avenir Next Condensed"
+      ],
+      [
+        "Ayuthaya",
+        "Ayuthaya"
+      ],
+      [
+        "Baghdad",
+        "Baghdad"
+      ],
+      [
+        "Bangla MN",
+        "Bangla MN"
+      ],
+      [
+        "Bangla Sangam MN",
+        "Bangla Sangam MN"
+      ],
+      [
+        "Basement Grotesque",
+        "Basement Grotesque"
+      ],
+      [
+        "Baskerville",
+        "Baskerville"
+      ],
+      [
+        "Beirut",
+        "Beirut"
+      ],
+      [
+        "Big Caslon",
+        "Big Caslon"
+      ],
+      [
+        "Bodoni 72",
+        "Bodoni 72"
+      ],
+      [
+        "Bodoni 72 Oldstyle",
+        "Bodoni 72 Oldstyle"
+      ],
+      [
+        "Bodoni 72 Smallcaps",
+        "Bodoni 72 Smallcaps"
+      ],
+      [
+        "Bodoni Ornaments",
+        "Bodoni Ornaments"
+      ],
+      [
+        "Bradley Hand",
+        "Bradley Hand"
+      ],
+      [
+        "Brush Script MT",
+        "Brush Script MT"
+      ],
+      [
+        "Canela Text",
+        "Canela Text"
+      ],
+      [
+        "Chalkboard",
+        "Chalkboard"
+      ],
+      [
+        "Chalkboard SE",
+        "Chalkboard SE"
+      ],
+      [
+        "Chalkduster",
+        "Chalkduster"
+      ],
+      [
+        "Charter",
+        "Charter"
+      ],
+      [
+        "Cochin",
+        "Cochin"
+      ],
+      [
+        "Comic Sans MS",
+        "Comic Sans MS"
+      ],
+      [
+        "Copperplate",
+        "Copperplate"
+      ],
+      [
+        "Corsiva Hebrew",
+        "Corsiva Hebrew"
+      ],
+      [
+        "Courier New",
+        "Courier New"
+      ],
+      [
+        "Damascus",
+        "Damascus"
+      ],
+      [
+        "DecoType Naskh",
+        "DecoType Naskh"
+      ],
+      [
+        "Devanagari MT",
+        "Devanagari MT"
+      ],
+      [
+        "Devanagari Sangam MN",
+        "Devanagari Sangam MN"
+      ],
+      [
+        "Didot",
+        "Didot"
+      ],
+      [
+        "DIN Alternate",
+        "DIN Alternate"
+      ],
+      [
+        "DIN Condensed",
+        "DIN Condensed"
+      ],
+      [
+        "Diwan Kufi",
+        "Diwan Kufi"
+      ],
+      [
+        "Diwan Thuluth",
+        "Diwan Thuluth"
+      ],
+      [
+        "Euphemia UCAS",
+        "Euphemia UCAS"
+      ],
+      [
+        "Farah",
+        "Farah"
+      ],
+      [
+        "Farisi",
+        "Farisi"
+      ],
+      [
+        "Futura",
+        "Futura"
+      ],
+      [
+        "Galvji",
+        "Galvji"
+      ],
+      [
+        "GB18030 Bitmap",
+        "GB18030 Bitmap"
+      ],
+      [
+        "Geeza Pro",
+        "Geeza Pro"
+      ],
+      [
+        "Geneva",
+        "Geneva"
+      ],
+      [
+        "Georgia",
+        "Georgia"
+      ],
+      [
+        "Gill Sans",
+        "Gill Sans"
+      ],
+      [
+        "Grantha Sangam MN",
+        "Grantha Sangam MN"
+      ],
+      [
+        "Gujarati MT",
+        "Gujarati MT"
+      ],
+      [
+        "Gujarati Sangam MN",
+        "Gujarati Sangam MN"
+      ],
+      [
+        "Gurmukhi MN",
+        "Gurmukhi MN"
+      ],
+      [
+        "Gurmukhi MT",
+        "Gurmukhi MT"
+      ],
+      [
+        "Gurmukhi Sangam MN",
+        "Gurmukhi Sangam MN"
+      ],
+      [
+        "Heiti SC",
+        "Heiti SC"
+      ],
+      [
+        "Heiti TC",
+        "Heiti TC"
+      ],
+      [
+        "Helvetica",
+        "Helvetica"
+      ],
+      [
+        "Helvetica Neue",
+        "Helvetica Neue"
+      ],
+      [
+        "Herculanum",
+        "Herculanum"
+      ],
+      [
+        "Hiragino Maru Gothic ProN",
+        "Hiragino Maru Gothic ProN"
+      ],
+      [
+        "Hiragino Mincho ProN",
+        "Hiragino Mincho ProN"
+      ],
+      [
+        "Hiragino Sans",
+        "Hiragino Sans"
+      ],
+      [
+        "Hiragino Sans GB",
+        "Hiragino Sans GB"
+      ],
+      [
+        "Hoefler Text",
+        "Hoefler Text"
+      ],
+      [
+        "Impact",
+        "Impact"
+      ],
+      [
+        "InaiMathi",
+        "InaiMathi"
+      ],
+      [
+        "Instrument Serif",
+        "Instrument Serif"
+      ],
+      [
+        "Inter",
+        "Inter"
+      ],
+      [
+        "ITF Devanagari",
+        "ITF Devanagari"
+      ],
+      [
+        "ITF Devanagari Marathi",
+        "ITF Devanagari Marathi"
+      ],
+      [
+        "JetBrains Mono",
+        "JetBrains Mono"
+      ],
+      [
+        "Kailasa",
+        "Kailasa"
+      ],
+      [
+        "Kannada MN",
+        "Kannada MN"
+      ],
+      [
+        "Kannada Sangam MN",
+        "Kannada Sangam MN"
+      ],
+      [
+        "Kefa",
+        "Kefa"
+      ],
+      [
+        "Khmer MN",
+        "Khmer MN"
+      ],
+      [
+        "Khmer Sangam MN",
+        "Khmer Sangam MN"
+      ],
+      [
+        "Kohinoor Bangla",
+        "Kohinoor Bangla"
+      ],
+      [
+        "Kohinoor Devanagari",
+        "Kohinoor Devanagari"
+      ],
+      [
+        "Kohinoor Gujarati",
+        "Kohinoor Gujarati"
+      ],
+      [
+        "Kohinoor Telugu",
+        "Kohinoor Telugu"
+      ],
+      [
+        "Kokonor",
+        "Kokonor"
+      ],
+      [
+        "Krungthep",
+        "Krungthep"
+      ],
+      [
+        "KufiStandardGK",
+        "KufiStandardGK"
+      ],
+      [
+        "Lao MN",
+        "Lao MN"
+      ],
+      [
+        "Lao Sangam MN",
+        "Lao Sangam MN"
+      ],
+      [
+        "Lato",
+        "Lato"
+      ],
+      [
+        "Lucida Grande",
+        "Lucida Grande"
+      ],
+      [
+        "Luminari",
+        "Luminari"
+      ],
+      [
+        "Malayalam MN",
+        "Malayalam MN"
+      ],
+      [
+        "Malayalam Sangam MN",
+        "Malayalam Sangam MN"
+      ],
+      [
+        "Marker Felt",
+        "Marker Felt"
+      ],
+      [
+        "Menlo",
+        "Menlo"
+      ],
+      [
+        "Microsoft Sans Serif",
+        "Microsoft Sans Serif"
+      ],
+      [
+        "Mishafi",
+        "Mishafi"
+      ],
+      [
+        "Mishafi Gold",
+        "Mishafi Gold"
+      ],
+      [
+        "Monaco",
+        "Monaco"
+      ],
+      [
+        "Monoton",
+        "Monoton"
+      ],
+      [
+        "Montserrat",
+        "Montserrat"
+      ],
+      [
+        "Montserrat Alternates",
+        "Montserrat Alternates"
+      ],
+      [
+        "Mshtakan",
+        "Mshtakan"
+      ],
+      [
+        "Mukta Mahee",
+        "Mukta Mahee"
+      ],
+      [
+        "Muna",
+        "Muna"
+      ],
+      [
+        "Myanmar MN",
+        "Myanmar MN"
+      ],
+      [
+        "Myanmar Sangam MN",
+        "Myanmar Sangam MN"
+      ],
+      [
+        "Nadeem",
+        "Nadeem"
+      ],
+      [
+        "New Peninim MT",
+        "New Peninim MT"
+      ],
+      [
+        "Noteworthy",
+        "Noteworthy"
+      ],
+      [
+        "Noto Nastaliq Urdu",
+        "Noto Nastaliq Urdu"
+      ],
+      [
+        "Noto Sans Armenian",
+        "Noto Sans Armenian"
+      ],
+      [
+        "Noto Sans Batak",
+        "Noto Sans Batak"
+      ],
+      [
+        "Noto Sans Kannada",
+        "Noto Sans Kannada"
+      ],
+      [
+        "Noto Sans Myanmar",
+        "Noto Sans Myanmar"
+      ],
+      [
+        "Noto Sans NKo",
+        "Noto Sans NKo"
+      ],
+      [
+        "Noto Sans Oriya",
+        "Noto Sans Oriya"
+      ],
+      [
+        "Noto Sans Syriac",
+        "Noto Sans Syriac"
+      ],
+      [
+        "Noto Sans Tagalog",
+        "Noto Sans Tagalog"
+      ],
+      [
+        "Noto Sans Zawgyi",
+        "Noto Sans Zawgyi"
+      ],
+      [
+        "Noto Serif Myanmar",
+        "Noto Serif Myanmar"
+      ],
+      [
+        "Nunito Sans",
+        "Nunito Sans"
+      ],
+      [
+        "Optima",
+        "Optima"
+      ],
+      [
+        "Oriya MN",
+        "Oriya MN"
+      ],
+      [
+        "Oriya Sangam MN",
+        "Oriya Sangam MN"
+      ],
+      [
+        "Palatino",
+        "Palatino"
+      ],
+      [
+        "Papyrus",
+        "Papyrus"
+      ],
+      [
+        "Party LET",
+        "Party LET"
+      ],
+      [
+        "Phosphate",
+        "Phosphate"
+      ],
+      [
+        "PingFang HK",
+        "PingFang HK"
+      ],
+      [
+        "PingFang MO",
+        "PingFang MO"
+      ],
+      [
+        "PingFang SC",
+        "PingFang SC"
+      ],
+      [
+        "PingFang TC",
+        "PingFang TC"
+      ],
+      [
+        "Plantagenet Cherokee",
+        "Plantagenet Cherokee"
+      ],
+      [
+        "Poppins",
+        "Poppins"
+      ],
+      [
+        "Proxima Nova",
+        "Proxima Nova"
+      ],
+      [
+        "PT Mono",
+        "PT Mono"
+      ],
+      [
+        "PT Sans",
+        "PT Sans"
+      ],
+      [
+        "PT Sans Caption",
+        "PT Sans Caption"
+      ],
+      [
+        "PT Sans Narrow",
+        "PT Sans Narrow"
+      ],
+      [
+        "PT Serif",
+        "PT Serif"
+      ],
+      [
+        "PT Serif Caption",
+        "PT Serif Caption"
+      ],
+      [
+        "Publico Text",
+        "Publico Text"
+      ],
+      [
+        "Raanana",
+        "Raanana"
+      ],
+      [
+        "Raleway",
+        "Raleway"
+      ],
+      [
+        "Rockwell",
+        "Rockwell"
+      ],
+      [
+        "Sana",
+        "Sana"
+      ],
+      [
+        "Sathu",
+        "Sathu"
+      ],
+      [
+        "Savoye LET",
+        "Savoye LET"
+      ],
+      [
+        "Shree Devanagari 714",
+        "Shree Devanagari 714"
+      ],
+      [
+        "SignPainter",
+        "SignPainter"
+      ],
+      [
+        "Silom",
+        "Silom"
+      ],
+      [
+        "Sinhala MN",
+        "Sinhala MN"
+      ],
+      [
+        "Sinhala Sangam MN",
+        "Sinhala Sangam MN"
+      ],
+      [
+        "Skia",
+        "Skia"
+      ],
+      [
+        "Snell Roundhand",
+        "Snell Roundhand"
+      ],
+      [
+        "Snowfun",
+        "Snowfun"
+      ],
+      [
+        "Songti SC",
+        "Songti SC"
+      ],
+      [
+        "Songti TC",
+        "Songti TC"
+      ],
+      [
+        "Source Code Pro",
+        "Source Code Pro"
+      ],
+      [
+        "STIX Two Math",
+        "STIX Two Math"
+      ],
+      [
+        "STIX Two Text",
+        "STIX Two Text"
+      ],
+      [
+        "STSong",
+        "STSong"
+      ],
+      [
+        "Sukhumvit Set",
+        "Sukhumvit Set"
+      ],
+      [
+        "Symbol",
+        "Symbol"
+      ],
+      [
+        "Tahoma",
+        "Tahoma"
+      ],
+      [
+        "Tamil MN",
+        "Tamil MN"
+      ],
+      [
+        "Tamil Sangam MN",
+        "Tamil Sangam MN"
+      ],
+      [
+        "Telugu MN",
+        "Telugu MN"
+      ],
+      [
+        "Telugu Sangam MN",
+        "Telugu Sangam MN"
+      ],
+      [
+        "Thonburi",
+        "Thonburi"
+      ],
+      [
+        "Times New Roman",
+        "Times New Roman"
+      ],
+      [
+        "Trattatello",
+        "Trattatello"
+      ],
+      [
+        "Trebuchet MS",
+        "Trebuchet MS"
+      ],
+      [
+        "Verdana",
+        "Verdana"
+      ],
+      [
+        "Waseem",
+        "Waseem"
+      ],
+      [
+        "Webdings",
+        "Webdings"
+      ],
+      [
+        "Wingdings",
+        "Wingdings"
+      ],
+      [
+        "Wingdings 2",
+        "Wingdings 2"
+      ],
+      [
+        "Wingdings 3",
+        "Wingdings 3"
+      ],
+      [
+        "Zapf Dingbats",
+        "Zapf Dingbats"
+      ],
+      [
+        "Zapfino",
+        "Zapfino"
+      ]
+    ],
+    "current": "Inter",
+    "visible": false,
+    "enabled": true
+  },
+  "chart_text_size": {
+    "type": "NoScrollDoubleSpinBox",
+    "min": 0.0,
+    "max": 72.0,
+    "value": 0.0,
+    "enabled": true,
+    "visible": false,
+    "decimals": 0,
+    "step": 1.0,
+    "special": "auto"
+  },
+  "clip_content_mode": {
+    "type": "combo",
+    "items": [
+      [
+        "Off",
+        "off"
+      ],
+      [
+        "Custom text",
+        "text"
+      ],
+      [
+        "Custom text example",
+        "example"
+      ],
+      [
+        "ChromIQ branding",
+        "branding"
+      ],
+      [
+        "Notes box",
+        "notes"
+      ],
+      [
+        "Imported image",
+        "image"
+      ]
+    ],
+    "current": "off",
+    "visible": false,
+    "enabled": true
+  },
+  "clip_enable": {
+    "type": "combo",
+    "items": [
+      [
+        "Off \u2014 more patches",
+        "off"
+      ],
+      [
+        "On",
+        "on"
+      ]
+    ],
+    "current": "off",
+    "visible": false,
+    "enabled": true
+  },
+  "clip_export_btn": {
+    "type": "button",
+    "text": "Export template (PNG + PDF)\u2026",
+    "visible": false,
+    "enabled": true
+  },
+  "clip_flip_180": {
+    "type": "check",
+    "checked": false,
+    "text": "Flip 180\u00b0",
+    "visible": false,
+    "enabled": true
+  },
+  "clip_image_browse": {
+    "type": "button",
+    "text": "",
+    "visible": false,
+    "enabled": true
+  },
+  "clip_image_offx": {
+    "type": "NoScrollDoubleSpinBox",
+    "min": -300.0,
+    "max": 300.0,
+    "value": 0.0,
+    "enabled": true,
+    "visible": false,
+    "decimals": 1,
+    "step": 0.5,
+    "suffix": " mm"
+  },
+  "clip_image_offy": {
+    "type": "NoScrollDoubleSpinBox",
+    "min": -300.0,
+    "max": 300.0,
+    "value": 0.0,
+    "enabled": true,
+    "visible": false,
+    "decimals": 1,
+    "step": 0.5,
+    "suffix": " mm"
+  },
+  "clip_image_path": {
+    "type": "line",
+    "text": "",
+    "visible": false
+  },
+  "clip_image_rotation": {
+    "type": "NoScrollSpinBox",
+    "min": 0,
+    "max": 359,
+    "value": 0,
+    "enabled": false,
+    "visible": false,
+    "suffix": "\u00b0"
+  },
+  "clip_image_scale": {
+    "type": "NoScrollDoubleSpinBox",
+    "min": 1.0,
+    "max": 50000.0,
+    "value": 100.0,
+    "enabled": true,
+    "visible": false,
+    "decimals": 0,
+    "step": 10.0,
+    "suffix": " %"
+  },
+  "clip_side": {
+    "type": "combo",
+    "items": [
+      [
+        "Left",
+        "left"
+      ],
+      [
+        "Right",
+        "right"
+      ]
+    ],
+    "current": "left",
+    "visible": false,
+    "enabled": true
+  },
+  "clip_text_font": {
+    "type": "combo",
+    "items": [
+      [
+        "JetBrains Mono",
+        "JetBrains Mono"
+      ],
+      [
+        "Inter",
+        "Inter"
+      ],
+      [
+        "Instrument Serif",
+        "Instrument Serif"
+      ],
+      [
+        "",
+        null
+      ],
+      [
+        ".Apple Symbols Fallback",
+        ".Apple Symbols Fallback"
+      ],
+      [
+        ".AppleSystemUIFont",
+        ".AppleSystemUIFont"
+      ],
+      [
+        ".Times Fallback",
+        ".Times Fallback"
+      ],
+      [
+        "Academy Engraved LET",
+        "Academy Engraved LET"
+      ],
+      [
+        "Al Bayan",
+        "Al Bayan"
+      ],
+      [
+        "Al Nile",
+        "Al Nile"
+      ],
+      [
+        "Al Tarikh",
+        "Al Tarikh"
+      ],
+      [
+        "American Typewriter",
+        "American Typewriter"
+      ],
+      [
+        "Andale Mono",
+        "Andale Mono"
+      ],
+      [
+        "Apple Braille",
+        "Apple Braille"
+      ],
+      [
+        "Apple Chancery",
+        "Apple Chancery"
+      ],
+      [
+        "Apple Color Emoji",
+        "Apple Color Emoji"
+      ],
+      [
+        "Apple SD Gothic Neo",
+        "Apple SD Gothic Neo"
+      ],
+      [
+        "Apple Symbols",
+        "Apple Symbols"
+      ],
+      [
+        "AppleGothic",
+        "AppleGothic"
+      ],
+      [
+        "AppleMyungjo",
+        "AppleMyungjo"
+      ],
+      [
+        "Arial",
+        "Arial"
+      ],
+      [
+        "Arial Black",
+        "Arial Black"
+      ],
+      [
+        "Arial Hebrew",
+        "Arial Hebrew"
+      ],
+      [
+        "Arial Hebrew Scholar",
+        "Arial Hebrew Scholar"
+      ],
+      [
+        "Arial Narrow",
+        "Arial Narrow"
+      ],
+      [
+        "Arial Rounded MT Bold",
+        "Arial Rounded MT Bold"
+      ],
+      [
+        "Arial Unicode MS",
+        "Arial Unicode MS"
+      ],
+      [
+        "Avenir",
+        "Avenir"
+      ],
+      [
+        "Avenir Next",
+        "Avenir Next"
+      ],
+      [
+        "Avenir Next Condensed",
+        "Avenir Next Condensed"
+      ],
+      [
+        "Ayuthaya",
+        "Ayuthaya"
+      ],
+      [
+        "Baghdad",
+        "Baghdad"
+      ],
+      [
+        "Bangla MN",
+        "Bangla MN"
+      ],
+      [
+        "Bangla Sangam MN",
+        "Bangla Sangam MN"
+      ],
+      [
+        "Basement Grotesque",
+        "Basement Grotesque"
+      ],
+      [
+        "Baskerville",
+        "Baskerville"
+      ],
+      [
+        "Beirut",
+        "Beirut"
+      ],
+      [
+        "Big Caslon",
+        "Big Caslon"
+      ],
+      [
+        "Bodoni 72",
+        "Bodoni 72"
+      ],
+      [
+        "Bodoni 72 Oldstyle",
+        "Bodoni 72 Oldstyle"
+      ],
+      [
+        "Bodoni 72 Smallcaps",
+        "Bodoni 72 Smallcaps"
+      ],
+      [
+        "Bodoni Ornaments",
+        "Bodoni Ornaments"
+      ],
+      [
+        "Bradley Hand",
+        "Bradley Hand"
+      ],
+      [
+        "Brush Script MT",
+        "Brush Script MT"
+      ],
+      [
+        "Canela Text",
+        "Canela Text"
+      ],
+      [
+        "Chalkboard",
+        "Chalkboard"
+      ],
+      [
+        "Chalkboard SE",
+        "Chalkboard SE"
+      ],
+      [
+        "Chalkduster",
+        "Chalkduster"
+      ],
+      [
+        "Charter",
+        "Charter"
+      ],
+      [
+        "Cochin",
+        "Cochin"
+      ],
+      [
+        "Comic Sans MS",
+        "Comic Sans MS"
+      ],
+      [
+        "Copperplate",
+        "Copperplate"
+      ],
+      [
+        "Corsiva Hebrew",
+        "Corsiva Hebrew"
+      ],
+      [
+        "Courier New",
+        "Courier New"
+      ],
+      [
+        "Damascus",
+        "Damascus"
+      ],
+      [
+        "DecoType Naskh",
+        "DecoType Naskh"
+      ],
+      [
+        "Devanagari MT",
+        "Devanagari MT"
+      ],
+      [
+        "Devanagari Sangam MN",
+        "Devanagari Sangam MN"
+      ],
+      [
+        "Didot",
+        "Didot"
+      ],
+      [
+        "DIN Alternate",
+        "DIN Alternate"
+      ],
+      [
+        "DIN Condensed",
+        "DIN Condensed"
+      ],
+      [
+        "Diwan Kufi",
+        "Diwan Kufi"
+      ],
+      [
+        "Diwan Thuluth",
+        "Diwan Thuluth"
+      ],
+      [
+        "Euphemia UCAS",
+        "Euphemia UCAS"
+      ],
+      [
+        "Farah",
+        "Farah"
+      ],
+      [
+        "Farisi",
+        "Farisi"
+      ],
+      [
+        "Futura",
+        "Futura"
+      ],
+      [
+        "Galvji",
+        "Galvji"
+      ],
+      [
+        "GB18030 Bitmap",
+        "GB18030 Bitmap"
+      ],
+      [
+        "Geeza Pro",
+        "Geeza Pro"
+      ],
+      [
+        "Geneva",
+        "Geneva"
+      ],
+      [
+        "Georgia",
+        "Georgia"
+      ],
+      [
+        "Gill Sans",
+        "Gill Sans"
+      ],
+      [
+        "Grantha Sangam MN",
+        "Grantha Sangam MN"
+      ],
+      [
+        "Gujarati MT",
+        "Gujarati MT"
+      ],
+      [
+        "Gujarati Sangam MN",
+        "Gujarati Sangam MN"
+      ],
+      [
+        "Gurmukhi MN",
+        "Gurmukhi MN"
+      ],
+      [
+        "Gurmukhi MT",
+        "Gurmukhi MT"
+      ],
+      [
+        "Gurmukhi Sangam MN",
+        "Gurmukhi Sangam MN"
+      ],
+      [
+        "Heiti SC",
+        "Heiti SC"
+      ],
+      [
+        "Heiti TC",
+        "Heiti TC"
+      ],
+      [
+        "Helvetica",
+        "Helvetica"
+      ],
+      [
+        "Helvetica Neue",
+        "Helvetica Neue"
+      ],
+      [
+        "Herculanum",
+        "Herculanum"
+      ],
+      [
+        "Hiragino Maru Gothic ProN",
+        "Hiragino Maru Gothic ProN"
+      ],
+      [
+        "Hiragino Mincho ProN",
+        "Hiragino Mincho ProN"
+      ],
+      [
+        "Hiragino Sans",
+        "Hiragino Sans"
+      ],
+      [
+        "Hiragino Sans GB",
+        "Hiragino Sans GB"
+      ],
+      [
+        "Hoefler Text",
+        "Hoefler Text"
+      ],
+      [
+        "Impact",
+        "Impact"
+      ],
+      [
+        "InaiMathi",
+        "InaiMathi"
+      ],
+      [
+        "Instrument Serif",
+        "Instrument Serif"
+      ],
+      [
+        "Inter",
+        "Inter"
+      ],
+      [
+        "ITF Devanagari",
+        "ITF Devanagari"
+      ],
+      [
+        "ITF Devanagari Marathi",
+        "ITF Devanagari Marathi"
+      ],
+      [
+        "JetBrains Mono",
+        "JetBrains Mono"
+      ],
+      [
+        "Kailasa",
+        "Kailasa"
+      ],
+      [
+        "Kannada MN",
+        "Kannada MN"
+      ],
+      [
+        "Kannada Sangam MN",
+        "Kannada Sangam MN"
+      ],
+      [
+        "Kefa",
+        "Kefa"
+      ],
+      [
+        "Khmer MN",
+        "Khmer MN"
+      ],
+      [
+        "Khmer Sangam MN",
+        "Khmer Sangam MN"
+      ],
+      [
+        "Kohinoor Bangla",
+        "Kohinoor Bangla"
+      ],
+      [
+        "Kohinoor Devanagari",
+        "Kohinoor Devanagari"
+      ],
+      [
+        "Kohinoor Gujarati",
+        "Kohinoor Gujarati"
+      ],
+      [
+        "Kohinoor Telugu",
+        "Kohinoor Telugu"
+      ],
+      [
+        "Kokonor",
+        "Kokonor"
+      ],
+      [
+        "Krungthep",
+        "Krungthep"
+      ],
+      [
+        "KufiStandardGK",
+        "KufiStandardGK"
+      ],
+      [
+        "Lao MN",
+        "Lao MN"
+      ],
+      [
+        "Lao Sangam MN",
+        "Lao Sangam MN"
+      ],
+      [
+        "Lato",
+        "Lato"
+      ],
+      [
+        "Lucida Grande",
+        "Lucida Grande"
+      ],
+      [
+        "Luminari",
+        "Luminari"
+      ],
+      [
+        "Malayalam MN",
+        "Malayalam MN"
+      ],
+      [
+        "Malayalam Sangam MN",
+        "Malayalam Sangam MN"
+      ],
+      [
+        "Marker Felt",
+        "Marker Felt"
+      ],
+      [
+        "Menlo",
+        "Menlo"
+      ],
+      [
+        "Microsoft Sans Serif",
+        "Microsoft Sans Serif"
+      ],
+      [
+        "Mishafi",
+        "Mishafi"
+      ],
+      [
+        "Mishafi Gold",
+        "Mishafi Gold"
+      ],
+      [
+        "Monaco",
+        "Monaco"
+      ],
+      [
+        "Monoton",
+        "Monoton"
+      ],
+      [
+        "Montserrat",
+        "Montserrat"
+      ],
+      [
+        "Montserrat Alternates",
+        "Montserrat Alternates"
+      ],
+      [
+        "Mshtakan",
+        "Mshtakan"
+      ],
+      [
+        "Mukta Mahee",
+        "Mukta Mahee"
+      ],
+      [
+        "Muna",
+        "Muna"
+      ],
+      [
+        "Myanmar MN",
+        "Myanmar MN"
+      ],
+      [
+        "Myanmar Sangam MN",
+        "Myanmar Sangam MN"
+      ],
+      [
+        "Nadeem",
+        "Nadeem"
+      ],
+      [
+        "New Peninim MT",
+        "New Peninim MT"
+      ],
+      [
+        "Noteworthy",
+        "Noteworthy"
+      ],
+      [
+        "Noto Nastaliq Urdu",
+        "Noto Nastaliq Urdu"
+      ],
+      [
+        "Noto Sans Armenian",
+        "Noto Sans Armenian"
+      ],
+      [
+        "Noto Sans Batak",
+        "Noto Sans Batak"
+      ],
+      [
+        "Noto Sans Kannada",
+        "Noto Sans Kannada"
+      ],
+      [
+        "Noto Sans Myanmar",
+        "Noto Sans Myanmar"
+      ],
+      [
+        "Noto Sans NKo",
+        "Noto Sans NKo"
+      ],
+      [
+        "Noto Sans Oriya",
+        "Noto Sans Oriya"
+      ],
+      [
+        "Noto Sans Syriac",
+        "Noto Sans Syriac"
+      ],
+      [
+        "Noto Sans Tagalog",
+        "Noto Sans Tagalog"
+      ],
+      [
+        "Noto Sans Zawgyi",
+        "Noto Sans Zawgyi"
+      ],
+      [
+        "Noto Serif Myanmar",
+        "Noto Serif Myanmar"
+      ],
+      [
+        "Nunito Sans",
+        "Nunito Sans"
+      ],
+      [
+        "Optima",
+        "Optima"
+      ],
+      [
+        "Oriya MN",
+        "Oriya MN"
+      ],
+      [
+        "Oriya Sangam MN",
+        "Oriya Sangam MN"
+      ],
+      [
+        "Palatino",
+        "Palatino"
+      ],
+      [
+        "Papyrus",
+        "Papyrus"
+      ],
+      [
+        "Party LET",
+        "Party LET"
+      ],
+      [
+        "Phosphate",
+        "Phosphate"
+      ],
+      [
+        "PingFang HK",
+        "PingFang HK"
+      ],
+      [
+        "PingFang MO",
+        "PingFang MO"
+      ],
+      [
+        "PingFang SC",
+        "PingFang SC"
+      ],
+      [
+        "PingFang TC",
+        "PingFang TC"
+      ],
+      [
+        "Plantagenet Cherokee",
+        "Plantagenet Cherokee"
+      ],
+      [
+        "Poppins",
+        "Poppins"
+      ],
+      [
+        "Proxima Nova",
+        "Proxima Nova"
+      ],
+      [
+        "PT Mono",
+        "PT Mono"
+      ],
+      [
+        "PT Sans",
+        "PT Sans"
+      ],
+      [
+        "PT Sans Caption",
+        "PT Sans Caption"
+      ],
+      [
+        "PT Sans Narrow",
+        "PT Sans Narrow"
+      ],
+      [
+        "PT Serif",
+        "PT Serif"
+      ],
+      [
+        "PT Serif Caption",
+        "PT Serif Caption"
+      ],
+      [
+        "Publico Text",
+        "Publico Text"
+      ],
+      [
+        "Raanana",
+        "Raanana"
+      ],
+      [
+        "Raleway",
+        "Raleway"
+      ],
+      [
+        "Rockwell",
+        "Rockwell"
+      ],
+      [
+        "Sana",
+        "Sana"
+      ],
+      [
+        "Sathu",
+        "Sathu"
+      ],
+      [
+        "Savoye LET",
+        "Savoye LET"
+      ],
+      [
+        "Shree Devanagari 714",
+        "Shree Devanagari 714"
+      ],
+      [
+        "SignPainter",
+        "SignPainter"
+      ],
+      [
+        "Silom",
+        "Silom"
+      ],
+      [
+        "Sinhala MN",
+        "Sinhala MN"
+      ],
+      [
+        "Sinhala Sangam MN",
+        "Sinhala Sangam MN"
+      ],
+      [
+        "Skia",
+        "Skia"
+      ],
+      [
+        "Snell Roundhand",
+        "Snell Roundhand"
+      ],
+      [
+        "Snowfun",
+        "Snowfun"
+      ],
+      [
+        "Songti SC",
+        "Songti SC"
+      ],
+      [
+        "Songti TC",
+        "Songti TC"
+      ],
+      [
+        "Source Code Pro",
+        "Source Code Pro"
+      ],
+      [
+        "STIX Two Math",
+        "STIX Two Math"
+      ],
+      [
+        "STIX Two Text",
+        "STIX Two Text"
+      ],
+      [
+        "STSong",
+        "STSong"
+      ],
+      [
+        "Sukhumvit Set",
+        "Sukhumvit Set"
+      ],
+      [
+        "Symbol",
+        "Symbol"
+      ],
+      [
+        "Tahoma",
+        "Tahoma"
+      ],
+      [
+        "Tamil MN",
+        "Tamil MN"
+      ],
+      [
+        "Tamil Sangam MN",
+        "Tamil Sangam MN"
+      ],
+      [
+        "Telugu MN",
+        "Telugu MN"
+      ],
+      [
+        "Telugu Sangam MN",
+        "Telugu Sangam MN"
+      ],
+      [
+        "Thonburi",
+        "Thonburi"
+      ],
+      [
+        "Times New Roman",
+        "Times New Roman"
+      ],
+      [
+        "Trattatello",
+        "Trattatello"
+      ],
+      [
+        "Trebuchet MS",
+        "Trebuchet MS"
+      ],
+      [
+        "Verdana",
+        "Verdana"
+      ],
+      [
+        "Waseem",
+        "Waseem"
+      ],
+      [
+        "Webdings",
+        "Webdings"
+      ],
+      [
+        "Wingdings",
+        "Wingdings"
+      ],
+      [
+        "Wingdings 2",
+        "Wingdings 2"
+      ],
+      [
+        "Wingdings 3",
+        "Wingdings 3"
+      ],
+      [
+        "Zapf Dingbats",
+        "Zapf Dingbats"
+      ],
+      [
+        "Zapfino",
+        "Zapfino"
+      ]
+    ],
+    "current": "Inter",
+    "visible": false,
+    "enabled": false
+  },
+  "clip_text_size": {
+    "type": "NoScrollDoubleSpinBox",
+    "min": 0.0,
+    "max": 72.0,
+    "value": 0.0,
+    "enabled": false,
+    "visible": false,
+    "decimals": 0,
+    "step": 1.0,
+    "special": "auto"
+  },
+  "clip_width": {
+    "type": "NoScrollDoubleSpinBox",
+    "min": 10.0,
+    "max": 100.0,
+    "value": 26.0,
+    "enabled": true,
+    "visible": true,
+    "decimals": 1,
+    "step": 0.5
+  },
+  "cm_stagger_cb": {
+    "type": "check",
+    "checked": false,
+    "text": "Offset every second strip",
+    "visible": false,
+    "enabled": true
+  },
+  "compression": {
+    "type": "combo",
+    "items": [
+      [
+        "LZW",
+        "lzw"
+      ],
+      [
+        "Zlib",
+        "zlib"
+      ],
+      [
+        "None",
+        "none"
+      ]
+    ],
+    "current": "lzw",
+    "visible": false,
+    "enabled": true
+  },
+  "ct_bold": {
+    "type": "check",
+    "checked": false,
+    "text": "Bold",
+    "visible": false,
+    "enabled": true
+  },
+  "ct_italic": {
+    "type": "check",
+    "checked": false,
+    "text": "Italic",
+    "visible": false,
+    "enabled": false
+  },
+  "custom_h": {
+    "type": "NoScrollDoubleSpinBox",
+    "min": 20.0,
+    "max": 2000.0,
+    "value": 297.0,
+    "enabled": true,
+    "visible": false,
+    "decimals": 0,
+    "step": 1.0
+  },
+  "custom_spacer_cb": {
+    "type": "check",
+    "checked": false,
+    "text": "Custom spacer colours",
+    "visible": false,
+    "enabled": true
+  },
+  "custom_w": {
+    "type": "NoScrollDoubleSpinBox",
+    "min": 20.0,
+    "max": 2000.0,
+    "value": 210.0,
+    "enabled": true,
+    "visible": false,
+    "decimals": 0,
+    "step": 1.0
+  },
+  "dpi": {
+    "type": "NoScrollSpinBox",
+    "min": 72,
+    "max": 1200,
+    "value": 300,
+    "enabled": true,
+    "visible": true,
+    "suffix": " dpi"
+  },
+  "edge_spacers_cb": {
+    "type": "check",
+    "checked": false,
+    "text": "Edge spacers (bracket each strip)",
+    "visible": false,
+    "enabled": true
+  },
+  "export_pdf": {
+    "type": "check",
+    "checked": false,
+    "text": "Also export a PDF",
+    "visible": false,
+    "enabled": true
+  },
+  "fixed_seed_cb": {
+    "type": "check",
+    "checked": true,
+    "text": "Use a fixed seed (reproducible)",
+    "visible": true,
+    "enabled": false
+  },
+  "helper_marker_edge": {
+    "type": "NoScrollDoubleSpinBox",
+    "min": 0.0,
+    "max": 60.0,
+    "value": 2.0,
+    "enabled": false,
+    "visible": false,
+    "decimals": 1,
+    "step": 0.5
+  },
+  "helper_marker_len": {
+    "type": "NoScrollDoubleSpinBox",
+    "min": 0.0,
+    "max": 60.0,
+    "value": 2.0,
+    "enabled": false,
+    "visible": false,
+    "decimals": 1,
+    "step": 0.5
+  },
+  "helper_marker_per_patch": {
+    "type": "NoScrollSpinBox",
+    "min": 2,
+    "max": 12,
+    "value": 3,
+    "enabled": false,
+    "visible": false
+  },
+  "helper_markers_cb": {
+    "type": "check",
+    "checked": false,
+    "text": "Print helper markers",
+    "visible": false,
+    "enabled": true
+  },
+  "helper_markers_sides": {
+    "type": "check",
+    "checked": true,
+    "text": "Sides (vertical)",
+    "visible": false,
+    "enabled": false
+  },
+  "helper_markers_top_bottom": {
+    "type": "check",
+    "checked": true,
+    "text": "Top/bottom (horizontal)",
+    "visible": false,
+    "enabled": false
+  },
+  "ind_align_center": {
+    "type": "check",
+    "checked": false,
+    "text": "Centered",
+    "visible": false,
+    "enabled": false
+  },
+  "ind_align_left": {
+    "type": "check",
+    "checked": true,
+    "text": "Left",
+    "visible": false,
+    "enabled": false
+  },
+  "ind_align_right": {
+    "type": "check",
+    "checked": false,
+    "text": "Right",
+    "visible": false,
+    "enabled": false
+  },
+  "ind_bold": {
+    "type": "check",
+    "checked": false,
+    "text": "Bold",
+    "visible": false,
+    "enabled": true
+  },
+  "ind_italic": {
+    "type": "check",
+    "checked": false,
+    "text": "Italic",
+    "visible": false,
+    "enabled": false
+  },
+  "indicator_font": {
+    "type": "combo",
+    "items": [
+      [
+        "JetBrains Mono",
+        "JetBrains Mono"
+      ],
+      [
+        "Inter",
+        "Inter"
+      ],
+      [
+        "Instrument Serif",
+        "Instrument Serif"
+      ],
+      [
+        "",
+        null
+      ],
+      [
+        ".Apple Symbols Fallback",
+        ".Apple Symbols Fallback"
+      ],
+      [
+        ".AppleSystemUIFont",
+        ".AppleSystemUIFont"
+      ],
+      [
+        ".Times Fallback",
+        ".Times Fallback"
+      ],
+      [
+        "Academy Engraved LET",
+        "Academy Engraved LET"
+      ],
+      [
+        "Al Bayan",
+        "Al Bayan"
+      ],
+      [
+        "Al Nile",
+        "Al Nile"
+      ],
+      [
+        "Al Tarikh",
+        "Al Tarikh"
+      ],
+      [
+        "American Typewriter",
+        "American Typewriter"
+      ],
+      [
+        "Andale Mono",
+        "Andale Mono"
+      ],
+      [
+        "Apple Braille",
+        "Apple Braille"
+      ],
+      [
+        "Apple Chancery",
+        "Apple Chancery"
+      ],
+      [
+        "Apple Color Emoji",
+        "Apple Color Emoji"
+      ],
+      [
+        "Apple SD Gothic Neo",
+        "Apple SD Gothic Neo"
+      ],
+      [
+        "Apple Symbols",
+        "Apple Symbols"
+      ],
+      [
+        "AppleGothic",
+        "AppleGothic"
+      ],
+      [
+        "AppleMyungjo",
+        "AppleMyungjo"
+      ],
+      [
+        "Arial",
+        "Arial"
+      ],
+      [
+        "Arial Black",
+        "Arial Black"
+      ],
+      [
+        "Arial Hebrew",
+        "Arial Hebrew"
+      ],
+      [
+        "Arial Hebrew Scholar",
+        "Arial Hebrew Scholar"
+      ],
+      [
+        "Arial Narrow",
+        "Arial Narrow"
+      ],
+      [
+        "Arial Rounded MT Bold",
+        "Arial Rounded MT Bold"
+      ],
+      [
+        "Arial Unicode MS",
+        "Arial Unicode MS"
+      ],
+      [
+        "Avenir",
+        "Avenir"
+      ],
+      [
+        "Avenir Next",
+        "Avenir Next"
+      ],
+      [
+        "Avenir Next Condensed",
+        "Avenir Next Condensed"
+      ],
+      [
+        "Ayuthaya",
+        "Ayuthaya"
+      ],
+      [
+        "Baghdad",
+        "Baghdad"
+      ],
+      [
+        "Bangla MN",
+        "Bangla MN"
+      ],
+      [
+        "Bangla Sangam MN",
+        "Bangla Sangam MN"
+      ],
+      [
+        "Basement Grotesque",
+        "Basement Grotesque"
+      ],
+      [
+        "Baskerville",
+        "Baskerville"
+      ],
+      [
+        "Beirut",
+        "Beirut"
+      ],
+      [
+        "Big Caslon",
+        "Big Caslon"
+      ],
+      [
+        "Bodoni 72",
+        "Bodoni 72"
+      ],
+      [
+        "Bodoni 72 Oldstyle",
+        "Bodoni 72 Oldstyle"
+      ],
+      [
+        "Bodoni 72 Smallcaps",
+        "Bodoni 72 Smallcaps"
+      ],
+      [
+        "Bodoni Ornaments",
+        "Bodoni Ornaments"
+      ],
+      [
+        "Bradley Hand",
+        "Bradley Hand"
+      ],
+      [
+        "Brush Script MT",
+        "Brush Script MT"
+      ],
+      [
+        "Canela Text",
+        "Canela Text"
+      ],
+      [
+        "Chalkboard",
+        "Chalkboard"
+      ],
+      [
+        "Chalkboard SE",
+        "Chalkboard SE"
+      ],
+      [
+        "Chalkduster",
+        "Chalkduster"
+      ],
+      [
+        "Charter",
+        "Charter"
+      ],
+      [
+        "Cochin",
+        "Cochin"
+      ],
+      [
+        "Comic Sans MS",
+        "Comic Sans MS"
+      ],
+      [
+        "Copperplate",
+        "Copperplate"
+      ],
+      [
+        "Corsiva Hebrew",
+        "Corsiva Hebrew"
+      ],
+      [
+        "Courier New",
+        "Courier New"
+      ],
+      [
+        "Damascus",
+        "Damascus"
+      ],
+      [
+        "DecoType Naskh",
+        "DecoType Naskh"
+      ],
+      [
+        "Devanagari MT",
+        "Devanagari MT"
+      ],
+      [
+        "Devanagari Sangam MN",
+        "Devanagari Sangam MN"
+      ],
+      [
+        "Didot",
+        "Didot"
+      ],
+      [
+        "DIN Alternate",
+        "DIN Alternate"
+      ],
+      [
+        "DIN Condensed",
+        "DIN Condensed"
+      ],
+      [
+        "Diwan Kufi",
+        "Diwan Kufi"
+      ],
+      [
+        "Diwan Thuluth",
+        "Diwan Thuluth"
+      ],
+      [
+        "Euphemia UCAS",
+        "Euphemia UCAS"
+      ],
+      [
+        "Farah",
+        "Farah"
+      ],
+      [
+        "Farisi",
+        "Farisi"
+      ],
+      [
+        "Futura",
+        "Futura"
+      ],
+      [
+        "Galvji",
+        "Galvji"
+      ],
+      [
+        "GB18030 Bitmap",
+        "GB18030 Bitmap"
+      ],
+      [
+        "Geeza Pro",
+        "Geeza Pro"
+      ],
+      [
+        "Geneva",
+        "Geneva"
+      ],
+      [
+        "Georgia",
+        "Georgia"
+      ],
+      [
+        "Gill Sans",
+        "Gill Sans"
+      ],
+      [
+        "Grantha Sangam MN",
+        "Grantha Sangam MN"
+      ],
+      [
+        "Gujarati MT",
+        "Gujarati MT"
+      ],
+      [
+        "Gujarati Sangam MN",
+        "Gujarati Sangam MN"
+      ],
+      [
+        "Gurmukhi MN",
+        "Gurmukhi MN"
+      ],
+      [
+        "Gurmukhi MT",
+        "Gurmukhi MT"
+      ],
+      [
+        "Gurmukhi Sangam MN",
+        "Gurmukhi Sangam MN"
+      ],
+      [
+        "Heiti SC",
+        "Heiti SC"
+      ],
+      [
+        "Heiti TC",
+        "Heiti TC"
+      ],
+      [
+        "Helvetica",
+        "Helvetica"
+      ],
+      [
+        "Helvetica Neue",
+        "Helvetica Neue"
+      ],
+      [
+        "Herculanum",
+        "Herculanum"
+      ],
+      [
+        "Hiragino Maru Gothic ProN",
+        "Hiragino Maru Gothic ProN"
+      ],
+      [
+        "Hiragino Mincho ProN",
+        "Hiragino Mincho ProN"
+      ],
+      [
+        "Hiragino Sans",
+        "Hiragino Sans"
+      ],
+      [
+        "Hiragino Sans GB",
+        "Hiragino Sans GB"
+      ],
+      [
+        "Hoefler Text",
+        "Hoefler Text"
+      ],
+      [
+        "Impact",
+        "Impact"
+      ],
+      [
+        "InaiMathi",
+        "InaiMathi"
+      ],
+      [
+        "Instrument Serif",
+        "Instrument Serif"
+      ],
+      [
+        "Inter",
+        "Inter"
+      ],
+      [
+        "ITF Devanagari",
+        "ITF Devanagari"
+      ],
+      [
+        "ITF Devanagari Marathi",
+        "ITF Devanagari Marathi"
+      ],
+      [
+        "JetBrains Mono",
+        "JetBrains Mono"
+      ],
+      [
+        "Kailasa",
+        "Kailasa"
+      ],
+      [
+        "Kannada MN",
+        "Kannada MN"
+      ],
+      [
+        "Kannada Sangam MN",
+        "Kannada Sangam MN"
+      ],
+      [
+        "Kefa",
+        "Kefa"
+      ],
+      [
+        "Khmer MN",
+        "Khmer MN"
+      ],
+      [
+        "Khmer Sangam MN",
+        "Khmer Sangam MN"
+      ],
+      [
+        "Kohinoor Bangla",
+        "Kohinoor Bangla"
+      ],
+      [
+        "Kohinoor Devanagari",
+        "Kohinoor Devanagari"
+      ],
+      [
+        "Kohinoor Gujarati",
+        "Kohinoor Gujarati"
+      ],
+      [
+        "Kohinoor Telugu",
+        "Kohinoor Telugu"
+      ],
+      [
+        "Kokonor",
+        "Kokonor"
+      ],
+      [
+        "Krungthep",
+        "Krungthep"
+      ],
+      [
+        "KufiStandardGK",
+        "KufiStandardGK"
+      ],
+      [
+        "Lao MN",
+        "Lao MN"
+      ],
+      [
+        "Lao Sangam MN",
+        "Lao Sangam MN"
+      ],
+      [
+        "Lato",
+        "Lato"
+      ],
+      [
+        "Lucida Grande",
+        "Lucida Grande"
+      ],
+      [
+        "Luminari",
+        "Luminari"
+      ],
+      [
+        "Malayalam MN",
+        "Malayalam MN"
+      ],
+      [
+        "Malayalam Sangam MN",
+        "Malayalam Sangam MN"
+      ],
+      [
+        "Marker Felt",
+        "Marker Felt"
+      ],
+      [
+        "Menlo",
+        "Menlo"
+      ],
+      [
+        "Microsoft Sans Serif",
+        "Microsoft Sans Serif"
+      ],
+      [
+        "Mishafi",
+        "Mishafi"
+      ],
+      [
+        "Mishafi Gold",
+        "Mishafi Gold"
+      ],
+      [
+        "Monaco",
+        "Monaco"
+      ],
+      [
+        "Monoton",
+        "Monoton"
+      ],
+      [
+        "Montserrat",
+        "Montserrat"
+      ],
+      [
+        "Montserrat Alternates",
+        "Montserrat Alternates"
+      ],
+      [
+        "Mshtakan",
+        "Mshtakan"
+      ],
+      [
+        "Mukta Mahee",
+        "Mukta Mahee"
+      ],
+      [
+        "Muna",
+        "Muna"
+      ],
+      [
+        "Myanmar MN",
+        "Myanmar MN"
+      ],
+      [
+        "Myanmar Sangam MN",
+        "Myanmar Sangam MN"
+      ],
+      [
+        "Nadeem",
+        "Nadeem"
+      ],
+      [
+        "New Peninim MT",
+        "New Peninim MT"
+      ],
+      [
+        "Noteworthy",
+        "Noteworthy"
+      ],
+      [
+        "Noto Nastaliq Urdu",
+        "Noto Nastaliq Urdu"
+      ],
+      [
+        "Noto Sans Armenian",
+        "Noto Sans Armenian"
+      ],
+      [
+        "Noto Sans Batak",
+        "Noto Sans Batak"
+      ],
+      [
+        "Noto Sans Kannada",
+        "Noto Sans Kannada"
+      ],
+      [
+        "Noto Sans Myanmar",
+        "Noto Sans Myanmar"
+      ],
+      [
+        "Noto Sans NKo",
+        "Noto Sans NKo"
+      ],
+      [
+        "Noto Sans Oriya",
+        "Noto Sans Oriya"
+      ],
+      [
+        "Noto Sans Syriac",
+        "Noto Sans Syriac"
+      ],
+      [
+        "Noto Sans Tagalog",
+        "Noto Sans Tagalog"
+      ],
+      [
+        "Noto Sans Zawgyi",
+        "Noto Sans Zawgyi"
+      ],
+      [
+        "Noto Serif Myanmar",
+        "Noto Serif Myanmar"
+      ],
+      [
+        "Nunito Sans",
+        "Nunito Sans"
+      ],
+      [
+        "Optima",
+        "Optima"
+      ],
+      [
+        "Oriya MN",
+        "Oriya MN"
+      ],
+      [
+        "Oriya Sangam MN",
+        "Oriya Sangam MN"
+      ],
+      [
+        "Palatino",
+        "Palatino"
+      ],
+      [
+        "Papyrus",
+        "Papyrus"
+      ],
+      [
+        "Party LET",
+        "Party LET"
+      ],
+      [
+        "Phosphate",
+        "Phosphate"
+      ],
+      [
+        "PingFang HK",
+        "PingFang HK"
+      ],
+      [
+        "PingFang MO",
+        "PingFang MO"
+      ],
+      [
+        "PingFang SC",
+        "PingFang SC"
+      ],
+      [
+        "PingFang TC",
+        "PingFang TC"
+      ],
+      [
+        "Plantagenet Cherokee",
+        "Plantagenet Cherokee"
+      ],
+      [
+        "Poppins",
+        "Poppins"
+      ],
+      [
+        "Proxima Nova",
+        "Proxima Nova"
+      ],
+      [
+        "PT Mono",
+        "PT Mono"
+      ],
+      [
+        "PT Sans",
+        "PT Sans"
+      ],
+      [
+        "PT Sans Caption",
+        "PT Sans Caption"
+      ],
+      [
+        "PT Sans Narrow",
+        "PT Sans Narrow"
+      ],
+      [
+        "PT Serif",
+        "PT Serif"
+      ],
+      [
+        "PT Serif Caption",
+        "PT Serif Caption"
+      ],
+      [
+        "Publico Text",
+        "Publico Text"
+      ],
+      [
+        "Raanana",
+        "Raanana"
+      ],
+      [
+        "Raleway",
+        "Raleway"
+      ],
+      [
+        "Rockwell",
+        "Rockwell"
+      ],
+      [
+        "Sana",
+        "Sana"
+      ],
+      [
+        "Sathu",
+        "Sathu"
+      ],
+      [
+        "Savoye LET",
+        "Savoye LET"
+      ],
+      [
+        "Shree Devanagari 714",
+        "Shree Devanagari 714"
+      ],
+      [
+        "SignPainter",
+        "SignPainter"
+      ],
+      [
+        "Silom",
+        "Silom"
+      ],
+      [
+        "Sinhala MN",
+        "Sinhala MN"
+      ],
+      [
+        "Sinhala Sangam MN",
+        "Sinhala Sangam MN"
+      ],
+      [
+        "Skia",
+        "Skia"
+      ],
+      [
+        "Snell Roundhand",
+        "Snell Roundhand"
+      ],
+      [
+        "Snowfun",
+        "Snowfun"
+      ],
+      [
+        "Songti SC",
+        "Songti SC"
+      ],
+      [
+        "Songti TC",
+        "Songti TC"
+      ],
+      [
+        "Source Code Pro",
+        "Source Code Pro"
+      ],
+      [
+        "STIX Two Math",
+        "STIX Two Math"
+      ],
+      [
+        "STIX Two Text",
+        "STIX Two Text"
+      ],
+      [
+        "STSong",
+        "STSong"
+      ],
+      [
+        "Sukhumvit Set",
+        "Sukhumvit Set"
+      ],
+      [
+        "Symbol",
+        "Symbol"
+      ],
+      [
+        "Tahoma",
+        "Tahoma"
+      ],
+      [
+        "Tamil MN",
+        "Tamil MN"
+      ],
+      [
+        "Tamil Sangam MN",
+        "Tamil Sangam MN"
+      ],
+      [
+        "Telugu MN",
+        "Telugu MN"
+      ],
+      [
+        "Telugu Sangam MN",
+        "Telugu Sangam MN"
+      ],
+      [
+        "Thonburi",
+        "Thonburi"
+      ],
+      [
+        "Times New Roman",
+        "Times New Roman"
+      ],
+      [
+        "Trattatello",
+        "Trattatello"
+      ],
+      [
+        "Trebuchet MS",
+        "Trebuchet MS"
+      ],
+      [
+        "Verdana",
+        "Verdana"
+      ],
+      [
+        "Waseem",
+        "Waseem"
+      ],
+      [
+        "Webdings",
+        "Webdings"
+      ],
+      [
+        "Wingdings",
+        "Wingdings"
+      ],
+      [
+        "Wingdings 2",
+        "Wingdings 2"
+      ],
+      [
+        "Wingdings 3",
+        "Wingdings 3"
+      ],
+      [
+        "Zapf Dingbats",
+        "Zapf Dingbats"
+      ],
+      [
+        "Zapfino",
+        "Zapfino"
+      ]
+    ],
+    "current": "JetBrains Mono",
+    "visible": false,
+    "enabled": true
+  },
+  "indicator_rotation": {
+    "type": "combo",
+    "items": [
+      [
+        "0\u00b0",
+        0
+      ],
+      [
+        "90\u00b0",
+        90
+      ],
+      [
+        "180\u00b0",
+        180
+      ],
+      [
+        "270\u00b0",
+        270
+      ]
+    ],
+    "current": 0,
+    "visible": false,
+    "enabled": true
+  },
+  "indicator_size": {
+    "type": "NoScrollDoubleSpinBox",
+    "min": 0.0,
+    "max": 72.0,
+    "value": 0.0,
+    "enabled": true,
+    "visible": false,
+    "decimals": 0,
+    "step": 1.0,
+    "special": "auto"
+  },
+  "instr": {
+    "type": "combo",
+    "items": [
+      [
+        "i1Pro / i1Pro 2 / i1Pro 3",
+        "i1"
+      ],
+      [
+        "i1Pro 3 Plus",
+        "p3"
+      ],
+      [
+        "ColorMunki / i1Studio / ColorChecker Studio",
+        "CM"
+      ],
+      [
+        "SpectroScan (flatbed)",
+        "SS"
+      ],
+      [
+        "CR30 (ChnSpec, patch by patch)",
+        "CR30"
+      ]
+    ],
+    "current": "i1",
+    "visible": true,
+    "enabled": true
+  },
+  "inter_patch": {
+    "type": "NoScrollDoubleSpinBox",
+    "min": 0.0,
+    "max": 300.0,
+    "value": 0.0,
+    "enabled": true,
+    "visible": false,
+    "decimals": 1,
+    "step": 0.5,
+    "suffix": " mm"
+  },
+  "layout_mode": {
+    "type": "combo",
+    "items": [
+      [
+        "Prioritise chart area, then fit patches to it",
+        "area_first"
+      ],
+      [
+        "Prioritise patch size, then fit to page",
+        "patch_first"
+      ]
+    ],
+    "current": "patch_first",
+    "visible": true,
+    "enabled": true
+  },
+  "margins": {
+    "t": {
+      "min": 0.0,
+      "max": 60.0,
+      "value": 6.0,
+      "enabled": true,
+      "visible": true,
+      "decimals": 1,
+      "step": 0.5
+    },
+    "r": {
+      "min": 0.0,
+      "max": 60.0,
+      "value": 6.0,
+      "enabled": true,
+      "visible": true,
+      "decimals": 1,
+      "step": 0.5
+    },
+    "b": {
+      "min": 0.0,
+      "max": 60.0,
+      "value": 6.0,
+      "enabled": true,
+      "visible": true,
+      "decimals": 1,
+      "step": 0.5
+    },
+    "l": {
+      "min": 0.0,
+      "max": 60.0,
+      "value": 6.0,
+      "enabled": true,
+      "visible": true,
+      "decimals": 1,
+      "step": 0.5
+    }
+  },
+  "max_strip": {
+    "type": "NoScrollDoubleSpinBox",
+    "min": 0.0,
+    "max": 2000.0,
+    "value": 0.0,
+    "enabled": true,
+    "visible": true,
+    "decimals": 1,
+    "step": 0.5,
+    "special": "auto",
+    "suffix": " mm"
+  },
+  "mode": {
+    "type": "combo",
+    "items": [
+      [
+        "On",
+        "clip"
+      ],
+      [
+        "Off \u2014 more patches",
+        "noclip"
+      ]
+    ],
+    "current": "clip",
+    "visible": true,
+    "enabled": true
+  },
+  "new_seed_btn": {
+    "type": "button",
+    "text": "New seed",
+    "visible": true,
+    "enabled": false
+  },
+  "nolimit": {
+    "type": "check",
+    "checked": false,
+    "text": "Don't cap strip length",
+    "visible": true,
+    "enabled": true
+  },
+  "offx": {
+    "type": "NoScrollDoubleSpinBox",
+    "min": 0.0,
+    "max": 300.0,
+    "value": 0.0,
+    "enabled": true,
+    "visible": true,
+    "decimals": 1,
+    "step": 0.5
+  },
+  "offy": {
+    "type": "NoScrollDoubleSpinBox",
+    "min": 0.0,
+    "max": 300.0,
+    "value": 0.0,
+    "enabled": true,
+    "visible": true,
+    "decimals": 1,
+    "step": 0.5
+  },
+  "pages": {
+    "type": "NoScrollSpinBox",
+    "min": 1,
+    "max": 20,
+    "value": 4,
+    "enabled": false,
+    "visible": true
+  },
+  "paper": {
+    "type": "combo",
+    "items": [
+      [
+        "A2 (420 \u00d7 594 mm) Portrait",
+        "A2"
+      ],
+      [
+        "A2 (594 \u00d7 420 mm) Landscape",
+        "594x420"
+      ],
+      [
+        "A3+ (329 \u00d7 483 mm) Portrait",
+        "329x483"
+      ],
+      [
+        "A3+ (483 \u00d7 329 mm) Landscape",
+        "483x329"
+      ],
+      [
+        "A3 (297 \u00d7 420 mm) Portrait",
+        "A3"
+      ],
+      [
+        "A3 (420 \u00d7 297 mm) Landscape",
+        "420x297"
+      ],
+      [
+        "Tabloid / 11 \u00d7 17\"",
+        "11x17"
+      ],
+      [
+        "Legal (8.5 \u00d7 14\")",
+        "Legal"
+      ],
+      [
+        "A4 (210 \u00d7 297 mm) Portrait",
+        "A4"
+      ],
+      [
+        "A4 (297 \u00d7 210 mm) Landscape",
+        "A4R"
+      ],
+      [
+        "Letter (8.5 \u00d7 11\") Portrait",
+        "Letter"
+      ],
+      [
+        "Letter (11 \u00d7 8.5\") Landscape",
+        "LetterR"
+      ],
+      [
+        "8\u00d710\" (203 \u00d7 254 mm)",
+        "203x254"
+      ],
+      [
+        "5\u00d77\" (127 \u00d7 178 mm)",
+        "127x178"
+      ],
+      [
+        "4\u00d76\" (102 \u00d7 152 mm)",
+        "4x6"
+      ],
+      [
+        "Custom\u2026",
+        "__custom__"
+      ]
+    ],
+    "current": "A4",
+    "visible": true,
+    "enabled": true
+  },
+  "patch_align": {
+    "type": "combo",
+    "items": [
+      [
+        "Top-left",
+        "top-left"
+      ],
+      [
+        "Top-centre",
+        "top-center"
+      ],
+      [
+        "Top-right",
+        "top-right"
+      ],
+      [
+        "Centre-left",
+        "center-left"
+      ],
+      [
+        "Centre",
+        "center"
+      ],
+      [
+        "Centre-right",
+        "center-right"
+      ],
+      [
+        "Bottom-left",
+        "bottom-left"
+      ],
+      [
+        "Bottom-centre",
+        "bottom-center"
+      ],
+      [
+        "Bottom-right",
+        "bottom-right"
+      ]
+    ],
+    "current": "center-left",
+    "visible": true,
+    "enabled": true
+  },
+  "patch_pat": {
+    "type": "line",
+    "text": "0-9,@-9,@-9;1-999",
+    "visible": true
+  },
+  "patch_x": {
+    "type": "NoScrollDoubleSpinBox",
+    "min": 0.0,
+    "max": 60.0,
+    "value": 0.0,
+    "enabled": true,
+    "visible": true,
+    "decimals": 1,
+    "step": 0.5,
+    "special": "auto"
+  },
+  "patch_y": {
+    "type": "NoScrollDoubleSpinBox",
+    "min": 0.0,
+    "max": 60.0,
+    "value": 0.0,
+    "enabled": true,
+    "visible": true,
+    "decimals": 1,
+    "step": 0.5,
+    "special": "auto"
+  },
+  "pscale": {
+    "type": "NoScrollDoubleSpinBox",
+    "min": 0.5,
+    "max": 3.0,
+    "value": 1.0,
+    "enabled": true,
+    "visible": true,
+    "decimals": 3,
+    "step": 0.05
+  },
+  "randomize_cb": {
+    "type": "check",
+    "checked": false,
+    "text": "Randomise patch order",
+    "visible": true,
+    "enabled": true
+  },
+  "seed_spin": {
+    "type": "NoScrollSpinBox",
+    "min": 0,
+    "max": 2147483647,
+    "value": 1670165746,
+    "enabled": false,
+    "visible": true
+  },
+  "show_indicators": {
+    "type": "check",
+    "checked": true,
+    "text": "Show strip indicators",
+    "visible": true,
+    "enabled": true
+  },
+  "show_row_indicators": {
+    "type": "check",
+    "checked": false,
+    "text": "Show row indicators",
+    "visible": true,
+    "enabled": true
+  },
+  "sig": {
+    "type": "NoScrollDoubleSpinBox",
+    "min": 0.0,
+    "max": 300.0,
+    "value": 0.0,
+    "enabled": true,
+    "visible": false,
+    "decimals": 1,
+    "step": 0.5,
+    "suffix": " mm"
+  },
+  "spacer_mode": {
+    "type": "combo",
+    "items": [
+      [
+        "Coloured",
+        "colored"
+      ],
+      [
+        "Black & white",
+        "bw"
+      ],
+      [
+        "None",
+        "none"
+      ]
+    ],
+    "current": "colored",
+    "visible": false,
+    "enabled": true
+  },
+  "spacer_width": {
+    "type": "NoScrollDoubleSpinBox",
+    "min": 0.0,
+    "max": 300.0,
+    "value": 0.0,
+    "enabled": true,
+    "visible": false,
+    "decimals": 1,
+    "step": 0.5,
+    "special": "auto",
+    "suffix": " mm"
+  },
+  "sscale": {
+    "type": "NoScrollDoubleSpinBox",
+    "min": 0.5,
+    "max": 3.0,
+    "value": 1.0,
+    "enabled": true,
+    "visible": false,
+    "decimals": 3,
+    "step": 0.05
+  },
+  "stamp_command": {
+    "type": "check",
+    "checked": false,
+    "text": "Stamp layout summary on the sheet",
+    "visible": false,
+    "enabled": true
+  },
+  "strip_gap": {
+    "type": "NoScrollDoubleSpinBox",
+    "min": 0.0,
+    "max": 300.0,
+    "value": 0.0,
+    "enabled": true,
+    "visible": false,
+    "decimals": 1,
+    "step": 0.5,
+    "suffix": " mm"
+  },
+  "strip_label_offset": {
+    "type": "NoScrollDoubleSpinBox",
+    "min": -50.0,
+    "max": 50.0,
+    "value": 0.0,
+    "enabled": true,
+    "visible": false,
+    "decimals": 1,
+    "step": 0.5,
+    "suffix": " mm"
+  },
+  "strip_pat": {
+    "type": "line",
+    "text": "A-Z, A-Z",
+    "visible": true
+  },
+  "text_edge": {
+    "type": "NoScrollDoubleSpinBox",
+    "min": 0.0,
+    "max": 30.0,
+    "value": 4.0,
+    "enabled": true,
+    "visible": false,
+    "decimals": 1,
+    "step": 0.5
+  },
+  "text_edge_clip": {
+    "type": "NoScrollDoubleSpinBox",
+    "min": 0.0,
+    "max": 30.0,
+    "value": 4.0,
+    "enabled": true,
+    "visible": false,
+    "decimals": 1,
+    "step": 0.5
+  },
+  "text_edge_top": {
+    "type": "NoScrollDoubleSpinBox",
+    "min": 0.0,
+    "max": 30.0,
+    "value": 4.0,
+    "enabled": true,
+    "visible": false,
+    "decimals": 1,
+    "step": 0.5
+  },
+  "underline_gap": {
+    "type": "NoScrollDoubleSpinBox",
+    "min": 0.0,
+    "max": 20.0,
+    "value": 0.5,
+    "enabled": false,
+    "visible": false,
+    "decimals": 1,
+    "step": 0.5
+  },
+  "underline_mode": {
+    "type": "combo",
+    "items": [
+      [
+        "Off",
+        "off"
+      ],
+      [
+        "Coloured (5 segments)",
+        "segments"
+      ],
+      [
+        "Coloured (per strip)",
+        "cycle"
+      ],
+      [
+        "Black",
+        "black"
+      ]
+    ],
+    "current": "off",
+    "visible": false,
+    "enabled": true
+  },
+  "underline_thickness": {
+    "type": "NoScrollDoubleSpinBox",
+    "min": 0.0,
+    "max": 5.0,
+    "value": 0.5,
+    "enabled": false,
+    "visible": false,
+    "decimals": 1,
+    "step": 0.5
+  },
+  "use_instr_margins": {
+    "type": "check",
+    "checked": false,
+    "text": "Use instrument margins",
+    "visible": true,
+    "enabled": true
+  }
+}

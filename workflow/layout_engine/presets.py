@@ -34,6 +34,14 @@ class LayoutRecipe:
     hflag: bool = False            # SpectroScan hex (n/a elsewhere)
     cm_density: int = 1            # ColorMunki rows: 1 normal, 2 rig, 3 extra-high
     cm_stagger: bool = False       # ColorMunki: offset every second strip (rig)
+    # CR30 honeycomb turned 30 degrees, so each strip runs straight down the
+    # page instead of zigzagging. THE VALUE RIDES IN THE RECIPE AND NOWHERE
+    # ELSE: a second home in AppSettings would be a second writer, which is
+    # what `d1adbe31` was, and §4c D-3/D-4 say the app's own starting point is
+    # not an answer. Riding here makes "saveable as a default" mean "saved
+    # inside the default recipe", and the per-target list stays generated
+    # from `fields(LayoutRecipe)` as §S1.1 requires.
+    hex_flat_top: bool = False
     spacer_on: bool = True
     spacer_mode: str = "colored"   # "colored" | "bw" | "none"
     spacer_palette: list = field(default_factory=list)  # custom colored-spacer hexes
@@ -262,6 +270,8 @@ class LayoutRecipe:
             randomize=bool(d.get("randomize", True)), seed=d.get("seed"),
             hflag=bool(d.get("hflag", False)), cm_density=int(d.get("density", 1)),
             cm_stagger=bool(d.get("cm_stagger", False)),
+            # absent in every recipe written before #159 -> OFF
+            hex_flat_top=bool(d.get("hex_flat_top", False)),
             use_instrument_margins=bool(d.get("use_instrument_margins", False)),
             spacer_mode=d.get("spacer_mode", "colored"),
             spacer_palette=list(d.get("spacer_palette") or []),
@@ -380,6 +390,7 @@ class LayoutRecipe:
             "hflag": self.hflag,
             "density": self.cm_density,
             "cm_stagger": self.cm_stagger,
+            "hex_flat_top": self.hex_flat_top,
             "spacer_on": self.spacer_mode != "none",
             "spacer_mode": self.spacer_mode,
             "spacer_palette": list(self.spacer_palette) or None,

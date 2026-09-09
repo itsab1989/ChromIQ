@@ -22,7 +22,7 @@ from PIL import Image, ImageDraw, ImageFont
 from core.logger import get_logger
 from core.resource_path import resource_path
 
-from . import contrast, geometry, permutation
+from . import contrast, geometry, hexagon, permutation
 from .colorants import to_device_approx, to_device_approx_array, to_display_rgb
 from .geometry import Layout
 
@@ -303,8 +303,8 @@ def effective_indicator_size_mm(geom, dpi: int, font: str, size_mm: float) -> fl
     return max(min(target, INDICATOR_MIN_LEGIBLE_MM), target * avail / widest2)
 
 
-def _furniture_reserves_mm(geom, kw: dict) -> tuple[float, float]:
-    """``(label_band_mm, bottom_reserve_mm)`` — the vertical space the rendered
+def _furniture_reserves_mm(geom, kw: dict) -> tuple[float, float, float]:
+    """``(label_band_mm, bottom_reserve_mm, label_ink_bottom_mm)`` — the vertical space the rendered
     strip-label band (indicator + underline) and the bottom sheet-text/stamp
     block actually consume, so :func:`geometry.compute` can reserve them.
 
@@ -316,6 +316,7 @@ def _furniture_reserves_mm(geom, kw: dict) -> tuple[float, float]:
     dpi = int(kw.get("dpi") or 150)
     mm2px = dpi / 25.4
     label_band = 0.0   # indicators off ⇒ reclaim the whole label band
+    ink_bottom = 0.0   # …and no ink under the labels either
     if kw.get("draw_indicators", True):
         fam = kw.get("indicator_font", DEFAULT_INDICATOR_FONT)
         raw_size = float(kw.get("indicator_size_mm") or 0.0)   # 0 = auto
@@ -337,13 +338,25 @@ def _furniture_reserves_mm(geom, kw: dict) -> tuple[float, float]:
             bb = probe.getbbox()
             band_px = (bb[3] - bb[1]) if bb else ind_px
         band = band_px / mm2px
+        _rule = 0.0
         if kw.get("underline_mode", "off") in ("segments", "cycle", "black", "colored"):
-            band += (float(kw.get("underline_gap_mm") or 0.0)
+            _rule = (float(kw.get("underline_gap_mm") or 0.0)
                      + max(0.0, float(kw.get("underline_thickness_mm") or 0.0)))
+        band += _rule
         # Auto size keeps the instrument label floor (txhisl) so default charts
         # stay printtarg-identical; an EXPLICIT size reserves exactly what it
         # draws, so a smaller font frees space for more patches (#93).
         label_band = band if raw_size > 0 else max(geom.txhisl, band)
+        # WHAT THE RENDERER WILL ACTUALLY DRAW, which is not `label_band`.
+        # `render_pages` puts the band at `leader_top + strip_label_offset_mm`
+        # and gives it `ind_px` -- the font's FULL pixel size, ascent and descent
+        # included -- where the reserve above measures the ink bbox of "W8".
+        # At an explicit 6 mm the two differ by 1.44 mm, which is exactly what
+        # was printed over the first row of a turned honeycomb. Rotated labels
+        # use the same tile height as the reserve, so they agree there.
+        _drawn = (_indicator_tile("WW", f, spc, rot).height if rot in (90, 270)
+                  else ind_px) / mm2px
+        ink_bottom = float(kw.get("strip_label_offset_mm") or 0.0) + _drawn + _rule
     # Bottom-of-sheet block: one line each for custom sheet text and the stamp,
     # drawn at line_h = px(4.2) above the printer-safe bottom inset (see
     # render_pages); the inset keeps the text clear of a printer's unprintable
@@ -351,16 +364,17 @@ def _furniture_reserves_mm(geom, kw: dict) -> tuple[float, float]:
     nlines = (1 if kw.get("chart_text") else 0) + (1 if kw.get("stamp_command") else 0)
     _edge = float(kw.get("text_edge") or TEXT_EDGE_MARGIN_MM)
     bottom = (_edge + 4.2 * nlines) if nlines else 0.0
-    return label_band, bottom
+    return label_band, bottom, ink_bottom
 
 
 def apply_furniture_reserves(geom, kw: dict):
     """Return *geom* with label_band_mm / bottom_reserve_mm filled from the
     rendered furniture (single source of truth shared by the renderer and every
     capacity estimate, so they can't disagree — #93)."""
-    lb, br = _furniture_reserves_mm(geom, kw)
+    lb, br, ib = _furniture_reserves_mm(geom, kw)
     return apply_row_label_geometry(
-        replace(geom, label_band_mm=lb, bottom_reserve_mm=br), kw)
+        replace(geom, label_band_mm=lb, bottom_reserve_mm=br,
+                label_ink_bottom_mm=ib), kw)
 
 
 #: What `LayoutRecipe.text_edge_clip_mm` defaults to. Kept here as well because
@@ -1066,24 +1080,25 @@ class RenderResult:
     patch_geom: list[list[tuple]] | None = None
 
 
-def _hexagon_points(x0: int, y0: int, w: int, ph: int, step: int):
-    """Six vertices of a printtarg-style SpectroScan hexagon for the patch slot
-    at ``(x0, y0)`` sized ``w × ph`` (px), staggered ±¼·w by the patch's index
-    in the strip (#93, Knut). Pointed top and bottom, flat vertical sides; the
-    apexes reach ⅙·ph beyond the slot top and bottom (the geometry reserves that
-    as ``hxeh``), so neighbouring rows interlock as in ``printtarg -h``."""
-    dx = round(-w / 4) if step % 2 == 0 else round(w / 4)
-    t6 = ph / 6.0
-    left, right = x0 + dx, x0 + w + dx
-    cx = round(x0 + w / 2 + dx)
-    return [
-        (cx, round(y0 - t6)),               # top apex
-        (right, round(y0 + t6)),            # upper-right
-        (right, round(y0 + 5 * t6)),        # lower-right
-        (cx, round(y0 + ph + t6)),          # bottom apex
-        (left, round(y0 + 5 * t6)),         # lower-left
-        (left, round(y0 + t6)),             # upper-left
-    ]
+def _hexagon_points(x0: int, y0: int, w: int, ph: int, step: int,
+                    *, flat_top: bool = False):
+    """Six vertices of a printtarg-style hexagon for the patch slot at
+    ``(x0, y0)`` sized ``w × ph`` (px), staggered ±¼·w by the patch's index in
+    the strip (#93, Knut).
+
+    The shape itself now lives in ``hexagon.py`` and is shared with the Measure
+    overlay, the strip zigzag, the hit test and the scanner mesh. THE RENDERER
+    IS THE ONLY CALLER THAT ROUNDS: Pillow's ``polygon`` needs integers, and the
+    overlay measured worse when its own vertices were snapped. This stays as a
+    named function because two tests call it by name to check the stagger.
+    """
+    if flat_top:
+        # Rotated: the stagger moves to y and is indexed by the STRIP, so it is
+        # applied by the caller (which knows the strip) rather than here. This
+        # function only turns the shape.
+        return hexagon.vertices(x0, y0, w, ph, flat_top=True, round_to_int=True)
+    dx = hexagon.stagger_dx(w, step, round_to_int=not isinstance(w, float))
+    return hexagon.vertices(x0 + dx, y0, w, ph, round_to_int=True)
 
 
 def _fill_rect(draw: "ImageDraw.ImageDraw", box, fill) -> bool:
@@ -1205,6 +1220,9 @@ def render_pages(
     # Capacity is unchanged — only the shape.
     from .instruments import is_hexagonal as _is_hex
     ss_hex = _is_hex(geom)
+    _flat_top = bool(getattr(geom, "hex_flat_top", False))
+    _S = dpi / 25.4
+    _ring_px = px(float(getattr(geom, "hex_ring_mm", 0.0) or 0.0)) if ss_hex else 0
     # Row-number band width (SpectroScan labels the grid 2-D): 0 for instruments
     # without it. Drawn to the left of the patches, the band placement reserves.
     _row_band_px = px(getattr(geom, "rlwi", 0.0))
@@ -1309,6 +1327,25 @@ def render_pages(
         _clip_text = _resolve_with(clip_text, _pctx)
         first = page * pppage
         last = min(total, first + pppage)
+
+        def _neighbour_rgb(nb, _first=first, _last=last):
+            """Colour of the patch at ``(strip, step)``, or None for the paper.
+
+            None is what `spacer_for_mode` already means by "no neighbour on
+            that side", so a patch at the edge of the field colours its outer
+            sides against itself alone and the rule needs no special case.
+            A neighbour on ANOTHER PAGE is paper too, which is correct: the
+            sheet really does end there.
+            """
+            if nb is None:
+                return None
+            _gs, _jj = nb
+            if _gs < 0 or _jj < 0 or _jj >= steps:
+                return None
+            _slot = _gs * steps + _jj
+            if not (_first <= _slot < _last):
+                return None
+            return rgb_by_slot[_slot]
         n_on_page = last - first
         n_passes = (n_on_page + steps - 1) // steps
 
@@ -1325,6 +1362,25 @@ def render_pages(
             # ColorMunki "offset every second strip": odd strips shift down by
             # the rig stagger (#93, Knut). 0 for everything else.
             _stag = px(getattr(geom, "row_stagger_mm", 0.0)) if (global_strip & 1) else 0
+            # ...AND THE FLAT-TOP HONEYCOMB'S OWN HALF-PITCH OFFSET, which is a
+            # different mechanism that happens to act on the same axis. It is
+            # kept separate from `row_stagger_mm` on purpose: that one is the
+            # ColorMunki rig's downward-only shift, it also rewrites `hxeh`
+            # (instruments.py), and `geometry.py` switches the apex clearance
+            # off the moment it is non-zero. Folding the turn into it would
+            # destroy the apex reserve for a reason belonging to another
+            # instrument. Derived from `px(place.plen)` because
+            # `patch_rects_px` derives it from exactly the same expression, and
+            # the two must agree to the pixel or the recorded box describes a
+            # place no ink is.
+            # The ROUNDED offset is what the row labels and the recorded rects
+            # use; the vertices take the exact one, so neighbouring strips share
+            # their edge coordinates.
+            _stag_f = float(_stag)
+            if ss_hex and _flat_top:
+                _stag += hexagon.stagger_dy(px(place.plen), global_strip)
+                _stag_f += hexagon.stagger_dy(place.plen * _S, global_strip,
+                                              round_to_int=False)
             col_slots = list(range(first + p * steps,
                                    min(last, first + (p + 1) * steps)))
             if draw_indicators:
@@ -1386,7 +1442,17 @@ def render_pages(
                 # left column's even rows stagger ¼·width LEFT past x0, so clear
                 # that protrusion too, else the hexagons cover the numbers.
                 _gap = max(1, px(1.0))
-                _protrude = (strip_w // 4) if ss_hex else 0
+                # ROTATED: what sticks out to the left is no longer the stagger
+                # but the APEX, and it is a sixth of the width rather than a
+                # quarter. Using the stagger's quarter here would reserve 3.0 mm
+                # where 1.73 mm is needed, and using the pointy expression at
+                # all on a rotated sheet reserves the wrong quantity outright:
+                # a flat-top strip does not zigzag sideways, so there is no
+                # quarter-width protrusion to clear.
+                if ss_hex and _flat_top:
+                    _protrude = strip_w // 6
+                else:
+                    _protrude = (strip_w // 4) if ss_hex else 0
                 _rx = x0 - _protrude - _gap
                 # WHERE THE BAND ITSELF SITS — §R1.2, and the half of Knut's
                 # rule that beta 6 did not build.
@@ -1432,7 +1498,17 @@ def render_pages(
                 _band_right = (min(_floor_px + _row_band_px, _rx)
                                if _floor_px > 0 else _rx)
                 for _j in range(len(col_slots)):
-                    _ry = (px(place.y_of(_j)) + px(place.y_of(_j) + place.plen)) // 2
+                    # ...AND FOLLOW THE STRIP THIS LABEL BELONGS TO. `_ry` was
+                    # the UNSTAGGERED slot centre, which is right for every
+                    # chart whose leftmost strip does not move -- true of the
+                    # ColorMunki rig stagger, because that shifts only ODD
+                    # strips and the labels sit beside strip 0. A rotated
+                    # honeycomb staggers EVERY strip, strip 0 upward by a
+                    # quarter patch, so each number was drawn 3.0 mm below the
+                    # patch it names, on every row of every page. Found by eye
+                    # in a rendered sheet.
+                    _ry = ((px(place.y_of(_j)) + px(place.y_of(_j) + place.plen))
+                           // 2) + _stag
                     _txt = label_patch(_j + 1)
                     _tw = int(draw.textlength(_txt, font=_row_font))
                     # CLAMP AT THE PAPER EDGE. In area-first the row band is
@@ -1475,10 +1551,62 @@ def render_pages(
                 yB = px(place.y_of(j) + place.plen) + _stag    # patch bottom edge
                 rgb = rgb_by_slot[gslot]
                 if ss_hex:
-                    _pts = _hexagon_points(x0, y0, xR - x0, yB - y0, j)
-                    draw.polygon(_pts, fill=rgb)
-                    if collect_device_geom:
-                        _geom_rows.append(("hex", _pts, dev_by_slot[gslot]))
+                    # EXACT POSITIONS, ROUNDED ONCE AT THE VERTEX.
+                    _fx = place.x_of(p) * _S
+                    _fy = place.y_of(j) * _S + _stag_f
+                    _pts = _hexagon_points(_fx, _fy, place.pwid * _S,
+                                           place.plen * _S, j,
+                                           flat_top=_flat_top)
+                    if _ring_px > 0 and spacer_mode != "none":
+                        # A RING, ONE SIDE AT A TIME. Each of the six sides
+                        # faces exactly one neighbour, so it takes the ordinary
+                        # pair colour against that patch -- which keeps "Black &
+                        # white" meaning what it means, and, because that rule
+                        # is symmetric, makes this patch's half-band and the
+                        # neighbour's half-band the same colour. The two halves
+                        # then abut into ONE shared spacer, which is what Basti
+                        # asked for. A side with no neighbour faces the paper.
+                        # EVERY PATCH IS INSET BY THE SAME AMOUNT, edge or
+                        # not, so every patch on the sheet is the same size and
+                        # the instrument reads the same area everywhere. What
+                        # changes at the edge of the field is only what is
+                        # PAINTED in the band, never how big the patch is.
+                        _in = hexagon.inset(_pts, _ring_px / 2.0)
+                        _in = [(round(_x), round(_y)) for _x, _y in _in]
+                        # ...and the OUTSIDE of the sheet is where the bracket
+                        # goes. A side with a neighbour carries half the spacer
+                        # and the neighbour carries the other half, so the gap
+                        # between two patches is one full width. A side facing
+                        # the paper has no neighbour to share with, so with
+                        # "Edge spacers" on it is drawn a full width by itself,
+                        # reaching OUTWARD past the hexagon: Basti, 2026-09-09,
+                        # *"the spacers on the outside should probably be double
+                        # if turned on"*. With it off, the outer band is left as
+                        # paper, which is the same bracket-free look a strip
+                        # reader's chart has.
+                        _out = hexagon.inset(_pts, -_ring_px / 2.0)
+                        _out = [(round(_x), round(_y)) for _x, _y in _out]
+                        for _side, _nb in enumerate(hexagon.side_neighbours(
+                                global_strip, j, flat_top=_flat_top)):
+                            _nrgb = _neighbour_rgb(_nb)
+                            _edge = _nrgb is None
+                            if _edge and not edge_spacers:
+                                continue
+                            _fill = contrast.spacer_for_mode(
+                                spacer_mode, rgb, _nrgb, spacer_palette)
+                            _far = _out if _edge else _pts
+                            _q = [_far[_side], _far[(_side + 1) % 6],
+                                  _in[(_side + 1) % 6], _in[_side]]
+                            draw.polygon(_q, fill=_fill)
+                            if collect_device_geom:
+                                _geom_rows.append(("spacer_poly", _q, _fill))
+                        draw.polygon(_in, fill=rgb)
+                        if collect_device_geom:
+                            _geom_rows.append(("hex", _in, dev_by_slot[gslot]))
+                    else:
+                        draw.polygon(_pts, fill=rgb)
+                        if collect_device_geom:
+                            _geom_rows.append(("hex", _pts, dev_by_slot[gslot]))
                 else:
                     if _fill_rect(draw, [x0, y0, xR - 1, yB - 1], rgb) \
                             and collect_device_geom:

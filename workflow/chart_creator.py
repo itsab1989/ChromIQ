@@ -2096,7 +2096,36 @@ class ChartCreator:
         scale_sq = max(p.patch_scale ** 2, 0.01)
         est = max(20, int(est_raw / scale_sq))
 
-        lo = max(20, int(est * 0.5))
+        # THE SEARCH STARTS AT ONE PATCH, NOT AT HALF THE ESTIMATE, AND THAT IS
+        # THE WHOLE POINT OF THIS LINE.
+        #
+        # `est` comes from the same lookup that just failed. For a paper with no
+        # capacity row it is the bare 400 fallback above, so a sheet SMALLER
+        # than half of that had no probe below its real capacity: every probe
+        # returned more than one page, `hi` walked down past `lo`, `best` stayed
+        # 0, and the function returned the estimate that was never measured.
+        # Measured on this checkout with the app's own i1 default (-a0.95 -m10):
+        # a 100 x 150 mm card holds 90 patches and this answered 443; a
+        # 130 x 180 mm one holds 169 and it answered 443 as well. Both logged a
+        # warning nobody sees and put a five-fold over-estimate on screen.
+        # It was reachable before any preset needed it, through the `-p`
+        # "Custom (enter dimensions)" row.
+        #
+        # ONE, NOT TWENTY, AND THE DIFFERENCE IS A REAL PAPER SIZE. A first
+        # attempt at this moved the floor from `est*0.5` to 20 — enough for the
+        # two sheets that prompted it, and still wrong below that. Measured: a
+        # 60 x 90 mm sheet (2.4 x 3.5", the wallet print) holds 16 patches, and
+        # a floor of 20 answered 443 for it, exactly the fault this comment
+        # describes. `_probe` is happy all the way down (1, 2, 3 … all return
+        # one page on that sheet), so there is no reason to stop above it.
+        #
+        # It cannot miss: the search is over a monotonic function, so a wider
+        # window can only find the same answer or an answer the narrow one could
+        # not reach. Measured cost against the old window, real Argyll, ten
+        # instrument/paper/scale combinations: the probe count grows by at most
+        # ONE, and every paper with a measured capacity row returns the same
+        # number it always did.
+        lo = 1
         hi = max(lo + 50, int(est * 2.5))
         lo_init, hi_init = lo, hi
         best = 0
@@ -2125,8 +2154,24 @@ class ChartCreator:
                     hi = mid - 1
 
         if best == 0:
-            log.warning("_binary_search found no valid capacity in [%d, %d]; "
-                        "falling back to scaled estimate %d", lo_init, hi_init, est)
+            # WITH A FLOOR OF ONE PATCH, REACHING HERE MEANS SOMETHING ELSE NOW.
+            # It is no longer "the window started too high"; it is that not even
+            # a SINGLE patch fits on one page, i.e. the sheet is too small for
+            # this instrument's layout at all. Measured: `-ii1 -p50x50` spills
+            # one patch across three pages, because an i1Pro strip needs a 23 mm
+            # leader, a 10 mm run-off and the clip border before any colour.
+            #
+            # `est` is still returned, because every caller assigns this straight
+            # to `params.patches` and needs a number. That is the one thing this
+            # function still cannot say honestly, and it is a different problem
+            # from the one fixed here: telling somebody their paper is too small
+            # for their instrument is a message, not a number. The log at least
+            # no longer blames the search.
+            log.warning("_binary_search: not even one patch fits on a single "
+                        "page of %s for instrument %s (probed [%d, %d]) — the "
+                        "sheet is too small for this layout. Returning the "
+                        "UNVERIFIED estimate %d",
+                        p.paper, p.instrument, lo_init, hi_init, est)
             return est
         return best
 

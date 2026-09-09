@@ -137,7 +137,9 @@ def sample_margin(w: float, h: float, frac: float) -> float:
     return (span - sqrt(disc)) / 4.0
 
 
-def hex_max_sample_fraction(w: float, h: float) -> float:
+def hex_max_sample_fraction(w: float, h: float,
+                            flat_top: bool = False,
+                            ring_mm: float = 0.0) -> float:
     """The largest Sample area a HEXAGONAL chart can be read at before the
     sample box escapes the hexagon — from the chart's own patch proportions.
 
@@ -163,8 +165,43 @@ def hex_max_sample_fraction(w: float, h: float) -> float:
     w, h = float(w), float(h)
     if w <= 0.0 or h <= 0.0:
         return 1.0
+    # THE RING IS NOT PATCH, AND THE READ MUST STAY INSIDE THE PATCH. #159
+    # draws a honeycomb's spacer as a ring taken out of the patch's own area,
+    # so the ink a scanner may average is the INSET hexagon, not the slot. The
+    # cap was still computed on the un-ringed shape and offered 64 % where the
+    # ink after a 1.3 mm ring supports 51 %: every read then averaged 2.3 % of
+    # spacer colour into the measurement, and more as the ring grows. Wrong in
+    # the unsafe direction, and silent.
+    #
+    # A ring of `ring_mm` takes ring_mm/2 off every side of this patch, which
+    # shrinks the across-flats dimension by ring_mm and the other axis in
+    # proportion, so the readable hexagon is simply a smaller one.
+    w0, h0 = w, h
+    if ring_mm > 0:
+        short = min(w, h)
+        if short <= ring_mm:
+            return 0.05
+        k = (short - ring_mm) / short
+        w, h = w * k, h * k
+    if flat_top:
+        # THE SAME HEXAGON, TURNED, so the same formula with the two axes
+        # exchanged. The read box is square-cornered and symmetric, and
+        # `sample_margin` is symmetric in w and h, so only this cap has to know.
+        #
+        # Measured on the real CR30 honeycomb (pwid 12.000, plen 10.392): the
+        # true limit is 0.644338 on BOTH orientations, because the hexagon is
+        # congruent and only turned. Feeding the transposed slot to the pointy
+        # formula instead gives 0.635134, which the UI floors to 63 % rather
+        # than 64 % — conservative, but conservative by accident rather than by
+        # design, and it costs the user a percentage point of sample area.
+        w, h = h, w
     m = w * h / (2.0 * (2.0 * h + 3.0 * w))
-    return max(0.05, (w - 2.0 * m) * (h - 2.0 * m) / (w * h))
+    # A FRACTION OF THE SLOT THE CALLER MEASURED, not of the shrunken one. The
+    # Sample area setting is a share of the recorded patch box, so a ring that
+    # makes the readable hexagon smaller has to make the SHARE smaller too;
+    # dividing by the shrunken slot gives the same number back and the cap does
+    # nothing.
+    return max(0.05, (w - 2.0 * m) * (h - 2.0 * m) / (w0 * h0))
 
 
 def sample_margin_inverse(a: float, b: float, frac: float) -> float:

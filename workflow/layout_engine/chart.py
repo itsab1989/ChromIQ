@@ -43,6 +43,7 @@ def build_ti2_from_ti1(
     seed: int | None = None,
     randomize: bool = True,
     hflag: bool = False,
+    hex_flat_top: bool = False,
     density: int = 1,
     spacer_on: bool = True,
     pscale: float = 1.0,
@@ -61,7 +62,7 @@ def build_ti2_from_ti1(
     """
     target = ti1_reader.read_ti1(ti1_path)
     geom = instruments.build(
-        instrument, hflag=hflag, density=density, spacer_on=spacer_on, pscale=pscale,
+        instrument, hflag=hflag, hex_flat_top=hex_flat_top, density=density, spacer_on=spacer_on, pscale=pscale,
         sscale=sscale, border=border, nolpcbord=nolpcbord, nolimit=nolimit,
     )
     w_mm, h_mm = papers.dimensions_mm(paper)
@@ -97,6 +98,7 @@ def build_chart(
     randomize: bool = True,
     dpi: int = 300,
     hflag: bool = False,
+    hex_flat_top: bool = False,
     density: int = 1,
     cm_stagger: bool = False,
     spacer_on: bool = True,
@@ -212,6 +214,7 @@ def build_chart(
     # capacity estimate exactly (#93).
     geom = instruments.geom_from_build_kwargs({
         "instrument": instrument, "paper": paper, "hflag": hflag,
+        "hex_flat_top": hex_flat_top,
         "density": density, "cm_stagger": cm_stagger,
         "spacer_on": spacer_on, "pscale": pscale,
         "sscale": sscale, "border": border, "margins": margins,
@@ -240,6 +243,12 @@ def build_chart(
         "indicator_rotation": indicator_rotation, "underline_mode": underline_mode,
         "underline_thickness_mm": underline_thickness_mm,
         "underline_gap_mm": underline_gap_mm,
+        # The geometry needs the label OFFSET too, and only for one thing: a
+        # turned honeycomb's patch block has to start below the labels' ink, and
+        # this is what moves that ink. Without it a +3 mm offset printed the
+        # letters 2.46 mm into the first row of hexagons. Read by
+        # `raster._furniture_reserves_mm` alone, so no other layout moves.
+        "strip_label_offset_mm": strip_label_offset_mm,
         "chart_text": chart_text, "stamp_command": stamp_command,
         "text_edge": text_edge})
     w_mm, h_mm = papers.dimensions_mm(paper)
