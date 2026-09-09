@@ -725,7 +725,7 @@ def test_no_reader_outside_the_engine_asks_the_flag_raw():
     )
 
 
-def test_the_scanner_mesh_is_told_the_orientation_by_a_resolver():
+def test_the_scanner_mesh_is_told_the_orientation_by_a_resolver(monkeypatch):
     """The allowance above is only safe while the mesh's own state is FED by a
     resolver. H5: `GridSpec` had no orientation at all and `_cell_uv` called
     `hexagon.vertices()` with no `flat_top`, so the alignment guide drew pointy
@@ -751,12 +751,44 @@ def test_the_scanner_mesh_is_told_the_orientation_by_a_resolver():
     # So drive the real dialog instead and read what it produced: the mesh's own
     # orientation, and the sample cap, both of which come from the same resolved
     # value. A `_flat` stuck at False fails both.
-    dlg = _scanner_dialog_over_a_turned_chart()
+    dlg = _scanner_dialog_over_a_turned_chart(monkeypatch)
     assert dlg is not None, "could not open the scanner dialog over a chart"
     grid = dlg._marquee._grid
     assert getattr(grid, "hex_flat_top", None) is True, (
         "the dialog built its mesh without the orientation, so the alignment "
         "guide draws pointy cells over flat-top ink"
+    )
+    # K12: THE ORIENTATION IS NOT THE ONLY THING THE MESH CAN GET WRONG. The
+    # two assertions here were load-bearing for the orientation and nothing
+    # else: mutating `_cell_uv`'s aspect correction made the drawn READ BOX
+    # 14.2 % too wide and 47 tests, then 387, then the whole everyday tier
+    # stayed green.
+    #
+    # The invariant is Knut's equal-margin rule (#119), which is what scanin
+    # reads with: the box is the slot inset by the SAME DISTANCE on all four
+    # sides, in real units. Dropping the aspect correction insets the two axes
+    # by different amounts, so comparing the two insets catches it exactly,
+    # where a ratio-of-the-cell bound is too loose to notice 14 %.
+    _u, _v, _stride = dlg._marquee._cell_uv()
+    _asp = dlg._marquee._grid.aspect or 1.0
+    _su, _sv, _sw, _sh = dlg._marquee._grid.rects[0]
+    _bx = [_u[_stride - 4 + k] * _asp for k in range(4)]
+    _by = [_v[_stride - 4 + k] for k in range(4)]
+    _inset_w = (_sw * _asp) - (max(_bx) - min(_bx))
+    _inset_h = _sh - (max(_by) - min(_by))
+    assert _inset_w == pytest.approx(_inset_h, rel=0.02), (
+        f"the read box is inset {_inset_w:.6f} horizontally and {_inset_h:.6f} "
+        "vertically; scanin insets equally on all four sides"
+    )
+    # ...AND EQUAL IS NOT ENOUGH. Dropping the aspect correction keeps the two
+    # insets equal and simply makes them SMALLER, so the box grew 14.2 % while
+    # staying square-shouldered. What pins it is the DEFINITION: the box covers
+    # `sample_frac` of the slot's AREA, which is the number the user set.
+    _area = ((max(_bx) - min(_bx)) * (max(_by) - min(_by))) / (_sw * _asp * _sh)
+    assert _area == pytest.approx(dlg._sample_area.value() / 100.0, rel=0.03), (
+        f"the drawn read box covers {_area:.4f} of the patch where the Sample "
+        f"area setting says {dlg._sample_area.value() / 100.0:.4f}; the mesh is "
+        "showing the user an area scanin will not read"
     )
     assert dlg._sample_area.maximum() == 64, (
         f"the sample cap is {dlg._sample_area.maximum()} %; 63 is the pointy "
@@ -780,7 +812,7 @@ def test_the_scanner_mesh_is_told_the_orientation_by_a_resolver():
     assert out[True][0] > out[True][1], "the turned cell is not wider than tall"
 
 
-def _scanner_dialog_over_a_turned_chart():
+def _scanner_dialog_over_a_turned_chart(monkeypatch):
     """A real ScannerProfileDialog over a real rotated honeycomb, or None.
 
     Built rather than faked: the point of the test above is that the value
@@ -823,9 +855,22 @@ def _scanner_dialog_over_a_turned_chart():
                        "hex_flat_top": True, "spacer_mode": "none"}}}),
         encoding="utf-8")
 
-    QDialog.exec = lambda self: 1                  # type: ignore[assignment]
+    # MONKEYPATCH, NEVER A BARE setattr. These two are process-global, and a
+    # test file that stubs them without undoing it hands every file scheduled
+    # after it on the same xdist worker a UI with no modal dialogs. Measured:
+    # `test_a_new_project_name_goes_through_one_door.py` is 40 passed on its
+    # own and 25 FAILED when this file runs before it, and the release gate
+    # flipped between 12620 passed and 25 failed on an unchanged tree
+    # depending only on how xdist happened to schedule the files.
+    #
+    # `conftest.py::_repair_a_leaked_qmessagebox_exec` repairs only
+    # `QMessageBox.exec`, which is why the leak survived it, and the project's
+    # own note on this says saving and restoring these by hand does NOT restore
+    # them. `monkeypatch` undoes it at teardown and is the only thing that does.
+    monkeypatch.setattr(QDialog, "exec", lambda self: 1, raising=False)
     for m in ("warning", "critical", "information", "question"):
-        setattr(QMessageBox, m, staticmethod(lambda *a, **k: 0))
+        monkeypatch.setattr(QMessageBox, m, staticmethod(lambda *a, **k: 0),
+                            raising=False)
     try:
         from core.argyll_runner import ArgyllRunner
         from core.settings import AppSettings
@@ -897,4 +942,116 @@ def test_an_empty_panel_claims_no_orientation(qapp):
     assert "Column" in p._row_names["pitch"].text(), (
         "the untouched estimate column voted, so one filled column cannot name "
         "the axis"
+    )
+
+
+def test_a_column_with_no_pitch_does_not_veto_the_row_name(qapp):
+    """K1(b). The vote is the chart's ORIENTATION, but a rectangular chart has
+    no interlocking pitch at all: the panel prints "--" in that column. Its
+    `flat_top=False` was still counted, so a turned honeycomb beside a
+    rectangular estimate read as a disagreement and the row fell back to the
+    neutral "Patch pitch (mm)" -- refusing to name the axis of the only pitch
+    on the panel. Photographed in Manual and in Guided, where the estimate is
+    an i1-style rectangular layout with no pitch.
+
+    Driven through the panel's own public API with the numbers the tab feeds
+    it, and read off the visible label, so the test cannot pass by agreeing
+    with the implementation.
+    """
+    from ui.chart_layout_info_panel import ChartLayoutInfoPanel
+    p = ChartLayoutInfoPanel()
+    name = p._row_names["pitch"]
+
+    # A turned honeycomb on screen (a COLUMN pitch of 10.41 mm) and a
+    # rectangular estimate, which carries no pitch.
+    p.set_actual(total=690, rows=23, cols=30, pages=2,
+                 patch_w=13.89, patch_h=12.02, row_pitch=10.41)
+    p.set_pitch_axis(True, column="actual")
+    p.set_estimate(total=525, rows=21, cols=25, pages=1,
+                   patch_w=12.0, patch_h=12.0, row_pitch=0.0)
+    p.set_pitch_axis(False, column="estimate")
+    assert p._estimate_labels["pitch"].text() in ("—", "-", "--"), (
+        "the estimate is showing a pitch, so this is not the state K1(b) is "
+        f"about: {p._estimate_labels['pitch'].text()!r}"
+    )
+    assert "Column" in name.text(), (
+        f"the row is called {name.text()!r} while the only pitch shown, "
+        "10.41 mm, is unambiguously a column pitch across a turned sheet"
+    )
+
+    # ...and the mirror image: the pitchless column on the left.
+    p2 = ChartLayoutInfoPanel()
+    p2.set_actual(total=525, rows=21, cols=25, pages=1,
+                  patch_w=12.0, patch_h=12.0, row_pitch=0.0)
+    p2.set_pitch_axis(False, column="actual")
+    p2.set_estimate(total=690, rows=23, cols=30, pages=2,
+                    patch_w=13.89, patch_h=12.02, row_pitch=10.41)
+    p2.set_pitch_axis(True, column="estimate")
+    assert "Column" in p2._row_names["pitch"].text(), (
+        f"the row is called {p2._row_names['pitch'].text()!r}; the chart on "
+        "disk has no pitch to disagree with"
+    )
+
+    # The veto is still there when BOTH columns really do carry a pitch of
+    # opposite axes -- that is J7, and this fix must not undo it.
+    p3 = ChartLayoutInfoPanel()
+    p3.set_actual(total=150, rows=10, cols=15, pages=1,
+                  patch_w=12.0, patch_h=16.0, row_pitch=8.0)
+    p3.set_pitch_axis(False, column="actual")
+    p3.set_estimate(total=690, rows=23, cols=30, pages=2,
+                    patch_w=13.89, patch_h=12.02, row_pitch=10.41)
+    p3.set_pitch_axis(True, column="estimate")
+    txt = p3._row_names["pitch"].text()
+    assert "Row" not in txt and "Column" not in txt, (
+        f"the row is called {txt!r} while two shown pitches run on different "
+        "axes, so it is wrong for one of them"
+    )
+
+
+def test_clearing_a_column_withdraws_its_vote_on_the_row_name(qapp):
+    """K1(a). `clear_actual` reset the vote; `clear_estimate` and
+    `show_placeholder` did not. Both are reached constantly -- `clear_estimate`
+    every time the user unticks "Use the ChromIQ layout engine", in Manual and
+    in Guided -- so an emptied column went on voting, and the row kept saying
+    the neutral "Patch pitch (mm)" because it still believed two columns
+    disagreed when only one was left.
+    """
+    from ui.chart_layout_info_panel import ChartLayoutInfoPanel
+
+    def _panel():
+        p = ChartLayoutInfoPanel()
+        p.set_actual(total=150, rows=10, cols=15, pages=1,
+                     patch_w=12.0, patch_h=16.0, row_pitch=8.0)
+        p.set_pitch_axis(False, column="actual")          # pointy: row pitch
+        p.set_estimate(total=690, rows=23, cols=30, pages=2,
+                       patch_w=13.89, patch_h=12.02, row_pitch=10.41)
+        p.set_pitch_axis(True, column="estimate")         # turned: column pitch
+        return p, p._row_names["pitch"]
+
+    p, name = _panel()
+    assert "Row" not in name.text() and "Column" not in name.text(), (
+        f"two shown pitches on different axes should name neither: {name.text()!r}"
+    )
+
+    p.clear_estimate()
+    assert "Row" in name.text(), (
+        f"the row is called {name.text()!r} after the estimate was cleared; "
+        "the only pitch left, 8 mm, is a row pitch down a strip"
+    )
+
+    p2, name2 = _panel()
+    p2.show_placeholder()
+    p2.set_actual(total=150, rows=10, cols=15, pages=1,
+                  patch_w=12.0, patch_h=16.0, row_pitch=8.0)
+    p2.set_pitch_axis(False, column="actual")
+    assert "Row" in name2.text(), (
+        f"the row is called {name2.text()!r}; the placeholder emptied both "
+        "columns, so the estimate's old vote must not have survived it"
+    )
+
+    p3, name3 = _panel()
+    p3.clear_actual()
+    assert "Column" in name3.text(), (
+        f"the row is called {name3.text()!r} after the chart was cleared; the "
+        "only pitch left, 10.41 mm, is a column pitch across a turned sheet"
     )

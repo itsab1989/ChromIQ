@@ -272,13 +272,61 @@ def _repair_a_leaked_qmessagebox_exec():
     because the attribute stayed patched for everything after it; the other
     produced the 77 errors described above. Nothing here can fail a test — it
     only removes an attribute that should not exist, before the test starts.
+
+    **AND IT ONLY EVER REPAIRED ONE ATTRIBUTE, WHICH IS HOW THE NEXT ONE GOT
+    THROUGH (2026-09-09).** An on-screen driver's helper, lifted into a test
+    file, stubbed `QDialog.exec` and the four `QMessageBox` STATICS -- warning,
+    critical, information, question -- with bare `setattr`. None of those is
+    `QMessageBox.exec`, so nothing here undid them, and every file xdist
+    scheduled onto that worker afterwards ran against a UI with no modal
+    dialogs. Measured: `test_a_new_project_name_goes_through_one_door.py` is 40
+    passed alone and 25 FAILED with the offending file before it, and the
+    release gate returned `12620 passed` on one run and `25 failed` on the next
+    from an unchanged tree -- a green that meant only that xdist had happened to
+    schedule the files apart. The offender now uses monkeypatch; this repair
+    covers the whole family so the next one is contained rather than discovered.
+
+    **AND THE FIRST ATTEMPT AT COVERING THE FAMILY BROKE FOUR TESTS, BECAUSE
+    DELETING IS THE WRONG REPAIR FOR EVERY MEMBER BUT ONE.** `QMessageBox.exec`
+    can be deleted: it is INHERITED, so its presence in the subclass `__dict__`
+    is itself the leak. `warning`, `critical`, `information`, `question` and
+    `QDialog.exec` are DEFINED by PyQt -- deleting one destroys it for the rest
+    of the worker, and there is nothing left to inherit. The first attempt told
+    the two apart by comparing types against `QMessageBox.__dict__["__init__"]`,
+    which PyQt does not put there at all: the expression is `type(None)`, every
+    real descriptor fails the isinstance, and all four statics were deleted in
+    the setup of the first test each worker ran. Cost: four failures in
+    `test_verification_print_tab.py` on gate run 1, in tests that had done
+    nothing wrong.
+
+    So the family is RESTORED from a snapshot taken in `pytest_configure`,
+    before collection imports a single test module. A test that patched
+    correctly is a no-op here, because its own undo already put the pristine
+    object back and `is` says so.
     """
     try:
-        from PyQt6.QtWidgets import QMessageBox
-        if "exec" in QMessageBox.__dict__:
-            del QMessageBox.exec
+        _restore_the_modal_entry_points()
     except Exception:      # noqa: BLE001 — a repair must never fail a test
         pass
+
+
+def _restore_the_modal_entry_points() -> None:
+    """The repair itself, callable so it can be TESTED rather than assumed.
+
+    `tests/test_a_leaked_modal_never_reaches_the_next_test.py` leaks each entry
+    point the way a real test file did, calls this, and checks the pristine
+    object is back -- which no assertion about this function's source could.
+    """
+    from PyQt6.QtWidgets import QMessageBox
+    # `exec` is inherited from QDialog, so a leaked patch is an attribute that
+    # should not be in the subclass __dict__ at all.
+    if "exec" in QMessageBox.__dict__:
+        del QMessageBox.exec
+    # The rest are DEFINED by PyQt, so they are restored, never deleted.
+    # See `_PRISTINE_MODALS` and the note above about the first attempt.
+    for _owner, _name, _orig in _PRISTINE_MODALS:
+        if _owner.__dict__.get(_name) is not _orig:
+            setattr(_owner, _name, _orig)
 
 
 @pytest.fixture(autouse=True)
@@ -902,10 +950,36 @@ def _no_gate_run_may_rewrite_the_real_chromiq_folder():
 # and flip chartread_engine back to "argyll". So the redirect happens where it
 # actually bites: the name `core.settings.QSettings`, which is what
 # `AppSettings()` calls.
+#: The modal entry points PyQt DEFINES, snapshotted before collection so a leak
+#: can be put back rather than deleted. See `_repair_a_leaked_qmessagebox_exec`.
+_PRISTINE_MODALS: list = []
+
+
+def _snapshot_the_modal_entry_points() -> None:
+    """Record the pristine `QMessageBox` statics and `QDialog.exec`.
+
+    Taken in `pytest_configure`, which runs BEFORE collection imports any test
+    module, so a module that patches one at import time cannot poison the
+    snapshot. Recording the object itself (not a type) is what lets the repair
+    say "this is not what PyQt installed" with `is`, which no type test can do:
+    a leaked stub and the real descriptor can share a type.
+    """
+    from PyQt6.QtWidgets import QDialog, QMessageBox
+    _PRISTINE_MODALS.clear()
+    for _owner, _names in ((QMessageBox,
+                            ("warning", "critical", "information", "question")),
+                           (QDialog, ("exec",))):
+        for _name in _names:
+            _orig = _owner.__dict__.get(_name)
+            if _orig is not None:
+                _PRISTINE_MODALS.append((_owner, _name, _orig))
+
+
 def pytest_configure(config):
     import tempfile
 
     _enforce_the_helper(config)
+    _snapshot_the_modal_entry_points()
 
     from PyQt6.QtCore import QSettings
 
