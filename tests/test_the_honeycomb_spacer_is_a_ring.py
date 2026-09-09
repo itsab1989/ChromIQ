@@ -150,33 +150,81 @@ def test_the_ring_costs_no_patches(flat_top):
 # ---------------------------------------------------------------------------
 # the geometry of the ring
 # ---------------------------------------------------------------------------
+def _edge_distances(pts, cx=None, cy=None):
+    """Perpendicular distance from the centroid to the LINE of each edge.
+
+    Independent of `inset`'s own arithmetic on purpose. The test this replaces
+    re-implemented `inset`'s min-apothem expression to check `inset`, which is
+    arithmetically true for every polygon and every distance, so swapping that
+    `min` for a `max` sailed straight through it (E1 of the pentest).
+    """
+    import math
+    n = len(pts)
+    cx = sum(x for x, _ in pts) / n if cx is None else cx
+    cy = sum(y for _, y in pts) / n if cy is None else cy
+    out = []
+    for i in range(n):
+        x1, y1 = pts[i]
+        x2, y2 = pts[(i + 1) % n]
+        L = math.hypot(x2 - x1, y2 - y1)
+        # |cross product| / |edge|
+        out.append(abs((x2 - x1) * (y1 - cy) - (x1 - cx) * (y2 - y1)) / L)
+    return out
+
+
+@pytest.mark.parametrize("w,ph,d", [
+    (12.0, 12.0 * 3 ** 0.5 / 2, 0.65), (12.0 * 3 ** 0.5 / 2, 12.0, 0.65),
+    (7.0, 7.0 * 3 ** 0.5 / 2, 0.25), (20.0, 17.32, 1.5), (9.0, 7.79, 0.05),
+])
+def test_the_inset_moves_every_edge_by_exactly_the_distance_asked(w, ph, d):
+    """E1. Every one of the six edges must come in by `d`, not just the nearest
+    one. `inset` scales about the centre by `(apothem - d) / apothem`, so the
+    apothem it picks decides all six: taking `max` instead of `min` insets a
+    regular hexagon by the same amount (its edges are equidistant) and an
+    irregular one by the wrong amount on five of its six sides."""
+    outer = hexagon.vertices(0, 0, w, ph)
+    inner = hexagon.inset(outer, d)
+    before = _edge_distances(outer)
+    after = _edge_distances(inner)
+    for i, (b, a) in enumerate(zip(before, after)):
+        assert b - a == pytest.approx(d, abs=1e-9), (
+            f"edge {i} moved {b - a:.6f} mm, not {d}"
+        )
+
+
 def test_the_gap_between_two_patches_is_the_spacer_width():
     """Each patch gives up HALF the spacer, so the two half-bands abut into one
-    gap of the full width. Give up the whole width each and the spacer is
-    twice what the user asked for."""
+    gap of the full width. Give up the whole width each and the spacer is twice
+    what the user asked for."""
     g = I.build("CR30", hflag=True, spacer_on=True)
     assert g.hex_ring_mm == pytest.approx(1.3)
     assert g.pspa == 0.0, "the ring must not also be added to the pitch"
     outer = hexagon.vertices(0, 0, g.pwid, g.plen)
     inner = hexagon.inset(outer, g.hex_ring_mm / 2.0)
-    import math
-    def apothem(pts):
-        n = len(pts)
-        cx = sum(x for x, _ in pts) / n
-        cy = sum(y for _, y in pts) / n
-        return min(math.dist((cx, cy),
-                             ((pts[i][0] + pts[(i+1) % n][0]) / 2,
-                              (pts[i][1] + pts[(i+1) % n][1]) / 2))
-                   for i in range(n))
-    assert apothem(outer) - apothem(inner) == pytest.approx(g.hex_ring_mm / 2)
+    for b, a in zip(_edge_distances(outer), _edge_distances(inner)):
+        assert b - a == pytest.approx(g.hex_ring_mm / 2, abs=1e-9)
 
 
-def test_the_inset_hexagon_is_still_a_regular_hexagon():
+@pytest.mark.parametrize("w,ph", [(12.0, 10.392), (10.392, 12.0), (14.0, 9.0)])
+def test_the_inset_hexagon_keeps_every_edge_parallel_to_its_original(w, ph):
+    """The old version fed a REGULAR hexagon in and asserted a regular hexagon
+    out, which cannot fail.
+
+    And "similar, edge for edge" is the wrong invariant too: moving every edge
+    inward by the same distance keeps the edge DIRECTIONS and necessarily
+    changes their lengths by different proportions on an irregular polygon.
+    Parallelism is what an offset preserves, so that is what is asserted."""
     import math
-    o = hexagon.vertices(0, 0, 12.0, 12.0 * math.sqrt(3) / 2)
-    i = hexagon.inset(o, 0.65)
-    sides = [math.dist(i[k], i[(k + 1) % 6]) for k in range(6)]
-    assert max(sides) - min(sides) < 1e-9
+    o = hexagon.vertices(0, 0, w, ph)
+    i = hexagon.inset(o, 0.4)
+    for k in range(6):
+        ax, ay = o[(k + 1) % 6][0] - o[k][0], o[(k + 1) % 6][1] - o[k][1]
+        bx, by = i[(k + 1) % 6][0] - i[k][0], i[(k + 1) % 6][1] - i[k][1]
+        cross = ax * by - ay * bx
+        assert abs(cross) < 1e-9, f"edge {k} is no longer parallel"
+        assert ax * bx + ay * by > 0, f"edge {k} folded back on itself"
+    # ...and it is strictly inside the original
+    assert all(b - a > 0 for a, b in zip(_edge_distances(i), _edge_distances(o)))
 
 
 def test_a_ring_is_six_quads_in_vertex_order():
@@ -557,3 +605,44 @@ def test_a_honeycomb_has_no_seams_between_its_patches(flat_top, spacer_mode, dpi
     assert seams == 0, (
         f"{seams} pixels of bare paper inside the patch field at {dpi} dpi"
     )
+
+
+def test_the_sample_cap_is_the_same_number_on_a_turned_hexagon():
+    """E4. A rotated hexagon is the SAME hexagon, so the largest square that
+    fits inside it is the same fraction of its area. The chart presents the
+    transposed slot, so the cap has to transpose with it: feeding the
+    transposed slot to the pointy formula gives 0.635134 where the true limit
+    is 0.644338, which the UI floors to 63 % instead of 64 % and costs the user
+    a percentage point of sample area for nothing.
+
+    The `flat_top` argument existed for exactly this and had NO CALLER until the
+    pentest found it, so the documented improvement was not shipping. It is
+    wired into `scanin_dialog._clamp_sample_area` now.
+    """
+    from workflow.scanin_runner import hex_max_sample_fraction as cap
+    g = I.build("CR30", hflag=True)
+    r = I.build("CR30", hflag=True, hex_flat_top=True)
+    pointy = cap(g.pwid, g.plen)
+    turned = cap(r.pwid, r.plen, flat_top=True)
+    assert turned == pytest.approx(pointy, abs=1e-9), (
+        f"the same hexagon caps at {pointy:.6f} one way up and {turned:.6f} "
+        "the other"
+    )
+    assert int(turned * 100) == int(pointy * 100), \
+        "the two orientations floor to different whole percentages"
+    # ...and the transposed slot through the POINTY formula is measurably worse,
+    # so the argument is doing something rather than being decorative.
+    assert cap(r.pwid, r.plen) < pointy - 0.005
+
+
+def test_the_scanner_dialog_passes_the_orientation():
+    """A cap that is right in the function and never asked for is not shipped.
+    Read the call site rather than trusting it."""
+    import inspect
+    from ui.dialogs import scanin_dialog
+    src = inspect.getsource(scanin_dialog.ScannerProfileDialog._clamp_sample_area)
+    assert "flat_top=flat_top" in src, (
+        "_clamp_sample_area computes the cap without the chart's orientation"
+    )
+    sig = inspect.signature(scanin_dialog.ScannerProfileDialog._clamp_sample_area)
+    assert "flat_top" in sig.parameters

@@ -4298,12 +4298,15 @@ class ScannerProfileDialog(_ToolDialogBase):
             # a printtarg honeycomb has none — its geometry is derived from the
             # rendered sheet (printtarg will not emit a .cht for hexagons at
             # all) — and only the Create Chart registry remembers the shape.
+            from workflow.hex_support import recipe_is_flat_top
             hexagonal = (recipe_is_hexagonal(self._layout.get("recipe"))
                          or settings_are_hexagonal(
                              getattr(self, "_chart_settings", None)))
             self._marquee.set_grid(GridSpec.from_patches(patches,
                                                          hexagonal=hexagonal))
-            self._clamp_sample_area(patches, hexagonal)
+            self._clamp_sample_area(
+                patches, hexagonal,
+                recipe_is_flat_top(self._layout.get("recipe")))
         else:
             cht_pages = self._layout.get("cht_pages") or []
             self._marquee.set_grid(
@@ -4317,7 +4320,8 @@ class ScannerProfileDialog(_ToolDialogBase):
             self._clamp_sample_area([], False)
         self._sync_shot_view()
 
-    def _clamp_sample_area(self, patches: list[dict], hexagonal: bool) -> None:
+    def _clamp_sample_area(self, patches: list[dict], hexagonal: bool,
+                           flat_top: bool = False) -> None:
         """Cap Sample area at what THIS chart's patches can actually give.
 
         A hexagon's slanted top and bottom cut the corners off the rectangle the
@@ -4333,7 +4337,17 @@ class ScannerProfileDialog(_ToolDialogBase):
             ws = sorted(float(p["w"]) for p in patches if float(p.get("w", 0)) > 0)
             hs = sorted(float(p["h"]) for p in patches if float(p.get("h", 0)) > 0)
             if ws and hs:
-                frac = hex_max_sample_fraction(ws[len(ws) // 2], hs[len(hs) // 2])
+                # THE ORIENTATION MATTERS, and until now nothing passed it.
+                # A rotated honeycomb presents the transposed slot, and the
+                # pointy formula on that gives 0.635134 where the true limit is
+                # 0.644338 -- the same hexagon, only turned, so the cap is the
+                # same number. Floored to an integer that is 63 % instead of
+                # 64 %, costing the user a percentage point of sample area for
+                # no reason. `hex_max_sample_fraction` grew a `flat_top`
+                # argument for this and had no caller, which is how a
+                # documented improvement fails to ship.
+                frac = hex_max_sample_fraction(ws[len(ws) // 2], hs[len(hs) // 2],
+                                               flat_top=flat_top)
                 cap = max(20, min(80, int(frac * 100.0)))   # floor: never round UP
         if cap != self._sample_area.maximum():
             # setMaximum pulls a too-large value down and emits valueChanged, so

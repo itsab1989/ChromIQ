@@ -480,3 +480,180 @@ def test_the_sidecar_flag_is_resolved_and_not_read_raw(key, hflag):
         {"instrument": "CR30", "hflag": False, "hex_flat_top": True}) is False
     assert recipe_is_flat_top(
         {"instrument": "CR30", "hflag": True, "hex_flat_top": True}) is True
+
+
+# ---------------------------------------------------------------------------
+# the gaps the pentest found in these very tests
+# ---------------------------------------------------------------------------
+def _multipage(flat_top: bool, patches: int = 1400, dpi: int = 150,
+               edge_spacers: bool = True):
+    """A real multi-page rotated build, with its sidecar rects."""
+    import tempfile
+    from pathlib import Path
+
+    from workflow.layout_engine import chart as le_chart
+
+    d = Path(tempfile.mkdtemp())
+    lines = ["CTI1", "", 'DESCRIPTOR "mp"', 'ORIGINATOR "ChromIQ"',
+             'KEYWORD "SAMPLE_LOC"', "NUMBER_OF_FIELDS 7", "BEGIN_DATA_FORMAT",
+             "SAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z", "END_DATA_FORMAT",
+             f"NUMBER_OF_SETS {patches}", "BEGIN_DATA"]
+    for i in range(patches):
+        lines.append(f"{i+1} {(i*7)%100}.0 {(i*13)%100}.0 {(i*29)%100}.0 40 45 50")
+    lines += ["END_DATA", ""]
+    ti1 = d / "p.ti1"
+    ti1.write_text("\n".join(lines), encoding="utf-8")
+    out = d / "o"
+    out.mkdir()
+    res = le_chart.build_chart(ti1, out / "c", instrument="CR30", paper="A4",
+                              hflag=True, hex_flat_top=flat_top, dpi=dpi,
+                              randomize=False, spacer_mode="colored",
+                              edge_spacers=edge_spacers)
+    strips = json.loads((out / "c.strips.json").read_text(encoding="utf-8"))
+    return res, strips, out
+
+
+def test_the_stagger_is_indexed_by_the_GLOBAL_strip_across_pages():
+    """E7, AND IT IS THE WORST OF THE SIX THE PENTEST FOUND.
+
+    `patch_rects_px` indexes the rotated stagger by `(first // steps) + p`, the
+    strip's position on the SHEET, not by `p`, its position on the page. Where a
+    page holds an odd number of strips those two disagree from page 1 onward,
+    and the mutation moves every recorded box on the odd pages by half a patch
+    pitch WHILE LEAVING THE PRINTED SHEET BYTE-IDENTICAL -- the renderer already
+    uses the global index. Nothing in the suite noticed: the whole everyday tier
+    stayed green at 12,395 passed.
+
+    That is exactly the "the recorded box describes a place no ink is" fault the
+    code comments warn about twice, and it is invisible to any test that renders
+    one page or asserts on pixels.
+
+    Asserted on the LATTICE rather than on the index: within a page, and across
+    the page boundary, consecutive strips must alternate their offset. If a page
+    starts on the wrong parity, two neighbouring strips end up staggered the
+    same way and the honeycomb stops interlocking there.
+    """
+    res, strips, _ = _multipage(True)
+    assert res.layout.pages >= 3, f"only {res.layout.pages} pages"
+    steps = strips["steps_in_pass"]
+    rects = strips["patches"]
+    per_page = res.layout.patches_per_page
+    assert per_page // steps % 2 == 1, (
+        "this fixture must have an ODD number of strips per page, or the page "
+        "index and the sheet index agree and the mutation is invisible"
+    )
+    # the y of step 0 of every strip, in sheet order
+    firsts = [rects[k * steps]["y"] for k in range(len(rects) // steps)]
+    base = min(firsts)
+    parities = [round((y - base) / max(1, (max(firsts) - base) or 1)) for y in firsts]
+    for k in range(len(firsts) - 1):
+        assert firsts[k] != firsts[k + 1], (
+            f"strips {k} and {k+1} sit at the same height, so the honeycomb "
+            "stops interlocking there (this is the page-boundary parity)"
+        )
+
+
+def test_the_ring_neighbour_lookup_is_page_scoped():
+    """E10. The neighbour a ring side is coloured against must be looked up
+    WITHIN the page: a patch at the bottom of page 1 has paper below it, not the
+    patch that happens to follow it in the sheet's numbering. Getting this wrong
+    changes only the page seam, which is why no single-page test can see it."""
+    _res, strips, out = _multipage(True)
+    import numpy as np
+    from PIL import Image
+    tifs = sorted(out.glob("*.tif"))
+    assert len(tifs) >= 3
+    # The LAST strip of a page must have paper (or an edge band) beyond it, not
+    # a neighbour's colour: measured as the sheet ending in white on every page.
+    for t in tifs:
+        a = np.asarray(Image.open(t).convert("RGB")).astype(int)
+        assert np.all(a[-2] > 245), f"{t.name} does not end in paper"
+
+
+@pytest.mark.parametrize("flat_top", [False, True])
+def test_the_base_geometry_reserves_the_right_overhangs(flat_top):
+    """E3, missed by the whole everyday tier. `_build_base` sets both overhangs
+    for a rotated CR30 and the two are NOT interchangeable: `hxeh` is the
+    STAGGER (a quarter) and `hxew` the APEX (a sixth), and the turn swaps which
+    sits on which axis. The resized case is guarded above; this is the
+    unresized one, which is what every default build uses."""
+    g = I.build("CR30", hflag=True, hex_flat_top=flat_top)
+    if flat_top:
+        assert g.hxeh == pytest.approx(g.plen / 4.0)
+        assert g.hxew == pytest.approx(g.pwid / 6.0)
+    else:
+        assert g.hxeh == pytest.approx(g.plen / 6.0)
+        assert g.hxew == pytest.approx(0.25 * g.pwid)
+    assert g.hxeh != pytest.approx(g.hxew), \
+        "the two reserves collapsed onto one value, so a swap is undetectable"
+
+
+def test_the_row_label_band_clears_the_apex_and_not_the_stagger():
+    """E9. The row numbers are pushed left to clear whatever of the leftmost
+    patch sticks out past its slot. On a pointy sheet that is the STAGGER, a
+    quarter of the width; on a rotated one it is the APEX, a sixth. Using a
+    quarter on a rotated sheet reserves 3.0 mm where 1.73 is needed and pushes
+    every number away from its patch.
+
+    Measured off the rendered sheet: the gap between the right edge of the
+    label ink and the leftmost patch ink.
+    """
+    import tempfile
+    from pathlib import Path
+
+    import numpy as np
+    from PIL import Image
+
+    from workflow.layout_engine import chart as le_chart
+
+    d = Path(tempfile.mkdtemp())
+    lines = ["CTI1", "", 'DESCRIPTOR "e9"', 'ORIGINATOR "ChromIQ"',
+             'KEYWORD "SAMPLE_LOC"', "NUMBER_OF_FIELDS 7", "BEGIN_DATA_FORMAT",
+             "SAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z", "END_DATA_FORMAT",
+             "NUMBER_OF_SETS 200", "BEGIN_DATA"]
+    for i in range(200):
+        lines.append(f"{i+1} 40.0 40.0 40.0 40 45 50")
+    lines += ["END_DATA", ""]
+    ti1 = d / "p.ti1"
+    ti1.write_text("\n".join(lines), encoding="utf-8")
+
+    dpi = 600
+    gaps = {}
+    for flat_top in (False, True):
+        out = d / f"f{flat_top}"
+        out.mkdir()
+        le_chart.build_chart(ti1, out / "c", instrument="CR30", paper="A4",
+                             hflag=True, hex_flat_top=flat_top, dpi=dpi,
+                             randomize=False, spacer_mode="none")
+        img = np.asarray(Image.open(sorted(out.glob("*.tif"))[0])
+                         .convert("RGB")).astype(int)
+        strips = json.loads((out / "c.strips.json").read_text(encoding="utf-8"))
+        left_x = min(r["x"] for r in strips["patches"])
+        band_px = int(round(9.0 * dpi / 25.4))
+        x1 = max(1, left_x - 2)
+        x0 = max(0, x1 - band_px)
+        dark = np.all(img[:, x0:x1] < 60, axis=2)
+        cols = np.nonzero(dark.any(axis=0))[0]
+        assert len(cols), f"flat_top={flat_top}: no row-label ink found"
+        label_right = x0 + int(cols.max())
+        # MEASURE TO THE INK, NOT TO THE RECT. A rotated hexagon's apex sticks
+        # out a sixth of the width LEFT of its recorded box, so a gap measured
+        # to `left_x` is overstated by 1.73 mm on a rotated sheet and by nothing
+        # on a pointy one -- which is how a first version of this test decided
+        # the rotated labels were further away when the clearance to ink is the
+        # same 1.45 mm on both.
+        row = np.any(img < 250, axis=2)
+        patch_cols = np.nonzero(row[:, label_right + 1:].any(axis=0))[0]
+        assert len(patch_cols), "no patch ink to the right of the labels"
+        gaps[flat_top] = float(patch_cols.min() + 1) * 25.4 / dpi
+
+    # The labels must clear the leftmost INK by about the same distance either
+    # way: the band is sized to whatever sticks out, and that is a quarter of
+    # the width on a pointy sheet and a sixth on a rotated one. Reserving the
+    # quarter on both pushes the rotated numbers 1.3 mm further from their
+    # patches for nothing.
+    assert abs(gaps[True] - gaps[False]) < 0.6, (
+        f"the row numbers clear {gaps[True]:.2f} mm of ink on a rotated sheet "
+        f"and {gaps[False]:.2f} mm on a pointy one; the band is reserving the "
+        "wrong overhang on one of them"
+    )

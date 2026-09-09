@@ -197,13 +197,17 @@ def side_neighbours(strip: int, step: int, *, flat_top: bool
 
 def inset(pts: "list[tuple[float, float]]", d: float
           ) -> "list[tuple[float, float]]":
-    """The same hexagon shrunk by *d* perpendicular to every edge.
+    """The same convex polygon with every EDGE moved *d* inward along its own
+    normal. Pass a negative *d* to grow it.
 
-    A regular hexagon inset by a uniform distance is still a regular hexagon,
-    concentric and similar, so this is a scale about the centre. The apothem
-    (centre to the middle of an edge) is what *d* is taken off, and for a
-    regular hexagon every vertex sits at the same ratio to it, which is why one
-    factor does all six edges at once.
+    EVERY EDGE, NOT A SCALE ABOUT THE CENTRE. Scaling is the same thing only
+    for a REGULAR polygon, where all six edges are equidistant from the middle.
+    A hexagon is only regular while the patch keeps its natural proportions,
+    and a user who types a patch size in Manual can stretch it: measured on a
+    20.0 x 17.32 mm slot asking for a 1.5 mm ring, the scaling version moved
+    two of the six edges by 2.1 mm and two by 1.2 mm, 40 % out either way. The
+    spacer is a distance the user asked for, so it has to be that distance on
+    all six sides.
 
     Used to make room for the spacer RING: the gap between two neighbouring
     patches is `2*d`, taken out of the patches' own area rather than out of the
@@ -212,16 +216,31 @@ def inset(pts: "list[tuple[float, float]]", d: float
     n = len(pts)
     cx = sum(x for x, _ in pts) / n
     cy = sum(y for _, y in pts) / n
-    # apothem = distance from the centre to an edge midpoint; take the smallest,
-    # so a slightly irregular polygon still insets inside itself.
-    ap = min(math.dist((cx, cy),
-                       ((pts[i][0] + pts[(i + 1) % n][0]) / 2.0,
-                        (pts[i][1] + pts[(i + 1) % n][1]) / 2.0))
-             for i in range(n))
-    if ap <= 0:
-        return list(pts)
-    k = max(0.0, (ap - d) / ap)
-    return [(cx + (x - cx) * k, cy + (y - cy) * k) for x, y in pts]
+    # Each edge becomes a line moved `d` toward the centroid; the new vertices
+    # are where consecutive moved lines cross.
+    lines = []
+    for i in range(n):
+        x1, y1 = pts[i]
+        x2, y2 = pts[(i + 1) % n]
+        ex, ey = x2 - x1, y2 - y1
+        L = math.hypot(ex, ey)
+        if L == 0:
+            return list(pts)
+        # unit normal, pointed at the centroid
+        nx, ny = -ey / L, ex / L
+        if (cx - x1) * nx + (cy - y1) * ny < 0:
+            nx, ny = -nx, -ny
+        # the line a*x + b*y = c, moved d along its normal
+        lines.append((nx, ny, nx * x1 + ny * y1 + d))
+    out = []
+    for i in range(n):
+        a1, b1, c1 = lines[i - 1]
+        a2, b2, c2 = lines[i]
+        det = a1 * b2 - a2 * b1
+        if abs(det) < 1e-12:            # parallel edges: nothing to intersect
+            return list(pts)
+        out.append(((c1 * b2 - c2 * b1) / det, (a1 * c2 - a2 * c1) / det))
+    return out
 
 
 def ring_quads(outer: "list[tuple[float, float]]",
