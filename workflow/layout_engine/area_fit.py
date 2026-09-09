@@ -120,8 +120,20 @@ def derive_area_patch_size(kw: dict) -> tuple[float, float] | None:
     # `hflag` alone is not the test: on a ColorMunki it means DENSITY, not
     # hexagons. `hex_capable` asks the geometry whether the flag makes a
     # honeycomb, which is the same single source of truth `is_hexagonal` uses.
-    if kw.get("hflag") and instruments.hex_capable(str(kw.get("instrument") or "")):
+    _instr = str(kw.get("instrument") or "")
+    if kw.get("hflag") and instruments.hex_capable(_instr):
         ratio = math.sqrt(3) / 2.0
+        # ROTATED: the long axis changes sides, so the ratio inverts.
+        #
+        # GATED ON THE INSTRUMENT, NOT ON `hex_capable`, and the difference is
+        # the whole of P8. `hex_capable` is True for the SpectroScan, which is
+        # never offered the turn; using it here would invert the SS aspect ratio
+        # from a flag that instrument's user was never shown, and draw exactly
+        # the stretched hexagon the block above exists to prevent. The same
+        # explicit `CR30` test appears in `_build_base` and in the panel's
+        # visibility. Three gates, all naming the instrument.
+        if _instr == "CR30" and kw.get("hex_flat_top"):
+            ratio = 2.0 / math.sqrt(3)
     min_w = float(kw.get("area_min_patch") or 0.0)
     # The calculation method selects which inputs drive the grid: "by_width" uses
     # the minimum width + height%, "by_grid" uses explicit columns + rows (#93).

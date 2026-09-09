@@ -123,6 +123,35 @@ def _panel_patch_height_mm(slot_h_mm: float,
     return (hex_patch_height_mm(h), h)
 
 
+def _panel_patch_size_mm(slot_w_mm: float, slot_h_mm: float,
+                         hexagonal: bool,
+                         flat_top: bool = False) -> "tuple[float, float, float]":
+    """``(patch width, patch height, pitch)`` for the panel, both orientations.
+
+    `_panel_patch_height_mm` above answers the pointy case and is left exactly
+    as it is, because a dozen call sites and a test file depend on its meaning.
+    This one wraps it and adds the turn, where **the correction changes axis**:
+
+    * pointy-top, the flat sides are left and right, so the slot is as wide as
+      the patch and only the HEIGHT is understated (by 4/3);
+    * flat-top, the flat sides are the top and bottom, so the slot is as tall as
+      the patch and only the WIDTH is understated, by the same 4/3.
+
+    Report only, never geometry. The third number is the interlocking pitch, and
+    it is a ROW pitch down a strip on a pointy sheet and a COLUMN pitch across
+    the page on a turned one, which is why the caller has to name it.
+    """
+    from workflow.hex_support import hex_patch_width_mm
+    w = float(slot_w_mm or 0.0)
+    h = float(slot_h_mm or 0.0)
+    if not hexagonal or w <= 0 or h <= 0:
+        return (w, h, 0.0)
+    if flat_top:
+        return (hex_patch_width_mm(w), h, w)
+    ph, pitch = _panel_patch_height_mm(h, True)
+    return (w, ph, pitch)
+
+
 def _number_of_sets(path) -> int | None:
     """``NUMBER_OF_SETS`` from a CGATS .ti1/.ti2, or None if unreadable."""
     try:
@@ -12517,8 +12546,17 @@ class TabChart(QWidget):
             # as "patch" said a 11.3 × 9.78 mm patch about one that prints
             # 11.3 × 13.05. Both numbers are real, so name both.
             from workflow.hex_support import (hex_patch_height_mm,
+                                              hex_patch_width_mm,
                                               recipe_is_hexagonal)
-            if recipe_is_hexagonal(r):
+            if recipe_is_hexagonal(r) and getattr(r, "hex_flat_top", False):
+                # ROTATED: both numbers move, in opposite directions, and so
+                # does the LABEL. On a turned sheet the typed short axis is a
+                # COLUMN pitch across the page, not a row pitch down a strip,
+                # and it is the width that grows by 4/3.
+                bits.append(tr("patch {w:.2f}×{h:g} mm, column pitch {p:g} mm")
+                            .format(w=hex_patch_width_mm(r.patch_w_mm),
+                                    h=r.patch_h_mm, p=r.patch_w_mm))
+            elif recipe_is_hexagonal(r):
                 bits.append(tr("patch {w:g}×{h:.2f} mm, row pitch {p:g} mm")
                             .format(w=r.patch_w_mm,
                                     h=hex_patch_height_mm(r.patch_h_mm),
@@ -17804,10 +17842,11 @@ class TabChart(QWidget):
             # both ends, so tip to tip it is plen·4/3. Knut read 11.3 × 9.78 for a
             # patch that is 11.3 × 13.05 (#B8-80). Both numbers are worth having,
             # so both are shown, and the pitch is named as the pitch.
-            _ph, _pitch = _panel_patch_height_mm(geom.plen,
-                                                 instruments.is_hexagonal(geom))
+            _pw, _ph, _pitch = _panel_patch_size_mm(
+                geom.pwid, geom.plen, instruments.is_hexagonal(geom),
+                bool(getattr(geom, "hex_flat_top", False)))
             panel.set_estimate(total=lay.total_patches, rows=rows, cols=cols,
-                               pages=lay.pages, patch_w=geom.pwid, patch_h=_ph,
+                               pages=lay.pages, patch_w=_pw, patch_h=_ph,
                                page_patches=n0, row_pitch=_pitch,
                                fillup=getattr(lay, "padding", None))
         except Exception:
@@ -17891,9 +17930,10 @@ class TabChart(QWidget):
             r0 = rects[0]
             slot_h = r0["h"] * 25.4 / dpi
             from workflow.hex_support import recipe_is_hexagonal
-            ph, pitch = _panel_patch_height_mm(slot_h,
-                                               recipe_is_hexagonal(recipe))
-            return (r0["w"] * 25.4 / dpi, ph, pitch)
+            pw, ph, pitch = _panel_patch_size_mm(
+                r0["w"] * 25.4 / dpi, slot_h, recipe_is_hexagonal(recipe),
+                bool((recipe or {}).get("hex_flat_top", False)))
+            return (pw, ph, pitch)
         except Exception:
             return (0.0, 0.0, 0.0)
 

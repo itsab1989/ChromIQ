@@ -137,7 +137,8 @@ def sample_margin(w: float, h: float, frac: float) -> float:
     return (span - sqrt(disc)) / 4.0
 
 
-def hex_max_sample_fraction(w: float, h: float) -> float:
+def hex_max_sample_fraction(w: float, h: float,
+                            flat_top: bool = False) -> float:
     """The largest Sample area a HEXAGONAL chart can be read at before the
     sample box escapes the hexagon — from the chart's own patch proportions.
 
@@ -163,6 +164,18 @@ def hex_max_sample_fraction(w: float, h: float) -> float:
     w, h = float(w), float(h)
     if w <= 0.0 or h <= 0.0:
         return 1.0
+    if flat_top:
+        # THE SAME HEXAGON, TURNED, so the same formula with the two axes
+        # exchanged. The read box is square-cornered and symmetric, and
+        # `sample_margin` is symmetric in w and h, so only this cap has to know.
+        #
+        # Measured on the real CR30 honeycomb (pwid 12.000, plen 10.392): the
+        # true limit is 0.644338 on BOTH orientations, because the hexagon is
+        # congruent and only turned. Feeding the transposed slot to the pointy
+        # formula instead gives 0.635134, which the UI floors to 63 % rather
+        # than 64 % — conservative, but conservative by accident rather than by
+        # design, and it costs the user a percentage point of sample area.
+        w, h = h, w
     m = w * h / (2.0 * (2.0 * h + 3.0 * w))
     return max(0.05, (w - 2.0 * m) * (h - 2.0 * m) / (w * h))
 

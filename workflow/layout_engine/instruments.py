@@ -192,6 +192,19 @@ class Geom:
     # NOT inferred from hxeh/hxew: the ColorMunki's row stagger sets hxeh
     # without being hexagonal, so those floats answer a different question.
     hexagonal: bool = False
+    # Which way up the honeycomb sits. False (the default, and every chart built
+    # before #159) is pointy-top: apexes at the top and bottom, strips zigzagging
+    # sideways. True is the same hexagon turned 30 degrees, so the apexes point
+    # left and right and each strip runs STRAIGHT down the page.
+    #
+    # THIS FIELD IS THE ONLY THING DOWNSTREAM MAY ASK, AND IT HAS ONE WRITER:
+    # the `key == "CR30" and hflag` branch of `_build_base`. Nothing reads the
+    # recipe's flag directly. That is what makes the option inert by
+    # construction on every other instrument: a tick made on a CR30, left
+    # standing in the recipe (hiding must never untick) and then carried to a
+    # SpectroScan honeycomb cannot reach the page, because no SpectroScan Geom
+    # can ever carry it. `ca0f639c` was that fault with "disabled" for "hidden".
+    hex_flat_top: bool = False
     # Physical strip-length limit of the instrument's ruler/jig (mm); 0 = none
     # (ColorMunki/SpectroScan have no ruler). In area-first the strip is NOT capped
     # to this (the margin box is law — fill it), but a strip longer than the ruler
@@ -263,6 +276,7 @@ def build(
     pscale: float = 1.0,
     sscale: float = 1.0,
     hflag: bool = False,
+    hex_flat_top: bool = False,
     density: int = 1,
     spacer_on: bool = True,
     border: float = 6.0,
@@ -300,7 +314,8 @@ def build(
     ``border`` still drives the instrument leader and clip-holder base.
     """
     geom = _build_base(
-        key, pscale=pscale, sscale=sscale, hflag=hflag, density=density,
+        key, pscale=pscale, sscale=sscale, hflag=hflag,
+        hex_flat_top=hex_flat_top, density=density,
         spacer_on=spacer_on, border=border, nolpcbord=nolpcbord, nolimit=nolimit,
         clip_border_width=clip_border_width, clip_band=clip_band)
     mt, mr, mb, ml = margins if margins else (geom.border,) * 4
@@ -395,7 +410,7 @@ def build(
 # (clip_border_width once did exactly that — #93). This is the single source of
 # truth shared by every capacity calculation.
 GEOM_BUILD_KEYS = (
-    "hflag", "density", "spacer_on", "pscale", "sscale", "border", "margins",
+    "hflag", "hex_flat_top", "density", "spacer_on", "pscale", "sscale", "border", "margins",
     "patch_w", "patch_h", "spacer_width", "inter_patch", "strip_gap", "max_strip",
     "strip_indicator_gap", "row_indicators", "offset_x", "offset_y",
     "nolpcbord", "nolimit",
@@ -464,6 +479,7 @@ def _build_base(
     pscale: float = 1.0,
     sscale: float = 1.0,
     hflag: bool = False,
+    hex_flat_top: bool = False,
     density: int = 1,
     spacer_on: bool = True,
     border: float = 6.0,
@@ -723,7 +739,32 @@ def _build_base(
         # (the rows interleave), pokes plen/6 past its slot top and bottom and
         # a quarter of its width past each side. hxeh/hxew reserve exactly
         # those two overhangs so the honeycomb cannot print past the margin.
-        if hflag:
+        # TWO OVERHANGS, TWO DIFFERENT KINDS OF NUMBER, and the turn exchanges
+        # which kind sits on which axis. `hxeh`/`hxew` are not simply "extra
+        # height" and "extra width" here:
+        #
+        #   pointy-top   hxeh = plen/6  the APEX reserve    (up and down)
+        #                hxew = pwid/4  the STAGGER reserve (side to side)
+        #   flat-top     hxew = pwid/6  the APEX reserve    (side to side)
+        #                hxeh = plen/4  the STAGGER reserve (up and down)
+        #
+        # Reusing the ColorMunki's `row_stagger` block for this would overwrite
+        # `hxeh` with 0.25*plen and silently destroy the apex reserve. It would
+        # come out arithmetically right on this orientation only because two
+        # unrelated quantities happen to share a variable, so the flat-top
+        # branch sets both itself and says which is which.
+        pwid = pscale * 12.0
+        if hflag and hex_flat_top:
+            # The SAME hexagon, turned 30 degrees. The slot transposes with it:
+            # across the flats stays 12 mm and moves to the vertical, and the
+            # 13.856 mm point-to-point moves to the horizontal. Nothing is
+            # stretched, which is Basti's ruling of 2026-09-09 ("the rotation
+            # should not stretch them"), measured as six equal sides.
+            plen = pscale * 12.0
+            pwid = pscale * math.sqrt(0.75) * 12.0
+            hxew = pwid / 6.0             # apex, now sideways
+            hxeh = plen / 4.0             # stagger, now up and down
+        elif hflag:
             plen = pscale * math.sqrt(0.75) * 12.0
             hxeh = plen / 6.0
             hxew = pscale * 0.25 * 12.0
@@ -752,7 +793,7 @@ def _build_base(
         # not for whether it is on.
         return Geom(
             key=key, plen=plen, pspa=spacer(1.3), tspa=0.0,
-            pwid=pscale * 12.0, rrsp=pscale * 12.0,
+            pwid=pwid, rrsp=pwid,
             lspa=border + txhisl, lcar=0.0, txhisl=txhisl, pglth=5.0,
             border=border, lbord=_band, hxeh=hxeh, hxew=hxew, clwi=0.0, rlwi=ROW_LABEL_BAND_MM,
             mxpprow=MAXPPROW, mxrowl=MAXROWLEN, rpstrip=999, nextrap=0,
@@ -760,6 +801,10 @@ def _build_base(
             padlrow=False, target_name=name,
             has_clip_border=_band > 0, extra_keywords=extra,
             hexagonal=bool(hflag),
+            # THE ONE WRITE. `and hflag` is not belt and braces: it is what
+            # makes the flag inert when the honeycomb is off, so a recipe
+            # carrying it cannot change a rectangular chart either.
+            hex_flat_top=bool(hflag and hex_flat_top),
         )
 
     # ---- X-Rite DTP41 ---------------------------------------------------

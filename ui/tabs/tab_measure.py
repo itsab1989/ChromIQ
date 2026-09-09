@@ -549,8 +549,21 @@ def _apply_hex_stagger(ti2_path: Path, pages: "list[dict[str, QRect]]") -> None:
     was removed at the same time.
     """
     import re
-    from workflow.hex_support import chart_is_hexagonal
+    from workflow.hex_support import chart_is_hexagonal, chart_is_flat_top
     if not chart_is_hexagonal(ti2_path):
+        return
+    # A ROTATED HONEYCOMB HAS ONE X PER COLUMN BY DESIGN, so the fingerprint
+    # below reads every one of them as legacy and shifts every box by a quarter
+    # patch: measured 31 px on a 123 px patch, on every patch of every page.
+    # That is the fault Sebastian reported once already, reintroduced by a
+    # heuristic that was correct for the only orientation that existed when it
+    # was written.
+    #
+    # The answer is a POSITIVE signal rather than a cleverer heuristic. The
+    # sidecar's recipe round-trips, so ask it. A legacy sidecar predates the
+    # field, so `hex_flat_top` is absent there, reads falsy, and the heuristic
+    # still runs for exactly the vintage it was written for.
+    if chart_is_flat_top(ti2_path):
         return
     for page in pages:
         if not page:
@@ -4725,8 +4738,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # zigzag (staggered hexagons) instead of a straight rect that would spill
         # into the neighbouring column, and the swipe arrow is hidden — an XY
         # table reads patch-by-patch, so there's nothing to swipe (Knut/Basti).
-        from workflow.hex_support import chart_is_hexagonal
-        self._preview.set_hex_zigzag(chart_is_hexagonal(self._ti1_path))
+        from workflow.hex_support import chart_is_hexagonal, chart_is_flat_top
+        self._preview.set_hex_zigzag(
+            chart_is_hexagonal(self._ti1_path),
+            # The same route, off the same sidecar, so the overlay and the
+            # ink cannot disagree about which way up the honeycomb is.
+            flat_top=chart_is_flat_top(self._ti1_path))
         # A CR30 chart has no swipe either, so the arrow goes — but its patches
         # are square, so it must NOT borrow the hex zigzag to achieve that
         # (#159). Read from the chart, like everything else on this path — via

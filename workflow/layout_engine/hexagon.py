@@ -72,8 +72,25 @@ def stagger_dx(w: float, step: int, *, round_to_int: bool = True) -> float:
     return round(dx) if round_to_int else dx
 
 
+def stagger_dy(ph: float, strip: int, *, round_to_int: bool = True) -> float:
+    """Vertical offset for the strip at index *strip*, on a FLAT-TOP honeycomb.
+
+    THE FLIP MOVES THE STAGGER TO THE OTHER AXIS AND TO THE OTHER INDEX, and
+    both halves of that matter. On a pointy-top sheet consecutive patches DOWN a
+    strip alternate sideways, which makes each horizontal ROW straight. On a
+    flat-top sheet consecutive STRIPS alternate up and down, which makes each
+    vertical COLUMN straight — and a straight column is the whole point of the
+    option, because that is what an instrument travels along.
+
+    So this is indexed by the strip, not by the patch, and applied to y.
+    """
+    dy = -ph * STAGGER_FRACTION if strip % 2 == 0 else ph * STAGGER_FRACTION
+    return round(dy) if round_to_int else dy
+
+
 def vertices(x0: float, y0: float, w: float, ph: float,
-             *, round_to_int: bool = False) -> list[tuple[float, float]]:
+             *, flat_top: bool = False,
+             round_to_int: bool = False) -> list[tuple[float, float]]:
     """The six vertices of the hexagon filling the slot at *(x0, y0)*, *w* x *ph*.
 
     Order is top apex, upper right, lower right, bottom apex, lower left, upper
@@ -91,24 +108,42 @@ def vertices(x0: float, y0: float, w: float, ph: float,
     and right edges, which is what the renderer has always done; the float path
     leaves it exact.
     """
-    t6 = ph * APEX_FRACTION
-    left, right = x0, x0 + w
-    cx = x0 + w / 2.0
-    pts = [
-        (cx, y0 - t6),               # top apex
-        (right, y0 + t6),            # upper right
-        (right, y0 + 5 * t6),        # lower right
-        (cx, y0 + ph + t6),          # bottom apex
-        (left, y0 + 5 * t6),         # lower left
-        (left, y0 + t6),             # upper left
-    ]
+    if flat_top:
+        # THE SAME HEXAGON, TURNED 30 DEGREES. Not a different shape and not a
+        # stretched one: the apexes move from the top and bottom to the left and
+        # right, so the sixth-of-the-slot overhang is taken off the WIDTH, and
+        # the flat sides become the top and bottom edges. Everything below is
+        # the pointy expression with x and y exchanged.
+        t6 = w * APEX_FRACTION
+        top, bottom = y0, y0 + ph
+        cy = y0 + ph / 2.0
+        pts = [
+            (x0 - t6, cy),               # left apex
+            (x0 + t6, top),              # upper left
+            (x0 + 5 * t6, top),          # upper right
+            (x0 + w + t6, cy),           # right apex
+            (x0 + 5 * t6, bottom),       # lower right
+            (x0 + t6, bottom),           # lower left
+        ]
+    else:
+        t6 = ph * APEX_FRACTION
+        left, right = x0, x0 + w
+        cx = x0 + w / 2.0
+        pts = [
+            (cx, y0 - t6),               # top apex
+            (right, y0 + t6),            # upper right
+            (right, y0 + 5 * t6),        # lower right
+            (cx, y0 + ph + t6),          # bottom apex
+            (left, y0 + 5 * t6),         # lower left
+            (left, y0 + t6),             # upper left
+        ]
     if round_to_int:
         return [(round(x), round(y)) for x, y in pts]
     return pts
 
 
 def contains(x0: float, y0: float, w: float, ph: float,
-             x: float, y: float) -> bool:
+             x: float, y: float, *, flat_top: bool = False) -> bool:
     """Is *(x, y)* inside the hexagon filling that slot?
 
     The slot and the hexagon are not the same shape: the slot's four corners lie
@@ -122,8 +157,18 @@ def contains(x0: float, y0: float, w: float, ph: float,
     shoulder, ``t6`` inside it; and the edge between them is straight, so it is
     linear in the distance from the centre.
     """
-    if w <= 0:
+    if w <= 0 or ph <= 0:
         return False
+    if flat_top:
+        # x and y exchanged, exactly as in `vertices`.
+        t6 = w * APEX_FRACTION
+        cy = y0 + ph / 2.0
+        dy = abs(y - cy) / (ph / 2.0)
+        if dy > 1.0:
+            return False
+        left = x0 - t6 + dy * 2.0 * t6
+        right = x0 + w + t6 - dy * 2.0 * t6
+        return left <= x <= right
     t6 = ph * APEX_FRACTION
     cx = x0 + w / 2.0
     dx = abs(x - cx) / (w / 2.0)

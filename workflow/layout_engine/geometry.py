@@ -544,9 +544,18 @@ def patch_rects_px(geom: Geom, paper_w_mm: float, paper_h_mm: float,
             # inherited it, the expected-vs-measured overlay and the scanner
             # target's patch boxes alike (workflow/scanin_target.py reads these
             # very rects), so recording the stagger corrects both at once.
-            if _ss_hex:
+            if _ss_hex and geom.hex_flat_top:
+                # ROTATED: THE STAGGER MOVES AXIS AND INDEX AT THE SAME TIME.
+                # It is applied to y, and indexed by the STRIP rather than by
+                # the patch's place in it, so consecutive columns interlock and
+                # each column runs straight down the page. That straight column
+                # is the whole point of the option.
+                _dy = hexagon.stagger_dy(px(place.plen), (first // steps) + p)
+                _y0 += _dy
+                _y1 += _dy
+            elif _ss_hex:
                 # THE SAME STAGGER THE RENDERER APPLIES, from the same place.
-                # These two rounding one must agree exactly or the recorded box
+                # These two roundings must agree exactly or the recorded box
                 # describes a place no ink is.
                 _dx = hexagon.stagger_dx(_x1 - _x0, j)
                 _x0 += _dx
@@ -747,9 +756,20 @@ def helper_marker_lines_mm(geom: Geom, paper_w_mm: float, paper_h_mm: float,
         # about x. The docstring warns about exactly this — "the names are the
         # EDGE, never the axis … anyone naming these after the segment gets them
         # backwards" — and it was still got backwards.
-        top_bottom = False
-        if not sides:
-            return []
+        if geom.hex_flat_top:
+            # ROTATED, AND THE AXES INVERT AGAIN. The turn moves the stagger to
+            # y and indexes it by the STRIP, so the centres become uniform in x
+            # and zigzag in y: the mirror of the case below, one orientation
+            # along. Basti, 2026-09-09, asked whether the top and bottom markers
+            # would then be allowed: *"those are the ones that make sense once
+            # the honeycomb is rotated."* They are, and only they are.
+            sides = False
+            if not top_bottom:
+                return []
+        else:
+            top_bottom = False
+            if not sides:
+                return []
     if paper_w_mm <= 0 or paper_h_mm <= 0 or length_mm <= 0:
         return []
     if not top_bottom and not sides:

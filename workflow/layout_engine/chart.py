@@ -43,6 +43,7 @@ def build_ti2_from_ti1(
     seed: int | None = None,
     randomize: bool = True,
     hflag: bool = False,
+    hex_flat_top: bool = False,
     density: int = 1,
     spacer_on: bool = True,
     pscale: float = 1.0,
@@ -61,7 +62,7 @@ def build_ti2_from_ti1(
     """
     target = ti1_reader.read_ti1(ti1_path)
     geom = instruments.build(
-        instrument, hflag=hflag, density=density, spacer_on=spacer_on, pscale=pscale,
+        instrument, hflag=hflag, hex_flat_top=hex_flat_top, density=density, spacer_on=spacer_on, pscale=pscale,
         sscale=sscale, border=border, nolpcbord=nolpcbord, nolimit=nolimit,
     )
     w_mm, h_mm = papers.dimensions_mm(paper)
@@ -97,6 +98,7 @@ def build_chart(
     randomize: bool = True,
     dpi: int = 300,
     hflag: bool = False,
+    hex_flat_top: bool = False,
     density: int = 1,
     cm_stagger: bool = False,
     spacer_on: bool = True,
@@ -212,6 +214,7 @@ def build_chart(
     # capacity estimate exactly (#93).
     geom = instruments.geom_from_build_kwargs({
         "instrument": instrument, "paper": paper, "hflag": hflag,
+        "hex_flat_top": hex_flat_top,
         "density": density, "cm_stagger": cm_stagger,
         "spacer_on": spacer_on, "pscale": pscale,
         "sscale": sscale, "border": border, "margins": margins,

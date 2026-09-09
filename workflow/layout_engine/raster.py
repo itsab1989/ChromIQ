@@ -1066,7 +1066,8 @@ class RenderResult:
     patch_geom: list[list[tuple]] | None = None
 
 
-def _hexagon_points(x0: int, y0: int, w: int, ph: int, step: int):
+def _hexagon_points(x0: int, y0: int, w: int, ph: int, step: int,
+                    *, flat_top: bool = False):
     """Six vertices of a printtarg-style hexagon for the patch slot at
     ``(x0, y0)`` sized ``w × ph`` (px), staggered ±¼·w by the patch's index in
     the strip (#93, Knut).
@@ -1077,6 +1078,11 @@ def _hexagon_points(x0: int, y0: int, w: int, ph: int, step: int):
     overlay measured worse when its own vertices were snapped. This stays as a
     named function because two tests call it by name to check the stagger.
     """
+    if flat_top:
+        # Rotated: the stagger moves to y and is indexed by the STRIP, so it is
+        # applied by the caller (which knows the strip) rather than here. This
+        # function only turns the shape.
+        return hexagon.vertices(x0, y0, w, ph, flat_top=True, round_to_int=True)
     dx = hexagon.stagger_dx(w, step)
     return hexagon.vertices(x0 + dx, y0, w, ph, round_to_int=True)
 
@@ -1200,6 +1206,7 @@ def render_pages(
     # Capacity is unchanged — only the shape.
     from .instruments import is_hexagonal as _is_hex
     ss_hex = _is_hex(geom)
+    _flat_top = bool(getattr(geom, "hex_flat_top", False))
     # Row-number band width (SpectroScan labels the grid 2-D): 0 for instruments
     # without it. Drawn to the left of the patches, the band placement reserves.
     _row_band_px = px(getattr(geom, "rlwi", 0.0))
@@ -1320,6 +1327,19 @@ def render_pages(
             # ColorMunki "offset every second strip": odd strips shift down by
             # the rig stagger (#93, Knut). 0 for everything else.
             _stag = px(getattr(geom, "row_stagger_mm", 0.0)) if (global_strip & 1) else 0
+            # ...AND THE FLAT-TOP HONEYCOMB'S OWN HALF-PITCH OFFSET, which is a
+            # different mechanism that happens to act on the same axis. It is
+            # kept separate from `row_stagger_mm` on purpose: that one is the
+            # ColorMunki rig's downward-only shift, it also rewrites `hxeh`
+            # (instruments.py), and `geometry.py` switches the apex clearance
+            # off the moment it is non-zero. Folding the turn into it would
+            # destroy the apex reserve for a reason belonging to another
+            # instrument. Derived from `px(place.plen)` because
+            # `patch_rects_px` derives it from exactly the same expression, and
+            # the two must agree to the pixel or the recorded box describes a
+            # place no ink is.
+            if ss_hex and _flat_top:
+                _stag += hexagon.stagger_dy(px(place.plen), global_strip)
             col_slots = list(range(first + p * steps,
                                    min(last, first + (p + 1) * steps)))
             if draw_indicators:
@@ -1381,7 +1401,17 @@ def render_pages(
                 # left column's even rows stagger ¼·width LEFT past x0, so clear
                 # that protrusion too, else the hexagons cover the numbers.
                 _gap = max(1, px(1.0))
-                _protrude = (strip_w // 4) if ss_hex else 0
+                # ROTATED: what sticks out to the left is no longer the stagger
+                # but the APEX, and it is a sixth of the width rather than a
+                # quarter. Using the stagger's quarter here would reserve 3.0 mm
+                # where 1.73 mm is needed, and using the pointy expression at
+                # all on a rotated sheet reserves the wrong quantity outright:
+                # a flat-top strip does not zigzag sideways, so there is no
+                # quarter-width protrusion to clear.
+                if ss_hex and _flat_top:
+                    _protrude = strip_w // 6
+                else:
+                    _protrude = (strip_w // 4) if ss_hex else 0
                 _rx = x0 - _protrude - _gap
                 # WHERE THE BAND ITSELF SITS — §R1.2, and the half of Knut's
                 # rule that beta 6 did not build.
@@ -1470,7 +1500,8 @@ def render_pages(
                 yB = px(place.y_of(j) + place.plen) + _stag    # patch bottom edge
                 rgb = rgb_by_slot[gslot]
                 if ss_hex:
-                    _pts = _hexagon_points(x0, y0, xR - x0, yB - y0, j)
+                    _pts = _hexagon_points(x0, y0, xR - x0, yB - y0, j,
+                                           flat_top=_flat_top)
                     draw.polygon(_pts, fill=rgb)
                     if collect_device_geom:
                         _geom_rows.append(("hex", _pts, dev_by_slot[gslot]))

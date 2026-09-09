@@ -131,6 +131,19 @@ def hex_two_heights_note() -> str:
         "information shows you both.")
 
 
+def hex_patch_width_mm(column_pitch_mm: float) -> float:
+    """The drawn WIDTH of a rotated hexagon, from its column pitch.
+
+    The mirror of :func:`hex_patch_height_mm`, and a SEPARATE function rather
+    than a flag on that one, so nothing already calling it can silently change
+    meaning. `HEX_HEIGHT_FACTOR` is the right number (4/3) on both orientations;
+    only the axis it applies to changes, which is why it is not renamed either.
+
+    Report only, never geometry.
+    """
+    return float(column_pitch_mm) * HEX_HEIGHT_FACTOR
+
+
 def hex_patch_height_mm(row_pitch_mm: float) -> float:
     """Tip-to-tip height (mm) of a hexagon whose slot / row pitch is
     *row_pitch_mm*. See :data:`HEX_HEIGHT_FACTOR`.
@@ -194,6 +207,41 @@ def settings_are_hexagonal(create_chart_settings) -> bool:
                 and bool(value("printtarg-h")))
     except Exception:      # noqa: BLE001 — an unreadable record is not a claim
         return False
+
+
+def chart_is_flat_top(chart_path: "str | Path | None") -> bool:
+    """True when the chart at *chart_path* is a ROTATED (flat-top) honeycomb.
+
+    A POSITIVE SIGNAL, read off the sidecar's own recipe, and that is the point
+    of it. `tab_measure._apply_hex_stagger` decides a sidecar is a pre-2026-08-13
+    vintage by noticing that every patch of a column shares one x. A rotated
+    honeycomb has one x per column BY DESIGN, so that fingerprint calls every
+    rotated chart legacy and shifts every box by a quarter patch. The fix is to
+    ask the chart what it is rather than to make the fingerprint cleverer.
+
+    Fails closed on a missing or unreadable sidecar, which is the safe direction
+    here: a chart built before this field existed reads False and keeps exactly
+    the behaviour it has always had.
+    """
+    if not chart_path:
+        return False
+    p = Path(chart_path)
+    candidates = []
+    if p.name.endswith(".channels.json"):
+        candidates.append(p)
+    else:
+        candidates.append(artefact(p, ".channels.json"))
+        for _ext in (".ti1", ".ti2", ".ti3"):
+            candidates.append(artefact(without_ext(p, _ext), ".channels.json"))
+    for cj in candidates:
+        try:
+            if cj.is_file():
+                data = json.loads(read_text(cj))
+                recipe = (data.get("layout") or {}).get("recipe") or {}
+                return bool(recipe.get("hex_flat_top", False))
+        except Exception:
+            continue
+    return False
 
 
 def chart_is_hexagonal(chart_path: "str | Path | None") -> bool:

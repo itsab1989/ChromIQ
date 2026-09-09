@@ -308,3 +308,81 @@ widget, or `QWidget.grab()` returns a null pixmap and `save()` fails silently).
 It stays consistent with the earlier rulings: visible only while the instrument
 is a CR30 AND hexagons are on, off by default, savable as a default and inside a
 preset, Manual and from-profile-gamut only.
+
+### RULING (Basti, 2026-09-09): on a ROTATED honeycomb it is the TOP AND BOTTOM markers
+
+*"but will markers on top and bottom also be allowed?"* — *"those are the ones
+that make sense once the honeycomb is rotated"*. Yes, and the axes invert again,
+which is the mirror of the correction made in `9ec5e921`:
+
+| | stagger applied to | centres uniform in | comb that LANDS |
+|---|---|---|---|
+| pointy-top (today) | x, indexed by patch down the strip | y | **sides** (left/right) |
+| flat-top (rotated) | y, indexed by the strip | x | **top and bottom** |
+
+So `helper_marker_lines_mm`'s hexagonal branch must ask `geom.hex_flat_top` and
+drop the OTHER comb, not the same one. A gate that only asks `is_hexagonal`
+would keep the sides on a rotated sheet, which is the identical fault the
+correction commit was written for, one orientation along.
+
+To be MEASURED on both orientations before the commit closes, in the shape the
+correction used: worst distance from a patch centre to its nearest dash, both
+combs, both instruments. Not reasoned.
+
+### The turn ALSO fixes the spacer shape, for the turned orientation only
+
+Measured 2026-09-09 on a CR30 A4 honeycomb, 210 patches, 300 dpi, spacers
+switched ON (the opt-in path):
+
+| | full-width black rules on the sheet |
+|---|---|
+| pointy-top | **22** |
+| rotated | **0** |
+
+Why, and it is structural rather than lucky. `raster.py` draws the inter-patch
+spacer as a rectangle spanning the strip, between one patch's bottom edge and
+the next patch's top edge. On a pointy-top sheet those are APEXES, so the
+rectangle is painted straight through the interlock and cuts 75 % off each
+point. On a rotated sheet consecutive patches in a strip meet along their FLAT
+horizontal edges, and the apexes point sideways, out past the strip the
+rectangle spans. So the rectangle is exactly the right shape there and touches
+no apex.
+
+**This does not close the ring item.** The pointy orientation is still the
+default and still draws the 22 rules when a user switches spacers on, and that
+is the orientation the ring was ruled for. What it changes is the scope: a user
+who turns the honeycomb also gets correct spacers today, so the ring is needed
+for the un-turned case alone. Re-read this before building it.
+
+### ...but the diagonals open up, and that is the SAME defect, not a new one
+
+Basti, looking at the rotated proof shot: *"the ne orientation had spacers
+active and the diagonals between the hexes had tiny gaps"*. Measured at 600 dpi,
+white area INSIDE the patch field (well within its own bounding box):
+
+| | spacers off (the CR30 DEFAULT) | spacers on |
+|---|---|---|
+| pointy-top | **0.00 %** | 6.64 % |
+| rotated | **0.00 %** | 2.35 % |
+
+So the honeycomb tessellates perfectly in BOTH orientations as shipped, and both
+open up the moment a user switches spacers on.
+
+**One cause, two symptoms.** `raster.py` inserts the spacer along the STRIP axis
+only, growing the pitch on one axis while a honeycomb interlocks in three
+directions. The edges perpendicular to the strip get their clean 1.3 mm; the
+diagonals are simply pulled apart, into slivers whose width nobody chose. The
+turn halves the damage (6.64 % -> 2.35 %) and cannot remove it, because the
+mechanism is one-axis by construction.
+
+This is the third measured argument for the ring and the strongest: a ring is
+the only spacer shape that can give a honeycomb a UNIFORM gap, because it comes
+out of the patch's own area on all six sides instead of being inserted between
+rows on one axis. Recorded here so the ring commit starts from the measurement
+rather than from the idea.
+
+**A modelling note, so the next person does not repeat it.** An idealised
+polygon-distance model of this said the diagonals still touch at a 1.3 mm
+spacer. It was wrong, and the rendered sheet is what showed it: the model
+carried the stagger as plen/4 while the pitch had grown to plen+pspa, so it
+described a lattice the renderer does not draw. Measure the ink.

@@ -435,6 +435,10 @@ class LayoutOptionsPanel(QWidget):
             # `hasattr`, and `_sync_layout_mode` runs the same update once the
             # panel is built.
             self.mode.currentIndexChanged.connect(self._update_area_hex_locks)
+            # The turn is offered only on a honeycomb, so the SHAPE decides its
+            # visibility as much as the instrument does.
+            self.mode.currentIndexChanged.connect(
+                self._sync_hex_flat_top_visibility)
             self._on_instr_changed()
 
         def mm(special_auto: bool = False, top: float = 300.0) -> NoScrollDoubleSpinBox:
@@ -1089,6 +1093,40 @@ class LayoutOptionsPanel(QWidget):
                "doesn't reduce the patch count. Turn it on if you prefer the "
                "printtarg look or want an extra separator at the strip ends."),
             self), 10, 2)
+
+        # ---- Straight strips: the honeycomb, turned 30 degrees (#159) ----
+        #
+        # It lives HERE, in Expert Options -> Patches & spacers, on Basti's
+        # ruling of 2026-09-09. It is a property of the patch lattice, which is
+        # what this group is about, and it is an expert choice rather than one
+        # every CR30 user has to meet.
+        self.hex_flat_top_cb = WrappingCheckBox(
+            tr("Straight strips (turn the honeycomb 30°)"), self)
+        self.hex_flat_top_cb.toggled.connect(self._emit)
+        g.addWidget(self.hex_flat_top_cb, 11, 1)
+        g.addWidget(TooltipButton(
+            tr("Straight strips"),
+            tr("Turns the honeycomb 30°, so every strip runs straight down the "
+               "page instead of zigzagging from side to side.\n\n"
+               "The patches themselves do not change. It is the same hexagon, "
+               "the same size, simply stood on a flat side instead of a point, "
+               "so nothing is stretched and each patch holds the same amount of "
+               "ink. What changes is how the strips line up: on the standard "
+               "honeycomb every second patch in a strip sits half a patch to the "
+               "side, and with this on they sit one under another.\n\n"
+               "Why you might want it. A strip you read patch by patch is easier "
+               "to follow when it is straight, and a straight strip is easier to "
+               "lay a ruler along. The ruler helper markers follow the turn with "
+               "it: on a standard honeycomb the left and right dashes are the "
+               "ones that line up with the patches, and on a turned one it is "
+               "the top and bottom dashes.\n\n"
+               "What it costs. The strips and rows come out a different length, "
+               "so the number of patches on a sheet can move a little in either "
+               "direction. Watch the patch count beside the preview and adjust "
+               "the margins or patch size if you want it back.\n\n"
+               "Only for the CR30 with hexagon patches. The option is hidden "
+               "otherwise, and has no effect on any other chart."),
+            self), 11, 2)
         _expert_v.addWidget(ps)
 
         # ---- Randomisation ----
@@ -2390,6 +2428,11 @@ class LayoutOptionsPanel(QWidget):
         if hasattr(self, "cm_stagger_cb"):
             self.cm_stagger_cb.setVisible(inst == "CM")
             self._cm_stagger_tip.setVisible(inst == "CM")
+        # HIDE, NEVER UNTICK, and never disable: a box that is set and
+        # unclickable is the `ca0f639c` shape. The value stays in the recipe and
+        # simply cannot reach any other instrument's Geom, because `_build_base`
+        # writes `hex_flat_top` only in the CR30 honeycomb branch.
+        self._sync_hex_flat_top_visibility()
 
     def _on_instr_changed(self, *_a) -> None:
         from workflow.layout_engine import papers
@@ -3208,6 +3251,24 @@ class LayoutOptionsPanel(QWidget):
     # ------------------------------------------------------------------
     # A HONEYCOMB HAS ONE FREE DIMENSION, AND THE PANEL OFFERED TWO.
     # ------------------------------------------------------------------
+    def _sync_hex_flat_top_visibility(self) -> None:
+        """Show the turn only on a CR30 honeycomb.
+
+        `_area_is_hexagonal()` alone is NOT the test: it ends in
+        `instruments.hex_capable(inst)`, which is True for the SpectroScan, and
+        Basti ruled the turn is CR30-only (2026-09-09, answer 2: *"in this case
+        no for the spectrosscan"*). Naming the instrument here is the third of
+        the three gates that all name it; the others are in `_build_base` and in
+        `area_fit.derive_area_patch_size`.
+        """
+        cb = getattr(self, "hex_flat_top_cb", None)
+        if cb is None:
+            return
+        inst = ""
+        if getattr(self, "instr", None) is not None:
+            inst = str(self.instr.currentData() or "")
+        cb.setVisible(self._area_is_hexagonal() and inst == "CR30")
+
     def _area_is_hexagonal(self) -> bool:
         """Whether the chart on screen is a honeycomb.
 
@@ -4477,6 +4538,7 @@ class LayoutOptionsPanel(QWidget):
         self.spacer_width.setValue(r.spacer_width_mm)
         self.edge_spacers_cb.setChecked(bool(r.edge_spacers))
         self.cm_stagger_cb.setChecked(bool(getattr(r, "cm_stagger", False)))
+        self.hex_flat_top_cb.setChecked(bool(getattr(r, "hex_flat_top", False)))
         self._spacer_overrides = {str(k): v for k, v in (r.spacer_overrides or {}).items()}
         _pal = list(r.spacer_palette or [])
         self.custom_spacer_cb.setChecked(bool(_pal))
@@ -4656,6 +4718,10 @@ class LayoutOptionsPanel(QWidget):
         r.spacer_on = r.spacer_mode != "none"
         r.edge_spacers = self.edge_spacers_cb.isChecked()
         r.cm_stagger = self.cm_stagger_cb.isChecked()
+        # Read the BOX, not "the box if it happens to be visible": hiding must
+        # never change the stored answer, and the build gate is what makes the
+        # value inert elsewhere.
+        r.hex_flat_top = self.hex_flat_top_cb.isChecked()
         r.spacer_width_mm = self.spacer_width.value()
         r.layout_mode = self.layout_mode.currentData() or "patch_first"
         r.area_method = self.area_method.currentData() or "by_width"
