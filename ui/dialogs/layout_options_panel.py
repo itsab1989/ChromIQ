@@ -219,12 +219,12 @@ class LayoutOptionsPanel(QWidget):
                        "never use the corners of a square patch, so on a "
                        "square grid that paper is spent for nothing. Hexagons "
                        "are the tightest way to pack round openings into a "
-                       "sheet — 90.7 % of the area is within reach of a "
-                       "circle, against 78.5 % for squares — so you keep the "
+                       "sheet: 90.7 % of the area is within reach of a "
+                       "circle, against 78.5 % for squares, so you keep the "
                        "same 4 mm of clearance all round the window while each "
                        "patch uses less paper. Measured on A4 at the standard "
                        "size and default margins: 345 patches rectangular, 405 "
-                       "hexagonal. The gain depends on the paper — on A3 it is "
+                       "hexagonal. The gain depends on the paper; on A3 it is "
                        "much smaller.\n\n"
                        "It is also reasonable to expect a honeycomb to be "
                        "easier to aim at, since its six sides close in on the "
@@ -234,22 +234,23 @@ class LayoutOptionsPanel(QWidget):
                        "is the packing above.\n\n"
                        "The shape costs a CR30 nothing to read. It matters "
                        "only to an instrument that has to travel ALONG a row "
-                       "of patches, and a CR30 never does — you lift it onto "
+                       "of patches, and a CR30 never does. You lift it onto "
                        "one patch, press the button on the instrument, and "
                        "lift it onto the next.\n\n"
-                       "Two costs, both real. The scanner and camera tools "
+                       "One cost, and one limit. The scanner and camera tools "
                        "turn a honeycomb chart away unless you switch them on "
-                       "for it in Preferences → Beta; and the ruler helper "
-                       "markers are not drawn on a honeycomb, because it has "
-                       "no straight rows to line a ruler against. If you want "
-                       "either of those, stay on Rectangular.\n\n"
+                       "for it in Preferences → Beta; and of the two ruler "
+                       "helper marker combs only the left and right one is "
+                       "drawn, because a honeycomb's rows are evenly spaced "
+                       "down the page but every second row is shifted half a "
+                       "patch sideways.\n\n"
                        "Either shape is a grid with row indicators down the left "
                        "and column letters along the top, so you can always "
                        "find the patch ChromIQ is asking for. Patch size is "
                        "PROVISIONAL: 12 mm is a reasoned starting point, "
                        "chosen because the CR30's body hides the patch once "
                        "you set it down and you are aiming from the cells "
-                       "around it — but the smallest patch a CR30 can read "
+                       "around it, but the smallest patch a CR30 can read "
                        "has never been measured. Make them bigger in Patch "
                        "size below if you find yourself missing patches."))
         return (tr("Layout mode"),
@@ -4269,7 +4270,7 @@ class LayoutOptionsPanel(QWidget):
         # switches greyed because the master tick was off, and then, ticking
         # it, found the side one live on a honeycomb.
         if getattr(self, "_hm_one_axis_only", False):
-            self.helper_markers_sides.setEnabled(False)
+            self.helper_markers_top_bottom.setEnabled(False)
 
     def _update_helper_marker_edge_warning(self, *_a) -> None:
         """Say it when the markers are on but no edge is ticked.
@@ -4290,8 +4291,17 @@ class LayoutOptionsPanel(QWidget):
     def _helper_marker_edge_warning_text(self) -> str:
         """The warning, or ``""`` when at least one edge will actually print."""
         on = bool(self.helper_markers_cb.isChecked())
-        none_ticked = not (self.helper_markers_top_bottom.isChecked()
-                           or self.helper_markers_sides.isChecked())
+        # ONLY THE BOXES THAT CAN ACTUALLY PRINT COUNT. On a honeycomb the
+        # top/bottom comb is greyed and its stored tick is deliberately left
+        # standing (disable, never untick), so an `or` across both boxes is
+        # always satisfied — the user unticks the one live box, the engine
+        # prints nothing, and the panel says nothing because the greyed box
+        # answered for it. Ask each box whether it is enabled as well as ticked.
+        will_print = ((self.helper_markers_top_bottom.isChecked()
+                       and self.helper_markers_top_bottom.isEnabled())
+                      or (self.helper_markers_sides.isChecked()
+                          and self.helper_markers_sides.isEnabled()))
+        none_ticked = not will_print
         if on and none_ticked:
             # "…at least one edge ABOVE" was true of a label printed under the
             # two boxes and is false of an ⓘ that sits on the row above them.
@@ -4312,10 +4322,14 @@ class LayoutOptionsPanel(QWidget):
         *one_axis_only* is the honeycomb case, and it is not the same as
         unsupported. A honeycomb's patch centres lie on straight lines along
         three directions, and on any page exactly one of the two page axes is
-        one of them: today that is ACROSS the page, measured at `dy = 0.0000`
-        between strips. So the top and bottom dashes line up exactly and the
-        side ones would mark a line the patches are not on. The group stays
-        usable and only the side switch is greyed, with its own reason.
+        one of them. It is the one DOWN the page: the stagger is applied to x,
+        so the centres are uniform in y and zigzag by half a patch width in x.
+        Measured on A4 portrait, worst distance from a centre to its nearest
+        dash — CR30 sides 0.0310 mm against top/bottom 2.9830 mm; SS sides
+        0.0250 mm against 1.7450 mm. So the LEFT AND RIGHT dashes land and the
+        top and bottom ones would mark the seam between two columns. The group
+        stays usable and only the top/bottom switch is greyed, with its own
+        reason.
 
         This replaces a blanket refusal whose premise was measurably false, on
         Basti's ruling of 2026-09-09: *"can't they be turned on by the user if
@@ -4340,16 +4354,20 @@ class LayoutOptionsPanel(QWidget):
         # capitals for the same problem. What falls silent is the engine, which
         # drops the side comb for a honeycomb by itself.
         self._hm_one_axis_only = bool(one_axis_only)
-        self.helper_markers_sides.setEnabled(supported and not one_axis_only)
+        self.helper_markers_top_bottom.setEnabled(supported and not one_axis_only)
         if one_axis_only:
-            self.helper_markers_sides.setToolTip(tr(
-                "Not available on hexagonal patches. A honeycomb's patches sit "
-                "in straight lines across the page but step sideways as they go "
-                "down it, so dashes along the left and right edges would point "
-                "at the gaps between patches rather than at the patches. The "
-                "top and bottom dashes line up exactly and stay available."))
+            self.helper_markers_top_bottom.setToolTip(tr(
+                "Not available on hexagonal patches. A honeycomb's rows sit at "
+                "an even spacing down the page, but every second row is shifted "
+                "half a patch sideways, so dashes along the top and bottom edges "
+                "would point at the seam between two columns rather than at the "
+                "patches. The left and right dashes line up exactly and stay "
+                "available."))
         if supported:
             self._update_helper_marker_rows()
+        # The greying itself can create or clear the contradiction, so the
+        # notice is refreshed here too and not only on a user toggle.
+        self._update_helper_marker_edge_warning()
 
     @contextmanager
     def _clip_preview_batched(self):

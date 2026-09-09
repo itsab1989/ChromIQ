@@ -64,6 +64,19 @@ PROBES = {
     str: lambda cur: (cur or "") + "x",
 }
 
+# A DEFAULT OF `None` IS THE INTERESTING CASE, NOT THE ONE TO SKIP, and the
+# first version of this test skipped it. Nine of `build()`'s arguments are
+# `X | None = None` — `patch_w`, `patch_h`, `margins` and the rest — so dropping
+# any of them from GEOM_BUILD_KEYS left this file green. Other tests happen to
+# catch the ones that exist today (88 tier-wide reds for `patch_w`), but a NEW
+# option written that way, which is exactly the shape a rotation flag takes,
+# would be invisible here.
+#
+# There is no annotation to trust, so try a spread of plausible values and use
+# the first that `build()` accepts. Anything that refuses every one of them is
+# reported by the control test below rather than passing silently.
+NONE_PROBES = (True, 3.0, 3, "x", (3.0, 3.0, 3.0, 3.0), [3.0, 3.0, 3.0, 3.0])
+
 INSTRUMENTS = ("CR30", "SS", "i1", "CM")
 
 
@@ -90,15 +103,13 @@ def test_every_build_argument_that_moves_the_geometry_is_filtered_through(instru
     base = build(instrument)
     missing = []
     inert = []
+    unprobed = []
     for name, default in _kwargs():
         if name in DERIVED_NOT_FILTERED:
             continue
-        probe = PROBES.get(type(default))
-        if probe is None:
-            continue                     # None default, or an exotic type
-        try:
-            other = build(instrument, **{name: probe(default)})
-        except Exception:                # noqa: BLE001 — refused values prove nothing
+        other = _probe_build(instrument, name, default)
+        if other is None:
+            unprobed.append(name)
             continue
         moved = _geom_differs(base, other)
         if moved and name not in GEOM_BUILD_KEYS:
@@ -116,6 +127,11 @@ def test_every_build_argument_that_moves_the_geometry_is_filtered_through(instru
     # union. Printing it keeps the tuple honest without making it brittle.
     if inert:
         print(f"[{instrument}] in the tuple but inert here: {sorted(inert)}")
+    # Reported, not asserted: some arguments refuse every probe value on some
+    # instruments. It is printed so that a growing list is visible rather than
+    # quietly shrinking the test's reach.
+    if unprobed:
+        print(f"[{instrument}] no probe value was accepted: {sorted(unprobed)}")
 
 
 def test_the_probe_actually_moves_something():
@@ -123,19 +139,35 @@ def test_the_probe_actually_moves_something():
     doing nothing at all — which is how a mutation test dies quietly."""
     base = build("CR30")
     moved = [n for n, d in _kwargs()
-             if n not in DERIVED_NOT_FILTERED and type(d) in PROBES
+             if n not in DERIVED_NOT_FILTERED
              and _safe_moved("CR30", n, d, base)]
-    assert len(moved) >= 5, (
+    assert len(moved) >= 12, (
         f"only {len(moved)} arguments moved the geometry at all; the probe "
         "values are not exercising build()"
     )
 
 
+def _probe_build(instrument, name, default):
+    """Build with *name* set to something other than its default, or None if no
+    candidate value is accepted."""
+    if default is None:
+        candidates = NONE_PROBES
+    else:
+        probe = PROBES.get(type(default))
+        if probe is None:
+            return None
+        candidates = (probe(default),)
+    for value in candidates:
+        try:
+            return build(instrument, **{name: value})
+        except Exception:      # noqa: BLE001 — a refused value proves nothing
+            continue
+    return None
+
+
 def _safe_moved(instr, name, default, base) -> bool:
-    try:
-        return _geom_differs(base, build(instr, **{name: PROBES[type(default)](default)}))
-    except Exception:      # noqa: BLE001
-        return False
+    other = _probe_build(instr, name, default)
+    return other is not None and _geom_differs(base, other)
 
 
 def test_the_two_derived_arguments_are_still_derived():

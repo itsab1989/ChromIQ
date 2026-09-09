@@ -293,3 +293,18 @@ Two questions still open when it is built:
    picks from a PAIR of patches, and a ring has up to six neighbours. Needs a
    rule, not an extension of the pair logic.
 2. **The rotated case**, per his re-check note above.
+
+### RULING (Basti, 2026-09-09): where the rotation option sits
+
+*"the new option will then be in the expert section - patches and spacers
+section i think"*.
+
+So: **Expert Options → Patches & spacers**, in `ui/dialogs/layout_options_panel.py`,
+NOT in the Basic frame and not a group of its own. That is the same collapsed
+section the ruler helper markers live in (`_expert_frame`, which ships
+collapsed — a driver must call `set_collapsed(False)` before it can grab the
+widget, or `QWidget.grab()` returns a null pixmap and `save()` fails silently).
+
+It stays consistent with the earlier rulings: visible only while the instrument
+is a CR30 AND hexagons are on, off by default, savable as a default and inside a
+preset, Manual and from-profile-gamut only.

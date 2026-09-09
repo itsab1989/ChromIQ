@@ -7,18 +7,26 @@ optional anyway and benefitial here but only as an option i think."*
 Before this change `geometry.py` returned NO markers for any hexagonal chart,
 and the six marker controls were greyed out, so the user could not switch them
 on even if they wanted to. The premise was that "a honeycomb has no rows to line
-a ruler up with"; measured on a real CR30 sheet, that is false. A honeycomb's
-patch centres lie on straight lines along three directions, and on any page
-exactly one of the two page axes is one of them. Today it is the axis ACROSS the
-page, where `dy = 0.0000` between strips at a 12.0000 mm pitch.
+a ruler up with"; measured on a real sheet, that is false. A honeycomb's patch
+centres lie on straight lines along three directions, and on any page exactly
+one of the two page axes is one of them.
 
-So the top and bottom comb lands on every patch and stays; the side comb, which
-steps down the page, would point at the gaps between patches and is dropped.
+**It is the axis DOWN the page**, and the first version of this driver asserted
+the opposite. The stagger is applied to x, indexed by the patch's position down
+its strip, so the centres are uniform in y and zigzag by half a patch width in
+x. Worst distance from a patch centre to its nearest dash, A4 portrait:
+
+    instrument   top/bottom     sides
+    CR30          2.9830 mm   0.0310 mm
+    SS            1.7450 mm   0.0250 mm
+
+So the LEFT AND RIGHT comb lands on every row and stays; the top and bottom one
+would mark the seam between two columns and is dropped.
 
 What this photographs, in the order a user meets it:
   1. a CR30 with square patches: every marker control live, both combs draw;
-  2. the same with Hexagon patches on: the group is STILL live, the side switch
-     is greyed with its own reason, and the dashes appear on the sheet;
+  2. the same with Hexagon patches on: the group is STILL live, the TOP/BOTTOM
+     switch is greyed with its own reason, and the dashes appear on the sheet;
   3. the built page, so the dashes can be seen against the honeycomb;
   4. the numbers read back off the layout the app actually used.
 
@@ -151,7 +159,7 @@ def run(app) -> int:
             "markers ticked": panel.helper_markers_cb.isChecked(),
             "top/bottom switch enabled": panel.helper_markers_top_bottom.isEnabled(),
             "side switch enabled": panel.helper_markers_sides.isEnabled(),
-            "side switch still ticked": panel.helper_markers_sides.isChecked(),
+            "top/bottom still ticked": panel.helper_markers_top_bottom.isChecked(),
         }
         print(f"        {tag}")
         for k, v in st.items():
@@ -199,8 +207,16 @@ def run(app) -> int:
 
     if not report["honeycomb"]["group enabled"]:
         print("        >>> the marker group is still greyed on a honeycomb"); bad += 1
-    if not report["honeycomb"]["top/bottom switch enabled"]:
-        print("        >>> the straight comb is unreachable"); bad += 1
+    if not report["honeycomb"]["side switch enabled"]:
+        print("        >>> the comb that LANDS is unreachable"); bad += 1
+    if report["honeycomb"]["top/bottom switch enabled"]:
+        print("        >>> the top/bottom comb is offered, and it marks the "
+              "seam between two columns"); bad += 1
+    if not report["honeycomb"]["top/bottom still ticked"]:
+        print("        >>> the honeycomb UNTICKED a choice that belongs to the "
+              "target instead of only greying it"); bad += 1
+    if not report["square"]["top/bottom switch enabled"]:
+        print("        >>> square patches lost a comb as collateral"); bad += 1
 
     print("\n  3. what the engine draws for that layout")
     for hf, label in ((False, "square"), (True, "honeycomb")):
@@ -215,9 +231,9 @@ def run(app) -> int:
         print(f"        {label:10} " + "  ".join(
             f"{k}: {v}" for k, v in counts.items()))
         report[f"dashes_{label}"] = counts
-    if report["dashes_honeycomb"]["sides only"] != 0:
-        print("        >>> the engine drew the comb that marks the gaps"); bad += 1
-    if report["dashes_honeycomb"]["top and bottom only"] == 0:
+    if report["dashes_honeycomb"]["top and bottom only"] != 0:
+        print("        >>> the engine drew the comb that marks the seam"); bad += 1
+    if report["dashes_honeycomb"]["sides only"] == 0:
         print("        >>> the engine drew nothing for the straight axis"); bad += 1
 
     # ---- 4. the controls themselves, not the window they are lost in ----
@@ -232,8 +248,8 @@ def run(app) -> int:
     pump(app, 500)
     if not shot(grp, "03-the-marker-controls-on-a-honeycomb"):
         bad += 1
-    print("        side switch tooltip:")
-    tip = panel.helper_markers_sides.toolTip()
+    print("        greyed switch's tooltip:")
+    tip = panel.helper_markers_top_bottom.toolTip()
     for line in (tip[:300] + ("..." if len(tip) > 300 else "")).split(". "):
         print(f"            {line.strip()}")
     report["side_tooltip"] = tip
@@ -282,8 +298,12 @@ def run(app) -> int:
         a = np.asarray(im).astype(int)
         h, w = a.shape[:2]
         dark = a.sum(axis=2) < 200
-        # the top margin, past the column where the row numbers are printed
-        band = dark[0:int(h * 0.05), int(w * 0.15):]
+        # The top margin, past the column where the row numbers are printed AND
+        # short of the right edge. The right-hand SIDE dashes sit at x = 206 mm
+        # on A4, which is inside the top band's x range, so a band running to
+        # the page edge counts the top-most side dash as a top/bottom one and
+        # reports a comb that is not there (measured: it added exactly 1).
+        band = dark[0:int(h * 0.05), int(w * 0.15):int(w * 0.85)]
         c = band.any(axis=0)
         top = int(np.sum(c[1:] & ~c[:-1])) + int(c[0])
         # the left margin, between the two combs so the corners cannot count
@@ -304,10 +324,12 @@ def run(app) -> int:
           f"   (+{run_side - ctl_side})")
     report["paper"] = {"top_off": ctl_top, "top_on": run_top,
                        "side_off": ctl_side, "side_on": run_side}
-    if run_top <= ctl_top:
-        print("        >>> ticking the markers on printed nothing new"); bad += 1
-    if run_side != ctl_side:
-        print("        >>> the side comb reached paper, marking the gaps"); bad += 1
+    if run_side <= ctl_side:
+        print("        >>> ticking the markers on printed nothing new down the "
+              "side, which is the comb a honeycomb keeps"); bad += 1
+    if run_top != ctl_top:
+        print("        >>> the top/bottom comb reached paper, marking the seam "
+              "between two columns"); bad += 1
     if run.layout.total_patches != ctl.layout.total_patches:
         print("        >>> the markers cost patches on the sheet"); bad += 1
 

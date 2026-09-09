@@ -82,35 +82,70 @@ def test_the_mesh_cells_take_the_patch_shape(qapp, tmp_path):
     assert flat.rects == hexy.rects, "the sampled geometry must not move"
 
 
-def test_the_drawn_cell_is_a_hexagon(qapp):
+def test_the_drawn_cell_is_a_hexagon(qapp, tmp_path):
     """A hexagonal cell must not cover its box's corners — they belong to the
     neighbours, which is the whole reason to draw the true shape.
 
-    THIS USED TO READ THE SOURCE TEXT of `_cell_uv` and count the substring
-    `"(cxu,"`. That passed for the right reason on the day it was written and
-    then went red the moment the six vertices moved into
-    `workflow/layout_engine/hexagon.py` — the shape unchanged, the assertion
-    broken, which is the failure mode of every test that asserts on how code is
-    spelled rather than what it produces. It now asks the mesh for its points.
-    """
-    from ui.scan_grid_marquee import ScanGridMarquee
-    from workflow.layout_engine import hexagon
+    TWO WRONG VERSIONS BEFORE THIS ONE, and they failed in opposite directions.
 
-    u, v, w, hh = 0.1, 0.2, 0.3, 0.4
-    hexy = hexagon.vertices(u, v, w, hh)
-    assert len(hexy) == 6, "a hexagon has six corners"
-    # the two apexes sit outside the box, on the centre line
-    cx = u + w / 2.0
-    assert hexy[0] == pytest.approx((cx, v - hh / 6.0))
-    assert hexy[3] == pytest.approx((cx, v + hh + hh / 6.0))
-    # and NO vertex is a box corner: that is what the neighbours own
-    corners = {(u, v), (u + w, v), (u + w, v + hh), (u, v + hh)}
-    for pt in hexy:
-        assert not any(abs(pt[0] - c[0]) < 1e-9 and abs(pt[1] - c[1]) < 1e-9
-                       for c in corners), f"{pt} is a box corner"
-    # the mesh must still ask the patch shape, not assume one
-    marquee = ScanGridMarquee.__new__(ScanGridMarquee)
-    assert hasattr(marquee, "_cell_uv") or hasattr(ScanGridMarquee, "_cell_uv")
+    The first read `inspect.getsource(_cell_uv)` and counted the substring
+    `"(cxu,"`. It passed for the right reason on the day it was written and went
+    red the moment the six vertices MOVED into `layout_engine/hexagon.py` — the
+    shape unchanged, the assertion broken, which is what every source-text
+    assertion eventually does.
+
+    The second asked `hexagon.vertices` directly and asserted nothing about the
+    mesh at all. A review proved it vacuous: with `_cell_uv` made to emit
+    rectangles for a hexagonal grid, the entire everyday tier passed, 12,322
+    tests green. Testing the library the code calls is not testing the code.
+
+    This one asks the real `ScanGridMarquee` for its real mesh and counts what
+    comes back.
+    """
+    import numpy as np
+    from ui.scan_grid_marquee import ScanGridMarquee
+    from ui.scan_grid_marquee import GridSpec
+
+    _stem, patches = _hex_chart(tmp_path)
+    grid = GridSpec.from_patches(patches, hexagonal=True)
+    flat = GridSpec.from_patches(patches, hexagonal=False)
+
+    def mesh(g):
+        m = ScanGridMarquee.__new__(ScanGridMarquee)
+        m._grid = g
+        m._cell_uv_cache = None
+        m._sample_frac = 0.5
+        return m._cell_uv()
+
+    hu, hv, hstride = mesh(grid)
+    fu, fv, fstride = mesh(flat)
+
+    # A HEX CELL CARRIES TWO MORE POINTS THAN A SQUARE ONE. This is the
+    # assertion the vacuous version did not make: it is about the mesh.
+    assert fstride == 4 + 4, f"a rectangular cell should contribute 8, not {fstride}"
+    assert hstride == 6 + 4, f"a hexagonal cell should contribute 10, not {hstride}"
+    ncells = len(grid.rects)
+    assert len(hu) == ncells * hstride, "the mesh is not one stride per cell"
+    assert len(hu) > len(fu), (
+        "the hexagonal mesh has no more points than the rectangular one, so "
+        "_cell_uv is drawing boxes for a honeycomb"
+    )
+
+    # ...and the six are a hexagon, not four corners with two repeats: the two
+    # apexes must lie OUTSIDE the cell, on its centre line.
+    for c in range(min(6, ncells)):
+        u, v, w, hh = grid.rects[c]
+        cell = list(zip(hu[c * hstride:c * hstride + 6],
+                        hv[c * hstride:c * hstride + 6]))
+        ys = [pt[1] for pt in cell]
+        assert min(ys) < v - 1e-12, f"cell {c}: no apex above the box"
+        assert max(ys) > v + hh + 1e-12, f"cell {c}: no apex below the box"
+        corners = [(u, v), (u + w, v), (u + w, v + hh), (u, v + hh)]
+        for px, py in cell:
+            assert not any(abs(px - cxx) < 1e-9 and abs(py - cyy) < 1e-9
+                           for cxx, cyy in corners), (
+                f"cell {c}: {(px, py)} is a box corner, which belongs to a "
+                "neighbouring patch")
 
 
 class _Store:

@@ -724,12 +724,31 @@ def helper_marker_lines_mm(geom: Geom, paper_w_mm: float, paper_h_mm: float,
     """
     from .instruments import is_hexagonal as _is_hex
     if _is_hex(geom):
-        # ONE AXIS, NOT NONE. See the docstring: the comb that steps ACROSS the
-        # page follows a straight line of patch centres on a pointy-top
-        # honeycomb; the one that steps down the page would mark the zigzag.
-        # Drop the second rather than the pair.
-        sides = False
-        if not top_bottom:
+        # ONE AXIS, NOT NONE — AND IT IS THE SIDES, WHICH IS THE OPPOSITE OF
+        # WHAT THIS BLOCK FIRST SAID.
+        #
+        # The stagger that makes a honeycomb a honeycomb is applied to **x**,
+        # indexed by the patch's position DOWN its strip (`patch_rects_px`
+        # :551). So the centres are exactly uniform in y and zigzag by half a
+        # patch width in x. The comb that steps down the page therefore lands on
+        # every row, and the comb that steps across it marks the seam between
+        # two columns.
+        #
+        # Measured on A4 portrait, worst distance from a patch centre to the
+        # nearest dash:
+        #
+        #             top/bottom      sides
+        #     CR30      2.9830 mm    0.0310 mm
+        #     SS        1.7450 mm    0.0250 mm
+        #
+        # The first version of this block kept the top/bottom comb, on a reading
+        # of "dy = 0.0000 between strips" that was evidence for the OTHER one:
+        # `dy` between strips says the columns start level, which is a fact
+        # about x. The docstring warns about exactly this — "the names are the
+        # EDGE, never the axis … anyone naming these after the segment gets them
+        # backwards" — and it was still got backwards.
+        top_bottom = False
+        if not sides:
             return []
     if paper_w_mm <= 0 or paper_h_mm <= 0 or length_mm <= 0:
         return []
