@@ -25,6 +25,7 @@ from PyQt6.QtGui import (QColor, QImage, QPainter, QPen, QPixmap, QPolygonF,
                          QTransform)
 from PyQt6.QtWidgets import QWidget
 
+from workflow.layout_engine import hexagon
 from core.i18n import tr
 from ui import neutral_styles
 
@@ -795,12 +796,11 @@ class ScanGridMarquee(QWidget):
         pts: list[tuple[float, float]] = []
         for (u, v, w, hh) in self._grid.rects:
             if hexed:
-                # pointed top and bottom, flat vertical sides — the same shape
-                # raster._hexagon_points draws, so the mesh reads as the chart
-                t6 = hh / 6.0
-                cxu = u + w / 2.0
-                pts += [(cxu, v - t6), (u + w, v + t6), (u + w, v + hh - t6),
-                        (cxu, v + hh + t6), (u, v + hh - t6), (u, v + t6)]
+                # Pointed top and bottom, flat vertical sides, from the one
+                # place that shape is written, so the mesh reads as the chart
+                # rather than resembling it. Unrounded: this is unit-square
+                # space, where an integer would collapse the cell.
+                pts += hexagon.vertices(u, v, w, hh)
             else:
                 pts += [(u, v), (u + w, v), (u + w, v + hh), (u, v + hh)]
             mg = sample_margin(w * asp, hh, self._sample_frac)

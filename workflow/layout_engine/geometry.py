@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from . import hexagon
 from .instruments import Geom
 
 
@@ -544,7 +545,10 @@ def patch_rects_px(geom: Geom, paper_w_mm: float, paper_h_mm: float,
             # target's patch boxes alike (workflow/scanin_target.py reads these
             # very rects), so recording the stagger corrects both at once.
             if _ss_hex:
-                _dx = round(-(_x1 - _x0) / 4) if j % 2 == 0 else round((_x1 - _x0) / 4)
+                # THE SAME STAGGER THE RENDERER APPLIES, from the same place.
+                # These two rounding one must agree exactly or the recorded box
+                # describes a place no ink is.
+                _dx = hexagon.stagger_dx(_x1 - _x0, j)
                 _x0 += _dx
                 _x1 += _dx
             out.append({

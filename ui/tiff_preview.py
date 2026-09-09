@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from workflow.layout_engine import hexagon
 from core.i18n import tr
 from core.logger import get_logger
 from ui import neutral_styles
@@ -1497,18 +1498,7 @@ class TiffPreview(QWidget):
         a corner selected a patch whose ink is not there (7.2–7.7 % of the click
         area, and 86–92 % of corner clicks).
         """
-        h = b.height()
-        t6 = h / 6.0
-        cx = b.x() + b.width() / 2.0
-        dx = abs(x - cx) / (b.width() / 2.0) if b.width() else 1.0
-        if dx > 1.0:
-            return False
-        # flat sides between the shoulders, sloping to the apexes beyond them
-        top = b.y() + t6 - dx * t6 * 2.0 if False else b.y() + t6 * (1.0 - dx) - t6 * dx
-        # the apex is t6 above the box top at dx = 0, the shoulder t6 below it at dx = 1
-        top = b.y() - t6 + dx * 2.0 * t6
-        bot = b.y() + h + t6 - dx * 2.0 * t6
-        return top <= y <= bot
+        return hexagon.contains(b.x(), b.y(), b.width(), b.height(), x, y)
 
     def set_patch_overlay(self, page: int,
                           items: "list[tuple[QRect, QColor, QColor, bool]]",
@@ -1708,15 +1698,11 @@ class TiffPreview(QWidget):
         # first hexagon's top apex. The intermediate apexes are internal seams,
         # correctly omitted, so it's a single clean hexagon-zigzag outline.
         def verts(b: QRect):
-            left, right = b.left(), b.right() + 1
-            cx = b.x() + b.width() / 2.0
-            y0, h = b.y(), b.height()
-            t6 = h / 6.0
-            return {
-                "top": (cx, y0 - t6), "ur": (right, y0 + t6),
-                "lr": (right, y0 + 5 * t6), "bot": (cx, y0 + h + t6),
-                "ll": (left, y0 + 5 * t6), "ul": (left, y0 + t6),
-            }
+            # One shape, from hexagon.py, named for the corners this outline
+            # walks. UNROUNDED, deliberately: see the note under the transform.
+            v = hexagon.vertices(b.left(), b.y(), b.right() + 1 - b.left(),
+                                 b.height())
+            return dict(zip(("top", "ur", "lr", "bot", "ll", "ul"), v))
 
         # NOT rounded. Snapping the vertices looks like the fix for the uneven
         # halo and is not: it measured worse (spread 0.14 -> 0.21 device px),
@@ -1745,28 +1731,17 @@ class TiffPreview(QWidget):
 
     @staticmethod
     def _patch_hexagon(b: QRect, s: float, ox: float, oy: float) -> "QPainterPath":
-        """A closed hexagon outline for a single SpectroScan patch box, matching
-        the same pointy-top/flat-side geometry the strip zigzag uses. Used to
+        """A closed hexagon outline for a single SpectroScan patch box, drawn from
+        `hexagon.vertices`, so it IS the strip zigzag's geometry rather than a
+        second copy promising to match it. Used to
         draw unread hex patches as their true shape in "Show only measured
         patches" (Knut) — a rectangle grid there is wrong for a hex chart."""
-        left, right = b.left(), b.right() + 1
-        cx = b.x() + b.width() / 2.0
-        y0, h = b.y(), b.height()
-        t6 = h / 6.0
-
-        def X(v: float) -> float:
-            return v * s + ox
-
-        def Y(v: float) -> float:
-            return v * s + oy
-
+        pts = hexagon.vertices(b.left(), b.y(), b.right() + 1 - b.left(),
+                               b.height())
         path = QPainterPath()
-        path.moveTo(X(cx), Y(y0 - t6))               # top apex
-        path.lineTo(X(right), Y(y0 + t6))            # upper right
-        path.lineTo(X(right), Y(y0 + 5 * t6))        # lower right
-        path.lineTo(X(cx), Y(y0 + h + t6))           # bottom apex
-        path.lineTo(X(left), Y(y0 + 5 * t6))         # lower left
-        path.lineTo(X(left), Y(y0 + t6))             # upper left
+        for i, (vx, vy) in enumerate(pts):
+            xy = (vx * s + ox, vy * s + oy)
+            (path.moveTo if i == 0 else path.lineTo)(*xy)
         path.closeSubpath()
         return path
 

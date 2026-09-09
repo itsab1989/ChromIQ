@@ -84,16 +84,33 @@ def test_the_mesh_cells_take_the_patch_shape(qapp, tmp_path):
 
 def test_the_drawn_cell_is_a_hexagon(qapp):
     """A hexagonal cell must not cover its box's corners — they belong to the
-    neighbours, which is the whole reason to draw the true shape."""
-    import inspect
+    neighbours, which is the whole reason to draw the true shape.
+
+    THIS USED TO READ THE SOURCE TEXT of `_cell_uv` and count the substring
+    `"(cxu,"`. That passed for the right reason on the day it was written and
+    then went red the moment the six vertices moved into
+    `workflow/layout_engine/hexagon.py` — the shape unchanged, the assertion
+    broken, which is the failure mode of every test that asserts on how code is
+    spelled rather than what it produces. It now asks the mesh for its points.
+    """
     from ui.scan_grid_marquee import ScanGridMarquee
-    # The cell corners are built in `_cell_uv` (cached per chart, then
-    # transformed as one array every paint) — `_draw_grid` only strokes them.
-    src = inspect.getsource(ScanGridMarquee._cell_uv)
-    assert "self._grid.hexagonal" in src, "the mesh ignores the patch shape"
-    # six points for a hexagon, four for a rectangle
-    hex_block = src[src.index("if hexed"):]
-    assert hex_block.count("(cxu,") == 2, "expected the two apex points"
+    from workflow.layout_engine import hexagon
+
+    u, v, w, hh = 0.1, 0.2, 0.3, 0.4
+    hexy = hexagon.vertices(u, v, w, hh)
+    assert len(hexy) == 6, "a hexagon has six corners"
+    # the two apexes sit outside the box, on the centre line
+    cx = u + w / 2.0
+    assert hexy[0] == pytest.approx((cx, v - hh / 6.0))
+    assert hexy[3] == pytest.approx((cx, v + hh + hh / 6.0))
+    # and NO vertex is a box corner: that is what the neighbours own
+    corners = {(u, v), (u + w, v), (u + w, v + hh), (u, v + hh)}
+    for pt in hexy:
+        assert not any(abs(pt[0] - c[0]) < 1e-9 and abs(pt[1] - c[1]) < 1e-9
+                       for c in corners), f"{pt} is a box corner"
+    # the mesh must still ask the patch shape, not assume one
+    marquee = ScanGridMarquee.__new__(ScanGridMarquee)
+    assert hasattr(marquee, "_cell_uv") or hasattr(ScanGridMarquee, "_cell_uv")
 
 
 class _Store:

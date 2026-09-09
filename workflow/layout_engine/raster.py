@@ -22,7 +22,7 @@ from PIL import Image, ImageDraw, ImageFont
 from core.logger import get_logger
 from core.resource_path import resource_path
 
-from . import contrast, geometry, permutation
+from . import contrast, geometry, hexagon, permutation
 from .colorants import to_device_approx, to_device_approx_array, to_display_rgb
 from .geometry import Layout
 
@@ -1067,23 +1067,18 @@ class RenderResult:
 
 
 def _hexagon_points(x0: int, y0: int, w: int, ph: int, step: int):
-    """Six vertices of a printtarg-style SpectroScan hexagon for the patch slot
-    at ``(x0, y0)`` sized ``w × ph`` (px), staggered ±¼·w by the patch's index
-    in the strip (#93, Knut). Pointed top and bottom, flat vertical sides; the
-    apexes reach ⅙·ph beyond the slot top and bottom (the geometry reserves that
-    as ``hxeh``), so neighbouring rows interlock as in ``printtarg -h``."""
-    dx = round(-w / 4) if step % 2 == 0 else round(w / 4)
-    t6 = ph / 6.0
-    left, right = x0 + dx, x0 + w + dx
-    cx = round(x0 + w / 2 + dx)
-    return [
-        (cx, round(y0 - t6)),               # top apex
-        (right, round(y0 + t6)),            # upper-right
-        (right, round(y0 + 5 * t6)),        # lower-right
-        (cx, round(y0 + ph + t6)),          # bottom apex
-        (left, round(y0 + 5 * t6)),         # lower-left
-        (left, round(y0 + t6)),             # upper-left
-    ]
+    """Six vertices of a printtarg-style hexagon for the patch slot at
+    ``(x0, y0)`` sized ``w × ph`` (px), staggered ±¼·w by the patch's index in
+    the strip (#93, Knut).
+
+    The shape itself now lives in ``hexagon.py`` and is shared with the Measure
+    overlay, the strip zigzag, the hit test and the scanner mesh. THE RENDERER
+    IS THE ONLY CALLER THAT ROUNDS: Pillow's ``polygon`` needs integers, and the
+    overlay measured worse when its own vertices were snapped. This stays as a
+    named function because two tests call it by name to check the stagger.
+    """
+    dx = hexagon.stagger_dx(w, step)
+    return hexagon.vertices(x0 + dx, y0, w, ph, round_to_int=True)
 
 
 def _fill_rect(draw: "ImageDraw.ImageDraw", box, fill) -> bool:
