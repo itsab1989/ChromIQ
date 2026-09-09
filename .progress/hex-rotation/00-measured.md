@@ -250,3 +250,46 @@ the printer on a chart type that is already shipped, so it is not mine to
 decide. Options put to him: (a) no spacer for a CR30 honeycomb, matching the
 SpectroScan; (b) keep the gap, stop painting it; (c) paint it as the
 complementary zigzag band instead of a rectangle.
+
+### CORRECTION, same day — the spacers are OFF by default, and my table was wrong
+
+Basti: *"but they are off by default anyway right?"* Yes, and the capacity table
+above is wrong because of it.
+
+`presets.default_recipe("CR30")` sets `spacer_mode="none"`, and `chart.py:209`
+turns that into `spacer_on=False`, so `spacer(1.3)` returns 0.0: no gap, no bar.
+The proof page that started this called `le_chart.build_chart` DIRECTLY, whose
+own default is `spacer_mode="colored"`, so it photographed a state a user only
+reaches by deliberately switching spacers on.
+
+Built through the shipped default instead:
+
+| CR30 honeycomb, A4 | strips x steps | full-width black rules |
+|---|---|---|
+| default (`spacer_mode="none"`) | 9 x **26** | **0** |
+| user turns spacers on | 10 x 23 | 22 |
+
+So the "+48 patches" offered to him DOES NOT EXIST — the default already gets
+the 416. Nothing is being lost today. The defect is confined to the opt-in
+path, which his 2026-08-28 ruling deliberately keeps available.
+
+### RULING (Basti, 2026-09-09): a RING around each hexagon, built AFTER the rotation
+
+He proposed the shape himself: *"would it make sense to draw spacers only for
+hexes around the whole hex?"* It is better than all three options put to him:
+
+* a bar separates two of a hexagon's six neighbours; a ring separates all six;
+* **it costs no patches**, because it comes out of the patch's own area rather
+  than out of the page, so the pitch stays tessellated at 26 steps per strip
+  (today's opt-in bar costs 3 steps a strip);
+* the aperture has room to spare — a 0.65 mm ring leaves 10.700 mm across the
+  flats against a 4.0 mm aperture, 2.7x clear; even 1.00 mm leaves 10.000 mm.
+
+Timing: **after the rotation**, on his call, because the rotation changes which
+neighbours are which and building the ring first means building it twice.
+
+Two questions still open when it is built:
+1. **What colour a ring takes.** `contrast.spacer_for_mode(mode, rgb, nxt, …)`
+   picks from a PAIR of patches, and a ring has up to six neighbours. Needs a
+   rule, not an extension of the pair logic.
+2. **The rotated case**, per his re-check note above.
