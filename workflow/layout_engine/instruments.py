@@ -431,6 +431,16 @@ def build(
     _ring = 0.0
     if geom.hexagonal and pspa > 0:
         _ring, pspa = pspa, 0.0
+        # AND A RING CANNOT EAT THE PATCH. "Spacer size" accepts 0-300 mm, and
+        # on a rectangular chart a huge one merely wastes the page. A ring comes
+        # out of the patch's own area, so past the hexagon's inradius it turns
+        # the shape inside out: at 40 mm a CR30 A4 honeycomb printed 11.94 mm
+        # inside a 20 mm margin, and at 300 mm it covered the sheet.
+        #
+        # The cap is generous -- 4.16 mm on a standard 12 mm CR30 patch, three
+        # times the 1.3 mm default -- so it constrains nobody who is not already
+        # destroying the chart.
+        _ring = min(_ring, 0.8 * min(pwid, plen) / 2.0)
     return replace(geom, margin_t=mt, margin_r=mr, margin_b=mb, margin_l=ml,
                    plen=plen, pwid=pwid, rrsp=rrsp, pspa=pspa, hex_ring_mm=_ring, mxrowl=mxrowl,
                    hxeh=hxeh, hxew=hxew, row_stagger_mm=row_stagger,

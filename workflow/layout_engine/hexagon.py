@@ -195,6 +195,16 @@ def side_neighbours(strip: int, step: int, *, flat_top: bool
     ]
 
 
+def _edge_distance(pts, i: int, cx: float, cy: float) -> float:
+    """Perpendicular distance from ``(cx, cy)`` to the line of edge *i*."""
+    x1, y1 = pts[i]
+    x2, y2 = pts[(i + 1) % len(pts)]
+    L = math.hypot(x2 - x1, y2 - y1)
+    if L == 0:
+        return 0.0
+    return abs((x2 - x1) * (y1 - cy) - (x1 - cx) * (y2 - y1)) / L
+
+
 def inset(pts: "list[tuple[float, float]]", d: float
           ) -> "list[tuple[float, float]]":
     """The same convex polygon with every EDGE moved *d* inward along its own
@@ -216,6 +226,19 @@ def inset(pts: "list[tuple[float, float]]", d: float
     n = len(pts)
     cx = sum(x for x, _ in pts) / n
     cy = sum(y for _, y in pts) / n
+    # NEVER PAST THE INRADIUS. Offsetting every edge inward by more than the
+    # distance to the nearest edge turns the polygon inside out, and it then
+    # GROWS without bound: measured on a 12 mm CR30 hexagon whose inradius is
+    # 6.000 mm, a 20 mm inset came back with an area of 678 mm2 and a 150 mm one
+    # with 71,831 mm2, which floods the sheet edge to edge. The Spacer size box
+    # accepts up to 300 mm, so this is reachable by typing.
+    #
+    # Clamping here rather than refusing keeps the caller simple and keeps the
+    # patch a patch. `build()` clamps the ring itself as well, so a user never
+    # reaches this in practice; this is the floor under that.
+    if d > 0:
+        inr = min(_edge_distance(pts, i, cx, cy) for i in range(n))
+        d = min(d, inr * 0.98)
     # Each edge becomes a line moved `d` toward the centroid; the new vertices
     # are where consecutive moved lines cross.
     lines = []

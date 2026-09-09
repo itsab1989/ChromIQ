@@ -4298,7 +4298,8 @@ class ScannerProfileDialog(_ToolDialogBase):
             # a printtarg honeycomb has none — its geometry is derived from the
             # rendered sheet (printtarg will not emit a .cht for hexagons at
             # all) — and only the Create Chart registry remembers the shape.
-            from workflow.hex_support import recipe_is_flat_top
+            from workflow.hex_support import (recipe_is_flat_top,
+                                              ring_mm_of as _ring_mm_of)
             hexagonal = (recipe_is_hexagonal(self._layout.get("recipe"))
                          or settings_are_hexagonal(
                              getattr(self, "_chart_settings", None)))
@@ -4306,7 +4307,8 @@ class ScannerProfileDialog(_ToolDialogBase):
                                                          hexagonal=hexagonal))
             self._clamp_sample_area(
                 patches, hexagonal,
-                recipe_is_flat_top(self._layout.get("recipe")))
+                recipe_is_flat_top(self._layout.get("recipe")),
+                _ring_mm_of(self._layout.get("recipe")))
         else:
             cht_pages = self._layout.get("cht_pages") or []
             self._marquee.set_grid(
@@ -4321,7 +4323,8 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._sync_shot_view()
 
     def _clamp_sample_area(self, patches: list[dict], hexagonal: bool,
-                           flat_top: bool = False) -> None:
+                           flat_top: bool = False,
+                           ring_mm: float = 0.0) -> None:
         """Cap Sample area at what THIS chart's patches can actually give.
 
         A hexagon's slanted top and bottom cut the corners off the rectangle the
@@ -4347,7 +4350,8 @@ class ScannerProfileDialog(_ToolDialogBase):
                 # argument for this and had no caller, which is how a
                 # documented improvement fails to ship.
                 frac = hex_max_sample_fraction(ws[len(ws) // 2], hs[len(hs) // 2],
-                                               flat_top=flat_top)
+                                               flat_top=flat_top,
+                                               ring_mm=ring_mm)
                 cap = max(20, min(80, int(frac * 100.0)))   # floor: never round UP
         if cap != self._sample_area.maximum():
             # setMaximum pulls a too-large value down and emits valueChanged, so

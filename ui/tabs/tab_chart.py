@@ -12547,8 +12547,13 @@ class TabChart(QWidget):
             # 11.3 × 13.05. Both numbers are real, so name both.
             from workflow.hex_support import (hex_patch_height_mm,
                                               hex_patch_width_mm,
+                                              recipe_is_flat_top,
                                               recipe_is_hexagonal)
-            if recipe_is_hexagonal(r) and getattr(r, "hex_flat_top", False):
+            # RESOLVED, not the raw flag: a recipe carries a tick made on a
+            # CR30 long after the user has moved to another instrument, so a
+            # SpectroScan honeycomb was reported as 10.67 x 6.93 mm "column
+            # pitch" when it prints 8.00 x 9.24 mm on a row pitch.
+            if recipe_is_flat_top(r):
                 # ROTATED: both numbers move, in opposite directions, and so
                 # does the LABEL. On a turned sheet the typed short axis is a
                 # COLUMN pitch across the page, not a row pitch down a strip,
@@ -17929,10 +17934,11 @@ class TabChart(QWidget):
                 return (0.0, 0.0, 0.0)
             r0 = rects[0]
             slot_h = r0["h"] * 25.4 / dpi
-            from workflow.hex_support import recipe_is_hexagonal
+            from workflow.hex_support import (recipe_is_flat_top,
+                                              recipe_is_hexagonal)
             pw, ph, pitch = _panel_patch_size_mm(
                 r0["w"] * 25.4 / dpi, slot_h, recipe_is_hexagonal(recipe),
-                bool((recipe or {}).get("hex_flat_top", False)))
+                recipe_is_flat_top(recipe))
             return (pw, ph, pitch)
         except Exception:
             return (0.0, 0.0, 0.0)

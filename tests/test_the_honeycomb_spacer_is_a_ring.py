@@ -248,11 +248,20 @@ def test_every_side_names_the_patch_it_actually_faces(flat_top):
         else (12.0 * math.sqrt(3) / 2, 12.0)
 
     def centre(p, j):
+        # ASK THE SHIPPED FUNCTIONS FOR THE STAGGER. This helper used to
+        # re-implement it, which made the test agree with itself: flipping the
+        # sign inside `hexagon.stagger_dy` left it green while the rendered
+        # sheet came out with 268 of its 537 shared spacers TWO-TONE, because
+        # each patch then coloured its half-band against a different neighbour
+        # than the patch on the other side did. That is the fourth
+        # self-validating test in this feature, and it was predicted.
         if flat_top:
-            return (p * w + w / 2, j * ph + ph / 2
-                    + (-ph / 4 if p % 2 == 0 else ph / 4))
-        dx = -w / 4 if j % 2 == 0 else w / 4
-        return (p * w + w / 2 + dx, j * ph + ph / 2)
+            return (p * w + w / 2,
+                    j * ph + ph / 2
+                    + hexagon.stagger_dy(ph, p, round_to_int=False))
+        return (p * w + w / 2
+                + hexagon.stagger_dx(w, j, round_to_int=False),
+                j * ph + ph / 2)
 
     checked = 0
     for p in range(2, 6):
@@ -646,3 +655,154 @@ def test_the_scanner_dialog_passes_the_orientation():
     )
     sig = inspect.signature(scanin_dialog.ScannerProfileDialog._clamp_sample_area)
     assert "flat_top" in sig.parameters
+
+
+# ---------------------------------------------------------------------------
+# what the FINAL review found
+# ---------------------------------------------------------------------------
+def _area(pts):
+    n = len(pts)
+    return 0.5 * abs(sum(pts[i][0] * pts[(i + 1) % n][1]
+                         - pts[(i + 1) % n][0] * pts[i][1] for i in range(n)))
+
+
+@pytest.mark.parametrize("d", [0.65, 5.0, 6.0, 6.5, 20.0, 150.0, 3000.0])
+def test_an_inset_can_never_turn_the_patch_inside_out(d):
+    """F3. Offsetting every edge inward by more than the distance to the
+    nearest one turns a polygon inside out, and it then GROWS without bound.
+    Measured on a 12 mm CR30 hexagon whose inradius is 6.000 mm: a 20 mm inset
+    came back with an area of 678 mm2 and a 150 mm one with 71,831 mm2, which
+    covers the sheet. "Spacer size" accepts up to 300 mm, so it is reachable by
+    typing a number."""
+    import math
+    outer = hexagon.vertices(0, 0, 12.0, 12.0 * math.sqrt(3) / 2)
+    inner = hexagon.inset(outer, d)
+    assert _area(inner) <= _area(outer) + 1e-9, (
+        f"inset by {d} mm produced a LARGER polygon: {_area(inner):.3f} mm2 "
+        f"against {_area(outer):.3f} mm2"
+    )
+    # ...and it stays inside, edge for edge
+    for a, b in zip(_edge_distances(inner), _edge_distances(outer)):
+        assert a <= b + 1e-9
+
+
+@pytest.mark.parametrize("asked", [1.3, 5.0, 40.0, 300.0])
+def test_the_ring_can_never_eat_the_patch(asked):
+    """F3, at the level the user reaches it. A ring comes out of the patch's
+    own area, so an unclamped one destroys the chart: at 40 mm a CR30 A4
+    honeycomb printed 11.94 mm INSIDE a 20 mm margin, and at 300 mm it covered
+    the sheet edge to edge. Rectangular charts are immune, because their spacer
+    is added to the pitch instead."""
+    g = I.build("CR30", hflag=True, spacer_on=True, spacer_width=asked)
+    inradius = min(g.pwid, g.plen) / 2.0
+    assert g.hex_ring_mm <= 0.8 * inradius + 1e-9, (
+        f"a {asked} mm spacer became a {g.hex_ring_mm:.3f} mm ring on a patch "
+        f"whose inradius is {inradius:.3f} mm"
+    )
+    assert g.hex_ring_mm > 0
+
+
+def test_a_huge_spacer_still_prints_inside_the_margins():
+    """The same thing measured on paper, because a clamp that is right in the
+    geometry and wrong in the render is not a fix."""
+    import numpy as np
+    from PIL import Image
+
+    from workflow.layout_engine import chart as le_chart
+
+    d = Path(tempfile.mkdtemp())
+    ti1 = _ti1(d, 120)
+    M, dpi = 20.0, 300
+    for asked in (1.3, 40.0, 300.0):
+        out = d / f"s{asked}"
+        out.mkdir()
+        le_chart.build_chart(ti1, out / "c", instrument="CR30", paper="A4",
+                             hflag=True, dpi=dpi, randomize=False,
+                             spacer_mode="colored", spacer_width=asked,
+                             margins=(M, M, M, M), draw_indicators=False)
+        a = np.asarray(Image.open(sorted(out.glob("*.tif"))[0])
+                       .convert("RGB")).astype(int)
+        ys, xs = np.nonzero(np.any(a < 250, axis=2))
+        mm_ = 25.4 / dpi
+        worst = min(ys.min() * mm_, xs.min() * mm_,
+                    (a.shape[0] - 1 - ys.max()) * mm_,
+                    (a.shape[1] - 1 - xs.max()) * mm_)
+        assert worst >= M - 0.15, (
+            f"a {asked} mm spacer printed {worst:.2f} mm from the paper edge, "
+            f"inside a {M} mm margin"
+        )
+
+
+@pytest.mark.parametrize("ring", [0.0, 1.3, 2.0, 3.0])
+def test_the_sample_cap_shrinks_with_the_ring(ring):
+    """F11, and it was wrong in the UNSAFE direction. The ink a scanner may
+    average is the INSET hexagon; the cap was computed on the un-ringed shape
+    and offered 64 % where a 1.3 mm ring leaves 49 %, so every read averaged
+    spacer colour into the measurement.
+
+    The share is of the RECORDED SLOT, which is what the Sample area setting
+    means, so dividing by the shrunken slot gives the same number back and the
+    cap does nothing -- which is how the first attempt at this failed.
+    """
+    from workflow.scanin_runner import hex_max_sample_fraction as cap
+    g = I.build("CR30", hflag=True)
+    base = cap(g.pwid, g.plen)
+    got = cap(g.pwid, g.plen, ring_mm=ring)
+    if ring == 0:
+        assert got == pytest.approx(base)
+    else:
+        assert got < base - 0.05, (
+            f"a {ring} mm ring left the cap at {got:.4f}, barely below the "
+            f"un-ringed {base:.4f}"
+        )
+    # and the same either way up, because it is the same hexagon turned
+    r = I.build("CR30", hflag=True, hex_flat_top=True)
+    assert cap(r.pwid, r.plen, flat_top=True, ring_mm=ring) == \
+        pytest.approx(got, abs=1e-9)
+
+
+def test_the_margin_inspector_allows_for_the_ring():
+    """F10, also unsafe-direction. #159 moved a honeycomb's spacer out of the
+    pitch and into `hex_ring_mm`, so the inspector's edge-spacer allowance --
+    which reads `pspa` -- silently became 0 on every honeycomb and it
+    over-reported bottom clearance by 0.879 mm. An edge band reaches ring/2
+    OUTWARD past the hexagon, and that is the outermost ink on the sheet."""
+    import json
+
+    from workflow.margin_inspector import measure_from_engine
+
+    d = Path(tempfile.mkdtemp())
+    ti1 = _ti1(d, 150)
+    reports = {}
+    for edge in (False, True):
+        out = d / f"e{edge}"
+        out.mkdir()
+        le_chart.build_chart(ti1, out / "c", instrument="CR30", paper="A4",
+                             hflag=True, dpi=300, randomize=False,
+                             spacer_mode="colored", edge_spacers=edge)
+        cj = out / "c.channels.json"
+        # the sidecar the app writes; build_chart leaves only .strips.json
+        strips = json.loads((out / "c.strips.json").read_text(encoding="utf-8"))
+        cj.write_text(json.dumps({"ink_channels": ["r", "g", "b"], "layout": {
+            "engine": "chromiq", "engine_version": 1, "dpi": 300,
+            "paper_mm": [210.0, 297.0], "patches": strips["patches"],
+            "recipe": {"instrument": "CR30", "paper": "A4", "hflag": True,
+                       "spacer_mode": "colored", "edge_spacers": edge}}}),
+            encoding="utf-8")
+        got = measure_from_engine(cj)
+        assert got and got[0], "the inspector could not read the chart"
+        reports[edge] = got[0]
+
+    # Turning edge spacers ON puts ink further out on all four sides, so every
+    # reported margin must SHRINK. Before this fix the allowance read `pspa`,
+    # which #159 sets to 0 on a honeycomb, so the two reports were identical
+    # and the tool over-reported bottom clearance by 0.879 mm -- in the unsafe
+    # direction, on the one tool whose job is saying whether the ink clears the
+    # paper edge.
+    off, on = reports[False], reports[True]
+    for side in ("top_mm", "bottom_mm", "left_mm", "right_mm"):
+        a, b = getattr(off, side), getattr(on, side)
+        assert b < a - 0.1, (
+            f"{side}: edge spacers on reports {b:.3f} mm and off reports "
+            f"{a:.3f} mm, so the ring's outward band is not allowed for"
+        )

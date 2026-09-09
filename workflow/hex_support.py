@@ -301,3 +301,28 @@ def chart_is_hexagonal(chart_path: "str | Path | None") -> bool:
         except Exception:
             continue
     return False
+
+
+def ring_mm_of(recipe) -> float:
+    """The spacer RING width a chart was built with, in mm, or 0.0.
+
+    Resolved through `instruments`, not read off the recipe: the ring is
+    `pspa` moved across by `build()` and then clamped, so the recipe's
+    "spacer width" is a request and this is the answer. A chart with spacers
+    switched off, or a rectangular one, gets 0.0.
+    """
+    if recipe is None or not recipe_is_hexagonal(recipe):
+        return 0.0
+    try:
+        from dataclasses import fields as _fields
+
+        from workflow.layout_engine import instruments
+        from workflow.layout_engine.presets import LayoutRecipe
+        if isinstance(recipe, dict):
+            valid = {f.name for f in _fields(LayoutRecipe)}
+            recipe = LayoutRecipe(**{k: v for k, v in recipe.items()
+                                     if k in valid})
+        geom = instruments.geom_from_build_kwargs(recipe.build_kwargs())
+        return float(getattr(geom, "hex_ring_mm", 0.0) or 0.0)
+    except Exception:      # noqa: BLE001 — a cap that cannot be computed is 0
+        return 0.0

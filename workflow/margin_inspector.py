@@ -266,6 +266,25 @@ def measure_from_engine(
             if _sp_px > 0:
                 y0 -= _sp_px
                 y1 += _sp_px
+            # A HONEYCOMB'S EDGE SPACER IS A RING SEGMENT, AND `pspa` IS NOW 0
+            # FOR IT. #159 moved a honeycomb's spacer out of the pitch and into
+            # `hex_ring_mm`, so the branch above silently allowed nothing on
+            # every hexagonal chart and this tool over-reported bottom clearance
+            # by 0.879 mm -- in the UNSAFE direction, on the one tool whose job
+            # is telling the user whether the ink clears the paper edge.
+            #
+            # An edge band reaches ring/2 OUTWARD past the hexagon, because the
+            # side facing the paper has no neighbour to share the gap with
+            # (raster.render_pages). It is the outermost ink on the sheet, so it
+            # is what the margins have to be measured to.
+            _ring_px = round(
+                float(getattr(_g, "hex_ring_mm", 0.0) or 0.0) / 2.0
+                * dpi / _MM_PER_INCH)
+            if _ring_px > 0:
+                y0 -= _ring_px
+                y1 += _ring_px
+                x0 -= _ring_px
+                x1 += _ring_px
         except Exception:  # pragma: no cover - defensive; fall back to patch rects
             pass
 

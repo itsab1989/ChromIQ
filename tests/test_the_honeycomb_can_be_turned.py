@@ -657,3 +657,64 @@ def test_the_row_label_band_clears_the_apex_and_not_the_stagger():
         f"and {gaps[False]:.2f} mm on a pointy one; the band is reserving the "
         "wrong overhang on one of them"
     )
+
+
+@pytest.mark.parametrize("key", ["SS", "i1", "CM"])
+def test_the_reported_patch_size_resolves_the_flag_too(key):
+    """F1. `recipe_is_flat_top` was added and two readers in Create Chart kept
+    asking the recipe raw, so a SpectroScan honeycomb carrying a stale CR30
+    tick was REPORTED as 10.67 x 6.93 mm on a "column pitch" when it prints
+    8.00 x 9.24 mm on a row pitch. The number a user reads off the panel and
+    the sheet in their hand disagreed."""
+    from ui.tabs.tab_chart import _panel_patch_size_mm
+    from workflow.hex_support import recipe_is_flat_top
+
+    rec = {"instrument": key, "hflag": True, "hex_flat_top": True}
+    assert recipe_is_flat_top(rec) is False
+    g = I.build(key, hflag=True)
+    # what the panel must show for this chart: the POINTY correction
+    pw, ph, pitch = _panel_patch_size_mm(g.pwid, g.plen, True,
+                                         recipe_is_flat_top(rec))
+    assert pw == pytest.approx(g.pwid), \
+        "the width was corrected, so the flag reached a chart that is not turned"
+    assert ph > g.plen, "the height was not corrected, so nothing was applied"
+
+
+def test_no_reader_outside_the_engine_asks_the_flag_raw():
+    """The guard on the guard. `hex_flat_top` may be read raw in exactly three
+    places: the dataclass that stores it, the builder that resolves it, and the
+    checkbox that shows it. Anywhere else is a reader that can be handed a tick
+    made on a different instrument."""
+    import pathlib
+    import re
+
+    root = pathlib.Path(__file__).resolve().parents[1]
+    allowed = {"workflow/layout_engine/instruments.py",
+               "workflow/layout_engine/presets.py",
+               "workflow/layout_engine/geometry.py",
+               "workflow/layout_engine/area_fit.py",
+               "workflow/layout_engine/chart.py",
+               "workflow/hex_support.py",
+               "ui/dialogs/layout_options_panel.py"}
+    offenders = []
+    for path in list(root.glob("ui/**/*.py")) + list(root.glob("workflow/**/*.py")):
+        rel = path.relative_to(root).as_posix()
+        if rel in allowed:
+            continue
+        text = path.read_text(encoding="utf-8")
+        for m in re.finditer(r'^.*hex_flat_top.*$', text, re.M):
+            line = m.group(0)
+            if line.lstrip().startswith("#"):
+                continue          # a comment naming the field is not a read
+            if ("recipe_is_flat_top" in line or "chart_is_flat_top" in line
+                    or "geom" in line or "Geom" in line
+                    # a widget's OWN state, which is fed by a resolver: the
+                    # preview's `_hex_flat_top` comes from `chart_is_flat_top`
+                    or "self._hex_flat_top" in line
+                    or "flat_top=flat_top" in line):
+                continue          # the RESOLVED value is fine
+            offenders.append(f"{rel}: {line.strip()[:90]}")
+    assert not offenders, (
+        "these read the flag without resolving it against the instrument and "
+        "the patch shape:\n  " + "\n  ".join(offenders)
+    )
