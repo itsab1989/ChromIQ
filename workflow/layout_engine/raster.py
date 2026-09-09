@@ -303,8 +303,8 @@ def effective_indicator_size_mm(geom, dpi: int, font: str, size_mm: float) -> fl
     return max(min(target, INDICATOR_MIN_LEGIBLE_MM), target * avail / widest2)
 
 
-def _furniture_reserves_mm(geom, kw: dict) -> tuple[float, float]:
-    """``(label_band_mm, bottom_reserve_mm)`` — the vertical space the rendered
+def _furniture_reserves_mm(geom, kw: dict) -> tuple[float, float, float]:
+    """``(label_band_mm, bottom_reserve_mm, label_ink_bottom_mm)`` — the vertical space the rendered
     strip-label band (indicator + underline) and the bottom sheet-text/stamp
     block actually consume, so :func:`geometry.compute` can reserve them.
 
@@ -316,6 +316,7 @@ def _furniture_reserves_mm(geom, kw: dict) -> tuple[float, float]:
     dpi = int(kw.get("dpi") or 150)
     mm2px = dpi / 25.4
     label_band = 0.0   # indicators off ⇒ reclaim the whole label band
+    ink_bottom = 0.0   # …and no ink under the labels either
     if kw.get("draw_indicators", True):
         fam = kw.get("indicator_font", DEFAULT_INDICATOR_FONT)
         raw_size = float(kw.get("indicator_size_mm") or 0.0)   # 0 = auto
@@ -337,13 +338,25 @@ def _furniture_reserves_mm(geom, kw: dict) -> tuple[float, float]:
             bb = probe.getbbox()
             band_px = (bb[3] - bb[1]) if bb else ind_px
         band = band_px / mm2px
+        _rule = 0.0
         if kw.get("underline_mode", "off") in ("segments", "cycle", "black", "colored"):
-            band += (float(kw.get("underline_gap_mm") or 0.0)
+            _rule = (float(kw.get("underline_gap_mm") or 0.0)
                      + max(0.0, float(kw.get("underline_thickness_mm") or 0.0)))
+        band += _rule
         # Auto size keeps the instrument label floor (txhisl) so default charts
         # stay printtarg-identical; an EXPLICIT size reserves exactly what it
         # draws, so a smaller font frees space for more patches (#93).
         label_band = band if raw_size > 0 else max(geom.txhisl, band)
+        # WHAT THE RENDERER WILL ACTUALLY DRAW, which is not `label_band`.
+        # `render_pages` puts the band at `leader_top + strip_label_offset_mm`
+        # and gives it `ind_px` -- the font's FULL pixel size, ascent and descent
+        # included -- where the reserve above measures the ink bbox of "W8".
+        # At an explicit 6 mm the two differ by 1.44 mm, which is exactly what
+        # was printed over the first row of a turned honeycomb. Rotated labels
+        # use the same tile height as the reserve, so they agree there.
+        _drawn = (_indicator_tile("WW", f, spc, rot).height if rot in (90, 270)
+                  else ind_px) / mm2px
+        ink_bottom = float(kw.get("strip_label_offset_mm") or 0.0) + _drawn + _rule
     # Bottom-of-sheet block: one line each for custom sheet text and the stamp,
     # drawn at line_h = px(4.2) above the printer-safe bottom inset (see
     # render_pages); the inset keeps the text clear of a printer's unprintable
@@ -351,16 +364,17 @@ def _furniture_reserves_mm(geom, kw: dict) -> tuple[float, float]:
     nlines = (1 if kw.get("chart_text") else 0) + (1 if kw.get("stamp_command") else 0)
     _edge = float(kw.get("text_edge") or TEXT_EDGE_MARGIN_MM)
     bottom = (_edge + 4.2 * nlines) if nlines else 0.0
-    return label_band, bottom
+    return label_band, bottom, ink_bottom
 
 
 def apply_furniture_reserves(geom, kw: dict):
     """Return *geom* with label_band_mm / bottom_reserve_mm filled from the
     rendered furniture (single source of truth shared by the renderer and every
     capacity estimate, so they can't disagree — #93)."""
-    lb, br = _furniture_reserves_mm(geom, kw)
+    lb, br, ib = _furniture_reserves_mm(geom, kw)
     return apply_row_label_geometry(
-        replace(geom, label_band_mm=lb, bottom_reserve_mm=br), kw)
+        replace(geom, label_band_mm=lb, bottom_reserve_mm=br,
+                label_ink_bottom_mm=ib), kw)
 
 
 #: What `LayoutRecipe.text_edge_clip_mm` defaults to. Kept here as well because

@@ -136,6 +136,15 @@ class Geom:
     # the sentinel so it behaves exactly as before. (#93)
     label_band_mm: float = -1.0   # actual strip-label + underline band height
     bottom_reserve_mm: float = 0.0   # actual bottom sheet-text + stamp height
+    # WHERE THE LABELS' INK ACTUALLY ENDS, measured DOWN FROM `leader_top`, and
+    # not the same number as `label_band_mm` above. The reserve measures an
+    # auto-sized label by its ink bbox and knows nothing of the user's
+    # `strip_label_offset_mm`; the RENDERER draws the band at the font's full
+    # pixel size and moves it by that offset. On every layout but one the gap
+    # between the two is slack nobody notices. On a turned honeycomb there is no
+    # slack -- see `geometry._turned_hex` -- so the guard there needs the drawn
+    # figure, and only the renderer can supply it. 0 = not computed.
+    label_ink_bottom_mm: float = 0.0
     # Bracket each strip with a leading + trailing spacer (printtarg parity).
     # When OFF the two end gaps are reclaimed for patches (denser than printtarg).
     edge_spacers: bool = False

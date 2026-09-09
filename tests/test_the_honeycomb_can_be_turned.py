@@ -1055,3 +1055,167 @@ def test_clearing_a_column_withdraws_its_vote_on_the_row_name(qapp):
         f"the row is called {name3.text()!r} after the chart was cleared; the "
         "only pitch left, 10.41 mm, is a column pitch across a turned sheet"
     )
+
+
+def _turned_chart_sidecar(tmp_path, *, turned, n=345, paper="A4", scale=1.0,
+                          align="top-left", spacer_mode="colored", **over):
+    """Build one chart the way Create Chart does and return its geometry record.
+
+    Through `default_recipe` -> `build_from_recipe`, NOT through
+    `chart.build_chart`'s own defaults: those lay the same 345 patches out as 16
+    strips of 22 where the app produces 15 of 23, and the fault this covers only
+    appears on the tighter sheet. The numbers come back from the sidecar the
+    renderer writes, so the test reads what was drawn rather than recomputing it.
+    """
+    import json
+    from dataclasses import replace
+
+    from workflow.layout_engine import chart as le_chart
+    from workflow.layout_engine.presets import default_recipe
+
+    src = tmp_path / f"c{n}.ti1"
+    lines = ["CTI1", "", 'DESCRIPTOR "band"', 'ORIGINATOR "ChromIQ"',
+             'KEYWORD "SAMPLE_LOC"', "NUMBER_OF_FIELDS 7",
+             "BEGIN_DATA_FORMAT",
+             "SAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z",
+             "END_DATA_FORMAT", f"NUMBER_OF_SETS {n}", "BEGIN_DATA"]
+    for i in range(n):
+        lines.append(f"{i+1} {(i*37)%101}.0 {(i*71)%101}.0 {(i*13)%101}.0 "
+                     "40.0 45.0 50.0")
+    lines += ["END_DATA", ""]
+    src.write_text("\n".join(lines), encoding="utf-8")
+
+    r = replace(default_recipe("CR30", paper), hflag=True, hex_flat_top=turned,
+                randomize=False, pscale=scale, patch_area_align=align,
+                spacer_mode=spacer_mode, spacer_on=(spacer_mode != "none"),
+                **over)
+    out = tmp_path / ("out_%s_%s_%s_%s_%s_%s" % (
+        turned, n, paper, scale, align,
+        "_".join(f"{k}{v}" for k, v in sorted(over.items())) or "plain"))
+    out.mkdir()
+    le_chart.build_from_recipe(src, out / "c", r)
+    return json.loads((out / "c.strips.json").read_text(encoding="utf-8"))
+
+
+def test_a_turned_honeycomb_never_prints_a_strip_letter_on_a_patch(tmp_path):
+    """The raised strips of a turned honeycomb climbed into the label band.
+
+    The block is shifted down by `hxeh` so a hexagon's apex clears the top
+    reserve. On a pointy sheet `hxeh` is the apex overshoot (plen/6) and the
+    slot's own top is that far below the patch-area top -- the slack the strip
+    letters have always sat in. On a TURNED sheet `hxeh` is the STAGGER reserve
+    (plen/4), and every even strip comes straight back up through it, so the
+    topmost ink landed exactly ON the patch-area top. Reported by the owner from
+    a real sheet and reproduced from the app's own record: label band bottom 74
+    px, topmost patch box 71 px, at 150, 345 and 690 patches alike.
+
+    Read off the sidecar the renderer writes, with the pointy sheet as the
+    control, because an absolute clearance says nothing on its own.
+    """
+    for n in (150, 345, 690):
+        turned = _turned_chart_sidecar(tmp_path, turned=True, n=n)
+        pointy = _turned_chart_sidecar(tmp_path, turned=False, n=n)
+        for name, side in (("turned", turned), ("pointy", pointy)):
+            band = side["label_band_bottom_px"]
+            top = min(p["y"] for p in side["patches"] if p["page"] == 0)
+            mm = 25.4 / side["dpi"]
+            assert top >= band, (
+                f"{name} chart of {n} patches: the strip letters end at "
+                f"{band} px and the first patch box starts at {top} px, so "
+                f"{(band - top) * mm:.2f} mm of letter is printed on the ink"
+            )
+
+
+def test_the_turn_does_not_move_a_pointy_honeycomb(tmp_path):
+    """The reserve above is for the turn ALONE.
+
+    A pointy honeycomb is shipped behaviour and its sheets must come out where
+    they always did, so the guard is keyed on the orientation and this pins that
+    the control sheet's own numbers are untouched: patch-area top 91 px and band
+    bottom 83 px at 300 dpi on A4, which is what the tree produced before the
+    reserve existed.
+    """
+    side = _turned_chart_sidecar(tmp_path, turned=False, n=345)
+    assert side["dpi"] == 300
+    assert side["label_band_bottom_px"] == 83, side["label_band_bottom_px"]
+    top = min(p["y"] for p in side["patches"] if p["page"] == 0)
+    assert top == 91, (
+        f"the pointy patch area starts at {top} px where it has always started "
+        "at 91; the turn's reserve reached a chart that is not turned"
+    )
+    assert side["steps_in_pass"] == 27, (
+        f"a pointy strip now holds {side['steps_in_pass']} patches, not 27; "
+        "the reserve cost capacity on a chart it must not touch"
+    )
+
+
+def test_the_reserve_reaches_capacity_as_well_as_placement(tmp_path):
+    """The same reserve lives in TWO functions and both are load-bearing.
+
+    `placement` puts the ink on the page and `compute` decides how many patches
+    fit. Giving the label band its room in `placement` alone moves the block
+    down without shortening it, and the last row walks off the bottom: measured
+    across paper sizes, scales, spacer modes and alignments, the worst case is
+    A4 Rotated at scale 1.0, where the lowered strips end 0.978 mm OUTSIDE the
+    bottom margin. Margins are law, so this pins the bottom, which the label
+    test above cannot see.
+    """
+    from dataclasses import replace
+
+    from workflow.layout_engine import instruments
+    from workflow.layout_engine.presets import default_recipe
+
+    for paper, align in (("A4R", "top-left"), ("A4", "top-left"),
+                         ("A3", "bottom-left")):
+        side = _turned_chart_sidecar(tmp_path, turned=True, n=150, paper=paper,
+                                     align=align, spacer_mode="none")
+        g = instruments.geom_from_build_kwargs(
+            replace(default_recipe("CR30", paper), hflag=True,
+                    hex_flat_top=True, patch_area_align=align,
+                    spacer_mode="none", spacer_on=False).build_kwargs())
+        mm = 25.4 / side["dpi"]
+        page_h = side["paper_mm"][1]
+        bottom = page_h - max(p["y"] + p["h"] for p in side["patches"]
+                              if p["page"] == 0) * mm
+        assert bottom >= g.margin_b - 0.1, (
+            f"{paper} {align}: the lowest ink sits {bottom:.3f} mm from the "
+            f"page edge where the margin asked for is {g.margin_b:.3f} mm, so "
+            f"the sheet prints {g.margin_b - bottom:.3f} mm outside it"
+        )
+
+
+@pytest.mark.parametrize("label,over", [
+    ("an explicit 6 mm label", {"indicator_size_mm": 6.0}),
+    ("a label pushed down 3 mm", {"strip_label_offset_mm": 3.0}),
+    ("an underlined label", {"underline_mode": "segments"}),
+    ("patch scale 1.5", {"pscale": 1.5}),
+    ("patch scale 2.0", {"pscale": 2.0}),
+])
+def test_the_letters_clear_the_ink_however_they_are_styled(tmp_path, label, over):
+    """Reserving the label BAND is not enough; the band is not what is drawn.
+
+    A first fix reserved `label_band_mm`, and a reviewer measured four ordinary
+    Expert-Options settings that still printed letters on patches:
+
+    | setting | letter cut into the ink |
+    |---|---|
+    | an explicit 6 mm label | 1.44 mm -- the reserve measures the ink bbox of "W8", the renderer draws the font's full pixel size |
+    | a strip-label offset of +3 mm | 2.46 mm -- the reserve never knew the offset existed |
+    | an underline | 0.25 mm |
+    | patch scale 1.5 or 2.0 | 0.00 mm, the two exactly level |
+
+    So the reserve now uses where the labels' ink actually ENDS, which only the
+    renderer can say. Each row here is one of those settings, and each is read
+    off the sidecar rather than recomputed.
+    """
+    scale = over.pop("pscale", 1.0)
+    side = _turned_chart_sidecar(tmp_path, turned=True, n=345, scale=scale,
+                                 **over)
+    band = side["label_band_bottom_px"]
+    top = min(p["y"] for p in side["patches"] if p["page"] == 0)
+    mm = 25.4 / side["dpi"]
+    assert top > band, (
+        f"with {label} the strip letters end at {band} px and the first patch "
+        f"box starts at {top} px, so {(band - top) * mm:.2f} mm of letter is "
+        "printed on the ink"
+    )

@@ -37,6 +37,60 @@ class Layout:
         return self.pages <= 1
 
 
+
+#: White the strip letters must keep between themselves and the first patch.
+#: Six pixels at 300 dpi -- enough that the gap reads as a gap on paper. Without
+#: it a turned honeycomb at patch scale 1.5 came out with the letters and the
+#: hexagons sharing an edge, measured at exactly 0.00 mm.
+LABEL_INK_CLEARANCE_MM = 0.5
+
+
+def _turned_hex(g) -> bool:
+    """A honeycomb turned so its strips run straight down the page.
+
+    Read through `hexagonal` as well as the flag, because `hex_flat_top` is
+    written once, in `instruments._build_base`, and is False for every layout
+    that is not a CR30 honeycomb with the turn on -- but a reader that trusted a
+    raw recipe flag instead has been the bug twice.
+    """
+    return bool(getattr(g, "hexagonal", False)
+                and getattr(g, "hex_flat_top", False))
+
+
+
+def _top_reserve_for_a_turned_hex(g, mints: float, txhi: float,
+                                  *, margins_are_law: bool) -> float:
+    """`mints`, raised if the strip letters would otherwise be drawn on the ink.
+
+    Only a turned honeycomb needs this, and only a turned honeycomb gets it: on
+    every other layout the patch block already starts below the labels and this
+    returns *mints* unchanged. See the note in `compute`.
+
+    The figure that matters is where the labels' ink ENDS, which is
+    `leader_top + label_ink_bottom_mm` -- the renderer's own drawn height, its
+    underline and the user's `strip_label_offset_mm`. Reserving the band's
+    nominal height instead left four ordinary settings still printing letters on
+    patches: an explicit 6 mm label (the drawn band is 1.44 mm taller than the
+    reserve), a label offset of +3 mm (the reserve does not know about it at
+    all), an underline (0.25 mm), and patch scale 1.5 or 2.0 (which lands the
+    two exactly level).
+    """
+    if not _turned_hex(g):
+        return mints
+    ink = float(getattr(g, "label_ink_bottom_mm", 0.0) or 0.0)
+    if ink <= 0.0:                       # indicators off, or nothing rendered yet
+        return mints
+    if margins_are_law:
+        # Mirrors `placement`'s own clamp: the band hangs at the text-edge
+        # distance from the PAGE EDGE, sliding up when the top margin cannot
+        # hold it, and never below the page edge.
+        leader_top = max(0.0, min(g.text_edge_top_mm + g.strip_indicator_gap,
+                                  g.margin_t - txhi))
+    else:
+        leader_top = g.margin_t
+    return max(mints, leader_top + ink + LABEL_INK_CLEARANCE_MM)
+
+
 def compute(geom: Geom, paper_w_mm: float, paper_h_mm: float, npat: int,
             *, scanc: int = 0) -> Layout:
     """Lay *npat* patches out for *geom* on a ``paper_w_mm`` × ``paper_h_mm`` sheet.
@@ -81,6 +135,27 @@ def compute(geom: Geom, paper_w_mm: float, paper_h_mm: float, npat: int,
         # the usable length.
         mints = g.margin_t
         minbs = g.margin_b
+        # A TURNED HONEYCOMB PUTS INK AT THE VERY TOP OF THE PATCH AREA, WHERE EVERY
+        # OTHER LAYOUT LEAVES A GAP, AND THE STRIP LETTERS WERE PRINTED ON IT.
+        #
+        # The block is shifted down by `hxeh` so a hexagon's apex clears the top
+        # reserve. On a pointy sheet `hxeh` is the apex overshoot (plen/6) and the
+        # slot's own top is that far below the patch-area top, which is the slack the
+        # label band has always sat in. On a FLAT-TOP sheet `hxeh` is the STAGGER
+        # reserve (plen/4) and the raised strips -- every even one -- come straight
+        # back up through it, so the topmost ink lands exactly ON the patch-area top.
+        # Measured on the app's own sidecar at 300 dpi, A4, CR30, at 150, 345 and 690
+        # patches alike: label band bottom 74 px, topmost patch box 71 px, so the
+        # letters were printed three pixels INTO the first row of hexagons. The
+        # pointy control on the same recipe clears by 8 px.
+        #
+        # `placement` already refuses to put the band behind the patches, but its
+        # fallback is to slide the band UP toward the page edge, and a band taller
+        # than the top margin runs out of page before it runs out of overlap. The
+        # patch area is what has to move, so on a turned honeycomb it starts below
+        # the band. Margins are still law: this only ever pushes the ink DOWN.
+        mints = _top_reserve_for_a_turned_hex(g, mints, txhi,
+                                              margins_are_law=True)
         arowl = ph - mints - minbs - 2.0 * g.hxeh
     else:
         # Default (printtarg-style): the margins are floored by the instrument's
@@ -88,6 +163,8 @@ def compute(geom: Geom, paper_w_mm: float, paper_h_mm: float, npat: int,
         # band is reserved on top — so furniture reduces the patch count.
         mints = max(g.margin_t + txhi + g.lcar, eff_lspa)
         minbs = max(g.margin_b, g.tspa, g.bottom_reserve_mm)
+        mints = _top_reserve_for_a_turned_hex(g, mints, txhi,
+                                              margins_are_law=False)
         arowl = ph - mints - minbs - 2.0 * g.hxeh - g.strip_indicator_gap
     # The physical ruler cap (i1Pro 240 mm jig etc.) applies in patch-first mode —
     # ALSO when "Use instrument margins" makes the margins the law (its "max strip
@@ -248,9 +325,17 @@ def placement(geom: Geom, paper_w_mm: float, paper_h_mm: float, layout: Layout) 
     if g.margins_are_law:
         mints = g.margin_t
         minbs = g.margin_b
+        # Mirrors `compute()` exactly -- see the note there. The two MUST agree:
+        # capacity is worked out in one and the ink is placed by the other, and
+        # giving the band its room in only one of them walked the last row
+        # 0.978 mm off the bottom margin on A4 Rotated.
+        mints = _top_reserve_for_a_turned_hex(g, mints, txhi,
+                                              margins_are_law=True)
     else:
         mints = max(g.margin_t + txhi + g.lcar, eff_lspa) + g.strip_indicator_gap
         minbs = max(g.margin_b, g.tspa, g.bottom_reserve_mm)
+        mints = _top_reserve_for_a_turned_hex(g, mints, txhi,
+                                              margins_are_law=False)
     # The strip block carries a leading + trailing spacer only when edge spacers
     # are on; off, those gaps are reclaimed (matching compute()), so the first
     # patch sits at the block top. _lead is the leading gap.

@@ -243,6 +243,12 @@ def build_chart(
         "indicator_rotation": indicator_rotation, "underline_mode": underline_mode,
         "underline_thickness_mm": underline_thickness_mm,
         "underline_gap_mm": underline_gap_mm,
+        # The geometry needs the label OFFSET too, and only for one thing: a
+        # turned honeycomb's patch block has to start below the labels' ink, and
+        # this is what moves that ink. Without it a +3 mm offset printed the
+        # letters 2.46 mm into the first row of hexagons. Read by
+        # `raster._furniture_reserves_mm` alone, so no other layout moves.
+        "strip_label_offset_mm": strip_label_offset_mm,
         "chart_text": chart_text, "stamp_command": stamp_command,
         "text_edge": text_edge})
     w_mm, h_mm = papers.dimensions_mm(paper)

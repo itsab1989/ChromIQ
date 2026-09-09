@@ -95,15 +95,59 @@ def test_a_leaked_qmessagebox_exec_is_deleted_because_it_is_inherited(qapp):
     assert callable(box.exec), "QMessageBox.exec no longer resolves"
 
 
-def test_the_snapshot_was_taken_before_collection(qapp):
-    """The repair can only restore what it recorded, and it must have recorded
-    the REAL objects: a snapshot taken after a test module patched one at
-    import time would record the stub and repair a worker into the fault."""
+def test_the_snapshot_recorded_pyqt_s_own_objects(qapp):
+    """The snapshot must hold what PyQt installed, not what a test left behind.
+
+    THE FIRST VERSION OF THIS TEST WAS CIRCULAR AND WAS CAUGHT BY A REVIEWER.
+    It asserted `recorded[name] is QMessageBox.__dict__[name]`, which the repair
+    in this very test's SETUP has just made true by writing every recorded
+    object back onto the class -- so it held whether the recording happened in
+    `pytest_configure` or a microsecond earlier from an already-poisoned class.
+    Measured: with the snapshot moved to a lazy call inside the repair, a
+    throwaway file that patches `QMessageBox.warning` at IMPORT time (during
+    collection) poisons the worker for the rest of its life, an honest probe in
+    a later file sees a `staticmethod` where PyQt puts a descriptor, and this
+    file still reported 7 passed.
+
+    So compare against a source the suite cannot have touched: a FRESH
+    interpreter. What comes back is what PyQt installs on a clean import, and a
+    snapshot taken too late records a Python object instead.
+    """
+    import json
+    import os
+    import subprocess
+    import sys
+
     c = _conftest()
-    recorded = {(o.__name__, n): v for o, n, v in c._PRISTINE_MODALS}
-    assert len(recorded) == 5, (
-        f"the snapshot holds {len(recorded)} entry points, not 5: {sorted(recorded)}"
+    assert c._PRISTINE_MODALS, (
+        "the snapshot is empty, so the repair has nothing to put back"
     )
-    for name in ("warning", "critical", "information", "question"):
-        assert recorded[("QMessageBox", name)] is QMessageBox.__dict__[name]
-    assert recorded[("QDialog", "exec")] is QDialog.__dict__["exec"]
+
+    prog = (
+        "from PyQt6.QtWidgets import QDialog, QMessageBox\n"
+        "import json\n"
+        "print(json.dumps({\n"
+        "    'QMessageBox.' + n: type(QMessageBox.__dict__[n]).__name__\n"
+        "    for n in ('warning', 'critical', 'information', 'question')}\n"
+        "    | {'QDialog.exec': type(QDialog.__dict__['exec']).__name__}))\n"
+    )
+    env = dict(os.environ, QT_QPA_PLATFORM="offscreen")
+    # Budgeted for a LOADED machine, not an idle one: this costs well under a
+    # second alone, and the gate saturates every core.
+    try:
+        out = subprocess.run([sys.executable, "-c", prog], env=env,
+                             capture_output=True, encoding="utf-8",
+                             timeout=180)
+    except subprocess.TimeoutExpired:
+        pytest.fail("the clean-interpreter probe did not finish in 180 s")
+    assert out.returncode == 0, out.stderr[-2000:]
+    clean = json.loads(out.stdout.strip().splitlines()[-1])
+
+    for owner, name, val in c._PRISTINE_MODALS:
+        key = f"{owner.__name__}.{name}"
+        assert type(val).__name__ == clean[key], (
+            f"the snapshot recorded a {type(val).__name__} for {key} where a "
+            f"clean interpreter has a {clean[key]}; it was taken after "
+            "something had already patched the class, so the repair would "
+            "reinstall that patch on every test instead of removing it"
+        )
