@@ -2302,12 +2302,42 @@ class Run:
         # the sidecars are rebuilt from the chart on every build, so it broke
         # the rule that a run with no results spawns no `old/` folder — every
         # live-preview render started leaving one behind.
+        # …BUT THE NEW-RUN BLOCK IS NOT DERIVED, AND IT LIVES IN cache/.
+        # §4a N-4 puts the settings a user typed for a run that does not exist
+        # yet in `cache/new_run.json`, and every live-preview render came
+        # through here and deleted the folder, so the block was destroyed by
+        # the act of watching the preview redraw. Sweep the CONTENTS of cache/
+        # and leave that one file, rather than the folder.
+        from workflow.per_target_settings import (
+            NEW_RUN_FILENAME as _NEW_RUN_FILENAME)
         for sub in (self.exports_dir, self.cache_dir):
-            if sub.exists():
+            if not sub.exists():
+                continue
+            # EQUALITY, NOT IDENTITY. `cache_dir` is a property that builds a
+            # fresh Path on every call, so `is` was never true and the branch
+            # below never ran: the block was still being deleted while the test
+            # for it read as if it passed.
+            if sub == self.cache_dir:
+                for item in sub.iterdir():
+                    if item.name == _NEW_RUN_FILENAME:
+                        continue
+                    try:
+                        shutil.rmtree(item) if item.is_dir() else item.unlink()
+                    except OSError as exc:
+                        log.warning("Could not delete %s: %s", item, exc)
+                # …and if nothing was worth keeping, the folder goes too, so a
+                # run with no New-run block is left exactly as it was before:
+                # `cache/` is derived and a run that has none should show none.
                 try:
-                    shutil.rmtree(sub)
+                    if not any(sub.iterdir()):
+                        sub.rmdir()
                 except OSError as exc:
                     log.warning("Could not delete %s: %s", sub, exc)
+                continue
+            try:
+                shutil.rmtree(sub)
+            except OSError as exc:
+                log.warning("Could not delete %s: %s", sub, exc)
         def _drop(p: Path) -> None:
             """Delete, or set aside in the stash when the caller asked for one."""
             nonlocal stash_dir

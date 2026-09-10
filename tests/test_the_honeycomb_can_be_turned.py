@@ -1413,3 +1413,52 @@ def test_an_old_recipe_without_the_key_rebuilds_untouched():
     assert r.hex_flat_top is False, (
         "an old recipe came back turned, so a reprint would not match the sheet"
     )
+
+
+def test_switching_instrument_replaces_a_house_margin_but_not_a_typed_one(qapp,
+                                                                          tmp_path):
+    """The margin box follows the instrument, and the CR30's 5 mm broke it.
+
+    Switching instrument replaces the margin ONLY when the value there is some
+    instrument's own default, because that value was put there by the app. A
+    number the user typed is theirs and must survive. The list was hard-coded
+    as `(6, 10)`, so when the CR30 was given 5 mm, going from CR30 to the
+    SpectroScan left 5 in the box while the build used 6.
+    """
+    from core.argyll_runner import ArgyllRunner
+    from core.file_manager import FileManager
+    from core.settings import AppSettings
+    from data.patch_db import INSTRUMENT_DEFAULT_MARGIN
+    from ui.measurement_target_bar import MeasurementTargetController
+    from ui.tabs.tab_chart import TabChart
+
+    s = AppSettings()
+    s.set("custom_output_path", str(tmp_path))
+    fm = FileManager(s)
+    tab = TabChart(ArgyllRunner(s), fm, s, None)
+    tab.set_target_controller(MeasurementTargetController(fm))
+
+    combo = next((c for c in (getattr(tab, n, None) for n in
+                              ("_instr_combo", "_guided_instr", "_instrument_combo"))
+                  if c is not None and hasattr(c, "findData")), None)
+    assert combo is not None, "no instrument selector on the tab"
+
+    def pick(instr):
+        i = combo.findData(instr)
+        assert i >= 0, f"{instr} is not offered"
+        combo.setCurrentIndex(i)
+        return int(tab._manual_m_pw.get_raw_value())
+
+    assert pick("CR30") == INSTRUMENT_DEFAULT_MARGIN["CR30"] == 5
+    assert pick("SS") == INSTRUMENT_DEFAULT_MARGIN["SS"] == 6, (
+        "the CR30's 5 mm was left behind on another instrument"
+    )
+    assert pick("CR30") == 5
+
+    # …and a number the user typed is not touched.
+    tab._manual_m_pw.set_value(9)
+    i = combo.findData("SS")
+    combo.setCurrentIndex(i)
+    assert int(tab._manual_m_pw.get_raw_value()) == 9, (
+        "switching instrument overwrote a margin the user typed"
+    )
