@@ -245,11 +245,13 @@ def test_a_locked_run_can_always_be_relocked_after_preferences_forbid_edits(
     dlg = _dialog(_settings(tmp_path), ti3s[-1])       # allow flag off
     try:
         assert dlg._unlock_check.isChecked() and dlg._unlock_check.isEnabled()
-        asked: list = []
+        # NO QUESTION AT ONE DATE: the lock needs two dated verifications, so
+        # putting it back here takes nothing away. It is asked at two, which
+        # `test_refusing_the_relock_leaves_the_run_unlocked` below covers.
         monkeypatch.setattr(dlg, "_confirm",
-                            lambda t, x: asked.append(t) or True)
+                            lambda t, x: pytest.fail(
+                                "a re-lock that takes nothing away asked anyway"))
         dlg._unlock_check.setChecked(False)
-        assert asked, "re-locking took every control away with no question"
         assert not run.load_meta().compliance_unlocked
         assert not dlg._unlock_check.isEnabled()          # and now it is locked for good
     finally:
@@ -257,8 +259,12 @@ def test_a_locked_run_can_always_be_relocked_after_preferences_forbid_edits(
 
 
 def test_refusing_the_relock_leaves_the_run_unlocked(qapp, tmp_path, monkeypatch):
-    """The other half, and the one that would break silently."""
-    proj, run, ti3s = _verified_run(tmp_path, dates=1)
+    """The other half, and the one that would break silently.
+
+    TWO dated verifications, because that is where re-locking really costs
+    something and therefore where the question is asked.
+    """
+    proj, run, ti3s = _verified_run(tmp_path, dates=2)
     rc.set_run_unlocked(run, True)
     dlg = _dialog(_settings(tmp_path), ti3s[-1])
     try:

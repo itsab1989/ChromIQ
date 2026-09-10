@@ -779,7 +779,9 @@ SERIES_ONE_DATE: "list[Date]" = [
     _d("2026-06-01_090000", "2026-06-01T09:00:00",
        "The only measurement this run has",
        "One dated verification and nothing else, judged by Quick check "
-       "(4 / 4 / 4 / 6 / 6). The report window still offers the limit set, "
+       "(4 on the three averages, 6 on the two maxima, and the grey pair as "
+       "recommended values of 3 and 7: seven rows, not the five this line "
+       "used to name). The report window still offers the limit set, "
        "because one measurement is not yet a history to keep comparable.",
        Design(bulk=1.10, shoulder=2.20, peak=3.60, tail=3.00, grey_dch=0.70),
        []),
@@ -1372,7 +1374,19 @@ def coverage(dest: Path, results: list) -> dict:
     crossed: set = set()
     for r in results:
         crossed |= set(r["actual"])
+    # AND HOW MANY A SHIPPED SET JUDGES, which is a different number from how
+    # many any run judges: one run's edited column adds the tone-ramp row. The
+    # README stated both, one typed and one computed, and they disagreed.
+    from workflow.compliance_sets import SET_BY_ID, effective_limits
+    shipped: set = set()
+    for sid in SET_BY_ID:
+        if not sid.startswith("chromiq_"):
+            continue
+        for rid, lim in effective_limits(sid, {}).items():
+            if lim.number is not None:
+                shipped.add(rid)
     return {"with_value": sorted(with_value), "judged": sorted(judged),
+            "shipped_judged": sorted(shipped & with_value),
             "crossed": sorted(crossed & with_value),
             "uncrossed": sorted(judged - crossed)}
 
@@ -1525,8 +1539,12 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict) -> str:
     a("WHAT A CLEAN VERDICT HERE DOES NOT PROVE")
     a("----------------------------------------")
     a("")
-    a("Seven rows of the report can be judged by a shipped limit set today:")
-    a("the five all-patch colour differences and the two grey-balance rows.")
+    a(f"{_WORDS.get(len(_cov['shipped_judged']), len(_cov['shipped_judged'])).capitalize()} "
+      f"rows of the report can be judged by a SHIPPED limit set")
+    a("today: the five all-patch colour differences and the two grey-balance")
+    a("rows. An edited column can judge one more, which is what")
+    a("Isolated-Rows/run5 is for, and that is why the count below is larger.")
+    a("")
     a("The other rows in the table are there and are honest, but no limit set")
     a("this ChromIQ ships puts a number on them, so they never carry a verdict")
     a("and this data cannot make them cross:")
@@ -1544,8 +1562,9 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict) -> str:
     a("")
     a(f"So a green column in these projects means the "
       f"{_WORDS.get(len(_cov['judged']), len(_cov['judged']))} judged rows")
-    a("passed. That number was typed here and read EIGHT forty lines above,")
-    a("two numbers for one thing in one document; it is the same number now.")
+    a("passed, counting the row an edited column adds. Both numbers in this")
+    a("section are computed from the sets themselves; one of them used to be")
+    a("typed, and the two disagreed.")
     a("It does not mean the rest were checked.")
     a("")
     _forced = _forced_pairs()
