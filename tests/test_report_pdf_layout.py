@@ -188,3 +188,143 @@ def test_trend_chart_paints_at_pdf_width(qapp):
     assert img.width() / (img.devicePixelRatio() or 1.0) == 640, (
         f"chart grabbed {img.width()} px at ratio {img.devicePixelRatio()} — "
         f"that is not a 640 px wide chart")
+
+
+# ---------------------------------------------------------------------------
+# The orphaned heading of 2026-09-10 (Basti: "on page two there is only the
+# headline how to read this report and nothing else")
+# ---------------------------------------------------------------------------
+#
+# The report builds each main section as `_h2(..., page_break=True)` + `_gap()`
+# + a one-cell table holding the whole body. Two guards inside
+# `paginate_tables` sent that shape down the "break the table" fallback and
+# left the heading behind; the tests below pin both, and the shape they use is
+# the report's own, taken from `_h2`/`_gap` rather than written out again.
+
+_PANEL_BODY = "".join(f"<p>Body line {i} of the section.</p>" for i in range(12))
+
+
+def _section(*, page_break: bool, gap: bool = True, filler: int = 6) -> str:
+    """The report's section shape: heading, spacer, one-cell body panel."""
+    from ui.dialogs.measurement_report_dialog import _gap, _h2
+    return ("<p>" + "Report scope filler<br>" * filler + "</p>"
+            + _h2("How to read this report", page_break=page_break)
+            + (_gap() if gap else "")
+            + "<table width='100%' cellpadding='12' cellspacing='0'>"
+            "<tr><td style='background:#f4f7f6'>" + _PANEL_BODY
+            + "</td></tr></table>")
+
+
+def _heading_and_table_pages(doc):
+    """(page of the heading, page the table starts on), 0-based."""
+    from ui.pdf_layout import settled_layout
+    lay = settled_layout(doc)
+    (table,) = _tables(doc)
+    head = doc.begin()
+    while head.isValid() and not head.text().strip().startswith("How to read"):
+        head = head.next()
+    assert head.isValid(), "the section heading vanished from the document"
+    return (int(lay.blockBoundingRect(head).top() // BODY_H),
+            int(lay.frameBoundingRect(table).top() // BODY_H))
+
+
+def test_a_forced_heading_never_loses_its_panel(qapp):
+    """The report's own shape, break and all: `paginate_tables` must not push
+    the body panel off the page and leave the heading alone on it.
+
+    The heading already carries `page-break-before:always`, so it is already at
+    the top of its page — moving the table cannot bring them together, it can
+    only strand the heading. This is the page 2 of Basti's proof PDF."""
+    from _fontcheck import skip_without_fonts
+    skip_without_fonts()                 # page breaks pivot on real line heights
+    doc = _doc(_section(page_break=True))
+    _paginate_tables(doc, BODY_H)
+    h_page, t_page = _heading_and_table_pages(doc)
+    assert h_page == t_page, (
+        f"heading left alone on page {h_page + 1} with its section on "
+        f"page {t_page + 1}")
+
+
+def test_the_spacer_under_a_heading_does_not_detach_it(qapp):
+    """Same shape without the forced break. The `_gap()` spacer is 26 px of the
+    24 px this rule allows between a heading and its table, so measuring the
+    distance from the HEADING rather than from the spacer judged the two
+    unattached and broke the table on its own."""
+    from _fontcheck import skip_without_fonts
+    skip_without_fonts()
+    doc = _doc(_section(page_break=False))
+    _paginate_tables(doc, BODY_H)
+    h_page, t_page = _heading_and_table_pages(doc)
+    assert h_page == t_page, (
+        f"heading left alone on page {h_page + 1} with its section on "
+        f"page {t_page + 1}")
+
+
+def test_a_heading_far_above_a_table_is_still_left_behind(qapp):
+    """The other side of that measurement, so the fix cannot become "always
+    bind whatever is above". A heading separated from the table by a real
+    paragraph of its own is not the table's heading, and the table moves alone.
+    """
+    from _fontcheck import skip_without_fonts
+    skip_without_fonts()
+    from ui.dialogs.measurement_report_dialog import _h2
+    html = ("<p>" + "filler<br>" * 8 + "</p>"
+            + _h2("Not this table's heading")
+            + "<p style='margin-top:60px'>An intervening paragraph.</p>"
+            + f"<table>{_rows(12)}</table>")
+    doc = _doc(html)
+    _paginate_tables(doc, BODY_H)
+    from ui.pdf_layout import settled_layout
+    lay = settled_layout(doc)
+    (table,) = _tables(doc)
+    r = lay.frameBoundingRect(table)
+    assert int(r.top() // BODY_H) == int((r.bottom() - 1) // BODY_H), \
+        "the table was left straddling although it had room to move"
+
+
+def test_giving_up_on_one_panel_does_not_abandon_the_next_table(qapp):
+    """A section whose panel cannot fit under its own forced heading is left
+    straddling — and the loop must RECORD that and move on.
+
+    `paginate_tables` re-finds the topmost straddler on every pass, so a table
+    it decides not to touch is the one it finds again next time. Without the
+    skip list it would spend all 400 passes on that panel and never reach the
+    "Worst patches" table below, which straddles and can be fixed.
+    """
+    from _fontcheck import skip_without_fonts
+    skip_without_fonts()
+    html = (_section(page_break=True)
+            + "<p>" + "tail filler<br>" * 12 + "</p>"
+            + "<h3>Worst patches</h3>" + f"<table>{_rows(14)}</table>")
+    doc = _doc(html)
+    from ui.pdf_layout import settled_layout
+    lay = settled_layout(doc)
+    late_before = sorted(_tables(doc), key=lambda t: t.firstPosition())[-1]
+    r0 = lay.frameBoundingRect(late_before)
+    assert int(r0.top() // BODY_H) != int((r0.bottom() - 1) // BODY_H), \
+        "the fixture is wrong: the second table does not straddle to begin with"
+
+    _paginate_tables(doc, BODY_H)            # must terminate
+
+    h_page, t_page = _heading_and_table_pages_of_first(doc)
+    assert h_page == t_page, (
+        f"heading left alone on page {h_page + 1} with its section on "
+        f"page {t_page + 1}")
+    lay = settled_layout(doc)
+    late = sorted(_tables(doc), key=lambda t: t.firstPosition())[-1]
+    r = lay.frameBoundingRect(late)
+    assert int(r.top() // BODY_H) == int((r.bottom() - 1) // BODY_H), \
+        "the second table was abandoned because the first could not be helped"
+
+
+def _heading_and_table_pages_of_first(doc):
+    """As `_heading_and_table_pages`, for a document with several tables."""
+    from ui.pdf_layout import settled_layout
+    lay = settled_layout(doc)
+    table = sorted(_tables(doc), key=lambda t: t.firstPosition())[0]
+    head = doc.begin()
+    while head.isValid() and not head.text().strip().startswith("How to read"):
+        head = head.next()
+    assert head.isValid()
+    return (int(lay.blockBoundingRect(head).top() // BODY_H),
+            int(lay.frameBoundingRect(table).top() // BODY_H))

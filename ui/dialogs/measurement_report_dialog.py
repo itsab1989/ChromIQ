@@ -1603,6 +1603,16 @@ class MeasurementReportDialog(QDialog):
                 writer.newPage()
             draw_header(pg)
             painter.save()
+            # CLIP THE BODY BAND — the same line `ui.pdf_layout.render_paged`
+            # carries, and the report's own loop never got. `PaintContext.clip`
+            # tells the layout which slice to draw; it does NOT stop an element
+            # from painting outside it. A one-cell panel table straddling a
+            # page boundary drew its whole grey background on the second page,
+            # over the wordmark and the scope strip, with a line of its text
+            # on top of them (seen 2026-09-10 the moment the "How to read this
+            # report" panel was allowed to flow instead of being pushed off
+            # page 2). It also let the panel run behind the page number.
+            painter.setClipRect(QRectF(0.0, header_h, page_w, body_h))
             painter.translate(0.0, header_h - pg * body_h)
             ctx = QAbstractTextDocumentLayout.PaintContext()
             ctx.clip = QRectF(0, pg * body_h, page_w, body_h)

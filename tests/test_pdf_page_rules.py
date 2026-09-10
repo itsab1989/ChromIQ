@@ -712,3 +712,134 @@ def test_the_price_of_whole_rows_is_pinned(qapp, tmp_path, page, expect):
                               QPageLayout.Unit.Millimeter)
         got = render_card(wf, writer)
         assert got == want, f"{page}/{key}: {got} pages, expected {want}"
+
+
+# --- and the SAME rules on the Measurement Report ---------------------------
+#
+# Every test above prints a Help card. The report is the other document these
+# rules were written for, and it printed a page 2 carrying the words "How to
+# read this report" and nothing else (Basti, 2026-09-10, the beta 3 proof PDF).
+# These two go through the report's own `_export_pdf`, so they judge the sheet
+# the user gets rather than a document a test laid out for itself.
+
+def _report_pdf(tmp_path, monkeypatch):
+    """Save a real Measurement Report to PDF, exactly as the Save button does."""
+    from tests.test_import_measurement_module import _measurement
+
+    from core.settings import AppSettings
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    import ui.widgets as widgets
+
+    ti3 = _measurement(tmp_path)
+    out = tmp_path / "report.pdf"
+    monkeypatch.setattr(widgets, "save_file_dialog",
+                        lambda *a, **kw: str(out), raising=False)
+    from PyQt6.QtGui import QDesktopServices
+    monkeypatch.setattr(QDesktopServices, "openUrl", lambda *a: True)
+    dlg = MeasurementReportDialog(AppSettings(), None, initial_ti3=str(ti3))
+    try:
+        dlg._export_pdf()
+    finally:
+        dlg.deleteLater()
+    assert out.exists(), "the report wrote no PDF"
+    return out
+
+
+def _report_page_bodies(pdf):
+    """Each page's text with the painted header band and footer removed.
+
+    Those two are drawn by hand on every sheet and are not the page's content:
+    the wordmark, the scope line (profile names + run count + date range) and
+    the centred page number.
+    """
+    from PyQt6.QtPdf import QPdfDocument
+
+    doc = QPdfDocument(None)
+    doc.load(str(pdf))
+    out = []
+    for i in range(doc.pageCount()):
+        sel = doc.getAllText(i)
+        text = sel.text() if hasattr(sel, "text") else str(sel)
+        lines = [x.strip() for x in text.splitlines() if x.strip()]
+        out.append([l for l in lines
+                    if l != "ChromIQ"
+                    and not re.match(r"^Page \d+ of \d+$", l)
+                    and "measurement run" not in l])
+    return out
+
+
+def test_the_report_never_prints_a_page_that_is_a_heading_and_nothing_else(
+        qapp, tmp_path, monkeypatch):
+    """Knut's rule, on the report, read off the finished sheet.
+
+    "How to read this report" is `_h2(page_break=True)` + `_gap()` + a one-cell
+    table holding the whole section. `paginate_tables` pushed that table to the
+    next page and left the heading behind: page 2 of the beta 3 proof PDF held
+    121 characters, and they were the header, the heading and the footer.
+
+    Judged by what is LEFT on a page once the hand-painted bands are taken off,
+    so it does not depend on ink, on a page number, or on which page the fault
+    lands on. A sparse page is not itself the fault and is not asserted against:
+    the tail of a section that flows over a boundary is a normal sheet, and the
+    report has one (0.7 % ink, the last lines of this same section). A heading
+    with nothing under it is not.
+    """
+    from ui.dialogs.measurement_report_dialog import _h2
+
+    pdf = _report_pdf(tmp_path, monkeypatch)
+    bodies = _report_page_bodies(pdf)
+    assert len(bodies) >= 2, f"a one-page report proves nothing here: {bodies}"
+    # Every main heading the report can write, taken from the report itself.
+    headings = {re.sub(r"<[^>]+>", "", _h2(t)).strip() for t in (
+        "How to read this report", "Report Results",
+        "Overview of Measurement Metrics", "Trend over time (this printer)",
+        "Detailed data per measurement run")}
+    stranded = [i + 1 for i, body in enumerate(bodies)
+                if len(body) == 1 and body[0] in headings]
+    assert not stranded, (
+        f"page(s) {stranded} carry a section heading and nothing else — "
+        + " | ".join(f"p{i + 1}: {b}" for i, b in enumerate(bodies)))
+
+
+def test_the_report_body_never_paints_over_its_own_header_band(
+        qapp, tmp_path, monkeypatch):
+    """`PaintContext.clip` picks the slice to draw; it does not stop an element
+    drawing outside it.
+
+    Letting the "How to read this report" panel flow across a page boundary,
+    rather than pushing it off page 2, put its grey background over the whole
+    header band of the page it continued on: the wordmark, the scope line and
+    four of the five colour segments were painted over, with a line of the
+    panel's text on top of them. `render_paged` has carried the painter clip
+    that prevents this since #164; the report's own loop never got it.
+
+    Judged on the colour line, because it is the one thing in the band whose
+    absence cannot be argued about: five saturated segments across the sheet.
+    """
+    import numpy as np
+    from PIL import Image
+    from PyQt6.QtCore import QSize
+    from PyQt6.QtPdf import QPdfDocument
+
+    pdf = _report_pdf(tmp_path, monkeypatch)
+    doc = QPdfDocument(None)
+    doc.load(str(pdf))
+    assert doc.pageCount() >= 2
+
+    missing = []
+    for i in range(1, doc.pageCount()):        # page 1 carries no colour line
+        f = tmp_path / f"band_{i}.png"
+        doc.render(i, QSize(600, 850)).save(str(f))
+        page = Image.open(f).convert("RGBA")
+        flat = Image.alpha_composite(
+            Image.new("RGBA", page.size, (255, 255, 255, 255)), page)
+        arr = np.asarray(flat.convert("RGB")).astype(int)
+        top = arr[:int(arr.shape[0] * 0.12)]   # the header band and its margin
+        # A colour-line row is saturated across most of the sheet's width.
+        sat = top.max(axis=2) - top.min(axis=2)
+        wide = (sat > 40).mean(axis=1)
+        if not (wide > 0.8).any():
+            missing.append(i + 1)
+    assert not missing, (
+        "the five-segment colour line is painted over on page(s) "
+        f"{missing} — the body is drawing into the header band")
