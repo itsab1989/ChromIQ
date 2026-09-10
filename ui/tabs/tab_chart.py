@@ -18877,20 +18877,46 @@ class TabChart(QWidget):
                 return warns + over, over
             lab = geom.label_band_mm if geom.label_band_mm >= 0 else geom.txhisl
             if r.show_strip_indicators and lab > 0:
-                _o = text_edge_fit.strip_label_overlap(
+                # THIS SAID THE LETTERS RUN INTO THE PATCHES AND THEY NEVER DO.
+                # A challenge round measured five sheets at top margins from
+                # 1 mm to 8 mm: on every one the letters were printed ABOVE the
+                # patch block with clear paper between them, while this line
+                # said in red that they ran into it. Its remedy was worse than
+                # useless, because lowering "T" as it advised silenced the
+                # warning without moving one pixel of ink. The wording it
+                # replaced was true.
+                #
+                # `geometry.py` anchors the label's BOTTOM at the top of the
+                # patch area and slides it UP toward the page edge when the
+                # margin is tight, clamped at the edge. So the fact to report
+                # is that the distance from the paper edge the user asked for
+                # is not the distance they get, which is what the help for
+                # "Show strip letters" has always said would happen.
+                _sq = text_edge_fit.strip_label_squeeze(
                     r.margin_top, r.text_edge_top_mm, lab,
                     float(getattr(r, "strip_label_offset_mm", 0.0) or 0.0))
-                if _o is not None:
+                if _sq is not None and _sq.off_the_sheet:
                     over.append(tr(
-                        "⚠ The strip letters across the top run into the "
-                        "patches. They are printed {edge:.1f} mm down from the "
-                        "paper edge and need {need:.1f} mm of room, and the top "
-                        "margin leaves {avail:.1f} mm. Raise “Top” under "
-                        "“Margins (mm)” by about {short:.1f} mm, or lower “T” "
-                        "under “Text distance from edge (mm)”.").format(
-                            edge=r.text_edge_top_mm, need=_o.needed_mm,
-                            avail=max(0.0, _o.available_mm),
-                            short=_o.overlap_mm))
+                        "⚠ The strip letters do not fit above the patches. "
+                        "They are {need:.1f} mm tall and the top margin is "
+                        "{margin:.1f} mm, so they are printed hard against the "
+                        "paper edge and the top of every letter is lost. Raise "
+                        "“Top” under “Margins (mm)” by at least {short:.1f} mm, "
+                        "or use a smaller label size in Preferences.").format(
+                            need=_sq.band_mm, margin=_sq.margin_mm,
+                            short=_sq.short_mm))
+                elif _sq is not None:
+                    over.append(tr(
+                        "⚠ The strip letters are printed closer to the paper "
+                        "edge than you asked. They are {act:.1f} mm from it "
+                        "rather than {asked:.1f} mm, because they are "
+                        "{need:.1f} mm tall and the top margin is {margin:.1f} "
+                        "mm. They never move down over the patches. Raise "
+                        "“Top” under “Margins (mm)” by about {short:.1f} mm to "
+                        "get the distance you set.").format(
+                            act=_sq.actual_mm, asked=_sq.asked_mm,
+                            need=_sq.band_mm, margin=_sq.margin_mm,
+                            short=_sq.short_mm))
             # …AND THE ROW NUMBERS DOWN THE LEFT, the same rule one edge over.
             # Area-first no longer reserves their 7.5 mm band outside the margin
             # (that was the fault Basti reported: a 1 mm margin put the first

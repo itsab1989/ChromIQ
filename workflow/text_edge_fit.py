@@ -116,18 +116,70 @@ def _overlap(side: str, available_mm: float, needed_mm: float) -> "Overlap | Non
     return Overlap(side, float(available_mm), float(needed_mm))
 
 
-def strip_label_overlap(margin_top_mm: float, text_edge_top_mm: float,
-                        band_mm: float, label_offset_mm: float = 0.0,
-                        ) -> "Overlap | None":
-    """The strip letters across the top against the top margin.
+@dataclass(frozen=True)
+class Squeeze:
+    """The strip letters could not keep the distance the user asked for.
 
-    The letters hang from the page edge at "Text distance from edge" → T, moved
-    further down by "Label offset" under "Strip letters only" when one is set,
-    and their band is *band_mm* tall. The top margin is where the patch area
-    starts.
+    They do NOT run into the patches, and this type exists because a message
+    saying they do was shipped and was false in every state in which it fired.
+
+    *asked_mm* is the distance from the page edge the setting asks for,
+    *actual_mm* is where the renderer puts them instead, *band_mm* is how tall
+    they are, and *margin_mm* is the top margin. ``off_the_sheet`` is the worse
+    case: the band is taller than the whole margin, so anchoring its bottom at
+    the patch area would start it above the paper and it is clamped at the
+    edge, losing the top of every letter.
     """
-    reserve = float(text_edge_top_mm or 0.0) + max(0.0, float(label_offset_mm or 0.0))
-    return _overlap("top", float(margin_top_mm or 0.0) - reserve, float(band_mm or 0.0))
+
+    asked_mm: float
+    actual_mm: float
+    band_mm: float
+    margin_mm: float
+
+    @property
+    def short_mm(self) -> float:
+        """How much more top margin would let the setting be kept."""
+        return max(0.0, self.band_mm + self.asked_mm - self.margin_mm)
+
+    @property
+    def off_the_sheet(self) -> bool:
+        return self.band_mm > self.margin_mm + EPS_MM
+
+
+def strip_label_squeeze(margin_top_mm: float, text_edge_top_mm: float,
+                        band_mm: float, label_offset_mm: float = 0.0,
+                        ) -> "Squeeze | None":
+    """What the strip letters actually do when the top margin is tight.
+
+    THEY NEVER MOVE DOWN INTO THE PATCHES, and the first version of this law
+    said they did. It computed `margin_top - reserve` against the band and
+    called the shortfall an overlap, which is the arithmetic the right edge
+    needs and the wrong question for this one. A challenge round measured five
+    sheets: at every top margin from 1 mm to 8 mm the letters were printed
+    ABOVE the patch block with clear paper between, and the message said they
+    ran into it. The remedy it offered, lowering "T", silenced the warning
+    without moving a single pixel.
+
+    What the renderer does is at `workflow/layout_engine/geometry.py`, and it
+    says so in its own comment: the label's BOTTOM is anchored at the top of
+    the patch area, so when the margin is too small the label slides UP toward
+    the page edge, clamped there.
+
+        _leader_top = max(0.0, min(text_edge_top + gap, margin_t - band))
+
+    So the thing to report is not an overlap. It is that the distance from the
+    paper edge the user asked for is not the distance they get, which is what
+    the app's own help for "Show strip letters" has always said would happen.
+    """
+    asked = float(text_edge_top_mm or 0.0) + max(0.0, float(label_offset_mm or 0.0))
+    band = float(band_mm or 0.0)
+    margin = float(margin_top_mm or 0.0)
+    if band <= 0.0:
+        return None
+    actual = max(0.0, min(asked, margin - band))
+    if actual + EPS_MM >= asked:
+        return None
+    return Squeeze(asked, actual, band, margin)
 
 
 def sheet_text_overlap(margin_bottom_mm: float, text_edge_mm: float,
