@@ -160,6 +160,42 @@ def _colour_line_html(height: int = 5) -> str:
             f"style='height:{height}px;margin:0'><tr>{cells}</tr></table>")
 
 
+def _report_needs_rebuilding(rep: dict) -> bool:
+    """Whether a saved report must be recomputed from its measurement.
+
+    A MODULE-LEVEL FUNCTION SO A TEST CAN CALL THE REAL RULE. It lived inline
+    in the loop, so the only way to check it was to copy it into a test, and a
+    copy proves nothing about the app: a mutation that broke the window left
+    every behavioural assertion green.
+
+    Two reasons a report is out of date, and the second cannot be seen in a
+    schema number.
+
+    An OLDER SCHEMA carries a metric set that predates the current one, so the
+    window would show "no accuracy data" for it.
+
+    And A ROW THAT WAS NEVER COMPUTED is stale at the current schema. Grey
+    balance and the 30 to 70 per cent ramps were added ADDITIVELY, deliberately
+    without bumping the schema so no report on disk would be re-derived. But
+    4.2.0 already wrote schema 7 and had no grey balance in its builder at all,
+    so every report saved by 4.2.0 and the first two betas passed this test, was
+    never rebuilt, and showed N-A on both grey rows for ever. Surveyed on one
+    real disk: 58 saved reports, none with a grey block, 33 already at schema 7.
+
+    Worse than missing: the reason printed beside the N-A said the measurement
+    file could not be read again, which is untrue. It was never asked for, and
+    the number it was hiding was in the same folder.
+
+    The caller carries the saved verdict across a rebuild untouched, so this
+    computes rows that were never computed and re-grades nothing.
+    """
+    from workflow.measurement_report import REPORT_SCHEMA
+    return (rep.get("schema", 0) < REPORT_SCHEMA
+            or (rep.get("de00") or {}).get("avg_all") is None
+            or "grey_balance" not in rep
+            or "ramps_30_70" not in rep)
+
+
 def _h2(text: str, *, page_break: bool = False) -> str:
     """A main section heading, matching 'Trend over time (this printer)' etc.
 
@@ -1032,8 +1068,26 @@ class MeasurementReportDialog(QDialog):
             # window would show "no accuracy data" for them. Rebuild such a
             # report from its run's own .ti3 — same measurement, current metrics —
             # keeping the saved date so the trend timeline is unchanged (Knut).
-            stale = (rep.get("schema", 0) < REPORT_SCHEMA
-                     or (rep.get("de00") or {}).get("avg_all") is None)
+            # ...AND A ROW THAT WAS NEVER COMPUTED IS STALE TOO, WHICH THE
+            # SCHEMA NUMBER CANNOT SAY. Grey balance and the tone ramps were
+            # added ADDITIVELY, deliberately without bumping the schema so that
+            # no report on disk would be re-derived. The consequence nobody
+            # traced: 4.2.0 already wrote schema 7 and had no grey balance in
+            # its builder at all, so every report saved by 4.2.0 and the first
+            # two betas fails this test, is never rebuilt, and shows N-A on
+            # both grey rows for ever. Surveyed on one real disk: 58 saved
+            # reports, none with a grey block, 33 of them already at schema 7.
+            #
+            # Worse than missing: the reason printed beside the N-A says the
+            # measurement file could not be read again, which is untrue. It was
+            # never asked for, and in the case measured the number it was
+            # hiding, 3.702, was sitting in the same folder.
+            #
+            # The rebuild below already carries the saved verdict across
+            # untouched, so this computes rows that were never computed and
+            # re-grades nothing. Section 6 of the design record is revised in
+            # place, and it was a draft confirmed by nobody.
+            stale = _report_needs_rebuilding(rep)
             if stale:
                 run_ti3 = p.parent.parent / ti3.name
                 if run_ti3.is_file():

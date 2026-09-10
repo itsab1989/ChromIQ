@@ -211,6 +211,34 @@ no verdict cannot tell whether something is wrong.
 
 ## 6. What a saved report carries
 
+> **REVISED 2026-09-10, because the decision below had a consequence nobody
+> traced.** "The schema is not bumped, so no report on disk is re-derived" was
+> deliberate and is still right about VERDICTS. It was wrong about rows that had
+> never been computed at all.
+>
+> Version 4.2.0 already wrote schema 7 and had no grey balance in its builder,
+> so every report saved by 4.2.0 and the first two betas passed the staleness
+> test, was never rebuilt, and showed N-A on both grey rows for ever. Surveyed
+> on one real disk: 58 saved reports, none carrying a grey block, 33 of them
+> already at schema 7. The reason printed beside the N-A said the measurement
+> file could not be read again, which is untrue: it was never asked for, and the
+> number it was hiding was in the same folder.
+>
+> **So a report missing a block the current builder always writes is stale, at
+> any schema.** The rebuild already carries the saved verdict across untouched,
+> so this computes rows that were never computed and re-grades nothing. The rule
+> lives in one function, `_report_needs_rebuilding`, so a test can exercise the
+> real thing rather than a copy of it.
+>
+> Still to be confirmed by a human: whether a rebuild should also be offered
+> explicitly, which is Knut's "Generate Report button" question. It is not
+> needed for a limits change, because closing the limits window already
+> re-judges every live-graded column; what neither path can do is re-read the
+> measurement file, which is what this revision addresses for these two blocks
+> only.
+
+
+
 **⏳ Awaiting confirmation.** **Confirmed by:** *nobody yet.*
 
 Additive to the schema-7 report (the schema is not bumped, so no report on
