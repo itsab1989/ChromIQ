@@ -1,19 +1,19 @@
 # Changelog
 
-## v4.3.0-beta.1
+## v4.3.0-beta.2
 
-**Everything in 4.2.1, plus the first slice of the new Measurement Report.** The
+**Everything in 4.2.2, plus the first slice of the new Measurement Report.** The
 report now judges a print against a named limit set instead of two loose
 numbers, and it says in plain words what it checked, what it could not, and why.
 Built from Knut's rulings of 4 to 7 September. It is a beta: the design is
 recorded in `docs/design/measurement_report_limits.md` as awaiting confirmation,
 and the open decisions are listed on issue #182.
 
-Because it carries 4.2.1 whole, it also has the two photo-card charts, the CR30
-honeycomb that can be turned so its strips run straight, its ring spacer and its
-ruler markers, and every fix in that release, including the one that gave the
-Linux build its thirteen languages back. Those are listed under 4.2.1 below and
-are not repeated here.
+Because it carries 4.2.2 and 4.2.1 whole, it also has the two photo-card charts,
+the CR30 honeycomb turned so its strips run straight in Guided as well as
+Manual, the run settings that stopped rewriting themselves, and the chart notes
+that now reach the paper. Those are listed under 4.2.2 and 4.2.1 below and are
+not repeated here.
 
 ### New
 
@@ -93,6 +93,83 @@ are not repeated here.
 
 - A dated verification that had a saved report was listed twice in the
   Measurement Report window (a demo project showed ten rows for five dates).
+
+## v4.2.2
+
+**A run's own settings stopped being rewritten every time you looked at it, and
+the notes you type for a chart now reach the paper.** Knut Larsson found both in
+one session. Selecting a run quietly replaced its stored settings with the ones
+its printed chart had used, so a seed, a paper size or your choice of layout
+engine could change without you touching anything, and deleting a run wrote that
+run's screen into the run beside it. Separately, a long note on a chart ran off
+the edge of the sheet, ignored the distance from the edge you had set, erased
+any ruler markers it crossed, and on some charts was not printed at all. The CR30
+honeycomb that 4.2.1 learned to turn is now turned in Guided as well, so every
+user gets strips that run straight down the page.
+
+### New
+
+- **Guided turns the CR30 honeycomb.** A hexagonal chart built in Guided now
+  stands its patches on a flat side instead of a point, the same option Manual
+  offers in Expert Options. Every strip runs straight down the page instead of
+  zigzagging, which is what you follow with a ruler while you read: measured on
+  the printed sheet, the side-to-side wander within one strip goes from 6.01 mm
+  to none at all, at the same patch size and the same ink. Manual keeps its own
+  tick and is untouched. Guided also gives the CR30 a 5 mm margin where the
+  other instruments use 6 mm, because a margin is the room an instrument needs
+  to start and finish a strip and the CR30 is placed on one patch at a time. On
+  A4 portrait that is 396 patches a sheet instead of 374.
+
+  **A chart you built in Manual still rebuilds exactly as it was**, because
+  Manual keeps the layout the chart was made with. A chart you built in GUIDED
+  is rebuilt from the Guided settings instead, so rebuilding one you made before
+  this release gives you the turned version rather than the sheet you printed.
+  The panel warns you before you press anything: it shows the count of the chart
+  on screen beside the count your settings would now produce, and marks them
+  when they differ.
+
+### Fixed
+
+- **A run's settings were rewritten by the act of selecting it.** Choosing a run
+  put its own stored settings on screen and then replaced them with the settings
+  its printed chart had used, and filed those as though you had chosen them.
+  Measured with nobody touching anything: a run's stored seed changed from none
+  to a fixed number, and its stored paper size changed from one custom size to
+  another. Your run's own settings now stay yours.
+- **A run whose chart was made by the older tool lost its choice of layout
+  engine.** The same fault, on one setting that was never protected: if a run's
+  chart had been laid out by printtarg, the tick for "Use the ChromIQ layout
+  engine" was cleared and filed as cleared, every time you selected that run.
+- **A run with nothing saved yet borrowed the previous run's layout engine
+  setting.** A brand new run now starts from your saved default, never from
+  whichever run you happened to be looking at.
+- **Deleting a run wrote the deleted run's settings into the run beside it.**
+  Two runs, one set up for 111 patches and one for 648: deleting the second left
+  the first asking for 648. Settings now follow their own run, and nothing is
+  filed for a run that no longer exists.
+- **Closing a project kept the run description and the chart notes on screen,
+  and said the project had been deleted.** Both fields are cleared with the
+  rest, and closing now says plainly that nothing was deleted and everything is
+  still on disk. Deleting still says it was deleted.
+- **A long chart note ran off the sheet.** The text was set to a size chosen
+  from the width of the margin alone and then centred, so anything too long lost
+  its END, which is usually where the useful part is. On a 13 x 18 cm card 4.2 mm
+  of it was missing and on a 10 x 15 cm card 34.2 mm. The note is now made to fit.
+- **The chart note ignored "Text distance from edge".** It started half a
+  millimetre from the paper whatever that box said. It now respects it.
+- **The chart note erased the ruler markers it crossed.** Not covered them: the
+  note was written as a solid white strip over the finished page, so any marker
+  dash inside it was gone. On one sheet a hundred pixels of marker were
+  destroyed. The note is now laid over the page without rubbing anything out.
+- **On some charts the note was not printed at all, and nothing said so.** With
+  the side ruler markers switched on, or with the clip border on the right, there
+  was no clear space left for the note and it was silently dropped from every
+  page. It now knows to leave those marks alone and prints beside them.
+- **A preset saved the wrong patch-set design.** Saving a preset recorded the
+  design from the run's last generated chart instead of the patch set you had
+  loaded, so two presets made minutes apart could carry identical designs while
+  their patch sets differed, and "Load setup from preset" then offered the same
+  setup twice. It now records the patch set you actually have.
 
 ## v4.2.1
 
