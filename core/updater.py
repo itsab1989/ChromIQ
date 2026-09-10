@@ -113,14 +113,26 @@ def _remember_rate_limit(reset: int) -> None:
         log.debug("Could not record the update-check rate limit", exc_info=True)
 
 
-def _api_is_blocked(now: float | None = None) -> bool:
-    """Whether the quota is known to be spent, so the API should be skipped."""
+def _api_blocked_until(now: float | None = None) -> int:
+    """The epoch second the quota frees, or 0 if it is not known to be spent.
+
+    Returning the TIME rather than a yes/no is the point. The first version
+    answered a bool, so when the check skipped the API it no longer knew when
+    the quota frees, and the message fell back to "Please try again later" on
+    every check after the first: the one wording that helps was shown once and
+    then thrown away for the whole hour the user is waiting.
+    """
     try:
         from core.settings import AppSettings
         until = float(AppSettings().get(_BLOCKED_UNTIL, 0) or 0)
     except Exception:
-        return False
-    return (time.time() if now is None else now) < until
+        return 0
+    return int(until) if (time.time() if now is None else now) < until else 0
+
+
+def _api_is_blocked(now: float | None = None) -> bool:
+    """Whether the quota is known to be spent, so the API should be skipped."""
+    return _api_blocked_until(now) > 0
 
 
 def _tags_from_atom(xml: str) -> list[str]:
@@ -215,11 +227,14 @@ class UpdateChecker(QObject):
 
     def _run(self) -> None:
         running_is_pre = _is_prerelease(APP_VERSION)
-        rate_limited_at: int | None = None
+        # Carried forward from an earlier check, so a second attempt during the
+        # same wait can still name the time instead of shrugging.
+        _known_block = _api_blocked_until()
+        rate_limited_at: int | None = _known_block or None
         candidates: list[str] | None = None
 
         # 1. The API, unless we already know this address has spent its hour.
-        if not _api_is_blocked():
+        if not _known_block:
             try:
                 candidates = self._candidates_from_api(running_is_pre)
                 if candidates is None:
@@ -240,9 +255,13 @@ class UpdateChecker(QObject):
                     return
                 _remember_rate_limit(rate_limited_at)
             except URLError as exc:
-                log.debug("Update check, API: %s", exc)
-                self._emit("check_failed", str(exc.reason))
-                return
+                # NOT A RETURN. This used to give up here and show the operating
+                # system's own words, e.g. "[Errno 8] nodename nor servname
+                # provided, or not known", untranslated and long enough to be
+                # cut off. It also skipped the feed, which is exactly the case
+                # the feed exists for: a proxy that blocks api.github.com while
+                # github.com resolves perfectly well.
+                log.debug("Update check, API unreachable: %s", exc)
             except Exception as exc:
                 log.debug("Update check, API: %s", exc)
                 self._emit("check_failed", str(exc))
@@ -255,7 +274,15 @@ class UpdateChecker(QObject):
                 candidates = self._candidates_from_feed(running_is_pre)
             except Exception as exc:
                 log.debug("Update check, feed: %s", exc)
-                self._emit("rate_limited", int(rate_limited_at or 0))
+                if rate_limited_at is not None:
+                    self._emit("rate_limited", int(rate_limited_at))
+                else:
+                    # Both routes unreachable and no quota involved: this is a
+                    # network problem, and saying so is more use than repeating
+                    # an errno the reader cannot act on.
+                    self._emit("check_failed", tr(
+                        "ChromIQ could not reach GitHub. Check your internet "
+                        "connection and try again."))
                 return
 
         if not candidates:
