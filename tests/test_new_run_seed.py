@@ -170,3 +170,115 @@ def test_a_corrupt_block_does_not_stop_the_run_being_created(tab_and_run):
     created = proj.new_run()
     assert tab._adopt_new_run_settings(created) is False
     assert not new_run_seed_path(run).exists(), "the bad block was left behind"
+
+
+# ---------------------------------------------------------------------------
+# §4a N-3, the half that was missing: WHAT the new run adopts
+# ---------------------------------------------------------------------------
+# The block is seeded once (N-1) and nothing between choosing "New run" and
+# pressing Generate Chart is a write trigger, so the block a run carries is
+# in practice a snapshot taken during the PREVIOUS run's build. Measured on
+# screen, 2026-09-10: run 2's sheet was a SpectroScan chart and run 2's store
+# said ColorMunki — run 1's instrument — and the next New run started from
+# that, producing a two-page ColorMunki sheet where run 2 had one SpectroScan
+# page, for the same 132 patches.
+#
+# THE FIXTURE BUILDS THAT FAILING SHAPE ON PURPOSE. Run 1 passes today, because
+# run 1 is the one run whose block was seeded from its own build; a test built
+# on run 1 would be green with the bug in place.
+class _Target:
+    def __init__(self, profile_run=""):
+        self.profile_run = profile_run
+        self.run_type = "profiling"
+
+    def is_new_run(self):        return not self.profile_run
+    def is_calibration(self):    return False
+    def is_verification(self):   return False
+
+
+class _Ctl:
+    def __init__(self, project):
+        self._project, self.target = project, _Target("")
+        self.selected = None
+
+    def project_or_none(self):        return self._project
+    def set_profile_run(self, rid):   self.selected = rid
+
+
+@pytest.fixture
+def tab_with_a_stale_block(tmp_path, qapp):
+    """A run whose ``cache/new_run.json`` holds ANOTHER run's settings."""
+    import ui.tabs.tab_chart as tc
+    for name in ("save_target_settings", "load_target_settings",
+                 "_target_settings_key", "_new_run_seed_path",
+                 "_seed_new_run_block", "clear_new_run_block",
+                 "_adopt_new_run_settings", "_written_cache",
+                 "_align_current_run_to_target"):
+        setattr(_Tab, name, getattr(tc.TabChart, name))
+    _Tab._CAL_VALUES = tc.TabChart._CAL_VALUES
+    _Tab._write_target_text_into = lambda self, run: None   # #130 §9, not this
+
+    proj = Project.create(tmp_path / "Demo", "Demo")
+    run1 = proj.run("run1")
+    run1.ensure_dir()
+
+    # What the user has on screen for the run about to be made.
+    tab = _Tab(run1, {"printtarg": [_Widget("-i", "SS")]})
+    tab._target_ctl = _Ctl(proj)
+    tab._new_run_seed_dir = run1.dir
+
+    # …and the stale block, holding a DIFFERENT instrument.
+    seed = new_run_seed_path(run1)
+    seed.parent.mkdir(parents=True, exist_ok=True)
+    seed.write_text(
+        __import__("json").dumps({"printtarg-i": {"enabled": True,
+                                                  "value": "CM"}}),
+        encoding="utf-8")
+    return tab, run1, proj, seed
+
+
+def test_a_new_run_records_the_screen_not_the_stale_block(
+        tab_with_a_stale_block):
+    """§4a N-3, and Knut 2026-08-06: the settings *"copied into the new runs
+    parameter slot"* are the ones the user generated with."""
+    tab, _run1, proj, _seed = tab_with_a_stale_block
+
+    tab._align_current_run_to_target()          # what Generate Chart does
+
+    made = proj.run(tab._target_ctl.selected)
+    got = made.load_meta().create_chart_settings["printtarg-i"]["value"]
+    assert got == "SS", (
+        f"the new run recorded {got!r} — the stale block's value — instead of "
+        f"'SS', which is what was on screen when Generate Chart was pressed"
+    )
+
+
+def test_the_refresh_writes_the_block_and_never_another_runs_meta(
+        tab_with_a_stale_block):
+    """The refresh must land in ``cache/new_run.json``.
+
+    `store_for_target` answers None for "New run" and `set_profile_run` runs
+    afterwards, so the store really is None here — but the call passes None
+    explicitly, and this pins that it cannot become a write of the run the bar
+    still points at.
+    """
+    tab, run1, _proj, seed = tab_with_a_stale_block
+    before = run1.load_meta().create_chart_settings
+
+    tab._align_current_run_to_target()
+
+    assert run1.load_meta().create_chart_settings == before, (
+        "the refresh wrote into run1's meta.json instead of its New-run block"
+    )
+    assert not seed.exists(), "the block outlived the run it specified (N-3)"
+
+
+def test_the_block_is_still_never_re_seeded_from_a_run(tab_with_a_stale_block):
+    """N-1 is untouched: only the New run's own screen may overwrite a block,
+    and `_seed_new_run_block` still refuses to."""
+    import json
+    tab, run1, _proj, seed = tab_with_a_stale_block
+    tab._seed_new_run_block(run1, {"printtarg-i": {"enabled": True,
+                                                   "value": "ELSEWHERE"}})
+    assert json.loads(seed.read_text(encoding="utf-8"))[
+        "printtarg-i"]["value"] == "CM"
