@@ -20,16 +20,18 @@ every gate on every machine. Nothing here touches it.
 
 What is built
 -------------
-Three projects, ten profile runs, twenty-eight dated verifications::
+Three projects, ten profile runs, twenty-nine dated verifications::
 
     Report-Limits-Threshold-Series   the dated series: each judged row crosses
                                      its limit on one date and recovers on the
                                      next. run1 has ELEVEN dated verifications,
-                                     run3 has exactly ONE (limits locked).
+                                     run3 has exactly ONE, so its
+                                     limit set can still be chosen.
     Report-Limits-Isolated-Rows      three rows that cannot cross alone under
                                      any shipped limit set, isolated by giving
                                      the run its own edited column. run3 has
-                                     exactly ONE dated verification, UNLOCKED.
+                                     TWO dated verifications with the
+                                     lock lifted by hand.
     Report-Limits-Set-Compare        the same measurement, three times, judged
                                      by ChromIQ default / tight / Quick check.
 
@@ -714,27 +716,36 @@ SERIES_TIGHT: "list[Date]" = [
        ["all_de00_max"]),
 ]
 
-#: run3 of the first project: exactly ONE dated verification, limits LOCKED.
-SERIES_ONE_LOCKED: "list[Date]" = [
+#: run3 of the first project: exactly ONE dated verification, so the limit set
+#: can still be chosen. Knut asked for a run in this state by name: *"Some runs
+#: must only have one verification run, so that settings can be changed."*
+SERIES_ONE_DATE: "list[Date]" = [
     _d("2026-06-01_090000", "2026-06-01T09:00:00",
        "The only measurement this run has",
        "One dated verification and nothing else, judged by Quick check "
-       "(4 / 4 / 4 / 6 / 6). Its limits are bound and LOCKED, which is the "
-       "state in which to ask whether the limit set can still be changed.",
+       "(4 / 4 / 4 / 6 / 6). The report window still offers the limit set, "
+       "because one measurement is not yet a history to keep comparable.",
        Design(bulk=1.10, shoulder=2.20, peak=3.60, tail=3.00, grey_dch=0.70),
        []),
 ]
 
-#: run3 of the second project: exactly ONE dated verification, limits UNLOCKED.
-SERIES_ONE_UNLOCKED: "list[Date]" = [
+#: run3 of the second project: the history that WOULD lock the run, with the
+#: lock lifted by hand. Put it beside Threshold-Series/run2, which has the same
+#: kind of history and was never unlocked, and the pair says what the lock does.
+SERIES_TWO_DATES_UNLOCKED: "list[Date]" = [
     _d("2026-06-02_090000", "2026-06-02T09:00:00",
-       "The only measurement this run has, limits unlocked",
-       "The same situation as the locked run, except this run's limits were "
-       "deliberately unlocked. The two side by side say what the lock does. "
+       "One patch out, and the lock lifted by hand",
        "A single patch at 1.9 crosses 'All patches, largest' (1.5) on its own, "
        "with the worst-5 % average held at 0.96, just under its limit of 1.0.",
        Design(bulk=0.40, shoulder=0.55, peak=1.90, tail=0.65, grey_dch=0.30),
        ["all_de00_max"]),
+    _d("2026-06-16_090000", "2026-06-16T09:00:00",
+       "The second date, which is what would normally lock the run",
+       "The patch comes back to 1.2 and nothing crosses. This is the date that "
+       "gives the run a history: without the hand-lifted lock the limit set "
+       "would be fixed from here on, exactly as Threshold-Series/run2's is.",
+       Design(bulk=0.40, shoulder=0.55, peak=1.20, tail=0.65, grey_dch=0.30),
+       []),
 ]
 
 #: The two rows that cannot cross alone under any shipped set, isolated by
@@ -836,6 +847,26 @@ SERIES_COMPARE_QUICK: "list[Date]" = [
 # ---------------------------------------------------------------------------
 # Building a run
 # ---------------------------------------------------------------------------
+#: What a run demonstrates about the limit lock, and the sentence that says so.
+#:
+#: These sentences are NOT written by hand into a description. A challenge
+#: round found run3 of the first project describing itself as "Limits bound and
+#: LOCKED" when ``is_locked()`` returned False for it, because the lock rule had
+#: since gained a second condition and the prose had not moved. Shared demo data
+#: that misdescribes itself is worse than none: every later round is told to
+#: trust it. So the sentence is derived from ``RunPlan.lock`` and ``build_run``
+#: refuses to write a run whose real state disagrees with it.
+LOCK_SENTENCES = {
+    "locked": "Limits bound and LOCKED: two or more dated verifications, and "
+              "the lock was never lifted.",
+    "unlocked": "Limits bound, and the lock lifted by hand: this run has the "
+                "history that would otherwise fix its limit set.",
+    "one-date": "One dated verification only, so the limit set can still be "
+                "chosen: one measurement is not yet a history to keep "
+                "comparable.",
+}
+
+
 @dataclass
 class RunPlan:
     description: str
@@ -846,6 +877,28 @@ class RunPlan:
     edited_limits: "dict[str, float] | None" = None
     unlocked: bool = False
     note: str = ""
+    lock: str = "locked"
+
+    @property
+    def full_description(self) -> str:
+        """The run's description with its lock state appended, in that order."""
+        return f"{self.description} {LOCK_SENTENCES[self.lock]}"
+
+    def lock_complaint(self) -> str:
+        """Why this plan cannot produce the lock state it claims, or ""."""
+        n = len(self.dates)
+        if self.lock not in LOCK_SENTENCES:
+            return f"unknown lock state {self.lock!r}"
+        if self.lock == "one-date":
+            if n != 1:
+                return f"claims one-date and has {n} dated verifications"
+            if self.unlocked:
+                return "claims one-date and also lifts the lock, which says two things"
+        elif n < 2:
+            return f"claims {self.lock!r} and has only {n} dated verification(s)"
+        elif self.unlocked != (self.lock == "unlocked"):
+            return (f"claims {self.lock!r} with unlocked={self.unlocked}")
+        return ""
 
 
 def build_run(proj, run, plan: RunPlan, cache_root: Path,
@@ -868,7 +921,7 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
     make_chart(run.verifications_dir, run.verify_stem, plan.verify_chart, cache_root)
 
     meta = run.load_meta()
-    meta.description = plan.description
+    meta.description = plan.full_description
     meta.instrument = INSTRUMENT
     meta.paper = "Demo matte 200 g"
     meta.status = "complete"
@@ -941,6 +994,19 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
         print(f"    {flag}{date.vid}  {actual['overall']:<5} "
               f"intended={date.expect} actual={actual['crossed']}")
 
+    # The run is finished, so ask the SHIPPED rule what it made, rather than
+    # trusting the plan. This is the check that was missing when the lock rule
+    # gained its second condition and run3's description went on claiming a
+    # state the code no longer produced.
+    from workflow.run_compliance import is_bound, is_locked, measured_dates
+    really = is_locked(run)
+    if really != (plan.lock == "locked") or not is_bound(run):
+        raise SystemExit(
+            f"{run.id} claims lock={plan.lock!r} and its description says so, "
+            f"but the app reads bound={is_bound(run)}, "
+            f"dates={measured_dates(run)}, locked={really}. Fix the plan or "
+            f"the sentence, never the description alone.")
+
 
 def _crossed_rows(report, limits, row_values, row_verdict, set_summary) -> dict:
     """Which rows the REAL report says are over their limit."""
@@ -977,8 +1043,9 @@ PROJECTS = [
                      "judged against its own snapshot of this chart."),
         RunPlan("The same kind of sheet judged with ChromIQ tight.",
                 CHART_LARGE, CHART_WIDE, "chromiq_tight", SERIES_TIGHT),
-        RunPlan("One dated verification only. Limits bound and LOCKED.",
-                CHART_SMALL, CHART_SMALL, "chromiq_quick", SERIES_ONE_LOCKED),
+        RunPlan("The small chart, measured once.",
+                CHART_SMALL, CHART_SMALL, "chromiq_quick", SERIES_ONE_DATE,
+                lock="one-date"),
     ]),
     ("Report-Limits-Isolated-Rows", [
         RunPlan("Best 95 % average isolated by this run's own edited column.",
@@ -991,9 +1058,9 @@ PROJECTS = [
                 edited_limits={"all_de00_avg": 9.0, "worst5_de00_avg": 9.0,
                                "best95_de00_avg": 9.0, "all_de00_max": 9.0,
                                "all_de00_p95": 3.0}),
-        RunPlan("One dated verification only. Limits bound and UNLOCKED.",
-                CHART_SMALL, CHART_SMALL, "chromiq_tight", SERIES_ONE_UNLOCKED,
-                unlocked=True),
+        RunPlan("The small chart, measured twice.",
+                CHART_SMALL, CHART_SMALL, "chromiq_tight",
+                SERIES_TWO_DATES_UNLOCKED, unlocked=True, lock="unlocked"),
         RunPlan("Grey balance average isolated by this run's own edited column.",
                 CHART_SMALL, CHART_MEDIUM, "chromiq_default", SERIES_GREY_AVG,
                 edited_limits={"all_de00_avg": 6.0, "worst5_de00_avg": 6.0,
@@ -1012,8 +1079,10 @@ PROJECTS = [
 
 
 def build_project(dest: Path, name: str, plans: "list[RunPlan]",
-                  cache_root: Path, results: list) -> Path:
+                  cache_root: Path, results: list,
+                  lock_rows: "list[dict] | None" = None) -> Path:
     from core.file_manager import Project
+    from workflow.run_compliance import is_locked, measured_dates
     root = dest / name
     if root.exists():
         shutil.rmtree(root)
@@ -1027,6 +1096,14 @@ def build_project(dest: Path, name: str, plans: "list[RunPlan]",
         build_run(proj, run, plan, cache_root, results)
         for r in results[before:]:
             r["project"] = name
+        if lock_rows is not None:
+            lock_rows.append({
+                "run": f"{name.replace('Report-Limits-', '')}/{run.id}",
+                "dates": measured_dates(run),
+                "lifted": bool(run.load_meta().compliance_unlocked),
+                "locked": is_locked(run),
+                "claimed": plan.lock,
+            })
     return root
 
 
@@ -1051,12 +1128,22 @@ def main(argv=None) -> int:
     cache_root = dest / "_charts"
     cache_root.mkdir(exist_ok=True)
 
+    bad_plans = [(n, i + 1, c)
+                 for n, plans in PROJECTS
+                 for i, plan in enumerate(plans)
+                 if (c := plan.lock_complaint())]
+    for n, i, c in bad_plans:
+        print(f"  PLAN {n}/run{i}: {c}")
+    if bad_plans:
+        return 2
+
     results: list = []
+    lock_rows: list = []
     for name, plans in PROJECTS:
-        build_project(dest, name, plans, cache_root, results)
+        build_project(dest, name, plans, cache_root, results, lock_rows)
     shutil.rmtree(cache_root, ignore_errors=True)
 
-    (dest / "README.txt").write_text(readme(results), encoding="utf-8")
+    (dest / "README.txt").write_text(readme(results, lock_rows), encoding="utf-8")
     (dest / "intended-vs-actual.json").write_text(
         json.dumps(results, indent=2), encoding="utf-8")
     if args.report:
@@ -1079,7 +1166,7 @@ def main(argv=None) -> int:
     return 1 if bad else 0
 
 
-def readme(results: list) -> str:
+def readme(results: list, _lock_rows: "list[dict]") -> str:
     from workflow.compliance_sets import ROW_BY_ID
     lines: list = []
     a = lines.append
@@ -1124,6 +1211,30 @@ def readme(results: list) -> str:
             a(f"            profile chart {plan.profile_chart.label}, "
               f"verification chart {plan.verify_chart.label}")
         a("")
+    a("WHICH RUNS ARE LOCKED, AND WHY")
+    a("------------------------------")
+    a("")
+    a("A run's limit set is fixed, and the report window stops offering it,")
+    a("once two conditions are both true: the set has been copied onto the run")
+    a("by a first verification measurement, and the run has at least TWO dated")
+    a("verifications. One measurement is not yet a history, so at that point")
+    a("the set can still be chosen. The lock can also be lifted by hand.")
+    a("")
+    a("Every line below was read back from the built projects with the app's")
+    a("own is_locked(), not copied from the plan that asked for it.")
+    a("")
+    a(f"  {'run':<34}{'dates':>6}  {'lifted':<7}{'locked':<7}")
+    for row in _lock_rows:
+        a(f"  {row['run']:<34}{row['dates']:>6}  "
+          f"{'yes' if row['lifted'] else 'no':<7}"
+          f"{'YES' if row['locked'] else 'no':<7}")
+    a("")
+    a("The three states are all present on purpose:")
+    a("")
+    a("  Threshold-Series/run3   one date, so the set can still be chosen")
+    a("  Isolated-Rows/run3      two dates, but the lock was lifted by hand")
+    a("  Threshold-Series/run2   two dates and never lifted, so it is locked")
+    a("")
     a("HOW THE MEASUREMENTS WERE MADE")
     a("------------------------------")
     a("")
