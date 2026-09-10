@@ -225,17 +225,49 @@ def test_the_confirmation_answers_yes_when_ok_is_really_clicked(qapp, tmp_path):
         dlg.deleteLater()
 
 
-def test_a_locked_run_can_always_be_relocked_after_preferences_forbid_edits(qapp, tmp_path):
+def test_a_locked_run_can_always_be_relocked_after_preferences_forbid_edits(
+        qapp, tmp_path, monkeypatch):
     """F5: with the Preferences box turned off after an unlock, the ticked box
-    must stay enabled so the user can lock the run again."""
+    must stay enabled so the user can lock the run again.
+
+    **RE-LOCKING NOW ASKS FIRST** (round 9). It used to be silent, and a
+    challenge round showed that is the direction that takes every control away:
+    one click on a box the app itself ticks when it binds a run, one more dated
+    verification, and the run is locked with no route back that anything on
+    that screen names. So the question is answered here rather than met by a
+    real modal, which is what this test did on the first gate after that change.
+
+    The property F5 exists for is unchanged: re-locking is allowed even with
+    the Preferences box off.
+    """
     proj, run, ti3s = _verified_run(tmp_path, dates=1)
     rc.set_run_unlocked(run, True)
     dlg = _dialog(_settings(tmp_path), ti3s[-1])       # allow flag off
     try:
         assert dlg._unlock_check.isChecked() and dlg._unlock_check.isEnabled()
+        asked: list = []
+        monkeypatch.setattr(dlg, "_confirm",
+                            lambda t, x: asked.append(t) or True)
         dlg._unlock_check.setChecked(False)
+        assert asked, "re-locking took every control away with no question"
         assert not run.load_meta().compliance_unlocked
         assert not dlg._unlock_check.isEnabled()          # and now it is locked for good
+    finally:
+        dlg.deleteLater()
+
+
+def test_refusing_the_relock_leaves_the_run_unlocked(qapp, tmp_path, monkeypatch):
+    """The other half, and the one that would break silently."""
+    proj, run, ti3s = _verified_run(tmp_path, dates=1)
+    rc.set_run_unlocked(run, True)
+    dlg = _dialog(_settings(tmp_path), ti3s[-1])
+    try:
+        monkeypatch.setattr(dlg, "_confirm", lambda t, x: False)
+        dlg._unlock_check.setChecked(False)
+        assert run.load_meta().compliance_unlocked, (
+            "a refused re-lock locked the run anyway")
+        assert dlg._unlock_check.isChecked(), (
+            "the box kept the refused state, so it now says the run is locked")
     finally:
         dlg.deleteLater()
 
