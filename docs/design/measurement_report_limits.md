@@ -128,6 +128,21 @@ COND when any row is COND or a required row is N-A; PASS otherwise. The
 Overall cell carries its reason as text. The report never prints the word
 "conforms" and never puts a standard's name in a verdict sentence.
 
+**A sheet that is not graded says WHY, not just that it is not.** Knut's 12b
+(2026-09-09) allowed INFO for a profiling run's report on one condition, in his
+words: *"since the measurements are not a verification run and will most often
+not fall within set accuracy threshold values. In this case the report output
+must explain this."* The Overall reason therefore reads:
+
+> This sheet is not graded, so its numbers are shown for information only. It
+> was measured to build a profile rather than to check one, and a profiling
+> measurement is expected to fall outside the accuracy limits. That is normal
+> here, and it is not a fault.
+
+The sentence it replaced said the sheet was not graded and stopped, which meets
+the letter of INFO and none of his condition: a reader seeing large numbers and
+no verdict cannot tell whether something is wrong.
+
 ## 5. Where the set lives, and when it may change
 
 **⏳ Awaiting confirmation.** **Confirmed by:** *nobody yet.*

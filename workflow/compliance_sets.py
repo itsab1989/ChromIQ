@@ -626,7 +626,17 @@ def row_verdict(limit: Limit, value: "float | None", graded: bool) -> "str | Non
 #: dict, review F6). Filled with {checked} {total} {failed} {cond} {not_computed}.
 SUMMARY_REASONS: "dict[str, str]" = {
     "empty": "This limit set defines no limits.",
-    "not_graded": "This sheet is not graded; its numbers are shown for information.",
+    # Knut, #182 12b (2026-09-09): showing INFO for a profiling run's report is
+    # right, "since the measurements are not a verification run and will most
+    # often not fall within set accuracy threshold values. In this case the
+    # report output must explain this." The old sentence said the sheet was not
+    # graded and stopped there, which explains nothing: a reader who sees big
+    # numbers and no verdict is left to guess whether something is wrong.
+    "not_graded": "This sheet is not graded, so its numbers are shown for "
+                  "information only. It was measured to build a profile rather "
+                  "than to check one, and a profiling measurement is expected "
+                  "to fall outside the accuracy limits. That is normal here, "
+                  "and it is not a fault.",
     "fail": "{failed} of {checked} values checked are over this limit set's limits.",
     "iso": "{checked} of {total} values checked, all within this limit set's "
            "values. This limit set holds a standard's published values applied "
