@@ -65,7 +65,29 @@ def extract_keys() -> set[str]:
                 keys.add(consts[arg.id])
     keys |= _message_catalogue_keys()
     keys |= _compliance_set_keys()
+    keys |= _reference_set_keys()
     return keys
+
+
+def _reference_set_keys() -> set[str]:
+    """The Measurement Report's reference sets (#182): group labels, per-set
+    labels and blurbs, and the refusal sentences are data in
+    `workflow/reference_sets.py` and reach the screen through `tr()` on a
+    variable, which the AST walk above cannot see. Swept from the module for
+    the same reason `_compliance_set_keys` sweeps its neighbour."""
+    try:
+        from workflow import reference_sets as refs
+    except Exception as exc:  # noqa: BLE001
+        print(f"warning: could not import workflow.reference_sets ({exc})",
+              file=sys.stderr)
+        return set()
+    out: set[str] = set(refs.GROUP_LABELS.values())
+    out |= set(refs.REFUSAL_REASONS.values())
+    for s in refs.available():
+        out.add(s.label)
+        if s.blurb:
+            out.add(s.blurb)
+    return out
 
 
 def _compliance_set_keys() -> set[str]:

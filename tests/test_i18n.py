@@ -669,19 +669,29 @@ def test_every_deliberate_exception_says_why():
 # summaries, the two write-failure windows, the reworded provenance and COND
 # texts) and six long texts re-keyed after a rewording; German carries all of
 # them, the eleven others gain the difference.
+# 2026-09-10, #182: REFERENCE sets, which are a different object from the limit
+# sets above. A limit set says how close is close enough; a reference set says
+# what colour a patch was supposed to be, and eleven Fogra printing conditions
+# are now bundled (`data/reference_sets/`, `workflow/reference_sets.py`).
+# 37 keys in: six group labels, eleven set labels, eleven blurbs, four refusal
+# sentences, the Fogra credit line, three coverage sentences and the display
+# label. 0 out. German is translated for 36 of the 37 and moves by exactly ONE,
+# `{label} ({name})`, which is punctuation in every language. The eleven others
+# carry the English source under the beta rule; two of the 37 keys ("Magazine",
+# "Metal") were already in those catalogues and translated, so each gains 35.
 _IDENTICAL_TO_KEY = {
-    "de": 121,
-    "es": 260,
-    "fr": 281,
-    "it": 271,
-    "ja": 247,
-    "nl": 287,
-    "no": 272,
-    "pl": 264,
-    "pt": 262,
-    "ru": 235,
-    "sv": 273,
-    "zh_CN": 241,
+    "de": 122,
+    "es": 295,
+    "fr": 316,
+    "it": 306,
+    "ja": 282,
+    "nl": 322,
+    "no": 307,
+    "pl": 299,
+    "pt": 297,
+    "ru": 270,
+    "sv": 308,
+    "zh_CN": 276,
 }
 
 

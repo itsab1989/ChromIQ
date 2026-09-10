@@ -56,6 +56,13 @@ ALLOWED_CONTEXTS = (
     "can never say that a print conforms to a standard",
     "never says that anything conforms to a standard",
     "it does not certify",
+    # #182, 2026-09-10: the Fogra credit line, and it is a DENIAL. Fogra's own
+    # terms of use say the FOGRAxx designation "may be used solely to identify
+    # the respective reference data. Such use does not imply certification,
+    # approval or endorsement by Fogra." ChromIQ prints that denial beside
+    # every reference set, so the word "certification" appears here only to be
+    # refused. Read, and kept.
+    "It is not a certification, approval or endorsement by",
 )
 
 #: The denials must not merely be legal, they must EXIST. Deleting one would
@@ -64,6 +71,10 @@ REQUIRED_DENIALS = (
     "can never say that a print conforms to a standard",
     "never says that anything conforms to a standard",
     "it does not certify",
+    # The Fogra grant is conditional on this sentence existing, not merely on
+    # no claim being made. Deleting the credit line would otherwise pass every
+    # other check in this file.
+    "It is not a certification, approval or endorsement by",
 )
 
 

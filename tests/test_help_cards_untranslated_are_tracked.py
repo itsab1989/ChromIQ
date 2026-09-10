@@ -383,19 +383,26 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 #: source under the beta rule; the full pass happens before the final release.
 #: Same day, after the adversarial review: the Overall summary sentences, the two
 #: write-failure windows and the reworded provenance and gamut texts add 16 more.
+#: 2026-09-10, #182: REFERENCE sets, a different object from the limit sets
+#: above. Eleven Fogra printing conditions are bundled, and 26 of the 37 new
+#: keys are over this file's 25-character floor: the eleven set blurbs, four
+#: refusal sentences, the Fogra credit line, three coverage sentences, and
+#: seven of the labels. German is translated for every one of them and stays
+#: at 4. The eleven carry the English source under the beta rule; the full
+#: pass happens before the final release. Measured, not rounded.
 _BUDGET = {
     "de": 4,
-    "es": 115,
-    "fr": 116,
-    "it": 115,
-    "ja": 115,
-    "nl": 115,
-    "no": 115,
-    "pl": 115,
-    "pt": 115,
-    "ru": 114,
-    "sv": 115,
-    "zh_CN": 114,
+    "es": 141,
+    "fr": 142,
+    "it": 141,
+    "ja": 141,
+    "nl": 141,
+    "no": 141,
+    "pl": 141,
+    "pt": 141,
+    "ru": 140,
+    "sv": 141,
+    "zh_CN": 140,
 }
 
 

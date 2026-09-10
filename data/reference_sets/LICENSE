@@ -1,0 +1,49 @@
+LICENSING OF THE FILES IN THIS FOLDER
+=====================================
+
+There are two kinds of file here, and they are not under the same terms.
+
+1. ChromIQ's own files
+----------------------
+README.md, this file, and `fogra/SOURCE.json` are ChromIQ's own work and are
+covered by the project's licence, the GNU Affero General Public License version
+3, the same as the rest of ChromIQ. A copy is in the LICENSE file at the root of
+the project.
+
+`fogra/SOURCE.json` contains no colour data. It records where each data file
+came from, under what terms, and its sha256 as shipped.
+
+2. Third-party reference data
+-----------------------------
+Everything in `fogra/` except `SOURCE.json` is Fogra's, not ChromIQ's, and is
+governed by the terms Fogra states, not by the licence above. ChromIQ may not
+relicense it.
+
+  Fogra          Free use and redistribution of the Fogra characterisation
+  Forschungs-    data is permitted, including redistribution as part of
+  institut für   commercial and non-commercial software, provided that the
+  Medien-        data are distributed unmodified and Fogra is identified as
+  technologien   the source. The designation FOGRAxx may be used solely to
+  e.V.           identify the respective reference data. Such use does not
+                 imply certification, approval or endorsement by Fogra.
+
+                 Quoted from
+                 https://fogra.org/en/downloads/work-tools/characterisation-data
+                 as read on 2026-09-10, and matching the grant given in
+                 writing by Dr.-Ing. Andreas Kraushaar and recorded in
+                 docs/design/issue_182_answers.md.
+
+The files are Fogra's own bytes from
+`MK3_Subsets_FOGRA39_until_FOGRA60.zip` (V1.0, published 2022-01-27),
+downloaded 2026-09-10. Their sha256 sums are in `fogra/SOURCE.json` so that
+"distributed unmodified" can be checked rather than asserted, and
+`tests/test_reference_sets.py` checks it.
+
+Nothing in this folder is ISO's. No tolerance value of any ISO standard is here,
+in any file ChromIQ ships, or on any branch it is released from. Characterisation
+data and tolerance values are different things with different owners, and only
+the Fogra half is cleared.
+
+Anyone adding a file to this folder has to add its source and its terms to
+`fogra/SOURCE.json` in the same change. The loader refuses a file that has no
+entry, so a data file physically cannot be offered without its credit.
