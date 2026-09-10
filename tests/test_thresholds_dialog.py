@@ -248,3 +248,122 @@ def test_column_choice_from_preferences_waits_in_the_buffer(qapp, tmp_path):
         assert not dlg2._column_checks["iso_12647_7"].isChecked()
     finally:
         dlg2.deleteLater()
+
+
+def test_hiding_a_column_leaves_the_rest_against_the_row_labels(qapp, tmp_path):
+    """Knut, 4.2.1 beta 3: unticking columns pushed the ones still shown to the
+    right edge, and a window then dragged narrower kept a horizontal scroll bar
+    for space nothing painted in.
+
+    Both came from the same two lines: all the horizontal stretch sat on the
+    row-label column, and the scrolled body's minimum width was pinned once at
+    build time with every column visible.
+
+    The body is given its width here instead of the window, because offscreen
+    the dialog is clamped to a 640 px screen and every column would be scrolled
+    out of sight, which proves nothing either way.
+    """
+    s, dlg = _dlg(qapp, tmp_path)
+    try:
+        body = dlg._scroll.widget()
+        cell = _cell(dlg, "chromiq_default", "all_de00_avg")
+        wide = body.minimumWidth()
+        assert wide > 0
+
+        def x_of_first_value_column(width):
+            body.setGeometry(0, 0, width, body.sizeHint().height())
+            dlg._grid.activate()
+            return cell.mapTo(body, cell.rect().topLeft()).x()
+
+        # a body 200 px wider than the table needs must not move the columns
+        assert x_of_first_value_column(wide) == x_of_first_value_column(wide + 200)
+        x_before = x_of_first_value_column(wide + 200)
+
+        for sid in ("chromiq_quick", "iso_12647_7", "iso_12647_8",
+                    "custom_iso_12647_8"):
+            dlg._column_checks[sid].setChecked(False)
+        qapp.processEvents()
+        # the first value column has not moved: it stays beside the row labels
+        assert x_of_first_value_column(wide + 200) == x_before
+        # and the body asks for only the width the columns still shown need,
+        # so the scroll bar goes when the window is made narrower
+        assert body.minimumWidth() < wide
+        assert body.minimumWidth() == dlg._grid.sizeHint().width()
+    finally:
+        dlg.deleteLater()
+
+
+def _column_x(dlg, width):
+    """The x of every table column in each of the two grids, laid out at the
+    same width. `cellRect` is the layout's own answer, not a guess from a
+    style sheet."""
+    from PyQt6.QtCore import QSize
+    out = []
+    for g in (dlg._head_grid, dlg._grid):
+        holder = g.parentWidget()
+        holder.resize(QSize(width, max(g.sizeHint().height(), 1)))
+        g.activate()
+        out.append([g.cellRect(0, ci).x()
+                    for ci in range(2 + len(dlg._column_ids()))])
+    return out
+
+
+def test_the_frozen_head_stays_over_its_own_columns(qapp, tmp_path):
+    """Knut, 4.2.1 beta 3: the heading row must stay put while the rows scroll.
+
+    It lives in its own widget now, so nothing makes its columns agree with the
+    rows' by itself. They are pinned to one geometry (`_sync_columns`), and a
+    head that drifted would put every heading over the wrong column, which is
+    worse than the scrolling it fixes.
+    """
+    s, dlg = _dlg(qapp, tmp_path)
+    try:
+        width0 = dlg._grid.sizeHint().width()
+        x0 = _column_x(dlg, width0)[0]
+        for width in (width0, width0 + 300):
+            head, body = _column_x(dlg, width)
+            assert head == body, f"columns drifted at width {width}"
+        # …and they still agree when columns are hidden, which is where the
+        # grid's own spacing used to charge the body for a column the head did
+        # not pay for (42 px on four hidden columns, measured on screen)
+        for sid in ("chromiq_quick", "iso_12647_7", "iso_12647_8",
+                    "custom_iso_12647_8"):
+            dlg._column_checks[sid].setChecked(False)
+        qapp.processEvents()
+        head, body = _column_x(dlg, dlg._grid.sizeHint().width())
+        assert head == body, "columns drifted after hiding four columns"
+        # …and ticking them back gives the table it started with: the gap is
+        # folded into each column's pinned width, so it must be measured
+        # unpinned or every tick would widen the table by another 14 px
+        for sid in ("chromiq_quick", "iso_12647_7", "iso_12647_8",
+                    "custom_iso_12647_8"):
+            dlg._column_checks[sid].setChecked(True)
+        qapp.processEvents()
+        assert _column_x(dlg, width0) == [x0, x0]
+    finally:
+        dlg.deleteLater()
+
+
+def test_the_head_follows_the_body_sideways_and_not_up_and_down(qapp, tmp_path):
+    """Frozen vertically, slaved horizontally: the head is outside the scroll
+    area, so the rows scroll under it, and it is moved by the body's own
+    horizontal scroll bar so a heading never leaves its column."""
+    s, dlg = _dlg(qapp, tmp_path)
+    try:
+        # the heading is NOT inside the scrolled body; its cell is
+        hdr = dlg._column_widgets["chromiq_default"][0]
+        cell = _cell(dlg, "chromiq_default", "all_de00_avg")
+        body = dlg._scroll.widget()
+        assert not dlg._head.isAncestorOf(cell)
+        assert dlg._head.isAncestorOf(hdr)
+        assert body.isAncestorOf(cell)
+        assert not body.isAncestorOf(hdr)
+        # sideways, it follows
+        dlg._scroll.horizontalScrollBar().setValue(0)
+        assert dlg._head.x() == 0
+        dlg._scroll.horizontalScrollBar().setRange(0, 400)
+        dlg._scroll.horizontalScrollBar().setValue(137)
+        qapp.processEvents()
+        assert dlg._head.x() == -137
+    finally:
+        dlg.deleteLater()
