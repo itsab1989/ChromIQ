@@ -3294,7 +3294,18 @@ class SettingsDialog(QDialog):
         self._update_status = QLabel("", self)
         self._update_status.setStyleSheet("font-size: 11px;")
         self._update_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._update_status.setFixedHeight(QFontMetrics(self._update_status.font()).height())
+        # WRAPS, AND IS NOT PINNED TO ONE LINE. It held four short sentences
+        # ("You're up to date.") until the rate-limit message arrived, which
+        # needs 1188 px in English and 1407 px in German inside a 1000 px
+        # dialog. Measured on screen: the English was cut mid-link at "…you can
+        # open Gi", and the GERMAN LOST THE LINK ENTIRELY, so the one thing the
+        # message asks the reader to do was unreachable. Word wrap alone would
+        # not have fixed it: setFixedHeight kept the label one line tall, and it
+        # was computed from the font BEFORE the stylesheet applied, so it was
+        # not even one line of the right size.
+        self._update_status.setWordWrap(True)
+        self._update_status.setMinimumHeight(
+            QFontMetrics(self._update_status.font()).height())
         outer.addWidget(self._update_status)
 
         # ---- Bottom row: Restore Defaults | Report a Bug | Check for Updates  ...  Cancel / OK ----

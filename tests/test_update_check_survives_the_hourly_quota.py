@@ -208,3 +208,68 @@ def _clear_the_block():
     AppSettings().set(_BLOCKED_UNTIL, 0)
     yield
     AppSettings().set(_BLOCKED_UNTIL, 0)
+
+
+# ---- what an on-screen round found afterwards ----------------------------
+def test_a_second_check_during_the_wait_still_names_the_time(monkeypatch):
+    """The wording that helps must not be a one-off.
+
+    The first version answered a bool for "is the quota spent", so on every
+    check AFTER the first the code skipped the API, no longer learned the reset
+    time from a response, and fell back to "Please try again later" for the
+    whole hour the user is waiting. Driven on screen, that is the only state a
+    user who presses the button twice ever sees.
+    """
+    reset = int(time.time()) + 1500
+    _remember_rate_limit(reset)
+
+    def must_not_be_called(*a, **k):
+        raise AssertionError("the API was asked while the quota is known spent")
+    monkeypatch.setattr(UpdateChecker, "_fetch", staticmethod(must_not_be_called))
+
+    def no_feed(cls):
+        raise OSError("no network")
+    monkeypatch.setattr(UpdateChecker, "_fetch_tags_from_feed", classmethod(no_feed))
+
+    spy = _Spy()
+    spy._run()
+    assert spy.seen == [("rate_limited", (reset,))], spy.seen
+
+
+def test_an_unreachable_api_still_tries_the_feed(monkeypatch):
+    """A proxy that blocks api.github.com while github.com resolves is exactly
+    the case the feed was added for, and the old code returned before reaching
+    it, showing the operating system's own errno instead."""
+    from urllib.error import URLError
+
+    def unreachable(*a, **k):
+        raise URLError("nodename nor servname provided, or not known")
+    monkeypatch.setattr(UpdateChecker, "_fetch", staticmethod(unreachable))
+    monkeypatch.setattr(UpdateChecker, "_fetch_tags_from_feed",
+                        classmethod(lambda cls: _tags_from_atom(FEED)))
+    monkeypatch.setattr("core.updater.APP_VERSION", "4.2.1")
+
+    spy = _Spy()
+    spy._run()
+    assert spy.seen == [("update_available", ("v4.2.2",))], spy.seen
+
+
+def test_no_network_at_all_says_so_in_words(monkeypatch):
+    """Both routes down and no quota involved: a sentence, not an errno."""
+    from urllib.error import URLError
+
+    def unreachable(*a, **k):
+        raise URLError("nodename nor servname provided, or not known")
+    monkeypatch.setattr(UpdateChecker, "_fetch", staticmethod(unreachable))
+
+    def no_feed(cls):
+        raise OSError("no network")
+    monkeypatch.setattr(UpdateChecker, "_fetch_tags_from_feed", classmethod(no_feed))
+
+    spy = _Spy()
+    spy._run()
+
+    assert len(spy.seen) == 1 and spy.seen[0][0] == "check_failed", spy.seen
+    said = spy.seen[0][1][0]
+    assert "Errno" not in said and "nodename" not in said, said
+    assert "could not reach GitHub" in said, said
