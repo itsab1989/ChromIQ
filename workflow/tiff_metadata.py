@@ -42,7 +42,17 @@ _MIN_STRIP_WIDTH_PX = 24
 #: band covers most of it. Measured on real sheets: side-marker columns come out
 #: at 0.02 to 0.08, a clip band at 0.9 and up, patches at 1.0.
 _BAND_INK_TOLERANCE = 0.25
-_LINE_GAP_PX = 6
+#: White gap left between the note's ink and the patch-block side of its strip.
+#: Knut, 2026-09-10, asked for exactly this: *"should the text move closer to
+#: the patch area edge but still leave 2 pixels space/gap, so that it is not
+#: going towards the edge?"*
+_NOTE_PATCH_GAP_PX = 2
+#: Narrowest strip the note is still rendered into: `_NOTE_PATCH_GAP_PX` plus
+#: one line at the 9 px legibility floor. Measured, not guessed -- DejaVuSans at
+#: 9 px renders a note with descenders 9 px across (10 px also gives 9, 12 gives
+#: 12, 15 gives 14, 28 gives 27). THE PAGE-EDGE RESERVE IS NEVER TRIMMED TO
+#: REACH IT: below this width the note is not printed, and the log says why.
+_MIN_NOTE_STRIP_PX = _NOTE_PATCH_GAP_PX + 9
 # Gap between the three left-clip text sub-columns.
 _LEFT_CLIP_GAP_PX = 8
 # White padding on each side of the spectrum accent bar placed at the
@@ -292,12 +302,14 @@ def _stamp_one(path: Path, text: str, text_edge_mm: float = 0.0,
         log.info("Right-edge stamp skipped (no usable right margin) for %s", path)
         return
     band_left, band_right = band
-    strip_w = min(40, band_right - band_left)
-    # THE USER'S OWN "TEXT DISTANCE FROM EDGE" DECIDES THE TOP AND BOTTOM, and
-    # it was ignored: the band ran from `_PATCH_SAFETY_PAD_PX`, a 4 px constant,
-    # so the note started 0.5 mm from the paper edge while the setting said 4.0
-    # mm. The pad stays as the floor, because a note must never be pushed into
-    # the patch area, and it is what an unset value falls back to.
+    # THE USER'S OWN "TEXT DISTANCE FROM EDGE" DECIDES EVERY SIDE THE NOTE
+    # TOUCHES, and it decided only two of them. It was turned into `_pad` and
+    # applied to the TOP and the BOTTOM; horizontally nothing applied it, so the
+    # note ran to `W - _PATCH_SAFETY_PAD_PX`, a 4 px constant which is 0.5 mm at
+    # 200 dpi. Measured on Knut's own 130x180 sheet with the box reading 4.0 mm:
+    # the note ended 1.98 mm from the paper edge. The pad stays as the floor,
+    # because a note must never be pushed into the patch area, and it is what an
+    # unset value falls back to.
     _pad = max(_PATCH_SAFETY_PAD_PX,
                int(round((text_edge_mm or 0.0) * _dpi / 25.4)))
     if 2 * _pad >= H:                       # a pathological setting on a tiny sheet
@@ -305,6 +317,41 @@ def _stamp_one(path: Path, text: str, text_edge_mm: float = 0.0,
     strip_h = H - 2 * _pad
     if strip_h < 100:
         log.info("Right-edge stamp skipped (image too short) for %s", path)
+        return
+
+    # THE DISTANCE FROM THE PAGE EDGE IS A LIMIT, NOT A PREFERENCE, so nothing
+    # is traded against it: no ink may land at or past `W - _pad`. Knut,
+    # 2026-09-10, on the same rule for the labels: *"the text needs to stay
+    # within the default 'Text distance from edge' settings … For all sides, for
+    # Guided mode. Not a hardwired margin."*
+    #
+    # This is the LEFT edge's rule (`docs/design/row_label_geometry.md` R1.3,
+    # "the labels can never be closer to the edge than the floor"), not the
+    # top's, which gives the distance up when the margin is too small. The left
+    # buys its guarantee by RAISING the margin; the note is stamped onto a
+    # finished raster and can move nothing, so when the paper between the patch
+    # block and the reserve is too thin for a legible line the note is not
+    # printed — and, unlike before, the log names the reason and the numbers.
+    # `_LINE_GAP_PX` USED TO STAND HERE AND IS NOW PAID TWICE OVER. It pushed
+    # the strip 6 px off the band's patch-side edge back when the renderer
+    # CENTRED the line inside that strip; the gap the eye saw was that 6 px plus
+    # half the strip's slack. The line is anchored now, so the gap is explicit
+    # (`_NOTE_PATCH_GAP_PX`, on top of the 4 px safety pad `_detect_writable_
+    # band` already adds), and keeping the old push as well would spend 0.5 mm
+    # of a 6.1 mm margin on nothing. Measured on the stock i1/A4 sheet: it is
+    # the difference between a 15 px note and a 9 px one.
+    _right_limit = W - _pad
+    x0 = band_left
+    strip_w = min(40, band_right - band_left, _right_limit - x0)
+    if strip_w < _MIN_NOTE_STRIP_PX:
+        log.info(
+            "Right-edge stamp skipped for %s: %.1f mm of paper between the "
+            "patch block and the %.1f mm text-distance-from-edge reserve, and "
+            "a legible line needs %.1f mm. Widen the right margin or lower "
+            "“Text distance from edge” → Clip.",
+            path, max(0, _right_limit - x0) * 25.4 / _dpi, _pad * 25.4 / _dpi,
+            _MIN_NOTE_STRIP_PX * 25.4 / _dpi,
+        )
         return
 
     # SHRINK TO FIT, DO NOT CROP.
@@ -317,14 +364,25 @@ def _stamp_one(path: Path, text: str, text_edge_mm: float = 0.0,
     # which is where he had put the colour-management setting. The fitting
     # renderer that does exactly this already lived in this file and was called
     # only by the left-clip stamp.
-    strip = _render_fitted_rotated_line(text, strip_h, strip_w, dtype, C)
-    # Anchor the strip to the patch-side (left) edge of the band, not its
-    # center. The band is the widest white column run right of the patches;
-    # when the chart doesn't fill the sheet that run is a large empty area, so
+    #
+    # ANCHOR THE LINE AGAINST THE PATCH SIDE, DO NOT CENTRE IT IN THE STRIP.
+    # The strip was already anchored to the patch side of the band, but the
+    # renderer centred the line INSIDE it, so a narrow line in a 40 px strip
+    # kept about 1.4 mm of empty strip on each side. Measured on Knut's sheet:
+    # a 3.05 mm gap on the patch side while the note lay against the paper
+    # edge. He asked for the other arrangement by name -- *"should the text
+    # move closer to the patch area edge but still leave 2 pixels space/gap,
+    # so that it is not going towards the edge?"* -- and it is also what makes
+    # the page-edge reserve above cheap: the blank part of the strip now falls
+    # on the reserve's side, where it costs nothing.
+    strip = _render_fitted_rotated_line(text, strip_h, strip_w, dtype, C,
+                                        anchor_px=_NOTE_PATCH_GAP_PX)
+    # The strip itself stays anchored to the patch-side (left) edge of the
+    # band. The band is the widest white column run right of the patches; when
+    # the chart doesn't fill the sheet that run is a large empty area, so
     # centering would strand the text mid-void. Left-anchoring keeps it snug
     # against Argyll's vertical ID column / the patch block regardless of how
     # much blank space follows.
-    x0 = band_left + _LINE_GAP_PX
     if x0 < band_left:
         x0 = band_left
     if x0 + strip_w > band_right:
@@ -759,15 +817,31 @@ def _render_rotated_line(
     font: ImageFont.ImageFont,
     dtype,
     channels: int,
+    anchor_px: int | None = None,
 ) -> np.ndarray:
-    """Return a (strip_h, strip_w, channels) numpy array containing `text` rotated 90° CCW."""
+    """Return a (strip_h, strip_w, channels) numpy array containing `text` rotated 90° CCW.
+
+    Across the strip the line is centred, which is right for the left-clip
+    sub-columns: each one is cut to its own text. Pass *anchor_px* to butt the
+    line against the strip's PATCH-SIDE edge with that many pixels of white
+    instead, which is what the right-margin note wants -- there the strip is a
+    fixed 40 px at most and centring stranded the line in the middle of it.
+
+    The unrotated canvas is (strip_h x strip_w) and a 90 degree CCW rotation
+    sends a small canvas y to a small destination x, so the anchor is simply a
+    small y. Verified rather than assumed: ink drawn in canvas rows 0..5 comes
+    out in destination columns 0..5.
+    """
     canvas = Image.new("L", (strip_h, strip_w), 255)
     draw = ImageDraw.Draw(canvas)
     bbox = _text_bbox(draw, text, font)
     text_w = bbox[2] - bbox[0]
     text_h = bbox[3] - bbox[1]
     x = max(0, (strip_h - text_w) // 2 - bbox[0])
-    y = (strip_w - text_h) // 2 - bbox[1]
+    if anchor_px is None:
+        y = (strip_w - text_h) // 2 - bbox[1]
+    else:
+        y = anchor_px - bbox[1]
     draw.text((x, y), text, fill=0, font=font)
 
     rotated = canvas.rotate(90, expand=True, resample=Image.Resampling.NEAREST)
@@ -789,6 +863,7 @@ def _render_fitted_rotated_line(
     strip_w: int,
     dtype,
     channels: int,
+    anchor_px: int | None = None,
 ) -> np.ndarray:
     """Render `text` into a (strip_h, strip_w) sub-band, shrinking font until it fits.
 
@@ -798,10 +873,21 @@ def _render_fitted_rotated_line(
     floor is hit the text is rendered anyway — overflow is centered and crops
     against the strip edges rather than corrupting the patch area, since the
     strip width is bounded.
+
+    TWO AXES, TWO DIFFERENT RULES, and only one of them is about the page edge.
+    Down the strip's LENGTH the font shrinks and then the text is cut, because
+    that axis runs the height of the sheet and what overflows it falls off the
+    paper (see the note at the floor below). ACROSS the strip the font is capped
+    so the line's own thickness fits the room the caller measured out, because
+    that axis ends at the user's "Text distance from edge" and overflowing it is
+    the fault this parameter exists to stop.
     """
     floor_px = 9
     available_text_w = strip_h - 2 * _PATCH_SAFETY_PAD_PX
-    font_px = max(floor_px, min(28, strip_w - 8))
+    _gap = 0 if anchor_px is None else int(anchor_px)
+    available_text_h = strip_w - _gap
+    font_px = max(floor_px, min(28, strip_w - 8 if anchor_px is None
+                                else strip_w - _gap))
 
     probe = Image.new("L", (10, 10), 255)
     draw = ImageDraw.Draw(probe)
@@ -810,9 +896,20 @@ def _render_fitted_rotated_line(
         font = _pick_font(font_px)
         bbox = _text_bbox(draw, shown, font)
         text_w = bbox[2] - bbox[0]
+        text_h = bbox[3] - bbox[1]
+        # THICKNESS FIRST, AND CUTTING THE TEXT NEVER FIXES IT. A shorter line
+        # is exactly as thick as a long one, so a thickness overflow handled by
+        # the truncation path below would shorten the note one character at a
+        # time and still not fit. Shrink for it while there is room to shrink;
+        # at the floor let the strip's own edges crop it, which is safe because
+        # those edges are inside the page-edge reserve the caller measured.
+        if anchor_px is not None and text_h > available_text_h \
+                and font_px > floor_px:
+            font_px = max(floor_px, int(font_px * 0.9))
+            continue
         if text_w <= available_text_w:
             return _render_rotated_line(shown, strip_h, strip_w, font, dtype,
-                                        channels)
+                                        channels, anchor_px=anchor_px)
         if font_px > floor_px:
             font_px = max(floor_px, int(font_px * 0.9))
             continue
@@ -828,7 +925,7 @@ def _render_fitted_rotated_line(
         # below it would trade one silent loss for another.
         if len(shown) <= 8:
             return _render_rotated_line(shown, strip_h, strip_w, font, dtype,
-                                        channels)
+                                        channels, anchor_px=anchor_px)
         cut = max(8, int(len(shown) * available_text_w / max(1, text_w)) - 1)
         shown = shown[:cut].rstrip() + "…"
         log.info("Chart note shortened to fit the margin: %d of %d characters",
