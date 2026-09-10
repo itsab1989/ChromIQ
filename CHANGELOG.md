@@ -58,24 +58,46 @@ allowed a profiling run's report to show no verdict.
 
 ### Fixed
 
-- **Editing a run's own limit numbers rewrote every saved report without
-  asking either, and the only way out of that window was to agree.** The Report
-  limits window writes the run's column as it closes, whatever closed it, and
-  its one button is Close, so pressing Escape after nudging a spin box rewrote
-  a year of reports. It asks the same question as the other two routes now, and
-  saying no puts the numbers back as well as leaving the reports alone. On a
-  project made before this work the typed number was also saved somewhere
-  nothing reads, so the run went on being judged by the preference default; the
-  edit now binds the run to what the window was showing.
-- **Changing a run's limit set rewrote every saved report of that run without
-  asking.** On a project made before this work, with a year of dated
-  verifications, one selection in the "Judged against" pulldown recalculated
-  all of them, flipped verdicts, then bound and locked the run so the control
-  was gone. The other route to that same consequence, unlocking the run, has
-  always asked first and said what is at stake. This one now asks the same
-  question, names how many dated reports it would recalculate, and changes
-  nothing at all if you say no. A run with nothing saved is not asked, because
-  there is nothing to lose.
+- **The Report limits window could rewrite a year of saved reports without
+  asking, by five different routes.** Choosing a set in the "Judged against"
+  pulldown did it. So did typing a number into the run's own column, and that
+  window writes as it closes whatever closed it, its one button being Close, so
+  pressing Escape after nudging a spin box was enough. So did moving the
+  "Default for new runs" radio, or a shipped column's cell, on a project made
+  before this work, because such a run is judged by the preference and nothing
+  else. Only one of the five ever asked.
+
+  The window is one act now. It asks a single question whenever what this run
+  is judged by has actually changed, names how many saved reports it would
+  recalculate, and puts everything back if you say no: the run's own record,
+  the app-wide default and the app-wide edits. A run with nothing saved is not
+  asked, because there is nothing to lose, and neither is a change somebody
+  else made while the window sat open. Typing a number and typing it straight
+  back is not a change and no longer asks anything.
+- **Choosing a limit set could take away the control you had just used.** On a
+  project made before this work, with a year of dated verifications, choosing a
+  set bound the run, and a bound run with a history is a locked run, so the
+  pulldown greyed, the button became "Show limits…" and the box that would
+  unlock it came back disabled, because it reads a preference that ships off.
+  Binding a run this way leaves its controls exactly where they were.
+- **Putting the lock back took every control away without asking, and on a run
+  with one measurement it did so in silence and then hid the box.** Ticking
+  "Unlock this run's limits" has always asked. Un-ticking it is the direction
+  that costs you something, and it asked nothing at all. It asks now, names the
+  Preferences setting that is the way back, and the box stays on screen for any
+  run that has a limit set of its own.
+- **A refusal that could not be honoured said nothing.** If the run's folder
+  became read-only while the question was on screen, the edit survived and
+  there was no window to say so, leaving the run's numbers disagreeing with
+  every verdict already saved under them. It says so now, in the words that are
+  true of the state it is in, and your Preferences are put back either way
+  because they are stored elsewhere.
+- **A report that could not be recalculated is named, and named accurately.**
+  A date whose previous report could not be archived, a date where one file of
+  several could not be written, and a file that could not be read at all are
+  three different things with three different remedies, and one message
+  described only the first. Each is now reported for what it is, and a file
+  that cannot be read is not offered advice about permissions.
 - **A run the app said was not locked was told it was.** With a single dated
   verification, the state that deliberately leaves the limit set choosable, the
   Report limits window showed the run's own column as read-only under a note
