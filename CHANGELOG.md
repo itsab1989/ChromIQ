@@ -33,6 +33,25 @@ Measurement Report; that work rides on the 4.3.0 betas.
   fell back to "try again later". It remembers.
 - **With no network at all the check showed the operating system's own error
   text**, untranslated. It now says that ChromIQ could not reach GitHub.
+- **The note down the right of a chart ignored "Text distance from edge".**
+  The setting was applied to the top and the bottom of the sheet and never
+  sideways, where a fixed half a millimetre took over instead, so the text ran
+  almost to the paper edge whatever you had asked for. Knut Larsson found it on
+  a 13 x 18 cm card set to 4 mm, where the note ended 1.98 mm from the edge. It
+  now keeps the distance you set, on the right as well: the same card now ends
+  at 4.06 mm, and changing the setting actually moves the note, which it never
+  did before.
+- **The same note also sat three millimetres away from the patches** and was
+  centred in a strip wider than itself. It is now placed against the patch
+  block, which is where there is room for it, and the line comes out larger and
+  easier to read as a result.
+- **Where the margin is too narrow to keep that distance, the note is left
+  off.** That is deliberate, and it is Knut's ruling: the distance you set is
+  kept whatever else has to give, and the remedy is to widen the margin. Of
+  twenty-two chart settings measured, eighteen still print a note and the four
+  that do not were all printing inside the distance they had been told to keep
+  clear. ChromIQ writes the reason into the log; it does not yet say so on
+  screen, which is still to come.
 - **The rule that keeps em dashes out of ChromIQ's text could not see the
   Create Chart dropdowns.** It gathered a key that does not exist in the
   parameter file and missed the two that do, so 145 strings were invisible to
