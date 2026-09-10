@@ -36,6 +36,22 @@ log = get_logger(__name__)
 # to the patch area, not the margin.
 _PATCH_COL_DENSITY_THRESHOLD = 0.30
 _PATCH_SAFETY_PAD_PX = 4
+#: The same guard as a distance on PAPER, so a sheet behaves the same however
+#: finely it is rastered. A pixel guard does not: measured on one physical A4
+#: sheet, the two pads plus the legibility floor cost 3.21 mm of margin at
+#: 150 dpi and 0.81 mm at 600, so the note printed at 300 dpi and was dropped at
+#: 200 dpi, which is the resolution of the reporter's own files. 0.34 mm is what
+#: the 4 px guard has always meant at 300 dpi, where the note prints today; the
+#: 2 px floor keeps it a real guard on a coarse raster.
+_PATCH_SAFETY_PAD_MM = 0.34
+
+
+def _safety_pad_px(dpi: float) -> int:
+    """The patch-side guard in pixels for a sheet at *dpi*."""
+    try:
+        return max(2, int(round(_PATCH_SAFETY_PAD_MM * float(dpi) / 25.4)))
+    except (TypeError, ValueError, ZeroDivisionError):
+        return _PATCH_SAFETY_PAD_PX
 _MIN_STRIP_WIDTH_PX = 24
 #: How much of a column may be inked and still count as somewhere the note can
 #: go. A ruler dash covers a few percent of the height; a patch column or a clip
@@ -297,7 +313,8 @@ def _stamp_one(path: Path, text: str, text_edge_mm: float = 0.0,
     H, W, C = arr.shape
     _dpi = _dpi_from_state(state)
     band = _detect_writable_band(
-        arr, keep_out_px=int(round((clip_band_mm or 0.0) * _dpi / 25.4)))
+        arr, keep_out_px=int(round((clip_band_mm or 0.0) * _dpi / 25.4)),
+        pad_px=_safety_pad_px(_dpi))
     if band is None:
         log.info("Right-edge stamp skipped (no usable right margin) for %s", path)
         return
@@ -697,6 +714,7 @@ def _detect_writable_band(
     arr: np.ndarray,
     side: str = "right",
     keep_out_px: int = 0,
+    pad_px: int | None = None,
 ) -> tuple[int, int] | None:
     """Return (left_x, right_x) of the widest white column run in the requested margin.
 
@@ -757,15 +775,16 @@ def _detect_writable_band(
 
     col_density = mask.sum(axis=0) / max(1, H)
     patch_cols = np.where(col_density >= _PATCH_COL_DENSITY_THRESHOLD)[0]
+    _pad = _PATCH_SAFETY_PAD_PX if pad_px is None else max(0, int(pad_px))
 
     if side == "left":
-        patch_left = (int(patch_cols[0]) - _PATCH_SAFETY_PAD_PX
+        patch_left = (int(patch_cols[0]) - _pad
                       if len(patch_cols) else W // 2)
         if patch_left <= _MIN_STRIP_WIDTH_PX:
             return None
         scan_lo, scan_hi = 0, patch_left
     else:
-        patch_right = (int(patch_cols[-1]) + _PATCH_SAFETY_PAD_PX
+        patch_right = (int(patch_cols[-1]) + _pad
                        if len(patch_cols) else W // 2)
         if patch_right >= W - _MIN_STRIP_WIDTH_PX:
             return None
@@ -803,8 +822,8 @@ def _detect_writable_band(
     if not runs:
         return None
     best_left, best_right = max(runs, key=lambda r: r[1] - r[0])
-    best_left += _PATCH_SAFETY_PAD_PX
-    best_right -= _PATCH_SAFETY_PAD_PX
+    best_left += _pad
+    best_right -= _pad
     if best_right - best_left < _MIN_STRIP_WIDTH_PX:
         return None
     return (best_left, best_right)

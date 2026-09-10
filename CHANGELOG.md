@@ -41,6 +41,12 @@ Measurement Report; that work rides on the 4.3.0 betas.
   now keeps the distance you set, on the right as well: the same card now ends
   at 4.06 mm, and changing the setting actually moves the note, which it never
   did before.
+- **A note could print at 300 dpi and vanish at 200 on the same chart.** The
+  distance from the paper edge is a measurement in millimetres, but the guard
+  that keeps the note off the patches was counted in pixels, so the amount of
+  paper it needed depended on how finely the sheet was rastered: 3.21 mm at
+  150 dpi against 0.81 mm at 600. The guard is now a distance on paper too, so
+  the same chart behaves the same at 200, 300, 400, 600 and 720 dpi.
 - **The same note also sat three millimetres away from the patches** and was
   centred in a strip wider than itself. It is now placed against the patch
   block, which is where there is room for it, and the line comes out larger and
@@ -51,7 +57,9 @@ Measurement Report; that work rides on the 4.3.0 betas.
   twenty-two chart settings measured, eighteen still print a note and the four
   that do not were all printing inside the distance they had been told to keep
   clear. ChromIQ writes the reason into the log; it does not yet say so on
-  screen, which is still to come.
+  screen, which is still to come. That count was measured at one resolution and
+  it does depend on the resolution, because a very coarse raster has too few
+  pixels to draw a legible line in the room that is left.
 - **The rule that keeps em dashes out of ChromIQ's text could not see the
   Create Chart dropdowns.** It gathered a key that does not exist in the
   parameter file and missed the two that do, so 145 strings were invisible to
