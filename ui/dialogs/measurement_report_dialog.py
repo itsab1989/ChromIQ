@@ -2769,7 +2769,27 @@ class MeasurementReportDialog(QDialog):
         # the four PDF pages, in English or German. A sentence a reader cannot
         # read explains nothing, so it belongs here, in the same footnote block
         # that already carries the other three explanations under this table.
-        from workflow.compliance_sets import SUMMARY_REASONS, summary_text
+        # THE STANDARD'S CAVEAT, IN THE OUTPUT, NOT IN A TOOLTIP. This is the
+        # SECOND time in one day: the ungraded explanation below reached only a
+        # `title=` attribute, was fixed, and then the caveat added for a saved
+        # PASS under a standard's name went into the very same attribute, on the
+        # graded path, which `_summary_cell` renders and the PDF does not carry.
+        # A sentence a reader cannot read explains nothing, whichever branch
+        # puts it there.
+        from workflow.compliance_sets import (SUMMARY_REASONS, STANDARD_CAVEAT,
+                                              applies_a_standard, summary_text)
+        from workflow.measurement_report import recorded_compliance
+        _standard_cols = [
+            r for r in runs
+            if not _is_raw_drift(r)
+            and applies_a_standard(
+                str((recorded_compliance(r) or {}).get("set_id", "") or "")
+                or getattr(self._limits_for(r), "set_id", ""),
+                str((recorded_compliance(r) or {}).get("set_label", "") or ""))
+        ]
+        if _standard_cols:
+            notes += (f"<div style='{note_css}'>"
+                      + html.escape(tr(STANDARD_CAVEAT)) + "</div>")
         _ungraded = next(
             (self._column_summary(r) for r in runs
              if not _is_raw_drift(r)

@@ -24,6 +24,7 @@ gains the caveat and the word does not move.
 """
 from __future__ import annotations
 
+import html as _html
 import os
 
 import pytest
@@ -128,5 +129,46 @@ def test_a_saved_verdict_under_chromiqs_own_set_is_left_alone(qapp, tmp_path):
     try:
         sm = dlg._column_summary(dlg._runs_for_report()[0])
         assert "not a test against that standard" not in sm.reason, sm.reason
+    finally:
+        dlg.deleteLater()
+
+
+# ---- and it must be in the OUTPUT, which is where this went wrong twice ----
+def _visible(body: str) -> str:
+    """The report with every tag stripped, which is what removes a `title=`."""
+    import re
+    return _html.unescape(re.sub(r"<[^>]+>", " ", body))
+
+
+@pytest.mark.parametrize("set_id, label", _STANDARD_SETS)
+def test_the_caveat_is_in_the_report_body_and_the_pdf(qapp, tmp_path,
+                                                      set_id, label):
+    """SECOND TIME IN ONE DAY. The ungraded explanation reached only a `title=`
+    attribute, was fixed, and then the caveat for a saved PASS under a
+    standard's name went into the very same attribute on the graded path, which
+    `_summary_cell` renders and no PDF carries. A beta-4 planning agent measured
+    it after the fix: caveat in the window false, caveat in the PDF false, the
+    word PASS visible true.
+    """
+    proj, run, ti3 = _saved_run(tmp_path, set_id, label)
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        runs = dlg._runs_for_report()
+        body = dlg._report_body_html(runs, for_pdf=True)
+        assert "not a test against that standard" in _visible(body), (
+            f"the caveat for {label!r} is not in the rendered report. If it is "
+            "only in a tooltip it is not in the PDF and a reader never sees it.")
+    finally:
+        dlg.deleteLater()
+
+
+def test_chromiqs_own_set_gets_no_such_sentence(qapp, tmp_path):
+    """A caveat printed on every report would teach the reader to skip it."""
+    proj, run, ti3 = _saved_run(tmp_path, "chromiq_default",
+                                "ChromIQ default (recommended)")
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        body = dlg._report_body_html(dlg._runs_for_report(), for_pdf=True)
+        assert "not a test against that standard" not in _visible(body)
     finally:
         dlg.deleteLater()
