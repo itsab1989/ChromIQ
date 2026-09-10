@@ -2518,16 +2518,36 @@ class MeasurementReportDialog(QDialog):
         false sentence available, so this says what is true instead.
         """
         from ui.warning_sign import warn
+        from workflow.run_compliance import is_bound
         log.warning("could not undo the edit in %s: %s", run.meta_path, exc)
+        # SAY WHICH THING IS OUT OF STEP, AND ONLY IF IT IS.
+        # The first version said "the run now holds the numbers you were
+        # editing… so the two no longer agree", which is true only when the run
+        # is BOUND. A challenge round drove the other case: on a project made
+        # before #182 the run is still unbound, so the numbers left behind
+        # govern nothing and the sentence named a disagreement that did not
+        # exist, while the instruction that followed it fixed nothing.
+        _bound = False
+        try:
+            _bound = is_bound(run)
+        except Exception:              # noqa: BLE001
+            _bound = False
+        _what = (tr("This run is judged by those numbers, and its saved reports "
+                    "were NOT recalculated, so the two no longer agree. Make "
+                    "the folder writable, then either set the numbers back or "
+                    "change the limits again to recalculate the reports.")
+                 if _bound else
+                 tr("Nothing is judged by those numbers: this run has no limit "
+                    "set of its own, so it is still judged by the default, and "
+                    "its saved reports were not recalculated. Make the folder "
+                    "writable if you want the leftover numbers cleared."))
         warn(self, tr("The change could not be undone"),
              tr("You chose not to change this run's limits, but ChromIQ could "
                 "not put the previous numbers back:\n{path}\n\nThe folder or "
                 "its files may be read-only, on a disk that is full, or open in "
-                "another program. The run now holds the numbers you were "
-                "editing, and its saved reports were NOT recalculated, so the "
-                "two no longer agree. Make the folder writable, then set the "
-                "numbers back or recalculate the reports."
-                ).format(path=str(run.dir)))
+                "another program. Your Preferences were put back, because they "
+                "are stored elsewhere.").format(path=str(run.dir))
+             + "\n\n" + _what)
 
     def _on_open_limits(self) -> None:
         from ui.dialogs.thresholds_dialog import ThresholdsDialog
@@ -2645,7 +2665,16 @@ class MeasurementReportDialog(QDialog):
         from workflow.run_compliance import run_limits
         lim = run_limits(ctx.run, self._overrides(), self._default_set_id())
         when = _dt.now()
-        skipped: list[str] = []
+        # THREE THINGS CAN GO WRONG HERE AND THEY ARE NOT THE SAME THING.
+        # They used to share one list and one message, and the message
+        # described only the first of them. A challenge round drove the second:
+        # three reports on one date with the middle file read-only and the
+        # folder writable. Two of the three were rewritten, the date was
+        # reported as untouched, and every sentence of the message was false in
+        # that state, including the instruction, which fixed nothing.
+        no_archive: list[str] = []    # nothing on this date was touched
+        part_written: list[str] = []  # some of this date's files were rewritten
+        unreadable: list[str] = []    # a file that could not be parsed at all
         QApplication.setOverrideCursor(QCursor(Qt.CursorShape.WaitCursor))
         try:
             for v in ctx.run.verifications():
@@ -2656,12 +2685,20 @@ class MeasurementReportDialog(QDialog):
                     v.archive_reports(when)
                 except OSError as exc:
                     log.warning("could not archive reports of %s: %s", v.dir, exc)
-                    skipped.append(v.id)
+                    no_archive.append(v.id)
                     continue
+                _failed = False
                 for path in paths:
                     try:
                         rep = json.loads(read_text(path))
                     except Exception:  # noqa: BLE001
+                        # NOT SILENT ANY MORE. It is the safe direction, since
+                        # the file is left exactly as it was, but a report the
+                        # user can see in the window and that no recalculation
+                        # ever reaches is worth one line.
+                        log.warning("could not read %s; left as it is", path)
+                        unreadable.append(f"{v.id}/{Path(path).name}")
+                        _failed = True
                         continue
                     stamp_verdict(rep, lim.limits, set_id=lim.set_id,
                                   set_label=lim.label_en, edited=lim.edited)
@@ -2669,27 +2706,55 @@ class MeasurementReportDialog(QDialog):
                         rewrite_report(path, rep)
                     except OSError as exc:
                         log.warning("could not rewrite %s: %s", path, exc)
-                        skipped.append(v.id)
+                        _failed = True
+                if _failed:
+                    part_written.append(v.id)
             # the history in memory: the same records, refreshed (the dates
             # left untouched on disk are left untouched here as well)
+            # A DATE THAT WAS ONLY PARTLY WRITTEN KEEPS ITS OLD VERDICT HERE
+            # TOO, which is the conservative half of an unavoidable
+            # inconsistency: some of its files now say one thing and some the
+            # other, and showing the OLD word matches the file that could not
+            # be written. The message below says exactly that rather than
+            # letting the window imply the whole date moved.
+            _held = set(no_archive) | set(part_written)
             for r in self._history:
                 origin = str(r.get("_origin_dir", ""))
                 if origin.startswith(str(ctx.run.dir)) \
-                        and Path(origin).name not in skipped:
+                        and Path(origin).name not in _held:
                     stamp_verdict(r, lim.limits, set_id=lim.set_id,
                                   set_label=lim.label_en, edited=lim.edited)
         finally:
             QApplication.restoreOverrideCursor()
-        if skipped:
+        if no_archive or part_written or unreadable:
             from ui.warning_sign import warn
-            warn(self, tr("Some dated reports were left as they were"),
-                 tr("The previous report of these dates could not be copied "
-                    "into their reports/old folder, so their reports were NOT "
-                    "recalculated and keep the verdict they had:\n{dates}\n\n"
-                    "A report is never rewritten before its previous version is "
-                    "kept. Make those folders writable and change the limits "
-                    "again to recalculate them.").format(
-                        dates="\n".join(sorted(set(skipped)))))
+            _parts: list[str] = []
+            if no_archive:
+                _parts.append(tr(
+                    "These dates were not touched at all, because the previous "
+                    "report could not be copied into their reports/old folder, "
+                    "and a report is never rewritten before its previous "
+                    "version is kept:\n{dates}").format(
+                        dates="\n".join(sorted(set(no_archive)))))
+            if part_written:
+                _parts.append(tr(
+                    "On these dates the previous reports WERE kept and some of "
+                    "the reports were recalculated, but at least one file could "
+                    "not be written, so that date now holds both old and new "
+                    "verdicts. The window shows the old one, which is the one "
+                    "the unwritten file still carries:\n{dates}").format(
+                        dates="\n".join(sorted(set(part_written)))))
+            if unreadable:
+                _parts.append(tr(
+                    "These report files could not be read at all and were left "
+                    "exactly as they are:\n{files}").format(
+                        files="\n".join(sorted(set(unreadable)))))
+            _parts.append(tr(
+                "Individual files can be read-only while their folder is "
+                "writable. Make the files and the folders writable, then change "
+                "the limits again to bring them all up to date."))
+            warn(self, tr("Some reports were not recalculated"),
+                 "\n\n".join(_parts))
 
     def _runs_for_report(self) -> list:
         """Every saved run of the loaded printer(s) when 'Show all measurement

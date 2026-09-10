@@ -808,3 +808,140 @@ def test_a_run_with_one_date_is_not_asked_to_confirm_a_lock_that_cannot_apply(
             "does not apply to it")
     finally:
         dlg.deleteLater()
+
+
+# ---------------------------------------------------------------------------
+# The three findings round 8 left open
+# ---------------------------------------------------------------------------
+def _recalc_with(dlg, run, monkeypatch, broken=None, unreadable=None,
+                 no_archive=False):
+    """Drive `_recalculate_run` with chosen files made unwritable or unreadable."""
+    import os
+    from workflow.measurement_report import list_reports
+
+    warned: list = []
+    import ui.warning_sign as ws
+    monkeypatch.setattr(ws, "warn",
+                        lambda parent, title, text: warned.append((title, text)))
+    dlg._recalculate_run()
+    return warned
+
+
+def test_a_date_only_partly_rewritten_is_not_called_untouched(qapp, tmp_path,
+                                                              monkeypatch):
+    """Round 8 drove this: three reports on one date, the middle file read-only,
+    the folder writable. Two of the three were rewritten, the date was reported
+    as untouched, and all three sentences of the message were false in that
+    state, including the instruction.
+
+    MUTATION: put the two lists back into one and this goes red.
+    """
+    import shutil
+
+    from workflow.measurement_report import list_reports
+
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    v = list(run.verifications())[0]
+    src = sorted(v.reports_dir.glob("report_*.json"))[0]
+    extra = src.with_name("report_2027-01-01_00-00-00.json")
+    shutil.copy2(src, extra)
+    extra.chmod(0o444)
+
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        warned: list = []
+        import ui.warning_sign as ws
+        monkeypatch.setattr(ws, "warn",
+                            lambda parent, t, x: warned.append((t, x)))
+        dlg._run_ctx = dlg._context_run()
+        dlg._recalculate_run()
+        assert warned, "a file that could not be written was not reported"
+        title, text = warned[0]
+        assert "not touched at all" not in text, (
+            f"a partly rewritten date was called untouched: {text!r}")
+        assert "both old and new verdicts" in text, text
+        assert "Individual files can be read-only while their folder is "\
+               "writable" in text, text
+    finally:
+        extra.chmod(0o644)
+        dlg.deleteLater()
+
+
+def test_a_report_that_cannot_be_read_is_named(qapp, tmp_path, monkeypatch):
+    """It was skipped by a bare `except: continue`, so a report the user can
+    see in the window was never reached by any recalculation and nothing said
+    so. Leaving the file alone is the safe direction; the silence was not.
+
+    MUTATION: drop the `unreadable` list and this goes red.
+    """
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    v = list(run.verifications())[0]
+    bad = v.reports_dir / "report_2027-02-02_00-00-00.json"
+    bad.write_text("this is not json", encoding="utf-8")
+
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        warned: list = []
+        import ui.warning_sign as ws
+        monkeypatch.setattr(ws, "warn",
+                            lambda parent, t, x: warned.append((t, x)))
+        dlg._run_ctx = dlg._context_run()
+        dlg._recalculate_run()
+        assert warned, "an unreadable report was skipped in silence"
+        assert "could not be read at all" in warned[0][1], warned[0][1]
+        assert bad.name in warned[0][1], warned[0][1]
+    finally:
+        dlg.deleteLater()
+
+
+def test_a_clean_recalculation_says_nothing(qapp, tmp_path, monkeypatch):
+    """THE NEGATIVE HALF. A message that appears when everything worked is how
+    people learn to dismiss the one that matters.
+
+    MUTATION: warn unconditionally and this goes red.
+    """
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        warned: list = []
+        import ui.warning_sign as ws
+        monkeypatch.setattr(ws, "warn",
+                            lambda parent, t, x: warned.append((t, x)))
+        dlg._run_ctx = dlg._context_run()
+        dlg._recalculate_run()
+        assert not warned, f"a clean recalculation warned: {warned}"
+    finally:
+        dlg.deleteLater()
+
+
+@pytest.mark.parametrize("bound, phrase", [
+    (True, "This run is judged by those numbers"),
+    (False, "Nothing is judged by those numbers"),
+])
+def test_the_undo_failure_names_the_right_disagreement(qapp, tmp_path,
+                                                       monkeypatch, bound,
+                                                       phrase):
+    """The message said "the two no longer agree", which is true only when the
+    run is bound. On a project made before #182 the run is still unbound, the
+    numbers left behind govern nothing, and the sentence named a disagreement
+    that did not exist while its instruction fixed nothing.
+
+    MUTATION: use one wording for both and one of these two goes red.
+    """
+    if bound:
+        proj, run, ti3 = _bound_run_with_dates(tmp_path, 2, unlocked=True)
+    else:
+        proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        seen: list = []
+        import ui.warning_sign as ws
+        monkeypatch.setattr(ws, "warn",
+                            lambda parent, t, x: seen.append(x))
+        dlg._say_restore_failed(run, OSError("read-only"))
+        assert seen, "no message at all"
+        assert phrase in seen[0], seen[0]
+        assert "Your Preferences were put back" in seen[0], seen[0]
+    finally:
+        dlg.deleteLater()
