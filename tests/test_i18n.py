@@ -657,19 +657,29 @@ def test_every_deliberate_exception_says_why():
 # one-line glosses and the heading above them in the tip), 0 out. German is
 # translated for all 4 and does not move; the eleven others carry the English
 # source under the beta rule, so each of them gains 4.
+# …and again on 2026-09-10, by Knut's ruling that text on any of the four sides
+# is never dropped. The two overflow warnings that existed (top strip labels,
+# bottom sheet text) were rewritten to name the exact boxes that fix the
+# collision, and five more joined them: two for the chart notes down the right
+# edge (the lever differs when a clip border sits on that edge), two for the
+# clip border's own content on either side, and a two-line variant of the bottom
+# one, because "(s)" is not written in this project's text. 7 keys in, 2 stale
+# out. German is translated for all 7 and does not move; the eleven others carry
+# the English source under the beta rule, and the two that left were translated
+# in every one of them, so each gains exactly 7.
 _IDENTICAL_TO_KEY = {
     "de": 117,
-    "es": 104,
-    "fr": 125,
-    "it": 115,
-    "ja": 91,
-    "nl": 132,
-    "no": 116,
-    "pl": 108,
-    "pt": 106,
-    "ru": 79,
-    "sv": 118,
-    "zh_CN": 85,
+    "es": 112,
+    "fr": 133,
+    "it": 123,
+    "ja": 99,
+    "nl": 140,
+    "no": 124,
+    "pl": 116,
+    "pt": 114,
+    "ru": 87,
+    "sv": 126,
+    "zh_CN": 93,
 }
 
 

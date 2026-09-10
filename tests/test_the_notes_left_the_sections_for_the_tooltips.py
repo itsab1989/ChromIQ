@@ -264,20 +264,31 @@ def test_the_marker_help_no_longer_sends_the_reader_under_the_boxes(qapp):
         p.deleteLater()
 
 
-def test_the_text_distance_help_no_longer_promises_a_warning_is_shown(qapp):
-    """The third sentence the move made false, and the quietest of them.
+def test_the_text_distance_help_promises_the_message_field_again(qapp):
+    """The third sentence, and it has now been true, false and true again.
 
-    This help ended *"the text overflows toward this line and a margin warning
-    is shown"*. Nothing is SHOWN after the move — the warning is on the ⓘ
-    beside the measured margins — and a help text that promises a line the
-    reader will never find is the same fault as the other two, one degree
-    softer. It now names the exact thing on screen instead.
+    It once ended *"the text overflows toward this line and a margin warning is
+    shown"*. The 2026-09-04 move made that false: the warning went to the ⓘ
+    beside the measured margins, and the help was corrected to say so.
+
+    **Knut's ruling of 2026-09-10 put the warning back on the panel's surface**,
+    in red, in the message field of "Measured from Preview", because an ⓘ is
+    only read if it is asked for and he could not see that his note was being
+    dropped. So the help names that field again. It is not a regression of the
+    2026-09-04 move: what Basti had removed was PROSE inside a section, and the
+    message field is a verdict, one of the six live readouts LIVE_READOUTS names
+    as deliberately left alone.
+
+    The help also stops saying the text merely "overflows toward this line".
+    Under the ruling it is drawn over the patches instead, which the reader has
+    to be told or the picture on screen will not match the words.
     """
     p = _knuts_panel(qapp)
     try:
         body = p._text_edge_tip._body
         assert "a margin warning is shown" not in body, body[:400]
-        assert "ⓘ beside the measured margins" in body, body[:400]
+        assert "the message under the measured margins" in body, body[:400]
+        assert "over the patches if it must be" in body, body[:400]
     finally:
         p.deleteLater()
 
