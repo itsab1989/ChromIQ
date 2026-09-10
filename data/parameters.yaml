@@ -431,14 +431,14 @@ parameters:
       type: flag_choice
       choices: ["", "-t", "-r", "-R", "-q", "-Q", "-i", "-I"]
       labels:
-        - "OFPS — optimised farthest point (recommended)"
-        - "Incremental Far Point (-t) — faster, less even"
-        - "Even random — device space (-r)"
-        - "Even random — perceptual space (-R)"
-        - "Quasi-random space-filling — device space (-q)"
-        - "Quasi-random space-filling — perceptual space (-Q)"
-        - "Body-centered cubic lattice — device space (-i)"
-        - "Body-centered cubic lattice — perceptual space (-I)"
+        - "OFPS: optimised farthest point (recommended)"
+        - "Incremental Far Point (-t): faster, less even"
+        - "Even random: device space (-r)"
+        - "Even random: perceptual space (-R)"
+        - "Quasi-random space-filling: device space (-q)"
+        - "Quasi-random space-filling: perceptual space (-Q)"
+        - "Body-centered cubic lattice: device space (-i)"
+        - "Body-centered cubic lattice: perceptual space (-I)"
       default: ""
       affects_preview: true
       expert_only: true
@@ -1264,8 +1264,8 @@ parameters:
       # Profile combos by tests/test_colprof_algorithms_fit_the_device_class.py.
       choices: ["l", "x"]
       labels:
-        - "l — Lab cLUT (recommended for RGB printers)"
-        - "x — XYZ cLUT"
+        - "l: Lab cLUT (recommended for RGB printers)"
+        - "x: XYZ cLUT"
       default: "l"
       no_space: true
       expert_only: false
@@ -1287,10 +1287,10 @@ parameters:
       type: choice
       choices: ["l", "m", "h", "u"]
       labels:
-        - "l — Low (fast, ~30 s)"
-        - "m — Medium (recommended, ~2 min)"
-        - "h — High (~10 min)"
-        - "u — Ultra (~30+ min)"
+        - "l: Low (fast, ~30 s)"
+        - "m: Medium (recommended, ~2 min)"
+        - "h: High (~10 min)"
+        - "u: Ultra (~30+ min)"
       default: "m"
       no_space: true
       expert_only: false
@@ -1310,11 +1310,11 @@ parameters:
       choices: ["", "l", "m", "h", "u", "n"]
       labels:
         - "Same as profile quality (default)"
-        - "l — Low"
-        - "m — Medium"
-        - "h — High"
-        - "u — Ultra"
-        - "n — None (omit B2A tables)"
+        - "l: Low"
+        - "m: Medium"
+        - "h: High"
+        - "u: Ultra"
+        - "n: None (omit B2A tables)"
       default: ""
       no_space: true
       expert_only: true
@@ -1445,8 +1445,8 @@ parameters:
       type: choice
       choices: ["2", "1"]
       labels:
-        - "2 — Per-patch (required for strip analysis)"
-        - "1 — Summary only"
+        - "2: Per-patch (required for strip analysis)"
+        - "1: Summary only"
       default: "2"
       no_space: true
       expert_only: false
@@ -1461,8 +1461,8 @@ parameters:
       type: choice
       choices: ["a", "r"]
       labels:
-        - "a — Absolute colorimetric (default)"
-        - "r — Relative colorimetric"
+        - "a: Absolute colorimetric (default)"
+        - "r: Relative colorimetric"
       default: "a"
       no_space: false
       expert_only: false

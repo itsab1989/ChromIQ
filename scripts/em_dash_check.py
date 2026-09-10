@@ -54,12 +54,29 @@ def english_strings() -> "dict[str, str]":
     doc = yaml.safe_load((ROOT / "data" / "parameters.yaml").read_text(
         encoding="utf-8"))
 
+    # THE KEY LIST USED TO NAME ONE THAT DOES NOT EXIST AND MISS TWO THAT DO.
+    # `label` occurs ZERO times in data/parameters.yaml; the real keys are
+    # `name` (77 of them) and `labels` (12 lists). Both are read straight off
+    # the screen: `name` is the caption beside a control and `labels` are the
+    # entries of a dropdown. Measured on 2026-09-10, 145 user-facing strings
+    # were invisible to this sweep and 23 of them carried an em dash, none of
+    # them in the baseline, with the test green. A rule enforced over a surface
+    # this collector cannot see is not enforced at all.
+    _TEXT_KEYS = ("tooltip_title", "tooltip_body", "label", "labels", "help",
+                  "name")
+
     def walk(node):
         if isinstance(node, dict):
             for k, v in node.items():
-                if k in ("tooltip_title", "tooltip_body", "label", "help") \
-                        and isinstance(v, str):
+                if k in _TEXT_KEYS and isinstance(v, str):
                     out.setdefault(v, "data/parameters.yaml")
+                elif k in _TEXT_KEYS and isinstance(v, list):
+                    # a dropdown's entries: strings in a list, which the old
+                    # walk descended into and then dropped on the floor,
+                    # because walk() of a bare string collects nothing.
+                    for s in v:
+                        if isinstance(s, str):
+                            out.setdefault(s, "data/parameters.yaml")
                 else:
                     walk(v)
         elif isinstance(node, list):
@@ -76,6 +93,18 @@ def translations_adding_an_em_dash() -> "list[tuple[str, str]]":
 
     This needs no baseline of its own beyond today's exceptions: the rule is
     relative to the English, so it stays true as the English is cleaned up.
+
+    WHAT THIS DOES NOT COVER, SAID OUT LOUD SO IT IS NOT MISTAKEN FOR CLEAN:
+    the twelve `data/i18n/parameters.<code>.yaml` overlays. They translate the
+    parameter names and dropdown entries, and on 2026-09-10, when the English
+    sweep was widened to `name` and `labels`, 266 of their strings still
+    carried an em dash. The English sources they translate are now clean, so by
+    this function's own rule those 266 would each be a violation.
+
+    They are deliberately left for now. This project translates before a final
+    release, not during a beta, and punctuation inside twelve languages is a
+    translation pass, not a code fix. It is recorded on the owner's decision
+    sheet rather than fixed quietly or hidden in a baseline.
     """
     found = []
     for path in sorted((ROOT / "data" / "i18n").glob("*.json")):

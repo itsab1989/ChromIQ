@@ -7,6 +7,34 @@ enquiry now with a standards body rests on those values not being in our public
 repository. The ANSWERS below are ours to keep; the numbers are not, and none
 appear here.
 
+> **AND THAT PREMISE WAS FALSE WHEN IT WAS WRITTEN. 2026-09-10.** Gitignoring
+> the working notes protected nothing, because the numbers had already been
+> published by another route: the branch `issue-182-mockups`, in this PUBLIC
+> repository, carried twelve pictures and one document that reproduced the
+> tolerance tables of both standards, one of them quoting a sentence of the
+> standard verbatim, and every one of those pictures was embedded inline in the
+> public issue. From round 3 onwards each picture masked the numbers and said so
+> on its own face. Nobody went back for rounds 1 and 2.
+>
+> The branch has been rebuilt with no history, keeping only the material that is
+> ours or is masked; the twelve pictures and the document now return 404, and
+> the pictures that were safe still load in the issue. The complete original is
+> preserved off the internet as a verified git bundle in the research folder, so
+> nothing is lost.
+>
+> **What is NOT finished:** the superseded commit is still reachable on GitHub by
+> its hash, because a force-push does not delete anything, and a public
+> repository's activity log names the hash. Only GitHub Support can purge it,
+> and only the account owner can ask. That request is on Basti's decision sheet.
+>
+> **What was NOT affected:** master. The material never touched it, on any
+> commit, and the shipping branch carries standard NAMES and clause citations
+> only, with no value anywhere.
+>
+> The lesson is the one this project keeps relearning: a rule enforced in one
+> place is not enforced. A `.gitignore` covers a path, not a repository, and
+> nobody had asked what else was public.
+
 Nothing in this file is implemented yet unless it says so. It is a record, so
 that a month from now nobody has to reconstruct what was decided from a chat
 thread.
