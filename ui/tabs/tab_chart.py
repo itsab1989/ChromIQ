@@ -17535,6 +17535,44 @@ class TabChart(QWidget):
             # copy instead of the run actually loaded. Before `set_profile_run`
             # for the same reason the text is: that fires `changed`, which
             # re-reads everything from the run.
+            #
+            # FIRST MAKE THE BLOCK SAY WHAT IS ON SCREEN NOW.
+            #
+            # §4a N-3 is *"Generate Chart copies it into the new run"*, and
+            # Knut's own wording (2026-08-06) is that the block *"can be
+            # modified by user to what is desired for the new run. Then when
+            # Generate Chart is pressed, all these settings are copied into the
+            # new runs parameter slot."* The code could not honour that.
+            # `_seed_new_run_block` refuses to rewrite a file that already
+            # exists (N-1), and NOTHING between choosing "New run" and pressing
+            # Generate is a write trigger — so what a run adopted was whatever
+            # the block happened to be seeded with, which in practice is a
+            # snapshot taken during the PREVIOUS run's build. Every run made
+            # this way then recorded the settings of the run before it, and the
+            # next New run started from those.
+            #
+            # Measured on screen (engine off, every run asked for 132 patches):
+            # run 2's sheet is a SpectroScan chart at patch scale 1.3, run 2's
+            # store said ColorMunki at 1.0 — run 1's — and standing on run 2
+            # and choosing "New run" put ColorMunki back on the panel before
+            # anything was generated. The new run came out a two-page
+            # ColorMunki sheet, 15 patches per strip against run 2's 28.
+            #
+            # THIS IS THE ONE WRITE THAT MAY OVERWRITE THE BLOCK, and it is not
+            # the one N-1 forbids. N-1 stops `_seed_new_run_block` re-seeding a
+            # New-run setup FROM A RUN; the `store is None` branch below writes
+            # the New run's OWN screen into its own block, with no `exists()`
+            # guard, and already does exactly that on every tab change. This
+            # call just makes Generate Chart one more such moment, which is
+            # what N-3 says it is.
+            #
+            # `None` is passed EXPLICITLY rather than resolved. It IS None here
+            # today — `store_for_target` answers None for `is_new_run()`, and
+            # `set_profile_run` is still one line below — but a resolver that
+            # ever answered otherwise would silently turn this into a write of
+            # ANOTHER run's `meta.json`: it would look like a fix and be worse
+            # than nothing. Naming the branch costs nothing and cannot drift.
+            self.save_target_settings(None)
             self._adopt_new_run_settings(new_run)
             ctl.set_profile_run(new_run.id)
 
