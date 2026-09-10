@@ -107,3 +107,34 @@ def test_a_graded_sheet_does_not_carry_the_explanation(qapp, tmp_path):
         assert "build a profile rather than to check one" not in visible
     finally:
         dlg.deleteLater()
+
+
+def test_the_explanation_survives_a_standard_named_set(qapp, tmp_path):
+    """A challenge round found this silently un-fixed by a later change.
+
+    The footnote is selected by EXACT EQUALITY on the column's reason. A fix
+    that appended a caveat to that reason made the equality fail, so the
+    explanation was dropped for every standard-named set while still printing
+    for ChromIQ's own. Three identical saved profiling reports differed only in
+    which set they named, and only one of the three explained itself.
+    """
+    import re
+    from workflow import measurement_report as mr
+    from workflow import run_compliance as rc
+
+    for set_id, label in (("chromiq_default", "ChromIQ default (recommended)"),
+                          ("custom_iso_12647_7", "Custom ISO 12647-7"),
+                          ("iso_12647_7", "ISO 12647-7:2016 values")):
+        proj, run, ti3 = _profiling_run(tmp_path / set_id)
+        rep = mr.build_report(ti3)
+        mr.stamp_verdict(rep, rc.run_limits(run, {}).limits,
+                         set_id=set_id, set_label=label)
+        mr.save_report(rep, ti3.parent)
+        dlg = _dialog(_settings(tmp_path / set_id), ti3)
+        try:
+            body = dlg._report_body_html(dlg._runs_for_report(), for_pdf=True)
+            visible = _html.unescape(re.sub(r"<[^>]+>", " ", body))
+            assert "build a profile" in visible, (
+                f"the ungraded explanation is missing when the set is {label!r}")
+        finally:
+            dlg.deleteLater()

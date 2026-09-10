@@ -102,8 +102,7 @@ _STANDARD_SETS = [
 
 
 @pytest.mark.parametrize("set_id, label", _STANDARD_SETS)
-def test_a_saved_verdict_under_a_standard_carries_the_caveat(qapp, tmp_path,
-                                                             set_id, label):
+def test_the_saved_word_is_kept(qapp, tmp_path, set_id, label):
     proj, run, ti3 = _saved_run(tmp_path, set_id, label)
     dlg = _dialog(_settings(tmp_path), ti3)
     try:
@@ -113,9 +112,15 @@ def test_a_saved_verdict_under_a_standard_carries_the_caveat(qapp, tmp_path,
         assert sm.word == PASS, (
             f"the fixture no longer saves a PASS ({sm.word}), so this test "
             "would prove nothing about the case it exists for")
-        assert STANDARD_CAVEAT in sm.reason or "not a test against that standard" \
-            in sm.reason, (
-                f"a saved PASS under {label!r} prints with no caveat: {sm.reason!r}")
+        # The WORD is what this checks. The caveat is not in the reason and
+        # must not be: it travels through one render, the Overall cell's
+        # `title=`, so a caveat put here reaches a tooltip and no PDF, and it
+        # also broke the exact-equality that selects the ungraded footnote and
+        # the tr() lookup for every language but English. It is a footnote now,
+        # checked by test_the_caveat_is_in_the_report_body_and_the_pdf below.
+        assert STANDARD_CAVEAT not in sm.reason, (
+            "the caveat is back in the reason, where it reaches a tooltip and "
+            "breaks two other things")
     finally:
         dlg.deleteLater()
 

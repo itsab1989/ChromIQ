@@ -2006,8 +2006,7 @@ class MeasurementReportDialog(QDialog):
     def _column_summary(self, r: dict):
         """The one word for a run's column, with its numbers."""
         from workflow.compliance_sets import (Limit, Summary, set_summary,
-                                              applies_a_standard,
-                                              STANDARD_CAVEAT)
+                                              applies_a_standard)
         from workflow.measurement_report import (is_graded_sheet,
                                                  recorded_compliance)
         rec = self._recorded(r)
@@ -2022,13 +2021,21 @@ class MeasurementReportDialog(QDialog):
             # design record, where Knut ruled that a run keeps its values and
             # its verdicts, so the word stays and the sentence gains what the
             # promise requires.
+            # THE CAVEAT IS NOT APPENDED HERE, AND THAT WAS TWO FAULTS IN ONE
+            # LINE. It used to be, and the reason travels through exactly one
+            # render, the Overall cell's `title=`, so the caveat reached a
+            # tooltip and no PDF. It is a footnote under the results table now,
+            # where a reader sees it.
+            #
+            # Appending it here broke two further things, both found by a
+            # challenge round. The footnote that explains why a profiling sheet
+            # has no verdict is chosen by EXACT EQUALITY on this reason, so a
+            # longer string silently dropped Knut's 12b explanation for every
+            # standard-named set. And `summary_text` calls tr() on the whole
+            # reason, so an already-translated caveat glued onto an English key
+            # produced a lookup that misses and a sentence half in each
+            # language, proved in German.
             _reason = str(sm.get("reason", ""))
-            _comp = recorded_compliance(r) or {}
-            if applies_a_standard(str(_comp.get("set_id", "") or ""),
-                                  str(_comp.get("set_label", "") or "")):
-                _cav = tr(STANDARD_CAVEAT)
-                if _cav not in _reason:
-                    _reason = (_reason + " " + _cav).strip()
             return Summary(rec["overall"], int(sm.get("checked", 0)),
                            int(sm.get("total", 0)), int(sm.get("failed", 0)),
                            int(sm.get("cond", 0)), int(sm.get("not_computed", 0)),
