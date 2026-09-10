@@ -1736,6 +1736,24 @@ class ChartCreator:
                                       or 0.0)
                     except (TypeError, ValueError):
                         _edge = 0.0
+                elif self._should_use_engine(params):
+                    # GUIDED CARRIES NO RECIPE, AND THAT IS WHY THE FIX MISSED
+                    # THE MODE IT WAS REPORTED IN. `_collect_manual` attaches
+                    # `layout_recipe` (ui/tabs/tab_chart.py:19991);
+                    # `_collect_guided` never has. So every Guided chart read
+                    # zero here and the note went back to sitting half a
+                    # millimetre from the paper edge, which is exactly the
+                    # hexagon sheet Knut reported: measured 3.89 mm against a
+                    # 4.00 mm setting while Manual passed 7.5 mm correctly.
+                    #
+                    # Guided has no control for this, so it gets the DEFAULT of
+                    # the setting, which is what Knut asked for: "the text needs
+                    # to stay within the default 'Text distance from edge'
+                    # settings ... for all sides, for Guided mode. Not a
+                    # hardwired margin." A printtarg chart still keeps the old
+                    # floor, because nothing in that path ever had the setting.
+                    from workflow.layout_engine.presets import LayoutRecipe
+                    _edge = float(LayoutRecipe().text_edge_clip_mm or 0.0)
                 # THE USER'S OWN CLIP BAND IS NOT A PLACE FOR THE NOTE. Only
                 # when it is on the RIGHT, which is the side the note uses.
                 _band = 0.0
