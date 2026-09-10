@@ -168,6 +168,41 @@ incoming one, each while it is the selected one (§2.0).
 
 ---
 
+## 2.2 The chart wins on a run change, and the user must be told
+
+**✅ Confirmed.** **Confirmed by:** Knut Larsson and Sebastian, 2026-09-10.
+
+Selecting a run paints that run's chart over the Create Chart panel. So a
+setting the user changes and does not build survives only until they leave the
+run. Knut, 2026-09-10, answering the question directly:
+
+> I guess it is correct that the chart wins, which means if a setting is changed,
+> that setting can only survive if Generate Chart is pressed before changing the
+> run.
+
+Sebastian agreed the same day. So this is the rule, not a fault, and the earlier
+reports of "settings transferred between runs" are the rule being invisible
+rather than the rule being wrong. Nothing on disk was ever lost: the store held
+the user's value throughout; the panel showed the chart's.
+
+**But an invisible rule that silently discards typing is not acceptable**, and
+he asked for two things:
+
+1. **A warning on screen** when the panel differs from the chart the run holds,
+   telling the user to press Generate Chart to apply it, and that a change not
+   applied is lost when the run is changed or the project closed.
+2. **The same fact in the Create Chart help**, so it can be read before it bites
+   rather than after.
+
+The warning describes what the app does. It does not change what the app does,
+and it must never block a build or a run change.
+
+**The seed tick collides with this and is NOT settled by it.** Knut asked in
+July that the seed survive a restore so a manual Generate reproduces the sheet,
+and in September that selecting a run must not tick "Use a fixed seed". Those
+are still the same piece of state. See `J-seed-tick-conflict-FOR-KNUT.md` in the
+research folder; this ruling does not resolve it.
+
 ## 3. When settings are written
 
 Knut's general rule, in full:
@@ -291,7 +326,7 @@ Making a new run is nearly always *"like the last one, with one change"*.
 | **N-3** | **Generate Chart** copies it into the new run and **clears** it | Otherwise the run after next inherits a stale copy instead of the run actually loaded |
 | **N-4** | It lives in **`<target>/cache/new_run.json`** | Knut, 2026-08-07: *"always … in the cache/ folder for the runN/ runN/verifications/ or cal/ folders"*. The layout already documents `cache/` as "always safe to delete", which is exactly this file's nature — an orphaned block after a restart costs nothing, because the New run simply seeds fresh |
 | **N-5** | A New run under Run type = **Verification** seeds from the **verification** | Knut, 2026-08-07: *"Answer: Yes"* |
-| **N-6** | **A calibration never seeds the block at all** — no `new_run.json` is written into `cal/` | Knut, 2026-08-08: the seeding *"should only work for profiling and verification runs"*. N-2 alone did not achieve this: stripping the six `_CAL_VALUES` rows still left **34** others — paper, instrument, margins, the whole layout recipe — which a later New run would have started from. **The rule is Knut's; that the code now obeys it is ⏳ awaiting confirmation — see below** |
+| **N-6** | **A calibration never seeds the block at all** — no `new_run.json` is written into `cal/` | Knut, 2026-08-08: the seeding *"should only work for profiling and verification runs"*. N-2 alone did not achieve this: stripping the six `_CAL_VALUES` rows still left **34** others, among them paper, instrument and printtarg's own layout knobs (patch scale, spacer scale, margin), which a later New run would have started from. (This clause used to end "the whole layout recipe", which is wrong and was corrected on 2026-09-10 after being measured: `seed_for_new_run` filters `snapshot()`, which is **parameter rows only**, so the engine's layout recipe has never been in the block. It lives in `create_chart_ui` and travels by another road. The rule is unaffected; only the reason given for it was.) **The rule is Knut's; that the code now obeys it is ⏳ awaiting confirmation — see below** |
 
 **Status:** built and wired (v3.14.8-beta.204); ⏳ awaiting confirmation that the
 behaviour is right.

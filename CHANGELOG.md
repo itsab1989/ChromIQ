@@ -197,6 +197,21 @@ Measurement Report; that work rides on the 4.3.0 betas.
   now keeps the distance you set, on the right as well: the same card now ends
   at 4.06 mm, and changing the setting actually moves the note, which it never
   did before.
+- **Creating a new run gave it another run's settings.** Choosing New run does
+  not copy the settings of the run you are standing on. It copies a cached
+  block, and that block usually holds a different run's settings, because it is
+  written only if it does not already exist and in practice it lands during the
+  following build. So the block a run carried was the run before it. Knut
+  Larsson reported the result: stand on a run, choose New run, press Generate,
+  and the chart is not the same one. Measured on the files, the instrument
+  changed, patches per strip went from 28 to 15 and one page became two. The
+  panel moved the moment New run was chosen, before Generate was pressed. Now
+  the live screen is written into the block first, which is what the design
+  said all along. Starting from the first run of a project was always safe,
+  because that is the only run whose block is its own.
+- **And each run records its own settings again.** Of four runs, one recorded
+  its own instrument before this and four do now. That is the half of his
+  report that really did get worse after 4.1.4.
 - **A note could print at 300 dpi and vanish at 200 on the same chart.** The
   distance from the paper edge is a measurement in millimetres, but the guard
   that keeps the note off the patches was counted in pixels, so the amount of
@@ -216,8 +231,15 @@ Measurement Report; that work rides on the 4.3.0 betas.
   kept whatever else has to give, and the remedy is to widen the margin. Of
   twenty-two chart settings measured, eighteen still print a note and the four
   that do not were all printing inside the distance they had been told to keep
-  clear. ChromIQ writes the reason into the log; it does not yet say so on
-  screen, which is still to come. That count was measured at one resolution and
+  clear. One of the two new photo-card presets is affected: the 10 x 15 cm card
+  has a 5 mm right margin, and once 4 mm of that is kept clear there is not
+  enough left for a legible line, so its sheets no longer carry the small
+  identification text down the right edge. Earlier versions printed it 0.76 mm
+  from the paper edge, which is what the rule now forbids. The 13 x 18 cm card,
+  with 7 mm, still prints it. Widening that margin is the remedy and it is the
+  chart author's call. ChromIQ writes the reason into the log; it does not yet
+  say so on screen, which is still to come. That count was measured at one
+  resolution and
   it does depend on the resolution, because a very coarse raster has too few
   pixels to draw a legible line in the room that is left.
 - **The rule that keeps em dashes out of ChromIQ's text could not see the
