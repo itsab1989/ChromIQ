@@ -36,7 +36,8 @@ Usage::
     python scripts/import_knut_presets.py <family> <export-folder> [--write]
 
     family: cm  (ColorMunki)  |  p3  (i1Pro 3 Plus)  |  i1  (i1Pro, 8 mm)
-            i175 (i1Pro, 7.5 mm)  |  cr30 (ChnSpec CR30)
+            i175 (i1Pro, 7.5 mm)  |  i1photo (i1Pro, photo cards)
+            cr30 (ChnSpec CR30)
 
 Without ``--write`` it only validates and prints, so you can see what would
 change before anything is touched.
@@ -92,6 +93,16 @@ class Family:
     varying: frozenset       # recipe fields ONE chart may set for itself
     helper: str              # the tab_chart.py helper the rows call
     overlay: "Overlay | None" = None   # optional named cut (see Overlay)
+    #: Fields every row spells out, even where it agrees with the batch base.
+    #:
+    #: The emitter's normal rule — say a field only where it differs from the
+    #: base — reads well for a family whose charts really do share a margin
+    #: set. It reads as a LIE for one whose base has no margin set at all: the
+    #: first chart of such a batch defines the base by being first, so it emits
+    #: nothing and the second emits everything, and a reviewer is told the two
+    #: differ in five fields when in truth neither one inherits any of them.
+    #: Naming those fields here makes both rows say all five.
+    always: frozenset = frozenset()
 
 
 FAMILIES: dict[str, Family] = {
@@ -147,6 +158,41 @@ FAMILIES: dict[str, Family] = {
                            "margin_right", "margin_bottom"}),
         helper="_i1_75_preset",
     ),
+    # A THIRD i1Pro FAMILY: the two photo-card charts (Knut, 2026-09-09).
+    #
+    # Knut re-cut the Pharmacist 10 x 15 cm and 13 x 18 cm photo cards for a
+    # strip reader. His words: *"I had to adjust the margins a bit to assure
+    # space for starting and ending a strip reading. Thus the measurements are
+    # very slightly different from the original pharmacist presets."*
+    #
+    # WHY IT IS ITS OWN FAMILY, and not two rows on "i1" or "i175". Measured
+    # against the shipped `_I1_BASE`, both cards move ELEVEN fields that no
+    # i1Pro `varying` set allows a chart to own: `area_min_patch_mm` 17.5 (0.0),
+    # `border` 10.0 (6.0), `clip_text` (Knut's note, against ""),
+    # `edge_spacers` False (True), `helper_marker_edge_mm` 2.0 (4.0),
+    # `indicator_size_mm` 0.0 (4.23), `nolimit` False (True), `pscale` 0.95
+    # (1.0), `sscale` 0.6 (0.8), `text_edge_top_mm` 4.0 (8.0) — and `margin_top`.
+    # Ten of the eleven are IDENTICAL between his two cards, so they are a
+    # shared design of their own; folding them into either existing i1Pro base
+    # would have silently re-cut the nineteen 8 mm charts and the nineteen
+    # 7.5 mm ones. Exactly the trap the `i175` entry above was added for.
+    #
+    # WHAT A CARD OWNS, and why it is more than the grid. A photo card is a
+    # QUARTER of an A4 and the two cards are not even the same shape, so every
+    # sheet-scaled number is per card: all four margins, and the clip band's
+    # width (19 mm on the 10 x 15, 26 on the 13 x 18). None of them is shared,
+    # so `always` makes both rows state all five rather than letting whichever
+    # file sorts first define a "base" nobody authored.
+    "i1photo": Family(
+        key="i1photo", label="i1Pro (photo card)", prefix="i1Pro-",
+        slug_prefix="i1_photo_", instrument="i1", dest=ASSETS / "i1prophoto",
+        varying=frozenset({"paper", "area_cols", "area_rows",
+                           "margin_top", "margin_bottom", "margin_left",
+                           "margin_right", "clip_border_width_mm"}),
+        always=frozenset({"margin_top", "margin_bottom", "margin_left",
+                          "margin_right", "clip_border_width_mm"}),
+        helper="_i1_photo_preset",
+    ),
     # The CR30 line-up (2026-09-06). Knut's charts for the ChnSpec CR30, cut
     # down by Basti to the twenty worth shipping: ten on A4, ten on US Letter,
     # one to three sheets, patches 11 mm to 24 mm wide, each size offered in a
@@ -180,12 +226,38 @@ FAMILIES: dict[str, Family] = {
 }
 
 # The names carry the layout: "<paper>-<patches>p-<pages>page(s)-<orientation>…".
-_NAME_TAIL = (r"(?P<paper>A4|A3Plus|A3|Letter)-(?P<patches>\d+)p-"
-              r"(?P<pages>\d+)pages?-(?P<rest>.+)$")
+#
+# A sheet is a NAMED size or a "<W>x<H>mm" one. The second form arrived with the
+# photo cards: 100 x 150 mm and 130 x 180 mm are real sheets a shop prints on and
+# are already valid paper codes everywhere else in ChromIQ (the two "by
+# Pharmacist" bundles are filed under exactly those folder names), so a name may
+# carry one. The recipe's own `paper` drops the "mm" — "100x150mm" in the name,
+# "100x150" in the layout; `check` pins that agreement rather than assuming it.
+_CUSTOM_SHEET = r"\d+x\d+mm"
+_NAME_TAIL = (r"(?P<paper>A4|A3Plus|A3|Letter|" + _CUSTOM_SHEET + r")-"
+              r"(?P<patches>\d+)p-(?P<pages>\d+)pages?-(?P<rest>.+)$")
 
 # Display order: smallest sheet first (matching _paper_sort_key), then ascending
 # patch count. Portrait and landscape share a sheet, so they interleave by count.
 _SHEET_ORDER = {"A4": 0, "Letter": 1, "A3": 2, "A3Plus": 3}
+
+
+def _sheet_order(sheet: str) -> float:
+    """Sort key for a sheet token, smallest first.
+
+    A named size keeps its curated slot. A "<W>x<H>mm" one sorts ahead of them
+    all, by area, which is where such a sheet belongs — every photo card
+    ChromIQ ships a chart for is smaller than an A4, and `_paper_sort_key` in
+    ``tab_chart.py`` (which orders the dropdown itself) is area-based too. The
+    1e7 divisor keeps even an A2-sized custom code below A4's 0.
+    """
+    if sheet in _SHEET_ORDER:
+        return float(_SHEET_ORDER[sheet])
+    m = re.fullmatch(_CUSTOM_SHEET, sheet)
+    if m:
+        w, h = sheet[:-2].split("x", 1)
+        return -1.0 + int(w) * int(h) / 1e7
+    return 9.0
 
 
 def _shipped_base(fam: Family) -> dict:
@@ -206,6 +278,7 @@ def _shipped_base(fam: Family) -> dict:
                              # the very family it was written for: a drifting
                              # 7.5 mm batch validated rc=0.
                              "i175": "_I1_75_BASE",
+                             "i1photo": "_I1_PHOTO_BASE",
                              "cr30": "_CR30_BASE"}.get(fam.key, ""), None) or {})
 
 
@@ -288,6 +361,17 @@ def check(export: dict, ti1: Path, base: dict | None,
                 problems.append(
                     f"{k}: {recipe.get(k)!r} differs from the family base "
                     f"{base.get(k)!r}")
+
+    # A "<W>x<H>mm" sheet token says the sheet outright, so it can be checked
+    # against the layout instead of trusted. (A NAMED token cannot: the i1Pro
+    # family writes an A3 landscape chart's paper as "420x297", so "A3" in the
+    # name is right and a literal comparison would be wrong.)
+    if re.fullmatch(_CUSTOM_SHEET, m.group("paper")):
+        want = m.group("paper")[:-2]
+        if recipe.get("paper") != want:
+            problems.append(
+                f"name says a {want} mm sheet, the recipe lays it out on "
+                f"{recipe.get('paper')!r}")
 
     if recipe.get("instrument") != fam.instrument:
         problems.append(f"instrument is {recipe.get('instrument')!r}, "
@@ -397,11 +481,13 @@ def emit_rows(rows: list[dict], fam: Family, base: dict) -> str:
             extra += f", {ov.keyword}=True"
             effective.update(ov.delta)
         for field in ("margin_left", "margin_top", "margin_right",
-                      "margin_bottom", "text_edge_top_mm",
-                      "area_min_patch_mm", "hflag"):
+                      "margin_bottom", "clip_border_width_mm",
+                      "text_edge_top_mm", "area_min_patch_mm", "hflag"):
             if field not in fam.varying or field in positional:
                 continue
-            if recipe.get(field) == effective.get(field):
+            # `always` fields are stated on every row — see Family.always.
+            if (field not in fam.always
+                    and recipe.get(field) == effective.get(field)):
                 continue
             extra += f", {field}={recipe.get(field)!r}"
         if ("clip_text" in fam.varying
@@ -424,7 +510,8 @@ def main() -> int:
     ap.add_argument("family", choices=sorted(FAMILIES),
                     help="which line-up these exports belong to "
                          "(cm = ColorMunki, p3 = i1Pro 3 Plus, "
-                         "i1 / i175 = i1Pro, cr30 = ChnSpec CR30)")
+                         "i1 / i175 / i1photo = i1Pro, "
+                         "cr30 = ChnSpec CR30)")
     ap.add_argument("src", type=Path, help="folder of <name>.ti1 + <name>.json")
     ap.add_argument("--write", action="store_true",
                     help="copy the assets into place (otherwise only report)")
@@ -475,7 +562,7 @@ def main() -> int:
         print(f"\n{failed} chart(s) rejected — fix them before importing.")
         return 1
 
-    rows.sort(key=lambda r: (_SHEET_ORDER.get(r["sheet"], 9), r["patches"],
+    rows.sort(key=lambda r: (_sheet_order(r["sheet"]), r["patches"],
                              r["pages"]))
     slugs = [r["slug"] for r in rows]
     if len(set(slugs)) != len(slugs):
