@@ -51,12 +51,28 @@ allowed a profiling run's report to show no verdict.
   `ChromIQ-Report-Limit-Demos.zip` from the release, unzip it anywhere and point
   the output folder at it; all three projects then appear in the project list.
   The README lists which date crosses which limit, intended against what the
-  report actually read back, and which of the ten runs are locked and why. The
+  report actually read back, and which of the eleven runs are locked and why,
+  read out of the built projects rather than copied from the plan. The
   generator is in the repository, so the same command rebuilds them against a
   newer ChromIQ.
 
 ### Fixed
 
+- **Changing a run's limit set rewrote every saved report of that run without
+  asking.** On a project made before this work, with a year of dated
+  verifications, one selection in the "Judged against" pulldown recalculated
+  all of them, flipped verdicts, then bound and locked the run so the control
+  was gone. The other route to that same consequence, unlocking the run, has
+  always asked first and said what is at stake. This one now asks the same
+  question, names how many dated reports it would recalculate, and changes
+  nothing at all if you say no. A run with nothing saved is not asked, because
+  there is nothing to lose.
+- **A run the app said was not locked was told it was.** With a single dated
+  verification, the state that deliberately leaves the limit set choosable, the
+  Report limits window showed the run's own column as read-only under a note
+  telling you to tick "Unlock this run's limits", and that tick box was greyed
+  out in the window behind it. Three controls, three different answers about
+  one run. The window now offers the column exactly when the run is not locked.
 - **The report explains why a profiling sheet shows no verdict.** Knut allowed
   that on one condition, that the report says why. The explanation existed but
   only as a hover tooltip on four letters, so it reached neither the window's
@@ -119,6 +135,16 @@ allowed a profiling run's report to show no verdict.
   under them. Measured with four of seven columns unticked, the first value
   column stays where it belongs instead of moving 496 px right.
 
+- **A bundled reference file that no longer matches what shipped is now said
+  to be that, rather than quietly disappearing.** The check that the data is
+  byte-for-byte what its owner published ran only in the test suite, so it
+  proved something about the machine that builds ChromIQ and nothing about
+  yours. It runs when the sets are read now. A file that has changed on your
+  disk, through a truncated download or a tool that rewrote it, keeps its place
+  in the list and loses the sentence claiming it is the owner's original data,
+  which is the only claim ChromIQ can no longer make about it. The credit also
+  stopped ending a sentence twice when the source's own name ends in a full
+  stop.
 - **The compliance data was bundled on macOS only.** On Windows and Linux the
   file was simply not in the build, and nothing said so, because a missing file
   and an empty one both show as a question mark. Both platforms now ship it.

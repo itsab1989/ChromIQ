@@ -45,7 +45,7 @@ import hashlib
 import json
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -130,16 +130,34 @@ class ReferenceSet:
     paper_lab: "tuple[float, float, float] | None"
     is_real_paper: bool
     sha256: str
+    #: Whether the bytes on this machine are still the ones ``SOURCE.json``
+    #: records. False does NOT hide the set; see :func:`available`.
+    verified: bool = True
 
     @property
     def credit_line(self) -> str:
         """The credit, which is a required part of every place this set is
         shown. Two sentences: who the data belongs to, and that naming it is
-        not a certification. Never a tooltip."""
-        return tr("Reference data: {name}, {source}. Naming this set says what "
+        not a certification. Never a tooltip.
+
+        A set whose file no longer matches gets a third sentence and loses the
+        claim that it IS the source's data, because that is the claim ChromIQ
+        can no longer make about it. See :func:`available`.
+        """
+        # "Fogra Forschungsinstitut für Medientechnologien e.V." ends in a full
+        # stop of its own, so the template's added one read "e.V..", twice per
+        # line, in the sentence Fogra's permission requires us to print.
+        _src = self.source[:-1] if self.source.endswith(".") else self.source
+        line = tr("Reference data: {name}, {source}. Naming this set says what "
                   "your measurement was compared against. It is not a "
                   "certification, approval or endorsement by {source}."
-                  ).format(name=self.id, source=self.source)
+                  ).format(name=self.id, source=_src)
+        if not self.verified:
+            line += " " + tr(
+                "This file no longer matches the one ChromIQ shipped, so it "
+                "cannot be presented as {source}'s original data."
+            ).format(source=_src)
+        return line
 
     @property
     def display_label(self) -> str:
@@ -227,23 +245,34 @@ def available() -> "list[ReferenceSet]":
             is_real_paper=bool(entry.get("is_real_paper", True)),
             sha256=str(entry.get("sha256") or ""),
         )
-        # THE UNMODIFIED CHECK RUNS HERE, AND UNTIL NOW IT RAN NOWHERE.
-        # Fogra's permission is conditional on the data travelling unaltered,
-        # and `verify_unmodified` was written to make that checkable rather
-        # than asserted. It had exactly one caller, a test, which proves the
-        # files in the repository are intact on the machine that runs the gate
-        # and says nothing about the copy on a user's disk. A promise kept only
-        # by a developer's test run is not kept. A file whose bytes no longer
-        # match what SOURCE.json records is now skipped for the same reason an
-        # uncredited one is: ChromIQ would be redistributing something it
-        # cannot say is the original.
-        if not verify_unmodified(candidate):
+        # A CHANGED FILE IS QUALIFIED, NOT HIDDEN, and the first version of
+        # this got that backwards.
+        #
+        # It dropped the set, treating a hash mismatch as a breach of Fogra's
+        # permission. That reasoning does not hold. Their condition is on
+        # DISTRIBUTION, which happened when the bundle was built, and the gate
+        # is where it is checked. By the time this runs the file is sitting on
+        # a user's disk, where a mismatch means a truncated download, a
+        # re-signed bundle, an antivirus rewrite or a sync tool touching line
+        # endings. The answer to that is not to make a printing condition
+        # vanish with no explanation the user can see.
+        #
+        # What ChromIQ genuinely cannot do with a changed file is present it as
+        # the source's own data, which is the ICC's condition recorded in
+        # `data/compliance_sets/README.md` and is the honest shape here too. So
+        # the set stays, and `credit_line` says the file no longer matches.
+        #
+        # The two conditions above are NOT the same event and used to be
+        # treated as one: no recorded credit is a packaging bug that can never
+        # reach a user, and changed bytes are a condition of the machine in
+        # front of you.
+        _ok = verify_unmodified(candidate)
+        if not _ok:
             log.warning("reference set %s: %s does not match the sha256 in %s; "
-                        "not offered, because the permission to ship it covers "
-                        "the unaltered file only",
-                        set_id, path.name, SOURCE_FILE)
-            continue
-        out.append(candidate)
+                        "still offered, with its credit qualified, because the "
+                        "file is on the user's disk and this says nothing about "
+                        "how it was distributed", set_id, path.name, SOURCE_FILE)
+        out.append(replace(candidate, verified=_ok))
     out.sort(key=lambda s: (GROUP_ORDER.index(s.group), s.id))
     _cache = out
     return out

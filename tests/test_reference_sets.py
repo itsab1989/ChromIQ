@@ -46,15 +46,27 @@ def test_every_bundled_file_is_byte_for_byte_the_one_fogra_published():
         assert rs.verify_unmodified(s), f"{s.id} does not match its sha256"
 
 
-def test_a_tampered_file_is_not_offered_at_all(tmp_path, monkeypatch):
+def test_a_tampered_file_keeps_its_place_and_loses_its_claim(tmp_path, monkeypatch):
     """The other half of the check above, and the half that can actually fail.
 
-    This test asked a weaker question until a challenge round pointed out that
-    `verify_unmodified` had no caller outside this file. It proved the checker
-    worked and nothing proved the app used it, so the promise that the data
-    travels unaltered was kept by a developer's gate run and by nothing on a
-    user's machine. `available()` calls it now, and a file whose bytes have
-    moved is skipped exactly as an uncredited one is.
+    This went through two wrong shapes before it settled, and both are worth
+    keeping in view.
+
+    First it only asked whether the CHECKER worked, and a challenge round
+    pointed out that `verify_unmodified` had no caller outside this file: the
+    promise that the data travels unaltered was kept by a developer's gate run
+    and by nothing on a user's machine.
+
+    Then `available()` DROPPED a set whose bytes had moved, and the next round
+    was right that this reasons about the wrong event. Fogra's condition is on
+    DISTRIBUTION, which happens when the bundle is built and is checked by the
+    gate. A mismatch here is on a user's disk, where it means a truncated
+    download, a re-signed bundle or a sync tool touching line endings, and the
+    answer to that is not to make a printing condition disappear.
+
+    What ChromIQ cannot do with a changed file is present it as Fogra's own
+    data. So the set stays and the CREDIT changes, which is the ICC's condition
+    applied where it fits.
 
     MUTATION: make verify_unmodified return True unconditionally, or drop the
     call from available(), and this goes red where the all-True assertion above
@@ -65,14 +77,28 @@ def test_a_tampered_file_is_not_offered_at_all(tmp_path, monkeypatch):
     p.write_bytes(p.read_bytes() + b"\n")
     rs.reset_cache()
 
-    assert rs.by_id("FOGRA51") is None, (
-        "a file that no longer matches its recorded sha256 is still offered; "
-        "ChromIQ would be redistributing as Fogra's something it cannot say "
-        "is Fogra's")
     offered = rs.available()
-    assert len(offered) == 10, [x.id for x in offered]
+    assert len(offered) == 11, (
+        "a set vanished because the file on disk changed; a user is left with "
+        "a shorter list and no way to find out why")
+    s = rs.by_id("FOGRA51")
+    assert s is not None
+    assert s.verified is False, "the changed file is still marked as verified"
+    assert "no longer matches" in s.credit_line, (
+        "the credit still presents a changed file as Fogra's original data: "
+        f"{s.credit_line!r}")
+
     for other in offered:
-        assert rs.verify_unmodified(other), other.id
+        if other.id != "FOGRA51":
+            assert other.verified, other.id
+            assert "no longer matches" not in other.credit_line, other.id
+
+
+def test_the_credit_does_not_end_a_sentence_twice(tmp_path):
+    """Fogra's name ends in "e.V." and the template added a stop of its own, so
+    the sentence their permission requires printed "e.V..", twice a line."""
+    for s in rs.available():
+        assert ".." not in s.credit_line, s.credit_line
 
 
 def test_the_terms_carry_fogras_own_no_endorsement_sentence():

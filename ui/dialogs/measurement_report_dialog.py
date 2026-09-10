@@ -2190,17 +2190,86 @@ class MeasurementReportDialog(QDialog):
                                      label_en=SET_BY_ID[set_id].label, bound=False)
             self._refresh()
             return
+        # ASK FIRST WHEN THERE IS A HISTORY TO REWRITE, exactly as unlocking
+        # does. This route reached the same consequence with no question at
+        # all, and a challenge round drove it: on a run made before #182 with
+        # eleven dated verifications, ONE selection in this pulldown rewrote
+        # all eleven saved reports and flipped six verdicts from PASS to FAIL,
+        # then bound and locked the run so the control was gone.
+        #
+        # The comment that used to sit here said the pulldown is live only for
+        # an unlocked run or one with nothing measured yet, and that stopped
+        # being true this morning: the lock now waits for a run to be BOUND and
+        # for its SECOND date, both of which were right to add, and both of
+        # which leave this pulldown live over a full history. The guard did not
+        # move with the rule.
+        if self._recalculating_would_rewrite_history(ctx.run):
+            if not self._confirm_recalculate(ctx.run):
+                self._sync_set_combo_to(lim.set_id)
+                return
         from workflow.run_compliance import bind_run
         try:
             bind_run(ctx.run, set_id, self._overrides())
         except OSError as exc:
             log.warning("could not store the limit set on %s: %s", ctx.run.dir, exc)
         self._forget_limits()
-        # The pulldown is live only for an unlocked run or one with nothing
-        # measured yet, so every saved report of the run (if any) follows the
-        # new set now, once (D23, CH-29).
+        # Every saved report of the run now follows the new set, once
+        # (D23, CH-29).
         self._recalculate_run()
         self._refresh()
+
+    def _saved_report_count(self, run) -> int:
+        """How many dated verifications of the run have a saved report.
+
+        This is what a recalculation rewrites, so it is what a confirmation has
+        to count. A dated verification with no saved report loses nothing.
+        """
+        n = 0
+        try:
+            for v in run.verifications():
+                try:
+                    if any(v.reports_dir.glob("report_*.json")):
+                        n += 1
+                except OSError:
+                    continue
+        except (OSError, AttributeError):
+            return 0
+        return n
+
+    def _recalculating_would_rewrite_history(self, run) -> bool:
+        return self._saved_report_count(run) > 0
+
+    def _confirm_recalculate(self, run) -> bool:
+        """Ask before rewriting every saved report of a run.
+
+        The wording follows the unlock confirmation deliberately: the two
+        routes have the same consequence, so a user who has met one should
+        recognise the other. Singular and plural in full, never "(s)".
+        """
+        n = self._saved_report_count(run)
+        _head = (tr("This run ({run}) has one dated report.") if n == 1 else
+                 tr("This run ({run}) has {n} dated reports."))
+        _tail = tr(
+            "Changing the limit set recalculates every one of them with the "
+            "new numbers, and the reports they replace are kept first, in a "
+            "reports/old folder beside each date.\n\nNothing is deleted. "
+            "Continue?")
+        return self._confirm(tr("Change this run's limit set?"),
+                             _head.format(run=run.dir.name, n=n) + " " + _tail)
+
+    def _sync_set_combo_to(self, set_id: str) -> None:
+        """Put the pulldown back on *set_id* without re-entering this handler."""
+        combo = getattr(self, "_set_combo", None)
+        if combo is None:
+            return
+        i = combo.findData(set_id)
+        if i < 0:
+            return
+        self._syncing_limits = True
+        try:
+            combo.setCurrentIndex(i)
+        finally:
+            self._syncing_limits = False
 
     def _on_unlock_toggled(self, on: bool) -> None:
         if self._syncing_limits:
@@ -2269,9 +2338,18 @@ class MeasurementReportDialog(QDialog):
         from ui.dialogs.thresholds_dialog import ThresholdsDialog
         ctx = self._run_ctx
         lim = self._window_limits()
+        # EDITABLE MEANS NOT LOCKED, and this line asked a narrower question.
+        # It keyed on the hand-lift flag alone, so a run that is not locked
+        # because it has only ONE dated verification (the state Knut asked for
+        # by name, so that the settings can still be changed) got a read-only
+        # column, a note telling it to tick "Unlock this run's limits", and
+        # that tick box greyed out in the window behind. Three controls, three
+        # different answers about one run. The lock rule gained its second
+        # condition this morning; this line did not move with it.
+        from workflow.run_compliance import is_locked as _is_locked
         dlg = ThresholdsDialog(self._settings, self,
                                run=ctx.run if ctx else None,
-                               run_editable=bool(ctx and lim.unlocked))
+                               run_editable=bool(ctx and not _is_locked(ctx.run)))
         dlg.exec()
         changed = dlg.run_limits_changed
         dlg.deleteLater()

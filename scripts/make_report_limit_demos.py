@@ -1258,6 +1258,36 @@ def main(argv=None) -> int:
     return 1 if bad else 0
 
 
+def _lock_index(lock_rows: "list[dict]") -> "list[tuple[str, str]]":
+    """The three lock lines of the README's index, named from MEASURED state.
+
+    These three lines were hand-written, and a challenge round found them still
+    saying "exactly one dated verification, LOCKED ... Threshold-Series, run3"
+    after the lock rule had changed and after that run had gained a twin with
+    two dates. The table forty lines above them was already correct and read
+    back from the app; the index contradicted it on the same page, and the index
+    is the half a reader acts on, because it says which run to open.
+
+    The guard added with that table did not cover this, because it bans the word
+    "lock" from a plan's DESCRIPTION and these lines are prose in the README.
+    So they are generated too, and from the same measured rows.
+    """
+    want = [("locked, so the set cannot be changed", lambda r: r["locked"]),
+            ("one date only, so the set is still offered",
+             lambda r: not r["locked"] and r["dates"] < 2),
+            ("two dates, but the lock lifted by hand",
+             lambda r: not r["locked"] and r["dates"] >= 2 and r["lifted"])]
+    out: "list[tuple[str, str]]" = []
+    for label, pick in want:
+        # The SMALLEST example of each state, so the reader opens the run where
+        # the state is the only interesting thing rather than the busiest one.
+        hits = sorted((r for r in lock_rows if pick(r)),
+                      key=lambda r: (r["dates"], r["run"]))
+        if hits:
+            out.append((label, hits[0]["run"].replace("/", ", ")))
+    return out
+
+
 def coverage(dest: Path, results: list) -> dict:
     """Which report rows these projects actually exercise, read back from the
     saved reports rather than from the designs that asked for them.
@@ -1505,11 +1535,12 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict) -> str:
     a("  a row crossing and then recovering ......... Threshold-Series, run1")
     a("  many dated verifications on one run ........ Threshold-Series, run1")
     a("  a second limit set on the same evidence .... Threshold-Series, run2")
-    a("  exactly one dated verification, LOCKED ..... Threshold-Series, run3")
-    a("  exactly one dated verification, UNLOCKED ... Isolated-Rows, run3")
-    a("  a run with its own edited limit column ..... Isolated-Rows, runs 1, 2, 4")
+    for _what, _where in _lock_index(_lock_rows):
+        a(f"  {(_what + ' '):.<44} {_where}")
+    a("  a run with its own edited limit column ..... Isolated-Rows, runs 1, 2, 4, 5")
     a("  one measurement judged three ways .......... Set-Compare, all runs")
     a("  the grey rows crossing on their own ........ Isolated-Rows, run4")
+    a("  a row no shipped set judges at all ......... Isolated-Rows, run5")
     a("  a recommended value (COND, not FAIL) ....... Threshold-Series, 2026-04-13")
     a("                                               and Isolated-Rows, run4")
     a("")

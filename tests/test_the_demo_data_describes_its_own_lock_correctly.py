@@ -97,3 +97,56 @@ def test_all_three_lock_states_are_demonstrated(gen):
     assert states == set(gen.LOCK_SENTENCES), (
         f"the package demonstrates {sorted(states)}; the states that exist are "
         f"{sorted(gen.LOCK_SENTENCES)}")
+
+
+def test_the_readme_never_writes_a_lock_claim_by_hand(gen):
+    """The guard above bans the lock words from a plan's description, and a
+    challenge round found the stale claim alive forty lines away, in README
+    prose the guard could not see.
+
+    The index said "exactly one dated verification, LOCKED ... Threshold-Series,
+    run3" after that run had stopped being locked, and "exactly one dated
+    verification, UNLOCKED ... Isolated-Rows, run3" after that run had gained a
+    second date. It contradicted the measured table on the same page, and the
+    index is the half a reader acts on, because it says which run to open.
+
+    So the README's own source may not spell a lock claim either. Every line
+    that makes one is generated from the measured rows now, by `_lock_index`.
+    """
+    import inspect
+    import re
+
+    src = inspect.getsource(gen.readme)
+    # Only the literal strings this function writes; the docstring and the
+    # comments are prose about the rule, not text a reader ever sees.
+    literals = re.findall(r'a\(\s*(?:f?)"((?:[^"\\]|\\.)*)"', src)
+    assert literals, "readme() no longer writes string literals; this test is blind"
+    # A CLAIM NAMES A RUN. The section heading "WHICH RUNS ARE LOCKED, AND WHY"
+    # sits over a table generated from measured rows and says nothing about any
+    # particular run, so it is not what went stale and banning it would only
+    # teach the next person to word the heading around this test.
+    offenders = [t for t in literals
+                 if re.search(r"\b(UN)?LOCKED\b", t)
+                 and re.search(r"\brun\s?\d", t, re.I)]
+    assert not offenders, (
+        "readme() writes a lock claim about a named run by hand: "
+        + "; ".join(repr(t) for t in offenders)
+        + ". Derive it from the measured rows instead, as _lock_index does.")
+
+
+def test_the_index_names_a_run_for_each_lock_state(gen):
+    """And it must still ANSWER the question, from measured rows.
+
+    Banning the words is only half of it: an index that lists no run for a
+    state sends the next round off to invent its own data, which is what the
+    shared package exists to stop.
+    """
+    rows = [{"run": "Threshold-Series/run1", "dates": 11, "lifted": False, "locked": True},
+            {"run": "Threshold-Series/run3", "dates": 1, "lifted": False, "locked": False},
+            {"run": "Isolated-Rows/run3", "dates": 2, "lifted": True, "locked": False}]
+    got = dict(gen._lock_index(rows))
+    assert len(got) == 3, got
+    assert got["locked, so the set cannot be changed"] == "Threshold-Series, run1"
+    assert got["one date only, so the set is still offered"] == "Threshold-Series, run3"
+    assert got["two dates, but the lock lifted by hand"] == "Isolated-Rows, run3"
+
