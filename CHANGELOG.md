@@ -1,5 +1,44 @@
 # Changelog
 
+## v4.2.3
+
+**Checking for updates works again on a busy network, the two photo-card charts
+Knut asked for are in the Presets list, and a rule that was supposed to keep em
+dashes out of the app could not see the dropdowns.** Nothing here touches the
+Measurement Report; that work rides on the 4.3.0 betas.
+
+### New
+
+- **Two more i1Pro chart presets, for 10 x 15 cm and 13 x 18 cm photo cards.**
+  Knut Larsson built them and widened the margins so there is room to start and
+  finish a strip reading, which makes them slightly different from the
+  Pharmacist cards of the same sizes. Both sets are offered; his are built by
+  the ChromIQ layout engine and appear in the i1Pro group of the Presets
+  dropdown beside the others. On the sheet they measure 7.49 mm patches over
+  four pages and 8.00 mm patches over three.
+
+### Fixed
+
+- **"Check for Updates" said "GitHub answered 403" and gave up.** Nothing was
+  wrong with ChromIQ's request. GitHub answers a limited number of update
+  checks an hour to a caller with no account, and counts them against the
+  internet connection rather than the person, so an office, a school, a
+  household or a mobile network shares them. ChromIQ now falls back to a route
+  that has no such limit, so the check simply works. When both routes are shut
+  it says so in plain words, with the time it frees and a link to the releases
+  page, instead of showing a number.
+- **The same message was cut off, and in German the link was missing.** The
+  line it is written into was pinned to a single line of text. It now wraps.
+- **A second check while you were waiting forgot when the limit frees**, and
+  fell back to "try again later". It remembers.
+- **With no network at all the check showed the operating system's own error
+  text**, untranslated. It now says that ChromIQ could not reach GitHub.
+- **The rule that keeps em dashes out of ChromIQ's text could not see the
+  Create Chart dropdowns.** It gathered a key that does not exist in the
+  parameter file and missed the two that do, so 145 strings were invisible to
+  it and 23 dropdown entries had slipped through. Those now read with a colon,
+  and the rule can see them.
+
 ## v4.2.2
 
 **A run's own settings stopped being rewritten every time you looked at it, and
