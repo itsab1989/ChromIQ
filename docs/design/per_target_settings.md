@@ -168,6 +168,41 @@ incoming one, each while it is the selected one (§2.0).
 
 ---
 
+## 2.2 The chart wins on a run change, and the user must be told
+
+**✅ Confirmed.** **Confirmed by:** Knut Larsson and Sebastian, 2026-09-10.
+
+Selecting a run paints that run's chart over the Create Chart panel. So a
+setting the user changes and does not build survives only until they leave the
+run. Knut, 2026-09-10, answering the question directly:
+
+> I guess it is correct that the chart wins, which means if a setting is changed,
+> that setting can only survive if Generate Chart is pressed before changing the
+> run.
+
+Sebastian agreed the same day. So this is the rule, not a fault, and the earlier
+reports of "settings transferred between runs" are the rule being invisible
+rather than the rule being wrong. Nothing on disk was ever lost: the store held
+the user's value throughout; the panel showed the chart's.
+
+**But an invisible rule that silently discards typing is not acceptable**, and
+he asked for two things:
+
+1. **A warning on screen** when the panel differs from the chart the run holds,
+   telling the user to press Generate Chart to apply it, and that a change not
+   applied is lost when the run is changed or the project closed.
+2. **The same fact in the Create Chart help**, so it can be read before it bites
+   rather than after.
+
+The warning describes what the app does. It does not change what the app does,
+and it must never block a build or a run change.
+
+**The seed tick collides with this and is NOT settled by it.** Knut asked in
+July that the seed survive a restore so a manual Generate reproduces the sheet,
+and in September that selecting a run must not tick "Use a fixed seed". Those
+are still the same piece of state. See `J-seed-tick-conflict-FOR-KNUT.md` in the
+research folder; this ruling does not resolve it.
+
 ## 3. When settings are written
 
 Knut's general rule, in full:
