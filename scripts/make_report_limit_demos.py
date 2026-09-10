@@ -95,8 +95,12 @@ INSTRUMENT = "X-Rite ColorMunki"
 def run(cmd, cwd: Path, timeout: int) -> None:
     args = [str(c) for c in cmd]
     try:
+        # `encoding=` and not the platform default: an Argyll tool that writes
+        # a non-ASCII byte would otherwise decode differently on another
+        # machine, and `tests/test_encoding_is_named.py` refuses a text call
+        # site without one.
         r = subprocess.run(args, cwd=str(cwd), capture_output=True, text=True,
-                           timeout=timeout)
+                           encoding="utf-8", errors="replace", timeout=timeout)
     except subprocess.TimeoutExpired:
         raise SystemExit(
             f"{args[0]} did not finish within {timeout} s in {cwd}. "
