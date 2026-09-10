@@ -132,7 +132,8 @@ def test_column_visibility_is_stored_per_run_or_in_preferences(qapp, tmp_path):
     proj = Project.create(tmp_path / "P", "P")
     run = proj.current_run(); run.ensure_dir()
     s2 = _settings(tmp_path / "two")
-    s2, dlg2 = _dlg(qapp, tmp_path / "two", settings=s2, run=run)
+    s2, dlg2 = _dlg(qapp, tmp_path / "two", settings=s2, run=run,
+                    run_editable=True)
     try:
         dlg2._column_checks["chromiq_quick"].setChecked(False)
         assert "chromiq_quick" not in run.load_meta().compliance_columns
@@ -140,6 +141,23 @@ def test_column_visibility_is_stored_per_run_or_in_preferences(qapp, tmp_path):
         assert s2.get("compliance_columns_shown") == ""
     finally:
         dlg2.deleteLater()
+    # …and a window opened READ-ONLY on that run writes nothing, which is what
+    # `run_editable` means everywhere else in this class. This case used to be
+    # the one above, opened without `run_editable`, so it asserted that a
+    # window saying "Show limits…" on a LOCKED run may still change what that
+    # run stores. `done()` has always refused to; this slot did not, and a
+    # challenge round drove it.
+    before = list(run.load_meta().compliance_columns or [])
+    s4, dlg4 = _dlg(qapp, tmp_path / "four", run=run)
+    try:
+        assert not dlg4._run_editable, "the premise failed"
+        dlg4._column_checks["chromiq_tight"].setChecked(False)
+        assert list(run.load_meta().compliance_columns or []) == before, (
+            "a read-only limits window changed what the run stores")
+        assert not _cell(dlg4, "chromiq_tight", "all_de00_avg").isVisibleTo(dlg4), (
+            "the column did not even hide, so the click did nothing at all")
+    finally:
+        dlg4.deleteLater()
     # …and it is read back next time
     s3, dlg3 = _dlg(qapp, tmp_path / "three", run=run)
     try:

@@ -515,6 +515,38 @@ class _NothingToRestore(Exception):
     """The refusal had nothing to undo, so nothing is written."""
 
 
+def _restore_sentence(outcome: str) -> str:
+    """What really happened to the run's own numbers, in one sentence.
+
+    ONE PLACE, BECAUSE TWO MESSAGES ASK THE SAME QUESTION and they had grown
+    different answers to it. It used to be a yes/no, and `_undo_the_edit` has
+    three branches, so one of them borrowed another's sentence: the branch that
+    leaves the REFUSED numbers on a run bound to a set this build cannot answer
+    for said only that the numbers could not be put back, and never that the
+    run is now judged by the numbers the user had just said no to.
+    """
+    if outcome == "restored":
+        return tr("Its dated reports are unchanged, and ChromIQ put this run's "
+                  "own numbers back to what they were when you opened the "
+                  "window, so the other change is gone too.")
+    if outcome == "rederived":
+        # TRUE IN BOTH OF ITS CASES, which the first wording was not: this
+        # branch fires for a run that was UNBOUND when the window opened and
+        # for one another writer has since rebound, and the first draft
+        # described only the former.
+        return tr("Its dated reports are unchanged. This run is no longer bound "
+                  "to what it was when you opened the window, so ChromIQ could "
+                  "not put its own numbers back. It now holds the numbers of "
+                  "the limit set it is bound to.")
+    if outcome == "refused_numbers_left":
+        return tr("Its dated reports are unchanged, but this run is bound to a "
+                  "limit set this version of ChromIQ does not know, so ChromIQ "
+                  "left its numbers alone: it still holds the numbers you have "
+                  "just refused and is judged by them.")
+    return tr("Its dated reports are unchanged, but ChromIQ could not put this "
+              "run's own numbers back.")
+
+
 class MeasurementReportDialog(QDialog):
     #: The three facts a refusal has to report, set on the way through
     #: `_on_open_limits` and read by the three `_say_*` methods. Declared here
@@ -522,7 +554,7 @@ class MeasurementReportDialog(QDialog):
     #: gets a defined answer rather than an AttributeError.
     _pending_restore_error: "Exception | None" = None
     _pending_rebound: bool = False
-    _pending_restore_kept: bool = False
+    _pending_restore_outcome: str = "none"
 
     def __init__(self, settings, parent=None, initial_ti3=None) -> None:
         super().__init__(parent)
@@ -1074,8 +1106,8 @@ class MeasurementReportDialog(QDialog):
         every saved report across the profile's runs, or the freshly built one
         when nothing is saved yet (a stand-alone / i1Profiler .ti3)."""
         import json
-        from workflow.measurement_report import (
-            build_report, list_project_reports, REPORT_SCHEMA)
+        from workflow.measurement_report import (build_report,
+                                                  list_project_reports)
         runs: list[dict] = []
         for p in list_project_reports(ti3.parent):
             try:
@@ -1541,7 +1573,6 @@ class MeasurementReportDialog(QDialog):
         guide to reading them — as a PDF, then open it for viewing (Knut)."""
         if not self._report or not self._ti3:
             return
-        from datetime import datetime
         from PyQt6.QtCore import QMarginsF, QRectF, QSizeF, QUrl
         from PyQt6.QtGui import (
             QAbstractTextDocumentLayout, QColor, QDesktopServices, QFont,
@@ -1828,8 +1859,11 @@ class MeasurementReportDialog(QDialog):
         if getattr(self, "_set_combo", None) is None:
             return
         from workflow.compliance_sets import SET_BY_ID, selectable_set_ids
+        # NOT `is_locked`: `_locked_here` is the one answer this window gives
+        # about a run, and importing the raw predicate here is how a line came
+        # to use it by accident. Two rounds fixed that fault, in two doors.
         from workflow.run_compliance import (has_measured_verification,
-                                             is_bound, is_locked, may_unlock)
+                                             may_unlock)
         lim = self._window_limits()
         ctx = self._run_ctx
         run = ctx.run if ctx else None
@@ -2099,7 +2133,7 @@ class MeasurementReportDialog(QDialog):
         rows, recorded = self._verdict_rows(r)
         if recorded:
             comp = recorded_compliance(r) or {}
-            from workflow.compliance_sets import SET_BY_ID, limits_from_json
+            from workflow.compliance_sets import limits_from_json
             limits = limits_from_json(comp.get("thresholds")) if comp else {}
             set_id = str(comp.get("set_id", "")) if comp else ""
             if not limits:
@@ -2111,11 +2145,9 @@ class MeasurementReportDialog(QDialog):
         else:
             lim = self._limits_for(r)
             limits, set_id = lim.limits, lim.set_id
-            from workflow.compliance_sets import SET_BY_ID
         pairs = [(limits.get(row.get("row_id"), Limit.none())
                   if isinstance(limits.get(row.get("row_id")), Limit)
                   else Limit.none(), row.get("word")) for row in rows]
-        s = SET_BY_ID.get(set_id)
         graded = (bool(rec.get("graded")) if rec is not None
                   else is_graded_sheet(r))
         # THE RAW ID AND THE STORED LABEL, not the resolved set: both are None
@@ -2427,7 +2459,7 @@ class MeasurementReportDialog(QDialog):
         ctx = self._run_ctx
         if ctx is None:
             return
-        from workflow.run_compliance import is_locked, set_run_unlocked
+        from workflow.run_compliance import set_run_unlocked
         if not on:
             # RE-LOCKING IS THE IRREVERSIBLE DIRECTION AND IT ASKED NOTHING.
             # Ticking this box asks a confirmation; unticking it did not, and
@@ -2467,6 +2499,9 @@ class MeasurementReportDialog(QDialog):
         _head = (tr("This run ({run}) has one dated verification.")
                  if n_dates == 1 else
                  tr("This run ({run}) has {n} dated verifications."))
+        # WHAT THE RUN HOLDS WHILE THE QUESTION IS ON SCREEN, because the
+        # answer is acted on afterwards and the question described THIS state.
+        _before = self._judged_by_now(ctx.run)
         ok = self._confirm(
             tr("Unlock this run's limits?"),
             _head.format(run=ctx.run.dir.name, n=n_dates) + " " + _tail)
@@ -2476,6 +2511,36 @@ class MeasurementReportDialog(QDialog):
                 self._unlock_check.setChecked(False)
             finally:
                 self._syncing_limits = False
+            return
+        # THE THIRD DOOR INTO `_recalculate_run`, AND IT ASKED NOTHING HERE.
+        # The other two were guarded in earlier rounds; this one imported
+        # `is_locked` and never called it. Two states were driven through it.
+        #
+        # The box is enabled from `may_unlock` and a measured verification when
+        # the window last refreshed, and nothing outside the window refreshes
+        # it, so a run that stops qualifying while the window sits open was
+        # unlocked anyway.
+        #
+        # And the question above promises the reports will be recalculated
+        # "with the numbers you set". If another writer rebound the run while
+        # it was on screen, the recalculation uses THEIR numbers under a
+        # sentence about yours: a challenge round watched a saved verdict go
+        # from PASS to FAIL that way. So the answer is checked against the
+        # state it was given for.
+        from workflow.run_compliance import has_measured_verification, may_unlock
+        _allow = bool(self._settings.get(
+            "compliance_allow_edit_after_measurement", False))
+        if not (may_unlock(ctx.run, _allow)
+                and has_measured_verification(ctx.run)) \
+                or self._judged_by_now(ctx.run) != _before:
+            self._syncing_limits = True
+            try:
+                self._unlock_check.setChecked(False)
+            finally:
+                self._syncing_limits = False
+            self._say_run_moved_while_asking(ctx.run)
+            self._forget_limits()
+            self._refresh()
             return
         try:
             set_run_unlocked(ctx.run, True)
@@ -2492,6 +2557,37 @@ class MeasurementReportDialog(QDialog):
         self._forget_limits()
         self._recalculate_run()
         self._refresh()
+
+    def _judged_by_now(self, run) -> tuple:
+        """What the run is judged by AT THIS MOMENT, read from disk.
+
+        The one thing a question about recalculating a history depends on, and
+        the only way to tell that the answer is still about the run the
+        question described.
+        """
+        try:
+            m = run.load_meta()
+        except Exception:              # noqa: BLE001
+            return ()
+        return (str(m.compliance_set_id or ""),
+                json.dumps(m.compliance_thresholds or {}, sort_keys=True),
+                str(getattr(m, "compliance_bound_at", "") or ""))
+
+    def _say_run_moved_while_asking(self, run) -> None:
+        """The run stopped being the run the question was about, between the
+        question going up and the answer coming back.
+
+        Nothing is written here, which is what lets the sentence say so
+        plainly.
+        """
+        from ui.warning_sign import warn
+        warn(self, tr("This run changed while the question was on screen"),
+             tr("{run} changed while ChromIQ was asking: a verification "
+                "measurement of it finished, or it was changed in another "
+                "window. Nothing was unlocked and nothing was "
+                "recalculated.").format(run=run.dir.name)
+             + "\n\n"
+             + tr("Open the limits again to see where it stands."))
 
     def _say_not_written(self, run, exc) -> None:
         from ui.warning_sign import warn
@@ -2578,7 +2674,7 @@ class MeasurementReportDialog(QDialog):
             # numbers really did come back is told its limits are unchanged;
             # one whose could not is told to go and look. The caller had no way
             # to ask, so both got the second sentence.
-            self._pending_restore_kept = self._undo_the_edit(
+            self._pending_restore_outcome = self._undo_the_edit(
                 ctx, snap, report_failure=True)
             if self._pending_restore_error is not None:
                 ok = False
@@ -2598,7 +2694,7 @@ class MeasurementReportDialog(QDialog):
             log.warning("could not put the overrides back", exc_info=True)
         return ok
 
-    def _say_rebound_meanwhile(self, run, kept: bool = False) -> None:
+    def _say_rebound_meanwhile(self, run, outcome: str = "none") -> None:
         """Somebody else changed this run's limits while the window was open.
 
         NOT ONLY "a different set". A writer that rebinds to the SAME set with
@@ -2614,12 +2710,7 @@ class MeasurementReportDialog(QDialog):
         so the second sentence says which of the two it was.
         """
         from ui.warning_sign import warn
-        _what = (tr("Its dated reports are unchanged, and ChromIQ put this "
-                    "run's own numbers back to what they were when you opened "
-                    "the window, so the other change is gone too.")
-                 if kept else
-                 tr("Its dated reports are unchanged, but ChromIQ could not "
-                    "put this run's own numbers back."))
+        _what = _restore_sentence(outcome)
         warn(self, tr("This run's limits changed while you were editing them"),
              tr("Something else changed {run}'s limits while its own limits "
                 "were open: a verification measurement of it finished, or it "
@@ -2646,9 +2737,19 @@ class MeasurementReportDialog(QDialog):
             return False
         return str(getattr(run, "dir", "")) not in self._bound_here
 
-    def _undo_the_edit(self, ctx, snap, report_failure: bool = False) -> bool:
+    def _undo_the_edit(self, ctx, snap, report_failure: bool = False) -> str:
         """Take the run's own column back to what it held, and touch nothing
         else. Returns whether the previous numbers were really recovered.
+
+        RETURNS WHICH OF ITS THREE BRANCHES IT TOOK, because the caller has a
+        different true sentence for each and there is no yes/no that covers
+        them. "restored" put the run's own column back, and an EMPTY column is
+        that when the run had none. "rederived" had no previous column to put
+        back, so the numbers are the ones whoever bound it meant. And
+        "refused_numbers_left" is the case a challenge round named: the set is
+        one this build cannot answer for, so the run keeps the numbers the user
+        has just REFUSED, is bound, and is judged by them. Only the door beside
+        this one used to say that, and this path did not.
 
         RECOVERED, WHICH IS NOT "WAS BOUND", and it returned the second one.
         A challenge round drove a pre-#182 run that was unbound when the window
@@ -2675,7 +2776,7 @@ class MeasurementReportDialog(QDialog):
         from workflow.compliance_sets import (effective_limits, is_known_set,
                                                limits_to_json)
         if snap.get("run") is None:
-            return False
+            return "none"
         _snap_sid = str(snap["run"][0] or "")
         try:
             m = ctx.run.load_meta()
@@ -2712,11 +2813,11 @@ class MeasurementReportDialog(QDialog):
                 if (m.compliance_thresholds == snap["run"][2]
                         and list(getattr(m, "compliance_columns", []) or [])
                         == list(snap["run"][5] or [])):
-                    return True            # nothing to write, and nothing lost
+                    return "restored"      # nothing to write, and nothing lost
                 m.compliance_columns = snap["run"][5]
                 m.compliance_thresholds = snap["run"][2]
                 ctx.run.save_meta(m)
-                return True
+                return "restored"
             m.compliance_columns = snap["run"][5]
             if _sid_now and is_known_set(_sid_now):
                 # Not an undo and not pretending to be one. The run was unbound
@@ -2730,13 +2831,13 @@ class MeasurementReportDialog(QDialog):
                 m.compliance_thresholds = limits_to_json(
                     effective_limits(_sid_now, snap["overrides"]))
                 ctx.run.save_meta(m)
-                return False
+                return "rederived"
             # A set this build does not know. `effective_limits` cannot answer
             # for it and `bind_run` would silently replace it with the factory
             # default, erasing the id, the English label D23 exists for, and
             # every number. Leave the record alone and say so.
             ctx.run.save_meta(m)
-            return False
+            return "refused_numbers_left"
         except OSError as exc:
             # NOT SWALLOWED. This returned False into a caller that dropped it,
             # so `ok` stayed True, `_say_restore_failed` became dead code and a
@@ -2746,7 +2847,7 @@ class MeasurementReportDialog(QDialog):
             log.warning("could not undo the edit on %s: %s", ctx.run.dir, exc)
             if report_failure:
                 self._pending_restore_error = exc
-            return False
+            return "failed"
 
     def _say_collision_went_ahead(self, run) -> None:
         """Somebody else changed this run's limits while the window was open,
@@ -2787,7 +2888,7 @@ class MeasurementReportDialog(QDialog):
              + "\n\n"
              + tr("Open the limits again to see where it stands."))
 
-    def _say_locked_meanwhile(self, run, kept: bool) -> None:
+    def _say_locked_meanwhile(self, run, outcome: str) -> None:
         """The run was locked between opening the window and closing it."""
         from ui.warning_sign import warn
         # THE SECOND SENTENCE WAS TRUE ONLY WHERE IT WAS TESTED. It said the
@@ -2796,11 +2897,7 @@ class MeasurementReportDialog(QDialog):
         # bound and a set this build cannot answer for. In that last case the
         # numbers left on the run are the ones the app has just refused, and the
         # sentence claimed they were whatever locked it wrote.
-        _what = (tr("Its limits and its dated reports are unchanged.")
-                 if kept else
-                 tr("Its dated reports are unchanged, but ChromIQ could not "
-                    "put this run's own numbers back. Open its limits and "
-                    "check them before you measure it again."))
+        _what = _restore_sentence(outcome)
         warn(self, tr("This run was locked while you were editing it"),
              tr("Something else locked {run} while its limits were open: a "
                 "verification measurement of it finished, or it was locked in "
@@ -2852,7 +2949,6 @@ class MeasurementReportDialog(QDialog):
     def _on_open_limits(self) -> None:
         from ui.dialogs.thresholds_dialog import ThresholdsDialog
         ctx = self._run_ctx
-        lim = self._window_limits()
         # EDITABLE MEANS NOT LOCKED, and this line asked a narrower question.
         # It keyed on the hand-lift flag alone, so a run that is not locked
         # because it has only ONE dated verification (the state Knut asked for
@@ -2890,7 +2986,14 @@ class MeasurementReportDialog(QDialog):
         # second limits window produced one, its number erased in silence, and
         # a control run where nobody else wrote produced the same one box. The
         # user could not tell the middle case from the last.
-        collided = bool(getattr(dlg, "run_limits_collided", False))
+        # …AND THE SAME QUESTION FOR THE TWO APP-WIDE STORES.
+        # `_restore_limits_snapshot` puts the default set and the overrides
+        # back to this window's snapshot unconditionally, so a refusal
+        # destroyed another writer's change to them with nothing said. The
+        # default set is what every UNBOUND run is judged by, so that is not a
+        # small store to revert in silence.
+        collided = bool(getattr(dlg, "run_limits_collided", False)
+                        or getattr(dlg, "prefs_collided", False))
         dlg.deleteLater()
         self._forget_limits()
 
@@ -2949,8 +3052,8 @@ class MeasurementReportDialog(QDialog):
         if moved and _run_numbers_moved and self._locked_here(ctx.run):
             log.info("the run was locked while its limits window was open; "
                      "the edit is not applied to %s", ctx.run.dir)
-            _kept = self._undo_the_edit(ctx, snap)
-            self._say_locked_meanwhile(ctx.run, _kept)
+            _outcome = self._undo_the_edit(ctx, snap)
+            self._say_locked_meanwhile(ctx.run, _outcome)
             self._forget_limits()
             self._refresh()
             return
@@ -2958,12 +3061,12 @@ class MeasurementReportDialog(QDialog):
             if (self._recalculating_would_rewrite_history(ctx.run)
                     and not self._confirm_recalculate(ctx.run)):
                 self._pending_rebound = collided
-                self._pending_restore_kept = False
+                self._pending_restore_outcome = "none"
                 if not self._restore_limits_snapshot(ctx, snap):
                     self._say_restore_failed(ctx.run, self._pending_restore_error)
                 elif self._pending_rebound:
                     self._say_rebound_meanwhile(
-                        ctx.run, self._pending_restore_kept)
+                        ctx.run, self._pending_restore_outcome)
                 self._forget_limits()
                 self._refresh()
                 return

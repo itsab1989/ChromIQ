@@ -1775,7 +1775,12 @@ def test_a_run_rebound_to_an_unknown_set_keeps_that_set_s_own_numbers(
         assert m.compliance_set_label == "House standard 2027", (
             "the English label D23 exists for was erased")
         assert told, "the user was not told the refusal could not reach the run"
-        assert "could not put this run's own numbers back" in told[-1], told[-1]
+        # AND WHICH BRANCH IT WAS. This used to assert the generic "could
+        # not put the numbers back", the sentence three different outcomes
+        # shared. On an unknown set the run keeps the numbers the user has
+        # just REFUSED and is judged by them, and only the door beside this
+        # one ever said so.
+        assert "you have just refused" in told[-1], told[-1]
         # AND THE RUN IS NOT LEFT JUDGING NOTHING. `effective_limits` answers
         # for an unknown set with thirty rows of "no limit", so re-deriving
         # would leave the run bound to a named set that judges not one row,
@@ -1971,7 +1976,7 @@ def test_a_rebind_to_the_same_set_is_not_mistaken_for_no_change(
         assert told, (
             "a writer rebound this run to the same set with different numbers, "
             "the undo wrote the snapshot back over them, and nothing said so")
-        assert "could not put this run's own numbers back" in told[-1], told[-1]
+        assert "could not put its own numbers back" in told[-1], told[-1]
     finally:
         dlg.deleteLater()
 
@@ -2473,3 +2478,270 @@ def test_the_collision_check_cannot_tell_a_corrupt_meta_from_an_unbound_run(
         "the two are distinguishable after all, and the docstring should say "
         f"how: {corrupt!r} vs {unbound!r}")
     assert _stored_column(None) is None
+
+
+def test_the_window_does_not_report_its_own_write_as_somebody_elses(
+        qapp, tmp_path, monkeypatch):
+    """R15-1: ONE USER, ONE WINDOW, AND THE APP BLAMED ANOTHER WINDOW.
+
+    The collision check compares what the run holds when the window closes
+    against what it held when it opened. `_on_column_toggled` writes
+    `set_run_columns` the MOMENT the box is ticked, so ticking a column and
+    typing a number in the same visit, which is the ordinary use of that
+    window, raised the collision against the window's own work.
+
+    On accept the user was told another window had changed the run and their
+    other change was gone, with nothing else running and the columns still on
+    disk. On refusal their own column choice, made seconds earlier in that same
+    window, was reverted in silence and another window was blamed for it.
+
+    A challenge round drove it in English and German. The two tests that
+    existed covered accept with numbers and refusal with columns written by a
+    fake; nobody crossed them.
+
+    MUTATION: stop refreshing the baseline after this window's own write and
+    this goes red.
+    """
+    from workflow.compliance_sets import Limit
+    from workflow.run_compliance import bind_run, set_run_unlocked
+
+    from ui.dialogs.thresholds_dialog import ThresholdsDialog
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    bind_run(run, "chromiq_default", {})
+    set_run_unlocked(run, True)
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        told: list = []
+        import ui.warning_sign as ws
+        monkeypatch.setattr(ws, "warn", lambda parent, t, x: told.append(x))
+        monkeypatch.setattr(type(dlg), "_confirm", lambda self, t, x: True)
+        monkeypatch.setattr(type(dlg), "_confirm_recalculate",
+                            lambda self, run: True)
+
+        class _OneUser(ThresholdsDialog):
+            def exec(self):
+                # the user ticks a column off, which writes at once …
+                self._column_checks["chromiq_quick"].setChecked(False)
+                # … and types a number, which writes at close
+                self._run_limits["all_de00_avg"] = Limit.value(0.66)
+                self._run_dirty = True
+                from PyQt6.QtWidgets import QDialog as _Q
+                self.done(_Q.DialogCode.Accepted)
+                return 0
+
+        import ui.dialogs.thresholds_dialog as td
+        monkeypatch.setattr(td, "ThresholdsDialog", _OneUser)
+        dlg._on_open_limits()
+
+        said = "\n".join(told)
+        assert "another window" not in said, (
+            "the window reported its own write as somebody else's: " + said)
+        cols = list(run.load_meta().compliance_columns or [])
+        assert cols and "chromiq_quick" not in cols, (
+            f"the user's own column choice did not survive: {cols}")
+    finally:
+        dlg.deleteLater()
+
+
+def test_the_unlock_door_checks_the_run_before_it_acts(qapp, tmp_path,
+                                                       monkeypatch):
+    """R15-2: THE THIRD DOOR INTO A RECALCULATION, GUARDED NOWHERE.
+
+    The other two were guarded in earlier rounds. This one imported
+    `is_locked` and never called it. Its own question promises the dated
+    reports will be recalculated "with the numbers you set"; a challenge round
+    rebound the run while that question was on screen and watched a saved
+    verdict go from PASS to FAIL, computed with somebody else's numbers, under
+    that sentence.
+
+    MUTATION: drop the check after the question and this goes red.
+    """
+    from workflow.run_compliance import (bind_run, is_locked, run_limits,
+                                         set_run_limits)
+    from workflow.compliance_sets import Limit
+
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    bind_run(run, "chromiq_default", {})
+    s = _settings(tmp_path)
+    # THE OTHER HALF OF THE GUARD MUST NOT BE WHAT KILLS THIS.
+    # Without this the run does not qualify to be unlocked at all, the
+    # `may_unlock` half refuses first, and a mutation that removes the check
+    # this test is named for leaves it green. Measured: it did.
+    s.set("compliance_allow_edit_after_measurement", True)
+    dlg = _dialog(s, ti3)
+    try:
+        assert is_locked(run), "the premise failed"
+        told: list = []
+        import ui.warning_sign as ws
+        monkeypatch.setattr(ws, "warn", lambda parent, t, x: told.append(x))
+        recalculated: list = []
+        monkeypatch.setattr(type(dlg), "_recalculate_run",
+                            lambda self: recalculated.append(1))
+
+        def _asked(self, title, body):
+            # somebody else rebinds the run while the question is on screen
+            other = dict(run_limits(run, {}).limits)
+            other["all_de00_avg"] = Limit.value(0.05)
+            set_run_limits(run, other)
+            return True
+
+        monkeypatch.setattr(type(dlg), "_confirm", _asked)
+        dlg._on_unlock_toggled(True)
+
+        assert not recalculated, (
+            "the reports were recalculated with numbers the user never saw, "
+            "under a question saying they were the user's own")
+        assert is_locked(run), "the run was unlocked anyway"
+        assert told and "while" in "\n".join(told), told
+    finally:
+        dlg.deleteLater()
+
+
+def test_the_unlock_door_refuses_a_run_that_stopped_qualifying(qapp, tmp_path,
+                                                               monkeypatch):
+    """THE OTHER HALF OF R15-2. The tick box is enabled from `may_unlock` and a
+    measured verification as they were when the window last refreshed, and
+    nothing outside the window refreshes it. A run that stops qualifying while
+    the window sits open was unlocked anyway.
+
+    MUTATION: drop `may_unlock` from the check and this goes red.
+    """
+    from workflow.run_compliance import bind_run, is_locked
+
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    bind_run(run, "chromiq_default", {})
+    s = _settings(tmp_path)
+    s.set("compliance_allow_edit_after_measurement", True)
+    dlg = _dialog(s, ti3)
+    try:
+        told: list = []
+        import ui.warning_sign as ws
+        monkeypatch.setattr(ws, "warn", lambda parent, t, x: told.append(x))
+        monkeypatch.setattr(type(dlg), "_recalculate_run", lambda self: None)
+
+        def _asked(self, title, body):
+            # the preference is withdrawn while the question is on screen
+            s.set("compliance_allow_edit_after_measurement", False)
+            return True
+
+        monkeypatch.setattr(type(dlg), "_confirm", _asked)
+        dlg._on_unlock_toggled(True)
+
+        assert is_locked(run), (
+            "the run was unlocked after it stopped being allowed to be")
+        assert told, "the user was told nothing"
+    finally:
+        dlg.deleteLater()
+
+
+def test_another_writers_default_set_is_not_reverted_in_silence(qapp, tmp_path,
+                                                                monkeypatch):
+    """R15-3: A LIMITS WINDOW WRITES THREE STORES AND ONE WAS WATCHED.
+
+    `_restore_limits_snapshot` puts `compliance_default_set` and the app-wide
+    overrides back to this window's snapshot unconditionally. So another
+    writer's change to the default set, which is what EVERY unbound run is
+    judged by, was destroyed on a refusal with no collision raised and nothing
+    said to anybody.
+
+    MUTATION: stop reading `prefs_collided`, or stop setting it, and this goes
+    red.
+    """
+    from workflow.compliance_sets import Limit
+    from workflow.run_compliance import bind_run, set_run_unlocked
+
+    from ui.dialogs.thresholds_dialog import ThresholdsDialog
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    bind_run(run, "chromiq_default", {})
+    set_run_unlocked(run, True)
+    s = _settings(tmp_path)
+    dlg = _dialog(s, ti3)
+    try:
+        told: list = []
+        import ui.warning_sign as ws
+        monkeypatch.setattr(ws, "warn", lambda parent, t, x: told.append(x))
+        monkeypatch.setattr(type(dlg), "_confirm", lambda self, t, x: True)
+        monkeypatch.setattr(type(dlg), "_confirm_recalculate",
+                            lambda self, run: False)          # the user refuses
+
+        class _First(ThresholdsDialog):
+            def exec(self):
+                # somebody else changes what every unbound run is judged by
+                s.set("compliance_default_set", "chromiq_tight")
+                # …and this window has an edit of its own to refuse
+                self._run_limits["all_de00_avg"] = Limit.value(0.73)
+                self._run_dirty = True
+                from PyQt6.QtWidgets import QDialog as _Q
+                self.done(_Q.DialogCode.Accepted)
+                return 0
+
+        import ui.dialogs.thresholds_dialog as td
+        monkeypatch.setattr(td, "ThresholdsDialog", _First)
+        dlg._on_open_limits()
+
+        assert told, ("another window's default set was reverted and nobody "
+                      "was told")
+        assert "another window" in "\n".join(told), told
+    finally:
+        dlg.deleteLater()
+
+
+def test_the_window_does_not_report_its_own_preference_write_as_somebody_elses(
+        qapp, tmp_path, monkeypatch):
+    """R15-1's SHAPE, ON THE PREFERENCES STORE.
+
+    The collision check for the two app-wide stores compares them at close
+    against what they held at open, and this window writes them the moment a
+    shipped column's cell is touched. Without a refresh after its own write it
+    accuses another window of its own edit, exactly as the column tick box did.
+
+    Proved necessary by mutation: removing that refresh broke no test until
+    this one existed.
+
+    MUTATION: drop the baseline refresh after `store_compliance_overrides` and
+    this goes red.
+    """
+    from workflow.compliance_sets import Limit
+    from workflow.run_compliance import bind_run, set_run_unlocked
+
+    from ui.dialogs.thresholds_dialog import ThresholdsDialog
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    bind_run(run, "chromiq_default", {})
+    set_run_unlocked(run, True)
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        told: list = []
+        import ui.warning_sign as ws
+        monkeypatch.setattr(ws, "warn", lambda parent, t, x: told.append(x))
+        monkeypatch.setattr(type(dlg), "_confirm", lambda self, t, x: True)
+        monkeypatch.setattr(type(dlg), "_confirm_recalculate",
+                            lambda self, run: True)
+
+        class _OneUser(ThresholdsDialog):
+            def exec(self):
+                # the user changes an app-wide override, which writes at once
+                self._overrides.setdefault("chromiq_default", {})[
+                    "worst5_de00_avg"] = 0.31
+                self._write_overrides()
+                # …and moves "Default for new runs", the other app-wide store,
+                # which also writes the moment it is clicked. Both refreshes
+                # are needed and each was proved by its own mutation.
+                _other = next(c for c, rb in self._default_radios.items()
+                              if not rb.isChecked() and rb.isEnabled())
+                self._default_radios[_other].setChecked(True)
+                # …and a number of the run's own, which writes at close
+                self._run_limits["all_de00_avg"] = Limit.value(0.52)
+                self._run_dirty = True
+                from PyQt6.QtWidgets import QDialog as _Q
+                self.done(_Q.DialogCode.Accepted)
+                return 0
+
+        import ui.dialogs.thresholds_dialog as td
+        monkeypatch.setattr(td, "ThresholdsDialog", _OneUser)
+        dlg._on_open_limits()
+
+        assert "another window" not in "\n".join(told), (
+            "the window reported its own preference write as somebody "
+            "else's: " + "\n".join(told))
+    finally:
+        dlg.deleteLater()
