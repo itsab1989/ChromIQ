@@ -89,3 +89,39 @@ def test_the_new_run_block_survives_a_preview_render(tmp_path):
     )
     assert json.loads(block.read_text(encoding="utf-8")) == {"kept": True}
     assert not junk.exists(), "the sweep stopped deleting what it is for"
+
+
+def test_a_closed_project_is_not_written_by_the_next_tab_change(tmp_path):
+    """Closing a project must end every route back into it, not just one.
+
+    Letting go of the settings store pushed the next write into the branch that
+    handles a run with no store, and that branch resolves through the New-run
+    SEED folder, which is still a folder inside the project just closed.
+    Measured on a clean tree by a reviewer: after Close Project, changing tab
+    wrote `runs/run2/cache/new_run.json` into it. Nothing was lost, because the
+    content came out the same either way, but a closed project must not be
+    written at all.
+    """
+    from core.argyll_runner import ArgyllRunner
+    from core.file_manager import FileManager, Project
+    from core.settings import AppSettings
+    from PyQt6.QtCore import QSettings
+    from ui.measurement_target_bar import MeasurementTargetController
+    from ui.tabs.tab_chart import TabChart
+
+    s = AppSettings()
+    s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    s.set("custom_output_path", str(tmp_path))
+    fm = FileManager(s)
+    proj = Project.create(tmp_path / "P", "P")
+    proj.current_run().ensure_dir()
+    fm.set_target_name("P")
+    tab = TabChart(ArgyllRunner(s), fm, s, None)
+    tab.set_target_controller(MeasurementTargetController(fm))
+
+    tab.forget_target_store()
+
+    assert getattr(tab, "_settings_store", "unset") is None
+    assert getattr(tab, "_new_run_seed_dir", "unset") is None, (
+        "the seed folder still points into the project that was closed"
+    )

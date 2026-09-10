@@ -164,7 +164,13 @@ user gets strips that run straight down the page.
 - **On some charts the note was not printed at all, and nothing said so.** With
   the side ruler markers switched on, or with the clip border on the right, there
   was no clear space left for the note and it was silently dropped from every
-  page. It now knows to leave those marks alone and prints beside them.
+  page. It now knows to leave those marks alone and prints beside them, and it
+  keeps off your own clip text rather than sharing the room with it: on twenty
+  clip settings the note lands exactly where 4.2.0 put it, with none of your
+  lines under it and none of them rubbed out. On a very narrow clip band, 10 or
+  14 mm with the fuller kinds of note, there is still no room and the note is
+  still dropped without a word. That is unchanged from 4.2.0, and the missing
+  word is on the list.
 - **A preset saved the wrong patch-set design.** Saving a preset recorded the
   design from the run's last generated chart instead of the patch set you had
   loaded, so two presets made minutes apart could carry identical designs while

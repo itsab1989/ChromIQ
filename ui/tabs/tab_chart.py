@@ -14393,6 +14393,15 @@ class TabChart(QWidget):
         """
         self._settings_store = None
         self._settings_key = None
+        # …AND THE NEW-RUN SEED FOLDER, which is the other way back into the
+        # project. Clearing the store alone pushes the next write into the
+        # store-is-None branch, and that branch resolves through
+        # `_new_run_seed_dir` -- still a folder inside the project just closed.
+        # Measured: after Close Project, changing tab wrote
+        # `runs/run2/cache/new_run.json` into it. Nothing was lost, because the
+        # content was the same either way, but a closed project must not be
+        # written at all.
+        self._new_run_seed_dir = None
         self._chart_imposed = {}
         try:
             self._release_imposed_connections()
@@ -17491,6 +17500,38 @@ class TabChart(QWidget):
         fingerprint, re-baseline it here and drop anything already queued. A real
         edit made AFTER the switch still arms the timer normally.
         """
+        # ONCE PER TARGET CHANGE, NOT TWICE.
+        #
+        # This handler is reached from the controller AND from the main window,
+        # so it ran twice for one selection. On the first pass the tab has no
+        # store yet, so its "write the outgoing target first" writes nothing; on
+        # the second pass that same line resolves to the run just SELECTED and
+        # files the tab's launch defaults into it, before that run's own chart
+        # has been shown. Measured on a project whose runs have no settings yet,
+        # with nothing typed, clicked or built: the panel shows the engine tick
+        # ON, the run's own record says off. The shield then arms on those
+        # values, because the guard that asks "does this run have settings of
+        # its own" sees the file the app itself has just written, and spends the
+        # rest of the session defending a choice nobody made.
+        #
+        # AND IT DOES NOT FIX WHAT IT WAS WRITTEN FOR. A later reviewer
+        # measured the mechanism properly: `controller.changed` carries TWO
+        # SLOTS, the main window's loader and this handler, and the loader runs
+        # first and re-points `_settings_store` at the INCOMING run before this
+        # one writes. They are sequential, not nested, so no flag here can see
+        # the other. The first-visit write therefore still happens, byte for
+        # byte, with this flag and without it.
+        #
+        # It is kept because it does stop the handler being entered twice, and
+        # removing it is not free. The first-visit write is a RECORD fault, not
+        # a printing one -- no sheet changes, and nothing a user typed is lost,
+        # which the same reviewer measured across every route out. Two attempts
+        # to fix it inside this handler each broke the acceptance driver, so it
+        # is written up as an open item rather than rushed into a release.
+        # See `docs/design/issue_182_answers.md`.
+        if getattr(self, "_inside_target_change", False):
+            return
+        self._inside_target_change = True
         self._cancel_pending_auto_preview()
         try:
             """React to a Profile-run / Run-type change: show THAT target's chart —
@@ -17636,6 +17677,7 @@ class TabChart(QWidget):
             # would be compared against the NEXT target's screen.
             self._note_what_the_chart_imposed()
             self._settle_live_preview()
+            self._inside_target_change = False
 
     @staticmethod
     def _chart_stamp(ti2) -> "tuple | None":

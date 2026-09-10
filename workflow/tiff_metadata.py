@@ -37,6 +37,11 @@ log = get_logger(__name__)
 _PATCH_COL_DENSITY_THRESHOLD = 0.30
 _PATCH_SAFETY_PAD_PX = 4
 _MIN_STRIP_WIDTH_PX = 24
+#: How much of a column may be inked and still count as somewhere the note can
+#: go. A ruler dash covers a few percent of the height; a patch column or a clip
+#: band covers most of it. Measured on real sheets: side-marker columns come out
+#: at 0.02 to 0.08, a clip band at 0.9 and up, patches at 1.0.
+_BAND_INK_TOLERANCE = 0.25
 _LINE_GAP_PX = 6
 # Gap between the three left-clip text sub-columns.
 _LEFT_CLIP_GAP_PX = 8
@@ -71,7 +76,7 @@ def stamp_chart_metadata(
     tiff_paths: Iterable[Path],
     lines: Sequence[str],
     text_edge_mm: float = 0.0,
-    reserve_right_mm: float = 0.0,
+    clip_band_mm: float = 0.0,
 ) -> None:
     """Stamp `lines` joined into a single rotated text line on each TIFF's right margin.
 
@@ -85,7 +90,7 @@ def stamp_chart_metadata(
     text = _JOIN.join(pieces)
     for path in tiff_paths:
         try:
-            _stamp_one(Path(path), text, text_edge_mm, reserve_right_mm)
+            _stamp_one(Path(path), text, text_edge_mm, clip_band_mm)
         except Exception as exc:
             log.warning("Right-edge stamp failed for %s: %s", path, exc)
 
@@ -256,7 +261,7 @@ def stamp_left_clip_info(
 
 
 def _stamp_one(path: Path, text: str, text_edge_mm: float = 0.0,
-               reserve_right_mm: float = 0.0) -> None:
+               clip_band_mm: float = 0.0) -> None:
     with tifffile.TiffFile(str(path)) as tf:
         page = tf.pages[0]
         # Device-native (separated) CMYK / CMYK+N charts: skip the post-render
@@ -282,7 +287,7 @@ def _stamp_one(path: Path, text: str, text_edge_mm: float = 0.0,
     H, W, C = arr.shape
     _dpi = _dpi_from_state(state)
     band = _detect_writable_band(
-        arr, reserve_px=int(round((reserve_right_mm or 0.0) * _dpi / 25.4)))
+        arr, keep_out_px=int(round((clip_band_mm or 0.0) * _dpi / 25.4)))
     if band is None:
         log.info("Right-edge stamp skipped (no usable right margin) for %s", path)
         return
@@ -633,7 +638,7 @@ def _rational_to_float_pair(
 def _detect_writable_band(
     arr: np.ndarray,
     side: str = "right",
-    reserve_px: int = 0,
+    keep_out_px: int = 0,
 ) -> tuple[int, int] | None:
     """Return (left_x, right_x) of the widest white column run in the requested margin.
 
@@ -641,15 +646,46 @@ def _detect_writable_band(
     page's right edge). `side="left"` scans the column band to the left of the
     patch area (the page's left clip strip).
 
-    *reserve_px* keeps that many pixels of the outer edge OUT of the search.
-    Without it, anything already printed in that margin defeats the search
-    entirely: a column carrying a ruler dash is inked, no run of
-    `_MIN_STRIP_WIDTH_PX` clear columns survives, this returns None, and the
-    caller gives up. Measured on one chart with only the side markers switched
-    on, and again with the clip band moved to the right: the run's chart notes
-    were not printed on any page, with one line in the log and nothing on
-    screen. Reserving the strip those marks own leaves a real white run beside
-    them.
+    A column counts as usable when it is inked over no more than
+    `_BAND_INK_TOLERANCE` of the rows sampled, NOT only when it is blank paper.
+
+    Demanding blank paper is what made the note vanish. A ruler dash is a short
+    mark: it inks a handful of rows in a column and leaves the rest white, and
+    that was enough for no run of `_MIN_STRIP_WIDTH_PX` clear columns to survive,
+    so this returned None and the caller gave up. Measured on one chart with
+    only the side markers switched on, and again with the clip band moved to the
+    right: the notes were not printed on ANY page, with one line in the log and
+    nothing on screen.
+
+    An earlier attempt reserved the strip those marks own and moved the search
+    inward. It did not work, and a reviewer proved why over a 6 to 26 mm sweep
+    of the right margin: it never once rescued a note, because the run-finder
+    already picks the widest clear run, and where the margin was narrow it
+    removed the only space there was. Tolerating the mark is the mechanism that
+    matches what is actually on the paper -- and the stamp composites now, so
+    sharing the margin with a dash costs the dash nothing.
+
+    *keep_out_px* IS WHERE THE TOLERANCE IS WITHDRAWN, NOT WHERE THE SEARCH
+    STOPS, and the difference is the whole of two failed attempts.
+
+    Tolerating a thin mark means the white gutters BETWEEN the user's own clip
+    lines also read as usable paper. The band is wider than the clean strip
+    outside it, so "the widest run wins" preferred it and the note was stamped
+    straight through their text: measured on two builds differing only in the
+    Notes field, the note moved onto 2424 pixels of the user's own lines, and
+    nine of thirteen clip configurations came out worse.
+
+    The first repair EXCLUDED the band's footprint from the search, and that was
+    worse still, because the note's home has always been the last few
+    millimetres at the paper edge -- the same edge the band is measured from. So
+    excluding the band excluded the note, and twenty of twenty configurations
+    printed nothing at all.
+
+    What both measurements agree on: inside the band's footprint the rule that
+    worked demanded BLANK paper, and outside it a thin mark must be tolerated or
+    a ruler dash defeats the search. So the tolerance is applied by COLUMN: zero
+    where the band reaches, `_BAND_INK_TOLERANCE` beyond it. A dash is a mark
+    the note may share; a band the user has filled with words is not.
     """
     if arr.size == 0:
         return None
@@ -667,20 +703,30 @@ def _detect_writable_band(
     if side == "left":
         patch_left = (int(patch_cols[0]) - _PATCH_SAFETY_PAD_PX
                       if len(patch_cols) else W // 2)
-        _lo = max(0, int(reserve_px))
-        if patch_left <= _lo + _MIN_STRIP_WIDTH_PX:
+        if patch_left <= _MIN_STRIP_WIDTH_PX:
             return None
-        scan_lo, scan_hi = _lo, patch_left
+        scan_lo, scan_hi = 0, patch_left
     else:
         patch_right = (int(patch_cols[-1]) + _PATCH_SAFETY_PAD_PX
                        if len(patch_cols) else W // 2)
-        _hi = W - max(0, int(reserve_px))
-        if patch_right >= _hi - _MIN_STRIP_WIDTH_PX:
+        if patch_right >= W - _MIN_STRIP_WIDTH_PX:
             return None
-        scan_lo, scan_hi = patch_right, _hi
+        scan_lo, scan_hi = patch_right, W
 
     mid_top, mid_bottom = H // 6, 5 * H // 6
-    margin_inked = mask[mid_top:mid_bottom, scan_lo:scan_hi].any(axis=0)
+    _sampled = mask[mid_top:mid_bottom, scan_lo:scan_hi]
+    _rows = max(1, _sampled.shape[0])
+    _frac = _sampled.sum(axis=0) / _rows
+    # The tolerance is withdrawn where the clip band reaches, so the note can
+    # share a margin with a ruler dash but never with the user's own lines.
+    _tol = np.full(_frac.shape, float(_BAND_INK_TOLERANCE))
+    _keep = max(0, int(keep_out_px))
+    if _keep and side == "right":
+        _from = max(0, (W - _keep) - scan_lo)
+        _tol[_from:] = 0.0
+    elif _keep:
+        _tol[:min(_tol.size, max(0, _keep - scan_lo))] = 0.0
+    margin_inked = _frac > _tol
 
     runs: list[tuple[int, int]] = []
     in_run = False
@@ -759,13 +805,34 @@ def _render_fitted_rotated_line(
 
     probe = Image.new("L", (10, 10), 255)
     draw = ImageDraw.Draw(probe)
+    shown = text
     while True:
         font = _pick_font(font_px)
-        bbox = _text_bbox(draw, text, font)
+        bbox = _text_bbox(draw, shown, font)
         text_w = bbox[2] - bbox[0]
-        if text_w <= available_text_w or font_px <= floor_px:
-            return _render_rotated_line(text, strip_h, strip_w, font, dtype, channels)
-        font_px = max(floor_px, int(font_px * 0.9))
+        if text_w <= available_text_w:
+            return _render_rotated_line(shown, strip_h, strip_w, font, dtype,
+                                        channels)
+        if font_px > floor_px:
+            font_px = max(floor_px, int(font_px * 0.9))
+            continue
+        # AT THE FLOOR, SHORTEN THE TEXT RATHER THAN LOSE ITS END IN SILENCE.
+        #
+        # The loop used to give up here and render anyway, and the renderer
+        # CENTRES what it is given, so a note past about 260 characters lost its
+        # tail off the paper with nothing to show for it. Measured on a 100x150
+        # card: 12.45 mm gone at 300 characters and 63.75 mm at 400, ending
+        # mid-word. A note is the user's own words and the end is usually the
+        # part that matters, so what cannot be printed is marked as cut instead
+        # of vanishing. Nine pixels is already the legibility floor and going
+        # below it would trade one silent loss for another.
+        if len(shown) <= 8:
+            return _render_rotated_line(shown, strip_h, strip_w, font, dtype,
+                                        channels)
+        cut = max(8, int(len(shown) * available_text_w / max(1, text_w)) - 1)
+        shown = shown[:cut].rstrip() + "…"
+        log.info("Chart note shortened to fit the margin: %d of %d characters",
+                 len(shown) - 1, len(text))
 
 
 def _pick_font(size_px: int) -> ImageFont.ImageFont:

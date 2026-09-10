@@ -1725,32 +1725,28 @@ class ChartCreator:
                 # sat 0.5 mm from the paper edge whatever the box said. Only the
                 # engine has a recipe; printtarg charts keep the old floor.
                 _edge = 0.0
-                # AND THE STRIP THE RIGHT MARGIN ALREADY OWNS. The note looks
-                # for the widest run of white columns right of the patches, so
-                # anything already printed out there defeats the search and the
-                # note is silently not printed at all. Measured with only the
-                # side ruler dashes switched on, and again with the clip band
-                # on the right: no stamp on any page, one INFO line, nothing on
-                # screen. Tell it what to skip instead.
-                _reserve = 0.0
                 _rec = getattr(params, "layout_recipe", None)
                 if _rec is not None:
                     try:
-                        _edge = float(getattr(_rec, "text_edge_mm", 0.0) or 0.0)
+                        # THE CLIP/NOTES SETTING, NOT THE BOTTOM SHEET TEXT'S.
+                        # `text_edge_mm` is the distance for the sheet text
+                        # along the BOTTOM; the run's notes live in the side
+                        # margin, which is what `text_edge_clip_mm` is for.
+                        _edge = float(getattr(_rec, "text_edge_clip_mm", 0.0)
+                                      or 0.0)
                     except (TypeError, ValueError):
                         _edge = 0.0
+                # THE USER'S OWN CLIP BAND IS NOT A PLACE FOR THE NOTE. Only
+                # when it is on the RIGHT, which is the side the note uses.
+                _band = 0.0
+                if (_rec is not None
+                        and str(getattr(_rec, "clip_side", "left")) == "right"
+                        and bool(getattr(_rec, "clip_border", False))):
                     try:
-                        if (getattr(_rec, "helper_markers", False)
-                                and getattr(_rec, "helper_markers_sides", True)):
-                            _reserve = max(_reserve,
-                                           float(getattr(_rec, "helper_marker_edge_mm", 2.0) or 0.0)
-                                           + float(getattr(_rec, "helper_marker_len_mm", 2.0) or 0.0))
-                        if str(getattr(_rec, "clip_side", "left")) == "right":
-                            _reserve = max(_reserve, float(
-                                getattr(_rec, "clip_border_width_mm", 0.0) or 0.0))
+                        _band = float(getattr(_rec, "clip_border_width_mm", 0.0) or 0.0)
                     except (TypeError, ValueError):
-                        _reserve = 0.0
-                stamp_chart_metadata(tiffs, cmd_lines, _edge, _reserve)
+                        _band = 0.0
+                stamp_chart_metadata(tiffs, cmd_lines, _edge, _band)
         else:
             # ChromIQ-style: shift the patch block right by ~28 mm so the left
             # side becomes a fresh white strip ready for the left-clip stamp.
