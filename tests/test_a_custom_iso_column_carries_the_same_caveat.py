@@ -66,3 +66,41 @@ def test_chromiqs_own_sets_can_still_pass(set_id):
     rows = [(Limit.value(2.0), PASS), (Limit.value(3.0), PASS)]
     sm = set_summary(rows, set_is_iso=applies_a_standard(set_id), graded=True)
     assert sm.word == PASS, (set_id, sm)
+
+
+# ---- the way in that was still open -------------------------------------
+_FORGOTTEN = [
+    # (set id a later ChromIQ no longer defines, the label the run stored)
+    ("custom_iso_12647_7_v1", "Custom ISO 12647-7"),
+    ("iso_12647_8_2021", "ISO 12647-8:2021 values"),
+    ("some_old_id", "ISO 12647-7:2016 values"),
+    ("fogra51_aim", "Fogra 51 aim values"),
+]
+
+
+@pytest.mark.parametrize("set_id, label", _FORGOTTEN)
+def test_a_set_this_version_has_forgotten_still_carries_the_caveat(set_id, label):
+    """A run keeps the id and the label of the set it was bound to. When a later
+    ChromIQ no longer defines that id, the report shows the stored label marked
+    "(historical)" — and this used to answer False, so the column read
+    "Custom ISO 12647-7 (historical)" beside a green PASS with no caveat.
+
+    No string claimed anything. The claim was the arrangement, which is exactly
+    how the previous one of these was found.
+    """
+    assert applies_a_standard(set_id, label), (set_id, label)
+    rows = [(Limit.value(2.0), PASS), (Limit.value(3.0), PASS)]
+    sm = set_summary(rows, set_is_iso=applies_a_standard(set_id, label), graded=True)
+    assert sm.word == COND, (set_id, label, sm)
+
+
+def test_a_forgotten_chromiq_set_can_still_pass():
+    """The other half. Capping every unknown id would punish ChromIQ's own
+    retired sets, which never applied anybody's published figures."""
+    assert not applies_a_standard("chromiq_default_v1", "ChromIQ default (old)")
+    rows = [(Limit.value(2.0), PASS)]
+    sm = set_summary(rows,
+                     set_is_iso=applies_a_standard("chromiq_default_v1",
+                                                   "ChromIQ default (old)"),
+                     graded=True)
+    assert sm.word == PASS, sm

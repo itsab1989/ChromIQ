@@ -1060,7 +1060,7 @@ def stamp_verdict(report: dict, limits_or_avg, max_thr: "float | None" = None,
     _de, source = graded_de00(report)
     graded = is_graded_sheet(report)
     rows = judge(report, limits)
-    summary = summarise(report, limits, rows, set_id)
+    summary = summarise(report, limits, rows, set_id, set_label)
     judged = [r for r in rows if r["word"] in (PASS, FAIL)]
     avg_thr, mx_thr = legacy_pair(limits)
     report["pass_thresholds"] = {"avg": float(avg_thr), "max": float(mx_thr)}
@@ -1524,8 +1524,15 @@ def judge(report: dict, limits: "dict") -> "list[dict]":
     return rows
 
 
-def summarise(report: dict, limits: "dict", rows: "list[dict]", set_id: str):
-    """The column summary for *rows* (see :func:`compliance_sets.set_summary`)."""
+def summarise(report: dict, limits: "dict", rows: "list[dict]", set_id: str,
+              set_label: str = ""):
+    """The column summary for *rows* (see :func:`compliance_sets.set_summary`).
+
+    *set_label* is what the run stored. It matters only when this ChromIQ no
+    longer defines *set_id*: the label is then the only evidence left of what
+    the sheet was judged against, and a column named after a standard may not
+    print an unqualified PASS.
+    """
     from workflow.compliance_sets import (SET_BY_ID, Limit, set_summary,
                                           applies_a_standard)
     s = SET_BY_ID.get(set_id)
@@ -1533,7 +1540,11 @@ def summarise(report: dict, limits: "dict", rows: "list[dict]", set_id: str):
     for row in rows:
         lim = limits.get(row["row_id"])
         pairs.append((lim if isinstance(lim, Limit) else Limit.none(), row["word"]))
-    return set_summary(pairs, set_is_iso=applies_a_standard(getattr(s, "id", None)),
+    # THE RAW ID, NOT THE RESOLVED SET'S. `getattr(s, "id", None)` is None for
+    # a set this ChromIQ no longer defines, which threw away the only evidence
+    # left about what the run was judged against.
+    return set_summary(pairs,
+                       set_is_iso=applies_a_standard(set_id, set_label),
                        graded=is_graded_sheet(report))
 
 

@@ -369,7 +369,16 @@ SETS: "tuple[SetDef, ...]" = (
 SET_BY_ID: "dict[str, SetDef]" = {s.id: s for s in SETS}
 
 
-def applies_a_standard(set_id: "str | None") -> bool:
+#: Names that mean "these numbers are somebody's published figures". Matched
+#: against a set id and against the label a run stored, and only ever consulted
+#: for a set this ChromIQ no longer defines.
+_STANDARD_BODY_MARKERS: "tuple[str, ...]" = (
+    "iso", "12647", "fogra", "gracol", "swop", "idealliance", "cgats",
+)
+
+
+def applies_a_standard(set_id: "str | None",
+                       stored_label: "str | None" = "") -> bool:
     """Whether this set judges with a STANDARD's published figures.
 
     True for the two read-only ISO columns and ALSO for the Custom columns that
@@ -390,12 +399,24 @@ def applies_a_standard(set_id: "str | None") -> bool:
     derived from one carries exactly the same caveat.
     """
     s = SET_BY_ID.get(set_id or "")
-    if s is None:
-        return False
-    if s.kind == "iso":
-        return True
-    return bool(s.parent) and SET_BY_ID.get(s.parent or "", None) is not None \
-        and SET_BY_ID[s.parent].kind == "iso"
+    if s is not None:
+        if s.kind == "iso":
+            return True
+        return bool(s.parent) and SET_BY_ID.get(s.parent or "", None) is not None \
+            and SET_BY_ID[s.parent].kind == "iso"
+    # AN ID WE NO LONGER KNOW IS THE OTHER WAY IN, AND IT WAS OPEN. A run keeps
+    # the id and the label of the set it was bound to; when a later ChromIQ no
+    # longer defines that id, `set_label` shows the stored label marked
+    # "(historical)" and this function used to answer False, so the column read
+    # "Custom ISO 12647-7 (historical)" beside a green PASS with no caveat. No
+    # string claimed anything; the claim was the arrangement.
+    #
+    # Judged by NAME, on the id and on whatever label the run stored, because
+    # that is all a forgotten set leaves behind. The list is the bodies whose
+    # published figures ChromIQ can name at all, so it covers a set that has
+    # not been written yet as well as the two that have.
+    _hay = f"{set_id or ''} {stored_label or ''}".lower()
+    return any(k in _hay for k in _STANDARD_BODY_MARKERS)
 SET_IDS: "tuple[str, ...]" = tuple(s.id for s in SETS)
 EDITABLE_SET_IDS: "tuple[str, ...]" = tuple(s.id for s in SETS if s.editable)
 DEFAULT_SET_ID = "chromiq_default"

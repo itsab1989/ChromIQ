@@ -25,6 +25,7 @@ executing one would want a build environment. Parsing gives what is needed
 without running anything.
 """
 import ast
+from pathlib import Path
 import pathlib
 
 import pytest
@@ -40,6 +41,20 @@ REQUIRED = (
     "data/parameters.yaml",
     "data/i18n",
     "data/scanner_targets",
+    # ...and any other data folder the tree actually has. Listing them by hand
+    # is how `data/compliance_sets` came to be bundled on macOS alone: the
+    # folder existed, no line here mentioned it, and the only guard was a raw
+    # substring search in another file which a challenge round proved blind to
+    # commenting the entry out. A folder that ships must be named by all three
+    # specs, and the list should not depend on somebody remembering to extend
+    # it.
+    *sorted(
+        f"data/{d.name}"
+        for d in (Path(__file__).resolve().parent.parent / "data").iterdir()
+        if d.is_dir() and not d.name.startswith(("__", "."))
+        and d.name not in {"i18n", "scanner_targets"}
+        and any(d.iterdir())
+    ),
 )
 
 

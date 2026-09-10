@@ -1984,7 +1984,17 @@ class MeasurementReportDialog(QDialog):
         s = SET_BY_ID.get(set_id)
         graded = (bool(rec.get("graded")) if rec is not None
                   else is_graded_sheet(r))
-        return set_summary(pairs, set_is_iso=applies_a_standard(getattr(s, "id", None)),
+        # THE RAW ID AND THE STORED LABEL, not the resolved set: both are None
+        # for a set this ChromIQ no longer defines, and a column reading
+        # "Custom ISO 12647-7 (historical)" beside a green PASS is a claim made
+        # by arrangement rather than by any sentence.
+        _stored = ""
+        try:
+            _stored = str((recorded_compliance(r) or {}).get("set_label", "") or "")
+        except Exception:                       # noqa: BLE001 — a display detail
+            _stored = ""
+        return set_summary(pairs,
+                           set_is_iso=applies_a_standard(set_id, _stored),
                            graded=graded)
 
     def _judged_label_for(self, r: dict) -> str:

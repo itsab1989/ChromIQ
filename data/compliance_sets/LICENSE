@@ -38,9 +38,17 @@ words the rights holders used. In short:
 
   ISO            NO PERMISSION. Reproducing the content of a standard inside
                  software needs explicit permission or a licence; a single-user
-                 reading licence is not enough. Nothing from ISO 12647-7:2016
-                 or ISO 12647-8:2021 is in this folder, in ChromIQ, or in its
-                 repository.
+                 reading licence is not enough. No tolerance value of
+                 ISO 12647-7:2016 or ISO 12647-8:2021 is in this folder, in any
+                 file ChromIQ ships, or on any branch it is released from.
+
+                 Said precisely, because a broader claim would not be true: the
+                 standards' NAMES and clause citations are used, deliberately
+                 and with the owner's decision behind them, and a superseded
+                 commit on a documentation branch that once carried more than
+                 that is still reachable by its hash until the hosting service
+                 purges it. That is recorded in
+                 docs/design/issue_182_answers.md rather than papered over.
 
 Anyone adding a file to this folder has to add its source and its terms to
 README.md in the same change. A data file without a credit beside it is a
