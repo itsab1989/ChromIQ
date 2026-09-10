@@ -850,6 +850,12 @@ class MeasurementReportDialog(QDialog):
         from ui.widgets import NoScrollComboBox
         self._run_ctx = None          # workflow.run_compliance.RunContext | None
         self._limits = None           # RunLimits the window judges with
+        #: Runs this window bound during this session. A run that is bound
+        #: becomes locked the moment it has a history, and taking the control
+        #: away in the same act that used it is what three rounds kept trying
+        #: to fix by writing a flag to disk. This remembers it here instead, so
+        #: nothing untrue is recorded about a lock nobody lifted.
+        self._bound_here: "set[str]" = set()
         self._syncing_limits = False
         judged_row = QHBoxLayout()
         self._judged_label = QLabel(tr("Judged against:"), self)
@@ -1835,6 +1841,13 @@ class MeasurementReportDialog(QDialog):
             self._set_combo.setCurrentIndex(max(0, idx))
             several = len(self._distinct_run_dirs()) > 1
             locked = is_locked(run)
+            # …except on a run THIS WINDOW bound a moment ago. Binding is what
+            # locks a run with a history, so without this the act of choosing a
+            # limit set greys the pulldown that chose it. Session-scoped on
+            # purpose: the run really is locked, and the next time the window
+            # is opened it says so.
+            if locked and str(getattr(run, "dir", "")) in self._bound_here:
+                locked = False
             self._unlock_check.blockSignals(True)
             self._unlock_check.setChecked(bool(lim.unlocked))
             self._unlock_check.blockSignals(False)
@@ -2520,50 +2533,14 @@ class MeasurementReportDialog(QDialog):
         from core.settings import store_compliance_overrides
         ok = True
         if ctx is not None and snap.get("run") is not None:
-            try:
-                m = ctx.run.load_meta()
-                # ONLY WHAT THIS WINDOW CAN WRITE, WHICH IS TWO OF THE SIX.
-                # `ThresholdsDialog` has no control that touches the set id, the
-                # label, the moment or the unlocked flag; it writes the run's
-                # column and the shown columns and nothing else. Putting the
-                # whole tuple back therefore wiped a BINDING another writer had
-                # made while the window sat open, which a challenge round drove
-                # through a verification measurement's own `ensure_bound`. The
-                # trigger was narrowed for that case two rounds ago and the
-                # restore was not narrowed with it.
-                _current = (m.compliance_thresholds,
-                            list(getattr(m, "compliance_columns", []) or []))
-                if _current == (snap["run"][2], snap["run"][5]):
-                    # NOTHING OF THEIRS WAS WRITTEN, SO NOTHING IS PUT BACK.
-                    # This called `save_meta` unconditionally, which reported a
-                    # failure on a read-only folder where the refusal had in
-                    # fact been honoured completely, and on a project made
-                    # before #182 it wrote six empty compliance keys into a
-                    # meta.json that had none.
-                    raise _NothingToRestore
-                m.compliance_columns = snap["run"][5]
-                # AND "PUT THE NUMBERS BACK" IS NOT ALWAYS "WRITE WHAT WAS
-                # THERE". If the run was unbound when the window opened and is
-                # bound now, another writer bound it in between, and the
-                # snapshot's absent thresholds are exactly what `is_bound`
-                # reads: writing them back would silently un-bind a run
-                # somebody else had just bound. Re-derive from the set it now
-                # carries, which is what that writer wrote.
-                _sid_now = str(m.compliance_set_id or "")
-                _was_bound = bool(snap["run"][0] and snap["run"][2])
-                if _sid_now and not _was_bound:
-                    ctx.run.save_meta(m)
-                    from workflow.run_compliance import bind_run as _rebind
-                    _rebind(ctx.run, _sid_now, self._overrides())
-                    raise _NothingToRestore
-                m.compliance_thresholds = snap["run"][2]
-                ctx.run.save_meta(m)
-            except _NothingToRestore:
-                pass
-            except OSError as exc:
-                log.warning("could not put %s's limits back: %s", ctx.run.dir, exc)
-                self._pending_restore_error = exc
-                ok = False
+            # ONE UNDO, USED BY BOTH PATHS. This block and the locked-meanwhile
+            # branch had grown separate copies of the same reasoning and they
+            # disagreed: a refusal on a run another writer had rebound left the
+            # user's REFUSED numbers on disk, because it bailed out rather than
+            # recovering. `_undo_the_edit` answers the same three questions in
+            # one place, and the caller only has to know whether the previous
+            # numbers were really recovered.
+            self._undo_the_edit(ctx, snap)
         # THE PREFERENCES GO BACK EVEN WHEN THE RUN'S FOLDER WOULD NOT WRITE.
         # They live in a different file, and leaving them moved is how a
         # refusal ended with the run judged by a set the user said no to.
@@ -2580,15 +2557,103 @@ class MeasurementReportDialog(QDialog):
             log.warning("could not put the overrides back", exc_info=True)
         return ok
 
-    def _say_locked_meanwhile(self, run) -> None:
+    def _say_rebound_meanwhile(self, run) -> None:
+        """The refusal could not reach the run, because somebody else changed
+        which set it is bound to while the window was open."""
+        from ui.warning_sign import warn
+        warn(self, tr("This run's limit set changed while you were editing it"),
+             tr("Something else changed which limit set {run} is bound to "
+                "while its limits were open: a verification measurement of it "
+                "finished, or it was changed in another window. Its dated "
+                "reports are unchanged.\n\nChromIQ could not put this run's "
+                "own numbers back, because the numbers it had belong to a set "
+                "it is no longer bound to. Open its limits and check them "
+                "before you measure it again."
+                ).format(run=run.dir.name))
+
+    def _undo_the_edit(self, ctx, snap) -> bool:
+        """Take the run's own column back to what it held, and touch nothing
+        else. Returns whether the previous numbers were really recovered.
+
+        `bind_run` WAS USED FOR THIS AND IT IS NOT AN UNDO. It is a fresh bind:
+        its first line replaces a set id this build does not know with the
+        factory default, and its body overwrites the run's thresholds with the
+        SET's effective limits. A challenge round drove both. On a run carrying
+        an edited column, the "undo" deleted the edit that both of its saved
+        reports had been judged against, under a message saying the limits were
+        unchanged. On a run bound to a set from another build, it erased the id,
+        the English label D23 exists for, and every number.
+
+        So this writes exactly the two keys the limits dialog can write, and
+        the ONE case it cannot honour, where the run was unbound when the window
+        opened so there are no previous numbers to put back, is reported rather
+        than papered over with somebody else's.
+        """
+        from workflow.compliance_sets import (effective_limits, is_known_set,
+                                               limits_to_json)
+        if snap.get("run") is None:
+            return False
+        _snap_sid = str(snap["run"][0] or "")
+        _was_bound = bool(_snap_sid and snap["run"][2])
+        try:
+            m = ctx.run.load_meta()
+            _sid_now = str(m.compliance_set_id or "")
+            # WHETHER SOMEBODY ELSE MOVED THE BINDING IS KNOWN HERE AND NOWHERE
+            # ELSE, so it is recorded here. Inferring it in the caller by
+            # comparing before and after cannot tell an undo that worked from a
+            # binding that moved, and fired on the commonest refusal there is.
+            if _sid_now != _snap_sid:
+                self._pending_rebound = True
+            if _sid_now == _snap_sid:
+                # A REAL UNDO: the run's own column, exactly as it was, which
+                # for a run that had none means putting the absence back. The
+                # binding has not moved, so nothing else has a claim on it.
+                if (m.compliance_thresholds == snap["run"][2]
+                        and list(getattr(m, "compliance_columns", []) or [])
+                        == list(snap["run"][5] or [])):
+                    return _was_bound      # nothing to write
+                m.compliance_columns = snap["run"][5]
+                m.compliance_thresholds = snap["run"][2]
+                ctx.run.save_meta(m)
+                return _was_bound
+            m.compliance_columns = snap["run"][5]
+            if _sid_now and is_known_set(_sid_now):
+                # Not an undo and not pretending to be one. The run was unbound
+                # when the window opened, or is bound to something else now, so
+                # there is no previous column to put back; leaving the refused
+                # edit would be worse. These are the numbers whoever bound it
+                # meant, derived with the overrides AS THEY WERE WHEN THIS
+                # WINDOW OPENED, because the live table still holds the change
+                # the user has just refused and the preferences do not go back
+                # until later in this same function.
+                m.compliance_thresholds = limits_to_json(
+                    effective_limits(_sid_now, snap["overrides"]))
+                ctx.run.save_meta(m)
+                return False
+            # A set this build does not know. `effective_limits` cannot answer
+            # for it and `bind_run` would silently replace it with the factory
+            # default, erasing the id, the English label D23 exists for, and
+            # every number. Leave the record alone and say so.
+            ctx.run.save_meta(m)
+            return False
+        except OSError as exc:
+            log.warning("could not undo the edit on %s: %s", ctx.run.dir, exc)
+            return False
+
+    def _say_locked_meanwhile(self, run, kept: bool) -> None:
         """The run was locked between opening the window and closing it."""
         from ui.warning_sign import warn
+        _what = (tr("Its limits and its dated reports are unchanged.")
+                 if kept else
+                 tr("Its dated reports are unchanged. This run had no limits "
+                    "of its own when you opened the window, so the numbers it "
+                    "now holds are the ones whatever locked it wrote."))
         warn(self, tr("This run was locked while you were editing it"),
              tr("Something else locked {run} while its limits were open: a "
                 "verification measurement of it finished, or it was locked in "
-                "another window. Its limits and its dated reports are "
-                "unchanged.\n\nOpen the limits again to see where it stands."
-                ).format(run=run.dir.name))
+                "another window.").format(run=run.dir.name)
+             + " " + _what + "\n\n"
+             + tr("Open the limits again to see where it stands."))
 
     def _say_restore_failed(self, run, exc) -> None:
         """The refusal could not be honoured, which is the opposite of what
@@ -2705,37 +2770,19 @@ class MeasurementReportDialog(QDialog):
         if moved and _run_numbers_moved and is_locked(ctx.run):
             log.info("the run was locked while its limits window was open; "
                      "the edit is not applied to %s", ctx.run.dir)
-            # PUT BACK WHAT THE LOCKING WRITER MEANT, NOT WHAT WAS THERE
-            # BEFORE THE WINDOW OPENED. The snapshot predates that writer, so
-            # writing it back would erase the binding it had just made: an
-            # unbound run's snapshot carries no thresholds at all, and
-            # `is_bound` needs them, so the undo would silently un-bind a run
-            # somebody else had just bound. Re-deriving from the set it is now
-            # bound to is what that writer wrote.
-            try:
-                _m = ctx.run.load_meta()
-                _sid = str(_m.compliance_set_id or "")
-                _m.compliance_columns = (snap["run"][5] if snap["run"] else [])
-                ctx.run.save_meta(_m)
-                if _sid:
-                    from workflow.run_compliance import bind_run as _rebind
-                    _rebind(ctx.run, _sid, self._overrides())
-                elif snap["run"] is not None:
-                    _m = ctx.run.load_meta()
-                    _m.compliance_thresholds = snap["run"][2]
-                    ctx.run.save_meta(_m)
-            except OSError as exc:
-                log.warning("could not undo the edit on the locked run "
-                            "%s: %s", ctx.run.dir, exc)
-            self._say_locked_meanwhile(ctx.run)
+            _kept = self._undo_the_edit(ctx, snap)
+            self._say_locked_meanwhile(ctx.run, _kept)
             self._forget_limits()
             self._refresh()
             return
         if moved:
             if (self._recalculating_would_rewrite_history(ctx.run)
                     and not self._confirm_recalculate(ctx.run)):
+                self._pending_rebound = False
                 if not self._restore_limits_snapshot(ctx, snap):
                     self._say_restore_failed(ctx.run, self._pending_restore_error)
+                elif self._pending_rebound:
+                    self._say_rebound_meanwhile(ctx.run)
                 self._forget_limits()
                 self._refresh()
                 return
@@ -2806,19 +2853,27 @@ class MeasurementReportDialog(QDialog):
                 m.compliance_thresholds = limits_to_json(
                     self._window_limits().limits)
             m.compliance_bound_at = datetime.now().isoformat(timespec="seconds")
-            # UNLOCKED ONLY WHERE THE LOCK WOULD OTHERWISE BITE NOW.
-            # Setting it unconditionally put a TICKED box on a run nothing had
-            # locked, asserting the user had lifted a lock they never lifted,
-            # and un-ticking it was then a silent one-click route into a state
-            # they could not leave. The lock needs two dated verifications, so
-            # below that there is nothing to lift and the flag is a lie; at two
-            # or more, binding without it takes away the very control the user
-            # just used.
-            from workflow.run_compliance import measured_dates
-            m.compliance_unlocked = measured_dates(run) >= 2
+            # NOTHING IS WRITTEN ABOUT THE LOCK, AND THAT WAS THE MISTAKE.
+            #
+            # Three rounds each moved this flag: set always, then set only at
+            # two dated verifications or more. Both are a SNAPSHOT of something
+            # that keeps moving. `compliance_unlocked` means "the user lifted
+            # the lock", `is_locked` reads it live, and the number of dated
+            # verifications can go DOWN, because "Delete a verification" is a
+            # shipped menu action. A challenge round drove it on a shipped demo
+            # project: the box ended up ticked and live on a run one date old,
+            # one click un-ticked it with no question, and the box vanished.
+            #
+            # The run keeps its controls for as long as this window is open
+            # instead, remembered in the session and not on disk. Nothing false
+            # is recorded about a lock nobody lifted, and the lock itself
+            # behaves exactly as it is designed to: a bound run with a history
+            # is locked, which is what binding one means.
             run.save_meta(m)
         except OSError as exc:
             log.warning("could not record the set on %s: %s", run.dir, exc)
+            return
+        self._bound_here.add(str(run.dir))
 
     def _recalculate_run(self) -> None:
         """Re-stamp every saved report of the window's run with the run's

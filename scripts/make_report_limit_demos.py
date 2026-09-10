@@ -1615,8 +1615,10 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict) -> str:
     a("Isolated-Rows/run4 shows the grey average crossing alone, and it gets")
     a("there with an edited column rather than by choosing the direction.")
     a("")
-    a("Report-Limits-Isolated-Rows exists for the rows that cannot. Runs 1, 2")
-    a("and 4 each")
+    _edited = [f"run{i}" for i, _p in enumerate(
+        dict(PROJECTS)["Report-Limits-Isolated-Rows"], start=1) if _p.edited_limits]
+    a("Report-Limits-Isolated-Rows exists for the rows that cannot. "
+      + ", ".join(_edited[:-1]) + " and " + _edited[-1] + " each")
     a("carry their own edited limit column that relaxes the companion rows, so")
     a("the row of interest crosses on its own and can be looked at alone.")
     a("")
@@ -1643,10 +1645,9 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict) -> str:
         a(f"  {(_what + ' '):.<44} {_where}")
     a("  a run with its own edited limit column ..... Isolated-Rows, runs 1, 2, 4, 5")
     a("  one measurement judged three ways .......... Set-Compare, all runs")
-    a("  the grey rows crossing on their own ........ Isolated-Rows, run4")
+    a("  the grey AVERAGE crossing on its own ...... Isolated-Rows, run4")
     a("  a row no shipped set judges at all ......... Isolated-Rows, run5")
-    a("  a recommended value (COND, not FAIL) ....... Threshold-Series, 2026-04-13")
-    a("                                               and Isolated-Rows, run4")
+    a("  a recommended value (COND, not FAIL) ....... Isolated-Rows, run4")
     a("")
     a("DO NOT edit these in place if the data is to stay reproducible. In")
     a("particular do not regenerate a verification chart: each dated check is")

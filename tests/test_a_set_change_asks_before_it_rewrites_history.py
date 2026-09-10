@@ -457,9 +457,18 @@ def test_binding_an_edited_run_does_not_lock_the_user_out(qapp, tmp_path,
     try:
         _edit_through_the_limits_window(dlg, monkeypatch, value=0.2)
         assert is_bound(run), "the premise failed: the run was not bound"
-        assert not is_locked(run), (
-            "editing this run's own numbers bound it AND locked it, so the "
-            "control the user just used is gone and the question never said so")
+        # THE WINDOW'S CONTROLS, NOT THE FLAG ON DISK. Three rounds tried to
+        # keep this true by writing `compliance_unlocked`, and that is a
+        # snapshot of something that moves: dated verifications can be deleted.
+        # The run really is locked; this window remembers that it bound it and
+        # leaves the controls where they were for as long as it is open.
+        dlg._refresh()
+        assert dlg._set_combo.isEnabled(), (
+            "editing this run's own numbers bound it and greyed the pulldown, "
+            "so the control the user just used is gone and the question never "
+            "said so")
+        assert run.load_meta().compliance_unlocked is False, (
+            "a lock nobody lifted was recorded on disk")
     finally:
         dlg.deleteLater()
 
@@ -847,9 +856,16 @@ def test_binding_a_run_with_a_history_still_keeps_its_controls(qapp, tmp_path,
     try:
         assert _edit_a_shipped_column(dlg, monkeypatch), "no question was asked"
         assert is_bound(run)
-        assert not is_locked(run), (
+        assert is_locked(run), (
+            "a bound run with a history is locked; that is what binding means")
+        assert run.load_meta().compliance_unlocked is False, (
+            "the window recorded a lock the user never lifted")
+        dlg._refresh()
+        assert dlg._set_combo.isEnabled(), (
             "binding a run with a history took away the control that bound it")
-        assert run.load_meta().compliance_unlocked is True
+        assert not dlg._unlock_check.isVisible(), (
+            "the unlock box is offered on a run this window is treating as "
+            "unlocked, which is two answers about one run")
     finally:
         dlg.deleteLater()
 
@@ -1422,6 +1438,9 @@ def test_a_refusal_does_not_wipe_a_binding_made_while_the_window_was_open(
     proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
     dlg = _dialog(_settings(tmp_path), ti3)
     try:
+        told: list = []
+        import ui.warning_sign as ws
+        monkeypatch.setattr(ws, "warn", lambda parent, t, x: told.append(x))
         monkeypatch.setattr(type(dlg), "_confirm", lambda self, t, x: False)
 
         class _Fake:
@@ -1453,5 +1472,310 @@ def test_a_refusal_does_not_wipe_a_binding_made_while_the_window_was_open(
             "a refusal wiped a binding another writer made while the window "
             "was open")
         assert run.load_meta().compliance_set_id == "chromiq_tight"
+        # AND THE USER IS TOLD THE REFUSAL COULD NOT REACH IT. Silently
+        # leaving somebody else's numbers under the refusal is how a run ends
+        # up judged by a value that is in no set and no preference.
+        assert told, "the refusal could not be honoured and nothing said so"
+        assert "changed which limit set" in told[0], told[0]
+    finally:
+        dlg.deleteLater()
+
+
+# ---------------------------------------------------------------------------
+# Round 11: a value written once as a snapshot, read later as if it were live
+# ---------------------------------------------------------------------------
+def test_the_window_records_no_lock_the_user_never_lifted(qapp, tmp_path,
+                                                          monkeypatch):
+    """THREE ROUNDS EACH MOVED THIS FLAG AND ALL THREE WERE WRONG THE SAME WAY.
+
+    `compliance_unlocked` means "the user lifted the lock". Writing it when the
+    window binds a run makes it a SNAPSHOT of `measured_dates >= 2`, and that
+    number can go DOWN: "Delete a verification" is a shipped menu action. A
+    challenge round drove it on a shipped demo project and reached a ticked,
+    live box on a run one date old, where one click un-ticked it with no
+    question and the box then vanished.
+
+    Nothing is written now. The run really is locked, and this window remembers
+    that it bound it, for as long as it is open.
+
+    MUTATION: write the flag on the bind again and this goes red.
+    """
+    from workflow.run_compliance import is_bound, is_locked
+
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 3)
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        assert _edit_a_shipped_column(dlg, monkeypatch), "no question was asked"
+        assert is_bound(run) and is_locked(run)
+        assert run.load_meta().compliance_unlocked is False, (
+            "the window recorded that the user had lifted a lock they never "
+            "touched, and that record outlives the reason it was written")
+    finally:
+        dlg.deleteLater()
+
+
+def test_an_edited_column_survives_a_lock_that_lands_mid_edit(qapp, tmp_path,
+                                                              monkeypatch):
+    """`bind_run` was used as the undo and it is not an undo.
+
+    It is a fresh bind: its body overwrites the run's thresholds with the SET's
+    effective limits. On a run carrying an edited column, that deleted the edit
+    both of its saved reports had been judged against, under a message saying
+    the limits were unchanged.
+
+    MUTATION: undo with `bind_run` again and this goes red.
+    """
+    from workflow.compliance_sets import Limit
+    from workflow.run_compliance import (run_limits, set_run_limits,
+                                         set_run_unlocked)
+
+    proj, run, ti3 = _bound_run_with_dates(tmp_path, 2, unlocked=True)
+    edited = dict(run_limits(run, {}).limits)
+    edited["worst5_de00_avg"] = Limit.value(8.0)
+    set_run_limits(run, edited)
+    assert run_limits(run, {}).edited, "the fixture is not edited"
+
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        import ui.warning_sign as ws
+        told: list = []
+        monkeypatch.setattr(ws, "warn", lambda parent, t, x: told.append(x))
+        monkeypatch.setattr(type(dlg), "_confirm", lambda self, t, x: True)
+
+        class _Fake:
+            run_limits_changed = False
+
+            def __init__(self, settings, parent, run=None, run_editable=False):
+                self._run = run
+
+            def exec(self):
+                set_run_unlocked(self._run, False)      # somebody else re-locks
+                lim = dict(run_limits(self._run, {}).limits)
+                lim["worst5_de00_avg"] = Limit.value(0.5)
+                set_run_limits(self._run, lim)
+                type(self).run_limits_changed = True
+                return 0
+
+            def deleteLater(self):
+                pass
+
+        import ui.dialogs.thresholds_dialog as td
+        monkeypatch.setattr(td, "ThresholdsDialog", _Fake)
+        dlg._on_open_limits()
+
+        got = run_limits(run, {}).limits.get("worst5_de00_avg")
+        assert got is not None and abs(got.number - 8.0) < 1e-9, (
+            f"the run's own edited column was destroyed by the undo: {got}")
+        assert told and "unchanged" in told[0], told
+    finally:
+        dlg.deleteLater()
+
+
+def test_a_set_this_build_does_not_know_survives_a_lock_mid_edit(
+        qapp, tmp_path, monkeypatch):
+    """`bind_run`'s first line replaces an unknown set id with the factory
+    default, so using it as an undo erased the id, the English label D23 exists
+    for, and every number, and told the user nothing had moved.
+
+    MUTATION: undo with `bind_run` again and this goes red.
+    """
+    from workflow.compliance_sets import Limit, limits_to_json
+    from workflow.run_compliance import run_limits, set_run_limits, set_run_unlocked
+
+    proj, run, ti3 = _bound_run_with_dates(tmp_path, 2, unlocked=True)
+    meta = run.load_meta()
+    numbers = dict(run_limits(run, {}).limits)
+    numbers["all_de00_avg"] = Limit.value(1.0)
+    meta.compliance_set_id = "chromiq_house_2027"
+    meta.compliance_set_label = "House standard 2027"
+    meta.compliance_thresholds = limits_to_json(numbers)
+    run.save_meta(meta)
+
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        import ui.warning_sign as ws
+        monkeypatch.setattr(ws, "warn", lambda parent, t, x: None)
+        monkeypatch.setattr(type(dlg), "_confirm", lambda self, t, x: True)
+
+        class _Fake:
+            run_limits_changed = False
+
+            def __init__(self, settings, parent, run=None, run_editable=False):
+                self._run = run
+
+            def exec(self):
+                set_run_unlocked(self._run, False)
+                lim = dict(run_limits(self._run, {}).limits)
+                lim["all_de00_avg"] = Limit.value(0.4)
+                set_run_limits(self._run, lim)
+                type(self).run_limits_changed = True
+                return 0
+
+            def deleteLater(self):
+                pass
+
+        import ui.dialogs.thresholds_dialog as td
+        monkeypatch.setattr(td, "ThresholdsDialog", _Fake)
+        dlg._on_open_limits()
+
+        m = run.load_meta()
+        assert m.compliance_set_id == "chromiq_house_2027", (
+            "a set from another build was replaced by the factory default")
+        assert m.compliance_set_label == "House standard 2027", (
+            "the English label D23 exists for was erased")
+        # AND ITS NUMBERS. `effective_limits` cannot answer for a set it does
+        # not know, so re-deriving would have quietly written the factory
+        # default's numbers under this run's own name. The first version of
+        # this test checked only the id and the label, and that mutation stayed
+        # green.
+        got = run_limits(run, {}).limits.get("all_de00_avg")
+        assert got is not None and abs(got.number - 1.0) < 1e-9, (
+            f"the unknown set's own numbers were replaced: {got}")
+    finally:
+        dlg.deleteLater()
+
+
+def test_a_refused_override_is_never_baked_onto_the_run(qapp, tmp_path,
+                                                        monkeypatch):
+    """THE PUREST CASE OF TWO CORRECT RULES MEETING.
+
+    The refusal re-derived from the set another writer chose, which is right,
+    using the LIVE override table, which still held the override the user had
+    just refused, because the preferences are put back later in the same
+    function. The run came out permanently judged by a number that is in no set
+    and in no preference.
+
+    MUTATION: pass `self._overrides()` to the re-derive again and this goes red.
+    """
+    from core.settings import compliance_overrides_of, store_compliance_overrides
+    from workflow.compliance_sets import Limit
+    from workflow.run_compliance import (bind_run, run_limits, set_run_limits,
+                                         set_run_unlocked)
+
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 3)
+    s = _settings(tmp_path)
+    dlg = _dialog(s, ti3)
+    try:
+        import ui.warning_sign as ws
+        monkeypatch.setattr(ws, "warn", lambda parent, t, x: None)
+        monkeypatch.setattr(type(dlg), "_confirm", lambda self, t, x: False)
+
+        class _Fake:
+            run_limits_changed = False
+
+            def __init__(self, settings, parent, run=None, run_editable=False):
+                self._run, self._s = run, settings
+
+            def exec(self):
+                store_compliance_overrides(
+                    self._s, {"chromiq_tight": {"worst5_de00_avg": 0.44}})
+                bind_run(self._run, "chromiq_tight", {})
+                set_run_unlocked(self._run, True)
+                lim = dict(run_limits(self._run, {}).limits)
+                lim["worst5_de00_avg"] = Limit.value(0.9)
+                set_run_limits(self._run, lim)
+                type(self).run_limits_changed = True
+                return 0
+
+            def deleteLater(self):
+                pass
+
+        import ui.dialogs.thresholds_dialog as td
+        monkeypatch.setattr(td, "ThresholdsDialog", _Fake)
+        dlg._on_open_limits()
+
+        assert compliance_overrides_of(s) == {}, "the override was not rolled back"
+        got = run_limits(run, {}).limits.get("worst5_de00_avg")
+        assert got is not None and abs(got.number - 0.44) > 1e-9, (
+            "the run was permanently judged by an override the user refused, "
+            "which is now in no set and in no preference")
+        assert abs(got.number - 0.9) > 1e-9, (
+            "the run kept the very number the user said no to")
+    finally:
+        dlg.deleteLater()
+
+
+def test_a_run_rebound_to_an_unknown_set_keeps_that_set_s_own_numbers(
+        qapp, tmp_path, monkeypatch):
+    """The other half of the unknown-set case, and the one that reaches the
+    re-derive.
+
+    The companion test above has the binding UNCHANGED, so it takes the plain
+    undo and never reaches the branch that decides whether to re-derive; a
+    mutation removing the `is_known_set` guard stayed green there. Here another
+    writer rebinds the run to a set this build does not know, which is the state
+    a project from a newer ChromIQ arrives in. `effective_limits` cannot answer
+    for it, so re-deriving would quietly write the factory default's numbers
+    under that run's own name.
+
+    MUTATION: drop `is_known_set` from that condition and this goes red.
+    """
+    from workflow.compliance_sets import Limit, limits_to_json
+    from workflow.run_compliance import run_limits, set_run_limits, set_run_unlocked
+
+    from workflow.run_compliance import bind_run
+
+    # SAVED REPORTS, or nothing is asked and the refusal path is never reached.
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    bind_run(run, "chromiq_default", {})
+    set_run_unlocked(run, True)
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        told: list = []
+        import ui.warning_sign as ws
+        monkeypatch.setattr(ws, "warn", lambda parent, t, x: told.append(x))
+        monkeypatch.setattr(type(dlg), "_confirm", lambda self, t, x: False)
+
+        class _Fake:
+            run_limits_changed = False
+
+            def __init__(self, settings, parent, run=None, run_editable=False):
+                self._run = run
+
+            def exec(self):
+                # somebody else rebinds it to a set from another build
+                numbers = dict(run_limits(self._run, {}).limits)
+                numbers["all_de00_avg"] = Limit.value(1.0)
+                m = self._run.load_meta()
+                m.compliance_set_id = "chromiq_house_2027"
+                m.compliance_set_label = "House standard 2027"
+                m.compliance_thresholds = limits_to_json(numbers)
+                self._run.save_meta(m)
+                set_run_unlocked(self._run, True)
+                # …and the user's own edit lands on top
+                lim = dict(run_limits(self._run, {}).limits)
+                lim["all_de00_avg"] = Limit.value(0.4)
+                set_run_limits(self._run, lim)
+                type(self).run_limits_changed = True
+                return 0
+
+            def deleteLater(self):
+                pass
+
+        import ui.dialogs.thresholds_dialog as td
+        monkeypatch.setattr(td, "ThresholdsDialog", _Fake)
+        dlg._on_open_limits()
+
+        m = run.load_meta()
+        # THE ID AND THE LABEL SURVIVE, WHICH IS THE PART THAT CAN BE SAVED.
+        # The numbers cannot: nobody holds what the other writer wrote, because
+        # the dialog had already written over them, and `effective_limits`
+        # cannot answer for a set this build does not know. Re-deriving would
+        # put the FACTORY DEFAULT's numbers under this run's own name, which is
+        # the destructive answer; the honest one is to keep the record, leave
+        # the numbers, and say plainly that they could not be recovered.
+        assert m.compliance_set_id == "chromiq_house_2027", (
+            "a set from another build was replaced by the factory default")
+        assert m.compliance_set_label == "House standard 2027", (
+            "the English label D23 exists for was erased")
+        assert told, "the user was not told the refusal could not reach the run"
+        assert "could not put this run's own numbers back" in told[-1], told[-1]
+        # AND THE RUN IS NOT LEFT JUDGING NOTHING. `effective_limits` answers
+        # for an unknown set with thirty rows of "no limit", so re-deriving
+        # would leave the run bound to a named set that judges not one row,
+        # silently, which is worse than the number nobody could recover.
+        got = run_limits(run, {}).limits.get("all_de00_avg")
+        assert got is not None and got.number is not None, (
+            "the run was left bound to a set that judges nothing at all")
     finally:
         dlg.deleteLater()
