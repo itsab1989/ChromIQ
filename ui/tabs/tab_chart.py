@@ -5298,6 +5298,17 @@ class TabChart(QWidget):
             self._manual_pages_spin.valueChanged.connect(
                 self._refresh_manual_command_preview
             )
+            # ONE FIELD, TWO BOXES, AND THEY WERE ONLY EVER SYNCHRONISED WHEN
+            # THE USER SWITCHED BETWEEN PRINTTARG AND THE ENGINE.
+            # "Pages" exists twice: this one on the tab and `panel.pages` on the
+            # layout panel. They were copied across at
+            # `_convert_printtarg_to_engine` and `_convert_engine_to_printtarg`
+            # and nowhere else, so after a run change they disagreed. An
+            # exhaustive sweep of 152 controls measured it: the panel's box kept
+            # 5 while this one went back to 3, and BOTH leaked the typed value
+            # onto the run the user switched to. One field, two answers, on
+            # screen at once.
+            self._manual_pages_spin.valueChanged.connect(self._mirror_pages_to_panel)
         if self._manual_auto_patches_check is not None:
             self._manual_auto_patches_check.toggled.connect(
                 self._refresh_manual_command_preview
@@ -5527,6 +5538,37 @@ class TabChart(QWidget):
                 self._manual_pages_spin.setValue(int(panel.pages.value()))
         except Exception:  # noqa: BLE001 — never block the toggle
             log.warning("engine→printtarg conversion failed", exc_info=True)
+
+    def _mirror_pages_to_panel(self, value: int) -> None:
+        """Keep the layout panel's "Pages" in step with the tab's.
+
+        Guarded against the return trip: `panel.pages` emits `valueChanged` of
+        its own, and the two would otherwise chase each other.
+        """
+        if getattr(self, "_syncing_pages", False):
+            return
+        panel = getattr(self, "_manual_layout_panel", None)
+        box = getattr(panel, "pages", None) if panel is not None else None
+        if box is None or int(box.value()) == int(value):
+            return
+        self._syncing_pages = True
+        try:
+            box.setValue(int(value))
+        finally:
+            self._syncing_pages = False
+
+    def _mirror_pages_from_panel(self, value: int) -> None:
+        """The other direction, so neither box can be the stale one."""
+        if getattr(self, "_syncing_pages", False):
+            return
+        box = getattr(self, "_manual_pages_spin", None)
+        if box is None or int(box.value()) == int(value):
+            return
+        self._syncing_pages = True
+        try:
+            box.setValue(int(value))
+        finally:
+            self._syncing_pages = False
 
     def _schedule_manual_command_preview(self) -> None:
         """Refresh the Manual command preview a moment after the last change.
@@ -5930,6 +5972,13 @@ class TabChart(QWidget):
         incl. paper, restored verbatim); otherwise fall back to the active
         per-(instrument/paper/mode) preset for the current selection (#93)."""
         self._manual_panel_inited = True
+        # THE OTHER HALF OF THE PAGES MIRROR, wired once the panel exists.
+        # Without it the tab's box could be the stale one instead.
+        _panel = getattr(self, "_manual_layout_panel", None)
+        _pages = getattr(_panel, "pages", None) if _panel is not None else None
+        if _pages is not None and not getattr(self, "_pages_mirror_wired", False):
+            _pages.valueChanged.connect(self._mirror_pages_from_panel)
+            self._pages_mirror_wired = True
         saved = self._settings.get("manual_engine_recipe", None)
         if isinstance(saved, dict):
             from workflow.layout_engine.presets import LayoutRecipe
@@ -18127,9 +18176,6 @@ class TabChart(QWidget):
             # marked RANDOM_START when it had been laid out in fixed order, and
             # chartread reads those two differently.
             self._release_rebuild_guard()
-            # If the patch set leaves a notably under-filled last page (or spilled
-            # onto a near-empty extra page), offer to edit the patch set (#93, Knut).
-            self._maybe_warn_partial_last_page(ti2)
             # Remember the .ti1 backing this chart so the Save Preset dialog can
             # offer to attach it.
             ti1 = tiffs[0].parent / f"{stem}.ti1"
@@ -18154,7 +18200,29 @@ class TabChart(QWidget):
             # plain re-Generate OVERWRITES it instead of spuriously creating a new
             # run (the bar's empty default reads as "New run").
             self._default_bar_to_current_run()
+            # THE SIGNAL GOES BEFORE ANY MODAL, AND IT USED TO GO AFTER ONE.
+            # `_maybe_warn_partial_last_page` ends in a blocking
+            # `QMessageBox.exec()`, and it was called above, before this line.
+            # `exec()` runs a nested event loop, which is exactly what lets the
+            # main window's chart-build watchdog `QTimer` fire: its grace is
+            # 1500 ms and the dialog waits for a person.
+            #
+            # Knut's log of 2026-09-10 has the line, and an on-screen
+            # reproduction matched it with a four-way control: hold that dialog
+            # open for 3 s and the watchdog fires; answer it in 155 ms, or
+            # suppress it with auto-preview, or build a chart that fills its
+            # last page, and it does not. Nothing was lost on disk and no sheet
+            # was wrong. What it cost is that the masthead lock dropped early,
+            # so Close Project, the run picker and Restore Used Chart came back
+            # live while the build was still finishing, which is the very
+            # "build in flight against the run's stored state" the lock exists
+            # to prevent.
+            #
+            # So the build reports that it has finished, and THEN asks its
+            # question. The offer to edit the patch set is unaffected: it is
+            # about the sheet that now exists (#93, Knut).
             self.chart_finished.emit(tiffs, ti2, is_isis)
+            self._maybe_warn_partial_last_page(ti2)
         else:
             self._set_margin_chart([], None)
             self._log.appendPlainText("[ERROR] Chart generation failed.")
