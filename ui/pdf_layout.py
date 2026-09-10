@@ -111,8 +111,41 @@ def paginate_tables(doc, body_h: float) -> None:
     table when that block would otherwise stay behind; if the straddle
     survives the next pass, the table itself gets the break too. Tables taller
     than a page can't be helped and are left to :func:`avoid_split_rows`.
+
+    **AND A TABLE IS NEVER PUSHED AWAY FROM A HEADING THAT CANNOT FOLLOW IT.**
+    Breaking the table is the fallback for a table with nothing attached above
+    it; taking it when a heading IS attached produces exactly the orphan the
+    paragraph above forbids. The Measurement Report printed a page 2 carrying
+    the words "How to read this report" and nothing else (Basti, 2026-09-10)
+    and this function is what put it there, twice over:
+
+    * the gap between a heading and its table was measured from the HEADING,
+      across the whitespace spacer the walk-up had just decided belonged to
+      it. `_h2() + _gap() + <table>` puts 26 px there — over the 24 px this
+      test allows — so the heading was judged unattached and the table went
+      on alone. Measured 2026-09-10: with the spacer the report orphans at
+      every length that straddles, without it never. The distance is now read
+      from the block that really does sit against the table; a heading with a
+      paragraph of its own between it and the table is still detached, because
+      the walk only ever steps over whitespace;
+    * and a heading that ALREADY carries a forced break — every `_h2(…,
+      page_break=True)` in the report — failed the `not … & always` guard and
+      fell through to the same fallback. There is nothing to gain there: the
+      heading is already at the top of a page, so moving the table alone
+      cannot make them fit together, it only strands the heading. The table
+      is left straddling instead, which reads as a section flowing over the
+      page break under its own heading. Measured on the four report shapes
+      and on all 18 help cards at A4, US Letter and A5.
+
+    Neither half is sufficient alone: fixing only the distance lets the
+    heading move once and then hit the second path on the next pass, which
+    cost a page as well as the orphan (2026-09-10, 2 pages → 3).
     """
     always = QTextFormat.PageBreakFlag.PageBreak_AlwaysBefore
+    # Tables that cannot be helped without orphaning their heading. Keyed on
+    # the table's POSITION, not `id(table)` — PyQt6 recycles the wrappers
+    # between walks, the same trap `avoid_split_rows` documents.
+    hopeless: set = set()
 
     def _straddling_tables():
         lay = settled_layout(doc)
@@ -123,7 +156,8 @@ def paginate_tables(doc, body_h: float) -> None:
                 stack.append(ch)
                 if isinstance(ch, QTextTable):
                     r = lay.frameBoundingRect(ch)
-                    if (r.height() < body_h - 1
+                    if (ch.firstPosition() not in hopeless
+                            and r.height() < body_h - 1
                             and int(r.top() // body_h)
                             != int((r.bottom() - 1) // body_h)):
                         found.append((r.top(), ch))
@@ -132,14 +166,25 @@ def paginate_tables(doc, body_h: float) -> None:
 
     def _push_to_next_page(table) -> None:
         lay = settled_layout(doc)
-        block = doc.findBlock(table.firstPosition() - 1)
+        # `anchor` is the block that physically sits against the table; `block`
+        # walks up from it to the heading the spacer belongs to.
+        anchor = block = doc.findBlock(table.firstPosition() - 1)
         # The spacer lines of the gap batch (2026-08-13) are whitespace-only
         # blocks sitting between a heading and its table; without skipping
         # them the "take the heading along" rule below would see only the
         # spacer and leave the heading behind — the exact orphan this
-        # function exists to prevent. Walk up past pure-whitespace blocks;
-        # the same_page/close checks still decide whether what we find is
-        # really attached.
+        # function exists to prevent. Walk up past pure-whitespace blocks; the
+        # same_page/close checks still decide whether what we find is really
+        # attached.
+        #
+        # NOTHING CAPS HOW MUCH WHITESPACE THE WALK MAY CROSS, and a per-step
+        # distance check was written here and then taken out again: no test in
+        # the suite could tell it apart from its absence (113 PDF tests, all 18
+        # cards at A4, US Letter and A5, and four real reports, identical page
+        # for page, 2026-09-10), and on a section whose spacer happened to be
+        # taller than the threshold it would have judged the heading detached
+        # and recreated the very orphan below. A heading separated from its
+        # table by blank lines and nothing else is still its heading.
         while (block.isValid() and not block.text().strip()
                and doc.findBlock(block.position() - 1).isValid()):
             prev = doc.findBlock(block.position() - 1)
@@ -155,13 +200,23 @@ def paginate_tables(doc, body_h: float) -> None:
             t_top = lay.frameBoundingRect(table).top()
             b_rect = lay.blockBoundingRect(block)
             same_page = int(b_rect.top() // body_h) == int(t_top // body_h)
-            close = t_top - b_rect.bottom() < 24
-            if same_page and close \
-                    and not block.blockFormat().pageBreakPolicy() & always:
-                bf = block.blockFormat()
-                bf.setPageBreakPolicy(always)
-                cur = QTextCursor(block)
-                cur.setBlockFormat(bf)
+            # FROM THE BLOCK THAT SITS AGAINST THE TABLE, not from the
+            # heading: the walk above stepped over the spacer precisely
+            # because it belongs to the heading, and measuring across it
+            # again undoes that.
+            gap_from = (lay.blockBoundingRect(anchor).bottom()
+                        if anchor.isValid() else b_rect.bottom())
+            close = t_top - max(gap_from, b_rect.bottom()) < 24
+            if same_page and close:
+                if not block.blockFormat().pageBreakPolicy() & always:
+                    bf = block.blockFormat()
+                    bf.setPageBreakPolicy(always)
+                    cur = QTextCursor(block)
+                    cur.setBlockFormat(bf)
+                    return
+                # Attached, and already at the top of its own page: pushing
+                # the table would leave the heading alone on the sheet.
+                hopeless.add(table.firstPosition())
                 return
         fmt = table.frameFormat()
         fmt.setPageBreakPolicy(always)
