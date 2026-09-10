@@ -427,6 +427,64 @@ def _no_real_usb_device_list(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _the_update_check_never_reaches_the_network(monkeypatch):
+    """NO TEST MAY ASK GITHUB ANYTHING, and one silently did.
+
+    Found in a red gate on 2026-09-10. Four `test_updater.py` tests failed with
+    the REAL current release in the recorder, `v4.2.3`, where their own fake
+    `_fetch` returns `v3.14.7`. They pass when the file is run alone, which is
+    the signature of leaked state, and the leak is this:
+
+    `_api_is_blocked()` reads `update_check_blocked_until` out of `AppSettings`,
+    which `pytest_configure` sandboxes **per worker process, not per test**. So
+    a test that exercises the spent-quota path leaves that key behind, and the
+    next test in the same worker takes the other branch: it skips the API
+    entirely, never calls the `_fetch` the test patched, and falls through to
+    the releases feed, which opens a real HTTPS connection to github.com.
+
+    Two guards, because they fail differently. The key is cleared around every
+    test, so no test inherits another's quota state. And `_open`, the one place
+    the module does network I/O, is made to raise, so a test that reaches it
+    fails with a sentence naming the cause instead of quietly answering from the
+    internet, or hanging on a machine with no route to it.
+
+    A test that wants the feed says so by patching `_open` itself, which is
+    exactly how the feed's own tests already work.
+    """
+    try:
+        from core import updater as U
+        from core.settings import AppSettings
+    except Exception:      # noqa: BLE001 — nothing to stub
+        return
+
+    def _forget() -> None:
+        # AppSettings has no remove(); zero is what `_api_blocked_until` reads
+        # as "no block", so it is the same thing said in the vocabulary the
+        # store actually has.
+        try:
+            AppSettings().set(U._BLOCKED_UNTIL, 0)
+        except Exception:  # noqa: BLE001 — a sandboxed store on the way out
+            pass
+
+    _forget()
+
+    def _refuse(url: str):
+        raise AssertionError(
+            "the update check tried to open " + str(url) + " for real. A test "
+            "that means to exercise the releases feed patches "
+            "UpdateChecker._open itself; reaching the network here means the "
+            "API branch was skipped, and the usual reason is a leaked "
+            "update_check_blocked_until.")
+
+    monkeypatch.setattr(U.UpdateChecker, "_open", staticmethod(_refuse),
+                        raising=False)
+    try:
+        yield
+    finally:
+        _forget()
+
+
+@pytest.fixture(autouse=True)
 def _no_real_editor_render(monkeypatch):
     try:
         from ui.dialogs.ti2_relayout_dialog import Ti2RelayoutDialog
