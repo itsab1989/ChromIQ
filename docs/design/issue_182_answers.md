@@ -123,6 +123,82 @@ points ChromIQ at their own copy. ChromIQ distributes nothing.
   Validation print check (ISO 12647-8) and Contract proof check (ISO 12647-7)
   cannot give PASS."* This is blocked on the permission above, not on us.
 
+### 2026-09-10 (the chart note and the page edges)
+
+* **"Text distance from edge" governs every side, and it is a LIMIT.**
+  *"Right says 5.8 mm but text goes to the edge almost. … Like the left and top
+  labels, I think the text needs to stay within the default 'Text distance from
+  edge' settings in preferences chart layout. For all sides, for Guided mode.
+  Not a hardwired margin."* And, on what happens when the room runs out:
+  *"the labels respect the 'Text distance from edge' settings, even if the
+  margins defined make the patch area overlap with the text. Then the user needs
+  to adjust the margins."*
+* **The note sits beside the patch block, not out at the paper edge.**
+  *"should the text move closer to the patch area edge but still leave 2 pixels
+  space/gap, so that it is not going towards the edge?"*
+
+Both are implemented for the right-margin chart note in
+`workflow/tiff_metadata.py::_stamp_one`, which was the only side of the four
+that did not read the setting at all. Measured on Knut's own 130x180 mm card
+with the box on 4.0 mm: the note ended **1.78 mm** from the paper edge and left
+**2.67 mm** of empty paper on the patch side; it now ends **4.06 mm** from the
+edge and starts **1.27 mm** from the patch block.
+
+**What the ruling costs, counted rather than assumed.** Twenty-two
+configurations were built twice, once through each version of the stamper, and
+the note measured against an unstamped control of the same sheet. **All 22
+printed a note before; 18 do after.** The four that stop are the ones where the
+paper left between the patch block and the reserve is under 0.93 mm, which is
+narrower than a line at the 9 px legibility floor:
+
+| configuration | right margin | Clip | note to the paper edge, before |
+|---|---|---|---|
+| A4 i1, clip band on the RIGHT | 6.0 mm | 4.0 mm | 0.76 mm |
+| A4 i1, right margin 3 mm | 3.0 mm | 4.0 mm | 0.76 mm |
+| A4 i1, Clip = 8 mm | 6.0 mm | 8.0 mm | 2.12 mm |
+| 130x180 with the i1Pro | 6.0 mm | 4.0 mm | 1.14 mm |
+
+Each of those four was printing INSIDE the distance the user asked to keep
+clear, which is the fault Knut reported. Under the ruling they cannot print at
+all. The drop now writes a log line naming both numbers and both settings, which
+is a change from silence but is still not on screen: see section 5.
+
+---
+
+## 2b. Open, and needing Knut's ruling: the top labels do the OPPOSITE
+
+**He cited the top strip labels as the behaviour to copy, and they do not behave
+that way.** The specification and the code agree with each other and both
+disagree with his description, so this is reported rather than changed.
+
+* **Top (strip labels).** `workflow/layout_engine/geometry.py:399` computes
+  `_ideal_top = g.text_edge_top_mm + g.strip_indicator_gap` and then
+  `_leader_top = max(0.0, min(_ideal_top, g.margin_t - _lab_h))`. The comment
+  above it states the rule outright: when the top margin is too small the label
+  *"slides UP toward the page edge (encroaching the 4 mm text-edge if it must)
+  instead of overlapping the patch block"*. The distance is an **ideal**, given
+  up to protect the patch area, and `ui/tabs/tab_chart.py:18527` fires
+  *"Top margin is too small for the strip labels, they overflow toward the page
+  edge."* The comment attributes the design to Knut himself (#93).
+* **Left (row labels).** The opposite, and it is what he described:
+  `docs/design/row_label_geometry.md` R1.3, *"The labels can never be closer to
+  the edge than the floor; the margin is raised instead."*
+* **Bottom (sheet text).** The distance is reserved outright,
+  `workflow/layout_engine/raster.py:365` and `:1727`.
+
+So of the four sides, two hold the distance as a limit (left, bottom), one gives
+it up to save the patch area (top), and the fourth, the chart note on the right,
+did not read it at all until now and has been built to the LEFT edge's rule.
+`row_label_geometry.md` §R2 claims the left rule is *"the mirror image of what
+`geometry.py` already does for the strip labels"*, and on this point it is not:
+the left buys its guarantee by raising the margin and the top has no equivalent.
+
+**The question for Knut, and it is his to answer, not ours:** should the top
+strip labels change to hold the distance and let a collision with the patch area
+show, as he has just described? That is a change to shipped behaviour he is
+recorded as having asked for, on a chart that prints correctly today, so it is
+not being made on our own judgement.
+
 ---
 
 ## 3. Basti's rulings
@@ -177,6 +253,15 @@ the handler: either the loader must not re-point the store before the writer has
 run, or the tab must record which targets it has actually SHOWN and file only
 those. §4 S9 is the rule to hold it against, since being pointed at a target is
 not using it.
+
+**A note with no room left is still dropped without a word ON SCREEN.**
+Since 2026-09-10 it is no longer dropped in silence in the LOG: the stamper
+names the paper it has, the reserve it must keep and the two settings that would
+give it room. Nothing says so in the app. Knut's ruling that "Text distance from
+edge" is a limit takes the count of configurations that print a note from 22 of
+22 to 18 of 22 (see section 2), so the sentence matters more than it did, and it
+is still a §M catalogue job. The paragraph below is the original finding and
+stands.
 
 **A note that will not fit a narrow clip band is dropped without a word.**
 With the clip border on the right and a band of 10 or 14 mm, three of ten

@@ -1,5 +1,65 @@
 # Changelog
 
+## v4.3.0-beta.3
+
+**Everything in 4.2.3, plus a second slice of the Measurement Report that is
+mostly about keeping promises.** The promises ChromIQ made in writing to the
+organisations whose data it may use, and the one Knut Larsson asked for when he
+allowed a profiling run's report to show no verdict.
+
+### New
+
+- **The compliance folder carries its credits.** `data/compliance_sets/` now has
+  a README and a LICENSE recording, in their owners' own words, the four
+  permissions ChromIQ holds and the condition attached to each: Fogra must be
+  named as the source, the ICC's data must never be presented as the original
+  once altered, Idealliance's profiles travel unaltered and carry their
+  trademark line, and CGATS attached no condition. They are written before any
+  such file arrives, so no data can land there without its credit beside it.
+  The folder is listed in THIRD-PARTY-NOTICES.md too, where it was missing.
+
+### Fixed
+
+- **The report explains why a profiling sheet shows no verdict.** Knut allowed
+  that on one condition, that the report says why. The explanation existed but
+  only as a hover tooltip on four letters, so it reached neither the window's
+  text nor the saved PDF in any language. It is now printed under the results
+  table beside the other explanations.
+- **Page two of a saved report was a heading and nothing else.** The section it
+  belonged to started on page three. The rule that keeps a heading with its
+  table is what put it there, through two separate checks that both had to be
+  corrected; fixing one alone is worse than fixing neither. No report changed
+  its page count.
+- **A table spanning a page boundary drew over the next page's header.** The
+  report's page loop painted without a clip, so a straddling table covered the
+  wordmark, the scope line and four of the five colour segments. The shared page
+  code has had that clip since August; the report's own loop never got it.
+- **A Custom column started from an ISO set could print an unqualified PASS.** A
+  column named after a standard, a green verdict and no caveat is a claim even
+  when no sentence makes it, and ChromIQ promised a rights holder in writing
+  that it never claims conformance. Those columns now carry the same caveat the
+  read-only ISO columns do. The reason is not licensing: a standard's figures
+  are written for that standard's own control strip on its own chart, and
+  ChromIQ measures the chart you printed.
+- **The compliance data was bundled on macOS only.** On Windows and Linux the
+  file was simply not in the build, and nothing said so, because a missing file
+  and an empty one both show as a question mark. Both platforms now ship it.
+
+### Under the bonnet
+
+- The promise that ChromIQ never says a print conforms to, is certified to or
+  qualifies as anything is now checked over every English string in the app and
+  all twelve translations, including the Create Chart dropdown entries, which no
+  check could see until now. The translation half is written in each language's
+  own words for it rather than in cognates of the English, because the first
+  version missed seventeen of eighteen planted claims.
+
+**The ISO columns still ship empty and cannot be chosen.** Whether a paid
+standard's numbers may be shipped as factory values is unresolved and a request
+is with the national standards body. If you own the standards you can supply the
+numbers yourself and ChromIQ will use them while distributing none of them; the
+folder's README says how.
+
 ## v4.3.0-beta.2
 
 **Everything in 4.2.2, plus the first slice of the new Measurement Report.** The
@@ -93,6 +153,72 @@ not repeated here.
 
 - A dated verification that had a saved report was listed twice in the
   Measurement Report window (a demo project showed ten rows for five dates).
+
+## v4.2.3
+
+**Checking for updates works again on a busy network, the two photo-card charts
+Knut asked for are in the Presets list, and a rule that was supposed to keep em
+dashes out of the app could not see the dropdowns.** Nothing here touches the
+Measurement Report; that work rides on the 4.3.0 betas.
+
+### New
+
+- **Two more i1Pro chart presets, for 10 x 15 cm and 13 x 18 cm photo cards.**
+  Knut Larsson built them and widened the margins so there is room to start and
+  finish a strip reading, which makes them slightly different from the
+  Pharmacist cards of the same sizes. Both sets are offered; his are built by
+  the ChromIQ layout engine and appear in the i1Pro group of the Presets
+  dropdown beside the others. On the sheet they measure 7.49 mm patches over
+  four pages and 8.00 mm patches over three.
+
+### Fixed
+
+- **"Check for Updates" said "GitHub answered 403" and gave up.** Nothing was
+  wrong with ChromIQ's request. GitHub answers a limited number of update
+  checks an hour to a caller with no account, and counts them against the
+  internet connection rather than the person, so an office, a school, a
+  household or a mobile network shares them. ChromIQ now falls back to a route
+  that has no such limit, so the check simply works. When both routes are shut
+  it says so in plain words, with the time it frees and a link to the releases
+  page, instead of showing a number.
+- **The same message was cut off, and in German the link was missing.** The
+  line it is written into was pinned to a single line of text. It now wraps.
+- **A second check while you were waiting forgot when the limit frees**, and
+  fell back to "try again later". It remembers.
+- **With no network at all the check showed the operating system's own error
+  text**, untranslated. It now says that ChromIQ could not reach GitHub.
+- **The note down the right of a chart ignored "Text distance from edge".**
+  The setting was applied to the top and the bottom of the sheet and never
+  sideways, where a fixed half a millimetre took over instead, so the text ran
+  almost to the paper edge whatever you had asked for. Knut Larsson found it on
+  a 13 x 18 cm card set to 4 mm, where the note ended 1.98 mm from the edge. It
+  now keeps the distance you set, on the right as well: the same card now ends
+  at 4.06 mm, and changing the setting actually moves the note, which it never
+  did before.
+- **A note could print at 300 dpi and vanish at 200 on the same chart.** The
+  distance from the paper edge is a measurement in millimetres, but the guard
+  that keeps the note off the patches was counted in pixels, so the amount of
+  paper it needed depended on how finely the sheet was rastered: 3.21 mm at
+  150 dpi against 0.81 mm at 600. The guard is now a distance on paper too, so
+  the same chart behaves the same at 200, 300, 400, 600 and 720 dpi.
+- **The same note also sat three millimetres away from the patches** and was
+  centred in a strip wider than itself. It is now placed against the patch
+  block, which is where there is room for it, and the line comes out larger and
+  easier to read as a result.
+- **Where the margin is too narrow to keep that distance, the note is left
+  off.** That is deliberate, and it is Knut's ruling: the distance you set is
+  kept whatever else has to give, and the remedy is to widen the margin. Of
+  twenty-two chart settings measured, eighteen still print a note and the four
+  that do not were all printing inside the distance they had been told to keep
+  clear. ChromIQ writes the reason into the log; it does not yet say so on
+  screen, which is still to come. That count was measured at one resolution and
+  it does depend on the resolution, because a very coarse raster has too few
+  pixels to draw a legible line in the room that is left.
+- **The rule that keeps em dashes out of ChromIQ's text could not see the
+  Create Chart dropdowns.** It gathered a key that does not exist in the
+  parameter file and missed the two that do, so 145 strings were invisible to
+  it and 23 dropdown entries had slipped through. Those now read with a colon,
+  and the rule can see them.
 
 ## v4.2.2
 

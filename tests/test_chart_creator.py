@@ -784,7 +784,6 @@ def _sheet_with_note(tmp_path, note, **over):
     ("dashes on all four edges", {"helper_markers": True,
                                   "helper_markers_sides": True,
                                   "helper_markers_top_bottom": True}),
-    ("the clip band on the right", {"clip_side": "right", "clip_border": True}),
     ("clip side right, band off", {"clip_side": "right", "clip_border": False}),
 ])
 def test_the_chart_note_reaches_the_paper(tmp_path, label, over):
@@ -797,6 +796,15 @@ def test_the_chart_note_reaches_the_paper(tmp_path, label, over):
     caught: reserving the clip band's width whenever the clip SIDE was "right",
     without asking whether the band was switched on, threw away a note that had
     been printing perfectly well.
+
+    "The clip band on the right" USED TO BE ON THIS LIST and is deliberately
+    not any more. Knut's 2026-09-10 ruling makes "Text distance from edge" a
+    limit rather than a preference, and with the band on that edge there is
+    1.1 mm of paper between the patch block and a 4 mm reserve. The note that
+    used to print there printed 0.76 mm from the paper edge, which is the fault
+    he reported. It is now not printed, with the reason in the log, and it is
+    pinned by
+    `tests/test_the_note_keeps_the_text_distance_from_the_edge.py`.
     """
     off, on = _sheet_with_note(tmp_path, "Canon PRO-1000, PhotoRag, CM off", **over)
     assert on - off > 200, (

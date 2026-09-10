@@ -91,9 +91,11 @@ def test_registry_shape():
     # six engine-built Scanner charts (#100, #108, #118), and the six Red River
     # Paper vendor variants (one shared 2052-patch .ti1: i1Pro A4/Letter, and
     # ColorMunki A4/Letter in both a compact 8-page and a ruler-size 10-page cut),
-    # and his 20 CR30 charts (2026-09-06 — see test_cr30_builtin_presets.py).
-    assert len(KNUT_PRESETS) == 141      # 121 + 20 CR30
-    assert len(KNUT_PRESET_KEYS) == 141  # all keys unique
+    # his 20 CR30 charts (2026-09-06 — see test_cr30_builtin_presets.py), and
+    # his two i1Pro photo cards (2026-09-09 — see
+    # test_i1pro_photocard_builtin_presets.py).
+    assert len(KNUT_PRESETS) == 143      # 121 + 20 CR30 + 2 photo cards
+    assert len(KNUT_PRESET_KEYS) == 143  # all keys unique
     # Four Full-layout-setup charts: the A4 495p landscape one was withdrawn at
     # Knut's request (#164, 2026-08-23).
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("fls_")) == 2
@@ -103,6 +105,7 @@ def test_registry_shape():
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("cm_")) == 45
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("p3_")) == 24
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("cr30_")) == 20
+    assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("i1_photo_")) == 2
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("scanner_")) == 6
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("redriver_")) == 6
     assert KNUT_PRESET_KEYS <= BUILTIN_PRESET_KEYS

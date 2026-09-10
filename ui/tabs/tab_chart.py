@@ -1675,6 +1675,88 @@ def _i1_75_preset(slug: str, name: str, paper: str, cols: int, rows: int,
     )
 
 
+# ---------------------------------------------------------------------------
+# Knut's i1Pro PHOTO-CARD family (2026-09-09) — a third i1Pro base
+# ---------------------------------------------------------------------------
+_I1_PHOTO_DIR = "assets/charts/knut/rgb/i1prophoto"
+
+#: Knut re-cut the two Pharmacist photo cards for a strip reader. His words:
+#: *"Here are both the preset for the 10x15cm and 13x18cm charts. I had to
+#: adjust the margins a bit to assure space for starting and ending a strip
+#: reading. Thus the measurements are very slightly different from the original
+#: pharmacist presets."* The Pharmacist bundles stay exactly as they are — they
+#: are prebuilt files, these are engine-built, and both belong under the same
+#: i1Pro heading.
+#:
+#: A THIRD i1Pro BASE, FOR THE SAME REASON THERE WAS A SECOND. Measured against
+#: `_I1_BASE`, both cards move ELEVEN fields, and ten of them identically:
+#:
+#:   area_min_patch_mm  17.5   (0.0)     border              10.0  (6.0)
+#:   edge_spacers       False  (True)    helper_marker_edge_mm 2.0 (4.0)
+#:   indicator_size_mm  0.0    (4.23)    nolimit             False (True)
+#:   pscale             0.95   (1.0)     sscale              0.6   (0.8)
+#:   text_edge_top_mm   4.0    (8.0)     clip_text           his note ("")
+#:
+#: Not one of those is in any i1Pro `varying` set, so folding these two charts
+#: into `_I1_BASE` or `_I1_75_BASE` would have re-cut all nineteen 8 mm charts
+#: and all nineteen 7.5 mm ones at once. Ten shared fields is a design, not a
+#: drift, so it gets a base. (The eleventh, `margin_top`, is 17.0 on the small
+#: card and 19.5 on the large one and is per chart below.)
+#:
+#: THE MARGINS ARE NOT HERE, DELIBERATELY. A photo card is a quarter of an A4
+#: and the two cards are not the same shape, so every sheet-scaled number is
+#: the card's own: all four margins and the clip band's width (19 mm on the
+#: 10 x 15, 26 on the 13 x 18). Carrying `_I1_BASE`'s A4 jig margins here as
+#: "the family's" would be a value no chart of this family ever uses, so they
+#: are stripped out and `_i1_photo_preset` requires all five.
+_I1_PHOTO_PER_SHEET = ("margin_top", "margin_right", "margin_bottom",
+                       "margin_left", "clip_border_width_mm")
+
+#: The note printed in the clip band. Byte-for-byte the note the CR30 family
+#: carries, so it is shared rather than copied — and it has the same flaw:
+#: the numbers in it ("Top margin: 34 mm …") describe a jig none of these
+#: charts uses. It is carried as Knut exported it, because what a chart prints
+#: on paper is his call, not ours. Flagged for him.
+_I1_PHOTO_CLIP_TEXT = _CR30_CLIP_TEXT
+
+_I1_PHOTO_BASE: dict = {
+    **{k: v for k, v in _I1_BASE.items() if k not in _I1_PHOTO_PER_SHEET},
+    "area_min_patch_mm": 17.5, "border": 10.0, "edge_spacers": False,
+    "helper_marker_edge_mm": 2.0, "indicator_size_mm": 0.0, "nolimit": False,
+    "pscale": 0.95, "sscale": 0.6, "text_edge_top_mm": 4.0,
+    "clip_text": _I1_PHOTO_CLIP_TEXT,
+}
+
+
+def _i1_photo_preset(slug: str, name: str, paper: str, cols: int, rows: int,
+                     patches: int, pages: int, white: int, black: int, *,
+                     margin_top: float, margin_right: float,
+                     margin_bottom: float, margin_left: float,
+                     clip_border_width_mm: float) -> "_Ti1Preset":
+    """One chart of Knut's i1Pro photo-card family (see :data:`_I1_PHOTO_BASE`).
+
+    Shaped like :func:`_i1_preset`, with one difference that is the point of
+    the family: the five sheet-scaled numbers are REQUIRED, not optional. The
+    base holds no margin at all, so there is nothing to fall back to and a row
+    cannot quietly inherit an A4 jig's margins onto a 10 x 15 cm card.
+    """
+    return _Ti1Preset(
+        slug, name, _KNUT_I1, paper,
+        1.0,        # printtarg -a: unused, the engine lays this family out
+        6,          # printtarg -m: likewise unused (margins live in the recipe)
+        pages,
+        ti1_asset=f"{_I1_PHOTO_DIR}/{slug}/chart.ti1",
+        patches=patches, white=white, black=black,
+        tiff_16bit=False, suffix="",
+        layout_recipe=dict(_I1_PHOTO_BASE, paper=paper, area_cols=cols,
+                           area_rows=rows, margin_top=margin_top,
+                           margin_right=margin_right,
+                           margin_bottom=margin_bottom,
+                           margin_left=margin_left,
+                           clip_border_width_mm=clip_border_width_mm),
+    )
+
+
 def _p3_preset(slug: str, name: str, paper: str, cols: int, rows: int,
                patches: int, pages: int, white: int, black: int) -> "_Ti1Preset":
     """One chart of Knut's i1Pro 3 Plus family (see _P3_BASE above).
@@ -2122,6 +2204,29 @@ KNUT_PRESETS: list[_Ti1Preset] = [
     _i1_preset("i1_w8_a3_3432p_3pages_landscape_w9_0mm",
                "A3-3432p-3pages-Landscape-w9.0mm",
                "420x297", 44, 26, 3432, 3, 2, 2),
+
+    # ---- Knut's i1Pro PHOTO-CARD family (2026-09-09) --------------------
+    # The 10 x 15 cm and 13 x 18 cm cards, re-cut for a strip reader: *"I had to
+    # adjust the margins a bit to assure space for starting and ending a strip
+    # reading. Thus the measurements are very slightly different from the
+    # original pharmacist presets."* They sit beside the two "by Pharmacist"
+    # photo cards under the same i1Pro heading, and neither replaces the other:
+    # those are prebuilt files, these are engine-built with his margins.
+    #
+    # See _I1_PHOTO_BASE for the ten fields this family shares and does not get
+    # from either other i1Pro base, and why all five sheet-scaled numbers are
+    # spelled out on every row. Rows generated by
+    #   python scripts/import_knut_presets.py i1photo <folder> --write
+    _i1_photo_preset("i1_photo_100x150mm_600p_4pages_portrait_w7_5mm",
+                     "100x150mm-600p-4pages-Portrait-w7.5mm",
+                     "100x150", 10, 15, 600, 4, 1, 1,
+                     margin_left=19.0, margin_top=17.0, margin_right=5.0,
+                     margin_bottom=13.0, clip_border_width_mm=19.0),
+    _i1_photo_preset("i1_photo_130x180mm_648p_3pages_w8_0mm",
+                     "130x180mm-648p-3pages-w8.0mm",
+                     "130x180", 12, 18, 648, 3, 1, 1,
+                     margin_left=26.0, margin_top=19.5, margin_right=7.0,
+                     margin_bottom=13.5, clip_border_width_mm=26.0),
 
     # --- CR30 family (Knut, 2026-09-06) -----------------------------------
     # His ChnSpec CR30 line-up, curated to twenty by Basti. See _CR30_BASE above

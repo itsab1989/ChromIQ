@@ -526,6 +526,65 @@ twenty from the real dropdown and photographs both boundaries.
 > and both are pinned at what they measure rather than waved through. Whether
 > the name or the layout is the one to correct is his call.
 
+### The i1Pro photo-card family (Knut, 2026-09-09) — two charts, a third i1Pro base
+
+The 10 x 15 cm and 13 x 18 cm cards, re-cut for a strip reader. His words:
+*"I had to adjust the margins a bit to assure space for starting and ending a
+strip reading. Thus the measurements are very slightly different from the
+original pharmacist presets."* Kind 3 (`_I1_PHOTO_BASE` + `_i1_photo_preset()`,
+assets at `assets/charts/knut/rgb/i1prophoto/<slug>/chart.ti1` with the usual
+`recipe.json`), imported by the same script:
+
+```bash
+python scripts/import_knut_presets.py i1photo <folder-of-exports> --write
+```
+
+They sit **beside** the two "by Pharmacist" photo cards under the existing
+i1Pro heading and replace neither: those are prebuilt-file bundles copied into
+the run, these are engine-built with his wider margins. Ordering puts them at
+the head of the Knut block, because `_paper_sort_key` is area-based and a photo
+card is a quarter of an A4.
+
+**A THIRD i1Pro BASE, FOR THE SAME REASON THERE WAS A SECOND.** Measured against
+the shipped `_I1_BASE`, both cards move eleven fields — `area_min_patch_mm` 17.5,
+`border` 10.0, `clip_text` (his note), `edge_spacers` False,
+`helper_marker_edge_mm` 2.0, `indicator_size_mm` 0.0, `nolimit` False, `pscale`
+0.95, `sscale` 0.6, `text_edge_top_mm` 4.0, and `margin_top`. **Ten of the
+eleven are identical between the two cards**, and not one of them is in any
+i1Pro `varying` set, so folding this batch into `_I1_BASE` or `_I1_75_BASE`
+would have silently re-cut the nineteen 8 mm charts and the nineteen 7.5 mm
+ones. Ten shared fields is a design, so it gets a base — exactly the call the
+`i175` family was added for.
+
+**THE BASE CARRIES NO MARGIN, AND THAT IS THE MECHANISM IT ADDED.** A photo card
+is a quarter of an A4 and the two cards are not the same shape, so every
+sheet-scaled number is the card's own: all four margins plus the clip band's
+width (19 mm on the 10 x 15, 26 on the 13 x 18). `_I1_PHOTO_PER_SHEET` names
+those five, `_I1_PHOTO_BASE` strips them out of what it inherits, and
+`_i1_photo_preset` takes them as **required keyword arguments** — so a row
+cannot quietly inherit an A4 jig's 38 mm top margin onto a photo card.
+
+The importer learned the matching idea, `Family.always`: fields every row spells
+out even where it agrees with the batch base. Without it the first file of a
+two-chart batch defines the base by being first, emits nothing, and the reviewer
+is told the two differ in five fields when in truth neither inherits any of
+them.
+
+`_NAME_TAIL` also grew a `<W>x<H>mm` sheet token. Such a token says the sheet
+outright (unlike a named one — the i1Pro A3 charts store `420x297` and call
+themselves "A3"), so `check()` holds the name and the layout to each other.
+
+> **One name is short of a token, and it is his.**
+> `130x180mm-648p-3pages-w8.0mm` carries no orientation where every other chart
+> spells one out. The sheet and the layout are portrait all the same, so nothing
+> is wrong on paper; it is pinned as it is rather than re-spelled. Flagged for
+> Knut.
+
+`tests/test_i1pro_photocard_builtin_presets.py` pins the base against
+`_I1_BASE` **and** `_I1_75_BASE` in each of the ten fields, so this family
+cannot have been folded into either, and builds both charts against the sheet,
+patch count, page count and patch width their names promise.
+
 ### Rename or re-file an existing preset
 
 - **Rename (label only):** change `*_PRESET_LABEL` and update
