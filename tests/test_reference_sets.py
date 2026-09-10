@@ -46,22 +46,33 @@ def test_every_bundled_file_is_byte_for_byte_the_one_fogra_published():
         assert rs.verify_unmodified(s), f"{s.id} does not match its sha256"
 
 
-def test_a_tampered_file_is_detected(tmp_path, monkeypatch):
+def test_a_tampered_file_is_not_offered_at_all(tmp_path, monkeypatch):
     """The other half of the check above, and the half that can actually fail.
 
-    MUTATION: make verify_unmodified return True unconditionally and this goes
-    red, where the all-True assertion above stays green.
+    This test asked a weaker question until a challenge round pointed out that
+    `verify_unmodified` had no caller outside this file. It proved the checker
+    worked and nothing proved the app used it, so the promise that the data
+    travels unaltered was kept by a developer's gate run and by nothing on a
+    user's machine. `available()` calls it now, and a file whose bytes have
+    moved is skipped exactly as an uncredited one is.
+
+    MUTATION: make verify_unmodified return True unconditionally, or drop the
+    call from available(), and this goes red where the all-True assertion above
+    stays green.
     """
     dst = _stage(tmp_path, monkeypatch)
     p = dst / "FOGRA51_MW3_Subset.txt"
     p.write_bytes(p.read_bytes() + b"\n")
     rs.reset_cache()
-    s = rs.by_id("FOGRA51")
-    assert s is not None
-    assert not rs.verify_unmodified(s)
-    for other in rs.available():
-        if other.id != "FOGRA51":
-            assert rs.verify_unmodified(other), other.id
+
+    assert rs.by_id("FOGRA51") is None, (
+        "a file that no longer matches its recorded sha256 is still offered; "
+        "ChromIQ would be redistributing as Fogra's something it cannot say "
+        "is Fogra's")
+    offered = rs.available()
+    assert len(offered) == 10, [x.id for x in offered]
+    for other in offered:
+        assert rs.verify_unmodified(other), other.id
 
 
 def test_the_terms_carry_fogras_own_no_endorsement_sentence():
@@ -130,6 +141,23 @@ def _stage(tmp_path, monkeypatch, mutate=None):
     return dst
 
 
+def _restamp(dst, set_id: str) -> None:
+    """Record the sha256 the set's file NOW has, for a test that edits one.
+
+    `available()` refuses a file whose bytes no longer match what SOURCE.json
+    records, which is the point of that gate. A test that edits a file to ask a
+    question about the READER has to move the recorded hash with it, or it is
+    asking about the gate instead and gets no reader at all.
+    """
+    import hashlib
+    doc = json.loads((dst / rs.SOURCE_FILE).read_text(encoding="utf-8"))
+    entry = doc["sets"][set_id]
+    data = (dst / entry["file"]).read_bytes()
+    entry["sha256"] = hashlib.sha256(data).hexdigest()
+    (dst / rs.SOURCE_FILE).write_text(json.dumps(doc), encoding="utf-8")
+    rs.reset_cache()
+
+
 def test_a_data_file_with_no_credit_is_not_offered(tmp_path, monkeypatch):
     """The condition met by construction: strip FOGRA51's source and it
     disappears from the list, rather than appearing uncredited.
@@ -195,9 +223,9 @@ def test_the_row_count_is_counted_and_not_read_from_the_header(tmp_path,
     p.write_text(text.replace("NUMBER_OF_SETS\t72", "NUMBER_OF_SETS\t3")
                      .replace("NUMBER_OF_SETS 72", "NUMBER_OF_SETS 3"),
                  encoding="utf-8")
-    rs.reset_cache()
+    _restamp(dst, "FOGRA51")
     s = rs.by_id("FOGRA51")
-    assert s is not None
+    assert s is not None, "the re-stamp did not take, so this proves nothing"
     assert len(rs.read_aims(s)) == 72
 
 

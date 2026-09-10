@@ -30,7 +30,8 @@ allowed a profiling run's report to show no verdict.
 
   **There is no way to choose one yet, and that is deliberate.** Nine questions
   have to be answered first, three of them before a picker can honestly be
-  drawn, and they are on issue #182. The most important is that a ChromIQ
+  drawn. They go to the issue with this beta, as the tables promised there
+  before anything is built. The most important is that a ChromIQ
   verification sheet and a Fogra CMYK set have no patch in common except the
   paper: pairing a printer's own cyan with offset cyan because both are called
   C would be pairing two things because their labels rhyme. So of the three

@@ -211,7 +211,7 @@ def available() -> "list[ReferenceSet]":
         lab = entry.get("paper_lab")
         paper = (tuple(float(v) for v in lab)
                  if isinstance(lab, (list, tuple)) and len(lab) == 3 else None)
-        out.append(ReferenceSet(
+        candidate = ReferenceSet(
             id=set_id,
             label=str(entry.get("label") or set_id),
             group=group,
@@ -226,7 +226,24 @@ def available() -> "list[ReferenceSet]":
             paper_lab=paper,
             is_real_paper=bool(entry.get("is_real_paper", True)),
             sha256=str(entry.get("sha256") or ""),
-        ))
+        )
+        # THE UNMODIFIED CHECK RUNS HERE, AND UNTIL NOW IT RAN NOWHERE.
+        # Fogra's permission is conditional on the data travelling unaltered,
+        # and `verify_unmodified` was written to make that checkable rather
+        # than asserted. It had exactly one caller, a test, which proves the
+        # files in the repository are intact on the machine that runs the gate
+        # and says nothing about the copy on a user's disk. A promise kept only
+        # by a developer's test run is not kept. A file whose bytes no longer
+        # match what SOURCE.json records is now skipped for the same reason an
+        # uncredited one is: ChromIQ would be redistributing something it
+        # cannot say is the original.
+        if not verify_unmodified(candidate):
+            log.warning("reference set %s: %s does not match the sha256 in %s; "
+                        "not offered, because the permission to ship it covers "
+                        "the unaltered file only",
+                        set_id, path.name, SOURCE_FILE)
+            continue
+        out.append(candidate)
     out.sort(key=lambda s: (GROUP_ORDER.index(s.group), s.id))
     _cache = out
     return out
