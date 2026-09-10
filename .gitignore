@@ -102,3 +102,9 @@ scripts/offscreen_font_probe/_results/
 # picture. Publishing them by accident would make the enquiry's own premise
 # false while it is still unanswered.
 .progress/issue-182/
+
+# Generated demo projects for the Measurement Report (#182). The GENERATOR is
+# tracked (scripts/make_report_limit_demos.py); its output is not, because it is
+# 8.5 MB of charts, profiles and measurements that one command rebuilds in 12 s.
+# The zip is shipped as a release asset instead.
+demo-projects/
