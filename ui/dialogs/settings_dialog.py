@@ -6709,6 +6709,7 @@ class SettingsDialog(QDialog):
         self._update_checker.update_available.connect(self._on_update_available)
         self._update_checker.up_to_date.connect(self._on_up_to_date)
         self._update_checker.check_failed.connect(self._on_update_failed)
+        self._update_checker.rate_limited.connect(self._on_update_rate_limited)
         self._update_checker.check_async()
 
     def _on_update_available(self, latest: str) -> None:
@@ -6725,6 +6726,40 @@ class SettingsDialog(QDialog):
         self._update_btn.setText(tr("Check for Updates"))
         _ink(self._update_status, "#4caf50", " font-size: 11px;")
         self._update_status.setText(tr("You're up to date."))
+
+    def _on_update_rate_limited(self, reset: int) -> None:
+        """Nothing is broken: this address has used its hour of free checks.
+
+        GitHub answers 60 checks an hour to a caller with no account, counted
+        against the INTERNET CONNECTION rather than the person, so an office or
+        a shared mobile network can spend it between them. The old text was
+        "Check failed: GitHub answered 403.", which names a number a user
+        cannot act on and calls a wait a failure.
+        """
+        self._update_btn.setEnabled(True)
+        self._update_btn.setText(tr("Check for Updates"))
+        _ink(self._update_status, "#e67e00", " font-size: 11px;")
+        when = ""
+        if reset:
+            from PyQt6.QtCore import QDateTime, QLocale
+            moment = QDateTime.fromSecsSinceEpoch(int(reset)).toLocalTime()
+            when = QLocale().toString(moment.time(), QLocale.FormatType.ShortFormat)
+        if when:
+            text = tr(
+                "GitHub answers only so many update checks an hour from one "
+                "internet connection, and this connection has used them up. "
+                "It can be asked again from about {time}. Until then you can "
+                "<a href=\"{url}\">open GitHub Releases</a> to see what is there."
+            ).format(time=when, url=_RELEASES_PAGE)
+        else:
+            text = tr(
+                "GitHub answers only so many update checks an hour from one "
+                "internet connection, and this connection has used them up. "
+                "Please try again later, or "
+                "<a href=\"{url}\">open GitHub Releases</a> to see what is there."
+            ).format(url=_RELEASES_PAGE)
+        self._update_status.setText(text)
+        self._update_status.setOpenExternalLinks(True)
 
     def _on_update_failed(self, reason: str) -> None:
         self._update_btn.setEnabled(True)
