@@ -367,3 +367,76 @@ def test_the_head_follows_the_body_sideways_and_not_up_and_down(qapp, tmp_path):
         assert dlg._head.x() == -137
     finally:
         dlg.deleteLater()
+
+
+def test_typing_a_number_and_typing_it_back_is_not_an_edit(qapp, tmp_path):
+    """`_run_dirty` was set on every `valueChanged`, so a visit that typed a
+    number and typed the original straight back closed as an edit.
+
+    Round 9 drove what that cost: the report window asked to recalculate a whole
+    history, archived every date into `reports/old` for a change of nothing, and
+    on an unbound run bound it permanently, with no control anywhere that undoes
+    a binding.
+
+    This has to drive the REAL dialog. A fake that sets `run_limits_changed`
+    itself cannot test the rule that decides it, which is how the first version
+    of this test proved nothing.
+
+    MUTATION: drop the `_run_column_really_moved()` call from `done()` and this
+    goes red.
+    """
+    from workflow.compliance_sets import Limit
+
+    proj = Project.create(tmp_path / "P", "P")
+    run = proj.current_run()
+    run.ensure_dir()
+    rc.bind_run(run, "chromiq_default", {})
+
+    s, dlg = _dlg(qapp, tmp_path, run=run, run_editable=True)
+    try:
+        before = dict(dlg._run_limits)
+        assert before, "the run column is empty, so this proves nothing"
+        row = "all_de00_avg"
+        original = before[row]
+        assert original.number is not None
+
+        # typed away…
+        dlg._run_limits[row] = Limit.value(0.5)
+        dlg._run_dirty = True
+        # …and typed straight back
+        dlg._run_limits[row] = original
+
+        assert not dlg._run_column_really_moved(), (
+            "a column that ends where it started is reported as edited")
+
+        dlg.done(0)
+        assert not dlg.run_limits_changed, (
+            "a net-zero visit closed as an edit, so the report window would "
+            "recalculate a history for a change of nothing")
+    finally:
+        dlg.deleteLater()
+
+
+def test_a_real_edit_is_still_an_edit(qapp, tmp_path):
+    """THE NEGATIVE HALF, and the one that would break silently.
+
+    MUTATION: make `_run_column_really_moved` return False and this goes red.
+    """
+    from workflow.compliance_sets import Limit
+
+    proj = Project.create(tmp_path / "Q", "Q")
+    run = proj.current_run()
+    run.ensure_dir()
+    rc.bind_run(run, "chromiq_default", {})
+
+    s, dlg = _dlg(qapp, tmp_path, run=run, run_editable=True)
+    try:
+        dlg._run_limits["all_de00_avg"] = Limit.value(0.25)
+        dlg._run_dirty = True
+        assert dlg._run_column_really_moved()
+        dlg.done(0)
+        assert dlg.run_limits_changed, "a real edit was not reported"
+        got = rc.run_limits(run, {}).limits.get("all_de00_avg")
+        assert got is not None and abs(got.number - 0.25) < 1e-9
+    finally:
+        dlg.deleteLater()

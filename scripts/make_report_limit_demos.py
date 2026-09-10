@@ -734,7 +734,8 @@ SERIES_DEFAULT: "list[Date]" = [
        "A single grey step is 3.6 off in chroma. That crosses the recommended "
        "3.0 on the grey maximum, and the same patch is far enough out to carry "
        "'All patches, largest' over 3.0 with it. TWO rows cross, and this pair "
-       "cannot be separated: see the note at the end of this file.",
+       "cannot be separated: a grey cast this size along a* is over 2.0 as a "
+       "colour difference too, which the note further down works out.",
        Design(bulk=0.80, shoulder=1.10, peak=1.50, tail=1.40,
               grey_dch=0.40, grey_spike=3.60),
        ["grey_balance_neutral_ramp_max", "all_de00_max"]),
@@ -831,7 +832,7 @@ SERIES_RAMP: "list[Date]" = [
        []),
 ]
 
-#: The two rows that cannot cross alone under any shipped set, isolated by
+#: Rows that cannot cross alone under any shipped set, isolated by
 #: giving the run its own edited column. See the README.
 SERIES_BEST95: "list[Date]" = [
     _d("2026-07-06_140000", "2026-07-06T14:00:00",
@@ -1259,6 +1260,10 @@ def main(argv=None) -> int:
     return 1 if bad else 0
 
 
+#: Small numbers as words, for a heading that must agree with a computed list.
+_WORDS = {0: "no", 1: "one", 2: "two", 3: "three", 4: "four", 5: "five",
+          6: "six", 7: "seven", 8: "eight"}
+
 #: Rows that are ordered against another row, and therefore cannot cross their
 #: limit while that other row stays inside its own. The ORDER is a fact about
 #: the statistics; whether it forces a second crossing depends on the NUMBERS,
@@ -1437,7 +1442,7 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict) -> str:
           f"{'yes' if row['lifted'] else 'no':<7}"
           f"{'YES' if row['locked'] else 'no':<7}")
     a("")
-    a("All three states are present on purpose, and the index near the top of")
+    a("All three states are present on purpose, and the index further down")
     a("this file names a run for each of them, from the same measured rows as")
     a("the table above. THEY ARE NOT LISTED AGAIN HERE. The last version of")
     a("this file answered the question twice, once from a generated line and")
@@ -1537,32 +1542,40 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict) -> str:
                }.get(row.status, row.status)
         a(f"  {row.label}: {why}")
     a("")
-    a("So a green column in these projects means the seven judged rows passed.")
+    a(f"So a green column in these projects means the "
+      f"{_WORDS.get(len(_cov['judged']), len(_cov['judged']))} judged rows")
+    a("passed. That number was typed here and read EIGHT forty lines above,")
+    a("two numbers for one thing in one document; it is the same number now.")
     a("It does not mean the rest were checked.")
     a("")
-    a("THREE ROWS CANNOT CROSS ALONE UNDER A STOCK COLUMN, AND A FOURTH")
-    a("DEPENDS ON WHICH WAY THE CAST GOES")
-    a("----------------------------------------------------------------")
+    _forced = _forced_pairs()
+    _n = _WORDS.get(len(_forced), str(len(_forced)))
+    a(f"{_n.upper()} ROWS CANNOT CROSS ALONE UNDER A STOCK COLUMN, AND A")
+    a("FURTHER ONE DEPENDS ON WHICH WAY THE CAST GOES")
+    a("-" * 68)
     a("")
-    a("THE COUNT HAS BEEN WRONG TWICE, in both directions, so here it is")
-    a("computed rather than asserted. A row cannot cross alone when another")
-    a("row is forced over its own limit at the same moment.")
+    a("THE COUNT HAS BEEN WRONG TWICE, in both directions, AND THEN THE")
+    a("HEADING WAS WRONG A THIRD TIME while the list under it was right,")
+    a("because the list was computed and the number above it was typed. Both")
+    a("come from the same place now. A row cannot cross alone when another row")
+    a("is forced over its own limit at the same moment.")
     a("")
-    a("Three of them by arithmetic, and the reason is that the three averages")
-    a("are ordered: 'Best 95 % of patches, average' is always less than or")
-    a("equal to 'All patches, average', which is always less than or equal to")
-    a("'Worst 5 % of patches, average'. Every shipped set gives those three")
-    a("the SAME number, so:")
+    a(f"{_n.capitalize()} of them by arithmetic, and the reason is that the")
+    a("three averages are ordered: 'Best 95 % of patches, average' is always")
+    a("less than or equal to 'All patches, average', which is always less than")
+    a("or equal to 'Worst 5 % of patches, average'. Every shipped set gives")
+    a("those three the SAME number, so:")
     a("")
-    for _rid, _why in _forced_pairs():
+    for _rid, _why in _forced:
         a(f"  {ROW_TITLES.get(_rid, _rid)}")
         a(f"      cannot cross without {_why}")
     a("")
-    a("The rest of the numeric rows can cross by themselves, being the top of")
-    a("each ordering.")
+    a("The rest of the numeric rows can cross by themselves, because nothing")
+    a("above them in an ordering has a limit small enough to be dragged over")
+    a("with them.")
     a("")
-    a("The third is the grey-balance average, and it depends on WHICH WAY the")
-    a("cast goes, which the first version of this note did not say.")
+    a("The further one is the grey-balance average, and it depends on WHICH")
+    a("WAY the cast goes, which the first version of this note did not say.")
     a("")
     a("The grey rows are measured in chroma difference and the others in")
     a("colour difference, and near a neutral those are not the same size. But")
@@ -1575,8 +1588,8 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict) -> str:
     a("The rescaling is CIEDE2000's own, and it is a* that it stretches. So a")
     a("cast toward red or green of 1.8 does put every grey patch over 2.0,")
     a("while the same size of cast toward yellow or blue leaves them at 1.73,")
-    a("under it. THE GREY AVERAGE CAN THEREFORE CROSS ALONE, on a b* cast, and")
-    a("this heading is right about two rows and wrong about the third.")
+    a("under it. THE GREY AVERAGE CAN THEREFORE CROSS ALONE, on a b* cast,")
+    a("which is why it is not in the computed list above.")
     a("")
     a("These projects build an a* cast, which is why the pairing holds in")
     a("them: Threshold-Series 2026-04-13 shows it, with two rows crossing.")

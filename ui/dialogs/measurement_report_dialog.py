@@ -511,6 +511,10 @@ class _TrendChart(QWidget):
         p.end()
 
 
+class _NothingToRestore(Exception):
+    """The refusal had nothing to undo, so nothing is written."""
+
+
 class MeasurementReportDialog(QDialog):
     def __init__(self, settings, parent=None, initial_ti3=None) -> None:
         super().__init__(parent)
@@ -1811,7 +1815,7 @@ class MeasurementReportDialog(QDialog):
             return
         from workflow.compliance_sets import SET_BY_ID, selectable_set_ids
         from workflow.run_compliance import (has_measured_verification,
-                                             is_locked, may_unlock)
+                                             is_bound, is_locked, may_unlock)
         lim = self._window_limits()
         ctx = self._run_ctx
         run = ctx.run if ctx else None
@@ -1853,9 +1857,16 @@ class MeasurementReportDialog(QDialog):
             # not to offer the control at all. It comes back the moment the run
             # has the history that a lock would apply to, which is also the
             # moment its wording becomes true.
+            # AND IT STAYS ON SCREEN FOR A BOUND RUN WHATEVER THE FLAG SAYS.
+            # Hiding it whenever the run was neither locked nor unlocked meant
+            # that un-ticking it at one dated verification made it VANISH, so
+            # between that click and the next measurement there was nothing on
+            # screen saying the state had changed, and the next measurement
+            # locked the run. A control that decides something must be visible
+            # while it decides it.
             self._unlock_check.setVisible(
                 run is not None and not several
-                and (locked or bool(lim.unlocked)))
+                and (locked or bool(lim.unlocked) or is_bound(run)))
             # F6: the button's text changes, so its width must follow it
             self._limits_btn.setMinimumWidth(self._limits_btn.sizeHint().width())
             self._set_combo.setEnabled(not several and (run is None or not locked))
@@ -2317,10 +2328,24 @@ class MeasurementReportDialog(QDialog):
             self._syncing_limits = False
 
     def _relocking_would_take_the_controls(self, run) -> bool:
-        """Whether putting the lock back would really lock this run."""
-        from workflow.run_compliance import is_bound, measured_dates
+        """Whether putting the lock back will take the controls away, NOW OR AT
+        THE NEXT MEASUREMENT.
+
+        THIS ASKED FOR TWO DATED VERIFICATIONS AND THAT WAS THE WRONG MOMENT.
+        The reasoning was that below two dates the lock does not apply, so there
+        is nothing to warn about. It does not apply YET: it applies at the next
+        measurement, and by then this question, which is the only place that
+        names the Preferences setting needed to undo it, is gone. A challenge
+        round drove it on the state the app itself creates when it binds a run:
+        one click on a box the app had ticked for the user, one more dated
+        verification, and the run was locked with the pulldown greyed and the
+        unlock box disabled.
+
+        A bound run is enough, because a bound run will reach two dates.
+        """
+        from workflow.run_compliance import is_bound
         try:
-            return is_bound(run) and measured_dates(run) >= 2
+            return is_bound(run)
         except Exception:              # noqa: BLE001
             return False
 
@@ -2484,10 +2509,24 @@ class MeasurementReportDialog(QDialog):
         if ctx is not None and snap.get("run") is not None:
             try:
                 m = ctx.run.load_meta()
+                _current = (m.compliance_set_id, m.compliance_set_label,
+                            m.compliance_thresholds, m.compliance_bound_at,
+                            bool(m.compliance_unlocked),
+                            list(getattr(m, "compliance_columns", []) or []))
+                if _current == tuple(snap["run"]):
+                    # NOTHING OF THEIRS WAS WRITTEN, SO NOTHING IS PUT BACK.
+                    # This called `save_meta` unconditionally, which reported a
+                    # failure on a read-only folder where the refusal had in
+                    # fact been honoured completely, and on a project made
+                    # before #182 it wrote six empty compliance keys into a
+                    # meta.json that had none.
+                    raise _NothingToRestore
                 (m.compliance_set_id, m.compliance_set_label,
                  m.compliance_thresholds, m.compliance_bound_at,
                  m.compliance_unlocked, m.compliance_columns) = snap["run"]
                 ctx.run.save_meta(m)
+            except _NothingToRestore:
+                pass
             except OSError as exc:
                 log.warning("could not put %s's limits back: %s", ctx.run.dir, exc)
                 self._pending_restore_error = exc
@@ -2584,17 +2623,33 @@ class MeasurementReportDialog(QDialog):
         # let four rounds each find the next unguarded one. `run_limits` is the
         # app's own answer: for a bound run its stored copy, for an unbound one
         # the live preference and the app-wide overrides.
-        # AND AN EDIT TO THE RUN'S OWN COLUMN COUNTS WHATEVER THAT COMPARISON
-        # SAYS. On an UNBOUND run `set_run_limits` writes the numbers and
-        # nothing reads them, so `run_limits` answers from the preference and
-        # the comparison above sees no movement at all. That is the fault a
-        # round already found, not a reason to stay silent: the user typed a
-        # number into this run's column, and the point of the act is that the
-        # run should be judged by it. So the edit is its own trigger, and the
-        # bind below is what makes it true.
-        moved = (ctx is not None
-                 and (edited_run_column
-                      or self._judged_by(ctx) != snap["judged_by"]))
+        # THE TRIGGER IS SOMETHING THIS WINDOW WROTE, AND ONLY THAT.
+        #
+        # Two rounds sharpened this. Taking `edited_run_column` on its own asked
+        # the question for an edit that typed a number and typed it straight
+        # back: net zero, and on an unbound run it still bound the run and
+        # rewrote eleven reports, a permanent change with no control that undoes
+        # it. And taking a movement in `judged_by` on its own asked the user
+        # about a binding ANOTHER writer had made while the window sat open, a
+        # second report window or `ensure_bound` at a verification measurement,
+        # where the natural answer to a question you did not ask for silently
+        # reverted the other writer.
+        #
+        # So each door is tested for what it really did:
+        #   the run's own column   the dialog says it wrote, AND the numbers
+        #                          on disk actually differ
+        #   the preferences        they differ, AND that moved what this run is
+        #                          judged by (on a bound run it cannot)
+        # Anything else in the run's meta, a column tick or another writer's
+        # bind, is not this window's doing and is left alone.
+        _now = self._limits_snapshot(ctx)
+        _run_numbers_moved = bool(
+            edited_run_column and snap["run"] is not None
+            and _now["run"] is not None and _now["run"][2] != snap["run"][2])
+        _prefs_moved = ((_now["default_set"] != snap["default_set"]
+                         or _now["overrides"] != snap["overrides"])
+                        and _now["judged_by"] != snap["judged_by"])
+        moved = ctx is not None and (_run_numbers_moved or _prefs_moved)
         if moved:
             if (self._recalculating_would_rewrite_history(ctx.run)
                     and not self._confirm_recalculate(ctx.run)):
@@ -2630,12 +2685,29 @@ class MeasurementReportDialog(QDialog):
         of the record `bind_run` writes; a run bound with only the id printed
         the raw internal id to the user.
         """
-        from workflow.compliance_sets import SET_BY_ID, is_known_set
+        from workflow.compliance_sets import (SET_BY_ID, is_known_set,
+                                               limits_to_json)
         try:
             m = run.load_meta()
             m.compliance_set_id = set_id
             if is_known_set(set_id):
                 m.compliance_set_label = SET_BY_ID[set_id].label
+            # THE NUMBERS, WHICH ARE THE HALF `is_bound` ACTUALLY TESTS.
+            # This wrote four keys and not this one, so the run it "bound" was
+            # not bound: `is_bound` wants the id AND the thresholds. A challenge
+            # round drove the consequence and it is worse than a missing field.
+            # The run could never lock again, its numbers went on following the
+            # live app-wide overrides while eleven saved reports said something
+            # else, `compliance_bound_at` recorded a binding that had not
+            # happened, and the next verification measurement bound it a third
+            # time to whatever was live at that moment.
+            #
+            # Only when they are not already there: `ThresholdsDialog.done()`
+            # writes the user's own edited column on its way out, and that is
+            # the one thing here that must not be overwritten.
+            if not m.compliance_thresholds:
+                m.compliance_thresholds = limits_to_json(
+                    self._window_limits().limits)
             m.compliance_bound_at = datetime.now().isoformat(timespec="seconds")
             m.compliance_unlocked = True
             run.save_meta(m)
@@ -2696,9 +2768,17 @@ class MeasurementReportDialog(QDialog):
                         # the file is left exactly as it was, but a report the
                         # user can see in the window and that no recalculation
                         # ever reaches is worth one line.
+                        # NOT `_failed`, AND THAT ONE LINE PUT THE DATE IN TWO
+                        # LISTS AT ONCE. A challenge round drove a date whose
+                        # ONLY report file is not JSON and read back four false
+                        # clauses: some reports were recalculated (none were), a
+                        # file could not be written (none was attempted), the
+                        # date holds old and new verdicts (it holds one), and
+                        # the window shows what the unwritten file carries
+                        # (there is no unwritten file). A file that cannot be
+                        # READ is its own kind of failure and has its own list.
                         log.warning("could not read %s; left as it is", path)
                         unreadable.append(f"{v.id}/{Path(path).name}")
-                        _failed = True
                         continue
                     stamp_verdict(rep, lim.limits, set_id=lim.set_id,
                                   set_label=lim.label_en, edited=lim.edited)
@@ -2749,10 +2829,21 @@ class MeasurementReportDialog(QDialog):
                     "These report files could not be read at all and were left "
                     "exactly as they are:\n{files}").format(
                         files="\n".join(sorted(set(unreadable)))))
-            _parts.append(tr(
-                "Individual files can be read-only while their folder is "
-                "writable. Make the files and the folders writable, then change "
-                "the limits again to bring them all up to date."))
+            # AND THE CLOSING LINE FOLLOWS THE LISTS THAT ARE ACTUALLY THERE.
+            # It was appended unconditionally, so a date with one corrupt file
+            # was told to make its files writable and try again, which fixes
+            # nothing and re-runs the same failure.
+            if no_archive or part_written:
+                _parts.append(tr(
+                    "Individual files can be read-only while their folder is "
+                    "writable. Make the files and the folders writable, then "
+                    "change the limits again to bring them all up to date."))
+            if unreadable:
+                _parts.append(tr(
+                    "A file that cannot be read is not a permissions problem "
+                    "and changing the limits again will not help. Open it, or "
+                    "move it out of its reports folder, and the next "
+                    "recalculation will leave a fresh one in its place."))
             warn(self, tr("Some reports were not recalculated"),
                  "\n\n".join(_parts))
 

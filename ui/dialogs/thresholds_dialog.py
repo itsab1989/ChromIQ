@@ -110,6 +110,13 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         self._run_limits: "dict[str, Limit]" = {}
         self._run_set_id = ""
         self._run_dirty = False
+        #: WHAT THE WINDOW OPENED WITH, so that typing a number and typing it
+        #: straight back is not an edit. `_run_dirty` was set on every
+        #: `valueChanged`, so a net-zero visit wrote the column, asked the
+        #: report window to recalculate a whole history, and on an unbound run
+        #: bound it permanently, from an act that changed nothing. Filled in by
+        #: `_fill_run_column`, which is where the opening values are known.
+        self._run_limits_at_open: "dict | None" = None
         #: True after close when the run's copy was changed (the report window
         #: recalculates the run's dated reports then, once; CH-29)
         self.run_limits_changed = False
@@ -125,6 +132,8 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
             rl = run_limits(run, self._overrides, self._default_set)
             self._run_limits = dict(rl.limits)
             self._run_set_id = rl.set_id
+            from workflow.compliance_sets import limits_to_json as _l2j
+            self._run_limits_at_open = _l2j(self._run_limits)
             self._run_label = rl.set_label
 
         self.setWindowTitle(tr("Report limits"))
@@ -713,8 +722,23 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         self.resize(w, h)
         self._keep_inside_the_work_area()
 
+    def _run_column_really_moved(self) -> bool:
+        """Whether the run's column ends this visit different from how it
+        started. Compared through `limits_to_json`, the same shape that is
+        written to disk, so two Limits that store the same thing compare equal.
+        """
+        from workflow.compliance_sets import limits_to_json
+        if self._run_limits_at_open is None:
+            return True                 # nothing to compare against; be safe
+        try:
+            return limits_to_json(self._run_limits) != self._run_limits_at_open
+        except Exception:               # noqa: BLE001
+            return True
+
     def done(self, result: int) -> None:  # noqa: D102
-        if self._run is not None and self._run_dirty and self._run_editable:
+        # DIRTY MEANS DIFFERENT, NOT TOUCHED.
+        if (self._run is not None and self._run_dirty and self._run_editable
+                and self._run_column_really_moved()):
             from workflow.run_compliance import set_run_limits
             try:
                 set_run_limits(self._run, self._run_limits)

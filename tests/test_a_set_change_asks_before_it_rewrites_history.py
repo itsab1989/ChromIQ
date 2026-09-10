@@ -790,22 +790,56 @@ def test_putting_the_lock_back_asks_before_it_takes_the_controls(qapp, tmp_path,
         dlg.deleteLater()
 
 
-def test_a_run_with_one_date_is_not_asked_to_confirm_a_lock_that_cannot_apply(
+def test_a_run_with_one_date_is_asked_because_the_lock_applies_next_time(
         qapp, tmp_path, monkeypatch):
-    """A question nobody needs is a click people learn to dismiss.
+    """THIS TEST ASSERTED THE OPPOSITE AND IT WAS THE WORST STATE TO BE SILENT
+    IN.
 
-    MUTATION: ask unconditionally and this goes red.
+    It required no question below two dated verifications, reasoning that the
+    lock does not apply, so there is nothing to warn about. It does not apply
+    YET. A challenge round drove the state the app itself creates when it binds
+    a run, one date and the box ticked for the user: one click un-ticked it in
+    silence, the box then VANISHED, and the next dated verification locked the
+    run with the pulldown greyed and the unlock box disabled. By then the
+    question, which is the only place that names the Preferences setting needed
+    to undo it, was gone.
+
+    MUTATION: put `measured_dates(run) >= 2` back and this goes red.
     """
     proj, run, ti3 = _bound_run_with_dates(tmp_path, 1, unlocked=True)
     dlg = _dialog(_settings(tmp_path), ti3)
     try:
         asked: list = []
         monkeypatch.setattr(type(dlg), "_confirm",
+                            lambda self, t, x: asked.append(x) or False)
+        dlg._on_unlock_toggled(False)
+        assert asked, (
+            "a bound run was re-locked in silence at one dated verification, "
+            "which is where the warning matters most")
+        assert "Preferences" in asked[0], (
+            "the question does not name the way back: " + asked[0])
+    finally:
+        dlg.deleteLater()
+
+
+def test_an_unbound_run_has_nothing_to_lock_and_is_not_asked(qapp, tmp_path,
+                                                             monkeypatch):
+    """THE NEGATIVE HALF. A question nobody needs is a click people learn to
+    dismiss, and a run with no limit set of its own can never lock.
+
+    MUTATION: ask unconditionally and this goes red.
+    """
+    from workflow.run_compliance import is_bound
+
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    assert not is_bound(run)
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        asked: list = []
+        monkeypatch.setattr(type(dlg), "_confirm",
                             lambda self, t, x: asked.append(t) or True)
         dlg._on_unlock_toggled(False)
-        assert not asked, (
-            "a run with one dated verification was warned about a lock that "
-            "does not apply to it")
+        assert not asked, "an unbound run was warned about a lock it cannot have"
     finally:
         dlg.deleteLater()
 
@@ -943,5 +977,215 @@ def test_the_undo_failure_names_the_right_disagreement(qapp, tmp_path,
         assert seen, "no message at all"
         assert phrase in seen[0], seen[0]
         assert "Your Preferences were put back" in seen[0], seen[0]
+    finally:
+        dlg.deleteLater()
+
+
+# ---------------------------------------------------------------------------
+# Round 9: the bind that did not bind, and a question about somebody else's act
+# ---------------------------------------------------------------------------
+def _edit_a_shipped_column(dlg, monkeypatch, answer=True, value=0.2):
+    """Reach the bind WITHOUT touching the run's own column.
+
+    This is the route round 9 used, and it is the one no test had: the dialog
+    writes an app-wide override, `run_limits_changed` stays False, and
+    `ThresholdsDialog.done()` never writes the run's thresholds.
+    """
+    from core.settings import store_compliance_overrides
+
+    asked: list = []
+    monkeypatch.setattr(type(dlg), "_confirm",
+                        lambda self, t, x: asked.append(x) or answer)
+
+    class _Fake:
+        run_limits_changed = False
+
+        def __init__(self, settings, parent, run=None, run_editable=False):
+            self._s = settings
+
+        def exec(self):
+            store_compliance_overrides(
+                self._s, {"chromiq_default": {"worst5_de00_avg": value}})
+            return 0
+
+        def deleteLater(self):
+            pass
+
+    import ui.dialogs.thresholds_dialog as td
+    monkeypatch.setattr(td, "ThresholdsDialog", _Fake)
+    dlg._on_open_limits()
+    return asked
+
+
+def test_a_run_the_window_binds_is_really_bound(qapp, tmp_path, monkeypatch):
+    """`_bind_without_locking_out` wrote the set id, the label, the moment and
+    the unlocked flag, and NOT the thresholds, which is the half `is_bound`
+    tests. So the run it bound was not bound.
+
+    Round 9 drove what that costs: the run could never lock again, its numbers
+    went on following the live app-wide overrides while eleven saved reports
+    said something else, `compliance_bound_at` recorded a binding that had not
+    happened, and the next verification measurement bound it a third time to
+    whatever was live then.
+
+    The route matters. Reaching the bind through the run's own column hides the
+    fault, because the dialog writes the thresholds on its way out. This test
+    reaches it through a SHIPPED column, where nothing does.
+
+    MUTATION: remove the thresholds write and this goes red.
+    """
+    from workflow.run_compliance import is_bound, run_limits
+
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    assert not is_bound(run)
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        assert _edit_a_shipped_column(dlg, monkeypatch), "no question was asked"
+        assert is_bound(run), (
+            "the window reported binding this run and `is_bound` says it did "
+            "not, so the run can never lock and its numbers still follow the "
+            "app-wide preference")
+        meta = run.load_meta()
+        assert meta.compliance_thresholds, "no numbers were copied onto the run"
+        assert run_limits(run, {}).bound
+    finally:
+        dlg.deleteLater()
+
+
+def test_a_binding_made_by_someone_else_is_not_put_to_this_user(qapp, tmp_path,
+                                                                monkeypatch):
+    """The window was opened and nothing in it was touched, while another
+    writer bound the run: a second report window, or `ensure_bound` at a
+    verification measurement, whose signal is delivered inside this modal's own
+    event loop.
+
+    The user was asked "This run has 11 saved reports. Changing the limit set
+    recalculates every one of them…" about something they did not do, and the
+    natural answer to a question you did not ask for reverted the other writer.
+
+    MUTATION: trigger on a movement in `judged_by` alone and this goes red.
+    """
+    from workflow.run_compliance import bind_run, is_bound
+
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        asked: list = []
+        monkeypatch.setattr(type(dlg), "_confirm",
+                            lambda self, t, x: asked.append(x) or False)
+
+        class _Fake:
+            run_limits_changed = False
+
+            def __init__(self, settings, parent, run=None, run_editable=False):
+                self._run = run
+
+            def exec(self):
+                # NOT this window: somebody else, while it sat open.
+                bind_run(self._run, "chromiq_tight", {})
+                return 0
+
+            def deleteLater(self):
+                pass
+
+        import ui.dialogs.thresholds_dialog as td
+        monkeypatch.setattr(td, "ThresholdsDialog", _Fake)
+        dlg._on_open_limits()
+
+        assert not asked, (
+            "the user was asked about a binding another writer made")
+        assert is_bound(run), (
+            "answering a question they were not asked reverted the other "
+            "writer's binding")
+        assert run.load_meta().compliance_set_id == "chromiq_tight"
+    finally:
+        dlg.deleteLater()
+
+
+def test_a_refusal_with_nothing_to_undo_reports_no_failure(qapp, tmp_path,
+                                                           monkeypatch):
+    """`_restore_limits_snapshot` called `save_meta` unconditionally, so on a
+    read-only folder it reported a failure where the refusal had been honoured
+    completely, and on a project made before #182 a refusal wrote six empty
+    compliance keys into a meta.json that had none.
+
+    MUTATION: drop the equality check and this goes red.
+    """
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    # COUNT THE WRITE, do not compare the file. The fixture's own `save_meta`
+    # has already put the empty compliance keys into `meta.json`, so comparing
+    # its text cannot tell a needless write from none at all: the first version
+    # of this test passed with the fix removed, which is a test that proves
+    # nothing.
+    from core.file_manager import Run
+    writes: list = []
+    _real_save = Run.save_meta
+    monkeypatch.setattr(Run, "save_meta",
+                        lambda self, m: (writes.append(str(self.dir)),
+                                         _real_save(self, m))[1])
+    s = _settings(tmp_path)
+    s.set("compliance_default_set", "chromiq_default")
+    dlg = _dialog(s, ti3)
+    try:
+        seen: list = []
+        import ui.warning_sign as ws
+        monkeypatch.setattr(ws, "warn", lambda parent, t, x: seen.append(t))
+        monkeypatch.setattr(type(dlg), "_confirm", lambda self, t, x: False)
+
+        class _Fake:
+            run_limits_changed = False
+
+            def __init__(self, settings, parent, run=None, run_editable=False):
+                self._s = settings
+
+            def exec(self):
+                self._s.set("compliance_default_set", "chromiq_tight")
+                return 0
+
+            def deleteLater(self):
+                pass
+
+        import ui.dialogs.thresholds_dialog as td
+        monkeypatch.setattr(td, "ThresholdsDialog", _Fake)
+        dlg._on_open_limits()
+
+        assert not seen, f"a refusal that undid nothing reported a failure: {seen}"
+        assert not writes, (
+            "the refusal rewrote the run's meta.json although nothing of the "
+            f"user's had been written into it: {writes}")
+    finally:
+        dlg.deleteLater()
+
+
+def test_a_date_whose_only_report_cannot_be_read_is_not_called_partly_written(
+        qapp, tmp_path, monkeypatch):
+    """One line put the date in two lists at once, and the user read four false
+    clauses: some reports were recalculated, a file could not be written, the
+    date holds old and new verdicts, and the window shows what the unwritten
+    file carries. The date has one file, no write was attempted, and there is no
+    unwritten file.
+
+    MUTATION: set `_failed` on the unreadable path again and this goes red.
+    """
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 1)
+    v = list(run.verifications())[0]
+    only = sorted(v.reports_dir.glob("report_*.json"))[0]
+    only.write_text("this is not json", encoding="utf-8")
+
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        seen: list = []
+        import ui.warning_sign as ws
+        monkeypatch.setattr(ws, "warn", lambda parent, t, x: seen.append(x))
+        dlg._run_ctx = dlg._context_run()
+        dlg._recalculate_run()
+        assert seen, "the unreadable file was not reported at all"
+        text = seen[0]
+        assert "could not be read at all" in text, text
+        assert "some of the reports were recalculated" not in text, text
+        assert "both old and new verdicts" not in text, text
+        assert "Make the files and the folders writable" not in text, (
+            "the advice for a permissions problem was given for a corrupt file")
+        assert "not a permissions problem" in text, text
     finally:
         dlg.deleteLater()

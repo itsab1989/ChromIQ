@@ -155,3 +155,41 @@ def test_the_index_names_a_run_for_each_lock_state(gen):
     assert got["one date only, so the set is still offered"] == "Threshold-Series, run3"
     assert got["two dates, but the lock lifted by hand"] == "Isolated-Rows, run3"
 
+
+
+def test_the_forced_row_count_is_never_typed(gen):
+    """The heading said THREE while the computed list under it had two, then
+    two while the list had three.
+
+    Round 9 measured it: the LIST was computed and the NUMBER above it was a
+    string literal, so a mutation that makes one row stop being forced shrank
+    the list and left the heading claiming the old count. They come from the
+    same place now.
+
+    MUTATION: put a literal back in the heading and this goes red.
+    """
+    import inspect
+    import re
+
+    src = inspect.getsource(gen.readme)
+    head = [t for t in re.findall(r'a\(\s*(?:f?)"((?:[^"\\]|\\.)*)"', src)
+            if "CANNOT CROSS ALONE" in t]
+    assert head, "the heading is gone; this test is blind"
+    for t in head:
+        assert not re.search(r"\b(ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT)\b", t), (
+            f"the forced-row count is typed into the heading: {t!r}")
+
+
+def test_the_heading_and_the_list_agree_on_the_number(gen):
+    """And they must actually agree, not merely both be generated.
+
+    MUTATION: make `_WORDS` return the wrong word and this goes red.
+    """
+    n = len(gen._forced_pairs())
+    assert n >= 1, "nothing is forced, so the section has nothing to say"
+    assert gen._WORDS.get(n), f"no word for {n}"
+    assert gen._WORDS[n] in ("one", "two", "three", "four", "five"), gen._WORDS[n]
+    # the word really is the count
+    words = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five"}
+    assert gen._WORDS[n] == words[n], (
+        f"the heading would say {gen._WORDS[n]!r} for {n} rows")
