@@ -76,6 +76,7 @@ def stamp_chart_metadata(
     tiff_paths: Iterable[Path],
     lines: Sequence[str],
     text_edge_mm: float = 0.0,
+    clip_band_mm: float = 0.0,
 ) -> None:
     """Stamp `lines` joined into a single rotated text line on each TIFF's right margin.
 
@@ -89,7 +90,7 @@ def stamp_chart_metadata(
     text = _JOIN.join(pieces)
     for path in tiff_paths:
         try:
-            _stamp_one(Path(path), text, text_edge_mm)
+            _stamp_one(Path(path), text, text_edge_mm, clip_band_mm)
         except Exception as exc:
             log.warning("Right-edge stamp failed for %s: %s", path, exc)
 
@@ -259,7 +260,8 @@ def stamp_left_clip_info(
             log.warning("Left-clip stamp failed for %s: %s", path, exc)
 
 
-def _stamp_one(path: Path, text: str, text_edge_mm: float = 0.0) -> None:
+def _stamp_one(path: Path, text: str, text_edge_mm: float = 0.0,
+               clip_band_mm: float = 0.0) -> None:
     with tifffile.TiffFile(str(path)) as tf:
         page = tf.pages[0]
         # Device-native (separated) CMYK / CMYK+N charts: skip the post-render
@@ -284,7 +286,8 @@ def _stamp_one(path: Path, text: str, text_edge_mm: float = 0.0) -> None:
 
     H, W, C = arr.shape
     _dpi = _dpi_from_state(state)
-    band = _detect_writable_band(arr)
+    band = _detect_writable_band(
+        arr, keep_out_px=int(round((clip_band_mm or 0.0) * _dpi / 25.4)))
     if band is None:
         log.info("Right-edge stamp skipped (no usable right margin) for %s", path)
         return
@@ -635,6 +638,7 @@ def _rational_to_float_pair(
 def _detect_writable_band(
     arr: np.ndarray,
     side: str = "right",
+    keep_out_px: int = 0,
 ) -> tuple[int, int] | None:
     """Return (left_x, right_x) of the widest white column run in the requested margin.
 
@@ -660,6 +664,16 @@ def _detect_writable_band(
     removed the only space there was. Tolerating the mark is the mechanism that
     matches what is actually on the paper -- and the stamp composites now, so
     sharing the margin with a dash costs the dash nothing.
+
+    *keep_out_px* IS THE ONE PLACE A RESERVE IS RIGHT, and it is the clip band.
+    Tolerating a thin mark means the white gutters BETWEEN the user's own clip
+    lines also read as usable paper, and the band is wider than the clean strip
+    outside it, so "the widest run wins" preferred it and the note was stamped
+    straight through their text. Measured end to end, two builds differing only
+    in the Notes field: the note moved from a column range with nothing under it
+    to one carrying 2424 pixels of the user's own lines, and nine of thirteen
+    clip configurations came out worse than before. A dash is a mark the note
+    may share; a band the user filled with words is not.
     """
     if arr.size == 0:
         return None
@@ -683,9 +697,10 @@ def _detect_writable_band(
     else:
         patch_right = (int(patch_cols[-1]) + _PATCH_SAFETY_PAD_PX
                        if len(patch_cols) else W // 2)
-        if patch_right >= W - _MIN_STRIP_WIDTH_PX:
+        _hi = W - max(0, int(keep_out_px))
+        if patch_right >= _hi - _MIN_STRIP_WIDTH_PX:
             return None
-        scan_lo, scan_hi = patch_right, W
+        scan_lo, scan_hi = patch_right, _hi
 
     mid_top, mid_bottom = H // 6, 5 * H // 6
     _sampled = mask[mid_top:mid_bottom, scan_lo:scan_hi]

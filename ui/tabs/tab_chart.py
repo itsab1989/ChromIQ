@@ -17514,9 +17514,21 @@ class TabChart(QWidget):
         # its own" sees the file the app itself has just written, and spends the
         # rest of the session defending a choice nobody made.
         #
-        # A flag, not the episode discipline used below: the two passes are two
-        # calls, not one call re-entering itself, and the second carries nothing
-        # the first did not.
+        # AND IT DOES NOT FIX WHAT IT WAS WRITTEN FOR. A later reviewer
+        # measured the mechanism properly: `controller.changed` carries TWO
+        # SLOTS, the main window's loader and this handler, and the loader runs
+        # first and re-points `_settings_store` at the INCOMING run before this
+        # one writes. They are sequential, not nested, so no flag here can see
+        # the other. The first-visit write therefore still happens, byte for
+        # byte, with this flag and without it.
+        #
+        # It is kept because it does stop the handler being entered twice, and
+        # removing it is not free. The first-visit write is a RECORD fault, not
+        # a printing one -- no sheet changes, and nothing a user typed is lost,
+        # which the same reviewer measured across every route out. Two attempts
+        # to fix it inside this handler each broke the acceptance driver, so it
+        # is written up as an open item rather than rushed into a release.
+        # See `docs/design/issue_182_answers.md`.
         if getattr(self, "_inside_target_change", False):
             return
         self._inside_target_change = True

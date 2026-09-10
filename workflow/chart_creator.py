@@ -1736,7 +1736,17 @@ class ChartCreator:
                                       or 0.0)
                     except (TypeError, ValueError):
                         _edge = 0.0
-                stamp_chart_metadata(tiffs, cmd_lines, _edge)
+                # THE USER'S OWN CLIP BAND IS NOT A PLACE FOR THE NOTE. Only
+                # when it is on the RIGHT, which is the side the note uses.
+                _band = 0.0
+                if (_rec is not None
+                        and str(getattr(_rec, "clip_side", "left")) == "right"
+                        and bool(getattr(_rec, "clip_border", False))):
+                    try:
+                        _band = float(getattr(_rec, "clip_border_width_mm", 0.0) or 0.0)
+                    except (TypeError, ValueError):
+                        _band = 0.0
+                stamp_chart_metadata(tiffs, cmd_lines, _edge, _band)
         else:
             # ChromIQ-style: shift the patch block right by ~28 mm so the left
             # side becomes a fresh white strip ready for the left-clip stamp.

@@ -119,3 +119,33 @@ None of the report work described above is implemented beyond what shipped in
 summary, the grey-balance numbers and the short verdict word all exist as design
 only. The open questions and their recommendations are on the issue, in the
 comment of 2026-09-09, with an index saying which ones only the owner can answer.
+
+---
+
+## 5. Open, and deliberately not fixed for 4.2.2
+
+**A run's FIRST visit still files the tab's settings into it.** Selecting a run
+that has never stored anything writes about forty rows of the tab's current
+state into its `meta.json`, before that run's own chart has been shown, so the
+panel and the run's record can disagree. Measured on six visits of six.
+
+It is a RECORD fault, not a printing one. No sheet changes, the preference the
+app actually builds from is never wrong, and nothing a user typed is lost: a
+reviewer measured that an edit survives leaving by another run, by a tab change,
+by the main button and by quitting.
+
+The mechanism, measured rather than assumed: `controller.changed` carries two
+slots. The main window's loader runs first and re-points the tab's store at the
+INCOMING run; the tab's own handler then writes what it believes is the outgoing
+one. They are sequential, not nested, so a re-entrancy flag cannot see it, and
+the tab is pointed at the current target the moment the controller is handed to
+it, so the first selection finds itself "leaving" a run it has never displayed.
+
+Two attempts to fix it inside that handler each broke the project's own
+acceptance driver, once by losing an edit when there is no main window and once
+by writing the wrong instrument. It is therefore left alone under a release
+rather than rushed. The fix belongs where the two slots are ordered, not inside
+the handler: either the loader must not re-point the store before the writer has
+run, or the tab must record which targets it has actually SHOWN and file only
+those. §4 S9 is the rule to hold it against, since being pointed at a target is
+not using it.

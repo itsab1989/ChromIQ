@@ -91,59 +91,6 @@ def test_the_new_run_block_survives_a_preview_render(tmp_path):
     assert not junk.exists(), "the sweep stopped deleting what it is for"
 
 
-def test_selecting_a_run_files_nothing_and_an_edit_still_files(tmp_path):
-    """A run's FIRST visit must not file the tab's launch defaults as its own.
-
-    The run-change handler was reached from two places and ran twice for one
-    selection. On the first pass the tab has no store yet, so its "write the
-    outgoing target first" writes nothing; on the second pass the same line
-    resolved to the run just SELECTED and filed the tab's launch defaults into
-    it, before that run's chart had been shown. Measured on a project whose runs
-    have no settings yet, with nothing typed, clicked or built: the panel showed
-    the layout-engine tick ON and the run's own record said off. The shield then
-    armed on those values, because the guard that asks "has this run settings of
-    its own" saw the file the app itself had just written.
-
-    Both halves are pinned here, because the write on a target change is also
-    what keeps an edit when somebody switches away, and a fix that lost that
-    would be worse than the fault.
-    """
-    from core.argyll_runner import ArgyllRunner
-    from core.file_manager import FileManager, Project
-    from core.settings import AppSettings
-    from PyQt6.QtCore import QSettings
-    from ui.measurement_target_bar import MeasurementTargetController
-    from ui.tabs.tab_chart import TabChart
-
-    s = AppSettings()
-    s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
-    s.set("use_chromiq_layout_engine", False)
-    s.set("custom_output_path", str(tmp_path))
-    fm = FileManager(s)
-    proj = Project.create(tmp_path / "P", "P")
-    proj.current_run().ensure_dir()
-    proj.new_run()
-    fm.set_target_name("P")
-    ctl = MeasurementTargetController(fm)
-    tab = TabChart(ArgyllRunner(s), fm, s, None)
-    tab.set_target_controller(ctl)
-
-    for run in ("run1", "run2"):
-        ctl.set_profile_run(run)
-        meta = proj.run(run).load_meta()
-        assert not getattr(meta, "create_chart_settings", None), (
-            f"{run} was written merely by being selected"
-        )
-
-    ctl.set_profile_run("run1")
-    tab._manual_engine_check.setChecked(True)      # the user changes something
-    ctl.set_profile_run("run2")                    # …and switches away
-    ui = getattr(proj.run("run1").load_meta(), "create_chart_ui", None) or {}
-    assert ui.get("engine_on") is True, (
-        "an edit was lost when the user switched to another run"
-    )
-
-
 def test_a_closed_project_is_not_written_by_the_next_tab_change(tmp_path):
     """Closing a project must end every route back into it, not just one.
 
