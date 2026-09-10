@@ -39,7 +39,7 @@ from __future__ import annotations
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (QCheckBox, QDialog, QFrame, QGridLayout,
                              QHBoxLayout, QLabel, QPushButton, QRadioButton,
-                             QScrollArea, QVBoxLayout, QWidget)
+                             QScrollArea, QSizePolicy, QVBoxLayout, QWidget)
 
 from core.i18n import tr
 from core.logger import get_logger
@@ -61,6 +61,32 @@ RUN_COLUMN = "__run__"
 #: the fixed width of an editable cell; eight columns fit a 1728 px work area
 #: with it, and do not with the spin box's natural 140 px (AR-CODE-MAP §4.2)
 CELL_W = 104
+#: the gap between two columns. It is NOT the grid's own horizontal spacing:
+#: both grids run at spacing 0 and carry the gap inside each column's pinned
+#: width, because Qt charges spacing to a column that holds a widget spanning
+#: it (the group titles) and not to one that is merely hidden. With the
+#: spacing left on, a hidden column cost the body 14 px that the head did not
+#: pay, and every heading after it sat 14 px off its column, measured on
+#: screen 2026-09-10.
+COLUMN_GAP = 14
+
+
+class _ScrolledBody(QWidget):
+    """The scrolled half of the table.
+
+    It exists only to say when its width changed, so the frozen head can be
+    given the same width and lay its columns out over the same span. A bound
+    method on a plain widget, not a lambda on a scroll bar's signal, which is
+    the shape that segfaulted the app (CLAUDE.md).
+    """
+
+    def __init__(self, owner: "ThresholdsDialog") -> None:
+        super().__init__()
+        self._owner = owner
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        self._owner._match_head_to_body()
 
 
 class ThresholdsDialog(WorkAreaClamped, QDialog):
@@ -174,25 +200,37 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         show_row.addStretch(1)
         inner.addLayout(show_row)
 
-        # -- the table
+        # -- the table: a head that stays put over a body that scrolls under
+        # it (Knut, beta 3). Two grids, ONE column geometry (_sync_columns),
+        # and the head is moved by the body's own horizontal scroll bar, so a
+        # heading cannot come to sit over the wrong column.
+        self._head_clip = QWidget(self)
+        self._head_clip.setSizePolicy(QSizePolicy.Policy.Ignored,
+                                      QSizePolicy.Policy.Fixed)
+        self._head = QWidget(self._head_clip)
+        self._head_grid = QGridLayout(self._head)
         self._scroll = QScrollArea(self)
         self._scroll.setWidgetResizable(True)
         self._scroll.setFrameShape(QFrame.Shape.NoFrame)
         self._scroll.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        body = QWidget()
+        body = _ScrolledBody(self)
         self._grid = QGridLayout(body)
-        self._grid.setHorizontalSpacing(14)
-        self._grid.setVerticalSpacing(3)
-        self._grid.setContentsMargins(0, 0, 0, 0)
-        self._build_grid()
+        for g in (self._head_grid, self._grid):
+            g.setHorizontalSpacing(0)          # the gap lives in COLUMN_GAP
+            g.setVerticalSpacing(3)
+            g.setContentsMargins(0, 0, 0, 0)
+        self._build_head()
+        self._build_rows()
         # F7: with setWidgetResizable the body shrinks to the viewport and the
         # last column is clipped; pinning the body's minimum width to what it
         # paints brings the horizontal scroll bar back
-        body.setMinimumWidth(body.sizeHint().width())
         self._scroll.setWidget(body)
+        self._scroll.horizontalScrollBar().valueChanged.connect(self._on_hscroll)
+        self._sync_columns()
         self._fades = attach_edge_fades(self._scroll, surface="dialog")
         self._fades.set_appearance(resolve_mode(settings.get("appearance", "auto")))
+        inner.addWidget(self._head_clip)
         inner.addWidget(self._scroll, 1)
 
         # -- legend, footnotes, notes (D11, D24)
@@ -252,13 +290,20 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
             return tr("This run")
         return tr(SET_BY_ID[col].label)
 
-    def _build_grid(self) -> None:
-        g = self._grid
+    def _build_head(self) -> None:
+        """The three rows that stay put: the column names, the Restore /
+        read-only / locked line, and Default for new runs (Knut, beta 3)."""
+        g = self._head_grid
         faint = "color: #8a8a8a; font-size: 10px;"
         cols = self._column_ids()
         g.addWidget(QLabel(tr("Row"), self), 0, 0)
         g.addWidget(QLabel(tr("Unit"), self), 0, 1)
-        g.setColumnStretch(0, 1)
+        # The spare width goes to a trailing column, NOT to the row labels
+        # (Knut, beta 3). With the stretch on column 0 every column a user
+        # unticked was paid for in blank space in front of the Unit column,
+        # and the columns still shown walked to the right edge.
+        g.setColumnStretch(0, 0)
+        g.setColumnStretch(2 + len(cols), 1)
         for ci, col in enumerate(cols, start=2):
             hdr = QLabel(self._header_text(col), self)
             hdr.setStyleSheet("font-weight: bold;")
@@ -308,7 +353,15 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
             self._default_radios[col] = rb
             g.addWidget(rb, 2, ci, Qt.AlignmentFlag.AlignRight)
             self._column_widgets[col].append(rb)
-        r = 3
+
+    def _build_rows(self) -> None:
+        """The scrolled half: the groups and their limit rows."""
+        g = self._grid
+        faint = "color: #8a8a8a; font-size: 10px;"
+        cols = self._column_ids()
+        g.setColumnStretch(0, 0)
+        g.setColumnStretch(2 + len(cols), 1)
+        r = 0
         for group in GROUP_ORDER:
             title = QLabel(tr(GROUP_LABELS[group]), self)
             title.setStyleSheet("font-weight: bold; margin-top: 8px; "
@@ -521,9 +574,121 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         finally:
             self._syncing = False
 
+    @staticmethod
+    def _natural_column_widths(g: QGridLayout) -> "list[int]":
+        """What one grid would give each column on its own, laid out at its
+        own size hint. Read off the layout, never guessed from a style sheet:
+        a wrapped heading's ``sizeHint`` is a heuristic and QSS padding lands
+        only at polish, so both would lie about a column's real width.
+        """
+        holder = g.parentWidget()
+        hint = g.sizeHint()
+        if holder is not None:
+            holder.resize(max(hint.width(), 1), max(hint.height(), 1))
+        g.invalidate()
+        g.activate()
+        return [max(0, g.cellRect(0, ci).width()) for ci in range(g.columnCount())]
+
+    def _sync_columns(self) -> None:
+        """ONE column geometry for the head and the body, and the width the
+        two of them ask for.
+
+        The head and the rows are different layouts now, so nothing makes
+        their columns agree by itself: left alone, a "Restore this column"
+        button wider than a cell (F6: German is longer) would push its heading
+        off the column it names, and every heading after it with it. Each
+        column is therefore given the SAME explicit minimum width in both
+        grids, the wider of what the two would take on their own.
+
+        A hidden column is pinned to 0, because a minimum width is charged
+        whether or not anything is painted in the column, and pinning it to
+        its natural width would undo the hidden-column fix this window was
+        opened for.
+        """
+        cols = self._column_ids()
+        n = 2 + len(cols)
+        # measure what each grid would take UNPINNED, or the gap folded in
+        # below would be folded in again on every call
+        for ci in range(n):
+            self._head_grid.setColumnMinimumWidth(ci, 0)
+            self._grid.setColumnMinimumWidth(ci, 0)
+        head_w = self._natural_column_widths(self._head_grid)
+        body_w = self._natural_column_widths(self._grid)
+        for ci in range(n):
+            if ci >= 2 and not self._column_shown(cols[ci - 2]):
+                w = 0                       # a hidden column costs nothing
+            else:
+                w = max(head_w[ci] if ci < len(head_w) else 0,
+                        body_w[ci] if ci < len(body_w) else 0)
+                if ci:
+                    w += COLUMN_GAP         # every column but the first
+            self._head_grid.setColumnMinimumWidth(ci, w)
+            self._grid.setColumnMinimumWidth(ci, w)
+        self._pin_body_width()
+
+    def _column_shown(self, col: str) -> bool:
+        cb = self._column_checks.get(col)
+        return True if cb is None else cb.isChecked()
+
+    def _pin_body_width(self) -> None:
+        """Pin the scrolled body, and the head with it, to the width the
+        columns that are SHOWN need.
+
+        F7 pinned it once, at build time, with every column visible. Hiding a
+        column then left that width behind: the body stayed 1,405 px wide when
+        its contents needed 909, and the horizontal scroll bar stayed with it,
+        offering 496 px of nothing (measured on screen, 2026-09-10, Knut's
+        beta-3 report). Re-pinned on every visibility change, the bar appears
+        only when the columns really are wider than the window.
+
+        BOTH halves, always. The head lives in its own widget with its own
+        width, and a head left at the old width would lay its columns out over
+        a longer span than the rows below it.
+        """
+        body = self._scroll.widget() if self._scroll is not None else None
+        if body is None:
+            return
+        for g in (self._head_grid, self._grid):
+            g.invalidate()
+            g.activate()
+        want = max(self._grid.sizeHint().width(), self._head_grid.sizeHint().width())
+        body.setMinimumWidth(want)
+        self._head.setMinimumWidth(want)
+        self._match_head_to_body()
+        # LEAVE THEM DIRTY. A grid laid out and marked clean at the width it
+        # had a moment ago keeps that arithmetic when the widget is then given
+        # its new width: ticking a hidden column back on left the row-label
+        # column 138 px short of its own labels, head and body alike (measured
+        # 2026-09-10). Invalidated last, the next real geometry pass rebuilds
+        # at the width the widget actually gets.
+        for g in (self._head_grid, self._grid):
+            g.invalidate()
+
+    def _match_head_to_body(self) -> None:
+        """Give the head the body's width and the clip its height, then put it
+        back under the body's current horizontal scroll."""
+        body = self._scroll.widget() if self._scroll is not None else None
+        if body is None or self._head is None:
+            return
+        h = max(self._head_grid.sizeHint().height(), 1)
+        self._head.resize(max(body.width(), self._head.minimumWidth()), h)
+        self._head_clip.setFixedHeight(h)
+        self._on_hscroll(self._scroll.horizontalScrollBar().value())
+
+    def _on_hscroll(self, value: int) -> None:
+        """The head scrolls sideways with the body, and only sideways.
+
+        A frozen head that did not follow would put every heading over the
+        wrong column the moment the table is wider than the window, which is
+        worse than the fault it was meant to fix.
+        """
+        if self._head is not None:
+            self._head.move(-int(value), 0)
+
     def _set_column_visible(self, col: str, on: bool) -> None:
         for w in self._column_widgets.get(col, []):
             w.setVisible(on)
+        self._sync_columns()
 
     def value_of(self, col: str, row_id: str) -> "Limit":
         """What the window currently shows for one cell (for tests/drivers)."""
