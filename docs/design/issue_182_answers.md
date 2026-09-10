@@ -149,3 +149,20 @@ the handler: either the loader must not re-point the store before the writer has
 run, or the tab must record which targets it has actually SHOWN and file only
 those. §4 S9 is the rule to hold it against, since being pointed at a target is
 not using it.
+
+**A note that will not fit a narrow clip band is dropped without a word.**
+With the clip border on the right and a band of 10 or 14 mm, three of ten
+content modes leave no run of blank paper wide enough to write in, so no note is
+printed and nothing on screen or in the log says so. The three are a notes form
+at 10 mm, a notes form at 14 mm, and three lines of custom text at 10 mm.
+
+Measured against the pre-work control, all three printed nothing at 4.2.0 as
+well, so this is not a regression and not a blocker for 4.2.2. The other seven
+print, and across the twenty ordinary clip settings nineteen print in the same
+columns 4.2.0 chose, with none of the user's own lines under the note and none
+destroyed.
+
+What is missing is the sentence, not the placement. A user who asks for a note
+and gets a blank margin has no way to learn that the band they chose is too
+narrow. That text is a §M catalogue job and goes to §M-PROPOSED first, so it is
+not written into a tab under a release.
