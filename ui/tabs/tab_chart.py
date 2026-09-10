@@ -18640,7 +18640,7 @@ class TabChart(QWidget):
             self._ruler_over_mm = _eff_ruler
 
         violations = check_violations(report, thresholds)
-        warns = self._engine_text_overflow_warnings()
+        warns, overlaps = self._engine_text_notes(report)
         if getattr(self, "_ruler_over_mm", None):
             warns = list(warns) + [tr(
                 "⚠ Strip length {len:.0f} mm exceeds the {ruler:.0f} mm "
@@ -18652,6 +18652,7 @@ class TabChart(QWidget):
             notify=bool(self._settings.get("margin_violation_notify", True)),
             thresholds=thresholds,
             text_warnings=warns,
+            overlap_warnings=overlaps,
         )
         self._refresh_margin_guides(report, thresholds, violations)
         self._refresh_measured_guides(report)
@@ -18674,18 +18675,48 @@ class TabChart(QWidget):
         self._preview.set_measured_guides(guides or None)
 
     def _engine_text_overflow_warnings(self) -> "list[str]":
-        """Warnings for when a page margin is too small to hold the text band that
-        side carries (margins are the law, so the text overflows toward the page
-        edge — flag it below the preview, by the margin violations) (#93, Knut).
-        Engine-Manual only; empty otherwise."""
+        """Every notice this chart's text and labels have earned, for the ⓘ.
+
+        Engine-Manual only; empty otherwise. :meth:`_engine_text_notes` is the
+        same computation with the four-sided OVERLAP warnings kept separately,
+        because those go somewhere else as well: the message field of the
+        "Measured from Preview" frame, in red.
+        """
+        # UNBOUND, because the callers of this one are unbound too: three test
+        # files and `scripts/drive_50_beta3_gate.py` run it against a stand-in
+        # object carrying just the four attributes it reads, and `self._…`
+        # would look the delegate up on the stand-in and not find it.
+        return TabChart._engine_text_notes(self)[0]
+
+    def _engine_text_notes(self, report=None) -> "tuple[list[str], list[str]]":
+        """``(every notice, the overlap notices)`` for the chart on screen.
+
+        The second list is Knut's ruling of 2026-09-10: *"For the Strip labels,
+        we previously designed a warning message that should come (in the
+        message field in Measured from Preview frame) if the text is overlapping
+        with the patch area due to the margins. This should also be implemented
+        for text defined for the right margin … and also for the bottom margin …
+        They should all behave the same way."*
+
+        So the four sides are decided by one law, in `workflow/text_edge_fit.py`,
+        and worded here in one voice: what is wrong, and which two boxes to
+        change. THE FACT DOES NOT TRAVEL UP FROM THE RENDERER OR THE STAMPER --
+        it is predicted here from the recipe, because the user has to be told
+        while they are still moving the spin boxes, and the only raster that
+        could report it is one they have already committed to building. The
+        prediction stays true because `workflow/tiff_metadata.py` takes its
+        legibility floor from that same module rather than keeping its own.
+        """
         warns: list[str] = []
+        over: list[str] = []
         try:
             manual = (self._manual_btn is not None and self._manual_btn.isChecked())
             if not (manual and getattr(self, "_manual_layout_panel", None) is not None
                     and bool(self._settings.get("use_chromiq_layout_engine", False))):
-                return warns
+                return warns, over
             r = self._current_layout_recipe()
             from workflow.layout_engine import instruments
+            from workflow import text_edge_fit
             geom = instruments.geom_from_build_kwargs(r.build_kwargs())
             # THE MARGIN WE MOVED, SAID OUT LOUD — and it is said in BOTH
             # layout modes, because the raise happens in both.
@@ -18745,17 +18776,121 @@ class TabChart(QWidget):
                     "indicators” off or use a smaller label size.").format(
                         asked=_asked_l, got=_got_l, floor=_floor_l,
                         band=geom.rlwi, clip=_clip_l))
+            # ---- THE SIDE MARGINS, IN BOTH LAYOUT MODES ---------------------
+            #
+            # The chart note is not laid out by the engine at all: it is stamped
+            # onto the finished raster afterwards
+            # (`workflow/tiff_metadata.py::_stamp_one`), from a fixed distance
+            # off the paper edge inwards, in every layout mode and on every
+            # chart that carries "Run 1 Chart Notes" or "Stamp settings used on
+            # the chart". So this pair is asked before the area-first gate
+            # below, which is about the TOP and BOTTOM bands only.
+            _clip_zone = float(geom.lbord or 0.0) + float(geom.border or 0.0)
+            _clip_on_right = ((getattr(geom, "clip_side", "left") or "left")
+                              == "right" and _clip_zone > 0)
+            _note_side = "right"
+            # THE MEASURED RIGHT MARGIN, NOT THE ONE THAT WAS TYPED, and the
+            # difference is a warning that cries wolf on most charts. The typed
+            # margin is where the patch area is ALLOWED to start; the note has
+            # to fit between the paper edge and where the block actually ENDS,
+            # and a chart that does not fill its page leaves far more room than
+            # the margin promises. Measured on a 120-patch A4 i1 chart with the
+            # right margin typed at 3 mm: 151.1 mm of white paper on the right,
+            # and the typed figure would have called that an overlap. This is
+            # the "Measured from Preview" frame, so it measures.
+            _note_margin = float(getattr(r, "margin_right", 0.0) or 0.0)
+            if report is not None and getattr(report, "right_mm", None) is not None:
+                _note_margin = float(report.right_mm)
+            _notes_text = ""
+            _edit = getattr(self, "_manual_chart_notes_edit", None)
+            if _edit is not None:
+                _notes_text = (_edit.text() or "").strip()
+            _stamp_on = False
+            _cb = getattr(self, "_manual_stamp_cmd_check", None)
+            if _cb is not None:
+                _stamp_on = bool(_cb.isChecked())
+            if _notes_text or _stamp_on:
+                _o = text_edge_fit.chart_note_overlap(
+                    _note_side, _note_margin, r.text_edge_clip_mm,
+                    float(getattr(r, "dpi", 300) or 300),
+                    _clip_zone if _clip_on_right else 0.0)
+                if _o is not None:
+                    # TWO WORDINGS, BECAUSE THE LEVER IS NOT THE SAME ONE. With
+                    # a clip border on this edge the margin is raised to the
+                    # band's width whatever the user types, so telling them to
+                    # raise "Right" would send them to a box that moves nothing.
+                    over.append((tr(
+                        "⚠ The chart notes down the right edge run over the "
+                        "patches. They are printed {edge:.1f} mm in from the "
+                        "paper edge, need {need:.1f} mm of room, and the right "
+                        "margin leaves {avail:.1f} mm. They are printed anyway "
+                        "so you can see this. Make the clip border about "
+                        "{short:.1f} mm narrower with “Clip border width”, or "
+                        "lower “Clip” under “Text distance from edge (mm)”, "
+                        "which is the box this edge uses.")
+                        if _clip_on_right else tr(
+                        "⚠ The chart notes down the right edge run over the "
+                        "patches. They are printed {edge:.1f} mm in from the "
+                        "paper edge, need {need:.1f} mm of room, and the right "
+                        "margin leaves {avail:.1f} mm. They are printed anyway "
+                        "so you can see this. Raise “Right” under “Margins "
+                        "(mm)” by about {short:.1f} mm, or lower “Clip” under "
+                        "“Text distance from edge (mm)”, which is the box this "
+                        "edge uses.")).format(
+                            edge=r.text_edge_clip_mm, need=_o.needed_mm,
+                            avail=max(0.0, _o.available_mm),
+                            short=_o.overlap_mm))
+            # THE CLIP BORDER'S CONTENT, on whichever edge it sits.
+            # `instruments.geom_from_build_kwargs` raises that edge's margin to
+            # the clip zone, so on every chart the app builds today the band
+            # ends exactly where the first patch column starts and this stays
+            # silent. It is asked anyway: a geometry that stops raising the
+            # margin is precisely the day the user needs to be told, and the
+            # ruling names this side.
+            if _clip_zone > 0 and str(getattr(r, "clip_content_mode", "off")) != "off":
+                _side = "right" if _clip_on_right else "left"
+                _o = text_edge_fit.clip_content_overlap(
+                    _side,
+                    float(geom.margin_r if _clip_on_right else geom.margin_l),
+                    _clip_zone, r.text_edge_clip_mm)
+                if _o is not None:
+                    over.append((tr(
+                        "⚠ The clip border content runs over the patches on the "
+                        "right. The band is {need:.1f} mm wide and the right "
+                        "margin leaves {avail:.1f} mm. It is printed anyway so "
+                        "you can see this. Raise “Right” under “Margins (mm)” "
+                        "by about {short:.1f} mm, or set a narrower “Clip "
+                        "border width”.") if _side == "right" else tr(
+                        "⚠ The clip border content runs over the patches on the "
+                        "left. The band is {need:.1f} mm wide and the left "
+                        "margin leaves {avail:.1f} mm. It is printed anyway so "
+                        "you can see this. Raise “Left” under “Margins (mm)” "
+                        "by about {short:.1f} mm, or set a narrower “Clip "
+                        "border width”.")).format(
+                            need=_o.needed_mm, avail=max(0.0, _o.available_mm),
+                            short=_o.overlap_mm))
             # The text-overflow warning only applies in "margins are law" mode,
             # which is now AREA-FIRST (Knut #93): there the label/text lives inside
             # the margin, so a too-small margin overflows toward the page edge. In
-            # patch-first the band is reserved above/below the patches — no overflow.
+            # patch-first the band is reserved above/below the patches, no overflow.
             if r.layout_mode != "area_first":
-                return warns
+                return warns + over, over
             lab = geom.label_band_mm if geom.label_band_mm >= 0 else geom.txhisl
-            if r.show_strip_indicators and lab > 0 and \
-                    r.margin_top + 0.05 < r.text_edge_top_mm + lab:
-                warns.append(tr("⚠ Top margin is too small for the strip labels — "
-                                "they overflow toward the page edge."))
+            if r.show_strip_indicators and lab > 0:
+                _o = text_edge_fit.strip_label_overlap(
+                    r.margin_top, r.text_edge_top_mm, lab,
+                    float(getattr(r, "strip_label_offset_mm", 0.0) or 0.0))
+                if _o is not None:
+                    over.append(tr(
+                        "⚠ The strip letters across the top run into the "
+                        "patches. They are printed {edge:.1f} mm down from the "
+                        "paper edge and need {need:.1f} mm of room, and the top "
+                        "margin leaves {avail:.1f} mm. Raise “Top” under "
+                        "“Margins (mm)” by about {short:.1f} mm, or lower “T” "
+                        "under “Text distance from edge (mm)”.").format(
+                            edge=r.text_edge_top_mm, need=_o.needed_mm,
+                            avail=max(0.0, _o.available_mm),
+                            short=_o.overlap_mm))
             # …AND THE ROW NUMBERS DOWN THE LEFT, the same rule one edge over.
             # Area-first no longer reserves their 7.5 mm band outside the margin
             # (that was the fault Basti reported: a 1 mm margin put the first
@@ -18830,12 +18965,35 @@ class TabChart(QWidget):
                     "Switch to “Prioritise patch size, then fit to page” to "
                     "get them back, or put the clip border on the right."))
             nlines = (1 if r.chart_text else 0) + (1 if r.stamp_command else 0)
-            if nlines and r.margin_bottom + 0.05 < r.text_edge_mm + 4.2 * nlines:
-                warns.append(tr("⚠ Bottom margin is too small for the sheet text — "
-                                "it overflows toward the page edge."))
+            _o = text_edge_fit.sheet_text_overlap(
+                r.margin_bottom, r.text_edge_mm, nlines)
+            if _o is not None:
+                # ONE LINE OR TWO, SAID AS ONE OR TWO. "(s)" is banned in this
+                # project's user-facing text, and the two cases really do have
+                # different fixes: with both switched on, turning one off is a
+                # remedy the single-line case cannot offer.
+                over.append((tr(
+                    "⚠ The sheet text along the bottom runs into the patches. "
+                    "It is printed {edge:.1f} mm up from the paper edge and "
+                    "needs {need:.1f} mm of room, and the bottom margin leaves "
+                    "{avail:.1f} mm. Raise “Bottom” under “Margins (mm)” by "
+                    "about {short:.1f} mm, or lower “B” under “Text distance "
+                    "from edge (mm)”.") if nlines == 1 else tr(
+                    "⚠ The two lines of sheet text along the bottom run into "
+                    "the patches. They are printed {edge:.1f} mm up from the "
+                    "paper edge and need {need:.1f} mm of room, and the bottom "
+                    "margin leaves {avail:.1f} mm. Raise “Bottom” under "
+                    "“Margins (mm)” by about {short:.1f} mm, lower “B” under "
+                    "“Text distance from edge (mm)”, or switch one of the two "
+                    "lines off.")).format(
+                        edge=r.text_edge_mm, need=_o.needed_mm,
+                        avail=max(0.0, _o.available_mm), short=_o.overlap_mm))
         except Exception:  # noqa: BLE001 — never block the inspector on this
             pass
-        return warns
+        # THE ⓘ GETS EVERYTHING, THE MESSAGE FIELD ONLY THE OVERLAPS. The rest
+        # of these are advice about a margin the engine moved for the user; the
+        # overlaps are the four sides Knut's ruling puts on screen in red.
+        return warns + over, over
 
     def _refresh_margin_guides(self, report, thresholds, violations) -> None:
         """Push dotted threshold guide lines to the preview (or clear them)."""

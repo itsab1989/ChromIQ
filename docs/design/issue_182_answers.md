@@ -159,9 +159,131 @@ narrower than a line at the 9 px legibility floor:
 | 130x180 with the i1Pro | 6.0 mm | 4.0 mm | 1.14 mm |
 
 Each of those four was printing INSIDE the distance the user asked to keep
-clear, which is the fault Knut reported. Under the ruling they cannot print at
-all. The drop now writes a log line naming both numbers and both settings, which
-is a change from silence but is still not on screen: see section 5.
+clear, which is the fault Knut reported.
+
+> **SUPERSEDED THE SAME EVENING. The four do print, over the patches.** See
+> section 2c: dropping them is the one outcome the ruling forbids. The table
+> above is kept because 4.2.3 shipped that way and the next release note has to
+> say what changed.
+
+---
+
+## 2c. 2026-09-10, later: text on any of the four sides is NEVER dropped
+
+This corrects what shipped in 4.2.3 that afternoon, and it makes 4.2.3's
+behaviour wrong rather than incomplete. His words:
+
+> *"The release note for 4.2.3 says 'Where the margin is too narrow to keep that
+> distance, the note is left off.' This is not the feature we have designed […]
+> For the right margin, the text must still be visible, even if the patch area
+> overlaps on the right Run Chart Notes text. Else the user will not notice that
+> it is silently dropped, like you now do. The user must be given the chance to
+> see that something is wrong, and then adjust the margins to place the patch
+> area further in on the paper, so that the chart notes can be visible.*
+>
+> *For the Strip labels, we previously designed a warning message that should
+> come (in the message field in Measured from Preview frame) if the text is
+> overlapping with the patch area due to the margins. This should also be
+> implemented for text defined for the right margin, when Run Chart Notes are
+> defined or "Stamp settings used on the chart" is selected, or when Clip border
+> content is defined (for either left or right side) and also for the bottom
+> margin, when sheet text (custom text field) is defined. They should all behave
+> the same way."*
+
+### The rule
+
+1. **"Text distance from edge" sets the distance from the paper edge on all four
+   sides**, whatever text is defined for that side. For the strip labels it may
+   additionally be moved by "Label offset" under "Strip letters only".
+2. **The margins decide where the patch area lands.** That holds for the ChromIQ
+   layout engine and for "Prioritise chart area". For printtarg layout, or
+   "Prioritise patch size", the patch area may instead be moved as a block,
+   because there the margins are measured after the patches are generated rather
+   than being the starting position.
+3. **If the patch area overlaps the text on any side, that is ALLOWED.** The
+   text is still drawn and still shown on screen.
+4. **And it is warned about, in red, in the message field of the "Measured from
+   Preview" frame**, so the user can correct the margins or the text distance
+   and make it line up.
+
+### Where it is built
+
+| side | text | who draws it | who warns |
+|---|---|---|---|
+| top | strip letters | `layout_engine/raster.py` (band placed by `geometry.placement`) | `tab_chart.py::_engine_text_notes` |
+| right | run chart notes, stamped settings | `tiff_metadata.py::_stamp_one` | the same |
+| bottom | sheet text (custom field), settings stamp | `layout_engine/raster.py` | the same |
+| left / right | clip border content | `layout_engine/geometry.py::clip_area_mm` | the same |
+
+The four predicates are one law in `workflow/text_edge_fit.py`, and
+`tiff_metadata.py` takes its legibility floor from that module rather than
+keeping a copy, because the panel PREDICTS what the stamper will do and the
+prediction is only true while both read the same number.
+
+### Three things measured while building it, which are not in his words
+
+* **The clip border's content cannot overlap the patch area today.**
+  `layout_engine/instruments.py` raises the clip-side margin to the band's width
+  (`ml = max(ml, lbord + border)`), so the band ends exactly where the first
+  patch column begins. The check the ruling asks for is implemented and asked on
+  every chart; it correctly stays silent. It is kept because the day that raise
+  changes is the day the user needs to be told.
+* **The chart note is judged on the MEASURED right margin, not the typed one.**
+  "Right" says where the patch area is allowed to start; the note has to fit
+  between the paper edge and where the block actually ends. Measured on a
+  120-patch A4 i1 chart with the right margin typed at 3 mm: 151.1 mm of white
+  paper on the right. Judging by the typed figure would have warned there.
+* **One collision the ruling does not settle: the note against the user's own
+  clip content.** With a clip border on the right, the note and the band both
+  want the sliver at the paper's edge. The ruling sanctions the note against the
+  PATCH AREA and says nothing about the note against text the user wrote, so the
+  band keeps the edge and the note moves inward over the patches, where the
+  ruling does allow it, and the panel says so. **Flagged for Knut**: if he would
+  rather the note printed on the band, that is a one-line change.
+
+### 2c-i. OPEN, and Knut's or Basti's call: "Clip" moves the RIGHT edge too
+
+Found in Knut's own log of 2026-09-10 (16:07:19, four lines, one per page of his
+100x150 chart on 4.2.3) and reported here rather than fixed, because the answer
+is a design choice with no obvious winner.
+
+**The facts, measured.**
+
+* The right-edge chart note reads `text_edge_clip_mm`
+  (`workflow/chart_creator.py:1735`) on every chart, whichever side the clip
+  border is on. His preset has `clip_side: left`.
+* The three spin boxes in that row are labelled **T**, **B** and **Clip**
+  (`ui/dialogs/layout_options_panel.py:1982`). **There is no box for the right
+  edge.** It borrows the clip band's distance.
+* So the advice printed in 4.2.3's log, and in the new on-screen warning, tells
+  the user to change "Clip" to move text on the opposite side of the paper.
+* **It works, which is the trap.** He lowered Clip from 4.0 to 2.0, the note
+  appeared, and he sent the corrected preset. The control is real and the advice
+  is effective; only the NAME is wrong.
+* The tooltip on that row said "Clip = the clip-border / notes band and the row
+  indicator labels down the left" and did not mention the note at all, so the
+  help was untrue as well as the label being unclear. **That half is fixed**:
+  the tooltip now names all three things the box governs and says outright that
+  there is no separate box for the right edge.
+
+**Nothing about which VALUE that edge reads has changed**, then or now, so
+Knut's 2.0 still does exactly what it did. Under this ruling it is no longer the
+difference between a note and no note; it is the difference between a note
+printed clear of the patches and a note printed over them with a red warning. It
+is still the right setting for that card and he should keep it.
+
+**The three ways out, and what each costs.**
+
+| | what it does | cost |
+|---|---|---|
+| **A. Give the right edge its own box** ("R"), defaulting to whatever `text_edge_clip_mm` holds | says what it means, and lets the two side margins differ | a new recipe field, a migration, and every preset gains a value; existing charts unchanged if the default is carried |
+| **B. Rename the box** to something that covers all three uses ("Sides") and reword the tooltip | no migration, no new state, the meaning stops being wrong | the two side margins can still never differ, and "Clip" is a name users and presets know |
+| **C. Leave both, correct only the help** | free | the label still names one of the box's three jobs |
+
+**Recommendation: A, with the default carried from `text_edge_clip_mm`**, so no
+existing chart or preset moves and nobody has to re-derive a value. B is the
+cheap answer and is defensible. C is what is built today, and it is the least
+that had to happen; it is not the answer.
 
 ---
 
@@ -198,6 +320,17 @@ strip labels change to hold the distance and let a collision with the patch area
 show, as he has just described? That is a change to shipped behaviour he is
 recorded as having asked for, on a chart that prints correctly today, so it is
 not being made on our own judgement.
+
+> **STILL OPEN AFTER THE 2026-09-10 RULING, and deliberately so.** Section 2c
+> settles that text is never DROPPED and that all four sides WARN the same way,
+> and both halves are now built for all four. It does not settle this, and his
+> wording suggests he believes the strip labels already overlap the patch area
+> (*"if the text is overlapping with the patch area due to the margins"*) when
+> in fact they slide toward the page edge instead. Changing the clamp at
+> `geometry.py:400` would move ink on every area-first chart, including every
+> shipped preset, so it is left exactly as it is and asked again.
+
+---
 
 ---
 
@@ -284,20 +417,24 @@ run, or the tab must record which targets it has actually SHOWN and file only
 those. §4 S9 is the rule to hold it against, since being pointed at a target is
 not using it.
 
-**A note with no room left is still dropped without a word ON SCREEN.**
-Since 2026-09-10 it is no longer dropped in silence in the LOG: the stamper
-names the paper it has, the reserve it must keep and the two settings that would
-give it room. Nothing says so in the app. Knut's ruling that "Text distance from
-edge" is a limit takes the count of configurations that print a note from 22 of
-22 to 18 of 22 (see section 2), so the sentence matters more than it did, and it
-is still a §M catalogue job. The paragraph below is the original finding and
-stands.
+~~**A note with no room left is still dropped without a word ON SCREEN.**~~
+**CLOSED 2026-09-10 by the ruling in section 2c.** The note is no longer dropped
+at all: it is printed over the patches, and the collision is named in red in the
+message field of the "Measured from Preview" frame. The count of configurations
+that print a note goes back to 22 of 22, and past it, because a sheet with no
+white right margin whatever is now stamped too.
 
 **A note that will not fit a narrow clip band is dropped without a word.**
 With the clip border on the right and a band of 10 or 14 mm, three of ten
 content modes leave no run of blank paper wide enough to write in, so no note is
 printed and nothing on screen or in the log says so. The three are a notes form
 at 10 mm, a notes form at 14 mm, and three lines of custom text at 10 mm.
+
+> **PART of this is closed by section 2c.** The RIGHT-margin note in those three
+> configurations now prints over the patches with a warning. What is not closed
+> is the clip band's own CONTENT being too cramped to render: that is the notes
+> form running out of band, not the note running out of margin, and it is a
+> different fault in `layout_engine/raster.py::_render_notes_strip`.
 
 Measured against the pre-work control, all three printed nothing at 4.2.0 as
 well, so this is not a regression and not a blocker for 4.2.2. The other seven

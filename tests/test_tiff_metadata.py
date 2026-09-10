@@ -88,8 +88,20 @@ def test_bit_depth_and_dpi_preserved(tmp_path: Path, dtype) -> None:
             assert abs(dpi - _DPI) < 1.0
 
 
-def test_stamp_skips_when_right_margin_too_narrow(tmp_path: Path) -> None:
-    """Patches reaching the right edge → stamp must be a no-op (no encroachment)."""
+def test_a_sheet_with_no_right_margin_is_stamped_over_the_patches(
+        tmp_path: Path) -> None:
+    """Patches reaching the right edge → the note prints ANYWAY, over them.
+
+    REVERSED BY KNUT'S RULING OF 2026-09-10, and this test used to assert the
+    opposite: *"the text must still be visible, even if the patch area overlaps
+    on the right Run Chart Notes text. Else the user will not notice that it is
+    silently dropped, like you now do."* An untouched file was the silent drop,
+    and it was the outcome he named as the one thing that must not happen.
+
+    The ink is measured against the sheet as it was, not counted absolutely, and
+    it has to land inside the "Text distance from edge" reserve's inner side:
+    the reserve is still a limit and is the only thing here that is.
+    """
     path = tmp_path / "edge_to_edge.tif"
     # Fill the WHOLE image with dense stripes so no usable right margin exists.
     arr = np.full((_H, _W, 3), 255, dtype=np.uint8)
@@ -99,11 +111,23 @@ def test_stamp_skips_when_right_margin_too_narrow(tmp_path: Path) -> None:
                      resolution=(_DPI, _DPI), resolutionunit="INCH")
     before = tifffile.imread(str(path))
 
-    stamp_chart_metadata([path], ["should not appear"])
+    edge_mm = 4.0
+    stamp_chart_metadata([path], ["this must appear"], edge_mm)
 
     after = tifffile.imread(str(path))
-    assert np.array_equal(before, after), \
-        "Stamp must leave the file untouched when no right margin is available"
+    assert not np.array_equal(before, after), (
+        "the note was dropped on a sheet with no right margin, which is the "
+        "silent drop Knut's ruling of 2026-09-10 forbids"
+    )
+    # Compositing only darkens, so every changed pixel is the note's own ink.
+    changed = (after < before).any(axis=2)
+    assert changed.any(), "the file changed but no ink was added"
+    right = int(np.flatnonzero(changed.any(axis=0)).max())
+    to_edge = (_W - 1 - right) * 25.4 / _DPI
+    assert to_edge >= edge_mm - 0.1, (
+        f"the note ends {to_edge:.2f} mm from the paper edge and "
+        f"“Text distance from edge” asks for {edge_mm:.2f} mm"
+    )
 
 
 def test_stamp_skips_when_lines_empty(tmp_path: Path) -> None:

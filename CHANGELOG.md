@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **Text along any edge of a chart is never left off again, and a collision is
+  now shown on screen.** 4.2.3 left the small note down the right edge off the
+  sheet when the margin was too narrow to keep the distance you had set, and
+  said so only in the log. Knut Larsson's ruling reverses that: the text must
+  stay visible, because otherwise you cannot tell anything is wrong. So the note
+  is printed at the distance you set even when the patches reach it, and it
+  prints over them if it must. The 10 x 15 cm photo card gets its identification
+  line back.
+- **…and the "Measured from Preview" frame says so, in red.** Whenever text runs
+  into the patch area, its message field names the edge, the room the text needs,
+  the room the margin leaves, and the two boxes that would fix it. It covers all
+  four edges the same way: the strip letters across the top, the chart notes and
+  the stamped settings down the right, the clip border content on either side,
+  and the sheet text along the bottom. A chart with room to spare says nothing.
+- **The warning for the strip letters and the sheet text is visible again.** It
+  had been correct since 4.0, but on 2026-09-04 it moved off the panel onto its
+  information icon along with the panel's explanatory notes, and an icon is only
+  read if you hover it.
+
 ## v4.2.3
 
 **Checking for updates works again on a busy network, the two photo-card charts

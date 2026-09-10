@@ -657,19 +657,40 @@ def test_every_deliberate_exception_says_why():
 # one-line glosses and the heading above them in the tip), 0 out. German is
 # translated for all 4 and does not move; the eleven others carry the English
 # source under the beta rule, so each of them gains 4.
+#
+# …and again on 2026-09-10, by Knut's ruling that text on any of the four sides
+# is never dropped. The two overflow warnings that existed (top strip labels,
+# bottom sheet text) were rewritten to name the exact boxes that fix the
+# collision, and more joined them: two for the chart notes down the right edge
+# (the lever differs when a clip border sits on that edge), two for the clip
+# border's own content on either side, a two-line variant of the bottom one
+# because "(s)" is not written in this project's text, and the reworded help
+# line above them. **8 keys in, 3 stale out.** German is translated for all 8
+# and does not move; the eleven others carry the English source under the beta
+# rule, and all three that left were translated in every one of them, so each
+# gains exactly 8.
+#
+# THE FIRST DRAFT OF THIS NOTE SAID 7 IN AND 2 OUT while raising every ceiling
+# by 8, and it is worth saying why that matters more than an arithmetic slip.
+# This dict is the one place in the suite where a check is loosened on purpose,
+# so the note beside it is the whole audit trail. A note that does not match its
+# own numbers is how the next person raises a ceiling without noticing they are
+# the second to do it. Counted from the catalogues, not from memory:
+# `set(after) - set(before)` is 8 and `set(before) - set(after)` is 3, in every
+# one of the twelve.
 _IDENTICAL_TO_KEY = {
     "de": 117,
-    "es": 104,
-    "fr": 125,
-    "it": 115,
-    "ja": 91,
-    "nl": 132,
-    "no": 116,
-    "pl": 108,
-    "pt": 106,
-    "ru": 79,
-    "sv": 118,
-    "zh_CN": 85,
+    "es": 112,
+    "fr": 133,
+    "it": 123,
+    "ja": 99,
+    "nl": 140,
+    "no": 124,
+    "pl": 116,
+    "pt": 114,
+    "ru": 87,
+    "sv": 126,
+    "zh_CN": 93,
 }
 
 
