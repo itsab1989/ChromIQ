@@ -3151,6 +3151,17 @@ class TabChart(QWidget):
         self._runner  = runner
         self._file_mgr = file_mgr
         self._settings = settings
+        # THE SAVED DEFAULT, BEFORE ANY RUN CAN HAVE WRITTEN OVER IT.
+        # `use_chromiq_layout_engine` is a preference AND the running
+        # state of the tab, in one key, so it stops answering "what did
+        # the user choose as their default" the moment a run is loaded.
+        # Read it once, here, where only Preferences can have set it.
+        # See `_saved_default_engine_on`.
+        try:
+            self._engine_default_at_start = bool(
+                settings.get("use_chromiq_layout_engine", True))
+        except Exception:      # noqa: BLE001 — never fatal
+            self._engine_default_at_start = True
         self._creator  = ChartCreator(runner, file_mgr, settings)
         # Slow-chart watchdog: targen's default patch sampler (OFPS) can hang
         # for many minutes on certain pre-conditioning profiles at high patch
@@ -10277,7 +10288,32 @@ class TabChart(QWidget):
         # current chart has one (e.g. applied from the editor), so it can later
         # be reloaded into the New chart window via "Load setup from preset"
         # (#55). Presets without it simply won't appear in that dropdown.
-        recipe = self._current_chart_recipe()
+        # THE PATCH SET ON SCREEN OWNS THE DESIGN, NOT THE RUN'S LAST BUILD.
+        #
+        # This asked the RUN's meta.json, which only a Generate refreshes, so a
+        # preset saved after loading a different patch set stored the previous
+        # design. Knut hit it exactly: two presets of his, one 600 patches and
+        # one 648, came out carrying byte-identical generator designs while
+        # their attached patch files differed, and "Load setup from preset"
+        # then showed him the same setup twice. Reproduced on screen: a preset
+        # whose name, whose .ti1 (648 patches) and whose layout all said 648,
+        # storing a 600-patch design.
+        #
+        # `_pending_editor_recipe` is the slot that tracks the patch set that
+        # is actually loaded. `_on_load_ti1` already clears it when a different
+        # set arrives, saying so in capitals; this is the reader that ignored
+        # it. NO_RECIPE means "this patch set has no generator design", which
+        # is not the same as "ask the run".
+        from workflow.ti2_relayout import NO_RECIPE
+        pending = getattr(self, "_pending_editor_recipe", None)
+        # NO_RECIPE is an empty dict used as a sentinel, so identity, not
+        # truthiness: `{} == {}` would swallow every other empty answer.
+        if pending is NO_RECIPE:
+            recipe = None
+        elif isinstance(pending, dict) and pending:
+            recipe = pending
+        else:
+            recipe = self._current_chart_recipe()
         if recipe:
             capture["editor_recipe"] = self._recipe_synced_to_manual(recipe)
         presets = self._load_presets_from_settings()
@@ -12463,6 +12499,12 @@ class TabChart(QWidget):
         if instr == "CR30" and guided:
             kw["spacer_on"] = False
             kw["spacer_mode"] = "none"
+            # AND GUIDED TURNS THE HONEYCOMB. Mirrors the one line in
+            # `chart_creator._engine_build_kwargs`, for the reason this file
+            # states a few lines up: one rule, one place. If these two disagree
+            # the Calculated Patches figure lies, which is a bug this comment
+            # already records being fixed once.
+            kw["hex_flat_top"] = bool(kw.get("hflag"))
         # Guided mode has no margin boxes and no "Use instrument margins"
         # recipe toggle, so the jig-safety threshold clamp is NOT applied here.
         # It would pin the patch count regardless of the clip-border / strip-cap
@@ -14322,7 +14364,7 @@ class TabChart(QWidget):
         # constructor guessed at, and only became right after the first change.
         self._refresh_target_text()
 
-    def clear_loaded_project(self) -> None:
+    def clear_loaded_project(self, *, deleted: bool = True) -> None:
         """Forget the project this tab is showing, leaving it as at launch.
 
         #130 (Knut, 2026-07-29): after "Delete the whole project" the name field
@@ -14351,11 +14393,33 @@ class TabChart(QWidget):
         self._shown_chart_stamp = None
         self._current_ti1_path = None
         self._preview.clear()
+        # THE TEXT FIELDS GO WITH THE PROJECT. Closing one left the run
+        # description and the chart notes on screen, which contradicts the
+        # confirmation dialog's own promise -- "What you have typed but not yet
+        # used is not kept" -- and offers the next project somebody else's
+        # words. The two name boxes were already cleared above; these were not,
+        # because `_load_target_text` returns early when there is no store.
+        self._new_run_text = None
+        try:
+            self._set_target_text_fields("", "")
+        except Exception:      # noqa: BLE001 — a close must never end in a crash
+            log.debug("could not clear the description and notes", exc_info=True)
+        # AND NOBODY IS TOLD THEIR PROJECT WAS DELETED WHEN IT WAS NOT.
+        # `main_window.py` is careful about exactly this (#164): telling a user
+        # who merely CLOSED their project that it was deleted is the worst
+        # thing this feature could do. This line defeated it, because it said
+        # "deleted" on both paths.
         self._log.appendPlainText(tr(
             "The project was deleted, so ChromIQ is back where it starts: no "
             "project is open. Type a name into “Printer profile project name” "
             "and create a chart to begin a new one, or press “Open Project” at "
-            "the top left of the window to open one you already have."))
+            "the top left of the window to open one you already have.")
+            if deleted else tr(
+            "The project is closed, so ChromIQ is back where it starts: no "
+            "project is open. Nothing was deleted, and everything is still on "
+            "disk. Type a name into “Printer profile project name” to begin a "
+            "new one, or press “Open Project” at the top left of the window to "
+            "open it again."))
         # Tell Print and Measure to let go of the chart as well.
         self.chart_finished.emit([], None, False)
 
@@ -14491,6 +14555,38 @@ class TabChart(QWidget):
                       exc_info=True)
             return None
 
+    def _saved_default_engine_on(self) -> bool:
+        """The neutral answer for "use the ChromIQ layout engine".
+
+        THE VALUE THE PREFERENCE HELD BEFORE ANY RUN TOUCHED IT.
+
+        `use_chromiq_layout_engine` is two things wearing one key: Preferences
+        writes it as a saved default, and this tab ALSO writes it on every run
+        load, from four places, to keep the rest of the app in step with what
+        is on screen. So by the time a run with nothing stored asks the
+        question, a plain `settings.get(...)` answers with whatever the
+        PREVIOUS RUN said, which is the leak wearing a different hat, and the
+        factory constant answers by throwing away a preference the user really
+        did set.
+
+        The snapshot taken when this tab was built is neither: it is the saved
+        default as it stood at launch, and no run can have reached it. §4 S4
+        asks for "factory settings, or the saved defaults if the user has any",
+        and this is that, for as long as one session lasts.
+
+        The deeper fault is that a per-run choice and a preference share one
+        key. Separating them is a design change and an open question for the
+        owner, not something to slip into a fix.
+        """
+        snap = getattr(self, "_engine_default_at_start", None)
+        if snap is not None:
+            return bool(snap)
+        try:
+            from core.settings import DEFAULTS
+            return bool(DEFAULTS.get("use_chromiq_layout_engine", True))
+        except Exception:      # noqa: BLE001 — a fallback is never fatal
+            return True
+
     def _note_what_the_chart_imposed(self) -> None:
         """Record the values the chart sidecar changed, and what they replaced.
 
@@ -14499,11 +14595,24 @@ class TabChart(QWidget):
         come through here, so its values still reach the store as before.
         """
         was = getattr(self, "_own_values_before_chart", None)
+        # A SECOND CALL WITH NOTHING TO COMPARE MUST NOT THROW THE SHIELD AWAY.
+        #
+        # This method runs TWICE on one run change -- the tab is driven from the
+        # controller and again from the main window -- and the second pass finds
+        # `_own_values_before_chart` already consumed. It used to clear
+        # `_chart_imposed` first and only then discover it had nothing to
+        # report, so the shield raised by the first pass was dropped by the
+        # second, and the next legitimate save filed the CHART's values as the
+        # run's own. Measured with no user edit at all: run 1's stored seed went
+        # from nothing to a fixed number and its stored paper from 130x180 to
+        # 100x150. Return before touching anything.
+        if not was:
+            return
         self._own_values_before_chart = None
         self._chart_imposed = {}
         self._release_imposed_connections()
         now = self._target_own_snapshot()
-        if not was or not now:
+        if not now:
             return
         (was_params, was_ui), (now_params, now_ui) = was, now
         moved = {k: (was_params.get(k), v) for k, v in now_params.items()
@@ -14526,18 +14635,30 @@ class TabChart(QWidget):
                           if f in before and before[f] != nv}
                 if fields:
                     moved_ui[k] = {"fields": fields}
-            # A SCALAR UI VALUE IS NOT THE SIDECAR'S TO KEEP.
+            # A SCALAR UI VALUE IS NOT THE SIDECAR'S TO KEEP -- UNLESS IT HAS A
+            # SIGNAL OF ITS OWN.
             #
             # `engine_recipe` is the chart's recipe and is what this shield is
             # for. The other UI keys -- `mode`, `stamp`, `engine_on` -- are
-            # owned by controls OUTSIDE the layout panel, so no signal here can
-            # tell that the user (or the app) has moved one, and the only
-            # release left was "its value differs from what the chart put
+            # owned by controls OUTSIDE the layout panel, so no signal on the
+            # PANEL can tell that the user (or the app) has moved one, and the
+            # only release left was "its value differs from what the chart put
             # there". `ui:mode` never differs, so it was shielded for ever:
             # opening a VERIFICATION target, where the app itself selects the
             # Gamut module, wrote `manual` back over that choice and the target
             # reopened in the wrong module. Measured A/B against the commit
-            # before the shield existed. They are simply not shielded.
+            # before the shield existed.
+            #
+            # `engine_on` is different, and leaving it unshielded cost Knut a
+            # setting: a run whose chart was drawn by printtarg lost its stored
+            # "use the ChromIQ layout engine" tick every time the run was
+            # selected, permanently, and the project's own acceptance driver
+            # reported it as `84 checks, 1 failed`. The checkbox HAS a signal --
+            # `_manual_engine_check.toggled` -- so the provenance rule this
+            # method already uses works for it: shield it here, and release it
+            # below the moment anybody moves the box.
+            elif k == "engine_on":
+                moved_ui[k] = {"scalar": (before, v)}
         if not (moved or moved_ui):
             return
         self._chart_imposed = {"params": moved, "ui": moved_ui}
@@ -14571,6 +14692,17 @@ class TabChart(QWidget):
                             self._chart_imposed.get("params", {}).pop(key, None))
                     sig.connect(slot)
                     self._imposed_connections.append((sig, slot))
+            # The engine tick lives outside the panel and needs its own
+            # release, or it would stay the sidecar's for ever -- which is the
+            # fault above with the sign reversed.
+            chk = getattr(self, "_manual_engine_check", None)
+            if chk is not None and "engine_on" in moved_ui:
+                _sig = chk.toggled
+                _slot = (lambda *_a:
+                         (self._chart_imposed.get("ui", {})
+                          .pop("engine_on", None)))
+                _sig.connect(_slot)
+                self._imposed_connections.append((_sig, _slot))
             panel = getattr(self, "_manual_layout_panel", None)
             sig = getattr(panel, "changed", None) if panel is not None else None
             if sig is not None and moved_ui:
@@ -14644,6 +14776,15 @@ class TabChart(QWidget):
             if key in wanted and wanted[key] == from_chart:
                 wanted[key] = own
         for key, entry in list(imposed.get("ui", {}).items()):
+            # A scalar the chart imposed and nobody touched goes back too. Only
+            # `engine_on` is shielded this way, because it is the only scalar
+            # outside the panel with a signal that can release it; see
+            # `_note_what_the_chart_imposed`.
+            if isinstance(entry, dict) and "scalar" in entry:
+                own, from_chart = entry["scalar"]
+                if key in ui_state and ui_state[key] == from_chart:
+                    ui_state[key] = own
+                continue
             # Only the recipe's own fields; see `_note_what_the_chart_imposed`.
             if not (isinstance(entry, dict) and "fields" in entry):
                 continue
@@ -15276,9 +15417,18 @@ class TabChart(QWidget):
         # "generated the chart but went to manual module on its own and i think
         # colormunki was still selected there". His run1 holds mode=manual,
         # guided={instrument: CM, paper: A4}, and that is what came back.
-        if "engine_on" in stored and not built_here:
+        # ABSENT MEANS NEUTRAL HERE TOO, AND IT DID NOT. Every other bucket in
+        # this method falls back to the saved default when the record has no
+        # answer; the engine tick was guarded by `if "engine_on" in stored`
+        # alone, so a run with nothing stored kept THE PREVIOUS RUN's tick and
+        # the next write filed it as its own. §4 S4: "factory settings, or the
+        # saved defaults if the user has any -- never the last run's."
+        if not built_here:
             try:
-                on = bool(stored["engine_on"])
+                if "engine_on" in stored:
+                    on = bool(stored["engine_on"])
+                else:
+                    on = bool(self._saved_default_engine_on())
                 self._settings.set("use_chromiq_layout_engine", on)
                 self._set_engine_checked(on)
             except Exception:      # noqa: BLE001

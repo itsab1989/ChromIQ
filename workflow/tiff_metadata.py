@@ -70,15 +70,22 @@ _SPECTRUM_BAR_WIDTH_PX = 6
 def stamp_chart_metadata(
     tiff_paths: Iterable[Path],
     lines: Sequence[str],
+    text_edge_mm: float = 0.0,
+    reserve_right_mm: float = 0.0,
 ) -> None:
-    """Stamp `lines` joined into a single rotated text line on each TIFF's right margin."""
+    """Stamp `lines` joined into a single rotated text line on each TIFF's right margin.
+
+    *text_edge_mm* is the user's "Text distance from edge" setting. It was not
+    passed at all, so the note started 0.5 mm from the paper edge whatever the
+    box said. Zero keeps the old floor, which is what an unset value means.
+    """
     pieces = [s.strip() for s in lines if s and s.strip()]
     if not pieces:
         return
     text = _JOIN.join(pieces)
     for path in tiff_paths:
         try:
-            _stamp_one(Path(path), text)
+            _stamp_one(Path(path), text, text_edge_mm, reserve_right_mm)
         except Exception as exc:
             log.warning("Right-edge stamp failed for %s: %s", path, exc)
 
@@ -248,7 +255,8 @@ def stamp_left_clip_info(
             log.warning("Left-clip stamp failed for %s: %s", path, exc)
 
 
-def _stamp_one(path: Path, text: str) -> None:
+def _stamp_one(path: Path, text: str, text_edge_mm: float = 0.0,
+               reserve_right_mm: float = 0.0) -> None:
     with tifffile.TiffFile(str(path)) as tf:
         page = tf.pages[0]
         # Device-native (separated) CMYK / CMYK+N charts: skip the post-render
@@ -272,20 +280,39 @@ def _stamp_one(path: Path, text: str) -> None:
         return
 
     H, W, C = arr.shape
-    band = _detect_writable_band(arr)
+    _dpi = _dpi_from_state(state)
+    band = _detect_writable_band(
+        arr, reserve_px=int(round((reserve_right_mm or 0.0) * _dpi / 25.4)))
     if band is None:
         log.info("Right-edge stamp skipped (no usable right margin) for %s", path)
         return
     band_left, band_right = band
     strip_w = min(40, band_right - band_left)
-    strip_h = H - 2 * _PATCH_SAFETY_PAD_PX
+    # THE USER'S OWN "TEXT DISTANCE FROM EDGE" DECIDES THE TOP AND BOTTOM, and
+    # it was ignored: the band ran from `_PATCH_SAFETY_PAD_PX`, a 4 px constant,
+    # so the note started 0.5 mm from the paper edge while the setting said 4.0
+    # mm. The pad stays as the floor, because a note must never be pushed into
+    # the patch area, and it is what an unset value falls back to.
+    _pad = max(_PATCH_SAFETY_PAD_PX,
+               int(round((text_edge_mm or 0.0) * _dpi / 25.4)))
+    if 2 * _pad >= H:                       # a pathological setting on a tiny sheet
+        _pad = _PATCH_SAFETY_PAD_PX
+    strip_h = H - 2 * _pad
     if strip_h < 100:
         log.info("Right-edge stamp skipped (image too short) for %s", path)
         return
 
-    font_px = max(12, strip_w - 6)
-    font = _pick_font(font_px)
-    strip = _render_rotated_line(text, strip_h, strip_w, font, dtype, C)
+    # SHRINK TO FIT, DO NOT CROP.
+    #
+    # This picked a font from the strip WIDTH alone and then centred the line,
+    # so a note longer than the sheet lost its TAIL: `max(0, (strip_h - text_w)
+    # // 2 - bbox[0])` clamps to zero and the end falls off the paper. Measured
+    # on Knut's own 141-character note at 200 dpi: 4.2 mm lost on a 130x180
+    # sheet and 34.2 mm on a 100x150 one, and what went missing was the end,
+    # which is where he had put the colour-management setting. The fitting
+    # renderer that does exactly this already lived in this file and was called
+    # only by the left-clip stamp.
+    strip = _render_fitted_rotated_line(text, strip_h, strip_w, dtype, C)
     # Anchor the strip to the patch-side (left) edge of the band, not its
     # center. The band is the widest white column run right of the patches;
     # when the chart doesn't fill the sheet that run is a large empty area, so
@@ -297,8 +324,14 @@ def _stamp_one(path: Path, text: str) -> None:
         x0 = band_left
     if x0 + strip_w > band_right:
         x0 = band_right - strip_w
-    y0 = _PATCH_SAFETY_PAD_PX
-    arr[y0 : y0 + strip_h, x0 : x0 + strip_w, :] = strip
+    y0 = _pad
+    # WRITE THE INK, NOT THE PAPER. This pasted an opaque white strip over the
+    # whole band, AFTER the renderer had drawn the page, so every ruler dash the
+    # band crossed was deleted. Measured against a control with the note off:
+    # 100 pixels of existing dash removed on one sheet, 0 with the markers off.
+    # Compositing keeps whatever was already there and only darkens.
+    _under = arr[y0 : y0 + strip_h, x0 : x0 + strip_w, :]
+    arr[y0 : y0 + strip_h, x0 : x0 + strip_w, :] = np.minimum(_under, strip)
 
     _write_preserving(path, arr, state)
 
@@ -600,12 +633,23 @@ def _rational_to_float_pair(
 def _detect_writable_band(
     arr: np.ndarray,
     side: str = "right",
+    reserve_px: int = 0,
 ) -> tuple[int, int] | None:
     """Return (left_x, right_x) of the widest white column run in the requested margin.
 
     `side="right"` scans the column band to the right of the patch area (the
     page's right edge). `side="left"` scans the column band to the left of the
     patch area (the page's left clip strip).
+
+    *reserve_px* keeps that many pixels of the outer edge OUT of the search.
+    Without it, anything already printed in that margin defeats the search
+    entirely: a column carrying a ruler dash is inked, no run of
+    `_MIN_STRIP_WIDTH_PX` clear columns survives, this returns None, and the
+    caller gives up. Measured on one chart with only the side markers switched
+    on, and again with the clip band moved to the right: the run's chart notes
+    were not printed on any page, with one line in the log and nothing on
+    screen. Reserving the strip those marks own leaves a real white run beside
+    them.
     """
     if arr.size == 0:
         return None
@@ -623,15 +667,17 @@ def _detect_writable_band(
     if side == "left":
         patch_left = (int(patch_cols[0]) - _PATCH_SAFETY_PAD_PX
                       if len(patch_cols) else W // 2)
-        if patch_left <= _MIN_STRIP_WIDTH_PX:
+        _lo = max(0, int(reserve_px))
+        if patch_left <= _lo + _MIN_STRIP_WIDTH_PX:
             return None
-        scan_lo, scan_hi = 0, patch_left
+        scan_lo, scan_hi = _lo, patch_left
     else:
         patch_right = (int(patch_cols[-1]) + _PATCH_SAFETY_PAD_PX
                        if len(patch_cols) else W // 2)
-        if patch_right >= W - _MIN_STRIP_WIDTH_PX:
+        _hi = W - max(0, int(reserve_px))
+        if patch_right >= _hi - _MIN_STRIP_WIDTH_PX:
             return None
-        scan_lo, scan_hi = patch_right, W
+        scan_lo, scan_hi = patch_right, _hi
 
     mid_top, mid_bottom = H // 6, 5 * H // 6
     margin_inked = mask[mid_top:mid_bottom, scan_lo:scan_hi].any(axis=0)

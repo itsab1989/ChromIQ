@@ -647,7 +647,7 @@ def test_stamp_uses_chart_layout_line_for_ti1_origin(tmp_path: Path, monkeypatch
 
     captured: list[list[str]] = []
     monkeypatch.setattr(tm, "stamp_chart_metadata",
-                        lambda tiffs, lines: captured.append(list(lines)))
+                        lambda tiffs, lines, *a: captured.append(list(lines)))
 
     creator._stamp_tiff_metadata(
         [tiff],
@@ -676,7 +676,7 @@ def test_stamp_uses_targen_line_for_fresh_chart(tmp_path: Path, monkeypatch) -> 
 
     captured: list[list[str]] = []
     monkeypatch.setattr(tm, "stamp_chart_metadata",
-                        lambda tiffs, lines: captured.append(list(lines)))
+                        lambda tiffs, lines, *a: captured.append(list(lines)))
 
     creator._stamp_tiff_metadata(
         [tiff],

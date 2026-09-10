@@ -37,6 +37,7 @@ import json
 import math
 import os
 
+import types
 import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -684,7 +685,15 @@ def test_no_reader_outside_the_engine_asks_the_flag_raw():
     """The guard on the guard. `hex_flat_top` may be read raw in exactly three
     places: the dataclass that stores it, the builder that resolves it, and the
     checkbox that shows it. Anywhere else is a reader that can be handed a tick
-    made on a different instrument."""
+    made on a different instrument.
+
+    A WRITER INSIDE A RESOLVED BRANCH IS NOT A READER. Guided sets the flag for
+    its own charts in two places -- the build and the estimate that must mirror
+    it -- and both sit inside `if instr == "CR30" and guided:` / the CR30 branch
+    of `_engine_build_kwargs`, which is the resolution this test exists to
+    demand. They are matched below by their exact text, so a bare read in
+    either file is still an offender.
+    """
     import pathlib
     import re
 
@@ -716,7 +725,11 @@ def test_no_reader_outside_the_engine_asks_the_flag_raw():
                     # a widget's OWN state, which is fed by a resolver: the
                     # preview's `_hex_flat_top` comes from `chart_is_flat_top`
                     or "self._hex_flat_top" in line
-                    or "flat_top=flat_top" in line):
+                    or "flat_top=flat_top" in line
+                    # Guided's own two writers, already inside a branch that
+                    # names the instrument and the patch shape. Matched
+                    # exactly, so this is not a licence for that file.
+                    or 'kw["hex_flat_top"] = bool(kw.get("hflag"))' in line):
                 continue          # the RESOLVED value is fine
             offenders.append(f"{rel}: {line.strip()[:90]}")
     assert not offenders, (
@@ -1317,4 +1330,86 @@ def test_the_letters_clear_the_ink_however_they_are_styled(tmp_path, label, over
         f"with {label} the strip letters end at {band} px and the first patch "
         f"box starts at {top} px, so {(band - top) * mm:.2f} mm of letter is "
         "printed on the ink"
+    )
+
+
+# ---------------------------------------------------------------------------
+# GUIDED TURNS THE HONEYCOMB TOO, so every user gets the straight strips
+# without having to know the option exists (Basti, 2026-09-10: "i want this
+# layout for guided module as well so every user automatically benefits").
+# ---------------------------------------------------------------------------
+
+def _guided_kw(instrument, *, hexes, manual=False):
+    """The build kwargs Guided hands the engine, from the real builder."""
+    from dataclasses import fields, is_dataclass
+
+    from workflow.chart_creator import ChartCreator, ChartParams
+
+    # BUILT FROM THE REAL DATACLASS, not from a hand-made stand-in. A namespace
+    # with the handful of fields this test happens to know about goes stale the
+    # moment `ChartParams` gains one, and it did within minutes of being
+    # written (`bw_spacers`).
+    assert is_dataclass(ChartParams) and fields(ChartParams)
+    params = ChartParams()
+    params.instrument = instrument
+    params.double_density = hexes
+    params.is_manual = manual
+    params.paper = "A4"
+    params.layout_recipe = None
+    return ChartCreator._engine_build_kwargs(
+        types.SimpleNamespace(_settings=None), params)
+
+
+@pytest.mark.parametrize("instrument,hexes,turned", [
+    ("CR30", True, True),      # the case the owner asked for
+    ("CR30", False, False),    # a square CR30 chart is never turned
+    ("SS", True, False),       # the SpectroScan is excluded by his own ruling
+])
+def test_guided_turns_only_a_cr30_honeycomb(instrument, hexes, turned):
+    kw = _guided_kw(instrument, hexes=hexes)
+    assert bool(kw.get("hex_flat_top")) is turned, (
+        f"Guided {instrument} with hexagons={hexes} came out "
+        f"{'turned' if kw.get('hex_flat_top') else 'not turned'}"
+    )
+
+
+def test_a_manual_chart_is_left_alone_by_the_guided_writer():
+    """Manual keeps its own tick in Expert Options. A Manual chart WITHOUT a
+    layout recipe reaches the same branch, and it must not be turned behind the
+    user's back: that would be a second writer for the flag, which is the
+    mistake `d1adbe31` made once already."""
+    kw = _guided_kw("CR30", hexes=True, manual=True)
+    assert not kw.get("hex_flat_top"), (
+        "the Guided writer reached a Manual chart and turned it"
+    )
+
+
+def test_the_guided_estimate_and_the_guided_build_agree():
+    """The Calculated Patches figure is worked out by a different function from
+    the one that builds the sheet, and the file says in capitals that the two
+    must mirror each other. A turn in one and not the other makes the figure a
+    lie, which is a bug that file records being fixed once before."""
+    from workflow.layout_engine import instruments
+    from ui.tabs.tab_chart import TabChart
+
+    build = _guided_kw("CR30", hexes=True)
+    geom = TabChart._engine_geom(
+        None, "CR30", "A4", dd=True, td=False, eff_lb=False, nsl=False,
+        pscale=1.0, margin=6.0, guided=True)
+    built = instruments.geom_from_build_kwargs(build)
+    assert bool(geom.hex_flat_top) is bool(built.hex_flat_top) is True, (
+        f"estimate turned={geom.hex_flat_top}, build turned={built.hex_flat_top}"
+    )
+
+
+def test_an_old_recipe_without_the_key_rebuilds_untouched():
+    """THE REPRINT HAZARD, and the most important test here. Somebody rebuilding
+    a chart to replace a lost sheet must get the sheet they printed. A recipe
+    saved before the turn existed has no key for it, and an absent key must
+    read False, not "whatever Guided would choose today"."""
+    from workflow.layout_engine.presets import LayoutRecipe
+    old = {"instrument": "CR30", "paper": "A4", "hflag": True}
+    r = LayoutRecipe.from_build_kwargs(old)
+    assert r.hex_flat_top is False, (
+        "an old recipe came back turned, so a reprint would not match the sheet"
     )

@@ -1387,7 +1387,7 @@ class MainWindow(QMainWindow):
         self._target_ctl.reset_to_empty()
         # 3. Every tab lets go of what it was showing.
         try:
-            self._tab_chart.clear_loaded_project()
+            self._tab_chart.clear_loaded_project(deleted=deleted)
         except Exception:      # noqa: BLE001 — a delete must never end in a crash
             log.warning("Could not clear the Create Chart tab", exc_info=True)
         self._tab_print.load_tiffs([])

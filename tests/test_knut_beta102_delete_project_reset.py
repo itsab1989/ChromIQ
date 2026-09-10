@@ -173,7 +173,7 @@ def test_the_window_empties_every_tab_and_forgets_the_session():
     src = inspect.getsource(MainWindow._reset_after_project_gone)
     for step in ("self._file_mgr.close_project()",
                  "self._target_ctl.reset_to_empty()",
-                 "self._tab_chart.clear_loaded_project()",
+                 "self._tab_chart.clear_loaded_project(",
                  "self._tab_print.load_tiffs([])",
                  "self._tab_measure.clear_chart_file()",
                  "self._tab_profile.clear_files()",
@@ -192,7 +192,7 @@ def test_the_name_is_forgotten_before_anything_else_runs():
     # two different "no project" states is one nobody can predict.
     src = inspect.getsource(MainWindow._reset_after_project_gone)
     first = src.index("close_project()")
-    for later in ("reset_to_empty()", "clear_loaded_project()",
+    for later in ("reset_to_empty()", "clear_loaded_project(",
                   "load_tiffs([])", "refresh()"):
         assert first < src.index(later), f"{later} runs before the name is gone"
 
