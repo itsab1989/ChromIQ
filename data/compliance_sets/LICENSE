@@ -1,0 +1,48 @@
+LICENSING OF THE FILES IN THIS FOLDER
+=====================================
+
+There are two kinds of file here, and they are not under the same terms.
+
+1. ChromIQ's own files
+----------------------
+`iso12647.json` and this folder's structure are ChromIQ's own work and are
+covered by the project's licence, the GNU Affero General Public License version
+3, the same as the rest of ChromIQ. A copy is in the LICENSE file at the root of
+the project.
+
+`iso12647.json` contains NO tolerance value of any standard. It ships empty.
+
+2. Third-party reference data
+-----------------------------
+No third-party reference data is bundled today. When any arrives, it is governed
+by the terms its rights holder stated, not by the licence above, and ChromIQ may
+not relicense it.
+
+The terms granted to ChromIQ are recorded in README.md beside this file, in the
+words the rights holders used. In short:
+
+  Fogra          use and unchanged redistribution, including in commercial
+                 software, provided Fogra is clearly named as the source.
+                 Naming a Fogra set is not a certification or an endorsement.
+
+  CGATS          made generally available to the industry; free to use in
+                 software. No further condition stated.
+
+  ICC            redistribution is fine; altered data must never be presented
+                 as the original.
+
+  Idealliance    inclusion in and distribution with software, under any
+  (PRINTING      licence, provided the profile is unaltered. Requires the line
+  United          "GRACoL is a registered trademark of PRINTING United
+  Alliance)       Alliance."
+
+  ISO            NO PERMISSION. Reproducing the content of a standard inside
+                 software needs explicit permission or a licence; a single-user
+                 reading licence is not enough. Nothing from ISO 12647-7:2016
+                 or ISO 12647-8:2021 is in this folder, in ChromIQ, or in its
+                 repository.
+
+Anyone adding a file to this folder has to add its source and its terms to
+README.md in the same change. A data file without a credit beside it is a
+licence breach waiting to happen, and three of the four grants above are
+conditional on that credit existing.

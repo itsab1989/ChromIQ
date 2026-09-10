@@ -141,11 +141,14 @@ def test_the_specs_do_not_drift_apart_again():
     difference has to be named here, with the reason."""
     # Deliberate, and why. A platform-specific entry belongs in this map, not in
     # a quiet asymmetry between three files nobody diffs.
-    ALLOWED = {
-        # macOS ships the compliance limit sets; they reach the other two
-        # platforms with #182, where that data is still being built.
-        "data/compliance_sets": {"ChromIQ.spec"},
-    }
+    # EMPTY, AND THAT IS THE POINT. The one entry this map ever held said
+    # macOS alone shipped `data/compliance_sets`, "until #182". It was written
+    # on 2026-09-09 in the very commit that closed the same gap for `data/i18n`
+    # and `data/scanner_targets`, and it was stale one day later. An entry that
+    # outlives its reason does not just fail to catch the fault, it AUTHORISES
+    # it: the loop below skips any path this map excuses, so the gap would have
+    # come back silently. Deleting the entry is part of closing the gap.
+    ALLOWED: "dict[str, set[str]]" = {}
     seen: dict[str, set[str]] = {}
     for spec in SPECS:
         literal, _ = _analysis_datas(spec)

@@ -138,8 +138,20 @@ def test_an_unreadable_data_file_degrades_to_question_marks(tmp_path, monkeypatc
 
 
 def test_the_bundle_ships_the_data_folder():
-    spec = (ROOT / "ChromIQ.spec").read_text(encoding="utf-8")
-    assert "('data/compliance_sets', 'data/compliance_sets')" in spec
+    """ALL THREE platforms, because for two of them it did not.
+
+    Windows and Linux shipped without the folder until 2026-09-10. There was no
+    error a user could see: `_load_iso_numbers` catches the OSError and logs
+    "unreadable", so every cell read `?` exactly as it does on macOS, where the
+    file is present and empty. A question mark meaning "we have not licensed
+    this number" and a question mark meaning "the file is not in your build"
+    looked identical, and the day any number IS licensed the two platforms
+    would have kept showing the old answer.
+    """
+    for spec_name in ("ChromIQ.spec", "ChromIQWin.spec", "ChromIQLinux.spec"):
+        spec = (ROOT / spec_name).read_text(encoding="utf-8")
+        assert "('data/compliance_sets', 'data/compliance_sets')" in spec, (
+            f"{spec_name} does not bundle data/compliance_sets")
 
 
 # ---- limits: JSON, text, overrides -------------------------------------------

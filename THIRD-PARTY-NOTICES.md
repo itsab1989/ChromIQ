@@ -238,6 +238,16 @@ Listed so the sweep is exhaustive and nobody has to re-derive it:
   his own, given with each contribution ("Hopefully you can integrate them in
   the upcoming version of ChromIQ as presets", 2026-09-08, of the two
   photo-card charts). The credit stays on the sheets.
+- **Limit sets for the Measurement Report** are in `data/compliance_sets/`.
+  ChromIQ's own files, under the project's own licence, and **empty of any third
+  party's numbers**. `iso12647.json` is the file that would carry the tolerance
+  values of ISO 12647-7:2016 and ISO 12647-8:2021, and it ships with none of
+  them, because ISO's answer was that reproducing a standard's content inside
+  software needs explicit permission, which has been asked for and not granted.
+  That folder's own `README.md` and `LICENSE` record the four permissions
+  ChromIQ HAS been given, from Fogra, CGATS, the ICC and Idealliance, in the
+  words their owners used, together with the condition attached to each, so that
+  no data file can arrive there without its credit already beside it.
 - **Reference data** — none. ChromIQ deliberately ships no characterization
   dataset (no FOGRA, no IT8.7/4, no ISO tables); the tolerance and aim work links
   to them instead. That decision is recorded in issue #182.
@@ -364,9 +374,24 @@ Idealliance's `SWOP2006_Coated3v2.icc` (ICC registry, *"may be used, embedded,
 exchanged, and shared without restriction. It may not be altered, or sold without
 written permission of IDEAlliance"*) was the other serious candidate and would
 have been a closer colorimetric match to the file being replaced. It was not
-chosen because *"may not be sold"* re-opens the aggregation argument for no gain
-in a preview, where 5 ΔE is invisible — and because the public-domain route was
+chosen because *"may not be sold"* re-opened the aggregation argument for no gain
+in a preview, where 5 ΔE is invisible, and because the public-domain route was
 already the house pattern, used four times over in the same folder.
+
+> **THE READING THAT REJECTED IT WAS WRONG, AND ITS AUTHOR HAS SAID SO.**
+> 2026-09-09, in writing, from PRINTING United Alliance (formerly Idealliance):
+> the clause means only that the profiles may not be sold as a product in their
+> own right. They may be included in and distributed with software under any
+> licence, including where a recipient charges for the copy, provided the
+> profile is unaltered. Running a device value through a profile to obtain an
+> aim colour is use, not alteration, and X-Rite's approval is not needed.
+>
+> So the reason recorded above no longer holds. The public-domain profile stays,
+> because it works and because swapping a shipped asset for a cosmetic gain is
+> not worth a release; but the note is kept honest, and any future proposal to
+> bundle an Idealliance profile is a decision about colour, not about licensing.
+> The condition that does apply is the credit line: *"GRACoL is a registered
+> trademark of PRINTING United Alliance."*
 
 ---
 
