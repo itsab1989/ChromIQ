@@ -23,8 +23,12 @@ Until it is answered:
 **If you own the standards**, you can supply the numbers yourself and ChromIQ
 will use them without ever distributing them. Two ways, both already built:
 
-1. **Type them in.** In the Report limits window, a Custom column is editable.
-   A cell reading `?` becomes a spin box you can type your own number into.
+1. **Type them in.** In the Report limits window, a Custom column is editable:
+   most cells reading `?` become a spin box you can type your own number into.
+   A few stay read-only, and that is not about licensing. They are the rows
+   ChromIQ has no way to compute from a chart it can read, so a number there
+   would have nothing to judge. Those cells will still read `?` after any
+   licence arrives.
 2. **Point ChromIQ at your own file.** Set the environment variable
    `CHROMIQ_COMPLIANCE_ISO_FILE` to the path of a JSON file in the shape
    `iso12647.json` describes, and ChromIQ reads that instead of the empty one

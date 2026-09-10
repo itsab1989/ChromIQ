@@ -1941,7 +1941,8 @@ class MeasurementReportDialog(QDialog):
 
     def _column_summary(self, r: dict):
         """The one word for a run's column, with its numbers."""
-        from workflow.compliance_sets import Limit, Summary, set_summary
+        from workflow.compliance_sets import (Limit, Summary, set_summary,
+                                              applies_a_standard)
         from workflow.measurement_report import (is_graded_sheet,
                                                  recorded_compliance)
         rec = self._recorded(r)
@@ -1973,7 +1974,7 @@ class MeasurementReportDialog(QDialog):
         s = SET_BY_ID.get(set_id)
         graded = (bool(rec.get("graded")) if rec is not None
                   else is_graded_sheet(r))
-        return set_summary(pairs, set_is_iso=bool(s and s.kind == "iso"),
+        return set_summary(pairs, set_is_iso=applies_a_standard(getattr(s, "id", None)),
                            graded=graded)
 
     def _judged_label_for(self, r: dict) -> str:

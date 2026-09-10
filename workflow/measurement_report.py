@@ -1526,13 +1526,14 @@ def judge(report: dict, limits: "dict") -> "list[dict]":
 
 def summarise(report: dict, limits: "dict", rows: "list[dict]", set_id: str):
     """The column summary for *rows* (see :func:`compliance_sets.set_summary`)."""
-    from workflow.compliance_sets import SET_BY_ID, Limit, set_summary
+    from workflow.compliance_sets import (SET_BY_ID, Limit, set_summary,
+                                          applies_a_standard)
     s = SET_BY_ID.get(set_id)
     pairs = []
     for row in rows:
         lim = limits.get(row["row_id"])
         pairs.append((lim if isinstance(lim, Limit) else Limit.none(), row["word"]))
-    return set_summary(pairs, set_is_iso=bool(s and s.kind == "iso"),
+    return set_summary(pairs, set_is_iso=applies_a_standard(getattr(s, "id", None)),
                        graded=is_graded_sheet(report))
 
 

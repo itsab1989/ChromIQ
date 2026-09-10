@@ -367,6 +367,35 @@ SETS: "tuple[SetDef, ...]" = (
                  "yours to change."),
 )
 SET_BY_ID: "dict[str, SetDef]" = {s.id: s for s in SETS}
+
+
+def applies_a_standard(set_id: "str | None") -> bool:
+    """Whether this set judges with a STANDARD's published figures.
+
+    True for the two read-only ISO columns and ALSO for the Custom columns that
+    start from them, and the second half is the point.
+
+    An on-screen round drove the documented route on 2026-09-10: a tester who
+    owns the standard puts one number into "Custom ISO 12647-7", the set becomes
+    selectable, and the report printed a bold green **PASS** with the sentence
+    "Every value this limit set requires was checked and is within its limit."
+    No string claimed anything, so the sweep for claim words could not see it:
+    the claim was made by JUXTAPOSITION, a column named after a standard beside
+    a green PASS with no caveat.
+
+    The cap on an ISO column is not about licensing and never was. It is that a
+    standard's figures are written for that standard's own control strip on that
+    standard's own chart, and ChromIQ measures the chart YOU printed. Typing the
+    numbers in by hand does not change what they are being applied to, so a set
+    derived from one carries exactly the same caveat.
+    """
+    s = SET_BY_ID.get(set_id or "")
+    if s is None:
+        return False
+    if s.kind == "iso":
+        return True
+    return bool(s.parent) and SET_BY_ID.get(s.parent or "", None) is not None \
+        and SET_BY_ID[s.parent].kind == "iso"
 SET_IDS: "tuple[str, ...]" = tuple(s.id for s in SETS)
 EDITABLE_SET_IDS: "tuple[str, ...]" = tuple(s.id for s in SETS if s.editable)
 DEFAULT_SET_ID = "chromiq_default"
