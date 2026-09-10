@@ -339,10 +339,21 @@ def _stamp_one(path: Path, text: str, text_edge_mm: float = 0.0,
     # the note ended 1.98 mm from the paper edge. The pad stays as the floor,
     # because a note must never be pushed into the patch area, and it is what an
     # unset value falls back to.
-    _pad = max(_PATCH_SAFETY_PAD_PX,
-               int(round((text_edge_mm or 0.0) * _dpi / 25.4)))
+    # NO FLOOR UNDER THE USER'S OWN NUMBER. Knut, 2026-09-10: *"there shall not
+    # be any hard-coded values in the code"*. This read
+    # `max(_PATCH_SAFETY_PAD_PX, …)`, so a 4 px constant, 0.5 mm at 200 dpi,
+    # quietly won whenever the box asked for less. The setting decides; every
+    # caller now supplies one, and a path with no control of its own passes the
+    # SETTING'S DEFAULT rather than nothing (`chart_creator._stamp_tiff_metadata`).
+    #
+    # `_PATCH_SAFETY_PAD_PX` KEEPS ITS OTHER JOB, which is not this one.
+    # `_detect_writable_band` uses it as an ink-detection tolerance: how much
+    # white paper to require around the ink it finds. That is a different
+    # measurement with a different meaning, and it is not a distance from an
+    # edge, so the ruling does not reach it.
+    _pad = int(round((text_edge_mm or 0.0) * _dpi / 25.4))
     if 2 * _pad >= H:                       # a pathological setting on a tiny sheet
-        _pad = _PATCH_SAFETY_PAD_PX
+        _pad = 0
     strip_h = H - 2 * _pad
     if strip_h < 100:
         log.info("Right-edge stamp skipped (image too short) for %s", path)

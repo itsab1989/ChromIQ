@@ -231,3 +231,47 @@ def test_a_reserve_with_no_room_left_overlaps_the_patches_rather_than_dropping(
     assert "overlaps the patch block" in said, (
         f"the overlap was not reported in the log; log was: {said!r}"
     )
+
+
+def test_no_constant_sits_under_the_users_own_number(tmp_path: Path) -> None:
+    """Knut, 2026-09-10: *"there shall not be any hard-coded values in the
+    code"*.
+
+    The sweep above only ever asks for MORE than the constant, so every case in
+    it passes whether the constant is there or not: putting
+    `max(_PATCH_SAFETY_PAD_PX, …)` back leaves all of them green. That is a
+    mutation that does not land, and a check nobody proved is not a check.
+
+    This one asks for LESS, and it asks it on a sheet where the answer is
+    visible. The setting is a MINIMUM, not a position: on a roomy margin the
+    note keeps its 40 px strip anchored to the patch side and the slack falls on
+    the page-edge side, so it lands far outside the reserve whatever the reserve
+    says, and the constant cannot be seen. Measured across four right margins,
+    only the narrow ones pin the note to the reserve:
+
+        margin 1.0 mm, setting 0.2 mm -> 0.169 mm from the edge
+        margin 2.0 mm, setting 0.2 mm -> 0.169 mm
+        margin 3.0 mm, setting 0.2 mm -> 0.508 mm
+        margin 6.0 mm, setting 0.2 mm -> 2.963 mm   <- slack, not the reserve
+
+    So the sheet is a narrow one, where the note is pinned at ``W - reserve``
+    and 0.2 mm and the old 0.339 mm constant give different pixels.
+    """
+    import workflow.tiff_metadata as tm
+
+    small = 0.2
+    added, mm, W, _patch = _stamped(tmp_path, "below_the_old_floor", small,
+                                    margin_right=2.0)
+    assert added.any(), "no note printed at all, so this measures nothing"
+
+    floor_mm = tm._PATCH_SAFETY_PAD_PX * mm
+    assert small < floor_mm, (
+        f"the setting under test ({small} mm) is not below the old constant "
+        f"({floor_mm:.3f} mm), so this test could not tell them apart")
+
+    right = int(np.flatnonzero(added.any(axis=0)).max())
+    to_edge = (W - 1 - right) * mm
+    assert to_edge < floor_mm - 0.05, (
+        f"the note stopped {to_edge:.3f} mm from the paper edge, which is the "
+        f"old {floor_mm:.3f} mm constant rather than the {small} mm asked for; "
+        "a hard-coded value is still sitting under the setting")
