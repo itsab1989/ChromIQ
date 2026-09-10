@@ -37,6 +37,23 @@ allowed a profiling run's report to show no verdict.
   report rows waiting for a reference, only paper white can be answered
   honestly on an ordinary sheet today.
 
+- **Eleven demo profile runs to test the report against, attached to this
+  release.** Knut asked for them: real charts, real profiles and real
+  measurements, with the drift designed so that each row crosses its limit on
+  one date and comes back on the next, one row at a time. Three projects,
+  eleven profile runs and thirty-one dated verifications. A report has thirty
+  rows and most cannot be filled in from an ordinary printed sheet at all;
+  eight can, and every one of those eight is crossed by some date and back
+  inside its limit on another. One of the eight needed a run of its own,
+  because no shipped limit set judges the tone ramps, so that row prints a
+  number nothing can cross until a user types a limit into it. Download
+  `ChromIQ-Report-Limit-Demos.zip` from the release, unzip it anywhere and point
+  the output folder at it; all three projects then appear in the project list.
+  The README lists which date crosses which limit, intended against what the
+  report actually read back, and which of the ten runs are locked and why. The
+  generator is in the repository, so the same command rebuilds them against a
+  newer ChromIQ.
+
 ### Fixed
 
 - **The report explains why a profiling sheet shows no verdict.** Knut allowed
@@ -62,6 +79,45 @@ allowed a profiling run's report to show no verdict.
   ChromIQ measures the chart you printed. A report SAVED by an earlier build
   keeps the word it was saved with, because your saved verdicts are yours and
   are not rewritten behind you, but it now carries that caveat beside it.
+- **The grey balance rows read "not applicable" on every report saved before
+  this beta.** Knut asked why, with the limits set and the measurements on
+  disk. Grey balance and the tone ramps were added without marking older
+  reports stale, deliberately, so that no verdict already saved would be
+  re-derived. That was right about verdicts and wrong about rows that were
+  never worked out at all: 4.2.0 and the first two betas saved reports that
+  looked current, so they were never rebuilt and showed nothing on both grey
+  rows for good. Surveyed on one real disk: 58 saved reports, not one with a
+  grey block. The line beside the dash also said the measurement file could not
+  be read again, which was untrue, and the number it was hiding was in the same
+  folder. A report missing a row is now rebuilt for that row alone, and the
+  verdict it was saved with is carried across untouched.
+
+- **A run's limits locked too early, and locked runs that had nothing to
+  lock.** Knut asked for the first and an on-screen round found the second,
+  which is the worse of the two. A project made before this work never has a
+  limit set copied onto it, so its limits come from the live preference and are
+  re-read every time; the pulldown was greyed over a value stored nowhere, and
+  the "Default for new runs" radio moved it anyway. On screen the window then
+  contradicted its own report, and four rows flipped from PASS to FAIL with
+  nothing written to disk. Separately, the lock now waits for the SECOND dated
+  verification. The lock exists so that the dates of one run stay comparable,
+  and with one date there is nothing to be comparable with, so it protected
+  nothing and only took the choice away. "This run has 1 dated verifications"
+  has a singular now, in twelve languages.
+
+- **The Report limits window: hidden columns, a stray scroll bar and a title
+  row that scrolled away.** Three reports about one table. Unticking a column
+  pushed the remaining ones to the right edge, because all the horizontal
+  stretch sat on the row-label column and every hidden column was paid for in
+  blank space; a window dragged narrower kept a horizontal scroll bar for space
+  nothing painted in, because the width was pinned once at build time with
+  every column showing; and scrolling the rows carried the column names, the
+  Restore this column buttons and the Default for new runs radios off the top
+  with them. The three head rows now sit in their own widget above the rows,
+  travel sideways with the columns they name, and stay put as the rows run
+  under them. Measured with four of seven columns unticked, the first value
+  column stays where it belongs instead of moving 496 px right.
+
 - **The compliance data was bundled on macOS only.** On Windows and Linux the
   file was simply not in the build, and nothing said so, because a missing file
   and an empty one both show as a question mark. Both platforms now ship it.

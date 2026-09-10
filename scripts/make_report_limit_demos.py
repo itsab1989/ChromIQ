@@ -20,17 +20,18 @@ every gate on every machine. Nothing here touches it.
 
 What is built
 -------------
-Three projects, ten profile runs, twenty-nine dated verifications::
+Three projects, eleven profile runs, thirty-one dated verifications::
 
     Report-Limits-Threshold-Series   the dated series: each judged row crosses
                                      its limit on one date and recovers on the
                                      next. run1 has ELEVEN dated verifications,
                                      run3 has exactly ONE, so its
                                      limit set can still be chosen.
-    Report-Limits-Isolated-Rows      three rows that cannot cross alone under
+    Report-Limits-Isolated-Rows      four rows that cannot cross alone under
                                      any shipped limit set, isolated by giving
-                                     the run its own edited column. run3 has
-                                     TWO dated verifications with the
+                                     the run its own edited column. One of the
+                                     four is judged by no shipped set at all.
+                                     run3 has TWO dated verifications with the
                                      lock lifted by hand.
     Report-Limits-Set-Compare        the same measurement, three times, judged
                                      by ChromIQ default / tight / Quick check.
@@ -273,6 +274,17 @@ class Design:
     ``grey_dch`` is the grey ramp's chroma difference, ``grey_spike`` one grey
     step's own.
 
+    ``ramp_dl`` is the lightness error put on ONE step of the grey tone ramp
+    between 30 and 70 % tone value, which is the only thing the "30 to 70 %
+    ramps, largest lightness difference" row reads. It needs its own knob
+    because the grey knob above moves chroma only and pins every grey's L* to
+    the reference, so that row could never cross however the rest of the sheet
+    was designed: measured over the whole package before this existed, seven of
+    the eight rows a ChromIQ verification sheet can compute were crossed by some
+    date and this was the eighth. The moved step also carries that lightness
+    error into its own ΔE00, which is why the date that uses it expects two
+    rows and not one.
+
     THE BAND SIZES ARE NOT FIXED. The rows are judged on the WITHIN-gamut
     patches (measurement_report.py:1008-1022), so how many patches fall in the
     worst 5 % depends on the chart and the profile, and the bands are sized
@@ -285,6 +297,7 @@ class Design:
     target_best95: "float | None" = None
     grey_dch: float = 0.5
     grey_spike: "float | None" = None
+    ramp_dl: "float | None" = None
     n_shoulder: int = 3
 
 
@@ -433,7 +446,24 @@ def apply_design(ti3: Path, ti2: Path, design: Design,
     else:
         new_lab.update(lay(design.bulk))
 
+    # -- one step of the 30 to 70 % grey ramp, moved in LIGHTNESS only.
+    #    The grey knob above pins every grey's L* to the reference, so this row
+    #    reads exactly zero on every date unless something moves L*. a* and b*
+    #    are left where the grey knob put them, so the grey-balance rows keep
+    #    the values they were designed for; only this patch's own ΔE00 grows.
+    if design.ramp_dl is not None:
+        step = _ramp_step_index(rgb, greys)
+        if step is None:
+            raise SystemExit(
+                f"{ti3}: no grey step lies between {RAMP_TV_LOW} and "
+                f"{RAMP_TV_HIGH} % tone value, so ramp_dl has nothing to move")
+        r = ref[data.sample_ids[step]]
+        a, b = new_lab[step][1], new_lab[step][2]
+        new_lab[step] = (r[0] - design.ramp_dl, a, b)
+
     predicted = _predict_from(new_lab, ref, data.sample_ids, judged)
+    if design.ramp_dl is not None:
+        predicted["ramps_30_70_dl_max"] = float(design.ramp_dl)
     dchs = [math.hypot(new_lab[i][1] - ref[data.sample_ids[i]][1],
                        new_lab[i][2] - ref[data.sample_ids[i]][2])
             for i in greys if i in new_lab]
@@ -447,6 +477,30 @@ def apply_design(ti3: Path, ti2: Path, design: Design,
         out[i] = tuple(rel * scale)
     _rewrite_xyz(ti3, out)
     return predicted
+
+
+#: The band `measurement_report.ramps_block` reads, and the spread it allows a
+#: patch before it stops counting as grey. Named here rather than imported so
+#: that a change to either shows up as a MISMATCH in this generator's own
+#: intended-against-actual check instead of silently moving the design.
+RAMP_TV_LOW, RAMP_TV_HIGH = 30.0, 70.0
+
+
+def _ramp_step_index(rgb, greys: "list[int]") -> "int | None":
+    """The middle grey step lying inside the 30 to 70 % tone-value band.
+
+    `ramps_block` reads the largest lightness difference over that band, taking
+    the tone value of a grey as ``100 - mean(RGB)``. The middle of the band is
+    chosen so the patch is as far as possible from both edges: a step at 30.4 %
+    would drop out of the row entirely if the chart's levels ever shifted.
+    """
+    band = [i for i in greys
+            if RAMP_TV_LOW <= (100.0 - float(np.asarray(rgb[i], float).mean()))
+            <= RAMP_TV_HIGH]
+    if not band:
+        return None
+    mid = 0.5 * (RAMP_TV_LOW + RAMP_TV_HIGH)
+    return min(band, key=lambda i: abs((100.0 - float(np.asarray(rgb[i], float).mean())) - mid))
 
 
 def _place(r, measured_lab, target_de: float) -> tuple:
@@ -603,6 +657,7 @@ ROW_TITLES = {
     "all_de00_p95": "All patches, 95th percentile",
     "grey_balance_neutral_ramp_avg": "Grey balance of the grey ramp, average",
     "grey_balance_neutral_ramp_max": "Grey balance of the grey ramp, largest",
+    "ramps_30_70_dl_max": "Single-colour ramps 30 % to 70 %, largest lightness difference",
 }
 
 
@@ -745,6 +800,34 @@ SERIES_TWO_DATES_UNLOCKED: "list[Date]" = [
        "gives the run a history: without the hand-lifted lock the limit set "
        "would be fixed from here on, exactly as Threshold-Series/run2's is.",
        Design(bulk=0.40, shoulder=0.55, peak=1.20, tail=0.65, grey_dch=0.30),
+       []),
+]
+
+#: The tone-ramp row, which NO shipped set judges at all.
+#:
+#: Every ChromIQ set leaves `ramps_30_70_dl_max` without a limit, so the report
+#: prints its number and nothing can cross it. That makes it invisible to a
+#: package built only from the shipped sets, and it was: measured over the whole
+#: of this package, the seven rows a shipped set puts a number on were all
+#: crossed by some date, and this one could not be. It becomes judgeable only
+#: when a user types a limit into it, which is what this run's own edited column
+#: does, and which is this project's whole purpose.
+SERIES_RAMP: "list[Date]" = [
+    _d("2026-10-05_110000", "2026-10-05T11:00:00",
+       "One step of the grey ramp is too dark",
+       "The middle step of the grey tone ramp is 3.0 too dark, over the 2.0 "
+       "this run's own column asks for. Every colour-difference limit is "
+       "relaxed to 9.0, so the lightness error this puts on that one patch "
+       "crosses nothing else. ONE row crosses.",
+       Design(bulk=0.60, shoulder=0.90, peak=1.40, tail=1.10, grey_dch=0.40,
+              ramp_dl=3.0),
+       ["ramps_30_70_dl_max"]),
+    _d("2026-10-19_110000", "2026-10-19T11:00:00",
+       "The ramp comes back",
+       "The same step is 1.0 out, inside the 2.0 limit. The row recovers and "
+       "nothing else moved.",
+       Design(bulk=0.60, shoulder=0.90, peak=1.40, tail=1.10, grey_dch=0.40,
+              ramp_dl=1.0),
        []),
 ]
 
@@ -1066,6 +1149,13 @@ PROJECTS = [
                 edited_limits={"all_de00_avg": 6.0, "worst5_de00_avg": 6.0,
                                "best95_de00_avg": 6.0, "all_de00_max": 9.0,
                                "all_de00_p95": 9.0}),
+        RunPlan("The tone-ramp row, which no shipped set judges, given a "
+                "limit by this run's own edited column.",
+                CHART_MEDIUM, CHART_MEDIUM, "chromiq_default", SERIES_RAMP,
+                edited_limits={"all_de00_avg": 9.0, "worst5_de00_avg": 9.0,
+                               "best95_de00_avg": 9.0, "all_de00_max": 9.0,
+                               "all_de00_p95": 9.0,
+                               "ramps_30_70_dl_max": 2.0}),
     ]),
     ("Report-Limits-Set-Compare", [
         RunPlan("The shared measurement judged with ChromIQ default.",
@@ -1143,7 +1233,9 @@ def main(argv=None) -> int:
         build_project(dest, name, plans, cache_root, results, lock_rows)
     shutil.rmtree(cache_root, ignore_errors=True)
 
-    (dest / "README.txt").write_text(readme(results, lock_rows), encoding="utf-8")
+    cov = coverage(dest, results)
+    (dest / "README.txt").write_text(readme(results, lock_rows, cov),
+                                     encoding="utf-8")
     (dest / "intended-vs-actual.json").write_text(
         json.dumps(results, indent=2), encoding="utf-8")
     if args.report:
@@ -1166,7 +1258,46 @@ def main(argv=None) -> int:
     return 1 if bad else 0
 
 
-def readme(results: list, _lock_rows: "list[dict]") -> str:
+def coverage(dest: Path, results: list) -> dict:
+    """Which report rows these projects actually exercise, read back from the
+    saved reports rather than from the designs that asked for them.
+
+    A challenge round's rule: a row no date ever crosses is a row on which a
+    clean verdict proves nothing, so it has to be NAMED rather than counted as
+    covered. This is what names it.
+    """
+    from core.file_manager import Run
+    from workflow.measurement_report import row_values
+    from workflow.run_compliance import run_limits
+
+    with_value: set = set()
+    for rep in sorted(dest.rglob("report_*.json")):
+        for rid, info in (row_values(json.loads(rep.read_text(encoding="utf-8")))
+                          or {}).items():
+            if info.get("value") is not None:
+                with_value.add(rid)
+
+    # WHICH ROWS ARE JUDGED IS READ FROM THE RUNS, NOT FROM WHAT CROSSED.
+    # Deriving it from the crossings would make this check answer itself: a row
+    # that stopped crossing would also stop counting as judged, and the summary
+    # would go on saying nothing is untested.
+    judged: set = set()
+    for pd in sorted(dest.glob("Report-Limits-*")):
+        for rd in sorted((pd / "runs").glob("run*")):
+            for rid, lim in run_limits(Run.for_dir(rd), {}).limits.items():
+                if lim.number is not None:
+                    judged.add(rid)
+    judged &= with_value
+
+    crossed: set = set()
+    for r in results:
+        crossed |= set(r["actual"])
+    return {"with_value": sorted(with_value), "judged": sorted(judged),
+            "crossed": sorted(crossed & with_value),
+            "uncrossed": sorted(judged - crossed)}
+
+
+def readme(results: list, _lock_rows: "list[dict]", _cov: dict) -> str:
     from workflow.compliance_sets import ROW_BY_ID
     lines: list = []
     a = lines.append
@@ -1250,6 +1381,32 @@ def readme(results: list, _lock_rows: "list[dict]") -> str:
     a("one row cross its limit on one date while the others stay put, and it")
     a("is why the table below matches. Random noise cannot do that: it moves")
     a("every statistic at once.")
+    a("")
+    a("WHICH ROWS ARE COVERED, AND WHICH CANNOT BE")
+    a("-------------------------------------------")
+    a("")
+    a("A report has thirty rows and most of them cannot be filled in from an")
+    a("ordinary printed sheet at all: they belong to a standard's own control")
+    a("strip, or ask about fading, gloss or repeat measurements. The rows that")
+    a("matter here are the ones a ChromIQ verification sheet puts a NUMBER on,")
+    a("and of those, the ones some limit set actually judges.")
+    a("")
+    a(f"  rows a ChromIQ verification sheet computes : {len(_cov['with_value'])}")
+    a(f"  of those, judged by a limit somewhere      : {len(_cov['judged'])}")
+    a(f"  of those, crossed by at least one date     : {len(_cov['crossed'])}")
+    a("")
+    if _cov["uncrossed"]:
+        a("NOT CROSSED BY ANY DATE, so a clean verdict on these proves nothing:")
+        for rid in _cov["uncrossed"]:
+            a(f"  {ROW_TITLES.get(rid, rid)}")
+    else:
+        a("Every row that can be judged is crossed by at least one date, and")
+        a("comes back inside its limit on another. Nothing here is untested.")
+    a("")
+    a("One of them needed a run of its own. No shipped limit set judges the")
+    a("30 to 70 % tone ramps, so that row prints a number nothing can cross;")
+    a("Isolated-Rows/run5 gives it a limit in the run's own edited column,")
+    a("which is the only way a user can have it judged either.")
     a("")
     a("WHICH DATE CROSSES WHICH LIMIT")
     a("------------------------------")
