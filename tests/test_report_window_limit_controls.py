@@ -39,6 +39,12 @@ def _verified_run(tmp_path, dates=2, patches=None):
     """A project whose run has *dates* measured verifications with saved reports."""
     proj = Project.create(tmp_path / "P", "P")
     run = proj.current_run(); run.ensure_dir()
+    # BIND IT, because the app does. `ensure_bound` runs at the first
+    # verification measurement (ui/tabs/tab_measure.py), and a fixture that
+    # skips it produces a run with measured dates and no limit set copied onto
+    # it, which is the pre-#182 shape rather than a run this build made. The
+    # lock now asks whether a run is bound, so the difference matters.
+    rc.bind_run(run, "chromiq_default", {})
     from datetime import datetime, timedelta
     ti3s = []
     for i in range(dates):

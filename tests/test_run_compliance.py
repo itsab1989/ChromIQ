@@ -116,21 +116,47 @@ def test_unknown_set_id_on_bind_falls_back_to_the_default(tmp_path):
 
 # ---- lock -----------------------------------------------------------------------
 
-def test_locked_follows_the_first_measurement_and_the_unlock_flag(tmp_path):
+def test_locked_follows_the_second_measurement_and_the_unlock_flag(tmp_path):
+    """REVISED 2026-09-10, on Knut's report, and it moved twice.
+
+    It used to lock on the FIRST measured verification. Two things were wrong
+    with that, from opposite ends, and he found both.
+
+    A run that is not BOUND has nothing to lock: its limits come from the live
+    Preferences default, so the pulldown was greyed over a value stored nowhere,
+    and a radio button in another window moved it.
+
+    And one measurement is not a history. The lock exists so that every dated
+    verification of a run is judged the same way; with one date there is nothing
+    to be consistent with, so it only takes the choice away.
+    """
     _proj, run = _project(tmp_path)
     assert not rc.is_locked(run)                       # nothing measured
     assert rc.may_unlock(run, allow_after_measurement=False)
+
     v = run.new_verification(); v.ensure_dir()
     v.measurement_ti3.write_text(_TI3, encoding="utf-8")
     assert rc.has_measured_verification(run)
-    assert rc.is_locked(run)
+    assert rc.measured_dates(run) == 1
+    # bound, but only one date: still the user's to choose
+    rc.bind_run(run, "chromiq_default", {})
+    assert rc.is_bound(run)
+    assert not rc.is_locked(run), "one date is not a history to protect"
+    # unlocking is still gated the same way once anything is measured
     assert not rc.may_unlock(run, allow_after_measurement=False)
     assert rc.may_unlock(run, allow_after_measurement=True)
+
+    from datetime import datetime, timedelta
+    v2 = run.new_verification(datetime.now() + timedelta(days=30)); v2.ensure_dir()
+    v2.measurement_ti3.write_text(_TI3, encoding="utf-8")
+    assert rc.measured_dates(run) == 2
+    assert rc.is_locked(run), "a second date is what the lock is for"
+
     rc.set_run_unlocked(run, True)
     assert not rc.is_locked(run)
     # the flag is the run's own even before it is bound (a legacy run that a
     # user unlocks must not read as locked again on the next look)
-    assert rc.run_limits(run, {}).unlocked is True and not rc.run_limits(run, {}).bound
+    assert rc.run_limits(run, {}).unlocked is True
     assert not rc.is_locked(None) and not rc.may_unlock(None, True)
 
 

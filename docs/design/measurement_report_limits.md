@@ -145,6 +145,39 @@ no verdict cannot tell whether something is wrong.
 
 ## 5. Where the set lives, and when it may change
 
+> **REVISED 2026-09-10 on Knut's report, and it moved for two reasons.** This
+> section said the run's limits lock once a verification has been measured.
+>
+> **A run that is not BOUND has nothing to lock.** The lock never asked whether
+> one was, so a project made before #182, which never gets a set copied onto it
+> and never will, showed a greyed pulldown over a value stored nowhere: an
+> unbound run's limits come from the live Preferences default and are re-read
+> every time. Driven on screen, the "Default for new runs" radio in the limits
+> window then moved that greyed pulldown, the window contradicted its own report
+> body, and on a measurement with no recorded verdict four rows flipped from
+> PASS to FAIL on screen with nothing written to disk.
+>
+> **And one measurement is not a history.** Knut: *"When only one measurement is
+> done, I should be allowed to choose the type of report I want to print, and
+> which limits to judge against."* The lock exists so that every dated
+> verification of a run is judged the same way and the dates stay comparable.
+> With one date there is nothing yet to be comparable with. Measured, changing
+> the set at that point rewrites three keys, archives the report it replaces and
+> leaves eighteen keys of measured data untouched.
+>
+> **So: the limits lock once a SECOND dated verification of the run has been
+> measured, and only on a run that is bound.** Below that, the set may be chosen
+> in the report window; choosing one re-binds the run and recalculates that
+> date's saved reports, archiving them first, exactly as the unlock path does.
+> The unlock gate itself is unchanged.
+>
+> Still to be confirmed by a human: whether the lock protects comparability
+> across DATES, which is what this assumes, or fixes the yardstick the moment any
+> verdict is printed, which is stricter; and whether the second verification may
+> close the window silently or should say so.
+
+
+
 **⏳ Awaiting confirmation.** **Confirmed by:** *nobody yet.*
 
 * Preferences → Reports holds the **defaults**: the editable sets' overrides,

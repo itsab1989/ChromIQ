@@ -85,6 +85,34 @@ def has_measured_verification(run: Run) -> bool:
         return False
 
 
+def measured_dates(run: "Run | None") -> int:
+    """How many dated verifications of the run hold a measurement."""
+    if run is None:
+        return 0
+    try:
+        return sum(1 for v in run.verifications() if v.exists())
+    except OSError:
+        return 0
+
+
+def is_bound(run: "Run | None") -> bool:
+    """Whether the run has a limit set copied onto it.
+
+    A run made before #182 never has one, and upgrading does not give it one,
+    so those runs stay unbound for ever. That matters because an unbound run's
+    limits come from the LIVE Preferences default, re-read every time they are
+    looked at.
+    """
+    if run is None:
+        return False
+    try:
+        meta = run.load_meta()
+    except Exception:                       # noqa: BLE001 — a missing meta
+        return False
+    return bool(getattr(meta, "compliance_set_id", "")
+                and getattr(meta, "compliance_thresholds", None))
+
+
 # ---------------------------------------------------------------------------
 # The run's limits
 # ---------------------------------------------------------------------------
@@ -194,11 +222,37 @@ def set_run_columns(run: Run, columns: "list[str]") -> None:
 
 
 def is_locked(run: "Run | None") -> bool:
-    """A run's limits are locked once a verification has been measured and the
-    user has not unlocked them (D20: "locked by default")."""
+    """Whether the run's limit set may no longer be chosen in the report window.
+
+    Two conditions were missing and Knut found both, from opposite ends.
+
+    **A run that is not BOUND has nothing to lock.** The lock never asked, so a
+    project made before #182 showed a greyed pulldown over a value that is not
+    stored anywhere: an unbound run's limits come from the live Preferences
+    default and are re-read every time. Driven on screen, the "Default for new
+    runs" radio in the limits window then moved the greyed pulldown, the window
+    contradicted its own report body, and on a measurement with no recorded
+    verdict four rows flipped from PASS to FAIL on screen with nothing written
+    to disk. The row was greyed while the value behind it was fixed to nothing.
+
+    **And one measurement is not a history.** Knut, 2026-09-10: *"When only one
+    measurement is done, I should be allowed to choose the type of report I want
+    to print, and which limits to judge against."* The lock exists so that every
+    dated verification of a run is judged the same way and the dates stay
+    comparable. With one date there is nothing yet to be comparable with, so it
+    protects nothing and only takes the choice away. Measured, changing the set
+    at that point rewrites three keys, archives the report it replaces, and
+    leaves eighteen keys of measured data untouched.
+
+    This revises section 5 of `docs/design/measurement_report_limits.md`, which
+    is still marked awaiting confirmation and confirmed by nobody, so it is a
+    draft being corrected rather than a ruling being overturned.
+    """
     if run is None:
         return False
-    if not has_measured_verification(run):
+    if not is_bound(run):
+        return False
+    if measured_dates(run) < 2:
         return False
     return not bool(run.load_meta().compliance_unlocked)
 

@@ -2157,14 +2157,21 @@ class MeasurementReportDialog(QDialog):
             self._refresh()
             return
         n_dates = sum(1 for v in ctx.run.verifications() if v.exists())
+        # ONE IS NOT "1 dated verifications". CLAUDE.md asks for explicit
+        # singular and plural rather than "(s)", and this sentence read wrong in
+        # exactly the state Knut was testing in.
+        _tail = tr(
+            "Unlocking lets you change the run's limit set and its numbers. "
+            "Every dated report of this run will then be recalculated with the "
+            "numbers you set, and the previous reports are kept first, in a "
+            "reports/old folder beside each date.\n\nNothing is deleted. "
+            "Continue?")
+        _head = (tr("This run ({run}) has one dated verification.")
+                 if n_dates == 1 else
+                 tr("This run ({run}) has {n} dated verifications."))
         ok = self._confirm(
             tr("Unlock this run's limits?"),
-            tr("This run ({run}) has {n} dated verifications. Unlocking lets you "
-               "change the run's limit set and its numbers. Every dated report of "
-               "this run will then be recalculated with the numbers you set, and "
-               "the previous reports are kept first, in a reports/old folder "
-               "beside each date.\n\nNothing is deleted. Continue?").format(
-                run=ctx.run.dir.name, n=n_dates))
+            _head.format(run=ctx.run.dir.name, n=n_dates) + " " + _tail)
         if not ok:
             self._syncing_limits = True
             try:
