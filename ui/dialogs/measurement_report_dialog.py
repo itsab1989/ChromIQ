@@ -2246,6 +2246,25 @@ class MeasurementReportDialog(QDialog):
                                      label_en=SET_BY_ID[set_id].label, bound=False)
             self._refresh()
             return
+        # IS IT STILL UNLOCKED? THIS DOOR NEVER ASKED.
+        # The lock is read when the window refreshes, to decide whether this
+        # combo is ENABLED, and nothing external triggers a refresh. So a run
+        # that becomes locked while the window sits open, by its own
+        # verification measurement finishing or by another window re-locking
+        # it, keeps a live pulldown, and one selection rebinds it and rewrites
+        # its saved reports. A challenge round drove both ways in and watched a
+        # verdict go from FAIL to PASS on a locked run, under nothing but the
+        # ordinary recalculate question.
+        #
+        # `_locked_here`, not the raw predicate, which is the distinction
+        # round 13 was about: a run THIS window bound a moment ago keeps its
+        # controls on purpose, and that grace is what the combo was left live
+        # for.
+        if self._locked_here(ctx.run):
+            self._sync_set_combo_to(lim.set_id)
+            self._say_locked_before_the_set_changed(ctx.run)
+            self._refresh()
+            return
         # ASK FIRST WHEN THERE IS A HISTORY TO REWRITE, exactly as unlocking
         # does. This route reached the same consequence with no question at
         # all, and a challenge round drove it: on a run made before #182 with
@@ -2595,17 +2614,17 @@ class MeasurementReportDialog(QDialog):
         so the second sentence says which of the two it was.
         """
         from ui.warning_sign import warn
-        _what = (tr("ChromIQ put this run's own numbers back to what they were "
-                    "when you opened the window, so the other change is gone "
-                    "too.")
+        _what = (tr("Its dated reports are unchanged, and ChromIQ put this "
+                    "run's own numbers back to what they were when you opened "
+                    "the window, so the other change is gone too.")
                  if kept else
-                 tr("ChromIQ could not put this run's own numbers back."))
+                 tr("Its dated reports are unchanged, but ChromIQ could not "
+                    "put this run's own numbers back."))
         warn(self, tr("This run's limits changed while you were editing them"),
              tr("Something else changed {run}'s limits while its own limits "
                 "were open: a verification measurement of it finished, or it "
-                "was changed in another window. Its dated reports are "
-                "unchanged.").format(run=run.dir.name)
-             + "\n\n" + _what + " "
+                "was changed in another window.").format(run=run.dir.name)
+             + " " + _what + "\n\n"
              + tr("Open its limits and check them before you measure it "
                   "again."))
 
@@ -2631,6 +2650,14 @@ class MeasurementReportDialog(QDialog):
         """Take the run's own column back to what it held, and touch nothing
         else. Returns whether the previous numbers were really recovered.
 
+        RECOVERED, WHICH IS NOT "WAS BOUND", and it returned the second one.
+        A challenge round drove a pre-#182 run that was unbound when the window
+        opened: the undo put the empty column back perfectly, exactly as it had
+        been, and the caller was handed False and told the user ChromIQ could
+        not put this run's own numbers back. The one accurate sentence
+        available was the one withheld. An empty column IS the previous
+        numbers when the run had none.
+
         `bind_run` WAS USED FOR THIS AND IT IS NOT AN UNDO. It is a fresh bind:
         its first line replaces a set id this build does not know with the
         factory default, and its body overwrites the run's thresholds with the
@@ -2650,7 +2677,6 @@ class MeasurementReportDialog(QDialog):
         if snap.get("run") is None:
             return False
         _snap_sid = str(snap["run"][0] or "")
-        _was_bound = bool(_snap_sid and snap["run"][2])
         try:
             m = ctx.run.load_meta()
             _sid_now = str(m.compliance_set_id or "")
@@ -2686,11 +2712,11 @@ class MeasurementReportDialog(QDialog):
                 if (m.compliance_thresholds == snap["run"][2]
                         and list(getattr(m, "compliance_columns", []) or [])
                         == list(snap["run"][5] or [])):
-                    return _was_bound      # nothing to write
+                    return True            # nothing to write, and nothing lost
                 m.compliance_columns = snap["run"][5]
                 m.compliance_thresholds = snap["run"][2]
                 ctx.run.save_meta(m)
-                return _was_bound
+                return True
             m.compliance_columns = snap["run"][5]
             if _sid_now and is_known_set(_sid_now):
                 # Not an undo and not pretending to be one. The run was unbound
@@ -2721,6 +2747,45 @@ class MeasurementReportDialog(QDialog):
             if report_failure:
                 self._pending_restore_error = exc
             return False
+
+    def _say_collision_went_ahead(self, run) -> None:
+        """Somebody else changed this run's limits while the window was open,
+        and the user went ahead anyway, so the other change is gone.
+
+        The refusal path has said this since round 13. THIS path said nothing:
+        the user was asked the ordinary recalculate question, said yes, and the
+        other window's number was overwritten with no mention of it. On a run
+        with no saved reports there is not even a question, so nothing at all
+        appeared.
+        """
+        from ui.warning_sign import warn
+        warn(self, tr("This run's limits changed while you were editing them"),
+             tr("Something else changed {run}'s limits while its own limits "
+                "were open: a verification measurement of it finished, or it "
+                "was changed in another window.").format(run=run.dir.name)
+             + " "
+             + tr("ChromIQ went ahead with the change you asked for, so the "
+                  "other change is gone.")
+             + "\n\n"
+             + tr("Open its limits and check them before you measure it "
+                  "again."))
+
+    def _say_locked_before_the_set_changed(self, run) -> None:
+        """The run was locked between the window opening and this pulldown
+        being used, so the selection is put back and nothing is written.
+
+        Nothing to undo here, which is what separates it from
+        `_say_locked_meanwhile`: this door is guarded BEFORE it writes, so the
+        run is untouched and the sentence can say so plainly.
+        """
+        from ui.warning_sign import warn
+        warn(self, tr("This run was locked while this window was open"),
+             tr("{run} was locked while this window was open: a verification "
+                "measurement of it finished, or it was locked in another "
+                "window.").format(run=run.dir.name)
+             + " " + tr("Its limits and its dated reports are unchanged.")
+             + "\n\n"
+             + tr("Open the limits again to see where it stands."))
 
     def _say_locked_meanwhile(self, run, kept: bool) -> None:
         """The run was locked between opening the window and closing it."""
@@ -2922,6 +2987,15 @@ class MeasurementReportDialog(QDialog):
                     keep_numbers=_run_numbers_moved)
                 self._forget_limits()
             self._recalculate_run()
+            # AND THE SAME COLLISION ON THE WAY THROUGH, WHICH SAID NOTHING.
+            # `collided` was read in one place, inside the refusal above, so a
+            # user who said YES lost the other window's change in silence: one
+            # box, the ordinary recalculate question, indistinguishable from
+            # the case where nobody else wrote. A challenge round drove it, and
+            # found a worse half of the same door: with no saved reports there
+            # is no question to ask, so the collision produced NO box at all.
+            if collided:
+                self._say_collision_went_ahead(ctx.run)
         self._refresh()
 
     def _bind_without_locking_out(self, run, set_id: str,

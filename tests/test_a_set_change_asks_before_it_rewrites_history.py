@@ -2177,3 +2177,299 @@ def test_a_second_limits_window_that_moved_the_run_is_not_silent(qapp, tmp_path,
             f"were: {said}")
     finally:
         dlg.deleteLater()
+
+
+def test_a_perfect_undo_on_an_unbound_run_is_not_reported_as_a_failure(
+        qapp, tmp_path, monkeypatch):
+    """R14-4: THE R13-3 SHAPE, RECURRING INSIDE R13-3'S OWN FIX.
+
+    `kept` was `_undo_the_edit`'s return, and that return was "was the run
+    bound when the window opened", not "did the previous numbers come back".
+    On a project made before #182 the run is unbound, so the undo puts the
+    EMPTY column back, exactly as it was, perfectly, and the user was told
+    ChromIQ could not put this run's own numbers back. The one accurate
+    sentence available was the one withheld.
+
+    An empty column is the previous numbers when the run had none.
+
+    MUTATION: return `_was_bound` again from the successful branch and this
+    goes red.
+    """
+    from workflow.compliance_sets import Limit
+    from workflow.run_compliance import (is_bound, run_limits, set_run_limits)
+
+    THEIRS = 0.61
+    from ui.dialogs.thresholds_dialog import ThresholdsDialog
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    assert not is_bound(run), "the premise failed"
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        told: list = []
+        import ui.warning_sign as ws
+        monkeypatch.setattr(ws, "warn", lambda parent, t, x: told.append(x))
+        monkeypatch.setattr(type(dlg), "_confirm", lambda self, t, x: True)
+        monkeypatch.setattr(type(dlg), "_confirm_recalculate",
+                            lambda self, run: False)
+
+        class _First(ThresholdsDialog):
+            def exec(self):
+                # another window writes the run's column while this one is open
+                other = dict(run_limits(run, {}).limits)
+                other["all_de00_avg"] = Limit.value(THEIRS)
+                set_run_limits(run, other)
+                self._run_limits["all_de00_avg"] = Limit.value(0.99)
+                self._run_dirty = True
+                from PyQt6.QtWidgets import QDialog as _Q
+                self.done(_Q.DialogCode.Accepted)
+                return 0
+
+        import ui.dialogs.thresholds_dialog as td
+        monkeypatch.setattr(td, "ThresholdsDialog", _First)
+        dlg._on_open_limits()
+
+        assert not (run.load_meta().compliance_thresholds or {}), (
+            "the run kept numbers it never had before the window opened")
+        said = "\n".join(told)
+        assert said, "the user was told nothing"
+        assert "put this run's own numbers back to what they were" in said, (
+            "the undo was perfect and the user was told it had failed: " + said)
+    finally:
+        dlg.deleteLater()
+
+
+def test_another_windows_column_choice_is_not_reverted_in_silence(
+        qapp, tmp_path, monkeypatch):
+    """R14-5: THE COLLISION DETECTOR WATCHED HALF OF WHAT THE UNDO PUTS BACK.
+
+    A Report limits window can write two things about a run: its numbers and
+    which columns the report shows. `_undo_the_edit` restores both. The check
+    that asks whether somebody else wrote looked only at the numbers, so a
+    second window's column choice was reverted with no collision reported and
+    nothing said to anybody.
+
+    MUTATION: watch `compliance_thresholds` alone again and this goes red.
+    """
+    from workflow.compliance_sets import Limit
+    from workflow.run_compliance import (bind_run, run_limits, set_run_unlocked)
+
+    from ui.dialogs.thresholds_dialog import ThresholdsDialog
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    bind_run(run, "chromiq_default", {})
+    set_run_unlocked(run, True)
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        told: list = []
+        import ui.warning_sign as ws
+        monkeypatch.setattr(ws, "warn", lambda parent, t, x: told.append(x))
+        monkeypatch.setattr(type(dlg), "_confirm", lambda self, t, x: True)
+        monkeypatch.setattr(type(dlg), "_confirm_recalculate",
+                            lambda self, run: False)
+
+        class _First(ThresholdsDialog):
+            def exec(self):
+                # another window changes only WHICH COLUMNS the report shows
+                m = run.load_meta()
+                m.compliance_columns = ["chromiq_default", "chromiq_strict"]
+                run.save_meta(m)
+                # …and this one edits a number, so there is something to refuse
+                self._run_limits["all_de00_avg"] = Limit.value(0.88)
+                self._run_dirty = True
+                from PyQt6.QtWidgets import QDialog as _Q
+                self.done(_Q.DialogCode.Accepted)
+                return 0
+
+        import ui.dialogs.thresholds_dialog as td
+        monkeypatch.setattr(td, "ThresholdsDialog", _First)
+        dlg._on_open_limits()
+
+        assert told, ("another window's choice of columns was reverted and "
+                      "nobody was told")
+        assert "another window" in "\n".join(told), told
+    finally:
+        dlg.deleteLater()
+
+
+def test_the_pulldown_refuses_a_run_that_was_locked_while_it_sat_open(
+        qapp, tmp_path, monkeypatch):
+    """R14-2: THE THIRD DOOR, AND IT NEVER HAD A LOCK CHECK AT ALL.
+
+    The limits door got one, and round 13 corrected which question it asks.
+    This one was never guarded: the lock is read when the window refreshes, to
+    decide whether the pulldown is ENABLED, and nothing outside the window
+    triggers a refresh. So a run locked while the window sits open, by its own
+    verification measurement finishing or by another window, keeps a live
+    pulldown, and one selection rebinds it and rewrites every saved report.
+
+    A challenge round drove both ways in and watched a verdict go from FAIL to
+    PASS on a locked run under nothing but the ordinary recalculate question.
+
+    MUTATION: drop the guard and this goes red.
+    """
+    from workflow.run_compliance import (bind_run, is_locked, run_limits,
+                                         set_run_unlocked)
+
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    bind_run(run, "chromiq_default", {})
+    set_run_unlocked(run, True)               # unlocked, so the combo is live
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        told: list = []
+        import ui.warning_sign as ws
+        monkeypatch.setattr(ws, "warn", lambda parent, t, x: told.append(x))
+        monkeypatch.setattr(type(dlg), "_confirm_recalculate",
+                            lambda self, run: True)   # would say yes
+        before = run_limits(run, {})
+
+        # somebody else locks it while the window sits open
+        set_run_unlocked(run, False)
+        assert is_locked(run), "the premise failed"
+
+        other = next(dlg._set_combo.itemData(i)
+                     for i in range(dlg._set_combo.count())
+                     if dlg._set_combo.itemData(i)
+                     and dlg._set_combo.itemData(i) != before.set_id)
+        idx = dlg._set_combo.findData(other)
+        dlg._on_set_chosen(idx)
+
+        after = run_limits(run, {})
+        assert after.set_id == before.set_id, (
+            f"a locked run was rebound from {before.set_id} to {after.set_id}")
+        assert told, "the run was locked and the user was told nothing"
+        assert "locked" in "\n".join(told).lower(), told
+    finally:
+        dlg.deleteLater()
+
+
+def test_the_pulldown_still_moves_a_run_this_window_just_bound(
+        qapp, tmp_path, monkeypatch):
+    """THE OTHER HALF OF R14-2's GUARD, and without it the guard is R13-1.
+
+    Binding a run that already has a history is what locks it, so a guard on
+    this door that asks the raw predicate greys out the pulldown the user has
+    just used, one selection after they used it. That is the fault rounds 11
+    and 12 each fixed once, and round 13 found it re-introduced twelve lines
+    from where it had been fixed.
+
+    Proved necessary by mutation: swapping `_locked_here` for `is_locked` on
+    the guard above broke no test in either file that owns this window.
+
+    MUTATION: use the raw `is_locked` on that guard and this goes red.
+    """
+    from workflow.run_compliance import is_bound, is_locked, run_limits
+
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        told: list = []
+        import ui.warning_sign as ws
+        monkeypatch.setattr(ws, "warn", lambda parent, t, x: told.append(x))
+        monkeypatch.setattr(type(dlg), "_confirm_recalculate",
+                            lambda self, run: True)
+
+        ids = [dlg._set_combo.itemData(i) for i in range(dlg._set_combo.count())
+               if dlg._set_combo.itemData(i)]
+        first, second = ids[0], ids[1]
+        if run_limits(run, {}).set_id == first:
+            first, second = second, first
+
+        dlg._on_set_chosen(dlg._set_combo.findData(first))
+        assert is_bound(run) and is_locked(run), (
+            "the premise failed: binding a run with a history must lock it")
+        told.clear()
+
+        dlg._on_set_chosen(dlg._set_combo.findData(second))
+        assert run_limits(run, {}).set_id == second, (
+            "the window bound the run and then refused to let it be changed "
+            "again, which is the control the user had just used")
+        assert not told, told
+    finally:
+        dlg.deleteLater()
+
+
+def test_going_ahead_over_another_windows_change_is_not_silent(qapp, tmp_path,
+                                                               monkeypatch):
+    """R14-1: THE COLLISION WAS REPORTED ON ONE PATH OF TWO.
+
+    `run_limits_collided` was read in exactly one place, inside the refusal.
+    A user who said YES lost the other window's change in silence: one box, the
+    ordinary recalculate question, indistinguishable from the case where
+    nobody else wrote at all. And on a run with no saved reports there is no
+    question to ask, so nothing whatever appeared.
+
+    MUTATION: stop reading `collided` outside the refusal and this goes red.
+    """
+    from workflow.compliance_sets import Limit
+    from workflow.run_compliance import (bind_run, run_limits, set_run_limits,
+                                         set_run_unlocked)
+
+    from ui.dialogs.thresholds_dialog import ThresholdsDialog
+    MINE, THEIRS = 0.81, 0.44
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    bind_run(run, "chromiq_default", {})
+    set_run_unlocked(run, True)
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        told: list = []
+        import ui.warning_sign as ws
+        monkeypatch.setattr(ws, "warn", lambda parent, t, x: told.append(x))
+        monkeypatch.setattr(type(dlg), "_confirm", lambda self, t, x: True)
+        # THE USER SAYS YES, which is the path that said nothing
+        monkeypatch.setattr(type(dlg), "_confirm_recalculate",
+                            lambda self, run: True)
+
+        class _First(ThresholdsDialog):
+            def exec(self):
+                other = dict(run_limits(run, {}).limits)
+                other["all_de00_avg"] = Limit.value(THEIRS)
+                set_run_limits(run, other)
+                self._run_limits["all_de00_avg"] = Limit.value(MINE)
+                self._run_dirty = True
+                from PyQt6.QtWidgets import QDialog as _Q
+                self.done(_Q.DialogCode.Accepted)
+                return 0
+
+        import ui.dialogs.thresholds_dialog as td
+        monkeypatch.setattr(td, "ThresholdsDialog", _First)
+        dlg._on_open_limits()
+
+        now = run_limits(run, {}).limits.get("all_de00_avg")
+        assert now is not None and abs(now.number - MINE) < 1e-9, (
+            f"the accepted edit did not land: {now}")
+        said = "\n".join(told)
+        assert said, ("the other window's change was overwritten and the user "
+                      "was told nothing")
+        assert "another window" in said and "went ahead" in said, said
+    finally:
+        dlg.deleteLater()
+
+
+def test_the_collision_check_cannot_tell_a_corrupt_meta_from_an_unbound_run(
+        tmp_path):
+    """R14-6: THE DOCSTRING CLAIMED A DISTINCTION THE CODE CANNOT MAKE.
+
+    `_stored_column` used to say it answers None when the run "cannot be read".
+    `Run.load_meta` never raises: a truncated or absent `meta.json` is answered
+    with a fresh `RunMeta`, deliberately, for Knut's D2 case. So a corrupt meta
+    reads here exactly like an unbound run, the `except` branch was dead, and
+    the sentence describing it was decoration.
+
+    This pins the behaviour the docstring now describes, rather than the one it
+    used to claim.
+    """
+    from ui.dialogs.thresholds_dialog import _stored_column
+
+    proj = Project.create(tmp_path / "P", "P")
+    run = proj.current_run()
+    run.ensure_dir()
+    unbound = _stored_column(run)
+
+    run.meta_path.write_text("{ this is not json", encoding="utf-8")
+    corrupt = _stored_column(run)
+
+    assert corrupt is not None, (
+        "a corrupt meta raised or was reported as unreadable, which "
+        "Run.load_meta does not do")
+    assert corrupt == unbound, (
+        "the two are distinguishable after all, and the docstring should say "
+        f"how: {corrupt!r} vs {unbound!r}")
+    assert _stored_column(None) is None

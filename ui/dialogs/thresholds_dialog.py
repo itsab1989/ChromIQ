@@ -61,16 +61,25 @@ RUN_COLUMN = "__run__"
 
 
 def _stored_column(run) -> "dict | None":
-    """The run's OWN stored limits, straight off its `meta.json`.
+    """Everything about the run that a Report limits window can write, straight
+    off its `meta.json`, so that another window's write can be seen.
 
-    None when the run cannot be read, which is not the same as an empty
-    column: an unbound run really does store nothing, and a folder that will
-    not open must not be mistaken for one.
+    BOTH KEYS, BECAUSE THE UNDO PUTS BOTH BACK. This watched
+    `compliance_thresholds` alone while `_undo_the_edit` restores
+    `compliance_columns` as well, so another window's choice of which columns
+    the report shows was reverted with no collision reported and nothing said.
+
+    None only when the run itself is missing. `Run.load_meta` answers a
+    truncated or absent file with a fresh `RunMeta` rather than raising, on
+    purpose (Knut's D2), so a corrupt meta reads here as an unbound run and
+    this function cannot tell them apart. Saying so rather than implying a
+    distinction the code does not make.
     """
-    try:
-        return dict(run.load_meta().compliance_thresholds or {})
-    except Exception:                  # noqa: BLE001
+    if run is None:
         return None
+    m = run.load_meta()
+    return {"thresholds": dict(m.compliance_thresholds or {}),
+            "columns": list(getattr(m, "compliance_columns", []) or [])}
 
 #: the fixed width of an editable cell; eight columns fit a 1728 px work area
 #: with it, and do not with the spin box's natural 140 px (AR-CODE-MAP §4.2)
