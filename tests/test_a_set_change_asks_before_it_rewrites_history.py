@@ -430,3 +430,164 @@ def test_the_question_counts_report_files_and_not_dates(qapp, tmp_path, monkeypa
             f"the question undercounts what it would rewrite: {asked[0]!r}")
     finally:
         dlg.deleteLater()
+
+
+# ---------------------------------------------------------------------------
+# Round 7: the fix that granted control ended by taking it away
+# ---------------------------------------------------------------------------
+def test_binding_an_edited_run_does_not_lock_the_user_out(qapp, tmp_path,
+                                                          monkeypatch):
+    """Round 6 made an edit on an unbound run record its set id, so the numbers
+    would mean something. `is_locked` is bound AND two dates AND not unlocked,
+    so on a project made before #182 with a history that bind LOCKED the run on
+    the spot: pulldown greyed, button changed to "Show limits…", and the unlock
+    box came back disabled, because it consults a preference that ships off.
+
+    The user asked for control of those numbers and the act of granting it
+    removed it, with a question that said nothing about either.
+
+    MUTATION: drop the `compliance_unlocked = True` write and this goes red on
+    the lock assertion. Watched.
+    """
+    from workflow.run_compliance import is_bound, is_locked
+
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 3)
+    assert not is_bound(run) and not is_locked(run)
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        _edit_through_the_limits_window(dlg, monkeypatch, value=0.2)
+        assert is_bound(run), "the premise failed: the run was not bound"
+        assert not is_locked(run), (
+            "editing this run's own numbers bound it AND locked it, so the "
+            "control the user just used is gone and the question never said so")
+    finally:
+        dlg.deleteLater()
+
+
+def test_the_bind_writes_the_whole_record_not_a_third_of_it(qapp, tmp_path,
+                                                            monkeypatch):
+    """`bind_run` writes the set id, the ENGLISH label and the moment. The
+    edit route wrote only the id, so a run bound that way carried a record no
+    other path produces, and a later ChromIQ that no longer knew the id printed
+    the raw internal id to the user where the label exists to prevent exactly
+    that (D23).
+
+    MUTATION: remove the label write and this goes red.
+    """
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        _edit_through_the_limits_window(dlg, monkeypatch, value=0.2)
+        meta = run.load_meta()
+        assert meta.compliance_set_id, "no set id"
+        assert meta.compliance_set_label, (
+            "the run was bound with no English label, so a later build that "
+            "does not know this id can only show the id itself")
+        assert meta.compliance_bound_at, "the run was bound with no date"
+    finally:
+        dlg.deleteLater()
+
+
+def test_a_refused_edit_puts_back_the_columns_too(qapp, tmp_path, monkeypatch):
+    """The window writes `compliance_columns` on the toggle, and the first
+    snapshot held only the set id and the thresholds.
+
+    MUTATION: drop `compliance_columns` from the snapshot tuple and this goes
+    red.
+    """
+    from workflow.run_compliance import set_run_columns
+
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    set_run_columns(run, ["chromiq_default", "chromiq_tight"])
+    before = list(run.load_meta().compliance_columns or [])
+    assert before, "the fixture stored no columns, so this proves nothing"
+
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        def _edit_and_hide(dlg, monkeypatch):
+            from workflow.compliance_sets import Limit
+            from workflow.run_compliance import run_limits, set_run_limits
+            asked: list = []
+            monkeypatch.setattr(type(dlg), "_confirm",
+                                lambda self, t, x: asked.append(x) or False)
+
+            class _Fake:
+                run_limits_changed = False
+
+                def __init__(self, settings, parent, run=None, run_editable=False):
+                    self._run, self._editable = run, run_editable
+
+                def exec(self):
+                    if self._run is not None and self._editable:
+                        set_run_columns(self._run, ["chromiq_default"])
+                        lim = dict(run_limits(self._run, {}).limits)
+                        lim["all_de00_avg"] = Limit.value(0.3)
+                        set_run_limits(self._run, lim)
+                        type(self).run_limits_changed = True
+                    return 0
+
+                def deleteLater(self):
+                    pass
+
+            import ui.dialogs.thresholds_dialog as td
+            monkeypatch.setattr(td, "ThresholdsDialog", _Fake)
+            _Fake.run_limits_changed = False
+            dlg._on_open_limits()
+            return asked
+
+        assert _edit_and_hide(dlg, monkeypatch), "no question was asked"
+        assert list(run.load_meta().compliance_columns or []) == before, (
+            "a refused edit kept the columns the window hid")
+    finally:
+        dlg.deleteLater()
+
+
+def test_a_refusal_puts_back_the_default_that_an_unbound_run_is_judged_by(
+        qapp, tmp_path, monkeypatch):
+    """The window's "Default for new runs" radio writes an app-wide preference,
+    and on an UNBOUND run that preference IS what the run is judged against.
+
+    Round 7 clicked it, refused the question, and watched "Judged against"
+    change from ChromIQ default to ChromIQ tight anyway: the user declined to
+    change this run's limit set and the limit set changed, in the pulldown they
+    were looking at.
+
+    MUTATION: drop the default-set restore and this goes red.
+    """
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    s = _settings(tmp_path)
+    s.set("compliance_default_set", "chromiq_default")
+    dlg = _dialog(s, ti3)
+    try:
+        from workflow.compliance_sets import Limit
+        from workflow.run_compliance import run_limits, set_run_limits
+        monkeypatch.setattr(type(dlg), "_confirm", lambda self, t, x: False)
+
+        class _Fake:
+            run_limits_changed = False
+
+            def __init__(self, settings, parent, run=None, run_editable=False):
+                self._run, self._editable, self._s = run, run_editable, settings
+
+            def exec(self):
+                self._s.set("compliance_default_set", "chromiq_tight")
+                if self._run is not None and self._editable:
+                    lim = dict(run_limits(self._run, {}).limits)
+                    lim["all_de00_avg"] = Limit.value(0.4)
+                    set_run_limits(self._run, lim)
+                    type(self).run_limits_changed = True
+                return 0
+
+            def deleteLater(self):
+                pass
+
+        import ui.dialogs.thresholds_dialog as td
+        monkeypatch.setattr(td, "ThresholdsDialog", _Fake)
+        _Fake.run_limits_changed = False
+        dlg._on_open_limits()
+
+        assert s.get("compliance_default_set", None) == "chromiq_default", (
+            "the refusal left the app-wide default moved, so an unbound run is "
+            "now judged by a set the user said no to")
+    finally:
+        dlg.deleteLater()

@@ -2367,6 +2367,27 @@ class MeasurementReportDialog(QDialog):
                 "full, or open in another program. Nothing was changed. Make the "
                 "folder writable and try again.").format(path=str(run.dir)))
 
+    def _say_restore_failed(self, run, exc) -> None:
+        """The refusal could not be honoured, which is the opposite of what
+        `_say_not_written` says.
+
+        That message ends "Nothing was changed", and here something was: the
+        limits window had already written the edit on its way out, and putting
+        it back is what failed. Saying "nothing was changed" would be the one
+        false sentence available, so this says what is true instead.
+        """
+        from ui.warning_sign import warn
+        log.warning("could not undo the edit in %s: %s", run.meta_path, exc)
+        warn(self, tr("The change could not be undone"),
+             tr("You chose not to change this run's limits, but ChromIQ could "
+                "not put the previous numbers back:\n{path}\n\nThe folder or "
+                "its files may be read-only, on a disk that is full, or open in "
+                "another program. The run now holds the numbers you were "
+                "editing, and its saved reports were NOT recalculated, so the "
+                "two no longer agree. Make the folder writable, then set the "
+                "numbers back or recalculate the reports."
+                ).format(path=str(run.dir)))
+
     def _on_open_limits(self) -> None:
         from ui.dialogs.thresholds_dialog import ThresholdsDialog
         ctx = self._run_ctx
@@ -2391,10 +2412,16 @@ class MeasurementReportDialog(QDialog):
         # eleven dated verifications, nudge one spin box, press Escape, and all
         # eleven saved reports are rewritten.
         _before = None
+        _before_default = self._settings.get("compliance_default_set", None)
         if ctx is not None:
             try:
                 _m = ctx.run.load_meta()
-                _before = (_m.compliance_set_id, _m.compliance_thresholds)
+                # EVERY KEY THAT WINDOW CAN WRITE, and the first version held
+                # two. A challenge round asked what the snapshot does not cover
+                # and found `compliance_columns`, which the window writes on the
+                # toggle, so unticking a column survived a refusal.
+                _before = (_m.compliance_set_id, _m.compliance_thresholds,
+                           list(getattr(_m, "compliance_columns", []) or []))
             except Exception:              # noqa: BLE001 — a missing meta
                 _before = None
         dlg.exec()
@@ -2409,14 +2436,45 @@ class MeasurementReportDialog(QDialog):
             # used to be. Same question, same words, same helper.
             if (self._recalculating_would_rewrite_history(ctx.run)
                     and not self._confirm_recalculate(ctx.run)):
+                _restored = True
                 if _before is not None:
                     try:
                         _m = ctx.run.load_meta()
-                        _m.compliance_set_id, _m.compliance_thresholds = _before
+                        (_m.compliance_set_id, _m.compliance_thresholds,
+                         _m.compliance_columns) = _before
                         ctx.run.save_meta(_m)
                     except OSError as exc:
+                        # A REFUSAL THAT CANNOT BE HONOURED MUST SAY SO.
+                        # This swallowed the failure into a log line, and a
+                        # challenge round drove it: make the run folder
+                        # read-only while the question is on screen, answer no,
+                        # and the edit survives with nothing on screen at all.
+                        # The run is then left in exactly the state this guard
+                        # exists to prevent, its stored limits disagreeing with
+                        # every verdict already saved under them.
                         log.warning("could not put %s's limits back: %s",
                                     ctx.run.dir, exc)
+                        _restored = False
+                        self._say_restore_failed(ctx.run, exc)
+                # AND THE APP-WIDE DEFAULT, BUT ONLY WHERE IT IS THIS RUN'S
+                # LIMIT SET. The window's "Default for new runs" radio writes a
+                # preference, and on an UNBOUND run that preference is what the
+                # run is judged by: a challenge round clicked it, refused the
+                # question, and watched "Judged against" change from ChromIQ
+                # default to ChromIQ tight anyway. On a bound run the same click
+                # moves nothing about this run, and reverting a deliberate
+                # preference there would be the app second-guessing a different
+                # decision, so it is left alone.
+                if (_restored and _before is not None
+                        and not _before[0]
+                        and self._settings.get("compliance_default_set", None)
+                        != _before_default):
+                    try:
+                        self._settings.set("compliance_default_set",
+                                           _before_default)
+                    except Exception:      # noqa: BLE001 — a display detail
+                        log.warning("could not put the default set back",
+                                    exc_info=True)
                 self._forget_limits()
                 self._refresh()
                 return
@@ -2432,11 +2490,32 @@ class MeasurementReportDialog(QDialog):
             # USER'S. `done()` has just written the edited column; all that is
             # missing is the set id that makes `is_bound` true, so this names
             # the set the window was showing and leaves the numbers alone.
+            from workflow.compliance_sets import SET_BY_ID, is_known_set
             from workflow.run_compliance import is_bound
             if not is_bound(ctx.run):
                 try:
                     _m = ctx.run.load_meta()
                     _m.compliance_set_id = lim.set_id
+                    # THE SAME RECORD `bind_run` WRITES, AND THE FIRST VERSION
+                    # WROTE A THIRD OF IT. The label is stored in English so a
+                    # later ChromIQ that no longer knows the id can still name
+                    # the set (D23); without it such a run printed the raw
+                    # internal id to the user. `bound_at` is the other half.
+                    if is_known_set(lim.set_id):
+                        _m.compliance_set_label = SET_BY_ID[lim.set_id].label
+                    _m.compliance_bound_at = datetime.now().isoformat(
+                        timespec="seconds")
+                    # AND BINDING IT MUST NOT TAKE THE CONTROL AWAY.
+                    # `is_locked` is bound AND two dates AND not unlocked, so on
+                    # a project made before #182 with a history this bind locked
+                    # the run on the spot: the pulldown greyed, the button
+                    # became "Show limits…", and the unlock box came back
+                    # disabled, because it consults a preference that ships off.
+                    # The user had just asked for control of these numbers and
+                    # the act of granting it removed it. Marking the run
+                    # unlocked keeps them exactly where they were, and re-locking
+                    # is always allowed.
+                    _m.compliance_unlocked = True
                     ctx.run.save_meta(_m)
                 except OSError as exc:
                     log.warning("could not record the set on %s: %s",
