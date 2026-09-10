@@ -144,19 +144,30 @@ class ReferenceSet:
         claim that it IS the source's data, because that is the claim ChromIQ
         can no longer make about it. See :func:`available`.
         """
+        # THE NAME IS TRIMMED ONLY WHERE THE TEMPLATE PUTS A STOP BACK.
         # "Fogra Forschungsinstitut für Medientechnologien e.V." ends in a full
-        # stop of its own, so the template's added one read "e.V..", twice per
-        # line, in the sentence Fogra's permission requires us to print.
-        _src = self.source[:-1] if self.source.endswith(".") else self.source
+        # stop of its own, so the first template's added one read "e.V..",
+        # twice per line, in the sentence Fogra's permission requires. Dropping
+        # it there is right, because the sentence supplies its own.
+        #
+        # It is WRONG anywhere else, and the third sentence went through both
+        # wrong shapes before this one. With the name in a possessive it
+        # printed "e.V's"; with the name last it printed "e.V.." again from the
+        # sentence's own stop; and the German, which puts the name in the
+        # middle, lost the abbreviation's period altogether. A rights holder's
+        # legal name is not ours to abbreviate differently in a sentence their
+        # permission requires, so that sentence takes the name UNTOUCHED and is
+        # worded, in every language, so that something always follows it.
+        _trimmed = self.source[:-1] if self.source.endswith(".") else self.source
         line = tr("Reference data: {name}, {source}. Naming this set says what "
                   "your measurement was compared against. It is not a "
                   "certification, approval or endorsement by {source}."
-                  ).format(name=self.id, source=_src)
+                  ).format(name=self.id, source=_trimmed)
         if not self.verified:
             line += " " + tr(
-                "This file no longer matches the one ChromIQ shipped, so it "
-                "cannot be presented as {source}'s original data."
-            ).format(source=_src)
+                "ChromIQ cannot present this file as original data from "
+                "{source}, because it no longer matches the file that shipped."
+            ).format(source=self.source)
         return line
 
     @property

@@ -125,8 +125,13 @@ def test_the_readme_never_writes_a_lock_claim_by_hand(gen):
     # sits over a table generated from measured rows and says nothing about any
     # particular run, so it is not what went stale and banning it would only
     # teach the next person to word the heading around this test.
+    # CASE-INSENSITIVE, AND THE FIRST VERSION WAS NOT. It matched only the
+    # shouted form, so it saw the index it was written for and walked straight
+    # past three lower-case lines forty rows below saying the same kind of
+    # thing, one of which was false. A challenge round found them in the very
+    # commit that added this test.
     offenders = [t for t in literals
-                 if re.search(r"\b(UN)?LOCKED\b", t)
+                 if re.search(r"\b(un)?locked\b", t, re.I)
                  and re.search(r"\brun\s?\d", t, re.I)]
     assert not offenders, (
         "readme() writes a lock claim about a named run by hand: "

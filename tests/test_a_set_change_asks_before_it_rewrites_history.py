@@ -184,8 +184,13 @@ def test_the_question_counts_one_report_in_the_singular(qapp, tmp_path, monkeypa
         i = dlg._set_combo.findData("chromiq_tight")
         dlg._set_combo.setCurrentIndex(i)
         assert asked
-        assert "one dated report" in asked[0], asked[0]
-        assert "1 dated reports" not in asked[0], asked[0]
+        assert "one saved report" in asked[0], asked[0]
+        assert "1 saved reports" not in asked[0], asked[0]
+        # AND THE TAIL AGREES WITH THE HEAD. The first version kept a plural
+        # tail under a singular head, so "every one of them" and "the reports
+        # they replace" pointed at nothing, and German had to agree as well.
+        assert "them" not in asked[0], (
+            f"the singular question still refers to a plural: {asked[0]!r}")
     finally:
         dlg.deleteLater()
 
@@ -263,5 +268,165 @@ def test_the_limits_window_is_editable_exactly_when_the_run_is_not_locked(
         assert seen == [not locked], (
             f"the limits window was opened with run_editable={seen}, but this "
             f"run is {'locked' if locked else 'not locked'} ({why})")
+    finally:
+        dlg.deleteLater()
+
+
+# ---------------------------------------------------------------------------
+# Round 6: the third door into the same room, and it was the one left open
+# ---------------------------------------------------------------------------
+def _edit_through_the_limits_window(dlg, monkeypatch, answer=True, row="all_de00_avg",
+                                    value=0.2):
+    """Drive `_on_open_limits` with a dialog that edits one number and closes.
+
+    The real `ThresholdsDialog` writes the edited column in `done()` whatever
+    result it closes with, so the fake does the same thing through the same
+    function. Faking the WRITE rather than stubbing it is the point: the fault
+    is what happens after the write.
+    """
+    from workflow.compliance_sets import Limit
+    from workflow.run_compliance import run_limits, set_run_limits
+
+    asked: list = []
+    monkeypatch.setattr(type(dlg), "_confirm",
+                        lambda self, t, x: asked.append(x) or answer)
+
+    class _Fake:
+        run_limits_changed = False
+
+        def __init__(self, settings, parent, run=None, run_editable=False):
+            self._run, self._editable = run, run_editable
+
+        def exec(self):
+            if self._run is not None and self._editable:
+                lim = dict(run_limits(self._run, {}).limits)
+                lim[row] = Limit.value(value)
+                set_run_limits(self._run, lim)
+                type(self).run_limits_changed = True
+            return 0
+
+        def deleteLater(self):
+            pass
+
+    import ui.dialogs.thresholds_dialog as td
+    monkeypatch.setattr(td, "ThresholdsDialog", _Fake)
+    _Fake.run_limits_changed = False
+    dlg._on_open_limits()
+    return asked
+
+
+def test_editing_the_numbers_asks_the_same_question(qapp, tmp_path, monkeypatch):
+    """MUTATION: drop the guard from `_on_open_limits` and this goes red.
+
+    Round 6 drove this on the same copy round 5 used. Choosing a set asked and
+    unlocking asked; typing a number into the run's own column and closing the
+    window rewrote all eleven saved reports and asked nothing, and the fix that
+    closed round 5's finding is what made this route reachable on two more
+    kinds of run.
+    """
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 3)
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        asked = _edit_through_the_limits_window(dlg, monkeypatch)
+        assert asked, "the run's limits were edited and recalculated in silence"
+        assert "reports/old" in asked[0]
+    finally:
+        dlg.deleteLater()
+
+
+def test_saying_no_to_an_edit_puts_the_numbers_back(qapp, tmp_path, monkeypatch):
+    """The dialog writes on its way out, including on Escape, so a refusal has
+    to undo the write as well as skip the recalculation.
+
+    MUTATION: remove the restore block and this goes red on the first
+    assertion, because the edited column survives a refusal.
+    """
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 3)
+    before_reports = _saved_json(run)
+    before_meta = run.load_meta()
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        _edit_through_the_limits_window(dlg, monkeypatch, answer=False)
+        after = run.load_meta()
+        assert after.compliance_thresholds == before_meta.compliance_thresholds, (
+            "a refused edit stayed on disk, so the window now shows numbers "
+            "the user said no to")
+        assert after.compliance_set_id == before_meta.compliance_set_id
+        assert _saved_json(run) == before_reports, "a refused edit rewrote the reports"
+    finally:
+        dlg.deleteLater()
+
+
+def test_an_edit_on_an_unbound_run_is_not_saved_where_nothing_reads_it(
+        qapp, tmp_path, monkeypatch):
+    """`set_run_limits` writes the numbers and never the set id, and `is_bound`
+    needs both, so on a run made before #182 the typed number was stored where
+    `run_limits()` does not look. Measured by round 6: typed 0.2, reloaded 2.0,
+    and eleven reports rewritten with numbers nobody chose.
+
+    MUTATION: remove the set-id write and this goes red on the reload.
+    """
+    from workflow.run_compliance import is_bound, run_limits
+
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    assert not is_bound(run), "the fixture is bound, so it proves nothing"
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        _edit_through_the_limits_window(dlg, monkeypatch, value=0.2)
+        assert is_bound(run), (
+            "the run is still unbound after its own column was edited")
+        got = run_limits(run, {}).limits.get("all_de00_avg")
+        assert got is not None and abs(got.number - 0.2) < 1e-9, (
+            f"the typed number is not what the run is judged with: {got}")
+    finally:
+        dlg.deleteLater()
+
+
+def test_a_locked_run_is_never_offered_the_edit(qapp, tmp_path, monkeypatch):
+    """The one case that must stay shut. MUTATION: pass run_editable=True
+    unconditionally and this goes red."""
+    proj, run, ti3 = _bound_run_with_dates(tmp_path, 2)
+    from workflow.run_compliance import is_locked
+    assert is_locked(run)
+    before = run.load_meta().compliance_thresholds
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        asked = _edit_through_the_limits_window(dlg, monkeypatch)
+        assert not asked, "a locked run was asked to confirm an edit it cannot make"
+        assert run.load_meta().compliance_thresholds == before
+    finally:
+        dlg.deleteLater()
+
+
+def test_the_question_counts_report_files_and_not_dates(qapp, tmp_path, monkeypatch):
+    """`save_report` is timestamped on purpose so a printer's reports accrue,
+    so several per date is designed behaviour. The count said dates and the
+    sentence said reports.
+
+    MUTATION: count dated verifications again and this goes red.
+    """
+    import shutil
+
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 3)
+    extra = 0
+    for v in run.verifications():
+        src = sorted(v.reports_dir.glob("report_*.json"))[0]
+        for i in (1, 2):
+            shutil.copy2(src, src.with_name(f"report_2027-01-0{i}_00-00-00.json"))
+            extra += 1
+    files = sum(len(list(v.reports_dir.glob("report_*.json")))
+                for v in run.verifications())
+    assert files == 9, files
+
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        asked: list = []
+        monkeypatch.setattr(type(dlg), "_confirm",
+                            lambda self, t, x: asked.append(x) or False)
+        i = dlg._set_combo.findData("chromiq_tight")
+        dlg._set_combo.setCurrentIndex(i)
+        assert asked
+        assert "9" in asked[0], (
+            f"the question undercounts what it would rewrite: {asked[0]!r}")
     finally:
         dlg.deleteLater()

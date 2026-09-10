@@ -1839,6 +1839,22 @@ class MeasurementReportDialog(QDialog):
                 run is not None and not several
                 and ((may_unlock(run, allow) and has_measured_verification(run))
                      or bool(lim.unlocked)))     # F5: re-locking is always allowed
+            # THE FOURTH CONTROL, AND IT WAS SAYING THE OPPOSITE OF THE OTHER
+            # THREE. An unticked "Unlock this run's limits" MEANS "this run is
+            # locked", and greyed means "and you cannot change that". On a run
+            # with one dated verification, or on one that was never bound, the
+            # pulldown is live, the button says "Edit limits…" and the column
+            # is editable, while this box sat dim and unticked beside them
+            # saying the run was locked. A challenge round photographed the
+            # four together.
+            #
+            # There is nothing to unlock on such a run, so the honest thing is
+            # not to offer the control at all. It comes back the moment the run
+            # has the history that a lock would apply to, which is also the
+            # moment its wording becomes true.
+            self._unlock_check.setVisible(
+                run is not None and not several
+                and (locked or bool(lim.unlocked)))
             # F6: the button's text changes, so its width must follow it
             self._limits_btn.setMinimumWidth(self._limits_btn.sizeHint().width())
             self._set_combo.setEnabled(not several and (run is None or not locked))
@@ -2219,17 +2235,21 @@ class MeasurementReportDialog(QDialog):
         self._refresh()
 
     def _saved_report_count(self, run) -> int:
-        """How many dated verifications of the run have a saved report.
+        """How many saved report FILES a recalculation would rewrite.
 
-        This is what a recalculation rewrites, so it is what a confirmation has
-        to count. A dated verification with no saved report loses nothing.
+        THIS COUNTED DATES AND THE SENTENCE SAID REPORTS, which is a lie the
+        moment a date holds more than one. `save_report` is timestamped on
+        purpose so that a printer's reports accrue for comparison, so several
+        per date is designed behaviour: eleven dates saved three times each is
+        thirty-three files, and the question said eleven while rewriting all
+        thirty-three. A confirmation exists to tell the user the size of what
+        they are about to lose, so it counts the thing that is lost.
         """
         n = 0
         try:
             for v in run.verifications():
                 try:
-                    if any(v.reports_dir.glob("report_*.json")):
-                        n += 1
+                    n += sum(1 for _ in v.reports_dir.glob("report_*.json"))
                 except OSError:
                     continue
         except (OSError, AttributeError):
@@ -2247,13 +2267,26 @@ class MeasurementReportDialog(QDialog):
         recognise the other. Singular and plural in full, never "(s)".
         """
         n = self._saved_report_count(run)
-        _head = (tr("This run ({run}) has one dated report.") if n == 1 else
-                 tr("This run ({run}) has {n} dated reports."))
-        _tail = tr(
-            "Changing the limit set recalculates every one of them with the "
-            "new numbers, and the reports they replace are kept first, in a "
-            "reports/old folder beside each date.\n\nNothing is deleted. "
-            "Continue?")
+        # THE TAIL IS SPLIT TOO, and the first version was not. It said "every
+        # one of them" and "the reports they replace" after a head that had
+        # just said "one saved report", so the pronouns had nothing to point
+        # at, and in German the partitive has to agree as well. The sentence
+        # this was modelled on does not have the problem because its tail is
+        # self-contained; the copy took the shape and not the property that
+        # made the shape work.
+        if n == 1:
+            _head = tr("This run ({run}) has one saved report.")
+            _tail = tr(
+                "Changing the limit set recalculates it with the new numbers, "
+                "and the report it replaces is kept first, in a reports/old "
+                "folder beside its date.\n\nNothing is deleted. Continue?")
+        else:
+            _head = tr("This run ({run}) has {n} saved reports.")
+            _tail = tr(
+                "Changing the limit set recalculates every one of them with "
+                "the new numbers, and the reports they replace are kept first, "
+                "in a reports/old folder beside each date.\n\nNothing is "
+                "deleted. Continue?")
         return self._confirm(tr("Change this run's limit set?"),
                              _head.format(run=run.dir.name, n=n) + " " + _tail)
 
@@ -2350,11 +2383,65 @@ class MeasurementReportDialog(QDialog):
         dlg = ThresholdsDialog(self._settings, self,
                                run=ctx.run if ctx else None,
                                run_editable=bool(ctx and not _is_locked(ctx.run)))
+        # SNAPSHOT BEFORE, BECAUSE THE DIALOG WRITES ON ITS WAY OUT.
+        # `ThresholdsDialog.done()` stores the edited column whatever result it
+        # is closing with, and its only button is Close, wired to accept, so
+        # Escape writes too. There is no route out of that window that does not
+        # commit. A challenge round drove it: open the window on a run with
+        # eleven dated verifications, nudge one spin box, press Escape, and all
+        # eleven saved reports are rewritten.
+        _before = None
+        if ctx is not None:
+            try:
+                _m = ctx.run.load_meta()
+                _before = (_m.compliance_set_id, _m.compliance_thresholds)
+            except Exception:              # noqa: BLE001 — a missing meta
+                _before = None
         dlg.exec()
         changed = dlg.run_limits_changed
         dlg.deleteLater()
         self._forget_limits()
         if changed and ctx is not None:
+            # THE THIRD DOOR INTO THE SAME ROOM, AND IT WAS THE ONE LEFT OPEN.
+            # `_recalculate_run` has three callers. Choosing a set asks, and
+            # unlocking asks; editing the numbers here did not, and the line
+            # above made this route reachable on two more kinds of run than it
+            # used to be. Same question, same words, same helper.
+            if (self._recalculating_would_rewrite_history(ctx.run)
+                    and not self._confirm_recalculate(ctx.run)):
+                if _before is not None:
+                    try:
+                        _m = ctx.run.load_meta()
+                        _m.compliance_set_id, _m.compliance_thresholds = _before
+                        ctx.run.save_meta(_m)
+                    except OSError as exc:
+                        log.warning("could not put %s's limits back: %s",
+                                    ctx.run.dir, exc)
+                self._forget_limits()
+                self._refresh()
+                return
+            # AN EDIT ON AN UNBOUND RUN WAS SAVED AND THEN IGNORED.
+            # `set_run_limits` writes `compliance_thresholds` and never
+            # `compliance_set_id`, and `is_bound` needs both, so the run stayed
+            # unbound, `run_limits()` went on answering from the live
+            # preference, and the number the user typed was stored where
+            # nothing reads it. Measured: typed 0.2, reloaded 2.0, and eleven
+            # reports rewritten with numbers nobody chose. Binding here is what
+            # makes the edit mean something, and the user has just been asked.
+            # NOT `bind_run`, WHICH WOULD COPY THE SET'S NUMBERS OVER THE
+            # USER'S. `done()` has just written the edited column; all that is
+            # missing is the set id that makes `is_bound` true, so this names
+            # the set the window was showing and leaves the numbers alone.
+            from workflow.run_compliance import is_bound
+            if not is_bound(ctx.run):
+                try:
+                    _m = ctx.run.load_meta()
+                    _m.compliance_set_id = lim.set_id
+                    ctx.run.save_meta(_m)
+                except OSError as exc:
+                    log.warning("could not record the set on %s: %s",
+                                ctx.run.dir, exc)
+                self._forget_limits()
             self._recalculate_run()
         self._refresh()
 

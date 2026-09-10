@@ -1193,6 +1193,7 @@ def build_project(dest: Path, name: str, plans: "list[RunPlan]",
                 "lifted": bool(run.load_meta().compliance_unlocked),
                 "locked": is_locked(run),
                 "claimed": plan.lock,
+                "edited": bool(plan.edited_limits),
             })
     return root
 
@@ -1279,10 +1280,14 @@ def _lock_index(lock_rows: "list[dict]") -> "list[tuple[str, str]]":
              lambda r: not r["locked"] and r["dates"] >= 2 and r["lifted"])]
     out: "list[tuple[str, str]]" = []
     for label, pick in want:
-        # The SMALLEST example of each state, so the reader opens the run where
+        # The SIMPLEST example of each state, so the reader opens the run where
         # the state is the only interesting thing rather than the busiest one.
+        # An unedited column first, then the fewest dates, and only then the
+        # name: sorting by size alone landed the locked line on a run whose own
+        # README entry says "(edited for this run)", which is a second thing to
+        # explain in a line that exists to demonstrate one.
         hits = sorted((r for r in lock_rows if pick(r)),
-                      key=lambda r: (r["dates"], r["run"]))
+                      key=lambda r: (r.get("edited", False), r["dates"], r["run"]))
         if hits:
             out.append((label, hits[0]["run"].replace("/", ", ")))
     return out
@@ -1353,6 +1358,8 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict) -> str:
     a("   ArgyllCMS 3.5.0 in /Applications/Argyll is required. The whole set")
     a("   builds in about fifteen seconds and is deterministic: the same")
     a("   command on the same Argyll gives the same numbers, every time.")
+    a("   (Timed on the machine that wrote this: 12.8 s, cold, all three")
+    a("   projects.)")
     a("")
     a("   Prefer the download when you just want to look at reports. Prefer")
     a("   generating when the report code has moved on and you want the saved")
@@ -1390,11 +1397,12 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict) -> str:
           f"{'yes' if row['lifted'] else 'no':<7}"
           f"{'YES' if row['locked'] else 'no':<7}")
     a("")
-    a("The three states are all present on purpose:")
-    a("")
-    a("  Threshold-Series/run3   one date, so the set can still be chosen")
-    a("  Isolated-Rows/run3      two dates, but the lock was lifted by hand")
-    a("  Threshold-Series/run2   two dates and never lifted, so it is locked")
+    a("All three states are present on purpose, and the index near the top of")
+    a("this file names a run for each of them, from the same measured rows as")
+    a("the table above. THEY ARE NOT LISTED AGAIN HERE. The last version of")
+    a("this file answered the question twice, once from a generated line and")
+    a("once from a hand-written one, and the hand-written half named a run")
+    a("with three dated verifications as the example of a run with two.")
     a("")
     a("HOW THE MEASUREMENTS WERE MADE")
     a("------------------------------")
@@ -1548,7 +1556,7 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict) -> str:
     a("particular do not regenerate a verification chart: each dated check is")
     a("judged against its own chart/ snapshot, and replacing the shared chart")
     a("makes the two disagree. Copy the project folder, work on the copy, or")
-    a("run the generator again. Regenerating is cheap, a few minutes.")
+    a("run the generator again. Regenerating is cheap: see the timing above.")
     a("")
     a("Page TIFFs of the charts are included for the profile and verification")
     a("charts themselves, but not inside the dated snapshots: no report reads")

@@ -58,6 +58,15 @@ allowed a profiling run's report to show no verdict.
 
 ### Fixed
 
+- **Editing a run's own limit numbers rewrote every saved report without
+  asking either, and the only way out of that window was to agree.** The Report
+  limits window writes the run's column as it closes, whatever closed it, and
+  its one button is Close, so pressing Escape after nudging a spin box rewrote
+  a year of reports. It asks the same question as the other two routes now, and
+  saying no puts the numbers back as well as leaving the reports alone. On a
+  project made before this work the typed number was also saved somewhere
+  nothing reads, so the run went on being judged by the preference default; the
+  edit now binds the run to what the window was showing.
 - **Changing a run's limit set rewrote every saved report of that run without
   asking.** On a project made before this work, with a year of dated
   verifications, one selection in the "Judged against" pulldown recalculated
@@ -140,11 +149,14 @@ allowed a profiling run's report to show no verdict.
   byte-for-byte what its owner published ran only in the test suite, so it
   proved something about the machine that builds ChromIQ and nothing about
   yours. It runs when the sets are read now. A file that has changed on your
-  disk, through a truncated download or a tool that rewrote it, keeps its place
-  in the list and loses the sentence claiming it is the owner's original data,
-  which is the only claim ChromIQ can no longer make about it. The credit also
-  stopped ending a sentence twice when the source's own name ends in a full
-  stop.
+  disk, through a truncated download or a tool that rewrote it, is still
+  offered and loses the sentence claiming it is the owner's original data,
+  which is the only claim ChromIQ can no longer make about it. **Nothing shows
+  these credits yet**, because there is still no way to choose a reference set;
+  what this fixes is the rule the picker will be built on, and the check that
+  the shipped files are the ones their owners published. The credit also
+  stopped mangling a source whose own name ends in a full stop, which it did in
+  two different ways before it was right.
 - **The compliance data was bundled on macOS only.** On Windows and Linux the
   file was simply not in the build, and nothing said so, because a missing file
   and an empty one both show as a question mark. Both platforms now ship it.
