@@ -1238,7 +1238,7 @@ def main(argv=None) -> int:
     shutil.rmtree(cache_root, ignore_errors=True)
 
     cov = coverage(dest, results)
-    (dest / "README.txt").write_text(readme(results, lock_rows, cov),
+    (dest / "README.txt").write_text(readme(results, lock_rows, cov, dest),
                                      encoding="utf-8")
     (dest / "intended-vs-actual.json").write_text(
         json.dumps(results, indent=2), encoding="utf-8")
@@ -1304,6 +1304,36 @@ def _forced_pairs() -> "list[tuple[str, str]]":
             out.append((rid, ROW_TITLES.get(other, other)
                         + " crossing at the same time"))
     return out
+
+
+def _chart_label(dest: Path, project: str, run_id: str, recipe,
+                 verify: bool = False) -> str:
+    """The recipe's label with the patch count the BUILT chart really carries.
+
+    Falls back to the label when the sheet cannot be read, and says so rather
+    than quietly printing the requested number as though it were measured.
+    """
+    import re as _re
+    if dest is None:
+        return recipe.label
+    d = dest / project / "runs" / run_id
+    if verify:
+        d = d / "verifications"
+    try:
+        ti2 = next(iter(sorted(d.glob("*.ti2"))), None)
+        if ti2 is None:
+            return recipe.label
+        m = _re.search(r"^NUMBER_OF_SETS\s+(\d+)", ti2.read_text(
+            encoding="utf-8", errors="replace"), _re.M)
+        if not m:
+            return recipe.label
+        real = int(m.group(1))
+    except OSError:
+        return recipe.label
+    if real == recipe.patches:
+        return recipe.label
+    return _re.sub(r"^\d+", str(real), recipe.label, count=1) + \
+        f" (asked for {recipe.patches}; printtarg padded)"
 
 
 def _lock_index(lock_rows: "list[dict]") -> "list[tuple[str, str]]":
@@ -1391,7 +1421,8 @@ def coverage(dest: Path, results: list) -> dict:
             "uncrossed": sorted(judged - crossed)}
 
 
-def readme(results: list, _lock_rows: "list[dict]", _cov: dict) -> str:
+def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
+           dest: "Path | None" = None) -> str:
     from workflow.compliance_sets import ROW_BY_ID
     lines: list = []
     a = lines.append
@@ -1435,8 +1466,15 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict) -> str:
         a(f"  {name}")
         for i, plan in enumerate(plans, start=1):
             a(f"      run{i}  {plan.description}")
-            a(f"            profile chart {plan.profile_chart.label}, "
-              f"verification chart {plan.verify_chart.label}")
+            # THE COUNT IS READ OFF THE SHEET, NOT OFF THE REQUEST.
+            # `ChartRecipe.label` is typed beside the number asked for, and
+            # printtarg PADS: two of the eleven runs ship charts of 168 and 405
+            # patches under labels saying 156 and 400. The other nine agree,
+            # which is exactly why a typed label survived this long.
+            a(f"            profile chart "
+              f"{_chart_label(dest, name, f'run{i}', plan.profile_chart)}, "
+              f"verification chart "
+              f"{_chart_label(dest, name, f'run{i}', plan.verify_chart, True)}")
         a("")
     a("WHICH RUNS ARE LOCKED, AND WHY")
     a("------------------------------")

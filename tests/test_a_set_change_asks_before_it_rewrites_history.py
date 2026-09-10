@@ -626,7 +626,13 @@ def test_the_pulldown_route_does_not_lock_the_user_out_either(qapp, tmp_path,
         i = dlg._set_combo.findData("chromiq_tight")
         dlg._set_combo.setCurrentIndex(i)
         assert is_bound(run), "the premise failed"
-        assert not is_locked(run), (
+        # THE WINDOW'S CONTROLS, NOT THE FLAG. The pulldown route wrote
+        # `compliance_unlocked` after the other door had stopped, which put the
+        # snapshot-read-as-live fault straight back in through the second door.
+        assert run.load_meta().compliance_unlocked is False, (
+            "choosing a set recorded a lock the user never lifted")
+        dlg._refresh()
+        assert dlg._set_combo.isEnabled(), (
             "choosing a limit set greyed the pulldown that chose it")
     finally:
         dlg.deleteLater()
@@ -1476,7 +1482,7 @@ def test_a_refusal_does_not_wipe_a_binding_made_while_the_window_was_open(
         # leaving somebody else's numbers under the refusal is how a run ends
         # up judged by a value that is in no set and no preference.
         assert told, "the refusal could not be honoured and nothing said so"
-        assert "changed which limit set" in told[0], told[0]
+        assert "changed" in told[0] and "were open" in told[0], told[0]
     finally:
         dlg.deleteLater()
 
@@ -1777,5 +1783,194 @@ def test_a_run_rebound_to_an_unknown_set_keeps_that_set_s_own_numbers(
         got = run_limits(run, {}).limits.get("all_de00_avg")
         assert got is not None and got.number is not None, (
             "the run was left bound to a set that judges nothing at all")
+    finally:
+        dlg.deleteLater()
+
+
+# ---------------------------------------------------------------------------
+# Round 12
+# ---------------------------------------------------------------------------
+def test_a_refusal_the_disk_refuses_still_says_so(qapp, tmp_path, monkeypatch):
+    """A REGRESSION, MEASURED: two windows before the change, one after.
+
+    `_restore_limits_snapshot` set `ok = True` and never set it False, and
+    `_undo_the_edit` swallowed the `OSError` into a bool the caller dropped. So
+    `_say_restore_failed` became dead code and a refusal that could not be
+    honoured said nothing at all, leaving the run holding the number the user
+    had just refused.
+
+    It passed the gate because the only test that touched that message called
+    it directly, and nothing tested that the app ever reaches it.
+
+    MUTATION: drop the `_pending_restore_error` check in the caller and this
+    goes red.
+    """
+    from workflow.compliance_sets import Limit
+    from workflow.run_compliance import run_limits, set_run_limits
+
+    from workflow.run_compliance import bind_run, set_run_unlocked
+
+    # SAVED REPORTS, or nothing is asked and the refusal path is never reached.
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    bind_run(run, "chromiq_default", {})
+    set_run_unlocked(run, True)
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        told: list = []
+        import ui.warning_sign as ws
+        monkeypatch.setattr(ws, "warn", lambda parent, t, x: told.append(x))
+        monkeypatch.setattr(type(dlg), "_confirm", lambda self, t, x: False)
+
+        class _Fake:
+            run_limits_changed = False
+
+            def __init__(self, settings, parent, run=None, run_editable=False):
+                self._run = run
+
+            def exec(self):
+                lim = dict(run_limits(self._run, {}).limits)
+                lim["all_de00_avg"] = Limit.value(0.37)
+                set_run_limits(self._run, lim)
+                type(self).run_limits_changed = True
+                # …and the folder goes read-only while the question is up
+                import core.file_manager as fm
+                monkeypatch.setattr(
+                    fm.Run, "save_meta",
+                    lambda self, m: (_ for _ in ()).throw(
+                        PermissionError("read-only")))
+                return 0
+
+            def deleteLater(self):
+                pass
+
+        import ui.dialogs.thresholds_dialog as td
+        monkeypatch.setattr(td, "ThresholdsDialog", _Fake)
+        dlg._on_open_limits()
+
+        assert told, (
+            "the refusal could not be written and the app said nothing, so the "
+            "run keeps the number the user refused with no trace on screen")
+        assert "could not put the previous numbers back" in told[0], told[0]
+    finally:
+        dlg.deleteLater()
+
+
+def test_the_pulldown_and_the_limits_window_agree_about_one_run(
+        qapp, tmp_path, monkeypatch):
+    """`_sync_limit_controls` treated a run this window bound as unlocked, so
+    the pulldown stayed live and the button read "Edit limits…"; the dialog was
+    built from the raw predicate, so the same run opened a READ-ONLY column
+    whose note pointed at an unlock box the window was hiding.
+
+    Three controls, three answers about one run, which is the fault two earlier
+    rounds each fixed once.
+
+    MUTATION: build the dialog from `is_locked` again and this goes red.
+    """
+    from workflow.run_compliance import is_bound, is_locked
+
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 3)
+    seen: list = []
+
+    class _Fake:
+        run_limits_changed = False
+
+        def __init__(self, settings, parent, run=None, run_editable=False):
+            seen.append(bool(run_editable))
+
+        def exec(self):
+            return 0
+
+        def deleteLater(self):
+            pass
+
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        assert _edit_a_shipped_column(dlg, monkeypatch), "no question was asked"
+        assert is_bound(run) and is_locked(run), "the premise failed"
+        dlg._refresh()
+        assert dlg._set_combo.isEnabled(), "the window greyed the pulldown"
+
+        import ui.dialogs.thresholds_dialog as td
+        monkeypatch.setattr(td, "ThresholdsDialog", _Fake)
+        seen.clear()
+        dlg._on_open_limits()
+        assert seen == [True], (
+            "the window shows a live pulldown and an 'Edit limits…' button for "
+            f"this run and then opens a read-only column: run_editable={seen}")
+    finally:
+        dlg.deleteLater()
+
+
+def test_a_rebind_to_the_same_set_is_not_mistaken_for_no_change(
+        qapp, tmp_path, monkeypatch):
+    """"The binding has not moved" was tested by set id alone, so a writer that
+    rebound to the SAME set with different numbers looked unmoved and the undo
+    wrote the snapshot back over numbers somebody else had just chosen, under a
+    message saying the limits were unchanged.
+
+    `bind_run` stamps `compliance_bound_at` every time, which is the only signal
+    that distinguishes a rebind from the dialog's own write.
+
+    MUTATION: compare set ids alone again and this goes red.
+    """
+    from core.settings import store_compliance_overrides
+    from workflow.compliance_sets import Limit
+    from workflow.run_compliance import (bind_run, run_limits, set_run_limits,
+                                         set_run_unlocked)
+
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    bind_run(run, "chromiq_default", {})
+    set_run_unlocked(run, True)
+    s = _settings(tmp_path)
+    dlg = _dialog(s, ti3)
+    try:
+        told: list = []
+        import ui.warning_sign as ws
+        monkeypatch.setattr(ws, "warn", lambda parent, t, x: told.append(x))
+        monkeypatch.setattr(type(dlg), "_confirm", lambda self, t, x: False)
+
+        class _Fake:
+            run_limits_changed = False
+
+            def __init__(self, settings, parent, run=None, run_editable=False):
+                self._run, self._s = run, settings
+
+            def exec(self):
+                # somebody else rebinds to the SAME set, with moved overrides
+                store_compliance_overrides(
+                    self._s, {"chromiq_default": {"all_de00_avg": 0.77}})
+                bind_run(self._run, "chromiq_default",
+                         {"chromiq_default": {"all_de00_avg": 0.77}})
+                # A MEASUREMENT TAKES LONGER THAN A SECOND, and the signal that
+                # says "somebody else rebound this" is stamped to the second.
+                # The fixture binds twice inside one second, which nothing a
+                # person can do reaches; the stamp is moved to what a real
+                # rebind would leave.
+                _m = self._run.load_meta()
+                _m.compliance_bound_at = "2027-01-01T00:00:00"
+                self._run.save_meta(_m)
+                lim = dict(run_limits(self._run, {}).limits)
+                lim["all_de00_avg"] = Limit.value(0.37)
+                set_run_limits(self._run, lim)
+                type(self).run_limits_changed = True
+                return 0
+
+            def deleteLater(self):
+                pass
+
+        import ui.dialogs.thresholds_dialog as td
+        monkeypatch.setattr(td, "ThresholdsDialog", _Fake)
+        dlg._on_open_limits()
+
+        # WHAT CAN BE PROVED IS THAT THE USER IS TOLD. Nobody holds the other
+        # writer's numbers once the dialog has written over them, so this
+        # cannot assert that 0.77 survives; what it can assert is that the app
+        # no longer calls the result unchanged, which is what it did while the
+        # test was set ids alone.
+        assert told, (
+            "a writer rebound this run to the same set with different numbers, "
+            "the undo wrote the snapshot back over them, and nothing said so")
+        assert "could not put this run's own numbers back" in told[-1], told[-1]
     finally:
         dlg.deleteLater()
