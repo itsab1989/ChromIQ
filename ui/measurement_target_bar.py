@@ -223,9 +223,21 @@ class MeasurementTargetController(QObject):
             self._target.run_type = value
             self.changed.emit()
 
-    def set_profile_run(self, run_id: str) -> None:
+    def set_profile_run(self, run_id: str, *, save_outgoing: bool = True) -> None:
+        """Select *run_id*.
+
+        *save_outgoing* is False on ONE path: the selection moving off a run
+        that has just been deleted. `about_to_change_target` is the Q-1 trigger
+        that files the visible tab's settings for the run being left, and after
+        a delete that run is gone -- so the write resolved to the SURVIVOR's
+        store and filed the deleted run's screen into it. Measured: run 1 held
+        `targen -f = 111`, run 2 held 648, and deleting run 2 left run 1 holding
+        648. The specification is explicit that settings follow their run and
+        that a target is never written by the act of looking at another.
+        """
         if run_id != self._target.profile_run:
-            self.about_to_change_target.emit()
+            if save_outgoing:
+                self.about_to_change_target.emit()
             self._target.profile_run = run_id
             # A different run has its own verification dates — drop a stale pick.
             self._target.verification_id = ""
@@ -1973,7 +1985,10 @@ class MeasurementTargetBar(QWidget):
                 # run that has just gone, so the dropdown kept showing a stale
                 # choice and never jumped (Knut, #130 2026-07-28: "the Profile
                 # run selection did not jump to last run in the list").
-                self._ctl.set_profile_run(landed)
+                # NOTHING IS FILED FOR A RUN THAT NO LONGER EXISTS. See
+                # `set_profile_run`: the ordinary save-on-leave would write the
+                # deleted run's screen into the surviving run's store.
+                self._ctl.set_profile_run(landed, save_outgoing=False)
                 self._ctl.set_verification_id("")
             else:
                 rd.delete_verification(plan)

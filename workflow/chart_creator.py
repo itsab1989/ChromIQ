@@ -1322,6 +1322,22 @@ class ChartCreator:
             if not params.is_manual:
                 kw["spacer_on"] = False
                 kw["spacer_mode"] = "none"
+                # GUIDED TURNS THE HONEYCOMB, so every Guided user gets the
+                # straight strips without having to know the option exists.
+                # Measured on the rendered sheets: side-to-side wander within a
+                # strip goes from 6.01 mm to 0.00 mm at identical patch size and
+                # ink, and a strip shortens from 26 patches to 22.
+                #
+                # THIS LINE IS GUIDED'S SINGLE WRITER for the flag. Manual keeps
+                # its own tick in Expert Options and never reaches this branch
+                # with a recipe; a Manual chart WITHOUT one is left alone by the
+                # `not params.is_manual` guard above, so nothing a Manual user
+                # chose is overwritten here.
+                #
+                # An existing project rebuilds from its own stored recipe, where
+                # an absent key still reads False, so reprinting a lost sheet
+                # reproduces the sheet that was printed.
+                kw["hex_flat_top"] = bool(kw.get("hflag"))
         return kw
 
     def _engine_total_patches(self, params: "ChartParams") -> int | None:
@@ -1704,7 +1720,37 @@ class ChartCreator:
         if not chromiq_clip:
             # Normal mode: commands/notes go to the right margin.
             if cmd_lines:
-                stamp_chart_metadata(tiffs, cmd_lines)
+                # THE USER'S OWN "TEXT DISTANCE FROM EDGE" TRAVELS WITH IT. The
+                # stamper had no way of knowing the setting existed, so the note
+                # sat 0.5 mm from the paper edge whatever the box said. Only the
+                # engine has a recipe; printtarg charts keep the old floor.
+                _edge = 0.0
+                # AND THE STRIP THE RIGHT MARGIN ALREADY OWNS. The note looks
+                # for the widest run of white columns right of the patches, so
+                # anything already printed out there defeats the search and the
+                # note is silently not printed at all. Measured with only the
+                # side ruler dashes switched on, and again with the clip band
+                # on the right: no stamp on any page, one INFO line, nothing on
+                # screen. Tell it what to skip instead.
+                _reserve = 0.0
+                _rec = getattr(params, "layout_recipe", None)
+                if _rec is not None:
+                    try:
+                        _edge = float(getattr(_rec, "text_edge_mm", 0.0) or 0.0)
+                    except (TypeError, ValueError):
+                        _edge = 0.0
+                    try:
+                        if (getattr(_rec, "helper_markers", False)
+                                and getattr(_rec, "helper_markers_sides", True)):
+                            _reserve = max(_reserve,
+                                           float(getattr(_rec, "helper_marker_edge_mm", 2.0) or 0.0)
+                                           + float(getattr(_rec, "helper_marker_len_mm", 2.0) or 0.0))
+                        if str(getattr(_rec, "clip_side", "left")) == "right":
+                            _reserve = max(_reserve, float(
+                                getattr(_rec, "clip_border_width_mm", 0.0) or 0.0))
+                    except (TypeError, ValueError):
+                        _reserve = 0.0
+                stamp_chart_metadata(tiffs, cmd_lines, _edge, _reserve)
         else:
             # ChromIQ-style: shift the patch block right by ~28 mm so the left
             # side becomes a fresh white strip ready for the left-clip stamp.

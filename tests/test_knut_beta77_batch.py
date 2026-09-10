@@ -210,7 +210,13 @@ def test_the_bar_moves_its_selection_after_a_delete():
     from ui.measurement_target_bar import MeasurementTargetBar
     src = inspect.getsource(MeasurementTargetBar._on_delete_clicked)
     assert "landed = rd.delete_run(" in src
-    assert "self._ctl.set_profile_run(landed)" in src
+    # MATCHED WITHOUT ITS ARGUMENT LIST, on purpose. Pinning the exact
+    # call broke on a legitimate change: the selection move after a
+    # delete now passes `save_outgoing=False`, because the ordinary
+    # save-on-leave was filing the DELETED run's screen into the
+    # surviving run's store. What this test is for is that the bar
+    # moves its selection at all.
+    assert "self._ctl.set_profile_run(landed" in src
 
 
 def test_it_clears_the_verification_choice_too():
