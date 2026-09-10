@@ -40,7 +40,9 @@ allowed a profiling run's report to show no verdict.
   that it never claims conformance. Those columns now carry the same caveat the
   read-only ISO columns do. The reason is not licensing: a standard's figures
   are written for that standard's own control strip on its own chart, and
-  ChromIQ measures the chart you printed.
+  ChromIQ measures the chart you printed. A report SAVED by an earlier build
+  keeps the word it was saved with, because your saved verdicts are yours and
+  are not rewritten behind you, but it now carries that caveat beside it.
 - **The compliance data was bundled on macOS only.** On Windows and Linux the
   file was simply not in the build, and nothing said so, because a missing file
   and an empty one both show as a question mark. Both platforms now ship it.
@@ -200,7 +202,11 @@ Measurement Report; that work rides on the 4.3.0 betas.
   that keeps the note off the patches was counted in pixels, so the amount of
   paper it needed depended on how finely the sheet was rastered: 3.21 mm at
   150 dpi against 0.81 mm at 600. The guard is now a distance on paper too, so
-  the same chart behaves the same at 200, 300, 400, 600 and 720 dpi.
+  a chart with room to spare behaves the same at 200, 300, 400, 600 and 720 dpi.
+  Right at the boundary it still does not: a legible line needs a minimum number
+  of PIXELS, so a margin with about a millimetre to spare can still print at
+  300 dpi and not at 200. Of fifty-one right margins measured between 4 and
+  9 mm, eight sit in that band.
 - **The same note also sat three millimetres away from the patches** and was
   centred in a strip wider than itself. It is now placed against the patch
   block, which is where there is room for it, and the line comes out larger and

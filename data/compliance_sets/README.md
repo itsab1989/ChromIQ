@@ -16,19 +16,22 @@ enough, and that the route is the national member body. That request is open.
 
 Until it is answered:
 
-* every ISO cell in the Report limits window reads `?`;
+* no ISO cell holds a number. Most read `?`, meaning the value exists in the
+  standard and we have not licensed it; others read `–` where the standard sets
+  no limit on that row, or `✕` where ChromIQ has no way to measure it at all;
 * neither ISO set can be chosen for a run;
 * nothing is hidden or masked to make it look otherwise.
 
 **If you own the standards**, you can supply the numbers yourself and ChromIQ
 will use them without ever distributing them. Two ways, both already built:
 
-1. **Type them in.** In the Report limits window, a Custom column is editable:
-   most cells reading `?` become a spin box you can type your own number into.
-   A few stay read-only, and that is not about licensing. They are the rows
-   ChromIQ has no way to compute from a chart it can read, so a number there
-   would have nothing to judge. Those cells will still read `?` after any
-   licence arrives.
+1. **Type them in.** In the Report limits window, a Custom column is editable.
+   The cells you can type into are the ones showing a dash, because an empty
+   spin box paints itself that way; a cell still showing `?` is one ChromIQ
+   cannot evaluate from a chart it can read, so a number there would have
+   nothing to judge, and it will still read `?` after any licence arrives.
+   The dash is doing double duty here and that is confusing, so it is worth
+   saying plainly: in a Custom column, type into the dashes.
 2. **Point ChromIQ at your own file.** Set the environment variable
    `CHROMIQ_COMPLIANCE_ISO_FILE` to the path of a JSON file in the shape
    `iso12647.json` describes, and ChromIQ reads that instead of the empty one

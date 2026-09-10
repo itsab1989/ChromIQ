@@ -1952,16 +1952,33 @@ class MeasurementReportDialog(QDialog):
     def _column_summary(self, r: dict):
         """The one word for a run's column, with its numbers."""
         from workflow.compliance_sets import (Limit, Summary, set_summary,
-                                              applies_a_standard)
+                                              applies_a_standard,
+                                              STANDARD_CAVEAT)
         from workflow.measurement_report import (is_graded_sheet,
                                                  recorded_compliance)
         rec = self._recorded(r)
         if rec is not None and isinstance(rec.get("summary"), dict) and rec.get("overall"):
             sm = rec["summary"]
+            # THE SAVED WORD IS KEPT, AND IT MAY NOT STAND ALONE. This early
+            # return never reached the caveat rule twenty lines below, so a
+            # report saved by an earlier build printed a green unqualified PASS
+            # under "Custom ISO 12647-7", in the window and in the PDF, while
+            # the same report's own text two paragraphs above said it never
+            # does that. Recomputing the word instead would contradict the
+            # design record, where Knut ruled that a run keeps its values and
+            # its verdicts, so the word stays and the sentence gains what the
+            # promise requires.
+            _reason = str(sm.get("reason", ""))
+            _comp = recorded_compliance(r) or {}
+            if applies_a_standard(str(_comp.get("set_id", "") or ""),
+                                  str(_comp.get("set_label", "") or "")):
+                _cav = tr(STANDARD_CAVEAT)
+                if _cav not in _reason:
+                    _reason = (_reason + " " + _cav).strip()
             return Summary(rec["overall"], int(sm.get("checked", 0)),
                            int(sm.get("total", 0)), int(sm.get("failed", 0)),
                            int(sm.get("cond", 0)), int(sm.get("not_computed", 0)),
-                           str(sm.get("reason", "")))
+                           _reason)
         rows, recorded = self._verdict_rows(r)
         if recorded:
             comp = recorded_compliance(r) or {}

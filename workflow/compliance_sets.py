@@ -672,6 +672,17 @@ def row_verdict(limit: Limit, value: "float | None", graded: bool) -> "str | Non
     return COND if limit.is_should else FAIL
 
 
+#: Appended to a SAVED verdict when the set it was judged against applies a
+#: standard's published figures. The saved word itself is kept, because the
+#: design record has Knut ruling that a run keeps its values and verdicts; what
+#: may not stand is the word ALONE under a standard's name, because ChromIQ
+#: promised a rights holder in writing that it never claims conformance. A
+#: challenge round found a saved PASS printed green and unqualified under
+#: "Custom ISO 12647-7", in the window and in the PDF.
+STANDARD_CAVEAT = ("This limit set holds a standard's published values applied "
+                   "to your chart. It is not a test against that standard.")
+
+
 #: The column summary's sentences (English source; the extractor sweeps this
 #: dict, review F6). Filled with {checked} {total} {failed} {cond} {not_computed}.
 SUMMARY_REASONS: "dict[str, str]" = {
