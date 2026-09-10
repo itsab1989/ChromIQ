@@ -1306,12 +1306,36 @@ def _forced_pairs() -> "list[tuple[str, str]]":
     return out
 
 
+def _sheet_count(f) -> "int | None":
+    """NUMBER_OF_SETS off a ti1/ti2/ti3, or None if it cannot be read."""
+    import re as _re
+    if f is None:
+        return None
+    try:
+        m = _re.search(r"^NUMBER_OF_SETS\s+(\d+)",
+                       f.read_text(encoding="utf-8", errors="replace"), _re.M)
+    except OSError:
+        return None
+    return int(m.group(1)) if m else None
+
+
 def _chart_label(dest: Path, project: str, run_id: str, recipe,
                  verify: bool = False) -> str:
-    """The recipe's label with the patch count the BUILT chart really carries.
+    """The recipe's label, carrying the number the READER will see, and the
+    number that is actually on the paper when those differ.
 
-    Falls back to the label when the sheet cannot be read, and says so rather
-    than quietly printing the requested number as though it were measured.
+    Two counts, and the README used to print the wrong one of them. `printtarg`
+    PADS a sheet to fill its rows: the 156-patch A3 verification chart goes on
+    paper as 168, and the 400-patch profile chart as 405. Those extra patches
+    are printtarg's own, they are not in the `.ti1`, so nothing measures them
+    and no report ever counts them. Measured across the built package: 31 dated
+    reports, and the three whose chart was padded say 156 where the README said
+    168.
+
+    A reader opens the report beside this file to match one against the other,
+    so the number in front is the one the report shows, taken from the `.ti3`
+    rather than assumed from the request. The sheet's own count is named after
+    it, because it is what they will count if they hold the print.
     """
     import re as _re
     if dest is None:
@@ -1319,21 +1343,28 @@ def _chart_label(dest: Path, project: str, run_id: str, recipe,
     d = dest / project / "runs" / run_id
     if verify:
         d = d / "verifications"
-    try:
-        ti2 = next(iter(sorted(d.glob("*.ti2"))), None)
-        if ti2 is None:
-            return recipe.label
-        m = _re.search(r"^NUMBER_OF_SETS\s+(\d+)", ti2.read_text(
-            encoding="utf-8", errors="replace"), _re.M)
-        if not m:
-            return recipe.label
-        real = int(m.group(1))
-    except OSError:
+    sheet = _sheet_count(next(iter(sorted(d.glob("*.ti2"))), None))
+    # The measurement: beside the chart for a profile run, one per date for a
+    # verification. They should agree; if a build ever makes them disagree the
+    # label says so instead of picking one.
+    ti3s = sorted(d.glob("*.ti3")) if not verify else sorted(
+        d.glob("*/*.ti3"))
+    judged = sorted({c for c in (_sheet_count(f) for f in ti3s)
+                     if c is not None})
+    if len(judged) > 1:
+        return recipe.label + (" (the measurements disagree about how many "
+                               "patches they hold: "
+                               + ", ".join(str(c) for c in judged) + ")")
+    front = judged[0] if judged else sheet
+    if front is None:
         return recipe.label
-    if real == recipe.patches:
-        return recipe.label
-    return _re.sub(r"^\d+", str(real), recipe.label, count=1) + \
-        f" (asked for {recipe.patches}; printtarg padded)"
+    label = _re.sub(r"^\d+", str(front), recipe.label, count=1)
+    if sheet is not None and judged and sheet != front:
+        label += (f" (printtarg padded the sheet to {sheet}; the "
+                  f"{sheet - front} extra are not measured and not judged)")
+    elif front != recipe.patches:
+        label += f" (asked for {recipe.patches})"
+    return label
 
 
 def _lock_index(lock_rows: "list[dict]") -> "list[tuple[str, str]]":

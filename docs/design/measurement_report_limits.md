@@ -188,7 +188,12 @@ no verdict cannot tell whether something is wrong.
   copied into `runs/runN/meta.json` (`compliance_*` fields). Every dated
   verification of that run is judged with that copy (Knut D9/D20). A later
   change to the set in Preferences does not reach a bound run.
-* The run's limits are **locked** once a verification has been measured. The
+* The run's limits are **locked** once the run is bound AND a second dated
+  verification has been measured, and not before. The revision note at the
+  head of this section says why both conditions are there and which report
+  each came from; this bullet used to state only the second half of the
+  first sentence, so a reader who skipped the note read the superseded rule
+  as the specification. The
   report window's "Unlock this run's limits" may be ticked only when the
   Preferences checkbox allows it, after a confirmation naming the run and the
   number of dated verifications. Every recalculation (the unlock itself, a set

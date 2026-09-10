@@ -193,3 +193,77 @@ def test_the_heading_and_the_list_agree_on_the_number(gen):
     words = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five"}
     assert gen._WORDS[n] == words[n], (
         f"the heading would say {gen._WORDS[n]!r} for {n} rows")
+
+
+# ---------------------------------------------------------------------------
+# The other number the README used to get wrong
+# ---------------------------------------------------------------------------
+def _sheet(p: Path, n: int) -> None:
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(f"CTI2\n\nNUMBER_OF_SETS {n}\nBEGIN_DATA\nEND_DATA\n",
+                 encoding="utf-8")
+
+
+def test_the_readme_names_the_count_the_report_will_show(gen, tmp_path):
+    """TWO COUNTS, AND THE README PRINTED THE ONE NOBODY EVER SEES.
+
+    `printtarg` pads a sheet to fill its rows. The 156-patch A3 verification
+    chart goes on paper as 168 and the 400-patch profile chart as 405, and
+    those extra patches are printtarg's own: they are not in the `.ti1`, so
+    nothing measures them and no report counts them.
+
+    The README read the `.ti2` and printed 168. The reader opens the report
+    beside it to match one against the other, and the report says 156.
+    Measured across the built package: 31 dated reports, three of them padded,
+    all three disagreeing with the file that describes them.
+
+    So the number in front is the measured one, taken from the `.ti3`, and the
+    sheet's own count is named after it because that is what a reader counts if
+    they hold the print.
+
+    MUTATION: read the count off the `.ti2` again and this goes red.
+    """
+    dest = tmp_path / "D"
+    run = dest / "P" / "runs" / "run1"
+    _sheet(run / "chart.ti2", 405)
+    _sheet(run / "chart.ti3", 400)
+    _sheet(run / "verifications" / "v.ti2", 168)
+    _sheet(run / "verifications" / "2026-01-01_100000" / "v.ti3", 156)
+
+    profile = gen._chart_label(dest, "P", "run1", gen.CHART_LARGE)
+    verify = gen._chart_label(dest, "P", "run1", gen.CHART_WIDE, True)
+
+    assert profile.startswith("400 patches"), profile
+    assert "405" in profile and "not measured and not judged" in profile, profile
+    assert verify.startswith("156 patches"), verify
+    assert "168" in verify and "not measured and not judged" in verify, verify
+
+
+def test_a_chart_that_was_not_padded_says_nothing_extra(gen, tmp_path):
+    """The nine runs printtarg left alone must not gain a parenthesis.
+
+    MUTATION: append the note unconditionally and this goes red.
+    """
+    dest = tmp_path / "D"
+    run = dest / "P" / "runs" / "run1"
+    _sheet(run / "chart.ti2", 210)
+    _sheet(run / "chart.ti3", 210)
+    assert gen._chart_label(dest, "P", "run1", gen.CHART_MEDIUM) == \
+        gen.CHART_MEDIUM.label
+
+
+def test_measurements_that_disagree_are_reported_not_picked_between(gen,
+                                                                    tmp_path):
+    """Three dates, three different patch counts, and no honest single number.
+
+    Saying one of them would be a guess presented as a reading, which is the
+    fault this whole function exists to have stopped.
+    """
+    dest = tmp_path / "D"
+    v = dest / "P" / "runs" / "run1" / "verifications"
+    _sheet(v / "v.ti2", 168)
+    _sheet(v / "2026-01-01_100000" / "v.ti3", 156)
+    _sheet(v / "2026-02-01_100000" / "v.ti3", 150)
+
+    label = gen._chart_label(dest, "P", "run1", gen.CHART_WIDE, True)
+    assert "disagree" in label and "150" in label and "156" in label, label

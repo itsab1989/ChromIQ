@@ -58,6 +58,20 @@ log = get_logger(__name__)
 
 #: the "This run" pseudo column id
 RUN_COLUMN = "__run__"
+
+
+def _stored_column(run) -> "dict | None":
+    """The run's OWN stored limits, straight off its `meta.json`.
+
+    None when the run cannot be read, which is not the same as an empty
+    column: an unbound run really does store nothing, and a folder that will
+    not open must not be mistaken for one.
+    """
+    try:
+        return dict(run.load_meta().compliance_thresholds or {})
+    except Exception:                  # noqa: BLE001
+        return None
+
 #: the fixed width of an editable cell; eight columns fit a 1728 px work area
 #: with it, and do not with the spin box's natural 140 px (AR-CODE-MAP §4.2)
 CELL_W = 104
@@ -120,6 +134,22 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         #: True after close when the run's copy was changed (the report window
         #: recalculates the run's dated reports then, once; CH-29)
         self.run_limits_changed = False
+        #: THE RUN'S OWN COLUMN AS IT SAT ON DISK WHEN THIS WINDOW OPENED, and
+        #: the only way this window can tell that somebody else moved it.
+        #: NOT `_run_limits_at_open`, which is derived: on an unbound run it is
+        #: the live default set's numbers, and this window edits the overrides
+        #: those are derived from, so it moves for reasons that are this
+        #: window's own doing.
+        self._run_stored_at_open: "dict | None" = None
+        #: True after close when the run's stored column had been changed by
+        #: SOMEBODY ELSE while this window was open. The report window's
+        #: "the binding has not moved" test cannot see that: it compares
+        #: `compliance_bound_at`, which only `bind_run` stamps, and the other
+        #: writer here is `set_run_limits`, which is this same `done()` in
+        #: another window. A challenge round drove it: a second Report limits
+        #: window on the same run had its number erased with no message at all,
+        #: indistinguishable from the case where nobody else wrote.
+        self.run_limits_collided = False
         self._sized_once = False
         self._cells: "dict[tuple[str, str], QWidget]" = {}
         self._column_widgets: "dict[str, list[QWidget]]" = {}
@@ -134,6 +164,7 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
             self._run_set_id = rl.set_id
             from workflow.compliance_sets import limits_to_json as _l2j
             self._run_limits_at_open = _l2j(self._run_limits)
+            self._run_stored_at_open = _stored_column(run)
             self._run_label = rl.set_label
 
         self.setWindowTitle(tr("Report limits"))
@@ -736,6 +767,17 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
             return True
 
     def done(self, result: int) -> None:  # noqa: D102
+        # DID SOMEBODY ELSE MOVE THIS RUN WHILE THE WINDOW WAS OPEN?
+        # Asked BEFORE the write below, because after it the answer is this
+        # window's own. There is no other moment it can be asked from: the
+        # report window sees only the state this `done()` leaves behind, and
+        # both writers leave the same shape.
+        if self._run is not None and self._run_stored_at_open is not None:
+            _now = _stored_column(self._run)
+            if _now is not None and _now != self._run_stored_at_open:
+                self.run_limits_collided = True
+                log.info("this run's limits were changed elsewhere while the "
+                         "limits window was open: %s", self._run.dir)
         # DIRTY MEANS DIFFERENT, NOT TOUCHED.
         if (self._run is not None and self._run_dirty and self._run_editable
                 and self._run_column_really_moved()):

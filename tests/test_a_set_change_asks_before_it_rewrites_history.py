@@ -1974,3 +1974,206 @@ def test_a_rebind_to_the_same_set_is_not_mistaken_for_no_change(
         assert "could not put this run's own numbers back" in told[-1], told[-1]
     finally:
         dlg.deleteLater()
+
+
+# ---------------------------------------------------------------------------
+# Round 13: the same function disagreed with itself, twelve lines apart
+# ---------------------------------------------------------------------------
+def test_an_edit_on_a_run_this_window_bound_is_kept(qapp, tmp_path, monkeypatch):
+    """`_on_open_limits` built the dialog from `_locked_here` and guarded the
+    WRITE with the raw `is_locked`, twelve lines apart in one function.
+
+    So on a run this window had just bound, it offered an editable column, took
+    the number the user typed, threw it away, and told them something else had
+    locked the run while they were editing it. Nothing else had. The remedy the
+    message points at is hidden in that state, so the user can repeat it for
+    ever.
+
+    THE TEST THAT COVERED THIS FUNCTION COULD NOT SEE IT. Its fake dialog
+    writes nothing, so `moved` is False and the guarded line is never reached; a
+    challenge round proved that with a mutation pair, one landing nowhere. This
+    one WRITES, which is the whole point.
+
+    MUTATION: put `is_locked` back on the write guard and this goes red.
+    """
+    from workflow.compliance_sets import Limit
+    from workflow.run_compliance import (is_bound, is_locked, run_limits,
+                                         set_run_limits)
+
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 3)
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        told: list = []
+        import ui.warning_sign as ws
+        monkeypatch.setattr(ws, "warn", lambda parent, t, x: told.append(x))
+
+        # 1. this window binds it, which is what locks it
+        assert _edit_a_shipped_column(dlg, monkeypatch), "no question was asked"
+        assert is_bound(run) and is_locked(run), "the premise failed"
+        told.clear()
+
+        # 2. …and the window still offers the column, so an edit must be kept
+        monkeypatch.setattr(type(dlg), "_confirm", lambda self, t, x: True)
+
+        class _Writes:
+            run_limits_changed = False
+
+            def __init__(self, settings, parent, run=None, run_editable=False):
+                self._run, self._editable = run, run_editable
+
+            def exec(self):
+                assert self._editable, (
+                    "the window offered 'Edit limits…' and then opened a "
+                    "read-only column")
+                lim = dict(run_limits(self._run, {}).limits)
+                lim["all_de00_avg"] = Limit.value(0.42)
+                set_run_limits(self._run, lim)
+                type(self).run_limits_changed = True
+                return 0
+
+            def deleteLater(self):
+                pass
+
+        import ui.dialogs.thresholds_dialog as td
+        monkeypatch.setattr(td, "ThresholdsDialog", _Writes)
+        dlg._on_open_limits()
+
+        got = run_limits(run, {}).limits.get("all_de00_avg")
+        assert got is not None and abs(got.number - 0.42) < 1e-9, (
+            f"the window offered the edit and then discarded it: {got}")
+        assert not told, (
+            "the user was told something else had locked the run, and nothing "
+            f"had: {told}")
+    finally:
+        dlg.deleteLater()
+
+
+def test_a_run_locked_by_somebody_else_still_refuses_the_edit(qapp, tmp_path,
+                                                              monkeypatch):
+    """THE NEGATIVE HALF, and the reason the guard exists at all.
+
+    A run this window did NOT bind, locked while the window was open, must
+    still refuse the edit and say so.
+
+    MUTATION: use `_locked_here` where `is_locked` belongs, or drop the guard,
+    and this goes red.
+    """
+    from workflow.compliance_sets import Limit
+    from workflow.run_compliance import (bind_run, is_locked, run_limits,
+                                         set_run_limits, set_run_unlocked)
+
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    bind_run(run, "chromiq_default", {})
+    set_run_unlocked(run, True)
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        told: list = []
+        import ui.warning_sign as ws
+        monkeypatch.setattr(ws, "warn", lambda parent, t, x: told.append(x))
+        monkeypatch.setattr(type(dlg), "_confirm", lambda self, t, x: True)
+
+        class _Fake:
+            run_limits_changed = False
+
+            def __init__(self, settings, parent, run=None, run_editable=False):
+                self._run = run
+
+            def exec(self):
+                set_run_unlocked(self._run, False)      # somebody else locks it
+                lim = dict(run_limits(self._run, {}).limits)
+                lim["all_de00_avg"] = Limit.value(0.3)
+                set_run_limits(self._run, lim)
+                type(self).run_limits_changed = True
+                return 0
+
+            def deleteLater(self):
+                pass
+
+        import ui.dialogs.thresholds_dialog as td
+        monkeypatch.setattr(td, "ThresholdsDialog", _Fake)
+        dlg._on_open_limits()
+
+        assert is_locked(run), "the premise failed"
+        got = run_limits(run, {}).limits.get("all_de00_avg")
+        assert got is not None and abs(got.number - 0.3) > 1e-9, (
+            "an edit landed on a run somebody else locked while the window "
+            "was open")
+        assert told, "the user was not told the run had been locked"
+    finally:
+        dlg.deleteLater()
+
+
+def test_a_second_limits_window_that_moved_the_run_is_not_silent(qapp, tmp_path,
+                                                                 monkeypatch):
+    """R13-2: THE OTHER WRITER THAT LEAVES NO STAMP.
+
+    "The binding has not moved" was tested with `compliance_bound_at`, and only
+    `bind_run` stamps it. The other writer of a run's column is
+    `set_run_limits`, which is `ThresholdsDialog.done()`, which is this same
+    window opened a second time. A challenge round drove three cases side by
+    side and counted the message boxes:
+
+        another bind_run                    2 boxes, the user is told
+        a real second limits window         1 box, its number erased, and
+                                            indistinguishable from
+        nobody else writes at all           1 box
+
+    So the second window's number vanished under a message saying the limits
+    were unchanged. It is unchanged, of the run; that is not what happened.
+
+    MUTATION: stop the dialog setting `run_limits_collided`, or read it and
+    ignore it, and this goes red.
+    """
+    from workflow.compliance_sets import Limit
+    from workflow.run_compliance import (run_limits, set_run_limits,
+                                         set_run_unlocked)
+
+    MINE, THEIRS = 0.77, 0.55
+    from ui.dialogs.thresholds_dialog import ThresholdsDialog
+    from workflow.run_compliance import bind_run
+
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    bind_run(run, "chromiq_default", {})
+    set_run_unlocked(run, True)              # keep the column editable
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        before = dict(run_limits(run, {}).limits)
+        told: list = []
+        import ui.warning_sign as ws
+        monkeypatch.setattr(ws, "warn", lambda parent, t, x: told.append(x))
+        # the user is ASKED and says no, which is the route into the undo
+        monkeypatch.setattr(type(dlg), "_confirm", lambda self, t, x: True)
+        monkeypatch.setattr(type(dlg), "_confirm_recalculate",
+                            lambda self, run: False)
+
+        class _First(ThresholdsDialog):
+            def exec(self):
+                # somebody else writes the run while this window sits open
+                other = dict(run_limits(run, {}).limits)
+                other["all_de00_avg"] = Limit.value(THEIRS)
+                set_run_limits(run, other)
+                # …and then this window is closed, writing the user's number
+                self._run_limits["all_de00_avg"] = Limit.value(MINE)
+                self._run_dirty = True
+                from PyQt6.QtWidgets import QDialog as _Q
+                self.done(_Q.DialogCode.Accepted)
+                return 0
+
+        import ui.dialogs.thresholds_dialog as td
+        monkeypatch.setattr(td, "ThresholdsDialog", _First)
+        dlg._on_open_limits()
+
+        now = run_limits(run, {}).limits.get("all_de00_avg")
+        assert now is not None and abs(now.number - MINE) > 1e-9, (
+            "the number the user refused was left on the run")
+        assert told, ("a second limits window erased this run's limits and the "
+                      "user was told nothing")
+        said = "\n".join(told)
+        assert "another window" in said, said
+        assert abs(before["all_de00_avg"].number - now.number) < 1e-9, (
+            "the refusal did not put the previous numbers back")
+        assert "put this run's own numbers back to what they were" in said, (
+            "the user was told the numbers could not be put back, and they "
+            f"were: {said}")
+    finally:
+        dlg.deleteLater()

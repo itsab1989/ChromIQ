@@ -154,3 +154,25 @@ def test_an_awaiting_marker_carries_the_nobody_yet_line_wherever_it_sits():
         "an 'Awaiting confirmation' marker must say who has confirmed it, "
         "within the block it opens — '**Confirmed by:** *nobody yet.*' until "
         "someone has:\n  " + "\n  ".join(offenders))
+
+
+def test_a_revised_rule_is_not_left_standing_in_the_body_it_revised():
+    """A REVISION NOTE AT THE HEAD OF A SECTION DOES NOT REVISE THE SECTION.
+
+    Section 5 of the limits record was revised on Knut's report: a run's limits
+    lock once it is bound AND a second dated verification exists, not at the
+    first. The note saying so was added at the head of the section. The bullet
+    fifty lines below it still said "locked once a verification has been
+    measured", word for word the rule that had just been superseded, and a
+    reader who skips a block quote to reach the specification read the old rule
+    as the specification.
+
+    So: that sentence may appear in this file only as history, inside a quote.
+    """
+    text = (DESIGN / "measurement_report_limits.md").read_text(encoding="utf-8")
+    stale = "locked once a verification has been measured"
+    for n, line in enumerate(text.splitlines(), 1):
+        if stale in line:
+            assert line.lstrip().startswith(">"), (
+                f"measurement_report_limits.md:{n} states the superseded lock "
+                f"rule as though it were current:\n    {line.strip()}")
