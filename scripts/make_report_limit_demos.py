@@ -1259,6 +1259,46 @@ def main(argv=None) -> int:
     return 1 if bad else 0
 
 
+#: Rows that are ordered against another row, and therefore cannot cross their
+#: limit while that other row stays inside its own. The ORDER is a fact about
+#: the statistics; whether it forces a second crossing depends on the NUMBERS,
+#: so it is read from the shipped sets rather than asserted.
+_ORDERED_UNDER = {
+    "best95_de00_avg": "worst5_de00_avg",
+    "all_de00_avg": "worst5_de00_avg",
+    "all_de00_p95": "all_de00_max",
+}
+
+
+def _forced_pairs() -> "list[tuple[str, str]]":
+    """`(row, why)` for every row that cannot cross alone under every set.
+
+    THE COUNT IN THIS README HAS BEEN WRONG TWICE, in both directions: it
+    claimed three rows and one of them was direction-dependent, then claimed
+    two and missed one that really is forced. So it is computed. A row counts
+    only when EVERY shipped set gives its companion a limit no larger than its
+    own, which is what makes the crossing unavoidable rather than merely
+    likely.
+    """
+    from workflow.compliance_sets import SET_BY_ID, effective_limits
+    sets = [sid for sid in SET_BY_ID if sid.startswith("chromiq_")]
+    out: "list[tuple[str, str]]" = []
+    for rid, other in _ORDERED_UNDER.items():
+        forced = True
+        for sid in sets:
+            lim = effective_limits(sid, {})
+            a_, b_ = lim.get(rid), lim.get(other)
+            if (a_ is None or b_ is None
+                    or a_.number is None or b_.number is None
+                    or b_.number > a_.number):
+                forced = False
+                break
+        if forced and sets:
+            out.append((rid, ROW_TITLES.get(other, other)
+                        + " crossing at the same time"))
+    return out
+
+
 def _lock_index(lock_rows: "list[dict]") -> "list[tuple[str, str]]":
     """The three lock lines of the README's index, named from MEASURED state.
 
@@ -1500,15 +1540,26 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict) -> str:
     a("So a green column in these projects means the seven judged rows passed.")
     a("It does not mean the rest were checked.")
     a("")
-    a("TWO ROWS CANNOT CROSS ALONE UNDER A STOCK COLUMN, AND A THIRD DEPENDS")
-    a("--------------------------------------------------------------------")
+    a("THREE ROWS CANNOT CROSS ALONE UNDER A STOCK COLUMN, AND A FOURTH")
+    a("DEPENDS ON WHICH WAY THE CAST GOES")
+    a("----------------------------------------------------------------")
     a("")
-    a("Two of them by arithmetic. 'Best 95 % of patches, average' is always")
-    a("less than or equal to 'All patches, average', which is always less than")
-    a("or equal to 'Worst 5 % of patches, average', so the first cannot exceed")
-    a("2.0 without the other two doing the same: three rows at once, not two.")
-    a("'All patches, 95th percentile' is the same story, since it cannot exceed")
-    a("3.0 without the largest value and the worst-5 % average going with it.")
+    a("THE COUNT HAS BEEN WRONG TWICE, in both directions, so here it is")
+    a("computed rather than asserted. A row cannot cross alone when another")
+    a("row is forced over its own limit at the same moment.")
+    a("")
+    a("Three of them by arithmetic, and the reason is that the three averages")
+    a("are ordered: 'Best 95 % of patches, average' is always less than or")
+    a("equal to 'All patches, average', which is always less than or equal to")
+    a("'Worst 5 % of patches, average'. Every shipped set gives those three")
+    a("the SAME number, so:")
+    a("")
+    for _rid, _why in _forced_pairs():
+        a(f"  {ROW_TITLES.get(_rid, _rid)}")
+        a(f"      cannot cross without {_why}")
+    a("")
+    a("The rest of the numeric rows can cross by themselves, being the top of")
+    a("each ordering.")
     a("")
     a("The third is the grey-balance average, and it depends on WHICH WAY the")
     a("cast goes, which the first version of this note did not say.")
@@ -1532,7 +1583,8 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict) -> str:
     a("Isolated-Rows/run4 shows the grey average crossing alone, and it gets")
     a("there with an edited column rather than by choosing the direction.")
     a("")
-    a("Report-Limits-Isolated-Rows exists for all three. Runs 1, 2 and 4 each")
+    a("Report-Limits-Isolated-Rows exists for the rows that cannot. Runs 1, 2")
+    a("and 4 each")
     a("carry their own edited limit column that relaxes the companion rows, so")
     a("the row of interest crosses on its own and can be looked at alone.")
     a("")

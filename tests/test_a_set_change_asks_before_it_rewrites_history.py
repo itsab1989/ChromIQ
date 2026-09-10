@@ -591,3 +591,220 @@ def test_a_refusal_puts_back_the_default_that_an_unbound_run_is_judged_by(
             "now judged by a set the user said no to")
     finally:
         dlg.deleteLater()
+
+
+# ---------------------------------------------------------------------------
+# Round 8: stop guarding doors, guard the room
+# ---------------------------------------------------------------------------
+def test_the_pulldown_route_does_not_lock_the_user_out_either(qapp, tmp_path,
+                                                              monkeypatch):
+    """Round 7 fixed the "Edit limits…" door and this one kept the fault.
+
+    `_on_set_chosen` reaches the same bind through `bind_run`, which does not
+    touch `compliance_unlocked`, so choosing a set on a pre-#182 run with a
+    history greyed the very pulldown the user had just used. Round 8 drove both
+    routes side by side and found the only differing key was that flag.
+
+    MUTATION: remove the unlocked write from `_on_set_chosen` and this goes red.
+    """
+    from workflow.run_compliance import is_bound, is_locked
+
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 3)
+    assert not is_bound(run)
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        monkeypatch.setattr(type(dlg), "_confirm", lambda self, t, x: True)
+        i = dlg._set_combo.findData("chromiq_tight")
+        dlg._set_combo.setCurrentIndex(i)
+        assert is_bound(run), "the premise failed"
+        assert not is_locked(run), (
+            "choosing a limit set greyed the pulldown that chose it")
+    finally:
+        dlg.deleteLater()
+
+
+def test_moving_the_app_wide_default_on_an_unbound_run_is_questioned(
+        qapp, tmp_path, monkeypatch):
+    """The radio writes a preference the moment it is clicked, and on an
+    unbound run that preference IS what the run is judged by. It set nothing
+    that the old guard watched, so there was no question and no refusal for the
+    restore to hang on: the window's header simply started naming a set none of
+    the saved reports was judged with.
+
+    The test is no longer "which control was touched" but "did what this run is
+    judged by change", so this passes through the same question as the rest.
+
+    MUTATION: drop `or self._judged_by(ctx) != snap["judged_by"]` and this goes
+    red.
+    """
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    s = _settings(tmp_path)
+    s.set("compliance_default_set", "chromiq_default")
+    dlg = _dialog(s, ti3)
+    try:
+        asked: list = []
+        monkeypatch.setattr(type(dlg), "_confirm",
+                            lambda self, t, x: asked.append(x) or False)
+
+        class _Fake:
+            run_limits_changed = False
+
+            def __init__(self, settings, parent, run=None, run_editable=False):
+                self._s = settings
+
+            def exec(self):
+                # ONLY the radio. No run-column edit at all.
+                self._s.set("compliance_default_set", "chromiq_tight")
+                return 0
+
+            def deleteLater(self):
+                pass
+
+        import ui.dialogs.thresholds_dialog as td
+        monkeypatch.setattr(td, "ThresholdsDialog", _Fake)
+        dlg._on_open_limits()
+
+        assert asked, (
+            "the app-wide default was moved under an unbound run with eleven "
+            "saved reports and nothing was asked")
+        assert s.get("compliance_default_set", None) == "chromiq_default", (
+            "the refusal left the default moved")
+    finally:
+        dlg.deleteLater()
+
+
+def test_an_override_on_a_shipped_column_is_questioned_too(qapp, tmp_path,
+                                                           monkeypatch):
+    """The fourth door. Crushing a shipped set's cell writes an app-wide
+    override the instant it is typed, and on an unbound run that is what the
+    run is judged by, so eleven saved verdicts computed at one number sat under
+    a window judging at another, silently.
+
+    MUTATION: as above.
+    """
+    from core.settings import compliance_overrides_of, store_compliance_overrides
+
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    s = _settings(tmp_path)
+    dlg = _dialog(s, ti3)
+    try:
+        asked: list = []
+        monkeypatch.setattr(type(dlg), "_confirm",
+                            lambda self, t, x: asked.append(x) or False)
+
+        class _Fake:
+            run_limits_changed = False
+
+            def __init__(self, settings, parent, run=None, run_editable=False):
+                self._s = settings
+
+            def exec(self):
+                store_compliance_overrides(
+                    self._s, {"chromiq_default": {"all_de00_max": 1.0}})
+                return 0
+
+            def deleteLater(self):
+                pass
+
+        import ui.dialogs.thresholds_dialog as td
+        monkeypatch.setattr(td, "ThresholdsDialog", _Fake)
+        dlg._on_open_limits()
+
+        assert asked, "a shipped column was crushed and nothing was asked"
+        assert compliance_overrides_of(s) == {}, (
+            "the refusal left the app-wide override in place")
+    finally:
+        dlg.deleteLater()
+
+
+def test_a_bound_run_is_not_disturbed_by_the_preference(qapp, tmp_path,
+                                                        monkeypatch):
+    """THE NEGATIVE HALF, and it is what keeps the new rule honest.
+
+    On a BOUND run the preference decides nothing, so moving it is a different
+    decision and reverting it would be the app second-guessing one the user
+    made deliberately. No question, and the preference stays where they put it.
+
+    MUTATION: restore the preference unconditionally and this goes red.
+    """
+    proj, run, ti3 = _bound_run_with_dates(tmp_path, 2, unlocked=True)
+    s = _settings(tmp_path)
+    s.set("compliance_default_set", "chromiq_default")
+    dlg = _dialog(s, ti3)
+    try:
+        asked: list = []
+        monkeypatch.setattr(type(dlg), "_confirm",
+                            lambda self, t, x: asked.append(x) or False)
+
+        class _Fake:
+            run_limits_changed = False
+
+            def __init__(self, settings, parent, run=None, run_editable=False):
+                self._s = settings
+
+            def exec(self):
+                self._s.set("compliance_default_set", "chromiq_tight")
+                return 0
+
+            def deleteLater(self):
+                pass
+
+        import ui.dialogs.thresholds_dialog as td
+        monkeypatch.setattr(td, "ThresholdsDialog", _Fake)
+        dlg._on_open_limits()
+
+        assert not asked, (
+            "a bound run asked about a preference that decides nothing for it")
+        assert s.get("compliance_default_set", None) == "chromiq_tight", (
+            "a deliberate preference click was reverted on a run it does not "
+            "affect")
+    finally:
+        dlg.deleteLater()
+
+
+def test_putting_the_lock_back_asks_before_it_takes_the_controls(qapp, tmp_path,
+                                                                 monkeypatch):
+    """Ticking the box asked; unticking it did not, and unticking is the
+    direction that takes the controls away. Worse, the box the user would
+    untick is one the app ticked for them when it bound the run.
+
+    MUTATION: drop the confirmation from `_on_unlock_toggled` and this goes red.
+    """
+    from workflow.run_compliance import is_locked
+
+    proj, run, ti3 = _bound_run_with_dates(tmp_path, 2, unlocked=True)
+    assert not is_locked(run)
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        asked: list = []
+        monkeypatch.setattr(type(dlg), "_confirm",
+                            lambda self, t, x: asked.append(t) or False)
+        dlg._on_unlock_toggled(False)
+        assert asked, "re-locking took the controls away with no question"
+        assert not is_locked(run), "a refused re-lock locked the run anyway"
+
+        monkeypatch.setattr(type(dlg), "_confirm", lambda self, t, x: True)
+        dlg._on_unlock_toggled(False)
+        assert is_locked(run), "an accepted re-lock did not lock the run"
+    finally:
+        dlg.deleteLater()
+
+
+def test_a_run_with_one_date_is_not_asked_to_confirm_a_lock_that_cannot_apply(
+        qapp, tmp_path, monkeypatch):
+    """A question nobody needs is a click people learn to dismiss.
+
+    MUTATION: ask unconditionally and this goes red.
+    """
+    proj, run, ti3 = _bound_run_with_dates(tmp_path, 1, unlocked=True)
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        asked: list = []
+        monkeypatch.setattr(type(dlg), "_confirm",
+                            lambda self, t, x: asked.append(t) or True)
+        dlg._on_unlock_toggled(False)
+        assert not asked, (
+            "a run with one dated verification was warned about a lock that "
+            "does not apply to it")
+    finally:
+        dlg.deleteLater()

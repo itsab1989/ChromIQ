@@ -9,6 +9,7 @@ the same chart can be compared, revealing ink / printer / instrument drift.
 """
 from __future__ import annotations
 
+import copy
 import html
 import json
 from datetime import datetime
@@ -2223,9 +2224,20 @@ class MeasurementReportDialog(QDialog):
             if not self._confirm_recalculate(ctx.run):
                 self._sync_set_combo_to(lim.set_id)
                 return
-        from workflow.run_compliance import bind_run
+        # THE SAME BIND, AND IT LOCKED THE USER OUT ON THIS ROUTE TOO.
+        # A round fixed the "Edit limits…" door and this one kept the fault:
+        # on a project made before #182 with a history, choosing a set bound
+        # the run and `is_locked` became true on the spot, so the pulldown the
+        # user had just used went grey. Same question, same consequence, same
+        # remedy: a run that had no set recorded keeps its controls.
+        from workflow.run_compliance import bind_run, is_bound
+        _was_bound = is_bound(ctx.run)
         try:
             bind_run(ctx.run, set_id, self._overrides())
+            if not _was_bound:
+                _m = ctx.run.load_meta()
+                _m.compliance_unlocked = True
+                ctx.run.save_meta(_m)
         except OSError as exc:
             log.warning("could not store the limit set on %s: %s", ctx.run.dir, exc)
         self._forget_limits()
@@ -2304,14 +2316,55 @@ class MeasurementReportDialog(QDialog):
         finally:
             self._syncing_limits = False
 
+    def _relocking_would_take_the_controls(self, run) -> bool:
+        """Whether putting the lock back would really lock this run."""
+        from workflow.run_compliance import is_bound, measured_dates
+        try:
+            return is_bound(run) and measured_dates(run) >= 2
+        except Exception:              # noqa: BLE001
+            return False
+
+    def _confirm_relock(self, run) -> bool:
+        allow = bool(self._settings.get(
+            "compliance_allow_edit_after_measurement", False))
+        _tail = tr(
+            "Its limit set and its numbers can then no longer be changed here, "
+            "and its dated reports stay as they are.")
+        _how = ("" if allow else " " + tr(
+            "To be able to unlock it again, switch on “Allow editing of "
+            "thresholds after the first verification measurement” in "
+            "Preferences."))
+        return self._confirm(
+            tr("Lock this run's limits again?"),
+            tr("This run ({run}) will be locked.").format(run=run.dir.name)
+            + " " + _tail + _how + "\n\n" + tr("Continue?"))
+
     def _on_unlock_toggled(self, on: bool) -> None:
         if self._syncing_limits:
             return
         ctx = self._run_ctx
         if ctx is None:
             return
-        from workflow.run_compliance import set_run_unlocked
+        from workflow.run_compliance import is_locked, set_run_unlocked
         if not on:
+            # RE-LOCKING IS THE IRREVERSIBLE DIRECTION AND IT ASKED NOTHING.
+            # Ticking this box asks a confirmation; unticking it did not, and
+            # unticking is what takes the controls away. A challenge round found
+            # a user who could reach that state in one click on a box the app
+            # had ticked for them, and getting back needs a Preferences setting
+            # that nothing on this screen names.
+            #
+            # Only when it would really lock: on a run with fewer than two
+            # dated verifications the lock does not apply, so there is nothing
+            # to warn about and a question there would be a habit-forming click.
+            _would_lock = self._relocking_would_take_the_controls(ctx.run)
+            if _would_lock and not self._confirm_relock(ctx.run):
+                self._syncing_limits = True
+                try:
+                    self._unlock_check.setChecked(True)
+                finally:
+                    self._syncing_limits = False
+                return
             try:
                 set_run_unlocked(ctx.run, False)
             except OSError as exc:
@@ -2367,6 +2420,94 @@ class MeasurementReportDialog(QDialog):
                 "full, or open in another program. Nothing was changed. Make the "
                 "folder writable and try again.").format(path=str(run.dir)))
 
+    # -- The limits window as ONE act -------------------------------------
+    #
+    # FIVE CONTROLS IN THAT WINDOW WRITE, AND ONLY ONE OF THEM WAS GUARDED.
+    # Four challenge rounds each found the next unguarded one: the run's own
+    # column was questioned, then the pulldown beside it, then the "Default for
+    # new runs" radio, then a shipped column's cell, then its Restore button.
+    # Every fix guarded one door and the round after it walked through the next.
+    #
+    # So the question is no longer "which control was touched". It is the only
+    # one that matters to a user: **did what this run is judged by change?**
+    # That is `run_limits()`, the app's own answer, asked before the window
+    # opens and again after it closes. A control that cannot move that answer
+    # needs no question, and one that can gets the same question whichever it is.
+
+    def _judged_by(self, ctx):
+        """What the run is judged by right now, as a comparable value.
+
+        ASKED THROUGH `run_limits` THE WAY THE WINDOW ASKS IT, which is not the
+        same as asking it plainly. `run_limits(run, overrides)` falls back to
+        the factory set for an unbound run and never looks at the preference;
+        the window passes `self._default_set_id()` as a third argument, and that
+        is why its "Judged against" line follows the "Default for new runs"
+        radio. A predicate that skipped that argument would have watched a value
+        the radio cannot move and reported no change while the header changed on
+        screen, which is the fault it exists to catch.
+        """
+        if ctx is None:
+            return None
+        from workflow.compliance_sets import limits_to_json
+        from workflow.run_compliance import run_limits
+        try:
+            rl = run_limits(ctx.run, self._overrides(), self._default_set_id())
+            return (rl.set_id, limits_to_json(rl.limits))
+        except Exception:              # noqa: BLE001 — a missing meta
+            return None
+
+    def _limits_snapshot(self, ctx):
+        """Everything the limits window can write, and what it is judged by."""
+        from core.settings import compliance_overrides_of
+        run_keys = None
+        if ctx is not None:
+            try:
+                m = ctx.run.load_meta()
+                run_keys = (m.compliance_set_id, m.compliance_set_label,
+                            m.compliance_thresholds, m.compliance_bound_at,
+                            bool(m.compliance_unlocked),
+                            list(getattr(m, "compliance_columns", []) or []))
+            except Exception:          # noqa: BLE001 — a missing meta
+                run_keys = None
+        return {
+            "run": run_keys,
+            "default_set": self._settings.get("compliance_default_set", None),
+            "overrides": copy.deepcopy(compliance_overrides_of(self._settings)),
+            "judged_by": self._judged_by(ctx),
+        }
+
+    def _restore_limits_snapshot(self, ctx, snap) -> bool:
+        """Put every one of them back. False when the run's meta would not
+        write, which is the case the user has to be told about."""
+        from core.settings import store_compliance_overrides
+        ok = True
+        if ctx is not None and snap.get("run") is not None:
+            try:
+                m = ctx.run.load_meta()
+                (m.compliance_set_id, m.compliance_set_label,
+                 m.compliance_thresholds, m.compliance_bound_at,
+                 m.compliance_unlocked, m.compliance_columns) = snap["run"]
+                ctx.run.save_meta(m)
+            except OSError as exc:
+                log.warning("could not put %s's limits back: %s", ctx.run.dir, exc)
+                self._pending_restore_error = exc
+                ok = False
+        # THE PREFERENCES GO BACK EVEN WHEN THE RUN'S FOLDER WOULD NOT WRITE.
+        # They live in a different file, and leaving them moved is how a
+        # refusal ended with the run judged by a set the user said no to.
+        try:
+            if self._settings.get("compliance_default_set", None) != snap["default_set"]:
+                self._settings.set("compliance_default_set", snap["default_set"])
+        except Exception:              # noqa: BLE001
+            log.warning("could not put the default set back", exc_info=True)
+        try:
+            from core.settings import compliance_overrides_of
+            if compliance_overrides_of(self._settings) != snap["overrides"]:
+                store_compliance_overrides(self._settings, snap["overrides"])
+        except Exception:              # noqa: BLE001
+            log.warning("could not put the overrides back", exc_info=True)
+        return ok
+
     def _say_restore_failed(self, run, exc) -> None:
         """The refusal could not be honoured, which is the opposite of what
         `_say_not_written` says.
@@ -2404,125 +2545,82 @@ class MeasurementReportDialog(QDialog):
         dlg = ThresholdsDialog(self._settings, self,
                                run=ctx.run if ctx else None,
                                run_editable=bool(ctx and not _is_locked(ctx.run)))
-        # SNAPSHOT BEFORE, BECAUSE THE DIALOG WRITES ON ITS WAY OUT.
+        # SNAPSHOT BEFORE, BECAUSE THE DIALOG WRITES ON ITS WAY OUT AND
+        # FOUR OF ITS CONTROLS WRITE THE MOMENT THEY ARE TOUCHED.
         # `ThresholdsDialog.done()` stores the edited column whatever result it
         # is closing with, and its only button is Close, wired to accept, so
-        # Escape writes too. There is no route out of that window that does not
-        # commit. A challenge round drove it: open the window on a run with
-        # eleven dated verifications, nudge one spin box, press Escape, and all
-        # eleven saved reports are rewritten.
-        _before = None
-        _before_default = self._settings.get("compliance_default_set", None)
-        if ctx is not None:
-            try:
-                _m = ctx.run.load_meta()
-                # EVERY KEY THAT WINDOW CAN WRITE, and the first version held
-                # two. A challenge round asked what the snapshot does not cover
-                # and found `compliance_columns`, which the window writes on the
-                # toggle, so unticking a column survived a refusal.
-                _before = (_m.compliance_set_id, _m.compliance_thresholds,
-                           list(getattr(_m, "compliance_columns", []) or []))
-            except Exception:              # noqa: BLE001 — a missing meta
-                _before = None
+        # Escape writes too. The radio, a shipped column's cell, that column's
+        # Restore button and the column tick boxes do not wait for the close at
+        # all. There is no route out of that window that does not commit.
+        snap = self._limits_snapshot(ctx)
+        self._pending_restore_error = None
         dlg.exec()
-        changed = dlg.run_limits_changed
+        edited_run_column = bool(dlg.run_limits_changed)
         dlg.deleteLater()
         self._forget_limits()
-        if changed and ctx is not None:
-            # THE THIRD DOOR INTO THE SAME ROOM, AND IT WAS THE ONE LEFT OPEN.
-            # `_recalculate_run` has three callers. Choosing a set asks, and
-            # unlocking asks; editing the numbers here did not, and the line
-            # above made this route reachable on two more kinds of run than it
-            # used to be. Same question, same words, same helper.
+
+        # DID WHAT THIS RUN IS JUDGED BY CHANGE? That is the whole test, and it
+        # replaces asking which control was touched, which is the question that
+        # let four rounds each find the next unguarded one. `run_limits` is the
+        # app's own answer: for a bound run its stored copy, for an unbound one
+        # the live preference and the app-wide overrides.
+        # AND AN EDIT TO THE RUN'S OWN COLUMN COUNTS WHATEVER THAT COMPARISON
+        # SAYS. On an UNBOUND run `set_run_limits` writes the numbers and
+        # nothing reads them, so `run_limits` answers from the preference and
+        # the comparison above sees no movement at all. That is the fault a
+        # round already found, not a reason to stay silent: the user typed a
+        # number into this run's column, and the point of the act is that the
+        # run should be judged by it. So the edit is its own trigger, and the
+        # bind below is what makes it true.
+        moved = (ctx is not None
+                 and (edited_run_column
+                      or self._judged_by(ctx) != snap["judged_by"]))
+        if moved:
             if (self._recalculating_would_rewrite_history(ctx.run)
                     and not self._confirm_recalculate(ctx.run)):
-                _restored = True
-                if _before is not None:
-                    try:
-                        _m = ctx.run.load_meta()
-                        (_m.compliance_set_id, _m.compliance_thresholds,
-                         _m.compliance_columns) = _before
-                        ctx.run.save_meta(_m)
-                    except OSError as exc:
-                        # A REFUSAL THAT CANNOT BE HONOURED MUST SAY SO.
-                        # This swallowed the failure into a log line, and a
-                        # challenge round drove it: make the run folder
-                        # read-only while the question is on screen, answer no,
-                        # and the edit survives with nothing on screen at all.
-                        # The run is then left in exactly the state this guard
-                        # exists to prevent, its stored limits disagreeing with
-                        # every verdict already saved under them.
-                        log.warning("could not put %s's limits back: %s",
-                                    ctx.run.dir, exc)
-                        _restored = False
-                        self._say_restore_failed(ctx.run, exc)
-                # AND THE APP-WIDE DEFAULT, BUT ONLY WHERE IT IS THIS RUN'S
-                # LIMIT SET. The window's "Default for new runs" radio writes a
-                # preference, and on an UNBOUND run that preference is what the
-                # run is judged by: a challenge round clicked it, refused the
-                # question, and watched "Judged against" change from ChromIQ
-                # default to ChromIQ tight anyway. On a bound run the same click
-                # moves nothing about this run, and reverting a deliberate
-                # preference there would be the app second-guessing a different
-                # decision, so it is left alone.
-                if (_restored and _before is not None
-                        and not _before[0]
-                        and self._settings.get("compliance_default_set", None)
-                        != _before_default):
-                    try:
-                        self._settings.set("compliance_default_set",
-                                           _before_default)
-                    except Exception:      # noqa: BLE001 — a display detail
-                        log.warning("could not put the default set back",
-                                    exc_info=True)
+                if not self._restore_limits_snapshot(ctx, snap):
+                    self._say_restore_failed(ctx.run, self._pending_restore_error)
                 self._forget_limits()
                 self._refresh()
                 return
-            # AN EDIT ON AN UNBOUND RUN WAS SAVED AND THEN IGNORED.
-            # `set_run_limits` writes `compliance_thresholds` and never
-            # `compliance_set_id`, and `is_bound` needs both, so the run stayed
-            # unbound, `run_limits()` went on answering from the live
-            # preference, and the number the user typed was stored where
-            # nothing reads it. Measured: typed 0.2, reloaded 2.0, and eleven
-            # reports rewritten with numbers nobody chose. Binding here is what
-            # makes the edit mean something, and the user has just been asked.
             # NOT `bind_run`, WHICH WOULD COPY THE SET'S NUMBERS OVER THE
-            # USER'S. `done()` has just written the edited column; all that is
-            # missing is the set id that makes `is_bound` true, so this names
-            # the set the window was showing and leaves the numbers alone.
-            from workflow.compliance_sets import SET_BY_ID, is_known_set
+            # USER'S. `done()` may have just written an edited column; all that
+            # can be missing is the record that makes `is_bound` true.
             from workflow.run_compliance import is_bound
             if not is_bound(ctx.run):
-                try:
-                    _m = ctx.run.load_meta()
-                    _m.compliance_set_id = lim.set_id
-                    # THE SAME RECORD `bind_run` WRITES, AND THE FIRST VERSION
-                    # WROTE A THIRD OF IT. The label is stored in English so a
-                    # later ChromIQ that no longer knows the id can still name
-                    # the set (D23); without it such a run printed the raw
-                    # internal id to the user. `bound_at` is the other half.
-                    if is_known_set(lim.set_id):
-                        _m.compliance_set_label = SET_BY_ID[lim.set_id].label
-                    _m.compliance_bound_at = datetime.now().isoformat(
-                        timespec="seconds")
-                    # AND BINDING IT MUST NOT TAKE THE CONTROL AWAY.
-                    # `is_locked` is bound AND two dates AND not unlocked, so on
-                    # a project made before #182 with a history this bind locked
-                    # the run on the spot: the pulldown greyed, the button
-                    # became "Show limits…", and the unlock box came back
-                    # disabled, because it consults a preference that ships off.
-                    # The user had just asked for control of these numbers and
-                    # the act of granting it removed it. Marking the run
-                    # unlocked keeps them exactly where they were, and re-locking
-                    # is always allowed.
-                    _m.compliance_unlocked = True
-                    ctx.run.save_meta(_m)
-                except OSError as exc:
-                    log.warning("could not record the set on %s: %s",
-                                ctx.run.dir, exc)
+                self._bind_without_locking_out(ctx.run, self._window_limits().set_id)
                 self._forget_limits()
             self._recalculate_run()
         self._refresh()
+
+    def _bind_without_locking_out(self, run, set_id: str) -> None:
+        """Record the set on a run that had none, and leave the controls where
+        they were.
+
+        `is_locked` is bound AND two dated verifications AND not unlocked, so on
+        a project made before #182 with a history, binding IS locking: the
+        pulldown greys, the button becomes "Show limits…", and the unlock box
+        comes back disabled, because it consults a preference that ships off.
+        A challenge round drove both routes into this and found the user asking
+        for control of these numbers and the act of granting it removing it,
+        under a question that mentioned neither.
+
+        The set label is stored in English so a later ChromIQ that no longer
+        knows the id can still name it (D23), and `bound_at` is the other half
+        of the record `bind_run` writes; a run bound with only the id printed
+        the raw internal id to the user.
+        """
+        from workflow.compliance_sets import SET_BY_ID, is_known_set
+        try:
+            m = run.load_meta()
+            m.compliance_set_id = set_id
+            if is_known_set(set_id):
+                m.compliance_set_label = SET_BY_ID[set_id].label
+            m.compliance_bound_at = datetime.now().isoformat(timespec="seconds")
+            m.compliance_unlocked = True
+            run.save_meta(m)
+        except OSError as exc:
+            log.warning("could not record the set on %s: %s", run.dir, exc)
 
     def _recalculate_run(self) -> None:
         """Re-stamp every saved report of the window's run with the run's
