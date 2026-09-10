@@ -51,7 +51,7 @@ Last updated 2026-09-10.
 | **CGATS** (Adam Dewitz, Association for PRINT Technologies) | GRANTED | *"You are free to use the CGATS data sets in your software as you have defined below. These files have been made generally available to the industry."* No condition stated. The same reply is the originator confirmation the ICC asked for. |
 | **ICC** (Phil Green, cc technical secretary and secretary) | ACCEPTED | Registry data *"is OK to re-distribute, with the usual proviso that if altered it shouldn't be represented as the same data."* Closed by Adam Dewitz answering for CGATS on the same thread. |
 | **Idealliance / PRINTING United Alliance** (Jordan Gorski, VP Global Standards and Certifications, 2026-09-09) | GRANTED | The "may not be sold" clause means only that the profiles may not be sold as a product in their own right. They may be included in and distributed with software under any licence, including where a recipient charges for the copy, provided the profile is unaltered. Running a device value through a profile to obtain an aim colour is USE, not alteration. X-Rite's approval is not needed. Naming a profile to say what was compared against is agreed, and he asks for the line **"GRACoL is a registered trademark of PRINTING United Alliance."** |
-| **ISO** | REFUSED as asked, and redirected | Reproducing the content of a standard inside software needs explicit permission or a specific licence; a single-user licence is not enough; the route is the national member body. A letter is drafted, reviewed three times and **not yet sent**. |
+| **ISO** | REFUSED as asked, and redirected | Reproducing the content of a standard inside software needs explicit permission or a specific licence; a single-user licence is not enough; the route is the national member body. A letter was drafted, reviewed three times and **has been sent** (Basti, 2026-09-10). No answer yet. |
 
 ### The standing rule, and it is the owner's
 
@@ -213,6 +213,36 @@ not being made on our own judgement.
   instruments share 6 mm. *"in guided the user can't influence the margin but i
   think it is ok if you set it to 5 for this."*
 * The ISO rule in §1.
+
+---
+
+## 3b. Basti's answers to the decision sheet, 2026-09-10
+
+He answered all eight on the sheet he was given. Recorded verbatim in substance,
+because several of them close questions that were open for days.
+
+| # | Question | His answer |
+|---|---|---|
+| Money | Buy ISO 12647-7 and -8 now? | **Agreed** with the recommendation: not now. A purchase is a reading licence and does not move the permission. |
+| 1 | Ask GitHub Support to purge the superseded commit? | **No.** *"the risk seems low and you seemingly need to actively look for it."* |
+| 2 | The ISO limits in the issue's opening post, which Knut wrote | **Leave them.** *"he posted this on my repo so it is his fault not mine."* |
+| 3 | Send the letter to the national standards body? | **ALREADY SENT.** *"i already sent the message you drafted."* |
+| 4 | May ChromIQ name a standard and cite a clause? | **Yes.** Names and clause citations stay; only the VALUES stay out. |
+| 5 | Ship four report types now or wait for six? | **Four now**, and tell Knut why the other two are absent. |
+| 6 | Tell Knut the two ISO types can never read PASS? | **Yes, we tell him**, on the issue, in his terms. |
+| 7 | Buy ISO/TS 15311-1, and ask APTech about CGATS TR 016? | **Ask rather than buy**, and he wants the follow-up letters drafted, built on the conversations already had, and challenged before he sends them. |
+| 8 | Clean 266 em dashes in twelve translated catalogues now? | **Later**, with the next full release, where translations are reviewed anyway. |
+
+**The one that changes a standing fact: the ISO request is no longer unsent.**
+Section 1 said a letter was "drafted, reviewed three times and not yet sent". It
+has been sent. Nothing else about the ISO rule changes: no value goes into the
+code, the repository or a release until an answer arrives in writing.
+
+**And two obligations follow from answers 6 and 7.** Knut is owed an explanation,
+on the issue, of why the two ISO report types cannot read PASS even after a
+licence, because that is physics rather than paperwork. And the follow-up
+letters have to be written against the actual correspondence and challenged
+before they go anywhere.
 
 ---
 
