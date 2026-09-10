@@ -508,3 +508,46 @@ def test_a_theme_switch_repaints_the_overlap_rather_than_losing_it(qapp):
                text_warnings=[])
     p.set_appearance("light")
     assert "run over the patches" in p.status_message()
+
+
+def test_a_clip_border_on_the_notes_edge_says_neither_lever_works(qapp):
+    """The advice used to name two controls and neither could clear it.
+
+    `instruments.geom_from_build_kwargs` raises this margin to the clip zone,
+    so the paper left to the note is `margin - clip - text_edge - pad`, and with
+    the first two equal that is `-(text_edge + 0.34)` whatever the user types.
+    A challenge round measured the message asking for a border 19.7 mm narrower
+    than a 19.0 mm border, and 10.7 mm narrower at the spin box's 10.0 mm floor,
+    where narrowing the band narrows the margin with it and changes nothing.
+
+    Proved here as algebra rather than as prose: the shortfall is the SAME at
+    three band widths, so neither lever moves it.
+
+    MUTATION: put the "Make the clip border … narrower" wording back and this
+    goes red on the phrase assertions.
+    """
+    import workflow.text_edge_fit as tef
+
+    short = []
+    for band in (10.0, 19.0, 26.0):
+        # The margin is raised to the band, which is what the app really does.
+        o = tef.chart_note_overlap("right", band, 4.0, 300, band)
+        assert o is not None, f"no overlap reported at a {band} mm band"
+        short.append(round(o.overlap_mm, 3))
+    assert len(set(short)) == 1, (
+        f"the shortfall moved with the band width: {short}, so a remedy naming "
+        "the band might work after all and this test is wrong")
+
+    at_zero = tef.chart_note_overlap("right", 19.0, 0.0, 300, 19.0)
+    assert at_zero is not None, (
+        "lowering Clip to zero cleared the overlap, so that remedy is real")
+
+    r = replace(_roomy(), clip_border=True, clip_side="right",
+                clip_border_width_mm=19.0, clip_content_mode="notes",
+                margin_right=19.0)
+    _all, over = _notes(r, notes="Canon PRO-1000", report=_Report(19.0))
+    joined = " ".join(over)
+    assert "share that edge with the clip border" in joined, joined
+    assert "put the clip border on the LEFT" in joined, joined
+    assert "narrower with" not in joined, (
+        "the message still offers a remedy that cannot be reached")

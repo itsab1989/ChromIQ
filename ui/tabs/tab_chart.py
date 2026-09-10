@@ -18815,19 +18815,35 @@ class TabChart(QWidget):
                     float(getattr(r, "dpi", 300) or 300),
                     _clip_zone if _clip_on_right else 0.0)
                 if _o is not None:
-                    # TWO WORDINGS, BECAUSE THE LEVER IS NOT THE SAME ONE. With
-                    # a clip border on this edge the margin is raised to the
-                    # band's width whatever the user types, so telling them to
-                    # raise "Right" would send them to a box that moves nothing.
+                    # TWO WORDINGS, BECAUSE THE LEVER IS NOT THE SAME ONE, AND
+                    # WITH A CLIP BORDER ON THIS EDGE THERE IS NO LEVER AT ALL.
+                    #
+                    # The first version offered two and both were unreachable.
+                    # `instruments.geom_from_build_kwargs` raises this margin to
+                    # the clip zone, so the paper available to the note is
+                    # `margin - clip - text_edge - pad`, and with the first two
+                    # equal that is `-(text_edge + 0.34)` whatever the user
+                    # types. Narrowing the band narrows the margin with it, and
+                    # a challenge round measured the advice asking for a border
+                    # 19.7 mm narrower than a 19.0 mm border, then 10.7 mm
+                    # narrower at the spin box's 10.0 mm floor. Lowering "Clip"
+                    # to zero still leaves the 0.34 mm patch guard, so it cannot
+                    # clear it either.
+                    #
+                    # So the honest sentence says the edge is shared and names
+                    # the one control that does move it. The overlap itself is
+                    # what Knut ruled for: the note is printed, over the patches
+                    # if it must be, and this is what tells the user why.
                     over.append((tr(
-                        "⚠ The chart notes down the right edge run over the "
-                        "patches. They are printed {edge:.1f} mm in from the "
-                        "paper edge, need {need:.1f} mm of room, and the right "
-                        "margin leaves {avail:.1f} mm. They are printed anyway "
-                        "so you can see this. Make the clip border about "
-                        "{short:.1f} mm narrower with “Clip border width”, or "
-                        "lower “Clip” under “Text distance from edge (mm)”, "
-                        "which is the box this edge uses.")
+                        "⚠ The chart notes down the right edge share that edge "
+                        "with the clip border, so they are printed over the "
+                        "patches. The border takes the outer {band:.1f} mm and "
+                        "the patches start where it ends, which leaves the "
+                        "notes no clean paper on this side. They are printed "
+                        "anyway so you can see this. Neither the right margin "
+                        "nor “Clip” can free room here: put the clip border on "
+                        "the LEFT if you want the notes on clean paper, or "
+                        "leave it and read them over the patches.")
                         if _clip_on_right else tr(
                         "⚠ The chart notes down the right edge run over the "
                         "patches. They are printed {edge:.1f} mm in from the "
@@ -18839,7 +18855,7 @@ class TabChart(QWidget):
                         "edge uses.")).format(
                             edge=r.text_edge_clip_mm, need=_o.needed_mm,
                             avail=max(0.0, _o.available_mm),
-                            short=_o.overlap_mm))
+                            short=_o.overlap_mm, band=_clip_zone))
             # THE CLIP BORDER'S CONTENT, on whichever edge it sits.
             # `instruments.geom_from_build_kwargs` raises that edge's margin to
             # the clip zone, so on every chart the app builds today the band
