@@ -140,6 +140,30 @@ INSTRUMENT_DEFAULT_MARGIN: dict[str, int] = {
     "p3": 6,
     "CM": 6,
     "SS": 6,
+    # THE CR30 GETS 5 mm, AND IT IS WORTH 22 PATCHES ON A4 PORTRAIT.
+    #
+    # A margin is the room an instrument needs to start and finish a strip. The
+    # CR30 does not run strips: it is placed on one patch at a time, so it does
+    # not need the run-up the others do. On the shared 6 mm a Guided A4 sheet
+    # fits 374 patches; at 5 mm it fits 396, which is what the same chart built
+    # in Manual gives. Measured through the app's own path, turned and not:
+    #
+    #     margin   turned   not turned
+    #       4.0      414        390
+    #       5.0      396        390
+    #       6.0      374        390
+    #       7.0      374        390
+    #
+    # The count is a step function of the margin and the two grids step at
+    # different places, so 6 mm happens to be the one notch nearby where the
+    # turn costs patches rather than gaining them. Guided has no margin box, so
+    # a Guided user could not have found this for themselves (Basti, 2026-09-10:
+    # "in guided the user can't influence the margin but i think it is ok if you
+    # set it to 5 for this").
+    #
+    # A chart already built is unaffected: it rebuilds from its own stored
+    # recipe, which carries the margin it used.
+    "CR30": 5,
 }
 
 # Margins for which we have measured per-sheet capacity tables. Other margin

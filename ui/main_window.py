@@ -1384,6 +1384,13 @@ class MainWindow(QMainWindow):
         # 1. No project is named any more — exactly as at launch.
         self._file_mgr.close_project()
         # 2. No run, no run type, no verification date is selected any more.
+        #    The chart tab lets go of its store FIRST: resetting the bar emits
+        #    `changed`, and that handler writes the outgoing target, which is a
+        #    folder inside the project being closed. See `forget_target_store`.
+        try:
+            self._tab_chart.forget_target_store()
+        except Exception:      # noqa: BLE001 — a close must never end in a crash
+            log.debug("Could not release the chart tab's store", exc_info=True)
         self._target_ctl.reset_to_empty()
         # 3. Every tab lets go of what it was showing.
         try:
@@ -2198,9 +2205,17 @@ class MainWindow(QMainWindow):
                 self,
             ).exec()
             return False
+        # THE TAB CHANGES FIRST, THEN THE CHART IS APPLIED.
+        #
+        # Applying a patch set from the editor does two things that both write
+        # settings: the build itself, and the tab change that follows it. Done
+        # in this order the tab-change load lands ON TOP of the build's result,
+        # so the run and the sheet on disk can end up disagreeing about the
+        # layout. Switching first puts the load before the build, where it can
+        # do no harm. This route is named nowhere in `docs/design/`, which is
+        # why nobody had noticed it saves at all.
+        self._tabs.setCurrentWidget(self._tab_chart)
         applied = self._tab_chart.apply_external_chart(src_dir, name)
-        if applied:
-            self._tabs.setCurrentWidget(self._tab_chart)
         return applied
 
     def _show_patch_cube(self) -> None:

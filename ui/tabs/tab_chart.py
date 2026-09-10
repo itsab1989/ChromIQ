@@ -7678,7 +7678,23 @@ class TabChart(QWidget):
             current_m = int(self._manual_m_pw.get_raw_value() or 6)
         except (TypeError, ValueError):
             current_m = None
-        if current_m in (6, 10) and current_m != target_margin:
+        # WHICH VALUES MAY BE MOVED FOR THE USER. Anything that is some
+        # instrument's own default was put there by this method, not chosen by
+        # the person, so switching instrument may replace it. A value they typed
+        # themselves is left alone, which is the point of the guard.
+        #
+        # This was a hard-coded `(6, 10)`, and it broke the moment the CR30 was
+        # given 5 mm: switching CR30 to SpectroScan left 5 in the box while the
+        # build used 6, because 5 was not in the list and the box was never moved
+        # back. Ask the table instead of repeating it.
+        _house_margins = set(INSTRUMENT_DEFAULT_MARGIN.values()) | {6, 10}
+        try:
+            from data.patch_db import I1PRO_DEFAULT_PRESETS
+            for _m, _a in I1PRO_DEFAULT_PRESETS.values():
+                _house_margins.add(int(_m))
+        except Exception:      # noqa: BLE001 — a default table is never fatal
+            pass
+        if current_m in _house_margins and current_m != target_margin:
             self._manual_m_pw.set_value(target_margin)
 
         if self._manual_a_pw is not None:
@@ -14364,6 +14380,25 @@ class TabChart(QWidget):
         # constructor guessed at, and only became right after the first change.
         self._refresh_target_text()
 
+    def forget_target_store(self) -> None:
+        """Stop pointing at a store, so nothing is written to a project that
+        has just been closed or deleted.
+
+        Resetting the bar emits `changed`, and this tab's handler writes the
+        OUTGOING target before loading the incoming one -- correct on every
+        ordinary selection, and wrong here, because the outgoing store is a
+        folder in the project the user has just closed. Measured: one more file
+        written into the project AFTER the close. There is nothing to file: the
+        close has already written everything through its own path.
+        """
+        self._settings_store = None
+        self._settings_key = None
+        self._chart_imposed = {}
+        try:
+            self._release_imposed_connections()
+        except Exception:      # noqa: BLE001 — never fatal on the way out
+            pass
+
     def clear_loaded_project(self, *, deleted: bool = True) -> None:
         """Forget the project this tab is showing, leaving it as at launch.
 
@@ -14661,7 +14696,18 @@ class TabChart(QWidget):
                 moved_ui[k] = {"scalar": (before, v)}
         if not (moved or moved_ui):
             return
-        self._chart_imposed = {"params": moved, "ui": moved_ui}
+        # WHOSE SHIELD IS IT? Without this the shield is spent on the wrong
+        # run. It is released only by a widget MOVING, and loading the incoming
+        # run's stored value over a widget that already shows it moves nothing,
+        # so the shield taken for the run just left survives into the write for
+        # the run just entered. Measured with no edit and no build at all:
+        # picking run 2 then run 1 moved run 1's stored patch count from 600 to
+        # run 2's 222. It hides because it needs the two runs to agree on the
+        # value, which is common -- and the acceptance driver gives every target
+        # deliberately different values, which is exactly the arrangement in
+        # which it cannot fire.
+        self._chart_imposed = {"target": self._target_store_key(),
+                               "params": moved, "ui": moved_ui}
         log.debug("the chart sidecar moved %d parameters and %d ui values "
                   "away from the target's own", len(moved), len(moved_ui))
         # AND FROM NOW ON, WHOEVER TOUCHES ONE OWNS IT.
@@ -14750,7 +14796,8 @@ class TabChart(QWidget):
                 pass               # already gone with its widget
         self._imposed_connections = []
 
-    def _keep_the_targets_own_values(self, wanted: dict, ui_state: dict) -> None:
+    def _keep_the_targets_own_values(self, wanted: dict, ui_state: dict,
+                                     store_key: str = "") -> None:
         """Put back anything the chart sidecar imposed and the user left alone.
 
         A row that has reported a change since the chart imposed its value has
@@ -14760,6 +14807,15 @@ class TabChart(QWidget):
         """
         imposed = getattr(self, "_chart_imposed", None)
         if not imposed:
+            return
+        # THREE CONDITIONS NOW, AND THE FIRST IS WHOSE SHIELD THIS IS. See
+        # `_note_what_the_chart_imposed`: a shield outlives the target it was
+        # taken for whenever the next run's stored values happen to match the
+        # screen, and then it substitutes the PREVIOUS run's numbers into this
+        # run's file.
+        if store_key and imposed.get("target") != store_key:
+            self._chart_imposed = {}
+            self._release_imposed_connections()
             return
         # TWO CONDITIONS, AND BOTH MUST HOLD. A row is only still the
         # sidecar's if nothing has reported a change (the list below) AND it
@@ -14904,10 +14960,12 @@ class TabChart(QWidget):
             # implements only what the STORE needs, and a hard call turned
             # every one of them into "could not save" -- the broad except
             # below swallowed the AttributeError and returned False.
+            fingerprint = str(getattr(store, "dir", store))
             keep = getattr(self, "_keep_the_targets_own_values", None)
             if keep is not None:
-                keep(wanted, ui_state)
-            fingerprint = str(getattr(store, "dir", store))
+                # THE SHIELD IS ASKED WHOSE IT IS, against the very store this
+                # write is going to. See `_note_what_the_chart_imposed`.
+                keep(wanted, ui_state, fingerprint)
             if self._written_cache().get(fingerprint) == (wanted, ui_state):
                 return False
             meta = store.load_meta()
@@ -15638,6 +15696,37 @@ class TabChart(QWidget):
                 # it.
                 self._user_chose_module = True
                 self._switch_mode(mode)
+
+    def _target_has_stored_settings(self) -> bool:
+        """Whether the selected target has ever filed Create Chart settings.
+
+        A target that has not is opening on defaults by design (§4 S4/S9), and
+        those defaults are not a choice worth shielding. Asked of the store
+        rather than of the screen, because the screen is exactly what is in
+        doubt at the moment this is called.
+        """
+        try:
+            store = self._target_settings_store()
+            if store is None:
+                return False
+            meta = store.load_meta()
+        except Exception:      # noqa: BLE001 — a shield is never fatal
+            return False
+        return bool(getattr(meta, "create_chart_settings", None))
+
+    def _target_store_key(self) -> str:
+        """A stable name for the selection a shield belongs to.
+
+        The store's own folder, which is what `save_target_settings` already
+        uses as its write fingerprint, so the shield and the write agree on
+        what "this target" means. Empty when there is nowhere to write, which
+        is a selection no shield may outlive either.
+        """
+        try:
+            store = self._target_settings_store()
+        except Exception:      # noqa: BLE001 — a shield is never fatal
+            return ""
+        return "" if store is None else str(getattr(store, "dir", store))
 
     def _target_settings_store(self):
         """Where this selection's SETTINGS are read from and written to.
@@ -17429,6 +17518,16 @@ class TabChart(QWidget):
             self.save_target_settings(
                 getattr(self, "_settings_store", _NO_STORE_GIVEN),
                 getattr(self, "_settings_key", _NO_STORE_GIVEN))
+            # THE EPISODE ENDS WITH THE WRITE IT WAS TAKEN FOR. The shield the
+            # outgoing target raised has now been spent; leaving it up let it
+            # reach the incoming target's write whenever loading that run moved
+            # no widget, which is common because two runs of one project often
+            # share a chart recipe. `_note_what_the_chart_imposed` re-arms it
+            # for the incoming target at the end of this handler, and it is
+            # scoped to its own store as well, so this is belt and braces --
+            # and it makes the lifetime readable.
+            self._chart_imposed = {}
+            self._release_imposed_connections()
             self._refresh_target_text()
             # RUN TYPE = CALIBRATION SETS THE CHART UP (#137) — BEFORE the load,
             # so the incoming target's own values always have the last word (F3,
@@ -17453,7 +17552,24 @@ class TabChart(QWidget):
             # Measured: pick CR30 on run 1, visit run 2, come back, leave the
             # tab, and run 1's stored `printtarg-i` has gone from CR30 back to
             # CM. Visiting a run destroyed a setting nobody touched.
-            self._own_values_before_chart = self._target_own_snapshot()
+            # …BUT A RUN WITH NOTHING STORED HAS NO OWN VALUES TO PROTECT, AND
+            # SHIELDING ITS NEUTRAL RESET IS WHAT WROTE "A4, 0 COLUMNS, 300 DPI"
+            # OVER A REAL CHART.
+            #
+            # §4c D-4 says a target records what it was actually used with. For
+            # a run whose settings file has never been written, or was deleted,
+            # the snapshot taken here IS the factory reset, and every field the
+            # user has not personally touched is then substituted back out of
+            # the chart they just built. Measured on the tab's own Generate
+            # Chart button: the sheet is 130x180 with 12x18 patches at 200 dpi
+            # and the store recorded A4, 0 columns, 0 rows, 300 dpi. Not one
+            # field of the chart reached it.
+            #
+            # So the shield is armed only for a target that HAS something of
+            # its own to defend.
+            self._own_values_before_chart = (
+                self._target_own_snapshot()
+                if self._target_has_stored_settings() else None)
             # ONE protected load, then back to normal. The flag is set when a build
             # starts and shields the layout that build used from the run's older
             # stored copy — see _apply_ui_state. It is cleared here rather than when
@@ -17851,6 +17967,19 @@ class TabChart(QWidget):
         # that just built the chart instead of contradicting them. It is also
         # simply the truth: this run's chart was made with this layout.
         try:
+            # THE CHART THE USER JUST BUILT WINS OVER THE SHIELD.
+            #
+            # §4c D-4: a target records what it was actually used with. The
+            # shield exists to stop a chart's values being filed as the user's
+            # on a mere SELECTION, and it must not reach the one write where
+            # they genuinely are the user's, because they just pressed Generate.
+            # Measured before this: a run whose settings file had never been
+            # written recorded "A4, 0 columns, 0 rows, 300 dpi" for a sheet that
+            # is 130x180 with 12x18 patches at 200 dpi. Not one field of the
+            # chart reached the store. The shield had been armed against an
+            # earlier write of the empty screen and was defending THAT.
+            self._chart_imposed = {}
+            self._release_imposed_connections()
             self.save_target_settings()
         except Exception:      # noqa: BLE001 — a failed write must not lose the chart
             log.warning("could not file the built chart's settings against its "
