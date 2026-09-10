@@ -68,16 +68,21 @@ SAFETY_PAD_MM = 0.34
 NOTE_PATCH_GAP_PX = 2
 NOTE_MIN_STRIP_PX = NOTE_PATCH_GAP_PX + 9
 
-#: Height of one line of bottom-of-sheet text, in mm. The renderer's own
-#: ``line_h = px(4.2)`` (`workflow/layout_engine/raster.py`).
-SHEET_TEXT_LINE_MM = 4.2
+#: THE SAME FLOOR AS A DISTANCE ON PAPER, WHICH IS WHAT IT ALWAYS MEANT.
+#: The measurement above was taken at 200 dpi, where 11 px is 1.397 mm, and
+#: "legible" is a property of ink on paper rather than of a raster. Left as a
+#: pixel count it shrank as the resolution rose: a challenge round built the
+#: same card at 200, 300 and 600 dpi and found the panel warning at 200 and
+#: printing a cheerful "Margins: OK" at 600, where the note was a quarter of the
+#: width on the same sheet. A user who saw the red line and raised the
+#: resolution to "fix" it silenced the warning and made the note less readable.
+NOTE_MIN_STRIP_MM = round(NOTE_MIN_STRIP_PX * 25.4 / 200.0, 3)   # 1.397 mm
 
 
-def note_min_width_mm(dpi: float) -> float:
-    """:data:`NOTE_MIN_STRIP_PX` as a distance on paper at *dpi*.
+def note_min_strip_px(dpi: float) -> int:
+    """The floor in pixels at *dpi*, derived from the paper floor.
 
-    A pixel floor is not a paper floor: the same sheet gives the note 1.40 mm at
-    200 dpi and 0.47 mm at 600.
+    More pixels at a finer raster, because it is the same paper.
     """
     try:
         d = float(dpi)
@@ -85,7 +90,24 @@ def note_min_width_mm(dpi: float) -> float:
             raise ValueError
     except (TypeError, ValueError):
         d = 300.0
-    return NOTE_MIN_STRIP_PX * 25.4 / d
+    return max(1, int(round(NOTE_MIN_STRIP_MM * d / 25.4)))
+
+#: Height of one line of bottom-of-sheet text, in mm. The renderer's own
+#: ``line_h = px(4.2)`` (`workflow/layout_engine/raster.py`).
+SHEET_TEXT_LINE_MM = 4.2
+
+
+def note_min_width_mm(_dpi: float = 0.0) -> float:
+    """The narrowest strip that still renders a legible line, on PAPER.
+
+    THIS USED TO DEPEND ON THE RESOLUTION AND ITS OWN DOCSTRING SAID SO:
+    "a pixel floor is not a paper floor: the same sheet gives the note 1.40 mm
+    at 200 dpi and 0.47 mm at 600". It noticed the fault and then returned the
+    pixel floor anyway, so the warning followed the raster instead of the sheet.
+    The argument is kept so every caller keeps working and is deliberately
+    ignored.
+    """
+    return NOTE_MIN_STRIP_MM
 
 
 @dataclass(frozen=True)

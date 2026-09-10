@@ -81,12 +81,32 @@ def test_the_stamper_takes_its_legibility_floor_from_the_shared_module():
 
 
 def test_the_floor_is_a_distance_on_paper_not_a_count_of_pixels():
-    """The same sheet gives the note very different room at different dpi."""
-    coarse = tef.note_min_width_mm(200)
-    fine = tef.note_min_width_mm(600)
-    assert coarse > fine, "a pixel floor must become a smaller distance at a finer raster"
-    assert abs(coarse - 1.397) < 0.01 and abs(fine - 0.4657) < 0.01, (
-        f"measured floors moved: {coarse:.4f} / {fine:.4f} mm")
+    """THIS TEST WAS NAMED FOR THE RIGHT PROPERTY AND ASSERTED THE OPPOSITE.
+
+    It required the floor to SHRINK at a finer raster, which is what a pixel
+    count does, and its own subject line says the floor is a distance on paper.
+    A challenge round built the same card at 200, 300 and 600 dpi and found the
+    panel warning at 200 and printing "Margins: OK" at 600, where the note was a
+    quarter of the width on the same sheet. A user who saw the red line and
+    raised the resolution to fix it silenced the warning and made the note less
+    readable.
+
+    Legibility is a property of ink on paper. The floor was measured at 200 dpi,
+    where it is 1.397 mm, and that is what it is at every resolution; the PIXEL
+    count is what moves, upward, because it is the same paper.
+    """
+    assert tef.note_min_width_mm(200) == tef.note_min_width_mm(600), (
+        "the paper the note is allowed to occupy still depends on the raster")
+    assert abs(tef.note_min_width_mm(300) - 1.397) < 0.01, (
+        f"the measured floor moved: {tef.note_min_width_mm(300):.4f} mm")
+    px200, px600 = tef.note_min_strip_px(200), tef.note_min_strip_px(600)
+    assert px600 > px200, (
+        f"a finer raster must need MORE pixels for the same paper: "
+        f"{px200} at 200 dpi, {px600} at 600")
+    for d in (200, 300, 600, 1200):
+        got = tef.note_min_strip_px(d) * 25.4 / d
+        assert abs(got - 1.397) < 0.06, (
+            f"the floor is {got:.3f} mm at {d} dpi, not 1.397")
 
 
 def test_the_photo_card_that_lost_its_line_is_the_case_that_warns():
@@ -94,12 +114,20 @@ def test_the_photo_card_that_lost_its_line_is_the_case_that_warns():
 
     `ui/tabs/tab_chart.py` builds it with a 5.0 mm right margin and the family's
     4.0 mm "Clip", at 300 dpi. 5.0 less the reserve and the 0.34 mm patch guard
-    is 0.66 mm of paper, and a line at the legibility floor needs 0.93 mm. That
-    0.27 mm is the whole of what 4.2.3 threw the note away for.
+    is 0.66 mm of paper, and a line at the legibility floor needs 1.397 mm.
+
+    THE SHORTFALL IN THIS DOCSTRING USED TO BE 0.27 mm, from a floor of 0.93 mm
+    that was 11 pixels read at 300 dpi. The floor is a distance on paper now, so
+    the same card is short by 0.74 mm and is short by the same amount at every
+    resolution, which is the point.
     """
     o = tef.chart_note_overlap("right", 5.0, 4.0, 300)
     assert o is not None, "the card that lost its line does not warn"
-    assert 0.2 < o.overlap_mm < 0.35, f"the shortfall moved: {o.overlap_mm:.3f} mm"
+    assert 0.7 < o.overlap_mm < 0.8, f"the shortfall moved: {o.overlap_mm:.3f} mm"
+    for d in (200, 600):
+        other = tef.chart_note_overlap("right", 5.0, 4.0, d)
+        assert other is not None and abs(other.overlap_mm - o.overlap_mm) < 0.01, (
+            f"the same card is short by a different amount at {d} dpi")
 
 
 @pytest.mark.parametrize("fn,args", [

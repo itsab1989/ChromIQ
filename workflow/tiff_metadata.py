@@ -74,7 +74,10 @@ _BAND_INK_TOLERANCE = 0.25
 #: boxes -- long before any raster exists for the fact to travel up from. A
 #: prediction only stays true while both sides read the same floor.
 _NOTE_PATCH_GAP_PX = text_edge_fit.NOTE_PATCH_GAP_PX
-_MIN_NOTE_STRIP_PX = text_edge_fit.NOTE_MIN_STRIP_PX
+#: The floor at the RASTER'S OWN RESOLUTION, from the paper floor the panel
+#: warns about. A constant number of pixels was the same ink at 200 dpi and a
+#: quarter of it at 600, so the two disagreed about the same sheet.
+_MIN_NOTE_STRIP_PX = text_edge_fit.NOTE_MIN_STRIP_PX     # 200 dpi, for callers
 # Gap between the three left-clip text sub-columns.
 _LEFT_CLIP_GAP_PX = 8
 # White padding on each side of the spectrum accent bar placed at the
@@ -412,9 +415,10 @@ def _stamp_one(path: Path, text: str, text_edge_mm: float = 0.0,
     # about in red in the "Measured from Preview" frame
     # (`ui/tabs/tab_chart.py::_engine_text_overflow_warnings`), which is the
     # part of the ruling the user actually sees.
-    _overlaps = strip_w < _MIN_NOTE_STRIP_PX
+    _floor_px = text_edge_fit.note_min_strip_px(_dpi)
+    _overlaps = strip_w < _floor_px
     if _overlaps:
-        strip_w = min(_MIN_NOTE_STRIP_PX, _right_limit)
+        strip_w = min(_floor_px, _right_limit)
         x0 = max(0, _right_limit - strip_w)
         if strip_w < 1:
             log.info(
@@ -429,7 +433,7 @@ def _stamp_one(path: Path, text: str, text_edge_mm: float = 0.0,
             "anyway. Widen the right margin or lower "
             "“Text distance from edge” → Clip.",
             path, max(0, _right_limit - band_left) * 25.4 / _dpi,
-            _pad * 25.4 / _dpi, _MIN_NOTE_STRIP_PX * 25.4 / _dpi,
+            _pad * 25.4 / _dpi, _floor_px * 25.4 / _dpi,
         )
 
     # SHRINK TO FIT, DO NOT CROP.
