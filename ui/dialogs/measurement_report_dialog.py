@@ -2662,6 +2662,23 @@ class MeasurementReportDialog(QDialog):
                     "A column marked “(not saved)” is a measurement with no "
                     "saved report of its own; its words are worked out now "
                     "against the run's limit set.")) + "</div>")
+        # KNUT'S 12b CONDITION, AND IT WAS NOT MET. He allowed INFO for a
+        # profiling run's report on one condition: "the report OUTPUT must
+        # explain this". The explanation existed, but only as the `title=`
+        # attribute of the Overall cell, which is a hover tooltip: it is not in
+        # the rendered text and an on-screen round confirmed it reaches NONE of
+        # the four PDF pages, in English or German. A sentence a reader cannot
+        # read explains nothing, so it belongs here, in the same footnote block
+        # that already carries the other three explanations under this table.
+        from workflow.compliance_sets import SUMMARY_REASONS, summary_text
+        _ungraded = next(
+            (self._column_summary(r) for r in runs
+             if not _is_raw_drift(r)
+             and self._column_summary(r).reason == SUMMARY_REASONS["not_graded"]),
+            None)
+        if _ungraded is not None:
+            notes += (f"<div style='{note_css}'>"
+                      + html.escape(summary_text(_ungraded)) + "</div>")
         # D25: what was not computed, and why, repeated in the report text.
         seen: dict = {}
         for r in runs:
