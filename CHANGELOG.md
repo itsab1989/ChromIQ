@@ -18,6 +18,25 @@ allowed a profiling run's report to show no verdict.
   such file arrives, so no data can land there without its credit beside it.
   The folder is listed in THIRD-PARTY-NOTICES.md too, where it was missing.
 
+- **Eleven Fogra printing conditions are bundled, each with its credit
+  attached.** Fogra gave permission in writing, and the condition they attached
+  is that Fogra is named as the source and that naming a set is never presented
+  as certification, approval or endorsement. Both are built into the code
+  rather than left to careful wording: a reference set with no recorded source
+  and terms cannot reach the screen at all. Each is the 72-patch media wedge
+  Fogra publishes for the condition, which is the size a verification chart can
+  carry; the full sets run to 1,617 patches and are profiling charts, not
+  verification charts.
+
+  **There is no way to choose one yet, and that is deliberate.** Nine questions
+  have to be answered first, three of them before a picker can honestly be
+  drawn, and they are on issue #182. The most important is that a ChromIQ
+  verification sheet and a Fogra CMYK set have no patch in common except the
+  paper: pairing a printer's own cyan with offset cyan because both are called
+  C would be pairing two things because their labels rhyme. So of the three
+  report rows waiting for a reference, only paper white can be answered
+  honestly on an ordinary sheet today.
+
 ### Fixed
 
 - **The report explains why a profiling sheet shows no verdict.** Knut allowed
