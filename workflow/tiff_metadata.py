@@ -665,15 +665,27 @@ def _detect_writable_band(
     matches what is actually on the paper -- and the stamp composites now, so
     sharing the margin with a dash costs the dash nothing.
 
-    *keep_out_px* IS THE ONE PLACE A RESERVE IS RIGHT, and it is the clip band.
+    *keep_out_px* IS WHERE THE TOLERANCE IS WITHDRAWN, NOT WHERE THE SEARCH
+    STOPS, and the difference is the whole of two failed attempts.
+
     Tolerating a thin mark means the white gutters BETWEEN the user's own clip
-    lines also read as usable paper, and the band is wider than the clean strip
+    lines also read as usable paper. The band is wider than the clean strip
     outside it, so "the widest run wins" preferred it and the note was stamped
-    straight through their text. Measured end to end, two builds differing only
-    in the Notes field: the note moved from a column range with nothing under it
-    to one carrying 2424 pixels of the user's own lines, and nine of thirteen
-    clip configurations came out worse than before. A dash is a mark the note
-    may share; a band the user filled with words is not.
+    straight through their text: measured on two builds differing only in the
+    Notes field, the note moved onto 2424 pixels of the user's own lines, and
+    nine of thirteen clip configurations came out worse.
+
+    The first repair EXCLUDED the band's footprint from the search, and that was
+    worse still, because the note's home has always been the last few
+    millimetres at the paper edge -- the same edge the band is measured from. So
+    excluding the band excluded the note, and twenty of twenty configurations
+    printed nothing at all.
+
+    What both measurements agree on: inside the band's footprint the rule that
+    worked demanded BLANK paper, and outside it a thin mark must be tolerated or
+    a ruler dash defeats the search. So the tolerance is applied by COLUMN: zero
+    where the band reaches, `_BAND_INK_TOLERANCE` beyond it. A dash is a mark
+    the note may share; a band the user has filled with words is not.
     """
     if arr.size == 0:
         return None
@@ -697,15 +709,24 @@ def _detect_writable_band(
     else:
         patch_right = (int(patch_cols[-1]) + _PATCH_SAFETY_PAD_PX
                        if len(patch_cols) else W // 2)
-        _hi = W - max(0, int(keep_out_px))
-        if patch_right >= _hi - _MIN_STRIP_WIDTH_PX:
+        if patch_right >= W - _MIN_STRIP_WIDTH_PX:
             return None
-        scan_lo, scan_hi = patch_right, _hi
+        scan_lo, scan_hi = patch_right, W
 
     mid_top, mid_bottom = H // 6, 5 * H // 6
     _sampled = mask[mid_top:mid_bottom, scan_lo:scan_hi]
     _rows = max(1, _sampled.shape[0])
-    margin_inked = (_sampled.sum(axis=0) / _rows) > _BAND_INK_TOLERANCE
+    _frac = _sampled.sum(axis=0) / _rows
+    # The tolerance is withdrawn where the clip band reaches, so the note can
+    # share a margin with a ruler dash but never with the user's own lines.
+    _tol = np.full(_frac.shape, float(_BAND_INK_TOLERANCE))
+    _keep = max(0, int(keep_out_px))
+    if _keep and side == "right":
+        _from = max(0, (W - _keep) - scan_lo)
+        _tol[_from:] = 0.0
+    elif _keep:
+        _tol[:min(_tol.size, max(0, _keep - scan_lo))] = 0.0
+    margin_inked = _frac > _tol
 
     runs: list[tuple[int, int]] = []
     in_run = False
