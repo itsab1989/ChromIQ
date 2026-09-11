@@ -257,13 +257,110 @@ def test_unticking_auto_puts_the_patch_count_back(qapp, tmp_path):
 def test_a_zero_typed_on_purpose_is_still_left_alone(qapp, tmp_path):
     """The restore must not invent a count for a user who really did type 0.
 
-    0 is the app's own "not pinned here" value, so a round trip through Auto
-    that started at 0 has nothing to put back.
+    THE ORDER IS THE WHOLE TEST, and a first version of it had none. Starting
+    at 0 leaves nothing recorded, so it passed whether the code was right or
+    wrong: a mutation that only records non-zero values left it green. The
+    sequence that matters is the one a challenge round drove, where an EARLIER
+    value is sitting in the record waiting to be reinstated.
+
+    MUTATION: guard the recording with `if spin.value()` and this goes red,
+    because the 777 comes back over the 0.
+    """
+    tab = _tab(tmp_path)
+    spin = tab._manual_f_pw._control
+
+    # 1. a real count, carried away by Auto and correctly put back
+    _set_f(tab, 777)
+    tab._on_auto_patches_toggled(True)
+    tab._on_auto_patches_toggled(False)
+    assert spin.value() == 777, "the premise failed: the restore does not work"
+
+    # 2. …and now 0 on purpose, with 777 still in the record
+    _set_f(tab, 0)
+    tab._on_auto_patches_toggled(True)
+    tab._on_auto_patches_toggled(False)
+    assert spin.value() == 0, (
+        "a count the user had deliberately cleared was replaced by an older "
+        f"one: {spin.value()}")
+
+
+def test_no_count_pinned_means_the_headline_says_so(qapp, tmp_path):
+    """B1: ONE UNTICK PROMISED 105 PATCHES AND BUILT 14.
+
+    A challenge round opened the app on Basti's own saved preferences, where
+    "Auto patch count" is on and the -f box therefore reads 0, and unticked it
+    once. Nothing had carried a value away this session, so -f stayed 0 with
+    Auto off. The panel promised 105 patches over one page; Generate wrote a
+    chart of 14.
+
+    0 is the parameter's own default and means "not pinned here", so with Auto
+    off nobody has said how many patches to make and targen falls back to its
+    own minimum. That number is targen's business, not this panel's, and
+    printing the sheet's capacity instead is a promise the build breaks.
+
+    MUTATION: drop `_count_is_unpredictable` from the headline and this goes
+    red.
     """
     tab = _tab(tmp_path)
     _set_f(tab, 0)
-    spin = tab._manual_f_pw._control
+    if tab._manual_auto_patches_check is not None:
+        tab._manual_auto_patches_check.setChecked(False)
 
-    tab._on_auto_patches_toggled(True)
-    tab._on_auto_patches_toggled(False)
-    assert spin.value() == 0, "a count was invented for a user who typed none"
+    assert tab._count_is_unpredictable() is True, "the premise failed"
+
+    tab._update_patch_count()
+    assert tab._predicted_patch_count is None, (
+        "the panel put a number on a chart whose size nobody has set")
+    assert "?" in tab._patch_count_lbl.text(), tab._patch_count_lbl.text()
+
+
+def test_a_pinned_count_is_still_predictable(qapp, tmp_path):
+    """The other direction, or the fix would silence a headline that is right.
+
+    MUTATION: return True unconditionally and this goes red.
+    """
+    tab = _tab(tmp_path)
+    _set_f(tab, 400)
+    if tab._manual_auto_patches_check is not None:
+        tab._manual_auto_patches_check.setChecked(False)
+    assert tab._count_is_unpredictable() is False
+
+    # …and with Auto ON the capacity estimate is the honest answer again
+    if tab._manual_auto_patches_check is not None:
+        tab._manual_auto_patches_check.setChecked(True)
+    assert tab._count_is_unpredictable() is False
+
+
+def test_arming_a_patch_set_refreshes_the_headline(qapp, tmp_path, monkeypatch):
+    """B3: THE ARITHMETIC WAS RIGHT AND NOTHING CALLED IT.
+
+    Arming a set is the moment it starts deciding the count. A challenge round
+    loaded a 420-patch honeycomb in Guided and the panel stayed on the previous
+    chart's 345 over one page until the Pages box was touched, after which it
+    was right at every page count. In Manual every preset click showed the
+    PREVIOUS preset's number.
+
+    The shipped tests could not see it, because each one sets
+    `_preset_ti1_path` by hand and then calls `_update_patch_count()` by hand.
+    This asserts the gesture does the calling.
+
+    MUTATION: remove the call from the arming site and this goes red.
+    """
+    tab = _tab(tmp_path)
+    called: list = []
+    monkeypatch.setattr(type(tab), "_update_patch_count",
+                        lambda self: called.append(1))
+
+    armed = tmp_path / "armed.ti1"
+    # Not a targen file: `_rebind_patch_set_from_run` returns early for those,
+    # because a targen set is rebuilt rather than re-attached.
+    armed.write_text('CTI1\n\nORIGINATOR "ChromIQ patch editor"\n'
+                     'NUMBER_OF_SETS 420\nBEGIN_DATA\nEND_DATA\n',
+                     encoding="utf-8")
+    tab._rebind_patch_set_from_run(armed)
+
+    assert tab._preset_ti1_path == armed, "the premise failed: nothing was armed"
+
+    assert called, (
+        "arming a patch set left the headline showing the previous chart's "
+        "count until something else happened to refresh it")

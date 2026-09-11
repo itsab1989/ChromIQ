@@ -7073,6 +7073,17 @@ class TabChart(QWidget):
             # set would be protected while the screen still said it was not,
             # which is the state that cost him thirteen printed pages.
             self._update_preset_locks()
+            # AND SAY SO ON SCREEN. Arming a set is the moment it starts
+            # deciding the count, and nothing recomputed the headline on that
+            # gesture: a challenge round loaded a 420-patch honeycomb in Guided
+            # and the panel stayed on 345 over one page until the Pages box was
+            # touched, after which it was right at every page count. The
+            # arithmetic was already correct; only the call was missing.
+            #
+            # LAST, NOT FIRST. Put before the lock refresh it pre-empted it, so
+            # the "Edit patch recipe (override preset)" row Knut reported
+            # missing would have stayed missing.
+            self._update_patch_count()
             log.info("Create Chart: this run's own patch set (%s) is attached, "
                      "so regenerating reproduces it", Path(ti1).name)
         except Exception as exc:  # noqa: BLE001 — never block showing a chart
@@ -8002,8 +8013,13 @@ class TabChart(QWidget):
             # Auto off: a state the user cannot see (the box reads 0) and did
             # not ask for. A challenge round drove what follows from it, and
             # the estimate promised 418 patches where Generate built 16.
-            if spin.value():
-                self._f_before_auto = int(spin.value())
+            # RECORD IT WHATEVER IT IS. Guarding this with `if spin.value()`
+            # meant a 0 was never recorded, so an older value survived and was
+            # reinstated on the untick: type 777, tick, untick gives 777 back
+            # (right), then type 0 on purpose, tick, untick gives 777 again
+            # (wrong, and the opposite of what this fix claimed). A challenge
+            # round drove both.
+            self._f_before_auto = int(spin.value())
             spin.setSpecialValueText(tr("Auto"))
             spin.setValue(0)
         else:
@@ -13050,6 +13066,23 @@ class TabChart(QWidget):
                 # follow from it rather than from the Pages box.
                 total = fixed
                 shown_pages = max(1, -(-fixed // per_sheet))
+            elif self._count_is_unpredictable():
+                # NOTHING ARMED AND NO COUNT PINNED. Generate will run targen
+                # with no -f at all, and what targen then produces is targen's
+                # own business, not something this panel can work out. Saying
+                # the capacity of the sheet here is a promise the build does not
+                # keep: a challenge round opened the app on Basti's own saved
+                # preferences, unticked "Auto patch count" once, and the panel
+                # promised 105 patches over one page while Generate wrote a
+                # chart of 14.
+                #
+                # The honest answer already exists on this panel, and it is the
+                # one used when the layout cannot be predicted at all.
+                self._predicted_patch_count = None
+                self._patch_count_lbl.setText(
+                    self._count_with_accent("", mark="?"))
+                self._patch_detail_lbl.setText(tr("NO PATCH COUNT SET"))
+                return
             else:
                 # Nothing armed: Generate really will run targen and fill the
                 # pages asked for, so the capacity estimate is the honest answer
@@ -18519,6 +18552,24 @@ class TabChart(QWidget):
         if n:
             return n
         return self._onscreen_patch_total()
+
+    def _count_is_unpredictable(self) -> bool:
+        """True when "Auto patch count" is OFF and the targen -f box is 0.
+
+        0 is the parameter's own default and means "not pinned here", so with
+        Auto off nobody has said how many patches to make and targen will fall
+        back to its own minimum. ChromIQ cannot predict that number, and
+        printing the sheet's capacity instead is a promise the build breaks.
+        """
+        auto = getattr(self, "_manual_auto_patches_check", None)
+        if auto is None or auto.isChecked():
+            return False
+        pw = getattr(self, "_manual_f_pw", None)
+        ctl = getattr(pw, "_control", None) if pw is not None else None
+        try:
+            return int(ctl.value()) <= 0
+        except (AttributeError, TypeError, ValueError):
+            return False
 
     def _targen_patch_count(self) -> "int | None":
         """The targen ``-f`` value, i.e. the number of patches the next
