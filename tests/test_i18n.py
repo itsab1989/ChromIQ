@@ -679,6 +679,33 @@ def test_every_deliberate_exception_says_why():
 # `{label} ({name})`, which is punctuation in every language. The eleven others
 # carry the English source under the beta rule; two of the 37 keys ("Magazine",
 # "Metal") were already in those catalogues and translated, so each gains 35.
+# …and again on 2026-09-10, by Knut's ruling that text on any of the four sides
+# is never dropped. The two overflow warnings that existed (top strip labels,
+# bottom sheet text) were rewritten to name the exact boxes that fix the
+# collision, and more joined them: two for the chart notes down the right edge
+# (the lever differs when a clip border sits on that edge), two for the clip
+# border's own content on either side, a two-line variant of the bottom one
+# because "(s)" is not written in this project's text, and the reworded help
+# line above them. **8 keys in, 3 stale out.** German is translated for all 8
+# and does not move; the eleven others carry the English source under the beta
+# rule, and all three that left were translated in every one of them, so each
+# gains exactly 8.
+#
+# THE FIRST DRAFT OF THIS NOTE SAID 7 IN AND 2 OUT while raising every ceiling
+# by 8, and it is worth saying why that matters more than an arithmetic slip.
+# This dict is the one place in the suite where a check is loosened on purpose,
+# so the note beside it is the whole audit trail. A note that does not match its
+# own numbers is how the next person raises a ceiling without noticing they are
+# the second to do it. Counted from the catalogues, not from memory:
+# `set(after) - set(before)` is 8 and `set(before) - set(after)` is 3, in every
+# one of the twelve.
+# 2026-09-11: the 4.2.4 line merged into this branch. THE CATALOGUES WERE NOT
+# UNIONED, and that is the point worth recording. A union cannot tell "they
+# added this key" from "we deleted it", so it silently resurrected 22 strings
+# the #182 report rework had removed, in ten languages. The catalogues follow
+# the MERGED SOURCE instead: `scripts/i18n_extract.py --stale <code>` names
+# every key the merged code no longer uses, and those were pruned. The ceilings
+# below did not move, which is the check that the merge changed no translation.
 _IDENTICAL_TO_KEY = {
     "de": 122,
     "es": 295,

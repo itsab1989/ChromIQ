@@ -15,11 +15,22 @@ which is 0.5 mm at 200 dpi, and the line was CENTRED in a 40 px strip.
 And the reserve is a LIMIT, not a preference. Knut again, the same day:
 *"the labels respect the 'Text distance from edge' settings, even if the margins
 defined make the patch area overlap with the text. Then the user needs to adjust
-the margins."* So nothing is traded against it: where the paper left between the
-patch block and the reserve is too thin for a legible line, the note is not
-printed at all, and the log says which two numbers to change. That costs four of
-twenty-two measured configurations their note; see
-`docs/design/issue_182_answers.md`.
+the margins."* So nothing is traded against it.
+
+**WHAT GIVES WAY IS THE PATCH AREA, AND THIS FILE ONCE SAID THE OPPOSITE.**
+4.2.3 dropped the note where the paper left between the patch block and the
+reserve was too thin for a legible line, with only a log line to show for it,
+and it cost the 10 x 15 cm photo card its identification line on every sheet.
+Knut's ruling of 2026-09-10:
+
+    "For the right margin, the text must still be visible, even if the patch
+     area overlaps on the right Run Chart Notes text. Else the user will not
+     notice that it is silently dropped, like you now do. The user must be given
+     the chance to see that something is wrong, and then adjust the margins."
+
+So the note now grows inward over the patches, the reserve still holds, and the
+collision is reported in red in the "Measured from Preview" frame. See
+`docs/design/issue_182_answers.md` section 2c.
 """
 from __future__ import annotations
 
@@ -176,25 +187,91 @@ def test_the_note_sits_beside_the_patch_block_not_out_at_the_paper_edge(
     )
 
 
-def test_a_reserve_with_no_room_left_drops_the_note_and_says_so(
+def test_a_reserve_with_no_room_left_overlaps_the_patches_rather_than_dropping(
         tmp_path: Path, caplog) -> None:
-    """THE RESERVE IS NOT TRADED AWAY, AND THE DROP IS NOT SILENT.
+    """THE RESERVE IS NOT TRADED AWAY, AND THE NOTE IS NOT DROPPED EITHER.
 
     With the clip band on the right there is 1.1 mm of paper between the patch
     block and a 4 mm reserve, and a line at the 9 px legibility floor needs
-    0.9 mm plus its gap. Before this change the note printed there 0.76 mm from
-    the paper edge, which is the fault. It is now not printed, and the log names
-    the two numbers and the two settings that would give it room, because a note
-    dropped without a word is the open item this must not add to
-    (`docs/design/issue_182_answers.md` section 5).
+    0.9 mm plus its gap. 4.2.3 printed nothing there. Knut's ruling of
+    2026-09-10 reverses that:
+
+        "For the right margin, the text must still be visible, even if the patch
+         area overlaps on the right Run Chart Notes text. Else the user will not
+         notice that it is silently dropped, like you now do."
+
+    So the note prints, the page-edge reserve still holds, and the collision is
+    said out loud: in the log here, and in red in the "Measured from Preview"
+    frame's message field, which is what the user sees.
     """
     with caplog.at_level(logging.INFO, logger="workflow.tiff_metadata"):
-        added, _mm, _W, _p = _stamped(tmp_path, "noroom", 4.0,
-                                      clip_side="right", clip_border=True)
-    assert not added.any(), (
-        "the note printed inside the reserve the user asked to keep clear"
+        added, mm, W, _p = _stamped(tmp_path, "noroom", 4.0,
+                                    clip_side="right", clip_border=True)
+    assert added.any(), (
+        "the note was dropped, which is the silent failure the ruling forbids"
+    )
+    right = int(np.flatnonzero(added.any(axis=0)).max())
+    to_edge = (W - 1 - right) * mm
+    assert to_edge >= 4.0 - 0.1, (
+        f"the note ends {to_edge:.2f} mm from the paper edge and the reserve "
+        "asks for 4.00 mm; the reserve is the one limit that still holds"
+    )
+    # …AND IT DID NOT SOLVE ITS PROBLEM BY PRINTING ON THE USER'S OWN WORDS.
+    # The ruling sanctions the note against the PATCH AREA and says nothing
+    # about the note against clip-border content, which is text the user wrote.
+    # So on this chart the note goes inward, over the patches, and the band
+    # keeps the sliver at the paper's edge.
+    _band = float(replace(default_recipe("i1", "A4")).clip_border_width_mm)
+    assert to_edge >= _band - 0.5, (
+        f"the note ends {to_edge:.2f} mm from the paper edge and the clip "
+        f"border on that edge is {_band:.1f} mm wide, so it is printing over "
+        "the user's own clip content"
     )
     said = " ".join(r.getMessage() for r in caplog.records)
-    assert "text-distance-from-edge reserve" in said, (
-        f"the note was dropped without saying why; log was: {said!r}"
+    assert "overlaps the patch block" in said, (
+        f"the overlap was not reported in the log; log was: {said!r}"
     )
+
+
+def test_no_constant_sits_under_the_users_own_number(tmp_path: Path) -> None:
+    """Knut, 2026-09-10: *"there shall not be any hard-coded values in the
+    code"*.
+
+    The sweep above only ever asks for MORE than the constant, so every case in
+    it passes whether the constant is there or not: putting
+    `max(_PATCH_SAFETY_PAD_PX, …)` back leaves all of them green. That is a
+    mutation that does not land, and a check nobody proved is not a check.
+
+    This one asks for LESS, and it asks it on a sheet where the answer is
+    visible. The setting is a MINIMUM, not a position: on a roomy margin the
+    note keeps its 40 px strip anchored to the patch side and the slack falls on
+    the page-edge side, so it lands far outside the reserve whatever the reserve
+    says, and the constant cannot be seen. Measured across four right margins,
+    only the narrow ones pin the note to the reserve:
+
+        margin 1.0 mm, setting 0.2 mm -> 0.169 mm from the edge
+        margin 2.0 mm, setting 0.2 mm -> 0.169 mm
+        margin 3.0 mm, setting 0.2 mm -> 0.508 mm
+        margin 6.0 mm, setting 0.2 mm -> 2.963 mm   <- slack, not the reserve
+
+    So the sheet is a narrow one, where the note is pinned at ``W - reserve``
+    and 0.2 mm and the old 0.339 mm constant give different pixels.
+    """
+    import workflow.tiff_metadata as tm
+
+    small = 0.2
+    added, mm, W, _patch = _stamped(tmp_path, "below_the_old_floor", small,
+                                    margin_right=2.0)
+    assert added.any(), "no note printed at all, so this measures nothing"
+
+    floor_mm = tm._PATCH_SAFETY_PAD_PX * mm
+    assert small < floor_mm, (
+        f"the setting under test ({small} mm) is not below the old constant "
+        f"({floor_mm:.3f} mm), so this test could not tell them apart")
+
+    right = int(np.flatnonzero(added.any(axis=0)).max())
+    to_edge = (W - 1 - right) * mm
+    assert to_edge < floor_mm - 0.05, (
+        f"the note stopped {to_edge:.3f} mm from the paper edge, which is the "
+        f"old {floor_mm:.3f} mm constant rather than the {small} mm asked for; "
+        "a hard-coded value is still sitting under the setting")

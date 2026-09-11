@@ -2042,6 +2042,31 @@ M_SCAN_ALIGN_NOT_FOUND = _m(
     "edge of the chart is missing. Drag the four corners roughly around the "
     "chart and press Auto align again: it will then search only inside them.")
 
+#: THE SAME REFUSAL, WHEN THE CHART IS A HONEYCOMB AND THE ADVICE CANNOT WORK.
+#:
+#: Measured on screen 2026-09-11 on Knut's own CR30 hexagonal chart, from three
+#: different starting placements: the search returns "not recognised" with ZERO
+#: candidates every time, while the two stages after it work on a honeycomb and
+#: separate a right placement from a wrong one by 0.969 against 0.514. So the
+#: refusal itself is right and nothing is moved. What was wrong is that the
+#: user was sent to drag the corners roughly around the chart and press the
+#: button again, which narrows the search -- and on a honeycomb a narrower
+#: search finds nothing either, because the step that fails is scanin's own
+#: recogniser and it looks for the straight horizontal patch edges a grid of
+#: rectangles has. A hexagon has none. Same ending, same safety, an instruction
+#: the user can actually follow.
+M_SCAN_ALIGN_NOT_FOUND_HEX = _m(
+    "M-SCAN-ALIGN-NOT-FOUND-HEX",
+    _ALIGN_KEPT,
+    "Auto align cannot find a hexagonal chart. The search looks for the "
+    "straight edges of a grid of rectangles, and a honeycomb has none, so "
+    "pressing the button again will not help however the corners are placed. "
+    "Drag the four corners onto the chart yourself: put each one on the "
+    "outermost patch of its corner. Everything else in this window works "
+    "normally on a honeycomb, including “Check alignment”, which will tell "
+    "you whether what you placed is reading the right patches.",
+    approved=False)
+
 M_SCAN_ALIGN_NO_FIT = _m(
     "M-SCAN-ALIGN-NO-FIT",
     _ALIGN_KEPT,
@@ -2177,7 +2202,7 @@ SCAN_ALIGN_REFUSALS = {
 }
 
 
-def scan_align_refusal(reason: str) -> Message:
+def scan_align_refusal(reason: str, *, hexagonal: bool = False) -> Message:
     """The message for an Auto align refusal, by its internal reason.
 
     A reason with no message of its own gets the "could not find this chart"
@@ -2185,7 +2210,16 @@ def scan_align_refusal(reason: str) -> Message:
     to :mod:`workflow.scan_auto_align` and forgetting the message costs a
     slightly wrong sentence, never a code in front of a user. The test that
     pins the set of reasons is what stops it staying wrong.
+
+    *hexagonal* says the chart on screen is a honeycomb, which changes ONE
+    ending: "not recognised" then has a cause the generic advice cannot
+    address, so it gets its own wording. It is a property of the CHART and not
+    of the search, which is why the caller supplies it and the ladder's set of
+    endings is untouched; and it stays here, because this function is the only
+    place an ending turns into words.
     """
+    if hexagonal and reason == "not-recognised":
+        return M_SCAN_ALIGN_NOT_FOUND_HEX
     return SCAN_ALIGN_REFUSALS.get(reason, M_SCAN_ALIGN_NOT_FOUND)
 
 
@@ -2255,7 +2289,7 @@ CATALOGUE = {m.id: m for m in (
     M_SCAN_SHOT_EMPTY, M_SCAN_TARGET_CHANGED,
     M_SCAN_DARK, M_SCAN_FIT_UNSUPPORTED, M_SCAN_SELFCHECK_UNUSABLE,
     M_SCAN_ALIGN_AMBIGUOUS, M_SCAN_ALIGN_NO_MATCH,
-    M_SCAN_ALIGN_NOT_FOUND, M_SCAN_ALIGN_NO_FIT,
+    M_SCAN_ALIGN_NOT_FOUND, M_SCAN_ALIGN_NOT_FOUND_HEX, M_SCAN_ALIGN_NO_FIT,
     M_SCAN_ALIGN_NO_GEOMETRY, M_SCAN_ALIGN_NO_BETTER, M_SCAN_ALIGN_NOT_SEATED,
     M_SCAN_ALIGN_DONE, M_SCAN_ALIGN_NO_INPUT,
     M_SCAN_CONVERTED, M_SCAN_FIT_TOO_FAR,

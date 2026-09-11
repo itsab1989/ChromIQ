@@ -1722,9 +1722,19 @@ class ChartCreator:
             if cmd_lines:
                 # THE USER'S OWN "TEXT DISTANCE FROM EDGE" TRAVELS WITH IT. The
                 # stamper had no way of knowing the setting existed, so the note
-                # sat 0.5 mm from the paper edge whatever the box said. Only the
-                # engine has a recipe; printtarg charts keep the old floor.
-                _edge = 0.0
+                # sat 0.5 mm from the paper edge whatever the box said.
+                #
+                # AND A PRINTTARG CHART GETS THE SETTING'S DEFAULT, NOT A
+                # CONSTANT. Knut, 2026-09-10: *"there shall not be any
+                # hard-coded values in the code"*. This branch used to leave
+                # 0.0 here so that the stamper fell back to its own 4 px floor,
+                # which is a number typed into the stamper and 0.5 mm at 200
+                # dpi. A path with no control of its own takes the DEFAULT OF
+                # THE SETTING, read from `LayoutRecipe`, which is what Guided
+                # below already does. One number, in one place, and it is the
+                # one the box shows a user who has one.
+                from workflow.layout_engine.presets import LayoutRecipe
+                _edge = float(LayoutRecipe().text_edge_clip_mm or 0.0)
                 _rec = getattr(params, "layout_recipe", None)
                 if _rec is not None:
                     try:
@@ -1735,7 +1745,7 @@ class ChartCreator:
                         _edge = float(getattr(_rec, "text_edge_clip_mm", 0.0)
                                       or 0.0)
                     except (TypeError, ValueError):
-                        _edge = 0.0
+                        _edge = float(LayoutRecipe().text_edge_clip_mm or 0.0)
                 elif self._should_use_engine(params):
                     # GUIDED CARRIES NO RECIPE, AND THAT IS WHY THE FIX MISSED
                     # THE MODE IT WAS REPORTED IN. `_collect_manual` attaches
@@ -1750,9 +1760,8 @@ class ChartCreator:
                     # the setting, which is what Knut asked for: "the text needs
                     # to stay within the default 'Text distance from edge'
                     # settings ... for all sides, for Guided mode. Not a
-                    # hardwired margin." A printtarg chart still keeps the old
-                    # floor, because nothing in that path ever had the setting.
-                    from workflow.layout_engine.presets import LayoutRecipe
+                    # hardwired margin." A printtarg chart now reads the same
+                    # default for the same reason, at the top of this block.
                     _edge = float(LayoutRecipe().text_edge_clip_mm or 0.0)
                 # THE USER'S OWN CLIP BAND IS NOT A PLACE FOR THE NOTE. Only
                 # when it is on the RIGHT, which is the side the note uses.

@@ -14,8 +14,10 @@ and an optional per-spacer paint applied to the rendered TIFF.
 from __future__ import annotations
 
 import copy
+import json
 import sys
 import tempfile
+from collections import OrderedDict
 from dataclasses import astuple, dataclass, field
 from pathlib import Path
 
@@ -459,6 +461,15 @@ _SWATCH = 46  # grid swatch px
 # so generators that land near a 3D-cube dot are nudged a little clearer of it,
 # not just de-duplicated when they coincide exactly (Knut, #78).
 _GEN_MIN_DIST = 2.0
+
+# Built generator programs, keyed by the generator state that produced them
+# (see _NewChartDialog._generator_cache_key). Process-wide and in memory only,
+# so reopening the New chart / Add window with the settings untouched shows the
+# set it already built instead of spending seconds building the same one again.
+# Bounded because a 4000-patch program is ~4000 tuples; eight of those is a few
+# MB at most, and a user cycling between two or three designs still hits.
+_PROGRAM_CACHE: "OrderedDict[tuple, tuple[list[tuple], str]]" = OrderedDict()
+_PROGRAM_CACHE_MAX = 8
 
 # On-screen preview render resolution (#44). The preview never needs print DPI;
 # rendering it low-res makes printtarg far faster and shrinks every image
@@ -2507,6 +2518,10 @@ class _NewChartDialog(QDialog):
                                    "actually print. 'Colours' is how many to "
                                    "extract."))
         self._gen_image_px = None        # decoded (N,3) pixels, or None
+        # Bumped whenever a different photo is decoded. The pixels are the one
+        # generator input no control describes, so the program cache keys on
+        # this counter instead (see _generator_cache_key).
+        self._gen_image_serial = 0
         self._gen_image_name = ""
         self._gen_image_btn = QPushButton(tr("Load image…"), self._gen_panel)
         self._gen_image_btn.setObjectName("compact_input")
@@ -3357,7 +3372,114 @@ class _NewChartDialog(QDialog):
                 ink_limit=limit))
         return program
 
+    def _generator_cache_key(self) -> "tuple | None":
+        """Everything :meth:`_build_generated_program` reads, as one hashable
+        key, or ``None`` when the state cannot be keyed (then nothing is
+        cached and the program is always rebuilt).
+
+        THE KEY IS THE WHOLE SAFETY ARGUMENT. Anything the builder consults
+        that is missing here would let a stale program be served after the
+        user changed something, so each part is here for a named reason:
+
+        * ``_collect_gen_state()`` — every colour-set tick and size spin, the
+          source mode, the device type / extra inks / ink limit / precondition
+          profile, and the multi-ink generator rows. This is the same dict the
+          window persists, so a setting that survives a restart is in it.
+        * ``_nch_state()`` — which of the three device states is live; it
+          selects a different builder entirely.
+        * ``_effective_fill_target()`` — the fill row in "pages" mode multiplies
+          by the ENGINE's capacity per page, which is read from the engine
+          widgets and the app-wide engine setting, and NONE of those are in
+          `_collect_gen_state`. Keying the resolved number covers all of them.
+        * the existing chart — the Add flow spaces and fills against it.
+        * the loaded photo — "From image" reads decoded pixels that no spin box
+          describes; loading a different photo changes the program without
+          moving a single control.
+
+          **A PER-WINDOW COUNTER WAS THE WRONG IDENTITY FOR A PROCESS-WIDE
+          CACHE.** `_gen_image_serial` starts at 0 in every new dialog, so the
+          first photo loaded in window 2 keyed identically to the first photo
+          loaded in window 1, and the second window was served the first
+          window's palette while its own button showed the new filename. A
+          challenge round drove it: same key, wrong colours, no warning. The
+          digest of the decoded pixels is the photo's real identity: two
+          different pictures cannot collide, and RE-loading the same picture
+          still hits, which is the whole point of the cache.
+        * the ArgyllCMS path — several generators shell out to `targen`, so the
+          same settings against a different Argyll are a different program.
+        """
+        try:
+            state = json.dumps(self._collect_gen_state(), sort_keys=True,
+                               default=str)
+            existing = tuple((float(p[0]), float(p[1]), float(p[2]))
+                             for p in (self._existing_patches or []))
+            return (type(self).__name__, state, self._nch_state(),
+                    self._effective_fill_target(), existing,
+                    self._gen_image_digest(), self._argyll_key())
+        except Exception:      # noqa: BLE001 — a cache may never break a build
+            return None
+
+    def _gen_image_digest(self) -> str:
+        """What the loaded photo actually IS, not how many have been loaded."""
+        px = getattr(self, "_gen_image_px", None)
+        if px is None:
+            return ""
+        try:
+            import hashlib
+            return hashlib.blake2b(px.tobytes(), digest_size=16).hexdigest()
+        except Exception:      # noqa: BLE001
+            # Unhashable is not "the same as last time": refuse the cache.
+            return f"unhashable-{id(px)}"
+
+    def _argyll_key(self) -> str:
+        try:
+            return str(self._settings.get("argyll_path", "") or "")
+        except Exception:      # noqa: BLE001
+            return ""
+
     def _build_generated_program(self) -> list[tuple]:
+        """The ticked generators' patches, built once per generator state.
+
+        **THE SAME SETTINGS MUST NOT BE BUILT TWICE.** Every path that can
+        change a number in this window funnels through `_update_gen_counts` /
+        `_do_push_live_preview`, and so does opening the window: restoring the
+        remembered state fires the device-state refresh, the per-row gating and
+        the final cube seed, so a freshly opened window ran this **8 times over**
+        before showing anything. With Basti's settings ("Ensure unique colours"
+        on, "Fill remaining gaps" to 4000) one build is ~6 s, so REOPENING THE
+        WINDOW WITH NOTHING CHANGED COST 48 s — measured on screen, cocoa, and
+        every one of the eight produced the identical 4000 patches.
+
+        The generators are deterministic (`fill_gaps` seeds its RNG with a
+        fixed 0), so the same key really does mean the same patches; the cache
+        is exact, not an approximation. It lives in the process only — nothing
+        is written to disk, and a new run of the app builds afresh.
+        """
+        # THE BUILD PRODUCES TWO THINGS AND THE CACHE KEPT ONE. Skipping the
+        # builder also skipped `nch_moved_note`, the sentence that says how many
+        # look-based colours lay outside the printer's gamut and were moved. A
+        # challenge round drove it: window 1 said 350 of 966 were moved, window
+        # 2 with identical settings and identical patches said nothing at all. A
+        # warning that appears only the first time is worse than one that never
+        # appears, because its absence reads as good news.
+        key = self._generator_cache_key()
+        if key is not None:
+            hit = _PROGRAM_CACHE.get(key)
+            if hit is not None:
+                _PROGRAM_CACHE.move_to_end(key)
+                program, note = hit
+                self.nch_moved_note = note
+                return list(program)
+        program = self._build_generated_program_uncached()
+        if key is not None:
+            _PROGRAM_CACHE[key] = (list(program),
+                                   getattr(self, "nch_moved_note", ""))
+            _PROGRAM_CACHE.move_to_end(key)
+            while len(_PROGRAM_CACHE) > _PROGRAM_CACHE_MAX:
+                _PROGRAM_CACHE.popitem(last=False)
+        return program
+
+    def _build_generated_program_uncached(self) -> list[tuple]:
         """Concatenate every ticked generator's patches, in panel order,
         de-duplicating across sets when 'Ensure unique colours' is on."""
         state = self._nch_state()
@@ -3712,6 +3834,7 @@ class _NewChartDialog(QDialog):
             im = Image.open(path).convert("RGB")
             im.thumbnail((200, 200))
             self._gen_image_px = np.asarray(im).reshape(-1, 3)
+            self._gen_image_serial = getattr(self, "_gen_image_serial", 0) + 1
         except Exception as exc:  # noqa: BLE001 — surface any decode failure
             warn(self, tr("Load failed"), str(exc))
             return
@@ -3971,6 +4094,7 @@ class _AddPatchesDialog(_NewChartDialog):
         # instead of appending that many (#51); set before _build_generate_panel.
         self._existing_patches = list(existing_patches or [])
         self._gen_image_px = None
+        self._gen_image_serial = 0
         self._gen_image_name = ""
         self._single_rgb: tuple[float, float, float] = (50.0, 50.0, 50.0)
         self._install_magenta_accents()

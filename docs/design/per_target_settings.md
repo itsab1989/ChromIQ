@@ -197,11 +197,47 @@ he asked for two things:
 The warning describes what the app does. It does not change what the app does,
 and it must never block a build or a run change.
 
-**The seed tick collides with this and is NOT settled by it.** Knut asked in
-July that the seed survive a restore so a manual Generate reproduces the sheet,
-and in September that selecting a run must not tick "Use a fixed seed". Those
-are still the same piece of state. See `J-seed-tick-conflict-FOR-KNUT.md` in the
-project's working notes; this ruling does not resolve it.
+**The seed tick used to collide with this, and Knut settled it himself on
+2026-09-10 at 20:21.** He asked in July that the seed survive a restore so a
+manual Generate reproduces the sheet, and in September that selecting a run must
+not tick "Use a fixed seed". They were the same piece of state, which is why one
+could not be had without losing the other. His ruling makes them two:
+
+> *"I think when a chart is generated, the seed used should be stored, but also
+> a tag should be stored that records what the checkbox status was (ON or
+> OFF)."*
+
+and then separates two operations that had been treated as one, **loading a
+chart as it was made** against **generating one from the current settings**:
+
+| operation | the Seed box | the "Use a fixed seed" tick |
+|---|---|---|
+| loading (a run change, a tab change, any pure load of the chart as it was created) | the stored seed, **even when the tick is OFF**, because that number is what reproduces the sheet | the stored TAG, not anything derived from the seed |
+| generating with the tick ON and randomisation ON | the stored seed is used, so the layout stays as it was | unchanged |
+| generating with the tick OFF and randomisation ON | a NEW seed every time, stored with the chart | unchanged |
+
+His own words for the last row: *"as I think is the normal operation today (you
+make sure this works correctly). Test this properly."*
+
+**What he did not address, and nobody should invent:** what the tick means, and
+what the tag should say, when "Randomise patch order" is OFF and there is no
+order to fix.
+
+### ⏳ Awaiting confirmation: the tag, as built
+
+**Confirmed by:** *nobody yet.*
+
+The rule above is Knut's. That the code now obeys it is verified on screen but
+not confirmed by a person, so it stays here until it is.
+
+`LayoutRecipe.seed_fixed` carries the tag. It is tri-state: `None` means "this
+recipe predates the tag", and for those the panel still reads the tick off
+`seed is not None`, so every chart, preset and per-target block written before
+the change behaves exactly as it did. A preset drops the tag along with the
+seed, because a stored ON with no number beside it would tick the box over
+whatever the Seed box happened to be holding. With randomisation OFF the tag
+records the checkbox literally, which commits to nothing while his answer to the
+question above is outstanding.
 
 ## 3. When settings are written
 

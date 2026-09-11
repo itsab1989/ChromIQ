@@ -2,7 +2,7 @@
 
 ## v4.3.0-beta.3
 
-**Everything in 4.2.3, plus a second slice of the Measurement Report that is
+**Everything in 4.2.4, plus a second slice of the Measurement Report that is
 mostly about keeping promises.** The promises ChromIQ made in writing to the
 organisations whose data it may use, and the one Knut Larsson asked for when he
 allowed a profiling run's report to show no verdict.
@@ -234,6 +234,47 @@ is with the national standards body. If you own the standards you can supply the
 numbers yourself and ChromIQ will use them while distributing none of them; the
 folder's README says how.
 
+## v4.2.4
+
+### Fixed
+
+- **A custom paper size is named by its size again, and carries Portrait or
+  Landscape.** Saving a preset on a custom sheet produced a name containing
+  `__custom__`, which is ChromIQ's internal marker and not a size. It now reads
+  the size, so `i1Pro-100x150-600p-4pages-Portrait`. The orientation is worked
+  out from the two numbers on Knut Larsson's ruling: narrower than it is tall is
+  Portrait, wider is Landscape. A square sheet gets neither word, because it is
+  neither. The help icon in that window explains it.
+
+- **"Use a fixed seed" is remembered as you left it, and a chart reopens as it
+  was printed.** Turning the tick off and coming back to the run turned it on
+  again by itself. Worse, once it had done that, every Generate reused the same
+  seed for ever, so "Randomise patch order" quietly stopped randomising. ChromIQ
+  now stores whether the tick was on alongside the seed it used. Reopening a
+  chart restores it exactly, from the stored seed, whether the tick is on or
+  off, because looking at a chart you already made is not the same as making a
+  new one. Generating after a change uses the stored seed only when the tick is
+  on; with it off you get a new one each time, as you should. Charts built
+  before this release have no such record, so their tick still reads as on.
+
+- **Text along any edge of a chart is never left off again, and a collision is
+  now shown on screen.** 4.2.3 left the small note down the right edge off the
+  sheet when the margin was too narrow to keep the distance you had set, and
+  said so only in the log. Knut Larsson's ruling reverses that: the text must
+  stay visible, because otherwise you cannot tell anything is wrong. So the note
+  is printed at the distance you set even when the patches reach it, and it
+  prints over them if it must. The 10 x 15 cm photo card gets its identification
+  line back.
+- **…and the "Measured from Preview" frame says so, in red.** Whenever text runs
+  into the patch area, its message field names the edge, the room the text needs,
+  the room the margin leaves, and the two boxes that would fix it. It covers all
+  four edges the same way: the strip letters across the top, the chart notes and
+  the stamped settings down the right, the clip border content on either side,
+  and the sheet text along the bottom. A chart with room to spare says nothing.
+- **The warning for the strip letters and the sheet text is visible again.** It
+  had been correct since 4.0, but on 2026-09-04 it moved off the panel onto its
+  information icon along with the panel's explanatory notes, and an icon is only
+  read if you hover it.
 ## v4.3.0-beta.2
 
 **Everything in 4.2.2, plus the first slice of the new Measurement Report.** The

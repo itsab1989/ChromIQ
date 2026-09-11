@@ -29,6 +29,7 @@ import tifffile
 from PIL import Image, ImageDraw, ImageFont
 
 from core.logger import get_logger
+from workflow import text_edge_fit
 
 log = get_logger(__name__)
 
@@ -62,13 +63,21 @@ _BAND_INK_TOLERANCE = 0.25
 #: Knut, 2026-09-10, asked for exactly this: *"should the text move closer to
 #: the patch area edge but still leave 2 pixels space/gap, so that it is not
 #: going towards the edge?"*
-_NOTE_PATCH_GAP_PX = 2
-#: Narrowest strip the note is still rendered into: `_NOTE_PATCH_GAP_PX` plus
-#: one line at the 9 px legibility floor. Measured, not guessed -- DejaVuSans at
-#: 9 px renders a note with descenders 9 px across (10 px also gives 9, 12 gives
-#: 12, 15 gives 14, 28 gives 27). THE PAGE-EDGE RESERVE IS NEVER TRIMMED TO
-#: REACH IT: below this width the note is not printed, and the log says why.
-_MIN_NOTE_STRIP_PX = _NOTE_PATCH_GAP_PX + 9
+#: Narrowest strip the note is rendered into: `_NOTE_PATCH_GAP_PX` plus one line
+#: at the 9 px legibility floor. Measured, not guessed -- DejaVuSans at 9 px
+#: renders a note with descenders 9 px across (10 px also gives 9, 12 gives 12,
+#: 15 gives 14, 28 gives 27).
+#:
+#: BOTH LIVE IN `workflow/text_edge_fit.py` AND ARE ONLY BORROWED HERE. The
+#: "Measured from Preview" panel warns about an overlap this stamper is about to
+#: draw, and it has to be able to say so while the user is still moving the spin
+#: boxes -- long before any raster exists for the fact to travel up from. A
+#: prediction only stays true while both sides read the same floor.
+_NOTE_PATCH_GAP_PX = text_edge_fit.NOTE_PATCH_GAP_PX
+#: The floor at the RASTER'S OWN RESOLUTION, from the paper floor the panel
+#: warns about. A constant number of pixels was the same ink at 200 dpi and a
+#: quarter of it at 600, so the two disagreed about the same sheet.
+_MIN_NOTE_STRIP_PX = text_edge_fit.NOTE_MIN_STRIP_PX     # 200 dpi, for callers
 # Gap between the three left-clip text sub-columns.
 _LEFT_CLIP_GAP_PX = 8
 # White padding on each side of the spectrum accent bar placed at the
@@ -316,9 +325,15 @@ def _stamp_one(path: Path, text: str, text_edge_mm: float = 0.0,
         arr, keep_out_px=int(round((clip_band_mm or 0.0) * _dpi / 25.4)),
         pad_px=_safety_pad_px(_dpi))
     if band is None:
-        log.info("Right-edge stamp skipped (no usable right margin) for %s", path)
-        return
-    band_left, band_right = band
+        # NO WHITE BAND IS NOT A REASON TO DROP THE NOTE EITHER. This was the
+        # second silent drop on this edge, and the ruling covers both: an empty
+        # band at the paper's right edge sends the note down the overlap path
+        # below, which prints it at the distance the setting asks for and warns.
+        log.info("Right-edge stamp: no usable right margin on %s, the note is "
+                 "printed over the patch block instead", path)
+        band_left = band_right = W
+    else:
+        band_left, band_right = band
     # THE USER'S OWN "TEXT DISTANCE FROM EDGE" DECIDES EVERY SIDE THE NOTE
     # TOUCHES, and it decided only two of them. It was turned into `_pad` and
     # applied to the TOP and the BOTTOM; horizontally nothing applied it, so the
@@ -327,10 +342,21 @@ def _stamp_one(path: Path, text: str, text_edge_mm: float = 0.0,
     # the note ended 1.98 mm from the paper edge. The pad stays as the floor,
     # because a note must never be pushed into the patch area, and it is what an
     # unset value falls back to.
-    _pad = max(_PATCH_SAFETY_PAD_PX,
-               int(round((text_edge_mm or 0.0) * _dpi / 25.4)))
+    # NO FLOOR UNDER THE USER'S OWN NUMBER. Knut, 2026-09-10: *"there shall not
+    # be any hard-coded values in the code"*. This read
+    # `max(_PATCH_SAFETY_PAD_PX, …)`, so a 4 px constant, 0.5 mm at 200 dpi,
+    # quietly won whenever the box asked for less. The setting decides; every
+    # caller now supplies one, and a path with no control of its own passes the
+    # SETTING'S DEFAULT rather than nothing (`chart_creator._stamp_tiff_metadata`).
+    #
+    # `_PATCH_SAFETY_PAD_PX` KEEPS ITS OTHER JOB, which is not this one.
+    # `_detect_writable_band` uses it as an ink-detection tolerance: how much
+    # white paper to require around the ink it finds. That is a different
+    # measurement with a different meaning, and it is not a distance from an
+    # edge, so the ruling does not reach it.
+    _pad = int(round((text_edge_mm or 0.0) * _dpi / 25.4))
     if 2 * _pad >= H:                       # a pathological setting on a tiny sheet
-        _pad = _PATCH_SAFETY_PAD_PX
+        _pad = 0
     strip_h = H - 2 * _pad
     if strip_h < 100:
         log.info("Right-edge stamp skipped (image too short) for %s", path)
@@ -347,8 +373,8 @@ def _stamp_one(path: Path, text: str, text_edge_mm: float = 0.0,
     # top's, which gives the distance up when the margin is too small. The left
     # buys its guarantee by RAISING the margin; the note is stamped onto a
     # finished raster and can move nothing, so when the paper between the patch
-    # block and the reserve is too thin for a legible line the note is not
-    # printed — and, unlike before, the log names the reason and the numbers.
+    # block and the reserve is too thin for a legible line, the note is printed
+    # ACROSS THE PATCH BLOCK rather than not printed at all -- see below.
     # `_LINE_GAP_PX` USED TO STAND HERE AND IS NOW PAID TWICE OVER. It pushed
     # the strip 6 px off the band's patch-side edge back when the renderer
     # CENTRED the line inside that strip; the gap the eye saw was that 6 px plus
@@ -357,19 +383,58 @@ def _stamp_one(path: Path, text: str, text_edge_mm: float = 0.0,
     # band` already adds), and keeping the old push as well would spend 0.5 mm
     # of a 6.1 mm margin on nothing. Measured on the stock i1/A4 sheet: it is
     # the difference between a 15 px note and a 9 px one.
-    _right_limit = W - _pad
+    # THE USER'S OWN CLIP BAND IS STILL NOT A PLACE FOR THE NOTE, and this is
+    # the one collision Knut's ruling does not settle. It sanctions the note
+    # against the PATCH AREA -- *"even if the patch area overlaps on the right
+    # Run Chart Notes text"* -- and says nothing about the note against the
+    # user's own clip-border content, which is text they wrote. With a clip band
+    # on this edge the two cannot both have the sliver at the paper's edge, so
+    # the band keeps it (it is already the keep-out `_detect_writable_band` is
+    # given) and the note moves INWARD, over the patches, where the ruling
+    # allows it to go and where the panel then says so in red.
+    _right_limit = W - max(_pad, int(round((clip_band_mm or 0.0) * _dpi / 25.4)))
     x0 = band_left
     strip_w = min(40, band_right - band_left, _right_limit - x0)
-    if strip_w < _MIN_NOTE_STRIP_PX:
+    # TEXT ON ANY SIDE IS NEVER DROPPED. Knut's ruling, 2026-09-10, reversing
+    # what 4.2.3 shipped:
+    #
+    #   "For the right margin, the text must still be visible, even if the
+    #    patch area overlaps on the right Run Chart Notes text. Else the user
+    #    will not notice that it is silently dropped, like you now do. The user
+    #    must be given the chance to see that something is wrong, and then
+    #    adjust the margins to place the patch area further in on the paper, so
+    #    that the chart notes can be visible."
+    #
+    # 4.2.3 returned here, and it cost the 10 x 15 cm photo card its
+    # identification line on every sheet: a 5.0 mm right margin less the 4.0 mm
+    # reserve and the 0.34 mm patch guard leaves 0.66 mm, and a line at the
+    # legibility floor needs 0.93 mm at 300 dpi. The user was told nothing they
+    # could see. So the note now grows LEFT, over the patches if it must, while
+    # the page-edge reserve stays exactly where it was -- that reserve is still
+    # a limit, and it is the only thing here that is. The overlap is warned
+    # about in red in the "Measured from Preview" frame
+    # (`ui/tabs/tab_chart.py::_engine_text_overflow_warnings`), which is the
+    # part of the ruling the user actually sees.
+    _floor_px = text_edge_fit.note_min_strip_px(_dpi)
+    _overlaps = strip_w < _floor_px
+    if _overlaps:
+        strip_w = min(_floor_px, _right_limit)
+        x0 = max(0, _right_limit - strip_w)
+        if strip_w < 1:
+            log.info(
+                "Right-edge stamp skipped for %s: the %.1f mm "
+                "text-distance-from-edge reserve leaves no paper at all.",
+                path, _pad * 25.4 / _dpi)
+            return
         log.info(
-            "Right-edge stamp skipped for %s: %.1f mm of paper between the "
-            "patch block and the %.1f mm text-distance-from-edge reserve, and "
-            "a legible line needs %.1f mm. Widen the right margin or lower "
+            "Right-edge stamp overlaps the patch block on %s: %.2f mm of paper "
+            "between the patch block and the %.1f mm text-distance-from-edge "
+            "reserve, and a legible line needs %.2f mm. The note is printed "
+            "anyway. Widen the right margin or lower "
             "“Text distance from edge” → Clip.",
-            path, max(0, _right_limit - x0) * 25.4 / _dpi, _pad * 25.4 / _dpi,
-            _MIN_NOTE_STRIP_PX * 25.4 / _dpi,
+            path, max(0, _right_limit - band_left) * 25.4 / _dpi,
+            _pad * 25.4 / _dpi, _floor_px * 25.4 / _dpi,
         )
-        return
 
     # SHRINK TO FIT, DO NOT CROP.
     #
@@ -400,10 +465,14 @@ def _stamp_one(path: Path, text: str, text_edge_mm: float = 0.0,
     # centering would strand the text mid-void. Left-anchoring keeps it snug
     # against Argyll's vertical ID column / the patch block regardless of how
     # much blank space follows.
-    if x0 < band_left:
-        x0 = band_left
-    if x0 + strip_w > band_right:
-        x0 = band_right - strip_w
+    # ...INSIDE THE WHITE BAND, unless the band is too narrow to hold a legible
+    # line, in which case `x0` has deliberately been put left of it and these
+    # two would put it straight back and drop the note again by another name.
+    if not _overlaps:
+        if x0 < band_left:
+            x0 = band_left
+        if x0 + strip_w > band_right:
+            x0 = band_right - strip_w
     y0 = _pad
     # WRITE THE INK, NOT THE PAPER. This pasted an opaque white strip over the
     # whole band, AFTER the renderer had drawn the page, so every ruler dash the

@@ -1651,6 +1651,16 @@ came back to it.
   one hover or one click away. That is a real reduction in how likely a user is
   to learn their typed margin was overruled, and it is the reduction Basti
   chose knowing what it was.
+- **2026-09-10: half of that cost was paid back, and the evidence line flipped
+  its name to say so.** Knut reported a chart note dropped from all four pages
+  of a sheet with nothing on screen to explain it, and ruled that text is never
+  dropped but drawn and warned about. An overlap is a VERDICT about the sheet in
+  front of you, not explanatory prose, so it goes back on the panel in red,
+  where `MarginInspectorPanel._status` already lives; the advisory notes stay on
+  the ⓘ, which is what Basti removed. So the test that used to prove the help
+  no longer promises a warning now proves it promises one again, and it is
+  listed above under its new name. **Both rulings are intact.** What Basti took
+  off the panel was prose inside a section; what came back is a verdict.
 - evidence: test_no_section_of_the_layout_panel_prints_a_paragraph,
   test_no_section_of_the_margin_inspector_prints_a_paragraph,
   test_where_a_label_style_setting_lives_is_on_every_icon_in_that_frame,
@@ -1658,7 +1668,7 @@ came back to it.
   test_the_clip_note_comes_off_the_icon_when_the_typed_value_is_in_force,
   test_the_marker_notice_no_longer_points_above_itself,
   test_the_marker_help_no_longer_sends_the_reader_under_the_boxes,
-  test_the_text_distance_help_no_longer_promises_a_warning_is_shown,
+  test_the_text_distance_help_promises_the_message_field_again,
   test_a_live_note_never_stacks_up_when_it_is_set_twice,
   test_the_standing_help_comes_back_when_the_note_goes,
   test_the_hover_tooltip_says_there_is_something_to_read,

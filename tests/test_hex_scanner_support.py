@@ -11,8 +11,20 @@ chart: the target built, real `scanin` returned 0 with a standard deviation of
 0.106, and real `colprof` produced a profile (peak error 0.59, average 0.20).
 
 What genuinely fails is scanin's AUTO-recognition — a hexagon has no horizontal
-edges for its YLIST — and ChromIQ never uses it: the four corners are placed by
-hand on the alignment mesh.
+edges for its YLIST.
+
+**The sentence that used to follow was wrong, and it is worth saying how.** It
+read "…and ChromIQ never uses it: the four corners are placed by hand on the
+alignment mesh". ChromIQ does use it: the Auto align button's first step IS
+scanin's recogniser (`workflow.scan_placement.place_grid`), and measured on a
+honeycomb it returns nothing with zero candidates, so the button declined and
+moved the corners 0.0 px while the same drive on a rectangular chart of the
+same 648 colours landed 0.6 px from truth. The claim conflated "scanin's
+recogniser is not the thing that reads the patches" — true — with "nothing in
+ChromIQ asks it where the chart is" — false. Auto align now has a second step 1
+for exactly this case (`workflow.hex_block_search`,
+`tests/test_auto_align_finds_a_honeycomb.py`); hand placement is no longer the
+only way to align a honeycomb.
 """
 from __future__ import annotations
 

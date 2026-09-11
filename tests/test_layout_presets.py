@@ -96,6 +96,12 @@ def test_all_fields_persist_through_named_dict():
         if f.name == "seed":
             assert got.seed is None
             continue
+        if f.name == "seed_fixed":
+            # Dropped with the seed, and for the same reason: a stored ON with
+            # no number beside it would tick "Use a fixed seed" over whatever
+            # the Seed box happened to be holding.
+            assert got.seed_fixed is None
+            continue
         assert getattr(got, f.name) == getattr(full, f.name), f.name
 
 
@@ -115,6 +121,7 @@ def test_the_full_recipe_really_is_full():
     # Fields that legitimately cannot be varied here.
     skip = {
         "seed",                 # deliberately dropped by a preset
+        "seed_fixed",           # dropped with it (PresetStore.set)
         "instrument", "paper",  # the preset KEY — varying them changes the slot
         "clip_border",          # ditto: part of the mode in the key
         "spacer_overrides",     # per-chart click state, not a preset value

@@ -400,6 +400,19 @@ class MarginInspectorPanel(QGroupBox):
         """
         return self._panel_tip.live_note()
 
+    def status_message(self) -> str:
+        """What the message field is saying, or "" when it is hidden.
+
+        The panel's own surface, as opposed to :meth:`text_notes`, which is what
+        it has parked on its ⓘ. Knut's overlap warnings are meant to be SEEN,
+        so a check that they are live has to look here.
+        """
+        # `isHidden`, NOT `isVisible`. A widget whose window has never been
+        # shown is not "visible", so `isVisible` answers "is this panel on
+        # screen" and the question here is "has this label been switched off",
+        # which is what `setVisible(False)` sets and `isHidden` reports.
+        return "" if self._status.isHidden() else self._status.text()
+
     def show_placeholder(self) -> None:
         """No preview yet (or measurement failed) — hide the numbers."""
         self._placeholder.setVisible(True)
@@ -416,6 +429,7 @@ class MarginInspectorPanel(QGroupBox):
         notify: bool,
         thresholds: dict | None = None,
         text_warnings: "list[str] | None" = None,
+        overlap_warnings: "list[str] | None" = None,
     ) -> None:
         """Show ``report``'s margins and the pass/fail status.
 
@@ -424,11 +438,20 @@ class MarginInspectorPanel(QGroupBox):
         the Settings flag — when False the status line is suppressed entirely
         (margins still shown). ``text_warnings`` are extra messages (e.g. a margin
         too small for its label/text band) shown with the margin status (#93).
+
+        ``overlap_warnings`` are the four-sided text/patch collisions, and they
+        are the one kind of notice that goes on the panel's own SURFACE rather
+        than only onto its ⓘ. Knut's ruling, 2026-09-10: the text is never
+        dropped, the overlap is allowed and shown, *"and it is warned about, in
+        red, in the message field of the 'Measured from Preview' frame"*, so the
+        user can widen the margin or change the text distance and make it line
+        up. They reach the ⓘ as well, because the caller passes them in both.
         """
         self._last_report = ((report, list(violations)),
                              {"thresholds_defined": thresholds_defined,
                               "notify": notify, "thresholds": thresholds,
-                              "text_warnings": text_warnings})
+                              "text_warnings": text_warnings,
+                              "overlap_warnings": overlap_warnings})
         if report is None:
             self.show_placeholder()
             return
@@ -494,7 +517,8 @@ class MarginInspectorPanel(QGroupBox):
             self._striplen_in.setText("—")
 
         self._update_status(violations, thresholds_defined=thresholds_defined,
-                            notify=notify, text_warnings=text_warnings)
+                            notify=notify, text_warnings=text_warnings,
+                            overlap_warnings=overlap_warnings)
 
     # ------------------------------------------------------------------
     def _repaint_status(self) -> None:
@@ -513,17 +537,20 @@ class MarginInspectorPanel(QGroupBox):
         self, violations: list[Violation], *,
         thresholds_defined: bool, notify: bool,
         text_warnings: "list[str] | None" = None,
+        overlap_warnings: "list[str] | None" = None,
     ) -> None:
         self._last_status = (list(violations),
                              {"thresholds_defined": thresholds_defined,
                               "notify": notify,
-                              "text_warnings": list(text_warnings or [])})
+                              "text_warnings": list(text_warnings or []),
+                              "overlap_warnings": list(overlap_warnings or [])})
         if not notify:
             self._status.setVisible(False)
             self._show_text_notes([])
             return
         self._status.setVisible(True)
         text_warnings = list(text_warnings or [])
+        overlap_warnings = list(overlap_warnings or [])
         # The text notices go to the panel's ⓘ, in front of its standing help.
         self._show_text_notes(text_warnings)
         # Name WHICH minimum was missed (Knut, #130 2026-07-27): the
@@ -560,10 +587,33 @@ class MarginInspectorPanel(QGroupBox):
         # than leaving the last one baked in. The owner found the green one by
         # generating a chart: this panel is empty until one exists, which is
         # why every pixel census before this walked straight past it.
-        if margin_lines:                                # something to warn about
-            self._status.setText("\n".join(margin_lines))
-            set_ink(self._status, "#e0564b",
-                    " font-size: 14px; font-weight: 700;", level="main")
+        # THE OVERLAPS STAND BESIDE THE MARGIN VIOLATIONS, IN THE SAME RED.
+        #
+        # Knut asked for exactly this place and exactly this colour, and the
+        # reason is that the alternative was tried and it failed him: these
+        # notices moved off the panel's surface onto its ⓘ on 2026-09-04, and
+        # an ⓘ is only read if it is asked for. A chart whose text runs over
+        # its own patches has to be visible without a hover.
+        #
+        # They are not a decoration on the margin verdict either: a chart can
+        # meet every instrument minimum and still print its notes across the
+        # patches, which is the 10 x 15 cm photo card exactly. So both lists are
+        # shown, violations first, rather than the first one winning.
+        if margin_lines or overlap_warnings:
+            self._status.setText("\n".join(margin_lines + overlap_warnings))
+            # A VERDICT IS CENTRED; A PARAGRAPH IS NOT. A margin violation is
+            # one short line and reads well centred, which is why it is. An
+            # overlap notice has to say what is wrong AND which two boxes fix
+            # it, so it wraps to four or five lines, and centred ragged text
+            # that long is markedly harder to read. Left-aligned and a little
+            # smaller, it is still the loudest thing in the frame.
+            self._overlap_paragraph(bool(overlap_warnings))
+            if overlap_warnings:
+                set_ink(self._status, "#e0564b",
+                        " font-size: 12px; font-weight: 600;", level="main")
+            else:
+                set_ink(self._status, "#e0564b",
+                        " font-size: 14px; font-weight: 700;", level="main")
             return
         if text_warnings:
             # NO GREEN "Margins: OK" WHILE A TEXT NOTICE IS LIVE. The margins
@@ -575,6 +625,7 @@ class MarginInspectorPanel(QGroupBox):
             self._status.setVisible(False)
             return
         if not thresholds_defined:
+            self._overlap_paragraph(False)
             self._status.setText(tr(
                 "No instrument margins set for this instrument and paper size."))
             # MEASURED, by the reviewer who found this independently:
@@ -590,6 +641,12 @@ class MarginInspectorPanel(QGroupBox):
             # re-resolves it instead of leaving the last one baked in.
             set_ink(self._status, "#909090", " font-size: 11px;", level="faint")
             return
+        self._overlap_paragraph(False)
         self._status.setText(tr("Margins: OK"))
         set_ink(self._status, "#4fc27a",
                 " font-size: 15px; font-weight: 700;", level="main")
+
+    def _overlap_paragraph(self, on: bool) -> None:
+        """Left-align the message field for a paragraph, centre it for a verdict."""
+        self._status.setAlignment(
+            Qt.AlignmentFlag.AlignLeft if on else Qt.AlignmentFlag.AlignHCenter)

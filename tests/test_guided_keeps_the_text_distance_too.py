@@ -79,13 +79,37 @@ def test_manual_still_uses_the_users_own_number(tmp_path, monkeypatch):
     assert got == 7.5, got
 
 
-def test_a_printtarg_chart_still_passes_zero(tmp_path, monkeypatch):
-    """Deliberate. Nothing in that path ever had the setting, and giving it one
-    would move text on charts that print correctly today."""
+def test_a_printtarg_chart_takes_the_settings_default(tmp_path, monkeypatch):
+    """This test used to assert 0.0, and said so deliberately: nothing in the
+    printtarg path ever had the setting, and giving it one moves text on charts
+    that print correctly today.
+
+    **Knut overruled that on 2026-09-10**, and the reason is worth keeping in
+    view. Passing 0.0 did not mean "no distance"; it meant the stamper fell back
+    to its own `_PATCH_SAFETY_PAD_PX`, a 4 px constant that is 0.5 mm at 200 dpi
+    and 0.25 mm at 400. His words: *"the Clip setting shall be used as limit for
+    the "Text distance from edge" on both left and right sides, and there shall
+    not be any hard-coded values in the code"*. Half a millimetre from the paper
+    edge is also the complaint he opened this whole thread with.
+
+    So a path with no control of its own takes the DEFAULT OF THE SETTING,
+    exactly as Guided does above, and the number lives in `LayoutRecipe` where
+    the box that shows it to a user reads it from.
+
+    **The consequence is visible on paper and is flagged to him**: on a
+    printtarg chart the note moves from 0.5 mm off the paper edge to whatever
+    the default says, 4.0 mm today.
+    """
+    from workflow.layout_engine.presets import LayoutRecipe
+
     creator, run, tiff = _sheet(tmp_path)
     got = _edge_passed(
         creator, tiff,
         ChartParams(target_name=run.stem, device_type="2", is_manual=True,
                     instrument="i1", stamp_commands=True),
         monkeypatch)
-    assert got == 0.0, got
+    want = float(LayoutRecipe().text_edge_clip_mm)
+    assert got == want, (
+        f"a printtarg chart passed {got}, not the setting's default {want}; "
+        "passing 0.0 hands the stamper back to its 4 px constant")
+    assert want > 0.0, "the default is zero, so this test proves nothing"

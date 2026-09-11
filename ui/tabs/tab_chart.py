@@ -3604,6 +3604,10 @@ class TabChart(QWidget):
         self._auto_preview_timer.setSingleShot(True)
         self._auto_preview_timer.timeout.connect(self._auto_regenerate_preview)
         self._last_auto_sig: str | None = None
+        #: §2.2: the panel's fingerprint the last time it described this
+        #: target's own chart. ``None`` means "nothing has been established
+        #: yet", and the warning stays silent — see _mark_settings_applied.
+        self._applied_sig: str | None = None
         #: Set while a build's layout is newer than the run's stored copy — see
         #: _apply_ui_state. Cleared by the first target-change cycle after it.
         self._layout_owned_by_build = False
@@ -3669,6 +3673,33 @@ class TabChart(QWidget):
         self._save_defaults_btn = QPushButton(tr("Save as Defaults"), self)
         self._save_defaults_btn.setFixedHeight(36)
         self._save_defaults_btn.clicked.connect(self._on_save_defaults)
+
+        # THE CHART WINS ON A RUN CHANGE, AND THE USER IS TOLD.
+        #
+        # `docs/design/per_target_settings.md` §2.2, confirmed by Knut and
+        # Sebastian on 2026-09-10: selecting a run paints that run's chart over
+        # this panel, so a setting changed and not built survives only until the
+        # run is left. He asked for *"a red warning text to notify user to click
+        # Generate Chart to apply the change, and changes not applied will be
+        # lost when closing project or changing between runs"*.
+        #
+        # Directly above the button row, because the button row holds the one
+        # control the sentence names. It is a statement and never a gate: it
+        # blocks no build, no run change and no close.
+        self._unapplied_lbl = QLabel("", left)
+        self._unapplied_lbl.setWordWrap(True)
+        self._unapplied_lbl.setVisible(False)
+        set_ink(self._unapplied_lbl, "#e05252")
+        self._unapplied_lbl.setToolTip(tr(
+            "Choosing another Profile run, or another Run type, puts that "
+            "target's own chart back on screen together with the settings it "
+            "was made with, so anything changed here and not built is "
+            "replaced. “Generate Chart” is what writes these settings into the "
+            "chart.\n\n"
+            "Nothing is blocked while this is showing: you can carry on, "
+            "change run or close the project, and only the unapplied change "
+            "goes."))
+        left_layout.addWidget(self._unapplied_lbl)
 
         btn_row.addWidget(self._generate_btn)
         btn_row.addWidget(self._stop_btn)
@@ -4487,6 +4518,19 @@ class TabChart(QWidget):
         self._manual_chart_notes_edit = self._make_lineedit("", self._manual_chart_notes_row)
         self._manual_chart_notes_edit.setPlaceholderText(tr("e.g. Canon Pro-1000 / Hahnemühle Photo Rag 308"))
         self._manual_chart_notes_edit.editingFinished.connect(self._save_target_text)
+        # §2.2: the notes travel in the chart's sidecar and are put back over
+        # this box on a run change, so they can be typed and lost like any
+        # parameter row. They do not route through the command preview, so the
+        # notice is refreshed from here as well. `textChanged`, not
+        # `editingFinished`: a user who types and then changes run without
+        # leaving the box never fires the latter, which is the very case.
+        #
+        # A BOUND METHOD, NEVER A LAMBDA. See CLAUDE.md and
+        # `tests/test_a_scrollbar_signal_never_takes_a_lambda.py`: a
+        # self-capturing closure parked on a signal a child widget emits is how
+        # this app came to segfault in PyQt6 6.11.
+        self._manual_chart_notes_edit.textChanged.connect(
+            self._on_chart_settings_touched)
         m_notes_row.addWidget(self._manual_chart_notes_edit, stretch=1)
         m_notes_row.addWidget(TooltipButton(
             tr("Chart Notes"),
@@ -4523,6 +4567,10 @@ class TabChart(QWidget):
             tr("Stamp settings used on the chart"), self._manual_stamp_cmd_row
         )
         self._manual_stamp_cmd_check.setChecked(True)
+        # §2.2, as for the notes above: the stamp choice is recorded in the
+        # chart's sidecar and restored over this box on a run change.
+        self._manual_stamp_cmd_check.toggled.connect(
+            self._on_chart_settings_touched)
         stamp_row.addWidget(self._manual_stamp_cmd_check)
         stamp_row.addStretch()
         stamp_row.addWidget(TooltipButton(
@@ -5250,6 +5298,17 @@ class TabChart(QWidget):
             self._manual_pages_spin.valueChanged.connect(
                 self._refresh_manual_command_preview
             )
+            # ONE FIELD, TWO BOXES, AND THEY WERE ONLY EVER SYNCHRONISED WHEN
+            # THE USER SWITCHED BETWEEN PRINTTARG AND THE ENGINE.
+            # "Pages" exists twice: this one on the tab and `panel.pages` on the
+            # layout panel. They were copied across at
+            # `_convert_printtarg_to_engine` and `_convert_engine_to_printtarg`
+            # and nowhere else, so after a run change they disagreed. An
+            # exhaustive sweep of 152 controls measured it: the panel's box kept
+            # 5 while this one went back to 3, and BOTH leaked the typed value
+            # onto the run the user switched to. One field, two answers, on
+            # screen at once.
+            self._manual_pages_spin.valueChanged.connect(self._mirror_pages_to_panel)
         if self._manual_auto_patches_check is not None:
             self._manual_auto_patches_check.toggled.connect(
                 self._refresh_manual_command_preview
@@ -5480,6 +5539,37 @@ class TabChart(QWidget):
         except Exception:  # noqa: BLE001 — never block the toggle
             log.warning("engine→printtarg conversion failed", exc_info=True)
 
+    def _mirror_pages_to_panel(self, value: int) -> None:
+        """Keep the layout panel's "Pages" in step with the tab's.
+
+        Guarded against the return trip: `panel.pages` emits `valueChanged` of
+        its own, and the two would otherwise chase each other.
+        """
+        if getattr(self, "_syncing_pages", False):
+            return
+        panel = getattr(self, "_manual_layout_panel", None)
+        box = getattr(panel, "pages", None) if panel is not None else None
+        if box is None or int(box.value()) == int(value):
+            return
+        self._syncing_pages = True
+        try:
+            box.setValue(int(value))
+        finally:
+            self._syncing_pages = False
+
+    def _mirror_pages_from_panel(self, value: int) -> None:
+        """The other direction, so neither box can be the stale one."""
+        if getattr(self, "_syncing_pages", False):
+            return
+        box = getattr(self, "_manual_pages_spin", None)
+        if box is None or int(box.value()) == int(value):
+            return
+        self._syncing_pages = True
+        try:
+            box.setValue(int(value))
+        finally:
+            self._syncing_pages = False
+
     def _schedule_manual_command_preview(self) -> None:
         """Refresh the Manual command preview a moment after the last change.
 
@@ -5525,6 +5615,12 @@ class TabChart(QWidget):
         # single hook for the live preview refresh (Knut, opt-in; guarded by a
         # layout-signature check so it only fires on a real change).
         self._maybe_schedule_auto_preview()
+        # …and the single hook for §2.2's "you have not built this yet" notice,
+        # for the same reason: every targen and printtarg row, the layout panel,
+        # the page count, the auto-patch tick and the bit depth all arrive here.
+        # It compares, so a value moved and moved back takes the notice away
+        # again; nothing here decides who moved it.
+        self._refresh_unapplied_warning()
         # #133: while the gamut module is active its sheet estimate follows the
         # Manual layout live — every layout change lands here, so this is the
         # one hook that keeps the "≈ N sheets" line honest.
@@ -5844,7 +5940,6 @@ class TabChart(QWidget):
             # render never clamps to instrument minimums, so the estimate
             # mustn't either, or the two would disagree. Below-minimum is
             # only flagged as a violation in the inspector.
-            geom = instruments.geom_from_build_kwargs(r.build_kwargs())
             pages_req = (self._manual_pages_spin.value()
                          if self._manual_pages_spin is not None else 1)
             # Use a fixed patch count ONLY when the count is fixed (Auto patch
@@ -5855,9 +5950,23 @@ class TabChart(QWidget):
             # regression).
             _auto = (self._manual_auto_patches_check is not None
                      and self._manual_auto_patches_check.isChecked())
-            self._predict_layout_info(
-                geom, r.paper, pages_req,
-                npat=None if _auto else self._estimate_patch_total())
+            _npat = None if _auto else self._estimate_patch_total()
+            # AREA-FIRST SIZES THE PATCH FROM THE COUNT, SO THE COUNT HAS TO BE
+            # IN THE KWARGS. `build_kwargs()` does not carry it: `build_chart`
+            # injects `area_target_count` from the .ti1 it is laying out
+            # (chart.py), and `area_fit` then grows the patches so exactly that
+            # many fill the sheet. Without it the estimate sized a CAPACITY
+            # FILL of minimum-width patches and reported that grid instead.
+            # Measured on screen, i1Pro / A4 portrait / area-first / Auto patch
+            # count off / -f 400: the panel promised 525 patches, 25 per strip,
+            # 21 strips at 8.33 x 8.56 mm, and the build produced 418, 22 per
+            # strip, 19 strips at 9.23 x 9.82 mm. The helper-marker overlay
+            # already injects the same key for the same reason.
+            _kw = r.build_kwargs()
+            if _npat:
+                _kw["area_target_count"] = int(_npat)
+            geom = instruments.geom_from_build_kwargs(_kw)
+            self._predict_layout_info(geom, r.paper, pages_req, npat=_npat)
         except Exception:
             self._layout_info_panel.clear_estimate()
 
@@ -5876,6 +5985,13 @@ class TabChart(QWidget):
         incl. paper, restored verbatim); otherwise fall back to the active
         per-(instrument/paper/mode) preset for the current selection (#93)."""
         self._manual_panel_inited = True
+        # THE OTHER HALF OF THE PAGES MIRROR, wired once the panel exists.
+        # Without it the tab's box could be the stale one instead.
+        _panel = getattr(self, "_manual_layout_panel", None)
+        _pages = getattr(_panel, "pages", None) if _panel is not None else None
+        if _pages is not None and not getattr(self, "_pages_mirror_wired", False):
+            _pages.valueChanged.connect(self._mirror_pages_from_panel)
+            self._pages_mirror_wired = True
         saved = self._settings.get("manual_engine_recipe", None)
         if isinstance(saved, dict):
             from workflow.layout_engine.presets import LayoutRecipe
@@ -6042,6 +6158,9 @@ class TabChart(QWidget):
         d = (overlay(r) if overlay is not None else r).to_dict()
         d.pop("label_style_explicit", None)
         d.pop("seed", None)
+        # …and the tick that belongs to the seed, for the same reason: a preset
+        # never stores it, so a chart that does would always read as "modified".
+        d.pop("seed_fixed", None)
         d.pop("chart_text", None)
         return d
 
@@ -6893,6 +7012,11 @@ class TabChart(QWidget):
         # _restore_chart_settings, because the signature we store is only
         # meaningful once the panels hold this chart's own settings.
         self._rebind_patch_set_from_run(ti1)
+        # §2.2: the panel has just been brought to this chart's own settings, so
+        # nothing is pending. `_on_target_changed` marks again at the end of its
+        # own episode; this covers the other caller, `_load_existing_profile`
+        # (Open Project), which does not go through that handler's finally.
+        self._mark_settings_applied()
         # Let Print / Measure pick the chart up, as if it had just been built.
         self.chart_finished.emit(list(tiffs), ti2, False)
 
@@ -6949,6 +7073,17 @@ class TabChart(QWidget):
             # set would be protected while the screen still said it was not,
             # which is the state that cost him thirteen printed pages.
             self._update_preset_locks()
+            # AND SAY SO ON SCREEN. Arming a set is the moment it starts
+            # deciding the count, and nothing recomputed the headline on that
+            # gesture: a challenge round loaded a 420-patch honeycomb in Guided
+            # and the panel stayed on 345 over one page until the Pages box was
+            # touched, after which it was right at every page count. The
+            # arithmetic was already correct; only the call was missing.
+            #
+            # LAST, NOT FIRST. Put before the lock refresh it pre-empted it, so
+            # the "Edit patch recipe (override preset)" row Knut reported
+            # missing would have stayed missing.
+            self._update_patch_count()
             log.info("Create Chart: this run's own patch set (%s) is attached, "
                      "so regenerating reproduces it", Path(ti1).name)
         except Exception as exc:  # noqa: BLE001 — never block showing a chart
@@ -7056,6 +7191,13 @@ class TabChart(QWidget):
                     # there swallows a real edit. Measured: the broad fix drops
                     # the A4 -> A4R the user made himself.
                     self._settle_live_preview()
+                    # §2.2, and the same asymmetry for the same reason: this
+                    # branch reproduces the sheet that was just built, so the
+                    # panel and the chart agree and nothing is pending.
+                    # Switching module is not a chart edit and must not raise
+                    # the notice; the branch below carries what the user
+                    # changed, and there it must.
+                    self._mark_settings_applied()
                 else:
                     self._carry_shared_settings(prev, mode)
             finally:
@@ -7865,10 +8007,26 @@ class TabChart(QWidget):
         if checked:
             # QSpinBox shows specialValueText whenever value == minimum.
             # -f's min is 0 (see data/parameters.yaml), so set 0 here.
+            #
+            # AND REMEMBER WHAT IT WAS, because unticking has to put it back.
+            # It did not, so two clicks, tick then untick, left -f at 0 with
+            # Auto off: a state the user cannot see (the box reads 0) and did
+            # not ask for. A challenge round drove what follows from it, and
+            # the estimate promised 418 patches where Generate built 16.
+            # RECORD IT WHATEVER IT IS. Guarding this with `if spin.value()`
+            # meant a 0 was never recorded, so an older value survived and was
+            # reinstated on the untick: type 777, tick, untick gives 777 back
+            # (right), then type 0 on purpose, tick, untick gives 777 again
+            # (wrong, and the opposite of what this fix claimed). A challenge
+            # round drove both.
+            self._f_before_auto = int(spin.value())
             spin.setSpecialValueText(tr("Auto"))
             spin.setValue(0)
         else:
             spin.setSpecialValueText("")
+            _back = int(getattr(self, "_f_before_auto", 0) or 0)
+            if _back and not spin.value():
+                spin.setValue(_back)
         spin.blockSignals(False)
         self._refresh_manual_command_preview()
 
@@ -9359,8 +9517,23 @@ class TabChart(QWidget):
     def _paper_name_and_orientation(paper: str) -> tuple[str, str]:
         """(base paper name, orientation) for a printtarg -p value, read from the
         paper labels (which carry "… Portrait" / "… Landscape"), e.g.
-        ``"A4R"`` → ``("A4", "Landscape")``. Custom ``WxH`` sizes derive the
-        orientation from their dimensions."""
+        ``"A4R"`` → ``("A4", "Landscape")``.
+
+        A CUSTOM SIZE HAS NO ORIENTATION OF ITS OWN, SO IT IS READ OFF THE TWO
+        NUMBERS. Knut, 2026-09-10: *"we can automatically detect 'Portrait' or
+        'Landscape' and add that to the name. If first parameter, which is the
+        page width, is smaller than the second parameter, which is the height,
+        then we have Portrait. If opposite, width larger than height, then we
+        have Landscape."* That is arithmetic on the pair, not a stored flag,
+        which is why it lives here rather than in the paper table.
+
+        A SQUARE SHEET GETS NEITHER WORD. He ruled on the two inequalities and
+        said nothing about equality, and a square page genuinely is neither
+        portrait nor landscape: calling it one of them would put a word in the
+        name that the sheet does not have. So the size token is the whole
+        answer, exactly as it is for a paper the table has no orientation for.
+        (Open question for him; nothing else in the app depends on it.)
+        """
         label = PAPER_LABELS.get(paper, "")
         if label:
             # Filesystem-safe readable token (A3+ → A3Plus, 8×10" → 8x10in) (#68).
@@ -9371,9 +9544,11 @@ class TabChart(QWidget):
         if "x" in str(paper):
             try:
                 w, h = (float(v) for v in str(paper).split("x", 1))
-                return str(paper), ("Landscape" if w > h else "Portrait")
             except ValueError:
-                pass
+                return str(paper), ""
+            if w == h:
+                return str(paper), ""
+            return str(paper), ("Landscape" if w > h else "Portrait")
         return str(paper), ""
 
     def comparable_presets(self) -> list[tuple[str, list[tuple[str, "Path"]]]]:
@@ -9438,7 +9613,16 @@ class TabChart(QWidget):
                 # Landscape even suggested "A4…Portrait", #108).
                 instr = (panel.instr.currentData()
                          if panel.instr is not None else "") or "i1"
-                paper = panel.paper.currentData() or "A4"
+                # THE PAPER COMBO'S OWN DATA IS A SENTINEL ON "Custom…".
+                # `panel.paper.currentData()` reads `"__custom__"` there, and
+                # that string is what the suggested preset name used to carry:
+                # Knut, 2026-09-10, got "i1Pro-__custom__-600p-4pages" for a
+                # sheet his own preset calls 100x150mm, so the one thing that
+                # identifies the paper was the one thing missing. `selection()`
+                # is the panel's own resolver and answers "100x150" from the two
+                # Custom size boxes, which `_paper_name_and_orientation` then
+                # reads as a size plus its derived orientation.
+                paper = panel.selection()[1] or "A4"
             else:
                 instr = (self._manual_instr_pw.get_raw_value()
                          if self._manual_instr_pw is not None else "") or "i1"
@@ -9491,7 +9675,16 @@ class TabChart(QWidget):
             "chart layout.\n\n"
             "The prefix updates on its own as you change the settings and can't be "
             "edited directly — click the field and your cursor lands right after it, "
-            "ready to type. Turn the option off to name the preset entirely yourself.")
+            "ready to type. Turn the option off to name the preset entirely yourself."
+        ) + "\n\n" + tr(
+            # Knut, 2026-09-10, asked for the rule to be implemented "and also
+            # explain this in the help icon". This is that explanation, kept as
+            # its own string so the paragraphs above keep their translations.
+            "On Custom paper the size you type is the paper part of the name, so "
+            "a 100 by 150 mm sheet reads “100x150”. ChromIQ works the orientation "
+            "out from the two numbers: a width smaller than the height is "
+            "Portrait, a width larger than the height is Landscape. A square page "
+            "gets neither word, because it is neither.")
 
     @staticmethod
     def _profile_name_tooltip() -> str:
@@ -10239,8 +10432,12 @@ class TabChart(QWidget):
             from dataclasses import replace
             # PINNED: a saved preset carries its own label style, so a later
             # Preferences change can't resize the labels on it (Knut, beta-6).
+            # `seed_fixed` goes with `seed`: a preset names a layout, not one
+            # chart's shuffle, so it carries neither the number nor the tick
+            # that would apply a stale one (Knut's seed tag, 2026-09-10).
             capture["layout_recipe"] = replace(
-                self._pinned_layout_recipe(), seed=None).to_dict()
+                self._pinned_layout_recipe(), seed=None,
+                seed_fixed=None).to_dict()
         # Chart notes + stamp choice round-trip with the preset (mavtop,
         # forum). Presets saved before these keys existed simply lack them,
         # and loading such a preset leaves both fields untouched.
@@ -12811,24 +13008,32 @@ class TabChart(QWidget):
             per_sheet = query_patches(instr, paper, dd, suppress_lb=eff_lb,
                                       margin_mm=eff_margin, patch_scale=eff_scale,
                                       triple_density=td, no_strip_limit=nsl_eff)
-        if per_sheet is not None:
-            total = per_sheet * pages
-            self._predicted_patch_count = total   # for the Suggest-name button (#62)
-            self._patch_count_lbl.setText(self._count_with_accent(str(total)))
-            # "1 PAGES" sat on the first screen of the app, in the largest
-            # type on the panel, with "Number of pages: 1" two inches above it.
-            # Every other count-bearing line already uses `count_phrase`; this
-            # one skipped it and thirteen translations inherited the mistake.
-            _pages = count_phrase(pages, tr("1 PAGE"), tr("{n} PAGES"))
-            self._patch_detail_lbl.setText(
-                tr("PATCHES · {pages} · {paper}").format(
-                    pages=_pages, paper=paper.upper())
-            )
-        else:
-            self._predicted_patch_count = None
-            self._patch_count_lbl.setText(self._count_with_accent("", mark="?"))
-            self._patch_detail_lbl.setText(tr("CUSTOM LAYOUT"))
+        # THE BIG NUMBER MUST DESCRIBE THE CHART GENERATE IS GOING TO BUILD.
+        #
+        # `per_sheet * pages` is a CAPACITY estimate, and it is the right answer
+        # for exactly one case: Generate is about to run targen and fill that
+        # many pages. With a patch set already ARMED -- a preset's attached
+        # .ti1, a built-in's bundled one -- Generate goes through
+        # `chart_creator.load_ti1_and_generate_preview` instead, and that path
+        # never consults `pages` at all: the file's own NUMBER_OF_SETS decides
+        # the count, and the count decides how many sheets it takes.
+        #
+        # Knut, 2026-09-10, on his own 648-patch honeycomb: Pages 2 -> the tab
+        # said 792 and Generate wrote two sheets holding 648; Pages 1 -> the tab
+        # said "396 / 1 PAGE" and Generate wrote the same two sheets holding the
+        # same 648. THE FILES WERE HONEST AND THE NUMBER WAS NOT. Nothing about
+        # what is built changes here; only what is claimed about it.
+        fixed = self._pending_patch_set_total()
 
+        # THE ESTIMATE IS PUBLISHED FIRST, AND THE BIG NUMBER IS READ OFF IT.
+        #
+        # Those were two independent calculations sitting two inches apart, and
+        # on the same screen they said 396 over 1 page and 648 over 2. Taking
+        # the headline from the layout the panel has just published makes them
+        # one number rather than two that agree when nothing has gone wrong.
+        # (`_predict_layout_info` returns that layout, or None when it could not
+        # build one, in which case the arithmetic below stands in.)
+        lay = None
         # Live layout-info estimate (Guided + engine). Runs even with a chart on
         # screen, so its "estimate" column tracks the current settings while the
         # "on screen" column keeps the generated chart's real numbers (#93).
@@ -12843,9 +13048,44 @@ class TabChart(QWidget):
                 geom = self._engine_geom(instr, paper, dd=dd, td=td, eff_lb=eff_lb,
                                          nsl=nsl_eff, pscale=eff_scale,
                                          margin=eff_margin, guided=guided_active)
-                self._predict_layout_info(geom, paper, pages)
+                lay = self._predict_layout_info(geom, paper, pages,
+                                                npat=fixed or None)
             else:
                 self._layout_info_panel.clear_estimate()
+
+        if per_sheet is not None:
+            if fixed and lay is not None:
+                # The armed patch set, laid out: `total_patches` is the count
+                # that will be ON the sheets (the designed set plus whatever
+                # fill-up the last strip takes) and `pages` is how many sheets
+                # that is. Both come from the panel's own layout.
+                total, shown_pages = lay.total_patches, lay.pages
+            elif fixed:
+                # No engine layout to read (printtarg, or Manual with the panel
+                # away). The count is still the file's, and the sheets still
+                # follow from it rather than from the Pages box.
+                total = fixed
+                shown_pages = max(1, -(-fixed // per_sheet))
+            else:
+                # Nothing armed: Generate really will run targen and fill the
+                # pages asked for, so the capacity estimate is the honest answer
+                # and is left exactly as it was.
+                total, shown_pages = per_sheet * pages, pages
+            self._predicted_patch_count = total   # for the Suggest-name button (#62)
+            self._patch_count_lbl.setText(self._count_with_accent(str(total)))
+            # "1 PAGES" sat on the first screen of the app, in the largest
+            # type on the panel, with "Number of pages: 1" two inches above it.
+            # Every other count-bearing line already uses `count_phrase`; this
+            # one skipped it and thirteen translations inherited the mistake.
+            _pages = count_phrase(shown_pages, tr("1 PAGE"), tr("{n} PAGES"))
+            self._patch_detail_lbl.setText(
+                tr("PATCHES · {pages} · {paper}").format(
+                    pages=_pages, paper=paper.upper())
+            )
+        else:
+            self._predicted_patch_count = None
+            self._patch_count_lbl.setText(self._count_with_accent("", mark="?"))
+            self._patch_detail_lbl.setText(tr("CUSTOM LAYOUT"))
 
         # Hidden-defaults info label (values mirror _collect_guided logic).
         # The base is fixed (no settings UI exposes it); reading it from settings
@@ -17820,6 +18060,12 @@ class TabChart(QWidget):
             # would be compared against the NEXT target's screen.
             self._note_what_the_chart_imposed()
             self._settle_live_preview()
+            # §2.2: the incoming target's chart has now been painted over the
+            # panel (or this target has no chart at all), so nothing is pending.
+            # The episode ends HERE — the handler seeds the panel at least three
+            # times on the way through, and marking at any of those would arm
+            # the warning with the app's own next seeder.
+            self._mark_settings_applied()
             self._inside_target_change = False
 
     @staticmethod
@@ -18055,9 +18301,6 @@ class TabChart(QWidget):
             # marked RANDOM_START when it had been laid out in fixed order, and
             # chartread reads those two differently.
             self._release_rebuild_guard()
-            # If the patch set leaves a notably under-filled last page (or spilled
-            # onto a near-empty extra page), offer to edit the patch set (#93, Knut).
-            self._maybe_warn_partial_last_page(ti2)
             # Remember the .ti1 backing this chart so the Save Preset dialog can
             # offer to attach it.
             ti1 = tiffs[0].parent / f"{stem}.ti1"
@@ -18082,7 +18325,29 @@ class TabChart(QWidget):
             # plain re-Generate OVERWRITES it instead of spuriously creating a new
             # run (the bar's empty default reads as "New run").
             self._default_bar_to_current_run()
+            # THE SIGNAL GOES BEFORE ANY MODAL, AND IT USED TO GO AFTER ONE.
+            # `_maybe_warn_partial_last_page` ends in a blocking
+            # `QMessageBox.exec()`, and it was called above, before this line.
+            # `exec()` runs a nested event loop, which is exactly what lets the
+            # main window's chart-build watchdog `QTimer` fire: its grace is
+            # 1500 ms and the dialog waits for a person.
+            #
+            # Knut's log of 2026-09-10 has the line, and an on-screen
+            # reproduction matched it with a four-way control: hold that dialog
+            # open for 3 s and the watchdog fires; answer it in 155 ms, or
+            # suppress it with auto-preview, or build a chart that fills its
+            # last page, and it does not. Nothing was lost on disk and no sheet
+            # was wrong. What it cost is that the masthead lock dropped early,
+            # so Close Project, the run picker and Restore Used Chart came back
+            # live while the build was still finishing, which is the very
+            # "build in flight against the run's stored state" the lock exists
+            # to prevent.
+            #
+            # So the build reports that it has finished, and THEN asks its
+            # question. The offer to edit the patch set is unaffected: it is
+            # about the sheet that now exists (#93, Knut).
             self.chart_finished.emit(tiffs, ti2, is_isis)
+            self._maybe_warn_partial_last_page(ti2)
         else:
             self._set_margin_chart([], None)
             self._log.appendPlainText("[ERROR] Chart generation failed.")
@@ -18182,6 +18447,20 @@ class TabChart(QWidget):
             self._last_auto_sig = self._layout_signature()
         except Exception:      # noqa: BLE001
             pass
+        # §2.2, AND ONLY WHEN A CHART CAME BACK. A build that succeeded wrote
+        # this panel into the chart and its sidecar, so nothing is pending; a
+        # build that FAILED changed nothing on disk, and clearing the notice
+        # there would tell the user their change had been applied when it had
+        # not. `tiffs` is the same thing the success branch above tested.
+        #
+        # Last, for the reason the line above is last: `_show_built_seed_in_
+        # panel` and the restore of the chart's own settings both move the
+        # fingerprint after the build, and a baseline taken before them would
+        # arm the warning against the app's own tidying-up.
+        if tiffs:
+            self._mark_settings_applied()
+        else:
+            self._refresh_unapplied_warning()
         # THE SHIELD LASTS EXACTLY AS LONG AS THE BUILD — AND NO LONGER.
         #
         # It is also cleared in _on_target_changed, but only AFTER that
@@ -18217,10 +18496,15 @@ class TabChart(QWidget):
         """The patch count the estimate should lay out: what pressing Generate
         NOW would produce.
 
-        A fixed patch set that is already armed wins, because that is the file
-        Generate will lay out — a preset's attached .ti1, or a built-in's
-        bundled one. Only when Generate would build a fresh set does the chart
-        in the preview stand in for it.
+        Three sources, in the order Generate itself would consult them:
+
+        1. a fixed patch set that is already armed, because that is the file
+           Generate will lay out verbatim — a preset's attached .ti1, or a
+           built-in's bundled one;
+        2. otherwise the targen -f box, because Generate hands that value
+           straight to targen whenever "Auto patch count" is unticked;
+        3. only when neither answers (the box is on its 0 default, or the
+           control is not built yet) does the chart in the preview stand in.
 
         THE DISTINCTION IS NOT ACADEMIC: selecting a preset arms its .ti1 long
         before the build finishes, and until it did the estimate answered with
@@ -18232,7 +18516,41 @@ class TabChart(QWidget):
         n = self._pending_patch_set_total()
         if n:
             return n
+        # …AND WHEN GENERATE WOULD RUN targen, THE COUNT IS THE ONE IN THE
+        # targen -f BOX, not the count of the chart that happens to be on
+        # screen. `_on_generate` overwrites `params.patches` with the estimate
+        # only while "Auto patch count" is ticked; with it unticked it passes
+        # the -f value straight to targen, so that value IS "what pressing
+        # Generate now would produce".
+        #
+        # Reading the chart on screen instead is Basti's report, and it is
+        # worst exactly where a person notices it: after a build, the estimate
+        # went on describing the chart that was just made. Measured on screen,
+        # i1Pro / A4 portrait / Auto patch count off, three stages in a row:
+        # -f 400 built 418, then -f 900 with the panel still promising 425 on
+        # ONE page while the build made 900 on TWO, then -f 400 with the panel
+        # promising 920 on THREE pages while the build made 418 on one. Each
+        # promise was the PREVIOUS chart's total padded, one build behind.
+        n = self._targen_patch_count()
+        if n:
+            return n
         return self._onscreen_patch_total()
+
+    def _targen_patch_count(self) -> "int | None":
+        """The targen ``-f`` value, i.e. the number of patches the next
+        Generate would ask targen for, or None while "Auto patch count" is on
+        (then the count is a capacity fill the estimate works out for itself)
+        or when the control is not up yet."""
+        auto = getattr(self, "_manual_auto_patches_check", None)
+        if auto is not None and auto.isChecked():
+            return None
+        pw = getattr(self, "_manual_f_pw", None)
+        ctl = getattr(pw, "_control", None) if pw is not None else None
+        try:
+            n = int(ctl.value())
+        except (AttributeError, TypeError, ValueError):
+            return None
+        return n if n > 0 else None
 
     def _pending_patch_set_total(self) -> "int | None":
         """Patch count of the fixed patch set the next Generate would lay out,
@@ -18285,21 +18603,27 @@ class TabChart(QWidget):
             return None
 
     def _predict_layout_info(self, geom, paper: str, pages_req: int,
-                             npat: "int | None" = None) -> None:
+                             npat: "int | None" = None):
         """Fill the Chart-layout-information panel with the engine's predicted
         grid (#93). With *npat* (the on-screen chart's patch count) the SAME
         patches are laid out under the current settings; otherwise a capacity-
-        filled layout of *pages_req* pages is shown (the auto-count prediction)."""
+        filled layout of *pages_req* pages is shown (the auto-count prediction).
+
+        Returns the ``geometry.Layout`` it published, or None when it could not
+        build one. `_update_patch_count` reads its headline count and page count
+        off that, so the big number and this panel cannot describe two different
+        charts -- which they did, 396 over one page beside 648 over two.
+        """
         panel = getattr(self, "_layout_info_panel", None)
         if panel is None:
-            return
+            return None
         try:
             from workflow.layout_engine import geometry, instruments, papers
             w_mm, h_mm = papers.dimensions_mm(paper)
             per_sheet = geometry.patches_per_sheet(geom, w_mm, h_mm)
             if not per_sheet:
                 panel.show_placeholder()
-                return
+                return None
             total = npat if npat else per_sheet * max(1, pages_req)
             lay = geometry.compute(geom, w_mm, h_mm, total)
             rows = lay.steps_in_pass
@@ -18322,8 +18646,10 @@ class TabChart(QWidget):
                                pages=lay.pages, patch_w=_pw, patch_h=_ph,
                                page_patches=n0, row_pitch=_pitch,
                                fillup=getattr(lay, "padding", None))
+            return lay
         except Exception:
             panel.clear_estimate()
+            return None
 
     def _update_layout_info(self) -> None:
         """Fill the on-screen column of the Chart-layout-information panel from
@@ -18554,7 +18880,7 @@ class TabChart(QWidget):
             self._ruler_over_mm = _eff_ruler
 
         violations = check_violations(report, thresholds)
-        warns = self._engine_text_overflow_warnings()
+        warns, overlaps = self._engine_text_notes(report)
         if getattr(self, "_ruler_over_mm", None):
             warns = list(warns) + [tr(
                 "⚠ Strip length {len:.0f} mm exceeds the {ruler:.0f} mm "
@@ -18566,6 +18892,7 @@ class TabChart(QWidget):
             notify=bool(self._settings.get("margin_violation_notify", True)),
             thresholds=thresholds,
             text_warnings=warns,
+            overlap_warnings=overlaps,
         )
         self._refresh_margin_guides(report, thresholds, violations)
         self._refresh_measured_guides(report)
@@ -18588,18 +18915,48 @@ class TabChart(QWidget):
         self._preview.set_measured_guides(guides or None)
 
     def _engine_text_overflow_warnings(self) -> "list[str]":
-        """Warnings for when a page margin is too small to hold the text band that
-        side carries (margins are the law, so the text overflows toward the page
-        edge — flag it below the preview, by the margin violations) (#93, Knut).
-        Engine-Manual only; empty otherwise."""
+        """Every notice this chart's text and labels have earned, for the ⓘ.
+
+        Engine-Manual only; empty otherwise. :meth:`_engine_text_notes` is the
+        same computation with the four-sided OVERLAP warnings kept separately,
+        because those go somewhere else as well: the message field of the
+        "Measured from Preview" frame, in red.
+        """
+        # UNBOUND, because the callers of this one are unbound too: three test
+        # files and `scripts/drive_50_beta3_gate.py` run it against a stand-in
+        # object carrying just the four attributes it reads, and `self._…`
+        # would look the delegate up on the stand-in and not find it.
+        return TabChart._engine_text_notes(self)[0]
+
+    def _engine_text_notes(self, report=None) -> "tuple[list[str], list[str]]":
+        """``(every notice, the overlap notices)`` for the chart on screen.
+
+        The second list is Knut's ruling of 2026-09-10: *"For the Strip labels,
+        we previously designed a warning message that should come (in the
+        message field in Measured from Preview frame) if the text is overlapping
+        with the patch area due to the margins. This should also be implemented
+        for text defined for the right margin … and also for the bottom margin …
+        They should all behave the same way."*
+
+        So the four sides are decided by one law, in `workflow/text_edge_fit.py`,
+        and worded here in one voice: what is wrong, and which two boxes to
+        change. THE FACT DOES NOT TRAVEL UP FROM THE RENDERER OR THE STAMPER --
+        it is predicted here from the recipe, because the user has to be told
+        while they are still moving the spin boxes, and the only raster that
+        could report it is one they have already committed to building. The
+        prediction stays true because `workflow/tiff_metadata.py` takes its
+        legibility floor from that same module rather than keeping its own.
+        """
         warns: list[str] = []
+        over: list[str] = []
         try:
             manual = (self._manual_btn is not None and self._manual_btn.isChecked())
             if not (manual and getattr(self, "_manual_layout_panel", None) is not None
                     and bool(self._settings.get("use_chromiq_layout_engine", False))):
-                return warns
+                return warns, over
             r = self._current_layout_recipe()
             from workflow.layout_engine import instruments
+            from workflow import text_edge_fit
             geom = instruments.geom_from_build_kwargs(r.build_kwargs())
             # THE MARGIN WE MOVED, SAID OUT LOUD — and it is said in BOTH
             # layout modes, because the raise happens in both.
@@ -18659,17 +19016,163 @@ class TabChart(QWidget):
                     "indicators” off or use a smaller label size.").format(
                         asked=_asked_l, got=_got_l, floor=_floor_l,
                         band=geom.rlwi, clip=_clip_l))
+            # ---- THE SIDE MARGINS, IN BOTH LAYOUT MODES ---------------------
+            #
+            # The chart note is not laid out by the engine at all: it is stamped
+            # onto the finished raster afterwards
+            # (`workflow/tiff_metadata.py::_stamp_one`), from a fixed distance
+            # off the paper edge inwards, in every layout mode and on every
+            # chart that carries "Run 1 Chart Notes" or "Stamp settings used on
+            # the chart". So this pair is asked before the area-first gate
+            # below, which is about the TOP and BOTTOM bands only.
+            _clip_zone = float(geom.lbord or 0.0) + float(geom.border or 0.0)
+            _clip_on_right = ((getattr(geom, "clip_side", "left") or "left")
+                              == "right" and _clip_zone > 0)
+            _note_side = "right"
+            # THE MEASURED RIGHT MARGIN, NOT THE ONE THAT WAS TYPED, and the
+            # difference is a warning that cries wolf on most charts. The typed
+            # margin is where the patch area is ALLOWED to start; the note has
+            # to fit between the paper edge and where the block actually ENDS,
+            # and a chart that does not fill its page leaves far more room than
+            # the margin promises. Measured on a 120-patch A4 i1 chart with the
+            # right margin typed at 3 mm: 151.1 mm of white paper on the right,
+            # and the typed figure would have called that an overlap. This is
+            # the "Measured from Preview" frame, so it measures.
+            _note_margin = float(getattr(r, "margin_right", 0.0) or 0.0)
+            if report is not None and getattr(report, "right_mm", None) is not None:
+                _note_margin = float(report.right_mm)
+            _notes_text = ""
+            _edit = getattr(self, "_manual_chart_notes_edit", None)
+            if _edit is not None:
+                _notes_text = (_edit.text() or "").strip()
+            _stamp_on = False
+            _cb = getattr(self, "_manual_stamp_cmd_check", None)
+            if _cb is not None:
+                _stamp_on = bool(_cb.isChecked())
+            if _notes_text or _stamp_on:
+                _o = text_edge_fit.chart_note_overlap(
+                    _note_side, _note_margin, r.text_edge_clip_mm,
+                    float(getattr(r, "dpi", 300) or 300),
+                    _clip_zone if _clip_on_right else 0.0)
+                if _o is not None:
+                    # TWO WORDINGS, BECAUSE THE LEVER IS NOT THE SAME ONE, AND
+                    # WITH A CLIP BORDER ON THIS EDGE THERE IS NO LEVER AT ALL.
+                    #
+                    # The first version offered two and both were unreachable.
+                    # `instruments.geom_from_build_kwargs` raises this margin to
+                    # the clip zone, so the paper available to the note is
+                    # `margin - clip - text_edge - pad`, and with the first two
+                    # equal that is `-(text_edge + 0.34)` whatever the user
+                    # types. Narrowing the band narrows the margin with it, and
+                    # a challenge round measured the advice asking for a border
+                    # 19.7 mm narrower than a 19.0 mm border, then 10.7 mm
+                    # narrower at the spin box's 10.0 mm floor. Lowering "Clip"
+                    # to zero still leaves the 0.34 mm patch guard, so it cannot
+                    # clear it either.
+                    #
+                    # So the honest sentence says the edge is shared and names
+                    # the one control that does move it. The overlap itself is
+                    # what Knut ruled for: the note is printed, over the patches
+                    # if it must be, and this is what tells the user why.
+                    over.append((tr(
+                        "⚠ The chart notes down the right edge share that edge "
+                        "with the clip border, so they are printed over the "
+                        "patches. The border takes the outer {band:.1f} mm and "
+                        "the patches start where it ends, which leaves the "
+                        "notes no clean paper on this side. They are printed "
+                        "anyway so you can see this. Neither the right margin "
+                        "nor “Clip” can free room here: put the clip border on "
+                        "the LEFT if you want the notes on clean paper, or "
+                        "leave it and read them over the patches.")
+                        if _clip_on_right else tr(
+                        "⚠ The chart notes down the right edge run over the "
+                        "patches. They are printed {edge:.1f} mm in from the "
+                        "paper edge, need {need:.1f} mm of room, and the right "
+                        "margin leaves {avail:.1f} mm. They are printed anyway "
+                        "so you can see this. Raise “Right” under “Margins "
+                        "(mm)” by about {short:.1f} mm, or lower “Clip” under "
+                        "“Text distance from edge (mm)”, which is the box this "
+                        "edge uses.")).format(
+                            edge=r.text_edge_clip_mm, need=_o.needed_mm,
+                            avail=max(0.0, _o.available_mm),
+                            short=_o.overlap_mm, band=_clip_zone))
+            # THE CLIP BORDER'S CONTENT, on whichever edge it sits.
+            # `instruments.geom_from_build_kwargs` raises that edge's margin to
+            # the clip zone, so on every chart the app builds today the band
+            # ends exactly where the first patch column starts and this stays
+            # silent. It is asked anyway: a geometry that stops raising the
+            # margin is precisely the day the user needs to be told, and the
+            # ruling names this side.
+            if _clip_zone > 0 and str(getattr(r, "clip_content_mode", "off")) != "off":
+                _side = "right" if _clip_on_right else "left"
+                _o = text_edge_fit.clip_content_overlap(
+                    _side,
+                    float(geom.margin_r if _clip_on_right else geom.margin_l),
+                    _clip_zone, r.text_edge_clip_mm)
+                if _o is not None:
+                    over.append((tr(
+                        "⚠ The clip border content runs over the patches on the "
+                        "right. The band is {need:.1f} mm wide and the right "
+                        "margin leaves {avail:.1f} mm. It is printed anyway so "
+                        "you can see this. Raise “Right” under “Margins (mm)” "
+                        "by about {short:.1f} mm, or set a narrower “Clip "
+                        "border width”.") if _side == "right" else tr(
+                        "⚠ The clip border content runs over the patches on the "
+                        "left. The band is {need:.1f} mm wide and the left "
+                        "margin leaves {avail:.1f} mm. It is printed anyway so "
+                        "you can see this. Raise “Left” under “Margins (mm)” "
+                        "by about {short:.1f} mm, or set a narrower “Clip "
+                        "border width”.")).format(
+                            need=_o.needed_mm, avail=max(0.0, _o.available_mm),
+                            short=_o.overlap_mm))
             # The text-overflow warning only applies in "margins are law" mode,
             # which is now AREA-FIRST (Knut #93): there the label/text lives inside
             # the margin, so a too-small margin overflows toward the page edge. In
-            # patch-first the band is reserved above/below the patches — no overflow.
+            # patch-first the band is reserved above/below the patches, no overflow.
             if r.layout_mode != "area_first":
-                return warns
+                return warns + over, over
             lab = geom.label_band_mm if geom.label_band_mm >= 0 else geom.txhisl
-            if r.show_strip_indicators and lab > 0 and \
-                    r.margin_top + 0.05 < r.text_edge_top_mm + lab:
-                warns.append(tr("⚠ Top margin is too small for the strip labels — "
-                                "they overflow toward the page edge."))
+            if r.show_strip_indicators and lab > 0:
+                # THIS SAID THE LETTERS RUN INTO THE PATCHES AND THEY NEVER DO.
+                # A challenge round measured five sheets at top margins from
+                # 1 mm to 8 mm: on every one the letters were printed ABOVE the
+                # patch block with clear paper between them, while this line
+                # said in red that they ran into it. Its remedy was worse than
+                # useless, because lowering "T" as it advised silenced the
+                # warning without moving one pixel of ink. The wording it
+                # replaced was true.
+                #
+                # `geometry.py` anchors the label's BOTTOM at the top of the
+                # patch area and slides it UP toward the page edge when the
+                # margin is tight, clamped at the edge. So the fact to report
+                # is that the distance from the paper edge the user asked for
+                # is not the distance they get, which is what the help for
+                # "Show strip letters" has always said would happen.
+                _sq = text_edge_fit.strip_label_squeeze(
+                    r.margin_top, r.text_edge_top_mm, lab,
+                    float(getattr(r, "strip_label_offset_mm", 0.0) or 0.0))
+                if _sq is not None and _sq.off_the_sheet:
+                    over.append(tr(
+                        "⚠ The strip letters do not fit above the patches. "
+                        "They are {need:.1f} mm tall and the top margin is "
+                        "{margin:.1f} mm, so they are printed hard against the "
+                        "paper edge and the top of every letter is lost. Raise "
+                        "“Top” under “Margins (mm)” by at least {short:.1f} mm, "
+                        "or use a smaller label size in Preferences.").format(
+                            need=_sq.band_mm, margin=_sq.margin_mm,
+                            short=_sq.short_mm))
+                elif _sq is not None:
+                    over.append(tr(
+                        "⚠ The strip letters are printed closer to the paper "
+                        "edge than you asked. They are {act:.1f} mm from it "
+                        "rather than {asked:.1f} mm, because they are "
+                        "{need:.1f} mm tall and the top margin is {margin:.1f} "
+                        "mm. They never move down over the patches. Raise "
+                        "“Top” under “Margins (mm)” by about {short:.1f} mm to "
+                        "get the distance you set.").format(
+                            act=_sq.actual_mm, asked=_sq.asked_mm,
+                            need=_sq.band_mm, margin=_sq.margin_mm,
+                            short=_sq.short_mm))
             # …AND THE ROW NUMBERS DOWN THE LEFT, the same rule one edge over.
             # Area-first no longer reserves their 7.5 mm band outside the margin
             # (that was the fault Basti reported: a 1 mm margin put the first
@@ -18744,12 +19247,35 @@ class TabChart(QWidget):
                     "Switch to “Prioritise patch size, then fit to page” to "
                     "get them back, or put the clip border on the right."))
             nlines = (1 if r.chart_text else 0) + (1 if r.stamp_command else 0)
-            if nlines and r.margin_bottom + 0.05 < r.text_edge_mm + 4.2 * nlines:
-                warns.append(tr("⚠ Bottom margin is too small for the sheet text — "
-                                "it overflows toward the page edge."))
+            _o = text_edge_fit.sheet_text_overlap(
+                r.margin_bottom, r.text_edge_mm, nlines)
+            if _o is not None:
+                # ONE LINE OR TWO, SAID AS ONE OR TWO. "(s)" is banned in this
+                # project's user-facing text, and the two cases really do have
+                # different fixes: with both switched on, turning one off is a
+                # remedy the single-line case cannot offer.
+                over.append((tr(
+                    "⚠ The sheet text along the bottom runs into the patches. "
+                    "It is printed {edge:.1f} mm up from the paper edge and "
+                    "needs {need:.1f} mm of room, and the bottom margin leaves "
+                    "{avail:.1f} mm. Raise “Bottom” under “Margins (mm)” by "
+                    "about {short:.1f} mm, or lower “B” under “Text distance "
+                    "from edge (mm)”.") if nlines == 1 else tr(
+                    "⚠ The two lines of sheet text along the bottom run into "
+                    "the patches. They are printed {edge:.1f} mm up from the "
+                    "paper edge and need {need:.1f} mm of room, and the bottom "
+                    "margin leaves {avail:.1f} mm. Raise “Bottom” under "
+                    "“Margins (mm)” by about {short:.1f} mm, lower “B” under "
+                    "“Text distance from edge (mm)”, or switch one of the two "
+                    "lines off.")).format(
+                        edge=r.text_edge_mm, need=_o.needed_mm,
+                        avail=max(0.0, _o.available_mm), short=_o.overlap_mm))
         except Exception:  # noqa: BLE001 — never block the inspector on this
             pass
-        return warns
+        # THE ⓘ GETS EVERYTHING, THE MESSAGE FIELD ONLY THE OVERLAPS. The rest
+        # of these are advice about a margin the engine moved for the user; the
+        # overlaps are the four sides Knut's ruling puts on screen in red.
+        return warns + over, over
 
     def _refresh_margin_guides(self, report, thresholds, violations) -> None:
         """Push dotted threshold guide lines to the preview (or clear them)."""
@@ -19480,6 +20006,127 @@ class TabChart(QWidget):
             return True
         btn = getattr(self, "_generate_btn", None)
         return btn is not None and not btn.isEnabled()
+
+    # ------------------------------------------------------------------
+    # "You changed something and did not build it" (§2.2)
+    # ------------------------------------------------------------------
+
+    def _chart_settings_fingerprint(self) -> "str | None":
+        """What this panel currently says the chart should be.
+
+        EXACTLY THE THINGS A RUN CHANGE OVERWRITES, and nothing else. When the
+        bar moves, `_restore_chart_settings` lays the chart's own sidecar over
+        the panel: the whole targen + printtarg registry, the engine tick and
+        its recipe, the chart notes and the stamp choice. Those are the values
+        that can be typed and then lost, so those are the ones this describes.
+
+        The module, the Guided row, the engine-calibration block and the gamut
+        options are deliberately OUT. They are stored in the target's
+        `create_chart_ui` and no chart ever writes over them, so they are not at
+        risk and a warning about them would be false.
+
+        NOT `_layout_signature()`, which is the obvious-looking candidate and
+        answers a different question: "would the live preview draw a different
+        sheet?" It is printtarg's rows plus bit depth plus the engine recipe —
+        no targen row at all, so doubling the patch count moves it not one
+        character, and no notes and no stamp. Its baseline, `_last_auto_sig`, is
+        re-taken by every preview render as well, which is a third meaning
+        again.
+        """
+        try:
+            from workflow.per_target_settings import snapshot
+            parts: dict = {"reg": snapshot(self)}
+            try:
+                parts["engine_on"] = bool(
+                    self._settings.get("use_chromiq_layout_engine", False))
+                rec = self._manual_layout_panel.get_recipe()
+                if rec is not None:
+                    parts["recipe"] = rec.to_dict()
+            except Exception:      # noqa: BLE001 — a block that cannot be read
+                pass               # is left out rather than blocking the answer
+            try:
+                parts["notes"] = self._manual_chart_notes_edit.text()
+            except Exception:      # noqa: BLE001
+                pass
+            try:
+                parts["stamp"] = bool(self._manual_stamp_cmd_check.isChecked())
+            except Exception:      # noqa: BLE001
+                pass
+            return json.dumps(parts, sort_keys=True, default=repr)
+        except Exception:      # noqa: BLE001 — never break a caller over this
+            log.debug("could not fingerprint the chart settings", exc_info=True)
+            return None
+
+    def _on_chart_settings_touched(self, *_a) -> None:
+        """Slot for the two chart-settings controls that do not route through
+        the command preview: the chart-notes box and the stamp tick.
+
+        A named method rather than a lambda, deliberately: a self-capturing
+        closure on a signal a child widget emits is the shape that segfaults
+        PyQt6 6.11 (CLAUDE.md;
+        ``tests/test_a_scrollbar_signal_never_takes_a_lambda.py``). ``*_a``
+        swallows whatever the signal carries.
+        """
+        self._refresh_unapplied_warning()
+
+    def _mark_settings_applied(self) -> None:
+        """The panel now describes the chart this target holds, so nothing is
+        pending.
+
+        Called at the END of an episode, never in the middle of one, for the
+        same reason `_settle_live_preview` is: SEEDING A WIDGET IS NOT AN EDIT,
+        and an operation that seeds the panel twice would otherwise re-arm the
+        warning with its own second pass. The three episodes that make this true
+        are a target change (the chart is painted over the panel), a successful
+        build (the panel is written into the chart) and the one-shot
+        Guided→Manual transfer, whose whole job is to reproduce the sheet that
+        was just built.
+
+        A preset, a `.ti1`/`.ti2` load and Reset to preset deliberately do NOT
+        call this: they fill the panel with something the run's chart does not
+        hold, which is exactly the state §2.2 asks to be shown.
+        """
+        self._applied_sig = self._chart_settings_fingerprint()
+        self._refresh_unapplied_warning()
+
+    def _target_holds_a_chart(self) -> bool:
+        """True when this target has a chart that a run change would repaint
+        the panel from.
+
+        A run with nothing built has nothing to overwrite it: its Create Chart
+        settings go to its own `meta.json` and `load_target_settings` puts them
+        straight back, and a New run's go to the `new_run.json` block. So there
+        is nothing pending and nothing to warn about.
+        """
+        ti2 = getattr(self, "_shown_chart_ti2", None)
+        try:
+            return ti2 is not None and Path(ti2).is_file()
+        except Exception:      # noqa: BLE001
+            return False
+
+    def _refresh_unapplied_warning(self) -> None:
+        """Show or hide the §2.2 warning. Cheap, and never raises."""
+        lbl = getattr(self, "_unapplied_lbl", None)
+        if lbl is None:
+            return
+        try:
+            base = getattr(self, "_applied_sig", None)
+            pending = (base is not None
+                       and self._target_holds_a_chart()
+                       and not self._chart_build_in_flight()
+                       and self._chart_settings_fingerprint() != base)
+            # `isHidden`, not `isVisible`: a widget whose window is not on
+            # screen yet reports invisible however it was set, so a test (and
+            # the first paint) would read the wrong state from it.
+            if pending and lbl.isHidden():
+                lbl.setText(tr(
+                    "⚠ What is on screen is not in this run's chart yet. Press "
+                    "“Generate Chart” to apply it. A change you do not apply is "
+                    "lost when you change run or close the project."))
+            lbl.setVisible(pending)
+        except Exception:      # noqa: BLE001 — a notice is never fatal
+            log.debug("could not refresh the unapplied-change warning",
+                      exc_info=True)
 
     def _settle_live_preview(self) -> None:
         """End an operation that filled the layout widgets on the user's behalf,

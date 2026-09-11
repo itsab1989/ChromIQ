@@ -31,6 +31,28 @@ class LayoutRecipe:
     dpi: int = 300
     randomize: bool = True
     seed: int | None = None
+    # WAS "Use a fixed seed" TICKED? A SEPARATE QUESTION FROM "IS THERE A SEED".
+    #
+    # Knut, 2026-09-10: *"when a chart is generated, the seed used should be
+    # stored, but also a tag should be stored that records what the checkbox
+    # status was (ON or OFF)"*. The two are not the same fact and the app had
+    # only one field for both: every build draws a seed whether or not anybody
+    # asked for a fixed one, the restore path writes that drawn number into
+    # `seed`, and the panel decided the tick from `seed is not None` -- so
+    # selecting a run re-ticked a box the user had turned off, which is exactly
+    # what he reported.
+    #
+    # TRI-STATE, and None is not laziness: it means "this recipe predates the
+    # tag". Every sidecar, preset and per-target store written before this field
+    # existed lacks it, and for those the old reading (`seed is not None`) is
+    # still the only evidence there is, so the panel falls back to it and those
+    # charts behave exactly as they do today. Only a build or a preset written
+    # from now on carries an explicit True/False.
+    #
+    # Presets deliberately drop it, like `seed` itself: a preset names a layout,
+    # not one chart's shuffle, and a stored ON with no seed beside it would tick
+    # the box over whatever number the box happened to be holding.
+    seed_fixed: "bool | None" = None
     hflag: bool = False            # SpectroScan hex (n/a elsewhere)
     cm_density: int = 1            # ColorMunki rows: 1 normal, 2 rig, 3 extra-high
     cm_stagger: bool = False       # ColorMunki: offset every second strip (rig)
@@ -578,8 +600,10 @@ class PresetStore:
         return default_recipe(instrument, paper, mode=mode)
 
     def set(self, recipe: LayoutRecipe) -> None:
-        # Presets store layout, not the per-chart seed.
-        self._presets[recipe.preset_key()] = replace(recipe, seed=None)
+        # Presets store layout, not the per-chart seed -- nor the tick that goes
+        # with it, which would otherwise arrive with no number to apply it to.
+        self._presets[recipe.preset_key()] = replace(recipe, seed=None,
+                                                     seed_fixed=None)
 
     def delete(self, instrument: str, paper: str, mode: str) -> bool:
         return self._presets.pop(f"{instrument}|{paper}|{mode}", None) is not None

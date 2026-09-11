@@ -266,6 +266,42 @@ projects get built twice per run. Tests copy what they use, because
 suite has alive — two tests that took 0.2 s alone cost 29 s inside a full run.
 Style the widget under test instead; it measures the same thing.
 
+## ON SCREEN IS THE DEFAULT. OFFSCREEN IS A FAILURE TO BE REPORTED.
+
+**Every check for a regression, and every piece of proof, is produced by driving
+the REAL app in a REAL window.** Basti, 2026-09-11: *"why is it seemingly so
+hard to understand that i want you to run the app on screen when check for
+regressions or should leave proof? we established that this is always the better
+way to do it and yet if i don't explicitly tell you every time you and the
+agents are doing offscreen tests"*.
+
+He is right, and this is here so it stops depending on anyone remembering to say
+it again. It applies to this file's reader and to every agent briefed from it.
+
+* **Do not ask permission and do not offer offscreen as an equal option.** Open
+  a window.
+* `QT_QPA_PLATFORM=offscreen` belongs to the TEST SUITE, which is a different
+  thing from driving the app. Setting it in a driver is not a neutral choice: a
+  `widget.grab()` render is not a screenshot, it cannot show compositing,
+  stacking, a popup, a native dialog, or anything the window server does, and
+  several findings on this project turned out to be artefacts of exactly that.
+* If a window genuinely cannot be opened, that is a **finding to report at the
+  top of your result**, with what you measured, not a detail in a methods
+  section and never a silent fallback. Say which mode you used, every time.
+* Ten rounds in a row reported the window server "refusing windows"; two later
+  agents measured it again and got real windows on the first try. **Measure it
+  yourself before believing any such claim, including one in this file.**
+* **Screen Recording IS granted** (Basti, 2026-09-11), so `screencapture` gives
+  a real picture of a real window. Check it rather than assume, with
+  `CGPreflightScreenCaptureAccess()`, and capture the window rather than
+  `widget.grab()` it. Before the grant, `screencapture -l` answered *"could not
+  create image from window"* and `-R` returned wallpaper, and one round kept
+  three wallpaper files named `BLOCKED-CAPTURE-*` rather than pass them off as
+  evidence. That was the right call and it is no longer necessary.
+
+The sandbox rules in the next section are how you do this SAFELY. They are not
+an alternative to doing it.
+
 ## Driving the app on screen — sandbox the settings FIRST
 
 ```bash

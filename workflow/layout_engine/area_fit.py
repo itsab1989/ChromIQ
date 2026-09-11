@@ -120,9 +120,18 @@ def derive_area_patch_size(kw: dict) -> tuple[float, float] | None:
     # `hflag` alone is not the test: on a ColorMunki it means DENSITY, not
     # hexagons. `hex_capable` asks the geometry whether the flag makes a
     # honeycomb, which is the same single source of truth `is_hexagonal` uses.
+    #
+    # ONE NUMBER, NAMED, BECAUSE IT IS NEEDED TWICE. The ratio is used here as
+    # the solver's floor and AGAIN at the end of this function, where the
+    # derived height is snapped back onto it. Those two sites were written
+    # separately and only the first one knew about the turn, so a flat-top
+    # honeycomb was solved on 2/sqrt(3) and then snapped onto sqrt(3)/2 -- three
+    # quarters of the height it had just earned. See the snap for what that
+    # measured.
     _instr = str(kw.get("instrument") or "")
+    hex_ratio: "float | None" = None
     if kw.get("hflag") and instruments.hex_capable(_instr):
-        ratio = math.sqrt(3) / 2.0
+        hex_ratio = math.sqrt(3) / 2.0
         # ROTATED: the long axis changes sides, so the ratio inverts.
         #
         # GATED ON THE INSTRUMENT, NOT ON `hex_capable`, and the difference is
@@ -133,7 +142,8 @@ def derive_area_patch_size(kw: dict) -> tuple[float, float] | None:
         # explicit `CR30` test appears in `_build_base` and in the panel's
         # visibility. Three gates, all naming the instrument.
         if _instr == "CR30" and kw.get("hex_flat_top"):
-            ratio = 2.0 / math.sqrt(3)
+            hex_ratio = 2.0 / math.sqrt(3)
+        ratio = hex_ratio
     min_w = float(kw.get("area_min_patch") or 0.0)
     # The calculation method selects which inputs drive the grid: "by_width" uses
     # the minimum width + height%, "by_grid" uses explicit columns + rows (#93).
@@ -332,9 +342,27 @@ def derive_area_patch_size(kw: dict) -> tuple[float, float] | None:
     # makes the constraint absolute, whichever solver path ran. Hexagons
     # interlock, so a height that does not divide the page exactly simply ends
     # the last row early -- there is nothing to gain by stretching it.
-    if pw and kw.get("hflag") and instruments.hex_capable(
-            str(kw.get("instrument") or "")):
-        ph = pw * math.sqrt(3) / 2.0
+    #
+    # ...AND IT IS DERIVED FROM THE RATIO THIS RECIPE ACTUALLY HAS, WHICH IS
+    # WHERE THE TURN WAS LOST. This line used to spell `sqrt(3)/2` out again
+    # instead of using `hex_ratio`, and that is the pointy-top relation. On a
+    # CR30 with the turn on the slot is the other way up -- across the flats
+    # stays 12 mm and moves to the VERTICAL, the 13.856 mm point-to-point moves
+    # to the horizontal -- so the height must be `pw * 2/sqrt(3)`, and writing
+    # `pw * sqrt(3)/2` made it three quarters of that. The drawn hexagon takes
+    # its apex overhang off the width there, so it comes out `pw * 4/3` wide
+    # against a slot only `pw * sqrt(3)/2` tall: measured on six settings,
+    # 1.535 to 1.549 wide for every 1 tall where a regular hexagon is 1.1547,
+    # i.e. exactly 4/3 too wide, and Knut saw it as "flattened". Patch-first
+    # never had the fault because `instruments._build_base` sets plen and pwid
+    # from the turn itself.
+    #
+    # `hex_ratio` is set, and inverted for the turn, by the one block at the
+    # top of this function that decides a honeycomb's proportions at all; being
+    # non-None IS the test for "this recipe is a honeycomb", so the condition
+    # and the number can no longer drift apart.
+    if pw and hex_ratio is not None:
+        ph = pw * hex_ratio
     # Floor to 0.01 mm so rounding can't nudge the patch over the boundary and
     # drop the column/row we just fitted.
     return (math.floor(pw * 100) / 100.0, math.floor(ph * 100) / 100.0)
