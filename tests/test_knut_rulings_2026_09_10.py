@@ -64,15 +64,23 @@ def _panel(**kw):
     ("250x150", "Landscape"),   # a size the paper table has no name for
 ])
 def test_a_custom_size_takes_its_orientation_from_its_two_numbers(qapp, paper, orient):
+    """The orientation half of his ruling, unchanged. The SIZE half gained its
+    "mm" a day later (see `test_knut_rulings_2026_09_11.py`), so the token is
+    checked there and only the word is pinned here."""
     from ui.tabs.tab_chart import TabChart
-    assert TabChart._paper_name_and_orientation(paper) == (paper, orient)
+    assert TabChart._paper_name_and_orientation(paper)[1] == orient
 
 
-def test_a_square_custom_sheet_gets_neither_word(qapp):
-    """He ruled on the two inequalities and not on equality. A square page is
-    neither portrait nor landscape, so the name says neither."""
+def test_a_square_custom_sheet_is_named_square(qapp):
+    """SUPERSEDED, and by the person who left the question open.
+
+    This file used to pin "a square page gets neither word", which was the
+    honest reading of a ruling that spoke only about the two inequalities. Knut
+    closed it on 2026-09-11: *"I suggest, when both Custom size boxes are the
+    same, say 'Square' instead of Portrait or Landscape."*"""
     from ui.tabs.tab_chart import TabChart
-    assert TabChart._paper_name_and_orientation("200x200") == ("200x200", "")
+    assert TabChart._paper_name_and_orientation("200x200") == ("200x200mm",
+                                                              "Square")
 
 
 def test_the_suggested_name_carries_the_custom_size_not_the_sentinel(qapp, tmp_path):

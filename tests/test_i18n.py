@@ -678,6 +678,16 @@ def test_every_deliberate_exception_says_why():
 # the second to do it. Counted from the catalogues, not from memory:
 # `set(after) - set(before)` is 8 and `set(before) - set(after)` is 3, in every
 # one of the twelve.
+#
+# RE-MEASURED 2026-09-11, #182 items A/B and K7: NOT RAISED, because it did not
+# need to be. Three keys arrive (the rewritten hexagon note, the rewritten
+# Custom-paper naming note, the new margin-inspector "Patch width" note) and two
+# go stale, so the eleven non-German catalogues each gain 3 English echoes and
+# German gains 0. Counted from the catalogues on the tree this commit leaves
+# behind: de 117, es 107, fr 128, it 118, ja 94, nl 135, no 119, pl 111, pt 109,
+# ru 82, sv 121, zh_CN 88 -- every one at or under the ceiling already recorded
+# here, German exactly at 117 and the rest with room to spare. Left alone on
+# purpose: a raised budget admits the next regression for free.
 _IDENTICAL_TO_KEY = {
     "de": 117,
     "es": 112,

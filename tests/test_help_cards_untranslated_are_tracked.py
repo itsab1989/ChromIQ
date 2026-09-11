@@ -372,19 +372,34 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # one-line glosses and the heading above them in the tip. All four are over
 # the 25-character floor this file counts at, so all four are counted. German
 # is translated for all four.
+# 2026-09-11, #182 items A/B and K7: +3 for the eleven, +0 for German. COUNTED,
+# not estimated -- every number below is `_english_echoes(code)` re-run on the
+# tree this commit leaves behind, and the eleven really did each move by exactly
+# three. Three keys arrive and two go stale:
+#   * the hexagon note (`workflow/hex_support.hex_two_heights_note`) is
+#     REWRITTEN, not extended: it opened "Hexagonal patches have two heights"
+#     and a honeycomb turned 30 degrees has two WIDTHS, so the old sentence was
+#     false on that sheet. A `tr()` key IS its English source, so its twelve
+#     translations cannot be carried across;
+#   * the Custom-paper naming note is rewritten for Knut's two corrections
+#     ("mm" in the size, "Square" for a square sheet), same consequence;
+#   * `hex_patch_width_row_note` is genuinely new, on the margin inspector's ⓘ.
+# German is translated for all three and does not move. The other eleven carry
+# the English source under the beta rule (translations are swept before a final,
+# not during one), which is why this is +3 and not 0.
 _BUDGET = {
     "de": 4,
-    "es": 8,
-    "fr": 9,
-    "it": 8,
-    "ja": 8,
-    "nl": 8,
-    "no": 8,
-    "pl": 8,
-    "pt": 8,
-    "ru": 7,
-    "sv": 8,
-    "zh_CN": 7,
+    "es": 11,
+    "fr": 12,
+    "it": 11,
+    "ja": 11,
+    "nl": 11,
+    "no": 11,
+    "pl": 11,
+    "pt": 11,
+    "ru": 10,
+    "sv": 11,
+    "zh_CN": 10,
 }
 
 

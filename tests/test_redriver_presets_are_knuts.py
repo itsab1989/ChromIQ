@@ -103,9 +103,20 @@ SHA256 = {
         "93215e072e085c9b1ec2a1625d8b67bd2c73dcb4e5bc46f1bb2f70ccd0207520",
 }
 
-#: The one field that is legitimately different, and the reason. Anything else
-#: that differs is the bug this file exists to catch.
-NOT_VERBATIM = {"clip_image_path"}
+#: The fields that are legitimately different, each with its reason and each
+#: asserted in its own right below. Anything else that differs is the bug this
+#: file exists to catch.
+#:
+#: `seed_fixed` joined on 2026-09-11, and only because KNUT ASKED FOR IT. His
+#: exports predate the tag entirely, so his files do not carry it and "as is"
+#: cannot mean anything about a field that did not exist. #182: *"can you add
+#: programatically this tag for all built in presets and define the 'Use a
+#: fixed seed' box as OFF? … We would like NOT to do this manually for all
+#: presets."* The Red River presets are built-in presets, so they are in scope,
+#: and `test_the_seed_tag_is_the_only_thing_added` below pins that the tag is
+#: the ONLY thing this exemption lets through: the value is False and his
+#: stored seed is untouched.
+NOT_VERBATIM = {"clip_image_path", "seed_fixed"}
 
 PATCHES = 2052
 LOGO_TAIL = ("assets/charts/redriver/rgb/standard_patch_set_v25/clip_logo.png")
@@ -190,6 +201,33 @@ def test_clip_logo_goes_through_resource_path(filename, slug):
         "the clip logo must be resolved through core.resource_path, or the "
         "preset only works on the machine the export came from")
     assert Path(ours).is_file(), f"bundled clip logo missing: {ours}"
+
+
+# --------------------------------------------------------------------------
+# the seed tag: added on his instruction, and nothing else with it
+# --------------------------------------------------------------------------
+@pytest.mark.parametrize("filename,slug", sorted(PAIRS.items()))
+def test_the_seed_tag_is_the_only_thing_added(filename, slug):
+    """``seed_fixed`` is exempt from the verbatim comparison, so it gets its own
+    assertion rather than a hole in the check.
+
+    Knut asked for the tag on every built-in preset with the box OFF, and in the
+    same breath: *"All seed numbers stored in the presets should be as they are
+    today."* So the tag is False, his seed is whatever his file says, and the
+    exemption reaches no further than those two facts.
+    """
+    his = _his(filename)["data"]["layout_recipe"]
+    ours = _redriver_presets()[slug].layout_recipe
+
+    assert "seed_fixed" not in his, (
+        "his export now carries the tag, so the exemption's premise is gone "
+        "and `seed_fixed` should go back into the verbatim comparison")
+    assert ours.get("seed_fixed") is False, (
+        f"{slug} must load with 'Use a fixed seed' OFF, but its recipe says "
+        f"{ours.get('seed_fixed', '<absent>')!r}")
+    assert ours.get("seed", "<absent>") == his.get("seed", "<absent>"), (
+        f"{slug}: the stored seed changed, his {his.get('seed', '<absent>')!r} "
+        f"-> shipped {ours.get('seed', '<absent>')!r}")
 
 
 # --------------------------------------------------------------------------

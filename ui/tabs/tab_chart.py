@@ -312,11 +312,13 @@ EXT1944_LETTER_PRESET_LABEL = "★  i1Pro · Letter-1944p-3pages extended target
 # THE PAPER IS SPELLED TWO WAYS ON PURPOSE, AND BOTH ARE RIGHT WHERE THEY ARE.
 # The LABEL says "10x15cm" because that is what is printed on the packet of
 # paper the user is holding, and a label is prose. The DEFAULT TARGET NAME says
-# "100x150" because that is what `paper_name_token` and
+# "100x150mm" because that is what `paper_name_token` and
 # `_paper_name_and_orientation` produce for a custom size, and the name becomes
 # a folder, a file stem and the "Chart layout" line stamped on the sheet. A
 # name that disagreed with the one the app generates for the same sheet would
-# be the inconsistency, not this.
+# be the inconsistency, not this. (It said "100x150" until 2026-09-11, when
+# Knut had the generator spell the unit; these two moved with it, because that
+# rule is the whole reason they are spelled this way.)
 #
 # NO COLOUR-SET NAME, unlike every other row in this family. They are two
 # DIFFERENT sets (only 256 device values in common, and different neutral
@@ -373,8 +375,8 @@ PREBUILT_PRESETS = {
     TC918EG_CM_A3_PRESET_KEY:  ("assets/charts/pharmacist/rgb/colormunki/a3plus/tc918eg/tc918eg", "ColorMunki-A3+-1160p-1page-TC9.18 extended greys by Pharmacist"),
     EXT1944_A4_PRESET_KEY:     ("assets/charts/pharmacist/rgb/i1pro/a4/extended1944/extended1944",     "i1Pro-A4-1944p-3pages-extended target by Pharmacist"),
     EXT1944_LETTER_PRESET_KEY: ("assets/charts/pharmacist/rgb/i1pro/letter/extended1944/extended1944", "i1Pro-Letter-1944p-3pages-extended target by Pharmacist"),
-    PHOTOCARD600_PRESET_KEY:   ("assets/charts/pharmacist/rgb/i1pro/100x150/photocard600/photocard600", "i1Pro-100x150-600p-4pages by Pharmacist"),
-    PHOTOCARD648_PRESET_KEY:   ("assets/charts/pharmacist/rgb/i1pro/130x180/photocard648/photocard648", "i1Pro-130x180-648p-3pages by Pharmacist"),
+    PHOTOCARD600_PRESET_KEY:   ("assets/charts/pharmacist/rgb/i1pro/100x150/photocard600/photocard600", "i1Pro-100x150mm-600p-4pages by Pharmacist"),
+    PHOTOCARD648_PRESET_KEY:   ("assets/charts/pharmacist/rgb/i1pro/130x180/photocard648/photocard648", "i1Pro-130x180mm-648p-3pages by Pharmacist"),
 }
 
 #: Paper folders whose name is not a printtarg ``-p`` code, mapped to one.
@@ -460,6 +462,7 @@ _KNUT_SCANNER_DIR = "assets/charts/knut/rgb/scanner"
 _KNUT_SCANNER_RECIPE: dict = {
     "instrument": "SS", "paper": "A4R", "dpi": 300,
     "randomize": False, "seed": None, "hflag": False,
+    "seed_fixed": False,
     "cm_density": 1, "cm_stagger": False,
     "spacer_on": True, "spacer_mode": "colored", "spacer_palette": [],
     "spacer_overrides": {}, "edge_spacers": False,
@@ -515,6 +518,7 @@ _RR_I1PRO_A4_2052P_4PAGES: dict = {
     'dpi': 300,
     'randomize': True,
     'seed': None,
+    'seed_fixed': False,
     'hflag': False,
     'cm_density': 1,
     'cm_stagger': False,
@@ -601,6 +605,7 @@ _RR_I1PRO_LETTER_2052P_4PAGES: dict = {
     'dpi': 300,
     'randomize': True,
     'seed': None,
+    'seed_fixed': False,
     'hflag': False,
     'cm_density': 1,
     'cm_stagger': False,
@@ -687,6 +692,7 @@ _RR_COLORMUNKI_A4_2052P_8PAGES: dict = {
     'dpi': 300,
     'randomize': True,
     'seed': None,
+    'seed_fixed': False,
     'hflag': False,
     'cm_density': 1,
     'cm_stagger': False,
@@ -773,6 +779,7 @@ _RR_COLORMUNKI_LETTER_2052P_8PAGES: dict = {
     'dpi': 300,
     'randomize': True,
     'seed': None,
+    'seed_fixed': False,
     'hflag': False,
     'cm_density': 1,
     'cm_stagger': False,
@@ -859,6 +866,7 @@ _RR_COLORMUNKI_A4_2052P_9PAGES: dict = {
     'dpi': 300,
     'randomize': True,
     'seed': None,
+    'seed_fixed': False,
     'hflag': False,
     'cm_density': 1,
     'cm_stagger': False,
@@ -945,6 +953,7 @@ _RR_COLORMUNKI_LETTER_2052P_9PAGES: dict = {
     'dpi': 300,
     'randomize': True,
     'seed': None,
+    'seed_fixed': False,
     'hflag': False,
     'cm_density': 1,
     'cm_stagger': False,
@@ -1098,6 +1107,7 @@ _CM_BASE: dict = {
     "strip_indicator_gap_mm": 0.0, "offset_x_mm": 0.0, "offset_y_mm": 0.0,
     # patch order
     "randomize": True, "seed": None, "strip_pattern": "A-Z, A-Z",
+    "seed_fixed": False,
     "patch_pattern": "0-9,@-9,@-9;1-999",
     # strip indicators
     "show_strip_indicators": True, "indicator_font": "JetBrains Mono",
@@ -1167,6 +1177,7 @@ _P3_BASE: dict = {
     "strip_indicator_gap_mm": 0.0, "offset_x_mm": 0.0, "offset_y_mm": 0.0,
     # patch order
     "randomize": True, "seed": None, "strip_pattern": "A-Z, A-Z",
+    "seed_fixed": False,
     "patch_pattern": "0-9,@-9,@-9;1-999",
     # strip indicators
     "show_strip_indicators": True, "indicator_font": "JetBrains Mono",
@@ -1264,6 +1275,7 @@ _CR30_BASE: dict = {
     "strip_indicator_gap_mm": 0.0, "offset_x_mm": 0.0, "offset_y_mm": 0.0,
     # patch order
     "randomize": True, "seed": None, "strip_pattern": "A-Z, A-Z",
+    "seed_fixed": False,
     "patch_pattern": "0-9,@-9,@-9;1-999",
     # strip indicators
     "show_strip_indicators": True, "show_row_indicators": None,
@@ -1555,6 +1567,7 @@ _I1_BASE: dict = {
     "strip_indicator_gap_mm": 0.0, "offset_x_mm": 0.0, "offset_y_mm": 0.0,
     # patch order
     "randomize": True, "seed": None, "strip_pattern": "A-Z, A-Z",
+    "seed_fixed": False,
     "patch_pattern": "0-9,@-9,@-9;1-999",
     # strip indicators
     "show_strip_indicators": True, "indicator_font": "JetBrains Mono",
@@ -9514,12 +9527,22 @@ class TabChart(QWidget):
         have Landscape."* That is arithmetic on the pair, not a stored flag,
         which is why it lives here rather than in the paper table.
 
-        A SQUARE SHEET GETS NEITHER WORD. He ruled on the two inequalities and
-        said nothing about equality, and a square page genuinely is neither
-        portrait nor landscape: calling it one of them would put a word in the
-        name that the sheet does not have. So the size token is the whole
-        answer, exactly as it is for a paper the table has no orientation for.
-        (Open question for him; nothing else in the app depends on it.)
+        A SQUARE SHEET SAYS "Square". That was the open question left here, and
+        Knut answered it on 2026-09-11: *"I suggest, when both Custom size boxes
+        are the same, say 'Square' instead of Portrait or Landscape."* So the
+        equality case is a third word rather than no word, and the name never
+        goes quiet about the shape of the sheet.
+
+        THE CUSTOM SIZE CARRIES ITS UNIT. Knut, same post: *"you forgot the mm
+        in the custom paper size in the name, as used in the presets given. The
+        generator should thus give the name, as your example given here,
+        `i1Pro-100x150mm-600p-4pages-Portrait`."* His own built-in presets have
+        always spelled it that way (``i1_photo_100x150mm_600p_4pages_portrait``
+        and its chart name "100x150mm-600p-4pages-Portrait-w7.5mm"), so this is
+        the generator being brought into line with the shipped presets rather
+        than a new convention. A NAMED paper keeps its own token untouched: "A4"
+        is a name, not a measurement, and ``paper_name_token`` already spells
+        the inch sizes with "in".
         """
         label = PAPER_LABELS.get(paper, "")
         if label:
@@ -9533,9 +9556,10 @@ class TabChart(QWidget):
                 w, h = (float(v) for v in str(paper).split("x", 1))
             except ValueError:
                 return str(paper), ""
+            size = f"{paper}mm"
             if w == h:
-                return str(paper), ""
-            return str(paper), ("Landscape" if w > h else "Portrait")
+                return size, "Square"
+            return size, ("Landscape" if w > h else "Portrait")
         return str(paper), ""
 
     def comparable_presets(self) -> list[tuple[str, list[tuple[str, "Path"]]]]:
@@ -9667,11 +9691,14 @@ class TabChart(QWidget):
             # Knut, 2026-09-10, asked for the rule to be implemented "and also
             # explain this in the help icon". This is that explanation, kept as
             # its own string so the paragraphs above keep their translations.
-            "On Custom paper the size you type is the paper part of the name, so "
-            "a 100 by 150 mm sheet reads “100x150”. ChromIQ works the orientation "
-            "out from the two numbers: a width smaller than the height is "
-            "Portrait, a width larger than the height is Landscape. A square page "
-            "gets neither word, because it is neither.")
+            # Re-written 2026-09-11 for his two corrections: the size carries
+            # "mm" (his presets always spelled it that way), and a square sheet
+            # is named "Square" rather than left unnamed.
+            "On Custom paper the size you type is the paper part of the name, "
+            "with its unit, so a 100 by 150 mm sheet reads “100x150mm”. ChromIQ "
+            "works the orientation out from the two numbers: a width smaller "
+            "than the height is Portrait, a width larger than the height is "
+            "Landscape, and a page with both sides the same is Square.")
 
     @staticmethod
     def _profile_name_tooltip() -> str:
@@ -11163,6 +11190,17 @@ class TabChart(QWidget):
         kw["dpi"] = KNUT_DPI
         r = LayoutRecipe.from_build_kwargs(kw)
         r.instrument, r.paper = p.instrument, p.paper
+        # THE SEED TAG, SAID OUT LOUD HERE TOO. Knut, 2026-09-11: *"All the
+        # built in presets should have 'Use a fixed seed' OFF as default when
+        # loaded."* The other 141 built-ins carry `"seed_fixed": False` in their
+        # bundled dict (scripts/stamp_builtin_preset_seed_tag.py); these two
+        # have no dict to stamp, because their recipe is derived from their
+        # printtarg fields at selection. `from_build_kwargs` leaves the tag at
+        # None, which the panel reads as "this recipe predates the tag" and
+        # falls back to `seed is not None` -- today that is False and the box
+        # comes up unticked anyway, so this changes no behaviour. It makes the
+        # answer this family's own rather than a fallback's.
+        r.seed_fixed = False
         return r
 
     def _seed_knut_preset(self, key: str, target_name: str | None = None) -> None:
