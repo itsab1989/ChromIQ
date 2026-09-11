@@ -568,11 +568,32 @@ def resolve_ti2(
         return None
 
 def _loaded_project_root(controller) -> "Path | None":
+    """The open project's folder, in the SAME spelling `_project_root_for` uses.
+
+    `resolve_ti2` decides between A2a ("this chart belongs to the project you
+    have open") and A2b ("it belongs to another one") by comparing this against
+    `_project_root_for`, and that function answers with a **resolved** path
+    (`path.resolve()`). `Project.root` is whatever the working folder was
+    configured as, unresolved — so the moment the ChromIQ folder is reached
+    through a symlink the two spellings of one folder compare unequal and the
+    run's own chart is announced as another project's.
+
+    Measured on screen, 2026-09-11, with the working folder at `/tmp/...`
+    (macOS makes `/tmp` a symlink to `/private/tmp`): opening the selected
+    run's own `.ti2` offered *"Load another profile project -> Open
+    Demo-Full-RGB"* about the project already open. Resolving both sides makes
+    the comparison about the folder rather than about how it was spelled.
+    """
     if controller is None:
         return None
     try:
         proj = controller.project_or_none()
-        return proj.root if proj is not None else None
+        if proj is None:
+            return None
+        try:
+            return Path(proj.root).resolve()
+        except OSError:
+            return Path(proj.root)
     except Exception:      # noqa: BLE001 — never break a load on this
         return None
 
