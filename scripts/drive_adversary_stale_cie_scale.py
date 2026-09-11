@@ -38,9 +38,14 @@ from PyQt6.QtWidgets import QApplication                          # noqa: E402
 sys.path.insert(0, str(ROOT / "scripts"))                         # noqa: E402
 from onscreen_capture import capture_window, session_is_locked     # noqa: E402
 
-HER = Path("/Users/Basti/Desktop/Neuer Ordner")
-WITH_XYZ = HER / "ColorJetwxyz_M1.txt"            # RGB + XYZ(0..1) + spectral
-PROJECT = "Pro1100-ColorJet97"
+# THE REPORTER'S FILES ARE NOT IN THIS REPO AND HER FOLDER IS NOT ANYBODY'S.
+# Point CHROMIQ_I1P_SAMPLES at a folder holding an i1Profiler measurement
+# export; the driver says what it needs and stops if it is not there, rather
+# than carrying somebody's desktop path around in the history.
+SAMPLES = Path(os.environ.get("CHROMIQ_I1P_SAMPLES", "")) if os.environ.get(
+    "CHROMIQ_I1P_SAMPLES") else None
+WITH_XYZ = (SAMPLES / os.environ.get("CHROMIQ_I1P_WITH_XYZ", "")) if SAMPLES else None
+PROJECT = "I1P-Import-Proof"
 WORK = Path("/tmp/chromiq-adv-work")
 ARGYLL = Path("/Applications/Argyll/bin")
 
