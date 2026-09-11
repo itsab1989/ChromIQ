@@ -509,3 +509,113 @@ def test_a_showing_window_writes_nothing_at_all(qapp, tmp_path):
             "a showing window changed the app-wide limits")
     finally:
         dlg.deleteLater()
+
+
+# ---------------------------------------------------------------------------
+# The "Show:" row has air in it (round 2 N5, restated as round 3 N7)
+# ---------------------------------------------------------------------------
+def _show_row(dlg):
+    """The QHBoxLayout that holds the "Show:" label and the column ticks."""
+    from PyQt6.QtWidgets import QHBoxLayout
+    for lay in dlg.findChildren(QHBoxLayout):
+        for i in range(lay.count()):
+            w = lay.itemAt(i).widget()
+            if isinstance(w, QLabel) and w.text().startswith("Show"):
+                return lay
+    return None
+
+
+def test_the_show_row_leaves_a_gap_between_its_items(qapp, tmp_path):
+    """Seven column names in one row, and no space between them.
+
+    Reported twice and photographed: "ChromIQ default (recommended)" ended one
+    pixel before the tick for "ChromIQ tight" began, so the row read as a
+    sentence with squares in it.
+
+    THIS ASSERTS THE LAYOUT'S SPACING, NOT THE PAINTED GAP, and that is not
+    laziness. Offscreen the app's own fonts are not loaded, so every checkbox in
+    this row comes out 73 px wide whatever its text says; a painted gap measured
+    here would be measuring the wrong sheet. The painted gap is measured on
+    screen instead, by drivers/drive_F9_show_row.py: with the style's own
+    spacing it was -1 px, and with this one it is 13 px. What can be checked
+    here is that the spacing is SET, and set well above the style's default,
+    which is the whole of the fix.
+    """
+    from PyQt6.QtWidgets import QHBoxLayout
+    from ui.dialogs.thresholds_dialog import SHOW_ROW_SPACING_PX
+
+    s, dlg = _dlg(qapp, tmp_path)
+    try:
+        row = _show_row(dlg)
+        assert row is not None, "the Show: row was not found at all"
+        assert row.spacing() == SHOW_ROW_SPACING_PX, row.spacing()
+        # A checkbox's own text has no right-hand padding, so a spacing at or
+        # near the style's default paints as no gap at all.
+        assert row.spacing() > QHBoxLayout().spacing() + 8, (
+            f"the Show: row runs at {row.spacing()} px against a style default "
+            f"of {QHBoxLayout().spacing()}; that is what ran the labels into "
+            "the next tick")
+    finally:
+        dlg.deleteLater()
+
+
+def test_the_show_row_still_holds_one_tick_per_set(qapp, tmp_path):
+    """So the spacing above is spacing something, and a set cannot go missing
+    from the row without this saying so."""
+    from PyQt6.QtWidgets import QCheckBox
+
+    from workflow.compliance_sets import SETS
+
+    s, dlg = _dlg(qapp, tmp_path)
+    try:
+        row = _show_row(dlg)
+        boxes = [row.itemAt(i).widget() for i in range(row.count())]
+        boxes = [w for w in boxes if isinstance(w, QCheckBox)]
+        assert len(boxes) == len(SETS), (
+            f"{len(boxes)} ticks for {len(SETS)} sets")
+    finally:
+        dlg.deleteLater()
+
+
+def test_the_bad_file_panel_is_painted_for_the_THEME_it_is_in(tmp_path, qapp,
+                                                              monkeypatch):
+    """PHOTOGRAPHED ON SCREEN: a dark brown box in the middle of a pale page.
+
+    The panel that names a limits file ChromIQ could not read was styled
+    `background: #3a2a00`, a dark-mode ground, with no branch on appearance. It
+    was legible, and it belonged to a different window: every other colour in
+    this dialog is chosen per appearance, so one that is not reads as a mistake
+    rather than as a warning.
+
+    MUTATION: put any single hard-coded ground back and this goes red, because
+    the light and dark grounds become the same string.
+    """
+    import json as _json
+    from core.settings import AppSettings
+    from ui.dialogs.thresholds_dialog import ThresholdsDialog
+    from workflow import compliance_sets as cs
+
+    bad = tmp_path / "wrong.json"
+    bad.write_text(_json.dumps(
+        {"iso_12647_7": {"all_de00_avg": {"kind": "value", "number": 2.5}}}),
+        encoding="utf-8")
+    monkeypatch.setenv(cs.ISO_DATA_ENV, str(bad))
+    monkeypatch.setattr(cs, "_iso_cache", None, raising=False)
+    monkeypatch.setattr(cs, "_iso_problems", None, raising=False)
+
+    seen = {}
+    for mode in ("light", "dark"):
+        s = AppSettings()
+        s.set("appearance", mode)
+        dlg = ThresholdsDialog(s, None)
+        try:
+            panels = [w for w in dlg.findChildren(QLabel)
+                      if w.objectName() == "isoFileTrouble"]
+            assert panels, f"{mode}: the panel is not there at all"
+            seen[mode] = panels[0].styleSheet()
+        finally:
+            dlg.close()
+    assert seen["light"] != seen["dark"], \
+        "the panel paints the same ground in both themes, so one of them is wrong"
+    assert "#3a2a00" not in seen["light"], \
+        "a dark-mode ground is being painted on the light window"

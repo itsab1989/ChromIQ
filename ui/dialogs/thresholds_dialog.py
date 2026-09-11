@@ -44,7 +44,7 @@ from PyQt6.QtWidgets import (QCheckBox, QDialog, QFrame, QGridLayout,
 from core.i18n import tr
 from core.logger import get_logger
 from ui.fade_scroll import attach_edge_fades
-from ui.styles import SPEC_GREEN
+from ui.styles import ACCENT_WARN, SPEC_GREEN
 from ui.tab_header import dialog_masthead
 from ui.theme import resolve_mode
 from ui.widgets import NoScrollDoubleSpinBox, WorkAreaClamped
@@ -57,6 +57,11 @@ log = get_logger(__name__)
 
 #: the "This run" pseudo column id
 RUN_COLUMN = "__run__"
+
+#: Gap between the items of the "Show:" row. Named, because the number is the
+#: whole of the fix: the row holds up to eight ticks with long names, and the
+#: style's own spacing left none between one name and the next tick.
+SHOW_ROW_SPACING_PX = 24
 
 
 def _stored_column(run) -> "dict | None":
@@ -247,8 +252,50 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         sub.setWordWrap(True)
         inner.addWidget(sub)
 
+        # -- the user's OWN limits file, when it could not be understood (F7)
+        trouble = self._iso_file_trouble()
+        if trouble:
+            warn = QLabel(trouble, self)
+            warn.setWordWrap(True)
+            warn.setTextFormat(Qt.TextFormat.PlainText)
+            # THE PANEL FOLLOWS THE THEME, and it did not: #3a2a00 is a
+            # dark-mode ground, and on the light window this whole dialog is,
+            # it painted a dark brown box in the middle of a pale page.
+            # Photographed on screen. The same three-way the report window's
+            # own strip uses, and for the same reason: every other colour here
+            # is chosen per appearance, so one that is not stands out as a
+            # mistake rather than as a warning.
+            _mode = resolve_mode(self._settings.get("appearance", "auto"))
+            if _mode == "dark":
+                _skin = ("border: 1px solid #b08040; color: #f0b35a;"
+                         " background: rgba(240,180,80,0.14);")
+            elif _mode == "neutral":
+                from ui import neutral_styles
+                _skin = (f"border: 1px solid {neutral_styles.NM_BORDER_HI};"
+                         f" color: {neutral_styles.NM_TEXT_MAIN};"
+                         f" background: {neutral_styles.NM_BG_SURFACE};")
+            else:
+                _skin = ("border: 1px solid #c8922a; color: #8a5a00;"
+                         " background: rgba(240,180,80,0.12);")
+            warn.setObjectName("isoFileTrouble")
+            warn.setStyleSheet(
+                "QLabel#isoFileTrouble { border-radius: 4px;"
+                " padding: 6px 10px; " + _skin + " }")
+            inner.addWidget(warn)
+
         # -- which columns are shown (D29, K-b)
+        #
+        # THE LABELS NEED AIR BETWEEN THEM. Seven column names sit in this one
+        # row, and with the layout's own spacing each name ended one pixel
+        # before the next box began: "ChromIQ default (recommended)" ran
+        # straight into the tick for "ChromIQ tight", so the row read as one
+        # long sentence with squares in it. Reported twice (round 2 N5, round 3
+        # N7). A checkbox's text has no right-hand padding of its own, so the
+        # gap has to be the layout's, and it has to be set rather than
+        # inherited: the style's default put 8 px between the "Show:" label and
+        # the first box and nothing at all between the boxes.
         show_row = QHBoxLayout()
+        show_row.setSpacing(SHOW_ROW_SPACING_PX)
         show_row.addWidget(QLabel(tr("Show:"), self))
         visible = self._visible_columns()
         if run is not None:
@@ -320,6 +367,54 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                 self._set_column_visible(sid, False)
 
     # ------------------------------------------------------------------ build
+    def _iso_file_trouble(self) -> str:
+        """What to tell a licence holder whose own limits file was not read.
+
+        The route in `data/compliance_sets/README.md` ("point ChromIQ at your
+        own file") had no way of failing out loud: `Limit.from_json` turns
+        anything it cannot read into `?`, which is exactly what the empty
+        bundled file produces, so a file in the wrong shape looked identical to
+        no permission at all. Every sentence here is about the file the USER
+        named; the bundled one says nothing, because being empty is what it is
+        for.
+        """
+        from workflow.compliance_sets import (iso_data_path_text,
+                                              iso_data_problems)
+        problems = iso_data_problems()
+        if not problems:
+            return ""
+        lines = [tr("ChromIQ could not use the limits file you pointed it at, "
+                    "so the ISO limits still read ?.")]
+        for kind, detail in problems:
+            if kind == "unreadable":
+                lines.append(tr("The file could not be read: {reason}")
+                             .format(reason=detail))
+            elif kind in ("not_an_object", "set_not_an_object"):
+                lines.append(tr(
+                    "The file must hold a JSON object with one key per limit "
+                    "set, and each set holding that set's rows."))
+            elif kind == "no_known_set":
+                lines.append(tr(
+                    "The file names no limit set ChromIQ knows. It needs a "
+                    "top-level key {names}, holding that set's rows.")
+                    .format(names=detail))
+            elif kind == "unreadable_cells":
+                lines.append(tr(
+                    "These limits could not be read and still show ?: {rows}. "
+                    "A limit is a plain number, or [number, \"should\"] for a "
+                    "recommendation.").format(rows=detail))
+            elif kind == "unknown_rows":
+                lines.append(tr(
+                    "These names are not rows ChromIQ has, and were ignored: "
+                    "{rows}").format(rows=detail))
+            else:
+                lines.append(f"{kind}: {detail}")
+        path = iso_data_path_text()
+        if path:
+            lines.append(tr("CHROMIQ_COMPLIANCE_ISO_FILE points at {path}")
+                         .format(path=path))
+        return "\n".join(lines)
+
     def _column_ids(self) -> "list[str]":
         cols = [RUN_COLUMN] if self._run is not None else []
         return cols + [s.id for s in SETS]

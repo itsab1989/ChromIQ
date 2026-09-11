@@ -706,19 +706,24 @@ def test_every_deliberate_exception_says_why():
 # the MERGED SOURCE instead: `scripts/i18n_extract.py --stale <code>` names
 # every key the merged code no longer uses, and those were pruned. The ceilings
 # below did not move, which is the check that the merge changed no translation.
+# 2026-09-11, #182 F7. The seven strings the Report limits window now uses to
+# name what it could not read in a licence holder's own limits file were
+# translated into all twelve rather than carried in English under the beta
+# rule, so the ceilings came DOWN by two instead of up by five: two English
+# placeholders from an earlier round were replaced in the same pass.
 _IDENTICAL_TO_KEY = {
     "de": 122,
-    "es": 295,
-    "fr": 316,
-    "it": 306,
-    "ja": 282,
-    "nl": 322,
-    "no": 307,
-    "pl": 299,
-    "pt": 297,
-    "ru": 270,
-    "sv": 308,
-    "zh_CN": 276,
+    "es": 293,
+    "fr": 314,
+    "it": 304,
+    "ja": 280,
+    "nl": 320,
+    "no": 305,
+    "pl": 297,
+    "pt": 295,
+    "ru": 268,
+    "sv": 306,
+    "zh_CN": 274,
 }
 
 

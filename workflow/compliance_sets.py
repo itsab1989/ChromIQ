@@ -509,39 +509,132 @@ ISO_DATA_FILE = "data/compliance_sets/iso12647.json"
 ISO_DATA_ENV = "CHROMIQ_COMPLIANCE_ISO_FILE"
 _iso_cache: "dict[str, dict[str, Limit]] | None" = None
 
+#: What went wrong with the file the ENVIRONMENT VARIABLE names, as
+#: ``(kind, detail)`` pairs. See :func:`iso_data_problems`.
+_iso_problems: "list[tuple[str, str]] | None" = None
+
+#: The spellings that MEAN "unknown" in the file. Anything else that comes out
+#: of :meth:`Limit.from_json` as ``unknown`` was not understood, which is a
+#: different thing and the one a user needs telling about.
+_MEANS_UNKNOWN = ("?", "unknown")
+
+#: The set ids the file may carry.
+ISO_SET_IDS = ("iso_12647_7", "iso_12647_8")
+
 
 def _iso_data_path() -> Path:
     override = os.environ.get(ISO_DATA_ENV, "").strip()
     return Path(override) if override else resource_path(ISO_DATA_FILE)
 
 
+def _is_the_users_own_file() -> bool:
+    """True when the file came from the environment variable.
+
+    The bundled file ships deliberately empty, so "no numbers in it" is its
+    normal state and not something to report. The user's own file is the only
+    one whose emptiness is a mistake.
+    """
+    return bool(os.environ.get(ISO_DATA_ENV, "").strip())
+
+
+def _looks_unreadable(raw: Any) -> bool:
+    """A cell that came out ``unknown`` without asking to be unknown."""
+    if isinstance(raw, str) and raw.strip().lower() in _MEANS_UNKNOWN:
+        return False
+    return Limit.from_json(raw).kind == "unknown"
+
+
 def _load_iso_numbers() -> "dict[str, dict[str, Limit]]":
-    """``{set_id: {row_id: Limit}}`` from the data file; unreadable → empty."""
-    global _iso_cache
+    """``{set_id: {row_id: Limit}}`` from the data file; unreadable → empty.
+
+    **AND IT SAYS WHAT IT COULD NOT READ.** `Limit.from_json` is deliberately
+    tolerant and turns anything it cannot parse into ``?``, which is the same
+    thing the empty bundled file produces. A licence holder who pointed
+    ChromIQ at a file in the wrong shape therefore saw a window identical to
+    the one they would see with no file at all, with no message anywhere: the
+    one route offered to them could not tell them they had got it wrong. The
+    most likely wrong shape is not exotic, either. It is
+    ``{"kind": "value", "number": 2.5}``, which is what ChromIQ's own
+    `limits_to_json` writes into `meta.json`, so it is the shape a user is
+    most likely to copy.
+
+    Problems are only collected for the file the ENVIRONMENT VARIABLE names.
+    """
+    global _iso_cache, _iso_problems
     if _iso_cache is not None:
         return _iso_cache
     out: "dict[str, dict[str, Limit]]" = {}
+    problems: "list[tuple[str, str]]" = []
+    mine = _is_the_users_own_file()
     path = _iso_data_path()
     try:
         doc = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         log.warning("compliance data file %s unreadable (%s); ISO cells read ?",
                     path, exc)
+        if mine:
+            problems.append(("unreadable", str(exc)))
         doc = {}
-    if isinstance(doc, dict):
-        for set_id, cells in doc.items():
-            if set_id.startswith("_") or not isinstance(cells, dict):
-                continue
-            out[set_id] = {rid: Limit.from_json(v) for rid, v in cells.items()
-                           if rid in ROW_BY_ID}
+    if not isinstance(doc, dict):
+        if mine:
+            problems.append(("not_an_object", type(doc).__name__))
+        doc = {}
+    unreadable_cells: "list[str]" = []
+    unknown_rows: "list[str]" = []
+    for set_id, cells in doc.items():
+        if set_id.startswith("_"):
+            continue
+        if not isinstance(cells, dict):
+            if mine and set_id in ISO_SET_IDS:
+                problems.append(("set_not_an_object", set_id))
+            continue
+        out[set_id] = {rid: Limit.from_json(v) for rid, v in cells.items()
+                       if rid in ROW_BY_ID}
+        if not mine or set_id not in ISO_SET_IDS:
+            continue
+        for rid, raw in cells.items():
+            if rid not in ROW_BY_ID:
+                unknown_rows.append(rid)
+            elif _looks_unreadable(raw):
+                unreadable_cells.append(rid)
+    if mine and not problems and not any(
+            out.get(sid) for sid in ISO_SET_IDS):
+        problems.append(("no_known_set", ", ".join(ISO_SET_IDS)))
+    if unreadable_cells:
+        problems.append(("unreadable_cells", ", ".join(sorted(
+            dict.fromkeys(unreadable_cells)))))
+    if unknown_rows:
+        problems.append(("unknown_rows", ", ".join(sorted(
+            dict.fromkeys(unknown_rows)))))
+    for kind, detail in problems:
+        log.warning("compliance data file %s: %s (%s)", path, kind, detail)
     _iso_cache = out
+    _iso_problems = problems
     return out
+
+
+def iso_data_problems() -> "list[tuple[str, str]]":
+    """What is wrong with the user's own limits file, ``(kind, detail)`` each.
+
+    Empty when there is no such file, or when it was understood. The kinds are
+    a closed set the window turns into sentences; a kind it does not know is
+    still shown, with its detail, rather than dropped.
+    """
+    if _iso_cache is None:
+        _load_iso_numbers()
+    return list(_iso_problems or [])
+
+
+def iso_data_path_text() -> str:
+    """The path the user pointed at, or "" when they pointed at nothing."""
+    return os.environ.get(ISO_DATA_ENV, "").strip()
 
 
 def reset_iso_cache() -> None:
     """For tests that swap the data file."""
-    global _iso_cache
+    global _iso_cache, _iso_problems
     _iso_cache = None
+    _iso_problems = None
 
 
 def factory_limits(set_id: str) -> "dict[str, Limit]":

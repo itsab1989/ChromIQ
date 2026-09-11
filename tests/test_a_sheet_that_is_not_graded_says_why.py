@@ -16,6 +16,16 @@ cannot read explains nothing.
 
 So this pins the OUTPUT, which is the word he used: the sentence must be in the
 rendered report body, and therefore in the saved PDF, not merely in a tooltip.
+
+**AND THE PDF IS ASKED DIRECTLY, because "therefore" is doing too much work.**
+Every test here used to stop at `_report_body_html(..., for_pdf=True)`, which
+is the HTML handed to `QTextDocument` and not the file anybody reads. This
+project has already been bitten by exactly that gap once: the printed help
+cards laid out 79 entries and put 29 of them on paper, because pagination
+dropped the rest, and no amount of correct HTML would have shown it. The saved
+PDF is where the fault this file exists for lived, so the saved PDF is what is
+read: `_export_pdf` is driven with the save dialog answered, and the words are
+looked for in the text of the pages through `QPdfDocument.getAllText`.
 """
 from __future__ import annotations
 
@@ -70,6 +80,30 @@ def _dialog(s, ti3):
 _MUST_SAY = ("not graded", "build a profile", "outside the accuracy limits")
 
 
+def _saved_pdf_text(dlg, path, monkeypatch) -> str:
+    """Save the report as a PDF the way the button does, and read it back.
+
+    The save dialog is answered instead of shown, and the "open it when it is
+    written" step is stubbed, so no viewer is launched by a test run.
+    """
+    import ui.widgets as W
+    from PyQt6.QtGui import QDesktopServices
+    from PyQt6.QtPdf import QPdfDocument
+
+    monkeypatch.setattr(W, "save_file_dialog", lambda *a, **k: str(path))
+    monkeypatch.setattr(QDesktopServices, "openUrl",
+                        staticmethod(lambda *a, **k: True))
+    dlg._export_pdf()
+    assert path.is_file(), "no PDF was written at all"
+    doc = QPdfDocument(None)
+    doc.load(str(path))
+    pages = doc.pageCount()
+    assert pages >= 1, "the PDF has no pages"
+    # Every page, so a sentence pushed off the end by pagination is missing
+    # here and not merely somewhere else.
+    return " ".join(doc.getAllText(i).text() for i in range(pages))
+
+
 def test_the_explanation_is_in_the_report_body_and_not_only_a_tooltip(qapp, tmp_path):
     proj, run, ti3 = _profiling_run(tmp_path)
     dlg = _dialog(_settings(tmp_path), ti3)
@@ -92,6 +126,25 @@ def test_the_explanation_is_in_the_report_body_and_not_only_a_tooltip(qapp, tmp_
         dlg.deleteLater()
 
 
+def test_the_explanation_reaches_the_saved_pdf(qapp, tmp_path, monkeypatch):
+    """The same condition, asked of the file a reader is handed.
+
+    Correct HTML is not a printed page. This is the step the tests above do not
+    cover and the one the fault was reported on.
+    """
+    proj, run, ti3 = _profiling_run(tmp_path)
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        text = _saved_pdf_text(dlg, tmp_path / "report.pdf", monkeypatch)
+        for phrase in _MUST_SAY:
+            assert phrase in text, (
+                f"the SAVED PDF never says {phrase!r}. It is in the report "
+                "body, so this is pagination or painting losing it, which is "
+                "invisible to every test that stops at the HTML.")
+    finally:
+        dlg.deleteLater()
+
+
 def test_a_graded_sheet_does_not_carry_the_explanation(qapp, tmp_path):
     """The other half, or the test above passes on a note printed always.
 
@@ -109,7 +162,8 @@ def test_a_graded_sheet_does_not_carry_the_explanation(qapp, tmp_path):
         dlg.deleteLater()
 
 
-def test_the_explanation_survives_a_standard_named_set(qapp, tmp_path):
+def test_the_explanation_survives_a_standard_named_set(qapp, tmp_path,
+                                                       monkeypatch):
     """A challenge round found this silently un-fixed by a later change.
 
     The footnote is selected by EXACT EQUALITY on the column's reason. A fix
@@ -136,5 +190,12 @@ def test_the_explanation_survives_a_standard_named_set(qapp, tmp_path):
             visible = _html.unescape(re.sub(r"<[^>]+>", " ", body))
             assert "build a profile" in visible, (
                 f"the ungraded explanation is missing when the set is {label!r}")
+            # …and in the file, per set. "Three identical saved profiling
+            # reports" is what the challenge round compared, and saved is the
+            # word that matters.
+            text = _saved_pdf_text(dlg, tmp_path / f"{set_id}.pdf", monkeypatch)
+            assert "build a profile" in text, (
+                f"the SAVED PDF loses the ungraded explanation when the set is "
+                f"{label!r}, though the report body carries it")
         finally:
             dlg.deleteLater()

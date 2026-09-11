@@ -390,19 +390,26 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 #: seven of the labels. German is translated for every one of them and stays
 #: at 4. The eleven carry the English source under the beta rule; the full
 #: pass happens before the final release. Measured, not rounded.
+# 2026-09-11, #182 F7. The Report limits window now says so when the limits
+# file a licence holder points CHROMIQ_COMPLIANCE_ISO_FILE at cannot be read,
+# which it used to swallow in silence. Those seven strings were translated
+# into all twelve languages rather than carried in English under the beta
+# rule, so these budgets came DOWN, not up: 141 -> 139 and its neighbours.
+# Re-measured, not adjusted: a budget left above the truth admits the next
+# untranslated string for free.
 _BUDGET = {
     "de": 4,
-    "es": 141,
-    "fr": 142,
-    "it": 141,
-    "ja": 141,
-    "nl": 141,
-    "no": 141,
-    "pl": 141,
-    "pt": 141,
-    "ru": 140,
-    "sv": 141,
-    "zh_CN": 140,
+    "es": 139,
+    "fr": 140,
+    "it": 139,
+    "ja": 139,
+    "nl": 139,
+    "no": 139,
+    "pl": 139,
+    "pt": 139,
+    "ru": 138,
+    "sv": 139,
+    "zh_CN": 138,
 }
 
 
