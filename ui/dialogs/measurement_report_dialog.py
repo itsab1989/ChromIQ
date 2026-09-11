@@ -147,8 +147,17 @@ _MAX_RUN_COLS = 6
 def _swatch(hexc: str) -> str:
     """A solid colour block for rich text. Qt ignores width/height on an empty
     span but honours background-color on a span WITH content, so we fill it with
-    spaces hidden by matching the text colour to the fill."""
-    c = html.escape(hexc or "#ffffff")
+    spaces hidden by matching the text colour to the fill.
+
+    NO COLOUR IS NOT WHITE. The fallback used to be `#ffffff`, so a patch with
+    no expected colour — every patch of a converted chart whose colorimetric
+    reference file is gone, which §9.1 deliberately refuses to guess for — drew
+    a white block in the "Asked for" column, on the one page meant to be handed
+    to a customer. It reads as the same nothing the ΔE column reads.
+    """
+    if not hexc:
+        return _fmt(None)
+    c = html.escape(hexc)
     return (f"<span style='background-color:{c};color:{c};"
             f"border:1px solid {_C["swatch_edge"]}'>&nbsp;&nbsp;&nbsp;</span>")
 
@@ -5475,7 +5484,7 @@ class MeasurementReportDialog(QDialog):
             crows = [head]
             for i, c in enumerate(corners):
                 lbl = _CORNER_LABELS.get(c["name"], (lambda: c["name"]))()
-                exp = _swatch(c["expected_hex"]) if c.get("expected_hex") else "—"
+                exp = _swatch(c.get("expected_hex", ""))
                 de_c = f"<b>{_fmt(c.get('de'))}</b>" if c.get("de") is not None else "—"
                 miss = "" if c.get("present", True) else (
                     f" <span style='color:{_C['fail']}'>(" + html.escape(tr("missing"))
