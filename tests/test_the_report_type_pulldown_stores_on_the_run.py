@@ -139,11 +139,16 @@ def test_a_type_that_is_not_built_says_WHY_not_that_it_is_missing(tmp_path, qapp
 
 
 def test_the_line_beside_the_pulldown_describes_the_chosen_type(tmp_path, qapp):
-    dlg, _run = _dialog(tmp_path, qapp)
+    """…and says which types this run already has, which Knut asked for on
+    2026-09-11: *"The Report window must thus show which type of reports have
+    been generated."*"""
+    dlg, run = _dialog(tmp_path, qapp)
     try:
         assert dlg._type_blurb_full, "the pulldown stands there explaining nothing"
-        assert dlg._type_blurb_full == dlg._type_blurb_for(REPORT_TYPE_FULL)
+        assert dlg._type_blurb_for(REPORT_TYPE_FULL) in dlg._type_blurb_full
         assert dlg._type_blurb.toolTip() == dlg._type_blurb_full
+        # nothing generated yet, and the line says so rather than going quiet
+        assert "generated" in dlg._type_blurb_full.lower(), dlg._type_blurb_full
     finally:
         dlg.close()
 

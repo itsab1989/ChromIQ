@@ -298,3 +298,48 @@ def test_the_vendored_javascript_carries_its_permission_notice():
         "is not reproduced in THIRD-PARTY-NOTICES.md, and the sidecar "
         "plotly-gl3d.min.js.LICENSE.txt its own header points at is absent")
     assert "Plotly, Inc" in text, "the plotly copyright line is missing"
+
+
+# ---------------------------------------------------------------------------
+# …and a licence that does not SHIP is not conveyed
+# ---------------------------------------------------------------------------
+def _spec_text() -> str:
+    return (ROOT / "ChromIQ.spec").read_text(encoding="utf-8")
+
+
+def test_the_agpl_licences_travel_with_the_binaries_they_cover():
+    """THEY DID NOT, AND THIS FILE SAID THEY DID.
+
+    `chromiq-gammap` and `chromiq-chartread` are built from ArgyllCMS under
+    AGPLv3, which requires the licence to be conveyed with the work. The three
+    licence files were on disk, this file said they "travel with the code they
+    cover", and `ChromIQ.spec` put neither in the bundle. Every other licence
+    file in the project did travel; these three were the sole exception.
+
+    An adversarial round read the spec against the sentence. The check that
+    existed looked only for the files ON DISK, which they were: a green test
+    guarding the bug.
+
+    MUTATION: remove `*_native_licences` from the spec's `datas` and this goes
+    red.
+    """
+    spec = _spec_text()
+    for name in ("native/argyll/LICENSE", "native/instlib/License.txt",
+                 "native/instlib/License2.txt"):
+        assert (ROOT / name).is_file(), f"{name} is not even on disk"
+        assert name in spec, f"{name} is not named in ChromIQ.spec"
+    datas = spec[spec.index("datas=["):spec.index("]", spec.index("datas=["))]
+    assert "_native_licences" in datas, (
+        "the licence files are named in the spec but not in its datas, so they "
+        "do not reach the bundle")
+
+
+def test_a_build_that_cannot_find_one_says_so():
+    """Silence here would ship an AGPL binary with no licence, which is the
+    one failure in this file that must never pass unnoticed.
+
+    MUTATION: drop the warning and this goes red.
+    """
+    spec = _spec_text()
+    assert "MISSING LICENCE FILE" in spec, \
+        "a build with a missing licence file would say nothing"

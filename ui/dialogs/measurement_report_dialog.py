@@ -820,6 +820,17 @@ class MeasurementReportDialog(QDialog):
         top_v.addWidget(self._profile_list)
 
         out_row = QHBoxLayout()
+        # KNUT, 2026-09-11: *"A user should be allowed to print several report
+        # types for a run, as the user may have several uses for different
+        # reports … This also makes it logical that there is a Generate Report
+        # button, so the user can choose to generate a report that is
+        # selected."* The type is a VIEW of the same judged data, and this is
+        # the button that keeps one.
+        self._generate_btn = QPushButton(tr("Generate report"), self)
+        self._generate_btn.setStyleSheet(_compact_btn)
+        self._generate_btn.clicked.connect(self._on_generate_report)
+        self._generate_btn.setEnabled(False)
+        out_row.addWidget(self._generate_btn)
         self._pdf_btn = QPushButton(tr("Save report as PDF…"), self)
         self._pdf_btn.setStyleSheet(_compact_btn)
         self._pdf_btn.clicked.connect(self._export_pdf)
@@ -1619,6 +1630,79 @@ class MeasurementReportDialog(QDialog):
             return reports_subdir(lca.parent)
         return reports_subdir(lca)
 
+    def _on_generate_report(self) -> None:
+        """Save a report of the type now chosen, for the run now shown.
+
+        **Knut, 2026-09-11.** A run may hold reports of several types: *"the
+        user may have several uses for different reports."* Pressing this keeps
+        one, and the line beside the pulldown then names it among the types
+        this run has.
+
+        It does NOT re-judge anything. The verdict is stamped with the run's
+        own limits, exactly as a measurement stamps one, so two reports of two
+        types saved from one measurement carry the same words. That is the
+        whole point of the type being a view: nothing about a verdict changes
+        when you switch.
+        """
+        ctx = self._run_ctx
+        reports = self._runs_for_report()
+        if ctx is None or not reports:
+            return
+        from workflow.measurement_report import (save_report, stamp_report_type,
+                                                 stamp_verdict)
+        lim = self._window_limits()
+        saved, failed = [], []
+        for r in reports:
+            origin = r.get("_origin_dir")
+            if not origin:
+                continue
+            try:
+                rep = dict(r)
+                # The window's own bookkeeping keys are not part of a report.
+                for k in [k for k in rep if k.startswith("_")]:
+                    rep.pop(k, None)
+                stamp_verdict(rep, lim.limits, set_id=lim.set_id,
+                              set_label=lim.label_en, edited=lim.edited)
+                stamp_report_type(rep, ctx.run)
+                saved.append(save_report(rep, Path(origin)))
+            except Exception as exc:             # noqa: BLE001
+                log.warning("could not generate a report in %s: %s", origin, exc)
+                failed.append(str(origin))
+        self._say_generated(saved, failed)
+        self._forget_limits()
+        self._refresh()
+
+    def _say_generated(self, saved: list, failed: list) -> None:
+        """SUCCESS IS QUIET; A FAILURE IS NOT.
+
+        A button that writes files and says nothing is a button a user presses
+        twice, so this began as a message box on every press. Driven on screen,
+        keeping three types of one measurement then meant three boxes to
+        dismiss in a row, which is exactly the flow Knut asked for: *"the user
+        may have several uses for different reports."*
+
+        The feedback is already on the page. The line beside the pulldown
+        changes from "No report has been generated for this run yet" to a list
+        naming what the run now has, in the same instant, and that is the thing
+        he asked the window to show. A box that repeats it is a box in the way.
+
+        A failure still speaks, because nothing else on the page would say so.
+        """
+        from ui.warning_sign import warn
+        from workflow.measurement_report import report_type_name
+        name = tr(report_type_name(self._report_type_now()))
+        if saved and not failed:
+            log.info("generated %d report(s) of type %s", len(saved), name)
+            return
+        if saved and failed:
+            warn(self, tr("Report generated"), tr(
+                "Saved {count} of {total}. The rest could not be written; the "
+                "log says why.").format(count=len(saved),
+                                        total=len(saved) + len(failed)))
+        elif failed:
+            warn(self, tr("Report not generated"), tr(
+                "Nothing could be written. The log says why."))
+
     def _on_reveal(self) -> None:
         """Open the profile's folder in the file manager so the user can browse to
         the reports folder and open saved PDFs (Knut)."""
@@ -2075,12 +2159,25 @@ class MeasurementReportDialog(QDialog):
         cached = getattr(self, "_types_cache", None)
         if cached is not None:
             return cached
+        from workflow.measurement_report import report_type
         from workflow.run_compliance import run_context_for, run_report_type
         out: "set[str]" = set()
         for src in getattr(self, "_sources", []):
             ctx = run_context_for(src.get("origin"))
             if ctx is not None:
                 out.add(run_report_type(ctx.run))
+                continue
+            # A MEASUREMENT IN NO RUN HAS A TYPE TOO, and this loop could not
+            # see it. Driven: a run on the Printing record beside a loose file
+            # whose own saved report says Full colour check, and the window saw
+            # no disagreement at all, so T4 was applied to both. Opened alone
+            # that file reads FAIL; in company it read INFO, every verdict
+            # withheld by a choice made on a different run. Nothing is written,
+            # but it is exactly the state the fallback exists to prevent,
+            # reached through the door the guard did not cover.
+            for rep in (src.get("runs") or []):
+                if isinstance(rep, dict):
+                    out.add(report_type(rep))
         self._types_cache = out
         return out
 
@@ -2151,9 +2248,12 @@ class MeasurementReportDialog(QDialog):
         self._type_label.setText(
             tr("Report type ({run}):").format(run=run.dir.name)
             if run is not None and not several else tr("Report type:"))
-        self._type_combo.setToolTip(
-            tr("Several measurement runs are loaded. Open the report on one "
-               "run to change its type.") if several else "")
+        # …and when several runs are loaded that sentence replaces it, below.
+        self._type_combo.setToolTip("")
+        if several:
+            self._type_combo.setToolTip(
+                tr("Several measurement runs are loaded. Open the report on "
+                   "one run to change its type."))
         # WHEN THEY DISAGREE, SAY SO WHERE THE PULLDOWN IS. A greyed control
         # over a value that is nobody's choice explains nothing, and this is
         # the one state where the line beside it has something more useful to
@@ -2164,7 +2264,41 @@ class MeasurementReportDialog(QDialog):
                 "this report is shown as Full colour check, which withholds "
                 "nothing. Open the report on one run to use that run's type."))
         else:
-            self._set_type_blurb(self._type_blurb_for(current))
+            # WHICH TYPES EXIST COMES FIRST, and it used to come second.
+            # Photographed on screen: with both on one elided line, the half
+            # that got cut was "Already generated for this run: …", which is
+            # precisely what Knut asked the window to show. What a type is FOR
+            # has another home, the pulldown's own entries and the help button
+            # beside it; what a run already holds has none.
+            blurb = self._type_blurb_for(current)
+            already = self._generated_types_line(run)
+            self._set_type_blurb(f"{already}  ·  {blurb}" if already else blurb)
+            self._type_combo.setToolTip(blurb)
+        # The button writes a report for the run the window is on. With no run,
+        # or with several loaded, there is no single place for it to go.
+        self._generate_btn.setEnabled(
+            run is not None and not several and bool(self._runs_for_report()))
+
+    def _generated_types_line(self, run) -> str:
+        """Which report types this run has already produced, or "".
+
+        **Knut, 2026-09-11:** *"The Report window must thus show which type of
+        reports have been generated."* Counted from the files on disk, never
+        from anything this window remembers: a report is generated by a
+        measurement no window was open for.
+        """
+        if run is None:
+            return ""
+        from workflow.measurement_report import (generated_report_types,
+                                                 report_type_name)
+        counts = generated_report_types(run)
+        if not counts:
+            return tr("No report has been generated for this run yet.")
+        names = ", ".join(
+            tr("{type} ({count})").format(type=tr(report_type_name(tid)),
+                                          count=n)
+            for tid, n in sorted(counts.items()))
+        return tr("Already generated for this run: {names}").format(names=names)
 
     def _set_type_blurb(self, full: str) -> None:
         """One line, elided to the room it has; the whole sentence as the
@@ -2389,9 +2523,16 @@ class MeasurementReportDialog(QDialog):
         return out
 
     def _mismatch_text(self) -> str:
-        """The D25 strip: what this chart cannot supply for the chosen set."""
+        """The D25 strip: what this chart cannot supply for the chosen set.
+
+        SILENT ON A TYPE THAT JUDGES NOTHING, and it was the third unguarded
+        door beside a guarded one. The strip names the limit set and tells the
+        user what to add to the chart to have it checked; on a Printing record
+        no set is applied and nothing is checked, so every clause of it is
+        about a document the user is not looking at.
+        """
         r = self._report
-        if not r:
+        if not r or self._ungraded_by_type():
             return ""
         from workflow.compliance_sets import N_A
         rows, _rec = self._verdict_rows(r)
@@ -4250,7 +4391,7 @@ class MeasurementReportDialog(QDialog):
             + html.escape(tr(
                 "A limit set is one column of the limits table: the numbers a "
                 "report is judged against. Every row of the results ends in one "
-                "of five words. PASS: the measured value is within the limit for "
+                "of five verdict words. PASS: the measured value is within the limit for "
                 "that row. FAIL: it is over the limit. COND (short for "
                 "conditional): nothing failed, but the result comes with a "
                 "documented exception. For a row it means the row is a "
@@ -4259,11 +4400,14 @@ class MeasurementReportDialog(QDialog):
                 "exceeded, or the set contains rows this chart could not supply, "
                 "so the set as a whole was only partly checked. INFO: the number "
                 "is shown for your information and nothing was judged from it. "
-                "That happens when this set puts no limit on the row, when the "
-                "sheet is a profiling measurement or a raw drift check, which "
-                "are never graded, when the row needs something about the print "
-                "that was not recorded, and when you chose a report type that "
-                "judges nothing. The note under the results says which. N-A "
+                "That happens when this limit set puts no limit on the row, "
+                "when the sheet is a profiling measurement, which is never "
+                "graded, when the row needs something about the print that was "
+                "not recorded, and when you chose a report type that judges "
+                "nothing; the note under the results names the rows in the "
+                "last two cases. A column read as a drift check shows the word "
+                "“drift” in every cell instead: it compares one measurement "
+                "with another rather than with a limit. N-A "
                 "(not applicable): the row does not apply here; the reason is shown "
                 "when you point at the cell and is listed under the results, for "
                 "example the chart has too few grey steps. "
@@ -4502,12 +4646,21 @@ class MeasurementReportDialog(QDialog):
             notes += (f"<div style='{note_css}'>"
                       + html.escape(line) + "</div>")
         # D25: what was not computed, and why, repeated in the report text.
+        # …AND NEITHER OF THESE MAY SPEAK ON A TYPE THAT JUDGES NOTHING.
+        # One note was guarded by type and the two beside it were not, which is
+        # the first fault shape yet again. On a Printing record a chart with no
+        # grey ramp printed, on one page: "You chose the Printing record, which
+        # judges none of it", and under it "Not computed on this chart: … add
+        # the missing patches to the chart in Create Chart to have it checked."
+        # Under a type that checks nothing. The amber strip above the report
+        # said the same, naming a limit set the document applies to nothing.
         seen: dict = {}
-        for r in runs:
-            if _is_raw_drift(r):
-                continue
-            for label, why in self._not_computed(r):
-                seen.setdefault((label, why), True)
+        if not self._ungraded_by_type():
+            for r in runs:
+                if _is_raw_drift(r):
+                    continue
+                for label, why in self._not_computed(r):
+                    seen.setdefault((label, why), True)
         if seen:
             notes += (f"<div style='{note_css}'><b>" + html.escape(tr(
                 "Not computed on this chart:")) + "</b> " + html.escape("; ".join(

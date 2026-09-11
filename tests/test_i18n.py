@@ -706,6 +706,11 @@ def test_every_deliberate_exception_says_why():
 # the MERGED SOURCE instead: `scripts/i18n_extract.py --stale <code>` names
 # every key the merged code no longer uses, and those were pruned. The ceilings
 # below did not move, which is the check that the merge changed no translation.
+# 2026-09-11, Knut's "several report types per run": every language gains one,
+# German included, for "{type} ({count})". That string is two placeholders and
+# a bracket; it is the same in every language that uses round brackets, and the
+# two that do not (ja, zh_CN) were given their own full-width form and are NOT
+# among the identical ones. An identity, not a missing translation.
 # 2026-09-11, #182 F3, fr 314 -> 315: the French for "Licences" is
 # "Licences". An identical value here means "untranslated" for every string
 # but the handful that are genuinely the same word, and this is one of them.
@@ -715,17 +720,17 @@ def test_every_deliberate_exception_says_why():
 # rule, so the ceilings came DOWN by two instead of up by five: two English
 # placeholders from an earlier round were replaced in the same pass.
 _IDENTICAL_TO_KEY = {
-    "de": 122,
-    "es": 293,
-    "fr": 315,
-    "it": 304,
+    "de": 123,
+    "es": 294,
+    "fr": 316,
+    "it": 305,
     "ja": 280,
-    "nl": 320,
-    "no": 305,
-    "pl": 297,
-    "pt": 295,
-    "ru": 268,
-    "sv": 306,
+    "nl": 321,
+    "no": 306,
+    "pl": 298,
+    "pt": 296,
+    "ru": 269,
+    "sv": 307,
     "zh_CN": 274,
 }
 

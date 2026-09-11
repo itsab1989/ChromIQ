@@ -308,13 +308,26 @@ def test_the_page_does_not_end_on_a_rule():
 #: who owns a file and on what terms. It does not speak in the first person
 #: about this project, and it does not stamp a decision with a date.
 _RECORD_SHAPES = (
-    (r"\bwe (were|are|have|had|did|do) ", "the project talking about itself"),
+    (r"\bwe (were|are|have|had|did|do)\b", "the project talking about itself"),
     (r"\bour own\b", "the project talking about itself"),
-    (r"\bthis assistant\b", "who wrote it"),
-    (r"decided \d{4}-\d{2}-\d{2}", "a decision stamped with its date"),
+    (r"\b(this|an earlier) (assistant|session)\b", "who wrote it, and when"),
+    (r"\bdecided\b[^.]{0,20}\d{4}-\d{2}-\d{2}",
+     "a decision stamped with its date"),
     (r"\buntil \d{4}-\d{2}-\d{2}\b", "what was true before a date"),
-    (r"\bused to (say|be)\b", "what this file used to say"),
+    (r"\bused to (say|be|read)\b", "what this file used to say"),
     (r"\bweighed (below|above)\b", "a pointer into a section nobody renders"),
+    # …AND THE THIRD PERSON, which is how most of this repo writes about
+    # itself and which the list could not see at all. A fifth adversarial
+    # round measured the coverage of the shapes that replaced the phrase list
+    # and found three of the original seven no longer caught, and "the owner
+    # decided on 2026-09-06" defeating the dated-decision shape with one word.
+    (r"\ban? (adversarial|challenge|review) round\b",
+     "the project narrating its own review"),
+    (r"\b(quoted|recorded|written) here (word for word|until|before)\b",
+     "a note about editing this file"),
+    (r"\bworse than no\b", "the project arguing with itself"),
+    (r"\bnobody (has|had|noticed|came back)\b",
+     "the project's own account of what was missed"),
 )
 
 
@@ -353,12 +366,16 @@ def test_the_check_can_see_each_shape_it_looks_for():
     import re as _re
     samples = (
         "we were not compliant with that agreement",
-        "this is our own work and nobody else's",
+        "this is our own work and nothing else",
         "written by this assistant in an earlier pass",
-        "licence: agplv3, decided 2026-09-06 by the owner",
+        "licence: agplv3, the owner decided on 2026-09-06",
         "until 2026-09-11 it was met nowhere a user could look",
-        "this entry used to say none",
+        "this entry used to read none",
         "not an aggregation argument of the kind weighed below",
+        "an adversarial round read the page back and found three paragraphs",
+        "his message was quoted here word for word until this morning",
+        "a notices file that denies the bundle is worse than no notices file",
+        "nobody came back to update the numbers",
     )
     assert len(samples) == len(_RECORD_SHAPES)
     for sample, (pat, _why) in zip(samples, _RECORD_SHAPES):

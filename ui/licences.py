@@ -76,7 +76,7 @@ NOTICE_SECTIONS: "tuple[str, ...]" = (
     "Test image",
     "Scanner target recognition files",
     "Certificate bundle",
-    "Vendored FreeType",
+    "FreeType",
     "Argyll-derived helpers",
     "ChromIQ's own",
 )
