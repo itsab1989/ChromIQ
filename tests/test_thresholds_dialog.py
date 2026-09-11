@@ -458,3 +458,44 @@ def test_a_real_edit_is_still_an_edit(qapp, tmp_path):
         assert got is not None and abs(got.number - 0.25) < 1e-9
     finally:
         dlg.deleteLater()
+
+
+def test_a_showing_window_writes_nothing_at_all(qapp, tmp_path):
+    """R17-7: "READ-ONLY FOR THE RUN" LET IT WRITE APP-WIDE, AND THE HARM IS
+    SOMEWHERE ELSE.
+
+    The reasoning for leaving those writable was that a bound run's limits come
+    from its own stored copy, so nothing app-wide can reach it. True of that
+    run, and it does not reach the harm: a challenge round moved "Default for
+    new runs" from a "Show limits…" window with no question and no undo, and a
+    DIFFERENT project's next run was then bound to it and judged by the wrong
+    numbers.
+
+    A window that says it is showing writes nothing.
+
+    MUTATION: let either the radio or a shipped column's cell write here and
+    this goes red.
+    """
+    from core.settings import compliance_overrides_of
+
+    proj = Project.create(tmp_path / "P", "P")
+    run = proj.current_run(); run.ensure_dir()
+    s, dlg = _dlg(qapp, tmp_path, run=run)          # run_editable defaults False
+    try:
+        assert not dlg._run_editable, "the premise failed"
+        was_default = s.get("compliance_default_set", "chromiq_default")
+        was_overrides = compliance_overrides_of(s)
+
+        other = next(c for c, rb in dlg._default_radios.items()
+                     if not rb.isChecked() and rb.isEnabled())
+        dlg._default_radios[other].setChecked(True)
+        assert s.get("compliance_default_set", "chromiq_default") == was_default, (
+            "a showing window moved the default set for every future run")
+        assert dlg._default_radios[other].isChecked() is False, (
+            "the radio was left showing a default that is not the default")
+
+        _cell(dlg, "chromiq_default", "all_de00_max").setValue(7.5)
+        assert compliance_overrides_of(s) == was_overrides, (
+            "a showing window changed the app-wide limits")
+    finally:
+        dlg.deleteLater()

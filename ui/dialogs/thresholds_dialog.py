@@ -561,7 +561,7 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
             mine[row_id] = float(value)
         if not mine:
             self._overrides.pop(col, None)
-        self._write_overrides()
+        self._write_overrides()   # a no-op when this window is only showing
 
     def _on_restore_column(self) -> None:
         btn = self.sender()
@@ -599,7 +599,8 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         if self._run is not None:
             from workflow.run_compliance import set_run_columns
             try:
-                set_run_columns(self._run, shown if len(shown) < len(SET_BY_ID) else [])
+                _wrote = shown if len(shown) < len(SET_BY_ID) else []
+                set_run_columns(self._run, _wrote)
                 # AND THIS WINDOW HAS NOW SEEN ITS OWN WRITE, THE COLUMNS
                 # AND NOTHING ELSE. Without any refresh the collision check
                 # reports this click as somebody else's work; with a refresh of
@@ -611,9 +612,12 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                 # A baseline is refreshed exactly as wide as the write that
                 # earned it.
                 if self._run_stored_at_open is not None:
-                    _seen = _stored_column(self._run)
-                    if _seen is not None:
-                        self._run_stored_at_open["columns"] = _seen["columns"]
+                    # WHAT WE WROTE, NOT WHAT IS THERE NOW. Reading it back
+                    # records whatever landed between this window's write and
+                    # this line as seen, so another window's column choice was
+                    # overwritten AND marked as ours. The right width and the
+                    # wrong moment is still the wrong baseline.
+                    self._run_stored_at_open["columns"] = list(_wrote)
             except OSError as exc:
                 log.warning("could not store the column choice: %s", exc)
         elif self._buffer is not None:
@@ -643,12 +647,44 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         except Exception:              # noqa: BLE001
             return (None, None)
 
+    def _read_only_here(self) -> bool:
+        """Whether this window is showing a run rather than editing one.
+
+        `run_editable` was read as "read-only for the RUN", and everything
+        app-wide was left writable on the reasoning that a bound run's limits
+        come from its own stored copy, so nothing app-wide can reach it. True
+        of that run, and it does not reach the harm: a challenge round moved
+        "Default for new runs" from a "Show limits…" window with no question
+        and no undo, and a DIFFERENT project's next run was then bound to it
+        and judged by 4.0 instead of 2.0. A window that says it is showing
+        writes nothing.
+
+        From Preferences there is no run, so this is False and that door is
+        untouched.
+        """
+        return self._run is not None and not self._run_editable
+
+    def _restore_default_radio(self) -> None:
+        """Put the radio back on the set that is really the default."""
+        rb = self._default_radios.get(self._default_set)
+        if rb is None:
+            return
+        _was = self._syncing
+        self._syncing = True
+        try:
+            rb.setChecked(True)
+        finally:
+            self._syncing = _was
+
     def _on_default_toggled(self, on: bool) -> None:
         if not on:
             return
         rb = self.sender()
         col = rb.property("set_id") if rb is not None else None
         if not col:
+            return
+        if self._read_only_here():
+            self._restore_default_radio()
             return
         self._default_set = col
         if self._buffer is not None:
@@ -659,6 +695,11 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
 
     # --------------------------------------------------------------- helpers
     def _write_overrides(self) -> None:
+        if self._read_only_here():
+            # SHOWING, NOT EDITING. The same rule as the run's own numbers and
+            # its columns, and for the same reason: nothing in a window that
+            # says "Show limits…" may write, app-wide or not.
+            return
         if self._buffer is not None:
             self._buffer["overrides"] = {k: dict(v) for k, v in self._overrides.items()}
         else:

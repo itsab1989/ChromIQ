@@ -12,6 +12,7 @@ from __future__ import annotations
 import copy
 import html
 import json
+from functools import partial
 from datetime import datetime
 from pathlib import Path
 
@@ -569,7 +570,7 @@ class MeasurementReportDialog(QDialog):
     _pending_rebound: bool = False
     _pending_restore_outcome: str = "none"
     #: what the run was judged by when this window last drew its controls
-    _judged_by_at_sync: tuple = ()
+    _run_state_at_sync: tuple = ()
 
     def __init__(self, settings, parent=None, initial_ti3=None) -> None:
         super().__init__(parent)
@@ -1889,7 +1890,7 @@ class MeasurementReportDialog(QDialog):
         # window a second writer has to work in. A challenge round drove
         # exactly that: rebind the run, then click, and the rebind was inside
         # the "before" the guard compared against.
-        self._judged_by_at_sync = self._judged_by_now(run) if run else ()
+        self._run_state_at_sync = self._run_state_now(run) if run else ()
         self._syncing_limits = True
         try:
             self._set_combo.clear()
@@ -2333,10 +2334,27 @@ class MeasurementReportDialog(QDialog):
         # for its SECOND date, both of which were right to add, and both of
         # which leave this pulldown live over a full history. The guard did not
         # move with the rule.
+        # ASK, THEN CHECK THE ANSWER IS STILL ABOUT THIS RUN. The guard above
+        # runs BEFORE the question, and the question takes as long as a person
+        # takes to read it. A challenge round re-locked the run while it was on
+        # screen: the user said yes, a locked run was rebound and a saved
+        # verdict went from FAIL to PASS, under one box identical to the
+        # control. The same re-lock one moment earlier fired a full guard.
         if self._recalculating_would_rewrite_history(ctx.run):
-            if not self._confirm_recalculate(ctx.run):
+            if not self._confirm_about_run(
+                    ctx.run, partial(self._confirm_recalculate, ctx.run)):
                 self._sync_set_combo_to(lim.set_id)
                 return
+        elif self._run_state_now(ctx.run) != self._run_state_at_sync:
+            # NO HISTORY TO REWRITE MEANS NO QUESTION, AND THAT IS EXACTLY THE
+            # STATE A LOCK CAN ARRIVE IN: `is_locked` turns on at the SECOND
+            # dated verification, so a measurement finishing while this window
+            # sat open locks the run with no question ever asked.
+            self._sync_set_combo_to(lim.set_id)
+            self._say_run_moved_while_asking(ctx.run)
+            self._forget_limits()
+            self._refresh()
+            return
         # THE SAME BIND, AND IT LOCKED THE USER OUT ON THIS ROUTE TOO.
         # A round fixed the "Edit limits…" door and this one kept the fault:
         # on a project made before #182 with a history, choosing a set bound
@@ -2522,47 +2540,43 @@ class MeasurementReportDialog(QDialog):
         _head = (tr("This run ({run}) has one dated verification.")
                  if n_dates == 1 else
                  tr("This run ({run}) has {n} dated verifications."))
-        # WHAT THE WINDOW LAST SHOWED, not what the run holds at this click.
-        # Stamped by `_sync_limit_controls`, which is the last moment the
-        # window and the run agreed; reading it here would already include any
-        # change made while the user was looking at the screen.
-        _before = self._judged_by_at_sync
-        ok = self._confirm(
-            tr("Unlock this run's limits?"),
-            _head.format(run=ctx.run.dir.name, n=n_dates) + " " + _tail)
-        if not ok:
+        # ASK, THEN CHECK THE ANSWER IS STILL ABOUT THIS RUN. The question
+        # promises the dated reports will be recalculated "with the numbers you
+        # set", and it takes as long as a person takes to read it.
+        #
+        # `may_unlock` is asked again beside it because it is not a property of
+        # the run at all: the Preferences switch can be turned off while the
+        # question is on screen, and the tick box's enablement was decided when
+        # the window last refreshed.
+        from workflow.run_compliance import has_measured_verification, may_unlock
+
+        def _put_the_box_back() -> None:
             self._syncing_limits = True
             try:
                 self._unlock_check.setChecked(False)
             finally:
                 self._syncing_limits = False
+
+        if not self._confirm_about_run(
+                ctx.run,
+                partial(self._confirm, tr("Unlock this run's limits?"),
+                        _head.format(run=ctx.run.dir.name, n=n_dates)
+                        + " " + _tail)):
+            _put_the_box_back()
             return
-        # THE THIRD DOOR INTO `_recalculate_run`, AND IT ASKED NOTHING HERE.
-        # The other two were guarded in earlier rounds; this one imported
-        # `is_locked` and never called it. Two states were driven through it.
-        #
-        # The box is enabled from `may_unlock` and a measured verification when
-        # the window last refreshed, and nothing outside the window refreshes
-        # it, so a run that stops qualifying while the window sits open was
-        # unlocked anyway.
-        #
-        # And the question above promises the reports will be recalculated
-        # "with the numbers you set". If another writer rebound the run while
-        # it was on screen, the recalculation uses THEIR numbers under a
-        # sentence about yours: a challenge round watched a saved verdict go
-        # from PASS to FAIL that way. So the answer is checked against the
-        # state it was given for.
-        from workflow.run_compliance import has_measured_verification, may_unlock
+        # READ AFTER THE QUESTION, WHICH IS THE WHOLE POINT. Read before it,
+        # this holds the value from before the user was asked, so the switch
+        # being turned off during the question was invisible and the unlock
+        # went through.
         _allow = bool(self._settings.get(
             "compliance_allow_edit_after_measurement", False))
         if not (may_unlock(ctx.run, _allow)
-                and has_measured_verification(ctx.run)) \
-                or self._judged_by_now(ctx.run) != _before:
-            self._syncing_limits = True
-            try:
-                self._unlock_check.setChecked(False)
-            finally:
-                self._syncing_limits = False
+                and has_measured_verification(ctx.run)):
+            # SAID OUT LOUD, LIKE THE OTHER HALF. Folding this into the
+            # condition above made it share that branch and lose its voice:
+            # the Preferences switch went off while the question was on screen,
+            # the unlock was refused, and the window said nothing at all.
+            _put_the_box_back()
             self._say_run_moved_while_asking(ctx.run)
             self._forget_limits()
             self._refresh()
@@ -2583,20 +2597,59 @@ class MeasurementReportDialog(QDialog):
         self._recalculate_run()
         self._refresh()
 
-    def _judged_by_now(self, run) -> tuple:
-        """What the run is judged by AT THIS MOMENT, read from disk.
+    def _run_state_now(self, run) -> tuple:
+        """EVERYTHING THIS WINDOW'S DECISIONS ABOUT THE RUN DEPEND ON, read
+        from disk at this moment.
 
-        The one thing a question about recalculating a history depends on, and
-        the only way to tell that the answer is still about the run the
-        question described.
+        It used to be the three fields that say what a run is judged by, and
+        that left the LOCK out: a second window re-locking the run while a
+        question was on screen changed `compliance_unlocked`, which is not one
+        of those three, so the guard saw nothing and the run was rebound on a
+        lock. The count of dated verifications is here for the same reason, on
+        the other side: the lock turns on at the second one, so a measurement
+        finishing during a question locks the run without touching any field
+        the first version watched.
         """
         try:
             m = run.load_meta()
+            n = sum(1 for v in run.verifications() if v.exists())
         except Exception:              # noqa: BLE001
             return ()
         return (str(m.compliance_set_id or ""),
                 json.dumps(m.compliance_thresholds or {}, sort_keys=True),
-                str(getattr(m, "compliance_bound_at", "") or ""))
+                str(getattr(m, "compliance_bound_at", "") or ""),
+                bool(getattr(m, "compliance_unlocked", False)),
+                n)
+
+    def _confirm_about_run(self, run, ask) -> bool:
+        """Ask with *ask*, then check the answer is still about the run the
+        question described. True only when the user said yes AND nothing moved.
+
+        `ask` is the door's own question, passed in rather than reproduced
+        here, so each door keeps the wording it is tested through.
+
+        ONE GUARD FOR EVERY DOOR, because four challenge rounds found the same
+        hole in a fourth door each time. A question about recalculating a
+        history takes as long as a person takes to read it, and that is the
+        whole window a second writer needs: rounds 16 and 17 drove a run
+        rebound, re-locked, and locked by its own second measurement, each
+        during the question, each acted on afterwards as though the answer had
+        been about the state that came back.
+
+        The "before" is the state this window last DREW, not the state at the
+        click: everything between the drawing and the click is time the user
+        spent looking at the screen, and a guard that stamps at the click has
+        already swallowed it.
+        """
+        _before = self._run_state_at_sync
+        if not ask():
+            return False
+        if self._run_state_now(run) != _before:
+            self._say_run_moved_while_asking(run)
+            self._forget_limits()
+            self._refresh()
+            return False
+        return True
 
     def _say_run_moved_while_asking(self, run) -> None:
         """The run stopped being the run the question was about, between the
@@ -2897,9 +2950,14 @@ class MeasurementReportDialog(QDialog):
                     "change was made last."))
         warn(self, tr("The report limits in Preferences changed while this "
                       "window was open"),
+             # NOT "no run's own limits were touched", WHICH THIS WINDOW
+             # CANNOT PROMISE. It is shown by a window that may have just
+             # moved this run's own numbers and rewritten its saved reports,
+             # and a challenge round photographed it landing directly under a
+             # box saying exactly that. This message is about the app-wide
+             # preferences and says only what it knows.
              tr("Something else changed the report limits in Preferences while "
-                "this window was open: they were edited in another window. No "
-                "run's own limits were touched.")
+                "this window was open: they were edited in another window.")
              + " " + _what + "\n\n"
              + tr("Open Preferences and check them before you measure "
                   "again."))
@@ -3114,10 +3172,25 @@ class MeasurementReportDialog(QDialog):
                      "the edit is not applied to %s", ctx.run.dir)
             _outcome = self._undo_the_edit(ctx, snap)
             self._say_locked_meanwhile(ctx.run, _outcome)
+            if prefs_collided:
+                # THIS BRANCH RETURNS ABOVE WHERE THE APP-WIDE COLLISION WAS
+                # REPORTED, so a lock arriving at the same moment made the
+                # window silent about a change it is noisy about otherwise, and
+                # left that change standing. Nothing here puts the preferences
+                # back, so the sentence is the one that says so.
+                self._say_preferences_changed_meanwhile(reverted=False)
             self._forget_limits()
             self._refresh()
             return
         if moved:
+            # THE STATE TO COMPARE AGAINST IS THE ONE TAKEN BEFORE THE
+            # QUESTION, and the question is asked inside the condition below.
+            # A challenge round wrote this run's numbers from another window
+            # while that question was on screen: the collision check had
+            # already run, so nothing was raised, and the recalculation judged
+            # every saved report by a number the user never typed and never
+            # saw. Read here, one line before the asking.
+            _state_before_asking = self._run_state_now(ctx.run)
             if (self._recalculating_would_rewrite_history(ctx.run)
                     and not self._confirm_recalculate(ctx.run)):
                 self._pending_rebound = collided
@@ -3129,6 +3202,25 @@ class MeasurementReportDialog(QDialog):
                         ctx.run, self._pending_restore_outcome)
                 if prefs_collided:
                     # The refusal put them back, so the other change is gone.
+                    self._say_preferences_changed_meanwhile(reverted=True)
+                self._forget_limits()
+                self._refresh()
+                return
+            if self._run_state_now(ctx.run) != _state_before_asking:
+                # SOMEBODY WROTE THIS RUN WHILE THE QUESTION WAS ON SCREEN.
+                # Going ahead would recalculate every saved report against
+                # whatever they wrote, under a question about what the user
+                # typed. Treated as the refusal it has to be: the run's own
+                # column goes back and the user is told, once, by the window
+                # that already exists for exactly this.
+                self._pending_restore_outcome = "none"
+                if not self._restore_limits_snapshot(ctx, snap):
+                    self._say_restore_failed(ctx.run,
+                                             self._pending_restore_error)
+                else:
+                    self._say_rebound_meanwhile(
+                        ctx.run, self._pending_restore_outcome)
+                if prefs_collided:
                     self._say_preferences_changed_meanwhile(reverted=True)
                 self._forget_limits()
                 self._refresh()
