@@ -18,6 +18,7 @@ the user's original download is left untouched. ``scanin`` happily reads a
 """
 from __future__ import annotations
 
+import logging
 import re
 import subprocess
 from enum import Enum
@@ -167,7 +168,7 @@ def convert_i1profiler_measurement(path: str | Path, argyll_bin: str | Path,
         raise ReferenceConvertError(
             "txt2ti3 ran but produced no .ti3 — is this an i1Profiler "
             "measurement export?")
-    finalize_converted_ti3(out, p)
+    finalize_converted_ti3(out, p, argyll_bin, runner)
     return out
 
 
@@ -438,16 +439,186 @@ def _cxf_measured_date(root, meas) -> "str | None":
     return None
 
 
+# An XYZ column whose largest value across the whole patch set is no more than
+# this is on the 0..1 reflectance-factor scale, not ArgyllCMS's 0..100. Every
+# reflective chart contains its own paper white, so the peak of a correctly
+# scaled file lands near 100 and the two bands cannot be confused. The same
+# shape of test txt2ti3 itself applies to the device and spectral columns
+# (profile/txt2ti3.c ~L678 and ~L715); CIE is the one it does not check.
+_CIE_UNSCALED_CEILING = 1.5
+
+
+def repair_converted_cie(ti3_path: str | Path,
+                         argyll_bin: "str | Path | None" = None,
+                         runner: Callable[..., subprocess.CompletedProcess]
+                         = subprocess.run) -> str:
+    """Make a just-converted ``.ti3``'s CIE columns usable. Returns a note for
+    the log, or ``""`` when nothing needed doing.
+
+    ``txt2ti3`` SCALES THE DEVICE AND SPECTRAL COLUMNS AND PASSES CIE STRAIGHT
+    THROUGH (``profile/txt2ti3.c`` ~L812: ``setel[k++].d = *((double *)ncie->…``,
+    with no factor, where the device and spectral lines either side of it both
+    carry one). i1Profiler can export XYZ on the 0..1 reflectance-factor scale
+    ArgyllCMS never uses, and then the conversion is silently a hundredfold out:
+    measured on a user's own 4,000-patch export, 2026-09-11, paper white came
+    through as ``XYZ 0.872540 0.885770 0.869230`` where ``spec2cie`` on the same
+    file's spectral gives ``87.25821 88.57786 86.92455``.
+
+    Nothing downstream catches it. ``colprof`` prefers the CIE columns when they
+    are there, normalises the A2B tables to the white point and builds a profile
+    whose relative tables look ordinary, while the media white it records is
+    ``L* 8.0`` instead of ``L* 95`` — so absolute-colorimetric work, paper
+    simulation and every number in the measurement report are wrong, and nothing
+    says so. The repair is a pure change of scale: the file's own measured
+    values, on the scale ArgyllCMS means.
+
+    AND WHERE THE EXPORT CARRIED NO CIE AT ALL, ``spec2cie`` IS RUN. An
+    i1Profiler CGATS export of RGB + spectral is a complete measurement — it is
+    the file the user offered as the one ``txt2ti3`` handles — and txt2ti3
+    converts it happily, but into a ``.ti3`` that declares ``COLOR_REP
+    "iRGB_XYZ"`` and then carries no ``XYZ_*`` columns at all. ``colprof`` copes
+    (it falls back to the spectral); ChromIQ's own reader, its profile engine
+    and ``profcheck`` do not.
+
+    ARGYLL'S OWN INTEGRATION, NOT OURS. ChromIQ can compute XYZ from a spectrum
+    — ``ti3_analysis`` does, and that is what lets the reader read such a file
+    at all — but writing OUR numbers into the file would hand ``colprof`` worse
+    input than it would have derived for itself: measured over her 4,011
+    patches, the two integrations differ by a mean of **0.17** and a peak of
+    **0.55 ΔE76**, because ours resamples a 10 nm spectrum linearly and Argyll's
+    does not. ``spec2cie`` is the same tool ``convert_reference`` already uses
+    for exactly this, and its numbers ARE the numbers colprof would have used.
+    With no ArgyllCMS to run it, nothing is written: a spectral-only ``.ti3`` is
+    a file ``colprof`` reads correctly, and making it worse is not a repair.
+
+    Never raises: a file this cannot make sense of is left exactly as it is, and
+    the old failure path still runs.
+    """
+    p = Path(ti3_path)
+    try:
+        text = read_text(p, lenient=True)
+    except OSError:
+        return ""
+    lines = text.splitlines()
+    try:
+        fmt_at = next(i for i, ln in enumerate(lines)
+                      if ln.strip() == "BEGIN_DATA_FORMAT")
+        fields = lines[fmt_at + 1].split()
+        data_at = next(i for i, ln in enumerate(lines) if ln.strip() == "BEGIN_DATA")
+        end_at = next(i for i, ln in enumerate(lines) if ln.strip() == "END_DATA")
+    except (StopIteration, IndexError):
+        return ""
+
+    body = [i for i in range(data_at + 1, end_at) if lines[i].strip()]
+    if not body:
+        return ""
+    if all(f"XYZ_{c}" in fields for c in "XYZ"):
+        return _rescale_xyz_columns(p, lines, fields, body)
+    if any(f.upper().startswith("LAB_") for f in fields):
+        return ""                      # Lab is on its own scale and is fine
+    return _add_cie_with_spec2cie(p, fields, argyll_bin, runner)
+
+
+def _rescale_xyz_columns(p: Path, lines: list, fields: list,
+                         body: "list[int]") -> str:
+    cols = [fields.index(f"XYZ_{c}") for c in "XYZ"]
+    peak = 0.0
+    for i in body:
+        parts = lines[i].split()
+        # ONE TOKEN PER FIELD, OR NOTHING IS TOUCHED. The rewrite below works by
+        # column POSITION, so a row that does not hold every column must stop it
+        # dead rather than be indexed into (a short row) or have its columns
+        # silently read one place along (a long one).
+        if len(parts) != len(fields):
+            return ""
+        try:
+            peak = max(peak, *(abs(float(parts[c])) for c in cols))
+        except ValueError:
+            return ""                  # not numbers: leave the file alone
+    if not 0.0 < peak <= _CIE_UNSCALED_CEILING:
+        return ""
+    for i in body:
+        parts = lines[i].split()
+        for c in cols:
+            parts[c] = f"{float(parts[c]) * 100.0:.6f}"
+        lines[i] = " ".join(parts)
+    p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return (f"XYZ columns were on the 0..1 scale (peak {peak:g}); "
+            f"rescaled to ArgyllCMS's 0..100")
+
+
+def _add_cie_with_spec2cie(p: Path, fields: list,
+                           argyll_bin: "str | Path | None",
+                           runner: Callable[..., subprocess.CompletedProcess]
+                           ) -> str:
+    """Add XYZ (and Lab) to a spectral-only ``.ti3``, IN PLACE, via spec2cie.
+
+    ``spec2cie`` writes a second file, so the result is moved over the original
+    only once it exists and still holds the patches — an ArgyllCMS that is not
+    installed, or a file it will not read, must leave the input untouched.
+    ``COLOR_REP`` keeps saying ``…_XYZ``, so the Lab columns spec2cie adds
+    alongside are never the ones ``colprof`` reads (``profout.c`` picks by
+    ``COLOR_REP``, ~L985).
+    """
+    if not argyll_bin or not any(f.upper().startswith("SPEC_") for f in fields):
+        return ""
+    out = p.with_name(p.stem + "-cie" + p.suffix)
+    try:
+        _run(Path(argyll_bin), "spec2cie", [str(p), str(out)], runner)
+    except (ReferenceConvertError, OSError, subprocess.SubprocessError):
+        # A repair that cannot run is not a failure of the import: the file
+        # `colprof` can already read is still there, untouched.
+        out.unlink(missing_ok=True)
+        return ""
+    if not out.is_file():
+        return ""
+    try:
+        got = read_text(out, lenient=True)
+    except OSError:
+        out.unlink(missing_ok=True)
+        return ""
+    if "XYZ_X" not in got:
+        out.unlink(missing_ok=True)
+        return ""
+    n = sum(1 for ln in _first_table_rows(got))
+    p.write_text(got, encoding="utf-8")
+    out.unlink(missing_ok=True)
+    return (f"the conversion carried no CIE columns; XYZ for {n} patches "
+            f"added from the spectral readings with ArgyllCMS spec2cie")
+
+
+def _first_table_rows(text: str):
+    started = False
+    for ln in text.splitlines():
+        s = ln.strip()
+        if s == "BEGIN_DATA":
+            started = True
+        elif s == "END_DATA":
+            return
+        elif started and s:
+            yield s
+
+
 def finalize_converted_ti3(ti3_path: str | Path,
-                           source_txt: str | Path) -> "tuple[str, str | None]":
+                           source_txt: str | Path,
+                           argyll_bin: "str | Path | None" = None,
+                           runner: Callable[..., subprocess.CompletedProcess]
+                           = subprocess.run) -> "tuple[str, str | None]":
     """Finalise a just-converted (txt2ti3) ``.ti3`` from its i1Profiler source:
     stamp the real instrument (over txt2ti3's Spectrolino placeholder) and the
     measurement date, so the measurement report shows the right instrument and
-    trends by when the chart was measured, not when it was converted. Returns
-    ``(instrument, iso_date_or_None)``. THE single place all three convert paths
-    call — the Convert i1Profiler → TI3 tool, convert_i1profiler_measurement (the
-    scanner-target import), and the Build Profile .txt import — so they behave
-    identically (Knut)."""
+    trends by when the chart was measured, not when it was converted, and put
+    right the CIE scale txt2ti3 leaves alone (:func:`repair_converted_cie`).
+    Returns ``(instrument, iso_date_or_None)``. THE single place all three
+    convert paths call — the Convert i1Profiler → TI3 tool,
+    convert_i1profiler_measurement (the scanner-target import), and the Build
+    Profile .txt import — so they behave identically (Knut).
+
+    *argyll_bin* is what lets the CIE repair reach ``spec2cie``; without it a
+    spectral-only conversion is left as it is, which ``colprof`` still reads."""
+    note = repair_converted_cie(ti3_path, argyll_bin, runner)
+    if note:
+        logging.getLogger(__name__).warning("%s: %s", Path(ti3_path).name, note)
     instrument = stamp_instrument_from_source(ti3_path, source_txt)
     date = stamp_measurement_date_from_source(ti3_path, source_txt)
     return instrument, date

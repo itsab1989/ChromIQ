@@ -163,14 +163,6 @@ def parse_ti3(path: str | Path) -> Ti3Data:
 
     rgb = grab(rgb_i)
 
-    if all(i is not None for i in xyz_i):
-        xyz = grab(xyz_i)
-    elif all(i is not None for i in lab_i):
-        lab = grab(lab_i)
-        xyz = _lab_to_xyz_array(lab)
-    else:
-        raise Ti3ParseError("No XYZ or Lab columns in the measurement.")
-
     spectral = wavelengths = None
     spec_i = [i for i, f in enumerate(fields) if f.startswith("SPEC_")]
     if len(spec_i) >= 3 and "SPECTRAL_BANDS" in keywords:
@@ -183,6 +175,29 @@ def parse_ti3(path: str | Path) -> Ti3Data:
                 wavelengths = np.linspace(lo, hi, bands)
         except (ValueError, KeyError):
             spectral = wavelengths = None
+
+    if all(i is not None for i in xyz_i):
+        xyz = grab(xyz_i)
+    elif all(i is not None for i in lab_i):
+        lab = grab(lab_i)
+        xyz = _lab_to_xyz_array(lab)
+    elif spectral is not None:
+        # SPECTRAL IS MEASURED COLOUR. A measurement that carries a reflectance
+        # curve per patch and no CIE columns is complete — `colprof` says so in
+        # as many words ("No CIE data found, switching to spectral with standard
+        # observer & D50", colprof.c ~L1089) and builds the profile from it. So
+        # does `txt2ti3`, which is what produces such a file here: an i1Profiler
+        # CGATS export of RGB + spectral converts cleanly and comes out with
+        # SPEC_ columns only.
+        #
+        # Refusing it was ChromIQ's own rule and nobody else's, and it reached a
+        # user on 2026-09-11 as "the import needs an XYZ column" about a file
+        # ArgyllCMS reads without complaint. D50 / 1931 2° here because that is
+        # exactly what colprof falls back to, so the numbers ChromIQ shows and
+        # the numbers it builds from are the same numbers.
+        xyz = _spectral_to_xyz_array(spectral, wavelengths)
+    else:
+        raise Ti3ParseError("No XYZ, Lab or spectral columns in the measurement.")
 
     sid_i = col("SAMPLE_ID")
     sample_ids = ([r[sid_i] for r in rows] if sid_i is not None
@@ -197,6 +212,20 @@ def parse_ti3(path: str | Path) -> Ti3Data:
 
 def _f_inv(t: float) -> float:
     return t ** 3 if t ** 3 > 216.0 / 24389.0 else (116.0 * t - 16.0) / (24389.0 / 27.0)
+
+
+def _spectral_to_xyz_array(spectral: np.ndarray,
+                           wavelengths: np.ndarray) -> np.ndarray:
+    """Reflectance curves → XYZ (0–100), D50 / CIE 1931 2°.
+
+    The illuminant and observer are ``colprof``'s own fallback for a ``.ti3``
+    with no CIE columns, so a file read this way analyses as the same colours
+    the profile is built from.
+    """
+    integ = _Integrator(np.asarray(wavelengths, dtype=float))
+    return np.array([integ.reflect_xyz(np.asarray(row, dtype=float),
+                                       cie_data.IL_D50)
+                     for row in spectral], dtype=float)
 
 
 def _lab_to_xyz_array(lab: np.ndarray) -> np.ndarray:

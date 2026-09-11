@@ -4592,7 +4592,12 @@ class TabProfile(QWidget):
             from workflow.reference_convert import finalize_converted_ti3
             src_txt = self._txt_convert_dir / f"{self._txt_convert_base}.txt"
             if src_txt.is_file():
-                instr, date = finalize_converted_ti3(ti3, src_txt)
+                # The ArgyllCMS folder goes with it: the finalise step runs
+                # `spec2cie` when txt2ti3's output has no CIE columns of its own.
+                instr, date = finalize_converted_ti3(
+                    ti3, src_txt,
+                    self._settings.get("argyll_bin_path",
+                                       "/Applications/Argyll/bin"))
                 if instr or date:
                     self._log.appendPlainText(
                         f"Instrument: {instr}"
