@@ -109,8 +109,26 @@ number is in a clause ChromIQ does not hold or may not show).
 
 Per row: PASS when the value is within the limit; FAIL when over a required
 limit; COND when over a recommended one; INFO when the set puts no limit on
-the row, or the sheet is not graded; N-A when the chart or the reference
+the row, or the sheet is not graded, **or the row itself could not be graded,
+or the chosen report type judges nothing**; N-A when the chart or the reference
 cannot supply the row, with the reason beside it.
+
+> **TWO CAUSES OF INFO WERE MISSING FROM THIS SENTENCE, AND KNUT HAS SEEN
+> NEITHER.** An adversarial round drove them on 2026-09-11 and found the
+> report's own "How to read" paragraph denying, on page 2, the cause it
+> asserted on page 4.
+>
+> **A ROW that cannot be graded, on a sheet that is.** CH-17: the grey-balance
+> rows are shown for information when nobody recorded how the sheet was
+> printed and the reference is the chart's own design, because in absolute Lab
+> the paper's own tint would fail the row. That has shipped since the rows
+> existed; only this sentence was behind.
+>
+> **A TYPE that judges nothing.** Report type T4, "Printing record (not
+> graded)", withholds every verdict by the user's choice. **This document does
+> not describe the report types at all** — `grep "Printing record"` over it
+> returns nothing — so that is a gap to fill with Knut rather than a rule to
+> write here alone.
 
 A sheet is **graded** unless it is the run's own **profiling** chart (a file
 directly in `runs/runN/`, printed raw by definition) or a raw drift check.

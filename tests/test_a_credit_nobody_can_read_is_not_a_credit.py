@@ -297,44 +297,69 @@ def test_the_page_does_not_end_on_a_rule():
     assert not shown.endswith("*"), "the page ends mid-emphasis"
 
 
-#: Phrases that mark the project's own RECORD rather than a notice about
-#: somebody's file. Not a style rule: each is a shape that actually reached the
-#: rendered page and had to be taken out of it.
-_RECORD_TELLS = (
-    "we were not compliant",          # a past non-compliance, in the product
-    "this assistant",                 # who wrote what, and when
-    "earlier session",
-    "quoted here word for word",      # a note about editing this file
-    "used to say",
-    "worse than no notices",
-    "until 2026-",                    # "it was met nowhere a user could look"
+#: What the project's own RECORD sounds like, as SHAPES rather than sentences.
+#:
+#: A phrase list was tried first and defeated itself: a fourth adversarial
+#: round measured it and found four of its seven phrases matching nothing at
+#: all, because the sentences they were written for had been removed. A list of
+#: quotations from text that no longer exists is decoration, not a guard.
+#:
+#: These are shapes a NOTICE never has and a record always does. A notice says
+#: who owns a file and on what terms. It does not speak in the first person
+#: about this project, and it does not stamp a decision with a date.
+_RECORD_SHAPES = (
+    (r"\bwe (were|are|have|had|did|do) ", "the project talking about itself"),
+    (r"\bour own\b", "the project talking about itself"),
+    (r"\bthis assistant\b", "who wrote it"),
+    (r"decided \d{4}-\d{2}-\d{2}", "a decision stamped with its date"),
+    (r"\buntil \d{4}-\d{2}-\d{2}\b", "what was true before a date"),
+    (r"\bused to (say|be)\b", "what this file used to say"),
+    (r"\bweighed (below|above)\b", "a pointer into a section nobody renders"),
 )
 
 
 def test_the_page_carries_no_note_about_the_project_itself():
-    """SECTION HEADINGS WERE NOT ENOUGH, AND A ROUND ASSUMED THEY WERE.
+    """SECTION HEADINGS WERE NOT ENOUGH, AND TWO ROUNDS ASSUMED THEY WERE.
 
-    The notice/record split is per `## ` heading, so three paragraphs of the
-    project's own record survived INSIDE a kept section and rendered to users
-    in both languages: a note about removing a contributor's private message, a
-    commit SHA with a line about what this file used to say, and a sentence
-    admitting an obligation had been met nowhere a user could look. A third
-    adversarial round read the page back and found them.
-
-    A phrase list is a blunt instrument and is meant to be: each entry is a
-    shape that actually reached the page.
+    The notice/record split is per `## ` heading, so paragraphs of the
+    project's own record survived INSIDE kept sections and rendered to users in
+    both languages: a note about removing a contributor's private message, a
+    commit SHA with a line about what this file used to say, a sentence
+    admitting an obligation had been met nowhere a user could look, and a
+    decision stamped with its date and the person who made it. Two adversarial
+    rounds found them, one after the other.
 
     MUTATION: put any of those sentences back and this goes red.
     """
+    import re as _re
     from ui.licences import notices_markdown
     shown = notices_markdown().lower()
     assert shown, "nothing is rendered"
-    found = [t for t in _RECORD_TELLS if t in shown]
+    found = [(pat, why) for pat, why in _RECORD_SHAPES
+             if _re.search(pat, shown)]
     assert not found, (
-        f"the page carries the project's own record, not a notice: {found}")
+        "the page carries the project's own record, not a notice: "
+        + "; ".join(f"{why} ({pat})" for pat, why in found))
 
 
-def test_the_check_can_see_such_a_phrase():
-    """The control: a list that matches nothing would pass for ever."""
-    sample = "…and we were not compliant, which this assistant recorded."
-    assert [t for t in _RECORD_TELLS if t in sample.lower()]
+def test_the_check_can_see_each_shape_it_looks_for():
+    """THE CONTROL, one sample per shape.
+
+    A pattern list that matches nothing would pass for ever, and the list it
+    replaced did exactly that. These samples live here rather than in the
+    notices file, so the guard does not need bad text to be kept around in
+    order to stay honest.
+    """
+    import re as _re
+    samples = (
+        "we were not compliant with that agreement",
+        "this is our own work and nobody else's",
+        "written by this assistant in an earlier pass",
+        "licence: agplv3, decided 2026-09-06 by the owner",
+        "until 2026-09-11 it was met nowhere a user could look",
+        "this entry used to say none",
+        "not an aggregation argument of the kind weighed below",
+    )
+    assert len(samples) == len(_RECORD_SHAPES)
+    for sample, (pat, _why) in zip(samples, _RECORD_SHAPES):
+        assert _re.search(pat, sample), f"{pat} does not match {sample!r}"

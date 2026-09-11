@@ -322,7 +322,11 @@ def test_a_row_with_a_number_nobody_graded_says_why_on_paper(tmp_path, qapp):
     qapp.processEvents()
     try:
         from workflow.run_compliance import set_run_report_type
-        set_run_report_type(run, REPORT_TYPE_RECORD)
+        # T2, NOT T4. On the Printing record every row is INFO because the type
+        # says so, and the note is deliberately silent there: the summary
+        # already says the document judges nothing, and naming two of eight
+        # rows would imply the other six were graded.
+        set_run_report_type(run, REPORT_TYPE_FULL)
         dlg._forget_limits()
         dlg._sync_limit_controls()
         reps = dlg._runs_for_report()
@@ -445,5 +449,51 @@ def test_the_page_does_not_call_a_measured_row_not_computed(tmp_path, qapp):
             rid = x.get("row_id")
             if rid in ROW_BY_ID:
                 assert _html.escape(tr(ROW_BY_ID[rid].label)) in block2, rid
+    finally:
+        dlg.close()
+
+
+def test_the_printing_record_does_not_single_out_two_of_eight_rows(tmp_path,
+                                                                   qapp):
+    """On T4 every row is INFO because the TYPE says so, and the summary says
+    the report judges none of it. A note naming two of them as "measured but
+    not graded" implies the other six were graded, and blames the printing
+    condition for a choice the user made.
+
+    MUTATION: drop the `_ungraded_by_type` guard from `_measured_not_graded`
+    and this goes red.
+    """
+    import html as _html
+    from core.i18n import tr
+    from tests.test_import_measurement_module import _verify_env
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    from workflow.compliance_sets import INFO
+    from workflow.run_compliance import set_run_report_type
+    s, _fm, _ctl, run = _verify_env(tmp_path)
+    v = run.new_verification()
+    v.ensure_dir()
+    v.measurement_ti3.write_text(_grey_ramp_ti3(), encoding="utf-8")
+    dlg = MeasurementReportDialog(s, None, initial_ti3=v.measurement_ti3)
+    dlg.show()
+    qapp.processEvents()
+    try:
+        set_run_report_type(run, REPORT_TYPE_FULL)
+        dlg._forget_limits()
+        dlg._sync_limit_controls()
+        assert dlg._measured_not_graded(dlg._runs_for_report()[0]), \
+            "the note is empty even on Full colour check, so nothing is proved"
+
+        set_run_report_type(run, REPORT_TYPE_RECORD)
+        dlg._forget_limits()
+        dlg._sync_limit_controls()
+        reps = dlg._runs_for_report()
+        rows, _rc = dlg._verdict_rows(reps[0])
+        assert all(x["word"] == INFO or x["word"] == "N-A" for x in rows)
+        assert not dlg._measured_not_graded(reps[0]), \
+            "two of eight rows are singled out on a report that judges none"
+        body = dlg._report_body_html(reps, for_pdf=True)
+        head = _html.escape(tr("Measured but not graded, on at least one "
+                               "measurement:"))
+        assert head not in body, "the note is printed on a type that judges nothing"
     finally:
         dlg.close()

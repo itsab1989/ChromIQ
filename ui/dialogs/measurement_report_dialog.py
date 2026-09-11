@@ -2354,6 +2354,15 @@ class MeasurementReportDialog(QDialog):
         falsehood the round before had just removed from the sentence above
         it, reinstated one line below.
         """
+        # NOT ON A TYPE THAT JUDGES NOTHING. On the Printing record every row
+        # is INFO because the TYPE says so, and this note would then single out
+        # the two that happen to carry a per-row reason, implying the other six
+        # were graded and blaming the printing condition for a choice the user
+        # made. The summary beside it is type-aware; this note was added in the
+        # same commit and was not, which is the first fault shape again, one
+        # line below the fix that named it.
+        if self._ungraded_by_type():
+            return []
         from workflow.compliance_sets import INFO, ROW_BY_ID
         rows, _rec = self._verdict_rows(r)
         out = []
@@ -4249,9 +4258,12 @@ class MeasurementReportDialog(QDialog):
                 "it. For a column's Overall it means a recommendation was "
                 "exceeded, or the set contains rows this chart could not supply, "
                 "so the set as a whole was only partly checked. INFO: the number "
-                "is shown for your information; "
-                "this set puts no limit on it, or the sheet is a profiling "
-                "measurement or a raw drift check, which are never graded. N-A "
+                "is shown for your information and nothing was judged from it. "
+                "That happens when this set puts no limit on the row, when the "
+                "sheet is a profiling measurement or a raw drift check, which "
+                "are never graded, when the row needs something about the print "
+                "that was not recorded, and when you chose a report type that "
+                "judges nothing. The note under the results says which. N-A "
                 "(not applicable): the row does not apply here; the reason is shown "
                 "when you point at the cell and is listed under the results, for "
                 "example the chart has too few grey steps. "

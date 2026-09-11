@@ -176,20 +176,45 @@ geometry — `BOX_SHRINK` and the declared patch size are Argyll's in 8 of 8, an
 three of the files sit at Argyll's absolute coordinates over 864, 288 and 528
 patches.
 
-**Licence: AGPLv3, decided 2026-09-06 by Basti.** ArgyllCMS's `ref/ReadMe.txt`
+**Licence: AGPLv3.** ArgyllCMS's `ref/ReadMe.txt`
 names all eight of these files as covered by `ref/License.txt`, which is the GNU
 Affero GPL v3; unlike Argyll's `.icm` profiles they carry no public-domain
 dedication. A work derived from an AGPLv3 work cannot be redistributed under the
-plain GPLv3, so the folder's `LICENSE` — GPLv3 since its first commit — now
-carries the same AGPLv3 text Argyll ships. Note this is **not** an aggregation
-argument of the kind weighed below: nothing here needed one, because the folder
-simply adopts its upstream's licence rather than asserting a different one.
+plain GPLv3, so the folder's `LICENSE` carries the same AGPLv3 text Argyll
+ships. This is not an aggregation argument: the folder simply adopts its
+upstream's licence rather than asserting a different one.
 
 **ChromIQ's own licence is untouched** and remains GPLv3. Only this folder is
 AGPLv3; the files are data, read at run time and never linked. No code reads the
 `LICENSE`, and no `.cht` coordinate changed, so the application behaves exactly
 as before — the one visible effect is that `ensure_user_targets_dir` refreshes an
 unmodified copy of the file in the user's `scanner-test-targets` folder.
+
+## Certificate bundle — `certifi`
+
+`certifi`'s `cacert.pem`, Mozilla's root CA list, is bundled by `ChromIQ.spec`
+so the update check can verify TLS in a frozen app that has no system Python.
+
+**Terms: Mozilla Public License 2.0** for the `certifi` package (its own
+metadata states `License: MPL-2.0`); the certificate data itself is Mozilla's
+CA list, distributed by `certifi` under the same terms. MPL 2.0 is
+file-level copyleft on the files it covers and places no condition on the rest
+of an aggregate, so nothing here conflicts with the rights ChromIQ's own
+licence grants.
+
+## Vendored FreeType — `vendor/freetype/win-arm64/freetype.dll`
+
+A self-contained FreeType 2.14.3 build for Windows on ARM64, bundled by
+`ChromIQ.spec` into the frozen ARM app only, because `freetype-py` publishes no
+wheel with a native library for that platform. Source, exact file and sha256 are
+in `vendor/freetype/win-arm64/README.md`.
+
+**Terms: the FreeType License (FTL)**, a BSD-style licence with a credit
+clause, dual-licensed with GPLv2. ChromIQ uses it under the FTL, whose credit
+clause is met here and on the Licences page:
+
+> Portions of this software are copyright © 2026 The FreeType Project
+> (www.freetype.org). All rights reserved.
 
 ## Argyll-derived helpers — `native/`
 
