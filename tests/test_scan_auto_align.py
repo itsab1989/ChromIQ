@@ -1219,3 +1219,98 @@ def test_a_refusal_records_what_it_found(qapp, tmp_path, caplog):
                  "no-better", "too-far-to-fit", "0.81", "0.012",
                  "edges are not the chart", "Pattern match"):
         assert must in line, f"the refusal log does not carry {must!r}:\n{line}"
+
+
+# ---------------------------------------------------------------------------
+# Knut, #182, 2026-09-11: "It should not be needed to undo previous auto align
+# before I can try to auto align with a new setting"
+#
+# The Patch sample area is an INPUT to the alignment -- `_on_auto_align` hands
+# it to `place_grid` as `sample_frac` -- but it does not touch the marquee's
+# corners, so `_marquee.changed` never fired and the one-step undo survived a
+# change of it. The button then said "Undo auto align", and the press the user
+# made in order to try again was spent putting the old corners back.
+#
+# Measured on screen before the fix, ChromIQ's own SquareChart sample and its
+# simulated scan: Auto align seats (rho 1.0000), the button reads "Undo auto
+# align", the Patch sample area goes 50 % -> 45 %, the button STILL reads "Undo
+# auto align", and one press restores the pre-align corners exactly.
+# ---------------------------------------------------------------------------
+def _armed_undo_dialog(qapp):
+    """A dialog whose Auto align has just placed the grid, so the one-step undo
+    is armed and the button offers it."""
+    from workflow.scan_placement import PlacementResult
+    d = _dialog(qapp, None)
+    d._marquee.set_image(Image_qimage(200, 200))
+    d._marquee.set_corners([(10, 10), (100, 10), (100, 100), (10, 100)])
+    d._capture_current_corners()
+    before = d._marquee.corners_image_px()
+    d._align_before = list(before)
+    found = [(20.0, 20.0), (150.0, 20.0), (150.0, 150.0), (20.0, 150.0)]
+    d._auto_align_done(PlacementResult(corners=found, rho=0.97, ending="placed",
+                                       found=True))
+    return d, before, found
+
+
+def _bump_sample_area(d) -> int:
+    """Move the Patch sample area to a value it is not already on, the way a
+    user reaching for the spin box does. The window REMEMBERS this number
+    between dialogs, so a hard-coded value can silently be a no-op."""
+    lo, hi, now = (d._sample_area.minimum(), d._sample_area.maximum(),
+                   d._sample_area.value())
+    want = lo if now != lo else min(hi, lo + 5)
+    d._sample_area.setValue(want)
+    assert d._sample_area.value() != now, "the spin box did not move"
+    return d._sample_area.value()
+
+
+def test_changing_the_patch_sample_area_ends_the_undo(qapp):
+    from core.i18n import tr
+    d, _before, _found = _armed_undo_dialog(qapp)
+    assert d._auto_align_btn.text() == tr("Undo auto align")
+    assert d._align_undo is not None
+
+    assert _bump_sample_area(d) != d._sample_area.minimum() - 1   # it moved
+
+    assert d._align_undo is None
+    assert d._auto_align_btn.text() == tr("Auto align")
+
+
+def test_after_that_one_press_aligns_again_instead_of_undoing(qapp):
+    """The half that matters to the user: the next press must not put the old
+    corners back. With no scan loaded `_on_auto_align` can only refuse, and a
+    refusal moves nothing -- so the grid staying where Auto align put it is
+    exactly the proof that the press was not an undo."""
+    d, before, found = _armed_undo_dialog(qapp)
+    _bump_sample_area(d)
+    d._on_auto_align()
+    assert d._marquee.corners_image_px() == found
+    assert d._marquee.corners_image_px() != before
+
+
+def test_the_sample_boxes_still_follow_the_spin_box(qapp):
+    """The same slot still does the job it always did, so a fix that simply
+    dropped the old connection is caught here."""
+    d = _dialog(qapp, None)
+    # Values chosen away from whatever this dialog opened on: the window
+    # remembers the last Patch sample area, so a fixed number can be a no-op
+    # that emits nothing and proves nothing.
+    checked = 0
+    for want in (d._sample_area.minimum() + 1, d._sample_area.minimum() + 4,
+                 d._sample_area.minimum() + 7):
+        if want == d._sample_area.value() or want > d._sample_area.maximum():
+            continue
+        d._sample_area.setValue(want)
+        assert d._marquee._sample_frac == pytest.approx(want / 100.0)
+        checked += 1
+    assert checked >= 2
+
+
+def test_the_sample_area_slot_is_a_bound_method_not_a_lambda(qapp):
+    """CLAUDE.md: PyQt6 6.11 faults invoking a self-capturing closure from a
+    signal a widget's own child emits."""
+    import inspect
+    from ui.dialogs import scanin_dialog
+    src = inspect.getsource(scanin_dialog.ScannerProfileDialog)
+    i = src.index("self._sample_area.valueChanged.connect")
+    assert "lambda" not in src[i:i + 120]

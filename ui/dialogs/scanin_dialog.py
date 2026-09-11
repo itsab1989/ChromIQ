@@ -2407,8 +2407,10 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._sample_area.setValue(60)
         self._sample_area.setSuffix(" %")
         self._sample_area.setMinimumWidth(110)
-        self._sample_area.valueChanged.connect(
-            lambda v: self._marquee.set_sample_fraction(v / 100.0))
+        # A bound method, not a self-capturing lambda (CLAUDE.md, the scrollbar
+        # SIGSEGV) — and it does the OTHER thing a change of this number means:
+        # see `_on_sample_area_changed`.
+        self._sample_area.valueChanged.connect(self._on_sample_area_changed)
         # Push the INITIAL value explicitly: setValue() above ran before the
         # connect, so the signal never fired and the marquee kept its own
         # built-in 50 % — invisible while the default WAS 50, but the moment
@@ -5950,6 +5952,34 @@ class ScannerProfileDialog(_ToolDialogBase):
         if self._align_undo is not None and self._align_thread is None:
             self._align_undo = None
             self._auto_align_btn.setText(tr("Auto align"))
+
+    def _on_sample_area_changed(self, value: int) -> None:
+        """The Patch sample area moved: redraw the sample boxes, and end the
+        one-step undo.
+
+        AND SO DOES CHANGING THIS NUMBER END IT (Knut, #182, 2026-09-11):
+        *"if I try to change the patch sample area number, in order to try to
+        auto align again, then the button says Undo Auto Align… It should not
+        be needed to undo previous auto align before I can try to auto align
+        with a new setting"*.
+
+        He is right, and the reason is not cosmetic. This number is an INPUT to
+        the alignment: `_on_auto_align` passes it to `place_grid` as
+        `sample_frac`, and the placement probe scores every candidate over
+        exactly the area it names. So after it moves, the button offering to
+        put the OLD corners back is offering the one thing the user cannot
+        want — they changed the setting in order to align again. Until now only
+        `_marquee.changed` ended the undo, and this spin box does not touch the
+        marquee's corners, so the button stayed on "Undo auto align" and the
+        press they made was spent undoing.
+
+        Nothing is said in the log: the undo is a one-press convenience, and a
+        line announcing that a convenience has lapsed is noise. The button's
+        own label is the whole of the state, and it changes back in front of
+        them.
+        """
+        self._marquee.set_sample_fraction(value / 100.0)
+        self._forget_align_undo()
 
     def _auto_align_inputs(self):
         """(scan, cht, cie) for the page on screen, or None when the tool has

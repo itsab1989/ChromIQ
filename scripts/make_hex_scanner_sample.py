@@ -103,26 +103,72 @@ def build(work: Path, name: str, hexagonal: bool) -> Path:
     return stem
 
 
+#: The device range a printed sheet really occupies once a scanner has read it.
+#: Solid black ink is not 0 and paper is not 255: measured across the reads this
+#: project keeps, the darkest patch of a matte print lands near 22/255 and the
+#: paper near 246/255. See :func:`simulate_scan` for why the pack MUST have this
+#: and cannot simply hand back the chart file.
+SCAN_BLACK = 22
+SCAN_WHITE = 246
+
+
 def simulate_scan(stem: Path, out: Path) -> Path:
     """What a scanner would hand back: the printed sheet, at scan resolution,
-    rotated a little, softened and speckled. Rotation and noise are FIXED, not
-    random — a sample pack that differs every time it is built cannot be
-    compared against by whoever receives it."""
+    rotated a little, softened, speckled — and, above all, INSIDE the device
+    range, because that is the one property a real scan has that a chart file
+    does not.
+
+    Rotation and noise are FIXED, not random: a sample pack that differs every
+    time it is built cannot be compared against by whoever receives it.
+
+    **THE RANGE IS THE WHOLE POINT, AND LEAVING IT OUT MADE THIS PACK
+    UNUSABLE.** A chart's TIFF is device values: a patch the chart asks for at
+    100 % of a channel is 255 in the file, and one at 0 % is 0. Rendering that
+    straight out as a "scan" hands the app an image with no headroom at either
+    end, which no scanner on earth produces — and the build gate is watching
+    for exactly that. `workflow.scan_read_check` counts a patch as clipped when
+    any channel reaches 99.5 or 0.5 on its 0-100 scale, refuses above 15 %, and
+    measured on the pack as it was:
+
+    ==================================  ==============
+    HexChart / SquareChart, 150 patches  clipped share
+    ==================================  ==============
+    rendered at the full device range    **50 %**
+    through this compression             **0 %**
+    ==================================  ==============
+
+    So a user who followed this pack's own README reached "Part of this scan
+    has no colour left in it" and could not finish, and the advice that message
+    gives — rescan with the automatic brightness turned off — cannot help
+    somebody who has no scanner in the loop at all. Knut hit the same wall on
+    his own 648-patch honeycomb demo (#182, 2026-09-11), where 25 % of a page
+    that is FULL of patches read at a rail; every one of those patches was one
+    the chart itself asks for at 0 % or 100 % of a channel.
+
+    The compression is linear and deliberately crude. It is not a model of ink,
+    paper or a scanner's tone curve, and it is not meant to be: it carries one
+    fact, that a printed sheet read by a scanner occupies the middle of the
+    device range, and that fact is what the pack was missing.
+    """
     from PIL import Image, ImageFilter
     import numpy as np
     src = Image.open(stem.with_suffix(".tif")).convert("RGB")
     w = int(src.width * SCAN_DPI / CHART_DPI)
     img = src.resize((w, int(src.height * SCAN_DPI / CHART_DPI)),
                      Image.Resampling.LANCZOS)
+    # Paper, not pure white, for the corners the rotation exposes.
     img = img.rotate(-0.8, resample=Image.Resampling.BICUBIC,
-                     expand=True, fillcolor=(252, 251, 249))
+                     expand=True, fillcolor=(SCAN_WHITE - 3, SCAN_WHITE - 4,
+                                             SCAN_WHITE - 6))
     img = img.filter(ImageFilter.GaussianBlur(0.6))       # scanner optics
-    a = np.asarray(img).astype(np.int16)
+    a = np.asarray(img).astype(np.float64)
+    a = SCAN_BLACK + a * (SCAN_WHITE - SCAN_BLACK) / 255.0
     rng = np.random.default_rng(20260822)                 # fixed: reproducible
-    a = np.clip(a + rng.normal(0, 1.6, a.shape).astype(np.int16), 0, 255)
+    a = np.clip(a + rng.normal(0, 1.6, a.shape), 0, 255)
     Image.fromarray(a.astype("uint8")).save(out, dpi=(SCAN_DPI, SCAN_DPI),
                                             compression="tiff_lzw")
-    print(f"  {out.name}: {a.shape[1]} x {a.shape[0]} px at {SCAN_DPI} dpi")
+    print(f"  {out.name}: {a.shape[1]} x {a.shape[0]} px at {SCAN_DPI} dpi, "
+          f"device range {int(a.min())}-{int(a.max())} of 0-255")
     return out
 
 
@@ -143,10 +189,11 @@ this pack is here so you can see it work without printing anything first.
     scan/SquareChart-simulated-scan.tif
 
 The simulated scans were rendered from the charts themselves and then rotated
-0.8 degrees, softened and speckled, because a pixel-perfect image would prove
-nothing about a path whose job is coping with one that is not. They contain no
-ink, no paper and no scanner: use them to see the tool work, not to judge a
-profile.
+0.8 degrees, softened, speckled and squeezed into the part of the brightness
+range a printed sheet really occupies once a scanner has read it, because a
+pixel-perfect image at the full range would prove nothing about a path whose job
+is coping with one that is not. They contain no ink, no paper and no scanner:
+use them to see the tool work, not to judge a profile.
 
 ## Switch it on first
 
