@@ -204,6 +204,51 @@ def hex_max_sample_fraction(w: float, h: float,
     return max(0.05, (w - 2.0 * m) * (h - 2.0 * m) / (w0 * h0))
 
 
+#: The most a HONEYCOMB may be read at, whatever its geometry allows.
+#:
+#: Knut, #182, 2026-09-11, asked whether 64 % should come down "so a small
+#: alignment error cannot put a corner on the patch next door": *"Yes, a
+#: maximum of 55% is good."*
+#:
+#: :func:`hex_max_sample_fraction` is the GEOMETRIC limit -- the fraction at
+#: which the read box's corner lands exactly on the hexagon's slanted side,
+#: with zero paper left. Measured on the real CR30 honeycomb (pwid 12.000,
+#: plen 10.392) the paper between the box corner and that side is
+#: **+0.021 mm at 64 %, +0.214 mm at 60 % and +0.464 mm at 55 %**; on a 6 mm
+#: honeycomb, **+0.010 / +0.107 / +0.232 mm**. So the geometric cap is a cliff
+#: edge and not a working setting: at 64 % a fifth of a tenth of a millimetre
+#: of placement error reads the neighbour, and because the neighbouring hexagon
+#: is FLUSH against this one that happens on every patch at once rather than on
+#: a few (0 of 150 patches at 60 %, 150 of 150 at 70 %).
+#:
+#: THIS IS NOT APPLIED TO SQUARE PATCHES, and the reason is measured rather
+#: than assumed. A rectangular patch has no slanted side to escape past, so the
+#: inset IS the clearance: at the rectangular ceiling of 80 % it is 0.32 mm on
+#: a 6 mm ColorMunki patch, 0.42 mm on an 8 mm i1Pro patch and 0.63 mm on a
+#: 12 mm one -- already more paper than a honeycomb is given at 60 %, and about
+#: what one is given at 55 %. And the rectangular chart's neighbour is not
+#: flush: the layout puts a spacer between columns and rows, so that clearance
+#: is the inset PLUS the gap. Lowering the rectangular ceiling to 55 % would
+#: throw away read area to buy a margin those charts already have.
+HEX_SAMPLE_AREA_MAX = 0.55
+
+
+def hex_sample_area_cap(w: float, h: float,
+                        flat_top: bool = False,
+                        ring_mm: float = 0.0) -> float:
+    """The Sample area ceiling a honeycomb is offered: the smaller of what its
+    geometry allows and :data:`HEX_SAMPLE_AREA_MAX`.
+
+    One function, so the spin box's maximum, the tooltip that explains it and
+    every test read the same number. A ring (#159) can push the geometric limit
+    well below the policy one -- 49 % on a 1.3 mm ring -- and then the geometry
+    still wins, because it must.
+    """
+    return min(hex_max_sample_fraction(w, h, flat_top=flat_top,
+                                       ring_mm=ring_mm),
+               HEX_SAMPLE_AREA_MAX)
+
+
 def sample_margin_inverse(a: float, b: float, frac: float) -> float:
     """Recover the margin from an already-shrunk box: the *m* with
     ``a·b = frac·(a+2m)(b+2m)`` — the exact inverse of

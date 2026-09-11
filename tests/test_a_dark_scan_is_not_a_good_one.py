@@ -429,7 +429,7 @@ def test_the_window_names_a_dark_scan_and_says_nothing_about_a_good_one(
                 {"params": type("P", (), {"out_ti3": ti3, "is_printer": False,
                                           "cht": tmp_path / "absent.cht",
                                           "pbase": tmp_path / "b"})()})
-            titles = [t for t, _b in dlg._read_findings]
+            titles = [t for _pg, t, _b in dlg._read_findings]
             named = any(t == M.M_SCAN_DARK.title for t in titles)
             assert named is expected, (level, titles)
     finally:
@@ -491,6 +491,6 @@ def test_a_perfect_self_check_on_one_colour_is_still_caught_before_the_build(
                                       "cht": tmp_path / "absent.cht",
                                       "pbase": tmp_path / "b"})()})
         assert any(t == M.M_SCAN_FIT_UNSUPPORTED.title
-                   for t, _b in dlg._read_findings), dlg._read_findings
+                   for _pg, t, _b in dlg._read_findings), dlg._read_findings
     finally:
         dlg.deleteLater()

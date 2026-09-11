@@ -781,6 +781,23 @@ def test_every_deliberate_exception_says_why():
 # Re-measured on the catalogues this commit leaves behind, not derived: de 124,
 # es 300, fr 322, it 311, ja 286, nl 327, no 312, pl 304, pt 302, ru 275,
 # sv 313, zh_CN 280.
+# RE-MEASURED 2026-09-11, Knut's four #182 rulings on alignment and margins.
+# **8 keys in, 4 stale out**, counted with `set(after) - set(before)` and
+# `set(before) - set(after)` on each catalogue and not from memory. German is
+# translated for all eight, so de stands at 124 exactly; the eleven others
+# carry the English source under the beta rule and each rose by exactly 8.
+#
+# AND FOUR OF THE STALE KEYS WERE TRANSLATED IN ALL TWELVE, which is why the
+# eleven rose by 8 and not by 4. Three of the eight new strings are REWRITES of
+# strings that had real translations everywhere (the two row-indicator raise
+# warnings, which Knut's ruling moves onto the panel in red and which now name
+# the label size and all three levers; and the hexagonal Sample-area tooltip,
+# which becomes two wordings because the cap now has two reasons). Rewriting
+# them dropped those three back to English in the eleven. That is the beta rule
+# working as designed and it is a real loss of translated text: the pre-release
+# pass has to pick these up, and `scripts/i18n_extract.py --missing <code>`
+# will not name them, because a placeholder is present. They are named here
+# instead, which is the only place that will still be true in a month.
 _IDENTICAL_TO_KEY = {
     # RE-MEASURED AGAIN after the merge of that round into this branch:
     # the numbers above were counted on ITS base, which did not carry the
@@ -800,17 +817,17 @@ _IDENTICAL_TO_KEY = {
     # button's tooltip; German is translated, so 124 stands, and the other
     # eleven each rose by exactly 2 again. Counted with the expression above.
     "de": 124,
-    "es": 304,
-    "fr": 326,
-    "it": 315,
-    "ja": 290,
-    "nl": 331,
-    "no": 316,
-    "pl": 308,
-    "pt": 306,
-    "ru": 279,
-    "sv": 317,
-    "zh_CN": 284,
+    "es": 312,
+    "fr": 334,
+    "it": 323,
+    "ja": 298,
+    "nl": 339,
+    "no": 324,
+    "pl": 316,
+    "pt": 314,
+    "ru": 287,
+    "sv": 325,
+    "zh_CN": 292,
 }
 
 

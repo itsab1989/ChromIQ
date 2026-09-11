@@ -375,6 +375,14 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # however narrow it is. Behaviour unchanged,
                                  # WORDING new, so it waits here.
                                  "M-SCAN-ALIGN-NOT-FOUND-HEX",
+                                 # #182, 2026-09-11. Knut ruled that Auto
+                                 # align must "place its best attempt and tell
+                                 # user to check it" instead of leaving the
+                                 # corners alone, so the two endings that HAVE
+                                 # a best attempt stop being refusals and need
+                                 # their own words.
+                                 "M-SCAN-ALIGN-PLACED-UNCHECKED",
+                                 "M-SCAN-ALIGN-PLACED-NOT-SEATED",
                                  # 2026-09-11, #182. The chooser that
                                  # says .ti2 hides everything else in
                                  # its list, but its NAME BOX takes a

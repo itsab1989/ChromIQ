@@ -258,6 +258,13 @@ was generated, expanded, in warning red. It is now one hover or one click away.
 That is a real reduction in how likely a user is to learn that their typed
 margin was overruled, and it is a reduction Basti chose knowingly.
 
+> **SUPERSEDED IN PART on 2026-09-11 by Knut. R6.2 is no longer the whole
+> answer: the notice is now ALSO printed in red on the panel's own surface.
+> R6.1, R6.3 and R6.4 are untouched. See §R7 below for his words and for what
+> changed in the code. The paragraph above is kept exactly as written, because
+> it is the cost Basti was told about and accepted, and it is the cost Knut
+> then hit.**
+
 **How a check can still verify it**, which is the other half of R6.1:
 `MarginInspectorPanel.text_notes()` returns what the panel is currently
 disclosing. `tests/test_the_margin_advice_is_true_of_this_chart.py::
@@ -265,6 +272,79 @@ test_a_live_notice_reaches_the_panels_own_icon` asks for the words, in the
 dialog body and in the hover tooltip; `tests/test_the_notes_left_the_sections_
 for_the_tooltips.py` proves nothing prints them inside a section any more, and
 that the sentence is still readable where it now lives.
+
+---
+
+## §R7 · The raise is ALSO printed in red under the margin numbers — KNUT'S RULING, 2026-09-11
+
+**This reverses Basti's approved answer of 2026-09-04 recorded in §R6.** The
+specification is what changed; the code follows it. Basti should see that his
+earlier answer has been overruled, which is why it is written here in these
+words rather than quietly amended.
+
+Knut was asked, in the words §R6 uses about itself:
+
+> *The row indicators widening the left margin is explained, but only on the
+> information icon, which is where Basti's ruling of 4 September put it. You
+> have now hit the cost that ruling names out loud. Should that sentence also
+> be printed in red under the margin numbers?*
+
+He ruled:
+
+> *"Yes, add also a warning in red text, telling if the left margin is below
+> what is used when the row indicator is ON (with its font size), so that a
+> user is made aware and may modify margins or font size, or 'Text distance
+> from edge' Clip-parameter to get the right balance without showing
+> warnings."*
+
+**So the rule is now:**
+
+* **R7.1** The disclosure §R6.1 requires is unchanged and is not optional. It
+  still carries the margin asked for, the margin used, where the labels start
+  and how much their text needs.
+* **R7.2** It is **also printed on the "Measured from Preview" panel's own
+  message field, in red**, in the same place and the same ink as the four-sided
+  text/patch overlap notices that Knut's ruling of 2026-09-10 put there. It is
+  not a second sentence: it is the same notice, in both places.
+* **R7.3** The condition Knut names is the one the code already computes: the
+  left margin asked for is **below what the row indicators need at the label
+  size now in force**. That is exactly `_raised_l` in
+  `TabChart._engine_text_notes` — the geometry resolved a wider margin than the
+  recipe asked for, because `raster.apply_row_label_geometry` raised it.
+* **R7.4** The notice **names the label size in points**, because Knut's ruling
+  names it ("with its font size") and because the band is as wide as the widest
+  number AT that size. The size is the renderer's own answer
+  (`raster.effective_row_label_size_mm`), so it includes the row-pitch cap that
+  applies when Size is left on auto.
+* **R7.5** It **names all three levers he lists**: the margin, the label size,
+  and "Clip" under "Text distance from edge (mm)". Switching the indicators off
+  is offered as a fourth, last, because it removes the feature rather than
+  balancing it.
+* **R7.6** …with the one exception §R2 already derives: **on a chart whose clip
+  border is wider than Clip, lowering Clip moves nothing**, so the second
+  wording says so and does not offer it. A remedy the user can measure and find
+  wrong is worse than no remedy (beta 8, B8-14).
+* **R7.7** §R6.4 stands. Nothing about the raise is printed inside a Create
+  Chart section. The "Measured from Preview" panel is not one of those sections
+  and is where Knut asked for it.
+
+**How it is done, in one line**, because the mechanism is what keeps R6.1 and
+R7.2 from drifting apart: `_engine_text_notes` returns
+`(every notice, the overlap notices)`, and `_update_margin_inspector` hands the
+first list to the panel's ⓘ and the second to its red message field. Moving the
+raise notice from the first list into the second puts it in **both** places at
+once, because the first is built as `warns + over`. There is no second copy of
+the sentence to keep in step.
+
+**A side effect worth recording, because it answers a separate question of
+Knut's.** He also asked why some charts show no green "Margins: OK" at all.
+`MarginInspectorPanel._update_status` hides its message field entirely while a
+notice is live on the ⓘ, so a chart carrying only the raise notice printed
+nothing: no green, no red, nothing. Measured by loading all 154 built-in presets
+in the real window on 2026-09-11: **23 of them printed nothing**, 8 because of
+this notice and 15 because of the strip-length-over-ruler one. Moving this
+notice onto the surface turns those 8 from silent into red. The other 15 are
+unchanged and are still silent; that is an open point below.
 
 ---
 
@@ -298,3 +378,14 @@ Open points that a reviewer should rule on:
    delivers the outcome Knut asked the default for (the labels land clear of
    the border). If he wants the number in the box to change as well, that is a
    settings migration and his call.
+5. **§R7 itself.** It is built to Knut's words of 2026-09-11 and has been seen
+   working in the real window, and he has not confirmed that what it does is
+   what he meant. It reverses an answer Basti gave and Basti has not been asked
+   about the reversal.
+6. **The panel is still silent on a chart whose only notice is the
+   strip-length one.** §R7 moves the raise notice onto the surface, which is
+   what Knut ruled; it says nothing about the other notice that can suppress
+   the verdict. Measured over the 154 built-in presets: 15 of them print
+   nothing at all because their strip is longer than the instrument's ruler.
+   The same argument plainly applies, but extending a ruling is not applying
+   it, so this waits for Knut.

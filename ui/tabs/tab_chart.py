@@ -19109,29 +19109,79 @@ class TabChart(QWidget):
             # the specification, not a change to it.
             _clip_l = float(getattr(geom, "text_edge_clip_mm", 0.0) or 0.0)
             _clip_is_the_anchor = _clip_l >= _floor_l - 0.05
+            # AND THE SIZE THE LABELS ARE ACTUALLY PRINTED AT, because Knut's
+            # ruling names it as one of the three things the user may change:
+            # the band is as wide as the widest number at THIS size, so a
+            # message that quotes the width without the size is quoting half a
+            # fact. `effective_row_label_size_mm` is the renderer's own answer,
+            # including the row-pitch cap that applies when Size is auto.
+            _lbl_pt = 0.0
+            try:
+                from workflow.layout_engine.raster import (
+                    DEFAULT_INDICATOR_FONT, effective_row_label_size_mm)
+                _lbl_pt = effective_row_label_size_mm(
+                    geom, int(getattr(r, "dpi", 300) or 300),
+                    getattr(r, "indicator_font", "") or DEFAULT_INDICATOR_FONT,
+                    float(getattr(r, "indicator_size_mm", 0.0) or 0.0),
+                ) * 72.0 / 25.4
+            except Exception:      # noqa: BLE001 — a number, never a blocker
+                _lbl_pt = 0.0
+            # KNUT'S RULING OF 2026-09-11 PUTS THIS IN RED ON THE PANEL, not
+            # only on its ⓘ: *"add also a warning in red text, telling if the
+            # left margin is below what is used when the row indicator is ON
+            # (with its font size), so that a user is made aware and may modify
+            # margins or font size, or 'Text distance from edge'
+            # Clip-parameter to get the right balance without showing
+            # warnings."*
+            #
+            # That REVERSES Basti's approved answer of 2026-09-04 -- *"a
+            # tooltip will be enough"* -- which `docs/design/row_label_
+            # geometry.md` §R6 records, and which says out loud that a notice
+            # on an ⓘ is only read if it is asked for. The specification has
+            # been amended rather than the ruling quietly applied; see §R6's
+            # "⏳ Awaiting confirmation" amendment.
+            #
+            # It goes into `over`, not `warns`, and that ONE choice does the
+            # whole job: `_update_margin_inspector` hands `over` to the panel's
+            # red message field AND `warns + over` to its ⓘ, so the disclosure
+            # §R6.1 requires is not weakened -- it is in both places now. The
+            # two wordings below are kept apart for the reason B8-14 found:
+            # "reduce Clip" is FALSE on a chart whose clip border is wider than
+            # Clip, and a remedy the user can measure and find wrong is worse
+            # than no remedy.
             if _raised_l and _clip_is_the_anchor:
-                warns.append(tr(
-                    "⚠ The left margin was widened from {asked:.1f} mm to "
-                    "{got:.1f} mm to fit the row indicators. The labels start "
-                    "{floor:.1f} mm in from the page edge (the larger of "
-                    "“Clip” under “Text distance from edge” and the width of "
-                    "the clip border) and their text needs {band:.1f} mm. To "
-                    "get that paper back, switch “Show row indicators” off, "
-                    "use a smaller label size, or reduce “Clip”.").format(
+                over.append(tr(
+                    "⚠ The left margin is below what the row indicators need, "
+                    "so it was widened from {asked:.1f} mm to {got:.1f} mm to "
+                    "fit them. The labels start {floor:.1f} mm in from the "
+                    "page edge (the larger of “Clip” under “Text distance from "
+                    "edge” and the width of the clip border) and their text "
+                    "needs {band:.1f} mm at {size:.0f} pt. Three things "
+                    "balance this and any of them stops the warning: raise "
+                    "“Left” under “Margins (mm)” to {got:.1f} mm so you are "
+                    "asking for what the chart uses, set a smaller Size under "
+                    "“Row indicators”, or lower “Clip” under “Text distance "
+                    "from edge (mm)”. Switching “Show row indicators” off "
+                    "gives the paper back "
+                    "altogether.").format(
                         asked=_asked_l, got=_got_l, floor=_floor_l,
-                        band=geom.rlwi))
+                        band=geom.rlwi, size=_lbl_pt))
             elif _raised_l:
-                warns.append(tr(
-                    "⚠ The left margin was widened from {asked:.1f} mm to "
-                    "{got:.1f} mm to fit the row indicators. The labels start "
-                    "{floor:.1f} mm in from the page edge and their text needs "
-                    "{band:.1f} mm. “Clip” is set to {clip:.1f} mm and is "
-                    "not what is holding them out there, so lowering it moves "
-                    "nothing — the note under “Text distance from edge” "
-                    "names what is. To get that paper back, switch “Show row "
-                    "indicators” off or use a smaller label size.").format(
+                over.append(tr(
+                    "⚠ The left margin is below what the row indicators need, "
+                    "so it was widened from {asked:.1f} mm to {got:.1f} mm to "
+                    "fit them. The labels start {floor:.1f} mm in from the "
+                    "page edge and their text needs {band:.1f} mm at "
+                    "{size:.0f} pt. “Clip” under “Text distance from edge "
+                    "(mm)” is set to {clip:.1f} mm and is not what is holding "
+                    "them out there, so lowering it moves nothing; the note "
+                    "under that box names what is. Raise “Left” under "
+                    "“Margins (mm)” to {got:.1f} mm so you are asking for what "
+                    "the chart uses, or set a smaller Size under “Row "
+                    "indicators”. Switching “Show row indicators” off gives "
+                    "the paper back altogether.").format(
                         asked=_asked_l, got=_got_l, floor=_floor_l,
-                        band=geom.rlwi, clip=_clip_l))
+                        band=geom.rlwi, clip=_clip_l, size=_lbl_pt))
             # ---- THE SIDE MARGINS, IN BOTH LAYOUT MODES ---------------------
             #
             # The chart note is not laid out by the engine at all: it is stamped

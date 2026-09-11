@@ -379,7 +379,9 @@ class ScaninTargetDialog(_ToolDialogBase):
         profiled end to end. What is unsolved is scanin's chart FINDER, which
         looks for long straight edges to measure rotation and can abort on a
         honeycomb even with the four corners given — plus the sampling square,
-        which escapes the hexagon above a Sample area of about 64 %.
+        which escapes the hexagon above a Sample area of about 64 % and is
+        therefore capped at 55 % on a honeycomb
+        (`scanin_runner.HEX_SAMPLE_AREA_MAX`, Knut's #182 ruling).
 
         So the default stays exactly as it has always been, and Preferences →
         Beta opens it for anyone who wants to try. Returns True if rejected.

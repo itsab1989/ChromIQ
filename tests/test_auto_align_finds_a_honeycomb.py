@@ -25,12 +25,16 @@ it. It is also measured: 77 pictures of 8 honeycomb charts in
 ``~/Desktop/ChromIQ-hex-autoalign``, and the same rectangular sweep before and
 after the change.
 
-**And the downside is bounded.** Nothing this finds is applied by it. Every
-quad goes to the same refinement and the same three gates as scanin's own
+**And the downside is bounded.** Nothing this finds is VOUCHED FOR by it.
+Every quad goes to the same refinement and the same three gates as scanin's own
 answers, so the worst case remains "auto align still does not work" and never
-"auto align put the grid somewhere wrong" — which is what
-``test_a_scan_missing_an_edge_is_refused_rather_than_placed`` is here to keep
-true.
+"auto align put the grid somewhere wrong and said it was right" — which is what
+``test_a_scan_missing_an_edge_is_never_vouched_for`` is here to keep true.
+
+Since Knut's ruling of 2026-09-11 (#182) a quad the gates refuse IS applied, so
+the user can see and correct it, and the window says it could not confirm it.
+That is why the test above asks `trusted` rather than `ok`: what must never
+happen is a wrong placement announced as a good one, and that is unchanged.
 """
 from __future__ import annotations
 
@@ -346,11 +350,19 @@ def test_the_search_never_overrules_a_placement_somebody_made(hexchart):
     assert r.rho_before is not None and r.rho_before >= 0.80
 
 
-def test_a_scan_missing_an_edge_is_refused_rather_than_placed(
+def test_a_scan_missing_an_edge_is_never_vouched_for(
         hexchart, monkeypatch, tmp_path):
     """A block that runs off the picture cannot be found, and the answer that
-    matters is that nothing is applied. Measured over the bench's 8 charts,
-    all 22 cropped pictures ended `not-seated` and moved nothing."""
+    matters is that nothing claims it was. Measured over the bench's 8 charts,
+    all 22 cropped pictures ended `not-seated`.
+
+    UNTIL 2026-09-11 THIS ASSERTED THAT NOTHING WAS APPLIED. Knut's #182 ruling
+    changed that and only that: *"place its best attempt and tell user to check
+    it."* The picture check still refuses, the ending is still `not-seated`,
+    and the window still tells the user in its own words that it could not
+    confirm the placement. `trusted` is the flag that carries the verdict, and
+    it is what a caller must read.
+    """
     from PIL import Image
     im = Image.open(hexchart["scan"])
     cut = int(im.width * 0.22)
@@ -361,8 +373,9 @@ def test_a_scan_missing_an_edge_is_refused_rather_than_placed(
                    hexchart["boxes"], hexchart["expected"],
                    (im.width - cut, im.height), sample_frac=0.60,
                    hexagonal=True)
-    assert not r.ok, f"a chart with an edge missing was placed anyway: {r.ending}"
-    assert r.corners is None
+    assert not r.trusted, (
+        f"a chart with an edge missing was vouched for anyway: {r.ending}")
+    assert r.ending in ("not-seated", "below-floor"), r.ending
 
 
 def test_the_region_the_window_computes_is_a_hint_and_not_a_fence(hexchart):
