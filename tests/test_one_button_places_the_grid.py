@@ -32,8 +32,19 @@ Three things decide whether that is safe, and each has a test below:
 * when the reshaping declines, the search's answer is **applied**, not
   discarded. That is the majority outcome — 175 of the 290 cells — and refusing
   everything there would throw away 155 correct placements;
-* nothing reaches the grid without passing both picture checks AND the
+* nothing is called **trusted** without passing both picture checks AND the
   reference agreement, measured at the corners about to be set.
+
+**And on 2026-09-11 Knut changed what a refusal DOES** (#182). Asked whether
+Auto align, when it cannot place the grid well enough to trust, should leave
+the corners alone or place its best attempt, he ruled: *"place its best attempt
+and tell user to check it."* So the two endings that HAVE a candidate —
+`not-seated` and `below-floor` — now return it with `trusted` False, the window
+applies it, and it says in its own words that it was not trusted. Nothing about
+the CHECKS changed: the same two run on the same corners and say the same
+thing, and the tests below assert the same `ending` they always did. What
+changed is that `ok` is now True there as well, so the question "was this
+placement vouched for" is asked of `trusted`.
 
 And two things decide whether it is honest: one press undoes the whole
 operation rather than a stage the user never saw, and no ending tells them
@@ -253,7 +264,15 @@ def test_a_placement_the_picture_refuses_is_not_applied(demo, monkeypatch):
                                                      moved_pitch=0.5))
     r = _run(demo, list(demo["truth"]), monkeypatch,
              answer=AutoAlignResult(reason="no-better"))
-    assert not r.ok and r.ending == "not-seated"
+    assert r.ending == "not-seated"
+    # NOT TRUSTED, and that is the whole of the verdict. Since Knut's ruling of
+    # 2026-09-11 the candidate is handed back so the user can see and correct
+    # it, so the question is no longer "is there a placement" but "did anything
+    # vouch for it". A grid one whole patch out must never answer yes.
+    assert not r.trusted
+    assert r.corners is not None, (
+        "the best attempt must reach the window: the user has to see what was "
+        "found before they can put it right")
 
 
 def test_the_true_placement_is_applied(demo, monkeypatch):
@@ -294,19 +313,28 @@ def test_a_placement_that_cannot_be_scored_against_the_reference_is_refused(
     otherwise open: 59 of those 233 came from the reshaping alone, where
     nothing had asked whether the placement looks like this chart at all.
 
-    An agreement that cannot be measured at all is refused too, because that
+    An agreement that cannot be measured at all lands here too, because that
     means the reference's sample ids do not pair with this chart's — which is
     exactly what its message tells the user to go and look at, and because the
-    window must never quote a number it did not measure."""
+    window must never quote a number it did not measure.
+
+    Since Knut's ruling of 2026-09-11 this ending PLACES its candidate rather
+    than discarding it, so what is asserted is `trusted`, which is the flag
+    that carries the check's verdict. The floor itself is unchanged."""
     import workflow.scan_auto_align as AA
     monkeypatch.setattr(AA, "reference_agreement_at", lambda *a, **k: 0.79)
     r = _run(demo, list(demo["truth"]), monkeypatch,
              answer=AutoAlignResult(corners=list(demo["truth"]), rho=0.99))
-    assert not r.ok and r.ending == "below-floor"
+    assert not r.trusted and r.ending == "below-floor"
+    assert r.corners is not None
     monkeypatch.setattr(AA, "reference_agreement_at", lambda *a, **k: None)
     r = _run(demo, list(demo["truth"]), monkeypatch,
              answer=AutoAlignResult(corners=list(demo["truth"]), rho=0.99))
-    assert not r.ok and r.ending == "below-floor"
+    assert not r.trusted and r.ending == "below-floor"
+    assert r.corners is not None
+    assert r.rho is None, (
+        "an unmeasurable agreement must stay unmeasurable: the window picks "
+        "its sentence on `trusted` and may never quote a number it never had")
 
 
 # --------------------------------------------------------------- the words

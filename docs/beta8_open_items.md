@@ -1138,7 +1138,7 @@ came back to it.
   test_both_of_the_recognisers_picture_checks_are_asked,
   test_the_limit_is_the_recognisers_own_and_not_a_second_number,
   test_a_check_that_cannot_run_is_not_evidence_of_a_fault,
-  test_the_window_leaves_the_corners_alone_when_the_check_refuses,
+  test_the_window_says_it_could_not_confirm_the_placement_it_made,
   test_the_window_still_applies_a_fit_that_survives_the_check,
   test_the_refusal_has_words_of_its_own_and_is_not_approved_yet,
   test_every_reason_the_fit_can_end_on_has_words_of_its_own

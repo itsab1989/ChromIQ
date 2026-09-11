@@ -1535,7 +1535,8 @@ def j34(c):
     QMessageBox.exec = grab_exec
     try:
         # 1 — the read-findings box (Stop / Build anyway)
-        d._read_findings = [("Part of this scan has no colour left in it",
+        # (sheet, headline, body) since #182 -- the gate names the sheet.
+        d._read_findings = [(1, "Part of this scan has no colour left in it",
                              "A driver-made finding, so the box can be shown.")]
         results["read_findings_default"] = d._confirm_despite_read_findings()
         # 2 — the misalignment box (Stop / Build anyway)

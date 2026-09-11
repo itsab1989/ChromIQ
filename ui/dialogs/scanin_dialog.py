@@ -799,7 +799,11 @@ class ScannerProfileDialog(_ToolDialogBase):
         # Findings about the DATA rather than the grid — review 5. Kept
         # apart from the alignment ones because they are a different
         # question with a different answer, and the two windows say so.
-        self._read_findings: list[tuple[str, str]] = []
+        #: (sheet number, headline, body). The SHEET is part of the record
+        #: because it is part of the de-duplication key and because the gate
+        #: names it -- Knut, #182: *"warning should name the sheet, and list
+        #: each sheet separately."*
+        self._read_findings: list[tuple[int, str, str]] = []
         self._run_diags: list[Path] = []       # diagnostic images this run writes
         self._chart_reject_reason: str | None = None  # why the last pick failed (#101)
         # Bring-your-own-.cht (#105): a printer-mode chart without channels.json
@@ -4334,8 +4338,18 @@ class ScannerProfileDialog(_ToolDialogBase):
         switch, not a rate: every patch reads its neighbour at once. The ceiling
         depends on the patch proportions (64 % on a regular hexagon, 61 % at
         h/w = 2, and 60 % is already unsafe from h/w ≈ 2.58), so it is computed
-        here rather than written down as a number. Rectangular charts keep 80 %."""
-        from workflow.scanin_runner import hex_max_sample_fraction
+        here rather than written down as a number. Rectangular charts keep 80 %.
+
+        AND THE GEOMETRIC LIMIT IS NOT THE OFFER. Knut, #182, 2026-09-11, asked
+        for headroom above it so a small alignment error cannot put a corner on
+        the patch next door: *"Yes, a maximum of 55% is good."*
+        `hex_sample_area_cap` is the smaller of the two, so a ringed patch whose
+        geometry allows less than 55 % still gets its own smaller number.
+        Rectangular charts are untouched, and
+        :data:`workflow.scanin_runner.HEX_SAMPLE_AREA_MAX` records the
+        measurement that says why."""
+        from workflow.scanin_runner import (HEX_SAMPLE_AREA_MAX,
+                                            hex_sample_area_cap)
         cap = 80
         if hexagonal and patches:
             ws = sorted(float(p["w"]) for p in patches if float(p.get("w", 0)) > 0)
@@ -4359,19 +4373,38 @@ class ScannerProfileDialog(_ToolDialogBase):
                 # function in millimetres for both, a path the app never takes.
                 _dpi = float((self._layout or {}).get("dpi") or 0.0)
                 _ring_px = (ring_mm * _dpi / 25.4) if _dpi > 0 else 0.0
-                frac = hex_max_sample_fraction(ws[len(ws) // 2], hs[len(hs) // 2],
-                                               flat_top=flat_top,
-                                               ring_mm=_ring_px)
+                frac = hex_sample_area_cap(ws[len(ws) // 2], hs[len(hs) // 2],
+                                           flat_top=flat_top,
+                                           ring_mm=_ring_px)
                 cap = max(20, min(80, int(frac * 100.0)))   # floor: never round UP
         if cap != self._sample_area.maximum():
             # setMaximum pulls a too-large value down and emits valueChanged, so
             # the marquee and every read follow without extra wiring.
             self._sample_area.setMaximum(cap)
-        self._sample_area.setToolTip(
-            tr("Hexagonal patches: {cap} % is the most this chart can be read "
-               "at. Above it the sampled square reaches past the hexagon's "
-               "slanted sides into the neighbouring patches.").format(cap=cap)
-            if cap < 80 else "")
+        # TWO SENTENCES, BECAUSE THERE ARE TWO REASONS. At Knut's 55 % the
+        # sampled square is comfortably inside the hexagon and the number is a
+        # safety margin; below it, the chart's own geometry is what is speaking
+        # and the old sentence is the true one. Telling a user their patches
+        # cannot take more than 55 % when the shape allows 64 % would be a
+        # sentence they can measure and find wrong.
+        if cap >= 80:
+            self._sample_area.setToolTip("")
+        elif cap >= int(HEX_SAMPLE_AREA_MAX * 100.0):
+            self._sample_area.setToolTip(tr(
+                "Hexagonal patches: {cap} % is the most a honeycomb is read "
+                "at. The sampled square has square corners and the hexagon "
+                "does not, so the corners run out of patch first. Stopping "
+                "here leaves paper between the square and the slanted sides, "
+                "so a small error in where the grid sits cannot reach the "
+                "patch next door.").format(cap=cap))
+        else:
+            self._sample_area.setToolTip(tr(
+                "Hexagonal patches: {cap} % is the most THIS chart can be read "
+                "at, which is less than a honeycomb is normally offered. Its "
+                "patches are ringed with a spacer, and only the ink inside the "
+                "ring may be read. Above this the sampled square reaches past "
+                "the hexagon's slanted sides into the neighbouring "
+                "patches.").format(cap=cap))
 
     def _on_page_changed(self, idx: int) -> None:
         self._capture_current_corners()
@@ -5820,6 +5853,17 @@ class ScannerProfileDialog(_ToolDialogBase):
         Findings go to ``_read_findings`` rather than ``_align_warnings``, so
         the window that shows them can say what they actually are instead of
         "the alignment check failed".
+
+        EACH SHEET ANSWERS FOR ITSELF. Knut, #182, 2026-09-11: *"Yes, warning
+        should name the sheet, and list each sheet separately."* Until now the
+        de-duplication key was the finding's TITLE alone, and every sheet of a
+        chart produces the same titles -- so the first sheet to run out of
+        scale wrote its percentage into the gate and the second sheet's own,
+        different percentage was discarded as a repeat. Measured on a two-page
+        chart: the gate said 25 % while page 2's own Check alignment said 1 %,
+        and nothing on screen said which sheet the 25 % belonged to. The key is
+        now the sheet AND the title, and the sheet is recorded with the
+        finding so the gate can name it.
         """
         from workflow.scan_read_check import inspect_read
         from workflow import measurement_messages as M
@@ -5835,7 +5879,20 @@ class ScannerProfileDialog(_ToolDialogBase):
             got = inspect_read(ti3, rho)
             if got is None:
                 return
-            seen = {t for t, _b in self._read_findings}
+            # THE SHEET IS PART OF THE KEY. Two sheets of one chart produce
+            # the same titles with different numbers, and a title-only key
+            # threw the second sheet's numbers away.
+            #
+            # Read defensively, and not out of habit: the whole body of this
+            # method sits inside one `except Exception`, so a job object that
+            # cannot answer `get` would lose the FINDING rather than the page
+            # number -- silently, which is the one thing this method exists to
+            # stop. Several callers hand it a stand-in carrying only `params`.
+            try:
+                page = int(job.get("page", 1) or 1)
+            except (AttributeError, TypeError, ValueError):
+                page = 1
+            seen = {(pg, t) for pg, t, _b in self._read_findings}
 
             # (1) The reference covers only part of the chart. Asked of the
             # REFERENCE, never of the read: a read that came back short already
@@ -5845,8 +5902,8 @@ class ScannerProfileDialog(_ToolDialogBase):
             cov = self._reference_shortfall()
             if cov is not None:
                 t, b = self._short_reference_message(cov)
-                if t not in seen:
-                    self._read_findings.append((t, b))
+                if (page, t) not in seen:
+                    self._read_findings.append((page, t, b))
 
             # (2) What was read and what the reference says barely rank
             # together. The floor sits well under the 0.8 gate above, which
@@ -5859,8 +5916,8 @@ class ScannerProfileDialog(_ToolDialogBase):
                 t, b = M.M_SCAN_REF_DISAGREES.render(
                     rho=f"{got.agreement:.2f}",
                     ref_row=self._align_reference_row())
-                if t not in seen:
-                    self._read_findings.append((t, b))
+                if (page, t) not in seen:
+                    self._read_findings.append((page, t, b))
 
             # (3) The scan ran out of scale. Clipping is invisible to (2) — a
             # 39 %-clipped scan still ranks at +0.943, because clipping shifts
@@ -5869,8 +5926,8 @@ class ScannerProfileDialog(_ToolDialogBase):
             if got.clipped > cap:
                 t, b = M.M_SCAN_CLIPPED.render(
                     pct=f"{got.clipped * 100:.0f} %")
-                if t not in seen:
-                    self._read_findings.append((t, b))
+                if (page, t) not in seen:
+                    self._read_findings.append((page, t, b))
 
             # (4) The scan never reached the top of the scale (B8-01). The
             # mirror of (3), and the gap all three of the checks above share:
@@ -5881,8 +5938,8 @@ class ScannerProfileDialog(_ToolDialogBase):
             if got.underexposed(float(self._settings.get(
                     "scanner_min_highlight", 60.0))):
                 t, b = M.M_SCAN_DARK.render(pct=f"{got.highlight:.0f} %")
-                if t not in seen:
-                    self._read_findings.append((t, b))
+                if (page, t) not in seen:
+                    self._read_findings.append((page, t, b))
 
             # (5) There are too few distinct colours here for a profile to be
             # determined (B8-03). Asked before the build, because colprof's own
@@ -5895,8 +5952,8 @@ class ScannerProfileDialog(_ToolDialogBase):
                 t, b = M.M_SCAN_FIT_UNSUPPORTED.render(
                     support=got.support,
                     ref_row=self._align_reference_row())
-                if t not in seen:
-                    self._read_findings.append((t, b))
+                if (page, t) not in seen:
+                    self._read_findings.append((page, t, b))
         except Exception:  # noqa: BLE001 — a sanity check must never block
             log.warning("read sanity check failed", exc_info=True)
 
@@ -6209,14 +6266,23 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._align_before = []
         self._set_busy(False)
         self._auto_align_btn.setEnabled(True)
-        # `place_grid` refuses rather than apply a placement it could not score
-        # against the chart's reference, so a placed result always carries the
-        # number this message quotes. Belt and braces, because the alternative
-        # to a guard here is a TypeError inside a slot: an answer with no score
-        # is treated as the refusal it would have been.
-        if result is not None and result.ok and result.rho is None:
-            result.corners = None
+        # A TRUSTED result always carries the number M-SCAN-ALIGN-DONE quotes,
+        # because `place_grid` marks nothing "placed" whose agreement it could
+        # not measure. Belt and braces, because the alternative to a guard here
+        # is a TypeError inside a slot: an answer with no score is demoted to
+        # the untrusted placement it would otherwise have been, and the corners
+        # are KEPT -- Knut's ruling is that the best attempt goes on screen, and
+        # "the agreement could not be measured at all" is exactly the state
+        # M-SCAN-ALIGN-PLACED-UNCHECKED describes.
+        # `getattr`, because this slot is also handed the SEARCH stage's own
+        # `AutoAlignResult` by callers that never reach `place_grid` -- it has
+        # `ok` and `ending` and no `trusted`, and an AttributeError escaping a
+        # Qt slot ends in `qFatal()`. An object that cannot say it is trusted
+        # is not trusted.
+        _trusted = bool(getattr(result, "trusted", False))
+        if _trusted and result.rho is None:
             result.ending = "below-floor"
+            _trusted = False
         if result is None or not result.ok:
             why = getattr(result, "ending", "") or "not-recognised"
             # The reason stays machine-readable and stays OFF the screen: it
@@ -6275,8 +6341,10 @@ class ScannerProfileDialog(_ToolDialogBase):
         # never seen: the fault only fires in the mode a standard target
         # defaults to, and only once Auto align returns an answer at all.
         corners = result.corners
-        log.info("auto align placed the grid: found=%s fitted=%s moved=%.3f "
-                 "pitch rho=%.4f rho_before=%s drift=%s",
+        log.info("auto align placed the grid (%s): found=%s fitted=%s "
+                 "moved=%.3f pitch rho=%s rho_before=%s drift=%s",
+                 "trusted" if _trusted else "NOT TRUSTED: "
+                 + (getattr(result, "ending", "") or "?"),
                  result.found, result.fitted, result.moved or 0.0, result.rho,
                  result.rho_before, result.drift)
         # ONE snapshot, taken before the operation started, restored by one
@@ -6291,9 +6359,21 @@ class ScannerProfileDialog(_ToolDialogBase):
             self._auto_align_btn.setText(tr("Undo auto align"))
         # The agreement quoted here is measured AT THESE CORNERS, not at the
         # answer the search gave before the reshaping moved it — see
-        # `place_grid`. It is never None when the grid was placed: an agreement
-        # that cannot be measured is a refusal there.
-        self._say_align(M.M_SCAN_ALIGN_DONE, rho=f"{result.rho:.2f}")
+        # `place_grid`. It is never None on a TRUSTED result: an agreement that
+        # cannot be measured is not a placement anyone may vouch for.
+        #
+        # AND THE OTHER HALF OF THE SAME BUTTON (Knut, #182, 2026-09-11:
+        # *"place its best attempt and tell user to check it."*). The grid has
+        # just moved in both cases and the one-press undo is armed in both, so
+        # the difference the user has to be able to see is entirely in what is
+        # said. `scan_align_unchecked` is the only place an ending turns into
+        # those words, the way `scan_align_refusal` is for the endings with
+        # nothing to place.
+        if _trusted:
+            self._say_align(M.M_SCAN_ALIGN_DONE, rho=f"{result.rho:.2f}")
+        else:
+            self._say_align(M.scan_align_unchecked(
+                getattr(result, "ending", "") or ""))
 
     def _on_check_alignment(self) -> None:
         """Knut's pre-build check: read ONLY the page on screen into a
@@ -6662,15 +6742,33 @@ class ScannerProfileDialog(_ToolDialogBase):
         Returns True to build anyway. The wording is §M-PROPOSED — the
         mechanism does not depend on it and the sentences are the owner's to
         approve.
+
+        AND ON A CHART OF SEVERAL SHEETS, EVERY FINDING IS NAMED BY ITS SHEET
+        AND LISTED SEPARATELY, even when two sheets say the same thing in the
+        same words (Knut, #182, 2026-09-11). The sheet label is the window's
+        own `_page_label`, so it reads "Page 2" on a multi-sheet chart and is
+        left off entirely on a single-sheet one, where there is no other sheet
+        it could be confused with. Findings 2..n also get their own headline
+        here; before this they were stacked as bare paragraphs under the first
+        finding's, so a second sheet with a DIFFERENT problem was described by
+        the first one's title.
         """
         from PyQt6.QtWidgets import QMessageBox
-        title, first = self._read_findings[0]
-        rest = [b for _t, b in self._read_findings[1:]]
+        multi = len(self._pages) > 1
+        entries = []
+        for i, (pg, t, b) in enumerate(self._read_findings):
+            head = []
+            if multi:
+                head.append(self._page_label(pg - 1))
+            if i or multi:
+                head.append(t)
+            entries.append("\n".join(head + [b]) if head else b)
+        title = self._read_findings[0][1]
         box = QMessageBox(self)
         set_warning_icon(box)
         box.setWindowTitle(title)
         box.setText(title)
-        box.setInformativeText("\n\n".join([first] + rest))
+        box.setInformativeText("\n\n".join(entries))
         stop = box.addButton(tr("Stop"), QMessageBox.ButtonRole.RejectRole)
         box.addButton(tr("Build anyway"), QMessageBox.ButtonRole.AcceptRole)
         box.setDefaultButton(stop)

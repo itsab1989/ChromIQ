@@ -76,7 +76,7 @@ def test_a_raised_left_margin_is_reported(mode):
     assert got > 4.05, (
         "the premise failed: this chart's left margin is not being raised, so "
         "there is nothing for the message to report")
-    lines = [w for w in _warnings(r) if "left margin was widened" in w]
+    lines = [w for w in _warnings(r) if "row indicators" in w and "widened" in w]
     assert lines, (
         f"the margin went from 4.0 to {got:.2f} mm and the panel said nothing: "
         f"{_warnings(r)}")
@@ -87,12 +87,14 @@ def test_a_raised_left_margin_is_reported(mode):
 def test_nothing_is_said_when_nothing_was_moved():
     r = _recipe(margin_l=40.0)
     assert abs(_resolved(r) - 40.0) < 0.05, "the premise failed"
-    assert not [w for w in _warnings(r) if "left margin was widened" in w]
+    assert not [w for w in _warnings(r)
+                if "row indicators" in w and "widened" in w]
 
 
 def test_nothing_is_said_when_there_are_no_row_labels():
     r = _recipe(margin_l=4.0, rows=False)
-    assert not [w for w in _warnings(r) if "left margin was widened" in w]
+    assert not [w for w in _warnings(r)
+                if "row indicators" in w and "widened" in w]
 
 
 # --------------------------------------------------------------- unsaid ----

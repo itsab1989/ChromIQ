@@ -2205,6 +2205,81 @@ M_SCAN_ALIGN_NOT_SEATED = _m(
     approved=False)
 
 
+# --- PROPOSED (#182, Knut 2026-09-11): the grid IS placed, and was not
+# trusted --------------------------------------------------------------------
+#
+# He was asked whether Auto align, when it cannot place the grid well enough to
+# trust, should leave the corners alone and say so, or place its best attempt
+# and tell the user to check it. *"place its best attempt and tell user to
+# check it."*
+#
+# So the two endings that HAVE a best attempt -- the seating check refused it,
+# or it does not agree with the chart's reference -- stop being refusals. The
+# grid moves, the one-press undo is armed exactly as it is after a success, and
+# these two messages are what is said instead of `_ALIGN_KEPT`. The other
+# endings keep their refusals: there is nothing to place in any of them, and a
+# window that claimed to have placed something would be lying.
+#
+# The headline is shared, because from the user's side there is one state: the
+# grid moved and nobody is vouching for it. It deliberately does NOT open with
+# the word "done" -- the approved M-SCAN-ALIGN-DONE owns that, and these two
+# must not read like it at a glance.
+_ALIGN_UNCHECKED = "Auto align placed the grid and could not confirm it"
+
+M_SCAN_ALIGN_PLACED_UNCHECKED = _m(
+    "M-SCAN-ALIGN-PLACED-UNCHECKED",
+    _ALIGN_UNCHECKED,
+    "ChromIQ found the chart and has put the grid on its best reading of it, "
+    "so you can see what it found. What the grid reads there does not agree "
+    "with this chart's own reference closely enough to rely on, which usually "
+    "means the reference file belongs to a different target, or the scan is of "
+    "a different chart.\n\n"
+    "Check it before you build anything. Look at the file in the "
+    "\u201c{ref_row}\u201d row above, press \u201cCheck alignment\u201d "
+    "below to read the scan and see which patches it is really taking, and "
+    "drag any corner by hand. \u201cUndo auto align\u201d puts your own "
+    "corners back.",
+    approved=False)
+
+M_SCAN_ALIGN_PLACED_NOT_SEATED = _m(
+    "M-SCAN-ALIGN-PLACED-NOT-SEATED",
+    _ALIGN_UNCHECKED,
+    "ChromIQ worked out where the grid would have to go and has put it there, "
+    "then looked at the picture once more to check it, and the patches are not "
+    "where that placement puts them. Towards one edge of the sheet the grid "
+    "reads part of the neighbouring patch, and a profile built from that is "
+    "wrong without looking wrong.\n\n"
+    "This is what a photograph taken at a slight angle does: the end of the "
+    "sheet further from the camera comes out smaller, so no single shape fits "
+    "both ends of it. A flatbed scan does not have the problem at all.\n\n"
+    "Check it before you build anything. Press \u201cCheck alignment\u201d "
+    "below, and drag the corners that are off onto the patches by hand. "
+    "\u201cUndo auto align\u201d puts your own corners back.",
+    approved=False)
+
+
+#: The two endings that now PLACE rather than refuse, and what each is told in.
+#: `scan_align_refusal` still answers for every ending with nothing to place --
+#: including these two, which can still be reached with no candidate when the
+#: search itself ended on them and the user had placed no grid to refine from.
+SCAN_ALIGN_UNCHECKED = {
+    "below-floor": M_SCAN_ALIGN_PLACED_UNCHECKED,
+    "not-seated": M_SCAN_ALIGN_PLACED_NOT_SEATED,
+}
+
+
+def scan_align_unchecked(reason: str) -> Message:
+    """The message for a placement that was applied without being vouched for.
+
+    An ending with no message of its own falls back to the reference wording
+    rather than putting its name on screen, exactly as
+    :func:`scan_align_refusal` does -- adding an ending and forgetting the
+    message must cost a slightly wrong sentence, never a code in front of a
+    user.
+    """
+    return SCAN_ALIGN_UNCHECKED.get(reason, M_SCAN_ALIGN_PLACED_UNCHECKED)
+
+
 #: Auto align's internal refusal reasons, and the message each one is told in.
 #: The reasons stay machine-readable -- they go to the log file and the tests
 #: read them -- and this map is the ONLY place they turn into words.
@@ -2314,6 +2389,7 @@ CATALOGUE = {m.id: m for m in (
     M_SCAN_ALIGN_AMBIGUOUS, M_SCAN_ALIGN_NO_MATCH,
     M_SCAN_ALIGN_NOT_FOUND, M_SCAN_ALIGN_NOT_FOUND_HEX, M_SCAN_ALIGN_NO_FIT,
     M_SCAN_ALIGN_NO_GEOMETRY, M_SCAN_ALIGN_NO_BETTER, M_SCAN_ALIGN_NOT_SEATED,
+    M_SCAN_ALIGN_PLACED_UNCHECKED, M_SCAN_ALIGN_PLACED_NOT_SEATED,
     M_SCAN_ALIGN_DONE, M_SCAN_ALIGN_NO_INPUT,
     M_SCAN_CONVERTED, M_SCAN_FIT_TOO_FAR,
     M_SCAN_PROFILE_ARCHIVED,

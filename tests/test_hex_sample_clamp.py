@@ -12,6 +12,18 @@ The limit depends on the patch proportions, so it is computed
 than being written in a message as "keep it at or below 60 %" — which was both
 approximate (60 % is unsafe from h/w ≈ 2.58 upwards) and shown only to the users
 who had the feature switched OFF and so could never reach the control.
+
+**AND THAT GEOMETRIC LIMIT IS A CLIFF EDGE, NOT A SETTING.** At it the read
+box's corner lands exactly ON the slanted side with nothing to spare: measured
+on the real CR30 honeycomb (pwid 12.000, plen 10.392) the paper between them is
++0.021 mm at 64 %, +0.214 mm at 60 % and +0.464 mm at 55 %; on a 6 mm
+honeycomb, +0.010 / +0.107 / +0.232 mm. Knut was asked on #182 whether 64 %
+should come down so a small alignment error cannot put a corner on the patch
+next door, and ruled: *"Yes, a maximum of 55% is good."* So
+`scanin_runner.HEX_SAMPLE_AREA_MAX` stands in front of the geometry and
+`hex_sample_area_cap` offers the SMALLER of the two — a ringed patch whose ink
+supports only 49 % still gets 49. Rectangular charts keep 80 %, and the
+measurement behind that decision is in `HEX_SAMPLE_AREA_MAX`'s own note.
 """
 from __future__ import annotations
 
@@ -22,7 +34,9 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from workflow.scanin_runner import hex_max_sample_fraction, sample_margin
+from workflow.scanin_runner import (HEX_SAMPLE_AREA_MAX,
+                                    hex_max_sample_fraction,
+                                    hex_sample_area_cap, sample_margin)
 
 
 @pytest.fixture(scope="module")
@@ -123,17 +137,62 @@ def test_the_dialog_caps_the_spinbox_from_the_chart_it_loaded(qapp, tmp_path,
     patches = [p for p in d._layout["patches"] if p["page"] == 0]
     w = sorted(p["w"] for p in patches)[len(patches) // 2]
     h = sorted(p["h"] for p in patches)[len(patches) // 2]
-    want = int(hex_max_sample_fraction(w, h) * 100) if expect_capped else 80
+    # `hex_sample_area_cap`, not the geometric function: Knut's #182 ruling of
+    # 2026-09-11 puts a policy ceiling of 55 % in front of the geometry, so the
+    # spin box offers the SMALLER of the two.
+    want = int(hex_sample_area_cap(w, h) * 100) if expect_capped else 80
 
     assert d._sample_area.maximum() == want
     assert d._sample_area.value() == want, (
         "a value above the cap must come DOWN — leaving it there would read the "
         "neighbouring hexagons on every patch")
     if expect_capped:
-        assert 55 <= want <= 66, f"{want} % is not a plausible hexagon cap"
+        assert want == int(HEX_SAMPLE_AREA_MAX * 100), (
+            f"{want} % — a honeycomb of ordinary proportions is offered "
+            f"{int(HEX_SAMPLE_AREA_MAX * 100)} %, Knut's ceiling, because the "
+            "geometry allows more than that")
         assert "%" in d._sample_area.toolTip(), "the cap must explain itself"
     else:
         assert d._sample_area.toolTip() == ""
+    d.deleteLater()
+
+
+def test_a_stored_sixty_per_cent_comes_down_on_a_honeycomb(qapp, tmp_path):
+    """What happens to somebody who already saved 60 % as their default.
+
+    Sample area is not a per-project setting: it lives in the one
+    `scanner_read_options` bucket that "Save as Defaults" writes, and
+    `_apply_read_vals` puts it into the spin box when the window is built,
+    before any chart has been chosen and while the maximum is still 80. So a
+    stored 60 arrives intact and is only pulled down when a honeycomb is
+    loaded — by `setMaximum`, which emits `valueChanged`, so the drawn read
+    boxes and every read follow it without extra wiring.
+
+    Both halves: it comes down on a honeycomb and it is LEFT ALONE on a
+    rectangular chart, where Knut's ruling does not apply and 60 is a perfectly
+    good setting the user chose.
+    """
+    d = _dialog(qapp, tmp_path)
+    d._apply_read_vals({"sample_area": 60})
+    assert d._sample_area.value() == 60, "the stored default did not arrive"
+
+    seen = []
+    d._sample_area.valueChanged.connect(seen.append)
+    d._page = 0
+    (tmp_path / "hex").mkdir()
+    d._layout = _hex_chart(tmp_path / "hex", hflag=True)
+    d._load_page_grid()
+    assert d._sample_area.value() == int(HEX_SAMPLE_AREA_MAX * 100)
+    assert seen, ("the value changed without telling anyone, so the drawn read "
+                  "boxes still show 60 % of each patch")
+
+    (tmp_path / "rect").mkdir()
+    d._layout = _hex_chart(tmp_path / "rect", hflag=False)
+    d._load_page_grid()
+    assert d._sample_area.maximum() == 80
+    assert d._sample_area.value() == int(HEX_SAMPLE_AREA_MAX * 100), (
+        "a value pulled down by a honeycomb stays where it was put when the "
+        "cap lifts; Qt does not remember what it was before")
     d.deleteLater()
 
 
@@ -217,3 +276,82 @@ def test_a_chart_record_cannot_leak_into_the_next_chart(qapp, tmp_path):
         "the previous chart's shape record must be cleared before the new "
         "chart is examined, not after"
     )
+
+
+def test_knuts_ceiling_stands_in_front_of_the_geometry():
+    """#182, 2026-09-11. He was asked whether 64 % should come down so a small
+    alignment error cannot put a corner on the patch next door: *"Yes, a
+    maximum of 55% is good."*
+
+    Both halves, or the number is decoration. The ceiling must BITE on a
+    honeycomb whose geometry allows more — a regular hexagon allows 64.43 % —
+    and it must NOT raise a chart whose geometry allows less, which a ringed
+    patch does: the ink a scanner may read there is the inset hexagon, and
+    offering 55 % of the slot would average spacer colour into every patch.
+    """
+    # 1. it bites where the geometry is generous
+    for w, h in ((1.0, 0.866), (1.0, 1.0), (12.0, 10.392)):
+        assert hex_max_sample_fraction(w, h) > HEX_SAMPLE_AREA_MAX
+        assert hex_sample_area_cap(w, h) == pytest.approx(HEX_SAMPLE_AREA_MAX)
+    # 2. and the geometry still wins where it is the smaller of the two
+    dpi_scale = 300.0 / 25.4
+    tight = hex_sample_area_cap(12.0 * dpi_scale, 10.392 * dpi_scale,
+                                ring_mm=1.3 * dpi_scale)
+    assert tight < HEX_SAMPLE_AREA_MAX, (
+        f"a 1.3 mm ring leaves {tight:.4f}; the policy ceiling must never "
+        "raise a chart above what its own ink can give")
+    assert tight == pytest.approx(
+        hex_max_sample_fraction(12.0 * dpi_scale, 10.392 * dpi_scale,
+                                ring_mm=1.3 * dpi_scale))
+    # 3. a tall patch whose geometry is already under the ceiling is untouched.
+    #    h/w = 8 allows 0.5485, and h/w = 4 does NOT (0.5785) -- the shape has
+    #    to be genuinely tighter than 55 % for this half to mean anything.
+    assert hex_max_sample_fraction(1.0, 8.0) < HEX_SAMPLE_AREA_MAX
+    assert hex_sample_area_cap(1.0, 8.0) == pytest.approx(
+        hex_max_sample_fraction(1.0, 8.0))
+
+
+def test_the_ceiling_leaves_real_paper_between_the_box_and_the_hexagon():
+    """The number is a distance, so measure the distance. At the geometric
+    limit the read box's corner lands ON the slanted side with nothing to
+    spare; the point of Knut's ceiling is that it does not.
+
+    Measured here on the real CR30 honeycomb (pwid 12.000, plen 10.392) and on
+    a small 6 mm one, in millimetres of paper between the box corner and the
+    side it must stay behind."""
+    from math import sqrt
+
+    def clearance(w, h, frac):
+        m = sample_margin(w, h, frac)
+        px, py = w / 2.0 - m, h / 2.0 - m
+        a, b, c = h / 3.0, w / 2.0, -w * h / 3.0
+        return -(a * px + b * py + c) / sqrt(a * a + b * b)
+
+    for w, h, at_64, at_55 in ((12.0, 10.392, 0.021, 0.464),
+                               (6.0, 5.196, 0.010, 0.232)):
+        assert clearance(w, h, 0.64) == pytest.approx(at_64, abs=0.005)
+        assert clearance(w, h, HEX_SAMPLE_AREA_MAX) == pytest.approx(
+            at_55, abs=0.005)
+        # the whole point: the ceiling buys back at least a fifth of a
+        # millimetre on the smallest honeycomb in the family
+        assert clearance(w, h, HEX_SAMPLE_AREA_MAX) > 0.2
+
+
+def test_square_patches_keep_the_full_eighty_percent():
+    """Knut's 55 % is an answer about a HONEYCOMB, and it is not applied to
+    rectangular charts. Measured, because the claim is a measurement: on a
+    square patch the inset IS the clearance (there is no slanted side to escape
+    past), and at 80 % it is already more paper than a honeycomb gets at 60 %.
+    """
+    for w in (6.0, 7.5, 8.0, 12.0):
+        assert sample_margin(w, w, 0.80) >= 0.31
+    # …and a 6 mm honeycomb at 60 % has 0.107 mm, an order of magnitude less
+    # than the 0.317 mm a 6 mm square patch has at 80 %.
+    assert sample_margin(6.0, 6.0, 0.80) > 0.3
+    # the cap function is never consulted for a rectangular chart at all: the
+    # dialog branches on `hexagonal` first (see
+    # test_the_cap_lifts_again_when_a_rectangular_chart_is_loaded).
+    import inspect
+    from ui.dialogs.scanin_dialog import ScannerProfileDialog
+    src = inspect.getsource(ScannerProfileDialog._clamp_sample_area)
+    assert "cap = 80" in src and "if hexagonal and patches:" in src

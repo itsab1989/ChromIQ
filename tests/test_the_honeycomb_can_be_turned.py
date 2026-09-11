@@ -803,9 +803,23 @@ def test_the_scanner_mesh_is_told_the_orientation_by_a_resolver(monkeypatch):
         f"area setting says {dlg._sample_area.value() / 100.0:.4f}; the mesh is "
         "showing the user an area scanin will not read"
     )
-    assert dlg._sample_area.maximum() == 64, (
-        f"the sample cap is {dlg._sample_area.maximum()} %; 63 is the pointy "
-        "formula on a transposed slot, so the orientation did not reach it"
+    # THE SPIN BOX CAN NO LONGER TELL THE TWO ORIENTATIONS APART, and that is
+    # Knut's #182 ruling of 2026-09-11 rather than a regression: a honeycomb is
+    # capped at `scanin_runner.HEX_SAMPLE_AREA_MAX` (55 %) whatever its shape
+    # allows, and 55 sits below BOTH the pointy formula's 63 % and the correct
+    # 64 %. This assertion used to read `== 64` and was the only place the
+    # orientation's effect reached a widget.
+    #
+    # What still proves the orientation gets through:
+    # `test_the_sample_cap_is_the_same_number_on_a_turned_hexagon` in
+    # `tests/test_the_honeycomb_spacer_is_a_ring.py` measures the two
+    # geometries, and `test_the_scanner_dialog_passes_the_orientation` beside
+    # it reads the call site. The orientation is also still load bearing HERE,
+    # in the mesh assertions above and below, which is what this test is about.
+    from workflow.scanin_runner import HEX_SAMPLE_AREA_MAX
+    assert dlg._sample_area.maximum() == int(HEX_SAMPLE_AREA_MAX * 100), (
+        f"the sample cap is {dlg._sample_area.maximum()} %; a honeycomb is "
+        f"offered {int(HEX_SAMPLE_AREA_MAX * 100)} % whichever way up it is"
     )
     # ...and the mesh really does change shape with it
     pats = [{"page": 0, "loc": f"A{i}", "x": 100 + (i % 5) * 120,

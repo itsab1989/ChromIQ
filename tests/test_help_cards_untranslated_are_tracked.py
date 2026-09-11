@@ -463,19 +463,34 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # stays at 4; the eleven carry the English source under the beta rule, so every
 # other budget rises by exactly two. RE-MEASURED with this file's own
 # `_english_echoes` on the catalogues this change leaves behind.
+# 2026-09-11, Knut's four #182 rulings on alignment and margins. EIGHT strings
+# arrive and four go stale, and only SIX of the eight count here: the two
+# bodies of M-SCAN-ALIGN-PLACED-UNCHECKED and M-SCAN-ALIGN-PLACED-NOT-SEATED
+# both open with the word "ChromIQ", which `_english_echoes` skips. The four
+# stale ones were TRANSLATED in all twelve, so they were never echoes and their
+# removal moves nothing. German is translated for all eight and stays at 4; the
+# eleven each rise by exactly 6. RE-MEASURED with this file's own
+# `_english_echoes` on the catalogues this change leaves behind, key by key,
+# not derived from the count of strings added.
+#
+# Three of those six are REWRITES of strings that had real translations in all
+# twelve (the two row-indicator raise warnings and the hexagonal Sample-area
+# tooltip), so this round loses translated text in the eleven rather than only
+# adding untranslated text. The pre-release pass has to pick them up, and
+# `--missing` will not name them because a placeholder is present.
 _BUDGET = {
     "de": 4,
-    "es": 146,
-    "fr": 147,
-    "it": 146,
-    "ja": 146,
-    "nl": 146,
-    "no": 146,
-    "pl": 146,
-    "pt": 146,
-    "ru": 145,
-    "sv": 146,
-    "zh_CN": 145,
+    "es": 152,
+    "fr": 153,
+    "it": 152,
+    "ja": 152,
+    "nl": 152,
+    "no": 152,
+    "pl": 152,
+    "pt": 152,
+    "ru": 151,
+    "sv": 152,
+    "zh_CN": 151,
 }
 
 

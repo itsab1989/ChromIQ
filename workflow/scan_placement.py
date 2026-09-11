@@ -69,13 +69,25 @@ Neither step is required to answer, and the operation carries on either way:
   user put them.
 
 WHAT IT NEVER DOES.
-It never applies a placement no check has seen. Every answer that reaches the
-grid has passed :func:`~workflow.scan_auto_align.border_agreement` (which sees
-a grid slid onto the neighbouring patch) and
-:func:`~workflow.scan_auto_align.seating_drift` (which sees a photographed
-sheet's keystone) on the exact corners about to be set, and carries a reference
-agreement measured at those same corners rather than at the answer the search
-gave before the refinement moved it.
+It never calls a placement TRUSTED that no check has seen. Every answer marked
+:attr:`PlacementResult.trusted` has passed
+:func:`~workflow.scan_auto_align.border_agreement` (which sees a grid slid onto
+the neighbouring patch) and :func:`~workflow.scan_auto_align.seating_drift`
+(which sees a photographed sheet's keystone) on the exact corners about to be
+set, and carries a reference agreement measured at those same corners rather
+than at the answer the search gave before the refinement moved it.
+
+IT DOES NOW HAND BACK A PLACEMENT THE CHECKS REFUSED, and that is a change of
+2026-09-11 rather than a weakening of the paragraph above. Knut was asked what
+should happen when the grid cannot be placed well enough to trust, and ruled:
+*"place its best attempt and tell user to check it."* Before that, a candidate
+that failed the seating check or the reference check was discarded and the
+user's own corners were left alone — so the one thing ChromIQ had actually
+found was never shown to the person who had to correct it. Both endings now
+come back with `corners` set and `trusted` False; the window applies them and
+says, in its own words, that they were not trusted and must be checked. Nothing
+about the CHECKS changed: the same two run on the same corners and say the same
+thing. What changed is who gets to see the answer.
 """
 from __future__ import annotations
 
@@ -193,7 +205,22 @@ class PlacementResult:
 
     @property
     def ok(self) -> bool:
+        """There is a placement to apply. NOT the same as "it can be relied on"
+        -- see :attr:`trusted`."""
         return self.corners is not None
+
+    @property
+    def trusted(self) -> bool:
+        """The placement passed BOTH picture checks and the colour check.
+
+        Knut, #182, 2026-09-11, on what should happen when it does not: *"place
+        its best attempt and tell user to check it."* So a candidate that fails
+        a check is still returned -- the user gets to see what ChromIQ found --
+        and this is the flag that decides which of the two things the window
+        says about it. Nothing else in the app may read `ok` and conclude the
+        grid is right.
+        """
+        return self.ending == "placed"
 
 
 def _ending(find_reason: str, fit_reason: str) -> str:
@@ -397,6 +424,21 @@ def place_grid(scanin_exe: str | Path,
         return res
 
     # ---- 3. the two picture checks, on the placement about to be applied --
+    #
+    # THE BEST ATTEMPT IS RETURNED WHATEVER THE CHECKS SAY. Knut's ruling of
+    # 2026-09-11: *"place its best attempt and tell user to check it."* Until
+    # then a candidate that failed either check was thrown away and the user's
+    # corners left alone, which gave them nothing to look at and nothing to
+    # correct -- the search had found something and they never saw it. It is
+    # set HERE, before the checks, so no later return can forget it; every one
+    # of them records WHY in `ending`, and `trusted` is the only thing that may
+    # be read as "this grid is right".
+    #
+    # Nothing above this line changes. Where both steps declined there is no
+    # candidate but the user's own corners, and putting those back is a no-op
+    # dressed up as an answer -- so that ending still returns with no corners
+    # and keeps its own wording.
+    res.corners = candidate
     seated, drift = seated_verdict(scan, boxes, candidate)
     res.drift = drift
     if not seated:
@@ -434,6 +476,5 @@ def place_grid(scanin_exe: str | Path,
         res.ending = "below-floor"
         return res
 
-    res.corners = candidate
     res.ending = "placed"
     return res
