@@ -2342,26 +2342,36 @@ class MeasurementReportDialog(QDialog):
         }
         return texts.get(code or "", "")
 
-    def _not_computed(self, r: dict) -> "list[tuple[str, str]]":
-        """``[(row label, reason sentence)]`` for the rows of *r*'s verdict
-        that were not judged, and why.
+    def _measured_not_graded(self, r: dict) -> "list[tuple[str, str]]":
+        """``[(row label, why)]`` for rows that HAVE a number nobody graded.
 
-        N-A because the chart or the reference cannot supply them, AND INFO
-        with a recorded reason, which is a row that HAS a number nobody graded.
-        The second kind used to say why in a tooltip only: an adversarial round
-        drove a chart whose grey rows carried real numbers, both over their
-        limits, both ungraded because nobody recorded how the sheet was
-        printed, and the printed page said nothing about any of it.
+        A DIFFERENT LIST FROM `_not_computed`, AND IT HAS TO BE. These rows
+        were added to that one for a round, and that note is headed "Not
+        computed on this chart" and ends "add the missing patches to the chart
+        in Create Chart to have it checked" — so a grey row carrying 1.341, on
+        a chart with a nine-step ramp, was called not computed and its reader
+        was sent to add patches that are already there. That is the exact
+        falsehood the round before had just removed from the sentence above
+        it, reinstated one line below.
         """
-        from workflow.compliance_sets import INFO, N_A, ROW_BY_ID
+        from workflow.compliance_sets import INFO, ROW_BY_ID
         rows, _rec = self._verdict_rows(r)
         out = []
         for row in rows:
-            if row.get("word") == INFO and row.get("reason"):
-                rid = row.get("row_id") or row.get("key")
-                label = tr(ROW_BY_ID[rid].label) if rid in ROW_BY_ID else str(rid)
-                out.append((label, self._reason_sentence(row.get("reason"), r)))
+            if row.get("word") != INFO or not row.get("reason"):
                 continue
+            rid = row.get("row_id") or row.get("key")
+            label = tr(ROW_BY_ID[rid].label) if rid in ROW_BY_ID else str(rid)
+            out.append((label, self._reason_sentence(row.get("reason"), r)))
+        return out
+
+    def _not_computed(self, r: dict) -> "list[tuple[str, str]]":
+        """``[(row label, reason sentence)]`` for the rows of *r*'s verdict
+        that read N-A because the chart or the reference cannot supply them."""
+        from workflow.compliance_sets import N_A, ROW_BY_ID
+        rows, _rec = self._verdict_rows(r)
+        out = []
+        for row in rows:
             if row.get("word") != N_A:
                 continue
             rid = row.get("row_id") or row.get("key")
@@ -4493,6 +4503,26 @@ class MeasurementReportDialog(QDialog):
                     "A row that was not computed says nothing about the "
                     "printer; add the missing patches to the chart in Create "
                     "Chart to have it checked.")) + "</div>")
+        # …AND THE ROWS THAT WERE MEASURED AND NOT GRADED, WHICH ARE NOT THE
+        # SAME THING AND MAY NOT SHARE THAT SENTENCE. The chart has these
+        # patches; what it lacks is whatever the grading needed. The heading
+        # says "on at least one measurement" because a report can hold several
+        # and one row can be ungraded on one and missing on another.
+        graded_note: dict = {}
+        for r in runs:
+            if _is_raw_drift(r):
+                continue
+            for label, why in self._measured_not_graded(r):
+                graded_note.setdefault((label, why), True)
+        if graded_note:
+            notes += (f"<div style='{note_css}'><b>" + html.escape(tr(
+                "Measured but not graded, on at least one measurement:"))
+                + "</b> " + html.escape("; ".join(
+                    f"{label} ({why})" for (label, why) in graded_note))
+                + " " + html.escape(tr(
+                    "The measurement is there; it is shown for information "
+                    "because the report cannot judge it under these "
+                    "conditions.")) + "</div>")
         return (_h2(tr("Report Results"), page_break=True) + _gap()
                 + f"<div style='color:{_C['dim']};margin-bottom:4px'>" + html.escape(intro)
                 + "</div>" + _gap()

@@ -1118,9 +1118,18 @@ def stamp_report_type(report: dict, run) -> dict:
     IT WAS BUILT AND THEN NOT CALLED. The storage, the strict writer, the
     forgiving reader and their mutations all landed in the first commit of
     this feature, and nothing anywhere wrote one: an adversarial round grepped
-    for the writer and found only its own tests. So a measurement outside a
-    project lost its type when its window closed, with the place to keep it
-    sitting right there.
+    for the writer and found only its own tests.
+
+    **AND IT DOES NOT CARRY A CHOICE MADE OUTSIDE A PROJECT.** A previous
+    version of this docstring said it did. It cannot: the report is saved at
+    the moment of the measurement, before any report window exists, so nothing
+    at this call site can know what a user later picks for a file that has no
+    run to remember it. `run=None` records `REPORT_TYPE_DEFAULT`, which is what
+    such a file renders as, so the record is true; it is not the user's choice,
+    and for a measurement outside a project that choice is still session-only.
+    A third adversarial round drove exactly that and the claim was withdrawn
+    rather than the behaviour patched, because the behaviour is right and the
+    sentence was wrong.
 
     Never raises: a report that cannot be stamped is still a report, and the
     run remains the source of truth for anything inside a project.

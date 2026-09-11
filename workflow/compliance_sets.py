@@ -828,10 +828,13 @@ SUMMARY_REASONS: "dict[str, str]" = {
     # Nothing was checked, and the chart had supplied every value, so the
     # sentence above was simply untrue and sent the reader to Create Chart to
     # add patches that are already there.
+    # "THE ROWS ABOVE SHOW WHAT WAS MEASURED" WAS ALSO FALSE. The detailed
+    # figures are opt-in and off by default, so on the ordinary page those
+    # numbers appear nowhere at all. The sentence points at the note that is
+    # always printed instead.
     "nothing_graded": "None of the values this limit set puts a limit on was "
                       "graded on this sheet, so there is nothing to judge. "
-                      "The rows above show what was measured, and the note "
-                      "below says why each was left ungraded.",
+                      "The note below says why each was left ungraded.",
     "fail": "{failed} of {checked} values checked are over this limit set's limits.",
     "iso": "{checked} of {total} values checked, all within this limit set's "
            "values. This limit set holds a standard's published values applied "

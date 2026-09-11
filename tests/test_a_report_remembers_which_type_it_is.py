@@ -198,17 +198,18 @@ def test_the_writer_has_a_caller_at_all():
         "the one case the reader never asks about")
 
 
-def test_a_measurement_in_no_project_still_records_its_type(tmp_path):
-    """The case the docstring names, and the one the call site used to skip.
+def test_a_measurement_in_no_project_records_the_DEFAULT_and_says_so(tmp_path):
+    """A report outside a project records what it renders as, and NOT a choice.
 
-    The writer was gated on the measurement being IN a run, and the reader
-    consults the report's stamp only when it is NOT, so the two were placed in
-    the two halves that never meet. `run_report_type(None)` answers with
-    today's report, which is what such a file renders as, so the record is
-    true either way.
-
-    MUTATION: gate the call on `run_context_for(...) is not None` and this
-    goes red.
+    The writer was gated on the measurement being IN a run while the reader
+    consults the stamp only when it is NOT, so the two sat in the halves that
+    never meet. Ungating it is right, and the claim that went with it was not:
+    the report is saved at the moment of the measurement, before any report
+    window exists, so nothing at that call site can know what a user later
+    picks. A third adversarial round drove it: choose Printing record on a
+    loose file, close the window, reopen, and it is back on Full colour check.
+    That is the behaviour, the record is honest about it, and the docstring
+    that claimed otherwise is gone.
     """
     from workflow.measurement_report import stamp_report_type
     rep: dict = {}

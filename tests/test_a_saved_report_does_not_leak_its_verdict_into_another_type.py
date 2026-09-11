@@ -299,7 +299,16 @@ def test_a_row_with_a_number_nobody_graded_says_why_on_paper(tmp_path, qapp):
     """The note under the table listed N-A rows only, so a row that HAS a
     number and was not judged said why in a tooltip and nowhere else.
 
-    MUTATION: list only the N-A rows again and this goes red.
+    **AND IT MUST NOT SAY IT UNDER THE WRONG HEADING.** The first version of
+    this test asserted the row appeared in `_not_computed` and never read the
+    heading that list is printed under, so it passed green while the page
+    called a computed row "not computed" and told the reader to add patches
+    that are already on the chart. A third adversarial round read the printed
+    page. This test now asks the list that is actually true of these rows, and
+    `test_the_page_does_not_call_a_measured_row_not_computed` guards the
+    heading.
+
+    MUTATION: fold the two lists back together and this goes red.
     """
     from tests.test_import_measurement_module import _verify_env
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
@@ -323,7 +332,10 @@ def test_a_row_with_a_number_nobody_graded_says_why_on_paper(tmp_path, qapp):
         assert with_reason, (
             "this chart has no ungraded row with a reason, so the case is not "
             "exercised; `_grey_ramp_ti3` is supposed to produce two")
-        listed = {label for label, _why in dlg._not_computed(reps[0])}
+        listed = {label for label, _why in dlg._measured_not_graded(reps[0])}
+        assert not dlg._not_computed(reps[0]) or all(
+            lbl not in listed for lbl, _w in dlg._not_computed(reps[0])), \
+            "a row is in both lists at once"
         from workflow.compliance_sets import ROW_BY_ID
         for x in with_reason:
             rid = x.get("row_id") or x.get("key")
@@ -368,5 +380,70 @@ def test_a_recalculation_re_stamps_the_TYPE_as_well_as_the_verdict(tmp_path,
             "the recalculation rewrote the verdict and left the type saying "
             "what the run no longer says")
         assert after.get("schema") == 7, "the schema moved"
+    finally:
+        dlg.close()
+
+
+def test_the_page_does_not_call_a_measured_row_not_computed(tmp_path, qapp):
+    """THE HEADING IS PART OF THE SENTENCE.
+
+    A grey row carrying 1.341, on a chart with a nine-step ramp, was printed
+    under "Not computed on this chart:" and followed by "add the missing
+    patches to the chart in Create Chart to have it checked". Both halves are
+    false of that row, and the second is the exact advice the round before had
+    removed from the summary above it.
+
+    MUTATION: put the INFO rows back into `_not_computed` and this goes red.
+    """
+    import html as _html
+    from tests.test_import_measurement_module import _verify_env
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    from workflow.compliance_sets import INFO, ROW_BY_ID
+    from workflow.run_compliance import set_run_report_type
+    from core.i18n import tr
+    s, _fm, _ctl, run = _verify_env(tmp_path)
+    v = run.new_verification()
+    v.ensure_dir()
+    v.measurement_ti3.write_text(_grey_ramp_ti3(), encoding="utf-8")
+    dlg = MeasurementReportDialog(s, None, initial_ti3=v.measurement_ti3)
+    dlg.show()
+    qapp.processEvents()
+    try:
+        set_run_report_type(run, REPORT_TYPE_GREY)
+        dlg._forget_limits()
+        dlg._sync_limit_controls()
+        reps = dlg._runs_for_report()
+        rows, _rc = dlg._verdict_rows(reps[0])
+        # A ROW WITH NO RECORDED REASON IS NOT IN THIS NOTE, AND SHOULD NOT BE.
+        # `ramps_30_70_dl_max` comes out INFO with a real number because the
+        # set puts no limit on it, which is what INFO means and needs no
+        # explaining. The note is for a row that WAS limited and was left
+        # ungraded anyway.
+        measured = [x for x in rows if x.get("word") == INFO
+                    and x.get("value") is not None and x.get("reason")]
+        assert measured, "no measured-but-ungraded row with a reason on this chart"
+        body = dlg._report_body_html(reps, for_pdf=True)
+
+        head = _html.escape(tr("Not computed on this chart:"))
+        i = body.find(head)
+        if i >= 0:
+            block = body[i:body.find("</div>", i)]
+            for x in measured:
+                rid = x.get("row_id")
+                if rid in ROW_BY_ID:
+                    assert _html.escape(tr(ROW_BY_ID[rid].label)) not in block, (
+                        f"{rid} has a number and is listed as not computed")
+
+        mine = _html.escape(tr("Measured but not graded, on at least one "
+                               "measurement:"))
+        j = body.find(mine)
+        assert j >= 0, "the measured-but-ungraded rows have no note of their own"
+        block2 = body[j:body.find("</div>", j)]
+        assert "Create Chart" not in block2, \
+            "the note tells the reader to add patches that are already there"
+        for x in measured:
+            rid = x.get("row_id")
+            if rid in ROW_BY_ID:
+                assert _html.escape(tr(ROW_BY_ID[rid].label)) in block2, rid
     finally:
         dlg.close()

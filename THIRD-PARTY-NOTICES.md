@@ -239,10 +239,6 @@ Listed so the sweep is exhaustive and nobody has to re-derive it:
   his own, given in writing with each contribution, most recently on 2026-09-08
   for the two photo-card charts. The credit stays on the sheets.
 
-  *(His message was quoted here word for word until 2026-09-11. The permission
-  is what this file has to record; a contributor's private words do not belong
-  in a document that ships inside the application, and the exact wording is in
-  the project's history for anyone who needs it.)*
 - **Limit sets for the Measurement Report** are in `data/compliance_sets/`.
   ChromIQ's own files, under the project's own licence, and **empty of any third
   party's numbers**. `iso12647.json` is the file that would carry the tolerance
@@ -253,12 +249,8 @@ Listed so the sweep is exhaustive and nobody has to re-derive it:
   ChromIQ HAS been given, from Fogra, CGATS, the ICC and Idealliance, in the
   words their owners used, together with the condition attached to each, so that
   no data file can arrive there without its credit already beside it.
-- **Reference data** — `data/reference_sets/fogra/`, eleven files, and **this
-  entry used to say "none"**. It said ChromIQ deliberately shipped no
-  characterization dataset, and that stopped being true on 2026-09-10 when
-  `4c06f67a` bundled eleven Fogra MediaWedge V3 subsets. A notices file that
-  denies what is in the bundle is worse than no notices file, so here is what
-  is actually there.
+- **Reference data** — `data/reference_sets/fogra/`, eleven Fogra MediaWedge
+  V3 subsets.
 
   They are **Fogra's own bytes, unmodified**, from
   `MK3_Subsets_FOGRA39_until_FOGRA60.zip` (V1.0, published 2022-01-27), with
@@ -270,11 +262,8 @@ Listed so the sweep is exhaustive and nobody has to re-derive it:
   identified as the source**, and says that naming a FOGRAxx set implies no
   certification, approval or endorsement.
 
-  **That naming condition is met in the application**, not only in a file
-  inside the bundle: Preferences → Licences names Fogra and quotes the grant,
-  and `ui/licences.py` reads it from `SOURCE.json` rather than restating it.
-  Until 2026-09-11 it was met nowhere a user could look, which is the gap this
-  entry and that page close together.
+  **Fogra is named in the application itself**: Preferences → Licences names
+  them and quotes the grant in their own words.
 
   **No ISO tolerance value is among them**, and none is anywhere in the tree.
   Characterisation data and tolerance values have different owners and

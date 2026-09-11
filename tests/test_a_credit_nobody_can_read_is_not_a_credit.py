@@ -295,3 +295,46 @@ def test_the_page_does_not_end_on_a_rule():
     assert shown, "nothing is rendered"
     assert not shown.endswith("---"), "the page ends on a rule and no content"
     assert not shown.endswith("*"), "the page ends mid-emphasis"
+
+
+#: Phrases that mark the project's own RECORD rather than a notice about
+#: somebody's file. Not a style rule: each is a shape that actually reached the
+#: rendered page and had to be taken out of it.
+_RECORD_TELLS = (
+    "we were not compliant",          # a past non-compliance, in the product
+    "this assistant",                 # who wrote what, and when
+    "earlier session",
+    "quoted here word for word",      # a note about editing this file
+    "used to say",
+    "worse than no notices",
+    "until 2026-",                    # "it was met nowhere a user could look"
+)
+
+
+def test_the_page_carries_no_note_about_the_project_itself():
+    """SECTION HEADINGS WERE NOT ENOUGH, AND A ROUND ASSUMED THEY WERE.
+
+    The notice/record split is per `## ` heading, so three paragraphs of the
+    project's own record survived INSIDE a kept section and rendered to users
+    in both languages: a note about removing a contributor's private message, a
+    commit SHA with a line about what this file used to say, and a sentence
+    admitting an obligation had been met nowhere a user could look. A third
+    adversarial round read the page back and found them.
+
+    A phrase list is a blunt instrument and is meant to be: each entry is a
+    shape that actually reached the page.
+
+    MUTATION: put any of those sentences back and this goes red.
+    """
+    from ui.licences import notices_markdown
+    shown = notices_markdown().lower()
+    assert shown, "nothing is rendered"
+    found = [t for t in _RECORD_TELLS if t in shown]
+    assert not found, (
+        f"the page carries the project's own record, not a notice: {found}")
+
+
+def test_the_check_can_see_such_a_phrase():
+    """The control: a list that matches nothing would pass for ever."""
+    sample = "…and we were not compliant, which this assistant recorded."
+    assert [t for t in _RECORD_TELLS if t in sample.lower()]
