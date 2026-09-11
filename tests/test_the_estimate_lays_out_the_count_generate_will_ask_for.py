@@ -221,3 +221,49 @@ def test_patch_first_is_unaffected_by_the_target_count(qapp, tmp_path):
         b.total_patches, b.pages, b.steps_in_pass)
     tab._refresh_layout_estimate()
     assert _est(tab, "total") == str(a.total_patches)
+
+
+def test_unticking_auto_puts_the_patch_count_back(qapp, tmp_path):
+    """TWO CLICKS LEFT THE APP IN A STATE THE USER COULD NOT SEE.
+
+    Ticking "Auto patch count" sets the -f box to 0, because a QSpinBox shows
+    its "Auto" placeholder only at its minimum. Unticking cleared the
+    placeholder and left the 0. So tick, untick, and -f is 0 with Auto off:
+    nothing on screen says a count was lost, and the box reads 0, which is the
+    app's "not pinned" value rather than a number anybody chose.
+
+    A challenge round drove what follows: the estimate promised 418 patches and
+    Generate built 16, and with a patch set attached Generate refused outright
+    while the estimate promised 90.
+
+    MUTATION: stop remembering the value, or stop restoring it, and this goes
+    red.
+    """
+    tab = _tab(tmp_path)
+    _set_f(tab, 400)
+    spin = tab._manual_f_pw._control
+    assert spin.value() == 400, "the premise failed"
+
+    tab._on_auto_patches_toggled(True)
+    assert spin.value() == 0, (
+        "Auto no longer zeroes the box, so this test is measuring nothing")
+
+    tab._on_auto_patches_toggled(False)
+    assert spin.value() == 400, (
+        "unticking Auto left the patch count at 0, a state the user never "
+        "chose and cannot see")
+
+
+def test_a_zero_typed_on_purpose_is_still_left_alone(qapp, tmp_path):
+    """The restore must not invent a count for a user who really did type 0.
+
+    0 is the app's own "not pinned here" value, so a round trip through Auto
+    that started at 0 has nothing to put back.
+    """
+    tab = _tab(tmp_path)
+    _set_f(tab, 0)
+    spin = tab._manual_f_pw._control
+
+    tab._on_auto_patches_toggled(True)
+    tab._on_auto_patches_toggled(False)
+    assert spin.value() == 0, "a count was invented for a user who typed none"

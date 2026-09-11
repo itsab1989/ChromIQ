@@ -7996,10 +7996,21 @@ class TabChart(QWidget):
         if checked:
             # QSpinBox shows specialValueText whenever value == minimum.
             # -f's min is 0 (see data/parameters.yaml), so set 0 here.
+            #
+            # AND REMEMBER WHAT IT WAS, because unticking has to put it back.
+            # It did not, so two clicks, tick then untick, left -f at 0 with
+            # Auto off: a state the user cannot see (the box reads 0) and did
+            # not ask for. A challenge round drove what follows from it, and
+            # the estimate promised 418 patches where Generate built 16.
+            if spin.value():
+                self._f_before_auto = int(spin.value())
             spin.setSpecialValueText(tr("Auto"))
             spin.setValue(0)
         else:
             spin.setSpecialValueText("")
+            _back = int(getattr(self, "_f_before_auto", 0) or 0)
+            if _back and not spin.value():
+                spin.setValue(_back)
         spin.blockSignals(False)
         self._refresh_manual_command_preview()
 
