@@ -211,3 +211,38 @@ def test_the_pdf_title_is_about_the_same_sheet_as_the_page(two_dated, qapp):
     assert "No. of Measurements: 1" in pdf
     assert "Bravo" in pdf
     assert "Alpha" not in pdf
+
+
+def test_generate_writes_the_one_report_the_page_is_about(two_dated, qapp):
+    """The button iterated `_runs_for_report`, which is what is LOADED, while
+    the page in front of the user described one sheet. With the history ticked
+    on it wrote a file into every dated verification folder, and
+    `_say_generated` is deliberately quiet on success, so nothing said so."""
+    import workflow.measurement_report as mr
+    dlg, older, newer = two_dated
+    dlg._all_runs_check.setChecked(True)
+    dlg._refresh()
+    assert len(dlg._runs_for_report()) == 2
+    before = {p: len(mr.list_reports(p.parent)) for p in (older, newer)}
+    dlg._on_generate_report()
+    after = {p: len(mr.list_reports(p.parent)) for p in (older, newer)}
+    assert after[newer] == before[newer] + 1, "the sheet on screen got its report"
+    assert after[older] == before[older], \
+        "a sheet the page never described must not be written to"
+
+
+def test_and_the_other_types_still_write_every_loaded_run(two_dated, qapp):
+    """The narrowing belongs to the one-page summary, not to the button."""
+    import workflow.measurement_report as mr
+    from workflow.run_compliance import set_run_report_type
+    dlg, older, newer = two_dated
+    set_run_report_type(dlg._run_ctx.run, mr.REPORT_TYPE_FULL)
+    dlg._forget_limits()
+    dlg._sync_limit_controls()
+    dlg._all_runs_check.setChecked(True)
+    dlg._refresh()
+    before = {p: len(mr.list_reports(p.parent)) for p in (older, newer)}
+    dlg._on_generate_report()
+    after = {p: len(mr.list_reports(p.parent)) for p in (older, newer)}
+    assert after[older] == before[older] + 1
+    assert after[newer] == before[newer] + 1

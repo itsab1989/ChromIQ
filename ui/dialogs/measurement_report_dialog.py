@@ -1654,7 +1654,7 @@ class MeasurementReportDialog(QDialog):
         when you switch.
         """
         ctx = self._run_ctx
-        reports = self._runs_for_report()
+        reports = self._runs_for_document()
         if ctx is None or not reports:
             return
         from workflow.measurement_report import (save_report, stamp_report_type,
@@ -4936,6 +4936,25 @@ class MeasurementReportDialog(QDialog):
         return (f"<div style=\"font-family:'{family}';color:{_C['text']};"
                 f"font-size:12px\">"
                 + "".join(parts) + "</div>")
+
+    def _runs_for_document(self) -> list:
+        """Which measurements the document on screen is about.
+
+        `_runs_for_report` answers "what is loaded", which is what the history
+        list and the trend charts want. The DOCUMENT can be narrower: a one-page
+        colour summary is about a single sheet. Both the body and the Generate
+        report button ask this, because they must agree — the button iterated
+        the wider list and wrote a file into every dated verification folder
+        while the page in front of the user described one of them, and
+        `_say_generated` is deliberately quiet on success, so nothing said so.
+        """
+        from workflow.measurement_report import (REPORT_TYPE_SUMMARY,
+                                                 report_type_is_built)
+        runs = self._runs_for_report()
+        tid = self._report_type_now()
+        if tid == REPORT_TYPE_SUMMARY and report_type_is_built(tid):
+            return self._one_measurement(runs)
+        return runs
 
     def _one_measurement(self, runs: list) -> list:
         """The ONE measurement a one-page summary is about.
