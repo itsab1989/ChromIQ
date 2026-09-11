@@ -939,7 +939,7 @@ class LayoutOptionsPanel(QWidget):
         self._area_fields_grid = afg
         self._area_label_strut = QSpacerItem(
             0, 0, QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
-        afg.addItem(self._area_label_strut, 0, 0)
+        # NO SPACER ITEM IN THIS GRID AT ALL. See `_pin_area_label_column`.
         self._pin_area_label_column()
         lgg.addWidget(self._patch_fields_w, 1, 0, 1, 3)
         lgg.addWidget(self._area_fields_w, 2, 0, 1, 3)
@@ -3367,14 +3367,29 @@ class LayoutOptionsPanel(QWidget):
         fix and only the stretch wrappers in place, the combo still moved 26 px
         between the two methods; with the column pinned it moves 0.
 
-        A SIZE HINT AND NOT A MINIMUM, and measured from the labels themselves
-        so it follows the language and the font instead of a number typed here.
+        A COLUMN MINIMUM, AND IT HAD TO STOP BEING A SPACER ITEM. The first
+        version put a zero-height `QSpacerItem` in the grid to ask for the
+        width without demanding it. Measured on screen, that cost
+        "Minimum patch width (mm):" its second line: the label needs 32 px and
+        the row gave it 22, so the top of the text was cut in half. Basti
+        photographed it. Bisected here in a real window, both halves separately:
+        removing the spacer fixes it and removing the stretch wrappers does not.
+
+        `setColumnMinimumWidth` cannot touch a row's height. It was passed over
+        the first time because it raises the panel's own minimum width by 34 to
+        43 px, which was measured but never checked against the space the panel
+        actually gets: the Create Chart pane gives it 504 px at the app's
+        smallest window, against a floor of 403 in German, so the growth fits
+        with room to spare and the horizontal scrollbar Basti reported twice
+        does not come back.
+
+        Measured from the labels themselves so it follows the language and the
+        font instead of a number typed here.
         Re-measured on every method change, which is also every point at which
         the visible labels change; a language change builds a new panel.
         """
-        strut = getattr(self, "_area_label_strut", None)
         afg = getattr(self, "_area_fields_grid", None)
-        if strut is None or afg is None:
+        if afg is None:
             return
         from PyQt6.QtGui import QFontMetrics
         widest = 0
@@ -3385,8 +3400,17 @@ class LayoutOptionsPanel(QWidget):
                 if isinstance(w, QLabel):
                     widest = max(widest,
                                  QFontMetrics(w.font()).horizontalAdvance(w.text()))
-        strut.changeSize(widest, 0, QSizePolicy.Policy.Maximum,
-                         QSizePolicy.Policy.Fixed)
+        # THE LABELS, NOT THE COLUMN. Pinning the column leaves each label at
+        # its own sizeHint width (they are right-aligned), so a label narrower
+        # than the column still wraps to two lines while the row is sized for
+        # one, and the top line is cut in half. Giving every label the same
+        # minimum width makes them all wide enough not to wrap, which is the
+        # same alignment with none of the clipping. Bisected on screen.
+        for attr in ("_area_row_method", "_area_row_minpatch", "_area_row_ratio",
+                     "_area_row_cols", "_area_row_rows"):
+            for w in (getattr(self, attr, None) or []):
+                if isinstance(w, QLabel):
+                    w.setMinimumWidth(widest)
         afg.invalidate()
 
     def _hex_locked_rows(self) -> "list[tuple[list, bool, str]]":

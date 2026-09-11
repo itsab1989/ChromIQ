@@ -149,21 +149,34 @@ def test_the_mutation_lands(panel, qapp):
     A geometry check that passes with the fix removed is measuring the wrong
     thing, and this project has been bitten by exactly that.
     """
-    # (a) the strut: without it the column is sized by the visible labels only.
-    from PyQt6.QtWidgets import QSizePolicy
-    panel._area_label_strut.changeSize(0, 0, QSizePolicy.Policy.Maximum,
-                                       QSizePolicy.Policy.Fixed)
-    panel._area_fields_grid.invalidate()
-    qapp.processEvents()
-    _method(panel, qapp, "by_width")
-    a = _control_column(panel)
-    _method(panel, qapp, "by_grid")
-    b = _control_column(panel)
-    panel._pin_area_label_column()
-    qapp.processEvents()
-    assert a != b, (
-        "removing the label-column strut changed nothing, so the strut is not "
-        f"what holds the columns still: {a} vs {b}")
+    # (a) the common label width: without it the column is sized by whichever
+    # labels the chosen method happens to show.
+    #
+    # THIS USED TO TAKE AWAY A SPACER ITEM IN THE LABELS' COLUMN, and that
+    # spacer is gone. It pinned the COLUMN, and these labels are right-aligned,
+    # so each stayed as wide as its own text however wide the column was: a
+    # label narrower than the column still wrapped to two lines while the row
+    # was sized for one, and the top of the text was cut in half. Basti
+    # photographed it. See `test_the_layout_labels_are_never_clipped.py`.
+    # (a) THE COMMON LABEL WIDTH IS NOT PROVEN HERE, AND SAYING SO IS THE
+    # POINT. This half used to remove a spacer item that pinned the label
+    # COLUMN. That spacer is gone: it cost "Minimum patch width (mm):" its
+    # second line, because these labels are right-aligned and each stayed as
+    # wide as its own text however wide the column was, so a label narrower
+    # than the column wrapped while its row was sized for one line. Basti
+    # photographed it.
+    #
+    # Its replacement gives every label the same minimum width, and measured
+    # here that changes nothing: this fixture builds the panel WITH SELECTORS,
+    # and in that configuration the columns line up at 420, 460, 504 and 580 px
+    # whether the labels are pinned or not. Something else already holds them.
+    #
+    # So the property is proven where it exists, in
+    # `test_the_layout_labels_are_never_clipped.py`, which builds the panel the
+    # Create Chart pane builds and drives all thirteen languages: taking the
+    # common width away turns thirteen of its tests red. Writing a mutation
+    # here that "lands" by contriving a configuration would be the thing this
+    # project keeps catching, so it is not done.
 
     # (b) the trailing stretch: capping the wrapper the way the bare spin box
     # used to be capped hands the slack straight back to the label column.
@@ -191,33 +204,41 @@ def test_the_mutation_lands(panel, qapp):
 def test_the_panel_can_still_shrink(panel, qapp):
     """The labels wrap on purpose: an unwrapped QLabel reports its whole text
     as a hard minimum, and in German that put a horizontal scroll bar under the
-    whole Expert section (Basti, twice). The strut reports its width as a size
-    HINT and zero as its minimum, so the floor is where it was.
+    whole Expert section (Basti, twice).
+
+    THE FLOOR DID RISE, AND THE QUESTION IS WHETHER IT STILL FITS. Holding
+    the columns still with a spacer kept the floor at 403 px and cost eighteen
+    clipped labels across thirteen languages. Giving the labels a common
+    minimum width costs 440 px in the widest language and clips none. The pane
+    gives 504, so the scroll bar does not come back, and THAT is the property
+    worth pinning rather than any particular number.
     """
-    strut = panel._area_label_strut
-    assert strut.minimumSize().width() == 0
-    assert strut.sizeHint().width() > 0
-    assert panel._area_fields_grid.columnMinimumWidth(0) == 0, (
-        "a column MINIMUM would raise the panel's floor; measured at +43 px in "
-        "English and +34 in German when it was tried")
-    assert panel._area_fields_w.minimumSizeHint().width() < PANE_W
+    assert panel._area_fields_w.minimumSizeHint().width() < PANE_W, (
+        "the area grid no longer fits the pane it is given, which is how the "
+        "horizontal scroll bar Basti reported twice comes back")
+    assert panel.minimumSizeHint().width() < PANE_W
 
 
-def test_the_strut_is_not_a_widget_and_costs_no_height(panel, qapp):
-    """It shares the first label's cell, which a WIDGET may never do (see
-    `test_the_layout_panel_has_no_two_widgets_in_one_cell.py`, written after two
-    checkboxes were drawn two pixels apart). A spacer paints nothing and is zero
-    pixels tall, so it cannot be that fault; a row of its own would have cost
-    the grid's row spacing, measured at +6 px of empty height."""
-    from PyQt6.QtWidgets import QSpacerItem
+def test_nothing_shares_a_cell_with_a_label_in_the_area_grid(panel, qapp):
+    """NOT EVEN A SPACER, which is what the previous version of this test
+    allowed and what cost "Minimum patch width (mm):" its second line.
+
+    The rule the whole panel is held to is about WIDGETS
+    (`test_the_layout_panel_has_no_two_widgets_in_one_cell.py`, written after
+    two checkboxes were drawn two pixels apart), and a spacer slipped under it
+    while breaking the same thing in a different way: a word-wrapped label
+    needs its height worked out from its width, and sharing a cell cost it
+    that. Measured in a real window: the label needed 32 px and was given 22.
+    """
     lay = panel._area_fields_grid
-    idx = [i for i in range(lay.count()) if lay.itemAt(i) is panel._area_label_strut]
-    assert len(idx) == 1
-    assert isinstance(panel._area_label_strut, QSpacerItem)
-    assert lay.itemAt(idx[0]).widget() is None
-    r, c, _rs, _cs = lay.getItemPosition(idx[0])
-    assert (r, c) == (0, 0)
-    assert panel._area_label_strut.sizeHint().height() == 0
+    seen: dict = {}
+    for i in range(lay.count()):
+        r, c, rs, cs = lay.getItemPosition(i)
+        for rr in range(r, r + max(1, rs)):
+            for cc in range(c, c + max(1, cs)):
+                seen.setdefault((rr, cc), []).append(i)
+    shared = {k: v for k, v in seen.items() if len(v) > 1}
+    assert not shared, f"the area grid has items sharing a cell: {shared}"
     assert lay.rowCount() == 5, (
         f"the area grid has {lay.rowCount()} rows; the five it is meant to "
         "have are the method, the two by-width rows and the two by-grid ones")
