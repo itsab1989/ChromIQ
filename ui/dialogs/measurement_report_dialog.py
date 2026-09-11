@@ -4258,7 +4258,20 @@ class MeasurementReportDialog(QDialog):
         intro = (tr("The following profile verification runs are included:")
                  if verification
                  else tr("The following profiles' measurement runs are included:"))
+        # THE RUN'S DESCRIPTION, AT THE TOP OF THIS SECTION. Knut, 2026-09-11,
+        # asked whether the one-page report should carry a customer or job
+        # name: *"No customer or job name per today. But print the run's
+        # description at the top of the section that shows the scope of the
+        # report and the measurements included, and nothing when it is
+        # empty."* He named this section, which every report type has, so it
+        # is here rather than in one type's own body.
+        #
+        # NOTHING WHEN IT IS EMPTY. Not a blank line, not a label with no
+        # value: a run nobody described says nothing about itself.
+        desc = self._run_description()
         out = (_h2(tr("Report Scope")) + _gap()
+               + (f"<div style='font-weight:bold;margin:0 0 4px'>"
+                  + html.escape(desc) + "</div>" if desc else "")
                + "<div>" + html.escape(intro)
                + "</div><ul style='margin:2px 0 6px'>" + items + "</ul>"
                + "<div><b>" + html.escape(tr("No. of Measurements:")) + "</b></div>"
@@ -4279,6 +4292,22 @@ class MeasurementReportDialog(QDialog):
             out += (f"<div style='color:{_C['fail']};margin-top:6px'>"
                     + html.escape(note) + "</div>")
         return out + self._scope_warnings_html(sc["warnings"])
+
+    def _run_description(self) -> str:
+        """What the user wrote about this run, or "".
+
+        The window's own run, not each column's: a report holding several runs
+        has no single description, and a heading that names one of them would
+        be wrong about the rest.
+        """
+        ctx = self._run_ctx
+        if ctx is None or len(self._distinct_run_dirs()) > 1:
+            return ""
+        try:
+            return str(ctx.run.load_meta().description or "").strip()
+        except Exception as exc:                 # noqa: BLE001 — a heading
+            log.debug("could not read the run description: %s", exc)
+            return ""
 
     def _scope_warnings_html(self, warnings: list) -> str:
         """Red warning block for the Report Scope checks (Knut). Empty when clean."""

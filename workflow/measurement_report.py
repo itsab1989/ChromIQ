@@ -726,6 +726,26 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
                 "measured_lab": [round(v, 2) for v in lab[i]],
             } for de, i in worst]
 
+            # #182 T1, Knut 2026-09-11: *"The 16 colors must just be
+            # distributed and represent the profile tested … all the colors
+            # and grays tested must come from the actual test chart that was
+            # used for verification."*
+            #
+            # So they are CHOSEN FROM THE CHART, not from a list ChromIQ keeps.
+            # A fixed list of sixteen nice colours would name patches a chart
+            # may not contain, and would say nothing about the profile this
+            # measurement is of.
+            report["summary_patches"] = [{
+                "loc": data.sample_locs[i] if data.sample_locs else data.sample_ids[i],
+                "de": round(de, 2),
+                "expected_hex": _srgb_hex(ref_xyz(ref, data, i)),
+                "measured_hex": _srgb_hex(tuple(data.xyz[i])),
+                "expected_lab": [round(v, 2) for v in ref[data.sample_ids[i]]],
+                "measured_lab": [round(v, 2) for v in lab[i]],
+            } for de, i in _spread_over_colour(
+                [(d, i) for d, i in des],
+                [ref[data.sample_ids[i]] for _d, i in des], SUMMARY_PATCH_COUNT)]
+
     # #182: the grey ramp and the 30 to 70 % tone ramps, under the same
     # yardstick as everything above. Both blocks are written even when the
     # chart cannot supply them, with the reason, so the report can say
@@ -734,6 +754,40 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
         report["grey_balance"] = grey_balance_block(rgb100, lab, ref, data.sample_ids)
         report["ramps_30_70"] = ramps_block(rgb100, lab, ref, data.sample_ids)
     return report
+
+
+#: How many example colours the one-page report shows. Knut asked for sixteen.
+SUMMARY_PATCH_COUNT = 16
+
+
+def _spread_over_colour(des, labs, n):
+    """Pick *n* of *des* spread as widely as possible through colour.
+
+    Farthest-point sampling in the chart's own reference Lab: start at the
+    patch nearest mid grey, then repeatedly take the patch furthest from
+    everything picked so far. That gives a set that is distributed by
+    construction, comes entirely from the chart that was measured, and is the
+    same set every time the same chart is measured, so two dated reports of one
+    chart show the same colours and can be compared.
+
+    Returns ``[(de, index)]`` in the order picked, which is widest-first.
+    """
+    if not des or n <= 0:
+        return []
+    if len(des) <= n:
+        return list(des)
+    pts = np.asarray(labs, dtype=float)
+    # mid grey in Lab, which is where a person's eye starts on a colour sheet
+    start = int(np.argmin(((pts - np.array([50.0, 0.0, 0.0])) ** 2).sum(1)))
+    picked = [start]
+    far = ((pts - pts[start]) ** 2).sum(1)
+    while len(picked) < n:
+        nxt = int(np.argmax(far))
+        if far[nxt] <= 0:
+            break                      # every remaining patch is a duplicate
+        picked.append(nxt)
+        far = np.minimum(far, ((pts - pts[nxt]) ** 2).sum(1))
+    return [des[i] for i in picked]
 
 
 def ref_xyz(ref_labs, data, i):
