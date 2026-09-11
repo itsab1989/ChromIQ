@@ -38,6 +38,19 @@ needs more than 0.75 of a pitch of correction, the refinement refuses to move
 that far, and the drift stays where the gate can still see it. **That clamp
 must not be raised while these two are chained.**
 
+THERE ARE TWO SEARCHES, AND THE SECOND ONE RUNS ONLY FOR A HONEYCOMB.
+``scanin``'s recogniser finds a chart by the continuous straight edges in the
+picture, and an interlocking hexagonal chart has none to give it: it returns
+*not recognised* with **zero** candidates, from every starting placement. That
+is step 1 failing completely rather than failing badly, and it is the only step
+a honeycomb defeats — the refinement reshapes one onto its patches like any
+other chart, and the checks separate a right placement from a wrong one on one
+by 0.969 against 0.514 with the floor at 0.80. So when the caller says the
+chart is a honeycomb and the first search came back empty,
+:mod:`workflow.hex_block_search` is asked for a starting quad instead. It goes
+to the same refinement and the same three gates, it can apply nothing itself,
+and ``hexagonal`` defaults to False so a rectangular chart never reaches it.
+
 WHAT HAPPENS WHEN A STEP DECLINES.
 Neither step is required to answer, and the operation carries on either way:
 
@@ -247,6 +260,42 @@ def is_seated(scan: Path, boxes: Sequence,
     return seated_verdict(scan, boxes, corners)[0]
 
 
+def _hex_search(scan: Path, boxes: Sequence, expected_y: dict,
+                image_size: tuple[int, int],
+                start: "list[tuple[float, float]] | None",
+                sample_frac: float,
+                search_region: "tuple[float, float, float, float] | None"):
+    """Step 1 again, for a chart scanin's recogniser cannot see.
+
+    WHY A SECOND SEARCH AND NOT A BETTER FIRST ONE. ``scanin`` finds a chart by
+    building an XLIST and a YLIST out of the continuous straight edges in the
+    picture. An interlocking honeycomb has no continuous horizontal edge to
+    give it, so it does not return a poor answer — it returns **none**, with
+    zero candidates, from every starting placement
+    (``~/Desktop/ChromIQ-knut-hex/records/G-placement-stages.json``). Nothing
+    about how it is called changes that, and the rest of the ladder is
+    blameless: measured on the same chart, the refinement reshapes a honeycomb
+    onto its patches and the checks score a right placement 0.969 against a
+    wrong one's 0.514, with the floor at 0.80.
+
+    So this runs only where the first search came back empty AND the caller
+    said the chart is a honeycomb, and it hands its answer to exactly the same
+    refinement and the same three gates. It cannot apply anything, and it
+    cannot reach a rectangular chart, whose caller leaves *hexagonal* False.
+
+    An exception here is not a failure of the operation: the ladder carries on
+    from the user's own corners, which is what it did before this existed.
+    """
+    try:
+        from workflow.hex_block_search import find_block
+        return find_block(scan, boxes, expected_y, image_size,
+                          current_corners=start, sample_frac=sample_frac,
+                          search_region=search_region)
+    except Exception:  # noqa: BLE001 — a search must not become a crash
+        log.warning("the hexagonal block search failed", exc_info=True)
+        return None
+
+
 def place_grid(scanin_exe: str | Path,
                scan: Path,
                cht: Path,
@@ -261,6 +310,7 @@ def place_grid(scanin_exe: str | Path,
                search_region: "tuple[float, float, float, float] | None" = None,
                timeout: int = 300,
                runner: Callable[..., subprocess.CompletedProcess] = subprocess.run,
+               hexagonal: bool = False,
                ) -> PlacementResult:
     """Search, refine, check — and return the corners only if the check passed.
 
@@ -270,6 +320,13 @@ def place_grid(scanin_exe: str | Path,
     refinement starts from when the search declines, and (through
     *search_region*, which the caller computes) as a hint about where in the
     picture to look.
+
+    *hexagonal* says the chart is a honeycomb, and it changes exactly one
+    thing: when scanin has found nothing, :mod:`workflow.hex_block_search` is
+    asked for a starting quad instead. It is not a shape hint for anything
+    else here — steps 2 and 3 measured the same on a honeycomb as on a grid of
+    squares — and it defaults to False, so a rectangular chart cannot reach
+    that code at all. See :func:`_hex_search`.
     """
     from workflow.photo_fit import refine_corners
     from workflow.scan_auto_align import auto_align, reference_agreement_at
@@ -299,7 +356,21 @@ def place_grid(scanin_exe: str | Path,
                           log_tail=found.log_tail,
                           rejected=list(found.rejected))
 
+    # ---- 1b. the search scanin cannot do, for the charts it cannot see -----
     working = ([tuple(p) for p in found.corners] if found.ok else start)
+    searched = bool(found.ok)
+    if not found.ok and hexagonal:
+        hex_found = _hex_search(scan, boxes, expected_y, image_size, start,
+                                sample_frac, search_region)
+        if hex_found is not None and hex_found.ok:
+            working = hex_found.corners
+            searched = True
+            res.found = True
+            res.find_reason = "hex-block-search"
+            res.candidates = hex_found.candidates
+            if hex_found.rho_before is not None:
+                res.rho_before = hex_found.rho_before
+
     if working is None:
         # No answer and nowhere to refine from — the user has not placed a
         # grid at all. There is nothing to check and nothing to apply.
@@ -313,7 +384,7 @@ def place_grid(scanin_exe: str | Path,
     res.moved = float(fit.moved_pitch or 0.0)
     candidate = [tuple(p) for p in fit.corners] if fit.ok else working
 
-    if not (found.ok or fit.ok):
+    if not (searched or fit.ok):
         # Both steps declined. Nothing has been proposed, so there is nothing
         # to submit to a check and nothing to apply.
         res.ending = _ending(found.reason, fit.reason)

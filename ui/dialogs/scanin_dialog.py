@@ -5998,6 +5998,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         from core.resource_path import argyll_binary
         from workflow import measurement_messages as M
         from workflow.cht_parser import ChtParseError, parse_cht
+        from workflow.hex_support import chart_is_hexagonal
         from workflow.scan_auto_align import expected_luminance
         from workflow.scan_placement import place_grid, search_region_for
 
@@ -6066,6 +6067,20 @@ class ScannerProfileDialog(_ToolDialogBase):
         if not self._marquee.is_placed():
             veto = None
 
+        # A HONEYCOMB NEEDS A SEARCH OF ITS OWN, AND ONLY A HONEYCOMB GETS ONE.
+        # scanin's recogniser returns nothing at all on an interlocking
+        # hexagonal chart — zero candidates, from every starting placement —
+        # so `place_grid` asks `hex_block_search` instead when this is True.
+        # It is read from the chart's own sidecar rather than guessed from the
+        # picture, and a standard target is never one: a bundled ColorChecker
+        # or IT8 has no ChromIQ sidecar to be hexagonal in.
+        hexagonal = False
+        if not self._standard_mode() and self._ti3 is not None:
+            try:
+                hexagonal = chart_is_hexagonal(_chart_base(self._ti3))
+            except (OSError, ValueError, AttributeError):
+                hexagonal = False
+
         class _Worker(QObject):
             done = pyqtSignal(object)
 
@@ -6078,7 +6093,7 @@ class ScannerProfileDialog(_ToolDialogBase):
                 try:
                     r = place_grid(exe, scan, cht, cie, boxes, expected, size,
                                    current_corners=veto, sample_frac=frac,
-                                   search_region=region)
+                                   search_region=region, hexagonal=hexagonal)
                 except Exception:  # noqa: BLE001 — a probe must not kill the tool
                     log.warning("auto align failed", exc_info=True)
                     r = None
