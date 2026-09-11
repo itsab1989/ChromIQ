@@ -291,6 +291,13 @@ it again. It applies to this file's reader and to every agent briefed from it.
 * Ten rounds in a row reported the window server "refusing windows"; two later
   agents measured it again and got real windows on the first try. **Measure it
   yourself before believing any such claim, including one in this file.**
+* **Screen Recording IS granted** (Basti, 2026-09-11), so `screencapture` gives
+  a real picture of a real window. Check it rather than assume, with
+  `CGPreflightScreenCaptureAccess()`, and capture the window rather than
+  `widget.grab()` it. Before the grant, `screencapture -l` answered *"could not
+  create image from window"* and `-R` returned wallpaper, and one round kept
+  three wallpaper files named `BLOCKED-CAPTURE-*` rather than pass them off as
+  evidence. That was the right call and it is no longer necessary.
 
 The sandbox rules in the next section are how you do this SAFELY. They are not
 an alternative to doing it.
