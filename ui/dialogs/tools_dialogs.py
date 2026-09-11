@@ -1586,7 +1586,12 @@ class I1ProfilerToTi3Dialog(_ToolDialogBase):
                 # when the file names none) (Knut).
                 try:
                     from workflow.reference_convert import finalize_converted_ti3
-                    instr, date = finalize_converted_ti3(out, self._txt)
+                    # With the ArgyllCMS folder, so the finalise step can run
+                    # `spec2cie` on a conversion that carries no CIE columns.
+                    instr, date = finalize_converted_ti3(
+                        out, self._txt,
+                        self._settings.get("argyll_bin_path",
+                                           "/Applications/Argyll/bin"))
                     if instr:
                         self._log.appendPlainText(
                             tr("Instrument: {name}").format(name=instr))
