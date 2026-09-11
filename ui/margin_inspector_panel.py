@@ -26,6 +26,7 @@ from ui import neutral_styles
 from ui.theme import by_mode
 from ui.tooltip_button import TooltipButton
 from ui.widgets import (NoScrollDoubleSpinBox, WrappingCheckBox, set_ink)
+from workflow.hex_support import hex_patch_width_row_note
 from workflow.margin_inspector import MarginReport, Violation
 
 # Frame, text margin, the up/down buttons and the theme's padding around a spin
@@ -192,7 +193,14 @@ class MarginInspectorPanel(QGroupBox):
                "to your own ruler). They're only a helpful warning — you can "
                "always go ahead and print anyway.\n\n"
                "The three tick boxes below draw these numbers onto the preview "
-               "in different ways; each has its own ⓘ."), self)
+               "in different ways; each has its own ⓘ.")
+            # THE HONEYCOMB FOOTNOTE ON "Patch width", which is the row it is
+            # about. Knut, 2026-09-11: the help here "does not specify that the
+            # column pitch is equal to the patch width measurement", and the two
+            # rotations have to be told apart. Appended rather than written into
+            # the paragraph above for the reason `hex_two_heights_note` gives:
+            # that string is long, shipped and translated twelve times.
+            + "\n\n" + hex_patch_width_row_note(), self)
         grid.addWidget(self._panel_tip, 0, 4,
                        Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         v.addWidget(self._table)

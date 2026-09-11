@@ -418,19 +418,38 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # table on its own base, so the two disagreed and neither described the
 # merged catalogues. The numbers below are MEASURED on the merged tree
 # rather than reconciled from the two sides.
+# 2026-09-11, #182 items A/B and K7: +3 for the eleven, +0 for German. COUNTED,
+# not estimated -- every number below is `_english_echoes(code)` re-run on the
+# tree this commit leaves behind, and the eleven really did each move by exactly
+# three. Three keys arrive and two go stale:
+#   * the hexagon note (`workflow/hex_support.hex_two_heights_note`) is
+#     REWRITTEN, not extended: it opened "Hexagonal patches have two heights"
+#     and a honeycomb turned 30 degrees has two WIDTHS, so the old sentence was
+#     false on that sheet. A `tr()` key IS its English source, so its twelve
+#     translations cannot be carried across;
+#   * the Custom-paper naming note is rewritten for Knut's two corrections
+#     ("mm" in the size, "Square" for a square sheet), same consequence;
+#   * `hex_patch_width_row_note` is genuinely new, on the margin inspector's ⓘ.
+# German is translated for all three and does not move. The other eleven carry
+# the English source under the beta rule (translations are swept before a final,
+# not during one), which is why this is +3 and not 0.
+# 2026-09-11, THE SECOND MERGE. Three rounds have now moved this table,
+# each on its own base. Re-measured on the merged catalogues rather than
+# reconciled: a number carried across a merge is a number nobody counted.
 _BUDGET = {
     "de": 4,
-    "es": 140,
-    "fr": 141,
-    "it": 140,
-    "ja": 140,
-    "nl": 140,
-    "no": 140,
-    "pl": 140,
-    "pt": 140,
-    "ru": 139,
-    "sv": 140,
-    "zh_CN": 139,
+    "es": 142,
+    "fr": 143,
+    "it": 142,
+    "ja": 142,
+    "nl": 142,
+    "no": 142,
+    "pl": 142,
+    "pt": 142,
+    "ru": 141,
+    "sv": 142,
+    "zh_CN": 141,
+
 }
 
 

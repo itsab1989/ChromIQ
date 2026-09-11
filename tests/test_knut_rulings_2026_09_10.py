@@ -64,6 +64,9 @@ def _panel(**kw):
     ("250x150", "Landscape"),   # a size the paper table has no name for
 ])
 def test_a_custom_size_takes_its_orientation_from_its_two_numbers(qapp, paper, orient):
+    """The orientation half of his ruling, unchanged. The SIZE half gained its
+    "mm" a day later (see `test_knut_rulings_2026_09_11.py`), so the token is
+    checked there and only the word is pinned here."""
     from ui.tabs.tab_chart import TabChart
     # The size token carries its unit since 2026-09-11 (see
     # `test_a_custom_size_carries_its_millimetres`); the orientation half of the

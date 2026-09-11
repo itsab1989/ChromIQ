@@ -117,18 +117,94 @@ def hex_two_heights_note() -> str:
     paragraph is not a trade worth making.
 
     Knut, 2026-09-06 (B8-80), on a chart whose patches print 11.3 × 13.05 mm:
-    *"the 'Patch size (mm)' says 11.3 x 9.78."*"""
+    *"the 'Patch size (mm)' says 11.3 x 9.78."*
+
+    **IT USED TO DESCRIBE ONE ORIENTATION AND READ AS IF IT DESCRIBED BOTH**,
+    which is what Knut found on 2026-09-11: *"when hex patches are used, the
+    help text for the Chart layout information or the Measured from Preview
+    frames do not specify that the column pitch is equal to the patch width
+    measurement. I also assume these numbers are defined differently if the hex
+    patches are 30 degrees rotated or not, so the help text should probably
+    clearly distinguish this and explain."* He assumed right, and the old text
+    was not merely incomplete on a turned sheet, it was WRONG there: it opened
+    "Hexagonal patches have two heights", and a turned honeycomb has two
+    WIDTHS and only one height.
+
+    MEASURED before a word of this was written, on Knut's own CR30 honeycomb
+    from his `testHex` project, rendered at 600 dpi and read back off the
+    patch rectangles (`/tmp` proof folder, `probe_hex3.py` / `probe_hex_render.py`):
+
+    ======================  ==========================  =========================
+    with the boxes set to   UPRIGHT (flat sides l/r)    TURNED 30° (sides top/bot)
+    12.0 wide, 10.0 tall
+    ======================  ==========================  =========================
+    column pitch measured   12.023 mm  (= the width)    11.980 mm  (= ¾ of it)
+    row pitch measured       9.991 mm  (= ¾ of height)   9.991 mm  (= the height)
+    patch, tip to tip       12.00 × 13.33 mm            16.00 × 10.00 mm
+    strips                  zigzag down the page        run straight down
+    ======================  ==========================  =========================
+
+    So the rule is symmetric and the turn swaps the axis it applies to: the
+    pitch ALONG the flat sides equals the patch, and the pitch across the points
+    is three quarters of it. `HEX_HEIGHT_FACTOR` (4/3) is the same number in
+    both, which is why it is not renamed."""
     return tr(
-        "Hexagonal patches have two heights, and they are not the same "
-        "number.\n"
-        "Hexagons interlock, so a row of them starts before the row above has "
-        "finished and the patches sit closer together than they are tall. The "
-        "ROW PITCH is that closer spacing, centre to centre down a strip. It "
-        "decides how many patches fit on the page, and it is the height you set "
-        "in the Patch size boxes. The PATCH is the hexagon itself, measured top "
-        "tip to bottom tip, and it is a third taller: set 9.78 mm and you get a "
-        "patch 13.05 mm from tip to tip, taller than it is wide. Chart layout "
-        "information shows you both.")
+        "Hexagons interlock, so a patch and the spacing between patches are "
+        "not the same measurement, and which way round depends on whether the "
+        "honeycomb is turned.\n"
+        "PITCH is centre to centre between neighbouring patches. The PATCH is "
+        "the hexagon itself, measured tip to tip across its two points.\n\n"
+        "Upright honeycomb (the usual one): the flat sides face left and "
+        "right, and the strips zigzag down the page. Across the page the "
+        "hexagons sit side by side, so the COLUMN PITCH is exactly the patch "
+        "width, and the width box under Patch size sets both. Down a strip "
+        "they overlap, so the ROW PITCH is the smaller number: the height box "
+        "sets the row pitch, and the hexagon stands a third taller than it. "
+        "Set 9.78 mm and the patch measures 13.05 mm from tip to tip.\n\n"
+        "Turned 30 degrees: the flat sides face up and down, and each strip "
+        "runs straight down the page. Down a strip the hexagons sit end to "
+        "end, so the ROW PITCH is exactly the patch height, and the height box "
+        "sets both. Across the page they overlap, so the COLUMN PITCH is the "
+        "smaller number: the width box sets the column pitch, and the hexagon "
+        "is a third wider than it. Set 9.28 mm and the patch measures 12.37 mm "
+        "across.\n\n"
+        "Chart layout information names whichever pitch this chart has, Row "
+        "pitch or Column pitch, and shows the patch size beside it.")
+
+
+def hex_patch_width_row_note() -> str:
+    """What the margin inspector's "Patch width" row really measures on a
+    honeycomb.
+
+    A SEPARATE, SHORT STRING rather than a paragraph added to that panel's ⓘ:
+    its standing help is one long shipped key translated into twelve languages,
+    and this is the same trade `hex_two_heights_note` already makes with the
+    other two tooltips.
+
+    MEASURED on two real renders of Knut's own hex chart at 600 dpi
+    (`probe_hex_render.py`): the row is `block width ÷ strips`
+    (`workflow/margin_inspector._estimate_patch_width_mm`), so it reports
+    **9.4448 mm** on an upright honeycomb whose column pitch is 9.2287 and
+    whose patches are 9.20 wide, and **9.3757 mm** on the turned one whose
+    column pitch is 9.2710 and whose patches are **12.37** wide. On the turned
+    sheet the row therefore understates the hexagon by very nearly a quarter,
+    which is exactly the number Knut asked the help text to explain.
+    """
+    # NO QUOTED CONTROL NAMES IN HERE. A quoted name has to be the name the
+    # reader's own window shows, and this string is carried in English by the
+    # eleven catalogues that have not been swept yet, where every one of these
+    # controls is renamed. `tests/test_a_quoted_control_names_the_control_the_
+    # reader_has.py` catches exactly that, and it caught this. The sentences
+    # name the rows in prose instead, which is true in any language.
+    return tr(
+        "On a hexagonal chart, the patch width above is the spacing from one "
+        "strip to the next: it is measured across the printed strips and "
+        "divided by their number, which is the column pitch. On an upright "
+        "honeycomb that pitch IS the hexagon's width, so the figure is the "
+        "patch width. On a honeycomb turned 30 degrees the hexagon is a third "
+        "wider than its column pitch, so the patch is wider than this figure "
+        "says. The chart layout information panel shows the patch size and the "
+        "pitch separately, and names which pitch it is showing.")
 
 
 def hex_patch_width_mm(column_pitch_mm: float) -> float:
