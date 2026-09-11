@@ -9870,16 +9870,28 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
 
     @staticmethod
     def _chart_patch_count(ti2: "Path | None") -> "int | None":
-        """The chart's patch count, from its own header — cheap enough to read
-        on every panel refresh."""
-        import re
+        """The chart's patch count: what a complete measurement of it holds.
+
+        THROUGH `expected_patches`, NOT A `NUMBER_OF_SETS` OF ITS OWN. A chart's
+        last strip is filled out with rows that are not part of the design, and
+        `measurement_state.expected_patches` is the one place that knows how to
+        discount them for both layout engines (printtarg marks them `SAMPLE_ID`
+        0, ChromIQ's numbers them like any other row). Three other places in
+        this tab already ask it.
+
+        This one read the raw header, and it is the door that REFUSES: on a
+        4,014-row chart of 4,000 designed patches it told the user "the
+        verification chart has 4014 patches, but this file holds 4000
+        measurements" and turned a complete measurement away, while the info
+        box above named 4,014 as the chart's size. The profile-build import met
+        the same arithmetic on 2026-09-11 and was put through `expected_patches`
+        the same day; this copy was left behind. One counting rule, in one
+        place.
+        """
         if ti2 is None:
             return None
-        try:
-            m = re.search(r"NUMBER_OF_SETS\s+(\d+)", read_text(ti2, lenient=True))
-        except OSError:
-            return None
-        return int(m.group(1)) if m else None
+        from workflow.measurement_state import expected_patches
+        return expected_patches(ti2)
 
     def _update_import_panel(self) -> None:
         """Fill the info box for the current file + target, and set the Import

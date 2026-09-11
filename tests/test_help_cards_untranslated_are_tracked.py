@@ -455,19 +455,27 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # ru 142, sv 143, zh_CN 142, and in each of the eleven the one new echo is
 # "The reference colour set could not be read...".
 # 2026-09-11, THE FOURTH MERGE. Measured again on the merged catalogues.
+# 2026-09-11, the adversarial round: the Build Profile tab now says when the
+# measurement already in the run carries its CIE columns on the 0..1 scale.
+# TWO strings, the label suffix and the Build button's tooltip, and BOTH count
+# here (the suffix is 37 characters, over this file's 25-character floor, and
+# neither begins with a skipped brand word). German is translated for both and
+# stays at 4; the eleven carry the English source under the beta rule, so every
+# other budget rises by exactly two. RE-MEASURED with this file's own
+# `_english_echoes` on the catalogues this change leaves behind.
 _BUDGET = {
     "de": 4,
-    "es": 144,
-    "fr": 145,
-    "it": 144,
-    "ja": 144,
-    "nl": 144,
-    "no": 144,
-    "pl": 144,
-    "pt": 144,
-    "ru": 143,
-    "sv": 144,
-    "zh_CN": 143,
+    "es": 146,
+    "fr": 147,
+    "it": 146,
+    "ja": 146,
+    "nl": 146,
+    "no": 146,
+    "pl": 146,
+    "pt": 146,
+    "ru": 145,
+    "sv": 146,
+    "zh_CN": 145,
 }
 
 
