@@ -4985,7 +4985,7 @@ class MeasurementReportDialog(QDialog):
             cells.append(
                 "<tr>"
                 f"<td style='padding:1px 8px 1px 0'>{html.escape(str(name))}</td>"
-                f"<td>{_swatch(exp)}</td>"
+                f"<td style='padding-right:10px'>{_swatch(exp)}</td>"
                 f"<td>{_swatch(got)}</td>"
                 f"<td align='right' style='padding-left:10px'>"
                 f"{_fmt(d, 2)}</td></tr>")
@@ -4993,8 +4993,14 @@ class MeasurementReportDialog(QDialog):
                 "style='margin:2px 0 6px'>"
                 "<tr><th align='left' style='padding-right:8px'>"
                 + html.escape(tr("Patch")) + "</th>"
-                "<th align='left'>" + html.escape(tr("Asked for")) + "</th>"
-                "<th align='left'>" + html.escape(tr("Measured")) + "</th>"
+                # THE TWO SWATCH COLUMNS NEED AIR. Photographed on screen:
+                # "Asked for" ran straight into "Measured" with no gap, so the
+                # header read as one word and the two blocks below it as one
+                # block.
+                "<th align='left' style='padding-right:10px'>"
+                + html.escape(tr("Asked for")) + "</th>"
+                "<th align='left' style='padding-right:10px'>"
+                + html.escape(tr("Measured")) + "</th>"
                 "<th align='right' style='padding-left:10px'>"
                 + html.escape(tr("ΔE00")) + "</th></tr>"
                 + "".join(cells) + "</table>")
