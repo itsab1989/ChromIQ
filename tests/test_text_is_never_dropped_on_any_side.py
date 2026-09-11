@@ -113,13 +113,13 @@ def test_the_floor_is_a_distance_on_paper_not_a_count_of_pixels():
         got = tef.note_min_strip_px(d) * 25.4 / d
         assert abs(got - floor_mm) < 0.06, (
             f"the floor is {got:.3f} mm at {d} dpi, not {floor_mm:.3f}")
-    # A TYPED SIZE IS ITS OWN FLOOR, so a user who asks for 6 pt gets a narrower
-    # strip and NOT the 8 pt one (Knut: *"Manually setting size below 8pt
+    # A TYPED SIZE IS ITS OWN FLOOR, so a user who asks for 5 pt gets a narrower
+    # strip and NOT the auto floor's (Knut: *"Manually setting size below 8pt
     # should be working fine also"*).
-    six = tef.note_min_width_mm(300, 6.0)
-    assert six < floor_mm - 0.5, (
-        f"a typed 6 pt still reserves the 8 pt floor's {floor_mm:.3f} mm "
-        f"({six:.3f} mm)")
+    five = tef.note_min_width_mm(300, 5.0)
+    assert five < floor_mm - 0.5, (
+        f"a typed 5 pt still reserves the floor's {floor_mm:.3f} mm "
+        f"({five:.3f} mm)")
 
 
 def test_the_photo_card_that_lost_its_line_is_the_case_that_warns():
@@ -127,18 +127,24 @@ def test_the_photo_card_that_lost_its_line_is_the_case_that_warns():
 
     `ui/tabs/tab_chart.py` builds it with a 5.0 mm right margin and the family's
     4.0 mm "Clip", at 300 dpi. 5.0 less the reserve and the 0.34 mm patch guard
-    is 0.66 mm of paper, and a line at the 8 pt floor needs 3.076 mm.
+    is 0.66 mm of paper, and a line at the 7 pt floor needs 2.723 mm.
 
-    THE SHORTFALL IN THIS DOCSTRING HAS BEEN 0.27 mm AND THEN 0.74 mm. The
+    THE SHORTFALL IN THIS DOCSTRING HAS BEEN 0.27 mm, 0.74 mm AND 2.42 mm. The
     first was a floor of 0.93 mm, 11 pixels read at 300 dpi; the second the
     same 11 pixels expressed on paper. Both were floors on the RASTER: 9 px is
-    3.24 pt at 200 dpi. Knut set the floor at 8 pt on 2026-09-11, so the card
-    is short by 2.42 mm, and is short by the same amount at every resolution,
-    which is the point.
+    3.24 pt at 200 dpi. Knut set the floor at 8 pt on 2026-09-11 and at 7 pt
+    the same evening, so the card is now short by 2.06 mm, and is short by the
+    same amount at every resolution, which is the point. The number is derived
+    from the constant rather than typed, so moving the floor again moves it.
     """
     o = tef.chart_note_overlap("right", 5.0, 4.0, 300)
     assert o is not None, "the card that lost its line does not warn"
-    assert 2.3 < o.overlap_mm < 2.5, f"the shortfall moved: {o.overlap_mm:.3f} mm"
+    want = tef.note_min_width_mm(300) - (5.0 - 4.0 - tef.SAFETY_PAD_MM)
+    assert abs(o.overlap_mm - want) < 0.01, (
+        f"the shortfall moved: {o.overlap_mm:.3f} mm, not {want:.3f}")
+    assert 2.0 < o.overlap_mm < 2.2, (
+        f"the card is short by {o.overlap_mm:.3f} mm, not the 2.06 the 7 pt "
+        f"floor gives it")
     for d in (200, 600):
         other = tef.chart_note_overlap("right", 5.0, 4.0, d)
         assert other is not None and abs(other.overlap_mm - o.overlap_mm) < 0.01, (

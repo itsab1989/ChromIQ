@@ -125,7 +125,8 @@ def stamp_chart_metadata(
     Knut, 2026-09-11: *"The Sheet text frame Font and Size should be used for
     the Run Chart Notes text and the 'Stamp settings used on the chart'
     checkbox, so that the text is controllable."* A size of 0 is the box's
-    "auto", which lets the line shrink to fit, down to 8 pt and no further.
+    "auto", which lets the line shrink to fit, down to
+    :data:`text_edge_fit.AUTO_SHRINK_FLOOR_PT` and no further.
     """
     pieces = [s.strip() for s in lines if s and s.strip()]
     if not pieces:
@@ -1002,6 +1003,33 @@ def _render_fitted_rotated_line(
     that axis ends at the user's "Text distance from edge" and overflowing it is
     the fault this parameter exists to stop.
     """
+    shown, font = fit_rotated_line(text, strip_h, strip_w, anchor_px=anchor_px,
+                                   font_family=font_family, size_pt=size_pt,
+                                   dpi=dpi)
+    return _render_rotated_line(shown, strip_h, strip_w, font, dtype,
+                                channels, anchor_px=anchor_px)
+
+
+def fit_rotated_line(
+    text: str,
+    strip_h: int,
+    strip_w: int,
+    anchor_px: int | None = None,
+    font_family: str = "",
+    size_pt: float = 0.0,
+    dpi: float = 200.0,
+):
+    """``(text as it will be printed, the font)`` for a rotated side line.
+
+    THE DECISION, SEPARATED FROM THE DRAWING, so the panel can ask what the
+    stamper will do without rendering a strip. Knut's ruling of 2026-09-11
+    lowered the automatic floor from 8 pt to 7 because his own 141-character
+    note lost its last twelve characters at 8 pt, and that loss reached him
+    only as ink he could not read: the log says so at INFO and nothing on
+    screen did. A predicate the panel can call is what makes it sayable, and
+    it has to be THIS predicate rather than a second copy of the rule, because
+    the panel's whole job here is to predict what the stamper does.
+    """
     fixed = float(size_pt or 0.0) > 0.0
     floor_px = text_edge_fit.pt_to_px(text_edge_fit.text_floor_pt(size_pt), dpi)
     available_text_w = strip_h - 2 * _PATCH_SAFETY_PAD_PX
@@ -1032,8 +1060,7 @@ def _render_fitted_rotated_line(
             font_px = max(floor_px, int(font_px * 0.9))
             continue
         if text_w <= available_text_w:
-            return _render_rotated_line(shown, strip_h, strip_w, font, dtype,
-                                        channels, anchor_px=anchor_px)
+            return shown, font
         if font_px > floor_px:
             font_px = max(floor_px, int(font_px * 0.9))
             continue
@@ -1048,12 +1075,73 @@ def _render_fitted_rotated_line(
         # of vanishing. Nine pixels is already the legibility floor and going
         # below it would trade one silent loss for another.
         if len(shown) <= 8:
-            return _render_rotated_line(shown, strip_h, strip_w, font, dtype,
-                                        channels, anchor_px=anchor_px)
+            return shown, font
         cut = max(8, int(len(shown) * available_text_w / max(1, text_w)) - 1)
         shown = shown[:cut].rstrip() + "…"
         log.info("Chart note shortened to fit the margin: %d of %d characters",
                  len(shown) - 1, len(text))
+
+
+#: The widest strip the right-margin note is ever drawn into, in pixels.
+#: `_stamp_one`: ``strip_w = min(40, …)``. Repeated as a name so the predictor
+#: below and the stamper cannot pick different numbers.
+NOTE_STRIP_MAX_PX = 40
+
+
+def note_characters_lost(text: str, paper_h_mm: float, text_edge_mm: float,
+                         avail_mm: float, dpi: float, size_pt: float = 0.0,
+                         font_family: str = "") -> int:
+    """How many characters the chart note loses off the END of the sheet.
+
+    0 when the whole note is printed, which is the ordinary case.
+
+    **THIS IS THE OTHER HALF OF THE SHRINK FLOOR, AND IT WAS SILENT.** A floor
+    that stops the type getting smaller is only honest while the text it leaves
+    still fits the sheet. Knut, 2026-09-11, on his own 130 x 180 mm card: *"The
+    auto setting shrunk the text to size 8, but that cause the long text to
+    overflow the height of the page, so I changed to size 7."* Measured through
+    `fit_rotated_line` at his own numbers, the 141-character note came out as
+    **129 characters and an ellipsis** at an 8 pt floor and whole at 7 pt, and
+    what was cut was *"nagement: OFF"*, the end of the colour-management
+    instruction the note exists to carry. `_stamp_one` says so in the log at
+    INFO and nothing said it on screen.
+
+    The answer comes from the fitter itself rather than from a second copy of
+    its rule, because the panel's job here is to predict what the stamper does
+    and the two have drifted apart once already.
+    """
+    body = str(text or "")
+    if not body:
+        return 0
+    try:
+        d = float(dpi)
+        if d <= 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        d = 200.0
+    mm2px = d / 25.4
+    pad = int(round(max(0.0, float(text_edge_mm or 0.0)) * mm2px))
+    H = int(round(max(0.0, float(paper_h_mm or 0.0)) * mm2px))
+    if 2 * pad >= H:
+        pad = 0
+    strip_h = H - 2 * pad
+    if strip_h < 100:
+        return 0
+    floor_px = text_edge_fit.note_min_strip_px(d, size_pt)
+    strip_w = int(round(max(0.0, float(avail_mm or 0.0)) * mm2px))
+    strip_w = min(NOTE_STRIP_MAX_PX, strip_w)
+    if strip_w < floor_px:                 # the overlap path: it gets the floor
+        strip_w = floor_px
+    shown, _font = fit_rotated_line(body, strip_h, strip_w,
+                                    anchor_px=_NOTE_PATCH_GAP_PX,
+                                    font_family=font_family, size_pt=size_pt,
+                                    dpi=d)
+    if shown == body:
+        return 0
+    # The fitter marks a cut with a trailing ellipsis, which is not one of the
+    # user's own characters.
+    kept = len(shown) - 1 if shown.endswith("…") else len(shown)
+    return max(0, len(body) - kept)
 
 
 def _pick_font(size_px: int, family: str = "") -> ImageFont.ImageFont:
