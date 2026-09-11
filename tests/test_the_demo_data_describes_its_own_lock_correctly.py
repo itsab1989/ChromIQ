@@ -86,7 +86,43 @@ def test_no_description_says_anything_about_the_lock(gen):
                 f"{rid}'s description writes the lock state by hand "
                 f"({plan.description!r}); declare it with lock= instead, so "
                 "the sentence and the data cannot drift apart")
-        assert plan.full_description.endswith(gen.LOCK_SENTENCES[plan.lock])
+        assert plan.full_description.endswith(
+            gen.LOCK_SENTENCES[plan.lock].format(set=plan.set_name))
+
+
+def test_the_limit_sentence_names_the_set_and_defines_both_words(gen):
+    """Knut, 2026-09-11, reading one out of a Colour summary: *"what is the
+    difference between bound and locked? Be specific in the explanation, so
+    that user understands that chosen limits are bound to chosen 'ChromIQ
+    default' thresholds as this was used for the first dated verification
+    run."*
+
+    So a sentence that uses either word must say what it means and name the
+    set. And it may not read as a note about something that went wrong: *"Text
+    written in any report shall only be factual and not refer to any bugs or
+    failures that were corrected."*
+
+    MUTATION: put "and the lock was never lifted" back into the locked
+    sentence, or drop "{set}" from any of the three, and this goes red.
+    """
+    for state, sentence in gen.LOCK_SENTENCES.items():
+        assert "{set}" in sentence, (
+            f"the {state!r} sentence does not name the set the run is bound "
+            f"to, which is the half a reader can act on")
+        assert "Bound means" in sentence, (
+            f"the {state!r} sentence uses 'bound' without defining it")
+        assert "never" not in sentence.lower(), (
+            f"the {state!r} sentence reads as a note about something that did "
+            f"not go wrong: {sentence!r}")
+        assert "lifted" not in sentence.lower(), (
+            f"the {state!r} sentence says a lock was 'lifted', which describes "
+            f"a correction rather than a state: {sentence!r}")
+
+    for rid, plan in _plans(gen):
+        text = plan.full_description
+        assert "{" not in text, f"{rid}'s description has an unfilled slot"
+        assert plan.set_name.split(",")[0] in text, (
+            f"{rid}'s description does not name its limit set")
 
 
 def test_all_three_lock_states_are_demonstrated(gen):

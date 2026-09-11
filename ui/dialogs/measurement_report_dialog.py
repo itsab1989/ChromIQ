@@ -211,12 +211,47 @@ def _report_needs_rebuilding(rep: dict) -> bool:
 
     The caller carries the saved verdict across a rebuild untouched, so this
     computes rows that were never computed and re-grades nothing.
+
+    **AND THE THIRD BLOCK WAS MISSING FROM THIS LIST, WHICH IS THE SAME FAULT
+    AGAIN.** Knut, 2026-09-11, opening a report from the shared demo package:
+    the Colour summary's Example colours section read *"This measurement was
+    saved before ChromIQ chose example colours. Measure the chart again to
+    have them."* It was true and it was avoidable. `summary_patches` is the
+    sixteen colours the one-page summary is mostly made of; the current builder
+    always writes it beside `worst_patches` whenever the measurement has a
+    reference, and it arrived after the two blocks named above. A report older
+    than it passed this test, was never rebuilt, and told the reader to measure
+    a chart again for something that is entirely computable from the file in
+    the same folder.
+
+    That is word for word the fault the paragraph above records being fixed for
+    `grey_balance`. The rule in `docs/design/measurement_report_limits.md` §6
+    is general, "a report missing a block the current builder always writes is
+    stale, at any schema"; this function ENUMERATED, so each new block had to
+    be remembered separately and the third was not. The blocks are listed in
+    one tuple now, next to the sentence that says what belongs in it.
+
+    A report with no reference is already stale by the `avg_all` clause above,
+    which is the same condition under which the builder writes none of these
+    three, so adding the third cannot put a report into a rebuild loop that the
+    second clause was not already putting it into.
     """
     from workflow.measurement_report import REPORT_SCHEMA
     return (rep.get("schema", 0) < REPORT_SCHEMA
             or (rep.get("de00") or {}).get("avg_all") is None
-            or "grey_balance" not in rep
-            or "ramps_30_70" not in rep)
+            or any(k not in rep for k in ALWAYS_BUILT_BLOCKS))
+
+
+#: Every block `workflow.measurement_report.build_report` writes on ANY
+#: measurement that has a reference. A saved report missing one of them was
+#: written by an older ChromIQ and is stale however new its schema says it is.
+#:
+#: ADD TO THIS TUPLE WHEN YOU ADD A BLOCK TO THE BUILDER. Three blocks have
+#: been added since the schema stopped being bumped for them, and two of the
+#: three had to be found by a user reading a report that told him to measure
+#: his chart again for a number that was already on his disk.
+ALWAYS_BUILT_BLOCKS: "tuple[str, ...]" = ("grey_balance", "ramps_30_70",
+                                          "summary_patches")
 
 
 def _h2(text: str, *, page_break: bool = False) -> str:

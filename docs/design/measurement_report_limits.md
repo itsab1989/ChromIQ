@@ -125,10 +125,12 @@ cannot supply the row, with the reason beside it.
 > existed; only this sentence was behind.
 >
 > **A TYPE that judges nothing.** Report type T4, "Printing record (not
-> graded)", withholds every verdict by the user's choice. **This document does
-> not describe the report types at all** — `grep "Printing record"` over it
-> returns nothing — so that is a gap to fill with Knut rather than a rule to
-> write here alone.
+> graded)", withholds every verdict by the user's choice. That gap has since
+> been filled: §10 describes the six types, so the sentence that used to stand
+> here, *"This document does not describe the report types at all, `grep
+> "Printing record"` over it returns nothing"*, is no longer true of this
+> document and the check it named now returns four hits. It is corrected rather
+> than deleted because it was the reason §10 was written.
 
 A sheet is **graded** unless it is the run's own **profiling** chart (a file
 directly in `runs/runN/`, printed raw by definition) or a raw drift check.
@@ -387,3 +389,67 @@ What is on disk is left alone so that later ChromIQ still finds the choice.
 
 **Not built here:** T5 and T6. Their figures are published in standards
 ChromIQ has no permission to include (§9, S-2).
+
+### ⏳ REPORTED, NOT FIXED: a limit-set change rewrites the TYPE of every saved report
+
+**Confirmed by:** *nobody yet.* **Reported 2026-09-11**, driven on screen
+against `ChromIQ-Report-Limit-Demos/Report-Limits-Report-Types/run1`. Not
+fixed, because the rule it would change is in this document and a fault that
+contradicts a specification is reported and approved before it is corrected
+(CLAUDE.md, Knut 2026-08-06).
+
+**What was driven.** That run ships three saved reports of one measurement, a
+Colour summary, a Full colour check and a Printing record, which is the state
+the paragraph above asks for. The window opened on it, the type pulldown was
+left where it was, and **one** limit set was chosen. Before:
+
+```
+report_2026-11-02_10-00-00.json     Colour summary (one page)
+report_2026-11-02_10-00-00_2.json   Full colour check
+report_2026-11-02_10-00-00_3.json   Printing record (not graded)
+line under the pulldown: Already generated for this run:
+    Colour summary (one page) (2), Full colour check (1),
+    Printing record (not graded) (1)
+```
+
+After, with nothing else touched:
+
+```
+report_2026-11-02_10-00-00.json     Colour summary (one page)
+report_2026-11-02_10-00-00_2.json   Colour summary (one page)
+report_2026-11-02_10-00-00_3.json   Colour summary (one page)
+line under the pulldown: Already generated for this run:
+    Colour summary (one page) (4)
+```
+
+**Where it comes from.** `MeasurementReportDialog._recalculate_run` calls
+`stamp_report_type(rep, ctx.run)` on every saved report of every date. Its own
+comment says why it was added: a recalculation used to leave reports "claiming
+the type the run held when they were first saved, so the record said one thing
+and the run another". That reasoning holds while a run has ONE type, which is
+what was true when it was written. Knut's ruling of 2026-09-11 that a run may
+hold reports of several types makes the run's current choice the wrong source:
+the type belongs to the DOCUMENT, which is why it is stored on the report at
+all.
+
+**Which rules it touches.**
+
+* *"A run may hold reports of several types"* survives only until the next
+  limit-set change, which is an ordinary action a user takes for an unrelated
+  reason.
+* *"The line under the pulldown lists the types the run has already produced,
+  counted from the files on disk"* then names documents nobody generated
+  (three extra Colour summaries) and hides two that were.
+* Nothing is lost: `reports/old/<timestamp>/` keeps the originals with their
+  true types, and §5's archive-then-rewrite rule worked exactly as written.
+  What is wrong is what the LIVE files say they are.
+
+**What is NOT claimed here.** Whether the right answer is to leave each saved
+report's type alone, to stamp only reports that have none, or something else,
+is a ruling, not a defect report. §5 says a recalculation rewrites the verdict;
+it has never said anything about the type, and the clause that would settle it
+does not exist yet.
+
+**Reproduction:** `scripts/drive_report_types_onscreen.py` drives it as part of
+its sweep; the isolated one-action version is in the proof folder for this
+round.
