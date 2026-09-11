@@ -720,18 +720,18 @@ def test_every_deliberate_exception_says_why():
 # rule, so the ceilings came DOWN by two instead of up by five: two English
 # placeholders from an earlier round were replaced in the same pass.
 _IDENTICAL_TO_KEY = {
-    "de": 123,
-    "es": 294,
-    "fr": 316,
-    "it": 305,
-    "ja": 280,
-    "nl": 321,
-    "no": 306,
-    "pl": 298,
-    "pt": 296,
-    "ru": 269,
-    "sv": 307,
-    "zh_CN": 274,
+    "de": 124,
+    "es": 295,
+    "fr": 317,
+    "it": 306,
+    "ja": 281,
+    "nl": 322,
+    "no": 307,
+    "pl": 299,
+    "pt": 297,
+    "ru": 270,
+    "sv": 308,
+    "zh_CN": 275,
 }
 
 

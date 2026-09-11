@@ -300,7 +300,7 @@ def test_a_measurement_in_no_project_keeps_its_choice_for_the_session(
 #: THIS IS A RATCHET. The step that builds a type comes here and adds it; a
 #: step that builds one and leaves this untouched has either changed nothing or
 #: changed T2. It bit on the first try: adding T4 turned this red.
-_DIFFERS_FROM_T2 = {REPORT_TYPE_RECORD, REPORT_TYPE_GREY}
+_DIFFERS_FROM_T2 = {REPORT_TYPE_RECORD, REPORT_TYPE_GREY, REPORT_TYPE_SUMMARY}
 
 
 @pytest.mark.parametrize("tid", REPORT_TYPES)

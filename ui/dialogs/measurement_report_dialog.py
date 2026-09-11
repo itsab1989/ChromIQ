@@ -4867,6 +4867,16 @@ class MeasurementReportDialog(QDialog):
                     + _colour_line_html() + created_line + "<br>")
         else:
             head = created_line
+        # T1 IS A DIFFERENT DOCUMENT, not the full one with rows removed. It
+        # is one page to print and hand over with a job (Knut), so it branches
+        # here rather than filtering below: no "How to read" essay, no trend
+        # charts, no comparison table, no opt-in detail.
+        from workflow.measurement_report import REPORT_TYPE_SUMMARY
+        if _tid == REPORT_TYPE_SUMMARY and report_type_is_built(_tid):
+            family = QApplication.font().family().replace("'", "")
+            return (f"<div style=\"font-family:'{family}';color:{_C['text']};"
+                    f"font-size:12px\">"
+                    + head + self._one_page_html(runs) + "</div>")
         parts = [head, self._scope_html(runs), self._how_to_read_html(),
                  self._report_results_html(runs)]
         if for_pdf and charts_html:
@@ -4890,6 +4900,104 @@ class MeasurementReportDialog(QDialog):
         return (f"<div style=\"font-family:'{family}';color:{_C['text']};"
                 f"font-size:12px\">"
                 + "".join(parts) + "</div>")
+
+    def _one_page_html(self, runs: list) -> str:
+        """T1, "Colour summary (one page)": the page that goes with the job.
+
+        **Knut** described it as the report handed to a customer with the print
+        they ordered: *"a very short overview of accuracy of a selection of
+        colors, with some statistics, that can be printed out for every job."*
+
+        So it carries the run's own description, one line of statistics, the
+        sixteen example colours the chart itself supplied, the cube corners,
+        and the promise that governs every report ChromIQ writes. It carries no
+        customer or job name, which he ruled out for today, and no essay.
+        """
+        from workflow.compliance_sets import summary_text, word_label
+        from workflow.measurement_report import SUMMARY_PATCH_COUNT
+        r = runs[0]
+        out = [self._scope_html(runs)]
+
+        # -- the one line of numbers a reader acts on
+        de = r.get("de00") or {}
+        sm = self._column_summary(r)
+        bits = []
+        if de.get("avg_all") is not None:
+            bits.append(tr("Average difference {v}").format(
+                v=_fmt(de.get("avg_all"), 2)))
+        if de.get("max_all") is not None:
+            bits.append(tr("Largest {v}").format(v=_fmt(de.get("max_all"), 2)))
+        if de.get("n"):
+            n = int(de["n"])
+            # Singular and plural in full, never "(s)" (CLAUDE.md).
+            bits.append(tr("{n} patch").format(n=n) if n == 1
+                        else tr("{n} patches").format(n=n))
+        out.append(_h2(tr("Result")) + _gap()
+                   + "<div><b>" + html.escape(word_label(sm.word)) + "</b>"
+                   + (" · " + html.escape("; ".join(bits)) if bits else "")
+                   + "</div>"
+                   + f"<div style='color:{_C['dim']};margin-top:2px'>"
+                   + html.escape(summary_text(sm)) + "</div>")
+
+        # -- the colours, from the chart that was measured
+        picked = r.get("summary_patches") or []
+        if picked:
+            out.append(_h2(tr("Example colours")) + _gap()
+                       + f"<div style='color:{_C['dim']};margin-bottom:4px'>"
+                       + html.escape(tr(
+                           "{count} colours from the chart that was measured, "
+                           "spread across what this printer can make. Left: "
+                           "what the chart asked for. Right: what came back."
+                       ).format(count=len(picked))) + "</div>"
+                       + self._swatch_table_html(picked))
+        else:
+            # A report saved before the example colours existed carries none,
+            # and says so rather than showing an empty frame.
+            out.append(_h2(tr("Example colours")) + _gap()
+                       + f"<div style='color:{_C['dim']}'>" + html.escape(tr(
+                           "This measurement was saved before ChromIQ chose "
+                           "example colours. Measure the chart again to have "
+                           "them.")) + "</div>")
+
+        corners = [c for c in (r.get("corners") or []) if c.get("present")]
+        if corners:
+            out.append(_h2(tr("Cube corners")) + _gap()
+                       + self._swatch_table_html(corners))
+
+        out.append(f"<div style='color:{_C['dim']};margin-top:10px'>"
+                   + html.escape(tr(
+                       "ChromIQ measures against published values; it does "
+                       "not certify. This page says what was measured and "
+                       "what it was compared against."))
+                   + "</div>")
+        return "".join(out)
+
+    def _swatch_table_html(self, rows: list) -> str:
+        """A patch per row: what was asked for, what came back, and how far
+        apart they are. Two swatches side by side, because a number alone is
+        not what a person hands to a customer."""
+        cells = []
+        for x in rows:
+            name = x.get("name") or x.get("loc") or ""
+            exp, got = x.get("expected_hex", ""), x.get(
+                "measured_hex") or x.get("hex", "")
+            d = x.get("de")
+            cells.append(
+                "<tr>"
+                f"<td style='padding:1px 8px 1px 0'>{html.escape(str(name))}</td>"
+                f"<td>{_swatch(exp)}</td>"
+                f"<td>{_swatch(got)}</td>"
+                f"<td align='right' style='padding-left:10px'>"
+                f"{_fmt(d, 2)}</td></tr>")
+        return ("<table cellspacing='0' cellpadding='0' "
+                "style='margin:2px 0 6px'>"
+                "<tr><th align='left' style='padding-right:8px'>"
+                + html.escape(tr("Patch")) + "</th>"
+                "<th align='left'>" + html.escape(tr("Asked for")) + "</th>"
+                "<th align='left'>" + html.escape(tr("Measured")) + "</th>"
+                "<th align='right' style='padding-left:10px'>"
+                + html.escape(tr("ΔE00")) + "</th></tr>"
+                + "".join(cells) + "</table>")
 
     def _pdf_html(self, runs: list, charts_html: str) -> str:
         return self._report_body_html(runs, for_pdf=True, charts_html=charts_html)

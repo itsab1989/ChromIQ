@@ -1147,7 +1147,7 @@ def report_type(report: "dict | None") -> str:
 #: honest state, rather than hidden, which would say nothing at all.
 REPORT_TYPE_MENU: "tuple[tuple[str, str, str, bool], ...]" = (
     (REPORT_TYPE_SUMMARY, "Colour summary (one page)",
-     "One page to print and hand over with a job.", False),
+     "One page to print and hand over with a job.", True),
     (REPORT_TYPE_FULL, "Full colour check",
      "Everything ChromIQ measures, in full. This is the report you know.",
      True),
