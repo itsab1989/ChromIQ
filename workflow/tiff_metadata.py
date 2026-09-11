@@ -112,12 +112,20 @@ def stamp_chart_metadata(
     lines: Sequence[str],
     text_edge_mm: float = 0.0,
     clip_band_mm: float = 0.0,
+    font_family: str = "",
+    size_pt: float = 0.0,
 ) -> None:
     """Stamp `lines` joined into a single rotated text line on each TIFF's right margin.
 
     *text_edge_mm* is the user's "Text distance from edge" setting. It was not
     passed at all, so the note started 0.5 mm from the paper edge whatever the
     box said. Zero keeps the old floor, which is what an unset value means.
+
+    *font_family* and *size_pt* are the **Sheet text frame's** Font and Size.
+    Knut, 2026-09-11: *"The Sheet text frame Font and Size should be used for
+    the Run Chart Notes text and the 'Stamp settings used on the chart'
+    checkbox, so that the text is controllable."* A size of 0 is the box's
+    "auto", which lets the line shrink to fit, down to 8 pt and no further.
     """
     pieces = [s.strip() for s in lines if s and s.strip()]
     if not pieces:
@@ -125,7 +133,8 @@ def stamp_chart_metadata(
     text = _JOIN.join(pieces)
     for path in tiff_paths:
         try:
-            _stamp_one(Path(path), text, text_edge_mm, clip_band_mm)
+            _stamp_one(Path(path), text, text_edge_mm, clip_band_mm,
+                       font_family, size_pt)
         except Exception as exc:
             log.warning("Right-edge stamp failed for %s: %s", path, exc)
 
@@ -296,7 +305,8 @@ def stamp_left_clip_info(
 
 
 def _stamp_one(path: Path, text: str, text_edge_mm: float = 0.0,
-               clip_band_mm: float = 0.0) -> None:
+               clip_band_mm: float = 0.0, font_family: str = "",
+               size_pt: float = 0.0) -> None:
     with tifffile.TiffFile(str(path)) as tf:
         page = tf.pages[0]
         # Device-native (separated) CMYK / CMYK+N charts: skip the post-render
@@ -415,7 +425,7 @@ def _stamp_one(path: Path, text: str, text_edge_mm: float = 0.0,
     # about in red in the "Measured from Preview" frame
     # (`ui/tabs/tab_chart.py::_engine_text_overflow_warnings`), which is the
     # part of the ruling the user actually sees.
-    _floor_px = text_edge_fit.note_min_strip_px(_dpi)
+    _floor_px = text_edge_fit.note_min_strip_px(_dpi, size_pt)
     _overlaps = strip_w < _floor_px
     if _overlaps:
         strip_w = min(_floor_px, _right_limit)
@@ -458,7 +468,9 @@ def _stamp_one(path: Path, text: str, text_edge_mm: float = 0.0,
     # the page-edge reserve above cheap: the blank part of the strip now falls
     # on the reserve's side, where it costs nothing.
     strip = _render_fitted_rotated_line(text, strip_h, strip_w, dtype, C,
-                                        anchor_px=_NOTE_PATCH_GAP_PX)
+                                        anchor_px=_NOTE_PATCH_GAP_PX,
+                                        font_family=font_family,
+                                        size_pt=size_pt, dpi=_dpi)
     # The strip itself stays anchored to the patch-side (left) edge of the
     # band. The band is the widest white column run right of the patches; when
     # the chart doesn't fill the sheet that run is a large empty area, so
@@ -952,15 +964,35 @@ def _render_fitted_rotated_line(
     dtype,
     channels: int,
     anchor_px: int | None = None,
+    font_family: str = "",
+    size_pt: float = 0.0,
+    dpi: float = 200.0,
 ) -> np.ndarray:
     """Render `text` into a (strip_h, strip_w) sub-band, shrinking font until it fits.
 
     Targets the left-clip stamp where the band is wider than the right-margin
     case and font sizing must adapt to the available rotated text length.
-    Initial size is 28 px (or strip_w-8 if narrower); floor is 9 px. Once the
-    floor is hit the text is rendered anyway — overflow is centered and crops
-    against the strip edges rather than corrupting the patch area, since the
-    strip width is bounded.
+
+    **THE SHRINKING STOPS AT 8 POINT, AND ONLY "AUTO" SHRINKS AT ALL.**
+    Knut, 2026-09-11, on his own hex chart: *"the text is reduced to a
+    mini-sized font almost not readable, instead of warning of the text not
+    having room to fit … I suggest a font size limit of 8pt (if the Sheet text
+    frame size parameter is set to auto). If the Sheet text frame size
+    parameter is set to a value, no shrinking should happen and the warning
+    instead shown."*
+
+    So *size_pt* > 0 is used exactly as typed — 6 pt included — and the loop
+    below never reduces it; *size_pt* 0 ("auto") starts from the room the strip
+    offers and stops at :data:`text_edge_fit.AUTO_SHRINK_FLOOR_PT`. Either way
+    the line may then be wider than the strip, and the strip's own edges crop
+    it; the warning that says so is raised by the panel
+    (`ui/tabs/tab_chart.py::_engine_text_notes`), which reads its floor from the
+    same module so the two cannot disagree.
+
+    The floor this replaced was **9 pixels**, which is a floor on the raster and
+    not on paper: 3.24 pt at 200 dpi and 1.08 pt at 600. Measured on Knut's own
+    `testHex` project at his own numbers (right margin 6 mm, Clip 4 mm), the
+    note printed 2.29 mm of ink across the sheet, or 6.5 pt including its gap.
 
     TWO AXES, TWO DIFFERENT RULES, and only one of them is about the page edge.
     Down the strip's LENGTH the font shrinks and then the text is cut, because
@@ -970,18 +1002,22 @@ def _render_fitted_rotated_line(
     that axis ends at the user's "Text distance from edge" and overflowing it is
     the fault this parameter exists to stop.
     """
-    floor_px = 9
+    fixed = float(size_pt or 0.0) > 0.0
+    floor_px = text_edge_fit.pt_to_px(text_edge_fit.text_floor_pt(size_pt), dpi)
     available_text_w = strip_h - 2 * _PATCH_SAFETY_PAD_PX
     _gap = 0 if anchor_px is None else int(anchor_px)
     available_text_h = strip_w - _gap
-    font_px = max(floor_px, min(28, strip_w - 8 if anchor_px is None
-                                else strip_w - _gap))
+    if fixed:
+        font_px = floor_px
+    else:
+        font_px = max(floor_px, min(28, strip_w - 8 if anchor_px is None
+                                    else strip_w - _gap))
 
     probe = Image.new("L", (10, 10), 255)
     draw = ImageDraw.Draw(probe)
     shown = text
     while True:
-        font = _pick_font(font_px)
+        font = _pick_font(font_px, font_family)
         bbox = _text_bbox(draw, shown, font)
         text_w = bbox[2] - bbox[0]
         text_h = bbox[3] - bbox[1]
@@ -1020,7 +1056,24 @@ def _render_fitted_rotated_line(
                  len(shown) - 1, len(text))
 
 
-def _pick_font(size_px: int) -> ImageFont.ImageFont:
+def _pick_font(size_px: int, family: str = "") -> ImageFont.ImageFont:
+    """The face the note is drawn in.
+
+    *family* is the Sheet text frame's Font, which now governs the run chart
+    notes and the stamped settings too (Knut, 2026-09-11: *"The Sheet text
+    frame Font and Size should be used for the Run Chart Notes text and the
+    'Stamp settings used on the chart' checkbox, so that the text is
+    controllable."*). It is resolved through the layout engine's own resolver,
+    so the note is drawn in exactly the face the rest of the sheet uses, and
+    the bundled families work as well as the installed ones. Empty, or a name
+    that resolves to nothing, falls back to what this stamper always used.
+    """
+    if family:
+        try:
+            from workflow.layout_engine import raster as _raster
+            return _raster._font(max(6, int(size_px)), family)
+        except Exception:                                       # noqa: BLE001
+            pass
     for name in ("DejaVuSans.ttf", "arial.ttf", "Arial.ttf", "Helvetica.ttf"):
         try:
             return ImageFont.truetype(name, size_px)

@@ -61,7 +61,8 @@ def _edge_passed(creator, tiff, params, monkeypatch) -> float:
     seen: list[float] = []
     monkeypatch.setattr(
         tm, "stamp_chart_metadata",
-        lambda tiffs, lines, edge=0.0, band=0.0: seen.append(float(edge)))
+        lambda tiffs, lines, edge=0.0, band=0.0, family="", size_pt=0.0:
+            seen.append(float(edge)))
     creator._stamp_tiff_metadata([tiff], params)
     assert seen, "the stamper was never called"
     return seen[0]

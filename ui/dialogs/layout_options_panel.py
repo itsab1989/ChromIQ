@@ -2001,9 +2001,22 @@ class LayoutOptionsPanel(QWidget):
                             tip=TooltipButton(
                                 tr("Sheet-text font"),
                                 tr("Typeface, size and style of the custom sheet "
-                                   "text in the bottom margin. Size “auto” uses a "
-                                   "sensible default; Bold / Italic grey out for "
-                                   "fonts that don't offer them."), self))
+                                   "text in the bottom margin. Bold / Italic grey "
+                                   "out for fonts that don't offer them.\n\n"
+                                   "THEY ALSO GOVERN THE TEXT DOWN THE RIGHT "
+                                   "EDGE: the run's Chart Notes and “Stamp "
+                                   "settings used on the chart”, both on the "
+                                   "Create Chart tab, are printed in this font "
+                                   "and this size.\n\n"
+                                   "Size “auto” lets that text shrink to fit the "
+                                   "margin it is in, and it stops shrinking at "
+                                   "8 pt. Set a size and nothing shrinks: the "
+                                   "text is printed at exactly the size you "
+                                   "typed, below 8 pt included. Either way, text "
+                                   "that no longer fits is still printed, over "
+                                   "the patches if it must be, and the message "
+                                   "under the measured margins says which edge "
+                                   "and what to change."), self))
         stg.addWidget(self.stamp_command, 4, 1)
         stg.addWidget(TooltipButton(
             tr("Stamp layout summary"),
@@ -2241,12 +2254,19 @@ class LayoutOptionsPanel(QWidget):
         add_row(ccg, 3, tr("Font:"), _clip_font_w,
                 tip=TooltipButton(
                     tr("Clip text font & size"),
-                    tr("Typeface and size for the clip-strip text. Size is in mm; "
-                       "leave it at “auto” to let ChromIQ fit the text to the "
-                       "strip width. Set a smaller size when the auto text looks "
-                       "too large and you want to keep the strip narrow / maximise "
-                       "patch space. Applies to the custom-text clip content; the "
-                       "Notes-box record has its own auto layout."), self))
+                    tr("Typeface and size for the clip-strip text. Size is in "
+                       "points.\n\n"
+                       "Leave it at “auto” to let ChromIQ fit the text to the "
+                       "strip width. Auto shrinks to fit and stops at 8 pt; "
+                       "below that it keeps 8 pt and the message under the "
+                       "measured margins says the text no longer fits the "
+                       "band.\n\n"
+                       "Set a size and nothing shrinks: the text is printed at "
+                       "exactly the size you typed, below 8 pt included. Use "
+                       "that when the auto text looks too large and you want to "
+                       "keep the strip narrow and maximise patch space.\n\n"
+                       "Applies to the custom-text clip content; the Notes-box "
+                       "record has its own auto layout."), self))
         self._clip_image_row = add_row(
             ccg, 4, tr("Image:"),
             cell_fill(self.clip_image_path, self.clip_image_browse))

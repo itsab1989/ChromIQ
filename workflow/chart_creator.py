@@ -1822,7 +1822,24 @@ class ChartCreator:
                         _band = float(getattr(_rec, "clip_border_width_mm", 0.0) or 0.0)
                     except (TypeError, ValueError):
                         _band = 0.0
-                stamp_chart_metadata(tiffs, cmd_lines, _edge, _band)
+                # THE SHEET TEXT FRAME'S OWN FONT AND SIZE, because the note is
+                # the user's text and they must be able to control it. Knut,
+                # 2026-09-11: *"The Sheet text frame Font and Size should be
+                # used for the Run Chart Notes text and the 'Stamp settings
+                # used on the chart' checkbox, so that the text is
+                # controllable."* Guided carries no recipe, so it keeps the
+                # stamper's own face and "auto".
+                _font_family = ""
+                _size_pt = 0.0
+                if _rec is not None:
+                    _font_family = str(getattr(_rec, "chart_text_font", "") or "")
+                    try:
+                        _size_pt = float(getattr(_rec, "chart_text_size_mm", 0.0)
+                                         or 0.0) * 72.0 / 25.4
+                    except (TypeError, ValueError):
+                        _size_pt = 0.0
+                stamp_chart_metadata(tiffs, cmd_lines, _edge, _band,
+                                     _font_family, _size_pt)
         else:
             # ChromIQ-style: shift the patch block right by ~28 mm so the left
             # side becomes a fresh white strip ready for the left-clip stamp.

@@ -402,6 +402,22 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # history. One string, over the 25-character floor, German translated and the
 # eleven carrying the English source under the beta rule: every budget but de
 # goes up by exactly one. Measured against the run that failed, not guessed.
+# 2026-09-11, Knut's "shrinking has a floor" ruling (#182): **all twelve
+# UNCHANGED.** Nine keys arrive and six go stale, and every one of the nine is
+# translated in every one of the twelve, so nothing arrives here as a fresh
+# echo. MEASURED by diffing the counted SETS, per language: 0 in, 0 out.
+#
+# The beta rule — German now, the other eleven before the final — does NOT
+# reach these nine, and an earlier draft of this change raised every budget by
+# 9 because it did. Each of the nine quotes a ChromIQ control in curly quotes,
+# and `test_a_quoted_control_names_the_control_the_reader_has.py` refuses a
+# translation that tells a Spanish reader to look for a control called “Clip”
+# when the window says «Pinza». That is 238 offences for nine placeholders. A
+# string that quotes a control is translated with the string or not added.
+# 2026-09-11, THE MERGE OF THE TWO ROUNDS ABOVE. Each round moved this
+# table on its own base, so the two disagreed and neither described the
+# merged catalogues. The numbers below are MEASURED on the merged tree
+# rather than reconciled from the two sides.
 _BUDGET = {
     "de": 4,
     "es": 140,

@@ -54,12 +54,12 @@ def _sheet(dpi: float, patch_right_mm: float, w_mm=210.0, h_mm=297.0) -> Path:
     return p
 
 
-def _note_edge_mm(path: Path, dpi: float) -> float | None:
+def _note_edge_mm(path: Path, dpi: float, start_mm: float = 204.0) -> float | None:
     """Distance from the paper edge to the note's last ink, or None if absent."""
     b = np.asarray(tifffile.imread(str(path))).astype(int)
     W = b.shape[1]
     ink = (b.max(axis=2) < 245)
-    start = int(round(204.0 * dpi / 25.4))
+    start = int(round(start_mm * dpi / 25.4))
     cols = np.nonzero(ink[:, start:].sum(axis=0))[0]
     if not len(cols):
         return None
@@ -88,21 +88,34 @@ def test_the_guard_never_disappears_on_a_coarse_raster():
     assert TM._safety_pad_px(150) >= 2
 
 
+#: A sheet with room for the note BESIDE the patches, at the 8 pt floor Knut
+#: set on 2026-09-11. The margin has to hold the reserve (4.0 mm), one line
+#: (8 pt = 2.82 mm plus its 2 px gap) and the 0.34 mm patch guard, which is
+#: 7.5 mm; the block therefore ends at 210 - 9 mm rather than at the 203.9 mm
+#: the sweeps above use. With 6.1 mm of margin the note no longer fits and is
+#: printed ACROSS the block on purpose, which is Knut's own ruling of
+#: 2026-09-10 and not something this test may forbid.
+_ROOMY_BLOCK_RIGHT_MM = 201.0
+
+
 def test_the_note_never_touches_the_patch_block_at_any_resolution():
     """The guard exists for this, so shrinking it must not cost it.
 
     A blank margin satisfies "nothing is touching the patch block", so the note
     has to be proved present at each resolution first. Without that this test
     passed at 150 dpi for years while there was no note there at all.
+
+    AND THE SHEET MUST HAVE ROOM FOR THE NOTE, or what is measured is the
+    deliberate overlap rather than the guard. See `_ROOMY_BLOCK_RIGHT_MM`.
     """
     for dpi in (150, 200, 300, 600):
-        p = _sheet(dpi, 203.9)
+        p = _sheet(dpi, _ROOMY_BLOCK_RIGHT_MM)
         TM._stamp_one(p, NOTE, EDGE_MM, 0.0)
-        assert _note_edge_mm(p, dpi) is not None, (
+        assert _note_edge_mm(p, dpi, _ROOMY_BLOCK_RIGHT_MM + 0.1) is not None, (
             f"no note was printed at {dpi} dpi, so this test would be checking "
             "that a blank margin does not touch the patches")
         b = np.asarray(tifffile.imread(str(p))).astype(int)
-        edge = int(round(203.9 * dpi / 25.4))
+        edge = int(round(_ROOMY_BLOCK_RIGHT_MM * dpi / 25.4))
         ink = (b.max(axis=2) < 245)
         # the column immediately right of the block must stay clean
         assert not ink[:, edge:edge + 1].any(), (

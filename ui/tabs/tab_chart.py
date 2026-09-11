@@ -4562,8 +4562,15 @@ class TabChart(QWidget):
             "TIFFs alongside the targen and printtarg commands that produced them. "
             "Useful for recording the exact printer/paper combination this chart "
             "was made for, so you can match it to the right ICC profile months "
-            "later. Patch pixels are not modified — only the white margin to the "
-            "right of the patches is stamped."),
+            "later. Patch pixels are not modified: only the white margin to the "
+            "right of the patches is stamped.\n\n"
+            "IT IS PRINTED IN THE “SHEET TEXT” FONT AND SIZE, under Expert "
+            "Options, so you control how it looks. With Size on “auto” it "
+            "shrinks to fit the right margin and stops at 8 pt; with a size "
+            "set it is printed at exactly that size and never shrinks. Either "
+            "way, if the margin is too narrow for it the note is still printed, "
+            "over the patches if it must be, and the message under the measured "
+            "margins says by how much to widen the right margin."),
             self._manual_chart_notes_row,
             min_width=540,
         ))
@@ -4610,8 +4617,12 @@ class TabChart(QWidget):
             "sheet and make exactly the same chart again, without having to "
             "remember what you chose.\n\n"
             "Switch it off if you would rather keep the right margin clean and "
-            "print only your own chart notes — or leave the sheet completely "
-            "unmarked by clearing the notes box as well."),
+            "print only your own chart notes. Clear the notes box as well to "
+            "leave the sheet completely unmarked.\n\n"
+            "IT IS PRINTED IN THE “SHEET TEXT” FONT AND SIZE, under Expert "
+            "Options, on the same line as your chart notes. With Size on "
+            "“auto” it shrinks to fit the right margin and stops at 8 pt; with "
+            "a size set it is printed at exactly that size and never shrinks."),
             self._manual_stamp_cmd_row,
             min_width=540,
         ))
@@ -19066,8 +19077,17 @@ class TabChart(QWidget):
             # the chart". So this pair is asked before the area-first gate
             # below, which is about the TOP and BOTTOM bands only.
             _clip_zone = float(geom.lbord or 0.0) + float(geom.border or 0.0)
+            # THERE IS A CLIP BAND ONLY WHEN `lbord` IS NON-ZERO, and this used
+            # to ask `_clip_zone > 0`, which is `lbord + border` and so is the
+            # ORDINARY patch border on a chart with no clip border at all.
+            # Measured: a CM/A4 recipe with "Clip border" off still reports
+            # lbord 0.0 and border 6.0, so a chart with no band was told its
+            # notes "share that edge with the clip border" and that "the border
+            # takes the outer 6.0 mm". `clip_side` is remembered whether or not
+            # a border is switched on, so it cannot answer this on its own.
+            _clip_band_mm = float(geom.lbord or 0.0)
             _clip_on_right = ((getattr(geom, "clip_side", "left") or "left")
-                              == "right" and _clip_zone > 0)
+                              == "right" and _clip_band_mm > 0)
             _note_side = "right"
             # THE MEASURED RIGHT MARGIN, NOT THE ONE THAT WAS TYPED, and the
             # difference is a warning that cries wolf on most charts. The typed
@@ -19089,53 +19109,96 @@ class TabChart(QWidget):
             _cb = getattr(self, "_manual_stamp_cmd_check", None)
             if _cb is not None:
                 _stamp_on = bool(_cb.isChecked())
+            # THE SIZE THE NOTE IS ACTUALLY PRINTED AT decides how much paper it
+            # needs, so the Sheet text frame's Size is part of the question
+            # (Knut, 2026-09-11). 0 is the box's "auto", which shrinks to 8 pt
+            # and no further; a typed size is used as typed and never shrinks.
+            _note_size_pt = 0.0
+            try:
+                _note_size_pt = float(getattr(r, "chart_text_size_mm", 0.0)
+                                      or 0.0) * 72.0 / 25.4
+            except (TypeError, ValueError):
+                _note_size_pt = 0.0
+            _note_floor_pt = text_edge_fit.text_floor_pt(_note_size_pt)
             if _notes_text or _stamp_on:
                 _o = text_edge_fit.chart_note_overlap(
                     _note_side, _note_margin, r.text_edge_clip_mm,
                     float(getattr(r, "dpi", 300) or 300),
-                    _clip_zone if _clip_on_right else 0.0)
+                    _clip_zone if _clip_on_right else 0.0,
+                    _note_size_pt)
                 if _o is not None:
-                    # TWO WORDINGS, BECAUSE THE LEVER IS NOT THE SAME ONE, AND
-                    # WITH A CLIP BORDER ON THIS EDGE THERE IS NO LEVER AT ALL.
+                    # THREE WORDINGS, BECAUSE THE LEVER IS DIFFERENT IN EACH.
                     #
-                    # The first version offered two and both were unreachable.
-                    # `instruments.geom_from_build_kwargs` raises this margin to
-                    # the clip zone, so the paper available to the note is
-                    # `margin - clip - text_edge - pad`, and with the first two
-                    # equal that is `-(text_edge + 0.34)` whatever the user
-                    # types. Narrowing the band narrows the margin with it, and
-                    # a challenge round measured the advice asking for a border
-                    # 19.7 mm narrower than a 19.0 mm border, then 10.7 mm
-                    # narrower at the spin box's 10.0 mm floor. Lowering "Clip"
-                    # to zero still leaves the 0.34 mm patch guard, so it cannot
-                    # clear it either.
+                    # The version this replaced told the user, with a clip
+                    # border on this edge, that "neither the right margin nor
+                    # “Clip” can free room here". Knut measured that and it is
+                    # FALSE: *"The Right margin is here overruled by the
+                    # Clip-border width. Both clip border width or right margin
+                    # should here be able to make more room. If clip-border
+                    # width is kept at 24mm and right margin is increased to be
+                    # bigger than this, then that should free more room in the
+                    # right margin area, which it does."*
                     #
-                    # So the honest sentence says the edge is shared and names
-                    # the one control that does move it. The overlap itself is
-                    # what Knut ruled for: the note is printed, over the patches
-                    # if it must be, and this is what tells the user why.
-                    over.append((tr(
-                        "⚠ The chart notes down the right edge share that edge "
-                        "with the clip border, so they are printed over the "
-                        "patches. The border takes the outer {band:.1f} mm and "
-                        "the patches start where it ends, which leaves the "
-                        "notes no clean paper on this side. They are printed "
-                        "anyway so you can see this. Neither the right margin "
-                        "nor “Clip” can free room here: put the clip border on "
-                        "the LEFT if you want the notes on clean paper, or "
-                        "leave it and read them over the patches.")
-                        if _clip_on_right else tr(
-                        "⚠ The chart notes down the right edge run over the "
-                        "patches. They are printed {edge:.1f} mm in from the "
-                        "paper edge, need {need:.1f} mm of room, and the right "
-                        "margin leaves {avail:.1f} mm. They are printed anyway "
-                        "so you can see this. Raise “Right” under “Margins "
-                        "(mm)” by about {short:.1f} mm, or lower “Clip” under "
-                        "“Text distance from edge (mm)”, which is the box this "
-                        "edge uses.")).format(
-                            edge=r.text_edge_clip_mm, need=_o.needed_mm,
-                            avail=max(0.0, _o.available_mm),
-                            short=_o.overlap_mm, band=_clip_zone))
+                    # He is right, and so was the code comment that argued the
+                    # opposite: `instruments.geom_from_build_kwargs` raises this
+                    # margin to the clip zone, so while the typed margin is
+                    # BELOW the band the band is what decides and typing more
+                    # changes nothing. Above the band the typed margin wins
+                    # again. So the sentence has to say which side of the band
+                    # the margin is on, and name the number that crosses it.
+                    #
+                    # It also names "Clip" by the frame it lives in rather than
+                    # by its one-letter label: *"the 'Clip' is not a clear
+                    # reference for a user that you mean the 'Clip' setting in
+                    # 'Text distance from edge' frame."*
+                    _need_margin = _note_margin + _o.overlap_mm
+                    if _clip_on_right and _note_margin <= _clip_zone + 0.05:
+                        over.append(tr(
+                            "⚠ The chart notes down the right edge share that "
+                            "edge with the clip border, so they are printed "
+                            "over the patches. The border takes the outer "
+                            "{band:.1f} mm, the right margin is {margin:.1f} mm "
+                            "and so the border is what decides where the "
+                            "patches start. The notes are printed anyway so you "
+                            "can see this. Raise “Right” under “Margins (mm)” "
+                            "to about {need_margin:.1f} mm, which is past the "
+                            "clip border, or set a narrower “Clip border "
+                            "width”, or put the clip border on the LEFT. They "
+                            "need {need:.1f} mm at {size:.0f} pt, which is the "
+                            "Size set under “Sheet text”.").format(
+                                band=_clip_zone, margin=_note_margin,
+                                need_margin=_need_margin, need=_o.needed_mm,
+                                size=_note_floor_pt))
+                    elif _clip_on_right:
+                        over.append(tr(
+                            "⚠ The chart notes down the right edge run over the "
+                            "patches. They are printed {edge:.1f} mm in from "
+                            "the paper edge, share the edge with a "
+                            "{band:.1f} mm clip border, need {need:.1f} mm at "
+                            "{size:.0f} pt and have {avail:.1f} mm. They are "
+                            "printed anyway so you can see this. Raise “Right” "
+                            "under “Margins (mm)” by about {short:.1f} mm, set "
+                            "a narrower “Clip border width”, or lower “Clip” "
+                            "under “Text distance from edge (mm)”, which is the "
+                            "box this edge uses.").format(
+                                edge=r.text_edge_clip_mm, band=_clip_zone,
+                                need=_o.needed_mm, size=_note_floor_pt,
+                                avail=max(0.0, _o.available_mm),
+                                short=_o.overlap_mm))
+                    else:
+                        over.append(tr(
+                            "⚠ The chart notes down the right edge run over the "
+                            "patches. They are printed {edge:.1f} mm in from "
+                            "the paper edge, need {need:.1f} mm at {size:.0f} "
+                            "pt, and the right margin leaves {avail:.1f} mm. "
+                            "They are printed anyway so you can see this. Raise "
+                            "“Right” under “Margins (mm)” by about {short:.1f} "
+                            "mm, or lower “Clip” under “Text distance from edge "
+                            "(mm)”, which is the box this edge uses.").format(
+                                edge=r.text_edge_clip_mm, need=_o.needed_mm,
+                                size=_note_floor_pt,
+                                avail=max(0.0, _o.available_mm),
+                                short=_o.overlap_mm))
             # THE CLIP BORDER'S CONTENT, on whichever edge it sits.
             # `instruments.geom_from_build_kwargs` raises that edge's margin to
             # the clip zone, so on every chart the app builds today the band
@@ -19165,6 +19228,61 @@ class TabChart(QWidget):
                         "border width”.")).format(
                             need=_o.needed_mm, avail=max(0.0, _o.available_mm),
                             short=_o.overlap_mm))
+                # AND THE TEXT INSIDE THE BAND, which is a different question
+                # from whether the band fits the margin. Knut, 2026-09-11:
+                # *"If I reduce the clip-border width to f.ex. 16mm … then the
+                # clip border text is shrunk as normal. But here too there
+                # should be a font size minimum limit before the clip-border
+                # text stops shrinking (suggest 8pt here too, when the size
+                # setting is auto under Clip-border content frame) … Setting a
+                # specific font size will prevent shrinking here too, and give
+                # warning when text passes the Text distance from edge Clip
+                # setting."*
+                _clip_size_pt = 0.0
+                try:
+                    _clip_size_pt = float(getattr(r, "clip_text_size_mm", 0.0)
+                                          or 0.0) * 72.0 / 25.4
+                except (TypeError, ValueError):
+                    _clip_size_pt = 0.0
+                _clip_floor_pt = text_edge_fit.text_floor_pt(_clip_size_pt)
+                _clip_lines = 0
+                if str(getattr(r, "clip_content_mode", "off")) in (
+                        "text", "image", "branding"):
+                    from workflow.layout_engine.raster import clip_text_lines
+                    _clip_lines = len(clip_text_lines(
+                        getattr(r, "clip_text", "") or ""))
+                _cs = text_edge_fit.clip_text_squeeze(
+                    _clip_zone, r.text_edge_clip_mm, _clip_lines,
+                    _clip_size_pt, _side)
+                if _cs is not None:
+                    # THE INSET THAT IS IN FORCE, not the one that was typed.
+                    # "Clip" is capped at a fifth of the band, so a 16 mm band
+                    # with Clip at 4 mm is inset by 3.2.
+                    _fmt = dict(lines=_clip_lines, size=_clip_floor_pt,
+                                need=_cs.needed_mm,
+                                avail=max(0.0, _cs.available_mm),
+                                short=_cs.overlap_mm, band=_clip_zone,
+                                edge=text_edge_fit.clip_content_inset_mm(
+                                    _clip_zone, r.text_edge_clip_mm))
+                    over.append((tr(
+                        "⚠ The clip border text does not fit its band. One line "
+                        "at {size:.0f} pt needs {need:.1f} mm across the band, "
+                        "and the {band:.1f} mm band leaves {avail:.1f} mm once "
+                        "“Clip” under “Text distance from edge (mm)” has taken "
+                        "{edge:.1f} mm off the page-edge side. It is printed at "
+                        "{size:.0f} pt anyway so you can see this. Widen “Clip "
+                        "border width” by about {short:.1f} mm, lower “Clip”, "
+                        "or set a smaller Size under “Clip-border content”.")
+                        if _clip_lines == 1 else tr(
+                        "⚠ The clip border text does not fit its band. Its "
+                        "{lines} lines at {size:.0f} pt need {need:.1f} mm "
+                        "across the band, and the {band:.1f} mm band leaves "
+                        "{avail:.1f} mm once “Clip” under “Text distance from "
+                        "edge (mm)” has taken {edge:.1f} mm off the page-edge "
+                        "side. They are printed at {size:.0f} pt anyway so you "
+                        "can see this. Widen “Clip border width” by about "
+                        "{short:.1f} mm, lower “Clip”, or set a smaller Size "
+                        "under “Clip-border content”.")).format(**_fmt))
             # The text-overflow warning only applies in "margins are law" mode,
             # which is now AREA-FIRST (Knut #93): there the label/text lives inside
             # the margin, so a too-small margin overflows toward the page edge. In

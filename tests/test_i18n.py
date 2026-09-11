@@ -725,6 +725,36 @@ def test_every_deliberate_exception_says_why():
 # carry the English sentence under the beta rule, so every ceiling but de goes
 # up by exactly one. Counted, not assumed: `set(after) - set(before)` is that
 # one string in each of the eleven, and `set(before) - set(after)` is empty.
+#
+# …and again on 2026-09-11, by Knut's ruling that shrinking text has a floor
+# (#182). **9 keys in, 6 stale out**, counted with `set(after) - set(before)`
+# and `set(before) - set(after)` on each catalogue rather than from memory:
+# four help texts (Chart Notes, "Stamp settings used on the chart", the
+# Sheet-text Font/Size row, the Clip-border Font/Size row), three chart-note
+# warnings where there were two, and the clip-border text's own warning in a
+# singular and a plural form. **EVERY TWELVE IS TRANSLATED, so every number
+# below is UNCHANGED: 0 in, 0 out, in all twelve.**
+#
+# THE BETA RULE DOES NOT REACH THESE NINE, and that was found the hard way:
+# each of them quotes a ChromIQ control in curly quotes, and
+# `test_a_quoted_control_names_the_control_the_reader_has.py` refuses a
+# translation that sends a Spanish reader looking for a control called “Clip”
+# when the window says «Pinza». English placeholders in the eleven raised 238
+# offences there. A string that quotes a control is translated or it is not
+# added.
+#
+# **AND THE TABLE IS NOW EACH LANGUAGE'S ACTUAL COUNT, which it had stopped
+# being.** It stood eight above every one of them (es was recorded at 112 and
+# was 104), and eight units of slack is eight free regressions per language.
+# Re-measured here, on the catalogues: de 117, es 104, fr 125, it 115, ja 91,
+# nl 132, no 116, pl 108, pt 106, ru 79, sv 118, zh_CN 85.
+# 2026-09-11, THE MERGE OF THE TWO ROUNDS ABOVE. The report round and
+# the text-fitting round each moved this table on their own base, so the
+# two tables disagreed and neither described the merged catalogues. The
+# numbers below are MEASURED on the merged tree, not reconciled from the
+# two sides: a ceiling carried across a merge is a ceiling nobody has
+# counted, and a ceiling above the truth admits the next regression for
+# free.
 _IDENTICAL_TO_KEY = {
     "de": 124,
     "es": 296,

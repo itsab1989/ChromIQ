@@ -66,20 +66,74 @@ SAFETY_PAD_MM = 0.34
 #: own copy, so what the panel warns about and what the stamper does cannot
 #: drift apart.
 NOTE_PATCH_GAP_PX = 2
-NOTE_MIN_STRIP_PX = NOTE_PATCH_GAP_PX + 9
 
-#: THE SAME FLOOR AS A DISTANCE ON PAPER, WHICH IS WHAT IT ALWAYS MEANT.
-#: The measurement above was taken at 200 dpi, where 11 px is 1.397 mm, and
-#: "legible" is a property of ink on paper rather than of a raster. Left as a
-#: pixel count it shrank as the resolution rose: a challenge round built the
-#: same card at 200, 300 and 600 dpi and found the panel warning at 200 and
-#: printing a cheerful "Margins: OK" at 600, where the note was a quarter of the
-#: width on the same sheet. A user who saw the red line and raised the
-#: resolution to "fix" it silenced the warning and made the note less readable.
-NOTE_MIN_STRIP_MM = round(NOTE_MIN_STRIP_PX * 25.4 / 200.0, 3)   # 1.397 mm
+#: The gap as a distance on PAPER, which is what it always meant: the 2 px
+#: above were measured at 200 dpi.
+NOTE_PATCH_GAP_MM = round(NOTE_PATCH_GAP_PX * 25.4 / 200.0, 3)   # 0.254 mm
+
+#: **SHRINKING HAS A FLOOR, AND IT IS 8 POINT.** Knut, 2026-09-11, on a hex
+#: chart with the right margin at 6 mm and "Text distance from edge" → Clip at
+#: 4 mm: *"the text is reduced to a mini-sized font almost not readable,
+#: instead of warning of the text not having room to fit, like it was done for
+#: the strip labels. The shrinking of the text should have a lower limit so the
+#: shrinking stops and the warning comes instead. I suggest a font size limit
+#: of 8pt (if the Sheet text frame size parameter is set to auto)."*
+#:
+#: The 9 px legibility floor this replaced was a floor on the RASTER, not on
+#: paper: 9 px is 3.24 pt at 200 dpi and 1.08 pt at 600. Measured on Knut's own
+#: `testHex` project at his own numbers, the note printed 2.29 mm of ink across
+#: the sheet, which is 6.5 pt of line including its gap. It fits, so nothing
+#: warned.
+#:
+#: **The floor applies only to AUTOMATIC shrinking.** His rule, same comment:
+#: *"It makes sense that only the Auto size setting allows automatic shrinking
+#: of the text."* A size the user typed is used exactly as typed, 6 pt
+#: included, and the warning takes the place of the shrink.
+AUTO_SHRINK_FLOOR_PT = 8.0
 
 
-def note_min_strip_px(dpi: float) -> int:
+def pt_to_mm(size_pt: float) -> float:
+    """Points (1/72 inch) to millimetres."""
+    return float(size_pt or 0.0) * 25.4 / 72.0
+
+
+def pt_to_px(size_pt: float, dpi: float) -> int:
+    """Points to whole pixels at *dpi*, never less than one."""
+    try:
+        d = float(dpi)
+        if d <= 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        d = 300.0
+    return max(1, int(round(float(size_pt or 0.0) * d / 72.0)))
+
+
+def px_to_pt(size_px: float, dpi: float) -> float:
+    """Pixels at *dpi* back to points."""
+    try:
+        d = float(dpi)
+        if d <= 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        d = 300.0
+    return float(size_px or 0.0) * 72.0 / d
+
+
+def text_floor_pt(size_pt: float = 0.0) -> float:
+    """The smallest line this text may be drawn at, in points.
+
+    A typed size is its own floor (nothing shrinks it, and a size below 8 pt
+    is honoured); "auto" — 0, which is what the Size spin box's *auto* special
+    value stores — stops at :data:`AUTO_SHRINK_FLOOR_PT`.
+    """
+    try:
+        s = float(size_pt or 0.0)
+    except (TypeError, ValueError):
+        s = 0.0
+    return s if s > 0 else AUTO_SHRINK_FLOOR_PT
+
+
+def note_min_strip_px(dpi: float, size_pt: float = 0.0) -> int:
     """The floor in pixels at *dpi*, derived from the paper floor.
 
     More pixels at a finer raster, because it is the same paper.
@@ -90,24 +144,34 @@ def note_min_strip_px(dpi: float) -> int:
             raise ValueError
     except (TypeError, ValueError):
         d = 300.0
-    return max(1, int(round(NOTE_MIN_STRIP_MM * d / 25.4)))
+    return max(1, int(round(note_min_width_mm(d, size_pt) * d / 25.4)))
 
 #: Height of one line of bottom-of-sheet text, in mm. The renderer's own
 #: ``line_h = px(4.2)`` (`workflow/layout_engine/raster.py`).
 SHEET_TEXT_LINE_MM = 4.2
 
 
-def note_min_width_mm(_dpi: float = 0.0) -> float:
-    """The narrowest strip that still renders a legible line, on PAPER.
+def note_min_width_mm(_dpi: float = 0.0, size_pt: float = 0.0) -> float:
+    """The narrowest strip the chart note may be printed into, on PAPER.
+
+    One line at its floor (8 pt when the Sheet text frame's Size is "auto",
+    otherwise the size that was typed), plus the white gap Knut asked for
+    between the note and the patch block.
 
     THIS USED TO DEPEND ON THE RESOLUTION AND ITS OWN DOCSTRING SAID SO:
     "a pixel floor is not a paper floor: the same sheet gives the note 1.40 mm
     at 200 dpi and 0.47 mm at 600". It noticed the fault and then returned the
     pixel floor anyway, so the warning followed the raster instead of the sheet.
-    The argument is kept so every caller keeps working and is deliberately
-    ignored.
+    The *dpi* argument is kept so every caller keeps working and is
+    deliberately ignored.
     """
-    return NOTE_MIN_STRIP_MM
+    return round(pt_to_mm(text_floor_pt(size_pt)) + NOTE_PATCH_GAP_MM, 3)
+
+
+#: What the module used to call the floor, kept for the one thing it still
+#: means: the narrowest strip anything is ever drawn into.
+NOTE_MIN_STRIP_MM = note_min_width_mm()
+NOTE_MIN_STRIP_PX = NOTE_PATCH_GAP_PX + int(round(AUTO_SHRINK_FLOOR_PT * 200.0 / 72.0))
 
 
 @dataclass(frozen=True)
@@ -219,17 +283,72 @@ def sheet_text_overlap(margin_bottom_mm: float, text_edge_mm: float,
 
 def chart_note_overlap(side: str, margin_mm: float, text_edge_clip_mm: float,
                        dpi: float, clip_band_mm: float = 0.0,
-                       ) -> "Overlap | None":
+                       size_pt: float = 0.0) -> "Overlap | None":
     """The run chart notes / stamped settings down the side margin.
 
     The note is stamped onto a finished raster, so it can move nothing: it is
     anchored at *text_edge_clip_mm* from the paper edge and grows inward. When
     a clip border sits on the same edge the note keeps off it too, so
     *clip_band_mm* comes out of the paper available to it.
+
+    *size_pt* is the Sheet text frame's Size: 0 for "auto" (the note may shrink
+    to 8 pt and no further), or the size the user typed (which nothing shrinks).
     """
     avail = (float(margin_mm or 0.0) - float(text_edge_clip_mm or 0.0)
              - float(clip_band_mm or 0.0) - SAFETY_PAD_MM)
-    return _overlap(side, avail, note_min_width_mm(dpi))
+    return _overlap(side, avail, note_min_width_mm(dpi, size_pt))
+
+
+#: The share of a clip band that "Clip" may never eat, so a narrow band still
+#: has room for content. `geometry.clip_area_mm`: ``inset = min(text_edge_clip,
+#: clip_w * 0.2)``, repeated as a number for the same reason `SAFETY_PAD_MM` is.
+CLIP_INSET_MAX_FRAC = 0.2
+
+#: The renderer's own line spacing for clip text (`raster._vtext`: ``size *
+#: 1.2``).
+CLIP_LINE_SPACING = 1.2
+
+
+def clip_content_inset_mm(band_mm: float, text_edge_clip_mm: float) -> float:
+    """How far in from the PAGE EDGE the clip content actually starts.
+
+    "Clip" is a request, not a result: `geometry.clip_area_mm` caps it at a
+    fifth of the band so a narrow band is not eaten whole, and applies it to
+    the page-edge side ONLY — the band's inner edge is where the first patch
+    column begins and needs no reserve of its own.
+
+    THE FIRST VERSION OF THIS TOOK IT OFF BOTH SIDES AND USED THE TYPED VALUE.
+    On Knut's 16 mm band with Clip at 4 mm that predicted 8.0 mm of room where
+    the renderer gives 12.8, so the warning fired about 4.8 mm that exist. A
+    prediction is only worth something while it reads its numbers from the same
+    place as the thing it predicts.
+    """
+    band = max(0.0, float(band_mm or 0.0))
+    return min(max(0.0, float(text_edge_clip_mm or 0.0)),
+               band * CLIP_INSET_MAX_FRAC)
+
+
+def clip_text_squeeze(band_mm: float, text_edge_clip_mm: float, lines: int,
+                      size_pt: float = 0.0, side: str = "left",
+                      ) -> "Overlap | None":
+    """The clip border's own TEXT against the band it is drawn in.
+
+    Different question from :func:`clip_content_overlap`, which asks whether
+    the BAND fits inside the margin. This one asks whether the LINES fit
+    inside the band once the fitter has stopped shrinking them, which is what
+    Knut reported on 2026-09-11: *"If I reduce the clip-border width to f.ex.
+    16mm … then the clip border text is shrunk as normal. But here too there
+    should be a font size minimum limit before the clip-border text stops
+    shrinking (suggest 8pt here too, when the size setting is auto under
+    Clip-border content frame)."*
+    """
+    n = max(0, int(lines or 0))
+    if n <= 0:
+        return None
+    avail = (float(band_mm or 0.0)
+             - clip_content_inset_mm(band_mm, text_edge_clip_mm))
+    needed = n * CLIP_LINE_SPACING * pt_to_mm(text_floor_pt(size_pt))
+    return _overlap(side, avail, needed)
 
 
 def clip_content_overlap(side: str, margin_mm: float, clip_zone_mm: float,
