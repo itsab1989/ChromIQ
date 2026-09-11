@@ -5940,7 +5940,6 @@ class TabChart(QWidget):
             # render never clamps to instrument minimums, so the estimate
             # mustn't either, or the two would disagree. Below-minimum is
             # only flagged as a violation in the inspector.
-            geom = instruments.geom_from_build_kwargs(r.build_kwargs())
             pages_req = (self._manual_pages_spin.value()
                          if self._manual_pages_spin is not None else 1)
             # Use a fixed patch count ONLY when the count is fixed (Auto patch
@@ -5951,9 +5950,23 @@ class TabChart(QWidget):
             # regression).
             _auto = (self._manual_auto_patches_check is not None
                      and self._manual_auto_patches_check.isChecked())
-            self._predict_layout_info(
-                geom, r.paper, pages_req,
-                npat=None if _auto else self._estimate_patch_total())
+            _npat = None if _auto else self._estimate_patch_total()
+            # AREA-FIRST SIZES THE PATCH FROM THE COUNT, SO THE COUNT HAS TO BE
+            # IN THE KWARGS. `build_kwargs()` does not carry it: `build_chart`
+            # injects `area_target_count` from the .ti1 it is laying out
+            # (chart.py), and `area_fit` then grows the patches so exactly that
+            # many fill the sheet. Without it the estimate sized a CAPACITY
+            # FILL of minimum-width patches and reported that grid instead.
+            # Measured on screen, i1Pro / A4 portrait / area-first / Auto patch
+            # count off / -f 400: the panel promised 525 patches, 25 per strip,
+            # 21 strips at 8.33 x 8.56 mm, and the build produced 418, 22 per
+            # strip, 19 strips at 9.23 x 9.82 mm. The helper-marker overlay
+            # already injects the same key for the same reason.
+            _kw = r.build_kwargs()
+            if _npat:
+                _kw["area_target_count"] = int(_npat)
+            geom = instruments.geom_from_build_kwargs(_kw)
+            self._predict_layout_info(geom, r.paper, pages_req, npat=_npat)
         except Exception:
             self._layout_info_panel.clear_estimate()
 
@@ -18413,10 +18426,15 @@ class TabChart(QWidget):
         """The patch count the estimate should lay out: what pressing Generate
         NOW would produce.
 
-        A fixed patch set that is already armed wins, because that is the file
-        Generate will lay out — a preset's attached .ti1, or a built-in's
-        bundled one. Only when Generate would build a fresh set does the chart
-        in the preview stand in for it.
+        Three sources, in the order Generate itself would consult them:
+
+        1. a fixed patch set that is already armed, because that is the file
+           Generate will lay out verbatim — a preset's attached .ti1, or a
+           built-in's bundled one;
+        2. otherwise the targen -f box, because Generate hands that value
+           straight to targen whenever "Auto patch count" is unticked;
+        3. only when neither answers (the box is on its 0 default, or the
+           control is not built yet) does the chart in the preview stand in.
 
         THE DISTINCTION IS NOT ACADEMIC: selecting a preset arms its .ti1 long
         before the build finishes, and until it did the estimate answered with
@@ -18428,7 +18446,41 @@ class TabChart(QWidget):
         n = self._pending_patch_set_total()
         if n:
             return n
+        # …AND WHEN GENERATE WOULD RUN targen, THE COUNT IS THE ONE IN THE
+        # targen -f BOX, not the count of the chart that happens to be on
+        # screen. `_on_generate` overwrites `params.patches` with the estimate
+        # only while "Auto patch count" is ticked; with it unticked it passes
+        # the -f value straight to targen, so that value IS "what pressing
+        # Generate now would produce".
+        #
+        # Reading the chart on screen instead is Basti's report, and it is
+        # worst exactly where a person notices it: after a build, the estimate
+        # went on describing the chart that was just made. Measured on screen,
+        # i1Pro / A4 portrait / Auto patch count off, three stages in a row:
+        # -f 400 built 418, then -f 900 with the panel still promising 425 on
+        # ONE page while the build made 900 on TWO, then -f 400 with the panel
+        # promising 920 on THREE pages while the build made 418 on one. Each
+        # promise was the PREVIOUS chart's total padded, one build behind.
+        n = self._targen_patch_count()
+        if n:
+            return n
         return self._onscreen_patch_total()
+
+    def _targen_patch_count(self) -> "int | None":
+        """The targen ``-f`` value, i.e. the number of patches the next
+        Generate would ask targen for, or None while "Auto patch count" is on
+        (then the count is a capacity fill the estimate works out for itself)
+        or when the control is not up yet."""
+        auto = getattr(self, "_manual_auto_patches_check", None)
+        if auto is not None and auto.isChecked():
+            return None
+        pw = getattr(self, "_manual_f_pw", None)
+        ctl = getattr(pw, "_control", None) if pw is not None else None
+        try:
+            n = int(ctl.value())
+        except (AttributeError, TypeError, ValueError):
+            return None
+        return n if n > 0 else None
 
     def _pending_patch_set_total(self) -> "int | None":
         """Patch count of the fixed patch set the next Generate would lay out,
