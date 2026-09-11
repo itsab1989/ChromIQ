@@ -719,19 +719,25 @@ def test_every_deliberate_exception_says_why():
 # translated into all twelve rather than carried in English under the beta
 # rule, so the ceilings came DOWN by two instead of up by five: two English
 # placeholders from an earlier round were replaced in the same pass.
+# 2026-09-11, #182: the one-page colour summary is about ONE sheet, so the tick
+# box that widens every other report to the whole history is disabled while T1
+# is chosen, and its tooltip says why. German is translated; the other eleven
+# carry the English sentence under the beta rule, so every ceiling but de goes
+# up by exactly one. Counted, not assumed: `set(after) - set(before)` is that
+# one string in each of the eleven, and `set(before) - set(after)` is empty.
 _IDENTICAL_TO_KEY = {
     "de": 124,
-    "es": 295,
-    "fr": 317,
-    "it": 306,
-    "ja": 281,
-    "nl": 322,
-    "no": 307,
-    "pl": 299,
-    "pt": 297,
-    "ru": 270,
-    "sv": 308,
-    "zh_CN": 275,
+    "es": 296,
+    "fr": 318,
+    "it": 307,
+    "ja": 282,
+    "nl": 323,
+    "no": 308,
+    "pl": 300,
+    "pt": 298,
+    "ru": 271,
+    "sv": 309,
+    "zh_CN": 276,
 }
 
 

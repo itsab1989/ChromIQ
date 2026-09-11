@@ -397,19 +397,24 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # rule, so these budgets came DOWN, not up: 141 -> 139 and its neighbours.
 # Re-measured, not adjusted: a budget left above the truth admits the next
 # untranslated string for free.
+# 2026-09-11, #182: the tooltip on the disabled "Show all measurement runs"
+# tick, which says why a one-page colour summary does not widen to the whole
+# history. One string, over the 25-character floor, German translated and the
+# eleven carrying the English source under the beta rule: every budget but de
+# goes up by exactly one. Measured against the run that failed, not guessed.
 _BUDGET = {
     "de": 4,
-    "es": 139,
-    "fr": 140,
-    "it": 139,
-    "ja": 139,
-    "nl": 139,
-    "no": 139,
-    "pl": 139,
-    "pt": 139,
-    "ru": 138,
-    "sv": 139,
-    "zh_CN": 138,
+    "es": 140,
+    "fr": 141,
+    "it": 140,
+    "ja": 140,
+    "nl": 140,
+    "no": 140,
+    "pl": 140,
+    "pt": 140,
+    "ru": 139,
+    "sv": 140,
+    "zh_CN": 139,
 }
 
 

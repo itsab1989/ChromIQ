@@ -2287,6 +2287,17 @@ class MeasurementReportDialog(QDialog):
         # or with several loaded, there is no single place for it to go.
         self._generate_btn.setEnabled(
             run is not None and not several and bool(self._runs_for_report()))
+        # A ONE-PAGE SUMMARY IS ABOUT ONE SHEET, so the tick that widens every
+        # other report to the whole history is disabled rather than left to do
+        # nothing visible. See `_one_measurement` for what it was doing before.
+        from workflow.measurement_report import REPORT_TYPE_SUMMARY
+        if getattr(self, "_all_runs_check", None) is not None:
+            one_page = current == REPORT_TYPE_SUMMARY
+            self._all_runs_check.setEnabled(not one_page)
+            self._all_runs_check.setToolTip(tr(
+                "The one-page colour summary is about the single measurement "
+                "you are looking at, so it does not widen to the whole "
+                "history.") if one_page else "")
 
     def _generated_types_line(self, run) -> str:
         """Which report types this run has already produced, or "".
@@ -4289,7 +4300,14 @@ class MeasurementReportDialog(QDialog):
                + f"<div style='{ind}'>{html.escape(d0)} – {html.escape(d1)}</div>")
         # Honesty note: a filtered report must say it is filtered, so it can
         # never pass as the complete history (Sebastian, 2026-08-10).
-        hidden = (len(self._history) - len(runs)
+        # COUNT WHAT THE USER UNTICKED, not what is missing from the list.
+        # This was `len(self._history) - len(runs)`, which is the same number
+        # only while the ticks are the only thing that narrows a report. The
+        # one-page summary narrows to a single measurement by its nature, and
+        # the sentence then told a user who had unticked nothing that they had
+        # hidden a run.
+        hidden = (sum(1 for r in self._history
+                      if self._run_key(r) in self._hidden_runs)
                   if getattr(self, "_all_runs_check", None) is not None
                   and self._all_runs_check.isChecked() else 0)
         if hidden > 0:
@@ -4885,7 +4903,8 @@ class MeasurementReportDialog(QDialog):
             family = QApplication.font().family().replace("'", "")
             return (f"<div style=\"font-family:'{family}';color:{_C['text']};"
                     f"font-size:12px\">"
-                    + head + self._one_page_html(runs) + "</div>")
+                    + head + self._one_page_html(self._one_measurement(runs))
+                    + "</div>")
         parts = [head, self._scope_html(runs), self._how_to_read_html(),
                  self._report_results_html(runs)]
         if for_pdf and charts_html:
@@ -4909,6 +4928,35 @@ class MeasurementReportDialog(QDialog):
         return (f"<div style=\"font-family:'{family}';color:{_C['text']};"
                 f"font-size:12px\">"
                 + "".join(parts) + "</div>")
+
+    def _one_measurement(self, runs: list) -> list:
+        """The ONE measurement a one-page summary is about.
+
+        T1 is the page that goes out with a job, so it describes the sheet that
+        was printed for that job. `_runs_for_report` hands back the whole
+        history when "Show all measurement runs" is ticked, and `_one_page_html`
+        read `runs[0]` from it — the OLDEST measurement — while the Report Scope
+        above it said "2 verification runs" and gave the date range of both.
+        Measured on two dated verifications of one run: one verdict, one set of
+        example colours and one set of cube corners, all from a sheet printed
+        nine days before the one the window was opened on, with nothing on the
+        page saying so.
+
+        So the page takes the measurement the window is ON, and the scope is
+        given the same single item, so the heading and the numbers under it are
+        about the same sheet. The tick box is disabled while T1 is chosen
+        rather than left to do nothing (`_sync_type_combo`).
+        """
+        if len(runs) <= 1:
+            return list(runs)
+        key = self._run_key(self._report) if self._report else None
+        if key:
+            for r in runs:
+                if self._run_key(r) == key:
+                    return [r]
+        # No match: the history is oldest-first, so the sheet in hand is the
+        # last one, never the first.
+        return runs[-1:]
 
     def _one_page_html(self, runs: list) -> str:
         """T1, "Colour summary (one page)": the page that goes with the job.
