@@ -1,5 +1,62 @@
 # Changelog
 
+## v4.2.6
+
+**A profile built from an i1Profiler measurement could record its paper white as
+almost black, and nothing said so.** That fault has been on the stable line for
+as long as the import has existed, and it is what this release is for. The rest
+of it is the same road in: a complete measurement turned away as partial, a
+measurement already sitting in a run that carried the fault in silence, an
+export ChromIQ refused to read at all, and a chart in the project you have open
+offered to you as another project's.
+
+### Fixed
+
+- **A profile built from an i1Profiler export recorded its paper white at
+  lightness 8 instead of 95.** An i1Profiler CGATS export can write its XYZ
+  columns on the 0 to 1 reflectance scale. ArgyllCMS's converter scales the
+  device columns and the spectral columns and passes the colour columns
+  straight through, so the converted measurement reached the profile builder a
+  hundredfold too small. Relative colorimetric normalises the paper white away,
+  so the profiles looked ordinary, while absolute colorimetric, paper
+  simulation and every figure in the Measurement Report were wrong and nothing
+  reported it. The scale is corrected on the way in now, using ArgyllCMS's own
+  `spec2cie` rather than ChromIQ's arithmetic, so the numbers the profile
+  builder is handed are the numbers it would have worked out for itself.
+
+  **If you have a profile built from such a file, build it again, and import
+  the measurement again first.** The correction happens on the way in, so
+  re-importing the i1Profiler export is what produces a measurement with its
+  colours on the right scale. Building again from the file already in the run
+  folder would reproduce the fault exactly.
+
+- **A measurement already in a run now says when its colours are on the wrong
+  scale.** A file converted by an earlier version still carries the fault, and
+  Build Profile used to arm its button and say nothing. The measurement line
+  names it, and the Build button's tooltip explains what to do about it. Your
+  file is not touched and the build is not forbidden: what it owes you is that
+  it is not silent.
+
+- **A complete measurement of a ChromIQ chart was refused as partial.** A
+  printed sheet is filled to the end of its last strip, so a 400 colour chart
+  is laid out as 414 patches. Two places counted those fill up rows as colours
+  you were meant to measure. The Measure tab refused a complete import outright
+  ("Nothing has been imported, measure again") and the Build Profile import
+  filed it with "part of the chart was not measured". Both go through one
+  counting rule now, and it knows the fill up rows of both layout engines.
+
+- **An i1Profiler export of device values and spectral readings is read.** Such
+  a file converts cleanly and comes out with no separate colour columns.
+  ArgyllCMS builds a profile from it without complaint; ChromIQ asked for a
+  colour column that was never going to be there and turned the file away.
+
+- **A chart in the project you have open was announced as another project's.**
+  The check compared the open project's folder as configured against the
+  chart's folder as resolved, so the moment your ChromIQ folder was reached
+  through a symlink the two spellings of one folder disagreed and the run's own
+  chart was offered as a stranger's. No chart was ever lost to it; the question
+  you were asked was the wrong one.
+
 ## v4.2.5
 
 **Five things an audit of the beta-4 plan found on the stable line.** None of
