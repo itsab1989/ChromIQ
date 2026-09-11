@@ -28,7 +28,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from workflow.measurement_report import (  # noqa: E402
     REPORT_SCHEMA, REPORT_TYPE_DEFAULT, REPORT_TYPE_FULL, REPORT_TYPE_SUMMARY,
-    REPORT_TYPES, report_type, set_report_type)
+    REPORT_TYPE_MENU, REPORT_TYPES, report_type, set_report_type)
 
 
 def test_a_report_that_says_nothing_is_todays_report():
@@ -40,13 +40,34 @@ def test_a_report_that_says_nothing_is_todays_report():
         "feature would render as something nobody chose")
 
 
-@pytest.mark.parametrize("tid", REPORT_TYPES)
+#: The four ChromIQ can actually produce. The other two are declared so the
+#: pulldown can show them and refuse them, and a report claiming one is read
+#: back as the document this build really makes — see
+#: tests/test_a_type_this_build_cannot_produce_is_never_honoured.py.
+_BUILT = [t[0] for t in REPORT_TYPE_MENU if t[3]]
+
+
+@pytest.mark.parametrize("tid", _BUILT)
 def test_every_type_survives_a_round_trip_through_json(tid, tmp_path):
     rep: dict = {"schema": REPORT_SCHEMA}
     set_report_type(rep, tid)
     p = tmp_path / "r.json"
     p.write_text(json.dumps(rep), encoding="utf-8")
     assert report_type(json.loads(p.read_text(encoding="utf-8"))) == tid
+
+
+@pytest.mark.parametrize("tid", [t[0] for t in REPORT_TYPE_MENU if not t[3]])
+def test_a_type_this_build_cannot_produce_is_written_but_not_believed(tid, tmp_path):
+    """The value goes to disk unchanged — a later ChromIQ that builds the type
+    must find its own choice there — and comes back as what THIS build renders,
+    because what it renders is a full colour check."""
+    rep: dict = {"schema": REPORT_SCHEMA}
+    set_report_type(rep, tid)
+    p = tmp_path / "r.json"
+    p.write_text(json.dumps(rep), encoding="utf-8")
+    raw = json.loads(p.read_text(encoding="utf-8"))
+    assert raw["report_type"] == tid
+    assert report_type(raw) == REPORT_TYPE_FULL
 
 
 def test_a_type_from_a_later_chromiq_opens_as_todays_report():

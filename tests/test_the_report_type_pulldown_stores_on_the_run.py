@@ -309,11 +309,20 @@ def test_an_unbuilt_type_still_renders_todays_report(tmp_path, qapp, tid):
     of it."""
     if tid in _DIFFERS_FROM_T2:
         pytest.skip(f"{tid} has a document of its own now")
+    from workflow.measurement_report import report_type_is_built
     from workflow.run_compliance import set_run_report_type
     dlg, run = _dialog(tmp_path, qapp)
     try:
         base = dlg._report_body_html(dlg._runs_for_report(), for_pdf=False)
-        set_run_report_type(run, tid)
+        if report_type_is_built(tid):
+            set_run_report_type(run, tid)
+        else:
+            # The write refuses a type this build cannot produce, so the only
+            # way a run carries one is the way a real user gets one: a project
+            # made on a later ChromIQ. Put it there as that ChromIQ would.
+            meta = run.load_meta()
+            meta.report_type = tid
+            run.save_meta(meta)
         dlg._forget_limits()
         dlg._sync_limit_controls()
         after = dlg._report_body_html(dlg._runs_for_report(), for_pdf=False)

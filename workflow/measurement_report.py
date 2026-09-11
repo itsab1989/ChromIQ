@@ -1129,9 +1129,21 @@ def report_type(report: "dict | None") -> str:
     by a LATER ChromIQ that knows a seventh type must still open here, and
     rendering it as today's report is the one answer that cannot be wrong about
     the numbers.
+
+    A KNOWN id this build cannot PRODUCE is the same case wearing a familiar
+    name, and it was being honoured. The two ISO types are declared here so the
+    pulldown can show them and refuse them, and a project made on a later
+    ChromIQ that builds one of them carries that id home in its meta.json or in
+    a saved report. Opened here, the window sat on "Validation print check
+    (ISO 12647-8)" over a full colour check, and the "already generated" line
+    named a document ChromIQ had not written. What this build renders is what
+    it must say it rendered, so an unbuilt type falls back exactly as an unknown
+    one does — and nothing is rewritten, so the later ChromIQ still finds the
+    user's choice where it left it.
     """
     t = (report or {}).get("report_type")
-    return t if t in REPORT_TYPES else REPORT_TYPE_DEFAULT
+    return t if t in REPORT_TYPES and report_type_is_built(t) \
+        else REPORT_TYPE_DEFAULT
 
 
 #: The pulldown, in the order Knut approved (issue #182, section 19). Each

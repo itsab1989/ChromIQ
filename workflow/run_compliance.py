@@ -247,11 +247,20 @@ def run_report_type(run: "Run | None") -> str:
 
 
 def set_run_report_type(run: Run, type_id: str) -> None:
-    """Record the chosen type on the run. Refuses an id it does not know, so a
-    typo cannot be written and then read for ever as today's report."""
-    from workflow.measurement_report import REPORT_TYPES
+    """Record the chosen type on the run.
+
+    Refuses an id it does not know, so a typo cannot be written and then read
+    for ever as today's report — and refuses one this build cannot PRODUCE, for
+    the same reason one step further on. The two ISO types exist so the pulldown
+    can show them and say why they are unavailable; the pulldown guards them,
+    but a guard on a control is not a guard on the write, and that is the shape
+    that came back in three separate rounds of this issue.
+    """
+    from workflow.measurement_report import REPORT_TYPES, report_type_is_built
     if type_id not in REPORT_TYPES:
         raise ValueError(f"unknown report type {type_id!r}")
+    if not report_type_is_built(type_id):
+        raise ValueError(f"ChromIQ cannot produce a {type_id!r} report")
     meta = run.load_meta()
     meta.report_type = type_id
     run.save_meta(meta)
