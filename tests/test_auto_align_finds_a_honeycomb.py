@@ -550,3 +550,242 @@ def test_the_window_tells_place_grid_whether_the_chart_is_a_honeycomb():
     src = inspect.getsource(ScannerProfileDialog._on_auto_align)
     assert "chart_is_hexagonal" in src
     assert "hexagonal=hexagonal" in src
+
+
+# ------------------------------------- which quad, and which placement of it
+def _scaled(quad, fx: float, fy: float = 1.0):
+    """*quad* stretched about its own centre — a placement of the same chart,
+    not a different chart, which is exactly the difference the agreement cannot
+    see and the seating can."""
+    cx = sum(p[0] for p in quad) / 4.0
+    cy = sum(p[1] for p in quad) / 4.0
+    return [(cx + (x - cx) * fx, cy + (y - cy) * fy) for x, y in quad]
+
+
+def _fixed_scorer(scores):
+    """An `agreement_scorer` that answers from a table keyed by the quad, so a
+    test can say what the colours think and watch what is done about it."""
+    def scorer(boxes, quad, frac):
+        for want, value in scores:
+            if _worst(quad, want) < 1e-6:
+                return value
+        return 0.0
+    return lambda *a, **k: scorer
+
+
+def test_the_search_does_not_move_when_the_users_sample_area_does(
+        hexchart, monkeypatch):
+    """Which quad holds the chart is a fact about the PICTURE.
+
+    It used to be decided with whatever fraction the Sample area spinbox was
+    on, because the window's number was handed all the way down to the scoring
+    — so changing 60 % to 50 % could hand back a different placement of the
+    same chart, which is what Knut reported on 2026-09-11 as "the auto align
+    varies". (His log shows four presses at ONE setting returning the same
+    answer to every decimal, and his two screenshots of them are identical to
+    the pixel: the setting was the only thing that moved.)
+    """
+    seen = []
+    import workflow.hex_block_search as H
+    real = H.find_block
+
+    def watch(*a, **k):
+        seen.append(k.get("sample_frac", "not-passed"))
+        return real(*a, **k)
+
+    monkeypatch.setattr(H, "find_block", watch)
+    _run(hexchart, monkeypatch, start=None, hexagonal=True)
+    assert seen and all(f == "not-passed" for f in seen), (
+        f"the ladder handed the search a sample fraction: {seen}")
+
+
+def test_the_search_scores_on_a_share_it_chooses_itself(hexchart):
+    """And the share it chooses is the one the drift gate already uses, so the
+    two halves of "is this the chart, and is it seated" look at the same area."""
+    from workflow.scan_auto_align import SEATING_SAMPLE_AREA
+    assert HBS.SEARCH_SAMPLE_AREA == SEATING_SAMPLE_AREA
+    assert (inspect.signature(HBS.find_block).parameters["sample_frac"].default
+            == HBS.SEARCH_SAMPLE_AREA)
+
+
+def test_the_patches_break_a_tie_the_colours_cannot(hexchart, monkeypatch):
+    """Two quads that agree with the chart equally well, and only one of them
+    is seated on the patches.
+
+    The agreement is a rank correlation over the patch luminances and it
+    SATURATES: measured on a two-page CR30 honeycomb whose truth is known to
+    the pixel, quads 11.0, 16.0 and 12.0 px from the truth all scored 1.0000,
+    and so did the truth. None of the routes here bounds the patch block
+    anyway — they bound the INK, and a flat-top honeycomb's apexes reach a
+    sixth of the slot past the first and last columns, so an ink-bounded quad
+    is about 1/(3*columns) too wide. The seating drift can see that; the
+    colours cannot, so they must not be the ones to choose.
+    """
+    truth = [tuple(p) for p in hexchart["truth"]]
+    stretched = _scaled(truth, 1.02)
+    monkeypatch.setattr(HBS, "block_candidates",
+                        lambda *a, **k: [("seated", truth),
+                                         ("stretched", stretched)])
+    # the colours prefer the WRONG one, by less than the band
+    import workflow.scan_auto_align as AA
+    monkeypatch.setattr(AA, "agreement_scorer",
+                        _fixed_scorer([(stretched, 0.99), (truth, 0.98)]))
+    r = HBS.find_block(hexchart["scan"], hexchart["boxes"],
+                       hexchart["expected"], hexchart["size"])
+    assert r.ok
+    assert r.route == "seated", (
+        f"the stretched placement won on {r.rho}: the tie went to the colours, "
+        "which cannot see a stretch")
+    assert _worst(r.corners, truth) < 1e-6
+
+
+def test_the_colours_still_say_which_chart_it_is(hexchart, monkeypatch):
+    """The other half of the same rule. A candidate the colours put OUTSIDE the
+    band is never reached by the tie-break, whatever the patches think of it —
+    so a quad that reads as a different chart cannot be chosen for sitting
+    neatly on something."""
+    truth = [tuple(p) for p in hexchart["truth"]]
+    stretched = _scaled(truth, 1.02)
+    monkeypatch.setattr(HBS, "block_candidates",
+                        lambda *a, **k: [("seated", truth),
+                                         ("stretched", stretched)])
+    import workflow.scan_auto_align as AA
+    monkeypatch.setattr(AA, "agreement_scorer",
+                        _fixed_scorer([(stretched, 0.99), (truth, 0.90)]))
+    r = HBS.find_block(hexchart["scan"], hexchart["boxes"],
+                       hexchart["expected"], hexchart["size"])
+    assert r.ok
+    assert r.route == "stretched", (
+        "a candidate 0.09 of agreement behind was chosen for its seating; the "
+        f"band is {HBS.AGREEMENT_TIE_BAND}")
+
+
+def test_a_seating_that_cannot_be_measured_leaves_the_colours_in_charge(
+        hexchart, monkeypatch):
+    """A check that cannot be made is not evidence of a fault. When the drift
+    comes back None for every candidate the winner is the one the agreement
+    picked, which is what this module did before the tie-break existed."""
+    truth = [tuple(p) for p in hexchart["truth"]]
+    stretched = _scaled(truth, 1.02)
+    monkeypatch.setattr(HBS, "block_candidates",
+                        lambda *a, **k: [("seated", truth),
+                                         ("stretched", stretched)])
+    import workflow.scan_auto_align as AA
+    monkeypatch.setattr(AA, "agreement_scorer",
+                        _fixed_scorer([(stretched, 0.99), (truth, 0.98)]))
+    monkeypatch.setattr(AA, "seating_drift", lambda *a, **k: None)
+    r = HBS.find_block(hexchart["scan"], hexchart["boxes"],
+                       hexchart["expected"], hexchart["size"])
+    assert r.ok
+    assert r.route == "stretched"
+    assert r.drift is None
+
+
+# --------------------------------------- the ink is not the patch block
+class _Box:
+    __slots__ = ("x1", "y1", "x2", "y2", "name")
+
+    def __init__(self, x1, y1, x2, y2, name="A1"):
+        self.x1, self.y1, self.x2, self.y2, self.name = x1, y1, x2, y2, name
+
+
+def _lattice(cols: int, rows: int, w: float, h: float, flat_top: bool):
+    """The box list a honeycomb's .cht carries: straight columns half a slot
+    apart down the page (flat-top), or straight rows half a slot apart across
+    it (pointy-top)."""
+    out = []
+    for c in range(cols):
+        for r in range(rows):
+            if flat_top:
+                x, y = c * w, r * h + (h / 2 if c % 2 else 0.0)
+            else:
+                x, y = c * w + (w / 2 if r % 2 else 0.0), r * h
+            out.append(_Box(x, y, x + w, y + h))
+    return out
+
+
+def test_the_apex_overhang_is_read_off_the_chart_not_guessed():
+    """A hexagon reaches a sixth of its slot past the slot on the axis its
+    apexes point along, and that is the whole difference between the INK every
+    route here bounds and the SLOTS the marquee is defined on. The factor is
+    the span, not the column count, so a part-full last page gets its own."""
+    from workflow.layout_engine.hexagon import APEX_FRACTION
+    flat = _lattice(18, 22, 10.0, 12.0, flat_top=True)
+    fu, fv = HBS.apex_factors(flat)
+    span = 18 * 10.0
+    assert fv == 1.0, "a flat-top honeycomb's apexes point sideways"
+    assert fu == pytest.approx(span / (span + 2 * APEX_FRACTION * 10.0))
+    assert fu == pytest.approx(18 / (18 + 1 / 3), rel=1e-9)
+
+    pointy = _lattice(18, 22, 10.0, 12.0, flat_top=False)
+    pu, pv = HBS.apex_factors(pointy)
+    assert pu == 1.0, "a pointy-top honeycomb's apexes point up and down"
+    assert pv == pytest.approx((22 * 12.0) / (22 * 12.0 + 2 * APEX_FRACTION * 12.0))
+
+    # a part-full page is narrower, so its correction is bigger
+    assert HBS.apex_factors(_lattice(6, 22, 10.0, 12.0, True))[0] < fu
+    # and a chart that is not a honeycomb at all is left alone
+    square = [_Box(c * 10.0, r * 10.0, c * 10.0 + 9.0, r * 10.0 + 9.0)
+              for c in range(10) for r in range(10)]
+    assert HBS.apex_factors(square) == (1.0, 1.0)
+
+
+def test_every_route_is_offered_corrected_as_well_as_raw(hexchart):
+    """Neither reading is trusted. The ink-bounded quad may be right (a chart
+    with a spacer ring between its hexagons has less overhang than a flush one)
+    and the corrected quad may be right, so both are scored and the seating
+    picks. Measured: on a flush 18-column sheet the corrected largest-blob goes
+    from 24.6 px out to 5.9, and on this 6-column ringed fixture the corrected
+    profile-quarter goes the other way, from 8.4 px to 20.4."""
+    r = HBS.find_block(hexchart["scan"], hexchart["boxes"],
+                       hexchart["expected"], hexchart["size"])
+    names = [n for n, _ in r.scores]
+    assert any(n.endswith("+apex") for n in names), names
+    assert any(not n.endswith("+apex") for n in names), names
+
+
+def test_the_answer_beats_what_the_agreement_alone_would_have_picked(hexchart):
+    """The whole point of the two measures together, on a real picture.
+
+    The agreement saturates — three of this fixture's candidates score 0.9860
+    and they are 8.4, 16.0 and 20.4 px from the truth — so picking the highest
+    is picking the first of a tie. The seating separates them.
+    """
+    from workflow.scan_auto_align import agreement_scorer
+    score = agreement_scorer(hexchart["scan"], hexchart["expected"])
+    fu, fv = HBS.apex_factors(hexchart["boxes"])
+    by_rho = None
+    for name, quad in HBS.block_candidates(hexchart["scan"], hexchart["size"]):
+        for q0 in (quad, HBS.scaled_about_centre(quad, fu, fv)):
+            for k in range(4):
+                turned = q0[k:] + q0[:k]
+                rho = score(hexchart["boxes"], turned, HBS.SEARCH_SAMPLE_AREA)
+                if rho is not None and (by_rho is None or rho > by_rho[0]):
+                    by_rho = (rho, turned)
+    assert by_rho is not None
+    r = HBS.find_block(hexchart["scan"], hexchart["boxes"],
+                       hexchart["expected"], hexchart["size"])
+    assert r.ok
+    mine = _worst(r.corners, hexchart["truth"])
+    theirs = _worst(by_rho[1], hexchart["truth"])
+    assert mine < theirs, (
+        f"the seating chose a placement {mine:.1f} px out where the agreement's "
+        f"own best was {theirs:.1f} px out, on a {hexchart['pitch']:.0f} px pitch")
+    assert mine < 0.10 * hexchart["pitch"]
+
+
+def test_handing_the_picture_over_does_not_change_the_seating(hexchart):
+    """The tie-break asks about up to eight placements of ONE scan, so it reads
+    the picture once and hands the result to each call. That is an optimisation
+    and it must be nothing else: measured on a 300 dpi A4 scan it takes the
+    search from 7.0 s to 2.5 s, and the number it returns has to be the same
+    number to the last bit."""
+    from workflow.scan_auto_align import drift_sampler, seating_drift
+    quad = [(x + 9, y - 5) for x, y in hexchart["truth"]]
+    sampler = drift_sampler(hexchart["scan"])
+    assert sampler is not None
+    for q in (hexchart["truth"], quad):
+        alone = seating_drift(hexchart["scan"], hexchart["boxes"], q)
+        shared = seating_drift(hexchart["scan"], hexchart["boxes"], q,
+                               sampler=sampler)
+        assert alone == shared, (alone, shared)

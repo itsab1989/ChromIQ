@@ -263,7 +263,6 @@ def is_seated(scan: Path, boxes: Sequence,
 def _hex_search(scan: Path, boxes: Sequence, expected_y: dict,
                 image_size: tuple[int, int],
                 start: "list[tuple[float, float]] | None",
-                sample_frac: float,
                 search_region: "tuple[float, float, float, float] | None"):
     """Step 1 again, for a chart scanin's recogniser cannot see.
 
@@ -283,13 +282,20 @@ def _hex_search(scan: Path, boxes: Sequence, expected_y: dict,
     refinement and the same three gates. It cannot apply anything, and it
     cannot reach a rectangular chart, whose caller leaves *hexagonal* False.
 
+    THE USER'S SAMPLE AREA IS NOT PASSED, and that is deliberate. Which quad
+    holds the chart is a fact about the picture; it was decided with the
+    fraction the Sample area spinbox happened to be on, so moving that spinbox
+    could hand back a different placement of the same chart. The search uses
+    :data:`~workflow.hex_block_search.SEARCH_SAMPLE_AREA` instead, the same
+    fixed share the drift gate uses and for the same reason.
+
     An exception here is not a failure of the operation: the ladder carries on
     from the user's own corners, which is what it did before this existed.
     """
     try:
         from workflow.hex_block_search import find_block
         return find_block(scan, boxes, expected_y, image_size,
-                          current_corners=start, sample_frac=sample_frac,
+                          current_corners=start,
                           search_region=search_region)
     except Exception:  # noqa: BLE001 — a search must not become a crash
         log.warning("the hexagonal block search failed", exc_info=True)
@@ -361,7 +367,7 @@ def place_grid(scanin_exe: str | Path,
     searched = bool(found.ok)
     if not found.ok and hexagonal:
         hex_found = _hex_search(scan, boxes, expected_y, image_size, start,
-                                sample_frac, search_region)
+                                search_region)
         if hex_found is not None and hex_found.ok:
             working = hex_found.corners
             searched = True
