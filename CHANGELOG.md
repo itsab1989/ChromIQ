@@ -183,6 +183,42 @@ allowed a profiling run's report to show no verdict.
   file was simply not in the build, and nothing said so, because a missing file
   and an empty one both show as a question mark. Both platforms now ship it.
 
+- **The Report limits window no longer acts on an answer to a question that
+  stopped being true while you were reading it.** Seven review rounds drove the
+  same situation from a different door each time: a question about recalculating
+  a run's saved reports takes as long as a person takes to read it, and in that
+  time a verification measurement can finish, a second window can change the
+  same run, or the run can lock itself. Acting afterwards as though nothing had
+  moved rewrote saved reports against numbers nobody had chosen, and in the
+  worst case turned a recorded PASS into a FAIL. Every door that changes what a
+  run is judged by now checks, after your answer, that it is still the run the
+  question described, and says so plainly when it is not.
+
+- **A change made in another window is never reverted in silence.** Choosing a
+  limit set, editing a run's own numbers, choosing which columns the report
+  shows and the app-wide defaults in Preferences are four separate things this
+  window can write, and each is now watched separately. If something else
+  changes one of them while the window is open, you are told which, and whether
+  ChromIQ put it back or left it alone.
+
+- **The messages say what actually happened.** A refusal that recovered your
+  previous numbers no longer claims it could not. A run bound to a limit set
+  this version does not know now says that it keeps the numbers you refused and
+  is judged by them, instead of the generic sentence three different outcomes
+  used to share. A window shown after a lock no longer talks about a refusal you
+  were never asked for.
+
+- **"Show limits…" shows.** A window opened on a locked run used to accept a
+  typed number, display it for ever and store nothing, and offered a "Restore
+  this column" button that cleared the column on screen only, while the stored
+  value went on governing every unbound run in every project. Nothing in that
+  window is editable now.
+
+- **The set pulldown and the unlock tick box obey the lock.** Both could change
+  a locked run's limits and recalculate its history, one because it read the
+  lock only when the window was drawn and the other because it never read it at
+  all.
+
 ### Under the bonnet
 
 - The promise that ChromIQ never says a print conforms to, is certified to or
