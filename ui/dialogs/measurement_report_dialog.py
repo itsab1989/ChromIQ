@@ -1745,7 +1745,12 @@ class MeasurementReportDialog(QDialog):
 
         reports = self._report_dir()
         reports.mkdir(parents=True, exist_ok=True)
-        default = reports / self._report_filename(self._runs_for_report())
+        # THE SAME LIST THE DOCUMENT IS BUILT FROM. The one-page summary
+        # narrows to a single measurement, and its title and kind narrow
+        # with it, but the suggested FILE NAME was still worked out from
+        # everything loaded: with a mixed history the name offered could
+        # name a different chart from the one printed inside the PDF.
+        default = reports / self._report_filename(self._runs_for_document())
         # The house save dialog (sidebar shortcuts, ChromIQ styling) — this
         # was the one save in the app still opening the bare native dialog
         # (Sebastian, 2026-08-10).

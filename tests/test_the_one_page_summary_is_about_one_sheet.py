@@ -246,3 +246,35 @@ def test_and_the_other_types_still_write_every_loaded_run(two_dated, qapp):
     after = {p: len(mr.list_reports(p.parent)) for p in (older, newer)}
     assert after[older] == before[older] + 1
     assert after[newer] == before[newer] + 1
+
+
+def test_the_suggested_pdf_name_matches_the_page_it_saves(two_dated, qapp,
+                                                         monkeypatch):
+    """The document, its title and its kind are all narrowed to one
+    measurement. The suggested file name was not, so with a mixed history it
+    could name a different chart from the one printed inside the PDF.
+
+    THE TEST EXERCISES THE WIRING, NOT THE HELPER. Asking the helper for a name
+    from the narrowed list is a test of the narrowing, which was never in doubt:
+    it passed with the export still reading the wide one, so it proved nothing.
+    This captures the path the export actually offers the save dialog.
+    """
+    import ui.widgets as W
+    dlg, older, newer = two_dated
+    dlg._all_runs_check.setChecked(True)
+    dlg._refresh()
+    assert len(dlg._runs_for_report()) == 2, "the history really is loaded"
+    assert dlg._report_filename(dlg._runs_for_report()) != \
+        dlg._report_filename(dlg._runs_for_document()), \
+        "the two lists really do give different names"
+
+    seen: list = []
+
+    def _grab(*a, **k):
+        seen.append(k.get("start_path", ""))
+        return ""                      # cancel: nothing is written
+
+    monkeypatch.setattr(W, "save_file_dialog", _grab)
+    dlg._export_pdf()
+    assert seen, "the export never reached the save dialog"
+    assert "Bravo" in seen[0] and "Alpha" not in seen[0], seen[0]
