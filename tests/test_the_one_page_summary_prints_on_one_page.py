@@ -136,3 +136,44 @@ def _set(dlg, run, tid: str) -> None:
     dlg._forget_limits()
     dlg._sync_limit_controls()
     dlg._refresh()
+
+
+#: The printable width of the PDF's A4 page at 96 dpi with 15 mm margins, which
+#: is what `_export_pdf` sets up. Measured, not assumed: 679 px.
+_PAGE_W = 679.0
+
+
+def _shipped_languages() -> list:
+    from pathlib import Path as _P
+    d = _P(__file__).resolve().parent.parent / "data" / "i18n"
+    return ["en"] + sorted(p.stem for p in d.glob("*.json")
+                           if not p.stem.startswith("parameters"))
+
+
+@pytest.mark.parametrize("code", _shipped_languages())
+def test_the_colour_table_fits_across_the_page_in_every_language(code, qapp):
+    """TWO BLOCKS SIDE BY SIDE IS A WIDER TABLE, and a heading is a translated
+    string. Russian's "Asked for" is nearly twice the English, so the language
+    that decides whether this fits is not the one it was designed in. Measured
+    across the shipped catalogues: 342 px in Chinese to 538 in Russian, against
+    679 of page.
+    """
+    from PyQt6.QtCore import QSizeF
+    from PyQt6.QtGui import QTextDocument
+
+    import core.i18n as i18n
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    before = getattr(i18n, "current_language", lambda: "en")()
+    try:
+        i18n.set_language(code)
+        rows = [{"name": str(i), "expected_hex": "#112233",
+                 "hex": "#334455", "de": 1.23} for i in range(16)]
+        html = MeasurementReportDialog._swatch_table_html(None, rows, columns=2)
+        doc = QTextDocument()
+        doc.setHtml(html)
+        doc.setPageSize(QSizeF(4000, 4000))
+        assert doc.idealWidth() <= _PAGE_W, (
+            f"{code}: the example-colour table is {doc.idealWidth():.0f} px "
+            f"wide and the page is {_PAGE_W:.0f}")
+    finally:
+        i18n.set_language(before)
