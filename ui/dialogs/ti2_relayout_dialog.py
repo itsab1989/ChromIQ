@@ -468,7 +468,7 @@ _GEN_MIN_DIST = 2.0
 # set it already built instead of spending seconds building the same one again.
 # Bounded because a 4000-patch program is ~4000 tuples; eight of those is a few
 # MB at most, and a user cycling between two or three designs still hits.
-_PROGRAM_CACHE: "OrderedDict[tuple, list[tuple]]" = OrderedDict()
+_PROGRAM_CACHE: "OrderedDict[tuple, tuple[list[tuple], str]]" = OrderedDict()
 _PROGRAM_CACHE_MAX = 8
 
 # On-screen preview render resolution (#44). The preview never needs print DPI;
@@ -3392,9 +3392,21 @@ class _NewChartDialog(QDialog):
           widgets and the app-wide engine setting, and NONE of those are in
           `_collect_gen_state`. Keying the resolved number covers all of them.
         * the existing chart — the Add flow spaces and fills against it.
-        * ``_gen_image_serial`` — "From image" reads decoded pixels that no
-          spin box describes; loading a different photo changes the program
-          without moving a single control.
+        * the loaded photo — "From image" reads decoded pixels that no spin box
+          describes; loading a different photo changes the program without
+          moving a single control.
+
+          **A PER-WINDOW COUNTER WAS THE WRONG IDENTITY FOR A PROCESS-WIDE
+          CACHE.** `_gen_image_serial` starts at 0 in every new dialog, so the
+          first photo loaded in window 2 keyed identically to the first photo
+          loaded in window 1, and the second window was served the first
+          window's palette while its own button showed the new filename. A
+          challenge round drove it: same key, wrong colours, no warning. The
+          digest of the decoded pixels is the photo's real identity: two
+          different pictures cannot collide, and RE-loading the same picture
+          still hits, which is the whole point of the cache.
+        * the ArgyllCMS path — several generators shell out to `targen`, so the
+          same settings against a different Argyll are a different program.
         """
         try:
             state = json.dumps(self._collect_gen_state(), sort_keys=True,
@@ -3403,9 +3415,27 @@ class _NewChartDialog(QDialog):
                              for p in (self._existing_patches or []))
             return (type(self).__name__, state, self._nch_state(),
                     self._effective_fill_target(), existing,
-                    getattr(self, "_gen_image_serial", 0))
+                    self._gen_image_digest(), self._argyll_key())
         except Exception:      # noqa: BLE001 — a cache may never break a build
             return None
+
+    def _gen_image_digest(self) -> str:
+        """What the loaded photo actually IS, not how many have been loaded."""
+        px = getattr(self, "_gen_image_px", None)
+        if px is None:
+            return ""
+        try:
+            import hashlib
+            return hashlib.blake2b(px.tobytes(), digest_size=16).hexdigest()
+        except Exception:      # noqa: BLE001
+            # Unhashable is not "the same as last time": refuse the cache.
+            return f"unhashable-{id(px)}"
+
+    def _argyll_key(self) -> str:
+        try:
+            return str(self._settings.get("argyll_path", "") or "")
+        except Exception:      # noqa: BLE001
+            return ""
 
     def _build_generated_program(self) -> list[tuple]:
         """The ticked generators' patches, built once per generator state.
@@ -3425,15 +3455,25 @@ class _NewChartDialog(QDialog):
         is exact, not an approximation. It lives in the process only — nothing
         is written to disk, and a new run of the app builds afresh.
         """
+        # THE BUILD PRODUCES TWO THINGS AND THE CACHE KEPT ONE. Skipping the
+        # builder also skipped `nch_moved_note`, the sentence that says how many
+        # look-based colours lay outside the printer's gamut and were moved. A
+        # challenge round drove it: window 1 said 350 of 966 were moved, window
+        # 2 with identical settings and identical patches said nothing at all. A
+        # warning that appears only the first time is worse than one that never
+        # appears, because its absence reads as good news.
         key = self._generator_cache_key()
         if key is not None:
             hit = _PROGRAM_CACHE.get(key)
             if hit is not None:
                 _PROGRAM_CACHE.move_to_end(key)
-                return list(hit)
+                program, note = hit
+                self.nch_moved_note = note
+                return list(program)
         program = self._build_generated_program_uncached()
         if key is not None:
-            _PROGRAM_CACHE[key] = list(program)
+            _PROGRAM_CACHE[key] = (list(program),
+                                   getattr(self, "nch_moved_note", ""))
             _PROGRAM_CACHE.move_to_end(key)
             while len(_PROGRAM_CACHE) > _PROGRAM_CACHE_MAX:
                 _PROGRAM_CACHE.popitem(last=False)
