@@ -35,7 +35,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from core.i18n import tr
-from core.text_io import read_text
 
 log = logging.getLogger(__name__)
 
@@ -123,14 +122,18 @@ def _chart_patch_count(ti2: "Path | None") -> int:
     # FROM THE HEADER, not by parsing it as a measurement. A `.ti2` carries
     # device values and no XYZ, so `parse_ti3` raises "No XYZ or Lab columns"
     # on every chart — which returned 0 here, silently switched the count check
-    # off, and let a partial through as an ordinary import. The same one-line
-    # read the Measure tab already uses (`tab_measure._chart_patch_count`).
-    import re
+    # off, and let a partial through as an ordinary import.
+    #
+    # THROUGH `expected_patches`, NOT A `NUMBER_OF_SETS` OF ITS OWN. A chart's
+    # last strip is filled out with patches that are not part of the design —
+    # printtarg's carry `SAMPLE_ID` 0, ChromIQ's layout engine's are copies of
+    # the media patch — and the Build Profile tab has discounted them since
+    # report 16. This door counted the raw header instead, so the same
+    # measurement was "complete" to one part of the app and "partial" to the
+    # other: a user's complete 4,000-patch measurement of a 4,014-row chart was
+    # filed with "part of the chart was not measured" on 2026-09-11. One
+    # counting rule, in one place.
     if ti2 is None:
         return 0
-    try:
-        m = re.search(r"NUMBER_OF_SETS\s+(\d+)",
-                      read_text(Path(ti2), lenient=True))
-    except OSError:
-        return 0
-    return int(m.group(1)) if m else 0
+    from workflow.measurement_state import expected_patches
+    return int(expected_patches(Path(ti2)) or 0)
