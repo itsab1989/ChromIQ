@@ -5170,6 +5170,10 @@ class TabProfile(QWidget):
         self._active_params = params
         self._log.clear()
         engine = self._resolve_engine(params)
+        # Which builder's output `_on_log_line` is reading. The colprof
+        # progress parsing must never be applied to the ChromIQ engine's
+        # output, which has its own vocabulary.
+        self._building_with = engine
         if engine == "blocked":
             self._show_tool_failure_dialog(
                 tr("Multi-ink measurement"),
@@ -5232,8 +5236,46 @@ class TabProfile(QWidget):
             raise
 
     def _on_log_line(self, line: str) -> None:
+        if self._show_colprof_progress(line):
+            return
         self._log.appendPlainText(line)
         self._log.ensureCursorVisible()
+
+    def _show_colprof_progress(self, line: str) -> bool:
+        """Turn one line of ``colprof -v`` into the bar's readout.
+
+        Returns True when the line WAS the readout and so must not also be
+        written into the log: colprof ticks a bare percentage field per phase
+        (231 of them in a measured `-qu` build), and pouring those into the box
+        would bury the phase names they belong to.
+
+        The percentage colprof reports is **per phase and restarts at zero for
+        each**, so that is exactly what the bar shows — this phase, this far,
+        with the tool's own name for the phase beside it. There is no
+        whole-build percentage in the output and none is invented here. Before
+        the first percentage of a phase arrives the bar goes back to its
+        indeterminate animation, which is the honest reading of colprof's one
+        long silent stretch (107 s of a 457 s `-qu` build, measured).
+        """
+        if getattr(self, "_building_with", "") != "colprof":
+            return False
+        bar = getattr(self, "_progress_bar", None)
+        if bar is None:
+            return False
+        from workflow.profile_builder import colprof_percent, colprof_phase
+        phase = colprof_phase(line)
+        if phase is not None:
+            self._colprof_phase = phase
+            bar.set_label(tr("Building"), phase)
+            bar.set_value(None)
+            return False           # the phase name belongs in the log as well
+        pct = colprof_percent(line)
+        if pct is None:
+            return False
+        bar.set_label(tr("Building"),
+                      getattr(self, "_colprof_phase", "") or "colprof")
+        bar.set_value(pct)
+        return True
 
     def _reset_build_ui(self) -> None:
         """Restore the Build box after any build (colprof or engine)."""
@@ -5253,6 +5295,8 @@ class TabProfile(QWidget):
         self._progress_bar.stop()
         self._progress_bar.set_label(tr("Build Profile"), "")
         self._progress_bar.set_value(0)
+        self._colprof_phase = ""
+        self._building_with = ""
 
     def _on_engine_done(self, code: int) -> None:
         """Finish path for ChromIQ-engine builds (#122)."""
@@ -5626,6 +5670,14 @@ class TabProfile(QWidget):
             copyright        = self._copy_edit.text().strip() if self._copy_check.isChecked() else "",
             no_input_shaper  = self._no_input_cb.isChecked(),
             no_output_shaper = self._no_output_cb.isChecked(),
+            # WITHOUT `-v` COLPROF SAYS NOTHING AT ALL, and that is what a user
+            # reported as "the colprof output area doesn't seem to show
+            # anything while the profile is building". Measured on her own
+            # 4,000-patch measurement: 18.71 s at `-qm`, zero bytes of output,
+            # exit 0 — the box was not failing to show the output, there was
+            # none. `-v` is the only flag that changes it and it changes
+            # nothing else about the profile.
+            verbose          = True,
             extra_args       = "",
             illuminant       = self._illum_combo.currentData() or "",
             observer         = self._obs_combo.currentData() or "",
@@ -5661,6 +5713,7 @@ class TabProfile(QWidget):
             copyright        = self._m_copy_edit.text().strip() if self._m_copy_check.isChecked() else "",
             no_input_shaper  = self._m_no_input_cb.isChecked(),
             no_output_shaper = self._m_no_output_cb.isChecked(),
+            verbose          = True,      # see the Guided twin above
             extra_args       = "",
             illuminant       = self._m_illum_combo.currentData() or "",
             observer         = self._m_obs_combo.currentData() or "",

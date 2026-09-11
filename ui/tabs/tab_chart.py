@@ -5958,7 +5958,17 @@ class TabChart(QWidget):
         # `_set_margin_chart`, which a restore path can reach while the tab is
         # still being built and these widgets do not exist yet.
         manual_btn = getattr(self, "_manual_btn", None)
-        if not (manual_btn is not None and manual_btn.isChecked()):
+        # THE GAMUT MODULE LAYS ITS CHART OUT WITH THESE SAME SETTINGS, so the
+        # estimate has to answer for the gamut chart while that module is the
+        # active mode. It used to return here instead, and the "estimate"
+        # column simply kept the last answer Manual gave: a user who generated
+        # a 25-patch gamut chart read "Total patches 25 on screen / 4032
+        # estimate" and "Pages 1 / 6", the right-hand column describing her
+        # 4,000-patch targen chart from before. Reproduced on screen: 25
+        # against 4025, one page against eight.
+        gamut_on = bool(getattr(self, "_gamut_active", False))
+        if not gamut_on and not (manual_btn is not None
+                                 and manual_btn.isChecked()):
             return
         if use_engine is None:
             engine_check = getattr(self, "_manual_engine_check", None)
@@ -5975,17 +5985,27 @@ class TabChart(QWidget):
             # render never clamps to instrument minimums, so the estimate
             # mustn't either, or the two would disagree. Below-minimum is
             # only flagged as a violation in the inspector.
-            pages_req = (self._manual_pages_spin.value()
-                         if self._manual_pages_spin is not None else 1)
+            pages_req = (self._gamut_pages() if gamut_on else
+                         (self._manual_pages_spin.value()
+                          if self._manual_pages_spin is not None else 1))
             # Use a fixed patch count ONLY when the count is fixed (Auto patch
             # count OFF). With Auto ON the count is a capacity-fill that changes
             # with the patch size, so let the estimate recompute it (npat=None)
             # — otherwise the estimate sticks on the stale generated count when
             # you change e.g. the minimum patch width (#93, Knut beta-14
             # regression).
-            _auto = (self._manual_auto_patches_check is not None
-                     and self._manual_auto_patches_check.isChecked())
-            _npat = None if _auto else self._estimate_patch_total()
+            if gamut_on:
+                # The module's own count, capped by what the profile reaches,
+                # plus the corners that always ride along — the number this
+                # module's Generate would actually lay out.
+                _npat = self._gamut_chart_patch_total()
+                if not _npat:
+                    self._layout_info_panel.clear_estimate()
+                    return
+            else:
+                _auto = (self._manual_auto_patches_check is not None
+                         and self._manual_auto_patches_check.isChecked())
+                _npat = None if _auto else self._estimate_patch_total()
             # AREA-FIRST SIZES THE PATCH FROM THE COUNT, SO THE COUNT HAS TO BE
             # IN THE KWARGS. `build_kwargs()` does not carry it: `build_chart`
             # injects `area_target_count` from the .ti1 it is laying out
@@ -16953,15 +16973,29 @@ class TabChart(QWidget):
                     "Your chart: {count} colours plus the 8 cube corners "
                     "= {total} patches.").format(count=count,
                                                  total=count + 8))
+        elif cover is None:
+            # NOT "it runs the first time a profile is available": this label
+            # is only rendered when a profile IS there (see the early return
+            # above), so that sentence named a cause that cannot be the one.
+            # It is what a user saw straight after building her profile.
+            parts.append(tr(
+                "ChromIQ could not ask this profile how many of the reference "
+                "colours it can print. The chart can still be made: it will "
+                "hold as many of them as the profile turns out to reach, plus "
+                "the 8 cube corners."))
         else:
             parts.append(tr(
-                "The in-gamut count could not be worked out yet — it runs "
-                "the first time a profile is available."))
-        patches = min(count, cover) + 8 if cover is not None else count + 8
+                "The reference colour set could not be read, so there is "
+                "nothing to measure this profile against."))
+        patches = self._gamut_chart_patch_total() or (count + 8)
         sheets = self._gamut_sheet_estimate(patches)
         if sheets:
             parts.append(sheets)
         self._gamut_count_lbl.setText(" ".join(parts))
+        # The estimate column answers for THIS chart while this module is the
+        # active mode, and every input it reads (the count, the margin, the
+        # intent, Auto) arrives here.
+        self._refresh_layout_estimate()
 
     def _recipe_capacity(self) -> "int | None":
         """Patches per sheet under the LIVE Manual layout recipe.
@@ -17061,6 +17095,26 @@ class TabChart(QWidget):
             want = min(want, int(cover))
         spin = self._gamut_count_spin
         return max(spin.minimum(), min(spin.maximum(), want))
+
+    def _gamut_chart_patch_total(self) -> "int | None":
+        """How many patches a Generate would put on the sheet right now: the
+        colours asked for, capped by however many the profile can reach, plus
+        the 8 cube corners that always ride along. None when the module has no
+        profile to ask, so a caller can stay silent rather than guess.
+
+        ONE ANSWER, TWO READERS. The count line under the spin box and the
+        layout panel's estimate column both need it, and when they computed it
+        separately only one of them was ever right.
+        """
+        if not getattr(self, "_gamut_active", False):
+            return None
+        if self._gamut_profile() is None:
+            return None
+        count = self._gamut_effective_count()
+        cover = self._gamut_in_gamut_total()
+        if cover is not None:
+            count = min(count, int(cover))
+        return int(count) + _GAMUT_CORNER_PATCHES
 
     def _gamut_in_gamut_total(self) -> "int | None":
         """How many reference colours this profile can print, at the CURRENT
@@ -17231,18 +17285,29 @@ class TabChart(QWidget):
             return
         finally:
             QApplication.restoreOverrideCursor()
-        if selection.achieved < count:
-            self._log.appendPlainText(tr(
-                "Only {n} of the requested {count} colours are printable "
-                "with this profile, so the chart holds {n} colours plus the "
-                "8 cube corners.").format(n=selection.achieved, count=count))
         self._settings.set("gamut_target_count", count)
         self._settings.set("gamut_target_margin", margin)
         self._settings.set("gamut_target_intent", intent)
         self._settings.set("gamut_target_auto",
                            self._gamut_auto_check.isChecked())
         self._pending_gamut_selection = selection
-        self._generate_from_ti1(ti1)
+        started = self._generate_from_ti1(ti1)
+        # AFTER THE BUILD IS STARTED, BECAUSE `_generate_from_ti1` CLEARS THE
+        # LOG. This notice used to be written one statement earlier and was
+        # erased before anybody could read it, every single time — which is
+        # how a user came to press Generate for 542 colours, receive a chart
+        # of 25, and be told nothing at all. `_generate_from_ti1` clears the
+        # box synchronously, so posting after it is the only place the notice
+        # survives. Measured on screen: with the ChromIQ layout engine the
+        # whole build runs inside that call, so the notice lands as the LAST
+        # line of the log, which is the one a person sees without scrolling.
+        # Only when the build really began: a refusal changed nothing, and a
+        # notice about a chart that was not made would be its own confusion.
+        if started and selection.achieved < count:
+            self._log.appendPlainText(tr(
+                "Only {n} of the requested {count} colours are printable "
+                "with this profile, so the chart holds {n} colours plus the "
+                "8 cube corners.").format(n=selection.achieved, count=count))
 
     def _write_gamut_reference_after_adopt(self, new_ti2: "Path | None") -> None:
         """After a gamut chart was adopted as the run's verify chart, store the
