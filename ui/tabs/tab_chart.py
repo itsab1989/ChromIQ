@@ -6145,6 +6145,9 @@ class TabChart(QWidget):
         d = (overlay(r) if overlay is not None else r).to_dict()
         d.pop("label_style_explicit", None)
         d.pop("seed", None)
+        # …and the tick that belongs to the seed, for the same reason: a preset
+        # never stores it, so a chart that does would always read as "modified".
+        d.pop("seed_fixed", None)
         d.pop("chart_text", None)
         return d
 
@@ -9474,8 +9477,23 @@ class TabChart(QWidget):
     def _paper_name_and_orientation(paper: str) -> tuple[str, str]:
         """(base paper name, orientation) for a printtarg -p value, read from the
         paper labels (which carry "… Portrait" / "… Landscape"), e.g.
-        ``"A4R"`` → ``("A4", "Landscape")``. Custom ``WxH`` sizes derive the
-        orientation from their dimensions."""
+        ``"A4R"`` → ``("A4", "Landscape")``.
+
+        A CUSTOM SIZE HAS NO ORIENTATION OF ITS OWN, SO IT IS READ OFF THE TWO
+        NUMBERS. Knut, 2026-09-10: *"we can automatically detect 'Portrait' or
+        'Landscape' and add that to the name. If first parameter, which is the
+        page width, is smaller than the second parameter, which is the height,
+        then we have Portrait. If opposite, width larger than height, then we
+        have Landscape."* That is arithmetic on the pair, not a stored flag,
+        which is why it lives here rather than in the paper table.
+
+        A SQUARE SHEET GETS NEITHER WORD. He ruled on the two inequalities and
+        said nothing about equality, and a square page genuinely is neither
+        portrait nor landscape: calling it one of them would put a word in the
+        name that the sheet does not have. So the size token is the whole
+        answer, exactly as it is for a paper the table has no orientation for.
+        (Open question for him; nothing else in the app depends on it.)
+        """
         label = PAPER_LABELS.get(paper, "")
         if label:
             # Filesystem-safe readable token (A3+ → A3Plus, 8×10" → 8x10in) (#68).
@@ -9486,9 +9504,11 @@ class TabChart(QWidget):
         if "x" in str(paper):
             try:
                 w, h = (float(v) for v in str(paper).split("x", 1))
-                return str(paper), ("Landscape" if w > h else "Portrait")
             except ValueError:
-                pass
+                return str(paper), ""
+            if w == h:
+                return str(paper), ""
+            return str(paper), ("Landscape" if w > h else "Portrait")
         return str(paper), ""
 
     def comparable_presets(self) -> list[tuple[str, list[tuple[str, "Path"]]]]:
@@ -9553,7 +9573,16 @@ class TabChart(QWidget):
                 # Landscape even suggested "A4…Portrait", #108).
                 instr = (panel.instr.currentData()
                          if panel.instr is not None else "") or "i1"
-                paper = panel.paper.currentData() or "A4"
+                # THE PAPER COMBO'S OWN DATA IS A SENTINEL ON "Custom…".
+                # `panel.paper.currentData()` reads `"__custom__"` there, and
+                # that string is what the suggested preset name used to carry:
+                # Knut, 2026-09-10, got "i1Pro-__custom__-600p-4pages" for a
+                # sheet his own preset calls 100x150mm, so the one thing that
+                # identifies the paper was the one thing missing. `selection()`
+                # is the panel's own resolver and answers "100x150" from the two
+                # Custom size boxes, which `_paper_name_and_orientation` then
+                # reads as a size plus its derived orientation.
+                paper = panel.selection()[1] or "A4"
             else:
                 instr = (self._manual_instr_pw.get_raw_value()
                          if self._manual_instr_pw is not None else "") or "i1"
@@ -9606,7 +9635,16 @@ class TabChart(QWidget):
             "chart layout.\n\n"
             "The prefix updates on its own as you change the settings and can't be "
             "edited directly — click the field and your cursor lands right after it, "
-            "ready to type. Turn the option off to name the preset entirely yourself.")
+            "ready to type. Turn the option off to name the preset entirely yourself."
+        ) + "\n\n" + tr(
+            # Knut, 2026-09-10, asked for the rule to be implemented "and also
+            # explain this in the help icon". This is that explanation, kept as
+            # its own string so the paragraphs above keep their translations.
+            "On Custom paper the size you type is the paper part of the name, so "
+            "a 100 by 150 mm sheet reads “100x150”. ChromIQ works the orientation "
+            "out from the two numbers: a width smaller than the height is "
+            "Portrait, a width larger than the height is Landscape. A square page "
+            "gets neither word, because it is neither.")
 
     @staticmethod
     def _profile_name_tooltip() -> str:
@@ -10354,8 +10392,12 @@ class TabChart(QWidget):
             from dataclasses import replace
             # PINNED: a saved preset carries its own label style, so a later
             # Preferences change can't resize the labels on it (Knut, beta-6).
+            # `seed_fixed` goes with `seed`: a preset names a layout, not one
+            # chart's shuffle, so it carries neither the number nor the tick
+            # that would apply a stale one (Knut's seed tag, 2026-09-10).
             capture["layout_recipe"] = replace(
-                self._pinned_layout_recipe(), seed=None).to_dict()
+                self._pinned_layout_recipe(), seed=None,
+                seed_fixed=None).to_dict()
         # Chart notes + stamp choice round-trip with the preset (mavtop,
         # forum). Presets saved before these keys existed simply lack them,
         # and loading such a preset leaves both fields untouched.

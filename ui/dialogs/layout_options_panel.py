@@ -4705,9 +4705,27 @@ class LayoutOptionsPanel(QWidget):
         self._sync_clip_content_enabled()
         self._sync_clip_enable_display()
         self.randomize_cb.setChecked(r.randomize)
-        _fixed = r.seed is not None
+        # THE TICK COMES FROM THE RECORDED TICK, AND THE NUMBER FROM THE NUMBER.
+        #
+        # Knut, 2026-09-10, on loading a chart as it was made: the stored seed
+        # goes into the Seed box "even when 'Use a fixed seed' is OFF", and the
+        # checkbox is set to the stored tag. Those are two facts and they used
+        # to share one field: `seed is not None` answered both, so a chart built
+        # with the box UNTICKED (the build still draws a number, and the restore
+        # path puts it in `seed` so the sheet can be reproduced exactly) came
+        # back with the box ticked, every visit.
+        #
+        # `seed_fixed` is None on every recipe written before the tag existed,
+        # and for those the old reading is the only evidence there is.
+        _tag = getattr(r, "seed_fixed", None)
+        _fixed = (r.seed is not None) if _tag is None else bool(_tag)
         self.fixed_seed_cb.setChecked(_fixed)
-        if _fixed:
+        if r.seed is not None:
+            # Even with the box unticked: the number is what reproduces this
+            # sheet, and a greyed box showing it is the same display-only
+            # reporting `show_built_seed` does after a build. Ticking the box
+            # then builds that exact layout again, which is what the
+            # Randomisation tooltip promises.
             self.seed_spin.setValue(int(r.seed))
         self._sync_seed_enabled()
         self._inst, self._clip = r.instrument, r.clip_border
@@ -4870,4 +4888,11 @@ class LayoutOptionsPanel(QWidget):
         r.randomize = self.randomize_cb.isChecked()
         r.seed = (int(self.seed_spin.value())
                   if r.randomize and self.fixed_seed_cb.isChecked() else None)
+        # The tick itself, recorded whatever the seed came out as (Knut,
+        # 2026-09-10). It is stored even while "Randomise patch order" is off
+        # and the box is greyed: the box keeps its state through a randomise
+        # off-and-on again, so the tag is simply what the box says. What the
+        # tick MEANS with randomisation off is a question for him -- there is no
+        # order to fix -- and recording it commits to nothing either way.
+        r.seed_fixed = bool(self.fixed_seed_cb.isChecked())
         return r
