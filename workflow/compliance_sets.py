@@ -444,7 +444,8 @@ def set_label(set_id: str, stored_label: str = "") -> str:
 #: default stays 2.0 / 2.0 / 2.0 / 3.0 / 3.0; tight and quick are half and
 #: double, "modifiable in the future if needed". The grey-balance pair is a
 #: SHOULD limit in every ChromIQ set until a healthy printer has been measured
-#: (CS-METRICS-SPEC §1.3, CH-9): exceeding it reads COND, never FAIL.
+#: (CH-9, recorded in docs/design/measurement_report_limits.md): exceeding
+#: it reads COND, never FAIL.
 _CHROMIQ_FACTORY: "dict[str, dict[str, Limit]]" = {
     "chromiq_default": {
         "all_de00_avg": Limit.value(2.0), "best95_de00_avg": Limit.value(2.0),
@@ -473,7 +474,7 @@ _CHROMIQ_FACTORY: "dict[str, dict[str, Limit]]" = {
 #: standard (what it regulates), not its numbers; the numbers come from the
 #: data file and read ``?`` while that file is empty. Sources: ISO 12647-7:2016
 #: Table 2 and 4.3.2 to 4.3.7; ISO 12647-8:2021 Table 1 and 4.2.1 to 4.2.8
-#: (the free previews; see the research folder's THE-MATRIX.md).
+#: (the free previews).
 _ISO_ROWS: "dict[str, tuple[str, ...]]" = {
     "iso_12647_7": (
         "substrate_de00_max", "substrate_overprinted_de00_max",
@@ -503,7 +504,7 @@ _ISO_ROWS: "dict[str, tuple[str, ...]]" = {
 }
 
 #: The data file. Ships empty (see the module docstring). The environment
-#: variable exists for the research folder's local checks only.
+#: variable exists so a licence holder can point ChromIQ at their own copy.
 ISO_DATA_FILE = "data/compliance_sets/iso12647.json"
 ISO_DATA_ENV = "CHROMIQ_COMPLIANCE_ISO_FILE"
 _iso_cache: "dict[str, dict[str, Limit]] | None" = None
@@ -655,7 +656,8 @@ def row_verdict(limit: Limit, value: "float | None", graded: bool) -> "str | Non
     """The word for one row of one column, or None when the cell is not a
     verdict at all (a ``?`` or ``✕`` limit, or a ``–`` limit with no value).
 
-    CS-METRICS-SPEC §3.2 as amended by CH-3 (no "not recorded" case here: a
+    CH-3, recorded in docs/design/measurement_report_limits.md (no "not
+    recorded" case here: a
     report without a recorded verdict is graded live by its caller) and
     CH-20 (a ``–`` row with no value is blank, not INFO).
     """

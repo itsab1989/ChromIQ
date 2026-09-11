@@ -201,7 +201,7 @@ and it must never block a build or a run change.
 July that the seed survive a restore so a manual Generate reproduces the sheet,
 and in September that selecting a run must not tick "Use a fixed seed". Those
 are still the same piece of state. See `J-seed-tick-conflict-FOR-KNUT.md` in the
-research folder; this ruling does not resolve it.
+project's working notes; this ruling does not resolve it.
 
 ## 3. When settings are written
 

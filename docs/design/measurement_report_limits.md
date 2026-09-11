@@ -25,8 +25,9 @@ measurement; §M-PROPOSED holds this feature's two messages),
 which reference the report uses), `tool_availability.md` (DRAFT; the report is
 ● for a selection that has a measurement).
 
-The sources this design was built from are named in the research folder's
-`CS-METRICS-SPEC.md`: the free official previews of ISO 12647-7:2016 and
+The sources this design was built from, named here rather than by reference to
+a file nobody on the project can open: the free official previews of
+ISO 12647-7:2016 and
 ISO 12647-8:2021, CGATS/Idealliance TR 015-2022, the Idealliance G7 Master
 Pass/Fail Requirements v35, and ChromIQ's own code. Where a clause was not
 readable the row reads `?` and nothing was inferred.

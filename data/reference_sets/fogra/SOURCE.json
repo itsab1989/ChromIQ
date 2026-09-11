@@ -1,5 +1,5 @@
 {
-  "_readme": "Provenance and terms for every reference data file in this folder. workflow/reference_sets.py REFUSES to offer a file that has no entry here, or whose entry has no 'source' and 'terms'. That is how the credit condition of the Fogra grant is met by construction rather than by a reader's diligence (#182, docs/design/issue_182_answers.md and the specification in the research folder). The sha256 of each file is recorded so that 'distributed unmodified' is checkable.",
+  "_readme": "Provenance and terms for every reference data file in this folder. workflow/reference_sets.py REFUSES to offer a file that has no entry here, or whose entry has no 'source' and 'terms'. That is how the credit condition of the Fogra grant is met by construction rather than by a reader's diligence (#182, docs/design/issue_182_answers.md). The sha256 of each file is recorded so that 'distributed unmodified' is checkable.",
   "sets": {
     "FOGRA39": {
       "file": "FOGRA39_MW3_Subset.txt",

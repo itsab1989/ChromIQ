@@ -400,7 +400,8 @@ def _stats(vals: "list[float]") -> dict:
         return {"n": 0}
     a = np.sort(np.asarray(vals, float))
     n = int(a.size)
-    # #182 (CS-METRICS-SPEC §2.1, CH-28): the 95th percentile is the NEAREST-RANK
+    # #182 (CH-28, recorded in docs/design/measurement_report_limits.md): the
+    # 95th percentile is the NEAREST-RANK
     # value, rank ceil(0.95 n), the ordinary meaning of the term and the one
     # the standards' rows use. `round(0.95 n)` was one rank lower on 48 % of
     # chart sizes, i.e. the lenient side. The same rank splits "best 95 %" from
@@ -1216,7 +1217,7 @@ def report_scope(runs: "list[dict]") -> dict:
 # A row of the limits table is a statistic over a POPULATION of patches. The
 # five ΔE00 rows are the statistics `_stats` has always produced; the two
 # grey-balance rows and the tone-ramp row are computed here. The rules are
-# CS-METRICS-SPEC §1.3 and §4 as amended by the challenge (CH-10):
+# CH-10, recorded in docs/design/measurement_report_limits.md:
 #
 #   grey ramp   = every patch with max(R,G,B) − min(R,G,B) ≤ 1.0 device units;
 #                 eligible when it has at least 8 distinct levels (levels within
