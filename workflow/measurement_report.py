@@ -983,6 +983,63 @@ def accuracy_verdict(de00: dict, avg_thr: float, max_thr: float) -> "tuple[list,
 # an earlier ChromIQ simply does not have them, is detected by their ABSENCE,
 # and is left exactly as it lies on disk.
 
+#: The report TYPES (#182, W-A). The six names are Knut's own, approved
+#: 2026-09-09: *"I would say we should use the names supplied for testing. This
+#: may be changed later. Standards number is fine as part of the name."*
+#:
+#: These are the stored ids and they never change; the labels a user reads live
+#: in the window and go through `tr()`.
+REPORT_TYPE_SUMMARY   = "t1_colour_summary"      # one page, to hand over
+REPORT_TYPE_FULL      = "t2_full_colour_check"   # today's report, unchanged
+REPORT_TYPE_GREY      = "t3_grey_and_tone"
+REPORT_TYPE_RECORD    = "t4_printing_record"     # nothing is graded, INFO only
+REPORT_TYPE_ISO_8     = "t5_validation_print"    # ISO 12647-8
+REPORT_TYPE_ISO_7     = "t6_contract_proof"      # ISO 12647-7
+
+REPORT_TYPES: "tuple[str, ...]" = (
+    REPORT_TYPE_SUMMARY, REPORT_TYPE_FULL, REPORT_TYPE_GREY,
+    REPORT_TYPE_RECORD, REPORT_TYPE_ISO_8, REPORT_TYPE_ISO_7,
+)
+
+#: What a report with no type recorded IS. T2 is defined as today's report
+#: unchanged, so this is what makes the feature ship invisible: every report
+#: written before the dropdown existed, and every run nobody has chosen for,
+#: renders exactly as it does today.
+REPORT_TYPE_DEFAULT = REPORT_TYPE_FULL
+
+
+def report_type(report: "dict | None") -> str:
+    """The type a report was SAVED as, or T2 when it says nothing.
+
+    ABSENCE IS THE SIGNAL, and it has to be, because `REPORT_SCHEMA` may not be
+    bumped for this. The window treats an older schema as stale and rebuilds
+    the report from the run's `.ti3`, so a bump would silently re-derive every
+    report on disk. See the note above `VERDICT_SOURCE_IN_GAMUT`, where the
+    same rule was written for the stored verdict, and
+    `docs/design/measurement_report_limits.md` §6 for the precedent
+    `compliance` set.
+
+    An unknown id is treated as absent rather than honoured: a report written
+    by a LATER ChromIQ that knows a seventh type must still open here, and
+    rendering it as today's report is the one answer that cannot be wrong about
+    the numbers.
+    """
+    t = (report or {}).get("report_type")
+    return t if t in REPORT_TYPES else REPORT_TYPE_DEFAULT
+
+
+def set_report_type(report: dict, type_id: str) -> None:
+    """Record the type on a report, additively.
+
+    Refuses an unknown id rather than storing it, because the id is what a
+    later ChromIQ reads back and a typo would render as today's report for ever
+    with nothing to say why.
+    """
+    if type_id not in REPORT_TYPES:
+        raise ValueError(f"unknown report type {type_id!r}")
+    report["report_type"] = type_id
+
+
 #: The verdict's ``source``: which delta-E block it was passed on.
 VERDICT_SOURCE_IN_GAMUT = "gamut_in"
 VERDICT_SOURCE_ALL = "de00"
