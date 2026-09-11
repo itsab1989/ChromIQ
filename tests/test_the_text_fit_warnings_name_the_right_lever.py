@@ -116,6 +116,21 @@ def _clip_line(r, **kw) -> str:
     return lines[0]
 
 
+#: Four lines at the auto floor take ``4 x 1.2 x pt_to_mm(floor)`` across the
+#: band. Knut's ruling of 2026-09-11 lets the band spend its page-edge reserve
+#: on them, so there are now two bands worth naming and both are DERIVED from
+#: the floor rather than typed: one where the reserve rescues the text (the
+#: push) and one where even the whole band cannot (the squeeze). Typing 16.0
+#: and 11.0 here is what made this file go quiet the moment the floor moved
+#: from 8 pt to 7.
+_FOUR_LINES_MM = tef.clip_text_needed_mm(4)
+#: Wide enough to hold the lines only once "Clip" is given up: the reserve is a
+#: fifth of the band, so the text fits the band and not the band less a fifth.
+_PUSHED_BAND = round(_FOUR_LINES_MM + 0.2, 1)
+#: Too narrow for them however the reserve is spent.
+_TOO_NARROW_BAND = round(_FOUR_LINES_MM - 0.9, 1)
+
+
 # ----------------------------------------------------- K4(b): the false claim
 def test_it_no_longer_says_the_right_margin_cannot_free_room():
     msg = _note_line(_recipe())
@@ -165,7 +180,10 @@ def test_every_message_names_the_frame_the_clip_box_lives_in():
     for msg in (_note_line(_recipe()),
                 _note_line(_recipe(band=0.0, content="off", side="left",
                                    margin_r=6.0)),
-                _clip_line(_recipe(band=16.0, clip_text="a\nb\nc\nd"))):
+                _clip_line(_recipe(band=_TOO_NARROW_BAND,
+                                   clip_text="a\nb\nc\nd")),
+                _clip_line(_recipe(band=_PUSHED_BAND,
+                                   clip_text="a\nb\nc\nd"))):
         if "“Clip”" in msg:
             assert "Text distance from edge" in msg, (
                 f"the message says “Clip” without saying which frame:\n  {msg}")
@@ -180,7 +198,8 @@ def test_the_shared_edge_message_names_the_clip_border_width_box():
 # --------------------------------------------- K4(c): say it at which size
 def test_the_message_names_the_size_the_note_is_printed_at():
     auto = _note_line(_recipe())
-    assert "8 pt" in auto, f"auto does not name the 8 pt floor:\n  {auto}"
+    want = f"{tef.AUTO_SHRINK_FLOOR_PT:.0f} pt"
+    assert want in auto, f"auto does not name the {want} floor:\n  {auto}"
     typed = _note_line(_recipe(note_size_mm=14.0 * 25.4 / 72.0))
     assert "14 pt" in typed, f"a typed 14 pt is not named:\n  {typed}"
 
@@ -196,18 +215,75 @@ def test_a_bigger_typed_size_asks_for_a_bigger_margin():
 
 # ------------------------------------------------------ K6: the clip's text
 def test_the_clip_border_text_warns_when_it_no_longer_fits_its_band():
-    msg = _clip_line(_recipe(band=16.0, clip_text="one\ntwo\nthree\nfour"))
+    msg = _clip_line(_recipe(band=_TOO_NARROW_BAND,
+                             clip_text="one\ntwo\nthree\nfour"))
     assert "4 lines" in msg, msg
-    assert "8 pt" in msg, msg
+    assert f"{tef.AUTO_SHRINK_FLOOR_PT:.0f} pt" in msg, msg
     assert "Clip border width" in msg, msg
+    assert "does not fit its band" in msg, msg
 
 
 def test_one_line_is_singular_and_two_are_not():
     one = _clip_line(_recipe(band=10.0, clip=4.0, clip_text="x",
                              clip_size_mm=40.0 * 25.4 / 72.0))
     assert "One line" in one and "lines" not in one, one
-    many = _clip_line(_recipe(band=16.0, clip_text="a\nb\nc\nd"))
+    many = _clip_line(_recipe(band=_TOO_NARROW_BAND, clip_text="a\nb\nc\nd"))
     assert "Its 4 lines" in many, many
+    pushed_one = _clip_line(_recipe(band=6.0, clip=4.0, clip_text="x",
+                                    clip_size_mm=17.0 * 25.4 / 72.0))
+    assert "One line" in pushed_one and "lines" not in pushed_one, pushed_one
+    pushed_many = _clip_line(_recipe(band=_PUSHED_BAND,
+                                     clip_text="a\nb\nc\nd"))
+    assert "Its 4 lines" in pushed_many, pushed_many
+
+
+# ------------------------ Knut's ruling of 2026-09-11: the push, and its words
+def test_the_clip_text_may_pass_the_page_edge_distance_and_is_told_so():
+    """*"Yes, allow to print closer to the paper edge than 'Text distance from
+    edge' asks, but warn about it."*
+
+    The band is too narrow for the lines inside "Clip" and wide enough for them
+    outside it, which is the state his ruling created. Nothing is cut, and the
+    message says the distance was crossed.
+    """
+    r = _recipe(band=_PUSHED_BAND, clip_text="a\nb\nc\nd")
+    msg = _clip_line(r)
+    assert "closer to the paper edge than you asked" in msg, msg
+    assert "does not fit its band" not in msg, (
+        "the push must not be reported as text that had to be cut:\n" + msg)
+    assert "Text distance from edge" in msg, msg
+    assert "Clip border width" in msg, msg
+    assert "Clip-border content" in msg, msg
+
+
+def test_the_push_is_only_as_far_as_the_text_needs():
+    """A band that fits its text keeps every millimetre of "Clip"."""
+    assert tef.clip_text_push(60.0, 4.0, 4) is None
+    p = tef.clip_text_push(_PUSHED_BAND, 4.0, 4)
+    assert p is not None
+    assert 0.0 < p.pushed_mm <= p.asked_inset_mm + 1e-9
+    assert p.short_mm == 0.0, (
+        "the whole reserve was spent on text that did not need it")
+    assert p.used_inset_mm == p.asked_inset_mm - p.pushed_mm
+
+
+def test_the_widening_reaches_the_geometry_and_not_only_the_message():
+    """The band the sheet gets must be the band the warning describes."""
+    from workflow.layout_engine import geometry
+    r = _recipe(band=_PUSHED_BAND, clip_text="a\nb\nc\nd")
+    g = instruments.geom_from_build_kwargs(r.build_kwargs())
+    plain = geometry.clip_area_mm(g, 297.0, 210.0)
+    pushed = geometry.clip_area_mm(g, 297.0, 210.0, 4, 0.0)
+    assert plain is not None and pushed is not None
+    assert pushed[2] > plain[2] + 0.05, (
+        f"the band did not widen for its text: {plain[2]:.2f} -> {pushed[2]:.2f}")
+    zone = g.lbord + g.border
+    assert pushed[2] <= zone + 0.001, "the content ran off the paper edge"
+    # …and it widens OUTWARD: the rectangle's inner edge cannot move, because
+    # that is where the first patch column begins.
+    assert abs(pushed[0] + pushed[2] - (plain[0] + plain[2])) < 0.001 or \
+        abs(pushed[0] - plain[0]) < 0.001, (
+            "the band moved at the patch side instead of the paper side")
 
 
 def test_a_roomy_band_says_nothing_about_its_text():
@@ -222,6 +298,65 @@ def test_a_typed_clip_size_that_fits_is_silent_and_one_that_does_not_warns():
     doesnt = _recipe(band=16.0, clip_text="a\nb",
                      clip_size_mm=40.0 * 25.4 / 72.0)
     assert _clip_line(doesnt)
+
+
+# ------------------ Knut's ruling of 2026-09-11: a note cut off the sheet
+#: His own run 2 note, 141 characters, from the `test.zip` he attached.
+KNUT_LONG_NOTE = (
+    'i1Pro 1/2/3 600 patch target for 13x18cm / 5x7" photo card - print with '
+    'borderless setting / NO expansion, retain size, color management: OFF'
+)
+
+
+def _cut_line(r, **kw) -> str:
+    lines = [w for w in _over(r, **kw) if "too long for the sheet" in w]
+    assert lines, f"nothing says the note was cut; got {_over(r, **kw)!r}"
+    return lines[0]
+
+
+def test_a_note_too_long_for_the_sheet_says_so_and_says_how_much():
+    """It was a log line at INFO and nothing on screen.
+
+    A note is cut at the floor, marked with an ellipsis, and Knut read that as
+    the page overflowing. The paper is the smallest the app offers so the fault
+    is reachable with a note of an ordinary length.
+    """
+    r = _recipe(margin_r=24.0)
+    r.paper = "100x150"
+    msg = _cut_line(r, notes=KNUT_LONG_NOTE * 3, stamp=False)
+    assert "characters are cut off" in msg, msg
+    assert "Sheet text" in msg, msg
+    assert f"{tef.AUTO_SHRINK_FLOOR_PT:.0f} pt" in msg, msg
+    # The count is a real count, not a word: it must name a number above one.
+    n = int(re.search(r"The last (\d+) characters", msg).group(1))
+    assert n > 1, msg
+
+
+def test_one_character_is_singular(monkeypatch):
+    """Never "(s)", and the singular branch has to be reachable to be checked.
+
+    The fitter cuts to a PROPORTIONAL estimate of what will fit, so on a real
+    sheet it drops a run of characters at a time and a note that loses exactly
+    one is a coincidence, not something to search for. What is checked here is
+    that the panel picks the singular sentence when the count is one, which is
+    the branch, and the count itself is measured in
+    `test_the_sheet_text_fits_the_sheet.py`.
+    """
+    from workflow import tiff_metadata as tm
+    monkeypatch.setattr(tm, "note_characters_lost",
+                        lambda *a, **k: 1)
+    r = _recipe(margin_r=24.0)
+    msg = _cut_line(r, notes="anything at all", stamp=False)
+    assert "The last character is cut off" in msg, msg
+    assert "characters" not in msg.split("cut off")[0], msg
+    monkeypatch.setattr(tm, "note_characters_lost", lambda *a, **k: 2)
+    many = _cut_line(r, notes="anything at all", stamp=False)
+    assert "The last 2 characters are cut off" in many, many
+
+
+def test_a_note_that_fits_says_nothing_about_length():
+    assert not [w for w in _over(_recipe(margin_r=24.0), notes="a short note")
+                if "too long for the sheet" in w]
 
 
 def test_no_notes_and_no_stamp_means_no_note_warning():

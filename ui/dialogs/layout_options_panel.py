@@ -1319,7 +1319,7 @@ class LayoutOptionsPanel(QWidget):
                             tip=TooltipButton(
                                 tr("Indicator font"),
                                 tr("Typeface, size and style of BOTH sets of "
-                                   "labels — the strip letters across the top "
+                                   "labels: the strip letters across the top "
                                    "and the row numbers down the left. Bundled "
                                    "fonts are listed first, then every font "
                                    "installed on your system. Size “auto” fits "
@@ -1329,7 +1329,15 @@ class LayoutOptionsPanel(QWidget):
                                    "changing the font or the size re-lays the "
                                    "page. Bold applies to both. Italic greys "
                                    "out for fonts that don't offer it, which "
-                                   "includes both of the bundled ones."), self))
+                                   "includes both of the bundled ones.\n\n"
+                                   "“auto” has two limits of its own. It never "
+                                   "shrinks a label below about 4 pt, and it "
+                                   "never makes a row number taller than 85% "
+                                   "of the row it names, so on a chart with "
+                                   "very small patches the labels stop "
+                                   "following the patches down. Type a size to "
+                                   "decide it yourself: a typed size is used "
+                                   "exactly as typed."), self))
         self.underline_mode = ElidingComboBox(self)
         for k, lbl in (("off", tr("Off")),
                        ("segments", tr("Coloured (5 segments)")),
@@ -2010,9 +2018,9 @@ class LayoutOptionsPanel(QWidget):
                                    "and this size.\n\n"
                                    "Size “auto” lets that text shrink to fit the "
                                    "margin it is in, and it stops shrinking at "
-                                   "8 pt. Set a size and nothing shrinks: the "
+                                   "7 pt. Set a size and nothing shrinks: the "
                                    "text is printed at exactly the size you "
-                                   "typed, below 8 pt included. Either way, text "
+                                   "typed, below 7 pt included. Either way, text "
                                    "that no longer fits is still printed, over "
                                    "the patches if it must be, and the message "
                                    "under the measured margins says which edge "
@@ -2257,12 +2265,13 @@ class LayoutOptionsPanel(QWidget):
                     tr("Typeface and size for the clip-strip text. Size is in "
                        "points.\n\n"
                        "Leave it at “auto” to let ChromIQ fit the text to the "
-                       "strip width. Auto shrinks to fit and stops at 8 pt; "
-                       "below that it keeps 8 pt and the message under the "
-                       "measured margins says the text no longer fits the "
-                       "band.\n\n"
+                       "strip width. Auto shrinks to fit and stops at 7 pt; "
+                       "below that it keeps 7 pt and takes room from the "
+                       "“Clip” distance under “Text distance from edge (mm)” "
+                       "rather than being cut, which the message under the "
+                       "measured margins tells you about.\n\n"
                        "Set a size and nothing shrinks: the text is printed at "
-                       "exactly the size you typed, below 8 pt included. Use "
+                       "exactly the size you typed, below 7 pt included. Use "
                        "that when the auto text looks too large and you want to "
                        "keep the strip narrow and maximise patch space.\n\n"
                        "Applies to the custom-text clip content; the Notes-box "
@@ -3700,19 +3709,36 @@ class LayoutOptionsPanel(QWidget):
                     "above {border:.1f} mm.").format(
                         floor=floor, typed=typed, border=border_w))
 
-        # 2. The clip-border content is capped at a fifth of the band.
+        # 2. The clip-border content is capped at a fifth of the band, and
+        #    since Knut's ruling of 2026-09-11 it is also SURRENDERED when the
+        #    text at its floor will not fit any other way. Two different
+        #    reasons for one number, so the note has to say which one happened.
         if geom is not None and self._clip_content_printed():
             zone = float(getattr(geom, "lbord", 0.0) or 0.0) + \
                 float(getattr(geom, "border", 0.0) or 0.0)
             area = None
+            _lines_n, _size_pt = self._clip_text_fit_inputs()
             try:
                 from workflow.layout_engine import geometry as _geometry
-                area = _geometry.clip_area_mm(geom, gh[1], gh[2])
+                area = _geometry.clip_area_mm(geom, gh[1], gh[2],
+                                              _lines_n, _size_pt)
             except Exception:      # noqa: BLE001 — a note is never fatal
                 area = None
             if area is not None and zone > 0:
+                from workflow import text_edge_fit as _tef
                 run_up = zone - float(area[2])
-                if run_up + 0.05 < typed:
+                asked = _tef.clip_inset_asked_mm(zone, typed)
+                if run_up + 0.05 < asked:
+                    lines.append(tr(
+                        "The clip border's text is printed closer to the paper "
+                        "edge than the {typed:.1f} mm you asked for: it is "
+                        "kept clear by {run_up:.1f} mm instead. It no longer "
+                        "fits the {zone:.1f} mm band at its smallest size, so "
+                        "it takes the clearance rather than being cut. Widen "
+                        "“Clip border width”, or set a smaller Size under "
+                        "“Clip-border content”, to get the distance back."
+                    ).format(run_up=run_up, typed=typed, zone=zone))
+                elif run_up + 0.05 < typed:
                     lines.append(tr(
                         "The clip border's text is kept clear of the paper "
                         "edge by {run_up:.1f} mm, not by the {typed:.1f} mm "
@@ -3731,6 +3757,22 @@ class LayoutOptionsPanel(QWidget):
                 "paper edge. Type any distance above 0.0 mm to choose it "
                 "yourself.").format(fallback=self._clip_zero_resolves_to()))
         return lines
+
+    def _clip_text_fit_inputs(self) -> tuple[int, float]:
+        """``(lines, size_pt)`` for the clip band's own text, or ``(0, 0.0)``.
+
+        What `workflow/text_edge_fit.py` needs to say whether the band has to
+        widen outward for its text (Knut, 2026-09-11). Only the plain-text
+        content mode has lines to measure: an image or the branding scales to
+        whatever band it is handed, so it has no floor to be pushed past.
+        """
+        cm = getattr(self, "clip_content_mode", None)
+        if cm is None or cm.currentData() != "text":
+            return 0, 0.0
+        from workflow.layout_engine.raster import clip_text_lines
+        n = len(clip_text_lines(
+            self._resolve_sample(self.clip_text.toPlainText())))
+        return n, float(self.clip_text_size.value() or 0.0)
 
     def _clip_content_printed(self) -> bool:
         """Whether anything is actually printed IN the clip border.
@@ -3859,7 +3901,15 @@ class LayoutOptionsPanel(QWidget):
         # The paper WIDTH matters: a right-side band is mirrored to the far edge
         # and `clip_area_mm` cannot place it without knowing how wide the sheet
         # is — and the ColorMunki family's own default puts the clip on the right.
-        area = geometry.clip_area_mm(gh[0], gh[1], gh[2]) if gh else None
+        #
+        # THE PREVIEW SHOWS THE BAND THE SHEET WILL HAVE, including the widening
+        # outward that text too thick for its band is now allowed (Knut,
+        # 2026-09-11). Without these two arguments the strip on screen would be
+        # narrower than the one on paper and the Size box would again look like
+        # it does nothing, which is how #163's shrunken branding went unnoticed.
+        area = (geometry.clip_area_mm(gh[0], gh[1], gh[2],
+                                      *self._clip_text_fit_inputs())
+                if gh else None)
         if area is None:
             self.clip_dims_label.setText(tr("—"))
             self._clear_clip_preview()
@@ -3910,7 +3960,10 @@ class LayoutOptionsPanel(QWidget):
         from PyQt6.QtWidgets import QMessageBox
         from workflow.layout_engine import geometry, raster
         gh = self._clip_geom_and_height()
-        area = geometry.clip_area_mm(gh[0], gh[1], gh[2]) if gh else None
+        # The template is the band the sheet gets, push included.
+        area = (geometry.clip_area_mm(gh[0], gh[1], gh[2],
+                                      *self._clip_text_fit_inputs())
+                if gh else None)
         if area is None:
             return
         _x, _y, w_mm, h_mm = area

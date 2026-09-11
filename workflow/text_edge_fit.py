@@ -71,25 +71,37 @@ NOTE_PATCH_GAP_PX = 2
 #: above were measured at 200 dpi.
 NOTE_PATCH_GAP_MM = round(NOTE_PATCH_GAP_PX * 25.4 / 200.0, 3)   # 0.254 mm
 
-#: **SHRINKING HAS A FLOOR, AND IT IS 8 POINT.** Knut, 2026-09-11, on a hex
-#: chart with the right margin at 6 mm and "Text distance from edge" → Clip at
-#: 4 mm: *"the text is reduced to a mini-sized font almost not readable,
-#: instead of warning of the text not having room to fit, like it was done for
-#: the strip labels. The shrinking of the text should have a lower limit so the
-#: shrinking stops and the warning comes instead. I suggest a font size limit
-#: of 8pt (if the Sheet text frame size parameter is set to auto)."*
+#: **SHRINKING HAS A FLOOR, AND IT IS 7 POINT.** Knut, 2026-09-11, after
+#: running his own two-run `test` project against the 8 pt floor that shipped
+#: that morning: *"Run 2 has a right side Chart Text, set in Sheet Text frame
+#: as size 7. (The auto setting shrunk the text to size 8, but that cause the
+#: long text to overflow the height of the page, so I changed to size 7). This
+#: showed me that the threshold of 8pt font size as the limit for when
+#: shrinking stops, when size is set to Auto, is too high. Please set the
+#: stop-shrinking threshold to 7, applicable for all the places font size is
+#: set and has Auto as a choice."*
 #:
-#: The 9 px legibility floor this replaced was a floor on the RASTER, not on
-#: paper: 9 px is 3.24 pt at 200 dpi and 1.08 pt at 600. Measured on Knut's own
-#: `testHex` project at his own numbers, the note printed 2.29 mm of ink across
-#: the sheet, which is 6.5 pt of line including its gap. It fits, so nothing
-#: warned.
+#: Measured on that run's own sheet, driven on screen: his 147-character note
+#: on a 130 x 180 mm card takes 1530 px of line at 8 pt against the 1347 px the
+#: sheet has for it, so its tail was cut; at 7 pt it takes 1269 px and the
+#: whole sentence is printed. One point of type is the difference between his
+#: colour-management instruction being on the paper and not.
 #:
-#: **The floor applies only to AUTOMATIC shrinking.** His rule, same comment:
+#: He asked for it *"at 8pt"* the day before, on a different fault, and this
+#: supersedes that: it is the same constant, moved once, and everything that
+#: shrinks automatically reads it from here.
+#:
+#: The 9 px legibility floor the 8 pt one replaced was a floor on the RASTER,
+#: not on paper: 9 px is 3.24 pt at 200 dpi and 1.08 pt at 600. Measured on
+#: Knut's `testHex` project at his own numbers, the note printed 2.29 mm of ink
+#: across the sheet, which is 6.5 pt of line including its gap. It fits, so
+#: nothing warned.
+#:
+#: **The floor applies only to AUTOMATIC shrinking.** His rule, 2026-09-11:
 #: *"It makes sense that only the Auto size setting allows automatic shrinking
 #: of the text."* A size the user typed is used exactly as typed, 6 pt
 #: included, and the warning takes the place of the shrink.
-AUTO_SHRINK_FLOOR_PT = 8.0
+AUTO_SHRINK_FLOOR_PT = 7.0
 
 
 def pt_to_mm(size_pt: float) -> float:
@@ -122,9 +134,9 @@ def px_to_pt(size_px: float, dpi: float) -> float:
 def text_floor_pt(size_pt: float = 0.0) -> float:
     """The smallest line this text may be drawn at, in points.
 
-    A typed size is its own floor (nothing shrinks it, and a size below 8 pt
-    is honoured); "auto" — 0, which is what the Size spin box's *auto* special
-    value stores — stops at :data:`AUTO_SHRINK_FLOOR_PT`.
+    A typed size is its own floor (nothing shrinks it, and a size below the
+    floor is honoured); "auto" — 0, which is what the Size spin box's *auto*
+    special value stores — stops at :data:`AUTO_SHRINK_FLOOR_PT`.
     """
     try:
         s = float(size_pt or 0.0)
@@ -154,9 +166,9 @@ SHEET_TEXT_LINE_MM = 4.2
 def note_min_width_mm(_dpi: float = 0.0, size_pt: float = 0.0) -> float:
     """The narrowest strip the chart note may be printed into, on PAPER.
 
-    One line at its floor (8 pt when the Sheet text frame's Size is "auto",
-    otherwise the size that was typed), plus the white gap Knut asked for
-    between the note and the patch block.
+    One line at its floor (:data:`AUTO_SHRINK_FLOOR_PT` when the Sheet text
+    frame's Size is "auto", otherwise the size that was typed), plus the white
+    gap Knut asked for between the note and the patch block.
 
     THIS USED TO DEPEND ON THE RESOLUTION AND ITS OWN DOCSTRING SAID SO:
     "a pixel floor is not a paper floor: the same sheet gives the note 1.40 mm
@@ -292,10 +304,38 @@ def chart_note_overlap(side: str, margin_mm: float, text_edge_clip_mm: float,
     *clip_band_mm* comes out of the paper available to it.
 
     *size_pt* is the Sheet text frame's Size: 0 for "auto" (the note may shrink
-    to 8 pt and no further), or the size the user typed (which nothing shrinks).
+    to :data:`AUTO_SHRINK_FLOOR_PT` and no further), or the size the user typed
+    (which nothing shrinks).
+
+    **THE TWO RESERVES ARE ONE RESERVE, AND ADDING THEM UP WAS THE FAULT KNUT
+    REPORTED ON 2026-09-11.** This read
+    ``margin - text_edge_clip - clip_band - SAFETY_PAD``, so on his own sheet
+    (right margin 32.0 mm, a 24.0 mm clip border on that edge, "Clip" 4.0 mm)
+    it reported 3.6 mm of paper and warned, while the note needed 3.8. He
+    measured his own TIFF and found the ink 4.95 mm to 7.49 mm in from the
+    patch area's right edge, with white paper either side of it.
+
+    Both numbers are right about their own question and only one of them is the
+    question the warning asks:
+
+    * *"how much paper is between the patch area and a reserve made of the clip
+      band with another 'Text distance from edge' strip stacked on top of it"* —
+      what the subtraction answered, about a strip that is not on the sheet;
+    * *"how much paper is between the patch area and the nearest ink on the
+      other side"* — what the sheet answers, and what the stamper computes:
+      ``_right_limit = W - max(_pad, clip_band)`` in
+      `workflow/tiff_metadata.py::_stamp_one`. A MAX, because the 4 mm the
+      "Clip" box asks for lies INSIDE the band's own 24 mm; the band already
+      keeps the note that far from the paper edge and further.
+
+    Measured on the sheet the app itself wrote from his run 1 recipe at 200 dpi:
+    the note's ink lands 25.15 mm to 27.56 mm in from the paper edge whichever
+    of his two right margins is set, the patch block ends at 32.0 mm, and
+    ``32.0 - max(4.0, 24.0) - 0.34`` is the 7.66 mm that are really there.
     """
-    avail = (float(margin_mm or 0.0) - float(text_edge_clip_mm or 0.0)
-             - float(clip_band_mm or 0.0) - SAFETY_PAD_MM)
+    avail = (float(margin_mm or 0.0)
+             - max(float(text_edge_clip_mm or 0.0), float(clip_band_mm or 0.0))
+             - SAFETY_PAD_MM)
     return _overlap(side, avail, note_min_width_mm(dpi, size_pt))
 
 
@@ -309,8 +349,16 @@ CLIP_INSET_MAX_FRAC = 0.2
 CLIP_LINE_SPACING = 1.2
 
 
-def clip_content_inset_mm(band_mm: float, text_edge_clip_mm: float) -> float:
-    """How far in from the PAGE EDGE the clip content actually starts.
+def clip_text_needed_mm(lines: int, size_pt: float = 0.0) -> float:
+    """What *lines* of clip-border text take ACROSS the band, at their floor."""
+    n = max(0, int(lines or 0))
+    if n <= 0:
+        return 0.0
+    return n * CLIP_LINE_SPACING * pt_to_mm(text_floor_pt(size_pt))
+
+
+def clip_inset_asked_mm(band_mm: float, text_edge_clip_mm: float) -> float:
+    """The reserve "Clip" asks for on the page-edge side, as capped.
 
     "Clip" is a request, not a result: `geometry.clip_area_mm` caps it at a
     fifth of the band so a narrow band is not eaten whole, and applies it to
@@ -328,6 +376,79 @@ def clip_content_inset_mm(band_mm: float, text_edge_clip_mm: float) -> float:
                band * CLIP_INSET_MAX_FRAC)
 
 
+def clip_content_inset_mm(band_mm: float, text_edge_clip_mm: float,
+                          lines: int = 0, size_pt: float = 0.0) -> float:
+    """How far in from the PAGE EDGE the clip content actually starts.
+
+    **AND THE RESERVE IS GIVEN UP WHEN THE TEXT CANNOT OTHERWISE FIT.** Knut,
+    2026-09-11, answering the question §2d of `docs/design/issue_182_answers.md`
+    put to him and reversing what was held back there: *"Yes, allow to print
+    closer to the paper edge than 'Text distance from edge' asks, but warn about
+    it, just as previously defined, so that user knows to change margin,
+    clip-border width or the 'Text distance from edge' Clip-parameter, to fit
+    text correctly against limits without getting a warning."*
+
+    So the reserve is surrendered by exactly as much as the text needs and
+    never by more: a band that fits its text keeps every millimetre of "Clip",
+    and a band that does not gives up only the shortfall. The push is capped at
+    the reserve itself, so the content can reach the page edge but never leave
+    the paper. Pass *lines* and *size_pt* to get the pushed answer;
+    :func:`clip_inset_asked_mm` is the unpushed one, and the difference is what
+    the panel warns about.
+    """
+    asked = clip_inset_asked_mm(band_mm, text_edge_clip_mm)
+    needed = clip_text_needed_mm(lines, size_pt)
+    if needed <= 0.0 or asked <= 0.0:
+        return asked
+    band = max(0.0, float(band_mm or 0.0))
+    if needed <= band - asked + EPS_MM:
+        return asked                      # it fits without giving anything up
+    return max(0.0, min(asked, band - needed))
+
+
+@dataclass(frozen=True)
+class ClipPush:
+    """The clip-border text is printed closer to the paper edge than asked.
+
+    *asked_inset_mm* is the reserve "Clip" wants on the page-edge side (capped
+    at a fifth of the band); *used_inset_mm* is what is left of it once the
+    text has taken what it needs; *needed_mm* is what the lines take across the
+    band at their floor.
+    """
+
+    band_mm: float
+    asked_inset_mm: float
+    used_inset_mm: float
+    needed_mm: float
+
+    @property
+    def pushed_mm(self) -> float:
+        """How far past "Text distance from edge" the text is printed."""
+        return max(0.0, self.asked_inset_mm - self.used_inset_mm)
+
+    @property
+    def short_mm(self) -> float:
+        """What is still missing once the whole reserve has been given up."""
+        return max(0.0, self.needed_mm - (self.band_mm - self.used_inset_mm))
+
+
+def clip_text_push(band_mm: float, text_edge_clip_mm: float, lines: int,
+                   size_pt: float = 0.0) -> "ClipPush | None":
+    """Whether the clip text crosses its page-edge reserve, and by how much.
+
+    ``None`` when it does not: the common case, and a note nobody has to read.
+    """
+    needed = clip_text_needed_mm(lines, size_pt)
+    if needed <= 0.0:
+        return None
+    asked = clip_inset_asked_mm(band_mm, text_edge_clip_mm)
+    used = clip_content_inset_mm(band_mm, text_edge_clip_mm, lines, size_pt)
+    p = ClipPush(float(band_mm or 0.0), asked, used, needed)
+    if p.pushed_mm <= EPS_MM and p.short_mm <= EPS_MM:
+        return None
+    return p
+
+
 def clip_text_squeeze(band_mm: float, text_edge_clip_mm: float, lines: int,
                       size_pt: float = 0.0, side: str = "left",
                       ) -> "Overlap | None":
@@ -339,16 +460,20 @@ def clip_text_squeeze(band_mm: float, text_edge_clip_mm: float, lines: int,
     Knut reported on 2026-09-11: *"If I reduce the clip-border width to f.ex.
     16mm … then the clip border text is shrunk as normal. But here too there
     should be a font size minimum limit before the clip-border text stops
-    shrinking (suggest 8pt here too, when the size setting is auto under
-    Clip-border content frame)."*
+    shrinking."*
+
+    **It is asked of the band the text ACTUALLY gets**, which since his ruling
+    of the same evening includes the page-edge reserve it is allowed to take
+    (:func:`clip_content_inset_mm`). So it stays silent while the outward push
+    is enough and fires only when even the whole band is too narrow;
+    :func:`clip_text_push` is what reports the push itself.
     """
     n = max(0, int(lines or 0))
     if n <= 0:
         return None
     avail = (float(band_mm or 0.0)
-             - clip_content_inset_mm(band_mm, text_edge_clip_mm))
-    needed = n * CLIP_LINE_SPACING * pt_to_mm(text_floor_pt(size_pt))
-    return _overlap(side, avail, needed)
+             - clip_content_inset_mm(band_mm, text_edge_clip_mm, n, size_pt))
+    return _overlap(side, avail, clip_text_needed_mm(n, size_pt))
 
 
 def clip_content_overlap(side: str, margin_mm: float, clip_zone_mm: float,

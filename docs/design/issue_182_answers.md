@@ -39,7 +39,7 @@ Nothing in this file is implemented yet unless it says so. It is a record, so
 that a month from now nobody has to reconstruct what was decided from a chat
 thread.
 
-Last updated 2026-09-10.
+Last updated 2026-09-11 (sections 2e, 2f and 2g).
 
 ---
 
@@ -478,10 +478,11 @@ and, for the clip border's own content:
 
 ### The rule as built
 
-1. **8 pt is the floor for AUTOMATIC shrinking**, on both the chart note / stamped
-   settings down the right edge and the clip border's own text.
-   `workflow/text_edge_fit.py::AUTO_SHRINK_FLOOR_PT`, read by the renderer, the
-   stamper and the panel so no two of them can disagree.
+1. ~~**8 pt is the floor for AUTOMATIC shrinking**~~ **SEVEN, from
+   2026-09-11T21:23:10Z. See section 2e.** The floor is one constant on both
+   the chart note / stamped settings down the right edge and the clip border's
+   own text: `workflow/text_edge_fit.py::AUTO_SHRINK_FLOOR_PT`, read by the
+   renderer, the stamper and the panel so no two of them can disagree.
 2. **Only "auto" shrinks.** A size typed into the Sheet text frame's Size, or
    into the Clip-border content frame's Size, is the size that is printed, and
    nothing steps it down. A size below 8 pt is honoured.
@@ -524,25 +525,213 @@ against Knut's own `testHex` at his own numbers (right margin 6.0 mm, Clip
   6.0 mm"* and was advised to move a band that does not exist. The predicate now
   asks `lbord > 0`.
 
-### 🔴 ONE PART IS NOT BUILT, because it contradicts rule 1 of section 2c
+### ~~🔴 ONE PART IS NOT BUILT~~ ANSWERED 2026-09-11, AND THE SPECIFICATION IS WHAT CHANGED
 
 Knut also asked, for the clip-border text at its floor, that it be
 
 > *"pushed towards the right until it passes the Text distance from edge Clip
 > setting, which then should give a warning message in red text again."*
 
-**Rule 1 of section 2c says the opposite**, and it is his own ruling: *"the text
-needs to stay within the default 'Text distance from edge' settings […] For all
-sides"*, and `workflow/tiff_metadata.py` states it as *"THE DISTANCE FROM THE
-PAGE EDGE IS A LIMIT, NOT A PREFERENCE, so nothing is traded against it"*.
-`docs/design/row_label_geometry.md` §R1.3 says the same for the left edge.
-Letting the clip text grow outward past that reserve trades exactly that, on
-every chart with a tight band.
+That was held back because **rule 1 of section 2c says the opposite**, and it is
+his own ruling: *"the text needs to stay within the default 'Text distance from
+edge' settings […] For all sides"*. The question was put to him as *"should the
+text be allowed to print closer to the paper edge than 'Text distance from edge'
+asks, or should it stay inside that distance and simply be warned about?"* and
+he answered it (#182, 2026-09-11T21:23:10Z):
 
-So the floor and the red warning ARE built and the outward push is NOT, and this
-is the review Knut's own rule asks for rather than a decision taken here. **The
-question he has to answer is: on a sheet where the clip-border text has stopped
-shrinking at 8 pt and still does not fit the band, should the text be allowed to
-print closer to the paper edge than "Text distance from edge" asks, or should it
-stay inside that distance and simply be warned about?** Today it stays inside
-and is warned about.
+> *"Yes, allow to print closer to the paper edge than "Text distance from edge"
+> asks, but warn about it, just as previously defined, so that user knows to
+> change margin, clip-border width or the "Text distance from edge"
+> Clip-parameter, to fit text correctly against limits without getting a
+> warning."*
+
+**So rule 1 of section 2c is amended for the clip band's own text, by the person
+whose rule it is.** The distance remains a limit everywhere else: the strip
+letters, the bottom sheet text and the right-edge chart note are untouched, and
+only the band that carries the user's own lines may spend its page-edge reserve
+on them. What is built is in section 2f.
+
+---
+
+## 2e. ⏳ Awaiting confirmation — 2026-09-11, later: the floor is SEVEN point
+
+**Confirmed by:** *nobody yet.*
+
+Knut, #182, 2026-09-11T21:23:10Z, after running the 8 pt floor of section 2d
+against the two-run `test` project he attached to that comment:
+
+> *"Run 2 has a right side Chart Text, set in Sheet Text frame as size 7. (The
+> auto setting shrunk the text to size 8, but that cause the long text to
+> overflow the height of the page, so I changed to size 7). This showed me that
+> the threshold of 8pt font size as the limit for when shrinking stops, when
+> size is set to Auto, is too high. Please set the stop-shrinking threshold to
+> 7, applicable for all the places font size is set and has Auto as a choice.
+> The shrinking limit should be informed about in help text for the places where
+> font size is set, like the clip-border content frame and the Sheet text
+> frame."*
+
+### The rule as built
+
+1. **7 pt is the floor for AUTOMATIC shrinking.** One constant,
+   `workflow/text_edge_fit.py::AUTO_SHRINK_FLOOR_PT`, read by the note stamper,
+   the clip-text renderer and the panel that warns.
+2. **Only "auto" shrinks**, unchanged from section 2d: a typed size is printed
+   as typed, below 7 pt included.
+3. **Each Size box that offers "auto" says what its limit is**, in its own ⓘ.
+
+### What his sentence cost, measured on his own sheet
+
+Driven through the real window against his `test` project by
+`scripts/drive_182_sheet_text_fit.py`, and again straight through the fitter:
+his run 2 note is **141 characters** on a 130 x 180 mm card at 200 dpi with
+"Text distance from edge" → Clip at 4.0 mm.
+
+| floor | characters printed | what is lost |
+|---|---|---|
+| 8 pt | **129 and an ellipsis** | `nagement: OFF`, the end of *"color management: OFF"* |
+| **7 pt** | **141, the whole sentence** | nothing |
+
+### The THIRD place a size box offers "auto", and it is NOT changed
+
+His words are *"all the places font size is set and has Auto as a choice"*.
+There are three such boxes, not two:
+
+| box | what "auto" does | its floor before | now |
+|---|---|---|---|
+| **Sheet text** → Size (`chart_text_size_mm`), which also governs the right-edge chart note | shrinks the line to fit its margin | 8 pt | **7 pt** |
+| **Clip-border content** → Size (`clip_text_size_mm`) | shrinks the lines to fit the band | 8 pt | **7 pt** |
+| **Strip letters / row numbers** → Font Size (`indicator_size_mm`), and its Preferences twin | FITS the label to the strip width | 1.5 mm, about **4.25 pt** (`raster.INDICATOR_MIN_LEGIBLE_MM`) | **unchanged, and this is a question for him** |
+
+**Why the third is left alone.** Raising that floor to 7 pt would make every
+label 2.469 mm instead of 1.5 mm on the charts that reach it. Measured across
+125 instrument/paper/grid combinations, **29 sit on that floor today**, and the
+tightest of them have a row pitch of 2.73 to 3.48 mm, so a 2.469 mm row number
+would be up to 90 % as tall as the row it names. That is the exact picture
+Basti ruled against on 2026-09-01, and `raster.effective_row_label_size_mm`
+carries his cap (85 % of the row pitch) because of it. **Two people's rulings
+pull against each other here, so neither is applied on our own judgement.** The
+help for that box now says what its limits are, which is the half of his
+sentence that is not in dispute.
+
+**The question for Knut, in what a user sees:** on a chart whose patches are
+very small, the strip letters and row numbers today shrink down to about 4 pt so
+they still fit between the patches. Should they instead stop at 7 pt like the
+other text, even though a row number would then be nearly as tall as the row it
+labels and the numbers would start to crowd each other?
+
+### And the floor's other half, which was silent
+
+A floor that stops the type getting smaller is only honest while the text it
+leaves still fits the sheet. It did not: at 8 pt the fitter cut the tail off
+Knut's note, marked it with an ellipsis, and said so in the log at INFO and
+nowhere on screen. That is what he read as *"overflow the height of the page"*.
+The "Measured from Preview" message field now says it, in red, with the number
+of characters lost (`tiff_metadata.note_characters_lost`, which asks the fitter
+itself rather than repeating its rule).
+
+---
+
+## 2f. ⏳ Awaiting confirmation — the clip band may cross its page-edge distance
+
+**Confirmed by:** *nobody yet.*
+
+This is what section 2d's open question became once Knut answered it. His words
+are quoted there.
+
+### The rule as built
+
+1. **The clip band's TEXT may be printed closer to the paper edge than "Text
+   distance from edge" → Clip asks**, and only that text: the strip letters, the
+   bottom sheet text and the right-edge chart note keep the distance as a limit.
+2. **It takes only what it needs.** A band that holds its lines inside the
+   reserve keeps every millimetre of it; a band that does not gives up exactly
+   the shortfall and no more, and never more than the whole reserve, so the
+   content can reach the paper edge but never leave the paper.
+   `workflow/text_edge_fit.py::clip_content_inset_mm`, read by
+   `layout_engine/geometry.py::clip_area_mm`, by the renderer through it, and by
+   the panel's live clip preview, so what is on screen is what is on the sheet.
+3. **The push is ACROSS the band only.** The top and bottom of the sheet are a
+   different edge with a different complaint and are untouched.
+4. **It is warned about, in red, in the "Measured from Preview" message field**,
+   naming how far past the distance the text went, where it now starts, and what
+   to change.
+5. **When even the whole band is too narrow**, the older "does not fit its band"
+   warning is what is shown instead: the worse fact, not both.
+
+### The levers the warning names, and the one it does not
+
+He asked for three: *"change margin, clip-border width or the 'Text distance
+from edge' Clip-parameter"*. Two of them move this text and one does not, so
+the message names the two that work plus the Size box:
+
+* **"Clip border width"**, which decides the band, so it decides everything here.
+* **"Clip" under "Text distance from edge (mm)"**: lowering it to where the
+  text already is removes the warning without moving a pixel, which is what he
+  asked for, *"to fit text correctly against limits without getting a warning"*.
+* **Size under "Clip-border content"**: a smaller typed size fits.
+* **the clip-side MARGIN is not a lever for this text.**
+  `instruments.geom_from_build_kwargs` RAISES that margin to the band
+  (`mr = max(mr, clip_w)`); the band's width never depends on it, so typing a
+  larger margin frees nothing here. Naming it would repeat the fault section 2c
+  records being caught out by once already, where a message offered a lever
+  that moved no ink.
+
+**The question for Knut, in what a user sees:** when the clip border's text is
+printed closer to the paper edge than you asked, is making the margin on that
+side wider something you would expect to help? It does not today: the margin
+follows the clip-border width rather than deciding it, so only the width, the
+"Clip" distance and the text size change anything.
+
+---
+
+## 2g. ⏳ Awaiting confirmation — the warning counted the same reserve twice
+
+**Confirmed by:** *nobody yet.*
+
+Knut, #182, 2026-09-11T21:23:10Z, with two sheets from his own project:
+
+> *"When the right margin is set to 32.5mm and clip-border width is 24mm, the
+> text to the right of the patch area looks like this, without giving any margin
+> warning text […] When changing the right margin to 32mm (keeping other
+> settings as is), the margin warning came […] Both images show very good white
+> empty space to the left and right of the chart notes text "test text". This
+> means that the measurements and the warning text is wrong with its text. The
+> warning says "... need 3.8mm at 10pt and have 3.6mm..." The test-32.5.tif
+> image shows 39 pixels from the patch area right edge to the top of the "t" […]
+> and 59px to the bottom […] this gives […] 4.95mm […] and […] 7.49mm […] And
+> the warning says it only needs 3.8mm, and still gives a warning...."*
+
+### Two numbers, two different questions
+
+| | the question it answers | his sheet at 32.0 mm |
+|---|---|---|
+| the code's *"have 3.6 mm"* | how much paper is between the patch area and a reserve made of the clip band **with another "Text distance from edge" strip stacked on top of it** | 32.0 − 4.0 − 24.0 − 0.34 = **3.66 mm** |
+| his ruler | how much paper is between the patch area's right edge and the **nearest ink on the other side** | 32.0 − 24.0 − 0.34 = **7.66 mm** |
+
+**His is the question the warning asks, and the code's second strip is not on
+the sheet:** the 4 mm "Clip" asks for lies INSIDE the band's own 24 mm.
+`tiff_metadata._stamp_one` has always computed the note's outer limit as
+`W - max(_pad, clip_band)`, a MAX, and the panel added the two instead.
+
+### Measured on the sheet the app itself writes
+
+Driven through the real window from his run 1 recipe, A4 at 200 dpi, Chart Notes
+"test text" at a typed 10 pt:
+
+| right margin | the note's ink, from the paper edge | from the patch edge | warning, before | warning, after |
+|---|---|---|---|---|
+| 32.5 mm | 25.15 to 27.56 mm | 4.94 to 7.35 mm | none | none |
+| 32.0 mm | 25.15 to 27.56 mm | 4.44 to 6.85 mm | *"need 3.8 mm at 10 pt and have 3.6 mm"* | **none** |
+
+His own measurement of the same sheet was 4.95 mm and 7.49 mm, so the two rulers
+agree to a tenth of a millimetre. The note lands in the identical place at both
+margins, which is why one of them warning and the other not was the tell.
+
+### One sentence in the same message was false as well
+
+With a clip border on that edge the message said the notes *"are printed
+{Clip} mm in from the paper edge"*, which was 4.0 mm while the band holds them
+at 24.0. It now says they start where the band ends. The same message offered
+*"lower 'Clip'"* as one of three remedies, and while the band is the larger of
+the two reserves that moves no ink; it is gone, and the two levers that do work
+remain.

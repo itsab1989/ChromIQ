@@ -19285,18 +19285,30 @@ class TabChart(QWidget):
                                 need_margin=_need_margin, need=_o.needed_mm,
                                 size=_note_floor_pt))
                     elif _clip_on_right:
+                        # "PRINTED {Clip} mm IN FROM THE PAPER EDGE" WAS FALSE
+                        # WITH A BAND ON THIS EDGE, and it was false by the
+                        # width of the band: the note starts where the band
+                        # ends, which on Knut's own sheet is 24.0 mm in, not
+                        # the 4.0 mm the "Clip" box asks for. The stamper takes
+                        # `max(Clip, the band)` as the reserve
+                        # (`tiff_metadata._stamp_one`), so with a band on this
+                        # edge the band IS the reserve and "Clip" is inside it.
+                        # WHICH IS ALSO WHY "LOWER CLIP" IS GONE FROM HERE: it
+                        # was offered as one of three remedies and it moves no
+                        # ink at all while the band is the larger of the two.
+                        # The other two both work, and the one that always
+                        # works is named first.
                         over.append(tr(
                             "⚠ The chart notes down the right edge run over the "
-                            "patches. They are printed {edge:.1f} mm in from "
-                            "the paper edge, share the edge with a "
-                            "{band:.1f} mm clip border, need {need:.1f} mm at "
-                            "{size:.0f} pt and have {avail:.1f} mm. They are "
+                            "patches. They start where the {band:.1f} mm clip "
+                            "border on that edge ends, so they are printed "
+                            "{band:.1f} mm in from the paper edge, need "
+                            "{need:.1f} mm at {size:.0f} pt and have "
+                            "{avail:.1f} mm. They are "
                             "printed anyway so you can see this. Raise “Right” "
-                            "under “Margins (mm)” by about {short:.1f} mm, set "
-                            "a narrower “Clip border width”, or lower “Clip” "
-                            "under “Text distance from edge (mm)”, which is the "
-                            "box this edge uses.").format(
-                                edge=r.text_edge_clip_mm, band=_clip_zone,
+                            "under “Margins (mm)” by about {short:.1f} mm, or "
+                            "set a narrower “Clip border width”.").format(
+                                band=_clip_zone,
                                 need=_o.needed_mm, size=_note_floor_pt,
                                 avail=max(0.0, _o.available_mm),
                                 short=_o.overlap_mm))
@@ -19314,6 +19326,59 @@ class TabChart(QWidget):
                                 size=_note_floor_pt,
                                 avail=max(0.0, _o.available_mm),
                                 short=_o.overlap_mm))
+                # THE OTHER AXIS, AND IT WAS SILENT. Everything above is about
+                # how THICK the line is, which is the axis that runs across the
+                # margin. A note also has a LENGTH, and it runs down the sheet:
+                # when it no longer fits there at its floor the fitter cuts the
+                # end off and marks it with an ellipsis, saying so in the log at
+                # INFO and nowhere a user looks. Knut hit exactly that and read
+                # it as the page overflowing: *"The auto setting shrunk the text
+                # to size 8, but that cause the long text to overflow the height
+                # of the page, so I changed to size 7."* Measured on his own
+                # 130 x 180 card, 141 characters became 129 and an ellipsis, and
+                # what went was the end of "color management: OFF".
+                #
+                # `tiff_metadata.note_characters_lost` asks the FITTER, not a
+                # copy of its rule, so this cannot drift from what is printed.
+                #
+                # ONLY THE USER'S OWN NOTES ARE MEASURED. "Stamp settings used
+                # on the chart" adds a second line that `chart_creator` builds
+                # at build time from the finished command, so the panel cannot
+                # know its text; with the stamp on, the real line is LONGER
+                # than what is checked here and this can only under-report,
+                # never cry wolf.
+                _lost = 0
+                try:
+                    from workflow import tiff_metadata as _tmeta
+                    from workflow.layout_engine import papers as _papers
+                    _pw, _ph = _papers.dimensions_mm(str(r.paper))
+                    _lost = _tmeta.note_characters_lost(
+                        _notes_text, _ph, r.text_edge_clip_mm,
+                        max(0.0, _note_margin - max(float(r.text_edge_clip_mm
+                                                          or 0.0),
+                                                    _clip_zone if _clip_on_right
+                                                    else 0.0)),
+                        float(getattr(r, "dpi", 300) or 300),
+                        _note_size_pt,
+                        str(getattr(r, "chart_text_font", "") or ""))
+                except Exception:          # noqa: BLE001 — a note is never fatal
+                    _lost = 0
+                if _lost == 1:
+                    over.append(tr(
+                        "⚠ The chart notes down the right edge are too long for "
+                        "the sheet. The last character is cut off and replaced "
+                        "by “…”, because the text has stopped shrinking at "
+                        "{size:.0f} pt. Shorten the notes, set a smaller Size "
+                        "under “Sheet text”, or use a taller paper."
+                    ).format(size=_note_floor_pt))
+                elif _lost > 1:
+                    over.append(tr(
+                        "⚠ The chart notes down the right edge are too long for "
+                        "the sheet. The last {lost} characters are cut off and "
+                        "replaced by “…”, because the text has stopped "
+                        "shrinking at {size:.0f} pt. Shorten the notes, set a "
+                        "smaller Size under “Sheet text”, or use a taller "
+                        "paper.").format(lost=_lost, size=_note_floor_pt))
             # THE CLIP BORDER'S CONTENT, on whichever edge it sits.
             # `instruments.geom_from_build_kwargs` raises that edge's margin to
             # the clip zone, so on every chart the app builds today the band
@@ -19366,38 +19431,88 @@ class TabChart(QWidget):
                     from workflow.layout_engine.raster import clip_text_lines
                     _clip_lines = len(clip_text_lines(
                         getattr(r, "clip_text", "") or ""))
+                # TWO STATES SINCE KNUT'S RULING OF 2026-09-11, AND THEY NEED
+                # DIFFERENT SENTENCES.
+                #
+                # *"Yes, allow to print closer to the paper edge than 'Text
+                # distance from edge' asks, but warn about it, just as
+                # previously defined, so that user knows to change margin,
+                # clip-border width or the 'Text distance from edge'
+                # Clip-parameter, to fit text correctly against limits without
+                # getting a warning."*
+                #
+                # So the band now widens outward for text it cannot otherwise
+                # hold (`text_edge_fit.clip_content_inset_mm`), and the two
+                # things that can go wrong are no longer the same thing: the
+                # text may cross the page-edge distance, or it may not fit even
+                # with the whole of that distance given up. The second is the
+                # worse one, so it is the one that is said.
+                _push = text_edge_fit.clip_text_push(
+                    _clip_zone, r.text_edge_clip_mm, _clip_lines, _clip_size_pt)
                 _cs = text_edge_fit.clip_text_squeeze(
                     _clip_zone, r.text_edge_clip_mm, _clip_lines,
                     _clip_size_pt, _side)
                 if _cs is not None:
-                    # THE INSET THAT IS IN FORCE, not the one that was typed.
-                    # "Clip" is capped at a fifth of the band, so a 16 mm band
-                    # with Clip at 4 mm is inset by 3.2.
                     _fmt = dict(lines=_clip_lines, size=_clip_floor_pt,
                                 need=_cs.needed_mm,
                                 avail=max(0.0, _cs.available_mm),
-                                short=_cs.overlap_mm, band=_clip_zone,
-                                edge=text_edge_fit.clip_content_inset_mm(
-                                    _clip_zone, r.text_edge_clip_mm))
+                                short=_cs.overlap_mm, band=_clip_zone)
                     over.append((tr(
                         "⚠ The clip border text does not fit its band. One line "
                         "at {size:.0f} pt needs {need:.1f} mm across the band, "
-                        "and the {band:.1f} mm band leaves {avail:.1f} mm once "
-                        "“Clip” under “Text distance from edge (mm)” has taken "
-                        "{edge:.1f} mm off the page-edge side. It is printed at "
+                        "and the {band:.1f} mm band leaves {avail:.1f} mm even "
+                        "with the whole “Clip” distance under “Text distance "
+                        "from edge (mm)” given up to it. It is printed at "
                         "{size:.0f} pt anyway so you can see this. Widen “Clip "
-                        "border width” by about {short:.1f} mm, lower “Clip”, "
-                        "or set a smaller Size under “Clip-border content”.")
+                        "border width” by about {short:.1f} mm, or set a "
+                        "smaller Size under “Clip-border content”.")
                         if _clip_lines == 1 else tr(
                         "⚠ The clip border text does not fit its band. Its "
                         "{lines} lines at {size:.0f} pt need {need:.1f} mm "
                         "across the band, and the {band:.1f} mm band leaves "
-                        "{avail:.1f} mm once “Clip” under “Text distance from "
-                        "edge (mm)” has taken {edge:.1f} mm off the page-edge "
-                        "side. They are printed at {size:.0f} pt anyway so you "
+                        "{avail:.1f} mm even with the whole “Clip” distance "
+                        "under “Text distance from edge (mm)” given up to "
+                        "them. They are printed at {size:.0f} pt anyway so you "
                         "can see this. Widen “Clip border width” by about "
-                        "{short:.1f} mm, lower “Clip”, or set a smaller Size "
-                        "under “Clip-border content”.")).format(**_fmt))
+                        "{short:.1f} mm, or set a smaller Size under "
+                        "“Clip-border content”.")).format(**_fmt))
+                elif _push is not None:
+                    # THE THREE LEVERS HE NAMED ARE NOT ALL LEVERS HERE, and
+                    # naming one that moves nothing is the fault section 2c of
+                    # `docs/design/issue_182_answers.md` records being caught
+                    # out by once already. The clip-side margin is RAISED to
+                    # the band by `instruments.geom_from_build_kwargs`
+                    # (`mr = max(mr, clip_w)`) and never decides how wide the
+                    # band is, so typing more of it cannot free a millimetre
+                    # for this text. The two that do are named, plus the Size
+                    # box, and the margin is asked about in the report.
+                    _wider = max(0.0, _push.needed_mm + _push.asked_inset_mm
+                                 - _push.band_mm)
+                    _fmt = dict(lines=_clip_lines, size=_clip_floor_pt,
+                                need=_push.needed_mm, band=_push.band_mm,
+                                asked=_push.asked_inset_mm,
+                                used=_push.used_inset_mm,
+                                pushed=_push.pushed_mm, wider=_wider)
+                    over.append((tr(
+                        "⚠ The clip border text is printed closer to the paper "
+                        "edge than you asked. One line at {size:.0f} pt needs "
+                        "{need:.1f} mm across the {band:.1f} mm band, so it "
+                        "takes {pushed:.1f} mm of the {asked:.1f} mm “Clip” "
+                        "under “Text distance from edge (mm)” keeps clear and "
+                        "is printed {used:.1f} mm from the paper edge. Widen "
+                        "“Clip border width” by about {wider:.1f} mm, lower "
+                        "“Clip” to {used:.1f} mm, or set a smaller Size under "
+                        "“Clip-border content”.")
+                        if _clip_lines == 1 else tr(
+                        "⚠ The clip border text is printed closer to the paper "
+                        "edge than you asked. Its {lines} lines at {size:.0f} "
+                        "pt need {need:.1f} mm across the {band:.1f} mm band, "
+                        "so they take {pushed:.1f} mm of the {asked:.1f} mm "
+                        "“Clip” under “Text distance from edge (mm)” keeps "
+                        "clear and are printed {used:.1f} mm from the paper "
+                        "edge. Widen “Clip border width” by about {wider:.1f} "
+                        "mm, lower “Clip” to {used:.1f} mm, or set a smaller "
+                        "Size under “Clip-border content”.")).format(**_fmt))
             # The text-overflow warning only applies in "margins are law" mode,
             # which is now AREA-FIRST (Knut #93): there the label/text lives inside
             # the margin, so a too-small margin overflows toward the page edge. In

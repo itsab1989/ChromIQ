@@ -1702,7 +1702,15 @@ def render_pages(
         # Left clip-strip content (i1/p3): rendered natively into the reserved
         # lbord band, since the engine knows its exact geometry.
         if clip_content_mode != "off":
-            _area = geometry.clip_area_px(geom, paper_h_mm, dpi, paper_w_mm)
+            # THE BAND WIDENS OUTWARD FOR TEXT THAT WILL NOT OTHERWISE FIT
+            # (Knut, 2026-09-11). Only plain text is measured: the other content
+            # modes scale to whatever band they are given, so they have no
+            # floor to be pushed past and nothing to warn about.
+            _clip_lines = (len(clip_text_lines(_clip_text))
+                           if clip_content_mode == "text" else 0)
+            _area = geometry.clip_area_px(
+                geom, paper_h_mm, dpi, paper_w_mm, _clip_lines,
+                float(clip_text_size_mm or 0.0) * 72.0 / 25.4)
             if _area is not None and _area[2] > 0 and _area[3] > 0:
                 _ax, _ay, _aw, _ah = _area
                 _notes_ctx = dict(_pctx)
