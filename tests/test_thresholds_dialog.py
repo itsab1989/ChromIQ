@@ -14,7 +14,8 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PyQt6.QtCore import QSettings                        # noqa: E402
-from PyQt6.QtWidgets import QApplication, QLabel          # noqa: E402
+from PyQt6.QtWidgets import (QApplication, QLabel,       # noqa: E402
+                             QPushButton)
 
 from core.file_manager import Project                     # noqa: E402
 from core.settings import AppSettings                     # noqa: E402
@@ -494,7 +495,16 @@ def test_a_showing_window_writes_nothing_at_all(qapp, tmp_path):
         assert dlg._default_radios[other].isChecked() is False, (
             "the radio was left showing a default that is not the default")
 
-        _cell(dlg, "chromiq_default", "all_de00_max").setValue(7.5)
+        # AND THE CONTROLS DO NOT INVITE A WRITE THEY WILL NOT MAKE. Guarding
+        # the write alone left the spin box taking a typed number and showing
+        # it for ever while the settings held something else, and left a
+        # "Restore this column" button that wiped the column on screen only.
+        cell = _cell(dlg, "chromiq_default", "all_de00_max")
+        assert not hasattr(cell, "setValue"), (
+            "a showing window offers a spin box on an app-wide column")
+        for w in dlg._column_widgets.get("chromiq_default", []):
+            assert not isinstance(w, QPushButton), (
+                "a showing window offers 'Restore this column'")
         assert compliance_overrides_of(s) == was_overrides, (
             "a showing window changed the app-wide limits")
     finally:

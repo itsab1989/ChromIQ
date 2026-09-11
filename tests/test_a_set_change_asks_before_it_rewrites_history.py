@@ -3315,3 +3315,210 @@ def test_the_column_baseline_is_what_we_wrote_not_what_we_read_back(
             f"was recorded as this window's: {told}")
     finally:
         dlg.deleteLater()
+
+
+def test_a_lock_is_enforced_whichever_control_the_user_moved(qapp, tmp_path,
+                                                             monkeypatch):
+    """R18-2: THE LOCK CHECK WAS GATED ON A CONTROL THAT HAS NOTHING TO DO
+    WITH THE LOCK.
+
+    `_run_numbers_moved` sat in that condition, so a verification measurement
+    binding and locking the run while the limits window was open was refused
+    when the user had typed in the run's own column, and went straight through
+    when they had moved the "Default for new runs" radio instead. A challenge
+    round drove both on a pre-#182 run with eleven saved reports: the second
+    archived and rewrote all eleven and moved six verdicts from PASS to FAIL,
+    on a run the app says is locked, judged by a set the user never picked.
+
+    Which control was touched is not the question. The lock is.
+
+    MUTATION: put `_run_numbers_moved` back in that condition and this goes
+    red.
+    """
+    from workflow.run_compliance import ensure_bound, is_locked
+
+    from ui.dialogs.thresholds_dialog import ThresholdsDialog
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    s = _settings(tmp_path)
+    dlg = _dialog(s, ti3)
+    try:
+        told: list = []
+        import ui.warning_sign as ws
+        monkeypatch.setattr(ws, "warn", lambda parent, t, x: told.append(x))
+        monkeypatch.setattr(type(dlg), "_confirm", lambda self, t, x: True)
+        monkeypatch.setattr(type(dlg), "_confirm_recalculate",
+                            lambda self, run: True)
+        recalculated: list = []
+        monkeypatch.setattr(type(dlg), "_recalculate_run",
+                            lambda self: recalculated.append(1))
+
+        class _RadioOnly(ThresholdsDialog):
+            def exec(self):
+                # the user moves ONLY the app-wide default, never the run's
+                # own column
+                _other = next(c for c, rb in self._default_radios.items()
+                              if not rb.isChecked() and rb.isEnabled())
+                self._default_radios[_other].setChecked(True)
+                # …and a verification measurement binds the run to that new
+                # default and locks it, which is the real sequence: the
+                # measurement reads the live preference.
+                ensure_bound(run, {}, _other)
+                from workflow.run_compliance import set_run_unlocked
+                set_run_unlocked(run, False)
+                return 0
+
+        import ui.dialogs.thresholds_dialog as td
+        monkeypatch.setattr(td, "ThresholdsDialog", _RadioOnly)
+        dlg._on_open_limits()
+
+        assert is_locked(run), "the premise failed"
+        assert not recalculated, (
+            "every saved report of a LOCKED run was recalculated, because the "
+            "user had moved the radio rather than the run's own column")
+        assert told, "the user was told nothing"
+    finally:
+        dlg.deleteLater()
+
+
+def test_a_preference_change_during_the_question_is_not_reverted_in_silence(
+        qapp, tmp_path, monkeypatch):
+    """R18-3: THE APP-WIDE STORES WERE READ ONCE, BEFORE THE QUESTION.
+
+    `prefs_collided` is decided inside the limits dialog's `done()`, which is
+    over before the recalculate question goes up. Round 17 taught this function
+    to look at the RUN again afterwards and left these on the old reading, so
+    another window's change to them during the question was reverted by the
+    refusal with no box at all. Word for word two earlier findings, one moment
+    later.
+
+    MUTATION: drop the second reading and this goes red.
+    """
+    from workflow.compliance_sets import Limit
+    from workflow.run_compliance import bind_run, set_run_unlocked
+
+    from ui.dialogs.thresholds_dialog import ThresholdsDialog
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    bind_run(run, "chromiq_default", {})
+    set_run_unlocked(run, True)
+    s = _settings(tmp_path)
+    dlg = _dialog(s, ti3)
+    try:
+        told: list = []
+        import ui.warning_sign as ws
+        monkeypatch.setattr(ws, "warn", lambda parent, t, x: told.append(x))
+        monkeypatch.setattr(type(dlg), "_confirm", lambda self, t, x: True)
+
+        def _asked(self, r):
+            # another window changes what every UNBOUND run is judged by,
+            # WHILE the question is on screen
+            s.set("compliance_default_set", "chromiq_tight")
+            return False                      # …and the user refuses
+
+        monkeypatch.setattr(type(dlg), "_confirm_recalculate", _asked)
+
+        class _First(ThresholdsDialog):
+            def exec(self):
+                self._run_limits["all_de00_avg"] = Limit.value(0.46)
+                self._run_dirty = True
+                from PyQt6.QtWidgets import QDialog as _Q
+                self.done(_Q.DialogCode.Accepted)
+                return 0
+
+        import ui.dialogs.thresholds_dialog as td
+        monkeypatch.setattr(td, "ThresholdsDialog", _First)
+        dlg._on_open_limits()
+
+        said = "\n".join(told)
+        assert "Preferences" in said, (
+            "a change made to the app-wide limits while the question was on "
+            f"screen was reverted and nobody was told: {told}")
+    finally:
+        dlg.deleteLater()
+
+
+def test_a_control_is_not_put_back_to_a_state_the_run_does_not_have(
+        qapp, tmp_path, monkeypatch):
+    """R18-4: THE TWO REFUSALS ARE NOT THE SAME REFUSAL.
+
+    `_confirm_about_run` returns False when the user says no and when the run
+    moved, and the callers put their control back to the value it held before
+    the click. That is right in the first case. In the second the guard has
+    already redrawn the window from disk, so putting the control back replaces
+    the truth with a stale value: a challenge round photographed a pulldown
+    naming a set the run is not bound to.
+
+    MUTATION: put the control back on both refusals and this goes red.
+    """
+    from workflow.run_compliance import (bind_run, run_limits, set_run_unlocked)
+
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    bind_run(run, "chromiq_default", {})
+    set_run_unlocked(run, True)
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        import ui.warning_sign as ws
+        monkeypatch.setattr(ws, "warn", lambda parent, t, x: None)
+        before = run_limits(run, {}).set_id
+        other = next(dlg._set_combo.itemData(i)
+                     for i in range(dlg._set_combo.count())
+                     if dlg._set_combo.itemData(i)
+                     and dlg._set_combo.itemData(i) != before)
+
+        def _asked(self, r):
+            # ANOTHER window binds it to a third thing while the question is up
+            bind_run(run, other, {})
+            return True
+
+        monkeypatch.setattr(type(dlg), "_confirm_recalculate", _asked)
+        dlg._on_set_chosen(dlg._set_combo.findData(other))
+
+        on_disk = run_limits(run, {}).set_id
+        shown = dlg._set_combo.itemData(dlg._set_combo.currentIndex())
+        assert shown == on_disk, (
+            f"the pulldown names {shown} and the run is bound to {on_disk}")
+    finally:
+        dlg.deleteLater()
+
+
+def test_the_relock_direction_also_checks_the_run_after_its_question(
+        qapp, tmp_path, monkeypatch):
+    """R18-5: ONE DOOR OF THREE STILL SKIPPED THE GUARD.
+
+    Re-locking is the irreversible direction: it takes the controls away and
+    getting them back needs a Preferences setting nothing on this screen names.
+    A challenge round drove the gap: the user locks their run onto ANOTHER
+    window's looser set, having just been told they could not change it
+    afterwards.
+
+    MUTATION: ask with `_confirm_relock` directly again and this goes red.
+    """
+    from workflow.run_compliance import (bind_run, is_locked, run_limits,
+                                         set_run_unlocked)
+
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    bind_run(run, "chromiq_default", {})
+    set_run_unlocked(run, True)
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        told: list = []
+        import ui.warning_sign as ws
+        monkeypatch.setattr(ws, "warn", lambda parent, t, x: told.append(x))
+        before = run_limits(run, {}).set_id
+        other = next(dlg._set_combo.itemData(i)
+                     for i in range(dlg._set_combo.count())
+                     if dlg._set_combo.itemData(i)
+                     and dlg._set_combo.itemData(i) != before)
+
+        def _asked(self, r):
+            bind_run(run, other, {})       # another window moves the set
+            return True
+
+        monkeypatch.setattr(type(dlg), "_confirm_relock", _asked)
+        dlg._on_unlock_toggled(False)
+
+        assert not is_locked(run), (
+            "the run was locked onto a set the user was never shown, straight "
+            "after being told they could not change it afterwards")
+        assert told, "the user was told nothing"
+    finally:
+        dlg.deleteLater()

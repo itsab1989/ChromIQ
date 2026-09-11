@@ -452,6 +452,17 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                 r += 1
 
     def _column_editable(self, col: str) -> bool:
+        # A WINDOW THAT WRITES NOTHING OFFERS NOTHING TO WRITE WITH.
+        # The app-wide writes were guarded and the CONTROLS were left as they
+        # were, so a "Show limits…" window still took a typed number into its
+        # spin box and showed it for ever while the settings held something
+        # else, and its "Restore this column" button wiped the column on screen
+        # while the stored override went on governing every unbound run in
+        # every project. A challenge round photographed both. Guarding a write
+        # without guarding the control that invites it trades a window that
+        # does the wrong thing for one that says the wrong thing.
+        if self._read_only_here():
+            return False
         if col == RUN_COLUMN:
             return self._run_editable
         return SET_BY_ID[col].editable

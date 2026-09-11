@@ -571,6 +571,8 @@ class MeasurementReportDialog(QDialog):
     _pending_restore_outcome: str = "none"
     #: what the run was judged by when this window last drew its controls
     _run_state_at_sync: tuple = ()
+    #: why the last `_confirm_about_run` returned False
+    _last_refusal: str = ""
 
     def __init__(self, settings, parent=None, initial_ti3=None) -> None:
         super().__init__(parent)
@@ -2343,7 +2345,8 @@ class MeasurementReportDialog(QDialog):
         if self._recalculating_would_rewrite_history(ctx.run):
             if not self._confirm_about_run(
                     ctx.run, partial(self._confirm_recalculate, ctx.run)):
-                self._sync_set_combo_to(lim.set_id)
+                if self._last_refusal != "moved":
+                    self._sync_set_combo_to(lim.set_id)
                 return
         elif self._run_state_now(ctx.run) != self._run_state_at_sync:
             # NO HISTORY TO REWRITE MEANS NO QUESTION, AND THAT IS EXACTLY THE
@@ -2512,13 +2515,20 @@ class MeasurementReportDialog(QDialog):
             # Only when it would really lock: on a run with fewer than two
             # dated verifications the lock does not apply, so there is nothing
             # to warn about and a question there would be a habit-forming click.
+            # THE THIRD DIRECTION, AND THE ONE DOOR OF THE THREE THAT
+            # NEVER ASKED AGAIN. Round 17 built the guard and routed the other
+            # two through it. A challenge round drove what is left: the user
+            # locks their run onto ANOTHER window's looser set, having just
+            # been told they could not change it afterwards.
             _would_lock = self._relocking_would_take_the_controls(ctx.run)
-            if _would_lock and not self._confirm_relock(ctx.run):
-                self._syncing_limits = True
-                try:
-                    self._unlock_check.setChecked(True)
-                finally:
-                    self._syncing_limits = False
+            if _would_lock and not self._confirm_about_run(
+                    ctx.run, partial(self._confirm_relock, ctx.run)):
+                if self._last_refusal != "moved":
+                    self._syncing_limits = True
+                    try:
+                        self._unlock_check.setChecked(True)
+                    finally:
+                        self._syncing_limits = False
                 return
             try:
                 set_run_unlocked(ctx.run, False)
@@ -2562,7 +2572,8 @@ class MeasurementReportDialog(QDialog):
                 partial(self._confirm, tr("Unlock this run's limits?"),
                         _head.format(run=ctx.run.dir.name, n=n_dates)
                         + " " + _tail)):
-            _put_the_box_back()
+            if self._last_refusal != "moved":
+                _put_the_box_back()
             return
         # READ AFTER THE QUESTION, WHICH IS THE WHOLE POINT. Read before it,
         # this holds the value from before the user was asked, so the switch
@@ -2596,6 +2607,21 @@ class MeasurementReportDialog(QDialog):
         self._forget_limits()
         self._recalculate_run()
         self._refresh()
+
+    def _prefs_state_now(self) -> tuple:
+        """The two app-wide stores, as they stand on disk right now.
+
+        The window reads these when it opens and the dialog reads them when it
+        closes, and both of those are before the recalculate question. This is
+        how the same question gets asked one more time, after it.
+        """
+        try:
+            from core.settings import compliance_overrides_of
+            return (str(self._settings.get("compliance_default_set", "") or ""),
+                    json.dumps(compliance_overrides_of(self._settings),
+                               sort_keys=True))
+        except Exception:              # noqa: BLE001
+            return ()
 
     def _run_state_now(self, run) -> tuple:
         """EVERYTHING THIS WINDOW'S DECISIONS ABOUT THE RUN DEPEND ON, read
@@ -2643,12 +2669,23 @@ class MeasurementReportDialog(QDialog):
         """
         _before = self._run_state_at_sync
         if not ask():
+            self._last_refusal = "said_no"
             return False
         if self._run_state_now(run) != _before:
+            # WHICH REFUSAL IT WAS MATTERS TO THE CALLER. Both end in False,
+            # and the callers put their control back to the value it held
+            # before the click; that is right when the user said no and wrong
+            # here, because the run has MOVED and this has already redrawn the
+            # window from disk. A challenge round photographed the result: a
+            # pulldown naming a set the run is not bound to, and an unlock box
+            # reading "locked" beside a live pulldown on a run that is unlocked
+            # on disk.
+            self._last_refusal = "moved"
             self._say_run_moved_while_asking(run)
             self._forget_limits()
             self._refresh()
             return False
+        self._last_refusal = ""
         return True
 
     def _say_run_moved_while_asking(self, run) -> None:
@@ -3167,7 +3204,19 @@ class MeasurementReportDialog(QDialog):
         # languages, and proved with a mutation pair that no test could see it:
         # the one test covering this function stubs the dialog with a fake that
         # writes nothing, so `moved` is False and this line is never reached.
-        if moved and _run_numbers_moved and self._locked_here(ctx.run):
+        # NOT GATED ON WHICH CONTROL MOVED. `_run_numbers_moved` was in this
+        # condition, so the lock was enforced when the user had typed in the
+        # run's own column and skipped when they had moved the "Default for new
+        # runs" radio instead. A challenge round drove the difference on a
+        # pre-#182 run with eleven saved reports: a verification measurement
+        # binding and locking the run while the window sat open was refused in
+        # the first case and went straight through in the second, archiving and
+        # rewriting all eleven and moving six verdicts from PASS to FAIL, on a
+        # run the app says is locked, judged by a set the user never picked.
+        #
+        # Which control the user touched has nothing to do with whether the run
+        # may be written. `_locked_here` is the whole question.
+        if moved and self._locked_here(ctx.run):
             log.info("the run was locked while its limits window was open; "
                      "the edit is not applied to %s", ctx.run.dir)
             _outcome = self._undo_the_edit(ctx, snap)
@@ -3191,8 +3240,18 @@ class MeasurementReportDialog(QDialog):
             # every saved report by a number the user never typed and never
             # saw. Read here, one line before the asking.
             _state_before_asking = self._run_state_now(ctx.run)
+            # AND THE APP-WIDE STORES, FOR THE SAME REASON. `prefs_collided`
+            # is decided inside the dialog's `done()`, which is over before
+            # this question goes up. Round 17 taught this function to look at
+            # the RUN again afterwards and left these on the old reading, so
+            # another window's change to them during the question was reverted
+            # by the refusal with no box at all. That is round 15's R15-3 and
+            # round 16's R16-2 again, one moment later.
+            _prefs_before_asking = self._prefs_state_now()
             if (self._recalculating_would_rewrite_history(ctx.run)
                     and not self._confirm_recalculate(ctx.run)):
+                if self._prefs_state_now() != _prefs_before_asking:
+                    prefs_collided = True
                 self._pending_rebound = collided
                 self._pending_restore_outcome = "none"
                 if not self._restore_limits_snapshot(ctx, snap):
@@ -3206,6 +3265,8 @@ class MeasurementReportDialog(QDialog):
                 self._forget_limits()
                 self._refresh()
                 return
+            if self._prefs_state_now() != _prefs_before_asking:
+                prefs_collided = True
             if self._run_state_now(ctx.run) != _state_before_asking:
                 # SOMEBODY WROTE THIS RUN WHILE THE QUESTION WAS ON SCREEN.
                 # Going ahead would recalculate every saved report against
