@@ -8,6 +8,18 @@ patch. Measured before landing it, at 500, 2000 and 4000 patches: maximum
 elementwise difference 0.0, with the build dropping from 9.0 s to 2.3 s at
 4000.
 
+**AND THEN ACROSS THE WHOLE PARAMETER SPACE, because "it is the same at three
+sizes" is not the question a user asks.** 900 combinations run against the
+previous implementation: five different sets of already-chosen patches (none,
+two, the eight cube corners, forty clustered in the middle, three hundred
+random), five totals each, three seeds, three candidate counts and four
+relaxation settings including zero. Worst elementwise difference 0.0, zero
+mismatches.
+
+The helper is also shared with the N-channel generator, which passes samples of
+four to twelve channels rather than three. Checked over six dimensions at three
+shapes each, up to 40,000 samples against 4,000 sites: zero differing owners.
+
 Two changes, both in `fill_gaps`'s inner loop:
 
 * `_nearest_site` expands ``|a-b|^2`` and hands the work to one BLAS matmul,
