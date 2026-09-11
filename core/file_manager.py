@@ -856,6 +856,13 @@ class RunMeta:
     #: K-b: which limit-set columns the Report limits window shows for this
     #: run; [] = all
     compliance_columns: list = field(default_factory=list)
+    #: #182 (D9, D28): which of the six Measurement Report TYPES this run's
+    #: verifications are reported as. Like the limit set it belongs to the
+    #: run, so every dated verification of the run produces the same kind of
+    #: document. "" means the user never chose, which is read as
+    #: `REPORT_TYPE_DEFAULT` — today's report, so nothing on disk changes
+    #: meaning on the day the pulldown arrives.
+    report_type: str = ""
 
     @classmethod
     def fresh(cls, run_id: str, parent: str | None = None) -> "RunMeta":
@@ -2592,6 +2599,9 @@ DUPLICATE_META_CARRY: frozenset = frozenset({
     # #182: the chosen limit set, its copied limits and the column choice
     # travel with the run they describe.
     "compliance_set_id", "compliance_set_label", "compliance_columns",
+    # …and the kind of report the run is verified with: a duplicate made to
+    # repeat a job is verified the same way or the two cannot be compared.
+    "report_type",
 })
 
 

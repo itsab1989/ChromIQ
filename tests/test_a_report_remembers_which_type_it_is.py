@@ -90,3 +90,67 @@ def test_the_stored_ids_are_not_the_labels():
     for tid in REPORT_TYPES:
         assert tid.islower() and " " not in tid, tid
     assert REPORT_TYPE_SUMMARY == "t1_colour_summary"
+
+
+# ---------------------------------------------------------------------------
+# …and the RUN remembers it too (D9)
+# ---------------------------------------------------------------------------
+def _run(tmp_path):
+    from core.file_manager import Project
+    proj = Project.create(tmp_path / "t", "t")
+    return proj.new_run()
+
+
+def test_a_run_that_never_chose_is_verified_as_todays_report(tmp_path):
+    """MUTATION: return meta.report_type raw and this goes red on the fresh
+    run, whose value is ""."""
+    from workflow.run_compliance import run_report_type
+    assert run_report_type(_run(tmp_path)) == REPORT_TYPE_FULL
+    assert run_report_type(None) == REPORT_TYPE_FULL
+
+
+def test_the_chosen_type_survives_a_reload(tmp_path):
+    from workflow.run_compliance import run_report_type, set_run_report_type
+    run = _run(tmp_path)
+    set_run_report_type(run, REPORT_TYPE_SUMMARY)
+    assert run_report_type(run) == REPORT_TYPE_SUMMARY
+    from core.file_manager import Run
+    assert run_report_type(Run.for_dir(run.dir)) == REPORT_TYPE_SUMMARY
+
+
+def test_a_typo_is_refused_before_it_reaches_the_run(tmp_path):
+    """MUTATION: drop the membership check and this goes red."""
+    from workflow.run_compliance import run_report_type, set_run_report_type
+    run = _run(tmp_path)
+    with pytest.raises(ValueError):
+        set_run_report_type(run, "t4-printing-record")
+    assert run_report_type(run) == REPORT_TYPE_FULL
+
+
+def test_a_type_written_by_a_later_chromiq_does_not_break_the_run(tmp_path):
+    from workflow.run_compliance import run_report_type
+    run = _run(tmp_path)
+    meta = run.load_meta()
+    meta.report_type = "t9_drift_check"
+    run.save_meta(meta)
+    assert run_report_type(run) == REPORT_TYPE_FULL
+
+
+def test_a_duplicated_run_is_verified_the_same_way(tmp_path):
+    """A duplicate exists to repeat a job. Verified as a different KIND of
+    document, the two cannot be compared, which is the whole reason the type
+    belongs to the run (D9).
+
+    The classification itself is guarded by the exhaustive partition in
+    `test_a_duplicate_carries_its_settings.py`, which also now SEEDS this
+    field: an unseeded field compares "" with "" and proves nothing.
+
+    MUTATION: drop "report_type" from DUPLICATE_META_CARRY and this goes red.
+    """
+    from core.file_manager import Project
+    from workflow.run_compliance import run_report_type, set_run_report_type
+    proj = Project.create(tmp_path / "t", "t")
+    src = proj.new_run()
+    set_run_report_type(src, REPORT_TYPE_SUMMARY)
+    dup = proj.duplicate_run(src)
+    assert run_report_type(dup) == REPORT_TYPE_SUMMARY

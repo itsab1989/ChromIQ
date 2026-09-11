@@ -221,6 +221,42 @@ def set_run_columns(run: Run, columns: "list[str]") -> None:
     run.save_meta(meta)
 
 
+# ---------------------------------------------------------------------------
+# The run's report TYPE
+# ---------------------------------------------------------------------------
+# #182 (D28): the kind of document, as opposed to the numbers it is judged
+# with. Two controls, one rule: Knut's D9 governs both, because a run whose
+# dated verifications produced different KINDS of report is no more comparable
+# than one whose limits moved under it. So it is stored beside the set, read
+# through this module, and travels with a duplicated run.
+def run_report_type(run: "Run | None") -> str:
+    """Which of the six report types this run is verified with.
+
+    A run that never chose, and a run carrying a type from a later ChromIQ,
+    both answer with today's report. Never raises: a meta.json that cannot be
+    read must not stop a report being built (CH-14).
+    """
+    from workflow.measurement_report import REPORT_TYPE_DEFAULT, report_type
+    if run is None:
+        return REPORT_TYPE_DEFAULT
+    try:
+        return report_type({"report_type": run.load_meta().report_type})
+    except (OSError, ValueError) as exc:
+        log.warning("could not read the report type of %s: %s", run.dir, exc)
+        return REPORT_TYPE_DEFAULT
+
+
+def set_run_report_type(run: Run, type_id: str) -> None:
+    """Record the chosen type on the run. Refuses an id it does not know, so a
+    typo cannot be written and then read for ever as today's report."""
+    from workflow.measurement_report import REPORT_TYPES
+    if type_id not in REPORT_TYPES:
+        raise ValueError(f"unknown report type {type_id!r}")
+    meta = run.load_meta()
+    meta.report_type = type_id
+    run.save_meta(meta)
+
+
 def is_locked(run: "Run | None") -> bool:
     """Whether the run's limit set may no longer be chosen in the report window.
 

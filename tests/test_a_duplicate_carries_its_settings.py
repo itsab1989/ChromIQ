@@ -67,6 +67,14 @@ def _seed(run):
     m.editor_layout = {"cols": 21}
     m.editor_basename = "my-chart"
     m.editor_recipe = {"mode": "generate"}
+    # #182: the limit set the run is judged with, and the KIND of report its
+    # verifications produce. A duplicate exists to repeat a job; verified
+    # against other limits, or as a different kind of document, the two runs
+    # cannot be compared, which is the whole reason both belong to the run.
+    m.compliance_set_id = "chromiq_strict"
+    m.compliance_set_label = "ChromIQ tight"
+    m.compliance_columns = ["chromiq_default", "chromiq_strict"]
+    m.report_type = "t1_colour_summary"
     # …and the ones that must NOT come across
     m.description = "the original"
     m.verify_chart_notes = "notes about a verification sheet"
