@@ -2181,7 +2181,6 @@
   "My instrument is not listed…": "列表里没有我的仪器…",
   "N/A": "不适用",
   "NEW PATCH SET · SETUP": "新建色块集 · 设置",
-  "NO PATCH COUNT SET": "未设置色块数量",
   "Name": "名称",
   "Name the installed copy after the description": "以描述命名安装的副本",
   "Names this preset after its chart layout, so layout presets sort and read clearly together. With this on, ChromIQ leads the name with the layout's key details — instrument, paper size, patch count, pages and orientation — as a locked prefix, then you add your own detail after. So the name begins “i1Pro-A4-484p-1page-Portrait-” and you just add what tells this layout apart from your others.\n\nAdd a detail about the layout itself — for example a variant or revision (“v2”), how it was built (“denser”, “no-greys”), or a date. There's no need to repeat printer or paper here: those name the finished profile, not the chart layout.\n\nThe prefix updates on its own as you change the settings and can't be edited directly — click the field and your cursor lands right after it, ready to type. Turn the option off to name the preset entirely yourself.": "以此色卡的布局来命名该预设，让布局预设整齐地排序、清晰地阅读。开启后，ChromIQ 会把布局的关键信息——仪器、纸张尺寸、色块数量、页数和方向——作为锁定前缀放在名称开头，你在其后添加自己的细节。于是名称以「i1Pro-A4-484p-1page-Portrait-」开头，你只需添加能把此布局与其他布局区分开的内容。\n\n添加关于布局本身的细节——例如版本或修订（「v2」）、构建方式（「更密」「无灰」）或日期。这里无需重复打印机或纸张：那些用于命名最终的配置文件，而不是色卡布局。\n\n更改设置时前缀会自动更新，且无法直接编辑——点击该字段，光标会落在它正后方，随时可以输入。关闭此选项即可完全自行命名预设。",

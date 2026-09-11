@@ -13066,23 +13066,6 @@ class TabChart(QWidget):
                 # follow from it rather than from the Pages box.
                 total = fixed
                 shown_pages = max(1, -(-fixed // per_sheet))
-            elif self._count_is_unpredictable():
-                # NOTHING ARMED AND NO COUNT PINNED. Generate will run targen
-                # with no -f at all, and what targen then produces is targen's
-                # own business, not something this panel can work out. Saying
-                # the capacity of the sheet here is a promise the build does not
-                # keep: a challenge round opened the app on Basti's own saved
-                # preferences, unticked "Auto patch count" once, and the panel
-                # promised 105 patches over one page while Generate wrote a
-                # chart of 14.
-                #
-                # The honest answer already exists on this panel, and it is the
-                # one used when the layout cannot be predicted at all.
-                self._predicted_patch_count = None
-                self._patch_count_lbl.setText(
-                    self._count_with_accent("", mark="?"))
-                self._patch_detail_lbl.setText(tr("NO PATCH COUNT SET"))
-                return
             else:
                 # Nothing armed: Generate really will run targen and fill the
                 # pages asked for, so the capacity estimate is the honest answer
@@ -18552,24 +18535,6 @@ class TabChart(QWidget):
         if n:
             return n
         return self._onscreen_patch_total()
-
-    def _count_is_unpredictable(self) -> bool:
-        """True when "Auto patch count" is OFF and the targen -f box is 0.
-
-        0 is the parameter's own default and means "not pinned here", so with
-        Auto off nobody has said how many patches to make and targen will fall
-        back to its own minimum. ChromIQ cannot predict that number, and
-        printing the sheet's capacity instead is a promise the build breaks.
-        """
-        auto = getattr(self, "_manual_auto_patches_check", None)
-        if auto is None or auto.isChecked():
-            return False
-        pw = getattr(self, "_manual_f_pw", None)
-        ctl = getattr(pw, "_control", None) if pw is not None else None
-        try:
-            return int(ctl.value()) <= 0
-        except (AttributeError, TypeError, ValueError):
-            return False
 
     def _targen_patch_count(self) -> "int | None":
         """The targen ``-f`` value, i.e. the number of patches the next

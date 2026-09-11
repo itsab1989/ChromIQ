@@ -284,51 +284,37 @@ def test_a_zero_typed_on_purpose_is_still_left_alone(qapp, tmp_path):
         f"one: {spin.value()}")
 
 
-def test_no_count_pinned_means_the_headline_says_so(qapp, tmp_path):
-    """B1: ONE UNTICK PROMISED 105 PATCHES AND BUILT 14.
+def test_the_patch_count_headline_belongs_to_guided_only(qapp, tmp_path):
+    """WHERE THAT HEADLINE LIVES, because a fix was aimed at the wrong mode.
 
-    A challenge round opened the app on Basti's own saved preferences, where
-    "Auto patch count" is on and the -f box therefore reads 0, and unticked it
-    once. Nothing had carried a value away this session, so -f stayed 0 with
-    Auto off. The panel promised 105 patches over one page; Generate wrote a
-    chart of 14.
+    A challenge round reported that one untick promised 105 patches and built
+    14, and the fix for it gated the headline on the targen -f box. Driven on
+    screen afterwards, that was wrong twice over:
 
-    0 is the parameter's own default and means "not pinned here", so with Auto
-    off nobody has said how many patches to make and targen falls back to its
-    own minimum. That number is targen's business, not this panel's, and
-    printing the sheet's capacity instead is a promise the build breaks.
+    * the headline is built inside the GUIDED panel, and in Manual it is not on
+      screen at all, so the gate could never appear where an unpinned -f really
+      does fall back to targen's minimum;
+    * and in Guided the count does not come from -f. `ChartParams.is_manual` is
+      False there, so the build takes the capacity and never passes -f to
+      targen, which means the count IS exactly predictable. The gate turned a
+      correct 105 into a shrug, on the first screen of the app, reachable by
+      two clicks.
 
-    MUTATION: drop `_count_is_unpredictable` from the headline and this goes
-    red.
+    The original report compared a Guided headline against a Manual build.
+
+    This pins the fact the fix should have been built on. If the headline ever
+    becomes visible in Manual, this test is where to start, because the
+    unpinned -f question becomes real at that moment.
     """
     tab = _tab(tmp_path)
     _set_f(tab, 0)
     if tab._manual_auto_patches_check is not None:
         tab._manual_auto_patches_check.setChecked(False)
-
-    assert tab._count_is_unpredictable() is True, "the premise failed"
-
     tab._update_patch_count()
-    assert tab._predicted_patch_count is None, (
-        "the panel put a number on a chart whose size nobody has set")
-    assert "?" in tab._patch_count_lbl.text(), tab._patch_count_lbl.text()
 
-
-def test_a_pinned_count_is_still_predictable(qapp, tmp_path):
-    """The other direction, or the fix would silence a headline that is right.
-
-    MUTATION: return True unconditionally and this goes red.
-    """
-    tab = _tab(tmp_path)
-    _set_f(tab, 400)
-    if tab._manual_auto_patches_check is not None:
-        tab._manual_auto_patches_check.setChecked(False)
-    assert tab._count_is_unpredictable() is False
-
-    # …and with Auto ON the capacity estimate is the honest answer again
-    if tab._manual_auto_patches_check is not None:
-        tab._manual_auto_patches_check.setChecked(True)
-    assert tab._count_is_unpredictable() is False
+    # Guided's count comes from the capacity, not from the -f box.
+    assert tab._predicted_patch_count, (
+        "the Guided headline refused a count it can work out exactly")
 
 
 def test_arming_a_patch_set_refreshes_the_headline(qapp, tmp_path, monkeypatch):
