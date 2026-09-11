@@ -166,6 +166,14 @@ a = Analysis(
               # binaries, not just as importable names.
               *_bl_binaries, *_btp_binaries],
     datas=[
+        # #182 F3: a licence page can only show what actually travelled. These
+        # two were at the project root and in nobody's `datas`, so a user who
+        # installed the .dmg had neither ChromIQ's own licence nor the notices
+        # that record every third-party file it ships. The Fogra grant makes
+        # that a condition, not a courtesy: the data is here on terms that
+        # require Fogra to be named as its source.
+        ('LICENSE',              '.'),
+        ('THIRD-PARTY-NOTICES.md', '.'),
         ('assets',           'assets'),
         ('data/parameters.yaml', 'data'),
         ('data/i18n',        'data/i18n'),

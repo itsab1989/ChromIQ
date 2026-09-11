@@ -248,9 +248,33 @@ Listed so the sweep is exhaustive and nobody has to re-derive it:
   ChromIQ HAS been given, from Fogra, CGATS, the ICC and Idealliance, in the
   words their owners used, together with the condition attached to each, so that
   no data file can arrive there without its credit already beside it.
-- **Reference data** — none. ChromIQ deliberately ships no characterization
-  dataset (no FOGRA, no IT8.7/4, no ISO tables); the tolerance and aim work links
-  to them instead. That decision is recorded in issue #182.
+- **Reference data** — `data/reference_sets/fogra/`, eleven files, and **this
+  entry used to say "none"**. It said ChromIQ deliberately shipped no
+  characterization dataset, and that stopped being true on 2026-09-10 when
+  `4c06f67a` bundled eleven Fogra MediaWedge V3 subsets. A notices file that
+  denies what is in the bundle is worse than no notices file, so here is what
+  is actually there.
+
+  They are **Fogra's own bytes, unmodified**, from
+  `MK3_Subsets_FOGRA39_until_FOGRA60.zip` (V1.0, published 2022-01-27), with
+  the sha256 of each file recorded in `fogra/SOURCE.json` so that
+  "distributed unmodified" is checkable rather than asserted. The grant, from
+  Fogra Forschungsinstitut für Medientechnologien e.V. and quoted in
+  `data/reference_sets/LICENSE`, permits redistribution inside commercial and
+  non-commercial software **provided the data is unchanged and Fogra is
+  identified as the source**, and says that naming a FOGRAxx set implies no
+  certification, approval or endorsement.
+
+  **That naming condition is met in the application**, not only in a file
+  inside the bundle: Preferences → Licences names Fogra and quotes the grant,
+  and `ui/licences.py` reads it from `SOURCE.json` rather than restating it.
+  Until 2026-09-11 it was met nowhere a user could look, which is the gap this
+  entry and that page close together.
+
+  **No ISO tolerance value is among them**, and none is anywhere in the tree.
+  Characterisation data and tolerance values have different owners and
+  different answers; only the Fogra half is cleared. `data/compliance_sets/`
+  ships empty of any third party's numbers for that reason.
 
 ---
 

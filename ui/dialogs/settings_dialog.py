@@ -3256,6 +3256,8 @@ class SettingsDialog(QDialog):
                           tr("Measurement"))
         self._tabs.addTab(self._scroll_wrap(self._build_sounds_tab()),
                           tr("Sounds"))
+        self._tabs.addTab(self._scroll_wrap(self._build_licences_tab()),
+                          tr("Licences"))
         self._tabs.addTab(self._scroll_wrap(self._beta_page), tr("Beta"))
         # Run the (deferred) Chart Layout estimate the first time that tab is
         # actually opened — it's suspended during build to keep the window quick.
@@ -5507,6 +5509,130 @@ class SettingsDialog(QDialog):
         k = self._layout_mode.findData(mode)
         if k >= 0:
             self._layout_mode.setCurrentIndex(k)    # fires _load_layout_combo
+
+    def _build_licences_tab(self) -> QWidget:
+        """Everything ChromIQ ships that somebody else wrote (#182 F3).
+
+        IT EXISTS BECAUSE A CREDIT NOBODY CAN READ IS NOT A CREDIT. Eleven
+        Fogra characterisation files ship inside the application, and Fogra's
+        grant is conditional on the data travelling unmodified AND on Fogra
+        being identified as the source. Both statements of that lived in files
+        inside the bundle that no user could reach from the app: `grep -rn
+        "Fogra" ui/` returned nothing at all.
+
+        Nothing on this page is retyped. The reference-data credits come from
+        `workflow.reference_sets`, whose own `SOURCE.json` gate refuses a data
+        file with no source and no terms; everything else is
+        `THIRD-PARTY-NOTICES.md` as it ships. So the page cannot drift from the
+        bundle, which is the only way a licence page stays true.
+
+        The licence TEXTS are not translated. A translated quotation of a grant
+        is not that grant.
+        """
+        from PyQt6.QtWidgets import QTextBrowser
+
+        from ui import licences
+
+        page = QWidget()
+        v = QVBoxLayout(page)
+        v.setSpacing(10)
+        v.setContentsMargins(12, 12, 12, 12)
+
+        intro = QLabel(tr(
+            "ChromIQ is free software. This page names everything it ships "
+            "that somebody else wrote, and the terms it is here on. The "
+            "licence texts are shown in the language their owners wrote them "
+            "in."), self)
+        intro.setWordWrap(True)
+        _ink(intro, "#909090", " font-size: 11px;", level="faint")
+        v.addWidget(intro)
+
+        # -- the one credit with a live condition attached to it
+        credits = licences.reference_data_credits()
+        if credits:
+            grp = QGroupBox(tr("Reference data bundled with ChromIQ"), self)
+            g = QVBoxLayout(grp)
+            g.setSpacing(6)
+            for holder, terms in licences.reference_data_terms():
+                who = QLabel(tr(
+                    "Source: {holder}").format(holder=holder), self)
+                who.setWordWrap(True)
+                who.setStyleSheet("font-weight: bold;")
+                g.addWidget(who)
+                # VERBATIM, AND NOT TRANSLATED. These are the rights holder's
+                # own words, and the grant is the thing they wrote, not a
+                # rendering of it.
+                quote = QLabel(terms, self)
+                quote.setWordWrap(True)
+                quote.setTextFormat(Qt.TextFormat.PlainText)
+                _ink(quote, "#606060", " font-size: 11px;", level="faint")
+                g.addWidget(quote)
+            note = QLabel(tr(
+                "Naming one of these sets in a report says what your "
+                "measurement was compared against. It is not a certification, "
+                "approval or endorsement by anybody."), self)
+            note.setWordWrap(True)
+            _ink(note, "#606060", " font-size: 11px;", level="faint")
+            g.addWidget(note)
+            sets = QLabel("\n".join(credits), self)
+            sets.setWordWrap(True)
+            sets.setTextFormat(Qt.TextFormat.PlainText)
+            sets.setVisible(False)              # the detail, on request
+            g.addWidget(sets)
+            show = QPushButton(tr("Show each set's credit"), self)
+            show.setCheckable(True)
+            show.toggled.connect(sets.setVisible)
+            row = QHBoxLayout()
+            row.addWidget(show)
+            row.addStretch(1)
+            g.addLayout(row)
+            v.addWidget(grp)
+
+        # -- and everything else, as the bundle states it
+        body = QTextBrowser(self)
+        body.setOpenExternalLinks(True)
+        body.setMinimumHeight(320)
+        notices = licences.notices_markdown()
+        if notices:
+            body.setMarkdown(notices)
+        else:
+            # A page that cannot find the file says so rather than showing an
+            # empty box: an empty licence page reads as "nothing to declare".
+            body.setPlainText(tr(
+                "The third-party notices file did not travel with this build. "
+                "It is in the ChromIQ source tree as THIRD-PARTY-NOTICES.md."))
+        v.addWidget(body, 1)
+
+        own = QPushButton(tr("Show ChromIQ's own licence"), self)
+        own.clicked.connect(self._on_show_own_licence)
+        files_row = QHBoxLayout()
+        files_row.addWidget(own)
+        files_row.addStretch(1)
+        v.addLayout(files_row)
+        return page
+
+    def _on_show_own_licence(self) -> None:
+        """ChromIQ's own licence, in a window of its own. Not a link out: a
+        user offline, or one who installed the .dmg and has no source tree, has
+        to be able to read it here."""
+        from PyQt6.QtWidgets import QTextBrowser
+
+        from ui import licences
+        text = licences.own_licence_text()
+        dlg = QDialog(self)
+        dlg.setWindowTitle(tr("ChromIQ's licence"))
+        lay = QVBoxLayout(dlg)
+        view = QTextBrowser(dlg)
+        view.setPlainText(text or tr(
+            "The licence file did not travel with this build. It is in the "
+            "ChromIQ source tree as LICENSE."))
+        lay.addWidget(view)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close, dlg)
+        buttons.rejected.connect(dlg.reject)
+        buttons.accepted.connect(dlg.accept)
+        lay.addWidget(buttons)
+        dlg.resize(760, 560)
+        dlg.exec()
 
     def _scroll_wrap(self, page: QWidget) -> QWidget:
         """Wrap a settings tab in a fading scroll area so every tab scrolls and
