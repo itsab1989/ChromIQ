@@ -1,8 +1,27 @@
 # Changelog
 
-## Unreleased
+## v4.2.4
 
 ### Fixed
+
+- **A custom paper size is named by its size again, and carries Portrait or
+  Landscape.** Saving a preset on a custom sheet produced a name containing
+  `__custom__`, which is ChromIQ's internal marker and not a size. It now reads
+  the size, so `i1Pro-100x150-600p-4pages-Portrait`. The orientation is worked
+  out from the two numbers on Knut Larsson's ruling: narrower than it is tall is
+  Portrait, wider is Landscape. A square sheet gets neither word, because it is
+  neither. The help icon in that window explains it.
+
+- **"Use a fixed seed" is remembered as you left it, and a chart reopens as it
+  was printed.** Turning the tick off and coming back to the run turned it on
+  again by itself. Worse, once it had done that, every Generate reused the same
+  seed for ever, so "Randomise patch order" quietly stopped randomising. ChromIQ
+  now stores whether the tick was on alongside the seed it used. Reopening a
+  chart restores it exactly, from the stored seed, whether the tick is on or
+  off, because looking at a chart you already made is not the same as making a
+  new one. Generating after a change uses the stored seed only when the tick is
+  on; with it off you get a new one each time, as you should. Charts built
+  before this release have no such record, so their tick still reads as on.
 
 - **Text along any edge of a chart is never left off again, and a collision is
   now shown on screen.** 4.2.3 left the small note down the right edge off the
