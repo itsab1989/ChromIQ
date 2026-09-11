@@ -104,6 +104,17 @@ arrived with the reference data.
 - **Grey and tone check explained rows it had deliberately left out.** The guide
   above the results still described the colour accuracy rows that type drops.
 
+- **The one-page summary printed on two pages.** Sixteen example colours in a
+  single column ran about 10 mm past the bottom of an A4 sheet. They are laid
+  out in two blocks of eight, which is also a better use of a page somebody is
+  holding.
+
+- **A colour block had no edge, on any report.** It was asked for and never
+  drawn: the style Qt's rich text ignores on this kind of element. A patch close
+  to the colour of the page behind it was therefore invisible, which on screen
+  in the dark theme meant every very dark patch, and on paper means paper white,
+  one of the eight cube corners on the page you hand over.
+
 - **A report type ChromIQ cannot produce is no longer believed.** A project made
   on a later ChromIQ that builds one of the two ISO types brought that choice
   home with it, and the window sat on "Validation print check (ISO 12647-8)"

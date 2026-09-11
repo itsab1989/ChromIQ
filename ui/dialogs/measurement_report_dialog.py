@@ -154,12 +154,24 @@ def _swatch(hexc: str) -> str:
     reference file is gone, which §9.1 deliberately refuses to guess for — drew
     a white block in the "Asked for" column, on the one page meant to be handed
     to a customer. It reads as the same nothing the ΔE column reads.
+
+    AND THE EDGE IS A SECOND SPAN, because Qt's rich text ignores `border` on an
+    inline one. It was written as `border:1px solid …` and drew NOTHING: rendered
+    on its own against the report ground and counted, the border colour came back
+    at zero pixels, and the only reason it looked present in a first probe was
+    the antialiasing of the text beside it. So a patch near the ground colour had
+    no edge to find: photographed on screen, `#191946` sat on `#1f1f1f` and read
+    as an empty cell, and on the light palette and in every PDF paper white does
+    the same. An outer span carrying the edge colour behind the fill draws, and
+    is what the frame is made of now.
     """
     if not hexc:
         return _fmt(None)
     c = html.escape(hexc)
-    return (f"<span style='background-color:{c};color:{c};"
-            f"border:1px solid {_C["swatch_edge"]}'>&nbsp;&nbsp;&nbsp;</span>")
+    e = html.escape(_C["swatch_edge"])
+    return (f"<span style='background-color:{e};color:{e}'>&nbsp;"
+            f"<span style='background-color:{c};color:{c}'>"
+            f"&nbsp;&nbsp;&nbsp;</span>&nbsp;</span>")
 
 
 def _colour_line_html(height: int = 5) -> str:
@@ -5059,7 +5071,10 @@ class MeasurementReportDialog(QDialog):
                            "spread across what this printer can make. Left: "
                            "what the chart asked for. Right: what came back."
                        ).format(count=len(picked))) + "</div>"
-                       + self._swatch_table_html(picked))
+                       + self._swatch_table_html(
+                           picked,
+                           columns=-(-len(picked)
+                                     // self._SWATCH_ROWS_PER_COLUMN) or 1))
         else:
             # A report saved before the example colours existed carries none,
             # and says so rather than showing an empty frame.
@@ -5082,38 +5097,65 @@ class MeasurementReportDialog(QDialog):
                    + "</div>")
         return "".join(out)
 
-    def _swatch_table_html(self, rows: list) -> str:
+    #: How many patches the example-colour table stacks in one column before it
+    #: starts a second. SIXTEEN IN ONE COLUMN DOES NOT FIT ON ONE PAGE: measured
+    #: against the PDF's own A4 layout, the one-page summary came to 990 px of
+    #: body against 952 available, so the document named "Colour summary (one
+    #: page)" printed on two. Eight and eight is 112 px shorter than sixteen,
+    #: and it also stops a hand-over page wasting its right half on a tall thin
+    #: list.
+    _SWATCH_ROWS_PER_COLUMN = 8
+
+    def _swatch_table_html(self, rows: list, columns: int = 1) -> str:
         """A patch per row: what was asked for, what came back, and how far
         apart they are. Two swatches side by side, because a number alone is
-        not what a person hands to a customer."""
-        cells = []
-        for x in rows:
+        not what a person hands to a customer.
+
+        With *columns* > 1 the patches are laid out in that many blocks side by
+        side, each block carrying its own headings, so a long list becomes a
+        short wide one.
+        """
+        def _head() -> str:
+            return ("<th align='left' style='padding-right:8px'>"
+                    + html.escape(tr("Patch")) + "</th>"
+                    # THE TWO SWATCH COLUMNS NEED AIR. Photographed on screen:
+                    # "Asked for" ran straight into "Measured" with no gap, so
+                    # the header read as one word and the two blocks below it
+                    # as one block.
+                    "<th align='left' style='padding-right:10px'>"
+                    + html.escape(tr("Asked for")) + "</th>"
+                    "<th align='left' style='padding-right:10px'>"
+                    + html.escape(tr("Measured")) + "</th>"
+                    "<th align='right' style='padding-left:10px'>"
+                    + html.escape(tr("ΔE00")) + "</th>")
+
+        def _cells(x: "dict | None") -> str:
+            if x is None:
+                # A block short of its last patches keeps the shape of the row
+                # rather than collapsing it, so the blocks beside it stay level.
+                return "<td></td><td></td><td></td><td></td>"
             name = x.get("name") or x.get("loc") or ""
             exp, got = x.get("expected_hex", ""), x.get(
                 "measured_hex") or x.get("hex", "")
-            d = x.get("de")
-            cells.append(
-                "<tr>"
-                f"<td style='padding:1px 8px 1px 0'>{html.escape(str(name))}</td>"
-                f"<td style='padding-right:10px'>{_swatch(exp)}</td>"
-                f"<td>{_swatch(got)}</td>"
-                f"<td align='right' style='padding-left:10px'>"
-                f"{_fmt(d, 2)}</td></tr>")
+            return (f"<td style='padding:1px 8px 1px 0'>{html.escape(str(name))}</td>"
+                    f"<td style='padding-right:10px'>{_swatch(exp)}</td>"
+                    f"<td>{_swatch(got)}</td>"
+                    f"<td align='right' style='padding-left:10px'>"
+                    f"{_fmt(x.get('de'), 2)}</td>")
+
+        columns = max(1, int(columns))
+        per = -(-len(rows) // columns) if rows else 0
+        blocks = [rows[i * per:(i + 1) * per] for i in range(columns)] if per \
+            else [rows]
+        gap = "<td style='padding-right:22px'></td>"
+        head = gap.join(_head() for _ in blocks)
+        body = []
+        for r in range(per):
+            body.append("<tr>" + gap.join(
+                _cells(b[r] if r < len(b) else None) for b in blocks) + "</tr>")
         return ("<table cellspacing='0' cellpadding='0' "
                 "style='margin:2px 0 6px'>"
-                "<tr><th align='left' style='padding-right:8px'>"
-                + html.escape(tr("Patch")) + "</th>"
-                # THE TWO SWATCH COLUMNS NEED AIR. Photographed on screen:
-                # "Asked for" ran straight into "Measured" with no gap, so the
-                # header read as one word and the two blocks below it as one
-                # block.
-                "<th align='left' style='padding-right:10px'>"
-                + html.escape(tr("Asked for")) + "</th>"
-                "<th align='left' style='padding-right:10px'>"
-                + html.escape(tr("Measured")) + "</th>"
-                "<th align='right' style='padding-left:10px'>"
-                + html.escape(tr("ΔE00")) + "</th></tr>"
-                + "".join(cells) + "</table>")
+                f"<tr>{head}</tr>" + "".join(body) + "</table>")
 
     def _pdf_html(self, runs: list, charts_html: str) -> str:
         return self._report_body_html(runs, for_pdf=True, charts_html=charts_html)
