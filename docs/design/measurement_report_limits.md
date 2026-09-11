@@ -319,5 +319,71 @@ names what the chart cannot supply. Nothing on disk changed.
 
 The reading of a user-supplied characterization file and its copy into the
 run's `verifications/reference/` folder (Knut K-e); the CMYK measurement
-reader (S-3); report types (D28); the tone-ramp generator, the approved-chart
-list and the uniformity form (N5). The ISO numbers (S-2).
+reader (S-3); the tone-ramp generator, the approved-chart list and the
+uniformity form (N5). The ISO numbers (S-2). Of the six report types of §10,
+the two that judge against a printing condition the user supplies.
+
+## 10. The report type (D28)
+
+**⏳ Awaiting confirmation.** **Confirmed by:** *nobody yet.*
+
+Written 2026-09-11 from Knut's rulings of 2026-09-09 and 2026-09-11 in the
+issue, and built in `v4.3.0-beta.4`. His rulings are his; what the app does
+with them is not confirmed by anybody.
+
+**Six names, in one pulldown above "Judged against".** Colour summary (one
+page), Full colour check, Grey and tone check, Printing record (not graded),
+and below a rule, Validation print check (ISO 12647-8) and Contract proof
+check (ISO 12647-7). The heading over that rule reads "Against a printing
+condition you supply".
+
+**The type belongs to the profile run,** as the limit set does, so every dated
+verification of a run produces the same kind of document and the dates stay
+comparable. Another run in the project may use a different one. When the runs
+loaded into one window disagree, the window falls back to Full colour check
+and says so under the pulldown: a window produces one document, and that is
+the only answer that withholds nothing and loses no verdict a run recorded.
+
+**Choosing a type recalculates nothing.** A limit set decides what a
+measurement is judged against; a type decides which document is produced from
+numbers that do not move. No saved report is touched.
+
+**A run may hold reports of several types** (Knut, 2026-09-11: *"the user may
+have several uses for different reports"*). **Generate report** writes a dated
+report of the type now chosen. The line under the pulldown lists the types the
+run has already produced, counted from the files on disk rather than from
+anything the window remembers, and it comes before the sentence explaining the
+type being pointed at.
+
+**What each type is.**
+
+* **T2, Full colour check** is today's report, unchanged, and is the default
+  for every report written before this existed and every run nobody has chosen
+  for. Nothing on disk was re-derived to make the type work.
+* **T4, Printing record (not graded)** shows the same figures and judges none
+  of them: every judged row reads INFO, with a paragraph saying why. A row
+  nobody could measure still reads N-A, because "we could not measure this" is
+  not a judgement being withheld. Nothing is written; switching back to T2
+  brings the same verdicts.
+* **T3, Grey and tone check** keeps three rows, the two grey-balance rows and
+  the 30 % to 70 % ramp row, and drops the colour rows rather than showing them
+  as not applicable. Its one word is about the rows it shows, and the guide
+  above them explains only those rows.
+* **T1, Colour summary (one page)** is written as its own document rather than
+  the full report with rows removed. It carries the run's description at the
+  top of the scope section and nothing when that is empty, one line of
+  statistics with the verdict, sixteen example colours taken from the chart
+  that was measured and spread across what the printer can make, the eight cube
+  corners, and the sentence that ChromIQ measures against published values and
+  does not certify. No customer or job name (Knut, 2026-09-11: *"No customer
+  of job name per today"*). It is about ONE measurement, the one the window is
+  on, so the tick that widens every other report to the whole history is
+  disabled while it is chosen.
+
+**A type this build cannot produce is shown and refused,** not hidden, and it
+is never honoured: the run refuses to store one, and a stored one, which a
+project made on a later ChromIQ can carry home, is read as Full colour check.
+What is on disk is left alone so that later ChromIQ still finds the choice.
+
+**Not built here:** T5 and T6. Their figures are published in standards
+ChromIQ has no permission to include (§9, S-2).
