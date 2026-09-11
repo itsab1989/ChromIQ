@@ -469,9 +469,22 @@ feature here.** It belongs in the tool-availability work
 (`tool_availability.md`), because it is exactly the shape that document is for:
 an option offered in one place that the rest of the app cannot honour.
 
-**Not investigated here:** whether `chartread` itself accepts a CMYK chart, i.e.
-whether the wall is at measuring or only at reporting. Worth establishing before
-anyone decides what to do about it.
+**Established 2026-09-04: the wall is at REPORTING only.** `chartread` accepts a
+CMYK chart. It reads the chart's declared `COLOR_REP`, turns it into an ink mask
+with `icx_char2inkmask` and loops over `icx_noofinks(nmask)` device channels,
+naming each field from the mask. There is no RGB branch in it
+(`spectro/chartread.c:3052-3082`, Argyll 3.5.0 source, through
+`xicc/xcolorants.c`). `colprof`, `profcheck` and `colverify` were run live on a
+CMYK measurement built from a real FOGRA51 dataset and all three worked.
+
+So the gap is `parse_ti3` and what is shaped around RGB device values, exactly
+as the section below describes, and nothing in the measuring path.
+
+*Worked out in `ChromIQ-research/issue-182/07-cmyk-verification/AB-FINDINGS.md`
+§5 and reported on issue #182 on 2026-09-04 (comment 5545838349); the Argyll
+source was re-read on 2026-09-11 before this paragraph was written.*
+**Confirmed by:** *nobody yet.* The `chartread` half has never been run against
+an instrument.
 
 ### If CMYK verification were ever wanted
 

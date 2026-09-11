@@ -236,3 +236,54 @@ def test_a_preset_stores_the_layout_but_not_this_chart_s_tick(qapp):
     got = store.get(inst, paper, mode)
     assert got.seed is None, "a preset never stores one chart's seed"
     assert got.seed_fixed is None, "…nor the tick that would apply a stale one"
+
+
+# =====================================================================
+# C. the tick reaches the TARGET'S STORE, not just the panel
+# =====================================================================
+# W-beta4-plan F4, from J-seed-tick-conflict-FOR-KNUT.md:
+#
+#   "Unticking 'Use a fixed seed' on a chart built without one is never written
+#    to disk, so the setting is genuinely lost, not merely mis-displayed."
+#
+# J was corrected on its own page: the untick does reach disk. But everything
+# above this line is the PANEL, and the claim was about `runs/runN/meta.json`,
+# which nothing covered. A tag that is recorded in the recipe and dropped by
+# the store round trip would satisfy every test above and still lose the tick.
+def _project_with_a_run(tmp_path):
+    tab = _tab(tmp_path)
+    tab._file_mgr.set_target_name("SeedStore")
+    run = tab._file_mgr.project().current_run()
+    run.ensure_dir()
+    tab._switch_mode("manual")
+    return tab, run
+
+
+def _stored_tag(run):
+    meta = json.loads((run.dir / "meta.json").read_text(encoding="utf-8"))
+    recipe = (meta.get("create_chart_ui") or {}).get("engine_recipe") or {}
+    return recipe.get("seed_fixed", "<absent>")
+
+
+def test_the_tick_is_written_into_the_targets_meta_json(qapp, tmp_path):
+    tab, run = _project_with_a_run(tmp_path)
+    tab._manual_layout_panel.set_recipe(
+        LayoutRecipe(randomize=True, seed=4242, seed_fixed=True))
+    assert tab.save_target_settings(run) is True
+    assert _stored_tag(run) is True
+
+
+def test_unticking_it_is_written_too(qapp, tmp_path):
+    """The claim itself. The tick going in and never coming out is the shape of
+    a setting that is lost rather than merely mis-shown."""
+    tab, run = _project_with_a_run(tmp_path)
+    panel = tab._manual_layout_panel
+    panel.set_recipe(LayoutRecipe(randomize=True, seed=4242, seed_fixed=True))
+    tab.save_target_settings(run)
+    assert _stored_tag(run) is True, "the tick never got there to begin with"
+
+    panel.fixed_seed_cb.setChecked(False)
+    tab.save_target_settings(run)
+    assert _stored_tag(run) is False, (
+        "the untick did not reach runs/runN/meta.json, so selecting the run "
+        "again re-ticks a box the user turned off")

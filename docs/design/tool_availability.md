@@ -217,9 +217,28 @@ That parser is what the measurement report, the cube corners and the
 patch-identity check all read through. So a user can choose CMYK, generate a
 chart and print it, and then find the result cannot be reported on.
 
-**Not established, and worth knowing before deciding anything:** whether
-`chartread` itself accepts a CMYK chart — i.e. whether the wall is at measuring
-or only at reporting. The two call for different answers.
+**Established 2026-09-04: the wall is at REPORTING only.** `chartread` accepts a
+CMYK chart. It reads the chart's declared `COLOR_REP`, turns it into an ink mask
+with `icx_char2inkmask` and then loops over `icx_noofinks(nmask)` device
+channels, naming each field from the mask itself. There is no RGB branch
+anywhere in it (`spectro/chartread.c:3052-3082` in the 3.5.0 source, through
+`xicc/xcolorants.c`). `colprof`, `profcheck` and `colverify` were run live
+against a CMYK measurement built from a real FOGRA51 dataset and all three
+worked: the profile built in 14 s at peak err 0.67, and ChromIQ's own "Verify
+against reference" tool matched 72 of 72 Media Wedge patches, peak 1.91,
+average 1.20 ΔE, with no code change.
+
+So nothing between the chart and the measurement file cares what colour space it
+is, and of the three options below only the third touches measuring at all.
+The gap is one reader, `parse_ti3`, and everything shaped around RGB device
+values.
+
+*Worked out in `ChromIQ-research/issue-182/07-cmyk-verification/AB-FINDINGS.md`
+§5 and reported on issue #182 on 2026-09-04 (comment 5545838349); the Argyll
+source was re-read on 2026-09-11 before this paragraph was written.*
+**Confirmed by:** *nobody yet.* It is a fact about Argyll rather than a decision
+about ChromIQ, but the `chartread` half has still never been run against an
+instrument, so it stays here rather than in a Confirmed section.
 
 **Options**, none of them taken here:
 

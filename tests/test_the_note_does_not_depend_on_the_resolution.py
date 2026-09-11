@@ -15,10 +15,19 @@ so the amount of paper the note needed depended on the raster rather than on the
 sheet. The guard is now a distance on paper with a two-pixel floor, and it is
 the 4 px guard's own meaning at 300 dpi, where the note has always printed.
 
-The legibility floor stays in pixels, deliberately: it is a rendering limit, not
-a physical one. Below about eleven pixels there is no line to draw, and that is
-why a very coarse raster can still drop the note. What must not happen is the
+The legibility floor is a rendering limit, not a physical one, but it is read at
+the raster's OWN resolution (`text_edge_fit.note_min_strip_px`) so that it too
+describes the same amount of paper at every dpi. What must not happen is the
 SAME sheet printing at one resolution and not at the next one down.
+
+**150 dpi is part of that, and it was missing.** A challenge round found that
+the stock sheet below printed its note from 200 dpi up and dropped it at 150,
+and that this file did not notice: the resolution sweep started at 200, and the
+sibling that checks the note never touches the patch block DID include 150 and
+passed there vacuously, because a note that was never drawn cannot touch
+anything. Both halves are closed here. 150 is in the sweep, and the sibling now
+asserts the note EXISTS at each resolution before asserting where it is not, so
+it can never again report "nothing touched the patches" about a blank margin.
 """
 from __future__ import annotations
 
@@ -57,7 +66,7 @@ def _note_edge_mm(path: Path, dpi: float) -> float | None:
     return (W - 1 - (start + int(cols[-1]))) * 25.4 / dpi
 
 
-@pytest.mark.parametrize("dpi", [200, 300, 400, 600, 720])
+@pytest.mark.parametrize("dpi", [150, 200, 300, 400, 600, 720])
 def test_the_same_sheet_prints_its_note_at_every_ordinary_resolution(dpi):
     p = _sheet(dpi, 203.9)
     TM._stamp_one(p, NOTE, EDGE_MM, 0.0)
@@ -80,10 +89,18 @@ def test_the_guard_never_disappears_on_a_coarse_raster():
 
 
 def test_the_note_never_touches_the_patch_block_at_any_resolution():
-    """The guard exists for this, so shrinking it must not cost it."""
+    """The guard exists for this, so shrinking it must not cost it.
+
+    A blank margin satisfies "nothing is touching the patch block", so the note
+    has to be proved present at each resolution first. Without that this test
+    passed at 150 dpi for years while there was no note there at all.
+    """
     for dpi in (150, 200, 300, 600):
         p = _sheet(dpi, 203.9)
         TM._stamp_one(p, NOTE, EDGE_MM, 0.0)
+        assert _note_edge_mm(p, dpi) is not None, (
+            f"no note was printed at {dpi} dpi, so this test would be checking "
+            "that a blank margin does not touch the patches")
         b = np.asarray(tifffile.imread(str(p))).astype(int)
         edge = int(round(203.9 * dpi / 25.4))
         ink = (b.max(axis=2) < 245)
