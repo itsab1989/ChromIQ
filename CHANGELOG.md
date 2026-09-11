@@ -185,6 +185,32 @@ arrived with the reference data.
   told it had one, and the typed text-edge distance was taken off both sides of
   the sheet where the geometry takes it off one.
 
+- **Auto Align drew the honeycomb grid a fraction of a column too wide.** The
+  sampling squares sat left of centre at one edge of the sheet and right of
+  centre at the other, growing steadily across the page, and at 50 percent the
+  squares at the edges were clearly off their patches. Every search route fits
+  a box around the ink while the grid is defined on the patch slots, and a
+  flat-top hexagon's points reach a sixth of a slot past the first and last
+  columns. The overhang is measured off your own chart now. On the chart this
+  was found with, the first page went from refusing to place anything at all to
+  placed.
+
+  Two attempts at the same sheet also gave different answers, because the
+  search was scoring its candidates with whatever the patch sample area
+  happened to be. It uses a share of its own choosing now, and 50 and 60
+  percent give the same placement.
+
+- **Opening a chart file from outside your ChromIQ folder now leaves you inside
+  the project it makes.** It created the project and stayed outside it, so the
+  main window showed a red "You already have a project with this name" under a
+  name ChromIQ had filled in itself, the run bar stayed on New run, and Generate
+  Chart refused. Turning on an unrelated tick box appeared to fix it, because
+  that left the state the app should never have been in.
+
+- **A page image is no longer accepted as a chart.** The file chooser does not
+  offer one, but a name typed or dragged into its name box was taken whatever it
+  ended in, and the picture was copied in as the project's chart in silence.
+
 ### Also in this build
 
 Everything in 4.2.5: the Guided sheet takes its text-edge distance from the
