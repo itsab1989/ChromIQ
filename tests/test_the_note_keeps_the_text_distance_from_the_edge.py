@@ -121,21 +121,29 @@ def test_the_note_keeps_the_setting_clear_of_the_right_paper_edge(
     )
 
 
-@pytest.mark.parametrize("strip_w", [40, 20])
+@pytest.mark.parametrize("strip_w,dpi", [(40, 200), (20, 100)])
 def test_an_anchored_line_hugs_the_patch_side_and_leaves_the_slack_at_the_edge(
-        strip_w: int) -> None:
+        strip_w: int, dpi: float) -> None:
     """The renderer's own property, stated where it can be seen.
 
     Centred, a 40 px strip puts the line in columns 7..32: seven pixels of white
     on each side, half of it wasted on the side the note is trying to keep clear
     of. Anchored, it is columns 3..28, and all eleven spare pixels fall on the
     page-edge side where the reserve wants them anyway.
+
+    EACH STRIP IS PAIRED WITH A RESOLUTION AT WHICH IT IS WIDER THAN THE FLOOR,
+    because there is no slack to place below it. Knut's floor is 8 pt, which is
+    22 px at 200 dpi and 11 px at 100, so a 20 px strip at 200 dpi is narrower
+    than one line: the line is drawn at the floor and the strip's own edges crop
+    it, which is the behaviour he asked for and the warning is what tells the
+    user. The pair was ``[40, 20]`` at a fixed 200 dpi and the narrow one then
+    measured the crop rather than the anchor.
     """
     import workflow.tiff_metadata as tm
 
     def _cols(anchor):
         arr = tm._render_fitted_rotated_line(_NOTE, 3000, strip_w, np.uint8, 3,
-                                             anchor_px=anchor)
+                                             anchor_px=anchor, dpi=dpi)
         on = np.flatnonzero((arr[..., 0] < 200).any(axis=0))
         return int(on.min()), int(on.max())
 
@@ -154,7 +162,7 @@ def test_an_anchored_line_hugs_the_patch_side_and_leaves_the_slack_at_the_edge(
     # the patch side, so the font that fits is smaller: at 20 px the centred
     # line is 11 px thick and the anchored one 17. Reclaiming that slack is
     # most of the point on a narrow margin, where the reserve has capped the
-    # strip and the alternative is a note at the 9 px floor.
+    # strip and the alternative is a note at the 8 pt floor.
     assert (anchored_r - anchored_l) >= (centred_r - centred_l), (
         f"anchored the line is {anchored_r - anchored_l + 1} px thick and "
         f"centred {centred_r - centred_l + 1} px; anchoring must not shrink it"
@@ -254,24 +262,48 @@ def test_no_constant_sits_under_the_users_own_number(tmp_path: Path) -> None:
         margin 3.0 mm, setting 0.2 mm -> 0.508 mm
         margin 6.0 mm, setting 0.2 mm -> 2.963 mm   <- slack, not the reserve
 
-    So the sheet is a narrow one, where the note is pinned at ``W - reserve``
-    and 0.2 mm and the old 0.339 mm constant give different pixels.
+    So the sheet is a narrow one, where the note is pinned at ``W - reserve``.
+
+    AND IT MEASURES THE MOVE, NOT THE POSITION. It used to assert that 0.2 mm
+    put the ink closer to the edge than the old 0.339 mm constant would, which
+    stopped being visible when the shrink floor rose to Knut's 8 pt on
+    2026-09-11: the strip is now wider than one line of ink, and the anchor
+    deliberately leaves that slack on the page-edge side, so the ink stands off
+    the reserve by a constant amount at every setting. The DIFFERENCE between
+    two settings is unaffected by that constant and is what the setting
+    actually controls: ask for 0.8 mm more reserve and the ink must move 0.8 mm
+    inward. A ``max(_PATCH_SAFETY_PAD_PX, ...)`` under the small one shortens
+    the move to 0.66 mm, which this catches.
     """
     import workflow.tiff_metadata as tm
 
-    small = 0.2
-    added, mm, W, _patch = _stamped(tmp_path, "below_the_old_floor", small,
-                                    margin_right=2.0)
-    assert added.any(), "no note printed at all, so this measures nothing"
+    # 0.0 AND 1.0, NOT 0.2 AND 1.0. The move under test is
+    # `large - small`, and the constant can only shorten it to
+    # `large - floor_mm`. At 0.2 that is 0.66 against 0.80, which is inside the
+    # 0.15 mm the ink's own rounding needs; at 0.0 it is 0.66 against 1.00 and
+    # the mutation lands. Measured: putting `max(_PATCH_SAFETY_PAD_PX, ...)`
+    # back left this test GREEN at 0.2.
+    small, large = 0.0, 1.0
+    added_s, mm, W, _patch = _stamped(tmp_path, "below_the_old_floor", small,
+                                      margin_right=2.0)
+    assert added_s.any(), "no note printed at all, so this measures nothing"
+    added_l, _mm2, _W2, _p2 = _stamped(tmp_path, "above_the_old_floor", large,
+                                       margin_right=2.0)
+    assert added_l.any(), "no note printed at all, so this measures nothing"
 
     floor_mm = tm._PATCH_SAFETY_PAD_PX * mm
-    assert small < floor_mm, (
-        f"the setting under test ({small} mm) is not below the old constant "
-        f"({floor_mm:.3f} mm), so this test could not tell them apart")
+    assert small < floor_mm < large, (
+        f"the two settings under test ({small} / {large} mm) do not straddle "
+        f"the old constant ({floor_mm:.3f} mm), so this test could not tell "
+        "them apart")
 
-    right = int(np.flatnonzero(added.any(axis=0)).max())
-    to_edge = (W - 1 - right) * mm
-    assert to_edge < floor_mm - 0.05, (
-        f"the note stopped {to_edge:.3f} mm from the paper edge, which is the "
-        f"old {floor_mm:.3f} mm constant rather than the {small} mm asked for; "
-        "a hard-coded value is still sitting under the setting")
+    def _to_edge(added):
+        right = int(np.flatnonzero(added.any(axis=0)).max())
+        return (W - 1 - right) * mm
+
+    moved = _to_edge(added_l) - _to_edge(added_s)
+    assert abs(moved - (large - small)) < 0.15, (
+        f"asking for {large - small:.1f} mm more reserve moved the note "
+        f"{moved:.3f} mm ({_to_edge(added_s):.3f} -> {_to_edge(added_l):.3f} mm "
+        f"from the paper edge); a hard-coded value is still sitting under the "
+        "setting")

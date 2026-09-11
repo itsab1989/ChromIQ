@@ -91,13 +91,19 @@ def test_the_floor_is_a_distance_on_paper_not_a_count_of_pixels():
     raised the resolution to fix it silenced the warning and made the note less
     readable.
 
-    Legibility is a property of ink on paper. The floor was measured at 200 dpi,
-    where it is 1.397 mm, and that is what it is at every resolution; the PIXEL
-    count is what moves, upward, because it is the same paper.
+    Legibility is a property of ink on paper, and the floor is now the one Knut
+    set on 2026-09-11: **8 pt** of line plus the 2 px patch-side gap, which is
+    3.076 mm. The PIXEL count is what moves, upward, because it is the same
+    paper.
+
+    THE NUMBER IT USED TO PIN WAS 1.397 mm, a 9 px legibility floor measured at
+    200 dpi. 9 px is 3.24 pt there, and Knut measured the result on his own hex
+    chart: *"the text is reduced to a mini-sized font almost not readable"*.
     """
     assert tef.note_min_width_mm(200) == tef.note_min_width_mm(600), (
         "the paper the note is allowed to occupy still depends on the raster")
-    assert abs(tef.note_min_width_mm(300) - 1.397) < 0.01, (
+    floor_mm = tef.pt_to_mm(tef.AUTO_SHRINK_FLOOR_PT) + tef.NOTE_PATCH_GAP_MM
+    assert abs(tef.note_min_width_mm(300) - floor_mm) < 0.01, (
         f"the measured floor moved: {tef.note_min_width_mm(300):.4f} mm")
     px200, px600 = tef.note_min_strip_px(200), tef.note_min_strip_px(600)
     assert px600 > px200, (
@@ -105,8 +111,15 @@ def test_the_floor_is_a_distance_on_paper_not_a_count_of_pixels():
         f"{px200} at 200 dpi, {px600} at 600")
     for d in (200, 300, 600, 1200):
         got = tef.note_min_strip_px(d) * 25.4 / d
-        assert abs(got - 1.397) < 0.06, (
-            f"the floor is {got:.3f} mm at {d} dpi, not 1.397")
+        assert abs(got - floor_mm) < 0.06, (
+            f"the floor is {got:.3f} mm at {d} dpi, not {floor_mm:.3f}")
+    # A TYPED SIZE IS ITS OWN FLOOR, so a user who asks for 6 pt gets a narrower
+    # strip and NOT the 8 pt one (Knut: *"Manually setting size below 8pt
+    # should be working fine also"*).
+    six = tef.note_min_width_mm(300, 6.0)
+    assert six < floor_mm - 0.5, (
+        f"a typed 6 pt still reserves the 8 pt floor's {floor_mm:.3f} mm "
+        f"({six:.3f} mm)")
 
 
 def test_the_photo_card_that_lost_its_line_is_the_case_that_warns():
@@ -114,16 +127,18 @@ def test_the_photo_card_that_lost_its_line_is_the_case_that_warns():
 
     `ui/tabs/tab_chart.py` builds it with a 5.0 mm right margin and the family's
     4.0 mm "Clip", at 300 dpi. 5.0 less the reserve and the 0.34 mm patch guard
-    is 0.66 mm of paper, and a line at the legibility floor needs 1.397 mm.
+    is 0.66 mm of paper, and a line at the 8 pt floor needs 3.076 mm.
 
-    THE SHORTFALL IN THIS DOCSTRING USED TO BE 0.27 mm, from a floor of 0.93 mm
-    that was 11 pixels read at 300 dpi. The floor is a distance on paper now, so
-    the same card is short by 0.74 mm and is short by the same amount at every
-    resolution, which is the point.
+    THE SHORTFALL IN THIS DOCSTRING HAS BEEN 0.27 mm AND THEN 0.74 mm. The
+    first was a floor of 0.93 mm, 11 pixels read at 300 dpi; the second the
+    same 11 pixels expressed on paper. Both were floors on the RASTER: 9 px is
+    3.24 pt at 200 dpi. Knut set the floor at 8 pt on 2026-09-11, so the card
+    is short by 2.42 mm, and is short by the same amount at every resolution,
+    which is the point.
     """
     o = tef.chart_note_overlap("right", 5.0, 4.0, 300)
     assert o is not None, "the card that lost its line does not warn"
-    assert 0.7 < o.overlap_mm < 0.8, f"the shortfall moved: {o.overlap_mm:.3f} mm"
+    assert 2.3 < o.overlap_mm < 2.5, f"the shortfall moved: {o.overlap_mm:.3f} mm"
     for d in (200, 600):
         other = tef.chart_note_overlap("right", 5.0, 4.0, d)
         assert other is not None and abs(other.overlap_mm - o.overlap_mm) < 0.01, (

@@ -599,7 +599,8 @@ def render_clip_strip(mode: str, *, width_px: int, height_px: int, dpi: int,
         lines = clip_text_lines(text)
         if lines:
             overlay = _vtext("\n".join(lines), font_family, width_px, height_px,
-                             size_px=(text_size_mm * mm2px) if text_size_mm else 0.0)
+                             size_px=(text_size_mm * mm2px) if text_size_mm else 0.0,
+                             dpi=dpi)
             strip.paste(overlay, (0, 0), overlay)
         return strip
 
@@ -634,7 +635,8 @@ def render_clip_strip(mode: str, *, width_px: int, height_px: int, dpi: int,
     if not lines:
         return strip
     overlay = _vtext("\n".join(lines), font_family, width_px, height_px,
-                     size_px=(text_size_mm * mm2px) if text_size_mm else 0.0)
+                     size_px=(text_size_mm * mm2px) if text_size_mm else 0.0,
+                     dpi=dpi)
     strip.paste(overlay, (0, 0), overlay)
     return strip
 
@@ -850,12 +852,21 @@ def _vwordmark(extra_lines: list[str], width_px: int, height_px: int,
 
 def _vtext(text: str, font_family: str, width_px: int, height_px: int,
            *, valign: str = "center", bold: bool = False,
-           size_px: float = 0.0) -> Image.Image:
+           size_px: float = 0.0, dpi: float = 200.0) -> Image.Image:
     """A transparent ``width_px × height_px`` overlay with *text* read up the strip.
 
     ``size_px`` (>0) fixes the font size the user chose instead of auto-fitting
-    to the strip width; the shrink-to-fit loop below still caps it so the text
-    can never overrun the strip (#125, Knut — manual clip-text size)."""
+    to the strip width (#125, Knut — manual clip-text size).
+
+    **AND A FIXED SIZE IS NOW FIXED, INCLUDING BELOW THE FLOOR.** Knut,
+    2026-09-11: *"Setting a specific font size will prevent shrinking here too
+    … Manually setting size below 8pt should be working fine also. It makes
+    sense that only the Auto size setting allows automatic shrinking of the
+    text."* The shrink-to-fit loop below therefore runs only in "auto", and
+    stops at :data:`text_edge_fit.AUTO_SHRINK_FLOOR_PT` rather than at the
+    8 PIXELS it used to stop at, which is 2.9 pt at 200 dpi and 0.96 pt at 600.
+    A text that does not fit at the floor is drawn at the floor and warned
+    about in red by the panel, which reads that floor from the same module."""
     # Draw on a landscape canvas (long = height_px, short = width_px), rotate 90°.
     canvas = Image.new("RGBA", (max(1, height_px), max(1, width_px)), (0, 0, 0, 0))
     d = ImageDraw.Draw(canvas)
@@ -867,8 +878,14 @@ def _vtext(text: str, font_family: str, width_px: int, height_px: int,
     # glyph overshoot. (Knut: the text must reach the text-edge on the sides too,
     # not just top/bottom.)
     THICK, LEN = 0.98, 0.995
-    if size_px and size_px > 0:
-        size = max(8, int(size_px))                      # manual size (#125)
+    from workflow import text_edge_fit
+    floor_px = text_edge_fit.pt_to_px(text_edge_fit.AUTO_SHRINK_FLOOR_PT, dpi)
+    fixed = bool(size_px and size_px > 0)
+    if fixed:
+        # A TYPED SIZE IS NOT SHRUNK AND NOT FLOORED. It used to be clamped up
+        # to 8 px and then stepped down by the loop below until it fitted, so
+        # the number in the box was a suggestion. It is now the answer.
+        size = max(1, int(round(size_px)))               # manual size (#125)
     else:
         # AUTO: GROW the font to the largest size that fills both axes — measured
         # once at a reference size and scaled (advance widths scale linearly), so
@@ -880,11 +897,12 @@ def _vtext(text: str, font_family: str, width_px: int, height_px: int,
                          default=1.0) or 1.0
         size_thick = (width_px * THICK) / (1.2 * n)
         size_len = ref * (height_px * LEN) / widest_ref
-        size = max(8, int(min(size_thick, size_len)))
+        size = max(floor_px, int(min(size_thick, size_len)))
     f = _font(size, font_family, bold=bold)
     # Safety: shrink if rounding pushed a hair over (never grows past the fill
-    # size); also caps a too-large manual size so text can't overrun the strip.
-    for _ in range(40):
+    # size). ONLY IN AUTO: a typed size is the user's answer, and a loop that
+    # stepped it down until it fitted made the box a suggestion.
+    for _ in range(0 if fixed else 40):
         f = _font(size, font_family, bold=bold)
         line_h = size * 1.2
         block_h = line_h * n
@@ -892,7 +910,9 @@ def _vtext(text: str, font_family: str, width_px: int, height_px: int,
         if block_h <= width_px * THICK and widest <= height_px * LEN:
             break
         size = int(size * 0.95)
-        if size <= 8:
+        if size <= floor_px:
+            size = floor_px
+            f = _font(size, font_family, bold=bold)
             break
     # Stack the lines ACROSS the strip thickness at their NATURAL spacing, from
     # the OUTER edge inwards. The strip is turned 180° when it sits on the right
@@ -1828,7 +1848,7 @@ def export_clip_template(out_base: str | Path, *, width_px: int, height_px: int,
         d.line([(cx, cy), (cx + (tick if cx == 0 else -tick), cy)], fill=guide, width=2)
         d.line([(cx, cy), (cx, cy + (tick if cy == 0 else -tick))], fill=guide, width=2)
     cap = f"{width_mm:.0f} × {height_mm:.0f} mm @ {dpi} dpi"
-    overlay = _vtext(cap, "Inter", width_px, height_px, valign="top")
+    overlay = _vtext(cap, "Inter", width_px, height_px, valign="top", dpi=dpi)
     img.paste(overlay, (0, 0), overlay)
     out: list[Path] = []
     png = base.with_suffix(".png")
