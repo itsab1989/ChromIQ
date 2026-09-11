@@ -781,23 +781,10 @@ def test_every_deliberate_exception_says_why():
 # Re-measured on the catalogues this commit leaves behind, not derived: de 124,
 # es 300, fr 322, it 311, ja 286, nl 327, no 312, pl 304, pt 302, ru 275,
 # sv 313, zh_CN 280.
-# RE-MEASURED 2026-09-11, Knut's four #182 rulings on alignment and margins.
-# **8 keys in, 4 stale out**, counted with `set(after) - set(before)` and
-# `set(before) - set(after)` on each catalogue and not from memory. German is
-# translated for all eight, so de stands at 124 exactly; the eleven others
-# carry the English source under the beta rule and each rose by exactly 8.
-#
-# AND FOUR OF THE STALE KEYS WERE TRANSLATED IN ALL TWELVE, which is why the
-# eleven rose by 8 and not by 4. Three of the eight new strings are REWRITES of
-# strings that had real translations everywhere (the two row-indicator raise
-# warnings, which Knut's ruling moves onto the panel in red and which now name
-# the label size and all three levers; and the hexagonal Sample-area tooltip,
-# which becomes two wordings because the cap now has two reasons). Rewriting
-# them dropped those three back to English in the eleven. That is the beta rule
-# working as designed and it is a real loss of translated text: the pre-release
-# pass has to pick these up, and `scripts/i18n_extract.py --missing <code>`
-# will not name them, because a placeholder is present. They are named here
-# instead, which is the only place that will still be true in a month.
+# 2026-09-12, MERGED with the sheet-text and demo-pack rounds and measured
+# AGAIN on the merged catalogues. Every round counted on its own base, so no
+# round's table described this tree. Counted with the same expression the
+# test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
     # RE-MEASURED AGAIN after the merge of that round into this branch:
     # the numbers above were counted on ITS base, which did not carry the
@@ -816,18 +803,43 @@ _IDENTICAL_TO_KEY = {
     # columns on the 0..1 scale. Two more strings, a label suffix and the Build
     # button's tooltip; German is translated, so 124 stands, and the other
     # eleven each rose by exactly 2 again. Counted with the expression above.
+
+    # RE-MEASURED 2026-09-11, the Report-window round on Knut's report of that
+    # day (#182 W1 to W7). **12 keys in, 3 stale out**, counted with
+    # `set(after) - set(before)` and `set(before) - set(after)` on each
+    # catalogue rather than from memory. The twelve: the five verdict words
+    # broken out of one paragraph into one bullet each (W5), the paragraph that
+    # replaces the struck "never says that anything conforms" sentence (W6),
+    # the lead sentence those bullets hang off, the "Bound, and locked."
+    # heading and its paragraph (W4), the two rewritten Custom-set blurbs and
+    # the note at the limits table saying whose numbers those columns hold
+    # (W7). The three that went stale are the single long verdict-words
+    # paragraph and the two old Custom blurbs, and all three were translated in
+    # every one of the twelve, so they were never in these counts.
+    #
+    # German is translated, so **de does not move at all (124)**; the eleven
+    # others carry the English under the beta rule and each rises by exactly 9.
+    # None of the twelve quotes a ChromIQ control in curly quotes, which is the
+    # rule that would have required all twelve to be translated: the only
+    # quoted word is "drift", which is a word the report PRINTS IN A CELL
+    # rather than a control the reader has to find, and
+    # `test_a_quoted_control_names_the_control_the_reader_has.py` was run to
+    # confirm that rather than assumed.
+    #
+    # Every number below is this tree's actual count, not the old number plus
+    # nine: a ceiling above the truth admits the next regression for free.
     "de": 124,
-    "es": 312,
-    "fr": 334,
-    "it": 323,
-    "ja": 298,
-    "nl": 339,
-    "no": 324,
-    "pl": 316,
-    "pt": 314,
-    "ru": 287,
-    "sv": 325,
-    "zh_CN": 292,
+    "es": 321,
+    "fr": 343,
+    "it": 332,
+    "ja": 307,
+    "nl": 348,
+    "no": 333,
+    "pl": 325,
+    "pt": 323,
+    "ru": 296,
+    "sv": 334,
+    "zh_CN": 301,
 }
 
 

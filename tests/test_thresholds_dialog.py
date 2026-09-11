@@ -224,10 +224,23 @@ def test_no_lambda_or_partial_is_connected_to_a_child_signal():
 
 
 def test_a_default_radio_exists_only_for_selectable_sets(qapp, tmp_path):
+    """CH-11: a column with no limit-bearing row is never a choice.
+
+    THE TWO CUSTOM COLUMNS JOINED THE LIST ON 2026-09-11. They used to inherit
+    their ISO parent's empty cells, so neither had a limit-bearing row and
+    neither could be the default. Knut ruled that a custom threshold set must
+    be usable (*"make sure the metrics have a value that can be tested
+    against"*), so both now start from ChromIQ's own numbers and both are
+    offerable. The two READ-ONLY ISO columns are unchanged and still are not:
+    the last line here is what proves the difference is the placeholders and
+    not a relaxed rule.
+    """
     s, dlg = _dlg(qapp, tmp_path)
     try:
         assert set(dlg._default_radios) == {"chromiq_default", "chromiq_tight",
-                                            "chromiq_quick"}
+                                            "chromiq_quick",
+                                            "custom_iso_12647_7",
+                                            "custom_iso_12647_8"}
         assert dlg._default_radios["chromiq_default"].isChecked()
         assert factory_limits("iso_12647_7")["all_de00_avg"] == Limit.unknown()
     finally:

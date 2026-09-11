@@ -478,19 +478,29 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # tooltip), so this round loses translated text in the eleven rather than only
 # adding untranslated text. The pre-release pass has to pick them up, and
 # `--missing` will not name them because a placeholder is present.
+# 2026-09-11, the Report-window round on Knut's report of that day (#182 W1 to
+# W7). Twelve keys arrive and three go stale in every catalogue. ELEVEN of the
+# twelve count here and ONE does not: "Bound, and locked." is 18 characters and
+# falls under this file's 25-character floor. All three of the stale keys
+# counted, so each non-German budget rises by exactly 8. German is translated
+# for all twelve and stays at 4. RE-MEASURED with this file's own
+# `_english_echoes` on the catalogues this change leaves behind, key by key,
+# not adjusted upward from the old numbers.
+# 2026-09-12, merged with the round beside it and MEASURED again on the
+# merged catalogues. Each round counted on its own base.
 _BUDGET = {
     "de": 4,
-    "es": 152,
-    "fr": 153,
-    "it": 152,
-    "ja": 152,
-    "nl": 152,
-    "no": 152,
-    "pl": 152,
-    "pt": 152,
-    "ru": 151,
-    "sv": 152,
-    "zh_CN": 151,
+    "es": 160,
+    "fr": 161,
+    "it": 160,
+    "ja": 160,
+    "nl": 160,
+    "no": 160,
+    "pl": 160,
+    "pt": 160,
+    "ru": 159,
+    "sv": 160,
+    "zh_CN": 159,
 }
 
 

@@ -190,11 +190,22 @@ def test_the_words_reach_the_grid_and_the_pdf_body(qapp, tmp_path):
         assert "ChromIQ default" in grid
         body = dlg._report_body_html(runs, for_pdf=True)
         assert "The five verdict words" in body
-        # "conforms" appears exactly once, inside the sentence that denies it
+        # THE WORD IS GONE ALTOGETHER NOW, denial included. Knut, 2026-09-11,
+        # struck the sentence that carried it: *"It is not needed to say 'this
+        # report never says that anything conforms to a standard', which
+        # actually has the opposite effect of building confidence in the report
+        # results."* The promise made to Idealliance is that the CLAIM is never
+        # printed, so zero occurrences keeps it more plainly than one did.
         import html as _html
         plain = _html.unescape(body)
-        assert plain.count("conforms") == 1
-        assert "never says that anything conforms" in plain
+        assert plain.count("conforms") == 0
+        # …and the fact the denial protected is still stated, positively
+        assert ("rather than to that standard's own chart and control strip"
+                in plain)
+        # W5: one bullet per word, not one paragraph carrying all five
+        for word in ("PASS:", "FAIL:", "COND (short for conditional):",
+                     "INFO:", "N-A (not applicable):"):
+            assert f"<li>{_html.escape(word)}" in body or f"<li>{word}" in body, word
     finally:
         dlg.deleteLater()
 
@@ -367,3 +378,208 @@ def test_a_report_stamped_after_the_unlock_is_archived_before_its_first_rewrite(
         assert len(old()) == n + 2          # both live files changed once more
     finally:
         dlg.deleteLater()
+
+
+# ---------------------------------------------------------------------------
+# Knut, 2026-09-11: hiding a table column is not a change to the limits
+# ---------------------------------------------------------------------------
+# Two reports, one mechanism. *"When unchecking the table columns that I do not
+# want to show (the 'Show' row), and click close, and then open the Show limits
+# window again, it is not remembered what I turned off some columns."* And, on
+# a run with one dated verification: *"This should only come when thresholds are
+# changed, not if table columns are hidden or shown."*
+#
+# Driven in a real window on 2026-09-11 before the fix: unticking the two ISO
+# columns and clicking Close raised "This run (run1) has one saved report.
+# Changing the limit set recalculates it with the new numbers…", and answering
+# Cancel, which is the only sensible answer to a question about a limit set
+# nobody touched, put `compliance_columns` back to empty. Both of his reports,
+# from one term folded into `moved`.
+
+def _hide_two_columns(dlg, run, monkeypatch, answer=True, sets=("iso_12647_7",
+                                                               "iso_12647_8")):
+    """Open the limits window from the report window, untick *sets*, Close.
+
+    Returns the list of confirmation titles the route raised.
+    """
+    from ui.dialogs.thresholds_dialog import ThresholdsDialog
+    asked: "list[str]" = []
+    monkeypatch.setattr(dlg, "_confirm",
+                        lambda title, text, *a, **k: (asked.append(title), answer)[1])
+
+    def fake_exec(self):
+        for sid in sets:
+            self._column_checks[sid].setChecked(False)
+        self.accept()
+        return 1
+    monkeypatch.setattr(ThresholdsDialog, "exec", fake_exec)
+    dlg._on_open_limits()
+    return asked
+
+
+def test_hiding_a_column_asks_nothing_and_is_remembered(qapp, tmp_path, monkeypatch):
+    proj, run, ti3s = _verified_run(tmp_path, dates=1)
+    assert sum(1 for v in run.verifications() for _ in mr.list_reports(v.dir)) == 1
+    dlg = _dialog(_settings(tmp_path), ti3s[-1])
+    try:
+        asked = _hide_two_columns(dlg, run, monkeypatch)
+        assert asked == [], (
+            "hiding a table column raised a confirmation about the limit set: "
+            + "; ".join(asked))
+        stored = list(run.load_meta().compliance_columns or [])
+        assert "iso_12647_7" not in stored and "iso_12647_8" not in stored
+        assert "chromiq_default" in stored
+    finally:
+        dlg.deleteLater()
+
+
+def test_the_column_choice_survives_a_refused_limit_change(qapp, tmp_path, monkeypatch):
+    """Even when the user DOES change a number and then says no.
+
+    The undo puts the run's numbers back, and used to take the column ticks
+    with them. A refusal answers the question that was asked; the ticks were
+    never in it.
+    """
+    proj, run, ti3s = _verified_run(tmp_path, dates=1)
+    s = _settings(tmp_path, compliance_allow_edit_after_measurement=True)
+    dlg = _dialog(s, ti3s[-1])
+    try:
+        monkeypatch.setattr(dlg, "_confirm", lambda *a, **k: True)
+        dlg._unlock_check.setChecked(True)          # so the column is editable
+        before = dict(run.load_meta().compliance_thresholds or {})
+
+        from ui.dialogs.thresholds_dialog import ThresholdsDialog
+        asked: "list[str]" = []
+        monkeypatch.setattr(
+            dlg, "_confirm",
+            lambda title, text, *a, **k: (asked.append(title), False)[1])
+
+        def fake_exec(self):
+            self._column_checks["iso_12647_7"].setChecked(False)
+            self._cells[("__run__", "all_de00_avg")].setValue(7.25)
+            self.accept()
+            return 1
+        monkeypatch.setattr(ThresholdsDialog, "exec", fake_exec)
+        dlg._on_open_limits()
+
+        assert asked, "a refused NUMBER change must still be asked about"
+        m = run.load_meta()
+        assert m.compliance_thresholds == before, "the refused number stayed"
+        # NOT "iso_12647_7 is absent", WHICH AN EMPTY LIST ALSO SATISFIES.
+        # The snapshot taken when the window opened is the empty list, meaning
+        # "show every column", so restoring it passes a test that only asks
+        # whether the hidden id is missing. A mutation that put the undo back
+        # went straight through it. The list has to be the CHOICE.
+        stored = list(m.compliance_columns or [])
+        assert stored, "the refusal wiped the column choice back to empty"
+        assert "iso_12647_7" not in stored, \
+            "the refusal took the column choice with it"
+        assert "chromiq_default" in stored
+    finally:
+        dlg.deleteLater()
+
+
+def test_hiding_a_column_never_binds_an_unbound_run(qapp, tmp_path, monkeypatch):
+    """The other half of the same fault, on the door with no question in it.
+
+    With no saved report there is nothing to ask about, so the old code went
+    straight on to bind the run and recalculate. A view setting must not decide
+    which numbers a run is judged by for the rest of its life.
+    """
+    from core.file_manager import Project
+    proj = Project.create(tmp_path / "U", "U")
+    run = proj.current_run(); run.ensure_dir()
+    assert not rc.is_bound(run)
+    v = run.new_verification()
+    v.ensure_dir()
+    raw = v.dir / "U.ti3"
+    target = v.dir / f"{run.verify_stem}.ti3"
+    _write_ti3(raw, _ramp(16) + _colours(), verification=False)
+    mark_verification_ti3(raw).rename(target)
+
+    dlg = _dialog(_settings(tmp_path), target)
+    try:
+        asked = _hide_two_columns(dlg, run, monkeypatch)
+        assert asked == []
+        assert not rc.is_bound(run), \
+            "hiding a table column bound the run to a limit set"
+        assert "iso_12647_7" not in list(run.load_meta().compliance_columns or [])
+    finally:
+        dlg.deleteLater()
+
+
+# ---------------------------------------------------------------------------
+# Knut, 2026-09-11, on the report's own words
+# ---------------------------------------------------------------------------
+
+def test_the_scope_section_has_air_under_the_run_description(qapp, tmp_path):
+    """*"add a new line as empty space before the text 'The following profile
+    verification runs are included:'"*.
+
+    The description is a heading for the section and was four pixels above the
+    sentence, so the two read as one paragraph. The gap is the report's own
+    empty line, the one used under every section heading.
+    """
+    from ui.dialogs.measurement_report_dialog import _gap
+    proj, run, ti3s = _verified_run(tmp_path, dates=1)
+    m = run.load_meta()
+    m.description = "A described run"
+    run.save_meta(m)
+    dlg = _dialog(_settings(tmp_path), ti3s[-1])
+    try:
+        html = dlg._scope_html(dlg._runs_for_report())
+        assert "A described run" in html
+        head, _, tail = html.partition("A described run")
+        intro = "The following profile"
+        assert intro in tail
+        between = tail[:tail.index(intro)]
+        assert _gap() in between, (
+            "no empty line between the run's description and the line naming "
+            "the runs; they read as one paragraph")
+    finally:
+        dlg.deleteLater()
+
+
+def test_the_report_explains_bound_and_locked(qapp, tmp_path):
+    """*"what is the difference between bound and locked? Be specific in the
+    explanation"*. §5 of the design record, in his terms."""
+    import html as _html
+    proj, run, ti3s = _verified_run(tmp_path, dates=1)
+    dlg = _dialog(_settings(tmp_path), ti3s[-1])
+    try:
+        plain = _html.unescape(dlg._report_body_html(dlg._runs_for_report(),
+                                                     for_pdf=True))
+        assert "Bound, and locked." in plain
+        # bound: the copy is taken at the FIRST dated verification and is the
+        # run's own from then on
+        assert "first dated verification" in plain
+        assert "does not reach a run that is already bound" in plain
+        # locked: it starts at the SECOND one, and it is about comparability
+        assert "locked once a second dated verification has been measured" in plain
+    finally:
+        dlg.deleteLater()
+
+
+def test_both_limits_doors_are_the_same_window():
+    """Knut's custom-column ruling *"applies also to the report limits window in
+    Preferences ▸ Reports tab"*, and it does, because there is only one window.
+
+    Pinned rather than assumed: two implementations of one table is this
+    project's most repeated fault shape, and the placeholder values live below
+    both doors in `factory_limits`. Driven in two real windows on 2026-09-11,
+    the two tables agreed cell for cell.
+    """
+    import inspect
+    import ui.dialogs.measurement_report_dialog as report_win
+    import ui.dialogs.settings_dialog as prefs
+    for mod in (report_win, prefs):
+        src = inspect.getsource(mod)
+        assert "from ui.dialogs.thresholds_dialog import" in src \
+            and "ThresholdsDialog(" in src, mod.__name__
+        assert "_build_rows" not in src, (
+            f"{mod.__name__} looks like it grew its own limits table; there "
+            "must be exactly one, or Knut's ruling reaches only one door")
+    # …and the numbers both doors draw come from one function, below both
+    from workflow.compliance_sets import factory_limits
+    f = factory_limits("custom_iso_12647_7")
+    assert f["all_de00_avg"].is_numeric

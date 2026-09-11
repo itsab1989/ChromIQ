@@ -59,8 +59,51 @@ The full list, with each row's unit, status and formula, is
 
 Sets, in order: ChromIQ default (recommended) · ChromIQ tight · Quick check ·
 ISO 12647-7:2016 values (read-only) · ISO 12647-8:2021 values (read-only) ·
-Custom ISO 12647-7 · Custom ISO 12647-8 (each Custom set starts from its
-parent's values).
+Custom ISO 12647-7 · Custom ISO 12647-8.
+
+> **WHAT A CUSTOM SET STARTS FROM CHANGED ON 2026-09-11, ON KNUT'S RULING.**
+> This line said "each Custom set starts from its parent's values", which was
+> true of the *structure* and, with the data file shipping empty, meant that
+> every cell of both Custom columns read `?` or `–`. Neither column had a
+> limit-bearing row, so neither could be chosen, and no metric could be
+> exercised through either.
+>
+> Knut, 2026-09-11: *"the table columns for 'Custom ISO 12647-7' and 'Custom
+> ISO 12647-8' should have selection boxes for all metrics that ChromIQ can
+> check, because it is a custom threshold set. […] For testing purposes you can
+> set a reasonable value, such as for the ChromIQ default, but those thresholds
+> that are not part of ChromIQ default must have set a reasonable value […]
+> even if they are not same as those standards (that is not relevant for
+> testing the metrics). This applies also to the report limits window in
+> Preferences ==> Reports tab. Thus, make sure the metrics have a value that
+> can be tested against."*
+>
+> **So a Custom set starts from its parent's value where the parent HAS one,
+> and from ChromIQ's own number everywhere else.** Today the parent has none,
+> so every row ChromIQ can measure carries a ChromIQ number
+> (`compliance_sets.py::_CUSTOM_PLACEHOLDER`); a licence holder who points
+> `CHROMIQ_COMPLIANCE_ISO_FILE` at their own copy still starts from theirs, row
+> by row. The two read-only ISO columns are unchanged and still hold nothing.
+>
+> **No value of either standard is involved, and the numbers say so.** Every
+> placeholder is one of ChromIQ default's own figures, 1.5, 2.0 or 3.0, reused
+> on the rows ChromIQ default does not limit because it is the right order of
+> magnitude for a ΔE00, a ΔCh, a ΔH\*ab or a ΔL\* and for no other reason. A
+> test pins the *source* of every number rather than the numbers themselves, so
+> one cannot later drift toward a real tolerance for looking more realistic.
+> The note under the limits table says whose numbers these are, in both
+> windows. The owner's standing rule
+> (`docs/design/issue_182_answers.md`) is unchanged and unbroken.
+>
+> **Only rows ChromIQ can measure get one.** The five rows whose status is
+> `unknown`, the three control-strip rows and the two selected-patch rows,
+> still read `?` and still have no spin box: ChromIQ does not know which
+> patches those populations are, so a number there would be a limit nothing is
+> ever compared with. That is the one part of Knut's sentence *"those that
+> today are shown as ? shall also have selection boxes"* that is not built, and
+> it is an open question rather than an omission: see §11.
+>
+> Knut has not seen any of this yet.
 
 Factory values (Knut K4/Q1): ChromIQ default 2.0 / 2.0 / 2.0 / 3.0 / 3.0 on
 the five ΔE00 rows; tight 1.0 / 1.0 / 1.0 / 1.5 / 1.5; quick 4.0 / 4.0 / 4.0 /
@@ -253,7 +296,28 @@ no verdict cannot tell whether something is wrong.
   with the default set for the session; nothing is written anywhere.
 * Column visibility in the Report limits window is remembered per profile run
   when opened from the report window, and in Preferences when opened there
-  (Knut K-b).
+  (Knut K-b). **It is a VIEW setting and nothing else.** Hiding a column asks
+  no question, recalculates nothing, and never binds a run to a limit set;
+  a refusal of a question about the run's NUMBERS leaves the column choice
+  standing, because the ticks were never in that question. The one exception
+  is the lock: a run that becomes locked while the window is open has every
+  key this window wrote put back, the column choice included, since the
+  question there is whether the window may write to the run at all.
+
+  > **BOTH HALVES OF THAT WERE FAULTS UNTIL 2026-09-11, AND THEY WERE ONE
+  > FAULT.** Knut reported them separately: *"it is not remembered what I
+  > turned off some columns"*, and, on a run with one dated verification and
+  > one saved report, a window saying *"This run (run1) has one saved report.
+  > Changing the limit set recalculates it with the new numbers…"* with the
+  > ruling *"This should only come when thresholds are changed, not if table
+  > columns are hidden or shown."*
+  >
+  > One term carried the column choice into the branch that asks about, and
+  > rewrites, a history. Driven in a real window: unticking the two ISO columns
+  > raised that question, and answering Cancel, the only sensible answer to a
+  > question about a limit set nobody touched, ran the undo and put
+  > `compliance_columns` back to empty. With no saved report there was no
+  > question at all and the same click bound an unbound run.
 
 ## 6. What a saved report carries
 
@@ -390,13 +454,16 @@ What is on disk is left alone so that later ChromIQ still finds the choice.
 **Not built here:** T5 and T6. Their figures are published in standards
 ChromIQ has no permission to include (§9, S-2).
 
-### ⏳ REPORTED, NOT FIXED: a limit-set change rewrites the TYPE of every saved report
+### ⏳ FIXED 2026-09-12: a limit-set change rewrote the TYPE of every saved report
 
-**Confirmed by:** *nobody yet.* **Reported 2026-09-11**, driven on screen
-against `ChromIQ-Report-Limit-Demos/Report-Limits-Report-Types/run1`. Not
-fixed, because the rule it would change is in this document and a fault that
-contradicts a specification is reported and approved before it is corrected
-(CLAUDE.md, Knut 2026-08-06).
+**Confirmed by:** *nobody yet.* **Reported 2026-09-11 and fixed 2026-09-12.**
+The half that is not a ruling was corrected: a report generated AS a document
+keeps being that document, and a report with no type of its own still follows
+the run, which is what it renders as anyway. Both earlier intentions survive
+and nothing is lost, so no ruling was needed for that part. What is still open
+is only whether a typeless report SHOULD be stamped at all, which changes
+nothing a reader sees. Driven on screen
+against `ChromIQ-Report-Limit-Demos/Report-Limits-Report-Types/run1`. 
 
 **What was driven.** That run ships three saved reports of one measurement, a
 Colour summary, a Full colour check and a Printing record, which is the state
@@ -453,3 +520,92 @@ does not exist yet.
 **Reproduction:** `scripts/drive_report_types_onscreen.py` drives it as part of
 its sweep; the isolated one-action version is in the proof folder for this
 round.
+
+## 11. The words the report prints (Knut, 2026-09-11)
+
+**⏳ Awaiting confirmation.** **Confirmed by:** *nobody yet.*
+
+Written from Knut's report of 2026-09-11 and built the same day. His rulings
+are his; what the app does with them is confirmed by nobody.
+
+**Report Scope.** The run's description is followed by an empty line before
+"The following profile verification runs are included:", so the two do not read
+as one paragraph (*"add a new line as empty space before the text…"*). The gap
+is `_gap()`, the report's own empty line, the one used under every section
+heading.
+
+**"How to read this report" — the five verdict words are five bullets.**
+*"This paragraph must describe each 5 words, one at a time in a bullet list,
+organised and orderly, not in a messy bulk."* One lead sentence, then one
+bullet each for PASS, FAIL, COND, INFO and N-A. Every clause of the paragraph
+it replaces survives; what is not about one of the five words (the drift
+column, the rule for a column's Overall, what an ISO-named column holds) moved
+into a paragraph under the list.
+
+**The report no longer says what it does not claim.** The paragraph used to end
+*"and this report never says that anything conforms to a standard"*. Knut:
+*"Rephrase so that report text states what the report shows […] which actually
+has the opposite effect of building confidence in the report results."* It now
+reads that a column named after a standard holds that standard's published
+tolerance values applied to the chart you printed, rather than to that
+standard's own chart and control strip, so its Overall reads COND at best. Same
+fact, stated positively, and the COND cap is no longer unexplained.
+
+**Two classes of sentence, and only the first was touched.**
+
+* **Defensive prose.** A sentence ChromIQ wrote for its own comfort, which no
+  grant requires. The struck sentence was the only one of these. Removing it
+  does not touch the promise made to Idealliance on 2026-09-09, recorded in
+  `docs/design/issue_182_answers.md`: what was promised is that ChromIQ never
+  *prints* that a print "conforms to", "is certified to" or "qualifies as"
+  anything. That is a promise of ABSENCE, and deleting a denial keeps it.
+* **Grant-required.** A sentence a rights holder's terms require to EXIST.
+  Fogra's *"It is not a certification, approval or endorsement by …"* beside
+  every reference set, and Idealliance's *"GRACoL is a registered trademark of
+  PRINTING United Alliance."* Both are untouched and both are still pinned by
+  `tests/test_chromiq_never_claims_conformance.py::REQUIRED_DENIALS`. So are
+  the two sentences Knut did not rule on, which belong to the Report limits
+  window (M-THRESHOLDS-NOT-CERTIFICATION) and to the one-page summary, not to
+  the paragraph he read.
+
+**Bound, and locked, explained in the report.** *"what is the difference
+between bound and locked? Be specific in the explanation, so that user
+understands that chosen limits are bound to chosen 'ChromIQ default' thresholds
+as this was used for the first dated verification run of the included
+measurement sets."* A paragraph in "How to read this report" now says it, and
+it is §5 of this document in his terms: the run holds a copy of the set chosen
+when its first dated verification was measured, every later date is judged
+against that copy so the dates can be compared, a later change in Preferences
+does not reach a bound run, and the copy is locked once a second dated
+verification has been measured.
+
+**"(edited)" beside a set name was correct.** Knut read *"Judged against:
+ChromIQ default (recommended) (edited)"* and asked why, having edited nothing.
+The flag is derived, never stored as a claim: `is_edited` compares the run's
+stored copy with the set's effective values, and on the run he was reading the
+demo pack had written an edited copy on purpose. It is a fact about the demo
+data, not a fault in the flag; the demo pack's own descriptions are being
+rewritten separately. Measured: a run bound and left alone reads `edited=False`
+for all seven sets.
+
+## 12. Open questions from 2026-09-11
+
+* **The five `?` rows with no spin box.** Knut asked for boxes on *"those that
+  today are shown as ?"*. Eleven of the sixteen `?` cells are now numbers. The
+  five that are not are the three control-strip rows and the two
+  selected-patch rows, whose status is `unknown` because ChromIQ does not know
+  which patches of a chart make up those populations. A number typed there
+  could never be compared with anything, so the row would read N-A whatever the
+  user set: a control that cannot be tested. Building it was refused on that
+  ground and is recorded here instead. **For Knut:** should those five rows
+  offer a value that ChromIQ will always answer "not applicable" to, or stay
+  read-only until ChromIQ can identify a control strip and the standard's
+  selected patches in a measured chart?
+* **Every measurable row now carries a number in both Custom columns**,
+  including the rows the parent standard puts no limit over, which used to read
+  `–`. Knut's sentence allows either reading (*"Those that normally are not
+  included in the report are set to '-', but shall still be possible to include
+  by changing the value"*, then *"make sure the metrics have a value that can
+  be tested against"*). The second was followed, because it is the one that
+  makes every metric exercisable in the demo pack. A user can set any of them
+  back to `–` with the spin box.

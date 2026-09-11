@@ -1261,6 +1261,86 @@ BORDER_RAW_DRIFT: "list[Date]" = [
 
 
 # ---------------------------------------------------------------------------
+# The sixth project: the two Custom columns
+# ---------------------------------------------------------------------------
+#: Knut, 2026-09-11: *"make sure the metrics have a value that can be tested
+#: against, and that all metrics limits are verified with the
+#: ChromIQ-Report-Limit-Demos package."*
+#:
+#: When this package was first expanded, "Custom ISO 12647-7" and "Custom
+#: ISO 12647-8" held nothing: every measurable row read ? or -, so neither
+#: column judged anything, neither was even offered in the report window, and
+#: this package's coverage table correctly recorded that nothing covered them.
+#: They now start from ChromIQ's own numbers on every row ChromIQ can measure,
+#: so the window offers them and a run can be bound to either.
+#:
+#: **THE NUMBERS IN THOSE TWO COLUMNS ARE NOT TOUCHED BY THIS GENERATOR AND MAY
+#: NOT BE.** They are placeholders governed by a permission condition, they are
+#: deliberately not either standard's published tolerances, and a test pins
+#: where each one came from. The designs below were worked out against the
+#: columns AS THEY ARE, the same way every other series in this file is, and
+#: the intended/actual check at the end of a build is what proves it rather
+#: than the fact that the numbers happen to match ChromIQ default's.
+#:
+#: TWO THINGS A READER OF THESE TWO RUNS HAS TO KNOW, and both are properties
+#: of the columns rather than of the data:
+#:
+#: * **A Custom column can never read PASS on a ChromIQ chart.** Three of its
+#:   eleven limit-bearing rows (paper white against the reference paper, solid
+#:   colours, CMY hue difference) need a reference measurement of the printing
+#:   condition, which ChromIQ cannot read yet, so they are N-A on every date.
+#:   A required row that could not be checked makes the column COND at best.
+#: * **Every column named after a standard reads COND even when nothing is
+#:   over.** That is the caveat doing its job: the numbers are applied to the
+#:   chart YOU printed, not to that standard's own chart, and the sentence
+#:   under the word says so. So the word moves FAIL to COND across these two
+#:   dates, not FAIL to PASS, and the SENTENCE is where the recovery shows.
+
+CUSTOM_7_SERIES: "list[Date]" = [
+    _d("2027-01-05_100000", "2027-01-05T10:00:00",
+       "One patch over the largest-difference limit",
+       "A single patch at 4.5, over the 3.0 this column puts on 'All patches, "
+       "largest', with the worst-5 % average held under its own 2.0. ONE row "
+       "crosses.",
+       Design(bulk=0.90, shoulder=1.50, peak=4.50, tail=1.60, grey_dch=0.50),
+       ["all_de00_max"]),
+    _d("2027-01-19_100000", "2027-01-19T10:00:00",
+       "The bad patch is gone again",
+       "The same sheet without the outlier. Nothing is over a limit. The "
+       "column does not go green: three of its rows still need a reference "
+       "measurement this chart cannot supply, and a column named after a "
+       "standard carries its caveat whatever the numbers do. The sentence "
+       "under the word is where the recovery shows.",
+       Design(bulk=0.80, shoulder=1.40, peak=2.20, tail=1.60, grey_dch=0.50),
+       []),
+]
+
+#: The other Custom column, crossing a DIFFERENT row, and one that no ChromIQ
+#: set judges at all: the 30 to 70 % tone ramp. Elsewhere in this package that
+#: row can only be exercised by typing a limit into a run's own edited column;
+#: here a shipped set puts one on it, as a recommendation, so it reads COND.
+CUSTOM_8_SERIES: "list[Date]" = [
+    _d("2027-02-02_100000", "2027-02-02T10:00:00",
+       "The hardest colours drift, and one ramp step goes dark",
+       "The worst 5 % of patches average about 2.7, over their 2.0, and the "
+       "middle step of the grey tone ramp is 3.0 too dark, over the 2.0 this "
+       "column recommends. TWO rows cross, which is the most this design "
+       "allows, and they carry different words: one is a requirement and the "
+       "other a recommendation.",
+       Design(bulk=0.80, shoulder=1.40, peak=2.75, tail=2.65, grey_dch=0.50,
+              ramp_dl=3.0),
+       ["worst5_de00_avg", "ramps_30_70_dl_max"]),
+    _d("2027-02-16_100000", "2027-02-16T10:00:00",
+       "Both come back",
+       "The hardest colours settle and the ramp step is 1.0 out, inside its "
+       "2.0. Both rows recover on the same date.",
+       Design(bulk=0.80, shoulder=1.40, peak=2.20, tail=1.60, grey_dch=0.50,
+              ramp_dl=1.0),
+       []),
+]
+
+
+# ---------------------------------------------------------------------------
 # Building a run
 # ---------------------------------------------------------------------------
 #: What a run demonstrates about the limit lock, and the sentence that says so.
@@ -1480,14 +1560,15 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
             rewrite_report(v.reports_dir / f"report_{stamped}_{n}.json", other)
 
         actual = _crossed_rows(rep, limits_rec.limits, row_values, row_verdict,
-                               set_summary, plan.report_type)
+                               set_summary, plan.report_type, limits_rec.set_id)
         # WHAT THE SAME NUMBERS DO IN THE REPORT EVERYBODY KNOWS. For a run on
         # T3 or T4 the crossings above are about a document that hides rows or
         # withholds words, and a reader cannot tell from them whether the sheet
         # was good. Computed, never described, so the two can never drift.
         as_full = (None if plan.report_type == REPORT_TYPE_FULL else
                    _crossed_rows(rep, limits_rec.limits, row_values,
-                                 row_verdict, set_summary, REPORT_TYPE_FULL))
+                                 row_verdict, set_summary, REPORT_TYPE_FULL,
+                                 limits_rec.set_id))
         results.append({
             "project": "",
             "run": run.id,
@@ -1557,7 +1638,8 @@ def story_verdicts(story: str) -> "set[str]":
 
 
 def _crossed_rows(report, limits, row_values, row_verdict, set_summary,
-                  type_id: str = "t2_full_colour_check") -> dict:
+                  type_id: str = "t2_full_colour_check",
+                  set_id: str = "") -> dict:
     """Which rows the REAL report says are over their limit, IN THE DOCUMENT
     THE RUN PRODUCES.
 
@@ -1569,12 +1651,25 @@ def _crossed_rows(report, limits, row_values, row_verdict, set_summary,
     beside a run that produces neither document would be a table about a page
     nobody opens.
 
-    The two rules are the window's own, taken from the same two functions it
+    The three rules are the window's own, taken from the same functions it
     calls: `rows_for_report_type` decides which rows the document is about
-    (`measurement_report_dialog._keep_rows_for_type`), and T4 withholds every
-    word (`._ungrade`, `._column_summary`).
+    (`measurement_report_dialog._keep_rows_for_type`), T4 withholds every word
+    (`._ungrade`, `._column_summary`), and `applies_a_standard` decides whether
+    the column carries a standard's caveat.
+
+    **THE CAVEAT WAS HARD-CODED OFF, AND IT MATTERED THE DAY A COLUMN NEEDED
+    IT.** This passed `set_is_iso=False` from the day it was written, which was
+    true of every set the package used then: the two Custom columns held no
+    numbers at all and could not be a run's set. The moment they could, this
+    file's own README printed "none over a required limit; 3 not computed" for
+    a column the WINDOW words differently, because a set named after a standard
+    reads COND with the sentence that says its figures are applied to your
+    chart and not to that standard's. A README that describes a column named
+    after a standard without that sentence is the fault `applies_a_standard`
+    exists to have stopped, arriving in the file that documents the package.
     """
-    from workflow.compliance_sets import COND, FAIL, ROW_BY_ID, SUMMARY_REASONS
+    from workflow.compliance_sets import (COND, FAIL, ROW_BY_ID,
+                                          SUMMARY_REASONS, applies_a_standard)
     from workflow.measurement_report import (REPORT_TYPE_RECORD, is_graded_sheet,
                                              rows_for_report_type)
     graded_sheet = is_graded_sheet(report)
@@ -1605,7 +1700,8 @@ def _crossed_rows(report, limits, row_values, row_verdict, set_summary,
         if word is not None and info.get("reason"):
             shown_reasons[rid] = info["reason"]
     summary = set_summary(
-        rows, set_is_iso=False, graded=graded_sheet and not ungraded_by_type,
+        rows, set_is_iso=applies_a_standard(set_id),
+        graded=graded_sheet and not ungraded_by_type,
         ungraded_reason=(SUMMARY_REASONS["record_type"]
                          if ungraded_by_type and graded_sheet else ""))
     return {"crossed": sorted(crossed), "values": values,
@@ -1706,6 +1802,22 @@ PROJECTS = [
                      "regenerate it with one: this run exists to show what the "
                      "report says when a chart cannot supply a row."),
     ]),
+    ("Report-Limits-Custom-Columns", [
+        RunPlan("The Custom ISO 12647-7 column, which starts from ChromIQ's "
+                "own numbers and not from that standard's published values.",
+                CHART_SMALL, CHART_MEDIUM, "custom_iso_12647_7",
+                CUSTOM_7_SERIES, unlocked=True, lock="unlocked",
+                note="The limits of this column are not edited by this "
+                     "package and must not be: they are placeholders under a "
+                     "permission condition, pinned by a test."),
+        RunPlan("The Custom ISO 12647-8 column, crossing the tone-ramp row "
+                "that no other shipped set puts a limit on.",
+                CHART_MEDIUM, CHART_MEDIUM, "custom_iso_12647_8",
+                CUSTOM_8_SERIES, unlocked=True, lock="unlocked",
+                note="The limits of this column are not edited by this "
+                     "package and must not be: they are placeholders under a "
+                     "permission condition, pinned by a test."),
+    ]),
     ("Report-Limits-Border-Conditions", [
         RunPlan("A chart with fewer than twenty patches, so the worst 5 % of "
                 "the sheet is the empty set and that row cannot be computed.",
@@ -1804,6 +1916,29 @@ def main(argv=None) -> int:
     if bad_plans:
         return 2
 
+    # EVERY SET A PLAN NAMES MUST BE ONE THE REPORT WINDOW WOULD OFFER, and
+    # this is checked BEFORE any Argyll is run.
+    #
+    # A set with no limit-bearing row judges nothing, so a run bound to one
+    # produces a column of N-A whatever its measurement says, and every
+    # `expect` on it misses. That is what the two Custom columns were until the
+    # round that gave them numbers: this generator can name them only on a
+    # ChromIQ that has that round. Without it the build used to spend its
+    # seventeen seconds and then report four mismatches, which reads as a
+    # design that missed rather than as a package built against the wrong app.
+    unusable = sorted({plan.set_id
+                       for _n, plans in PROJECTS for plan in plans
+                       if plan.set_id not in _selectable()})
+    if unusable:
+        print("This package names limit sets this ChromIQ does not offer:")
+        for sid in unusable:
+            print(f"  {sid}")
+        print("A set with no limit-bearing row judges nothing, so a run bound "
+              "to one is a column of N-A and every expectation on it misses.\n"
+              "This build needs the ChromIQ that gives those columns their "
+              "numbers.")
+        return 2
+
     results: list = []
     lock_rows: list = []
     for name, plans in PROJECTS:
@@ -1833,6 +1968,14 @@ def main(argv=None) -> int:
         print(f"archive: {made}  ({size / 1e6:.1f} MB)")
     print(f"written to {dest}")
     return 1 if bad else 0
+
+
+def _selectable() -> "set[str]":
+    """The sets the report window would offer, asked of the app rather than
+    listed here, so a set that stops being offered is caught the same way one
+    that starts being offered is."""
+    from workflow.compliance_sets import selectable_set_ids
+    return set(selectable_set_ids({}))
 
 
 def _wrap(text: str, width: int) -> "list[str]":
@@ -2061,7 +2204,57 @@ def coverage(dest: Path, results: list) -> dict:
     out.update(type_set_coverage(dest))
     out.update(message_coverage(dest))
     out.update(metric_coverage(dest, results))
+    out.update(custom_column_facts())
     return out
+
+
+def custom_column_facts() -> dict:
+    """The two things a reader of the Custom-column runs has to be told, both
+    computed from the sets as they actually are.
+
+    Neither is a property of this package's data, so neither can be shown by
+    building a different measurement, and a reader who works one of them out
+    for themselves from a verdict will have worked out the wrong thing.
+    """
+    from workflow.compliance_sets import (ROW_BY_ID, effective_limits,
+                                          limit_bearing, selectable_set_ids)
+
+    ids = [sid for sid in selectable_set_ids({}) if sid.startswith("custom_")]
+    facts: dict = {"custom_ids": ids, "custom_same_numbers": False,
+                   "custom_shape_differs": [],
+                   "custom_total": 0, "custom_fillable": 0,
+                   "custom_unfillable": []}
+    if not ids:
+        return facts
+    lim = limit_bearing(effective_limits(ids[0], {}))
+    facts["custom_total"] = len(lim)
+    # A row a ChromIQ verification chart can put a number on is one ChromIQ
+    # computes from the measurement itself; a `ref` row waits for a reference
+    # measurement of the printing condition, which is not built.
+    fillable = [rid for rid in lim if ROW_BY_ID[rid].status in ("now", "build")]
+    facts["custom_fillable"] = len(fillable)
+    facts["custom_unfillable"] = sorted(ROW_BY_ID[rid].label for rid in lim
+                                        if rid not in fillable)
+    if len(ids) == 2:
+        a_, b_ = (effective_limits(i, {}) for i in ids)
+        # THE NUMBERS AND THE SHAPE ARE TWO DIFFERENT QUESTIONS, and the first
+        # version of this asked only one and got a misleading answer. Compared
+        # cell for cell across all thirty rows, the two columns "differ" — but
+        # every difference is on a row carrying NO number, where one column
+        # shows ? or the cross and the other shows the dash, because the two
+        # standards write limits over different rows. On every row that carries
+        # a number they are identical, and it is the numbers that decide a
+        # verdict.
+        facts["custom_same_numbers"] = all(
+            (a_[r].number is None) == (b_[r].number is None)
+            and (a_[r].number is None
+                 or (a_[r].is_should == b_[r].is_should
+                     and abs(a_[r].number - b_[r].number) < 1e-9))
+            for r in set(a_) | set(b_))
+        facts["custom_shape_differs"] = sorted(
+            ROW_BY_ID[r].label for r in set(a_) | set(b_)
+            if a_[r].kind != b_[r].kind)
+    return facts
 
 
 #: WHY A MESSAGE THE REPORT CAN PRINT IS NOT IN THE PACKAGE, for the ones no
@@ -2069,15 +2262,20 @@ def coverage(dest: Path, results: list) -> dict:
 #: and is neither reached nor explained shows up as one nobody has accounted
 #: for, which is the right way round: the list of messages is read from the
 #: app, and only the excuses are written here.
+#: "iso" USED TO BE IN HERE AND IS NOT ANY MORE, which is the point of the
+#: list. Its excuse read "the two ISO columns hold no numbers, so a demo that
+#: reached it would have to carry one of those numbers". That was true while
+#: both Custom columns were empty: neither could be offered in the report
+#: window and no run could be bound to one. They now start from ChromIQ's OWN
+#: numbers, `Report-Limits-Custom-Columns` binds a run to each, and the
+#: sentence is reached on both of their recovery dates. An excuse that outlives
+#: the gap it explains is worse than no excuse at all: it tells a reader the
+#: package cannot show something it shows twice.
 UNREACHABLE_BY_DATA = {
     "empty": "The report window only offers a limit set that has at least one "
              "limit-bearing row (CH-11), so no choice a user can make reaches "
              "this. It is for a run bound to a set a later ChromIQ has stopped "
              "defining.",
-    "iso": "Its sentence is the one an ISO column prints, and the two ISO "
-           "columns hold no numbers: their figures are published in standards "
-           "ChromIQ has no permission to include. A demo that reached it "
-           "would have to carry one of those numbers.",
     "needs_reference_file": "The rows that give this reason are the ones "
                             "needing a reference measurement of the printing "
                             "condition, and reading such a file is not built "
@@ -2152,7 +2350,8 @@ def metric_coverage(dest: Path, results: list) -> dict:
     this whole table exists to make visible.
     """
     from core.file_manager import Run
-    from workflow.compliance_sets import ROWS, effective_limits
+    from workflow.compliance_sets import (ROWS, effective_limits,
+                                          selectable_set_ids)
     from workflow.measurement_report import row_values
     from workflow.run_compliance import run_limits
 
@@ -2175,8 +2374,13 @@ def metric_coverage(dest: Path, results: list) -> dict:
                 if lim.number is not None:
                     judged.add(rid)
 
+    # EVERY SET THE WINDOW OFFERS, not only the three ChromIQ ones. The two
+    # Custom columns held nothing when this was written, so naming the three
+    # was the same list; they now put a number on four more rows, and the line
+    # this feeds said of the tone ramp that "no shipped set judges it" while a
+    # set a user can choose from the pulldown did.
     shipped: set = set()
-    for sid in ("chromiq_default", "chromiq_tight", "chromiq_quick"):
+    for sid in selectable_set_ids({}):
         for rid, lim in effective_limits(sid, {}).items():
             if lim.number is not None:
                 shipped.add(rid)
@@ -2248,7 +2452,8 @@ def message_coverage(dest: Path) -> dict:
         short = pd.name.replace("Report-Limits-", "")
         for rd in sorted((pd / "runs").glob("run*"),
                          key=lambda p: int(p.name[3:] or 0)):
-            limits = run_limits(Run.for_dir(rd), {}).limits
+            _rec = run_limits(Run.for_dir(rd), {})
+            limits, set_id = _rec.limits, _rec.set_id
             for rep_path in sorted(rd.rglob("report_*.json")):
                 if "old" in rep_path.parts:
                     continue
@@ -2261,7 +2466,7 @@ def message_coverage(dest: Path) -> dict:
                 at = f"{short}/{rd.name}/{date}"
                 for tid in builts:
                     got = _crossed_rows(rep, limits, row_values, row_verdict,
-                                        set_summary, tid)
+                                        set_summary, tid, set_id)
                     where_sentence.setdefault(got["reason"], at)
                     # ONLY THE REASONS ON ROWS THE WINDOW DRAWS. Reading them
                     # off `row_values` instead counted `needs_reference_file`
@@ -2661,6 +2866,66 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
         a("Every document ChromIQ can produce, and every limit set it offers,")
         a("is the standing choice of at least one run above.")
     a("")
+    _cids = _cov.get("custom_ids") or []
+    if _cids:
+        from workflow.compliance_sets import SET_BY_ID as _SBI
+        a("THE TWO CUSTOM COLUMNS, AND TWO THINGS THEIR VERDICTS DO NOT SAY")
+        a("---------------------------------------------------------------")
+        a("")
+        a("Report-Limits-Custom-Columns binds a run to each of them. Their")
+        a("numbers are ChromIQ's own, not either standard's published")
+        a("tolerances, and this package does not touch them: they are")
+        a("placeholders under a permission condition and a test in ChromIQ")
+        a("pins where every one of them came from.")
+        a("")
+        a("FIRST: a column named after a standard never reads PASS here, and")
+        a("not because anything is wrong with the print.")
+        a("")
+        _tot = _cov.get("custom_total", 0)
+        _fill = _cov.get("custom_fillable", 0)
+        a(f"  Each column puts a limit on {_tot} rows. A ChromIQ verification")
+        a(f"  chart can fill {_fill} of them. The other {_tot - _fill} need a")
+        a("  reference measurement of the printing condition, which ChromIQ")
+        a("  cannot read yet, so they are N-A on every date:")
+        for _lbl in _cov.get("custom_unfillable", []):
+            a(f"      {_lbl}")
+        a("")
+        a("  A required row that could not be checked makes the column COND at")
+        a("  best, and every column applying a standard's figures reads COND")
+        a("  anyway, with the sentence saying those figures are applied to the")
+        a("  chart YOU printed. So across these runs the word moves FAIL to")
+        a("  COND, not FAIL to PASS, and the SENTENCE under it is where the")
+        a("  recovery shows.")
+        a("")
+        if _cov.get("custom_same_numbers"):
+            a("SECOND: on every row that carries a NUMBER, the two columns are")
+            a("identical to each other.")
+            a("")
+            a("  Both start from ChromIQ's own figures, and neither ISO data")
+            a("  file supplies anything, so nothing separates their numbers")
+            a("  today. The two runs therefore prove that each column can be a")
+            a("  run's set and can judge a measurement. They prove NO")
+            a("  difference in strictness between the two, because there is")
+            a("  none to prove; a reader who reads one verdict against the")
+            a("  other and concludes something about the two standards would")
+            a("  be reading a difference that is not there.")
+            a("")
+            a("  A licence holder who points ChromIQ at their own figures file")
+            a("  gets different numbers, and then these same two runs start")
+            a("  saying different things without being rebuilt.")
+            _shape = _cov.get("custom_shape_differs") or []
+            if _shape:
+                a("")
+                a("  The columns DO differ in shape: these rows are marked as")
+                a("  asked for by one standard and not the other, and none of")
+                a("  them carries a number in either column, so none can change")
+                a("  a verdict.")
+                for _lbl in _shape:
+                    a(f"      {_lbl}")
+        else:
+            a("SECOND: the two columns hold DIFFERENT numbers from each other,")
+            a("so the two runs can be read against one another.")
+        a("")
     a("EVERY METRIC LIMIT, AND WHETHER THIS PACKAGE TESTS IT")
     a("-----------------------------------------------------")
     a("")
@@ -2707,7 +2972,17 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
         _by_why.setdefault(r["why_not"] or "NOBODY HAS SAID WHY", []).append(r["label"])
     for _why, _labels in _by_why.items():
         for _lbl in _labels:
-            a(f"  {_lbl}")
+            _r = next(x for x in _rows if x["label"] == _lbl)
+            # A LIMIT ON A ROW NOTHING CAN FILL IS WORTH NAMING. The two Custom
+            # columns put a number on three rows that need a reference
+            # measurement ChromIQ cannot read, so those rows carry a limit and
+            # are never checked against it. That is exactly the shape the
+            # Overall verdict's "nothing was checked" clause exists for, and a
+            # reader comparing the limits window against the report will see
+            # the number and wonder why no verdict follows it.
+            a(f"  {_lbl}"
+              + ("   (a limit set puts a number on it, and nothing in this "
+                 "package can fill it)" if _r["limited_here"] else ""))
         for chunk in _wrap(_why, 66):
             a(f"      {chunk}")
         a("")

@@ -623,9 +623,23 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                   "condition; without a reference file the aim is the chart's "
                   "own design. ³ The standards set a maximum only over their "
                   "control strip, not over all patches.")
+        # WHOSE NUMBERS THE TWO CUSTOM COLUMNS HOLD, said at the table where
+        # they are read. They are named after a standard and start from
+        # ChromIQ's own figures, so a reader who is not told will take them for
+        # the standard's. Required by the owner's standing rule on #182: no
+        # value from ISO 12647-7 or ISO 12647-8 is in ChromIQ, and a column
+        # bearing those names must not be allowed to imply otherwise.
+        custom = tr(
+            "The two Custom columns start from ChromIQ's own numbers, chosen "
+            "so that every row ChromIQ can measure has a limit to be judged "
+            "against. They are not the published tolerances of ISO 12647-7 or "
+            "ISO 12647-8, which ChromIQ does not hold. If you hold either "
+            "standard, point ChromIQ at your own copy of its values and the "
+            "Custom column starts from those instead. Every limit here is "
+            "yours to change.")
         cannot = [tr(r.label) for r in ROWS if r.status == "unmeasurable"]
         title, body = M_THRESHOLDS_NOT_CERTIFICATION.render(rows=", ".join(cannot))
-        return legend + "\n" + foot + "\n\n" + title + "\n" + body
+        return legend + "\n" + foot + "\n\n" + custom + "\n\n" + title + "\n" + body
 
     # ------------------------------------------------------------------ slots
     def _on_cell_changed(self, value: float) -> None:

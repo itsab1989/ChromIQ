@@ -504,9 +504,26 @@ def test_the_coverage_table_names_the_types_and_sets_nothing_covers(gen,
     assert "Grey and tone check" in joined
     assert "Printing record (not graded)" in joined
     assert "ChromIQ tight" in joined and "Quick check" in joined
-    # and never the two it cannot produce: a document ChromIQ may not write is
-    # not a gap in the demo data
-    assert "ISO 12647-8" not in joined and "ISO 12647-7" not in joined
+    # and never the two DOCUMENTS it cannot produce: a document ChromIQ may not
+    # write is not a gap in the demo data.
+    #
+    # BY THE TYPE'S OWN NAME, AND THE FIRST VERSION MATCHED A SUBSTRING. It
+    # looked for "ISO 12647-7" and "ISO 12647-8", which are also inside
+    # "Custom ISO 12647-7" and "Custom ISO 12647-8" — two LIMIT SETS that held
+    # no numbers when this was written and could not be a run's set. The moment
+    # they could, a fixture with one run correctly reported both as sets
+    # nothing covers, and this assertion read that as the two unbuildable
+    # documents having leaked in. The set names are a true answer here and the
+    # type names are the false one, so it asks for the type names.
+    from workflow.measurement_report import REPORT_TYPE_MENU
+    for _tid, name, _blurb, built in REPORT_TYPE_MENU:
+        if not built:
+            assert name not in joined, (
+                f"{name} is a document ChromIQ cannot write, so its absence "
+                f"from the package is not a gap and must not be listed as one")
+    # the Custom SETS, by contrast, are a real gap in a fixture that uses
+    # neither of them, and saying so is the table doing its job
+    assert "Custom ISO 12647-7" in joined and "Custom ISO 12647-8" in joined
 
 
 def test_the_coverage_table_reads_the_type_off_the_run(gen, tmp_path):
@@ -618,19 +635,55 @@ def test_every_message_the_package_cannot_reach_has_a_reason(gen):
     neither list, which is a loud failure rather than a silent gap; this makes
     it a failing test as well, because a README nobody reads is not a gate.
 
-    MUTATION: delete "iso" from UNREACHABLE_BY_DATA and this goes red.
+    MUTATION: delete "empty" from UNREACHABLE_BY_DATA and this goes red.
     """
     from workflow.compliance_sets import SUMMARY_REASONS
 
-    # The ones this package genuinely cannot reach, measured in the round that
-    # wrote this file. A message that STARTS being reachable simply stops
-    # needing its excuse, which this does not forbid.
-    for key in ("empty", "iso"):
-        assert key in gen.UNREACHABLE_BY_DATA, (
-            f"{key!r} is a sentence no demo data can reach and nothing says why")
-        assert key in SUMMARY_REASONS, (
-            f"{key!r} is explained but ChromIQ no longer prints it; drop the "
-            f"entry rather than leaving an excuse for nothing")
+    assert "empty" in gen.UNREACHABLE_BY_DATA, (
+        "a limit set that defines no limits is one the report window refuses "
+        "to offer, so no demo data can reach that sentence and something has "
+        "to say so")
+    for key in gen.UNREACHABLE_BY_DATA:
+        if key in SUMMARY_REASONS:
+            continue
+        from workflow import measurement_report as _mr
+        codes = {getattr(_mr, n) for n in dir(_mr) if n.startswith("REASON_")}
+        assert key in codes, (
+            f"{key!r} is excused but ChromIQ neither prints it as a sentence "
+            f"nor gives it as a reason; drop the entry rather than leaving an "
+            f"excuse for nothing")
+
+
+def test_an_excuse_is_dropped_the_moment_the_package_can_reach_the_message(gen):
+    """AN EXPLAINED GAP IS WORTH MORE THAN A COMPLETE TABLE; A GAP THAT IS NO
+    LONGER THERE IS WORTH LESS THAN NOTHING.
+
+    The `iso` sentence is the one every column named after a standard prints
+    when nothing is over its limits. It was genuinely unreachable while the two
+    Custom columns held no numbers: neither could be offered in the report
+    window, so no run could be bound to one. They now start from ChromIQ's own
+    numbers, a run IS bound to each, and the sentence is reached at
+    Custom-Columns/run1 and run2. An excuse left standing there would tell a
+    reader the package cannot show something it shows twice.
+
+    Asked of the plans rather than of a list, so the answer moves with the data
+    instead of with somebody remembering to come back.
+
+    MUTATION: put "iso" back into UNREACHABLE_BY_DATA and this goes red; take
+    away both Custom runs and it goes red the other way.
+    """
+    from workflow.compliance_sets import applies_a_standard
+
+    binds_a_standard = any(applies_a_standard(plan.set_id)
+                           for _rid, plan in _plans(gen))
+    excused = "iso" in gen.UNREACHABLE_BY_DATA
+    assert binds_a_standard != excused, (
+        "a run in the package is bound to a set that applies a standard's "
+        "figures, so the sentence such a column prints IS reachable and must "
+        "not carry an excuse"
+        if binds_a_standard else
+        "no run is bound to a set that applies a standard's figures, so that "
+        "sentence cannot be reached and something has to say why")
 
 
 # ---------------------------------------------------------------------------
@@ -716,3 +769,197 @@ def test_a_row_the_window_never_draws_contributes_no_reason(gen):
     assert "substrate_de00_max" not in got["shown_reasons"], (
         "a row the window does not draw contributed its reason to the "
         "coverage table")
+
+# ---------------------------------------------------------------------------
+# A column named after a standard carries its caveat, in the README too
+# ---------------------------------------------------------------------------
+def test_a_column_that_applies_a_standard_is_worded_as_one(gen):
+    """FOUND BUILDING THE TWO CUSTOM RUNS, in this file's own generator.
+
+    `_crossed_rows` passed `set_is_iso=False` from the day it was written,
+    which was true of every set the package used then: the two Custom columns
+    held no numbers and could not be a run's set. The moment they could, the
+    README printed "none over a required limit; 3 not computed" for a column
+    the WINDOW words differently, because a set that applies a standard's
+    figures reads COND with the sentence saying those figures are applied to
+    the chart YOU printed and not to that standard's own chart.
+
+    A README describing a column named after a standard, without that sentence,
+    is the fault `applies_a_standard` exists to have stopped, arriving in the
+    file that documents the package.
+
+    MUTATION: pass `set_is_iso=False` again in `_crossed_rows` and this goes
+    red.
+    """
+    from workflow.compliance_sets import (SUMMARY_REASONS, row_verdict,
+                                          set_summary)
+    from workflow.measurement_report import REPORT_TYPE_FULL, row_values
+
+    clean = _report(de00={"avg_all": 0.5, "avg_low95": 0.4, "avg_high5": 0.9,
+                          "max_all": 1.2, "max_low95": 0.8},
+                    grey_balance={"eligible": True, "avg": 0.4, "max": 0.6},
+                    ramps_30_70={"eligible": True, "max_dl": 0.5})
+    plain = gen._crossed_rows(clean, _limits(), row_values, row_verdict,
+                              set_summary, REPORT_TYPE_FULL, "chromiq_default")
+    assert plain["overall"] == "PASS", plain["overall"]
+    assert plain["reason"] == SUMMARY_REASONS["pass"]
+
+    named = gen._crossed_rows(clean, _limits(), row_values, row_verdict,
+                              set_summary, REPORT_TYPE_FULL,
+                              "custom_iso_12647_7")
+    assert named["overall"] == "COND", (
+        "a column holding a standard's name read the same word as ChromIQ's "
+        "own, on the same numbers")
+    assert named["reason"] == SUMMARY_REASONS["iso"], named["reason"]
+
+
+def test_the_generator_never_edits_the_two_custom_columns(gen):
+    """Their numbers are placeholders under a permission condition, and a test
+    in the app pins where each one came from. This package may BIND a run to
+    one and must never move one: a demo that nudged a number toward a real
+    tolerance would be doing by data what the repository refuses to do in code.
+
+    MUTATION: give either Custom run an `edited_limits` and this goes red.
+    """
+    from workflow.compliance_sets import SET_BY_ID
+
+    for rid, plan in _plans(gen):
+        parent = SET_BY_ID.get(plan.set_id)
+        if parent is None or parent.kind != "custom":
+            continue
+        assert not plan.edited_limits, (
+            f"{rid} is bound to {plan.set_id!r} and edits its limits. Those "
+            f"values are placeholders under a permission condition; if a row "
+            f"needs a different number, report it rather than changing it "
+            f"here.")
+
+
+def test_both_custom_columns_are_some_run_s_set(gen):
+    """Knut asked for every metric limit to be verified with this package, and
+    a column no run is bound to verifies nothing.
+
+    Kept separate from the general "every set the window offers" test because
+    these two are the ones that arrived empty and became selectable later, so
+    the way they go missing is by nobody noticing rather than by a plan being
+    deleted.
+
+    MUTATION: point either Custom run at `chromiq_default` and this goes red.
+    """
+    used = {plan.set_id for _rid, plan in _plans(gen)}
+    for sid in ("custom_iso_12647_7", "custom_iso_12647_8"):
+        assert sid in used, f"no run is bound to {sid!r}"
+
+
+def test_the_custom_runs_cross_a_row_and_come_back(gen):
+    """The same standard the rest of the package is held to: a limit proved in
+    both directions, not only crossed.
+
+    Checked on the DECLARED expectations, which the generator then proves
+    against the report it actually builds, so this holds without Argyll and the
+    build holds the other half.
+
+    MUTATION: empty the first date's `expect` on either Custom run and this
+    goes red.
+    """
+    from workflow.compliance_sets import SET_BY_ID
+
+    for rid, plan in _plans(gen):
+        s = SET_BY_ID.get(plan.set_id)
+        if s is None or s.kind != "custom":
+            continue
+        assert len(plan.dates) >= 2, f"{rid} has no second date to recover on"
+        first, last = plan.dates[0], plan.dates[-1]
+        assert first.expect, (
+            f"{rid}'s first date crosses nothing, so its limits are never "
+            f"exercised")
+        assert not last.expect, (
+            f"{rid}'s last date still crosses {last.expect}, so the row is "
+            f"never shown coming back inside its limit")
+
+
+def test_the_build_refuses_a_set_this_chromiq_does_not_offer(gen, monkeypatch,
+                                                             tmp_path, capsys):
+    """A set with no limit-bearing row judges nothing, so a run bound to one is
+    a column of N-A whatever its measurement says, and every expectation on it
+    misses.
+
+    That is what the two Custom columns were before the round that gave them
+    numbers. Without the check, a build against the wrong ChromIQ spent its
+    seventeen seconds of Argyll and then printed four mismatches, which reads
+    as a design that missed rather than as a package built against an app that
+    cannot carry it. It now says which sets and stops before the first chart.
+
+    MUTATION: delete the `unusable` block from `main` and this goes red.
+    """
+    monkeypatch.setattr(gen, "_selectable", lambda: {"chromiq_default"})
+    rc = gen.main([str(tmp_path)])
+    out = capsys.readouterr().out
+    assert rc == 2, "the build did not refuse"
+    assert "does not offer" in out, out
+    for sid in ("custom_iso_12647_7", "custom_iso_12647_8"):
+        assert sid in out, f"{sid} is not named in the refusal"
+    assert not list(tmp_path.glob("Report-Limits-*")), (
+        "the build wrote projects before refusing")
+
+
+def test_the_offered_sets_are_asked_of_the_app(gen):
+    """`_selectable` must read `selectable_set_ids`, not a list here: a column
+    that stops being offered has to be caught the same way one that starts
+    being offered is.
+
+    MUTATION: return a literal tuple from `_selectable` and this goes red.
+    """
+    src = inspect.getsource(gen._selectable)
+    assert "selectable_set_ids" in src, (
+        "_selectable no longer asks the app which sets the window offers")
+
+
+def test_the_two_custom_columns_are_compared_on_their_NUMBERS(gen):
+    """AND THE FIRST VERSION OF THIS COMPARISON GOT IT BACKWARDS.
+
+    Compared cell for cell over all thirty rows the two columns "differ", and
+    the README said so. Every one of those differences is on a row carrying NO
+    number, where one column shows ? or the cross and the other shows the dash,
+    because the two standards write limits over different rows. On every row
+    that carries a number they are identical, and it is the numbers that decide
+    a verdict, so the README was telling a reader they could read one run
+    against the other and learn something about the two standards. They cannot.
+
+    MUTATION: compare `kind` as well as the number in `custom_column_facts`
+    and this goes red.
+    """
+    facts = gen.custom_column_facts()
+    if len(facts["custom_ids"]) < 2:
+        pytest.skip("this ChromIQ does not offer both Custom columns")
+    assert facts["custom_same_numbers"], (
+        "the two Custom columns hold different numbers; the README's second "
+        "fact about them is written for the case where they do not")
+    assert facts["custom_shape_differs"], (
+        "the two columns no longer differ in shape either, so the paragraph "
+        "naming the rows they differ on has nothing to name")
+    # every row they differ on must be one that cannot carry a verdict
+    from workflow.compliance_sets import ROW_BY_ID, effective_limits
+    a_ = effective_limits(facts["custom_ids"][0], {})
+    b_ = effective_limits(facts["custom_ids"][1], {})
+    by_label = {r.label: rid for rid, r in ROW_BY_ID.items()}
+    for label in facts["custom_shape_differs"]:
+        rid = by_label[label]
+        assert a_[rid].number is None and b_[rid].number is None, (
+            f"{label} is named as a shape difference but one of the columns "
+            f"puts a number on it, so it CAN change a verdict")
+
+
+def test_the_unfillable_rows_are_asked_of_the_row_not_listed_here(gen):
+    """The three rows a ChromIQ chart cannot fill are read from each row's own
+    status, so a row that becomes computable drops out of that list on its own.
+
+    MUTATION: hard-code the three labels in `custom_column_facts` and this goes
+    red.
+    """
+    src = inspect.getsource(gen.custom_column_facts)
+    assert "ROW_BY_ID[rid].status" in src, (
+        "custom_column_facts no longer asks each row whether ChromIQ can "
+        "compute it")
+    for typed in ("Paper white", "Solid colours", "hue difference"):
+        assert typed not in src, (
+            f"custom_column_facts types {typed!r} instead of deriving it")
