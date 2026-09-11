@@ -2356,9 +2356,33 @@ class MeasurementReportDialog(QDialog):
                         row["word"] = FAIL
                     else:
                         row["word"] = INFO if rec.get("graded") is False else N_A
-            return self._ungrade(rows), True
+            return self._ungrade(self._keep_rows_for_type(rows)), True
         from workflow.measurement_report import judge
-        return self._ungrade(judge(r, self._limits_for(r).limits)), False
+        return self._ungrade(self._keep_rows_for_type(
+            judge(r, self._limits_for(r).limits))), False
+
+    def _keep_rows_for_type(self, rows: list) -> list:
+        """Only the rows the chosen type is ABOUT.
+
+        T3, "Grey and tone check", is a document about the neutral axis and the
+        mid-tone ramps. Dropping the colour rows rather than showing them as
+        not applicable is the whole point: a report on the neutral axis does
+        not gain by listing what it deliberately leaves out, and a reader would
+        have to work out which N-A meant "not measured" and which meant "not
+        this report's subject".
+
+        THE COLUMN'S OWN WORD FOLLOWS, and it has to. Filtering only the table
+        would leave a Grey and tone check reading FAIL because of a colour row
+        it does not show, which is a verdict about something the document never
+        mentions.
+        """
+        from workflow.measurement_report import rows_for_report_type
+        keep = rows_for_report_type(self._report_type_now())
+        if keep is None:
+            return rows
+        want = set(keep)
+        return [x for x in rows
+                if (x.get("row_id") or x.get("key")) in want]
 
     def _ungrade(self, rows: list) -> list:
         """Every row's WORD becomes INFO when the chosen type judges nothing.
@@ -4480,6 +4504,28 @@ class MeasurementReportDialog(QDialog):
         when = html.escape((created or self._created).replace("T", " "))
         created_line = ("<div style='margin:2px 0 0'>"
                         + html.escape(tr("Created:")) + " " + when + "</div>")
+        # WHICH DOCUMENT THIS IS. A two-page report about the neutral axis,
+        # handed to a reader with no line saying so, is indistinguishable from
+        # a full report that lost most of its rows.
+        #
+        # Not on T2, and that is deliberate: T2 is defined as today's report
+        # unchanged, and a line naming it would be a change every existing user
+        # sees without having chosen anything.
+        #
+        # AND ONLY ON A TYPE CHROMIQ CAN ACTUALLY PRODUCE. A run carrying a
+        # type this build cannot make renders as today's report, so naming it
+        # would put "Colour summary (one page)" at the head of the full report:
+        # worse than saying nothing, because it is a claim rather than a
+        # silence. Caught by the ratchet, on three types at once.
+        from workflow.measurement_report import (REPORT_TYPE_FULL,
+                                                 report_type_is_built,
+                                                 report_type_name)
+        _tid = self._report_type_now()
+        if _tid != REPORT_TYPE_FULL and report_type_is_built(_tid):
+            created_line += ("<div style='margin:2px 0 0;font-weight:bold'>"
+                             + html.escape(tr("Report type:")) + " "
+                             + html.escape(tr(report_type_name(_tid)))
+                             + "</div>")
         if for_pdf:
             head = (f"<div style='font-size:22px;font-weight:bold;color:{_C["head"]}'>"
                     + html.escape(self._report_title(runs)) + "</div>"

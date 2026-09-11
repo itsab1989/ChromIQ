@@ -295,7 +295,7 @@ def test_a_measurement_in_no_project_keeps_its_choice_for_the_session(
 #: THIS IS A RATCHET. The step that builds a type comes here and adds it; a
 #: step that builds one and leaves this untouched has either changed nothing or
 #: changed T2. It bit on the first try: adding T4 turned this red.
-_DIFFERS_FROM_T2 = {REPORT_TYPE_RECORD}
+_DIFFERS_FROM_T2 = {REPORT_TYPE_RECORD, REPORT_TYPE_GREY}
 
 
 @pytest.mark.parametrize("tid", REPORT_TYPES)
@@ -350,5 +350,29 @@ def test_a_type_the_menu_calls_BUILT_produces_a_different_document(tmp_path, qap
             assert body != t2, (
                 f"the pulldown offers {name!r} as something ChromIQ can "
                 f"produce, and it hands the user today's report instead")
+    finally:
+        dlg.close()
+
+
+def test_choosing_a_type_REDRAWS_the_report_on_screen(tmp_path, qapp):
+    """THE WINDOW, NOT THE FUNCTION THAT BUILDS ITS TEXT.
+
+    Every other test here asks `_report_body_html` what the document is. That
+    is not what a user reads. An on-screen driver wrote the run and re-synced
+    the controls without redrawing, and ten checks passed while the two
+    photographs were identical and both showed the full report.
+
+    MUTATION: drop the `self._refresh()` at the end of `_on_type_chosen` and
+    this goes red.
+    """
+    from workflow.measurement_report import REPORT_TYPE_GREY
+    dlg, run = _dialog(tmp_path, qapp)
+    try:
+        before = dlg._view.toHtml()
+        i = _ids(dlg).index(REPORT_TYPE_GREY)
+        dlg._type_combo.setCurrentIndex(i)
+        qapp.processEvents()
+        assert dlg._view.toHtml() != before, \
+            "the pulldown moved and the report on screen did not"
     finally:
         dlg.close()

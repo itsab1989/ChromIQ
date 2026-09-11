@@ -273,6 +273,37 @@ def test_summary_with_no_limit_bearing_row_is_n_a_never_pass():
     assert "defines no limits" in s.reason
 
 
+def test_a_column_where_NOTHING_was_checked_is_never_PASS():
+    """FOUND BUILDING T3, 2026-09-11, and reachable in the shipped report too.
+
+    A column whose limit-bearing rows are all N-A, and where every one of them
+    is a RECOMMENDATION rather than a requirement, fell through every clause to
+    PASS. The sentence it printed says "Every value this limit set requires was
+    checked and is within its limit", with nothing checked at all.
+
+    T3, "Grey and tone check", shows the two bracketed grey-balance rows and
+    nothing else, so it lands in that state on the first chart without an
+    8-step grey ramp, which is most of them. A three-patch measurement reaches
+    it in the full report.
+
+    A verdict is a statement about measured values, and with none measured
+    there is no statement to make.
+
+    MUTATION: drop the `checked == 0` clause and this goes red.
+    """
+    sh = Limit.should(1.5)
+    s = set_summary(_rows((sh, N_A), (sh, N_A)), set_is_iso=False, graded=True)
+    assert s.word == N_A, f"{s.word}: a column claimed PASS having checked nothing"
+    assert s.checked == 0 and s.total == 2 and s.not_computed == 2
+    assert "nothing to judge" in s.reason
+    assert "was checked" not in s.reason
+
+    # …and the control: one row actually checked, and PASS is right again.
+    v = Limit.value(1.5)
+    ok = set_summary(_rows((sh, N_A), (v, PASS)), set_is_iso=False, graded=True)
+    assert ok.word == PASS and ok.checked == 1
+
+
 def test_summary_words_in_order_of_precedence():
     v = Limit.value(2.0); sh = Limit.should(1.5)
     assert set_summary(_rows((v, PASS), (v, FAIL)), set_is_iso=False, graded=True).word == FAIL

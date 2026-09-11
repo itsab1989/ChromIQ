@@ -123,11 +123,31 @@ chart changes: every row INFO where 4.2.0 printed FAIL against the chart's
 design.
 
 Per column (Overall): N-A when the set has no limit-bearing row; INFO when the
-sheet is not graded; FAIL when any row fails; COND for every ISO column (its
+sheet is not graded; **N-A when the set has limit-bearing rows but NONE of them
+could be checked**; FAIL when any row fails; COND for every ISO column (its
 values are applied to a chart that is not the standard's chart, footnote ¹);
 COND when any row is COND or a required row is N-A; PASS otherwise. The
 Overall cell carries its reason as text. The report never prints the word
 "conforms" and never puts a standard's name in a verdict sentence.
+
+> **THE THIRD CLAUSE IS NEW, 2026-09-11, AND IT CORRECTS A FAULT RATHER THAN A
+> RULE.** Without it a column whose limit-bearing rows are all N-A, and where
+> every missing row is a RECOMMENDATION rather than a requirement, fell through
+> every clause to PASS, under the sentence *"Every value this limit set
+> requires was checked and is within its limit"*, with nothing checked at all.
+>
+> It was found building report type T3, which shows the two bracketed
+> grey-balance rows and nothing else, so it meets that state on the first chart
+> without an 8-step grey ramp, which is most of them. It is reachable in the
+> full report too, on a measurement with very few patches.
+>
+> The clause it revises was written here and confirmed by nobody, and it never
+> contemplated "nothing was checked", so this is a gap being closed rather than
+> a ruling being overturned. **Knut has not seen it yet.** The reason reads:
+>
+> > This chart supplied none of the values this limit set puts a limit on, so
+> > there is nothing to judge. The rows above say what is missing; add those
+> > patches to the chart in Create Chart to have them checked.
 
 **A sheet that is not graded says WHY, not just that it is not.** Knut's 12b
 (2026-09-09) allowed INFO for a profiling run's report on one condition, in his

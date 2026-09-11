@@ -708,6 +708,17 @@ SUMMARY_REASONS: "dict[str, str]" = {
                    "printed and measured and judges none of it. The numbers "
                    "are shown for information only. Choose Full colour check "
                    "to have the same measurement graded.",
+    # FOUND BUILDING T3, AND REACHABLE TODAY. A column where NOTHING could be
+    # checked, and where every row that is missing is a recommendation rather
+    # than a requirement, fell through every clause to PASS — under a sentence
+    # that says "Every value this limit set requires was checked", with nothing
+    # checked at all. T3 shows two bracketed grey rows and nothing else, so it
+    # meets that state on the first chart without an 8-step grey ramp, which is
+    # most of them; but a 3-patch measurement reaches it in the full report too.
+    "nothing_checked": "This chart supplied none of the values this limit set "
+                       "puts a limit on, so there is nothing to judge. The "
+                       "rows above say what is missing; add those patches to "
+                       "the chart in Create Chart to have them checked.",
     "fail": "{failed} of {checked} values checked are over this limit set's limits.",
     "iso": "{checked} of {total} values checked, all within this limit set's "
            "values. This limit set holds a standard's published values applied "
@@ -774,6 +785,13 @@ def set_summary(rows: "list[tuple[Limit, str | None]]", *, set_is_iso: bool,
     if not graded:
         return Summary(INFO, checked, total, failed, cond, not_computed,
                        ungraded_reason or R["not_graded"])
+    if checked == 0:
+        # A verdict is a statement about measured values. With none of them
+        # measured there is no statement to make, and PASS would be a claim
+        # about a chart nobody checked. N-A is what the five words already use
+        # for "not computed", and the clause above it, "no limit-bearing row",
+        # is the same idea one step earlier.
+        return Summary(N_A, 0, total, 0, cond, not_computed, R["nothing_checked"])
     if failed:
         return Summary(FAIL, checked, total, failed, cond, not_computed, R["fail"])
     required_missing = sum(1 for lim, w in bearing

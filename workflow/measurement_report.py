@@ -1046,7 +1046,7 @@ REPORT_TYPE_MENU: "tuple[tuple[str, str, str, bool], ...]" = (
      "Everything ChromIQ measures, in full. This is the report you know.",
      True),
     (REPORT_TYPE_GREY, "Grey and tone check",
-     "The neutral axis and the mid-tone ramps, on their own.", False),
+     "The neutral axis and the mid-tone ramps, on their own.", True),
     (REPORT_TYPE_RECORD, "Printing record (not graded)",
      "A record of what was printed and measured, with nothing judged.", True),
     (REPORT_TYPE_ISO_8, "Validation print check (ISO 12647-8)",
@@ -1063,6 +1063,26 @@ REPORT_TYPE_MENU_HEADING = "Against a printing condition you supply"
 
 #: Above this id in `REPORT_TYPE_MENU`, the heading is drawn.
 REPORT_TYPE_MENU_SPLIT = REPORT_TYPE_ISO_8
+
+
+#: The rows T3, "Grey and tone check", is ABOUT. Everything else is dropped
+#: from that document rather than shown as not applicable: a report whose
+#: subject is the neutral axis does not gain by listing the colour rows it
+#: deliberately leaves out.
+#:
+#: Row ids, from `workflow.compliance_sets.ROWS`. The two grey-balance rows are
+#: the neutral axis; the 30-70 ramp row is the tone half of the same question,
+#: and Knut's module H pairs them.
+REPORT_TYPE_ROWS: "dict[str, tuple[str, ...]]" = {
+    REPORT_TYPE_GREY: ("grey_balance_neutral_ramp_avg",
+                       "grey_balance_neutral_ramp_max",
+                       "ramps_30_70_dl_max"),
+}
+
+
+def rows_for_report_type(type_id: str) -> "tuple[str, ...] | None":
+    """Which rows that type's results table is about, or None for all of them."""
+    return REPORT_TYPE_ROWS.get(type_id)
 
 
 def report_type_is_built(type_id: str) -> bool:
