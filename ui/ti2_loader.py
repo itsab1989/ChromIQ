@@ -788,7 +788,18 @@ def _bin_dir(settings) -> "Path | None":
     if settings is None:
         return None
     try:
-        d = Path(str(settings.get("argyll_bin_path", "")))
+        # THE SAME DEFAULT THE REST OF THE APP USES. Reading this key with an
+        # empty default would have drawn no pages on a machine whose setting is
+        # blank and whose Argyll sits where it always does, while every other
+        # tool in ChromIQ ran fine — a silent difference between this path and
+        # all the others.
+        # AND A BLANK VALUE IS NOT A VALUE. `get` falls back only when the key
+        # is ABSENT, so a stored empty string comes straight through, and
+        # `Path("")` is the CURRENT DIRECTORY, which `is_dir()` cheerfully
+        # accepts. That would have handed the layout tool a folder with no
+        # tools in it.
+        raw = str(settings.get("argyll_bin_path", "") or "").strip()
+        d = Path(raw or "/Applications/Argyll/bin")
     except Exception:      # noqa: BLE001 — never break an import on this
         return None
     return d if d.is_dir() else None

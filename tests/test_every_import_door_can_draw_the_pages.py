@@ -72,3 +72,49 @@ def test_both_branches_of_the_import_itself_draw():
 def test_the_helpers_are_importable_by_name(name):
     import workflow.chart_import as ci
     assert callable(getattr(ci, name))
+
+
+def test_the_binaries_are_read_the_way_the_rest_of_the_app_reads_them(qapp,
+                                                                      tmp_path):
+    """A blank setting must not make this one path behave differently from
+    every other tool in ChromIQ, all of which fall back to the same folder."""
+    from PyQt6.QtCore import QSettings
+
+    from core.settings import AppSettings
+    from ui.ti2_loader import _bin_dir
+    st = AppSettings()
+    st._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    st.set("argyll_bin_path", "")
+    default = Path("/Applications/Argyll/bin")
+    got = _bin_dir(st)
+    assert got == (default if default.is_dir() else None), got
+
+
+def test_a_path_that_is_not_there_answers_none(qapp, tmp_path):
+    from PyQt6.QtCore import QSettings
+
+    from core.settings import AppSettings
+    from ui.ti2_loader import _bin_dir
+    st = AppSettings()
+    st._qs = QSettings(str(tmp_path / "s2.ini"), QSettings.Format.IniFormat)
+    st.set("argyll_bin_path", str(tmp_path / "nowhere"))
+    assert _bin_dir(st) is None
+
+
+def test_no_settings_means_no_drawing(qapp):
+    from ui.ti2_loader import _bin_dir
+    assert _bin_dir(None) is None
+
+
+def test_a_blank_setting_is_not_the_current_directory(qapp, tmp_path):
+    """`Path("")` is `.`, and `.is_dir()` is True. A blank Argyll path would
+    otherwise have handed the layout tool a folder with no tools in it."""
+    from PyQt6.QtCore import QSettings
+
+    from core.settings import AppSettings
+    from ui.ti2_loader import _bin_dir
+    st = AppSettings()
+    st._qs = QSettings(str(tmp_path / "s3.ini"), QSettings.Format.IniFormat)
+    for blank in ("", "   "):
+        st.set("argyll_bin_path", blank)
+        assert _bin_dir(st) != Path("."), blank
