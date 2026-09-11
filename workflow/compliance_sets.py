@@ -700,6 +700,14 @@ SUMMARY_REASONS: "dict[str, str]" = {
                   "than to check one, and a profiling measurement is expected "
                   "to fall outside the accuracy limits. That is normal here, "
                   "and it is not a fault.",
+    # #182 D28, report type T4. The sentence above names a reason that is only
+    # true of a PROFILING sheet, and T4 is a deliberate choice about a
+    # verification measurement: telling such a reader the sheet "was measured
+    # to build a profile" would be false. Same word, INFO, different reason.
+    "record_type": "You chose the Printing record, which sets down what was "
+                   "printed and measured and judges none of it. The numbers "
+                   "are shown for information only. Choose Full colour check "
+                   "to have the same measurement graded.",
     "fail": "{failed} of {checked} values checked are over this limit set's limits.",
     "iso": "{checked} of {total} values checked, all within this limit set's "
            "values. This limit set holds a standard's published values applied "
@@ -727,8 +735,18 @@ class Summary:
     reason: str           # English source sentence; display through tr()
 
 
+#: Every reason that means "INFO, because nothing here was judged". The
+#: footnote under the results table is chosen by EXACT EQUALITY on the reason
+#: string, and a second ungraded reason arriving silently dropped that footnote
+#: once already, so the set is named here rather than spelled out at the two
+#: places that ask.
+def is_ungraded_reason(reason: str) -> bool:
+    return reason in (SUMMARY_REASONS["not_graded"],
+                      SUMMARY_REASONS["record_type"])
+
+
 def set_summary(rows: "list[tuple[Limit, str | None]]", *, set_is_iso: bool,
-                graded: bool) -> Summary:
+                graded: bool, ungraded_reason: str = "") -> Summary:
     """The column's one word, with the numbers a reader needs beside it.
 
     *rows* is ``[(limit, word)]`` for every row of the column, words from
@@ -754,7 +772,8 @@ def set_summary(rows: "list[tuple[Limit, str | None]]", *, set_is_iso: bool,
     not_computed = sum(1 for _l, w in bearing if w == N_A)
     checked = sum(1 for _l, w in bearing if w in (PASS, FAIL, COND))
     if not graded:
-        return Summary(INFO, checked, total, failed, cond, not_computed, R["not_graded"])
+        return Summary(INFO, checked, total, failed, cond, not_computed,
+                       ungraded_reason or R["not_graded"])
     if failed:
         return Summary(FAIL, checked, total, failed, cond, not_computed, R["fail"])
     required_missing = sum(1 for lim, w in bearing

@@ -1048,7 +1048,7 @@ REPORT_TYPE_MENU: "tuple[tuple[str, str, str, bool], ...]" = (
     (REPORT_TYPE_GREY, "Grey and tone check",
      "The neutral axis and the mid-tone ramps, on their own.", False),
     (REPORT_TYPE_RECORD, "Printing record (not graded)",
-     "A record of what was printed and measured, with nothing judged.", False),
+     "A record of what was printed and measured, with nothing judged.", True),
     (REPORT_TYPE_ISO_8, "Validation print check (ISO 12647-8)",
      "Your print against a printing condition you supply.", False),
     (REPORT_TYPE_ISO_7, "Contract proof check (ISO 12647-7)",

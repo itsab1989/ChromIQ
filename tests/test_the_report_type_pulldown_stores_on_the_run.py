@@ -287,15 +287,23 @@ def test_a_measurement_in_no_project_keeps_its_choice_for_the_session(
 # ---------------------------------------------------------------------------
 # …and today's report did not move
 # ---------------------------------------------------------------------------
-@pytest.mark.parametrize("tid", REPORT_TYPES)
-def test_no_type_changes_the_document_yet(tmp_path, qapp, tid):
-    """THE REGRESSION SURFACE. Only T2 is built, so every type must still
-    produce today's report, byte for byte.
+#: Types that produce a document of their own. Every OTHER type still renders
+#: today's report, byte for byte, and that is the regression surface: a user
+#: who has not chosen, or who has chosen a type nobody has built, must see
+#: exactly what they see now.
+#:
+#: THIS IS A RATCHET. The step that builds a type comes here and adds it; a
+#: step that builds one and leaves this untouched has either changed nothing or
+#: changed T2. It bit on the first try: adding T4 turned this red.
+_DIFFERS_FROM_T2 = {REPORT_TYPE_RECORD}
 
-    This test is a RATCHET, not a permanent truth: the step that builds T4
-    must come here and say that T4 now differs. A step that builds a type and
-    leaves this untouched has either changed nothing or changed T2.
-    """
+
+@pytest.mark.parametrize("tid", REPORT_TYPES)
+def test_an_unbuilt_type_still_renders_todays_report(tmp_path, qapp, tid):
+    """THE REGRESSION SURFACE, and the ratchet above says which types are out
+    of it."""
+    if tid in _DIFFERS_FROM_T2:
+        pytest.skip(f"{tid} has a document of its own now")
     from workflow.run_compliance import set_run_report_type
     dlg, run = _dialog(tmp_path, qapp)
     try:

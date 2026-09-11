@@ -2043,6 +2043,25 @@ class MeasurementReportDialog(QDialog):
         reports = self._runs_for_report()
         return report_type(reports[0]) if reports else REPORT_TYPE_DEFAULT
 
+    def _ungraded_by_type(self) -> bool:
+        """Whether the CHOSEN TYPE says nothing here is judged.
+
+        T4, "Printing record (not graded)", is a document about what was
+        printed and measured. Its numbers are the measured ones, untouched;
+        what it withholds is the judgement. Knut's 12b already allows INFO for
+        a sheet that was not measured to check a profile, on condition the
+        report explains it, and this is the same word with a different reason:
+        the 12b sentence says the sheet "was measured to build a profile", and
+        on a verification measurement a user deliberately chose to record, that
+        would be false.
+
+        NOTHING IS WRITTEN. A saved report keeps its recorded verdicts; this
+        only decides what is drawn from them, so switching back to Full colour
+        check brings the same words back.
+        """
+        from workflow.measurement_report import REPORT_TYPE_RECORD
+        return self._report_type_now() == REPORT_TYPE_RECORD
+
     def _sync_type_combo(self, run, several: bool) -> None:
         """Fill the type pulldown and put the line under it.
 
@@ -2337,9 +2356,25 @@ class MeasurementReportDialog(QDialog):
                         row["word"] = FAIL
                     else:
                         row["word"] = INFO if rec.get("graded") is False else N_A
-            return rows, True
+            return self._ungrade(rows), True
         from workflow.measurement_report import judge
-        return judge(r, self._limits_for(r).limits), False
+        return self._ungrade(judge(r, self._limits_for(r).limits)), False
+
+    def _ungrade(self, rows: list) -> list:
+        """Every row's WORD becomes INFO when the chosen type judges nothing.
+
+        The numbers are not touched, and neither is anything on disk: a row
+        that reads FAIL in Full colour check reads INFO here and FAIL again the
+        moment the type goes back. A row that was never computed keeps N-A,
+        because "we could not measure this" is not a judgement being withheld.
+        """
+        if not self._ungraded_by_type():
+            return rows
+        from workflow.compliance_sets import INFO, N_A
+        for row in rows:
+            if row.get("word") != N_A:
+                row["word"] = INFO
+        return rows
 
     def _column_summary(self, r: dict):
         """The one word for a run's column, with its numbers."""
@@ -2348,7 +2383,29 @@ class MeasurementReportDialog(QDialog):
         from workflow.measurement_report import (is_graded_sheet,
                                                  recorded_compliance)
         rec = self._recorded(r)
-        if rec is not None and isinstance(rec.get("summary"), dict) and rec.get("overall"):
+        # T4 ANSWERS FIRST, AND ANSWERS THE WHOLE QUESTION. Two things go
+        # wrong if it only edits the paths below.
+        #
+        # The saved word: a report saved with a PASS carries it into the early
+        # return just below, so a document whose whole point is that nothing is
+        # judged would have printed a green PASS at the top of its own column.
+        # Nothing is rewritten here; the saved word is still on disk and comes
+        # back the moment the type does.
+        #
+        # And the LIMITS: the recomputing path reads them out of the saved
+        # report, and a report saved before those were recorded has none, so it
+        # answered N-A, "this limit set defines no limits". True, and beside
+        # the point: a report that judges nothing needs no limits to say so,
+        # and that sentence would be the only explanation a reader got.
+        if self._ungraded_by_type():
+            from workflow.compliance_sets import (INFO, N_A as _NA,
+                                                  SUMMARY_REASONS, Summary)
+            _rows, _rc = self._verdict_rows(r)
+            return Summary(INFO, 0, len(_rows), 0, 0,
+                           sum(1 for x in _rows if x.get("word") == _NA),
+                           SUMMARY_REASONS["record_type"])
+        if rec is not None \
+                and isinstance(rec.get("summary"), dict) and rec.get("overall"):
             sm = rec["summary"]
             # THE SAVED WORD IS KEPT, AND IT MAY NOT STAND ALONE. This early
             # return never reached the caveat rule twenty lines below, so a
@@ -4273,10 +4330,16 @@ class MeasurementReportDialog(QDialog):
         if _standard_cols:
             notes += (f"<div style='{note_css}'>"
                       + html.escape(tr(STANDARD_CAVEAT)) + "</div>")
+        # EITHER ungraded reason, not the one that existed first. This
+        # selection is by EXACT EQUALITY on the sentence, and the comment in
+        # `_column_summary` records that a longer string silently dropped
+        # Knut's 12b explanation once already. A second reason is exactly that
+        # fault again, so the question is asked of the module that owns both.
+        from workflow.compliance_sets import is_ungraded_reason
         _ungraded = next(
             (self._column_summary(r) for r in runs
              if not _is_raw_drift(r)
-             and self._column_summary(r).reason == SUMMARY_REASONS["not_graded"]),
+             and is_ungraded_reason(self._column_summary(r).reason)),
             None)
         if _ungraded is not None:
             notes += (f"<div style='{note_css}'>"
