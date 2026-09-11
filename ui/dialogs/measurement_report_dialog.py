@@ -2342,6 +2342,7 @@ class MeasurementReportDialog(QDialog):
         # screen: the user said yes, a locked run was rebound and a saved
         # verdict went from FAIL to PASS, under one box identical to the
         # control. The same re-lock one moment earlier fired a full guard.
+        _prefs_at_question = self._prefs_state_now()
         if self._recalculating_would_rewrite_history(ctx.run):
             if not self._confirm_about_run(
                     ctx.run, partial(self._confirm_recalculate, ctx.run)):
@@ -2370,6 +2371,20 @@ class MeasurementReportDialog(QDialog):
         # something that moves, and a challenge round drove the same fault back
         # in through this door. The run is remembered in the session instead,
         # exactly as the other route does it.
+        # THE OVERRIDES THIS ANSWER WAS GIVEN FOR, not the ones on disk now.
+        # `bind_run` reads them live, AFTER the question, so another window
+        # overriding the chosen set while the question was on screen was baked
+        # onto the run and every saved report recalculated against numbers
+        # nobody in this window ever saw: a challenge round watched six
+        # verdicts go from PASS to FAIL that way, under one box mentioning none
+        # of it. The identical write through the "Edit limits…" door has been
+        # guarded since an earlier round; this one had nothing.
+        if self._prefs_state_now() != _prefs_at_question:
+            self._sync_set_combo_to(lim.set_id)
+            self._say_preferences_changed_meanwhile(reverted=False)
+            self._forget_limits()
+            self._refresh()
+            return
         from workflow.run_compliance import bind_run, is_bound
         _was_bound = is_bound(ctx.run)
         try:
@@ -2521,6 +2536,8 @@ class MeasurementReportDialog(QDialog):
             # locks their run onto ANOTHER window's looser set, having just
             # been told they could not change it afterwards.
             _would_lock = self._relocking_would_take_the_controls(ctx.run)
+            _allow_asked = bool(self._settings.get(
+                "compliance_allow_edit_after_measurement", False))
             if _would_lock and not self._confirm_about_run(
                     ctx.run, partial(self._confirm_relock, ctx.run)):
                 if self._last_refusal != "moved":
@@ -2529,6 +2546,26 @@ class MeasurementReportDialog(QDialog):
                         self._unlock_check.setChecked(True)
                     finally:
                         self._syncing_limits = False
+                return
+            # AND THE SETTING THE QUESTION DESCRIBED, WHICH IS NOT THE SAME
+            # VALUE. `_relocking_would_take_the_controls` asks whether the run
+            # has a history; what decides the WORDING is
+            # `compliance_allow_edit_after_measurement`, read inside
+            # `_confirm_relock` while it builds the text. That is the right
+            # moment to build it and the wrong moment to stop looking: the one
+            # sentence in the app naming the setting that gets the controls
+            # back is printed only when it is off, and it can go on or off
+            # while the user reads. A challenge round flipped it both ways.
+            if bool(self._settings.get(
+                    "compliance_allow_edit_after_measurement", False)) != _allow_asked:
+                self._syncing_limits = True
+                try:
+                    self._unlock_check.setChecked(True)
+                finally:
+                    self._syncing_limits = False
+                self._say_run_moved_while_asking(ctx.run)
+                self._forget_limits()
+                self._refresh()
                 return
             try:
                 set_run_unlocked(ctx.run, False)
@@ -2645,6 +2682,12 @@ class MeasurementReportDialog(QDialog):
                 json.dumps(m.compliance_thresholds or {}, sort_keys=True),
                 str(getattr(m, "compliance_bound_at", "") or ""),
                 bool(getattr(m, "compliance_unlocked", False)),
+                # THE ONE KEY `_undo_the_edit` WRITES, and it was missing from
+                # the state described as everything this window's decisions
+                # depend on. A limits window can change which columns a run's
+                # report shows, the undo puts that back, and the guard could
+                # not see it move.
+                list(getattr(m, "compliance_columns", []) or []),
                 n)
 
     def _confirm_about_run(self, run, ask) -> bool:
@@ -3183,7 +3226,17 @@ class MeasurementReportDialog(QDialog):
         _prefs_moved = ((_now["default_set"] != snap["default_set"]
                          or _now["overrides"] != snap["overrides"])
                         and _now["judged_by"] != snap["judged_by"])
-        moved = ctx is not None and (_run_numbers_moved or _prefs_moved)
+        # THE THIRD THING THIS WINDOW WRITES TO A RUN, and it was in neither
+        # term. The column tick box writes `compliance_columns` the moment it
+        # is clicked, the undo puts that key back, and the lock branch's
+        # trigger could not see it: a run re-locked while the window was open
+        # kept that write with no message, and was refused only if the user had
+        # ALSO typed a number.
+        _run_columns_moved = bool(
+            snap["run"] is not None and _now["run"] is not None
+            and list(_now["run"][5] or []) != list(snap["run"][5] or []))
+        moved = ctx is not None and (_run_numbers_moved or _run_columns_moved
+                                     or _prefs_moved)
 
         # THE LOCK WAS READ WHEN THE WINDOW OPENED AND ENFORCED NOWHERE ELSE.
         # `run_editable` is decided before the dialog is built and the dialog
@@ -3252,6 +3305,14 @@ class MeasurementReportDialog(QDialog):
                     and not self._confirm_recalculate(ctx.run)):
                 if self._prefs_state_now() != _prefs_before_asking:
                     prefs_collided = True
+                # AND THE RUN'S OWN STATE, WHICH THIS BRANCH READ AND NEVER
+                # COMPARED. The app-wide comparison was added four lines above
+                # and the run's was left behind, so another window's write to
+                # the run DURING the question was wiped by the undo with no box
+                # at all, while the same write one moment earlier produced the
+                # correct two.
+                if self._run_state_now(ctx.run) != _state_before_asking:
+                    collided = True
                 self._pending_rebound = collided
                 self._pending_restore_outcome = "none"
                 if not self._restore_limits_snapshot(ctx, snap):

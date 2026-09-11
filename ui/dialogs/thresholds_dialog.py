@@ -676,9 +676,27 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         return self._run is not None and not self._run_editable
 
     def _restore_default_radio(self) -> None:
-        """Put the radio back on the set that is really the default."""
+        """Put the radio back on the set that is really the default.
+
+        AND WHEN THERE IS NO SUCH RADIO, PUT THEM ALL BACK. The stored default
+        can name a set this window does not offer: emptying a column's last
+        limit-bearing row takes it out of `selectable_set_ids` (CH-11, an empty
+        column is never a choice) while the stored id still names it. With no
+        radio to restore, this returned and left the one the user had just
+        clicked checked, in a window that writes nothing, so the click stuck
+        and the window showed a default it had not set.
+        """
         rb = self._default_radios.get(self._default_set)
         if rb is None:
+            _was = self._syncing
+            self._syncing = True
+            try:
+                for _r in self._default_radios.values():
+                    _r.setAutoExclusive(False)
+                    _r.setChecked(False)
+                    _r.setAutoExclusive(True)
+            finally:
+                self._syncing = _was
             return
         _was = self._syncing
         self._syncing = True

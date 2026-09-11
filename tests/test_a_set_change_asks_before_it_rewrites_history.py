@@ -3522,3 +3522,264 @@ def test_the_relock_direction_also_checks_the_run_after_its_question(
         assert told, "the user was told nothing"
     finally:
         dlg.deleteLater()
+
+
+def test_the_pulldown_binds_with_the_numbers_the_answer_was_given_for(
+        qapp, tmp_path, monkeypatch):
+    """R19-1: `bind_run` READS THE APP-WIDE OVERRIDES LIVE, AFTER THE ANSWER.
+
+    So another window overriding the chosen set while the question was on
+    screen was baked onto the run, and every saved report recalculated against
+    numbers nobody in this window ever saw. A challenge round picked the
+    loosest set, had another window override it to 0.20 during the question,
+    and watched six verdicts go from PASS to FAIL under one box that mentioned
+    none of it. The identical write through the "Edit limits…" door has been
+    guarded since an earlier round; this one had nothing.
+
+    MUTATION: drop the comparison before `bind_run` and this goes red.
+    """
+    from core.settings import store_compliance_overrides
+    from workflow.run_compliance import bind_run, run_limits, set_run_unlocked
+
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    bind_run(run, "chromiq_default", {})
+    set_run_unlocked(run, True)          # …or the pulldown is not usable at all
+    s = _settings(tmp_path)
+    dlg = _dialog(s, ti3)
+    try:
+        told: list = []
+        import ui.warning_sign as ws
+        monkeypatch.setattr(ws, "warn", lambda parent, t, x: told.append(x))
+        recalculated: list = []
+        monkeypatch.setattr(type(dlg), "_recalculate_run",
+                            lambda self: recalculated.append(1))
+        before = run_limits(run, {}).set_id
+        other = next(dlg._set_combo.itemData(i)
+                     for i in range(dlg._set_combo.count())
+                     if dlg._set_combo.itemData(i)
+                     and dlg._set_combo.itemData(i) != before)
+
+        def _asked(self, r):
+            # another window tightens the set the user has just chosen, WHILE
+            # the question about it is on screen
+            store_compliance_overrides(s, {other: {"all_de00_avg": 0.20}})
+            return True
+
+        monkeypatch.setattr(type(dlg), "_confirm_recalculate", _asked)
+        dlg._on_set_chosen(dlg._set_combo.findData(other))
+
+        assert not recalculated, (
+            "every saved report was recalculated against an override written "
+            "while the question was on screen")
+        assert told and "Preferences" in "\n".join(told), told
+    finally:
+        dlg.deleteLater()
+
+
+def test_the_refusal_path_sees_a_write_to_the_run_during_its_question(
+        qapp, tmp_path, monkeypatch):
+    """R19-3: THE BRANCH READ THE RUN'S STATE AND NEVER COMPARED IT.
+
+    The app-wide comparison was added to this branch and the run's own was left
+    behind, four lines apart. So another window's write to the run DURING the
+    question was wiped by the undo with no box at all, while the same write one
+    moment earlier produced the correct two.
+
+    MUTATION: drop the comparison from the refusal branch and this goes red.
+    """
+    from workflow.compliance_sets import Limit
+    from workflow.run_compliance import (bind_run, run_limits, set_run_limits,
+                                         set_run_unlocked)
+
+    from ui.dialogs.thresholds_dialog import ThresholdsDialog
+    THEIRS = 0.11
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    bind_run(run, "chromiq_default", {})
+    set_run_unlocked(run, True)
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        told: list = []
+        import ui.warning_sign as ws
+        monkeypatch.setattr(ws, "warn", lambda parent, t, x: told.append(x))
+        monkeypatch.setattr(type(dlg), "_confirm", lambda self, t, x: True)
+
+        def _asked(self, r):
+            other = dict(run_limits(run, {}).limits)
+            other["all_de00_avg"] = Limit.value(THEIRS)
+            set_run_limits(run, other)
+            return False                      # the user refuses
+
+        monkeypatch.setattr(type(dlg), "_confirm_recalculate", _asked)
+
+        class _First(ThresholdsDialog):
+            def exec(self):
+                self._run_limits["all_de00_avg"] = Limit.value(0.93)
+                self._run_dirty = True
+                from PyQt6.QtWidgets import QDialog as _Q
+                self.done(_Q.DialogCode.Accepted)
+                return 0
+
+        import ui.dialogs.thresholds_dialog as td
+        monkeypatch.setattr(td, "ThresholdsDialog", _First)
+        dlg._on_open_limits()
+
+        assert told and "another window" in "\n".join(told), (
+            "another window's write during the question was wiped by the undo "
+            f"and nobody was told: {told}")
+    finally:
+        dlg.deleteLater()
+
+
+def test_a_column_write_on_a_run_relocked_meanwhile_is_not_kept_in_silence(
+        qapp, tmp_path, monkeypatch):
+    """R19-4 and the other half of R19-3: THE COLUMN CHOICE IS A WRITE TOO.
+
+    The tick box writes `compliance_columns` the moment it is clicked, and the
+    undo puts that key back. It was in neither term of the lock branch's
+    trigger and not in the state the guard compares, so a run re-locked while
+    the window was open kept that write with no message, and was refused only
+    if the user had ALSO typed a number.
+
+    MUTATION: drop `_run_columns_moved` from the trigger, or drop the columns
+    key from the run's state, and this goes red.
+    """
+    from workflow.run_compliance import (bind_run, is_locked, set_run_unlocked)
+
+    from ui.dialogs.thresholds_dialog import ThresholdsDialog
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    bind_run(run, "chromiq_default", {})
+    set_run_unlocked(run, True)
+    before = list(run.load_meta().compliance_columns or [])
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        told: list = []
+        import ui.warning_sign as ws
+        monkeypatch.setattr(ws, "warn", lambda parent, t, x: told.append(x))
+        monkeypatch.setattr(type(dlg), "_confirm", lambda self, t, x: True)
+        monkeypatch.setattr(type(dlg), "_confirm_recalculate",
+                            lambda self, run: True)
+
+        class _ColumnsOnly(ThresholdsDialog):
+            def exec(self):
+                # the user touches ONLY the column tick, never a number
+                self._column_checks["chromiq_quick"].setChecked(False)
+                from PyQt6.QtWidgets import QDialog as _Q
+                self.done(_Q.DialogCode.Accepted)
+                set_run_unlocked(run, False)          # …and it is locked again
+                return 0
+
+        import ui.dialogs.thresholds_dialog as td
+        monkeypatch.setattr(td, "ThresholdsDialog", _ColumnsOnly)
+        dlg._on_open_limits()
+
+        assert is_locked(run), "the premise failed"
+        after = list(run.load_meta().compliance_columns or [])
+        assert after == before, (
+            f"a locked run kept a column write made while it was open: "
+            f"{before} -> {after}")
+        assert told, "the user was told nothing"
+    finally:
+        dlg.deleteLater()
+
+
+def test_another_windows_column_write_during_the_question_is_seen(
+        qapp, tmp_path, monkeypatch):
+    """THE COLUMNS KEY IN THE RUN'S STATE, proved separately.
+
+    `_run_state_now` is documented as everything this window's decisions about
+    the run depend on, and `compliance_columns` was missing from it even though
+    it is the one key the undo writes. So another window changing ONLY the
+    columns during the question was invisible to the guard.
+
+    Proved necessary by mutation: removing that field from the state broke no
+    test until this one existed.
+
+    MUTATION: drop the columns key from `_run_state_now` and this goes red.
+    """
+    from workflow.compliance_sets import Limit
+    from workflow.run_compliance import (bind_run, set_run_columns,
+                                         set_run_unlocked)
+
+    from ui.dialogs.thresholds_dialog import ThresholdsDialog
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    bind_run(run, "chromiq_default", {})
+    set_run_unlocked(run, True)
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        told: list = []
+        import ui.warning_sign as ws
+        monkeypatch.setattr(ws, "warn", lambda parent, t, x: told.append(x))
+        monkeypatch.setattr(type(dlg), "_confirm", lambda self, t, x: True)
+
+        def _asked(self, r):
+            # another window changes ONLY which columns this run's report shows
+            set_run_columns(run, ["chromiq_default", "chromiq_strict"])
+            return False                      # the user refuses
+
+        monkeypatch.setattr(type(dlg), "_confirm_recalculate", _asked)
+
+        class _First(ThresholdsDialog):
+            def exec(self):
+                self._run_limits["all_de00_avg"] = Limit.value(0.37)
+                self._run_dirty = True
+                from PyQt6.QtWidgets import QDialog as _Q
+                self.done(_Q.DialogCode.Accepted)
+                return 0
+
+        import ui.dialogs.thresholds_dialog as td
+        monkeypatch.setattr(td, "ThresholdsDialog", _First)
+        dlg._on_open_limits()
+
+        assert told and "another window" in "\n".join(told), (
+            "another window's column choice was reverted by the undo and "
+            f"nobody was told: {told}")
+    finally:
+        dlg.deleteLater()
+
+
+def test_the_relock_question_checks_what_it_promised_after_the_answer(
+        qapp, tmp_path, monkeypatch):
+    """R19-2: THE ANSWER DECIDES WHAT THE USER WAS TOLD, AND IT WAS READ
+    BEFORE THE QUESTION.
+
+    `_relocking_would_take_the_controls` prints the one sentence in the app
+    naming the Preferences setting that gets the controls back. It was read
+    once, before the question. A challenge round flipped that setting during
+    the question both ways: turned on, the sentence was printed and was not
+    true; turned off, the run was locked, the unlock box went dead, and the
+    user was never told it would.
+
+    MUTATION: drop the second reading and this goes red.
+    """
+    from workflow.run_compliance import bind_run, is_locked, set_run_unlocked
+
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    bind_run(run, "chromiq_default", {})
+    set_run_unlocked(run, True)
+    s = _settings(tmp_path)
+    # OFF, so re-locking really would take the controls away and the question
+    # carries the sentence naming the setting that gets them back. With it ON
+    # no question is asked at all, and none is warranted: the user can untick
+    # again whenever they like.
+    s.set("compliance_allow_edit_after_measurement", False)
+    dlg = _dialog(s, ti3)
+    try:
+        told: list = []
+        import ui.warning_sign as ws
+        monkeypatch.setattr(ws, "warn", lambda parent, t, x: told.append(x))
+
+        def _asked(self, r):
+            # …and it is switched ON while that question is on screen, so the
+            # sentence the user is reading stops being true as they read it
+            s.set("compliance_allow_edit_after_measurement", True)
+            return True
+
+        monkeypatch.setattr(type(dlg), "_confirm_relock", _asked)
+        dlg._on_unlock_toggled(False)
+
+        assert not is_locked(run), (
+            "the run was locked under a question that had stopped being true "
+            "while the user was reading it")
+        assert told, "the user was told nothing"
+    finally:
+        dlg.deleteLater()
