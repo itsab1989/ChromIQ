@@ -24,6 +24,14 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
+#: Settings key for the default "Text distance from edge -> Clip" in mm. There
+#: is no control that writes it yet, and that is exactly why the name lives in
+#: one place: :meth:`ChartCreator.default_text_edge_clip_mm` is what the paths
+#: with no recipe of their own read, so a preference becomes theirs by being
+#: stored under this key rather than by anybody remembering three call sites.
+TEXT_EDGE_CLIP_SETTING_KEY = "text_edge_clip_mm"
+
+
 # ---------------------------------------------------------------------------
 # Structured error / warning patterns for targen and printtarg.
 # Line refs target Argyll 3.5.0 target/targen.c and target/printtarg.c.
@@ -664,6 +672,38 @@ class ChartCreator:
         #: pattern matched it — so a build can never fail without a word.
         self._raw_errors: list[tuple[str, str]] = []
         self._matched_warnings: list[tuple[str, str, str]] = []
+
+    def default_text_edge_clip_mm(self) -> float:
+        """The default "Text distance from edge -> Clip", in millimetres.
+
+        THE ONE PLACE A PATH WITHOUT A CONTROL OF ITS OWN ASKS. Guided mode and
+        a printtarg chart carry no :class:`LayoutRecipe`, so they take the
+        DEFAULT of the setting rather than a number typed into the code. Knut,
+        2026-09-10: *"the text needs to stay within the default 'Text distance
+        from edge' settings in preferences chart layout ... Not a hardwired
+        margin."*
+
+        Both paths used to read ``LayoutRecipe().text_edge_clip_mm`` directly,
+        which is the dataclass default and nothing else. That is right only for
+        as long as nobody can change it: the moment a preference exists, a
+        direct read of the dataclass ignores it in silence and the sheets go
+        back to disagreeing with the box. Asking here instead means a stored
+        preference reaches every such path, and the fallback is still the
+        dataclass default, so nothing moves until one is stored.
+        """
+        from workflow.layout_engine.presets import LayoutRecipe
+        fallback = float(LayoutRecipe().text_edge_clip_mm or 0.0)
+        try:
+            stored = self._settings.get(TEXT_EDGE_CLIP_SETTING_KEY, None)
+        except Exception:            # a settings store that cannot be read is
+            return fallback          # not a reason to misplace the note
+        if stored is None or stored == "":
+            return fallback
+        try:
+            value = float(stored)
+        except (TypeError, ValueError):
+            return fallback
+        return value if value >= 0.0 else fallback
 
     # ------------------------------------------------------------------
     # Public API
@@ -1730,11 +1770,12 @@ class ChartCreator:
                 # 0.0 here so that the stamper fell back to its own 4 px floor,
                 # which is a number typed into the stamper and 0.5 mm at 200
                 # dpi. A path with no control of its own takes the DEFAULT OF
-                # THE SETTING, read from `LayoutRecipe`, which is what Guided
-                # below already does. One number, in one place, and it is the
-                # one the box shows a user who has one.
-                from workflow.layout_engine.presets import LayoutRecipe
-                _edge = float(LayoutRecipe().text_edge_clip_mm or 0.0)
+                # THE SETTING, which is what Guided below already does. One
+                # number, in one place, and it is the one the box shows a user
+                # who has one. `default_text_edge_clip_mm` IS that one place:
+                # constructing a recipe here to read its default would be right
+                # only until a preference existed, and would then ignore it.
+                _edge = self.default_text_edge_clip_mm()
                 _rec = getattr(params, "layout_recipe", None)
                 if _rec is not None:
                     try:
@@ -1745,7 +1786,7 @@ class ChartCreator:
                         _edge = float(getattr(_rec, "text_edge_clip_mm", 0.0)
                                       or 0.0)
                     except (TypeError, ValueError):
-                        _edge = float(LayoutRecipe().text_edge_clip_mm or 0.0)
+                        _edge = self.default_text_edge_clip_mm()
                 elif self._should_use_engine(params):
                     # GUIDED CARRIES NO RECIPE, AND THAT IS WHY THE FIX MISSED
                     # THE MODE IT WAS REPORTED IN. `_collect_manual` attaches
@@ -1762,7 +1803,15 @@ class ChartCreator:
                     # settings ... for all sides, for Guided mode. Not a
                     # hardwired margin." A printtarg chart now reads the same
                     # default for the same reason, at the top of this block.
-                    _edge = float(LayoutRecipe().text_edge_clip_mm or 0.0)
+                    #
+                    # IT IS READ THROUGH `default_text_edge_clip_mm`, NOT OFF
+                    # THE DATACLASS. A dataclass default is right by accident:
+                    # it happens to equal the preference because there is no
+                    # preference. The accessor is where one plugs in, so Guided
+                    # follows it the day it exists instead of quietly ignoring
+                    # it, which is the fault this line was reported for once
+                    # already.
+                    _edge = self.default_text_edge_clip_mm()
                 # THE USER'S OWN CLIP BAND IS NOT A PLACE FOR THE NOTE. Only
                 # when it is on the RIGHT, which is the side the note uses.
                 _band = 0.0

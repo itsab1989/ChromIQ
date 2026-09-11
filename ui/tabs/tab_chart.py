@@ -8352,19 +8352,6 @@ class TabChart(QWidget):
             self._is_deletable_preset(self._preset_combo.currentIndex())
         )
 
-    @staticmethod
-    def _builtin_default_name(key: str) -> str:
-        """Default target name suggested in the prompt for a built-in preset."""
-        if key == TC918_PRESET_KEY:
-            return TC918_TARGET_NAME
-        if key in KNUT_PRESET_KEYS:
-            return KNUT_PRESETS_BY_KEY[key].default_target_name
-        if key in MUNKI_TARGEN:
-            return f"ColorMunki-{MUNKI_TARGEN[key][0]}"
-        if key in PREBUILT_PRESETS:
-            return PREBUILT_PRESETS[key][1]
-        return "chart"
-
     def _builtin_tooltip(self, key: str) -> str:
         """Combo/overlay tooltip for any built-in preset (per its kind)."""
         if key in KNUT_PRESET_KEYS:

@@ -19,16 +19,28 @@ what he asked for:
 A printtarg chart still passes zero, deliberately: nothing in that path ever had
 the setting, and changing it would move text on charts that print correctly
 today.
+
+**AND "THE DEFAULT OF THE SETTING" MUST NOT MEAN "THE DATACLASS DEFAULT".** Both
+of those paths read `LayoutRecipe().text_edge_clip_mm` straight off the
+dataclass, which gave the right number for one reason only: there is no
+preference for it to disagree with. A challenge round called that right by
+accident, and it is, because the day a preference exists these two paths ignore
+it in silence and the note goes back to disagreeing with the box the user just
+typed into. They now ask `ChartCreator.default_text_edge_clip_mm`, which reads
+the stored preference and falls back to the dataclass, so nothing moves today
+and the preference reaches them the moment one is stored.
 """
 from __future__ import annotations
 
+import inspect
 from pathlib import Path
 
 import numpy as np
 import tifffile
 
 from workflow import tiff_metadata as tm
-from workflow.chart_creator import ChartParams
+from workflow.chart_creator import (TEXT_EDGE_CLIP_SETTING_KEY, ChartCreator,
+                                    ChartParams)
 from workflow.layout_engine.presets import LayoutRecipe
 
 from tests.test_chart_creator import _make_creator
@@ -113,3 +125,87 @@ def test_a_printtarg_chart_takes_the_settings_default(tmp_path, monkeypatch):
         f"a printtarg chart passed {got}, not the setting's default {want}; "
         "passing 0.0 hands the stamper back to its 4 px constant")
     assert want > 0.0, "the default is zero, so this test proves nothing"
+
+
+# ---------------------------------------------------------------------------
+# The default is READ, not assumed. See the module docstring.
+# ---------------------------------------------------------------------------
+
+class _StoredSettings:
+    """A settings store that HAS the preference, which today nothing writes."""
+
+    def __init__(self, value):
+        self.value = value
+
+    def get(self, key, default=None):
+        if key == TEXT_EDGE_CLIP_SETTING_KEY:
+            return self.value
+        return default
+
+
+def test_the_stored_preference_reaches_guided(tmp_path, monkeypatch):
+    """The whole point. Guided has no control of its own, so if a preference
+    exists it is the only thing that can move Guided's note, and a direct read
+    of the dataclass could never see it."""
+    creator, run, tiff = _sheet(tmp_path)
+    creator._settings = _StoredSettings(9.25)
+    got = _edge_passed(
+        creator, tiff,
+        ChartParams(target_name=run.stem, device_type="2", is_manual=False,
+                    instrument="CR30", stamp_commands=True),
+        monkeypatch)
+    assert got == 9.25, (
+        f"Guided stamped at {got} mm while the stored preference said 9.25; "
+        "it is reading the dataclass default and ignoring the setting")
+    assert got != LayoutRecipe().text_edge_clip_mm, (
+        "the stored value equals the dataclass default, so this test cannot "
+        "tell the two apart")
+
+
+def test_the_stored_preference_reaches_a_printtarg_chart(tmp_path, monkeypatch):
+    creator, run, tiff = _sheet(tmp_path)
+    creator._settings = _StoredSettings(9.25)
+    got = _edge_passed(
+        creator, tiff,
+        ChartParams(target_name=run.stem, device_type="2", is_manual=True,
+                    instrument="i1", stamp_commands=True),
+        monkeypatch)
+    assert got == 9.25, got
+
+
+def test_a_users_own_number_still_beats_the_preference(tmp_path, monkeypatch):
+    """Manual has a control, so the box wins. A preference is a DEFAULT, and a
+    default that overrode what the user typed would be a worse fault than the
+    one being fixed."""
+    creator, run, tiff = _sheet(tmp_path)
+    creator._settings = _StoredSettings(9.25)
+    got = _edge_passed(
+        creator, tiff,
+        ChartParams(target_name=run.stem, device_type="2", is_manual=True,
+                    instrument="CR30", stamp_commands=True,
+                    layout_recipe=LayoutRecipe(text_edge_clip_mm=7.5)),
+        monkeypatch)
+    assert got == 7.5, got
+
+
+def test_an_unreadable_preference_falls_back_and_does_not_raise(tmp_path):
+    """Rubbish in the store must not move the note and must not stop a build."""
+    creator, _run, _tiff = _sheet(tmp_path)
+    want = float(LayoutRecipe().text_edge_clip_mm)
+    for junk in ("", None, "four", [], -3.0):
+        creator._settings = _StoredSettings(junk)
+        assert creator.default_text_edge_clip_mm() == want, junk
+
+
+def test_no_path_reads_the_dataclass_default_behind_the_accessor():
+    """The accessor is worth nothing if a call site still goes round it.
+
+    `_stamp_tiff_metadata` is the method that decides the distance, and the
+    round-3 note is precisely that it constructed a `LayoutRecipe` there.
+    """
+    src = inspect.getsource(ChartCreator._stamp_tiff_metadata)
+    assert "LayoutRecipe()" not in src, (
+        "_stamp_tiff_metadata builds a LayoutRecipe to read its default again; "
+        "that is the read that ignores a preference. Call "
+        "self.default_text_edge_clip_mm() instead.")
+    assert "default_text_edge_clip_mm" in src
