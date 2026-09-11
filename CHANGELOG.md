@@ -130,6 +130,11 @@ arrived with the reference data.
   was, and a chart that arrived with its pages is left alone. Knut chose this
   reading over laying the chart out again.
 
+  Driving that on screen found a second half of the same fault: a chart of a
+  single page was invisible to the window that shows it, because one page is
+  named without a page number and the loader looked only for numbered ones. The
+  run held its page and the preview stayed empty.
+
 - **A chart in the project you have open could be announced as another
   project's,** with an offer to open the project already open. It happens when
   the ChromIQ folder is reached through a shortcut, which a hand-typed output

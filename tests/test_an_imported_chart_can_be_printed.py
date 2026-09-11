@@ -188,3 +188,35 @@ def test_a_verification_chart_gets_its_pages_too(a_real_chart, tmp_path, qapp):
                                 _Target(verification=True), bin_dir=_BIN)
     assert "verifications" in str(out)
     assert chart_page_tiffs(out), "the verification chart cannot be printed"
+
+
+def test_the_loader_hands_the_windows_a_single_page_chart(a_real_chart, tmp_path,
+                                                          qapp):
+    """FOUND ON SCREEN, and by nothing else in this file.
+
+    The run held its page and the Create Chart preview was still empty, because
+    `_dest_tiffs` matched `<stem>_*.tif` only. A single-page chart is
+    `<stem>.tif` — printtarg's own convention, and the trap `Run.chart_tiffs`
+    already carries a warning about. It stayed hidden because the import renames
+    every page it COPIES to `<stem>_01.tif`, so a one-page chart reaches that
+    function under its real name only when the pages were drawn rather than
+    copied.
+    """
+    from ui.ti2_loader import _dest_tiffs
+    ti2 = _lone_ti2(a_real_chart, tmp_path / "single")
+    rebuild_missing_pages(ti2, _BIN)
+    page = ti2.with_suffix(".tif")
+    assert page.is_file(), "the fixture really is a one-page chart"
+    assert _dest_tiffs(ti2) == [page]
+
+
+def test_and_still_hands_over_a_multi_page_one(tmp_path, qapp):
+    from ui.ti2_loader import _dest_tiffs
+    ti2 = tmp_path / "Many.ti2"
+    ti2.write_text("CTI1\n", encoding="utf-8")
+    pages = []
+    for i in (1, 2, 3):
+        p = tmp_path / f"Many_{i:02d}.tif"
+        p.write_bytes(b"\0" * 32)
+        pages.append(p)
+    assert _dest_tiffs(ti2) == pages

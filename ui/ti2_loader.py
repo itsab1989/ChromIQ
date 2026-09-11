@@ -738,8 +738,20 @@ def _next_run_id(project) -> str:
 
 
 def _dest_tiffs(ti2_in_project: Path) -> "list[Path]":
+    """The imported chart's page bitmaps, for the windows that show them.
+
+    `<stem>_*.tif` MISSES A SINGLE-PAGE CHART, which is `<stem>.tif` —
+    printtarg's own convention, and the trap `Run.chart_tiffs` already carries a
+    warning about. It went unnoticed because the import renames every page it
+    COPIES to `<stem>_01.tif`, so a one-page chart only reaches this function
+    under its real name when the pages were drawn rather than copied. Found on
+    screen: the run held its page, and the loader handed the Create Chart and
+    Print Chart tabs an empty list, so the preview stayed empty and the Print
+    tab had nothing in it — the very fault the redraw exists to remove.
+    """
     from core.file_manager import stem_files
-    return stem_files(ti2_in_project.parent, ti2_in_project.stem, "_*.tif")
+    return stem_files(ti2_in_project.parent, ti2_in_project.stem,
+                      "*.tif", "*.TIF", "*.tiff")
 
 
 def _run_and_kind_for_ti2(ti2_path: Path) -> "tuple[str, bool]":
