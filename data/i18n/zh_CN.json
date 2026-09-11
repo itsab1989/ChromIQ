@@ -3958,6 +3958,7 @@
   "The run could not be duplicated": "无法为这次运行创建副本",
   "The run folder could not be written": "The run folder could not be written",
   "The run's “old” folder holds whatever a Replace or a re-generation displaced. A Delete puts the files in your {trash}, so they can be brought back from there until you empty it.": "这一轮的“old”文件夹保存着被“替换”或重新生成挤走的所有内容。删除会把文件放进你的{trash}，只要还没有清空，就可以从那里取回。",
+  "The runs loaded here were set to different report types, so this report is shown as Full colour check, which withholds nothing. Open the report on one run to use that run's type.": "此处载入的各次运行设置了不同的报告类型，因此本报告按不省略任何内容的“完整色彩检查”显示。若要使用某次运行的类型，请打开该运行的报告。",
   "The same as B and F — one strip back or forward.": "与 B 和 F 相同 — 后退或前进一条色条。",
   "The same contrast expressed as optical density, the way print and photo people measure it: the span from the lightest to the darkest tone. Each whole step is a ten-fold change in reflected light.": "以光学密度表示的同一对比度，正如印刷与摄影人士的度量方式：从最亮到最暗色调的跨度。每整一级代表反射光变化十倍。",
   "The same contrast written as optical density, the way print and photo people measure it — the span from lightest to darkest tone. Each whole step is a ten-fold change in reflected light; around 2.2 D and up is excellent for inkjet.": "以光学密度表示的同一对比度，正如印刷与摄影人士的度量方式——从最亮到最暗色调的跨度。每整一级代表反射光变化十倍；约 2.2 D 及以上对喷墨而言为优秀。",

@@ -3958,6 +3958,7 @@
   "The run could not be duplicated": "実行を複製できませんでした",
   "The run folder could not be written": "The run folder could not be written",
   "The run's “old” folder holds whatever a Replace or a re-generation displaced. A Delete puts the files in your {trash}, so they can be brought back from there until you empty it.": "ランの「old」フォルダーには、置き換えや作り直しで押しのけられたものが入っています。削除したファイルは{trash}へ移動し、空にするまではそこから戻せます。",
+  "The runs loaded here were set to different report types, so this report is shown as Full colour check, which withholds nothing. Open the report on one run to use that run's type.": "ここに読み込まれているランには異なるレポートの種類が設定されているため、このレポートは何も省かないフルカラーチェックとして表示しています。そのランの種類を使うには、1 つのランのレポートを開いてください。",
   "The same as B and F — one strip back or forward.": "B と F と同じです — ストリップ1本ぶん前後に移動します。",
   "The same contrast expressed as optical density, the way print and photo people measure it: the span from the lightest to the darkest tone. Each whole step is a ten-fold change in reflected light.": "印刷や写真の人が測るやり方で、同じコントラストを光学濃度として表したもの: 最も明るいトーンから最も暗いトーンまでの幅です。1段ごとに反射光が10倍変化します。",
   "The same contrast written as optical density, the way print and photo people measure it — the span from lightest to darkest tone. Each whole step is a ten-fold change in reflected light; around 2.2 D and up is excellent for inkjet.": "印刷や写真の人が測るやり方で、同じコントラストを光学濃度として表したもの——最も明るいトーンから最も暗いトーンまでの幅です。1段ごとに反射光が10倍変化し、おおむね 2.2 D 以上はインクジェットでは優秀です。",

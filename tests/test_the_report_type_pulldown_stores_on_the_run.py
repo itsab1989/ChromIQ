@@ -376,3 +376,118 @@ def test_choosing_a_type_REDRAWS_the_report_on_screen(tmp_path, qapp):
             "the pulldown moved and the report on screen did not"
     finally:
         dlg.close()
+
+
+def _two_runs(tmp_path, qapp):
+    """Two profile runs in one project, each with one dated verification."""
+    from tests.test_import_measurement_module import _cgats, _PATCHES, _verify_env
+    s, fm, _ctl, run1 = _verify_env(tmp_path)
+    v1 = run1.new_verification()
+    v1.ensure_dir()
+    v1.measurement_ti3.write_text(_cgats("CTI3", _PATCHES), encoding="utf-8")
+    run2 = fm.project().new_run()
+    v2 = run2.new_verification()
+    v2.ensure_dir()
+    v2.measurement_ti3.write_text(_cgats("CTI3", _PATCHES), encoding="utf-8")
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    dlg = MeasurementReportDialog(s, None, initial_ti3=v1.measurement_ti3)
+    dlg.show()
+    qapp.processEvents()
+    dlg._add_source(v2.measurement_ti3)
+    qapp.processEvents()
+    return dlg, run1, run2
+
+
+def test_one_runs_choice_is_not_applied_to_another_runs_data(tmp_path, qapp):
+    """MEASURED, AND IT WAS WRONG. The window asked ITS OWN run, which is the
+    first one loaded, and applied that answer to every column: run 1 set to
+    "Printing record" and run 2 left on "Full colour check" came out with run
+    2's verdicts withheld, because run 1 had chosen that.
+
+    Knut's rule is the opposite: another run in the project may use a different
+    report type. A window produces ONE document, so the columns cannot each
+    have their own; the answer is the one type that withholds nothing and drops
+    no row, which is today's report.
+
+    MUTATION: drop the `len(types) > 1` branch from `_report_type_now` and this
+    goes red.
+    """
+    from workflow.compliance_sets import INFO
+    from workflow.run_compliance import set_run_report_type
+    dlg, run1, run2 = _two_runs(tmp_path, qapp)
+    try:
+        assert len(dlg._distinct_run_dirs()) == 2, "the second run did not load"
+        set_run_report_type(run1, REPORT_TYPE_RECORD)
+        set_run_report_type(run2, REPORT_TYPE_FULL)
+        dlg._forget_limits()
+        dlg._sync_limit_controls()
+        assert dlg._report_type_now() == REPORT_TYPE_FULL, \
+            "one run's choice was applied to the whole document"
+        for r in dlg._runs_for_report():
+            rows, _rc = dlg._verdict_rows(r)
+            assert any(x["word"] not in (INFO, "N-A") for x in rows), \
+                "a column was left ungraded by a choice its own run never made"
+    finally:
+        dlg.close()
+
+
+def test_when_the_runs_AGREE_their_type_is_used(tmp_path, qapp):
+    """The control. The fallback must not fire whenever two runs are loaded,
+    only when they disagree.
+
+    MUTATION: fall back on `len(types) >= 1` and this goes red.
+    """
+    from workflow.run_compliance import set_run_report_type
+    dlg, run1, run2 = _two_runs(tmp_path, qapp)
+    try:
+        set_run_report_type(run1, REPORT_TYPE_RECORD)
+        set_run_report_type(run2, REPORT_TYPE_RECORD)
+        dlg._forget_limits()
+        dlg._sync_limit_controls()
+        assert dlg._report_type_now() == REPORT_TYPE_RECORD
+    finally:
+        dlg.close()
+
+
+def test_the_window_says_why_it_ignored_both_choices(tmp_path, qapp):
+    """A greyed pulldown over a value that is nobody's choice explains nothing.
+
+    MUTATION: drop the disagreement branch in `_sync_type_combo` and this goes
+    red.
+    """
+    from workflow.run_compliance import set_run_report_type
+    dlg, run1, run2 = _two_runs(tmp_path, qapp)
+    try:
+        set_run_report_type(run1, REPORT_TYPE_RECORD)
+        set_run_report_type(run2, REPORT_TYPE_FULL)
+        dlg._forget_limits()
+        dlg._sync_limit_controls()
+        said = dlg._type_blurb_full
+        assert "different report types" in said, said
+        assert not dlg._type_combo.isEnabled()
+    finally:
+        dlg.close()
+
+
+def test_the_type_cache_does_not_outlive_the_read_it_was_taken_for(tmp_path, qapp):
+    """A cache that survives a refresh is a baseline taken later than the write
+    it should have caught, which is a fault shape this window has been bitten
+    by four times.
+
+    MUTATION: leave `_types_cache` alone in `_forget_limits` and this goes red.
+    """
+    from workflow.run_compliance import set_run_report_type
+    dlg, run1, run2 = _two_runs(tmp_path, qapp)
+    try:
+        set_run_report_type(run1, REPORT_TYPE_RECORD)
+        set_run_report_type(run2, REPORT_TYPE_RECORD)
+        dlg._forget_limits()
+        dlg._sync_limit_controls()
+        assert dlg._report_type_now() == REPORT_TYPE_RECORD
+        set_run_report_type(run2, REPORT_TYPE_FULL)
+        dlg._forget_limits()
+        dlg._sync_limit_controls()
+        assert dlg._report_type_now() == REPORT_TYPE_FULL, \
+            "the window answered from a cache taken before the run moved"
+    finally:
+        dlg.close()

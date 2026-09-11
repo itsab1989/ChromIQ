@@ -1908,6 +1908,11 @@ class MeasurementReportDialog(QDialog):
         session-only choice for a file that is in no run (CH-14) is kept: there
         is nothing on disk to re-read it from."""
         self._limits_cache = {}
+        # …AND THE TYPES, for the same reason and at the same moment. A cache
+        # that outlives the read it was taken for is a baseline taken later
+        # than the write that earned it, which is a fault shape this window has
+        # already been bitten by four times.
+        self._types_cache = None
         ctx = self._context_run()
         self._run_ctx = ctx
         if ctx is not None or self._limits is None or self._limits.bound:
@@ -2032,9 +2037,27 @@ class MeasurementReportDialog(QDialog):
         dated verifications of a run follow the run's type. A measurement in no
         project has no run to ask, so the type it was last saved as is used,
         and failing that today's report.
+
+        AND WHEN THE LOADED RUNS DISAGREE, NOBODY'S CHOICE WINS. This window
+        asked ITS OWN run, which is the first one loaded, and applied that
+        answer to every column. Measured: run 1 set to "Printing record" and
+        run 2 left on "Full colour check", both loaded, and run 2's column came
+        out ungraded, every verdict withheld, because run 1 had chosen that.
+        Knut's own rule is the opposite: *"Another run in the project may use
+        other verification run charts with other selected report type and
+        thresholds."*
+
+        A window produces ONE document, so the columns cannot each have their
+        own type; the answer is to fall back to the one type that withholds
+        nothing and drops no row, which is today's report, and to say so under
+        the pulldown. That is also the only answer that cannot lose a verdict a
+        run recorded.
         """
         from workflow.measurement_report import REPORT_TYPE_DEFAULT, report_type
         from workflow.run_compliance import run_report_type
+        types = self._types_of_loaded_runs()
+        if len(types) > 1:
+            return REPORT_TYPE_DEFAULT
         ctx = self._run_ctx
         if ctx is not None:
             return run_report_type(ctx.run)
@@ -2042,6 +2065,24 @@ class MeasurementReportDialog(QDialog):
             return self._session_type
         reports = self._runs_for_report()
         return report_type(reports[0]) if reports else REPORT_TYPE_DEFAULT
+
+    def _types_of_loaded_runs(self) -> "set[str]":
+        """The distinct report types of every RUN this window holds.
+
+        Cached for one render, because it reads a `meta.json` per run and
+        `_report_type_now` is asked several times per column.
+        """
+        cached = getattr(self, "_types_cache", None)
+        if cached is not None:
+            return cached
+        from workflow.run_compliance import run_context_for, run_report_type
+        out: "set[str]" = set()
+        for src in getattr(self, "_sources", []):
+            ctx = run_context_for(src.get("origin"))
+            if ctx is not None:
+                out.add(run_report_type(ctx.run))
+        self._types_cache = out
+        return out
 
     def _ungraded_by_type(self) -> bool:
         """Whether the CHOSEN TYPE says nothing here is judged.
@@ -2113,7 +2154,17 @@ class MeasurementReportDialog(QDialog):
         self._type_combo.setToolTip(
             tr("Several measurement runs are loaded. Open the report on one "
                "run to change its type.") if several else "")
-        self._set_type_blurb(self._type_blurb_for(current))
+        # WHEN THEY DISAGREE, SAY SO WHERE THE PULLDOWN IS. A greyed control
+        # over a value that is nobody's choice explains nothing, and this is
+        # the one state where the line beside it has something more useful to
+        # say than what the type is for.
+        if len(self._types_of_loaded_runs()) > 1:
+            self._set_type_blurb(tr(
+                "The runs loaded here were set to different report types, so "
+                "this report is shown as Full colour check, which withholds "
+                "nothing. Open the report on one run to use that run's type."))
+        else:
+            self._set_type_blurb(self._type_blurb_for(current))
 
     def _set_type_blurb(self, full: str) -> None:
         """One line, elided to the room it has; the whole sentence as the
