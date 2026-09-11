@@ -3004,6 +3004,42 @@ cannot make, and names the one check in this window that can tell the two apart
 > ChromIQ searched the picture for the chart, and then looked around the four corners you placed for a better place to put the grid. Neither found one worth moving them for — what you have is already the closest match it can see.
 > That is not the same as saying the grid is on the right patches: a grid a whole patch out reads every patch as its neighbour and looks just as even. Press “Check alignment” below — that reads the scan and can tell the difference.
 
+### M-SCAN-ALIGN-NOT-FOUND-HEX · PROPOSED · Auto align cannot find a honeycomb chart, and the advice it gave could not help — the scanner window's log
+
+*New for 4.2.4, 2026-09-11. Knut asked whether Auto align works on a hexagonal
+chart. It does not, it never did, and that is not what was wrong with it.*
+
+*Measured on screen on his own CR30 honeycomb, against a rectangular chart of
+the same 648 colours built by the same engine so that every number has a
+control beside it. The honeycomb: the corners move **0.0 px**, `is_placed()`
+stays False, and the window says so. The rectangle, same drive: the corners land
+**0.6 px** from the true block corners. Repeated from a deliberately rough hand
+placement 166 px out, the honeycomb gives the same answer and again moves
+nothing. So the worst case a placement button has — a silent move that leaves a
+careful placement somewhere wrong — does not happen here, and the user is told.*
+
+*Asked stage by stage, `place_grid` is search, then refine, then check. Only the
+SEARCH declines: it returns "not recognised" with **zero** candidates from every
+starting placement, because it borrows scanin's own recogniser and that hunts
+the straight horizontal patch edges a grid of rectangles has. A hexagon has
+none. The two stages after it are shape-agnostic in practice as well as in
+principle: on the same honeycomb the refine step moves a rough placement onto
+the patches and the check step separates a right placement from a wrong one by
+**0.969 against 0.514**, with the floor at 0.80.*
+
+*What was wrong is the sentence. The generic "not recognised" wording sends the
+user to drag the four corners roughly around the chart and press Auto align
+again, which narrows the search to inside them — and a narrower search of a
+honeycomb finds nothing either, so the instruction cannot work however carefully
+it is followed. Nothing about the behaviour changes with this message: the same
+ending, the same refusal, the same untouched corners, and an instruction the
+user can act on. Whether the search itself should be replaced for honeycombs is
+a separate question, sized and costed but not decided.*
+
+> **Auto align left your corners exactly where they are**
+>
+> Auto align cannot find a hexagonal chart. The search looks for the straight edges of a grid of rectangles, and a honeycomb has none, so pressing the button again will not help however the corners are placed. Drag the four corners onto the chart yourself: put each one on the outermost patch of its corner. Everything else in this window works normally on a honeycomb, including “Check alignment”, which will tell you whether what you placed is reading the right patches.
+
 ### M-SCAN-FIT-TOO-FAR · PROPOSED · nothing was found, and the corners cannot be improved from where they are — the scanner window's log
 
 *Beta 8. Written for agent L's separate “Fit to the patches” button and REWRITTEN
