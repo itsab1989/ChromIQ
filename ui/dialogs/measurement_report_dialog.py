@@ -4414,9 +4414,35 @@ class MeasurementReportDialog(QDialog):
         return (f"<div style='color:{_C['fail']};margin-top:10px'>"
                 + "".join(blocks) + "</div>")
 
+    def _explained_row_groups(self) -> "set[str] | None":
+        """Which row GROUPS this document's results table can contain.
+
+        None when the type shows every row. A type with a row filter explains
+        only what it shows: "Grey and tone check" drops the five colour-accuracy
+        rows, and the guide above them went on describing "the ΔE00 across the
+        patches, split so you can see the bulk of the chart", which is a
+        paragraph about rows that are not in the document. The same shape as the
+        note that told a reader to add patches to a chart that already had them.
+        """
+        from workflow.compliance_sets import ROWS
+        from workflow.measurement_report import rows_for_report_type
+        keep = rows_for_report_type(self._report_type_now())
+        if keep is None:
+            return None
+        return {r.group for r in ROWS if r.id in set(keep)}
+
     def _how_to_read_html(self) -> str:
         """The plain-language guide. The heading sits OUTSIDE its background frame,
         with a blank line above it like every other section heading (Knut)."""
+        groups = self._explained_row_groups()
+
+        def _for(group: "str | None", text: str) -> str:
+            # A bullet about data the document always carries (paper white, the
+            # cube corners) has no row group and is never dropped.
+            if group is not None and groups is not None and group not in groups:
+                return ""
+            return "<li>" + html.escape(text) + "</li>"
+
         body = (
             "<p>" + html.escape(tr(
                 "This report compares what your instrument measured against the "
@@ -4425,24 +4451,24 @@ class MeasurementReportDialog(QDialog):
                 "match, 1–2 is barely visible, and 10 or more is clearly "
                 "different.")) + "</p>"
             "<ul>"
-            "<li>" + html.escape(tr(
+            + _for("all_patches", tr(
                 "Colour accuracy: the ΔE00 across the patches, split so you can "
                 "see the bulk of the chart (all patches and the best 95 %) apart "
                 "from the few hardest patches (the worst 5 %). Each row is judged "
-                "against the run's limit set.")) + "</li>"
-            "<li>" + html.escape(tr(
+                "against the run's limit set."))
+            + _for("grey_ramp", tr(
                 "Grey balance: how far each grey patch (R = G = B) sits from a "
                 "neutral grey, ignoring lightness. ΔCh is the distance in a* and "
                 "b* only. Computed from the chart's grey ramp when it has at "
-                "least 8 steps from white to black.")) + "</li>"
-            "<li>" + html.escape(tr(
+                "least 8 steps from white to black."))
+            + _for(None, tr(
                 "Paper white & darkest black — the brightest and deepest patches "
-                "(L*), a quick health check of your paper and maximum ink.")) + "</li>"
-            "<li>" + html.escape(tr(
+                "(L*), a quick health check of your paper and maximum ink."))
+            + _for(None, tr(
                 "Cube corners — paper white, composite black and the six primary "
                 "and secondary inks. These say as much about your inks as about "
-                "the instrument.")) + "</li>"
-            "</ul>"
+                "the instrument."))
+            + "</ul>"
             "<p><b>" + html.escape(tr("The five verdict words.")) + "</b> "
             + html.escape(tr(
                 "A limit set is one column of the limits table: the numbers a "
