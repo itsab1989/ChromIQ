@@ -552,9 +552,9 @@ def resolve_ti2(
             full = _chart_import.is_full_project(ti2_path)
             if full is not None:
                 return _handle_full_project(parent, ti2_path, full, working_dir,
-                                            controller)                        # A1b
+                                            controller, settings)              # A1b
             return _handle_loose_into_project(parent, ti2_path, working_dir,
-                                              controller)                      # A1a/A2c
+                                              controller, settings)            # A1a/A2c
 
         # No project loaded → the original new-project flow (loads the first chart).
         if inside_root is not None:
@@ -765,7 +765,25 @@ def _copy_out_new_project(parent, ti2_path, working_dir):
     return _copy_files(ti2_path, ti1, tiffs, working_dir, name, overwrite=overwrite)
 
 
-def _handle_loose_into_project(parent, ti2_path, working_dir, controller):
+def _bin_dir(settings) -> "Path | None":
+    """The ArgyllCMS binaries, or None when nobody passed the settings along.
+
+    None means "copy and draw nothing", which is what an import did before a
+    chart arriving with no pages was found to leave a run that cannot be
+    printed (Knut, #182 2026-09-11). Every live path passes the settings; the
+    default keeps a caller that does not from changing behaviour by accident.
+    """
+    if settings is None:
+        return None
+    try:
+        d = Path(str(settings.get("argyll_bin_path", "")))
+    except Exception:      # noqa: BLE001 — never break an import on this
+        return None
+    return d if d.is_dir() else None
+
+
+def _handle_loose_into_project(parent, ti2_path, working_dir, controller,
+                               settings=None):
     """A1a / A2c — a loose external chart (or an older/flat layout inside the
     working folder). Import into the bar's target run per Run type."""
     ti1, tiffs = _related_files(ti2_path)
@@ -790,7 +808,8 @@ def _handle_loose_into_project(parent, ti2_path, working_dir, controller):
                              [(tr("Import as a new run"), desc, "import")])
         if key != "import":
             return None
-        out = _chart_import.import_external_chart(ti2_path, ti1, tiffs, proj, t)
+        out = _chart_import.import_external_chart(ti2_path, ti1, tiffs, proj, t,
+                                                 bin_dir=_bin_dir(settings))
     else:                                       # Overwrite run N
         runlabel = _run_label(t)
         rid = t.profile_run
@@ -821,10 +840,12 @@ def _handle_loose_into_project(parent, ti2_path, working_dir, controller):
             (tr("Replace {run}").format(run=runlabel), rep, "replace")])
         if key == "new":
             t = MeasurementTarget(run_type=t.run_type, profile_run="")
-            out = _chart_import.import_external_chart(ti2_path, ti1, tiffs, proj, t)
+            out = _chart_import.import_external_chart(ti2_path, ti1, tiffs, proj, t,
+                                                     bin_dir=_bin_dir(settings))
         elif key == "replace":
             out = _chart_import.import_external_chart(ti2_path, ti1, tiffs, proj,
-                                                     t, replace=True)
+                                                     t, replace=True,
+                                                     bin_dir=_bin_dir(settings))
         else:
             return None
     _point_bar_at_current_run(controller)
@@ -933,7 +954,8 @@ def _handle_inside_other(parent, ti2_path, inside_root, working_dir, controller)
     return None
 
 
-def _handle_full_project(parent, ti2_path, src_root, working_dir, controller):
+def _handle_full_project(parent, ti2_path, src_root, working_dir, controller,
+                         settings=None):
     """A1b — a complete ChromIQ project sitting outside the working folder."""
     t = controller.target
     key = _choice_dialog(parent, tr("This is a complete ChromIQ project"), "", [
@@ -967,7 +989,8 @@ def _handle_full_project(parent, ti2_path, src_root, working_dir, controller):
         run = Project.load(dest).current_run()
         return run.chart_ti2, run.stem_files(run.stem, "_*.tif")
     if key == "chart":
-        return _handle_loose_into_project(parent, ti2_path, working_dir, controller)
+        return _handle_loose_into_project(parent, ti2_path, working_dir,
+                                          controller, settings)
     return None
 
 

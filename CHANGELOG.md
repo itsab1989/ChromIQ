@@ -121,6 +121,15 @@ arrived with the reference data.
   above a full colour check. What ChromIQ renders is what it says it rendered.
   The choice on disk is left alone, so the later ChromIQ still finds it.
 
+- **A chart file imported on its own could not be printed.** Importing a `.ti2`
+  with no page bitmaps beside it copied the chart and nothing else, so the run
+  it made had a chart, no pages, an empty preview and nothing in the Print tab
+  saying why. The pages are now drawn from what the chart file itself records:
+  its own patch order, its instrument and its paper. The imported file is never
+  touched, so a sheet you have already printed still reprints exactly as it
+  was, and a chart that arrived with its pages is left alone. Knut chose this
+  reading over laying the chart out again.
+
 - **A chart in the project you have open could be announced as another
   project's,** with an offer to open the project already open. It happens when
   the ChromIQ folder is reached through a shortcut, which a hand-typed output
