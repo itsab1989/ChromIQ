@@ -33,14 +33,23 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from workflow.reference_convert import cie_columns_are_unscaled     # noqa: E402
 
 
-def _ti3(scale: float, *, cie: bool = True, n: int = 4) -> str:
+def _ti3(scale: float, *, cie: bool = True, n: int = 4,
+         paper: bool = True) -> str:
     """A converted ``.ti3``. *scale* 1.0 is ArgyllCMS's 0..100, 0.01 is
-    i1Profiler's 0..1 reflectance factor."""
+    i1Profiler's 0..1 reflectance factor.
+
+    THE FIRST ROW IS BARE PAPER, because a printed chart's first row is. Device
+    RGB 100/100/100 is "no ink", and that patch is what tells the reading below
+    which scale the file is on — see ``_xyz_scale_verdict``. Pass *paper* False
+    for a set that holds no paper patch at all (a rich-black / Dmax comparison
+    set), which cannot be judged and must not be.
+    """
     cols = "SAMPLE_ID SAMPLE_LOC RGB_R RGB_G RGB_B" + (" XYZ_X XYZ_Y XYZ_Z" if cie else "")
     body = []
     for i in range(n):
         y = 88.0 - i * 20.0
-        row = f'{i + 1} "A{i + 1}" {y:.4f} {y:.4f} {y:.4f}'
+        d = 100.0 if (paper and i == 0) else 92.0 * (max(y, 0.0) / 88.0) ** 0.45
+        row = f'{i + 1} "A{i + 1}" {d:.4f} {d:.4f} {d:.4f}'
         if cie:
             row += "".join(f" {y * k * scale:.6f}" for k in (0.95, 1.0, 0.82))
         body.append(row)
@@ -100,8 +109,10 @@ def test_nothing_readable_is_never_an_accusation(tmp_path):
 
 def test_a_ragged_row_stops_it_rather_than_being_indexed_into(tmp_path):
     p = tmp_path / "m.ti3"
-    text = _ti3(0.01).replace('4 "A4" 28.0000 28.0000 28.0000', '4 "A4" 28.0000')
-    p.write_text(text, encoding="utf-8")
+    lines = _ti3(0.01).splitlines()
+    cut = next(i for i, ln in enumerate(lines) if ln.startswith('4 "A4"'))
+    lines[cut] = '4 "A4" 28.0000'                  # two tokens, not eight
+    p.write_text("\n".join(lines) + "\n", encoding="utf-8")
     assert cie_columns_are_unscaled(p) is False
 
 
