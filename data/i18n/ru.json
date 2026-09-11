@@ -496,6 +496,7 @@
   "Auto": "Авто",
   "Auto (recommended)": "Авто (рекомендуется)",
   "Auto align": "Автовыравнивание",
+  "Auto align cannot find a hexagonal chart. The search looks for the straight edges of a grid of rectangles, and a honeycomb has none, so pressing the button again will not help however the corners are placed. Drag the four corners onto the chart yourself: put each one on the outermost patch of its corner. Everything else in this window works normally on a honeycomb, including “Check alignment”, which will tell you whether what you placed is reading the right patches.": "Автовыравнивание не может найти шестиугольную мишень. Поиск опирается на прямые края решётки из прямоугольников, а у соты их нет, поэтому повторное нажатие кнопки не поможет, как бы ни были расставлены углы. Расставьте четыре угла на мишени сами: каждый на самый крайний патч своего угла. Всё остальное в этом окне на соте работает как обычно, включая «Проверить выравнивание», которое скажет вам, читает ли поставленное вами нужные патчи.",
   "Auto align has nothing to look at yet": "Автовыравниванию пока не на что смотреть",
   "Auto align left your corners exactly where they are": "Автовыравнивание оставило ваши углы ровно там, где они есть",
   "Auto align put the grid on the patches": "Автовыравнивание поставило сетку на патчи",

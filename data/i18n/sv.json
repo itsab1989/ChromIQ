@@ -496,6 +496,7 @@
   "Auto": "Auto",
   "Auto (recommended)": "Auto (rekommenderas)",
   "Auto align": "Autojustera",
+  "Auto align cannot find a hexagonal chart. The search looks for the straight edges of a grid of rectangles, and a honeycomb has none, so pressing the button again will not help however the corners are placed. Drag the four corners onto the chart yourself: put each one on the outermost patch of its corner. Everything else in this window works normally on a honeycomb, including “Check alignment”, which will tell you whether what you placed is reading the right patches.": "Autojustera kan inte hitta ett sexkantigt diagram. Sökningen letar efter de raka kanterna i ett rutnät av rektanglar, och en bikaka har inga, så att trycka på knappen igen hjälper inte, hur hörnen än placeras. Dra de fyra hörnen på diagrammet själv: vart och ett på det yttersta fältet i sitt hörn. Allt annat i det här fönstret fungerar som vanligt på en bikaka, även ”Kontrollera riktning”, som talar om för dig om det du placerade läser rätt fält.",
   "Auto align has nothing to look at yet": "Autojustera har ännu inget att titta på",
   "Auto align left your corners exactly where they are": "Autojustera lämnade dina hörn exakt där de är",
   "Auto align put the grid on the patches": "Autojustera lade rutnätet på fälten",

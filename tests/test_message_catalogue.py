@@ -354,7 +354,19 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # the page, into a log cleared in the same
                                  # block.
                                  "M-SCAN-SHOT-EMPTY",
-                                 "M-SCAN-TARGET-CHANGED"}
+                                 "M-SCAN-TARGET-CHANGED",
+                                 # 2026-09-11, 4.2.4. Auto align cannot find a
+                                 # honeycomb chart and never could -- measured
+                                 # on Knut's own CR30 chart against a
+                                 # rectangular one of the same 648 colours, it
+                                 # moves 0.0 px from every start while the
+                                 # rectangle lands 0.6 px from truth, and only
+                                 # the SEARCH stage declines. The refusal was
+                                 # already safe; the sentence sent the user to
+                                 # narrow a search that will find nothing
+                                 # however narrow it is. Behaviour unchanged,
+                                 # WORDING new, so it waits here.
+                                 "M-SCAN-ALIGN-NOT-FOUND-HEX"}
 # Round 2 of the import-door review added four and Basti approved all four on
 # 2026-09-02, so they never sat in this set for longer than one branch:
 # M-IMPORT-NOT-OPENED, M-IMPORT-FOLDER-EXISTS, M-IMPORT-REPLACE-FOLDER-CONFIRM

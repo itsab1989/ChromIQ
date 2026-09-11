@@ -496,6 +496,7 @@
   "Auto": "Auto",
   "Auto (recommended)": "Auto (anbefalt)",
   "Auto align": "Autojuster",
+  "Auto align cannot find a hexagonal chart. The search looks for the straight edges of a grid of rectangles, and a honeycomb has none, so pressing the button again will not help however the corners are placed. Drag the four corners onto the chart yourself: put each one on the outermost patch of its corner. Everything else in this window works normally on a honeycomb, including “Check alignment”, which will tell you whether what you placed is reading the right patches.": "Autojuster kan ikke finne et sekskantkart. Søket leter etter de rette kantene i et rutenett av rektangler, og en bikube har ingen, så å trykke på knappen en gang til hjelper ikke, uansett hvordan hjørnene ligger. Dra de fire hjørnene på kartet selv: hvert av dem på det ytterste feltet i sitt hjørne. Alt annet i dette vinduet virker som normalt på en bikube, også «Kontroller innretting», som forteller deg om det du plasserte leser de riktige feltene.",
   "Auto align has nothing to look at yet": "Autojuster har ingenting å se på ennå",
   "Auto align left your corners exactly where they are": "Autojuster lot hjørnene dine stå akkurat der de er",
   "Auto align put the grid on the patches": "Autojuster la rutenettet på feltene",

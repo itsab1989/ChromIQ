@@ -15,7 +15,7 @@ from contextlib import contextmanager
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
     QButtonGroup, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QMenu,
-    QToolButton, QVBoxLayout, QWidget,
+    QSizePolicy, QSpacerItem, QToolButton, QVBoxLayout, QWidget,
 )
 
 from core.i18n import tr
@@ -847,7 +847,8 @@ class LayoutOptionsPanel(QWidget):
         self.area_method.currentIndexChanged.connect(self._emit)
         self.area_method.currentIndexChanged.connect(self._sync_layout_mode)
         self._track_answer(self.area_method, "area_method")
-        add_row(afg, 0, tr("Calculation method:"), self.area_method,
+        self._area_row_method = add_row(afg, 0, tr("Calculation method:"),
+                self.area_method,
                 tip=TooltipButton(
                     tr("Calculation method"),
                     tr("How to work out the patch grid inside the area:\n\n"
@@ -870,8 +871,21 @@ class LayoutOptionsPanel(QWidget):
                        "width, then grows them slightly so the grid fills the area "
                        "exactly. The patch height follows the height % below."),
                     self))
+        # EVERY CONTROL IN THIS COLUMN CARRIES A TRAILING STRETCH, and that is
+        # not tidiness. A bare spin box here has `setMaximumWidth(96)`, which
+        # gives the whole COLUMN a maximum of 96 -- so `setColumnStretch(1, 1)`
+        # had nowhere to put the slack and the right-aligned label column
+        # absorbed it instead. Measured on screen, 2026-09-11: switching from
+        # "By patch width" (whose one mm row already wraps its spin box in
+        # `mm_inch`, which ends in a stretch) to "By columns / rows" moved the
+        # Calculation-method combo 157 px to the right and took 157 px off it,
+        # 288 down to 131, which is why it elided to "By colum...". Knut's
+        # requirement is that changing the method moves neither the position nor
+        # the size of the input boxes, only the labels and the options in them.
+        # `cell()` ends in `addStretch()`, so the wrapper grows and the spin box
+        # keeps its 96 px exactly where the mm row's does.
         self._area_row_ratio = add_row(afg, 2,
-                tr("Minimum patch height (% of width):"), self.area_ratio,
+                tr("Minimum patch height (% of width):"), cell(self.area_ratio),
                 tip=TooltipButton(
                     tr("Minimum patch height"),
                     tr("The patch height as a percentage of its width. 100% keeps "
@@ -879,7 +893,8 @@ class LayoutOptionsPanel(QWidget):
                        "as tall as it is wide; below 100% makes them wider than "
                        "tall. It's a minimum — the engine grows the patches from "
                        "here to fill the chart area."), self))
-        self._area_row_cols = add_row(afg, 3, tr("Strips (columns):"), self.area_cols,
+        self._area_row_cols = add_row(afg, 3, tr("Strips (columns):"),
+                cell(self.area_cols),
                 tip=TooltipButton(
                     tr("Strips (columns)"),
                     tr("How many strips (columns of patches) to fit across the "
@@ -891,7 +906,7 @@ class LayoutOptionsPanel(QWidget):
                        "size it was designed to read — then fills the width to "
                        "that count."), self))
         self._area_row_rows = add_row(afg, 4, tr("Patches per strip (rows):"),
-                self.area_rows,
+                cell(self.area_rows),
                 tip=TooltipButton(
                     tr("Patches per strip (rows)"),
                     tr("How many patches to stack down each strip. ChromIQ makes "
@@ -901,6 +916,31 @@ class LayoutOptionsPanel(QWidget):
                        "patch close to your instrument's natural patch size — the "
                        "size it was designed to read — then fills the height to "
                        "that count."), self))
+        #: The area-first grid, and the invisible strut that holds its label
+        #: column at the width of the widest label of EVERY row, not only the
+        #: ones the chosen method shows.
+        #:
+        #: A SPACER ITEM AND NOT A WIDGET, and both halves of that are
+        #: deliberate. `setColumnMinimumWidth` would do the same job and would
+        #: also raise the panel's own MINIMUM width, measured at +43 px in
+        #: English and +34 in German -- and the labels here are wrappable on
+        #: purpose so this panel can shrink inside a 580 px pane without putting
+        #: a horizontal scroll bar under the Expert section (Basti, twice). A
+        #: `Maximum` horizontal policy gives the column the width as a size
+        #: HINT with a minimum of zero, so it prefers the full width whenever
+        #: there is room and still collapses when there is not.
+        #:
+        #: It shares the first label's cell, which a WIDGET may never do --
+        #: `tests/test_the_layout_panel_has_no_two_widgets_in_one_cell.py`
+        #: exists because two checkboxes were once drawn two pixels apart. A
+        #: spacer paints nothing and is zero pixels tall, so it cannot be that
+        #: fault; a row of its own would cost the grid's row spacing, measured
+        #: at +6 px of empty height under the last row.
+        self._area_fields_grid = afg
+        self._area_label_strut = QSpacerItem(
+            0, 0, QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
+        afg.addItem(self._area_label_strut, 0, 0)
+        self._pin_area_label_column()
         lgg.addWidget(self._patch_fields_w, 1, 0, 1, 3)
         lgg.addWidget(self._area_fields_w, 2, 0, 1, 3)
         # "Show strip indicators" is a layout option (not a selector), so it is
@@ -2100,7 +2140,6 @@ class LayoutOptionsPanel(QWidget):
         self.clip_image_path.textChanged.connect(self._emit)
         self.clip_image_browse = self._compact_browse(tr("Browse for an image"))
         self.clip_image_browse.clicked.connect(self._browse_clip_image)
-        from PyQt6.QtWidgets import QSizePolicy
         self.clip_dims_label = QLabel("", self)
         self.clip_dims_label.setWordWrap(True)
         self.clip_preview = QLabel(self)
@@ -3231,6 +3270,10 @@ class LayoutOptionsPanel(QWidget):
             w.setVisible(area and by_width)
         for w in self._area_row_cols + self._area_row_rows:
             w.setVisible(area and not by_width)
+        # …and the label column keeps the width of the widest label of ALL of
+        # them, so the input boxes stay where they are while the labels change
+        # around them (Knut, 2026-09-10).
+        self._pin_area_label_column()
         # THE COLORMUNKI DENSITY ROW USED TO BE HIDDEN IN AREA-FIRST. IT MUST NOT
         # BE. The belief was that in area-first "the patch size comes from the
         # columns/rows you set", so Density does nothing — true only when the
@@ -3311,6 +3354,40 @@ class LayoutOptionsPanel(QWidget):
         else:
             hexed = bool(getattr(self, "_recipe_hflag", False))
         return bool(hexed and instruments.hex_capable(str(inst)))
+
+    def _pin_area_label_column(self) -> None:
+        """Give the area-first label column the width of its WIDEST label, over
+        every row, not only the rows the chosen method shows.
+
+        THE CONTROLS MUST NOT MOVE WHEN THE METHOD DOES. The two methods show
+        different rows, so without this the label column is sized by whichever
+        set happens to be visible -- "Minimum patch height (% of width)" in one
+        and "Patches per strip (rows)" in the other -- and the control column
+        starts somewhere different in each. Measured with both halves of this
+        fix and only the stretch wrappers in place, the combo still moved 26 px
+        between the two methods; with the column pinned it moves 0.
+
+        A SIZE HINT AND NOT A MINIMUM, and measured from the labels themselves
+        so it follows the language and the font instead of a number typed here.
+        Re-measured on every method change, which is also every point at which
+        the visible labels change; a language change builds a new panel.
+        """
+        strut = getattr(self, "_area_label_strut", None)
+        afg = getattr(self, "_area_fields_grid", None)
+        if strut is None or afg is None:
+            return
+        from PyQt6.QtGui import QFontMetrics
+        widest = 0
+        for attr in ("_area_row_method", "_area_row_minpatch", "_area_row_ratio",
+                     "_area_row_cols", "_area_row_rows"):
+            row = getattr(self, attr, None) or []
+            for w in row:
+                if isinstance(w, QLabel):
+                    widest = max(widest,
+                                 QFontMetrics(w.font()).horizontalAdvance(w.text()))
+        strut.changeSize(widest, 0, QSizePolicy.Policy.Maximum,
+                         QSizePolicy.Policy.Fixed)
+        afg.invalidate()
 
     def _hex_locked_rows(self) -> "list[tuple[list, bool, str]]":
         """``(row_widgets, locked, reason)`` for the two area-first boxes a

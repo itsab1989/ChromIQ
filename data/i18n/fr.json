@@ -496,6 +496,7 @@
   "Auto": "Auto",
   "Auto (recommended)": "Auto (recommandé)",
   "Auto align": "Alignement auto",
+  "Auto align cannot find a hexagonal chart. The search looks for the straight edges of a grid of rectangles, and a honeycomb has none, so pressing the button again will not help however the corners are placed. Drag the four corners onto the chart yourself: put each one on the outermost patch of its corner. Everything else in this window works normally on a honeycomb, including “Check alignment”, which will tell you whether what you placed is reading the right patches.": "L'Alignement auto ne peut pas trouver une mire hexagonale. La recherche s'appuie sur les bords droits d'une grille de rectangles, et un nid d'abeilles n'en a aucun : appuyer de nouveau sur le bouton n'y changera rien, quelle que soit la position des coins. Fais glisser toi-même les quatre coins sur la mire : chacun sur la plage la plus extérieure de son coin. Tout le reste de cette fenêtre fonctionne normalement sur un nid d'abeilles, y compris « Contrôler l'alignement », qui te dira si ce que tu as placé lit bien les bonnes plages.",
   "Auto align has nothing to look at yet": "L'alignement auto n'a encore rien à regarder",
   "Auto align left your corners exactly where they are": "L'alignement auto a laissé tes coins exactement où ils sont",
   "Auto align put the grid on the patches": "L'alignement auto a posé la grille sur les plages",

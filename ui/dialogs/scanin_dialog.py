@@ -6156,6 +6156,23 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._log.appendPlainText(title)
         self._log.appendPlainText(body)
 
+    def _chart_is_hexagonal(self) -> bool:
+        """True when the chart chosen in this window is a honeycomb.
+
+        Read from the chart's own ``channels.json`` sidecar, which is the one
+        source of truth `_set_chart`'s beta gate already uses. Fails to False
+        and never raises: the only caller is a message picker, and a window
+        that has no chart at all (a standard target, or a refusal arriving
+        before anything is loaded) must simply get the ordinary wording.
+        """
+        try:
+            if getattr(self, "_ti3", None) is None:
+                return False
+            from workflow.hex_support import chart_is_hexagonal
+            return bool(chart_is_hexagonal(_chart_base(self._ti3)))
+        except Exception:      # noqa: BLE001 - a readout may never break a slot
+            return False
+
     def _auto_align_done(self, result) -> None:
         from workflow import measurement_messages as M
         before = getattr(self, "_align_before", []) or []
@@ -6198,7 +6215,19 @@ class ScannerProfileDialog(_ToolDialogBase):
                 getattr(result, "drift", None),
                 getattr(result, "rejected", None) or [],
                 (getattr(result, "log_tail", "") or "-").replace("\n", " / "))
-            self._say_align(M.scan_align_refusal(why))
+            # …and the ONE thing about this refusal that is not the search's
+            # to know: whether the chart is a honeycomb. Measured on screen
+            # 2026-09-11, a hexagonal chart reaches "not-recognised" from every
+            # starting placement, with zero candidates, because the step that
+            # fails is scanin's own recogniser and it hunts the straight
+            # horizontal patch edges a grid of rectangles has. The generic
+            # wording then told the user to drag the corners roughly round the
+            # chart and press again, which narrows the search: on a honeycomb a
+            # narrower search finds nothing either, so the advice could not
+            # work. Nothing about the BEHAVIOUR changes here; the refusal was
+            # already safe and still moves no corner.
+            self._say_align(M.scan_align_refusal(
+                why, hexagonal=self._chart_is_hexagonal()))
             return
         # The recogniser answers in patch-area terms and the marquee IS in
         # patch-area terms — `_rebuild_std_grid` builds it round the patch

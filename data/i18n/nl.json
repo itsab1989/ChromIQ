@@ -496,6 +496,7 @@
   "Auto": "Auto",
   "Auto (recommended)": "Auto (aanbevolen)",
   "Auto align": "Automatisch uitlijnen",
+  "Auto align cannot find a hexagonal chart. The search looks for the straight edges of a grid of rectangles, and a honeycomb has none, so pressing the button again will not help however the corners are placed. Drag the four corners onto the chart yourself: put each one on the outermost patch of its corner. Everything else in this window works normally on a honeycomb, including “Check alignment”, which will tell you whether what you placed is reading the right patches.": "Automatisch uitlijnen kan een zeshoekige kaart niet vinden. Het zoeken gaat af op de rechte randen van een raster van rechthoeken, en een honingraat heeft die niet, dus nog eens op de knop drukken helpt niet, hoe de hoeken ook liggen. Sleep de vier hoeken zelf op de kaart: elke hoek op het buitenste meetveld van die hoek. Al het andere in dit venster werkt op een honingraat gewoon, ook “Uitlijning controleren”, dat je vertelt of wat je hebt geplaatst de juiste meetvelden leest.",
   "Auto align has nothing to look at yet": "Automatisch uitlijnen heeft nog niets om naar te kijken",
   "Auto align left your corners exactly where they are": "Automatisch uitlijnen liet je hoeken precies waar ze zijn",
   "Auto align put the grid on the patches": "Automatisch uitlijnen legde het raster op de meetvelden",

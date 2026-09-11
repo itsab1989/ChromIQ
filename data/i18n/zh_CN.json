@@ -496,6 +496,7 @@
   "Auto": "自动",
   "Auto (recommended)": "自动（推荐）",
   "Auto align": "自动对齐",
+  "Auto align cannot find a hexagonal chart. The search looks for the straight edges of a grid of rectangles, and a honeycomb has none, so pressing the button again will not help however the corners are placed. Drag the four corners onto the chart yourself: put each one on the outermost patch of its corner. Everything else in this window works normally on a honeycomb, including “Check alignment”, which will tell you whether what you placed is reading the right patches.": "「自动对齐」找不到六边形色卡。搜索依靠的是矩形网格那些笔直的边，而蜂窝没有这样的边，所以无论四个角怎么摆，再按一次按钮都不会有帮助。请自己把四个角拖到色卡上：每个角对准该角最外侧的那个色块。本窗口中其他一切在蜂窝上都照常工作，包括「检查对齐」，它会告诉你所摆放的位置读到的是不是正确的色块。",
   "Auto align has nothing to look at yet": "自动对齐还没有可看的东西",
   "Auto align left your corners exactly where they are": "自动对齐把你的角点原封不动地留在了原处",
   "Auto align put the grid on the patches": "自动对齐已把网格放到色块上",

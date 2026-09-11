@@ -496,6 +496,7 @@
   "Auto": "Automático",
   "Auto (recommended)": "Auto (recomendado)",
   "Auto align": "Alinhamento auto",
+  "Auto align cannot find a hexagonal chart. The search looks for the straight edges of a grid of rectangles, and a honeycomb has none, so pressing the button again will not help however the corners are placed. Drag the four corners onto the chart yourself: put each one on the outermost patch of its corner. Everything else in this window works normally on a honeycomb, including “Check alignment”, which will tell you whether what you placed is reading the right patches.": "O alinhamento auto não consegue encontrar uma carta hexagonal. A busca procura os bordos direitos de uma grelha de rectângulos, e um favo não tem nenhum, por isso premir outra vez o botão não vai ajudar, por melhor que estejam colocados os cantos. Arraste você mesmo os quatro cantos para cima da carta: cada um na amostra mais exterior do seu canto. Tudo o resto nesta janela funciona normalmente num favo, incluindo «Verificar alinhamento», que lhe dirá se o que colocou está a ler as amostras certas.",
   "Auto align has nothing to look at yet": "O alinhamento auto ainda não tem nada para ver",
   "Auto align left your corners exactly where they are": "O alinhamento auto deixou os seus cantos exatamente onde estão",
   "Auto align put the grid on the patches": "O alinhamento auto pôs a grelha sobre as amostras",

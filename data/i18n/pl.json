@@ -496,6 +496,7 @@
   "Auto": "Auto",
   "Auto (recommended)": "Auto (zalecane)",
   "Auto align": "Auto-wyrównanie",
+  "Auto align cannot find a hexagonal chart. The search looks for the straight edges of a grid of rectangles, and a honeycomb has none, so pressing the button again will not help however the corners are placed. Drag the four corners onto the chart yourself: put each one on the outermost patch of its corner. Everything else in this window works normally on a honeycomb, including “Check alignment”, which will tell you whether what you placed is reading the right patches.": "Auto-wyrównanie nie potrafi znaleźć wzorca sześciokątnego. Szukanie opiera się na prostych krawędziach siatki prostokątów, a plaster miodu takich nie ma, więc ponowne naciśnięcie przycisku nic nie da, niezależnie od tego, jak ustawisz narożniki. Przeciągnij cztery narożniki na wzorzec samodzielnie: każdy na najbardziej zewnętrzne pole swojego narożnika. Wszystko inne w tym oknie działa na plastrze miodu normalnie, również „Sprawdź wyrównanie”, które powie ci, czy to, co ustawiłeś, odczytuje właściwe pola.",
   "Auto align has nothing to look at yet": "Auto-wyrównanie nie ma jeszcze na co patrzeć",
   "Auto align left your corners exactly where they are": "Auto-wyrównanie zostawiło Twoje narożniki dokładnie tam, gdzie są",
   "Auto align put the grid on the patches": "Auto-wyrównanie ustawiło siatkę na polach",

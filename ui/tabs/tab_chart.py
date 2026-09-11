@@ -12981,24 +12981,32 @@ class TabChart(QWidget):
             per_sheet = query_patches(instr, paper, dd, suppress_lb=eff_lb,
                                       margin_mm=eff_margin, patch_scale=eff_scale,
                                       triple_density=td, no_strip_limit=nsl_eff)
-        if per_sheet is not None:
-            total = per_sheet * pages
-            self._predicted_patch_count = total   # for the Suggest-name button (#62)
-            self._patch_count_lbl.setText(self._count_with_accent(str(total)))
-            # "1 PAGES" sat on the first screen of the app, in the largest
-            # type on the panel, with "Number of pages: 1" two inches above it.
-            # Every other count-bearing line already uses `count_phrase`; this
-            # one skipped it and thirteen translations inherited the mistake.
-            _pages = count_phrase(pages, tr("1 PAGE"), tr("{n} PAGES"))
-            self._patch_detail_lbl.setText(
-                tr("PATCHES · {pages} · {paper}").format(
-                    pages=_pages, paper=paper.upper())
-            )
-        else:
-            self._predicted_patch_count = None
-            self._patch_count_lbl.setText(self._count_with_accent("", mark="?"))
-            self._patch_detail_lbl.setText(tr("CUSTOM LAYOUT"))
+        # THE BIG NUMBER MUST DESCRIBE THE CHART GENERATE IS GOING TO BUILD.
+        #
+        # `per_sheet * pages` is a CAPACITY estimate, and it is the right answer
+        # for exactly one case: Generate is about to run targen and fill that
+        # many pages. With a patch set already ARMED -- a preset's attached
+        # .ti1, a built-in's bundled one -- Generate goes through
+        # `chart_creator.load_ti1_and_generate_preview` instead, and that path
+        # never consults `pages` at all: the file's own NUMBER_OF_SETS decides
+        # the count, and the count decides how many sheets it takes.
+        #
+        # Knut, 2026-09-10, on his own 648-patch honeycomb: Pages 2 -> the tab
+        # said 792 and Generate wrote two sheets holding 648; Pages 1 -> the tab
+        # said "396 / 1 PAGE" and Generate wrote the same two sheets holding the
+        # same 648. THE FILES WERE HONEST AND THE NUMBER WAS NOT. Nothing about
+        # what is built changes here; only what is claimed about it.
+        fixed = self._pending_patch_set_total()
 
+        # THE ESTIMATE IS PUBLISHED FIRST, AND THE BIG NUMBER IS READ OFF IT.
+        #
+        # Those were two independent calculations sitting two inches apart, and
+        # on the same screen they said 396 over 1 page and 648 over 2. Taking
+        # the headline from the layout the panel has just published makes them
+        # one number rather than two that agree when nothing has gone wrong.
+        # (`_predict_layout_info` returns that layout, or None when it could not
+        # build one, in which case the arithmetic below stands in.)
+        lay = None
         # Live layout-info estimate (Guided + engine). Runs even with a chart on
         # screen, so its "estimate" column tracks the current settings while the
         # "on screen" column keeps the generated chart's real numbers (#93).
@@ -13013,9 +13021,44 @@ class TabChart(QWidget):
                 geom = self._engine_geom(instr, paper, dd=dd, td=td, eff_lb=eff_lb,
                                          nsl=nsl_eff, pscale=eff_scale,
                                          margin=eff_margin, guided=guided_active)
-                self._predict_layout_info(geom, paper, pages)
+                lay = self._predict_layout_info(geom, paper, pages,
+                                                npat=fixed or None)
             else:
                 self._layout_info_panel.clear_estimate()
+
+        if per_sheet is not None:
+            if fixed and lay is not None:
+                # The armed patch set, laid out: `total_patches` is the count
+                # that will be ON the sheets (the designed set plus whatever
+                # fill-up the last strip takes) and `pages` is how many sheets
+                # that is. Both come from the panel's own layout.
+                total, shown_pages = lay.total_patches, lay.pages
+            elif fixed:
+                # No engine layout to read (printtarg, or Manual with the panel
+                # away). The count is still the file's, and the sheets still
+                # follow from it rather than from the Pages box.
+                total = fixed
+                shown_pages = max(1, -(-fixed // per_sheet))
+            else:
+                # Nothing armed: Generate really will run targen and fill the
+                # pages asked for, so the capacity estimate is the honest answer
+                # and is left exactly as it was.
+                total, shown_pages = per_sheet * pages, pages
+            self._predicted_patch_count = total   # for the Suggest-name button (#62)
+            self._patch_count_lbl.setText(self._count_with_accent(str(total)))
+            # "1 PAGES" sat on the first screen of the app, in the largest
+            # type on the panel, with "Number of pages: 1" two inches above it.
+            # Every other count-bearing line already uses `count_phrase`; this
+            # one skipped it and thirteen translations inherited the mistake.
+            _pages = count_phrase(shown_pages, tr("1 PAGE"), tr("{n} PAGES"))
+            self._patch_detail_lbl.setText(
+                tr("PATCHES · {pages} · {paper}").format(
+                    pages=_pages, paper=paper.upper())
+            )
+        else:
+            self._predicted_patch_count = None
+            self._patch_count_lbl.setText(self._count_with_accent("", mark="?"))
+            self._patch_detail_lbl.setText(tr("CUSTOM LAYOUT"))
 
         # Hidden-defaults info label (values mirror _collect_guided logic).
         # The base is fixed (no settings UI exposes it); reading it from settings
@@ -18533,21 +18576,27 @@ class TabChart(QWidget):
             return None
 
     def _predict_layout_info(self, geom, paper: str, pages_req: int,
-                             npat: "int | None" = None) -> None:
+                             npat: "int | None" = None):
         """Fill the Chart-layout-information panel with the engine's predicted
         grid (#93). With *npat* (the on-screen chart's patch count) the SAME
         patches are laid out under the current settings; otherwise a capacity-
-        filled layout of *pages_req* pages is shown (the auto-count prediction)."""
+        filled layout of *pages_req* pages is shown (the auto-count prediction).
+
+        Returns the ``geometry.Layout`` it published, or None when it could not
+        build one. `_update_patch_count` reads its headline count and page count
+        off that, so the big number and this panel cannot describe two different
+        charts -- which they did, 396 over one page beside 648 over two.
+        """
         panel = getattr(self, "_layout_info_panel", None)
         if panel is None:
-            return
+            return None
         try:
             from workflow.layout_engine import geometry, instruments, papers
             w_mm, h_mm = papers.dimensions_mm(paper)
             per_sheet = geometry.patches_per_sheet(geom, w_mm, h_mm)
             if not per_sheet:
                 panel.show_placeholder()
-                return
+                return None
             total = npat if npat else per_sheet * max(1, pages_req)
             lay = geometry.compute(geom, w_mm, h_mm, total)
             rows = lay.steps_in_pass
@@ -18570,8 +18619,10 @@ class TabChart(QWidget):
                                pages=lay.pages, patch_w=_pw, patch_h=_ph,
                                page_patches=n0, row_pitch=_pitch,
                                fillup=getattr(lay, "padding", None))
+            return lay
         except Exception:
             panel.clear_estimate()
+            return None
 
     def _update_layout_info(self) -> None:
         """Fill the on-screen column of the Chart-layout-information panel from

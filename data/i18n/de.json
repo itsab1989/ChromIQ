@@ -496,6 +496,7 @@
   "Auto": "Auto",
   "Auto (recommended)": "Auto (empfohlen)",
   "Auto align": "Auto-Ausrichten",
+  "Auto align cannot find a hexagonal chart. The search looks for the straight edges of a grid of rectangles, and a honeycomb has none, so pressing the button again will not help however the corners are placed. Drag the four corners onto the chart yourself: put each one on the outermost patch of its corner. Everything else in this window works normally on a honeycomb, including “Check alignment”, which will tell you whether what you placed is reading the right patches.": "Auto-Ausrichten kann ein sechseckiges Chart nicht finden. Die Suche hält nach den geraden Kanten eines Rasters aus Rechtecken Ausschau, und eine Wabe hat keine. Noch einmal drücken hilft deshalb nicht, egal wie die Ecken liegen. Zieh die vier Ecken selbst auf das Chart: jede auf das äußerste Feld ihrer Ecke. Alles andere in diesem Fenster funktioniert auch bei einer Wabe normal, auch „Ausrichtung prüfen“, das dir sagt, ob das, was du gesetzt hast, die richtigen Felder liest.",
   "Auto align has nothing to look at yet": "Auto-Ausrichten hat noch nichts zum Ansehen",
   "Auto align left your corners exactly where they are": "Auto-Ausrichten hat deine Ecken genau dort gelassen, wo sie sind",
   "Auto align put the grid on the patches": "Auto-Ausrichten hat das Raster auf die Felder gelegt",

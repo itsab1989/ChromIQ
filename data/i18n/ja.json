@@ -496,6 +496,7 @@
   "Auto": "自動",
   "Auto (recommended)": "自動（推奨）",
   "Auto align": "自動整列",
+  "Auto align cannot find a hexagonal chart. The search looks for the straight edges of a grid of rectangles, and a honeycomb has none, so pressing the button again will not help however the corners are placed. Drag the four corners onto the chart yourself: put each one on the outermost patch of its corner. Everything else in this window works normally on a honeycomb, including “Check alignment”, which will tell you whether what you placed is reading the right patches.": "「自動整列」は六角形チャートを見つけられません。探索は長方形の格子がもつまっすぐな辺を手がかりにしますが、ハニカムにはそれがありません。そのため、四隅をどう置いても、もう一度ボタンを押して解決することはありません。四隅はご自身でチャートの上へドラッグしてください。それぞれをその角のいちばん外側のパッチに合わせます。このウィンドウの他の機能はハニカムでもすべて通常どおり動作します。「位置合わせをチェック」も使え、置いた位置が正しいパッチを読んでいるかどうかを教えてくれます。",
   "Auto align has nothing to look at yet": "自動整列にはまだ見るべきものがありません",
   "Auto align left your corners exactly where they are": "自動整列は角をそのままの位置に残しました",
   "Auto align put the grid on the patches": "自動整列がグリッドをパッチに合わせました",
