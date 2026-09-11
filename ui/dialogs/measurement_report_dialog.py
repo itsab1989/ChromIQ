@@ -2435,6 +2435,22 @@ class MeasurementReportDialog(QDialog):
         return [x for x in rows
                 if (x.get("row_id") or x.get("key")) in want]
 
+    def _type_changes_the_document(self) -> bool:
+        """Whether the chosen type changes which rows the document contains.
+
+        Two ways it can: T4 withholds every verdict, T3 drops the rows it is
+        not about. Either way the saved summary, which `stamp_verdict` computed
+        over the full report, is a statement about a document nobody is
+        looking at.
+
+        ONE QUESTION, ASKED OF THE TYPE. Asked per type, it was answered for
+        T4 and not for T3, which is the first of the five fault shapes this
+        project keeps meeting.
+        """
+        from workflow.measurement_report import rows_for_report_type
+        return (self._ungraded_by_type()
+                or rows_for_report_type(self._report_type_now()) is not None)
+
     def _ungrade(self, rows: list) -> list:
         """Every row's WORD becomes INFO when the chosen type judges nothing.
 
@@ -2458,28 +2474,25 @@ class MeasurementReportDialog(QDialog):
         from workflow.measurement_report import (is_graded_sheet,
                                                  recorded_compliance)
         rec = self._recorded(r)
-        # T4 ANSWERS FIRST, AND ANSWERS THE WHOLE QUESTION. Two things go
-        # wrong if it only edits the paths below.
+        # THE SAVED SUMMARY IS THE FULL REPORT'S, AND A TYPE THAT CHANGES THE
+        # DOCUMENT MAY NOT USE IT.
         #
-        # The saved word: a report saved with a PASS carries it into the early
-        # return just below, so a document whose whole point is that nothing is
-        # judged would have printed a green PASS at the top of its own column.
-        # Nothing is rewritten here; the saved word is still on disk and comes
-        # back the moment the type does.
+        # This guard was written for T4 alone and the shape came straight back
+        # in the door beside it: the early return below hands back the word
+        # `stamp_verdict` computed over EVERY row, so a Grey and tone check,
+        # which prints three rows, printed a red FAIL earned by five colour
+        # rows it does not mention. An adversarial round drove it with a report
+        # saved the way the app saves one, which is the state every real user
+        # has; the round that built T3 missed it because a bare `.ti3` makes
+        # the window derive the report live, the one state where this return
+        # does not fire.
         #
-        # And the LIMITS: the recomputing path reads them out of the saved
-        # report, and a report saved before those were recorded has none, so it
-        # answered N-A, "this limit set defines no limits". True, and beside
-        # the point: a report that judges nothing needs no limits to say so,
-        # and that sentence would be the only explanation a reader got.
-        if self._ungraded_by_type():
-            from workflow.compliance_sets import (INFO, N_A as _NA,
-                                                  SUMMARY_REASONS, Summary)
-            _rows, _rc = self._verdict_rows(r)
-            return Summary(INFO, 0, len(_rows), 0, 0,
-                           sum(1 for x in _rows if x.get("word") == _NA),
-                           SUMMARY_REASONS["record_type"])
-        if rec is not None \
+        # So the question is asked once, of the type, and not once per type:
+        # does the chosen type change which rows are in the document? If it
+        # does, the column's word is recomputed over the rows that ARE in it.
+        # Nothing is rewritten; the saved word is still on disk and comes back
+        # the moment the type does.
+        if rec is not None and not self._type_changes_the_document() \
                 and isinstance(rec.get("summary"), dict) and rec.get("overall"):
             sm = rec["summary"]
             # THE SAVED WORD IS KEPT, AND IT MAY NOT STAND ALONE. This early
@@ -2539,9 +2552,13 @@ class MeasurementReportDialog(QDialog):
             _stored = str((recorded_compliance(r) or {}).get("set_label", "") or "")
         except Exception:                       # noqa: BLE001 — a display detail
             _stored = ""
+        from workflow.compliance_sets import SUMMARY_REASONS
+        _by_type = self._ungraded_by_type()
         return set_summary(pairs,
                            set_is_iso=applies_a_standard(set_id, _stored),
-                           graded=graded)
+                           graded=graded and not _by_type,
+                           ungraded_reason=(SUMMARY_REASONS["record_type"]
+                                            if _by_type and graded else ""))
 
     def _judged_label_for(self, r: dict) -> str:
         """What a column was judged against, for the grid and the provenance."""
@@ -4405,16 +4422,18 @@ class MeasurementReportDialog(QDialog):
         if _standard_cols:
             notes += (f"<div style='{note_css}'>"
                       + html.escape(tr(STANDARD_CAVEAT)) + "</div>")
-        # EITHER ungraded reason, not the one that existed first. This
-        # selection is by EXACT EQUALITY on the sentence, and the comment in
-        # `_column_summary` records that a longer string silently dropped
-        # Knut's 12b explanation once already. A second reason is exactly that
-        # fault again, so the question is asked of the module that owns both.
-        from workflow.compliance_sets import is_ungraded_reason
+        # EVERY reason that has to be read, not the one that existed first.
+        # This selection is by EXACT EQUALITY on the sentence, and the comment
+        # in `_column_summary` records that a longer string silently dropped
+        # Knut's 12b explanation once already. A second reason was exactly that
+        # fault again; a THIRD, `nothing_checked`, was found by an adversarial
+        # round reading the saved PDFs back, so the question is asked of the
+        # module that owns all of them rather than listed here.
+        from workflow.compliance_sets import reason_needs_the_footnote
         _ungraded = next(
             (self._column_summary(r) for r in runs
              if not _is_raw_drift(r)
-             and is_ungraded_reason(self._column_summary(r).reason)),
+             and reason_needs_the_footnote(self._column_summary(r).reason)),
             None)
         if _ungraded is not None:
             notes += (f"<div style='{note_css}'>"

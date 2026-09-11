@@ -12963,6 +12963,16 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             # afterwards unless the user unlocks the run's limits (D23).
             stamp_verdict(report, limits.limits, set_id=limits.set_id,
                           set_label=limits.label_en, edited=limits.edited)
+            # …and WHICH KIND of document this run produces, beside the verdict
+            # and for the same reason (#182 D28). A report archived into
+            # reports/old/ should say what it was as well as what it was judged
+            # against, and a measurement outside a project has nowhere else to
+            # keep it.
+            from workflow.measurement_report import stamp_report_type
+            from workflow.run_compliance import run_context_for
+            _ctx = run_context_for(ti3)
+            if _ctx is not None:
+                stamp_report_type(report, _ctx.run)
             path = save_report(report, ti3.parent)
             self._log.appendPlainText(
                 tr("[Report] Measurement report saved: {name}").format(

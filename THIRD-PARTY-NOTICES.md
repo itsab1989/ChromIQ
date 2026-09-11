@@ -235,9 +235,13 @@ Listed so the sweep is exhaustive and nobody has to re-derive it:
   files (`.ti1` + `.ti2` + page TIFFs), so they carry no recipe and cannot be
   regenerated from anything here; each page prints "Patch sampling and layout
   design by Nelson Lau © for ChromIQ" on the sheet. Permission to ship them is
-  his own, given with each contribution ("Hopefully you can integrate them in
-  the upcoming version of ChromIQ as presets", 2026-09-08, of the two
-  photo-card charts). The credit stays on the sheets.
+  his own, given in writing with each contribution, most recently on 2026-09-08
+  for the two photo-card charts. The credit stays on the sheets.
+
+  *(His message was quoted here word for word until 2026-09-11. The permission
+  is what this file has to record; a contributor's private words do not belong
+  in a document that ships inside the application, and the exact wording is in
+  the project's history for anyone who needs it.)*
 - **Limit sets for the Measurement Report** are in `data/compliance_sets/`.
   ChromIQ's own files, under the project's own licence, and **empty of any third
   party's numbers**. `iso12647.json` is the file that would carry the tolerance

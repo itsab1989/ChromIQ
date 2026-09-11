@@ -199,3 +199,66 @@ def test_nothing_here_spells_the_rights_holders_name():
     for known in ("Fogra", "FOGRA"):
         assert known not in body, \
             f"{known!r} is spelled in the code; the check is about one holder"
+
+
+# ---------------------------------------------------------------------------
+# …and only the NOTICE half of the file reaches the product
+# ---------------------------------------------------------------------------
+def _headings() -> "list[str]":
+    from ui.licences import _section_name
+    text = (ROOT / "THIRD-PARTY-NOTICES.md").read_text(encoding="utf-8")
+    return [_section_name(l) for l in text.splitlines() if l.startswith("## ")]
+
+
+def test_every_section_is_classified_as_notice_or_record():
+    """THE GUARD. Add a section to the notices file and this fails until
+    somebody decides whether users see it.
+
+    Without it the next section is published or withheld by whichever default
+    happens to apply, which is exactly how the project's own audit record came
+    to be rendered in Preferences: 23,690 characters, including a statement
+    that an attribution obligation is currently unmet and a contributor's
+    private message quoted with its date. Found by an adversarial round
+    reading the page back, not by anyone choosing it.
+
+    MUTATION: add a heading to the notices file and this goes red.
+    """
+    from ui.licences import NOTICE_SECTIONS, RECORD_SECTIONS
+    both = set(NOTICE_SECTIONS) | set(RECORD_SECTIONS)
+    assert not (set(NOTICE_SECTIONS) & set(RECORD_SECTIONS)), \
+        "a section is in both lists; decide which"
+    found = set(_headings())
+    assert found == both, (
+        f"unclassified sections (a user would see them or not by accident): "
+        f"{sorted(found - both)}   |   listed but gone: {sorted(both - found)}")
+    for name, why in RECORD_SECTIONS.items():
+        assert len(why) > 20, f"{name} is withheld with no reason given"
+
+
+def test_the_page_shows_the_notices_and_not_the_record():
+    """MUTATION: render the whole file and this goes red."""
+    from ui.licences import NOTICE_SECTIONS, RECORD_SECTIONS, notices_markdown
+    shown = notices_markdown()
+    assert shown, "nothing is rendered at all"
+    for name in NOTICE_SECTIONS:
+        assert f"## {name}" in shown, f"{name} is a notice and is missing"
+    for name in RECORD_SECTIONS:
+        assert f"## {name}" not in shown, f"{name} is the project's record"
+
+
+def test_no_private_message_is_quoted_in_a_file_that_ships():
+    """A contributor's own words, with a date, inside the application binary.
+
+    The permission is what the file has to record; the wording is in the
+    project's history. The rule it falls under is older than this feature: no
+    personal data, and no customer's or contributor's private material,
+    published anywhere.
+
+    MUTATION: put the quotation back and this goes red.
+    """
+    text = (ROOT / "THIRD-PARTY-NOTICES.md").read_text(encoding="utf-8")
+    i = text.find("Permission to ship them is")
+    assert i >= 0, "the permission itself is no longer recorded"
+    para = text[i:i + 400]
+    assert "Hopefully" not in para, "the private message is quoted again"
+    assert "given in writing" in para, "the permission lost its provenance"

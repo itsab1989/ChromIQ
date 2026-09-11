@@ -597,8 +597,17 @@ def _load_iso_numbers() -> "dict[str, dict[str, Limit]]":
                 unknown_rows.append(rid)
             elif _looks_unreadable(raw):
                 unreadable_cells.append(rid)
+    # IS THE SET NAMED, not "did any of its rows survive". These are different
+    # questions and the answer to the second was being given under the name of
+    # the first: `out[sid]` is built by a comprehension that drops every row id
+    # ChromIQ does not know, so a file whose top-level key IS `iso_12647_7`,
+    # holding rows that are all misspelled, was told "The file names no limit
+    # set ChromIQ knows. It needs a top-level key iso_12647_7" — two lines
+    # above a sentence listing the misspelled rows, which proves the key was
+    # found. A licence holder following that instruction would rename a key
+    # that is already right. Driven and photographed by an adversarial round.
     if mine and not problems and not any(
-            out.get(sid) for sid in ISO_SET_IDS):
+            isinstance(doc, dict) and sid in doc for sid in ISO_SET_IDS):
         problems.append(("no_known_set", ", ".join(ISO_SET_IDS)))
     if unreadable_cells:
         problems.append(("unreadable_cells", ", ".join(sorted(
@@ -849,6 +858,26 @@ def is_ungraded_reason(reason: str) -> bool:
                       SUMMARY_REASONS["record_type"])
 
 
+#: Reasons that have to appear as TEXT under the results table, because the
+#: word above them cannot be accounted for from the table itself.
+#:
+#: An adversarial round read the saved PDFs back and found the third one
+#: missing: `nothing_checked` is the whole user-facing payload of the
+#: false-PASS fix, and it reached only the Overall cell's `title=`, which is a
+#: tooltip and which no PDF page carries. That is the SAME fault the comment in
+#: `_column_summary` records being fixed twice before, arriving a third time
+#: inside the fix that named it.
+#:
+#: A graded column's ordinary sentence ("5 of 7 values checked…") is not here
+#: on purpose: its numbers are the table the reader is already looking at.
+_FOOTNOTE_REASONS = ("not_graded", "record_type", "nothing_checked")
+
+
+def reason_needs_the_footnote(reason: str) -> bool:
+    """Whether this Overall reason must be printed under the table."""
+    return reason in tuple(SUMMARY_REASONS[k] for k in _FOOTNOTE_REASONS)
+
+
 def set_summary(rows: "list[tuple[Limit, str | None]]", *, set_is_iso: bool,
                 graded: bool, ungraded_reason: str = "") -> Summary:
     """The column's one word, with the numbers a reader needs beside it.
@@ -869,8 +898,13 @@ def set_summary(rows: "list[tuple[Limit, str | None]]", *, set_is_iso: bool,
     bearing = [(lim, w) for lim, w in rows if lim.is_numeric]
     total = len(bearing)
     R = SUMMARY_REASONS
-    if total == 0:
-        return Summary(N_A, 0, 0, 0, 0, 0, R["empty"])
+    # "NOTHING WAS JUDGED" OUTRANKS "THERE WERE NO LIMITS", and the two used to
+    # be the other way round. A report saved before the limits were recorded
+    # has no limit-bearing row, so an UNGRADED document about it answered
+    # "This limit set defines no limits" — true, and the wrong thing to tell
+    # somebody who chose a report that judges nothing. The `not graded` clause
+    # now comes first and the empty-set clause sits below it, where it still
+    # answers every graded column exactly as before.
     failed = sum(1 for _l, w in bearing if w == FAIL)
     cond = sum(1 for _l, w in bearing if w == COND)
     not_computed = sum(1 for _l, w in bearing if w == N_A)
@@ -878,6 +912,8 @@ def set_summary(rows: "list[tuple[Limit, str | None]]", *, set_is_iso: bool,
     if not graded:
         return Summary(INFO, checked, total, failed, cond, not_computed,
                        ungraded_reason or R["not_graded"])
+    if total == 0:
+        return Summary(N_A, 0, 0, 0, 0, 0, R["empty"])
     if checked == 0:
         # A verdict is a statement about measured values. With none of them
         # measured there is no statement to make, and PASS would be a claim

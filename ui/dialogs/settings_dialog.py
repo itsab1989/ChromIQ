@@ -5582,6 +5582,16 @@ class SettingsDialog(QDialog):
             show = QPushButton(tr("Show each set's credit"), self)
             show.setCheckable(True)
             show.toggled.connect(sets.setVisible)
+            # THE WORD HAS TO FOLLOW THE STATE. A checkable button that always
+            # says "Show" leaves the only way to close the list a button that
+            # says it will open it.
+            #
+            # A BOUND METHOD, not a lambda. A self-capturing lambda on a signal
+            # a widget's own child emits is the shape that segfaulted this app
+            # (CLAUDE.md), and "this one captures nothing" is a judgement the
+            # next editor should not have to make.
+            self._credits_btn = show
+            show.toggled.connect(self._on_credits_toggled)
             row = QHBoxLayout()
             row.addWidget(show)
             row.addStretch(1)
@@ -5610,6 +5620,12 @@ class SettingsDialog(QDialog):
         files_row.addStretch(1)
         v.addLayout(files_row)
         return page
+
+    def _on_credits_toggled(self, shown: bool) -> None:
+        btn = getattr(self, "_credits_btn", None)
+        if btn is not None:
+            btn.setText(tr("Hide each set's credit") if shown
+                        else tr("Show each set's credit"))
 
     def _on_show_own_licence(self) -> None:
         """ChromIQ's own licence, in a window of its own. Not a link out: a

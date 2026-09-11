@@ -50,9 +50,78 @@ def own_licence_text() -> str:
     return _read(LICENCE_FILE)
 
 
+#: Which sections of `THIRD-PARTY-NOTICES.md` belong in the PRODUCT, and which
+#: are the project's own record. Every heading in that file must be in exactly
+#: one of these, and a test says so, because a section added later would
+#: otherwise arrive in front of users with nobody deciding that it should.
+#:
+#: THE FILE IS TWO DOCUMENTS WEARING ONE NAME. Most of it is a notice: who owns
+#: a bundled file and on what terms, which is what a user is entitled to read
+#: and what the Fogra grant requires be readable. The rest is an internal audit
+#: record: a past non-compliance and its remedy, a list of obligations still
+#: open, a legal argument about GPLv3 aggregation, a contributor's private
+#: message quoted with its date, and notes about which decisions were whose.
+#:
+#: Shipping the first is the point. Shipping the second was an accident of
+#: rendering the whole file, found by an adversarial round reading 23,690
+#: characters back off the page, and it is not a decision this code should make
+#: on anybody's behalf. The file itself is unchanged and still ships inside the
+#: bundle; only what the WINDOW renders is chosen here.
+NOTICE_SECTIONS: "tuple[str, ...]" = (
+    "The rule",
+    "Colour profiles",
+    "Fonts",
+    "Vendored JavaScript",
+    "Sounds",
+    "Test image",
+    "Scanner target recognition files",
+    "Argyll-derived helpers",
+    "ChromIQ's own",
+)
+
+#: The project's own record, and why each is not in the product.
+RECORD_SECTIONS: "dict[str, str]" = {
+    "A word on GPLv3 and aggregation":
+        "a legal argument about our own licensing, not a notice about "
+        "anybody's file",
+    "The Adobe profile (removed)":
+        "the history of a file that no longer ships, including a statement "
+        "that we were once not compliant",
+    "Still open":
+        "obligations this project has not met yet. A licence page that "
+        "publishes its own open items in the product is a different document "
+        "from one that names rights holders, and that is not this code's "
+        "decision to make",
+}
+
+
+def _section_name(heading: str) -> str:
+    """The part of a `## …` heading before its file path, trimmed."""
+    return heading.lstrip("#").split("\u2014")[0].strip()
+
+
 def notices_markdown() -> str:
-    """`THIRD-PARTY-NOTICES.md`, verbatim, or "" when it did not travel."""
-    return _read(NOTICES_FILE)
+    """The NOTICE half of `THIRD-PARTY-NOTICES.md`: who owns what ChromIQ
+    ships and on what terms, and nothing about the project's own record.
+
+    Returns "" when the file did not travel with the build.
+    """
+    raw = _read(NOTICES_FILE)
+    if not raw:
+        return raw
+    out: "list[str]" = []
+    # THE INTRO IS NOT A NOTICE EITHER. It opens on the story of a file that no
+    # longer ships and the sentence "We were not compliant", which belongs in
+    # the project's record and not on a page a user opens to find out who owns
+    # the fonts. The page writes its own lead; rendering starts at the first
+    # section heading.
+    keep = False
+    for line in raw.splitlines(keepends=True):
+        if line.startswith("## "):
+            keep = _section_name(line) in NOTICE_SECTIONS
+        if keep:
+            out.append(line)
+    return "".join(out)
 
 
 def reference_data_credits() -> "list[str]":

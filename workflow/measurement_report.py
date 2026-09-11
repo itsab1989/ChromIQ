@@ -1045,8 +1045,14 @@ REPORT_TYPE_MENU: "tuple[tuple[str, str, str, bool], ...]" = (
     (REPORT_TYPE_FULL, "Full colour check",
      "Everything ChromIQ measures, in full. This is the report you know.",
      True),
+    # "on their own" was measured against the document and was not true: the
+    # RESULTS are the neutral axis alone, and the pages around them are still
+    # the full report's. Knut's brief says two pages, so the document itself
+    # has more to lose before it matches; until it does, the line says what is
+    # actually true today rather than what it will be.
     (REPORT_TYPE_GREY, "Grey and tone check",
-     "The neutral axis and the mid-tone ramps, on their own.", True),
+     "Judges the neutral axis and the mid-tone ramps; the colour rows are "
+     "left out.", True),
     (REPORT_TYPE_RECORD, "Printing record (not graded)",
      "A record of what was printed and measured, with nothing judged.", True),
     (REPORT_TYPE_ISO_8, "Validation print check (ISO 12647-8)",
@@ -1099,6 +1105,32 @@ def report_type_name(type_id: str) -> str:
         if tid == type_id:
             return name
     return ""
+
+
+def stamp_report_type(report: dict, run) -> dict:
+    """Record on the report which KIND of document the run produces.
+
+    Called beside :func:`stamp_verdict`, for the same reason and at the same
+    moment: the run's choice at the moment of the measurement is what this
+    report was produced under, and a report archived into ``reports/old/``
+    should say what it was as well as what it was judged against.
+
+    IT WAS BUILT AND THEN NOT CALLED. The storage, the strict writer, the
+    forgiving reader and their mutations all landed in the first commit of
+    this feature, and nothing anywhere wrote one: an adversarial round grepped
+    for the writer and found only its own tests. So a measurement outside a
+    project lost its type when its window closed, with the place to keep it
+    sitting right there.
+
+    Never raises: a report that cannot be stamped is still a report, and the
+    run remains the source of truth for anything inside a project.
+    """
+    try:
+        from workflow.run_compliance import run_report_type
+        set_report_type(report, run_report_type(run))
+    except Exception as exc:                    # noqa: BLE001
+        log.warning("could not record the report type: %s", exc)
+    return report
 
 
 def set_report_type(report: dict, type_id: str) -> None:
