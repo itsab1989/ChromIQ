@@ -514,6 +514,7 @@ Two obligations, and the second is the one that is easy to get wrong:
 | `tool_availability.md` | which Tools apply to which run-type/profile-run selection, and where each may write (**DRAFT — awaiting confirmation**) |
 | `verification_printing_and_target.md` | printing a verification chart through its profile, and #133's profile-tailored target — condition→action tables mapped to code (**DRAFT — awaiting confirmation**) |
 | `measurement_report_limits.md` | the Measurement Report's limit sets (#182): rows, the five verdict words, where a run's set lives and when it may change, the archive-then-recalculate rule (**DRAFT, every section awaiting confirmation**) |
+| `chart_load_and_generate_paths.md` | every path that shows a stored chart and every path that builds a new one (#182), measured by driving the app; the chart-file import rule, and the two ways of laying a chart out again (**DRAFT, awaiting confirmation**) |
 
 New user-facing message text is governed by §M of
 `unified_measurement_management.md`: it goes to §M-PROPOSED first and is not
