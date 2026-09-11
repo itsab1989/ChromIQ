@@ -444,19 +444,30 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # under the beta rule, so every other budget rises by exactly one. Counted
 # with this file's own `_english_echoes`, not adjusted upward.
 # 2026-09-11, THE THIRD MERGE. Measured again on the merged catalogues.
+# 2026-09-11, the from-profile-gamut round. The grey line under "Colours to
+# test" is replaced by two sentences that say what actually happened, one per
+# case; German is translated, so de does not move (4, unchanged). Of the two
+# new keys only ONE is counted here: `_english_echoes` skips anything whose
+# first word is "ChromIQ", and the other sentence begins with it. So every
+# non-German budget goes up by exactly 1 -- RE-MEASURED on the catalogues this
+# commit leaves behind, key by key, not assumed from the count of strings
+# added: de 4, es 143, fr 144, it 143, ja 143, nl 143, no 143, pl 143, pt 143,
+# ru 142, sv 143, zh_CN 142, and in each of the eleven the one new echo is
+# "The reference colour set could not be read...".
+# 2026-09-11, THE FOURTH MERGE. Measured again on the merged catalogues.
 _BUDGET = {
     "de": 4,
-    "es": 143,
-    "fr": 144,
-    "it": 143,
-    "ja": 143,
-    "nl": 143,
-    "no": 143,
-    "pl": 143,
-    "pt": 143,
-    "ru": 142,
-    "sv": 143,
-    "zh_CN": 142,
+    "es": 144,
+    "fr": 145,
+    "it": 144,
+    "ja": 144,
+    "nl": 144,
+    "no": 144,
+    "pl": 144,
+    "pt": 144,
+    "ru": 143,
+    "sv": 144,
+    "zh_CN": 143,
 }
 
 

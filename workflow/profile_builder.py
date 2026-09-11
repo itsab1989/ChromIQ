@@ -213,6 +213,64 @@ _COLPROF_WARNING_PATTERNS: list[tuple[re.Pattern[str], str, str]] = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# What `colprof -v` says while it is working
+#
+# MEASURED against ArgyllCMS 3.5.0 on a real 4,000-patch measurement, output
+# timestamped byte by byte (a `\r` counts as the end of a field):
+#
+#   * WITHOUT `-v`, colprof prints **nothing at all** for the whole build —
+#     18.71 s at `-qm`, zero bytes, exit 0. There is nothing to read, nothing
+#     buffered and nothing withheld; the tool is simply silent.
+#   * WITH `-v` it names each phase on its own line and then ticks a
+#     percentage for that phase, `\r`-terminated. The percentage RESTARTS at
+#     0 for every phase, so there is no single number for the whole build and
+#     any bar claiming one would be inventing it. What the tool does support,
+#     and all it supports, is "this phase, this far".
+#   * The same measurement at `-qu` (the quality this was reported against)
+#     took 457 s: phases for the first 21 s, one silent stretch of 107 s while
+#     the B2A tables are set up, then a percentage every ~4 s for the
+#     remaining 5.5 minutes. So the readout is honest about being unable to
+#     say anything during that stretch — the bar stays indeterminate until a
+#     percentage actually arrives.
+#
+# Both helpers are pure so the parsing can be tested without a subprocess.
+# ---------------------------------------------------------------------------
+
+#: The openings colprof uses to announce a phase (3.5.0, `profile/profout.c`).
+_COLPROF_PHASE_OPENERS = (
+    "About to ", "Creating ", "Create ", "Setting up ", "Doing ",
+    "Estimating ", "Find ",
+)
+
+#: A percentage field on its own, e.g. `"  0"`, `" 17"`, `"100"` + `"%"`.
+_COLPROF_PCT_RE = re.compile(r"^\s*(\d{1,3})\s*%$")
+
+
+def colprof_phase(line: str) -> "str | None":
+    """The phase *line* announces, or None when it announces none.
+
+    The trailing colon of "Doing White point fine tune:" is dropped so the
+    phrase reads the same as every other one.
+    """
+    text = line.strip()
+    if not text.startswith(_COLPROF_PHASE_OPENERS):
+        return None
+    return text.rstrip(":").strip() or None
+
+
+def colprof_percent(line: str) -> "float | None":
+    """*line* as a 0.0-1.0 fraction when it is a bare percentage field, else
+    None. Anything above 100 % is a misread, not progress, and is refused."""
+    m = _COLPROF_PCT_RE.match(line)
+    if m is None:
+        return None
+    pct = int(m.group(1))
+    if pct > 100:
+        return None
+    return pct / 100.0
+
+
 def _profile_dir() -> Path:
     return icc_install_dir()
 

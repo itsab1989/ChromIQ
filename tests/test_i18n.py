@@ -768,6 +768,19 @@ def test_every_deliberate_exception_says_why():
 # 2026-09-11, THE SECOND MERGE. Three rounds have now moved this table,
 # each on its own base. Re-measured on the merged catalogues rather than
 # reconciled: a number carried across a merge is a number nobody counted.
+# 2026-09-11, the from-profile-gamut round. The grey line under "Colours to
+# test" used to say the in-gamut count "runs the first time a profile is
+# available" -- in a label that is only drawn when a profile IS available, so
+# it named a cause that cannot be the one. It becomes two sentences that say
+# what actually happened, one per case. **2 keys in, 1 stale out, counted with
+# `set(after) - set(before)` and `set(before) - set(after)` on each catalogue
+# and not from memory.** German is translated, so de does not move at all
+# (124, unchanged); the eleven others carry the English sentences under the
+# beta rule and each gains exactly 2 -- the stale key they lost was itself
+# translated in every one of the twelve, so it was never in these counts.
+# Re-measured on the catalogues this commit leaves behind, not derived: de 124,
+# es 300, fr 322, it 311, ja 286, nl 327, no 312, pl 304, pt 302, ru 275,
+# sv 313, zh_CN 280.
 _IDENTICAL_TO_KEY = {
     # RE-MEASURED AGAIN after the merge of that round into this branch:
     # the numbers above were counted on ITS base, which did not carry the
@@ -781,17 +794,17 @@ _IDENTICAL_TO_KEY = {
     # `len([k for k, v in cat.items() if v == k and not k.startswith("@")])`
     # per catalogue, which is the same expression the test below uses.
     "de": 124,
-    "es": 300,
-    "fr": 322,
-    "it": 311,
-    "ja": 286,
-    "nl": 327,
-    "no": 312,
-    "pl": 304,
-    "pt": 302,
-    "ru": 275,
-    "sv": 313,
-    "zh_CN": 280,
+    "es": 302,
+    "fr": 324,
+    "it": 313,
+    "ja": 288,
+    "nl": 329,
+    "no": 314,
+    "pl": 306,
+    "pt": 304,
+    "ru": 277,
+    "sv": 315,
+    "zh_CN": 282,
 }
 
 
