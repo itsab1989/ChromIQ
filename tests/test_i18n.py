@@ -678,19 +678,32 @@ def test_every_deliberate_exception_says_why():
 # the second to do it. Counted from the catalogues, not from memory:
 # `set(after) - set(before)` is 8 and `set(before) - set(after)` is 3, in every
 # one of the twelve.
+# 2026-09-11, 4.2.6: the Build Profile tab now says when the measurement
+# already in the run carries its CIE columns on the 0..1 scale. Two strings,
+# a label suffix and the Build button's tooltip. German is translated for both,
+# so de does not move; the other eleven carry the English source under the beta
+# rule and each gained exactly 2.
+#
+# AND THE TABLE IS NOW EACH LANGUAGE'S ACTUAL COUNT AGAIN, which it had stopped
+# being. It stood up to eight above the truth (es was recorded at 112 and, with
+# the two new echoes already in, counts 106), and eight units of slack is eight
+# free regressions per language. RE-MEASURED here on this tree's catalogues with
+# the same expression the test below uses, and NOT copied from the branch these
+# fixes were backported from: that branch's catalogues carry hundreds of English
+# placeholders this tree does not.
 _IDENTICAL_TO_KEY = {
     "de": 117,
-    "es": 112,
-    "fr": 133,
-    "it": 123,
-    "ja": 99,
-    "nl": 140,
-    "no": 124,
-    "pl": 116,
-    "pt": 114,
-    "ru": 87,
-    "sv": 126,
-    "zh_CN": 93,
+    "es": 106,
+    "fr": 127,
+    "it": 117,
+    "ja": 93,
+    "nl": 134,
+    "no": 118,
+    "pl": 110,
+    "pt": 108,
+    "ru": 81,
+    "sv": 120,
+    "zh_CN": 87,
 }
 
 

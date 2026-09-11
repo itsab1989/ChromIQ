@@ -448,6 +448,63 @@ def _cxf_measured_date(root, meas) -> "str | None":
 _CIE_UNSCALED_CEILING = 1.5
 
 
+def cie_columns_are_unscaled(ti3_path: "str | Path | None") -> bool:
+    """Whether a ``.ti3`` ALREADY ON DISK carries CIE on the 0..1 scale.
+
+    THE REPAIR ABOVE GUARDS THE IMPORT, AND EVERY IMPORT ONLY. A measurement
+    converted before it existed is still sitting in the run folder, and nothing
+    on the way from there to ``colprof`` looks at it again: reproduced on screen
+    2026-09-11 with the reporting user's own export, converted the old way and
+    opened in her project. Build Profile armed its button, said nothing, and the
+    Measurement Report generated and filed a report whose paper white reads
+    ``L* 8.0`` and whose every ΔE is meaningless.
+
+    So this is the reading half of the same fact, and it is only a reading: it
+    never touches the file. What to do about the answer belongs to the window
+    that asks. Nothing is repaired behind the user's back, and nothing is
+    refused, because a file the user has not asked us to change is theirs.
+
+    A pure text scan, not a parse, because this runs on every load of every
+    measurement: one pass for the three XYZ columns, no spectra, no numpy.
+    False for anything it cannot read, for Lab-only and spectral-only files
+    (neither can carry this fault) and for an empty table.
+    """
+    if ti3_path is None:
+        return False
+    p = Path(ti3_path)
+    try:
+        text = read_text(p, lenient=True)
+    except OSError:
+        return False
+    lines = text.splitlines()
+    try:
+        fmt_at = next(i for i, ln in enumerate(lines)
+                      if ln.strip() == "BEGIN_DATA_FORMAT")
+        fields = lines[fmt_at + 1].split()
+        data_at = next(i for i, ln in enumerate(lines)
+                       if ln.strip() == "BEGIN_DATA")
+        end_at = next(i for i, ln in enumerate(lines) if ln.strip() == "END_DATA")
+    except (StopIteration, IndexError):
+        return False
+    if not all(f"XYZ_{c}" in fields for c in "XYZ"):
+        return False
+    cols = [fields.index(f"XYZ_{c}") for c in "XYZ"]
+    peak = 0.0
+    seen = False
+    for i in range(data_at + 1, end_at):
+        parts = lines[i].split()
+        if not parts:
+            continue
+        if len(parts) != len(fields):
+            return False
+        try:
+            peak = max(peak, *(abs(float(parts[c])) for c in cols))
+        except ValueError:
+            return False
+        seen = True
+    return seen and 0.0 < peak <= _CIE_UNSCALED_CEILING
+
+
 def repair_converted_cie(ti3_path: str | Path,
                          argyll_bin: "str | Path | None" = None,
                          runner: Callable[..., subprocess.CompletedProcess]

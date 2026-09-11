@@ -5093,5 +5093,7 @@
   "⟳ Rotate 90°": "⟳ Roter 90°",
   "⤢ Dock back": "⤢ Dokk tilbake",
   "⤢ Pop out": "⤢ Løsne",
-  "＋ Add another scan to average": "＋ Legg til enda et skann å midle"
+  "＋ Add another scan to average": "＋ Legg til enda et skann å midle",
+  "  ·  colour values on the wrong scale": "  ·  colour values on the wrong scale",
+  "The XYZ columns in this measurement are on the 0 to 1 scale, not the 0 to 100 one ArgyllCMS uses, so every colour in it reads far too dark: its paper white is almost black. That happens when an i1Profiler export is converted by a version of ChromIQ that did not put the scale right. Import the measurement again to get a usable one. A profile built from this file will record its paper white as almost black.": "The XYZ columns in this measurement are on the 0 to 1 scale, not the 0 to 100 one ArgyllCMS uses, so every colour in it reads far too dark: its paper white is almost black. That happens when an i1Profiler export is converted by a version of ChromIQ that did not put the scale right. Import the measurement again to get a usable one. A profile built from this file will record its paper white as almost black."
 }

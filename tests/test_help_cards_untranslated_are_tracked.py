@@ -372,19 +372,30 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # one-line glosses and the heading above them in the tip. All four are over
 # the 25-character floor this file counts at, so all four are counted. German
 # is translated for all four.
+# 2026-09-11, 4.2.6: the Build Profile tab now says when the measurement
+# already in the run carries its CIE columns on the 0..1 scale. TWO strings,
+# the label suffix and the Build button's tooltip, and BOTH count here (the
+# suffix is 37 characters, over this file's 25-character floor, and neither
+# begins with a skipped brand word). German is translated for both and stays
+# at 4; the eleven carry the English source under the beta rule, so every
+# other budget rises by exactly two. RE-MEASURED on the 4.2.6 catalogues with
+# this file's own `_english_echoes`, NOT carried over from the branch this was
+# backported from: that branch's catalogues hold hundreds of English
+# placeholders this tree does not, and copying its table across would have
+# handed every language well over a hundred units of free slack.
 _BUDGET = {
     "de": 4,
-    "es": 8,
-    "fr": 9,
-    "it": 8,
-    "ja": 8,
-    "nl": 8,
-    "no": 8,
-    "pl": 8,
-    "pt": 8,
-    "ru": 7,
-    "sv": 8,
-    "zh_CN": 7,
+    "es": 10,
+    "fr": 11,
+    "it": 10,
+    "ja": 10,
+    "nl": 10,
+    "no": 10,
+    "pl": 10,
+    "pt": 10,
+    "ru": 9,
+    "sv": 10,
+    "zh_CN": 9,
 }
 
 
