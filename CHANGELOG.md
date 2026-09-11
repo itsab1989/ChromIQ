@@ -46,11 +46,13 @@ arrived with the reference data.
   same way. It ends by saying what ChromIQ does not do, which is certify.
 
 - **A run may hold reports of several types, and the window says which it has.**
-  Knut asked for both. Choosing a type from the pulldown changes the document on
-  screen and nothing on disk; **Generate report** writes one of the type now
-  chosen. The line under the pulldown lists the types this run has already
-  produced, before it explains the one you are pointing at. Two reports asked
-  for in the same second no longer overwrite each other.
+  Knut asked for both. Choosing a type stores that choice on the run, the way
+  the limit set does, and recalculates nothing: no saved report is touched and
+  no verdict moves. **Generate report** then writes a dated report of the type
+  now chosen, so one run can end up holding a full colour check and a one-page
+  summary of the same measurement. The line under the pulldown lists the types
+  this run has already produced, before it explains the one you are pointing
+  at. Two reports asked for in the same second no longer overwrite each other.
 
 - **Preferences → Licences.** ChromIQ names everything it ships that somebody
   else wrote, and on what terms. The reference data's rights holder is named
