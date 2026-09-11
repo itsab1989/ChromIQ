@@ -164,7 +164,13 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         #: refuses, unconditionally, so another writer's change to the default
         #: set was destroyed with nothing said. That store is what every
         #: UNBOUND run is judged by, so it is not a small one.
-        self._prefs_last_seen: "tuple | None" = None
+        #: ONE BASELINE PER STORE, because a refresh is only ever earned by
+        #: one of them. Held as a single tuple, this window's click on the
+        #: "Default for new runs" radio swallowed another writer's change to
+        #: the overrides, and the other way round: the watch never fired and
+        #: the change was destroyed in silence. A challenge round drove both.
+        self._default_set_last_seen: "str | None" = None
+        self._overrides_last_seen: "str | None" = None
         #: True after close when those stores were changed by somebody else
         #: while this window was open.
         self.prefs_collided = False
@@ -185,7 +191,7 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
             self._run_stored_at_open = _stored_column(run)
             self._run_label = rl.set_label
 
-        self._prefs_last_seen = self._prefs_now()
+        self._default_set_last_seen, self._overrides_last_seen = self._prefs_now()
 
         self.setWindowTitle(tr("Report limits"))
         self.setMinimumWidth(720)
@@ -594,16 +600,20 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
             from workflow.run_compliance import set_run_columns
             try:
                 set_run_columns(self._run, shown if len(shown) < len(SET_BY_ID) else [])
-                # AND THIS WINDOW HAS NOW SEEN ITS OWN WRITE.
-                # Without this line the collision check below reports this
-                # click as somebody else's work: it compares what the run holds
-                # at close against what it held at open, and this slot writes
-                # the moment the box is ticked. A challenge round drove it with
-                # one user, one window and no second process: tick a column,
-                # type a number, and the app accused another window of a change
-                # it had made itself, then reverted the user's own column
-                # choice in silence to undo it.
-                self._run_stored_at_open = _stored_column(self._run)
+                # AND THIS WINDOW HAS NOW SEEN ITS OWN WRITE, THE COLUMNS
+                # AND NOTHING ELSE. Without any refresh the collision check
+                # reports this click as somebody else's work; with a refresh of
+                # the WHOLE baseline it does the opposite, and swallows a
+                # thresholds change another window made while this one sat
+                # open. Two challenge rounds drove one each, and the second is
+                # the quieter fault: it fails silent.
+                #
+                # A baseline is refreshed exactly as wide as the write that
+                # earned it.
+                if self._run_stored_at_open is not None:
+                    _seen = _stored_column(self._run)
+                    if _seen is not None:
+                        self._run_stored_at_open["columns"] = _seen["columns"]
             except OSError as exc:
                 log.warning("could not store the column choice: %s", exc)
         elif self._buffer is not None:
@@ -614,16 +624,16 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
             self._settings.set("compliance_columns_shown",
                                json.dumps(shown) if len(shown) < len(SET_BY_ID) else "")
 
-    def _prefs_now(self) -> tuple:
-        """The two app-wide stores this window can write, as they stand.
+    def _prefs_now(self) -> "tuple[str | None, str | None]":
+        """The two app-wide stores this window can write, SEPARATELY.
 
         Read from the settings, not from `self._overrides`, which is this
         window's working copy and therefore always agrees with itself. From
         Preferences the edits go to a buffer and nothing app-wide is touched,
-        so there is nothing to collide with and this is constant.
+        so there is nothing to collide with and both are None.
         """
         if self._buffer is not None:
-            return ()
+            return (None, None)
         from core.settings import compliance_overrides_of
         import json as _json
         try:
@@ -631,7 +641,7 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                     _json.dumps(compliance_overrides_of(self._settings),
                                 sort_keys=True))
         except Exception:              # noqa: BLE001
-            return ()
+            return (None, None)
 
     def _on_default_toggled(self, on: bool) -> None:
         if not on:
@@ -645,7 +655,7 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
             self._buffer["default_set"] = col
         else:
             self._settings.set("compliance_default_set", col)
-            self._prefs_last_seen = self._prefs_now()
+            self._default_set_last_seen = self._prefs_now()[0]
 
     # --------------------------------------------------------------- helpers
     def _write_overrides(self) -> None:
@@ -654,7 +664,7 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         else:
             from core.settings import store_compliance_overrides
             store_compliance_overrides(self._settings, self._overrides)
-            self._prefs_last_seen = self._prefs_now()
+            self._overrides_last_seen = self._prefs_now()[1]
         # a Custom column inherits nothing from its parent's overrides, but the
         # selectable set of columns can change when a column is emptied
         for col, rb in self._default_radios.items():
@@ -839,8 +849,11 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                 self.run_limits_collided = True
                 log.info("this run's limits were changed elsewhere while the "
                          "limits window was open: %s", self._run.dir)
-        if (self._prefs_last_seen is not None
-                and self._prefs_now() != self._prefs_last_seen):
+        _dflt, _ovr = self._prefs_now()
+        if ((self._default_set_last_seen is not None
+             and _dflt != self._default_set_last_seen)
+                or (self._overrides_last_seen is not None
+                    and _ovr != self._overrides_last_seen)):
             self.prefs_collided = True
             log.info("the app-wide report limits were changed elsewhere while "
                      "the limits window was open")

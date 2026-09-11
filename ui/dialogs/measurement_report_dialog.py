@@ -515,7 +515,7 @@ class _NothingToRestore(Exception):
     """The refusal had nothing to undo, so nothing is written."""
 
 
-def _restore_sentence(outcome: str) -> str:
+def _restore_sentence(outcome: str, refused: bool = True) -> str:
     """What really happened to the run's own numbers, in one sentence.
 
     ONE PLACE, BECAUSE TWO MESSAGES ASK THE SAME QUESTION and they had grown
@@ -524,11 +524,19 @@ def _restore_sentence(outcome: str) -> str:
     leaves the REFUSED numbers on a run bound to a set this build cannot answer
     for said only that the numbers could not be put back, and never that the
     run is now judged by the numbers the user had just said no to.
+
+    AND ONE OF THE TWO CALLERS NEVER ASKS THE USER ANYTHING. The locked-
+    meanwhile window follows no question: the edit was stopped by the lock, so
+    there is no refusal and no other change for one to be "gone" beside. Both
+    sentences that said so were false there, and a challenge round photographed
+    them. `refused` is which of the two situations this is.
     """
     if outcome == "restored":
-        return tr("Its dated reports are unchanged, and ChromIQ put this run's "
-                  "own numbers back to what they were when you opened the "
-                  "window, so the other change is gone too.")
+        return (tr("Its dated reports are unchanged, and ChromIQ put this "
+                   "run's own numbers back to what they were when you opened "
+                   "the window, so the other change is gone too.")
+                if refused else
+                tr("Its limits and its dated reports are unchanged."))
     if outcome == "rederived":
         # TRUE IN BOTH OF ITS CASES, which the first wording was not: this
         # branch fires for a run that was UNBOUND when the window opened and
@@ -539,10 +547,15 @@ def _restore_sentence(outcome: str) -> str:
                   "not put its own numbers back. It now holds the numbers of "
                   "the limit set it is bound to.")
     if outcome == "refused_numbers_left":
-        return tr("Its dated reports are unchanged, but this run is bound to a "
-                  "limit set this version of ChromIQ does not know, so ChromIQ "
-                  "left its numbers alone: it still holds the numbers you have "
-                  "just refused and is judged by them.")
+        return (tr("Its dated reports are unchanged, but this run is bound to "
+                   "a limit set this version of ChromIQ does not know, so "
+                   "ChromIQ left its numbers alone: it still holds the numbers "
+                   "you have just refused and is judged by them.")
+                if refused else
+                tr("Its dated reports are unchanged, but this run is bound to "
+                   "a limit set this version of ChromIQ does not know, so "
+                   "ChromIQ left its numbers alone: it still holds the numbers "
+                   "you were editing and is judged by them."))
     return tr("Its dated reports are unchanged, but ChromIQ could not put this "
               "run's own numbers back.")
 
@@ -555,6 +568,8 @@ class MeasurementReportDialog(QDialog):
     _pending_restore_error: "Exception | None" = None
     _pending_rebound: bool = False
     _pending_restore_outcome: str = "none"
+    #: what the run was judged by when this window last drew its controls
+    _judged_by_at_sync: tuple = ()
 
     def __init__(self, settings, parent=None, initial_ti3=None) -> None:
         super().__init__(parent)
@@ -1867,6 +1882,14 @@ class MeasurementReportDialog(QDialog):
         lim = self._window_limits()
         ctx = self._run_ctx
         run = ctx.run if ctx else None
+        # WHAT THE USER IS ABOUT TO BE SHOWN, stamped here because here is the
+        # last moment this window and the run agree. A guard that stamps it
+        # when a control is CLICKED has already swallowed everything that
+        # happened while the user was reading the screen, which is the whole
+        # window a second writer has to work in. A challenge round drove
+        # exactly that: rebind the run, then click, and the rebind was inside
+        # the "before" the guard compared against.
+        self._judged_by_at_sync = self._judged_by_now(run) if run else ()
         self._syncing_limits = True
         try:
             self._set_combo.clear()
@@ -2499,9 +2522,11 @@ class MeasurementReportDialog(QDialog):
         _head = (tr("This run ({run}) has one dated verification.")
                  if n_dates == 1 else
                  tr("This run ({run}) has {n} dated verifications."))
-        # WHAT THE RUN HOLDS WHILE THE QUESTION IS ON SCREEN, because the
-        # answer is acted on afterwards and the question described THIS state.
-        _before = self._judged_by_now(ctx.run)
+        # WHAT THE WINDOW LAST SHOWED, not what the run holds at this click.
+        # Stamped by `_sync_limit_controls`, which is the last moment the
+        # window and the run agreed; reading it here would already include any
+        # change made while the user was looking at the screen.
+        _before = self._judged_by_at_sync
         ok = self._confirm(
             tr("Unlock this run's limits?"),
             _head.format(run=ctx.run.dir.name, n=n_dates) + " " + _tail)
@@ -2582,10 +2607,16 @@ class MeasurementReportDialog(QDialog):
         """
         from ui.warning_sign import warn
         warn(self, tr("This run changed while the question was on screen"),
-             tr("{run} changed while ChromIQ was asking: a verification "
-                "measurement of it finished, or it was changed in another "
-                "window. Nothing was unlocked and nothing was "
-                "recalculated.").format(run=run.dir.name)
+             # ALL THREE WAYS IN, not two. The guard also fires when the
+             # Preferences setting that allows these edits is switched off and
+             # when a dated verification is deleted, and the first wording
+             # named neither.
+             tr("{run} is no longer the run that question was about: a "
+                "verification measurement of it finished or was deleted, it "
+                "was changed in another window, or the Preferences setting "
+                "that allows these edits was switched off. Nothing was "
+                "unlocked and nothing was recalculated.").format(
+                    run=run.dir.name)
              + "\n\n"
              + tr("Open the limits again to see where it stands."))
 
@@ -2849,6 +2880,30 @@ class MeasurementReportDialog(QDialog):
                 self._pending_restore_error = exc
             return "failed"
 
+    def _say_preferences_changed_meanwhile(self, reverted: bool) -> None:
+        """The APP-WIDE report limits were changed by somebody else while this
+        window was open.
+
+        Its own message, because it is its own thing. Folded into the run's, it
+        announced a change to the preferences as a change to a run whose files
+        nothing had touched, and on the path where nothing is put back it
+        claimed the other change was gone while it was still on disk.
+        """
+        from ui.warning_sign import warn
+        _what = (tr("ChromIQ put them back to what they were when you opened "
+                    "this window, so that change is gone too.")
+                 if reverted else
+                 tr("ChromIQ did not change them back, so they hold whichever "
+                    "change was made last."))
+        warn(self, tr("The report limits in Preferences changed while this "
+                      "window was open"),
+             tr("Something else changed the report limits in Preferences while "
+                "this window was open: they were edited in another window. No "
+                "run's own limits were touched.")
+             + " " + _what + "\n\n"
+             + tr("Open Preferences and check them before you measure "
+                  "again."))
+
     def _say_collision_went_ahead(self, run) -> None:
         """Somebody else changed this run's limits while the window was open,
         and the user went ahead anyway, so the other change is gone.
@@ -2897,7 +2952,11 @@ class MeasurementReportDialog(QDialog):
         # bound and a set this build cannot answer for. In that last case the
         # numbers left on the run are the ones the app has just refused, and the
         # sentence claimed they were whatever locked it wrote.
-        _what = _restore_sentence(outcome)
+        # NOTHING WAS REFUSED HERE. This window follows no question: the
+        # lock stopped the edit. Both of the refusal-flavoured sentences were
+        # false in it, one of them saying a change was "gone too" when the
+        # only other change was the lock, which the undo never touches.
+        _what = _restore_sentence(outcome, refused=False)
         warn(self, tr("This run was locked while you were editing it"),
              tr("Something else locked {run} while its limits were open: a "
                 "verification measurement of it finished, or it was locked in "
@@ -2986,14 +3045,15 @@ class MeasurementReportDialog(QDialog):
         # second limits window produced one, its number erased in silence, and
         # a control run where nobody else wrote produced the same one box. The
         # user could not tell the middle case from the last.
-        # …AND THE SAME QUESTION FOR THE TWO APP-WIDE STORES.
-        # `_restore_limits_snapshot` puts the default set and the overrides
-        # back to this window's snapshot unconditionally, so a refusal
-        # destroyed another writer's change to them with nothing said. The
-        # default set is what every UNBOUND run is judged by, so that is not a
-        # small store to revert in silence.
-        collided = bool(getattr(dlg, "run_limits_collided", False)
-                        or getattr(dlg, "prefs_collided", False))
+        # TWO COLLISIONS, TWO ANSWERS. They were folded into one flag and
+        # reported through messages written about the RUN, so a change to the
+        # app-wide preferences was announced as a change to run3, and on the
+        # accept path the sentence said the other change was gone while it was
+        # still on disk. They are separate because what happens to them is
+        # separate: the run's own column is put back by the undo, and the
+        # preferences are put back only when the user refuses.
+        collided = bool(getattr(dlg, "run_limits_collided", False))
+        prefs_collided = bool(getattr(dlg, "prefs_collided", False))
         dlg.deleteLater()
         self._forget_limits()
 
@@ -3067,6 +3127,9 @@ class MeasurementReportDialog(QDialog):
                 elif self._pending_rebound:
                     self._say_rebound_meanwhile(
                         ctx.run, self._pending_restore_outcome)
+                if prefs_collided:
+                    # The refusal put them back, so the other change is gone.
+                    self._say_preferences_changed_meanwhile(reverted=True)
                 self._forget_limits()
                 self._refresh()
                 return
@@ -3099,6 +3162,12 @@ class MeasurementReportDialog(QDialog):
             # is no question to ask, so the collision produced NO box at all.
             if collided:
                 self._say_collision_went_ahead(ctx.run)
+            if prefs_collided:
+                # NOTHING WAS PUT BACK HERE, so nothing is gone: whichever
+                # window wrote last is what the preferences hold. Saying "the
+                # other change is gone" on this path was false, and a challenge
+                # round read the value off disk to prove it.
+                self._say_preferences_changed_meanwhile(reverted=False)
         self._refresh()
 
     def _bind_without_locking_out(self, run, set_id: str,
