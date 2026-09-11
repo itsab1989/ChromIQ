@@ -463,19 +463,27 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # stays at 4; the eleven carry the English source under the beta rule, so every
 # other budget rises by exactly two. RE-MEASURED with this file's own
 # `_english_echoes` on the catalogues this change leaves behind.
+# 2026-09-11, the Report-window round on Knut's report of that day (#182 W1 to
+# W7). Twelve keys arrive and three go stale in every catalogue. ELEVEN of the
+# twelve count here and ONE does not: "Bound, and locked." is 18 characters and
+# falls under this file's 25-character floor. All three of the stale keys
+# counted, so each non-German budget rises by exactly 8. German is translated
+# for all twelve and stays at 4. RE-MEASURED with this file's own
+# `_english_echoes` on the catalogues this change leaves behind, key by key,
+# not adjusted upward from the old numbers.
 _BUDGET = {
     "de": 4,
-    "es": 146,
-    "fr": 147,
-    "it": 146,
-    "ja": 146,
-    "nl": 146,
-    "no": 146,
-    "pl": 146,
-    "pt": 146,
-    "ru": 145,
-    "sv": 146,
-    "zh_CN": 145,
+    "es": 154,
+    "fr": 155,
+    "it": 154,
+    "ja": 154,
+    "nl": 154,
+    "no": 154,
+    "pl": 154,
+    "pt": 154,
+    "ru": 153,
+    "sv": 154,
+    "zh_CN": 153,
 }
 
 

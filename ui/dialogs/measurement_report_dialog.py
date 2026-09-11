@@ -3424,7 +3424,7 @@ class MeasurementReportDialog(QDialog):
             # one whose could not is told to go and look. The caller had no way
             # to ask, so both got the second sentence.
             self._pending_restore_outcome = self._undo_the_edit(
-                ctx, snap, report_failure=True)
+                ctx, snap, report_failure=True, keep_columns=True)
             if self._pending_restore_error is not None:
                 ok = False
         # THE PREFERENCES GO BACK EVEN WHEN THE RUN'S FOLDER WOULD NOT WRITE.
@@ -3486,9 +3486,22 @@ class MeasurementReportDialog(QDialog):
             return False
         return str(getattr(run, "dir", "")) not in self._bound_here
 
-    def _undo_the_edit(self, ctx, snap, report_failure: bool = False) -> str:
+    def _undo_the_edit(self, ctx, snap, report_failure: bool = False,
+                       keep_columns: bool = False) -> str:
         """Take the run's own column back to what it held, and touch nothing
         else. Returns whether the previous numbers were really recovered.
+
+        *keep_columns* leaves `compliance_columns` exactly as it is on disk.
+        WHICH COLUMNS ARE SHOWN IS NOT PART OF WHAT A REFUSAL REFUSES. A user
+        who says no to "Changing the limit set recalculates…" is answering
+        about the numbers; the ticks they set in the same visit were never in
+        the question and were never a claim on a verdict. Knut reported the
+        consequence as a separate fault (*"it is not remembered what I turned
+        off some columns"*), and driven on screen it was this line: Cancel put
+        an empty `compliance_columns` back and every column came up ticked
+        again. The LOCK path is the one caller that still passes False, because
+        there the question is whether this window may write to the run at all,
+        and the answer covers every key it writes.
 
         RETURNS WHICH OF ITS THREE BRANCHES IT TOOK, because the caller has a
         different true sentence for each and there is no yes/no that covers
@@ -3560,14 +3573,17 @@ class MeasurementReportDialog(QDialog):
                 # for a run that had none means putting the absence back. The
                 # binding has not moved, so nothing else has a claim on it.
                 if (m.compliance_thresholds == snap["run"][2]
-                        and list(getattr(m, "compliance_columns", []) or [])
-                        == list(snap["run"][5] or [])):
+                        and (keep_columns
+                             or list(getattr(m, "compliance_columns", []) or [])
+                             == list(snap["run"][5] or []))):
                     return "restored"      # nothing to write, and nothing lost
-                m.compliance_columns = snap["run"][5]
+                if not keep_columns:
+                    m.compliance_columns = snap["run"][5]
                 m.compliance_thresholds = snap["run"][2]
                 ctx.run.save_meta(m)
                 return "restored"
-            m.compliance_columns = snap["run"][5]
+            if not keep_columns:
+                m.compliance_columns = snap["run"][5]
             if _sid_now and is_known_set(_sid_now):
                 # Not an undo and not pretending to be one. The run was unbound
                 # when the window opened, or is bound to something else now, so
@@ -3820,8 +3836,27 @@ class MeasurementReportDialog(QDialog):
         _run_columns_moved = bool(
             snap["run"] is not None and _now["run"] is not None
             and list(_now["run"][5] or []) != list(snap["run"][5] or []))
-        moved = ctx is not None and (_run_numbers_moved or _run_columns_moved
-                                     or _prefs_moved)
+        # …AND IT IS NOT A CHANGE TO WHAT THE RUN IS JUDGED BY. Knut,
+        # 2026-09-11: hiding two table columns and clicking Close raised "This
+        # run (run1) has one saved report. Changing the limit set recalculates
+        # it with the new numbers…", and *"this should only come when
+        # thresholds are changed, not if table columns are hidden or shown"*.
+        # Driven on screen on a run with one dated verification and one saved
+        # report: unticking the two ISO columns raised that question, and
+        # answering Cancel, which is the natural answer to a question about a
+        # limit set nobody touched, ran the undo and put `compliance_columns`
+        # back to empty. That is his other report, *"it is not remembered what
+        # I turned off some columns"*, and it is the same fault twice: one
+        # term, folded into `moved`, carried a VIEW setting into the branch
+        # that asks about, and rewrites, a history.
+        #
+        # So the two are separated by what they can do. `_judged_moved` is the
+        # question, the bind and the recalculation, because only numbers and
+        # preferences can move a verdict. The column choice joins it only for
+        # the lock, which is a question about whether this window may write to
+        # the run at all, and that is true of every key it writes.
+        _judged_moved = ctx is not None and (_run_numbers_moved or _prefs_moved)
+        moved = _judged_moved or (ctx is not None and _run_columns_moved)
 
         # THE LOCK WAS READ WHEN THE WINDOW OPENED AND ENFORCED NOWHERE ELSE.
         # `run_editable` is decided before the dialog is built and the dialog
@@ -3869,7 +3904,7 @@ class MeasurementReportDialog(QDialog):
             self._forget_limits()
             self._refresh()
             return
-        if moved:
+        if _judged_moved:
             # THE STATE TO COMPARE AGAINST IS THE ONE TAKEN BEFORE THE
             # QUESTION, and the question is asked inside the condition below.
             # A challenge round wrote this run's numbers from another window
@@ -4305,10 +4340,18 @@ class MeasurementReportDialog(QDialog):
         #
         # NOTHING WHEN IT IS EMPTY. Not a blank line, not a label with no
         # value: a run nobody described says nothing about itself.
+        #
+        # AND AIR BEFORE THE LINE UNDER IT. Knut, 2026-09-11: *"add a new line
+        # as empty space before the text 'The following profile verification
+        # runs are included:'"*. The description is a heading for the section
+        # and was sitting four pixels above the sentence, so the two read as
+        # one paragraph. `_gap()` is the report's own empty line, used under
+        # every section heading, so the spacing matches the rest of the
+        # document rather than inventing a margin here.
         desc = self._run_description()
         out = (_h2(tr("Report Scope")) + _gap()
                + (f"<div style='font-weight:bold;margin:0 0 4px'>"
-                  + html.escape(desc) + "</div>" if desc else "")
+                  + html.escape(desc) + "</div>" + _gap() if desc else "")
                + "<div>" + html.escape(intro)
                + "</div><ul style='margin:2px 0 6px'>" + items + "</ul>"
                + "<div><b>" + html.escape(tr("No. of Measurements:")) + "</b></div>"
@@ -4486,36 +4529,96 @@ class MeasurementReportDialog(QDialog):
                 "and secondary inks. These say as much about your inks as about "
                 "the instrument."))
             + "</ul>"
+            # ONE WORD PER BULLET. Knut, 2026-09-11: *"This paragraph must
+            # describe each 5 words, one at a time in a bullet list, organised
+            # and orderly, not in a messy bulk."* Every clause of the
+            # paragraph it replaces is still here; only the shape changed,
+            # plus the closing sentence covered by the note below.
             "<p><b>" + html.escape(tr("The five verdict words.")) + "</b> "
             + html.escape(tr(
                 "A limit set is one column of the limits table: the numbers a "
-                "report is judged against. Every row of the results ends in one "
-                "of five verdict words. PASS: the measured value is within the limit for "
-                "that row. FAIL: it is over the limit. COND (short for "
-                "conditional): nothing failed, but the result comes with a "
-                "documented exception. For a row it means the row is a "
-                "recommendation rather than a requirement and the value is over "
-                "it. For a column's Overall it means a recommendation was "
-                "exceeded, or the set contains rows this chart could not supply, "
-                "so the set as a whole was only partly checked. INFO: the number "
-                "is shown for your information and nothing was judged from it. "
-                "That happens when this limit set puts no limit on the row, "
-                "when the sheet is a profiling measurement, which is never "
-                "graded, when the row needs something about the print that was "
-                "not recorded, and when you chose a report type that judges "
-                "nothing; the note under the results names the rows in the "
-                "last two cases. A column read as a drift check shows the word "
-                "“drift” in every cell instead: it compares one measurement "
-                "with another rather than with a limit. N-A "
-                "(not applicable): the row does not apply here; the reason is shown "
-                "when you point at the cell and is listed under the results, for "
-                "example the chart has too few grey steps. "
-                "A column's Overall word is PASS only when every row the set "
-                "requires was checked and passed. The columns named after a "
-                "standard hold that standard's published tolerance values applied "
-                "to the chart you printed; they are not a test of the standard's "
-                "own chart, so their Overall is COND at best, and this report "
-                "never says that anything conforms to a standard.")) + "</p>"
+                "report is judged against. Every row of the results ends in "
+                "one of five verdict words.")) + "</p>"
+            "<ul>"
+            "<li>" + html.escape(tr(
+                "PASS: the measured value is within the limit for that "
+                "row.")) + "</li>"
+            "<li>" + html.escape(tr(
+                "FAIL: the measured value is over the limit for that "
+                "row.")) + "</li>"
+            "<li>" + html.escape(tr(
+                "COND (short for conditional): nothing failed, but the result "
+                "comes with a documented exception. For a row it means the row "
+                "is a recommendation rather than a requirement and the value "
+                "is over it. For a column's Overall it means a recommendation "
+                "was exceeded, or the set contains rows this chart could not "
+                "supply, so the set as a whole was only partly "
+                "checked.")) + "</li>"
+            "<li>" + html.escape(tr(
+                "INFO: the number is shown for your information and nothing "
+                "was judged from it. That happens when this limit set puts no "
+                "limit on the row, when the sheet is a profiling measurement, "
+                "which is never graded, when the row needs something about the "
+                "print that was not recorded, and when you chose a report type "
+                "that judges nothing. The note under the results names the "
+                "rows in the last two cases.")) + "</li>"
+            "<li>" + html.escape(tr(
+                "N-A (not applicable): the row does not apply here. The reason "
+                "is shown when you point at the cell and is listed under the "
+                "results, for example that the chart has too few grey "
+                "steps.")) + "</li>"
+            "</ul>"
+            # WHAT THE REPORT SHOWS, NOT WHAT IT WITHHOLDS. Knut, 2026-09-11,
+            # on the sentence that used to close this paragraph, *"and this
+            # report never says that anything conforms to a standard"*:
+            # *"Rephrase so that report text states what the report shows […]
+            # which actually has the opposite effect of building confidence in
+            # the report results."* The caveat itself is a fact about the
+            # measurement and stays: a standard's figures are written for that
+            # standard's own chart and control strip, and ChromIQ measures the
+            # chart the user printed. It is now stated as that fact, and the
+            # COND cap follows from it.
+            #
+            # The promise made to Idealliance on 2026-09-09 is that ChromIQ
+            # never PRINTS that a print conforms to, is certified to, or
+            # qualifies as anything (docs/design/issue_182_answers.md). It is a
+            # promise of absence, and deleting a denial keeps it rather than
+            # breaking it. The denials a GRANT requires to exist are a
+            # different class and are untouched: Fogra's "It is not a
+            # certification, approval or endorsement by …" beside every
+            # reference set, and Idealliance's trademark line.
+            "<p>" + html.escape(tr(
+                "A column read as a drift check shows the word “drift” in "
+                "every cell instead: it compares one measurement with another "
+                "rather than with a limit. A column's Overall word is PASS "
+                "only when every row the set requires was checked and passed. "
+                "The columns named after a standard hold that standard's "
+                "published tolerance values applied to the chart you printed, "
+                "rather than to that standard's own chart and control strip, "
+                "so their Overall reads COND at best.")) + "</p>"
+            # BOUND AND LOCKED, in the report that uses both words. Knut,
+            # 2026-09-11: *"what is the difference between bound and locked? Be
+            # specific in the explanation, so that user understands that chosen
+            # limits are bound to chosen 'ChromIQ default' thresholds as this
+            # was used for the first dated verification run of the included
+            # measurement sets."* The two facts are §5 of
+            # docs/design/measurement_report_limits.md, in his terms: bound is
+            # the run holding its own copy of the numbers, taken at its first
+            # dated verification; locked is that copy no longer being
+            # changeable, which starts at the second one.
+            "<p><b>" + html.escape(tr("Bound, and locked.")) + "</b> "
+            + html.escape(tr(
+                "When the first dated verification of a profile run was "
+                "measured, ChromIQ copied the limit set chosen at that moment "
+                "onto the run. The run is bound to that copy: every later date "
+                "of the same run is judged against the same numbers, so the "
+                "dates can be compared, and changing the set in Preferences "
+                "afterwards does not reach a run that is already bound. The "
+                "copy is locked once a second dated verification has been "
+                "measured, so the numbers behind a history cannot move under "
+                "it. Until then the set may still be chosen in the report "
+                "window, and choosing one recalculates the dates already "
+                "saved, keeping a copy of each first.")) + "</p>"
             "<p>" + html.escape(tr(
                 "What the numbers mean depends on how the chart was printed:")) + "</p>"
             "<ul>"

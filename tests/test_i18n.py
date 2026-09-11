@@ -799,18 +799,43 @@ _IDENTICAL_TO_KEY = {
     # columns on the 0..1 scale. Two more strings, a label suffix and the Build
     # button's tooltip; German is translated, so 124 stands, and the other
     # eleven each rose by exactly 2 again. Counted with the expression above.
+
+    # RE-MEASURED 2026-09-11, the Report-window round on Knut's report of that
+    # day (#182 W1 to W7). **12 keys in, 3 stale out**, counted with
+    # `set(after) - set(before)` and `set(before) - set(after)` on each
+    # catalogue rather than from memory. The twelve: the five verdict words
+    # broken out of one paragraph into one bullet each (W5), the paragraph that
+    # replaces the struck "never says that anything conforms" sentence (W6),
+    # the lead sentence those bullets hang off, the "Bound, and locked."
+    # heading and its paragraph (W4), the two rewritten Custom-set blurbs and
+    # the note at the limits table saying whose numbers those columns hold
+    # (W7). The three that went stale are the single long verdict-words
+    # paragraph and the two old Custom blurbs, and all three were translated in
+    # every one of the twelve, so they were never in these counts.
+    #
+    # German is translated, so **de does not move at all (124)**; the eleven
+    # others carry the English under the beta rule and each rises by exactly 9.
+    # None of the twelve quotes a ChromIQ control in curly quotes, which is the
+    # rule that would have required all twelve to be translated: the only
+    # quoted word is "drift", which is a word the report PRINTS IN A CELL
+    # rather than a control the reader has to find, and
+    # `test_a_quoted_control_names_the_control_the_reader_has.py` was run to
+    # confirm that rather than assumed.
+    #
+    # Every number below is this tree's actual count, not the old number plus
+    # nine: a ceiling above the truth admits the next regression for free.
     "de": 124,
-    "es": 304,
-    "fr": 326,
-    "it": 315,
-    "ja": 290,
-    "nl": 331,
-    "no": 316,
-    "pl": 308,
-    "pt": 306,
-    "ru": 279,
-    "sv": 317,
-    "zh_CN": 284,
+    "es": 313,
+    "fr": 335,
+    "it": 324,
+    "ja": 299,
+    "nl": 340,
+    "no": 325,
+    "pl": 317,
+    "pt": 315,
+    "ru": 288,
+    "sv": 326,
+    "zh_CN": 293,
 }
 
 

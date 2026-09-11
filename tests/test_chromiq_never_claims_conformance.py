@@ -54,7 +54,6 @@ CLAIM = re.compile(
 ALLOWED_CONTEXTS = (
     "Trusted Root Certification Authorities",
     "can never say that a print conforms to a standard",
-    "never says that anything conforms to a standard",
     "it does not certify",
     # #182, 2026-09-10: the Fogra credit line, and it is a DENIAL. Fogra's own
     # terms of use say the FOGRAxx designation "may be used solely to identify
@@ -67,9 +66,27 @@ ALLOWED_CONTEXTS = (
 
 #: The denials must not merely be legal, they must EXIST. Deleting one would
 #: pass a test that only forbids things.
+#:
+#: ONE OF THEM WAS REMOVED ON PURPOSE, 2026-09-11, AND THE DIFFERENCE MATTERS.
+#: The report's "How to read this report" used to end its verdict-words
+#: paragraph with *"and this report never says that anything conforms to a
+#: standard"*. Knut struck it: *"This is not a concise and factual way to write
+#: a report text. Rephrase so that report text states what the report shows […]
+#: which actually has the opposite effect of building confidence in the report
+#: results."* The sentence that replaced it states the same fact positively, and
+#: is checked below by name.
+#:
+#: Removing it does NOT touch the promise. What was promised to Idealliance on
+#: 2026-09-09 (`docs/design/issue_182_answers.md`) is that ChromIQ never PRINTS
+#: that a print "conforms to", "is certified to" or "qualifies as" anything: a
+#: promise of ABSENCE. Deleting a denial keeps it. What a grant requires to
+#: EXIST is a different class and is still listed here and still pinned: Fogra's
+#: "It is not a certification, approval or endorsement by …" beside every
+#: reference set (their terms of use), and the two remaining sentences, which
+#: belong to the Report limits WINDOW and the one-page summary rather than to
+#: the paragraph Knut ruled on.
 REQUIRED_DENIALS = (
     "can never say that a print conforms to a standard",
-    "never says that anything conforms to a standard",
     "it does not certify",
     # The Fogra grant is conditional on this sentence existing, not merely on
     # no claim being made. Deleting the credit line would otherwise pass every
@@ -131,6 +148,24 @@ def test_no_english_string_claims_conformance():
         "never does this. If one of these is a DENIAL, add its exact wording to "
         "ALLOWED_CONTEXTS in this file so the next reader can see it was "
         "read.\n\n  %s" % (len(offenders), "\n  ".join(offenders)))
+
+
+def test_the_report_still_states_what_an_iso_named_column_is():
+    """The removed denial's FACT is still printed, positively.
+
+    Knut struck *"this report never says that anything conforms to a
+    standard"*. What it was protecting is a real property of the measurement, a
+    standard's figures being written for that standard's own chart and control
+    strip, and that has to stay or the COND cap on those columns is unexplained.
+    Without this test the rewrite would be indistinguishable from a deletion.
+    """
+    english = E.english_strings()
+    for phrase in ("rather than to that standard's own chart and control strip",
+                   "so their Overall reads COND at best"):
+        assert any(phrase in s for s in english), (
+            f"{phrase!r} has gone from the report. The paragraph explaining "
+            "what a column named after a standard holds is the reason its "
+            "Overall can never be better than COND.")
 
 
 def test_the_denials_are_still_there():

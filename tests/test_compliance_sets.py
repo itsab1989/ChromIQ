@@ -101,8 +101,21 @@ def test_the_shipped_iso_data_file_is_empty_so_every_iso_cell_reads_a_question_m
     f8 = factory_limits("iso_12647_8")
     assert f8["control_strip_de00_max"].kind == "none"   # -8 uses the 95th percentile
     assert f8["control_strip_de00_p95"].kind == "unknown"
-    # and therefore none of the four ISO-derived sets is offered
-    assert selectable_set_ids({}) == ["chromiq_default", "chromiq_tight", "chromiq_quick"]
+    # The two READ-ONLY ISO columns still hold nothing, so neither is offered.
+    #
+    # THE TWO CUSTOM COLUMNS ARE, AND THAT IS NEW, 2026-09-11. This line used
+    # to assert that none of the four ISO-derived sets was offered, because a
+    # Custom set inherited its parent's empty cells and therefore had no
+    # limit-bearing row (CH-11). Knut ruled the other way: *"the table columns
+    # for 'Custom ISO 12647-7' and 'Custom ISO 12647-8' should have selection
+    # boxes for all metrics that ChromIQ can check, because it is a custom
+    # threshold set […] make sure the metrics have a value that can be tested
+    # against."* They now start from ChromIQ's OWN numbers
+    # (`_CUSTOM_PLACEHOLDER`), which is why they are selectable; no ISO figure
+    # is involved, and the two read-only columns are unchanged.
+    assert selectable_set_ids({}) == ["chromiq_default", "chromiq_tight",
+                                      "chromiq_quick", "custom_iso_12647_7",
+                                      "custom_iso_12647_8"]
 
 
 def test_a_filled_data_file_lights_the_iso_cells(tmp_path, monkeypatch):
@@ -324,3 +337,121 @@ def test_summary_sentences_never_name_a_standard_or_conformance():
         assert "conform" not in txt.lower()
         assert "ISO" not in txt
         assert "{" not in txt                       # every placeholder filled
+
+
+# ---------------------------------------------------------------------------
+# The two Custom columns arrive usable, with ChromIQ's own numbers (Knut, W7)
+# ---------------------------------------------------------------------------
+# 2026-09-11: *"the table columns for 'Custom ISO 12647-7' and 'Custom ISO
+# 12647-8' should have selection boxes for all metrics that ChromIQ can check
+# […] This applies also to the report limits window in Preferences ==> Reports
+# tab. Thus, make sure the metrics have a value that can be tested against."*
+# Before this every cell of both columns read ? or –, so nothing was ever
+# judged through them, and neither was selectable at all.
+
+CUSTOM_SETS = ("custom_iso_12647_7", "custom_iso_12647_8")
+MEASURABLE = tuple(r.id for r in cs.ROWS if r.status in ("now", "build", "ref"))
+
+
+def test_every_measurable_row_of_a_custom_set_can_be_judged():
+    cs.reset_iso_cache()
+    for sid in CUSTOM_SETS:
+        f = factory_limits(sid)
+        missing = [rid for rid in MEASURABLE if not f[rid].is_numeric]
+        assert not missing, (
+            f"{sid} has no limit on {missing}; a Custom set whose rows read "
+            "? or - judges nothing, which is what Knut reported")
+        # …and the set is therefore offerable at all (CH-11)
+        assert cs.limit_bearing(f)
+
+
+def test_a_placeholder_never_reaches_a_row_chromiq_cannot_measure():
+    """The guarded-write check on the door this opens.
+
+    A number on an `unmeasurable` row would claim ChromIQ tests something it
+    cannot; a number on an `unknown` row would be a limit nothing is ever
+    compared with, because ChromIQ does not know which patches that row is
+    about. Both stay exactly as they were.
+    """
+    for rid in cs._CUSTOM_PLACEHOLDER:
+        assert cs.ROW_BY_ID[rid].status in ("now", "build", "ref"), rid
+    cs.reset_iso_cache()
+    for sid in CUSTOM_SETS:
+        f = factory_limits(sid)
+        for row in cs.ROWS:
+            if row.status == "unmeasurable":
+                assert f[row.id].kind in ("unmeasurable", "none"), row.id
+            elif row.status == "unknown":
+                assert f[row.id].kind in ("unknown", "none"), row.id
+
+
+def test_no_placeholder_is_anybody_elses_published_figure():
+    """The numbers are ChromIQ default's own, and only those.
+
+    The owner's standing rule on #182 is that no value of ISO 12647-7 or
+    ISO 12647-8 goes into the code, and Knut agreed the placeholders need not
+    resemble them: *"even if they are not same as those standards (that is not
+    relevant for testing the metrics)"*. Pinning the SOURCE of every number,
+    rather than the numbers themselves, is what stops one drifting toward a
+    real tolerance later because it "looks more realistic".
+    """
+    allowed = set()
+    for table in cs._CHROMIQ_FACTORY.values():
+        for lim in table.values():
+            if lim.is_numeric:
+                allowed.add(round(float(lim.number), 6))
+    assert allowed, "ChromIQ's own factory numbers could not be read"
+    for rid, lim in cs._CUSTOM_PLACEHOLDER.items():
+        assert lim.is_numeric, rid
+        assert round(float(lim.number), 6) in allowed, (
+            f"{rid} = {lim.number} is not one of ChromIQ default's own numbers "
+            f"{sorted(allowed)}. Every placeholder must be traceable to a "
+            "ChromIQ figure, never to a standard's.")
+
+
+def test_the_read_only_iso_columns_are_untouched_by_the_placeholders():
+    cs.reset_iso_cache()
+    for sid in ("iso_12647_7", "iso_12647_8"):
+        f = factory_limits(sid)
+        assert not any(lim.is_numeric for lim in f.values()), (
+            f"{sid} acquired a number. The read-only columns hold the "
+            "standard's own values and ship with none of them.")
+        assert not cs.limit_bearing(f)
+
+
+def test_a_licence_holders_own_file_wins_over_the_placeholder(tmp_path, monkeypatch):
+    """A tester who owns the standard still starts from THEIR numbers."""
+    p = tmp_path / "iso.json"
+    p.write_text(json.dumps({"iso_12647_8": {"all_de00_avg": 9.9}}),
+                 encoding="utf-8")
+    monkeypatch.setenv(cs.ISO_DATA_ENV, str(p))
+    cs.reset_iso_cache()
+    try:
+        f = factory_limits("custom_iso_12647_8")
+        assert f["all_de00_avg"] == Limit.value(9.9), \
+            "the placeholder overwrote a number the user's own file supplied"
+        # a row their file did not answer still gets ChromIQ's own number
+        assert f["all_de00_p95"] == cs._CUSTOM_PLACEHOLDER["all_de00_p95"]
+    finally:
+        monkeypatch.delenv(cs.ISO_DATA_ENV, raising=False)
+        cs.reset_iso_cache()
+
+
+def test_factory_limits_refuses_a_placeholder_on_an_unmeasurable_row(monkeypatch):
+    """The SECOND lock, isolated, because defence in depth that no test can
+    reach is decoration.
+
+    The test above pins the table's contents; this one pins that
+    `factory_limits` would refuse a bad entry even if somebody added one. A
+    mutation that removes the status check has to be able to fail something.
+    """
+    bad = dict(cs._CUSTOM_PLACEHOLDER)
+    bad["control_strip_de00_avg"] = Limit.value(3.0)     # status "unknown"
+    bad["light_fastness"] = Limit.value(3.0)             # status "unmeasurable"
+    monkeypatch.setattr(cs, "_CUSTOM_PLACEHOLDER", bad)
+    cs.reset_iso_cache()
+    f = factory_limits("custom_iso_12647_7")
+    assert f["control_strip_de00_avg"].kind == "unknown", (
+        "a placeholder reached a row ChromIQ cannot compute; the column would "
+        "carry a limit nothing is ever compared with")
+    assert f["light_fastness"].kind == "unmeasurable"

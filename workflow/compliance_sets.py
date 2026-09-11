@@ -357,14 +357,22 @@ SETS: "tuple[SetDef, ...]" = (
            blurb="The published tolerance values of ISO 12647-8:2021 "
                  "(validation prints), applied to the chart you printed. "
                  "Read-only."),
+    # THE BLURBS SAY WHAT THE COLUMN REALLY HOLDS. They used to read "Starts
+    # from the ISO 12647-7:2016 values", which was true of the structure and
+    # not of the numbers: the data file ships empty, so every cell read ? or –
+    # and the column judged nothing. It now starts from ChromIQ's own numbers
+    # on every row ChromIQ can measure, and a reader has to be told that before
+    # they trust a verdict from a column with a standard's name on it.
     SetDef("custom_iso_12647_7", "Custom ISO 12647-7", "custom", True,
            parent="iso_12647_7",
-           blurb="Starts from the ISO 12647-7:2016 values; every limit is "
-                 "yours to change."),
+           blurb="The rows ISO 12647-7:2016 writes a limit over, starting "
+                 "from ChromIQ's own numbers rather than that standard's. "
+                 "Every limit is yours to change."),
     SetDef("custom_iso_12647_8", "Custom ISO 12647-8", "custom", True,
            parent="iso_12647_8",
-           blurb="Starts from the ISO 12647-8:2021 values; every limit is "
-                 "yours to change."),
+           blurb="The rows ISO 12647-8:2021 writes a limit over, starting "
+                 "from ChromIQ's own numbers rather than that standard's. "
+                 "Every limit is yours to change."),
 )
 SET_BY_ID: "dict[str, SetDef]" = {s.id: s for s in SETS}
 
@@ -508,6 +516,57 @@ _ISO_ROWS: "dict[str, tuple[str, ...]]" = {
 ISO_DATA_FILE = "data/compliance_sets/iso12647.json"
 ISO_DATA_ENV = "CHROMIQ_COMPLIANCE_ISO_FILE"
 _iso_cache: "dict[str, dict[str, Limit]] | None" = None
+
+#: ChromIQ's OWN starting numbers for the two Custom sets, and they are not
+#: anybody's published tolerances.
+#:
+#: Knut, 2026-09-11: *"the table columns for 'Custom ISO 12647-7' and 'Custom
+#: ISO 12647-8' should have selection boxes for all metrics that ChromIQ can
+#: check, because it is a custom threshold set. […] For testing purposes you
+#: can set a reasonable value, such as for the ChromIQ default, but those
+#: thresholds that are not part of ChromIQ default must have set a reasonable
+#: value […] even if they are not same as those standards (that is not relevant
+#: for testing the metrics). Thus make sure the metrics have a value that can be
+#: tested against."*
+#:
+#: Every cell of the two Custom columns read ``?`` or ``–`` before this, so the
+#: columns judged nothing and no metric could be exercised through them. The
+#: rule that produced the numbers below, and it is the whole rule:
+#:
+#: > **Only ChromIQ default's own three numbers are used: 1.5, 2.0 and 3.0.**
+#: > The five all-patch rows and the two grey rows take exactly what ChromIQ
+#: > default puts on them. Every other measurable row takes 2.0 or 3.0, reused
+#: > because it is the right order of magnitude for a ΔE00, a ΔCh, a ΔH*ab or a
+#: > ΔL* and for no other reason.
+#:
+#: Nothing here was looked up, derived from, or checked against ISO 12647-7 or
+#: ISO 12647-8. **No value from either standard is in this file, and none may
+#: be** (`docs/design/issue_182_answers.md`, the owner's standing rule): a
+#: licence holder supplies the real figures through the file
+#: ``CHROMIQ_COMPLIANCE_ISO_FILE`` names, and where that file HAS a number for a
+#: row, the Custom set takes it and none of this is used (:func:`factory_limits`).
+#:
+#: A row is here only when ChromIQ can actually measure it, ``now`` / ``build`` /
+#: ``ref``. A number on a row ChromIQ cannot compute is a limit nothing is ever
+#: judged against, which is the shape of "a column that checked nothing said
+#: PASS"; :func:`factory_limits` enforces it and a test pins it.
+_CUSTOM_PLACEHOLDER: "dict[str, Limit]" = {
+    # the five ChromIQ statistics, exactly ChromIQ default's numbers
+    "all_de00_avg": Limit.value(2.0),
+    "best95_de00_avg": Limit.value(2.0),
+    "worst5_de00_avg": Limit.value(2.0),
+    "all_de00_max": Limit.value(3.0),
+    "all_de00_p95": Limit.value(3.0),
+    # the grey pair, a recommendation in every ChromIQ set (CH-9)
+    "grey_balance_neutral_ramp_avg": Limit.should(1.5),
+    "grey_balance_neutral_ramp_max": Limit.should(3.0),
+    # the rows ChromIQ default puts no limit on
+    "substrate_de00_max": Limit.value(3.0),          # ΔE00
+    "solids_de00_max": Limit.value(3.0),             # ΔE00
+    "cmy_solids_dhab_max": Limit.value(2.0),         # ΔH*ab
+    # §3: ISO 12647-8:2021 4.2.7 is a *should*, so this row is a recommendation
+    "ramps_30_70_dl_max": Limit.should(2.0),         # ΔL*
+}
 
 #: What went wrong with the file the ENVIRONMENT VARIABLE names, as
 #: ``(kind, detail)`` pairs. See :func:`iso_data_problems`.
@@ -672,6 +731,26 @@ def factory_limits(set_id: str) -> "dict[str, Limit]":
                 out[r.id] = Limit.unmeasurable()
             else:
                 out[r.id] = numbers.get(r.id, Limit.unknown())
+        # A CUSTOM SET ARRIVES WITH A NUMBER ON EVERY ROW CHROMIQ CAN MEASURE.
+        # Knut, 2026-09-11, asked for the two Custom columns to be usable:
+        # every cell of both read ``?`` or ``–``, so the columns judged nothing.
+        # The read-only ISO columns keep exactly what the data file gives them,
+        # which is nothing today; only the Custom sets take the placeholders,
+        # and only where the data file supplied no real number, so a licence
+        # holder who points ChromIQ at their own file still starts from theirs.
+        #
+        # `_CUSTOM_PLACEHOLDER` holds only measurable rows, and the status test
+        # below is the second lock on the same door: a ``?`` on an ``unknown``
+        # row means ChromIQ does not know WHICH patches the row is about, so a
+        # number there would be a limit nothing is ever compared with.
+        if s.kind == "custom":
+            for rid, lim in _CUSTOM_PLACEHOLDER.items():
+                row = ROW_BY_ID.get(rid)
+                if row is None or row.status not in ("now", "build", "ref"):
+                    continue
+                if out.get(rid, Limit.none()).is_numeric:
+                    continue            # the data file answered for this row
+                out[rid] = lim
     return out
 
 

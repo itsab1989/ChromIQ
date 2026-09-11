@@ -497,12 +497,28 @@ def test_the_bind_writes_the_whole_record_not_a_third_of_it(qapp, tmp_path,
         dlg.deleteLater()
 
 
-def test_a_refused_edit_puts_back_the_columns_too(qapp, tmp_path, monkeypatch):
-    """The window writes `compliance_columns` on the toggle, and the first
-    snapshot held only the set id and the thresholds.
+def test_a_refused_edit_keeps_the_columns_the_window_hid(qapp, tmp_path, monkeypatch):
+    """REVERSED 2026-09-11, ON KNUT'S RULING, AND THE NAME CHANGED WITH IT.
 
-    MUTATION: drop `compliance_columns` from the snapshot tuple and this goes
-    red.
+    This test used to be `test_a_refused_edit_puts_back_the_columns_too`, and
+    it asserted the opposite: that refusing the "Changing the limit set
+    recalculates it…" question also undid the column ticks. The reasoning was
+    that the undo puts back every key this window wrote.
+
+    Knut reported the consequence: *"it is not remembered what I turned off
+    some columns"*, with the ruling that the question itself *"should only come
+    when thresholds are changed, not if table columns are hidden or shown"*. A
+    refusal answers the question that was asked, and which columns are SHOWN
+    was never in it.
+
+    What this test was really protecting is still protected, one door along:
+    `compliance_columns` is still in the snapshot tuple, because the LOCK path
+    puts it back and `_run_columns_moved` compares it. Drop the slot and
+    `test_a_run_locked_while_the_window_was_open_keeps_its_columns_too` below
+    goes red.
+
+    MUTATION: pass `keep_columns=False` in `_restore_limits_snapshot` and this
+    goes red.
     """
     from workflow.run_compliance import set_run_columns
 
@@ -545,8 +561,73 @@ def test_a_refused_edit_puts_back_the_columns_too(qapp, tmp_path, monkeypatch):
             return asked
 
         assert _edit_and_hide(dlg, monkeypatch), "no question was asked"
+        after = list(run.load_meta().compliance_columns or [])
+        assert after == ["chromiq_default"], (
+            f"a refusal about the NUMBERS took the column choice with it: "
+            f"{before} -> {after}")
+        # …and the numbers really were refused, so this is not passing because
+        # nothing was undone at all.
+        from workflow.run_compliance import run_limits
+        got = run_limits(run, {}).limits.get("all_de00_avg")
+        assert got is not None and abs(got.number - 0.3) > 1e-9, (
+            "the refused number stayed; the undo did not run")
+    finally:
+        dlg.deleteLater()
+
+
+def test_a_run_locked_while_the_window_was_open_keeps_its_columns_too(
+        qapp, tmp_path, monkeypatch):
+    """The other door, where the column choice IS put back, and why.
+
+    A refusal is about the numbers, so the ticks stand. A LOCK is about whether
+    this window may write to the run at all, and the answer covers every key it
+    writes. This is also what keeps `compliance_columns` in the snapshot tuple
+    once the refusal path stopped using it.
+
+    MUTATION: pass `keep_columns=True` on the lock path and this goes red.
+    """
+    from workflow.compliance_sets import Limit
+    from workflow.run_compliance import (bind_run, is_locked, run_limits,
+                                         set_run_columns, set_run_limits)
+
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    set_run_columns(run, ["chromiq_default", "chromiq_tight"])
+    before = list(run.load_meta().compliance_columns or [])
+    assert before, "the fixture stored no columns, so this proves nothing"
+
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        told: list = []
+        import ui.warning_sign as ws
+        monkeypatch.setattr(ws, "warn", lambda parent, t, x: told.append(t))
+        monkeypatch.setattr(type(dlg), "_confirm", lambda self, t, x: True)
+
+        class _Fake:
+            run_limits_changed = False
+
+            def __init__(self, settings, parent, run=None, run_editable=False):
+                self._run = run
+
+            def exec(self):
+                set_run_columns(self._run, ["chromiq_default"])
+                bind_run(self._run, "chromiq_default", {})   # somebody locks it
+                lim = dict(run_limits(self._run, {}).limits)
+                lim["all_de00_avg"] = Limit.value(0.2)
+                set_run_limits(self._run, lim)
+                type(self).run_limits_changed = True
+                return 0
+
+            def deleteLater(self):
+                pass
+
+        import ui.dialogs.thresholds_dialog as td
+        monkeypatch.setattr(td, "ThresholdsDialog", _Fake)
+        dlg._on_open_limits()
+
+        assert is_locked(run), "the premise failed: the run is not locked"
+        assert told, "the user was not told the run had been locked meanwhile"
         assert list(run.load_meta().compliance_columns or []) == before, (
-            "a refused edit kept the columns the window hid")
+            "a run locked while the window was open kept the window's write")
     finally:
         dlg.deleteLater()
 
