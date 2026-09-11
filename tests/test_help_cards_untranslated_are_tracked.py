@@ -402,19 +402,26 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # history. One string, over the 25-character floor, German translated and the
 # eleven carrying the English source under the beta rule: every budget but de
 # goes up by exactly one. Measured against the run that failed, not guessed.
+# 2026-09-11, #182: M-IMPORT-NOT-A-CHART, the refusal shown when the file
+# picked as a chart holds no chart. TWO strings, and only ONE of them counts
+# here: the body is long, the headline "That file holds no chart" is 24
+# characters and falls under this file's 25-character floor. German is
+# translated for both and stays at 4; the eleven carry the English source
+# under the beta rule, so every other budget rises by exactly one. Counted
+# with this file's own `_english_echoes`, not adjusted upward.
 _BUDGET = {
     "de": 4,
-    "es": 140,
-    "fr": 141,
-    "it": 140,
-    "ja": 140,
-    "nl": 140,
-    "no": 140,
-    "pl": 140,
-    "pt": 140,
-    "ru": 139,
-    "sv": 140,
-    "zh_CN": 139,
+    "es": 141,
+    "fr": 142,
+    "it": 141,
+    "ja": 141,
+    "nl": 141,
+    "no": 141,
+    "pl": 141,
+    "pt": 141,
+    "ru": 140,
+    "sv": 141,
+    "zh_CN": 140,
 }
 
 

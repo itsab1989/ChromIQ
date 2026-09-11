@@ -726,18 +726,25 @@ def test_every_deliberate_exception_says_why():
 # up by exactly one. Counted, not assumed: `set(after) - set(before)` is that
 # one string in each of the eleven, and `set(before) - set(after)` is empty.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED 2026-09-11 (#182, the chart-file import refusal).
+    # M-IMPORT-NOT-A-CHART is two strings, a headline and a body. German is
+    # translated, so its 124 is unchanged; the other eleven carry the English
+    # source as a documented placeholder under the beta rule, so each rose by
+    # exactly 2. COUNTED, not adjusted upward: the count is
+    # `len([k for k, v in cat.items() if v == k and not k.startswith("@")])`
+    # per catalogue, which is the same expression the test below uses.
     "de": 124,
-    "es": 296,
-    "fr": 318,
-    "it": 307,
-    "ja": 282,
-    "nl": 323,
-    "no": 308,
-    "pl": 300,
-    "pt": 298,
-    "ru": 271,
-    "sv": 309,
-    "zh_CN": 276,
+    "es": 298,
+    "fr": 320,
+    "it": 309,
+    "ja": 284,
+    "nl": 325,
+    "no": 310,
+    "pl": 302,
+    "pt": 300,
+    "ru": 273,
+    "sv": 311,
+    "zh_CN": 278,
 }
 
 

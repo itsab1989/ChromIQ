@@ -374,7 +374,19 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # narrow a search that will find nothing
                                  # however narrow it is. Behaviour unchanged,
                                  # WORDING new, so it waits here.
-                                 "M-SCAN-ALIGN-NOT-FOUND-HEX"}
+                                 "M-SCAN-ALIGN-NOT-FOUND-HEX",
+                                 # 2026-09-11, #182. The chooser that
+                                 # says .ti2 hides everything else in
+                                 # its list, but its NAME BOX takes a
+                                 # typed name whatever it ends in, and
+                                 # the import copied whatever it was
+                                 # handed into a new project AS that
+                                 # project's chart -- a page bitmap
+                                 # became <project>.ti2, in a project
+                                 # that cannot be printed, measured or
+                                 # built from, in silence. The guard is
+                                 # new and so is the WORDING.
+                                 "M-IMPORT-NOT-A-CHART"}
 # Round 2 of the import-door review added four and Basti approved all four on
 # 2026-09-02, so they never sat in this set for longer than one branch:
 # M-IMPORT-NOT-OPENED, M-IMPORT-FOLDER-EXISTS, M-IMPORT-REPLACE-FOLDER-CONFIRM

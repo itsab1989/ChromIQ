@@ -91,6 +91,25 @@ plainly because both behaviours are correct for what they are for.
   page is named without a page number and the loader looked only for numbered
   ones. Found by driving the import on screen after the fix above, and by
   nothing else. Fixed.
+* **The project the import made was never opened.** Knut, 2026-09-11: he opened
+  a chart file from outside the ChromIQ folder, typed `scan-test2` in the window
+  that asks for a name, and came back to a Profile-run bar still locked on "New
+  run", red text saying *"You already have a project with this name"*, and
+  Generate Chart refusing with *"This chart is loaded from elsewhere"* until an
+  unrelated "Edit patch recipe" tick was made. Three complaints, one omission:
+  the project was created on disk and nothing opened it, so the name box (which
+  ChromIQ itself had filled) matched a project that was not the open one, and
+  Create Chart judged the chart to belong to somebody else. Every other route
+  that ends in a project opens it and points the bar; the two that CREATE one
+  did not. Reproduced on screen before and after. Fixed.
+* **A file that is not a chart was copied into a new project as its chart.**
+  The chooser hides everything but `.ti2` in its list, and its NAME BOX takes a
+  typed, pasted or dragged name whatever it ends in. Measured: picking a page
+  bitmap made a project whose `.ti2` begins `II`, which cannot be printed,
+  measured or built from, and the app said the files had been copied. The
+  import now reads the file first and refuses before anything is made. The
+  refusal's wording is M-IMPORT-NOT-A-CHART and is in §M-PROPOSED, awaiting
+  review.
 
 ## Not one path, though the source has two
 

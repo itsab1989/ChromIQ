@@ -162,6 +162,34 @@ def _copy_chart_set(src_ti2: Path, src_ti1: "Path | None", tiffs: "list[Path]",
                 break
 
 
+def holds_a_chart(path: Path) -> bool:
+    """Whether *path* really is a chart file, judged by reading it.
+
+    THE CHOOSER IS NOT THE GUARD, AND NEVER WAS. "Open chart file" filters on
+    ``*.ti2`` and its file list hides everything else (measured: a folder of
+    one ``.ti2`` and two ``.tif`` lists only the ``.ti2``), but a file dialog
+    also has a NAME BOX, and a name typed, pasted or dragged into it is
+    accepted whatever its extension. The import then copied whatever it was
+    handed straight into a new project as that project's chart, so picking a
+    page bitmap produced ``<project>.ti2`` whose first two bytes are ``II`` —
+    a TIFF wearing a chart's name, in a project that cannot be printed,
+    measured or built from, with nothing said to anybody. Measured 2026-09-11
+    while reproducing Knut's #182 import route.
+
+    A chart is CGATS text with a data-format block in it; that is the one
+    property every ``.ti1``/``.ti2`` ChromIQ or ArgyllCMS writes has and no
+    bitmap does. Deliberately forgiving about everything else, because this
+    judges a file somebody else may have made: it refuses what is plainly not
+    a chart rather than deciding what a good one looks like.
+    """
+    try:
+        with open(path, "rb") as fh:
+            head = fh.read(65536)
+    except OSError:
+        return False
+    return "BEGIN_DATA_FORMAT" in head.decode("utf-8", "ignore")
+
+
 def is_full_project(ti2_path: Path) -> "Path | None":
     """If *ti2_path* sits inside a complete ChromIQ project (an ancestor holds
     ``project.json``), return that project root; else None (A1a vs A1b)."""

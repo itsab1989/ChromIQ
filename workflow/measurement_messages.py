@@ -1611,6 +1611,28 @@ M_IMPORT_REPLACE_FOLDER_FAILED = _m(
     "and leave that folder alone.",
     approved=True)
 
+# --- PROPOSED: the file picked as a chart has no chart in it ---------------
+#
+# #182, 2026-09-11. "Open chart file" filters on *.ti2 and its list hides
+# everything else, but a file dialog also has a name box, and a name typed,
+# pasted or dragged into it is accepted whatever it ends in. The import copied
+# whatever it was handed into a new project as that project's chart, so a page
+# bitmap became `<project>.ti2` with `II` as its first two bytes: a project
+# that cannot be printed, measured or built from, made in silence. The guard is
+# `workflow.chart_import.holds_a_chart`; the WORDING waits here.
+M_IMPORT_NOT_A_CHART = _m(
+    "M-IMPORT-NOT-A-CHART",
+    "That file holds no chart",
+    "“{name}” was opened as a chart file, and there is no patch "
+    "list inside it. A chart file, “.ti2”, holds the colours "
+    "ChromIQ prints and measures. A page image, “.tif”, is a "
+    "picture of the printed sheet and holds none of them.\n\nNothing has "
+    "been created and nothing has been copied. Your file is where it was, "
+    "unchanged.\n\nOpen the “.ti2” file that sits beside the page "
+    "images instead. It carries the same name as they do, without the page "
+    "number.",
+    approved=False)
+
 # --- PROPOSED: the two ways a spot-read session can be thrown away --------
 #
 # Knut, 2026-09-03, reporting the spacebar: the window had no guard on either
@@ -2260,6 +2282,7 @@ CATALOGUE = {m.id: m for m in (
     M_IMPORT_REPLACED_KEPT,
     M_IMPORT_NOT_OPENED, M_IMPORT_FOLDER_EXISTS,
     M_IMPORT_REPLACE_FOLDER_CONFIRM, M_IMPORT_REPLACE_FOLDER_FAILED,
+    M_IMPORT_NOT_A_CHART,
     M_CHART_PROFILING, M_CHART_W4, M_CHART_VERIFY, M_CHART_NOPAGES,
     M_CHART_CORRUPT,
     M_PREVIEW_PAUSED, M_PROFILE_VERIFY,

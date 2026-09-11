@@ -498,6 +498,26 @@ def _say_where_the_old_project_went(parent, name, dest) -> None:
     box.addButton(QMessageBox.StandardButton.Ok)
     box.exec()
 
+
+def _say_that_file_holds_no_chart(parent, path) -> None:
+    """M-IMPORT-NOT-A-CHART (PROPOSED) — the file picked as a chart is not one.
+
+    Said BEFORE anything is made, because the whole point is that nothing is:
+    the import used to copy whatever it was handed into a new project as that
+    project's chart. See :func:`workflow.chart_import.holds_a_chart`.
+    """
+    from PyQt6.QtWidgets import QMessageBox
+    from workflow import measurement_messages as M
+    title, body = M.M_IMPORT_NOT_A_CHART.render(name=Path(path).name)
+    box = QMessageBox(parent)
+    set_warning_icon(box)
+    box.setWindowTitle(title)
+    box.setText(title)
+    box.setInformativeText(body)
+    box.addButton(QMessageBox.StandardButton.Ok)
+    box.exec()
+
+
 def resolve_ti2(
     parent: "QWidget",
     ti2_path: Path,
@@ -529,6 +549,17 @@ def resolve_ti2(
         inside_root = _project_root_for(ti2_path, working_dir)
         loaded_root = _loaded_project_root(controller)
 
+        # A FILE THAT IS NOT A CHART NEVER BECOMES ONE BY BEING COPIED.
+        #
+        # Only for a file that is about to be IMPORTED: one already inside a
+        # project is opened in place and must go on opening, because refusing
+        # it would lock a person out of their own work over a header this
+        # function is in no position to judge. See `holds_a_chart`.
+        if inside_root is None and not _chart_import.holds_a_chart(ti2_path):
+            log.info("refused to import %s: it holds no chart", ti2_path)
+            _say_that_file_holds_no_chart(parent, ti2_path)
+            return None
+
         # NOTHING OPEN, BUT THE CHART BELONGS TO A PROJECT.
         #
         # This used to fall through to the create-a-new-project flow below, which is
@@ -559,7 +590,8 @@ def resolve_ti2(
         # No project loaded → the original new-project flow (loads the first chart).
         if inside_root is not None:
             return _handle_inside(parent, ti2_path, working_dir)
-        return _handle_outside(parent, ti2_path, working_dir)
+        return _handle_outside(parent, ti2_path, working_dir,
+                               controller=controller)
     except ReplaceFailed as exc:
         # ONLY a failed archive. Any other OSError is a different fault and
         # must not be reported as "the existing project could not be moved
@@ -766,7 +798,58 @@ def _run_and_kind_for_ti2(ti2_path: Path) -> "tuple[str, bool]":
     return run.id, False
 
 
-def _copy_out_new_project(parent, ti2_path, working_dir):
+def _enter_the_new_project(controller, ti2_in_project, working_dir) -> None:
+    """A project the user has just named IS the project they are now in.
+
+    THE NAMING WINDOW IS WHERE A PERSON BELIEVES THE PROJECT IS MADE, and until
+    this existed it was made on disk and nowhere else. Knut, #182 2026-09-11,
+    after importing a chart from outside the ChromIQ folder and naming it
+    `scan-test2`: *"the project was not created, only the defined name was
+    placed in the project name field"* — with the Profile-run bar still locked
+    on New run, and red text under the name saying *"You already have a project
+    with this name"* about the very project the import had just made.
+
+    All three of those are one omission. Every other route through
+    :func:`resolve_ti2` that ends in a project opens it and points the bar
+    (``_handle_inside_current``, ``_handle_inside_nothing_open``,
+    ``_handle_inside_other``, ``_handle_full_project``, ``_handle_loose_into_
+    project``); the two that CREATE one did not, so the app finished the import
+    standing outside the folder it had just filled. Create Chart then judged the
+    chart to be "loaded from elsewhere" — which is what refused Generate Chart —
+    and its name box, seeded by the app itself, matched a project on disk that
+    was not the open one.
+
+    Best-effort by design: a project that cannot be opened must not lose the
+    import, which is already on disk.
+    """
+    if controller is None or ti2_in_project is None:
+        return
+    root = _project_root_for(Path(ti2_in_project), working_dir)
+    if root is None:
+        return
+    try:
+        controller._fm.open_project_at(root)
+    except Exception:      # noqa: BLE001 — the files are safe either way
+        log.warning("imported chart: could not open the new project at %s",
+                    root, exc_info=True)
+        return
+    # PROFILING, WHATEVER THE BAR SAID A MOMENT AGO. `_copy_files` makes one
+    # run and files the chart in it as that run's own chart; it never writes a
+    # verification. A bar left on Verification would therefore point at a
+    # verification chart this brand-new project has not got — and "Use as base
+    # for a new profile" is reachable with Run type = Verification.
+    try:
+        controller.set_run_type(RUN_TYPE_PROFILING)
+    except Exception:      # noqa: BLE001
+        log.warning("imported chart: could not set the run type", exc_info=True)
+    # The run is not named here. `_point_bar_at_current_run` asks the project
+    # which run is current, which is the same answer and one that stays right
+    # if `_copy_files` ever files somewhere other than run1.
+    _point_bar_at_current_run(controller)
+    log.info("imported chart: opened the new project at %s", root)
+
+
+def _copy_out_new_project(parent, ti2_path, working_dir, controller=None):
     """Reuse the classic 'copy to a new profile project' flow (name prompt +
     copy), used by the 'Use as base for a new profile' choice."""
     ti1, tiffs = _related_files(ti2_path)
@@ -774,7 +857,9 @@ def _copy_out_new_project(parent, ti2_path, working_dir):
     if res is None:
         return None
     name, overwrite = res
-    return _copy_files(ti2_path, ti1, tiffs, working_dir, name, overwrite=overwrite)
+    out = _copy_files(ti2_path, ti1, tiffs, working_dir, name, overwrite=overwrite)
+    _enter_the_new_project(controller, out[0] if out else None, working_dir)
+    return out
 
 
 def _bin_dir(settings) -> "Path | None":
@@ -897,7 +982,7 @@ def _handle_inside_current(parent, ti2_path, working_dir, controller):
         _, tiffs = _related_files(ti2_path)
         return ti2_path, tiffs
     if key == "new":
-        return _copy_out_new_project(parent, ti2_path, working_dir)
+        return _copy_out_new_project(parent, ti2_path, working_dir, controller)
     return None
 
 
@@ -943,7 +1028,7 @@ def _handle_inside_nothing_open(parent, ti2_path, inside_root, working_dir,
         _, tiffs = _related_files(ti2_path)
         return ti2_path, tiffs
     if key == "new":
-        return _copy_out_new_project(parent, ti2_path, working_dir)
+        return _copy_out_new_project(parent, ti2_path, working_dir, controller)
     return None
 
 
@@ -973,7 +1058,7 @@ def _handle_inside_other(parent, ti2_path, inside_root, working_dir, controller)
         _, tiffs = _related_files(ti2_path)
         return ti2_path, tiffs
     if key == "new":
-        return _copy_out_new_project(parent, ti2_path, working_dir)
+        return _copy_out_new_project(parent, ti2_path, working_dir, controller)
     return None
 
 
@@ -1286,6 +1371,7 @@ def _handle_outside(
     working_dir: Path,
     *,
     name: str | None = None,
+    controller=None,
 ) -> tuple[Path, list[Path]] | None:
     ti1, tiffs = _related_files(ti2_path)
     if name and _name_is_free(working_dir, name):
@@ -1299,6 +1385,10 @@ def _handle_outside(
     out = _copy_files(ti2_path, ti1, tiffs, working_dir, new_name, overwrite=overwrite)
     if overwrite:
         _say_where_the_old_project_went(parent, new_name, working_dir / new_name)
+    # …and the project the person has just named is the one they are now in.
+    # `resolve_ti3` passes no controller: a measurement import is filed by
+    # `ui/measurement_filing.py`, which asks its own where-does-this-go question.
+    _enter_the_new_project(controller, out[0] if out else None, working_dir)
     return out
 
 
