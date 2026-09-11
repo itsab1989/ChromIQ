@@ -79,8 +79,13 @@ def _measurement_ti3(path: Path) -> int:
                 x, y, z = _srgb_to_xyz_d50(r, g, b)
                 # Slightly dark and slightly warm, as ink on paper is.
                 x, y, z = x * 0.985 + 0.25, y * 0.975 + 0.20, z * 0.955 + 0.15
+                # ARGYLL'S .ti3 CARRIES XYZ ON 0..100, not 0..1. Dividing by
+                # 100 here made every measured colour a hundredth of its real
+                # brightness: the swatches photographed as eight black blocks
+                # and ΔE00 came out between 39 and 85 for a printer this
+                # driver describes as close but not perfect.
                 rows.append(f"{n} {r:.4f} {g:.4f} {b:.4f} "
-                            f"{x / 100:.6f} {y / 100:.6f} {z / 100:.6f}")
+                            f"{x:.6f} {y:.6f} {z:.6f}")
     path.write_text(
         "CTI3\n\n"
         'DESCRIPTOR "Argyll Calibration Target chart information 3"\n'
@@ -95,6 +100,21 @@ def _measurement_ti3(path: Path) -> int:
         "BEGIN_DATA\n" + "\n".join(rows) + "\nEND_DATA\n",
         encoding="utf-8")
     return n
+
+
+def _scroll_to(dlg, tr_free: str) -> bool:
+    """Put *tr_free* near the top of the report view."""
+    from PyQt6.QtGui import QTextCursor
+    view = dlg._view
+    view.moveCursor(QTextCursor.MoveOperation.Start)
+    if not view.find(tr_free):
+        return False
+    c = view.textCursor()
+    c.clearSelection()
+    view.setTextCursor(c)
+    bar = view.verticalScrollBar()
+    bar.setValue(min(bar.maximum(), bar.value() + view.cursorRect().top() - 16))
+    return True
 
 
 def shot(win, out: Path, name: str) -> Path | None:
@@ -122,8 +142,8 @@ def main() -> int:
     except Exception:                                         # noqa: BLE001
         pass
     from ui import styles
+    from ui.theme import apply_appearance
     app.setStyle(styles.WinButtonLayoutStyle("Fusion"))
-    app.setStyleSheet(styles.APP_STYLESHEET)
 
     sandbox = Path(tempfile.mkdtemp(prefix="chromiq_onepage_"))
     work = sandbox / "working"
@@ -141,6 +161,18 @@ def main() -> int:
     settings.set("custom_output_path", str(work))
     settings.set("compliance_set_overrides", "")
     settings.set("compliance_default_set", "chromiq_default")
+
+    # ONE APPEARANCE, SET ONCE AND READ BY BOTH. Two drivers' worth of false
+    # findings came out of getting this wrong. Setting only APP_STYLESHEET
+    # leaves the default LIGHT palette behind the dark sheet, and the report
+    # type pulldown then draws #e6e6e6 text on a #ffffff base. Forcing the app
+    # dark while the SETTING stays "auto" is the same mistake one level in: the
+    # report body picks its own palette from the setting, so a light-mode
+    # report gets painted onto a dark window and photographs as unreadable
+    # text. Both look exactly like product faults and neither is one.
+    appearance = os.environ.get("CHROMIQ_DRIVE_APPEARANCE", "dark")
+    settings.set("appearance", appearance)
+    apply_appearance(app, None, appearance)
 
     proj = Project.create(work / "HandOver", "HandOver")
     run = proj.current_run()
@@ -196,6 +228,11 @@ def main() -> int:
           f"{len(hexes)} swatches, {len(set(hexes))} distinct")
 
     p = shot(dlg, out, "01-one-page-summary.png")
+    # THE COLOURS ARE THE POINT OF THIS PAGE, and they are below the fold. A
+    # photograph of the scope block proves the window, not the document.
+    _scroll_to(dlg, tr_free="Example colours")
+    pump(app, 400)
+    shot(dlg, out, "02-the-colours.png")
     if p is None:
         # Not a check: a photograph the window server will not give us is a
         # finding about the machine, not a failure of the page. The checks
