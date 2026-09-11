@@ -100,8 +100,11 @@ load .ti2 button may have several paths" is two in the source and one in the
 app. It is recorded rather than removed, because a helper nobody calls may be a
 dropped branch rather than dead code, and that is not a sweep's decision.
 
-## Still open
+## Answered, and so not built
 
 Whether importing a chart file should also offer "replace only the chart",
 meaning take the patches from the file and lay the chart out at the settings on
-screen, alongside the three choices it has now. Asked on the issue, 2026-09-11.
+screen, alongside the three choices it has now. Asked on the issue 2026-09-11
+and answered the same day by Knut: **no**. So the chart-file import keeps its
+three choices and never lays a chart out again, and "replace only the chart"
+stays where it is, on the patch-set load.
