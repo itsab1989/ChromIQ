@@ -4162,6 +4162,34 @@ class TabProfile(QWidget):
         elif not usable:
             self._file_lbl.setText(tr("{path}  —  no readings yet").format(
                 path=path))
+        # AND WHETHER ITS COLOUR NUMBERS ARE ON THE SCALE ARGYLLCMS MEANS.
+        #
+        # `repair_converted_cie` puts the hundredfold CIE scale right on every
+        # path that CONVERTS an i1Profiler export. It cannot reach a `.ti3` that
+        # was converted before it existed and has been sitting in the run folder
+        # since. Reproduced on screen 2026-09-11 with the reporting user's own
+        # export: this tab armed its button and said nothing, and the profile
+        # built from it records paper white at L* 8 instead of L* 95.
+        #
+        # Said, not mended and not forbidden. Rewriting a measurement the user
+        # did not ask us to touch is a write; refusing to build from a file
+        # ArgyllCMS will happily read is a decision that is not ours. What this
+        # owes the user is that it is not silent.
+        from workflow.reference_convert import cie_columns_are_unscaled
+        if cie_columns_are_unscaled(path):
+            self._file_lbl.setText(
+                self._file_lbl.text()
+                + tr("  ·  colour values on the wrong scale"))
+            scale = tr(
+                "The XYZ columns in this measurement are on the 0 to 1 scale, "
+                "not the 0 to 100 one ArgyllCMS uses, so every colour in it "
+                "reads far too dark: its paper white is almost black. That "
+                "happens when an i1Profiler export is converted by a version of "
+                "ChromIQ that did not put the scale right. Import the "
+                "measurement again to get a usable one. A profile built from "
+                "this file will record its paper white as almost black.")
+            old = self._build_btn.toolTip()
+            self._build_btn.setToolTip(f"{old}\n\n{scale}" if old else scale)
         # #130 §4: **only while the field is still a ChromIQ default.** These
         # two lines used to overwrite unconditionally, so a Profile Description
         # the user had typed was lost the moment a measurement was loaded or

@@ -190,6 +190,20 @@ arrived with the reference data.
   written and then wiped** every time, because it arrived just before the step
   that clears the log.
 
+- **A complete measurement of a padded chart was refused outright.** A ChromIQ
+  sheet is filled to the end of its last strip, so a 400-colour chart holds 414
+  patches. The Measure tab's import compared a complete 400-reading file against
+  the 414 and refused it: "Nothing has been imported, measure again". Both ways
+  of padding a sheet were affected. The import box also described the chart by
+  the padded number.
+
+- **A measurement already in your project is no longer read in silence when its
+  colour numbers are on the wrong scale.** The correction above happens on the
+  way in, so a file imported before this build still carries the fault, and
+  building again from it would reproduce it. Build Profile now says so on the
+  file's own line, so rebuilding a profile means re-importing the measurement
+  first.
+
 ### Knut's chart and scanner batch of 2026-09-11
 
 - **Text on the sheet stops shrinking at 8 pt.** The Chart Notes and the

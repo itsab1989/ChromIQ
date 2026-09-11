@@ -793,18 +793,24 @@ _IDENTICAL_TO_KEY = {
     # exactly 2. COUNTED, not adjusted upward: the count is
     # `len([k for k, v in cat.items() if v == k and not k.startswith("@")])`
     # per catalogue, which is the same expression the test below uses.
+
+    # RE-MEASURED AGAIN 2026-09-11 (#182, the adversarial round): the Build
+    # Profile tab now says when a measurement already on disk carries its CIE
+    # columns on the 0..1 scale. Two more strings, a label suffix and the Build
+    # button's tooltip; German is translated, so 124 stands, and the other
+    # eleven each rose by exactly 2 again. Counted with the expression above.
     "de": 124,
-    "es": 302,
-    "fr": 324,
-    "it": 313,
-    "ja": 288,
-    "nl": 329,
-    "no": 314,
-    "pl": 306,
-    "pt": 304,
-    "ru": 277,
-    "sv": 315,
-    "zh_CN": 282,
+    "es": 304,
+    "fr": 326,
+    "it": 315,
+    "ja": 290,
+    "nl": 331,
+    "no": 316,
+    "pl": 308,
+    "pt": 306,
+    "ru": 279,
+    "sv": 317,
+    "zh_CN": 284,
 }
 
 
