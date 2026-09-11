@@ -65,6 +65,7 @@ def extract_keys() -> set[str]:
                 keys.add(consts[arg.id])
     keys |= _message_catalogue_keys()
     keys |= _compliance_set_keys()
+    keys |= _report_type_keys()
     keys |= _reference_set_keys()
     return keys
 
@@ -117,6 +118,26 @@ def _compliance_set_keys() -> set[str]:
     # extractor cannot see by design. Named here so the sentence is
     # translated rather than silently English in twelve languages.
     out.add(cs.STANDARD_CAVEAT)
+    return out
+
+
+def _report_type_keys() -> set[str]:
+    """The Measurement Report's six TYPE names and the line under each
+    (#182 D28). Data in `workflow/measurement_report.py`, reaching the screen
+    through `tr(name)`, which the AST walk cannot see. Same shape as the limit
+    sets above, swept the same way, so a seventh type is translated the day it
+    is added rather than the day somebody notices."""
+    try:
+        from workflow import measurement_report as mr
+    except Exception as exc:  # noqa: BLE001
+        print(f"warning: could not import workflow.measurement_report ({exc})",
+              file=sys.stderr)
+        return set()
+    out: set[str] = {mr.REPORT_TYPE_MENU_HEADING}
+    for _tid, name, blurb, _built in mr.REPORT_TYPE_MENU:
+        out.add(name)
+        if blurb:
+            out.add(blurb)
     return out
 
 

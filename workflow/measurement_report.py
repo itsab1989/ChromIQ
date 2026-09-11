@@ -1028,6 +1028,59 @@ def report_type(report: "dict | None") -> str:
     return t if t in REPORT_TYPES else REPORT_TYPE_DEFAULT
 
 
+#: The pulldown, in the order Knut approved (issue #182, section 19). Each
+#: entry: id, the English NAME, and the one line under it that says when to
+#: use it. English only in here; the window wraps both in `tr()`.
+#:
+#: `built` says whether ChromIQ can actually produce that document today. The
+#: two ISO types cannot: the figures they judge against are behind a paywall
+#: and ChromIQ has no permission to ship them. Knut, 2026-09-09: *"those
+#: metrics, compliance sets and report types that depend on information in
+#: documents that are behind the ISO paywall are marked as not yet implemented
+#: and a reason for it."* So they are SHOWN and cannot be chosen, which is the
+#: honest state, rather than hidden, which would say nothing at all.
+REPORT_TYPE_MENU: "tuple[tuple[str, str, str, bool], ...]" = (
+    (REPORT_TYPE_SUMMARY, "Colour summary (one page)",
+     "One page to print and hand over with a job.", False),
+    (REPORT_TYPE_FULL, "Full colour check",
+     "Everything ChromIQ measures, in full. This is the report you know.",
+     True),
+    (REPORT_TYPE_GREY, "Grey and tone check",
+     "The neutral axis and the mid-tone ramps, on their own.", False),
+    (REPORT_TYPE_RECORD, "Printing record (not graded)",
+     "A record of what was printed and measured, with nothing judged.", False),
+    (REPORT_TYPE_ISO_8, "Validation print check (ISO 12647-8)",
+     "Your print against a printing condition you supply.", False),
+    (REPORT_TYPE_ISO_7, "Contract proof check (ISO 12647-7)",
+     "The same, at the strictest level the trade uses.", False),
+)
+
+#: The heading that separates the two halves of the pulldown. The formal types
+#: judge against a printing condition the USER supplies; the four above judge
+#: against ChromIQ's own limit sets, and the heading does more work than any
+#: word inside a name could.
+REPORT_TYPE_MENU_HEADING = "Against a printing condition you supply"
+
+#: Above this id in `REPORT_TYPE_MENU`, the heading is drawn.
+REPORT_TYPE_MENU_SPLIT = REPORT_TYPE_ISO_8
+
+
+def report_type_is_built(type_id: str) -> bool:
+    """Whether ChromIQ can produce that document today."""
+    for tid, _name, _blurb, built in REPORT_TYPE_MENU:
+        if tid == type_id:
+            return built
+    return False
+
+
+def report_type_name(type_id: str) -> str:
+    """The English name. The window translates it."""
+    for tid, name, _blurb, _built in REPORT_TYPE_MENU:
+        if tid == type_id:
+            return name
+    return ""
+
+
 def set_report_type(report: dict, type_id: str) -> None:
     """Record the type on a report, additively.
 

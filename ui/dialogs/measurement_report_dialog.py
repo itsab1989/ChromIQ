@@ -914,7 +914,48 @@ class MeasurementReportDialog(QDialog):
         #: to fix by writing a flag to disk. This remembers it here instead, so
         #: nothing untrue is recorded about a lock nobody lifted.
         self._bound_here: "set[str]" = set()
+        #: A type chosen for a measurement that is in NO run (CH-14): kept for
+        #: the session, written nowhere, exactly as the limit set is.
+        self._session_type = ""
         self._syncing_limits = False
+        # #182 (D28, question 19): the KIND of document, chosen before the
+        # numbers it is judged with. Two controls, one rule: D9 governs both,
+        # because a run whose dated verifications produced different kinds of
+        # report is no more comparable than one whose limits moved under it.
+        type_row = QHBoxLayout()
+        self._type_label = QLabel(tr("Report type:"), self)
+        type_row.addWidget(self._type_label)
+        self._type_combo = NoScrollComboBox(self)
+        from PyQt6.QtWidgets import QComboBox
+        self._type_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+        self._type_combo.setMinimumWidth(260)
+        self._type_combo.currentIndexChanged.connect(self._on_type_chosen)
+        type_row.addWidget(self._type_combo)
+        type_row.addWidget(TooltipButton(
+            tr("Report type"),
+            tr("Which kind of document this run's verifications produce. The "
+               "measurement is the same either way; the type decides what is "
+               "put in front of a reader, and how much of it.\n\n"
+               "Like the limit set, the type belongs to the profile run, so "
+               "every dated verification of the run produces the same kind of "
+               "document and the dates can be compared. Another run in the "
+               "project may use a different one.\n\n"
+               "A type shown greyed is one ChromIQ cannot produce yet. The "
+               "line under it says what is missing."),
+            self, min_width=460, color=SPEC_GREEN))
+        #: What the chosen type is for, or, on a type that cannot be produced,
+        #: what is missing. It rides on the SAME row, elided, with the whole
+        #: sentence as its tooltip: a word-wrapped label of its own is what
+        #: pushed this window's bottom off an 800 px screen, twice, because a
+        #: wrapped label's minimum height is computed before the window has
+        #: been given its width.
+        self._type_blurb = QLabel(self)
+        self._type_blurb.setWordWrap(False)
+        self._type_blurb.setStyleSheet("color: palette(mid); padding-left: 4px")
+        self._type_blurb_full = ""
+        type_row.addWidget(self._type_blurb, 1)
+        top_v.addLayout(type_row)
+
         judged_row = QHBoxLayout()
         self._judged_label = QLabel(tr("Judged against:"), self)
         judged_row.addWidget(self._judged_label)
@@ -1976,9 +2017,188 @@ class MeasurementReportDialog(QDialog):
                          "choice is not stored anywhere.")
             for w in (self._set_combo, self._unlock_check, self._limits_btn):
                 w.setToolTip(tip)
+            self._sync_type_combo(run, several)
             self._set_strip(self._mismatch_text())
         finally:
             self._syncing_limits = False
+
+    # ------------------------------------------------------------------
+    # The report TYPE (#182 D28)
+    # ------------------------------------------------------------------
+    def _report_type_now(self) -> str:
+        """Which kind of document this window is producing.
+
+        The RUN is the source of truth, because that is what D9 says: later
+        dated verifications of a run follow the run's type. A measurement in no
+        project has no run to ask, so the type it was last saved as is used,
+        and failing that today's report.
+        """
+        from workflow.measurement_report import REPORT_TYPE_DEFAULT, report_type
+        from workflow.run_compliance import run_report_type
+        ctx = self._run_ctx
+        if ctx is not None:
+            return run_report_type(ctx.run)
+        if self._session_type:
+            return self._session_type
+        reports = self._runs_for_report()
+        return report_type(reports[0]) if reports else REPORT_TYPE_DEFAULT
+
+    def _sync_type_combo(self, run, several: bool) -> None:
+        """Fill the type pulldown and put the line under it.
+
+        Called from inside `_sync_limit_controls`, under the same
+        `_syncing_limits` flag and after the same `_run_state_at_sync` stamp,
+        so the type control's guard compares against the state this window
+        actually DREW. A separate stamp of its own is how a baseline comes to
+        be taken later than the write it is meant to catch.
+        """
+        if getattr(self, "_type_combo", None) is None:
+            return
+        from workflow.measurement_report import (REPORT_TYPE_MENU,
+                                                 REPORT_TYPE_MENU_HEADING,
+                                                 REPORT_TYPE_MENU_SPLIT)
+        current = self._report_type_now()
+        self._type_combo.clear()
+        model = self._type_combo.model()
+        for tid, name, blurb, built in REPORT_TYPE_MENU:
+            if tid == REPORT_TYPE_MENU_SPLIT:
+                # A HEADING THAT LOOKS LIKE A REFUSED CHOICE IS NOT A HEADING.
+                # Photographed on screen: greyed and unadorned, it sat in the
+                # list reading as a seventh type nobody may pick, between six
+                # that mostly are greyed too. A rule above it and a bold italic
+                # face say what it is, and go on saying it once the two types
+                # below become selectable.
+                self._type_combo.insertSeparator(self._type_combo.count())
+                self._type_combo.addItem(tr(REPORT_TYPE_MENU_HEADING), "")
+                i = self._type_combo.count() - 1
+                self._disable_item(model, i)
+                item = model.item(i) if hasattr(model, "item") else None
+                if item is not None:
+                    f = item.font()
+                    f.setBold(True)
+                    f.setItalic(True)
+                    item.setFont(f)
+            self._type_combo.addItem(tr(name), tid)
+            i = self._type_combo.count() - 1
+            self._type_combo.setItemData(
+                i, tr(blurb) if built else self._not_built_line(tid),
+                Qt.ItemDataRole.ToolTipRole)
+            if not built:
+                self._disable_item(model, i)
+        idx = self._type_combo.findData(current)
+        self._type_combo.setCurrentIndex(max(0, idx))
+        self._type_combo.setEnabled(not several)
+        self._type_label.setText(
+            tr("Report type ({run}):").format(run=run.dir.name)
+            if run is not None and not several else tr("Report type:"))
+        self._type_combo.setToolTip(
+            tr("Several measurement runs are loaded. Open the report on one "
+               "run to change its type.") if several else "")
+        self._set_type_blurb(self._type_blurb_for(current))
+
+    def _set_type_blurb(self, full: str) -> None:
+        """One line, elided to the room it has; the whole sentence as the
+        tooltip. Same rule as the mismatch strip below it, for the same
+        reason."""
+        from PyQt6.QtGui import QFontMetrics
+        self._type_blurb_full = full or ""
+        fm = QFontMetrics(self._type_blurb.font())
+        room = max(120, self.width() - self._type_blurb.x() - 40)
+        self._type_blurb.setText(
+            fm.elidedText(self._type_blurb_full, Qt.TextElideMode.ElideRight, room))
+        self._type_blurb.setToolTip(self._type_blurb_full)
+
+    @staticmethod
+    def _disable_item(model, row: int) -> None:
+        """Grey a pulldown entry without removing it. A type ChromIQ cannot
+        produce is SHOWN and refused, per Knut 2026-09-09, because hiding it
+        says nothing about why it is not there."""
+        item = model.item(row) if hasattr(model, "item") else None
+        if item is not None:
+            item.setEnabled(False)
+
+    @staticmethod
+    def _not_built_line(type_id: str) -> str:
+        """Why a type cannot be chosen yet. One sentence, and it names the
+        reason rather than the word "unavailable"."""
+        from workflow.measurement_report import REPORT_TYPE_ISO_7, REPORT_TYPE_ISO_8
+        if type_id in (REPORT_TYPE_ISO_7, REPORT_TYPE_ISO_8):
+            return tr("Not available yet: the figures this report judges "
+                      "against are published in a standard ChromIQ may not "
+                      "include.")
+        return tr("Not available yet: this report is still being built.")
+
+    def _type_blurb_for(self, type_id: str) -> str:
+        from workflow.measurement_report import REPORT_TYPE_MENU
+        for tid, _name, blurb, built in REPORT_TYPE_MENU:
+            if tid == type_id:
+                return tr(blurb) if built else self._not_built_line(tid)
+        return ""
+
+    def _on_type_chosen(self, index: int) -> None:
+        """Store the chosen type on the run, or keep it for the session.
+
+        NOTHING IS RECALCULATED HERE, and that is the difference from the set
+        pulldown beside it. A limit set decides what a measurement is judged
+        against, so changing it moves verdicts already on disk and every dated
+        report has to be archived and rebuilt. A type decides which document is
+        produced from numbers that do not move. No verdict, no measurement and
+        no saved figure changes, so there is nothing to archive and no question
+        to ask.
+
+        The run can still stop being the run this window drew, though, and that
+        is checked: a second window changing the type, or a measurement
+        arriving, is refused here exactly as it is at the set pulldown.
+        """
+        if self._syncing_limits or index < 0:
+            return
+        from workflow.measurement_report import report_type_is_built
+        type_id = self._type_combo.itemData(index)
+        current = self._report_type_now()
+        if not type_id or type_id == current:
+            return
+        if not report_type_is_built(type_id):
+            # Belt and braces: the entry is greyed, and a keyboard or a style
+            # that ignores the flag must not be able to store it anyway. A
+            # guarded write behind an unguarded control is the shape that came
+            # back in three separate rounds.
+            self._sync_type_combo_to(current)
+            return
+        ctx = self._run_ctx
+        if ctx is None:
+            # Not in a run: a session-only choice, nothing stored (CH-14).
+            self._session_type = type_id
+            self._refresh()
+            return
+        if self._run_state_now(ctx.run) != self._run_state_at_sync:
+            self._sync_type_combo_to(current)
+            self._say_run_moved_while_asking(ctx.run)
+            self._forget_limits()
+            self._refresh()
+            return
+        from workflow.run_compliance import set_run_report_type
+        try:
+            set_run_report_type(ctx.run, type_id)
+        except (OSError, ValueError) as exc:
+            log.warning("could not store the report type on %s: %s",
+                        ctx.run.dir, exc)
+            self._sync_type_combo_to(current)
+            return
+        self._forget_limits()
+        self._refresh()
+
+    def _sync_type_combo_to(self, type_id: str) -> None:
+        """Put the pulldown back on *type_id* without re-entering the handler."""
+        combo = getattr(self, "_type_combo", None)
+        if combo is None:
+            return
+        i = combo.findData(type_id)
+        if i < 0:
+            return
+        combo.blockSignals(True)
+        combo.setCurrentIndex(i)
+        combo.blockSignals(False)
+        self._set_type_blurb(self._type_blurb_for(type_id))
 
     def _set_strip(self, full: str) -> None:
         """One line on screen, elided to the window; the whole message as the
@@ -2019,6 +2239,8 @@ class MeasurementReportDialog(QDialog):
         super().resizeEvent(event)
         if getattr(self, "_mismatch_full", ""):
             self._set_strip(self._mismatch_full)
+        if getattr(self, "_type_blurb_full", ""):
+            self._set_type_blurb(self._type_blurb_full)
 
     # -- reasons a row was not computed, as sentences --------------------------
     def _reason_sentence(self, code: "str | None", r: "dict | None" = None) -> str:
@@ -2679,6 +2901,10 @@ class MeasurementReportDialog(QDialog):
         except Exception:              # noqa: BLE001
             return ()
         return (str(m.compliance_set_id or ""),
+                # THE TYPE MOVES THE SAME WAY THE SET DOES, so a second window
+                # changing it while a question is on screen has to be visible
+                # to every door's guard, not only to the one that wrote it.
+                str(getattr(m, "report_type", "") or ""),
                 json.dumps(m.compliance_thresholds or {}, sort_keys=True),
                 str(getattr(m, "compliance_bound_at", "") or ""),
                 bool(getattr(m, "compliance_unlocked", False)),
