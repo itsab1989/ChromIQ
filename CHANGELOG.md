@@ -236,7 +236,72 @@ folder's README says how.
 
 ## v4.2.4
 
+### New
+
+- **Auto align works on hexagonal charts.** Pressed on a honeycomb it used to
+  decline and move nothing, while the same button placed a rectangular chart of
+  the same 648 colours to within 0.6 px. Only the first of its three stages was
+  at fault: it borrows scanin's recogniser, which hunts the straight horizontal
+  patch edges a grid of rectangles has and a honeycomb does not. ChromIQ now
+  finds the ink instead of the patch shape, so a honeycomb is no harder for it
+  than a chequerboard. Measured over eight charts and 98 pictures, each page
+  clean, turned 2 degrees, turned 12, noisy, on a dark cluttered bed, as an
+  off-square photograph and with an edge cut off: 63 of 66 land within a quarter
+  of a patch, and 20 of 22 pictures with the chart cut off are correctly
+  refused. Rectangular charts cannot reach the new code and were measured
+  unchanged, 64 placements out of 64.
+
+### Faster
+
+- **The patch set generator no longer rebuilds a set it already has.** Opening
+  the generator with nothing changed rebuilt the identical patches, and the
+  window ran the builder eight times doing it. At a 4000-patch fill that was
+  48 seconds; it is now under half a second, and pressing Create drops from 12.4
+  to 0.21. Change a setting and it still rebuilds, as it must.
+
+- **And the first build is about four times faster, patch for patch identical.**
+  9.0 seconds to 2.3 at 4000 patches. This decides which colours end up on your
+  chart, so it was checked rather than assumed: 900 combinations of starting
+  patches, totals, seeds, candidate counts and relaxation settings, plus the
+  N-channel path at four to twelve channels. Worst difference across all of
+  them: zero.
+
 ### Fixed
+
+- **Hexagonal patches were drawn a third too wide.** In "Prioritise chart area,
+  then fit patches to it", in both calculation methods, the hexagon came out
+  4/3 wider than tall instead of regular, which is the flattened look Knut
+  Larsson reported. "Prioritise patch size" was always right and is untouched.
+  Worth knowing before it surprises you: at the same typed minimum width a
+  honeycomb now fits about three quarters as many patches, because each patch is
+  genuinely taller than it was.
+
+- **The patch count over the preview told the truth about what will be built.**
+  With a patch set attached the build never consults the Pages box, but the
+  headline still multiplied patches per sheet by pages. On Knut's own test
+  project, Pages 1 said 396 over one page and built 648 over two. Both numbers
+  now read what is actually written. The same count is also refreshed the moment
+  a patch set is loaded, instead of showing the previous chart's total until
+  something else happened to nudge it.
+
+- **The estimate describes the chart Generate will build.** With "Auto patch
+  count" unticked it described the chart already in the preview, so it was
+  always one build behind: it promised 525 and built 418, then promised 425 on
+  one page while the build made 900 on two. It also never passed the count to
+  the area-first layout, which sizes the patches from it.
+
+- **The layout controls no longer jump when you change the calculation method.**
+  The Calculation-method box moved 157 px and lost 157 px of width, which is why
+  it read "By colum…". Nothing moves now, in any of the thirteen languages.
+
+- **Labels in the Layout section are no longer cut off.** "Minimum patch width
+  (mm):" lost the top of its first line. Across thirteen languages and both
+  calculation methods there were five clipped labels before this release and
+  there are none now.
+
+- **Auto align says something true when it cannot find a honeycomb.** It used to
+  tell you to drag the corners roughly round the chart and press again, which
+  narrows a search that would find nothing however narrow it is.
 
 - **A custom paper size is named by its size again, and carries Portrait or
   Landscape.** Saving a preset on a custom sheet produced a name containing
