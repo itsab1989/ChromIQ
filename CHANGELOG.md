@@ -24,6 +24,18 @@ offered to you as another project's.
   `spec2cie` rather than ChromIQ's arithmetic, so the numbers the profile
   builder is handed are the numbers it would have worked out for itself.
 
+  **It decides by asking the file, not by the size of the numbers.** A chart
+  made only of very dark patches has genuinely small colour numbers, and
+  ChromIQ can generate exactly such a set, so a rule that rescaled anything
+  small would destroy a correct measurement. The patch printed with no ink is
+  the bare paper, and no printable medium is black: a file whose no ink patch is
+  also its lightest and still reads almost black is on the wrong scale and can
+  be nothing else. Where a file has no bare paper patch, the measured spectra
+  are asked instead, and only when they can be trusted. A file that offers
+  neither is left exactly as it is and nothing is said, because guessing can
+  ruin a good measurement and saying nothing cannot. Every measurement file in
+  the project, 426 of them, is byte for byte unchanged by this.
+
   **If you have a profile built from such a file, build it again, and import
   the measurement again first.** The correction happens on the way in, so
   re-importing the i1Profiler export is what produces a measurement with its
