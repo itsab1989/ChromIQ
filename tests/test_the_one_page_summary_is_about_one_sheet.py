@@ -153,9 +153,14 @@ def two_dated(tmp_path, qapp):
             encoding="utf-8")
 
     paths = []
-    for stamp, scale, when in (("2026-09-01_100000", 0.985, "2026-09-01T10:00:00"),
-                               ("2026-09-10_100000", 0.90, "2026-09-10T10:00:00")):
-        p = run.dir / "verifications" / stamp / "Two.ti3"
+    # THE TWO SHEETS CARRY DIFFERENT CHART NAMES, on purpose. The report's
+    # title appends the dominant chart name across the measurements it covers,
+    # so the two lists give two different titles and a title built from the
+    # wrong list is visible on the page rather than only in a variable.
+    for stamp, scale, when, chart in (
+            ("2026-09-01_100000", 0.985, "2026-09-01T10:00:00", "Alpha"),
+            ("2026-09-10_100000", 0.90, "2026-09-10T10:00:00", "Bravo")):
+        p = run.dir / "verifications" / stamp / f"{chart}.ti3"
         write(p, scale)
         # A REAL DATED VERIFICATION CARRIES ITS SAVED REPORT, and its `created`
         # is when it was MEASURED. Without one, both reports are built at load
@@ -186,3 +191,23 @@ def test_the_fixture_itself_holds_two_tellable_apart_measurements(two_dated, qap
     assert len(set(keys)) == len(keys) == 2, keys
     assert dlg._run_key(dlg._report) == keys[-1], \
         "the window is on the NEWER sheet, so the older one is a real decoy"
+
+
+def test_the_pdf_title_is_about_the_same_sheet_as_the_page(two_dated, qapp):
+    """Disabling the tick box does not UNTICK it, so a user who ticked "Show
+    all measurement runs" under another type and then chose the one-page
+    summary still arrives here with the whole history. The title, the PDF file
+    name and `_report_kind` are all worked out from the run list, so the list
+    is narrowed before any of them, not only before the body."""
+    dlg, older, newer = two_dated
+    dlg._all_runs_check.setChecked(True)
+    dlg._refresh()
+    runs = dlg._runs_for_report()
+    assert len(runs) == 2
+    assert dlg._report_title(runs).endswith("Alpha"), \
+        "the whole history really does title itself after the older sheet"
+    assert dlg._report_title(dlg._one_measurement(runs)).endswith("Bravo")
+    pdf = _text(dlg._report_body_html(runs, for_pdf=True))
+    assert "No. of Measurements: 1" in pdf
+    assert "Bravo" in pdf
+    assert "Alpha" not in pdf

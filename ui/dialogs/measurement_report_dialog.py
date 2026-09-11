@@ -4880,9 +4880,19 @@ class MeasurementReportDialog(QDialog):
         # worse than saying nothing, because it is a claim rather than a
         # silence. Caught by the ratchet, on three types at once.
         from workflow.measurement_report import (REPORT_TYPE_FULL,
+                                                 REPORT_TYPE_SUMMARY,
                                                  report_type_is_built,
                                                  report_type_name)
         _tid = self._report_type_now()
+        # THE TITLE HAS TO BE ABOUT THE SAME SHEET AS THE PAGE UNDER IT, so the
+        # one-page summary narrows the list HERE, before the title, the PDF
+        # file name and `_report_kind` are worked out from it, and not only at
+        # the call that builds the body. Disabling the tick box does not untick
+        # it, so a user who ticked "Show all measurement runs" under another
+        # type and then chose this one still arrives with the whole history.
+        _one_page = _tid == REPORT_TYPE_SUMMARY and report_type_is_built(_tid)
+        if _one_page:
+            runs = self._one_measurement(runs)
         if _tid != REPORT_TYPE_FULL and report_type_is_built(_tid):
             created_line += ("<div style='margin:2px 0 0;font-weight:bold'>"
                              + html.escape(tr("Report type:")) + " "
@@ -4898,13 +4908,11 @@ class MeasurementReportDialog(QDialog):
         # is one page to print and hand over with a job (Knut), so it branches
         # here rather than filtering below: no "How to read" essay, no trend
         # charts, no comparison table, no opt-in detail.
-        from workflow.measurement_report import REPORT_TYPE_SUMMARY
-        if _tid == REPORT_TYPE_SUMMARY and report_type_is_built(_tid):
+        if _one_page:
             family = QApplication.font().family().replace("'", "")
             return (f"<div style=\"font-family:'{family}';color:{_C['text']};"
                     f"font-size:12px\">"
-                    + head + self._one_page_html(self._one_measurement(runs))
-                    + "</div>")
+                    + head + self._one_page_html(runs) + "</div>")
         parts = [head, self._scope_html(runs), self._how_to_read_html(),
                  self._report_results_html(runs)]
         if for_pdf and charts_html:
