@@ -436,20 +436,27 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # 2026-09-11, THE SECOND MERGE. Three rounds have now moved this table,
 # each on its own base. Re-measured on the merged catalogues rather than
 # reconciled: a number carried across a merge is a number nobody counted.
+# 2026-09-11, #182: M-IMPORT-NOT-A-CHART, the refusal shown when the file
+# picked as a chart holds no chart. TWO strings, and only ONE of them counts
+# here: the body is long, the headline "That file holds no chart" is 24
+# characters and falls under this file's 25-character floor. German is
+# translated for both and stays at 4; the eleven carry the English source
+# under the beta rule, so every other budget rises by exactly one. Counted
+# with this file's own `_english_echoes`, not adjusted upward.
+# 2026-09-11, THE THIRD MERGE. Measured again on the merged catalogues.
 _BUDGET = {
     "de": 4,
-    "es": 142,
-    "fr": 143,
-    "it": 142,
-    "ja": 142,
-    "nl": 142,
-    "no": 142,
-    "pl": 142,
-    "pt": 142,
-    "ru": 141,
-    "sv": 142,
-    "zh_CN": 141,
-
+    "es": 143,
+    "fr": 144,
+    "it": 143,
+    "ja": 143,
+    "nl": 143,
+    "no": 143,
+    "pl": 143,
+    "pt": 143,
+    "ru": 142,
+    "sv": 143,
+    "zh_CN": 142,
 }
 
 

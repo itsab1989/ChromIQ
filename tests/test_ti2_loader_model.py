@@ -50,10 +50,27 @@ def _settings(tmp_path):
     return _S()
 
 
+def _chart(marker: str) -> str:
+    """CGATS text with *marker* in it, so a test can still tell two charts apart.
+
+    A `.ti2` that is about to be IMPORTED is now read before it is copied
+    (`workflow.chart_import.holds_a_chart`, #182): a file with no data-format
+    block in it is refused, because the import used to copy a page bitmap into
+    a project as that project's chart. These fixtures wrote the word "ti2" and
+    were refused by that guard, which is the guard doing its job. What each
+    test measures — where the file lands, what is archived, which run the bar
+    points at — is unchanged.
+    """
+    return ("CTI2   \n\nNUMBER_OF_FIELDS 4\nBEGIN_DATA_FORMAT\n"
+            "SAMPLE_ID RGB_R RGB_G RGB_B\nEND_DATA_FORMAT\n"
+            "NUMBER_OF_SETS 1\nBEGIN_DATA\n1 100 100 100\nEND_DATA\n"
+            f"KEYWORD \"{marker}\"\n")
+
+
 def _loose(folder: Path, stem="ext", ti3=False, icc=False):
     folder.mkdir(parents=True, exist_ok=True)
     (folder / f"{stem}.ti1").write_text("ti1", encoding="utf-8")
-    ti2 = folder / f"{stem}.ti2"; ti2.write_text("ti2", encoding="utf-8")
+    ti2 = folder / f"{stem}.ti2"; ti2.write_text(_chart("ti2"), encoding="utf-8")
     (folder / f"{stem}_01.tif").write_text("t", encoding="utf-8")
     if ti3:
         (folder / f"{stem}.ti3").write_text("m", encoding="utf-8")
@@ -103,7 +120,7 @@ def test_loose_overwrite_replace_archives(qapp, tmp_path, monkeypatch):
     monkeypatch.setattr(L, "_choice_dialog", lambda *a, **k: "replace")
     out, _ = L.resolve_ti2(None, ti2, _settings(tmp_path), ctl)
     r = Project.load(proj.root).run("run1")
-    assert r.old_dir.exists() and out == r.chart_ti2 and r.chart_ti2.read_text(encoding="utf-8") == "ti2"
+    assert r.old_dir.exists() and out == r.chart_ti2 and r.chart_ti2.read_text(encoding="utf-8") == _chart("ti2")
 
 
 def test_loose_overwrite_new_run_instead(qapp, tmp_path, monkeypatch):
@@ -145,7 +162,7 @@ def test_full_project_copy_whole(qapp, tmp_path, monkeypatch):
     ctl = _ctl_for(proj.root)
     # an external complete project Q
     q = Project.create(tmp_path / "ext" / "Q", "Q"); qr = q.current_run(); qr.ensure_dir()
-    qr.chart_ti2.write_text("qc", encoding="utf-8"); (qr.dir / "Q_01.tif").write_text("t", encoding="utf-8")
+    qr.chart_ti2.write_text(_chart("qc"), encoding="utf-8"); (qr.dir / "Q_01.tif").write_text("t", encoding="utf-8")
     monkeypatch.setattr(L, "_choice_dialog", lambda *a, **k: "whole")
     monkeypatch.setattr(L, "_ask_project_name", lambda *a, **k: ("Q", False))
     out, _ = L.resolve_ti2(None, qr.chart_ti2, _settings(tmp_path), ctl)
@@ -209,7 +226,7 @@ def test_A04_verification_replace_archives_and_keeps_profile(qapp, tmp_path, mon
     assert r.verifications_old_dir.exists(), "archive belongs in verifications/old/"
     assert not r.old_dir.exists(), "a verification Replace must not touch the run root"
     assert vdated.exists(), "dated verification results are kept, not archived"
-    assert out == r.verify_chart_ti2 and r.verify_chart_ti2.read_text(encoding="utf-8") == "ti2"
+    assert out == r.verify_chart_ti2 and r.verify_chart_ti2.read_text(encoding="utf-8") == _chart("ti2")
     assert r.profile_icc.read_text(encoding="utf-8") == "keepme", "profile must be untouched"
 
 
@@ -221,7 +238,7 @@ def test_A07_full_project_import_just_this_chart(qapp, tmp_path, monkeypatch):
     ctl = _ctl_for(proj.root)
     ctl.set_run_type(RUN_TYPE_PROFILING); ctl.set_profile_run("")
     q = Project.create(tmp_path / "ext" / "Q", "Q"); qr = q.current_run(); qr.ensure_dir()
-    qr.chart_ti2.write_text("qc", encoding="utf-8"); (qr.dir / "Q.ti1").write_text("q1", encoding="utf-8")
+    qr.chart_ti2.write_text(_chart("qc"), encoding="utf-8"); (qr.dir / "Q.ti1").write_text("q1", encoding="utf-8")
     (qr.dir / "Q_01.tif").write_text("t", encoding="utf-8")
     # first dialog → "chart"; the inner loose dialog → "import"
     keys = iter(["chart", "import"])
@@ -401,10 +418,16 @@ def test_nothing_open_a_loose_chart_is_unaffected(qapp, tmp_path, monkeypatch):
     ctl = _ctl_with_nothing_open(work)
     seen = {}
 
-    def _spy(parent, ti2, wd):
+    def _spy(parent, ti2, wd, *, name=None, controller=None):
+        # `controller` is #182's addition: the project this route CREATES is
+        # the one the app must then be in, so the door is handed the bar.
         seen["called"] = True
+        seen["controller"] = controller
         return ti2, []
 
     monkeypatch.setattr(L, "_handle_outside", _spy)
     L.resolve_ti2(None, loose, _settings(tmp_path), ctl)
     assert seen.get("called"), "the loose-chart path must not have changed"
+    assert seen.get("controller") is ctl, (
+        "the door that creates a project must be handed the bar, or the "
+        "project is made on disk and nothing opens it (#182)")

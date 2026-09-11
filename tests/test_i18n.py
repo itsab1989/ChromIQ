@@ -769,18 +769,29 @@ def test_every_deliberate_exception_says_why():
 # each on its own base. Re-measured on the merged catalogues rather than
 # reconciled: a number carried across a merge is a number nobody counted.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED AGAIN after the merge of that round into this branch:
+    # the numbers above were counted on ITS base, which did not carry the
+    # report round's placeholders. Counted on the merged catalogues.
+
+    # RE-MEASURED 2026-09-11 (#182, the chart-file import refusal).
+    # M-IMPORT-NOT-A-CHART is two strings, a headline and a body. German is
+    # translated, so its 124 is unchanged; the other eleven carry the English
+    # source as a documented placeholder under the beta rule, so each rose by
+    # exactly 2. COUNTED, not adjusted upward: the count is
+    # `len([k for k, v in cat.items() if v == k and not k.startswith("@")])`
+    # per catalogue, which is the same expression the test below uses.
     "de": 124,
-    "es": 298,
-    "fr": 320,
-    "it": 309,
-    "ja": 284,
-    "nl": 325,
-    "no": 310,
-    "pl": 302,
-    "pt": 300,
-    "ru": 273,
-    "sv": 311,
-    "zh_CN": 278,
+    "es": 300,
+    "fr": 322,
+    "it": 311,
+    "ja": 286,
+    "nl": 327,
+    "no": 312,
+    "pl": 304,
+    "pt": 302,
+    "ru": 275,
+    "sv": 313,
+    "zh_CN": 280,
 }
 
 
