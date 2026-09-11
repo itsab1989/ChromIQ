@@ -68,10 +68,27 @@ def _restore_the_ui_language():
 
 @pytest.fixture(scope="module")
 def app():
+    """The worker's one QApplication, and NOT a style of our own.
+
+    This fixture used to do `a.setStyle(WinButtonLayoutStyle("Fusion"))`, which
+    is what `main.py` does, and it leaked: the application style is shared by
+    every test on the worker, a QProxyStyle reports an EMPTY `objectName()`,
+    and `test_the_suite_paints_with_the_shipped_style` asserts that name is
+    "fusion". So whenever `--dist loadfile` put this file on the same worker
+    first, the gate came out red on a file that had nothing to do with it.
+    Reproduced deterministically by running the two files in that order, and
+    caught on a release gate for 4.2.5.
+
+    `tests/conftest.py::_one_qapplication_per_worker` already pins Fusion, and
+    the proxy overrides only `SH_DialogButtonLayout` and draws nothing, so
+    nothing this file measures moves. The pin is asserted rather than
+    re-applied, which is the honest version of the same intent.
+    """
     from PyQt6.QtWidgets import QApplication
-    from ui.styles import WinButtonLayoutStyle
     a = QApplication.instance() or QApplication(["chromiq"])
-    a.setStyle(WinButtonLayoutStyle("Fusion"))
+    assert a.style().objectName().lower() == "fusion", (
+        "this file measures label widths, and every one of them comes out of "
+        "the style; conftest is supposed to have pinned Fusion")
     return a
 
 

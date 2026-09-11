@@ -74,6 +74,38 @@ Chart Layout preference instead of a number in the code, the chart note is
 checked at 150 dpi as well, and the chartread answer is written into the two
 design documents that still asked it.
 
+## v4.2.5
+
+**Five things an audit of the beta-4 plan found on the stable line.** None of
+them is report work; that is on the beta.
+
+### Fixed
+
+- **The Guided sheet takes its text-edge distance from Preferences, not from a
+  number in the code.** Knut asked that the identification text stay within the
+  default "Text distance from edge" setting in Preferences → Chart Layout, and
+  not a hardwired margin. Guided mode and a printtarg chart carry no layout
+  recipe, so three places read the built-in default directly. They ask for the
+  preference now and fall back to the same number, so nothing moves today and a
+  stored preference reaches every path the moment one exists.
+
+- **A helper nobody called is gone.** Three more like it are recorded rather
+  than removed, because one of them may be a dropped branch rather than dead
+  code, and that is not a sweep's decision.
+
+### Also
+
+- The chart note is now checked at 150 dpi as well, the one resolution a report
+  said it was dropped at. It is not dropped there, and has not been since the
+  "the text is never dropped" ruling; the gap was in the test, not the sheet.
+
+- The seed tick is checked where it is stored. Six tests covered the panel
+  while the claim was about the run's own record on disk.
+
+- Two design documents stopped asking a question that was answered on
+  4 September: whether ChromIQ's measuring step accepts a CMYK chart. It does.
+  The wall is at reporting, not at measuring.
+
 ## v4.3.0-beta.3
 
 **Everything in 4.2.4, plus a second slice of the Measurement Report that is
@@ -307,7 +339,6 @@ standard's numbers may be shipped as factory values is unresolved and a request
 is with the national standards body. If you own the standards you can supply the
 numbers yourself and ChromIQ will use them while distributing none of them; the
 folder's README says how.
-
 ## v4.2.4
 
 ### New
