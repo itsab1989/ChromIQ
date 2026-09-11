@@ -138,6 +138,23 @@ CHART_MEDIUM = ChartRecipe(210, 16, 12, "A4", "210 patches on A4")
 CHART_LARGE = ChartRecipe(400, 20, 16, "A4", "400 patches on A4")
 CHART_WIDE = ChartRecipe(156, 14, 10, "A3", "156 patches on A3")
 
+#: A chart with NO grey ramp and no single-colour ramps, which is what most
+#: real charts look like. The grey-balance rows then read N-A (two distinct
+#: levels, and the row needs eight), and a Grey and tone check on it has
+#: nothing left to judge. That is the state `SUMMARY_REASONS["nothing_checked"]`
+#: was written for, and until this recipe existed no demo reached it.
+CHART_NO_GREY = ChartRecipe(90, 0, 0, "A4", "90 patches on A4, no grey ramp")
+
+#: FEWER THAN TWENTY PATCHES, which is a border condition of the report and not
+#: merely a small chart. The worst 5 % of a sheet with under twenty patches is
+#: the EMPTY set (rank ⌈0.95 n⌉ is n), so that row reads N-A with
+#: `small_sample` beside it, and the best 95 % and the 95th percentile become
+#: every patch. Design record §3 states the rule; no demo project reached it.
+#: Ten distinct grey levels are kept, so the grey rows stay eligible and the
+#: column can have a recommended value over its limit at the same time as a
+#: required row nobody could compute.
+CHART_TINY = ChartRecipe(20, 10, 0, "A4", "20 patches on A4")
+
 _chart_cache: "dict[tuple, Path]" = {}
 
 
@@ -204,6 +221,28 @@ def _lab_to_xyz100(lab) -> tuple:
 
 
 from workflow.ti3_analysis import ciede2000                  # noqa: E402
+
+#: The four documents ChromIQ can produce. T5 and T6 are declared in the app so
+#: the pulldown can show them and refuse them, and they are deliberately absent
+#: here: a demo cannot exercise a document the app cannot produce, and nothing
+#: in this generator may need a tolerance value out of either standard.
+from workflow.measurement_report import (                    # noqa: E402
+    REPORT_TYPE_FULL, REPORT_TYPE_GREY, REPORT_TYPE_ISO_8, REPORT_TYPE_MENU,
+    REPORT_TYPE_MENU_HEADING, REPORT_TYPE_RECORD, REPORT_TYPE_SUMMARY)
+
+
+def not_built_line() -> str:
+    """The app's own sentence for a report type it cannot produce.
+
+    TAKEN FROM THE WINDOW, NEVER TYPED. This README quotes it so a reader can
+    match what the package says against what the pulldown says, and a quoted
+    sentence that has moved on is the exact fault this whole file keeps
+    finding. Importing the dialog costs a PyQt import and nothing else: the
+    method is a staticmethod and needs no window, no QApplication and no
+    measurement.
+    """
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    return MeasurementReportDialog._not_built_line(REPORT_TYPE_ISO_8)
 
 
 def _de(lab_a, lab_b) -> float:
@@ -325,7 +364,8 @@ def in_gamut_flags(ti2: Path, profile: Path) -> "dict[str, bool]":
 
 
 def apply_design(ti3: Path, ti2: Path, design: Design,
-                 gamut: "dict[str, bool] | None" = None) -> "dict[str, float]":
+                 gamut: "dict[str, bool] | None" = None,
+                 relative: bool = True) -> "dict[str, float]":
     """Rewrite the measurement's XYZ so the chart's statistics are the design's.
 
     THE DESIGN IS LAID OUT IN THE YARDSTICK THE REPORT ACTUALLY USES, which is
@@ -346,6 +386,16 @@ def apply_design(ti3: Path, ti2: Path, design: Design,
     * the paper white the report prints stays the one fakeread measured: the
       normalisation is anchored on it, so it is written back unchanged.
 
+    **AND THE REPORT DOES NOT ALWAYS USE THAT YARDSTICK**, which is what
+    ``relative=False`` is for. The media-relative rule needs a record of how
+    the sheet was printed; without one the report judges in ABSOLUTE Lab, and a
+    design laid out relative then lands about 1.8 times too large. Measured on
+    the first build of the "nobody recorded the printing" run: every one of the
+    five colour rows crossed, on a design that asked for none of them. In
+    absolute mode the normalisation is the identity, and the device-white
+    patches take a designed value like every other patch, because there is no
+    anchor making theirs zero by construction.
+
     Returns the predicted rows, so the caller can compare them against what the
     real report reads back.
     """
@@ -359,8 +409,10 @@ def apply_design(ti3: Path, ti2: Path, design: Design,
     xyz = np.asarray(data.xyz, dtype=float)
 
     # The anchor: fakeread's own paper white, the lightest reading on the sheet.
+    # In ABSOLUTE mode there is no anchor, so the normalisation is the identity
+    # and the numbers below are read straight off the sheet.
     wi = int(np.argmax(xyz[:, 1]))
-    white = xyz[wi].copy()
+    white = xyz[wi].copy() if relative else np.array(_D50, dtype=float)
     if float(white.min()) <= 0.0:
         raise SystemExit(f"{ti3}: the lightest patch has a zero channel")
     scale = white / np.array(_D50)
@@ -369,7 +421,13 @@ def apply_design(ti3: Path, ti2: Path, design: Design,
         return _xyz_to_lab(tuple((np.asarray(v, float) / white * np.array(_D50)) / 100.0))
 
     measured = [to_relative(x) for x in xyz]
-    whites = [i for i in range(n) if float(rgb[i].min()) >= DEVICE_WHITE_MIN]
+    # THE DEVICE-WHITE PATCHES ARE ONLY SPECIAL UNDER THE RELATIVE YARDSTICK,
+    # where the normalisation pins them to L*100 a*0 b*0 whatever is written.
+    # In absolute mode nothing pins them, so leaving them out would leave the
+    # brightest patches of the sheet carrying fakeread's own error while every
+    # other patch carried a designed one, and the statistics would miss.
+    whites = ([i for i in range(n) if float(rgb[i].min()) >= DEVICE_WHITE_MIN]
+              if relative else [])
     white_set = set(whites)
 
     greys = [i for i in grey_stat_indices(rgb) if i not in white_set]
@@ -607,8 +665,24 @@ def stamp(ti3: Path, when: str) -> None:
     os.utime(ti3, (t, t))
 
 
-def write_print_record(chart_dir: Path, stem: str, when: str, profile_name: str) -> None:
-    """The sheet was printed through this run's own profile.
+def write_print_record(chart_dir: Path, stem: str, when: str, profile_name: str,
+                       colour: str = "through-profile") -> None:
+    """How the sheet was printed, or nothing at all when *colour* is "none".
+
+    THREE STATES, AND ONLY ONE OF THEM WAS EVER BUILT. Knut, 2026-09-11: *"The
+    demo test data must be made so that all parts of the report can be shown
+    and tested, including fault messages and border conditions."* The record
+    is what decides two of them:
+
+    * ``through-profile``: the ordinary verification. Everything is graded.
+    * ``raw``: the sheet went to the printer with no profile applied, so the
+      report treats it as a DRIFT check and prints "drift" instead of a
+      verdict (`measurement_report.is_drift_check`): pass/fail against profile
+      accuracy would fail a healthy printer for ever.
+    * ``none``: no record was written, which is what a sheet printed outside
+      ChromIQ looks like. The grey-balance rows are then shown for information
+      with `printing_unrecorded` beside them (CH-17), because in absolute Lab
+      the paper's own tint would fail the row.
 
     NO ``profile_path`` and no ``profile_mtime``: those two keys are the only
     absolute paths a ChromIQ project would otherwise carry, and an absolute path
@@ -616,8 +690,15 @@ def write_print_record(chart_dir: Path, stem: str, when: str, profile_name: str)
     them the report falls back to the run's own built profile, which it finds
     relative to the measurement.
     """
-    rec = {"printed_at": when, "colour": "through-profile", "intent": "relative",
+    if colour == "none":
+        return
+    rec = {"printed_at": when, "colour": colour, "intent": "relative",
            "route": "chromiq", "source_profile": "", "profile": profile_name}
+    if colour == "raw":
+        # A raw sheet went to the printer with no profile applied, so naming
+        # one would be a false record of how it was made.
+        rec["intent"] = ""
+        rec["profile"] = ""
     (chart_dir / f"{stem}.print.json").write_text(
         json.dumps(rec, indent=2), encoding="utf-8")
 
@@ -931,6 +1012,255 @@ SERIES_COMPARE_QUICK: "list[Date]" = [
 
 
 # ---------------------------------------------------------------------------
+# The fourth project: the report TYPES (D28)
+# ---------------------------------------------------------------------------
+#: Knut, 2026-09-11: *"expanded so that all 6 report types can be tested for
+#: thresholds and report content"*.
+#:
+#: FOUR OF THE SIX CAN BE TESTED, AND THE OTHER TWO CANNOT BE TESTED AS
+#: DOCUMENTS AT ALL. Validation print check (ISO 12647-8) and Contract proof
+#: check (ISO 12647-7) are declared so the pulldown can show them and refuse
+#: them; the figures they judge against are published in standards ChromIQ has
+#: no permission to include, so ChromIQ cannot produce either document and no
+#: measurement can make it produce one. What CAN be demonstrated about them is
+#: that they are offered, greyed, and say why, and that the refusal holds one
+#: level below the control as well: `set_run_report_type` raises rather than
+#: storing an unbuilt id. Both of those are exercised on screen against this
+#: project, and neither needs a tolerance value from either standard. See the
+#: README's own section.
+#:
+#: Every run here carries TWO dated verifications and has the limit lift
+#: applied, so both pulldowns stay live and a reader can try every type
+#: against every set on the same measurement. The three states of the limit
+#: lift itself are demonstrated in the first two projects; this one is about
+#: the documents.
+
+#: T1 and T2 read the same five colour-difference rows, so one shape of data
+#: serves both, and T4 shows the same figures with every word withheld. The
+#: three runs below differ only in which set their numbers were aimed at.
+TYPES_DE_DEFAULT: "list[Date]" = [
+    _d("2026-11-02_100000", "2026-11-02T10:00:00",
+       "One patch goes badly wrong",
+       "A single patch at 4.5 carries 'All patches, largest' over ChromIQ "
+       "default's 3.0, with the worst-5 % average held under 2.0. ONE row "
+       "crosses, and it is the row the one-page summary prints beside its "
+       "word.",
+       Design(bulk=0.90, shoulder=1.50, peak=4.50, tail=1.60, grey_dch=0.50),
+       ["all_de00_max"]),
+    _d("2026-11-16_100000", "2026-11-16T10:00:00",
+       "The bad patch is gone again",
+       "The same sheet without the outlier. The row recovers and the summary "
+       "goes back to PASS.",
+       Design(bulk=0.80, shoulder=1.40, peak=2.20, tail=1.60, grey_dch=0.50),
+       []),
+]
+
+TYPES_DE_TIGHT: "list[Date]" = [
+    _d("2026-11-03_100000", "2026-11-03T10:00:00",
+       "One patch out, tight column",
+       "A single patch at 2.4 crosses 'All patches, largest' (1.5) on its own, "
+       "with the worst-5 % average held just under 1.0. ONE row crosses.",
+       Design(bulk=0.40, shoulder=0.70, peak=2.40, tail=0.75, grey_dch=0.30),
+       ["all_de00_max"]),
+    _d("2026-11-17_100000", "2026-11-17T10:00:00",
+       "Tightened up until this column is happy",
+       "The outlier comes back to 1.1 and nothing crosses.",
+       Design(bulk=0.40, shoulder=0.70, peak=1.10, tail=0.90, grey_dch=0.30),
+       []),
+]
+
+#: The Printing record's own date pair. Its `expect` is empty on BOTH dates and
+#: that is the whole point: the numbers are the numbers, and the document
+#: withholds every word. The README prints what the SAME figures do under Full
+#: colour check beside them, computed rather than described, so the difference
+#: between the two documents is a fact on the page.
+TYPES_DE_QUICK: "list[Date]" = [
+    _d("2026-11-04_100000", "2026-11-04T10:00:00",
+       "A patch far enough out to fail Quick check",
+       "A single patch at 7.5, over Quick check's 6.0 on 'All patches, "
+       "largest'. Nothing crosses here, because the Printing record judges "
+       "nothing. The line below says what the same measurement does in the "
+       "graded document, so the two can be read against each other.",
+       Design(bulk=1.10, shoulder=2.50, peak=7.50, tail=3.00, grey_dch=0.70),
+       []),
+    _d("2026-11-18_100000", "2026-11-18T10:00:00",
+       "The patch comes back inside Quick check",
+       "The outlier drops to 4.5, inside 6.0. Nothing crosses under either "
+       "document now, which is what makes the pair readable: only one date "
+       "changes when the type does.",
+       Design(bulk=1.10, shoulder=2.20, peak=4.50, tail=3.00, grey_dch=0.70),
+       []),
+]
+
+#: T3 keeps three rows and drops the rest. Two of the three are recommendations
+#: in every ChromIQ set, so they read COND rather than FAIL; the third, the
+#: 30 to 70 % tone ramp, is judged by NO shipped set, so it can only be made to
+#: say something by a run's own edited column. One run here does that, and the
+#: other two leave it alone so a reader sees both states.
+TYPES_GREY_DEFAULT: "list[Date]" = [
+    _d("2026-11-05_100000", "2026-11-05T10:00:00",
+       "A grey cast and a dark ramp step, together",
+       "The grey ramp is 1.9 off in chroma, over ChromIQ default's recommended "
+       "1.5, and the middle step of the tone ramp is 3.0 too dark, over the "
+       "2.0 this run's own column asks for. TWO rows cross, which is the most "
+       "this design allows, and they are the two rows a Grey and tone check "
+       "exists to show.",
+       Design(bulk=0.80, shoulder=1.00, tail=1.00, grey_dch=1.90, ramp_dl=3.0),
+       ["grey_balance_neutral_ramp_avg", "ramps_30_70_dl_max"]),
+    _d("2026-11-19_100000", "2026-11-19T10:00:00",
+       "Both come back",
+       "The cast drops to 0.6 and the ramp step to 1.0. Both rows recover on "
+       "the same date and the third row, the grey maximum, never moved.",
+       Design(bulk=0.80, shoulder=1.00, tail=1.00, grey_dch=0.60, ramp_dl=1.0),
+       []),
+]
+
+TYPES_GREY_TIGHT: "list[Date]" = [
+    _d("2026-11-06_100000", "2026-11-06T10:00:00",
+       "Both grey rows cross at once",
+       "The ramp carries 1.4 of chroma error and one step carries 2.4, which "
+       "puts the average over ChromIQ tight's recommended 1.0 and the largest "
+       "over its 2.0. TWO rows cross. The tone-ramp row shows its number and "
+       "no word, because no shipped limit set puts a limit on it.",
+       Design(bulk=0.40, shoulder=0.60, tail=0.70, grey_dch=1.40,
+              grey_spike=2.40),
+       ["grey_balance_neutral_ramp_avg", "grey_balance_neutral_ramp_max"]),
+    _d("2026-11-20_100000", "2026-11-20T10:00:00",
+       "The cast and the spike are both corrected",
+       "The ramp is back to 0.6 with no step standing out. Both rows recover.",
+       Design(bulk=0.40, shoulder=0.60, tail=0.70, grey_dch=0.60),
+       []),
+]
+
+TYPES_GREY_QUICK: "list[Date]" = [
+    _d("2026-11-07_100000", "2026-11-07T10:00:00",
+       "A cast big enough for even Quick check to mention",
+       "The grey ramp is 3.5 off in chroma, over Quick check's recommended "
+       "3.0. ONE row crosses, and it reads COND because it is a "
+       "recommendation, not a requirement.",
+       Design(bulk=0.80, shoulder=1.00, tail=1.00, grey_dch=3.50),
+       ["grey_balance_neutral_ramp_avg"]),
+    _d("2026-11-21_100000", "2026-11-21T10:00:00",
+       "The cast is corrected",
+       "The ramp is back to 1.0, comfortably inside even this column's "
+       "recommendation.",
+       Design(bulk=0.80, shoulder=1.00, tail=1.00, grey_dch=1.00),
+       []),
+]
+
+#: A Grey and tone check on a chart that has no grey ramp, which is what most
+#: charts are. Both grey rows read N-A and the tone-ramp row has nothing to
+#: report, so the column has limit-bearing rows and NOTHING it could check.
+#: That is the state the third Overall clause was written for on 2026-09-11,
+#: and before this run existed no demo project reached it: without that clause
+#: this column read a green PASS under "Every value this limit set requires was
+#: checked and is within its limit", with nothing checked at all.
+TYPES_GREY_NOTHING: "list[Date]" = [
+    _d("2026-11-08_100000", "2026-11-08T10:00:00",
+       "A Grey and tone check with nothing to judge",
+       "The chart carries no grey ramp, so both grey-balance rows read N-A and "
+       "the column's word is N-A too, with the sentence that says which "
+       "patches to add in Create Chart. The colour rows of this same "
+       "measurement are perfectly ordinary, and the line below says what they "
+       "come to in the graded document.",
+       Design(bulk=0.40, shoulder=0.80, peak=1.30, tail=0.80, grey_dch=0.50),
+       []),
+    _d("2026-11-22_100000", "2026-11-22T10:00:00",
+       "The same chart a fortnight later",
+       "Nothing about the missing ramp changes with the measurement, which is "
+       "the point: a chart that cannot supply a row cannot supply it on any "
+       "date, and the report says so rather than passing it.",
+       Design(bulk=0.40, shoulder=0.80, peak=1.30, tail=0.80, grey_dch=0.50),
+       []),
+]
+
+
+# ---------------------------------------------------------------------------
+# The fifth project: the fault messages and the border conditions
+# ---------------------------------------------------------------------------
+#: Knut, 2026-09-11: *"The demo test data must be made so that all parts of the
+#: report can be shown and tested, including fault messages and border
+#: conditions."*
+#:
+#: The messages were INVENTORIED FROM THE CODE, not from memory:
+#: `compliance_sets.SUMMARY_REASONS` holds every sentence the Overall cell can
+#: print, and `measurement_report.REASON_*` every reason a row can give for
+#: having no number. Measured against the package as it stood, five of the
+#: eleven Overall sentences and ten of the eleven row reasons were unreachable
+#: by any data in it. The three runs below close the ones data CAN close; the
+#: README names the rest and says why they cannot be reached.
+
+#: FEWER THAN TWENTY PATCHES. The worst-5 % row reads N-A with `small_sample`,
+#: and that is a REQUIRED row going missing, which is what turns the column's
+#: sentence from "pass" into one of the two that count what was not computed.
+#: With a grey cast on top, a recommended row is over its limit at the same
+#: time, which is the other of the two.
+BORDER_SMALL_SAMPLE: "list[Date]" = [
+    _d("2026-12-01_100000", "2026-12-01T10:00:00",
+       "Too few patches to have a worst 5 per cent, and a grey cast as well",
+       "Twenty patches, so the worst 5 % of the sheet is the empty set and "
+       "that row cannot be computed at all; the best 95 % and the 95th "
+       "percentile become every patch. The grey ramp is 1.8 off in chroma at "
+       "the same time, over the recommended 1.5. The column therefore has "
+       "both a required row nobody could compute and a recommended row over "
+       "its limit, which is the only way to reach the sentence that counts "
+       "them both.",
+       Design(bulk=0.80, shoulder=1.10, tail=1.10, grey_dch=1.80),
+       ["grey_balance_neutral_ramp_avg"]),
+    _d("2026-12-15_100000", "2026-12-15T10:00:00",
+       "The cast is corrected, and the chart is still too small",
+       "The grey ramp is back to 0.5 and nothing is over a limit. The worst "
+       "5 % is still not computable, because that is a property of the chart "
+       "and not of the printing, so the column reads the sentence that counts "
+       "only what was missing.",
+       Design(bulk=0.80, shoulder=1.10, tail=1.10, grey_dch=0.50),
+       []),
+]
+
+#: NOBODY RECORDED HOW THE SHEET WAS PRINTED, which is what a sheet measured
+#: outside ChromIQ looks like. The grey rows carry real numbers and are shown
+#: for information (CH-17), because against the chart's own design in absolute
+#: Lab the paper's own tint would fail them. On a Grey and tone check that is
+#: every row the document has, so the column says nothing was graded, which is
+#: a different sentence from the one for a chart that could not supply a row.
+BORDER_UNRECORDED: "list[Date]" = [
+    _d("2026-12-02_100000", "2026-12-02T10:00:00",
+       "A sheet nobody recorded the printing of",
+       "The same kind of measurement as the other projects, with no record of "
+       "how it was printed. The grey rows keep their numbers and lose their "
+       "verdicts; the colour rows are judged as usual.",
+       Design(bulk=0.80, shoulder=1.40, peak=2.20, tail=1.60, grey_dch=1.90),
+       []),
+    _d("2026-12-16_100000", "2026-12-16T10:00:00",
+       "The same, a fortnight later",
+       "Nothing about the missing record changes with the measurement, which "
+       "is the point: the rows it affects are the same on every date.",
+       Design(bulk=0.80, shoulder=1.40, peak=2.20, tail=1.60, grey_dch=0.60),
+       []),
+]
+
+#: A SHEET PRINTED RAW, which is a drift check and not an accuracy check.
+#: `is_drift_check` makes the report withhold the verdict entirely and print
+#: "drift": judging a raw sheet against profile accuracy would fail a healthy
+#: printer for ever (Knut, 2026-08-11).
+BORDER_RAW_DRIFT: "list[Date]" = [
+    _d("2026-12-03_100000", "2026-12-03T10:00:00",
+       "A sheet printed with no profile applied",
+       "Printed raw and measured to watch the printer drift, not to check a "
+       "profile. The numbers are large because nothing corrected them, and "
+       "the report declines to put a verdict on them.",
+       Design(bulk=3.00, shoulder=5.00, peak=8.00, tail=6.00, grey_dch=2.50),
+       []),
+    _d("2026-12-17_100000", "2026-12-17T10:00:00",
+       "The same raw sheet a fortnight later",
+       "The numbers have moved, which is what a drift check is for, and there "
+       "is still no verdict to give.",
+       Design(bulk=3.60, shoulder=5.60, peak=9.00, tail=6.80, grey_dch=3.00),
+       []),
+]
+
+
+# ---------------------------------------------------------------------------
 # Building a run
 # ---------------------------------------------------------------------------
 #: What a run demonstrates about the limit lock, and the sentence that says so.
@@ -942,14 +1272,45 @@ SERIES_COMPARE_QUICK: "list[Date]" = [
 #: that misdescribes itself is worse than none: every later round is told to
 #: trust it. So the sentence is derived from ``RunPlan.lock`` and ``build_run``
 #: refuses to write a run whose real state disagrees with it.
+#:
+#: **REWRITTEN 2026-09-11 ON KNUT'S READING OF ONE.** He opened a Colour
+#: summary out of this package and found under Report scope: *"Limits bound and
+#: LOCKED: two or more dated verifications, and the lock was never lifted."*
+#: Two things were wrong with it and he named both.
+#:
+#: *"Text written in any report shall only be factual and not refer to any bugs
+#: or failures that were corrected."* "The lock was never lifted" reads as a
+#: note about something that might have gone wrong and was not. It is a state,
+#: and it is written as one now.
+#:
+#: *"What is the difference between bound and locked? Be specific in the
+#: explanation, so that user understands that chosen limits are bound to chosen
+#: 'ChromIQ default' thresholds as this was used for the first dated
+#: verification run."* The old sentence used both words and defined neither, so
+#: each sentence now NAMES THE SET and says what each word means, in that
+#: order: bound is where the numbers came from, locked is whether they can
+#: still be changed.
+#:
+#: ``{set}`` is filled from the run's own binding, so a sentence cannot name a
+#: set the run is not judged against.
 LOCK_SENTENCES = {
-    "locked": "Limits bound and LOCKED: two or more dated verifications, and "
-              "the lock was never lifted.",
-    "unlocked": "Limits bound, and the lock lifted by hand: this run has the "
-                "history that would otherwise fix its limit set.",
-    "one-date": "One dated verification only, so the limit set can still be "
-                "chosen: one measurement is not yet a history to keep "
-                "comparable.",
+    "locked": "Limits: bound to {set}, and fixed. Bound means a copy of that "
+              "set's numbers was taken when this run's first dated "
+              "verification was measured, and every date of this run is "
+              "judged against that copy. Fixed means the set can no longer be "
+              "chosen here, because the run has two or more dated "
+              "verifications and they are kept comparable.",
+    "unlocked": "Limits: bound to {set}, and still open. Bound means a copy of "
+                "that set's numbers was taken when this run's first dated "
+                "verification was measured, and every date of this run is "
+                "judged against that copy. Open means the set may still be "
+                "chosen here; choosing another recalculates this run's dated "
+                "reports and keeps the ones it replaces.",
+    "one-date": "Limits: bound to {set}, and still open. Bound means a copy of "
+                "that set's numbers was taken when this run's first dated "
+                "verification was measured. Open means the set may still be "
+                "chosen here, because one measurement is not yet a history to "
+                "keep comparable.",
 }
 
 
@@ -964,11 +1325,43 @@ class RunPlan:
     unlocked: bool = False
     note: str = ""
     lock: str = "locked"
+    #: Which of the six documents this run is verified with. Left at the
+    #: default it is NOT written to meta.json at all, which is the state
+    #: every project made before the pulldown existed is in, and which the
+    #: report reads back as Full colour check. A run that names another type
+    #: has it written, exactly as choosing it in the window does.
+    report_type: str = "t2_full_colour_check"
+    #: Extra types to ALSO write a saved report of, on the run's first date.
+    #: Knut, 2026-09-11: *"the user may have several uses for different
+    #: reports"*, so a run may hold reports of several types and the window's
+    #: "Already generated for this run" line counts them off the disk. Nothing
+    #: in the package demonstrated that until this existed.
+    also_generate: "tuple[str, ...]" = ()
+    #: How the dated sheets of this run were printed: "through-profile" (the
+    #: ordinary verification), "raw" (a drift check, which the report refuses
+    #: to grade against profile accuracy), or "none" (nobody recorded it, which
+    #: makes the grey rows informational under CH-17). See `write_print_record`.
+    print_colour: str = "through-profile"
+
+    @property
+    def set_name(self) -> str:
+        """The English label of the set this run is bound to."""
+        from workflow.compliance_sets import SET_BY_ID
+        s = SET_BY_ID.get(self.set_id)
+        name = s.label if s else self.set_id
+        return name + (", with limits edited on this run" if self.edited_limits
+                       else "")
 
     @property
     def full_description(self) -> str:
-        """The run's description with its lock state appended, in that order."""
-        return f"{self.description} {LOCK_SENTENCES[self.lock]}"
+        """The run's description with its limit state appended, in that order.
+
+        The sentence NAMES THE SET, on Knut's 2026-09-11 reading: a paragraph
+        that uses "bound" and "locked" without saying what either means, or
+        what the run is bound TO, tells a reader nothing they can act on.
+        """
+        return f"{self.description} {LOCK_SENTENCES[self.lock]}".format(
+            set=self.set_name)
 
     def lock_complaint(self) -> str:
         """Why this plan cannot produce the lock state it claims, or ""."""
@@ -990,11 +1383,12 @@ class RunPlan:
 def build_run(proj, run, plan: RunPlan, cache_root: Path,
               results: list) -> None:
     from workflow.compliance_sets import Limit, row_verdict, set_summary
-    from workflow.measurement_report import (build_report, rewrite_report,
-                                             save_report, row_values,
+    from workflow.measurement_report import (REPORT_TYPE_DEFAULT, build_report,
+                                             rewrite_report, save_report,
+                                             row_values, set_report_type,
                                              stamp_verdict)
     from workflow.run_compliance import (bind_run, run_limits, set_run_limits,
-                                         set_run_unlocked)
+                                         set_run_report_type, set_run_unlocked)
 
     run.ensure_dir()
     stem = run.stem
@@ -1013,6 +1407,13 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
     meta.status = "complete"
     meta.verify_chart_notes = plan.note
     run.save_meta(meta)
+
+    # THE DEFAULT IS WRITTEN BY NOT WRITING IT. A run that never chose a type
+    # is the state every project made before the pulldown existed is in, and
+    # the report renders it as Full colour check; storing the id would hide
+    # that half of the behaviour behind a value nobody ever set.
+    if plan.report_type != REPORT_TYPE_DEFAULT:
+        set_run_report_type(run, plan.report_type)
 
     # The binding. bind_run copies the set's numbers onto the run, exactly as
     # the first verification measurement does in the app.
@@ -1042,11 +1443,16 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
         for ext in (".ti1", ".ti2"):
             shutil.copy2(run.verifications_dir / f"{vstem}{ext}", work / f"{vstem}{ext}")
         ti3 = fakeread(work, vstem, icc)
-        predicted = apply_design(ti3, work / f"{vstem}.ti2", date.design, gamut)
+        # WHICH YARDSTICK THE REPORT WILL USE, asked of the same two facts the
+        # report asks: only a sheet printed THROUGH the profile with a white
+        # mapping intent is judged media-relative. A raw sheet and a sheet with
+        # no record of its printing are both judged in absolute Lab.
+        predicted = apply_design(ti3, work / f"{vstem}.ti2", date.design, gamut,
+                                 relative=plan.print_colour == "through-profile")
         stamp(ti3, date.when)
         shutil.move(str(ti3), str(v.dir / f"{vstem}.ti3"))
         cdir = snapshot(v.dir, vstem, work)
-        write_print_record(cdir, vstem, date.when, icc.name)
+        write_print_record(cdir, vstem, date.when, icc.name, plan.print_colour)
         shutil.rmtree(work)
 
         # The report, built by the app's own code, saved under the measurement
@@ -1054,28 +1460,67 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
         rep = build_report(v.measurement_ti3, argyll_bin=ARGYLL)
         stamp_verdict(rep, limits_rec.limits, set_id=limits_rec.set_id,
                       set_label=limits_rec.label_en, edited=limits_rec.edited)
+        set_report_type(rep, plan.report_type)
         save_report(rep, v.dir)
         for old in sorted(v.reports_dir.glob("report_*.json")):
             old.unlink()
         when_dt = datetime.fromisoformat(date.when)
-        rewrite_report(v.reports_dir / f"report_{when_dt:%Y-%m-%d_%H-%M-%S}.json", rep)
+        stamped = f"{when_dt:%Y-%m-%d_%H-%M-%S}"
+        rewrite_report(v.reports_dir / f"report_{stamped}.json", rep)
+
+        # A RUN MAY HOLD REPORTS OF SEVERAL TYPES, and one in the package has
+        # to, or the window's "Already generated for this run" line has nothing
+        # to count. The suffix is `save_report`'s own, so `list_reports` and
+        # `generated_report_types` see these exactly as they see a second click
+        # of Generate report.
+        extras = plan.also_generate if date is plan.dates[0] else ()
+        for n, extra in enumerate(extras, start=2):
+            other = json.loads(json.dumps(rep))
+            set_report_type(other, extra)
+            rewrite_report(v.reports_dir / f"report_{stamped}_{n}.json", other)
 
         actual = _crossed_rows(rep, limits_rec.limits, row_values, row_verdict,
-                               set_summary)
+                               set_summary, plan.report_type)
+        # WHAT THE SAME NUMBERS DO IN THE REPORT EVERYBODY KNOWS. For a run on
+        # T3 or T4 the crossings above are about a document that hides rows or
+        # withholds words, and a reader cannot tell from them whether the sheet
+        # was good. Computed, never described, so the two can never drift.
+        as_full = (None if plan.report_type == REPORT_TYPE_FULL else
+                   _crossed_rows(rep, limits_rec.limits, row_values,
+                                 row_verdict, set_summary, REPORT_TYPE_FULL))
         results.append({
             "project": "",
             "run": run.id,
             "set": limits_rec.label_en + (" (edited for this run)"
                                           if limits_rec.edited else ""),
+            "type": plan.report_type,
             "date": date.vid,
             "title": date.title,
             "story": date.story,
             "intended": list(date.expect),
             "actual": actual["crossed"],
             "verdict": actual["overall"],
+            "reason": actual["reason"],
+            "as_full": (None if as_full is None
+                        else {"crossed": as_full["crossed"],
+                              "verdict": as_full["overall"]}),
             "values": actual["values"],
             "predicted": predicted,
         })
+        # A STORY MAY NOT NAME A VERDICT THE REPORT DID NOT GIVE. The same
+        # shape as the lock guard above, in the other field a reader trusts.
+        # Found writing this project: one story said a row "reads FAIL" on a
+        # run whose document withholds every word, so the README would have
+        # printed the claim two lines above the computed word that denied it.
+        said = story_verdicts(date.story)
+        if said and actual["overall"] not in said:
+            raise SystemExit(
+                f"{run.id}/{date.vid}: the story says {sorted(said)} and the "
+                f"report's word for the column is {actual['overall']}. A "
+                f"verdict word in a story is a claim about THIS document; say "
+                f"what another document does by pointing at the computed line, "
+                f"never by typing its word.")
+
         flag = "OK " if sorted(actual["crossed"]) == sorted(date.expect) else "!! "
         print(f"    {flag}{date.vid}  {actual['overall']:<5} "
               f"intended={date.expect} actual={actual['crossed']}")
@@ -1094,27 +1539,78 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
             f"the sentence, never the description alone.")
 
 
-def _crossed_rows(report, limits, row_values, row_verdict, set_summary) -> dict:
-    """Which rows the REAL report says are over their limit."""
-    from workflow.compliance_sets import COND, FAIL, ROW_BY_ID
-    from workflow.measurement_report import is_graded_sheet
+def story_verdicts(story: str) -> "set[str]":
+    """The verdict words a date's story claims, if any.
+
+    The five words are taken from the app rather than typed, so a sixth word
+    would be caught here the moment it is added instead of walking past this
+    check. Word boundaries, because "INFO" must not be found inside
+    "information" and "PASS" must not be found inside "passes".
+    """
+    import re
+
+    from workflow.compliance_sets import COND, FAIL, INFO, N_A, PASS
+    words = (PASS, FAIL, COND, INFO, N_A)
+    return {w for w in words
+            if re.search(rf"(?<![A-Za-z0-9-]){re.escape(w)}(?![A-Za-z0-9-])",
+                         story)}
+
+
+def _crossed_rows(report, limits, row_values, row_verdict, set_summary,
+                  type_id: str = "t2_full_colour_check") -> dict:
+    """Which rows the REAL report says are over their limit, IN THE DOCUMENT
+    THE RUN PRODUCES.
+
+    THE TYPE IS PART OF THE ANSWER, and it was not asked for until the package
+    had runs that choose one. A Grey and tone check does not contain the colour
+    rows, so a colour row crossing is not something a reader of that document
+    can see; a Printing record contains every figure and judges none of them,
+    so nothing in it crosses at all. Reporting the full report's crossings
+    beside a run that produces neither document would be a table about a page
+    nobody opens.
+
+    The two rules are the window's own, taken from the same two functions it
+    calls: `rows_for_report_type` decides which rows the document is about
+    (`measurement_report_dialog._keep_rows_for_type`), and T4 withholds every
+    word (`._ungrade`, `._column_summary`).
+    """
+    from workflow.compliance_sets import COND, FAIL, ROW_BY_ID, SUMMARY_REASONS
+    from workflow.measurement_report import (REPORT_TYPE_RECORD, is_graded_sheet,
+                                             rows_for_report_type)
     graded_sheet = is_graded_sheet(report)
+    ungraded_by_type = type_id == REPORT_TYPE_RECORD
+    keep = rows_for_report_type(type_id)
     vals = row_values(report)
     crossed, values, rows = [], {}, []
+    shown_reasons: "dict[str, str]" = {}
     for rid, lim in limits.items():
         if rid not in ROW_BY_ID:
+            continue
+        if keep is not None and rid not in keep:
             continue
         info = vals.get(rid) or {}
         val = info.get("value")
         graded = graded_sheet if info.get("graded") is None else bool(info["graded"])
-        word = row_verdict(lim, val, graded)
+        word = row_verdict(lim, val, graded and not ungraded_by_type)
         rows.append((lim, word))
         if lim.is_numeric and val is not None:
             values[rid] = round(float(val), 3)
         if word in (FAIL, COND):
             crossed.append(rid)
-    summary = set_summary(rows, set_is_iso=False, graded=graded_sheet)
-    return {"crossed": sorted(crossed), "values": values, "overall": summary.word}
+        # THE REASONS A READER CAN ACTUALLY SEE. A row whose limit is `–` and
+        # whose value is None carries no word, so the window never draws it
+        # (CH-20) and the reason it holds reaches nobody. Counting those as
+        # shown made the package's own coverage table claim a message was
+        # demonstrated by a row that is not on the page.
+        if word is not None and info.get("reason"):
+            shown_reasons[rid] = info["reason"]
+    summary = set_summary(
+        rows, set_is_iso=False, graded=graded_sheet and not ungraded_by_type,
+        ungraded_reason=(SUMMARY_REASONS["record_type"]
+                         if ungraded_by_type and graded_sheet else ""))
+    return {"crossed": sorted(crossed), "values": values,
+            "overall": summary.word, "reason": summary.reason,
+            "shown_reasons": shown_reasons}
 
 
 # ---------------------------------------------------------------------------
@@ -1167,6 +1663,83 @@ PROJECTS = [
                 CHART_SMALL, CHART_MEDIUM, "chromiq_tight", SERIES_COMPARE_TIGHT),
         RunPlan("The shared measurement judged with Quick check.",
                 CHART_SMALL, CHART_MEDIUM, "chromiq_quick", SERIES_COMPARE_QUICK),
+    ]),
+    ("Report-Limits-Report-Types", [
+        RunPlan("Colour summary, ChromIQ default. The run also holds a Full "
+                "colour check and a Printing record of its first date, so the "
+                "window's 'Already generated' line has three types to count.",
+                CHART_SMALL, CHART_MEDIUM, "chromiq_default", TYPES_DE_DEFAULT,
+                report_type=REPORT_TYPE_SUMMARY, unlocked=True, lock="unlocked",
+                also_generate=(REPORT_TYPE_FULL, REPORT_TYPE_RECORD)),
+        RunPlan("Full colour check, ChromIQ tight.",
+                CHART_SMALL, CHART_MEDIUM, "chromiq_tight", TYPES_DE_TIGHT,
+                report_type=REPORT_TYPE_FULL, unlocked=True, lock="unlocked"),
+        RunPlan("Printing record, Quick check. The same figures as a graded "
+                "report, with every word withheld by the user's own choice.",
+                CHART_SMALL, CHART_MEDIUM, "chromiq_quick", TYPES_DE_QUICK,
+                report_type=REPORT_TYPE_RECORD, unlocked=True, lock="unlocked"),
+        RunPlan("Grey and tone check, ChromIQ default, with a limit typed into "
+                "the tone-ramp row so all three of its rows carry a word.",
+                CHART_MEDIUM, CHART_MEDIUM, "chromiq_default",
+                TYPES_GREY_DEFAULT, report_type=REPORT_TYPE_GREY,
+                unlocked=True, lock="unlocked",
+                edited_limits={"ramps_30_70_dl_max": 2.0}),
+        RunPlan("Grey and tone check, ChromIQ tight, left as the set ships: "
+                "the tone-ramp row shows a number and no word.",
+                CHART_MEDIUM, CHART_MEDIUM, "chromiq_tight", TYPES_GREY_TIGHT,
+                report_type=REPORT_TYPE_GREY, unlocked=True, lock="unlocked"),
+        RunPlan("Grey and tone check, Quick check.",
+                CHART_MEDIUM, CHART_MEDIUM, "chromiq_quick", TYPES_GREY_QUICK,
+                report_type=REPORT_TYPE_GREY, unlocked=True, lock="unlocked"),
+        RunPlan("Grey and tone check on a chart with no grey ramp, so the "
+                "column has limits and nothing it can check.",
+                CHART_SMALL, CHART_NO_GREY, "chromiq_tight",
+                TYPES_GREY_NOTHING, report_type=REPORT_TYPE_GREY,
+                unlocked=True, lock="unlocked",
+                # A LIMIT ON THE TONE-RAMP ROW, so the row APPEARS. Without
+                # one it has neither a limit nor a value, which is a blank
+                # cell and not a verdict (CH-20), and the document then shows
+                # two rows instead of three and never prints the reason the
+                # chart could not supply the third.
+                edited_limits={"ramps_30_70_dl_max": 2.0},
+                note="Deliberately built without a grey ramp. Do not "
+                     "regenerate it with one: this run exists to show what the "
+                     "report says when a chart cannot supply a row."),
+    ]),
+    ("Report-Limits-Border-Conditions", [
+        RunPlan("A chart with fewer than twenty patches, so the worst 5 % of "
+                "the sheet is the empty set and that row cannot be computed.",
+                CHART_SMALL, CHART_TINY, "chromiq_default",
+                BORDER_SMALL_SAMPLE, unlocked=True, lock="unlocked",
+                note="Deliberately twenty patches. Do not regenerate it "
+                     "larger: this run exists to show what the report says "
+                     "when a sheet is too small to have a worst 5 %."),
+        # QUICK CHECK, and for a measured reason. The grey ramp carries a cast
+        # of 1.9 so its rows have a number worth reading, and a chroma error
+        # that size near a neutral is a colour difference of about 2.7, which
+        # under ChromIQ default would take the worst-5 % average over its 2.0
+        # and make this run about a crossing it is not about.
+        # ON A GREY AND TONE CHECK, and that is what reaches the sentence.
+        # Every row that document shows carries a real number and none of them
+        # can be graded, which is a different state from a chart that could
+        # supply nothing: "none of the values was graded" against "the chart
+        # supplied none of the values". Under Full colour check the same run
+        # shows its colour rows judged as usual, which the table below prints.
+        RunPlan("A sheet nobody recorded the printing of, so the grey rows "
+                "keep their numbers and are shown for information.",
+                CHART_SMALL, CHART_MEDIUM, "chromiq_quick",
+                BORDER_UNRECORDED, unlocked=True, lock="unlocked",
+                report_type=REPORT_TYPE_GREY,
+                print_colour="none",
+                note="Deliberately shipped without a print record beside the "
+                     "chart snapshot. Do not add one."),
+        RunPlan("A sheet printed with no profile applied, which the report "
+                "treats as a drift check rather than an accuracy check.",
+                CHART_SMALL, CHART_MEDIUM, "chromiq_default",
+                BORDER_RAW_DRIFT, unlocked=True, lock="unlocked",
+                print_colour="raw",
+                note="Deliberately printed raw. The large numbers are "
+                     "correct for a sheet nothing corrected."),
     ]),
 ]
 
@@ -1260,6 +1833,12 @@ def main(argv=None) -> int:
         print(f"archive: {made}  ({size / 1e6:.1f} MB)")
     print(f"written to {dest}")
     return 1 if bad else 0
+
+
+def _wrap(text: str, width: int) -> "list[str]":
+    """Hard-wrap a sentence for the README's fixed-width prose."""
+    import textwrap
+    return textwrap.wrap(" ".join(text.split()), width) or [""]
 
 
 #: Small numbers as words, for a heading that must agree with a computed list.
@@ -1401,6 +1980,35 @@ def _lock_index(lock_rows: "list[dict]") -> "list[tuple[str, str]]":
     return out
 
 
+def _type_index(type_set_rows: "list[dict]",
+                multi: "list[str]") -> "list[tuple[str, str]]":
+    """The index lines that name a run for each built report type.
+
+    Generated for exactly the reason `_lock_index` is: the index is the half a
+    reader acts on, because it says which run to open, and a hand-written line
+    naming a run goes stale the moment the runs move. The line for a type no
+    run produces is simply not written, rather than pointing somewhere wrong.
+    """
+    out: "list[tuple[str, str]]" = []
+    for _tid, name, _blurb, built in REPORT_TYPE_MENU:
+        if not built:
+            continue
+        # THE RUN WHERE THE TYPE IS THE SUBJECT, not the first one in
+        # alphabetical order. Sorting by name alone pointed "the Full colour
+        # check document" at a run whose own entry says "(edited for this
+        # run)", which is a second thing to explain in a line that exists to
+        # show one, exactly as `_lock_index` found for the lock lines.
+        hits = sorted((r for r in type_set_rows if r["type"] == name),
+                      key=lambda r: (not r["run"].startswith("Report-Types/"),
+                                     "edited" in r["set"], r["run"]))
+        if hits:
+            out.append((f"the {name} document", hits[0]["run"].replace("/", ", ")))
+    if multi:
+        out.append(("a run holding reports of several types",
+                    multi[0].split(":")[0].replace("/", ", ")))
+    return out
+
+
 def coverage(dest: Path, results: list) -> dict:
     """Which report rows these projects actually exercise, read back from the
     saved reports rather than from the designs that asked for them.
@@ -1446,10 +2054,290 @@ def coverage(dest: Path, results: list) -> dict:
         for rid, lim in effective_limits(sid, {}).items():
             if lim.number is not None:
                 shipped.add(rid)
-    return {"with_value": sorted(with_value), "judged": sorted(judged),
-            "shipped_judged": sorted(shipped & with_value),
-            "crossed": sorted(crossed & with_value),
-            "uncrossed": sorted(judged - crossed)}
+    out = {"with_value": sorted(with_value), "judged": sorted(judged),
+           "shipped_judged": sorted(shipped & with_value),
+           "crossed": sorted(crossed & with_value),
+           "uncrossed": sorted(judged - crossed)}
+    out.update(type_set_coverage(dest))
+    out.update(message_coverage(dest))
+    out.update(metric_coverage(dest, results))
+    return out
+
+
+#: WHY A MESSAGE THE REPORT CAN PRINT IS NOT IN THE PACKAGE, for the ones no
+#: measurement can reach. Keyed by the code, so a message that arrives later
+#: and is neither reached nor explained shows up as one nobody has accounted
+#: for, which is the right way round: the list of messages is read from the
+#: app, and only the excuses are written here.
+UNREACHABLE_BY_DATA = {
+    "empty": "The report window only offers a limit set that has at least one "
+             "limit-bearing row (CH-11), so no choice a user can make reaches "
+             "this. It is for a run bound to a set a later ChromIQ has stopped "
+             "defining.",
+    "iso": "Its sentence is the one an ISO column prints, and the two ISO "
+           "columns hold no numbers: their figures are published in standards "
+           "ChromIQ has no permission to include. A demo that reached it "
+           "would have to carry one of those numbers.",
+    "needs_reference_file": "The rows that give this reason are the ones "
+                            "needing a reference measurement of the printing "
+                            "condition, and reading such a file is not built "
+                            "yet. No ChromIQ limit set puts a number on them "
+                            "either, so they carry no verdict and are not "
+                            "drawn.",
+    "no_reference": "A measurement with no reference at all, which a chart "
+                    "built by ChromIQ always has. It is the state of a loose "
+                    "file whose chart nobody can find.",
+    "no_corners": "The paper and solid rows are computable only against a "
+                  "colorimetric reference, which is the same unbuilt reader "
+                  "as above.",
+    "no_greys": "A chart with no neutral patch at all. Every chart targen "
+                "builds has white and black, which are neutral, so this "
+                "cannot be produced by asking for fewer grey steps; it would "
+                "need a chart edited by hand into something no printer "
+                "workflow makes.",
+    "no_white": "A grey ramp whose lightest step is below 90. targen always "
+                "puts paper white in the chart, so the same applies.",
+    "no_black": "A grey ramp whose darkest step is above 10. The same again, "
+                "from the other end.",
+    "not_computed": "A saved report with no grey block at all, which is what "
+                    "a ChromIQ older than those rows wrote. This package "
+                    "cannot carry one on purpose: such a report is now "
+                    "recognised as stale and rebuilt the moment it is opened, "
+                    "which is the fix for exactly the fault Knut hit in the "
+                    "Example colours section.",
+}
+
+
+#: Why a ROW cannot be exercised against a limit by any demo data, by the
+#: row's own status. Knut, 2026-09-11: *"make sure the metrics have a value
+#: that can be tested against, and that all metrics limits are verified with
+#: the ChromIQ-Report-Limit-Demos package."*
+#:
+#: Eight of the thirty rows can be. The other twenty-two cannot, for three
+#: reasons that are properties of the ROW and not of this package, and the
+#: worst possible answer to that is to invent a measurement. A demo that
+#: pretended to have read a gloss meter, nine readings at set positions, or a
+#: xenon fading rig would make the package lie about what ChromIQ measures,
+#: which is the one thing a shared fixture must never do. What the package
+#: shows for those rows instead is that they read N-A or ✕ and say why, which
+#: is itself worth seeing.
+UNCOVERABLE_ROW_STATUS = {
+    "ref": "Computable only against a reference measurement of the printing "
+           "condition that the user supplies. Reading such a file is not "
+           "built (design record section 9), so no chart and no measurement "
+           "in this package can fill the row. It reads N-A with that reason.",
+    "unknown": "The number this row would be judged against is in a clause "
+               "ChromIQ does not hold, so every set shows ? for it and it "
+               "never carries a verdict. Giving it a value here would be a "
+               "measurement with nothing to test it against.",
+    "unmeasurable": "ChromIQ cannot measure this at all: it needs equipment "
+                    "or a procedure outside a chart and a spectrophotometer. "
+                    "The row is kept so a reader sees what a standard asks "
+                    "for, and it shows the cross that says ChromIQ cannot "
+                    "supply it. Inventing a number for it is the one thing "
+                    "this package must not do.",
+}
+
+
+def metric_coverage(dest: Path, results: list) -> dict:
+    """Every row of the limits table, and whether the package tests it.
+
+    Read from `compliance_sets.ROWS` rather than from a list here, so a row
+    added to ChromIQ turns up as one the package does not cover.
+
+    Four facts per row, and they are different questions: can ChromIQ compute
+    it at all (the row's status), does a shipped limit set put a number on it,
+    does any run in this package put a number on it, and does any date actually
+    cross it. A row can have a value and never be tested, which is the case
+    this whole table exists to make visible.
+    """
+    from core.file_manager import Run
+    from workflow.compliance_sets import ROWS, effective_limits
+    from workflow.measurement_report import row_values
+    from workflow.run_compliance import run_limits
+
+    with_value: set = set()
+    for rep in sorted(dest.rglob("report_*.json")):
+        if "old" in rep.parts:
+            continue
+        try:
+            doc = json.loads(rep.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        for rid, info in (row_values(doc) or {}).items():
+            if info.get("value") is not None:
+                with_value.add(rid)
+
+    judged: set = set()
+    for pd in sorted(dest.glob("Report-Limits-*")):
+        for rd in sorted((pd / "runs").glob("run*")):
+            for rid, lim in run_limits(Run.for_dir(rd), {}).limits.items():
+                if lim.number is not None:
+                    judged.add(rid)
+
+    shipped: set = set()
+    for sid in ("chromiq_default", "chromiq_tight", "chromiq_quick"):
+        for rid, lim in effective_limits(sid, {}).items():
+            if lim.number is not None:
+                shipped.add(rid)
+
+    crossed: "dict[str, str]" = {}
+    for r in results:
+        for rid in r["actual"]:
+            crossed.setdefault(
+                rid, f"{r['project'].replace('Report-Limits-', '')}"
+                     f"/{r['run']}/{r['date']}")
+    # AND THE DATE IT CAME BACK ON, because a row that crosses and stays over
+    # proves half of what Knut asked for. Paired by run: the first later date
+    # of the same run on which the row is not over its limit.
+    recovered: "dict[str, str]" = {}
+    for rid in crossed:
+        for r in results:
+            at = (f"{r['project'].replace('Report-Limits-', '')}"
+                  f"/{r['run']}/{r['date']}")
+            if rid in r["actual"]:
+                continue
+            src = crossed[rid].rsplit("/", 1)
+            if at.rsplit("/", 1)[0] == src[0] and at.rsplit("/", 1)[1] > src[1]:
+                recovered.setdefault(rid, at)
+                break
+
+    rows = []
+    for row in ROWS:
+        tested = row.id in judged and row.id in with_value
+        rows.append({
+            "id": row.id, "label": row.label, "status": row.status,
+            "shipped": row.id in shipped, "limited_here": row.id in judged,
+            "has_value": row.id in with_value, "tested": tested,
+            "crossed_at": crossed.get(row.id, ""),
+            "recovered_at": recovered.get(row.id, ""),
+            "why_not": "" if tested else UNCOVERABLE_ROW_STATUS.get(row.status, ""),
+        })
+    return {"metric_rows": rows}
+
+
+def message_coverage(dest: Path) -> dict:
+    """Every sentence and reason the report can print, and where the package
+    shows it.
+
+    Knut, 2026-09-11: *"The demo test data must be made so that all parts of
+    the report can be shown and tested, including fault messages and border
+    conditions."*
+
+    THE LIST OF MESSAGES IS READ FROM THE APP, not typed here: every value of
+    `compliance_sets.SUMMARY_REASONS` and every `measurement_report.REASON_*`
+    constant. A message added tomorrow appears in this table as one the package
+    does not reach, rather than being quietly absent from a typed list. Only
+    the EXCUSES for the ones no data can reach are written by hand, above.
+
+    Each saved report is judged the way the window would judge it: with the
+    run's own limits, through each of the four documents ChromIQ can produce,
+    because the type pulldown is live whatever the limits do.
+    """
+    from core.file_manager import Run
+    from workflow.compliance_sets import (SUMMARY_REASONS, row_verdict,
+                                          set_summary)
+    from workflow import measurement_report as _mr
+    from workflow.measurement_report import (REPORT_TYPE_MENU, row_values)
+    from workflow.run_compliance import run_limits
+
+    builts = [tid for tid, _n, _b, built in REPORT_TYPE_MENU if built]
+    where_sentence: "dict[str, str]" = {}
+    where_reason: "dict[str, str]" = {}
+    for pd in sorted(dest.glob("Report-Limits-*")):
+        short = pd.name.replace("Report-Limits-", "")
+        for rd in sorted((pd / "runs").glob("run*"),
+                         key=lambda p: int(p.name[3:] or 0)):
+            limits = run_limits(Run.for_dir(rd), {}).limits
+            for rep_path in sorted(rd.rglob("report_*.json")):
+                if "old" in rep_path.parts:
+                    continue
+                try:
+                    rep = json.loads(rep_path.read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    continue
+                date = (rep_path.parent.parent.name
+                        if rep_path.parent.parent != rd else "profiling")
+                at = f"{short}/{rd.name}/{date}"
+                for tid in builts:
+                    got = _crossed_rows(rep, limits, row_values, row_verdict,
+                                        set_summary, tid)
+                    where_sentence.setdefault(got["reason"], at)
+                    # ONLY THE REASONS ON ROWS THE WINDOW DRAWS. Reading them
+                    # off `row_values` instead counted `needs_reference_file`
+                    # as demonstrated, on rows no ChromIQ set puts a limit on,
+                    # which therefore carry no word and are never on the page.
+                    for code in got["shown_reasons"].values():
+                        where_reason.setdefault(code, at)
+
+    sentences = []
+    for key, text in SUMMARY_REASONS.items():
+        at = where_sentence.get(text, "")
+        sentences.append({"key": key, "text": text, "at": at,
+                          "why_not": "" if at else UNREACHABLE_BY_DATA.get(key, "")})
+    reasons = []
+    codes = sorted({getattr(_mr, n) for n in dir(_mr) if n.startswith("REASON_")})
+    for code in codes:
+        at = where_reason.get(code, "")
+        reasons.append({"code": code, "at": at,
+                        "why_not": "" if at else UNREACHABLE_BY_DATA.get(code, "")})
+    return {"sentences": sentences, "reasons": reasons}
+
+
+def type_set_coverage(dest: Path) -> dict:
+    """Which document each built run produces and what it is judged against,
+    READ BACK FROM THE RUNS, plus what nothing covers.
+
+    Asked of the run, not of the plan, and for the same reason the lock table
+    is: the plan says what was asked for and the run says what exists. The
+    default type is stored NOWHERE on a run that never chose one, so a plan
+    and a `meta.json` can differ without anybody lying, and only one of them
+    is what a reader will open.
+
+    The missing list is the half that earns this function. A coverage table
+    that only lists what is present cannot be told apart from a coverage table
+    that is short; naming the empty cells is what lets a reader check the
+    claim instead of trusting it.
+    """
+    from core.file_manager import Run
+    from workflow.compliance_sets import SET_BY_ID, selectable_set_ids, set_label
+    from workflow.measurement_report import (generated_report_types,
+                                             report_type_name)
+    from workflow.run_compliance import run_limits, run_report_type
+
+    rows: "list[dict]" = []
+    multi: "list[str]" = []
+    seen_types: set = set()
+    seen_sets: set = set()
+    for pd in sorted(dest.glob("Report-Limits-*")):
+        for rd in sorted((pd / "runs").glob("run*"),
+                         key=lambda p: int(p.name[3:] or 0)):
+            run = Run.for_dir(rd)
+            tid = run_report_type(run)
+            lim = run_limits(run, {})
+            label = set_label(lim.set_id, lim.label_en)
+            if lim.edited:
+                label += " (edited for this run)"
+            name = f"{pd.name.replace('Report-Limits-', '')}/{rd.name}"
+            rows.append({"run": name, "type": report_type_name(tid),
+                         "set": label})
+            seen_types.add(tid)
+            seen_sets.add(lim.set_id)
+            counts = generated_report_types(run)
+            if len(counts) > 1:
+                multi.append(name + ": " + ", ".join(
+                    f"{report_type_name(t)} ({n})"
+                    for t, n in sorted(counts.items())))
+
+    missing: "list[str]" = []
+    for tid, tname, _blurb, built in REPORT_TYPE_MENU:
+        if built and tid not in seen_types:
+            missing.append(f"report type {tname}: no run produces it")
+    for sid in selectable_set_ids({}):
+        if sid not in seen_sets:
+            missing.append(f"limit set {SET_BY_ID[sid].label}: no run uses it")
+    return {"type_set_rows": rows, "type_set_missing": missing,
+            "multi_type_runs": multi}
 
 
 def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
@@ -1467,7 +2355,8 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("")
     a("1. DOWNLOAD this folder as the zip attached to the beta release, unzip")
     a("   it anywhere, and point ChromIQ at it: Settings, output folder, pick")
-    a("   the unzipped folder. All three projects then appear in the project")
+    a(f"   the unzipped folder. All {_WORDS.get(len(PROJECTS), len(PROJECTS))} "
+      f"projects then appear in the project")
     a("   list. Nothing inside a project names a folder on the machine that")
     a("   built it, so it opens the same wherever it lands.")
     a("")
@@ -1477,10 +2366,13 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("       .venv/bin/python scripts/make_report_limit_demos.py")
     a("")
     a("   ArgyllCMS 3.5.0 in /Applications/Argyll is required. The whole set")
-    a("   builds in about fifteen seconds and is deterministic: the same")
-    a("   command on the same Argyll gives the same numbers, every time.")
-    a("   (Timed on the machine that wrote this: 12.8 s, cold, all three")
-    a("   projects.)")
+    a("   builds in well under a minute and is deterministic: the same command")
+    a("   on the same Argyll gives the same numbers, every time, and this file")
+    a("   comes out byte for byte the same. THAT IS WHY NO BUILD TIME IS")
+    a("   PRINTED HERE. Two were, one a round number and one measured to a")
+    a("   tenth of a second, and both were written when the package was")
+    a("   smaller; a measured time would also make every rebuild differ from")
+    a("   the archive somebody is comparing against.")
     a("")
     a("   Prefer the download when you just want to look at reports. Prefer")
     a("   generating when the report code has moved on and you want the saved")
@@ -1489,14 +2381,17 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("WHAT IS IN HERE")
     a("---------------")
     a("")
-    a("Three projects. Each project holds several profile runs, and each")
+    a(f"{_WORDS.get(len(PROJECTS), len(PROJECTS)).capitalize()} projects. Each "
+      f"project holds several profile runs, and each")
     a("profile run holds its own chart, its own profile, and its dated")
     a("verifications.")
     a("")
+    from workflow.measurement_report import report_type_name
     for name, plans in PROJECTS:
         a(f"  {name}")
         for i, plan in enumerate(plans, start=1):
             a(f"      run{i}  {plan.description}")
+            a(f"            report type {report_type_name(plan.report_type)}")
             # THE COUNT IS READ OFF THE SHEET, NOT OFF THE REQUEST.
             # `ChartRecipe.label` is typed beside the number asked for, and
             # printtarg PADS: two of the eleven runs ship charts of 168 and 405
@@ -1551,7 +2446,8 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("WHICH ROWS ARE COVERED, AND WHICH CANNOT BE")
     a("-------------------------------------------")
     a("")
-    a("A report has thirty rows and most of them cannot be filled in from an")
+    a(f"A report has {len(ROW_BY_ID)} rows and most of them cannot be filled "
+      f"in from an")
     a("ordinary printed sheet at all: they belong to a standard's own control")
     a("strip, or ask about fading, gloss or repeat measurements. The rows that")
     a("matter here are the ones a ChromIQ verification sheet puts a NUMBER on,")
@@ -1589,6 +2485,7 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
             a("")
             a(head)
             a(f"  judged against: {r['set']}")
+            a(f"  report type:    {report_type_name(r['type'])}")
         a("")
         a(f"  {r['date']}   {r['title']}")
         a(f"      {r['story']}")
@@ -1603,6 +2500,17 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
         else:
             a("      actually crossed:  nothing")
         a(f"      the report's word for the column: {r['verdict']}")
+        # THE SAME MEASUREMENT IN THE DOCUMENT EVERYBODY KNOWS. Printed only
+        # where it can differ, and read back from the report rather than
+        # described, because a Grey and tone check hides the colour rows and a
+        # Printing record withholds every word: without this line a reader of
+        # either cannot tell whether the sheet was any good.
+        if r.get("as_full"):
+            f_ = r["as_full"]
+            crossed = (", ".join(ROW_TITLES.get(x, x) for x in f_["crossed"])
+                       or "nothing")
+            a(f"      the same numbers on Full colour check: {f_['verdict']}, "
+              f"crossing {crossed}")
     a("")
     a("")
     a("WHAT A CLEAN VERDICT HERE DOES NOT PROVE")
@@ -1691,16 +2599,171 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("carry their own edited limit column that relaxes the companion rows, so")
     a("the row of interest crosses on its own and can be looked at alone.")
     a("")
-    a("REPORT TYPES ARE NOT IN HERE, AND THAT IS NOT AN OVERSIGHT")
+    a("THE REPORT TYPES, AND WHY ONLY FOUR OF THE SIX ARE IN HERE")
     a("---------------------------------------------------------")
     a("")
-    a("The request asked for verifications that use different report TYPES as")
-    a("well as different limits. Report types are a design at the moment, not")
-    a("a feature: nothing in this ChromIQ can select one. The data is built so")
-    a("that when they arrive, no new measurements are needed. Every dated")
-    a("verification keeps its own chart snapshot, its own measurement and its")
-    a("own saved report, so a report type can be applied to what is already")
-    a("here.")
+    a("THIS SECTION USED TO SAY REPORT TYPES WERE NOT IN THE PACKAGE AND")
+    a("COULD NOT BE: \"a design at the moment, not a feature: nothing in this")
+    a("ChromIQ can select one\". That was true when it was written and stopped")
+    a("being true in v4.3.0-beta.4, which shipped the pulldown. It is named")
+    a("here rather than quietly deleted, because anybody holding an older copy")
+    a("of this file is being told something false by it.")
+    a("")
+    a("The pulldown offers six documents. FOUR CAN BE PRODUCED and each has a")
+    a("run of its own in Report-Limits-Report-Types:")
+    a("")
+    for tid, name, blurb, built in REPORT_TYPE_MENU:
+        if built:
+            a(f"  {name}")
+            a(f"      {blurb}")
+    a("")
+    a("TWO CANNOT, and no measurement can change that. These are the two:")
+    a("")
+    for tid, name, blurb, built in REPORT_TYPE_MENU:
+        if not built:
+            a(f"  {name}")
+            a(f"      {blurb}")
+    a("")
+    a("The figures they judge against are published in standards ChromIQ has")
+    a("no permission to include, so ChromIQ cannot write either document. They")
+    a("are SHOWN in the pulldown and refused there rather than hidden, under a")
+    a("heading that says what they need, and the entry carries the reason:")
+    a("")
+    a(f"  \"{REPORT_TYPE_MENU_HEADING}\"")
+    a(f"  \"{not_built_line()}\"")
+    a("")
+    a("So what this package can demonstrate about those two is that they are")
+    a("offered, that they are refused, and that they say why. There is nothing")
+    a("else to demonstrate: a demo cannot exercise a document the app cannot")
+    a("produce, and building one would need a tolerance value out of a")
+    a("standard that may not be shipped. Nothing in this generator holds one.")
+    a("")
+    a("WHICH RUN COVERS WHICH TYPE AND WHICH LIMIT SET")
+    a("----------------------------------------------")
+    a("")
+    a("Read off the built runs, not off the plan that asked for them. The TYPE")
+    a("column is the document the run is set to produce when you open it; the")
+    a("SET column is what its numbers are judged against. Every run of")
+    a("Report-Limits-Report-Types has its limits left open, so both pulldowns")
+    a("stay live and any type can be tried against any set on the same")
+    a("measurement.")
+    a("")
+    a(f"  {'run':<36}{'report type':<30}limit set")
+    for row in _cov.get("type_set_rows", []):
+        a(f"  {row['run']:<36}{row['type']:<30}{row['set']}")
+    a("")
+    missing = _cov.get("type_set_missing") or []
+    if missing:
+        a("NOT COVERED BY ANY RUN:")
+        for what in missing:
+            a(f"  {what}")
+    else:
+        a("Every document ChromIQ can produce, and every limit set it offers,")
+        a("is the standing choice of at least one run above.")
+    a("")
+    a("EVERY METRIC LIMIT, AND WHETHER THIS PACKAGE TESTS IT")
+    a("-----------------------------------------------------")
+    a("")
+    a("Knut, 2026-09-11: \"make sure the metrics have a value that can be")
+    a("tested against, and that all metrics limits are verified with the")
+    a("ChromIQ-Report-Limit-Demos package\".")
+    a("")
+    a("One line per row of the limits table, read out of ChromIQ rather than")
+    a("typed here. TESTED means this package puts a limit on the row AND has a")
+    a("measurement that fills it, so a verdict on it means something. The")
+    a("crossing and the recovery are the two dates that prove the limit is")
+    a("live in both directions.")
+    a("")
+    _rows = _cov.get("metric_rows", [])
+    _tested = [r for r in _rows if r["tested"]]
+    a(f"  {len(_tested)} of {len(_rows)} rows are tested. "
+      f"The other {len(_rows) - len(_tested)} cannot be, and the")
+    a("  reason is a property of the row, not of this package. NOTHING HAS")
+    a("  BEEN INVENTED TO FILL ONE: a demo that pretended to have read a")
+    a("  gloss meter or a fading rig would make this package lie about what")
+    a("  ChromIQ measures.")
+    a("")
+    a("TESTED:")
+    for r in _rows:
+        if not r["tested"]:
+            continue
+        a(f"  {r['label']}")
+        a("      limit from: "
+          + ("a shipped limit set" if r["shipped"]
+             else "a run's own edited column (no shipped set judges it)"))
+        a(f"      crosses at: "
+          + (r["crossed_at"] or "nowhere, so a clean verdict on it proves nothing"))
+        if r["recovered_at"]:
+            a(f"      back inside on: {r['recovered_at']}")
+        elif r["crossed_at"]:
+            a("      NEVER COMES BACK INSIDE, so only half the limit is proved")
+    a("")
+    a("NOT TESTED, AND WHY:")
+    a("")
+    _by_why: dict = {}
+    for r in _rows:
+        if r["tested"]:
+            continue
+        _by_why.setdefault(r["why_not"] or "NOBODY HAS SAID WHY", []).append(r["label"])
+    for _why, _labels in _by_why.items():
+        for _lbl in _labels:
+            a(f"  {_lbl}")
+        for chunk in _wrap(_why, 66):
+            a(f"      {chunk}")
+        a("")
+    a("EVERY FAULT MESSAGE AND BORDER CONDITION, AND WHERE TO SEE IT")
+    a("-------------------------------------------------------------")
+    a("")
+    a("Knut, 2026-09-11: the demo data must show all parts of the report,")
+    a("\"including fault messages and border conditions\".")
+    a("")
+    a("THE LIST IS READ OUT OF THE APP, not typed here: every sentence the")
+    a("Overall cell can print and every reason a row can give for having no")
+    a("number. A message added to ChromIQ tomorrow turns up in this table as")
+    a("one the package does not reach, which is the right way round.")
+    a("")
+    a("The sentence under the verdict, one line per sentence ChromIQ has:")
+    a("")
+    for e in _cov.get("sentences", []):
+        a(f"  {e['key']}")
+        a(f"      {' '.join(e['text'].split())[:120]}")
+        if e["at"]:
+            a(f"      seen at: {e['at']}")
+        elif e["why_not"]:
+            a("      NOT REACHABLE BY ANY DEMO DATA:")
+            for chunk in _wrap(e["why_not"], 62):
+                a(f"        {chunk}")
+        else:
+            a("      NOT REACHED, AND NOBODY HAS SAID WHY. Build data that")
+            a("        reaches it, or put the reason in UNREACHABLE_BY_DATA.")
+    a("")
+    a("The reason a row gives when it has no number:")
+    a("")
+    for e in _cov.get("reasons", []):
+        if e["at"]:
+            a(f"  {e['code']:<24} seen at: {e['at']}")
+        elif e["why_not"]:
+            a(f"  {e['code']:<24} NOT REACHABLE BY ANY DEMO DATA")
+            for chunk in _wrap(e["why_not"], 62):
+                a(f"      {chunk}")
+        else:
+            a(f"  {e['code']:<24} NOT REACHED, AND NOBODY HAS SAID WHY")
+    a("")
+    a("Two more states have no message of their own and are reached by where")
+    a("a measurement LIVES rather than by what it contains, so they are named")
+    a("here instead of in the tables above:")
+    a("")
+    a("  the run's own profiling measurement, which is never graded: open the")
+    a("      .ti3 sitting directly in any runs/runN/ folder")
+    a("  a sheet printed raw and read as a drift check, whose column says")
+    a("      'drift' and carries no verdict at all: Border-Conditions, run3")
+    a("")
+    a("One run also holds saved reports of more than one type, because a user")
+    a("may want more than one document from one measurement, and the window")
+    a("counts them off the disk:")
+    a("")
+    for line in _cov.get("multi_type_runs", []) or ["  (none)"]:
+        a(f"  {line}")
     a("")
     a("FOR THE NEXT PERSON WHO NEEDS A REPORT WITH DATED VERIFICATIONS")
     a("--------------------------------------------------------------")
@@ -1717,12 +2780,15 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("  the grey AVERAGE crossing on its own ...... Isolated-Rows, run4")
     a("  a row no shipped set judges at all ......... Isolated-Rows, run5")
     a("  a recommended value (COND, not FAIL) ....... Isolated-Rows, run4")
+    for _what, _where in _type_index(_cov.get("type_set_rows", []),
+                                     _cov.get("multi_type_runs", [])):
+        a(f"  {(_what + ' '):.<44} {_where}")
     a("")
     a("DO NOT edit these in place if the data is to stay reproducible. In")
     a("particular do not regenerate a verification chart: each dated check is")
     a("judged against its own chart/ snapshot, and replacing the shared chart")
     a("makes the two disagree. Copy the project folder, work on the copy, or")
-    a("run the generator again. Regenerating is cheap: see the timing above.")
+    a("run the generator again, which is cheap and gives the same numbers.")
     a("")
     a("Page TIFFs of the charts are included for the profile and verification")
     a("charts themselves, but not inside the dated snapshots: no report reads")
