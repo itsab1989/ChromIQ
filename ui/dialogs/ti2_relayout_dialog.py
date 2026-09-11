@@ -507,7 +507,8 @@ _CUSTOM_PAPER_MAX_MM = int(R.PRINTTARG_PAPER_MAX_MM)
 _STRIP_INSTRUMENTS = frozenset({"i1", "3p"})
 
 # Paper sizes the new-chart dropdown offers — matches the Create Chart tab.
-from data.patch_db import PAPER_LABELS, PAPER_PRINTTARG_ARG, paper_name_token
+from data.patch_db import (PAPER_LABELS, PAPER_PRINTTARG_ARG, orientation_word,
+                           paper_name_token)
 from core.i18n import count_phrase, tr
 from core.text_io import read_text
 from core.platform_paths import default_output_root
@@ -8051,7 +8052,12 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
             parts.append("1page" if pages == 1 else f"{pages}pages")
         w, h = self._spec.paper_mm
         if w and h:
-            parts.append("Landscape" if w > h else "Portrait")
+            # THE SAME RULE AS CREATE CHART, FROM THE SAME FUNCTION. This line
+            # used to read `"Landscape" if w > h else "Portrait"`, which called a
+            # square sheet Portrait while Create Chart gave it no word at all —
+            # two generators, one name, two answers. Knut settled it on
+            # 2026-09-11: a square page is "Square". See `orientation_word`.
+            parts.append(orientation_word(w, h))
         return "-".join(parts)
 
     def _dialog_name_prefix(self) -> str:

@@ -3991,6 +3991,32 @@ class LayoutOptionsPanel(QWidget):
         finally:
             self.seed_spin.blockSignals(was)
 
+    def set_fixed_seed_tag(self, on: bool) -> None:
+        """Set the "Use a fixed seed" tick WITHOUT touching the seed number.
+
+        Knut, 2026-09-11: *"since there is a new tag stored in the chart's json
+        file about the 'Use a fixed seed' box, can you add programmatically this
+        tag for all built in presets and define the 'Use a fixed seed' box as
+        OFF? … All seed numbers stored in the presets should be as they are
+        today."* Two instructions, and this method exists so the second cannot be
+        broken while obeying the first: the seed spin box is not written here at
+        all, so whatever number a preset (or the build that just finished)
+        put in it stays visible and stays reproducible.
+
+        SILENT, like :meth:`show_built_seed` and for the same reason: the caller
+        is a preset being loaded, not a person editing a setting, and
+        ``toggled`` drives the live preview. ``get_recipe`` reads the box, so the
+        tag itself is set as surely as if the person had clicked — only the
+        redraw is suppressed. The enable state is re-synced, because a tick that
+        goes off must grey its own number box.
+        """
+        was = self.fixed_seed_cb.blockSignals(True)
+        try:
+            self.fixed_seed_cb.setChecked(bool(on))
+        finally:
+            self.fixed_seed_cb.blockSignals(was)
+        self._sync_seed_enabled()
+
     def _make_insert_button(self, target, *, multiline: bool = False):
         """A compact "Insert ▾" token menu that inserts into *target* (a QLineEdit
         or, when *multiline*, a QPlainTextEdit).

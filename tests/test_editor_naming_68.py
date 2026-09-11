@@ -81,7 +81,12 @@ def test_paper_name_token_special_chars():
     assert paper_name_token("203x254") == "8x10in"
     assert paper_name_token("127x178") == "5x7in"
     assert paper_name_token("A4") == "A4"
-    assert paper_name_token("500x400") == "500x400"   # custom passes through
+    # A CUSTOM SIZE CARRIES ITS UNIT (Knut, 2026-09-11). It used to pass through
+    # bare; "4x6" and "11x17" are inch designations the table names, so they go
+    # on resolving through their labels and never grow a millimetre suffix.
+    assert paper_name_token("500x400") == "500x400mm"
+    assert paper_name_token("4x6") == "4x6in"
+    assert paper_name_token("11x17") == "Tabloid"
 
 
 def test_save_seed_locked_prefix_and_no_doubling(qapp, settings):

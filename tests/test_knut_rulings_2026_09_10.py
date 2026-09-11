@@ -65,14 +65,18 @@ def _panel(**kw):
 ])
 def test_a_custom_size_takes_its_orientation_from_its_two_numbers(qapp, paper, orient):
     from ui.tabs.tab_chart import TabChart
-    assert TabChart._paper_name_and_orientation(paper) == (paper, orient)
+    # The size token carries its unit since 2026-09-11 (see
+    # `test_a_custom_size_carries_its_millimetres`); the orientation half of the
+    # answer is what this case is about.
+    assert TabChart._paper_name_and_orientation(paper) == (f"{paper}mm", orient)
 
 
-def test_a_square_custom_sheet_gets_neither_word(qapp):
-    """He ruled on the two inequalities and not on equality. A square page is
-    neither portrait nor landscape, so the name says neither."""
+def test_a_square_custom_sheet_is_called_square(qapp):
+    """Knut, 2026-09-11, answering the question the first round left open:
+    *"when both Custom size boxes are the same, say 'Square' instead of Portrait
+    or Landscape."* It used to say neither word."""
     from ui.tabs.tab_chart import TabChart
-    assert TabChart._paper_name_and_orientation("200x200") == ("200x200", "")
+    assert TabChart._paper_name_and_orientation("200x200") == ("200x200mm", "Square")
 
 
 def test_the_suggested_name_carries_the_custom_size_not_the_sentinel(qapp, tmp_path):

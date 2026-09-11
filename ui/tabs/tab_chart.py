@@ -58,6 +58,7 @@ from data.patch_db import (
     PAPER_LABELS,
     PAPER_SIZES,
     i1_defaults_from_preset,
+    orientation_word,
     paper_name_token,
     query_patches,
 )
@@ -312,11 +313,19 @@ EXT1944_LETTER_PRESET_LABEL = "★  i1Pro · Letter-1944p-3pages extended target
 # THE PAPER IS SPELLED TWO WAYS ON PURPOSE, AND BOTH ARE RIGHT WHERE THEY ARE.
 # The LABEL says "10x15cm" because that is what is printed on the packet of
 # paper the user is holding, and a label is prose. The DEFAULT TARGET NAME says
-# "100x150" because that is what `paper_name_token` and
+# "100x150mm-…-Portrait" because that is what `paper_name_token` and
 # `_paper_name_and_orientation` produce for a custom size, and the name becomes
 # a folder, a file stem and the "Chart layout" line stamped on the sheet. A
 # name that disagreed with the one the app generates for the same sheet would
 # be the inconsistency, not this.
+#
+# THE TWO NAMES CHANGED ON 2026-09-11, and this is the reason they had to. They
+# read "i1Pro-100x150-600p-4pages" and "i1Pro-130x180-648p-3pages" until Knut
+# corrected the generator twice in two days: the size carries its unit ("you
+# forgot the mm in the custom paper size in the name, as used in the presets
+# given"), and the orientation is worked out from the two numbers. 100 < 150 and
+# 130 < 180, so both sheets are Portrait. The generator is the rule; these rows
+# follow it, as the paragraph above says they must.
 #
 # NO COLOUR-SET NAME, unlike every other row in this family. They are two
 # DIFFERENT sets (only 256 device values in common, and different neutral
@@ -361,8 +370,9 @@ PREBUILT_PRESET_NOTES[PHOTOCARD648_PRESET_KEY] = \
 # The default target name follows the sortable convention (#68):
 # <instrument>-<paper>-<patches>p-<pages>pages-<set name>. Orientation isn't
 # stored for these pre-rendered charts, so it's omitted (the colour-set name is
-# the "additional text" tail). It's only the prompt's suggested default — the
-# user can edit it freely.
+# the "additional text" tail) — EXCEPT on a custom paper size, where the two
+# numbers ARE the orientation and Knut's rule of 2026-09-10/11 reads it off
+# them. It's only the prompt's suggested default — the user can edit it freely.
 PREBUILT_PRESETS = {
     ABW1110_PRESET_KEY:        ("assets/charts/pharmacist/rgb/i1pro/a4/abw1110/abw1110",        "i1Pro-A4-1110p-2pages-ABW-optimized by Pharmacist"),
     TC918EG_A4_PRESET_KEY:     ("assets/charts/pharmacist/rgb/i1pro/a4/tc918eg/tc918eg",        "i1Pro-A4-1160p-2pages-TC9.18 extended greys by Pharmacist"),
@@ -373,8 +383,8 @@ PREBUILT_PRESETS = {
     TC918EG_CM_A3_PRESET_KEY:  ("assets/charts/pharmacist/rgb/colormunki/a3plus/tc918eg/tc918eg", "ColorMunki-A3+-1160p-1page-TC9.18 extended greys by Pharmacist"),
     EXT1944_A4_PRESET_KEY:     ("assets/charts/pharmacist/rgb/i1pro/a4/extended1944/extended1944",     "i1Pro-A4-1944p-3pages-extended target by Pharmacist"),
     EXT1944_LETTER_PRESET_KEY: ("assets/charts/pharmacist/rgb/i1pro/letter/extended1944/extended1944", "i1Pro-Letter-1944p-3pages-extended target by Pharmacist"),
-    PHOTOCARD600_PRESET_KEY:   ("assets/charts/pharmacist/rgb/i1pro/100x150/photocard600/photocard600", "i1Pro-100x150-600p-4pages by Pharmacist"),
-    PHOTOCARD648_PRESET_KEY:   ("assets/charts/pharmacist/rgb/i1pro/130x180/photocard648/photocard648", "i1Pro-130x180-648p-3pages by Pharmacist"),
+    PHOTOCARD600_PRESET_KEY:   ("assets/charts/pharmacist/rgb/i1pro/100x150/photocard600/photocard600", "i1Pro-100x150mm-600p-4pages-Portrait by Pharmacist"),
+    PHOTOCARD648_PRESET_KEY:   ("assets/charts/pharmacist/rgb/i1pro/130x180/photocard648/photocard648", "i1Pro-130x180mm-648p-3pages-Portrait by Pharmacist"),
 }
 
 #: Paper folders whose name is not a printtarg ``-p`` code, mapped to one.
@@ -2557,6 +2567,20 @@ def builtin_recipe_choices() -> dict[str, dict]:
 # deleting its wiring, so it keeps its constant, its `disabled=` plumbing and
 # its selection guard.
 DISABLED_BUILTIN_PRESET_KEYS: frozenset = frozenset()
+
+#: "Use a fixed seed" as every BUILT-IN preset leaves it: OFF.
+#:
+#: Knut, 2026-09-11: *"All the built in presets should have 'Use a fixed seed'
+#: OFF as default when loaded. We would like NOT to do this manually for all
+#: presets. All seed numbers stored in the presets should be as they are
+#: today."* So it is one constant applied by code at selection, not a key
+#: hand-added to 154 bundled definitions: a built-in added next week inherits it
+#: with nothing to remember, and no seed number anywhere is rewritten.
+#:
+#: A USER preset is untouched by this. It is the built-ins that are shared
+#: layouts rather than one person's chart, and `PresetStore.set` already drops
+#: both the seed and the tag from a preset the user saves.
+BUILTIN_PRESET_SEED_FIXED = False
 
 # Every built-in (non-deletable) preset key — all four are prebuilt-files. Used
 # to protect them from the delete button and to keep disk presets from shadowing
@@ -9237,6 +9261,20 @@ class TabChart(QWidget):
                             log.error("Create Chart: putting the tab back after "
                                       "a refused preset failed", exc_info=True)
                     return
+                # EVERY BUILT-IN LEAVES "Use a fixed seed" OFF, WHICHEVER
+                # BRANCH APPLIED IT. The four dispatches above hand the layout
+                # panel very different things: the engine-recipe presets give it
+                # a whole recipe (already carrying the tag, see
+                # `BUILTIN_PRESET_SEED_FIXED`), while the "by Pharmacist"
+                # prebuilt-file presets, the TC9.18 built-in and the ColorMunki
+                # triple-density ones hand it nothing at all — so the box simply
+                # kept whatever the previous chart had left in it. Driven on
+                # screen 2026-09-11 with the box ticked and 31337 in it: the
+                # eleven prebuilt-file presets all came up still ticked, still
+                # on 31337, and the recipe their next Generate would use said
+                # `seed_fixed=True`. One line here, after the dispatch, covers
+                # all four. The seed NUMBER is deliberately left alone.
+                self._set_builtin_fixed_seed_off()
                 # Final lock pass: covers the params-based ColorMunki presets (which
                 # set no ti1/prebuilt flag, so their panels stay fully editable) and
                 # re-asserts state after leaving a previous tc918/knut preset.
@@ -9507,24 +9545,22 @@ class TabChart(QWidget):
         ``"A4R"`` → ``("A4", "Landscape")``.
 
         A CUSTOM SIZE HAS NO ORIENTATION OF ITS OWN, SO IT IS READ OFF THE TWO
-        NUMBERS. Knut, 2026-09-10: *"we can automatically detect 'Portrait' or
-        'Landscape' and add that to the name. If first parameter, which is the
-        page width, is smaller than the second parameter, which is the height,
-        then we have Portrait. If opposite, width larger than height, then we
-        have Landscape."* That is arithmetic on the pair, not a stored flag,
-        which is why it lives here rather than in the paper table.
-
-        A SQUARE SHEET GETS NEITHER WORD. He ruled on the two inequalities and
-        said nothing about equality, and a square page genuinely is neither
-        portrait nor landscape: calling it one of them would put a word in the
-        name that the sheet does not have. So the size token is the whole
-        answer, exactly as it is for a paper the table has no orientation for.
-        (Open question for him; nothing else in the app depends on it.)
+        NUMBERS, and it carries its unit. Knut, 2026-09-10: *"we can
+        automatically detect 'Portrait' or 'Landscape' and add that to the name.
+        If first parameter, which is the page width, is smaller than the second
+        parameter, which is the height, then we have Portrait. If opposite,
+        width larger than height, then we have Landscape."* And 2026-09-11:
+        *"when both Custom size boxes are the same, say 'Square' instead of
+        Portrait or Landscape"*, plus *"you forgot the mm in the custom paper
+        size in the name"*. The word is arithmetic on the pair, not a stored
+        flag, and both halves now come from :mod:`data.patch_db` so the patch-set
+        editor's own name generator cannot answer either question differently.
         """
         label = PAPER_LABELS.get(paper, "")
+        # Filesystem-safe readable token: A3+ → A3Plus, 8×10" → 8x10in (#68),
+        # and a custom millimetre pair → 100x150mm (Knut, 2026-09-11).
+        base = paper_name_token(str(paper))
         if label:
-            # Filesystem-safe readable token (A3+ → A3Plus, 8×10" → 8x10in) (#68).
-            base = paper_name_token(paper)
             orient = ("Landscape" if "Landscape" in label
                       else "Portrait" if "Portrait" in label else "")
             return base, orient
@@ -9532,11 +9568,9 @@ class TabChart(QWidget):
             try:
                 w, h = (float(v) for v in str(paper).split("x", 1))
             except ValueError:
-                return str(paper), ""
-            if w == h:
-                return str(paper), ""
-            return str(paper), ("Landscape" if w > h else "Portrait")
-        return str(paper), ""
+                return base, ""
+            return base, orientation_word(w, h)
+        return base, ""
 
     def comparable_presets(self) -> list[tuple[str, list[tuple[str, "Path"]]]]:
         """See the module-level :func:`comparable_presets` (#66)."""
@@ -9667,11 +9701,13 @@ class TabChart(QWidget):
             # Knut, 2026-09-10, asked for the rule to be implemented "and also
             # explain this in the help icon". This is that explanation, kept as
             # its own string so the paragraphs above keep their translations.
-            "On Custom paper the size you type is the paper part of the name, so "
-            "a 100 by 150 mm sheet reads “100x150”. ChromIQ works the orientation "
-            "out from the two numbers: a width smaller than the height is "
-            "Portrait, a width larger than the height is Landscape. A square page "
-            "gets neither word, because it is neither.")
+            # Reworded 2026-09-11 for his two corrections: the size carries its
+            # unit, and a square page is called Square.
+            "On Custom paper the size you type is the paper part of the name, in "
+            "millimetres, so a 100 by 150 mm sheet reads “100x150mm”. ChromIQ "
+            "works the orientation out from the two numbers: a width smaller than "
+            "the height is Portrait, a width larger than the height is Landscape, "
+            "and a page with two equal sides is Square.")
 
     @staticmethod
     def _profile_name_tooltip() -> str:
@@ -11214,12 +11250,29 @@ class TabChart(QWidget):
                 # preset lost its 25.8 mm patches the moment a CR30 was picked).
                 # Forced here rather than read from the file because none of the
                 # bundled dicts carries the key.
+                # A BUILT-IN PRESET CARRIES THE FIXED-SEED TAG, AND IT IS OFF.
+                # Knut, 2026-09-11: *"can you add programmatically this tag for
+                # all built in presets and define the 'Use a fixed seed' box as
+                # OFF? … We would like NOT to do this manually for all
+                # presets."* Forced here rather than written into 143 bundled
+                # dicts, so a preset added tomorrow gets it too — and forced
+                # rather than left to `seed_fixed=None`, which means "this
+                # recipe predates the tag" and falls back to reading the tick
+                # off `seed is not None`. None of the shipped dicts carries a
+                # seed today, so today the fallback happens to agree; one that
+                # did would silently tick the box, which is the fault he
+                # reported on 2026-09-10 arriving by another door.
+                # THE NUMBER IS NOT TOUCHED: `seed` is left exactly as the
+                # preset has it, per "all seed numbers stored in the presets
+                # should be as they are today".
                 recipe = (_replace(LayoutRecipe.from_dict(p.layout_recipe),
                                    label_style_explicit=True,
-                                   layout_explicit=True)
+                                   layout_explicit=True,
+                                   seed_fixed=BUILTIN_PRESET_SEED_FIXED)
                           if p.layout_recipe is not None
                           else _replace(self._fls_engine_recipe(p),
-                                        layout_explicit=True))
+                                        layout_explicit=True,
+                                        seed_fixed=BUILTIN_PRESET_SEED_FIXED))
                 self._set_engine_recipe(recipe)
                 self._manual_layout_panel.set_pages(p.pages)
             if self._bit16_radio is not None and self._bit8_radio is not None:
@@ -19357,6 +19410,27 @@ class TabChart(QWidget):
                 w.blockSignals(False)
         except Exception:      # noqa: BLE001
             log.debug("could not seed the helper-marker controls", exc_info=True)
+
+    def _set_builtin_fixed_seed_off(self) -> None:
+        """Leave "Use a fixed seed" OFF after a built-in preset was applied.
+
+        Knut, 2026-09-11: *"All the built in presets should have 'Use a fixed
+        seed' OFF as default when loaded."* See `BUILTIN_PRESET_SEED_FIXED` for
+        why it is a constant applied by code rather than a key written into
+        every bundled preset.
+
+        The seed NUMBER is not touched, and that is the whole reason this does
+        not simply call `set_recipe`: an engine preset's build reports the seed
+        it actually used into the (greyed) box, and his other sentence is *"All
+        seed numbers stored in the presets should be as they are today."*
+        """
+        panel = getattr(self, "_manual_layout_panel", None)
+        if panel is None or not hasattr(panel, "set_fixed_seed_tag"):
+            return
+        try:
+            panel.set_fixed_seed_tag(BUILTIN_PRESET_SEED_FIXED)
+        except Exception:      # noqa: BLE001 — never break a preset selection
+            log.debug("could not clear the fixed-seed tick", exc_info=True)
 
     def _set_engine_recipe(self, recipe) -> None:
         """Apply *recipe* to the Manual layout panel **and to the controls that
