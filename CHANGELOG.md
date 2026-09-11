@@ -1,5 +1,79 @@
 # Changelog
 
+## v4.3.0-beta.4
+
+**The Measurement Report becomes six reports behind one pulldown, and three of
+them are here.** Knut asked for report types with names a user can understand
+without being told; this is the first half of that, plus the licence page that
+should have arrived with the reference data.
+
+### New
+
+- **Report type, above "Judged against".** Six names, as approved: Colour
+  summary (one page), Full colour check, Grey and tone check, Printing record
+  (not graded), and below a rule, Validation print check (ISO 12647-8) and
+  Contract proof check (ISO 12647-7). Like the limit set, the type belongs to
+  the profile run, so every dated verification of a run produces the same kind
+  of document and the dates stay comparable. Another run in the project may
+  use a different one.
+
+  Choosing a type recalculates nothing. A limit set decides what a measurement
+  is judged against; a type decides which document is produced from numbers
+  that do not move.
+
+- **Full colour check is the report you already have, unchanged.** Every report
+  saved before this existed, and every run nobody has chosen for, opens exactly
+  as it does today. Nothing on disk was re-derived to make this work.
+
+- **Printing record (not graded)** sets down what was printed and measured and
+  judges none of it: the same figures, every judged row reading INFO, and a
+  paragraph in the report text saying why. A row nobody could measure still
+  reads N-A, because "we could not measure this" is not a judgement being
+  withheld. Nothing is written: switch back to Full colour check and the same
+  verdicts come back.
+
+- **Grey and tone check** is the neutral axis and the mid-tone ramps, on their
+  own, for deciding whether a printer is worth profiling. The colour rows are
+  left out rather than shown as not applicable, and the report's one word is
+  about the rows it shows.
+
+- **Preferences → Licences.** ChromIQ names everything it ships that somebody
+  else wrote, and on what terms. The reference data's rights holder is named
+  with their grant quoted in their own words, untranslated, because a
+  translated quotation of a grant is not that grant. ChromIQ's own licence and
+  the third-party notices now travel inside the build and can be read without
+  going online; until now neither was in the installer at all.
+
+- **The Report limits window says when your own limits file could not be
+  read.** A licence holder who points `CHROMIQ_COMPLIANCE_ISO_FILE` at a file
+  in the wrong shape used to see a window identical to having no file at all:
+  every cell reading "?", and nothing anywhere saying why. It now names the
+  rows it could not read, the names it did not recognise, and the path it was
+  looking at.
+
+### Fixed
+
+- **A report could say PASS having checked nothing.** When every row a limit
+  set puts a limit on was N-A, and each of those was a recommendation rather
+  than a requirement, the column summarised PASS under the sentence "Every
+  value this limit set requires was checked and is within its limit". It reads
+  N-A now and says which values the chart did not supply. Most often reached on
+  a chart with no 8-step grey ramp, which is most verification charts.
+
+- The "Show:" row of the Report limits window ran each column name into the
+  next tick box, so the row read as one long sentence with squares in it.
+
+- The two types ChromIQ cannot produce yet are shown and refused, with the
+  reason on each, rather than hidden. Their figures are published in a standard
+  ChromIQ may not include.
+
+### Also in this build
+
+Everything in 4.2.5: the Guided sheet takes its text-edge distance from the
+Chart Layout preference instead of a number in the code, the chart note is
+checked at 150 dpi as well, and the chartread answer is written into the two
+design documents that still asked it.
+
 ## v4.3.0-beta.3
 
 **Everything in 4.2.4, plus a second slice of the Measurement Report that is
