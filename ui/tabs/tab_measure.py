@@ -12968,11 +12968,17 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             # reports/old/ should say what it was as well as what it was judged
             # against, and a measurement outside a project has nowhere else to
             # keep it.
+            # STAMPED WHETHER OR NOT THERE IS A RUN, and it used to be
+            # gated on there being one. `_report_type_now` reads this stamp in
+            # exactly the OTHER case, when the measurement is in no project, so
+            # the writer was placed where nothing reads it and left out of the
+            # one case the commit message names. `run_report_type(None)`
+            # answers with today's report, which is what such a file renders
+            # as, so the record is true either way.
             from workflow.measurement_report import stamp_report_type
             from workflow.run_compliance import run_context_for
             _ctx = run_context_for(ti3)
-            if _ctx is not None:
-                stamp_report_type(report, _ctx.run)
+            stamp_report_type(report, _ctx.run if _ctx is not None else None)
             path = save_report(report, ti3.parent)
             self._log.appendPlainText(
                 tr("[Report] Measurement report saved: {name}").format(

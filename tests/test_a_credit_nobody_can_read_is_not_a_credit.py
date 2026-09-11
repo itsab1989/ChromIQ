@@ -262,3 +262,36 @@ def test_no_private_message_is_quoted_in_a_file_that_ships():
     para = text[i:i + 400]
     assert "Hopefully" not in para, "the private message is quoted again"
     assert "given in writing" in para, "the permission lost its provenance"
+
+
+def test_the_page_points_at_nothing_it_does_not_contain():
+    """A link into a section the page no longer renders.
+
+    Four of them, all inside kept sections, and the worst two mattered: one
+    stated a licence conflict and sent the reader to the resolution, which is
+    not on the page; another admitted missing dependency notices and pointed at
+    the list of open items, also not on the page. Clicking is harmless and the
+    reader is left with the problem and no answer.
+
+    MUTATION: put any `](#…)` link back into a kept section and this goes red.
+    """
+    import re
+    from ui.licences import notices_markdown
+    shown = notices_markdown()
+    dead = [m.group(0) for m in re.finditer(r"\]\(#[a-z0-9-]+\)", shown)]
+    assert not dead, (
+        f"the page links to sections it does not contain: {dead}")
+
+
+def test_the_page_does_not_end_on_a_rule():
+    """The last kept section is followed by the separator that divided it from
+    a section nobody renders, so the document closed on a horizontal line with
+    nothing under it.
+
+    MUTATION: stop trimming the trailing rule and this goes red.
+    """
+    from ui.licences import notices_markdown
+    shown = notices_markdown().rstrip()
+    assert shown, "nothing is rendered"
+    assert not shown.endswith("---"), "the page ends on a rule and no content"
+    assert not shown.endswith("*"), "the page ends mid-emphasis"

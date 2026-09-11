@@ -133,7 +133,7 @@ THE SOFTWARE.
 The minified bundle also embeds several MIT/BSD-licensed dependencies whose
 individual notices normally live in that missing sidecar. Regenerating the
 bundle should bring `plotly-gl3d.min.js.LICENSE.txt` with it; see
-[Still open](#still-open).
+"Still open" at the end of this file in the ChromIQ source tree.
 
 ---
 
@@ -159,7 +159,8 @@ licence travels with it.
 right to sell copies of *ChromIQ*; this file's own terms say it may not be sold.
 Those coexist only on the reading that a bundled data file is a §5 aggregate
 rather than part of the covered work — see
-[Aggregation](#a-word-on-gplv3-and-aggregation). It is the only such condition
+"A word on GPLv3 and aggregation" at the end of this file in the ChromIQ
+source tree. It is the only such condition
 ChromIQ carries, and it was a deliberate choice, not an oversight.
 
 ## Scanner target recognition files — `data/scanner_targets/`
@@ -218,7 +219,7 @@ Listed so the sweep is exhaustive and nobody has to re-derive it:
   `ChromIQ.spec` ships the whole `assets` tree, so 588 KB of unused source
   document is in every build. Dropping it from the bundle (not from the repo —
   it is the source for the clip-border artwork) would remove both the weight and
-  the stray copyright string. See [Still open](#still-open).
+  the stray copyright string. See "Still open" at the end of this file in the ChromIQ source tree.
 - **Help artwork** — `assets/help/workflow/*.svg` and
   `assets/help/example-workflow.pdf`: made for ChromIQ.
 - **Charts** — `assets/charts/` (331 files) and

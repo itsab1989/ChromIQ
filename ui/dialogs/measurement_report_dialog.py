@@ -2344,11 +2344,24 @@ class MeasurementReportDialog(QDialog):
 
     def _not_computed(self, r: dict) -> "list[tuple[str, str]]":
         """``[(row label, reason sentence)]`` for the rows of *r*'s verdict
-        that read N-A because the chart or the reference cannot supply them."""
-        from workflow.compliance_sets import N_A, ROW_BY_ID
+        that were not judged, and why.
+
+        N-A because the chart or the reference cannot supply them, AND INFO
+        with a recorded reason, which is a row that HAS a number nobody graded.
+        The second kind used to say why in a tooltip only: an adversarial round
+        drove a chart whose grey rows carried real numbers, both over their
+        limits, both ungraded because nobody recorded how the sheet was
+        printed, and the printed page said nothing about any of it.
+        """
+        from workflow.compliance_sets import INFO, N_A, ROW_BY_ID
         rows, _rec = self._verdict_rows(r)
         out = []
         for row in rows:
+            if row.get("word") == INFO and row.get("reason"):
+                rid = row.get("row_id") or row.get("key")
+                label = tr(ROW_BY_ID[rid].label) if rid in ROW_BY_ID else str(rid)
+                out.append((label, self._reason_sentence(row.get("reason"), r)))
+                continue
             if row.get("word") != N_A:
                 continue
             rid = row.get("row_id") or row.get("key")
@@ -3845,6 +3858,7 @@ class MeasurementReportDialog(QDialog):
         from PyQt6.QtGui import QCursor
         from workflow.measurement_report import (list_reports,
                                                  rewrite_report,
+                                                 stamp_report_type,
                                                  stamp_verdict)
         from workflow.run_compliance import run_limits
         lim = run_limits(ctx.run, self._overrides(), self._default_set_id())
@@ -3896,6 +3910,14 @@ class MeasurementReportDialog(QDialog):
                         continue
                     stamp_verdict(rep, lim.limits, set_id=lim.set_id,
                                   set_label=lim.label_en, edited=lim.edited)
+                    # …AND THE TYPE, which the verdict beside it was already
+                    # getting. A recalculation rewrote every saved report with
+                    # the run's current limits and left them claiming the type
+                    # the run held when they were first saved, so the record
+                    # said one thing and the run another. Driven by an
+                    # adversarial round on three dated verifications, including
+                    # the copies archived into reports/old.
+                    stamp_report_type(rep, ctx.run)
                     try:
                         rewrite_report(path, rep)
                         _written += 1
@@ -4429,15 +4451,34 @@ class MeasurementReportDialog(QDialog):
         # fault again; a THIRD, `nothing_checked`, was found by an adversarial
         # round reading the saved PDFs back, so the question is asked of the
         # module that owns all of them rather than listed here.
+        # …AND THE CODE SAID "EVERY" WHILE PRINTING ONE. `next(...)` took the
+        # first column that needed a sentence and every other column went
+        # silent, which widening the rule from two reasons to three made more
+        # likely rather than less. Driven with three columns: a profiling sheet
+        # and two dated verifications, all as a Printing record. Only the
+        # profiling sheet's sentence printed, so the document told the reader
+        # its verification sheets were "measured to build a profile rather than
+        # to check one" — the sentence `record_type` exists because that would
+        # be false. On a Grey and tone check the two columns read a bare N-A
+        # with no explanation anywhere, which is the fault the footnote was
+        # added to fix.
+        #
+        # Every DISTINCT sentence now, in column order. Distinct, because three
+        # columns of the same kind need it said once.
         from workflow.compliance_sets import reason_needs_the_footnote
-        _ungraded = next(
-            (self._column_summary(r) for r in runs
-             if not _is_raw_drift(r)
-             and reason_needs_the_footnote(self._column_summary(r).reason)),
-            None)
-        if _ungraded is not None:
+        _said: "list[str]" = []
+        for r in runs:
+            if _is_raw_drift(r):
+                continue
+            sm = self._column_summary(r)
+            if not reason_needs_the_footnote(sm.reason):
+                continue
+            line = summary_text(sm)
+            if line not in _said:
+                _said.append(line)
+        for line in _said:
             notes += (f"<div style='{note_css}'>"
-                      + html.escape(summary_text(_ungraded)) + "</div>")
+                      + html.escape(line) + "</div>")
         # D25: what was not computed, and why, repeated in the report text.
         seen: dict = {}
         for r in runs:

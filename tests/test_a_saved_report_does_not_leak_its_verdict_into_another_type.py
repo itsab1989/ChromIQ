@@ -33,6 +33,48 @@ from workflow.measurement_report import (REPORT_TYPE_FULL,  # noqa: E402
                                          rows_for_report_type)
 
 
+#: A measurement WITH a nine-step grey ramp, which is what makes the grey rows
+#: carry numbers. The shared `_PATCHES` fixture has no ramp, so on it the grey
+#: rows read N-A and the whole "a number nobody graded" case is invisible,
+#: which is how it reached a release branch.
+_GREY_HDR = """CTI3
+
+DESCRIPTOR "Argyll Calibration Target chart information 3"
+KEYWORD "DEVICE_CLASS"
+DEVICE_CLASS "OUTPUT"
+COLOR_REP "RGB_XYZ"
+
+NUMBER_OF_FIELDS 7
+BEGIN_DATA_FORMAT
+SAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z
+END_DATA_FORMAT
+
+NUMBER_OF_SETS {n}
+BEGIN_DATA
+{rows}
+END_DATA
+"""
+
+
+def _grey_ramp_ti3() -> str:
+    rows, i = [], 0
+    for step in range(9):
+        g = step * 100.0 / 8.0
+        i += 1
+        y = 0.05 + 0.9 * (g / 100.0) ** 2.2
+        # a deliberate tint, so grey balance is neither zero nor absent
+        rows.append(f"{i} {g:.4f} {g:.4f} {g:.4f} "
+                    f"{y * 0.98:.4f} {y:.4f} {y * 1.02:.4f}")
+    for r in (0, 50, 100):
+        for g in (0, 50, 100):
+            for b in (0, 50, 100):
+                i += 1
+                y = 0.2 + 0.006 * (r + g + b)
+                rows.append(f"{i} {r:.4f} {g:.4f} {b:.4f} "
+                            f"{y * 0.95:.4f} {y:.4f} {y * 1.08:.4f}")
+    return _GREY_HDR.format(n=len(rows), rows="\n".join(rows))
+
+
 def _saved(tmp_path, qapp):
     """A run with a dated verification AND a saved report, as the app makes one."""
     from tests.test_import_measurement_module import _cgats, _PATCHES, _verify_env
@@ -216,5 +258,115 @@ def test_the_column_counts_rows_that_carry_a_LIMIT(tmp_path, qapp):
         assert sm.total == bearing, (
             f"total={sm.total} over {len(rows)} rows, {bearing} of which carry "
             f"a limit")
+    finally:
+        dlg.close()
+
+
+# ---------------------------------------------------------------------------
+# …and "nothing was checked" has TWO causes, which one sentence answered as one
+# ---------------------------------------------------------------------------
+def test_a_chart_that_DID_supply_the_values_is_not_told_to_add_them(tmp_path,
+                                                                    qapp):
+    """A second adversarial round drove a chart WITH a nine-step grey ramp:
+    both grey rows carried real numbers, both over their limits, and both read
+    INFO because nobody recorded how the sheet was printed (CH-17). Nothing was
+    checked, and the sentence said the chart had supplied none of the values
+    and sent the reader to Create Chart to add patches that are already there.
+
+    MUTATION: use one sentence for both causes and this goes red.
+    """
+    from workflow.compliance_sets import (INFO, N_A, Limit, set_summary,
+                                          SUMMARY_REASONS)
+    v = Limit.value(1.5)
+    # every bearing row N-A: the chart really did supply nothing
+    missing = set_summary([(v, N_A), (v, N_A)], set_is_iso=False, graded=True)
+    assert missing.reason == SUMMARY_REASONS["nothing_checked"]
+    assert "add those patches" in missing.reason
+
+    # every bearing row INFO: the values are there and nobody graded them
+    ungraded = set_summary([(v, INFO), (v, INFO)], set_is_iso=False, graded=True)
+    assert ungraded.word == N_A
+    assert ungraded.reason == SUMMARY_REASONS["nothing_graded"], ungraded.reason
+    assert "supplied none" not in ungraded.reason
+    assert "Create Chart" not in ungraded.reason
+
+    # …and a mixture is not told the chart supplied nothing either
+    mixed = set_summary([(v, N_A), (v, INFO)], set_is_iso=False, graded=True)
+    assert mixed.reason == SUMMARY_REASONS["nothing_graded"]
+
+
+def test_a_row_with_a_number_nobody_graded_says_why_on_paper(tmp_path, qapp):
+    """The note under the table listed N-A rows only, so a row that HAS a
+    number and was not judged said why in a tooltip and nowhere else.
+
+    MUTATION: list only the N-A rows again and this goes red.
+    """
+    from tests.test_import_measurement_module import _verify_env
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    from workflow.compliance_sets import INFO
+    s, _fm, _ctl, run = _verify_env(tmp_path)
+    v = run.new_verification()
+    v.ensure_dir()
+    v.measurement_ti3.write_text(_grey_ramp_ti3(), encoding="utf-8")
+    dlg = MeasurementReportDialog(s, None, initial_ti3=v.measurement_ti3)
+    dlg.show()
+    qapp.processEvents()
+    try:
+        from workflow.run_compliance import set_run_report_type
+        set_run_report_type(run, REPORT_TYPE_RECORD)
+        dlg._forget_limits()
+        dlg._sync_limit_controls()
+        reps = dlg._runs_for_report()
+        rows, _rc = dlg._verdict_rows(reps[0])
+        with_reason = [x for x in rows
+                       if x.get("word") == INFO and x.get("reason")]
+        assert with_reason, (
+            "this chart has no ungraded row with a reason, so the case is not "
+            "exercised; `_grey_ramp_ti3` is supposed to produce two")
+        listed = {label for label, _why in dlg._not_computed(reps[0])}
+        from workflow.compliance_sets import ROW_BY_ID
+        for x in with_reason:
+            rid = x.get("row_id") or x.get("key")
+            if rid in ROW_BY_ID:
+                from core.i18n import tr
+                assert tr(ROW_BY_ID[rid].label) in listed, (
+                    f"{rid} has a number nobody graded and the page never "
+                    f"says why")
+    finally:
+        dlg.close()
+
+
+def test_a_recalculation_re_stamps_the_TYPE_as_well_as_the_verdict(tmp_path,
+                                                                   qapp):
+    """Unlocking a run's limits rewrites every saved report with the run's
+    current numbers. It left them claiming the type the run held when they
+    were first saved, so the record said one thing and the run another.
+
+    MUTATION: drop the `stamp_report_type` call from `_recalculate_run` and
+    this goes red.
+    """
+    import json
+    from workflow.measurement_report import report_type
+    from workflow.run_compliance import set_run_report_type
+    dlg, run, path = _saved(tmp_path, qapp)
+    try:
+        # the report was saved without a type, as an older build's would be
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        doc.pop("report_type", None)
+        path.write_text(json.dumps(doc), encoding="utf-8")
+        assert report_type(json.loads(path.read_text(encoding="utf-8"))) \
+            == REPORT_TYPE_FULL
+
+        set_run_report_type(run, REPORT_TYPE_RECORD)
+        dlg._forget_limits()
+        dlg._sync_limit_controls()
+        dlg._recalculate_run()
+        qapp.processEvents()
+
+        after = json.loads(path.read_text(encoding="utf-8"))
+        assert after.get("report_type") == REPORT_TYPE_RECORD, (
+            "the recalculation rewrote the verdict and left the type saying "
+            "what the run no longer says")
+        assert after.get("schema") == 7, "the schema moved"
     finally:
         dlg.close()

@@ -121,7 +121,13 @@ def notices_markdown() -> str:
             keep = _section_name(line) in NOTICE_SECTIONS
         if keep:
             out.append(line)
-    return "".join(out)
+    # A PAGE MUST NOT END ON A RULE. The last kept section is followed by the
+    # `---` that separated it from a section nobody renders, so the document
+    # closed on a horizontal line with nothing under it.
+    text = "".join(out).rstrip()
+    while text.endswith("---"):
+        text = text[:-3].rstrip()
+    return text + "\n"
 
 
 def reference_data_credits() -> "list[str]":

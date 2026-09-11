@@ -821,6 +821,17 @@ SUMMARY_REASONS: "dict[str, str]" = {
                        "puts a limit on, so there is nothing to judge. The "
                        "rows above say what is missing; add those patches to "
                        "the chart in Create Chart to have them checked.",
+    # …AND "NOTHING WAS CHECKED" HAS TWO CAUSES, WHICH THE FIRST SENTENCE
+    # ANSWERED AS ONE. An adversarial round drove a chart WITH a nine-step grey
+    # ramp: both grey rows carried real numbers, both over their limits, and
+    # both read INFO because nobody recorded how the sheet was printed (CH-17).
+    # Nothing was checked, and the chart had supplied every value, so the
+    # sentence above was simply untrue and sent the reader to Create Chart to
+    # add patches that are already there.
+    "nothing_graded": "None of the values this limit set puts a limit on was "
+                      "graded on this sheet, so there is nothing to judge. "
+                      "The rows above show what was measured, and the note "
+                      "below says why each was left ungraded.",
     "fail": "{failed} of {checked} values checked are over this limit set's limits.",
     "iso": "{checked} of {total} values checked, all within this limit set's "
            "values. This limit set holds a standard's published values applied "
@@ -870,7 +881,8 @@ def is_ungraded_reason(reason: str) -> bool:
 #:
 #: A graded column's ordinary sentence ("5 of 7 values checked…") is not here
 #: on purpose: its numbers are the table the reader is already looking at.
-_FOOTNOTE_REASONS = ("not_graded", "record_type", "nothing_checked")
+_FOOTNOTE_REASONS = ("not_graded", "record_type", "nothing_checked",
+                     "nothing_graded")
 
 
 def reason_needs_the_footnote(reason: str) -> bool:
@@ -915,12 +927,17 @@ def set_summary(rows: "list[tuple[Limit, str | None]]", *, set_is_iso: bool,
     if total == 0:
         return Summary(N_A, 0, 0, 0, 0, 0, R["empty"])
     if checked == 0:
+        # WHICH of the two: did the chart supply nothing, or was nothing
+        # graded? `not_computed` counts the bearing rows that read N-A, which
+        # is exactly "the chart could not supply this".
         # A verdict is a statement about measured values. With none of them
         # measured there is no statement to make, and PASS would be a claim
         # about a chart nobody checked. N-A is what the five words already use
         # for "not computed", and the clause above it, "no limit-bearing row",
         # is the same idea one step earlier.
-        return Summary(N_A, 0, total, 0, cond, not_computed, R["nothing_checked"])
+        return Summary(N_A, 0, total, 0, cond, not_computed,
+                       R["nothing_checked"] if not_computed == total
+                       else R["nothing_graded"])
     if failed:
         return Summary(FAIL, checked, total, failed, cond, not_computed, R["fail"])
     required_missing = sum(1 for lim, w in bearing

@@ -154,3 +154,78 @@ def test_a_duplicated_run_is_verified_the_same_way(tmp_path):
     set_run_report_type(src, REPORT_TYPE_SUMMARY)
     dup = proj.duplicate_run(src)
     assert run_report_type(dup) == REPORT_TYPE_SUMMARY
+
+
+# ---------------------------------------------------------------------------
+# …and something has to WRITE it
+# ---------------------------------------------------------------------------
+def test_the_writer_has_a_caller_at_all():
+    """THE WHOLE FEATURE WAS BUILT AND NEVER CALLED. Storage, a strict writer,
+    a forgiving reader and four proven mutations landed in one commit, and an
+    adversarial round grepped for the writer and found only its own tests, so
+    eleven saved reports carried no type at all.
+
+    MUTATION: delete the call in `tab_measure` and this goes red.
+    """
+    import pathlib
+    root = pathlib.Path(__file__).resolve().parent.parent
+    # BOTH paths that write a report, named. "Somebody calls it" is not the
+    # rule: the recalculate path alone would satisfy that while every report
+    # saved at measurement time carried nothing, and the two together are what
+    # keeps a run's files agreeing with the run.
+    required = {
+        "ui/tabs/tab_measure.py": "the report saved after a measurement",
+        "ui/dialogs/measurement_report_dialog.py":
+            "the reports rewritten when a run's limits are unlocked",
+    }
+    for rel, what in required.items():
+        src = (root / rel).read_text(encoding="utf-8")
+        assert "stamp_report_type(" in src, (
+            f"{rel} does not stamp the type, so {what} records none")
+
+    # …AND THE SAVE PATH MAY NOT SKIP THE CASE THE READER CARES ABOUT. The
+    # writer was gated on the measurement being IN a run, while the reader
+    # consults the stamp only when it is NOT: placed in the two halves that
+    # never meet. This reads the source rather than the behaviour because
+    # `_maybe_save_measurement_report` needs a whole Measure tab; the
+    # behavioural half is the on-screen driver, `d06_saved_report_types.py`.
+    tm = (root / "ui/tabs/tab_measure.py").read_text(encoding="utf-8")
+    i = tm.index("stamp_report_type(")
+    j = tm.rindex("_ctx = run_context_for", 0, i)
+    between = tm[j:i]
+    assert "if _ctx is not None" not in between, (
+        "the save path stamps only when the measurement is in a run, which is "
+        "the one case the reader never asks about")
+
+
+def test_a_measurement_in_no_project_still_records_its_type(tmp_path):
+    """The case the docstring names, and the one the call site used to skip.
+
+    The writer was gated on the measurement being IN a run, and the reader
+    consults the report's stamp only when it is NOT, so the two were placed in
+    the two halves that never meet. `run_report_type(None)` answers with
+    today's report, which is what such a file renders as, so the record is
+    true either way.
+
+    MUTATION: gate the call on `run_context_for(...) is not None` and this
+    goes red.
+    """
+    from workflow.measurement_report import stamp_report_type
+    rep: dict = {}
+    stamp_report_type(rep, None)
+    assert report_type(rep) == REPORT_TYPE_FULL
+    assert rep.get("report_type") == REPORT_TYPE_FULL, \
+        "a measurement in no project recorded nothing at all"
+
+
+def test_stamping_never_raises_and_never_stops_a_report(tmp_path):
+    """A report that cannot be stamped is still a report."""
+    from workflow.measurement_report import stamp_report_type
+
+    class Broken:
+        def load_meta(self):
+            raise OSError("no")
+
+    rep: dict = {"schema": REPORT_SCHEMA}
+    stamp_report_type(rep, Broken())
+    assert report_type(rep) == REPORT_TYPE_FULL
