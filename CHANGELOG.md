@@ -2,10 +2,10 @@
 
 ## v4.3.0-beta.4
 
-**The Measurement Report becomes six reports behind one pulldown, and three of
+**The Measurement Report becomes six reports behind one pulldown, and four of
 them are here.** Knut asked for report types with names a user can understand
-without being told; this is the first half of that, plus the licence page that
-should have arrived with the reference data.
+without being told; this is that, plus the licence page that should have
+arrived with the reference data.
 
 ### New
 
@@ -37,6 +37,21 @@ should have arrived with the reference data.
   left out rather than shown as not applicable, and the report's one word is
   about the rows it shows.
 
+- **Colour summary (one page)** is the document you hand to a customer, and it
+  is written as one rather than being the full report with rows taken out. It
+  names the run in the words you described it in, gives the one verdict and the
+  figures behind it, and then SHOWS the colour: sixteen patches picked from the
+  chart that was measured, spread across what this printer can make, with what
+  the chart asked for beside what came back, and the eight cube corners the
+  same way. It ends by saying what ChromIQ does not do, which is certify.
+
+- **A run may hold reports of several types, and the window says which it has.**
+  Knut asked for both. Choosing a type from the pulldown changes the document on
+  screen and nothing on disk; **Generate report** writes one of the type now
+  chosen. The line under the pulldown lists the types this run has already
+  produced, before it explains the one you are pointing at. Two reports asked
+  for in the same second no longer overwrite each other.
+
 - **Preferences → Licences.** ChromIQ names everything it ships that somebody
   else wrote, and on what terms. The reference data's rights holder is named
   with their grant quoted in their own words, untranslated, because a
@@ -66,6 +81,10 @@ should have arrived with the reference data.
 - The two types ChromIQ cannot produce yet are shown and refused, with the
   reason on each, rather than hidden. Their figures are published in a standard
   ChromIQ may not include.
+
+- The one-page summary's two columns of swatches ran together: "Asked for" read
+  into "Measured" as one word, and the two blocks of colour under them as one
+  block. Photographed on screen, in a real window.
 
 ### Also in this build
 
