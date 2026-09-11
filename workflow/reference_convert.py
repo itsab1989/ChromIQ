@@ -439,19 +439,203 @@ def _cxf_measured_date(root, meas) -> "str | None":
     return None
 
 
-# An XYZ column whose largest value across the whole patch set is no more than
-# this is on the 0..1 reflectance-factor scale, not ArgyllCMS's 0..100. Every
-# reflective chart contains its own paper white, so the peak of a correctly
-# scaled file lands near 100 and the two bands cannot be confused. The same
-# shape of test txt2ti3 itself applies to the device and spectral columns
-# (profile/txt2ti3.c ~L678 and ~L715); CIE is the one it does not check.
+# ---------------------------------------------------------------------------
+# Which scale are a .ti3's XYZ columns on?
+#
+# THE MAGNITUDE OF A NUMBER IS NOT AN ANSWER, IT IS ONLY A QUESTION. An XYZ
+# column on i1Profiler's 0..1 reflectance-factor scale and one on ArgyllCMS's
+# 0..100 scale are two orders of magnitude apart, and the first version of this
+# read that apart on the peak alone: "peak at or below 1.5 means a hundredfold
+# small". Measured with the real txt2ti3 on 2026-09-11, that RUINS a correct
+# measurement of a chart with no light patch in it — a rich-black / Dmax set,
+# which ChromIQ's own generators build (patch_generators_nd.rich_black_ramp):
+# its peak is 1.3068 on the scale ArgyllCMS means, the rescale multiplies every
+# correct number by 100, and the file is destroyed in place.
+#
+# So a verdict now needs a WITNESS, and a file that carries none is left
+# exactly as it is. Two witnesses exist, and the first that applies decides:
+#
+#   1. THE BARE PAPER. A patch printed with no ink is the medium itself, and no
+#      printable medium is black: its Y cannot sit below L* 12.6 (Y 1.5). So a
+#      file whose no-ink patch is also its lightest patch, and reads at or below
+#      1.5, is on the wrong scale and there is nothing else it could be. This is
+#      the whole of the reporting user's case — her 4,000-patch chart's paper
+#      white came through as XYZ 0.87254 0.88577 0.86923.
+#
+#   2. THE SPECTRAL COLUMNS, WHEN THEY CAN BE TRUSTED, for a partial
+#      measurement that holds no paper patch at all. See _SPECTRAL_TRUSTED_MAX.
+#
+# Emissive and input measurements are outside both arguments (a display really
+# can be dim, and "no ink" means nothing), so only DEVICE_CLASS "OUTPUT" is
+# judged at all.
+# ---------------------------------------------------------------------------
+
+#: The band a 0..1-scale XYZ column lives in. A reflectance factor cannot
+#: exceed ~1.1, so nothing on that scale is above this; it is the outer gate,
+#: never the verdict.
 _CIE_UNSCALED_CEILING = 1.5
+
+#: How far below the file's lightest patch the no-ink patch may read and still
+#: be believed to BE the lightest one. Instrument noise between bare paper and
+#: a 99-%-white ink patch is far inside 3 %; a chart with no paper in it misses
+#: by orders of magnitude, not by this.
+_PAPER_IS_THE_LIGHTEST = 0.97
+
+#: A spectral column above this (percent reflectance) did not come off an
+#: instrument. txt2ti3 guesses the spectral scale the same way this module used
+#: to guess the CIE one (``profile/txt2ti3.c`` ~L714: ``if (maxv < 10.0)
+#: spec_scale = 100.0``), so on a dark chart whose export was already in percent
+#: it multiplies a correct 1.2 % into 120 %. Everything txt2ti3 can write is
+#: either at or below ~110 (a genuine percent file, or a 0..1 file correctly
+#: lifted) or the product of that misfire. At or below this the spectral columns
+#: ARE on the percent scale and can arbitrate; above it they cannot, and the
+#: silence is the point — that is the one case where a spectral consistency
+#: check is not merely no better than a threshold but wrong in the same
+#: direction, and it is why the paper is asked first.
+_SPECTRAL_TRUSTED_MAX = 110.0
+
+#: The ratio between a patch's spectral reading and its XYZ_Y that says the two
+#: are a hundred apart rather than the same number. Nothing in between is read
+#: as anything: a neutral patch's mean reflectance and its Y differ by a few
+#: per cent, a saturated one by a factor of a few, never by twenty.
+_SPECTRAL_RATIO_BAND = (20.0, 500.0)
+
+
+def _keyword(lines: "list[str]", name: str) -> str:
+    """A CGATS keyword's value, unquoted, or ``""``."""
+    pat = re.compile(rf'^\s*{name}\s+"?(.*?)"?\s*$', re.IGNORECASE)
+    for ln in lines:
+        m = pat.match(ln)
+        if m:
+            return m.group(1).strip()
+        if ln.strip() == "BEGIN_DATA_FORMAT":
+            break
+    return ""
+
+
+def _no_ink_columns(fields: "list[str]") -> "tuple[list[int], bool]":
+    """(*device column indexes*, *no-ink is the MAXIMUM*) or ``([], False)``.
+
+    ``txt2ti3`` writes either ``RGB_*`` or ``CMYK_*`` on the 0..100 scale
+    (``profile/txt2ti3.c`` L624/L644). Bare paper is RGB 100/100/100 and CMYK
+    0/0/0/0 — the same patch, spelled at opposite ends.
+    """
+    for names, at_max in ((("RGB_R", "RGB_G", "RGB_B"), True),
+                          (("CMYK_C", "CMYK_M", "CMYK_Y", "CMYK_K"), False)):
+        if all(n in fields for n in names):
+            return [fields.index(n) for n in names], at_max
+    return [], False
+
+
+def _spectral_columns(fields: "list[str]") -> "list[int]":
+    return [i for i, f in enumerate(fields) if f.upper().startswith("SPEC_")]
+
+
+def _xyz_scale_verdict(lines: "list[str]", fields: "list[str]",
+                       body: "list[int]") -> "tuple[bool | None, float]":
+    """(*are the XYZ columns on the 0..1 scale?*, *the peak that was seen*).
+
+    ``None`` means NO VERDICT: unreadable, ragged, or a file that carries
+    neither witness. The single place the question is answered, so the reading
+    that warns and the rewrite that repairs can never disagree about a file.
+    """
+    if not all(f"XYZ_{c}" in fields for c in "XYZ"):
+        return None, 0.0
+    cols = [fields.index(f"XYZ_{c}") for c in "XYZ"]
+    y_col = cols[1]
+    dev_cols, no_ink_at_max = _no_ink_columns(fields)
+
+    peak = 0.0                 # largest |XYZ| anywhere — the outer gate
+    y_max = None               # the lightest patch
+    paper_y = None             # the lightest NO-INK patch
+    seen = False
+    for i in body:
+        parts = lines[i].split()
+        # ONE TOKEN PER FIELD, OR NOTHING IS DECIDED. Everything below works by
+        # column POSITION, so a row that does not hold every column must stop
+        # this dead rather than be indexed into (a short row) or have its
+        # columns silently read one place along (a long one).
+        if len(parts) != len(fields):
+            return None, 0.0
+        try:
+            peak = max(peak, *(abs(float(parts[c])) for c in cols))
+            y = float(parts[y_col])
+            dev = [float(parts[c]) for c in dev_cols]
+        except ValueError:
+            return None, 0.0   # not numbers: nothing can be said about them
+        y_max = y if y_max is None else max(y_max, y)
+        if dev_cols and (all(v >= 99.5 for v in dev) if no_ink_at_max
+                         else all(v <= 0.5 for v in dev)):
+            paper_y = y if paper_y is None else max(paper_y, y)
+        seen = True
+    if not seen:
+        return None, 0.0
+    if not 0.0 < peak <= _CIE_UNSCALED_CEILING:
+        return False, peak     # squarely on ArgyllCMS's scale
+    # In the band. Only a witness may turn that into an accusation.
+    if _keyword(lines, "DEVICE_CLASS").upper() != "OUTPUT":
+        return None, peak      # a display really can be this dim
+    if paper_y is not None:
+        return bool(y_max and paper_y >= y_max * _PAPER_IS_THE_LIGHTEST), peak
+    return _spectral_verdict(lines, fields, body, y_col), peak
+
+
+def _spectral_verdict(lines: "list[str]", fields: "list[str]",
+                      body: "list[int]", y_col: int) -> "bool | None":
+    """The second witness: the same patch's own reflectance curve.
+
+    Deliberately NOT a colorimetric integration. The question is whether two
+    numbers are the same or a hundred apart, and a row's mean reflectance
+    answers it without CIE weighting, numpy, or a second pass over the file's
+    illuminant. A full integration would be more precise about a number that
+    does not need precision, and this runs on every load of every measurement.
+    """
+    spec = _spectral_columns(fields)
+    if not spec:
+        return None
+    best_mean = -1.0
+    best_y = 0.0
+    spec_peak = 0.0
+    for i in body:
+        parts = lines[i].split()
+        try:
+            vals = [float(parts[c]) for c in spec]
+            y = float(parts[y_col])
+        except (ValueError, IndexError):
+            return None
+        spec_peak = max(spec_peak, max(vals))
+        mean = sum(vals) / len(vals)
+        if mean > best_mean:
+            best_mean, best_y = mean, y
+    if spec_peak > _SPECTRAL_TRUSTED_MAX:
+        return None            # txt2ti3 inflated them; they cannot arbitrate
+    if best_y <= 0.0 or best_mean <= 0.0:
+        return None
+    lo, hi = _SPECTRAL_RATIO_BAND
+    ratio = best_mean / best_y
+    return True if lo <= ratio <= hi else (False if ratio < lo else None)
+
+
+def _table(text: str) -> "tuple[list[str], list[str], list[int]] | None":
+    """(*lines*, *field names*, *row indexes*) of a CGATS file's first table."""
+    lines = text.splitlines()
+    try:
+        fmt_at = next(i for i, ln in enumerate(lines)
+                      if ln.strip() == "BEGIN_DATA_FORMAT")
+        fields = lines[fmt_at + 1].split()
+        data_at = next(i for i, ln in enumerate(lines)
+                       if ln.strip() == "BEGIN_DATA")
+        end_at = next(i for i, ln in enumerate(lines) if ln.strip() == "END_DATA")
+    except (StopIteration, IndexError):
+        return None
+    return lines, fields, [i for i in range(data_at + 1, end_at)
+                           if lines[i].strip()]
 
 
 def cie_columns_are_unscaled(ti3_path: "str | Path | None") -> bool:
     """Whether a ``.ti3`` ALREADY ON DISK carries CIE on the 0..1 scale.
 
-    THE REPAIR ABOVE GUARDS THE IMPORT, AND EVERY IMPORT ONLY. A measurement
+    THE REPAIR BELOW GUARDS THE IMPORT, AND EVERY IMPORT ONLY. A measurement
     converted before it existed is still sitting in the run folder, and nothing
     on the way from there to ``colprof`` looks at it again: reproduced on screen
     2026-09-11 with the reporting user's own export, converted the old way and
@@ -464,45 +648,22 @@ def cie_columns_are_unscaled(ti3_path: "str | Path | None") -> bool:
     that asks. Nothing is repaired behind the user's back, and nothing is
     refused, because a file the user has not asked us to change is theirs.
 
-    A pure text scan, not a parse, because this runs on every load of every
-    measurement: one pass for the three XYZ columns, no spectra, no numpy.
-    False for anything it cannot read, for Lab-only and spectral-only files
-    (neither can carry this fault) and for an empty table.
+    A text scan, not a parse, because this runs on every load of every
+    measurement. False for anything it cannot read, for Lab-only and
+    spectral-only files (neither can carry this fault), for an empty table, and
+    — the point of :func:`_xyz_scale_verdict` — for every file whose numbers
+    are small but which carries no witness that they are the wrong ones.
     """
     if ti3_path is None:
         return False
-    p = Path(ti3_path)
     try:
-        text = read_text(p, lenient=True)
+        text = read_text(Path(ti3_path), lenient=True)
     except OSError:
         return False
-    lines = text.splitlines()
-    try:
-        fmt_at = next(i for i, ln in enumerate(lines)
-                      if ln.strip() == "BEGIN_DATA_FORMAT")
-        fields = lines[fmt_at + 1].split()
-        data_at = next(i for i, ln in enumerate(lines)
-                       if ln.strip() == "BEGIN_DATA")
-        end_at = next(i for i, ln in enumerate(lines) if ln.strip() == "END_DATA")
-    except (StopIteration, IndexError):
+    t = _table(text)
+    if t is None:
         return False
-    if not all(f"XYZ_{c}" in fields for c in "XYZ"):
-        return False
-    cols = [fields.index(f"XYZ_{c}") for c in "XYZ"]
-    peak = 0.0
-    seen = False
-    for i in range(data_at + 1, end_at):
-        parts = lines[i].split()
-        if not parts:
-            continue
-        if len(parts) != len(fields):
-            return False
-        try:
-            peak = max(peak, *(abs(float(parts[c])) for c in cols))
-        except ValueError:
-            return False
-        seen = True
-    return seen and 0.0 < peak <= _CIE_UNSCALED_CEILING
+    return _xyz_scale_verdict(*t)[0] is True
 
 
 def repair_converted_cie(ti3_path: str | Path,
@@ -528,6 +689,13 @@ def repair_converted_cie(ti3_path: str | Path,
     simulation and every number in the measurement report are wrong, and nothing
     says so. The repair is a pure change of scale: the file's own measured
     values, on the scale ArgyllCMS means.
+
+    AND IT ONLY HAPPENS WHEN THE FILE ITSELF SAYS SO. Which scale the numbers
+    are on is decided by :func:`_xyz_scale_verdict`, on the bare-paper patch or
+    the spectral columns and never on the magnitude alone: a correct
+    measurement of a chart with no light patch in it lives in the same band as
+    a hundredfold-small one, and the first version of this rewrote such a file
+    and destroyed it. A file that carries no witness is left exactly as it is.
 
     AND WHERE THE EXPORT CARRIED NO CIE AT ALL, ``spec2cie`` IS RUN. An
     i1Profiler CGATS export of RGB + spectral is a complete measurement — it is
@@ -556,17 +724,10 @@ def repair_converted_cie(ti3_path: str | Path,
         text = read_text(p, lenient=True)
     except OSError:
         return ""
-    lines = text.splitlines()
-    try:
-        fmt_at = next(i for i, ln in enumerate(lines)
-                      if ln.strip() == "BEGIN_DATA_FORMAT")
-        fields = lines[fmt_at + 1].split()
-        data_at = next(i for i, ln in enumerate(lines) if ln.strip() == "BEGIN_DATA")
-        end_at = next(i for i, ln in enumerate(lines) if ln.strip() == "END_DATA")
-    except (StopIteration, IndexError):
+    t = _table(text)
+    if t is None:
         return ""
-
-    body = [i for i in range(data_at + 1, end_at) if lines[i].strip()]
+    lines, fields, body = t
     if not body:
         return ""
     if all(f"XYZ_{c}" in fields for c in "XYZ"):
@@ -578,22 +739,15 @@ def repair_converted_cie(ti3_path: str | Path,
 
 def _rescale_xyz_columns(p: Path, lines: list, fields: list,
                          body: "list[int]") -> str:
-    cols = [fields.index(f"XYZ_{c}") for c in "XYZ"]
-    peak = 0.0
-    for i in body:
-        parts = lines[i].split()
-        # ONE TOKEN PER FIELD, OR NOTHING IS TOUCHED. The rewrite below works by
-        # column POSITION, so a row that does not hold every column must stop it
-        # dead rather than be indexed into (a short row) or have its columns
-        # silently read one place along (a long one).
-        if len(parts) != len(fields):
-            return ""
-        try:
-            peak = max(peak, *(abs(float(parts[c])) for c in cols))
-        except ValueError:
-            return ""                  # not numbers: leave the file alone
-    if not 0.0 < peak <= _CIE_UNSCALED_CEILING:
+    """The rewrite, on EXACTLY the files :func:`cie_columns_are_unscaled` names.
+
+    One verdict, asked once, so the warning a user reads on a file and the
+    rewrite that lands on it can never be about different files.
+    """
+    unscaled, peak = _xyz_scale_verdict(lines, fields, body)
+    if unscaled is not True:
         return ""
+    cols = [fields.index(f"XYZ_{c}") for c in "XYZ"]
     for i in body:
         parts = lines[i].split()
         for c in cols:
