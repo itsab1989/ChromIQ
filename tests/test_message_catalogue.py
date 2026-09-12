@@ -143,6 +143,14 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # DONE was approved by Sebastian on 2026-08-10
                                  # (seen live: "messages were good").
                                  "M-IMPORT-MISMATCH", "M-IMPORT-DATE-TAKEN",
+                                 # 2026-09-12: an i1Profiler export of a chart
+                                 # i1Profiler did not generate carries no
+                                 # device values at all, so the patch-identity
+                                 # check has nothing to compare. ChromIQ pairs
+                                 # it by patch name and says plainly what it
+                                 # cannot check, rather than refusing a
+                                 # complete measurement of its own chart.
+                                 "M-IMPORT-DEVICE-FROM-CHART",
                                  # W5 rework after the same session: the old
                                  # text ignored the per-date chart snapshots.
                                  "M-CHART-VERIFY",

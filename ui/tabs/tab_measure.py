@@ -9928,7 +9928,24 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         chart = run.verify_chart_ti2 if run is not None else None
         if chart is not None and chart.exists():
             n = self._chart_patch_count(chart)
-            if n:
+            from workflow.measurement_state import sheet_patches
+            sheet = sheet_patches(chart)
+            if n and sheet and sheet != n:
+                # BOTH NUMBERS, WHERE THEY DIFFER. This box said "408 patches"
+                # while the chart preview two inches to the right of it said
+                # "420 patches", and the refusal window quoted the 408 at a
+                # user whose measurement held 420. The chart was DESIGNED with
+                # 408 and PRINTS 420, because its last strip is filled out, and
+                # a person reading the sheet reads what is on it.
+                parts.append(tr(
+                    "Before anything is filed, the measurement is checked "
+                    "patch for patch against this run's verification chart "
+                    "({name}). It was designed with {n} patches and prints "
+                    "{sheet} squares, because its last strip is filled out, so "
+                    "a measurement of the whole sheet holds {sheet}. A file "
+                    "that does not match is refused, and nothing changes."
+                ).format(name=chart.name, n=n, sheet=sheet))
+            elif n:
                 parts.append(tr(
                     "Before anything is filed, the measurement is checked "
                     "patch for patch against this run's verification chart "
@@ -9998,33 +10015,36 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._settings.set("import_measurement_dir", str(Path(path).parent))
         self._update_import_panel()
 
+    def _import_verdict(self, ti3: Path, ti2: Path):
+        """Judge this file against the verification chart, THROUGH THE ONE
+        RULE both import doors use (`workflow.measurement_import.assess`).
+
+        IT USED TO HAVE ITS OWN COPY OF THAT RULE, and the copy drifted twice
+        in two days. The profile-build door learned to read a spectral-only
+        i1Profiler export on 2026-09-11; this one still refused it with "No
+        device RGB columns" the next morning, about a user's complete
+        measurement of her own verification chart. It also counted the design
+        where it had to count the sheet, so her 420 readings of a 420-square
+        sheet were "a measurement of a different chart". Two doors, one rule,
+        or neither of them can be trusted.
+
+        The one thing this door still decides for itself is what to do with a
+        SHORT measurement: the profiling door files it (§I.10), and this one
+        refuses it, which is §I as shipped.
+        """
+        from workflow.measurement_import import assess
+        return assess(Path(ti3), Path(ti2))
+
     def _import_mismatch_reason(self, ti3: Path, ti2: Path) -> "str | None":
         """The plain-words reason this file must be refused, or None when it
-        really belongs to the chart. Patch counts first (the cheap, clear
-        check), then the patch-identity comparison the report itself uses."""
-        from workflow.ti3_analysis import Ti3ParseError, parse_ti3
-        try:
-            measured = parse_ti3(ti3)
-        except (Ti3ParseError, OSError) as exc:
-            return tr("the file could not be read as a measurement "
-                      "({error})").format(error=exc)
-        n_chart = self._chart_patch_count(ti2)
-        if n_chart is not None and measured.n_patches != n_chart:
+        really belongs to the chart."""
+        verdict = self._import_verdict(ti3, ti2)
+        if not verdict.ok:
+            return verdict.reason
+        if verdict.partial:
             return tr("the verification chart has {chart} patches, but this "
-                      "file holds {got} measurements").format(
-                          chart=n_chart, got=measured.n_patches)
-        from workflow.measurement_report import verify_patch_identity
-        identity = verify_patch_identity(measured, ti2)
-        if identity.get("verdict") == "mismatch":
-            return identity.get("reason") or tr(
-                "the measured colours do not agree with the chart's patches")
-        if not identity.get("checked"):
-            # An uncheckable identity is not a refusal — the report records the
-            # same state. Say so in the log rather than blocking the user.
-            self._log.appendPlainText("\n" + tr(
-                "[INFO] The patch-identity check could not run ({reason}) — "
-                "the import continues.").format(
-                    reason=identity.get("reason", "")))
+                      "file holds only {got} measurements").format(
+                          chart=verdict.n_chart, got=verdict.n_measured)
         return None
 
     def _show_import_refusal(self, message, **kw) -> None:
@@ -10043,6 +10063,31 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                                 order_message_box_buttons)
         fit_message_box_buttons(box)
         box.exec()
+
+    def _ask_import_question(self, message, go_label: str, **kw) -> bool:
+        """One of the IMPORT module's two-button windows. True = go ahead.
+
+        The same rule as `_show_import_refusal`: the **text** comes from §M and
+        this method writes no prose of its own. Cancel is the default, because
+        the question is only asked where ChromIQ cannot answer it itself.
+        """
+        from PyQt6.QtWidgets import QMessageBox
+        title, body = message.render(**kw)
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        go = box.addButton(go_label, QMessageBox.ButtonRole.AcceptRole)
+        cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+        # The platform's own order, which puts the confirming action last:
+        # `order_message_box_buttons` exists for the windows whose order the
+        # owner asked to change, and this is not one of them.
+        box.setDefaultButton(cancel)
+        from ui.widgets import fit_message_box_buttons
+        fit_message_box_buttons(box)
+        box.exec()
+        return box.clickedButton() is go
 
     def _on_import_measurement(self) -> None:
         """The whole import, through the same doors a native verification read
@@ -10101,10 +10146,55 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                     name=Path(path).name))
 
         # 2) Validate — before anything is filed.
-        reason = self._import_mismatch_reason(converted, run.verify_chart_ti2)
+        verdict = self._import_verdict(converted, run.verify_chart_ti2)
+        reason = (verdict.reason if not verdict.ok else
+                  tr("the verification chart has {chart} patches, but this "
+                     "file holds only {got} measurements").format(
+                         chart=verdict.n_chart, got=verdict.n_measured)
+                  if verdict.partial else "")
         if reason:
             self._show_import_refusal(M.M_IMPORT_MISMATCH, reason=reason)
             return
+
+        # 2a) A measurement with no device values of its own takes them from
+        #     the chart, on the CONVERTED COPY in the run's cache and never on
+        #     the user's file. It is done here, after the names have been
+        #     checked against the chart and before anything reads the copy as a
+        #     measurement — the other order would let `verify_patch_identity`
+        #     compare the chart's device values with a copy of themselves and
+        #     answer "verified" whatever had happened.
+        if verdict.device_from_chart:
+            #     AND THE PERSON IS ASKED FIRST, because this is the one thing
+            #     ChromIQ genuinely cannot check. The patch-identity check
+            #     compares device values and the file has none; the names all
+            #     belong to this chart, and another chart laid out the same way
+            #     would carry the same names. Only the person who printed the
+            #     sheet knows. §I.10's own principle: state the facts, leave
+            #     the judgement with them.
+            if not self._ask_import_question(
+                    M.M_IMPORT_DEVICE_FROM_CHART,
+                    tr("Import it"),
+                    count=verdict.n_measured,
+                    chart=run.verify_chart_ti2.name):
+                self._log.appendPlainText("\n" + tr(
+                    "[INFO] The import was cancelled. Nothing has been "
+                    "changed."))
+                return
+            from workflow.measurement_import import complete_from_chart
+            n = complete_from_chart(converted, run.verify_chart_ti2)
+            if not n:
+                self._show_import_refusal(M.M_IMPORT_MISMATCH, reason=tr(
+                    "this file carries no device values, and the chart's own "
+                    "values could not be read to supply them"))
+                return
+            self._log.appendPlainText("\n" + (tr(
+                "[OK] This measurement carries no device values, so ChromIQ "
+                "paired it with {chart} by patch name and took the device "
+                "value of the one patch from the chart.") if n == 1 else tr(
+                "[OK] This measurement carries no device values, so ChromIQ "
+                "paired it with {chart} by patch name and took the device "
+                "values of all {count} patches from the chart.")).format(
+                    chart=run.verify_chart_ti2.name, count=n))
 
         # 3) File it. The snapshot step is the same front door a native
         #    verification read uses: it creates the dated folder on "New

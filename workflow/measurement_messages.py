@@ -1018,6 +1018,52 @@ M_IMPORT_DONE = _m(
     "the imported measurement is already in place there.",
     approved=True)   # Sebastian, 2026-08-10: seen live, "messages were good"
 
+# --- PROPOSED: the import has to take the device values from the chart -----
+# A measurement made in i1Profiler's measure tool, on a chart i1Profiler did
+# not generate, carries the colour of every patch and no device values at all:
+# the tool has no colour space to express them in and will not let you ask for
+# them. ChromIQ pairs such a file with the chart by the patch NAME each reading
+# carries and takes the device values from the chart, which is what chartread
+# does. What it cannot then do is check that this is a measurement of THIS
+# chart, because that check compares device values, and the file has none. So
+# the person is told exactly that, and decides.
+M_IMPORT_DEVICE_FROM_CHART = _m(
+    "M-IMPORT-DEVICE-FROM-CHART",
+    "Only you can confirm this is a measurement of this chart",
+    "This file holds the colour of every patch and no record of the ink that "
+    "made it. i1Profiler writes it that way when it measures a chart it did "
+    "not generate itself: there is no colour space for it to put device "
+    "values in, so it puts none.\n\n"
+    "ChromIQ can still file it. All {count} readings name a patch of "
+    "{chart}, and the chart knows what was printed at each of those names, so "
+    "the chart supplies the device values, exactly as it does for a "
+    "measurement made here.\n\n"
+    "What ChromIQ cannot do is check the file against the chart. That check "
+    "compares the device values in the measurement with the chart's, and this "
+    "file has none. The names all belong to this chart, which is as far as "
+    "names can go: another chart laid out the same way carries the same "
+    "names.\n\n"
+    "Import it only if this is the measurement of the sheet printed from "
+    "{chart}. Cancel changes nothing.",
+    body_one=(
+        "This file holds the colour of its patch and no record of the ink "
+        "that made it. i1Profiler writes it that way when it measures a chart "
+        "it did not generate itself: there is no colour space for it to put "
+        "device values in, so it puts none.\n\n"
+        "ChromIQ can still file it. Its one reading names a patch of "
+        "{chart}, and the chart knows what was printed at that name, so the "
+        "chart supplies the device values, exactly as it does for a "
+        "measurement made here.\n\n"
+        "What ChromIQ cannot do is check the file against the chart. That "
+        "check compares the device values in the measurement with the "
+        "chart's, and this file has none. The name belongs to this chart, "
+        "which is as far as a name can go: another chart laid out the same "
+        "way carries the same names.\n\n"
+        "Import it only if this is the measurement of the sheet "
+        "printed from {chart}. Cancel changes nothing."),
+    count_key="count",
+    approved=False)
+
 # --- PROPOSED: feature A, printing a verification chart through its profile -
 # The two failure windows of the print-time conversion (#130,
 # verification_printing_and_target.md §3.2 rows A10/A11 and §6 S9/S10). Both
@@ -2365,6 +2411,7 @@ CATALOGUE = {m.id: m for m in (
     M_CM_NO_CCTIFF, M_CM_CONVERT_FAILED, M_CM_PROFCHECK_CONVERTED,
     M_VERIFY_CREATE_NO_PROFILE, M_GAMUT_NO_PROFILE,
     M_IMPORT_MISMATCH, M_IMPORT_DATE_TAKEN, M_IMPORT_DONE,
+    M_IMPORT_DEVICE_FROM_CHART,
     M_VERIFY_SAVED, M_HOW_PRINTED,
     M_NO_INSTRUMENT, M_NO_INSTRUMENT_FAST,
     M_OVERLAY_NO_MEASUREMENT, M_ALL_STRIPS_PATCHES_LEFT,

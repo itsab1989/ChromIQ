@@ -156,6 +156,39 @@ def expected_patches(ti2_path: "Path | str | None") -> "int | None":
     return max(0, claimed - padding) if claimed is not None else None
 
 
+def sheet_patches(ti2_path: "Path | str | None") -> "int | None":
+    """How many patches the chart actually PRINTS, or ``None`` if unreadable.
+
+    :func:`expected_patches` is the DESIGN — how many patches were asked for,
+    and the number a measurement is judged complete against. This is the SHEET:
+    every square the instrument passes over, the fill-up rows of the last strip
+    included. The two differ by the padding, and both are real:
+
+    * a person reading the sheet in ChromIQ, or aiming an i1iO at it in
+      i1Profiler, reads what is PRINTED, so a complete measurement of her chart
+      holds the sheet count;
+    * the chart was DESIGNED with fewer, and that is what "the whole chart was
+      measured" has to mean, because the fill-up rows are copies of the media
+      patch and were never part of the target.
+
+    Counting only the design made a complete 420-patch measurement of a
+    408-patch chart read as "a measurement of a different chart" and refused it
+    (a user verifying a profile, 2026-09-11). Counting only the sheet had
+    already made the mirror mistake the day before, and called a complete
+    measurement partial. A measurement between the two numbers covers the whole
+    design; above the sheet it is a measurement of something else.
+    """
+    if ti2_path is None or not Path(ti2_path).is_file():
+        return None
+    counts = count_sets(ti2_path)
+    if counts is None:
+        return None
+    claimed, held = counts
+    if held:
+        return held
+    return claimed
+
+
 def _padding_rows(path: "Path | str") -> int:
     """Rows the chart adds to fill its last strip, which are not patches.
 
@@ -257,7 +290,16 @@ def classify(ti3_path: "Path | str | None",
         return Ti3Facts(Ti3State.EMPTY, claimed, 0, expected)
     if claimed is not None and claimed != held:
         return Ti3Facts(Ti3State.MISMATCHED, claimed, held, expected)
-    if expected is not None and held > expected:
+    # ABOVE THE SHEET, NOT ABOVE THE DESIGN. A chart whose last strip is filled
+    # out is read patch by patch including those fill-up rows, so a complete
+    # measurement of a 408-patch design printed on a 420-square sheet holds 420
+    # — and judging that against 408 called it a measurement of a different
+    # chart. `sheet_patches` is the number of squares; `expected_patches` the
+    # number the design asked for. Only past the sheet is it another chart.
+    sheet = sheet_patches(ti2_path)
+    if sheet is not None and held > sheet:
+        return Ti3Facts(Ti3State.MISMATCHED, claimed, held, expected)
+    if sheet is None and expected is not None and held > expected:
         return Ti3Facts(Ti3State.MISMATCHED, claimed, held, expected)
     if expected is not None and held < expected:
         return Ti3Facts(Ti3State.PARTIAL, claimed, held, expected)

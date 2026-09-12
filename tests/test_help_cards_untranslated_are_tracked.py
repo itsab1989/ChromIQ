@@ -488,20 +488,34 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # not adjusted upward from the old numbers.
 # 2026-09-12, merged with the round beside it and MEASURED again on the
 # merged catalogues. Each round counted on its own base.
+# 2026-09-12, the verification-import round. An i1Profiler export of a
+# chart i1Profiler did not generate carries no device values at all, so
+# the import now pairs it with the chart by patch NAME, asks the person
+# the one thing it cannot check, and states the counts against the SHEET
+# as well as the design. EIGHTEEN keys arrive and three go stale.
+# SEVENTEEN of the eighteen count here and one does not: "Import it" is
+# 9 characters and falls under this file's 25-character floor. The three
+# stale keys were TRANSLATED in all twelve catalogues, so they were never
+# echoes and their removal moves nothing. German is translated for all
+# eighteen and does not move; the eleven others each rise by exactly 17.
+# RE-MEASURED with this file's own `_english_echoes` on the catalogues
+# this change leaves behind, key by key, never adjusted upward.
 _BUDGET = {
     "de": 4,
-    "es": 160,
-    "fr": 161,
-    "it": 160,
-    "ja": 160,
-    "nl": 160,
-    "no": 160,
-    "pl": 160,
-    "pt": 160,
-    "ru": 159,
-    "sv": 160,
-    "zh_CN": 159,
+    "es": 177,
+    "fr": 178,
+    "it": 177,
+    "ja": 177,
+    "nl": 177,
+    "no": 177,
+    "pl": 177,
+    "pt": 177,
+    "ru": 176,
+    "sv": 177,
+    "zh_CN": 176,
 }
+
+
 
 
 def _codes():
