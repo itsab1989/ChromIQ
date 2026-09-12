@@ -546,10 +546,21 @@ into a paragraph under the list.
 *"and this report never says that anything conforms to a standard"*. Knut:
 *"Rephrase so that report text states what the report shows […] which actually
 has the opposite effect of building confidence in the report results."* It now
-reads that a column named after a standard holds that standard's published
-tolerance values applied to the chart you printed, rather than to that
-standard's own chart and control strip, so its Overall reads COND at best. Same
-fact, stated positively, and the COND cap is no longer unexplained.
+reads that a read-only column named after a standard holds that standard's
+published tolerance values and nothing else, that ChromIQ ships none of them, so
+such a column is empty unless a licence holder has supplied its figures, and
+that an editable column starts from those supplied figures where there are any
+and from ChromIQ's own numbers where there are none. Either way the values are
+applied to the chart you printed rather than to that standard's own chart and
+control strip, so their Overall reads COND at best. Same fact, stated
+positively, and the COND cap is no longer unexplained.
+
+*(The sentence recorded here until 2026-09-12 was "a column named after a
+standard holds that standard's published tolerance values", which took three
+attempts to make true. See §2k of `issue_182_answers.md`: it is false of the
+editable columns, false of the read-only ones as ChromIQ ships, and the second
+correction was false in the one state it was written to cover. None of these
+strings is state-aware, so each is now a condition rather than a state.)*
 
 **Two classes of sentence, and only the first was touched.**
 

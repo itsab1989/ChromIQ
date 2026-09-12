@@ -1973,7 +1973,9 @@ comma-separated list of the rows marked ✕.*
 
 > **ChromIQ measures against published values; it does not certify**
 >
-> The columns named after a standard hold that standard's published tolerance values, applied to the chart you printed. They are not a test of the standard's own control strip and chart, so a report can never say that a print conforms to a standard. What ChromIQ does is measure as many of the standard's values as your chart allows, say which it checked and which it did not, and let you follow them over time.
+> A column named after a standard is judged against that standard's published tolerance values where a licence holder has supplied them, and against ChromIQ's own numbers where nobody has. Either way the values are applied to the chart you printed and not to that standard's own control strip and chart, so a report can never say that a print conforms to a standard. What ChromIQ does is measure as many of the standard's values as your chart allows, say which it checked and which it did not, and let you follow them over time.
+>
+> *(Corrected 2026-09-12. The first wording said the columns HOLD that standard's published values, which is false in both of ChromIQ's states: the two editable columns start from ChromIQ's own numbers where nobody has supplied a standard's, and the two read-only ones are empty as ChromIQ ships, because the data file is empty by design. The report's guide was corrected for each half in turn and this copy was reached by neither, while `_notes_text` printed it two lines below its own correct sentence.)*
 >
 > Rows marked ✕ are requirements ChromIQ cannot measure at all; they stay in the table so you can see what the standard asks: {rows}
 
