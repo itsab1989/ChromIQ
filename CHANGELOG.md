@@ -1,5 +1,118 @@
 # Changelog
 
+## v4.3.0-beta.5
+
+**Knut's three nights of testing, and a user who could not import her
+measurement at all.** Most of this release is faults found by using the app
+rather than features asked for, and several of them were worse than the symptom
+that led to them.
+
+### Fixed
+
+- **A measurement from i1Profiler could not be imported for a verification at
+  all.** i1Profiler's measure tool cannot define an RGB colour space for an
+  arbitrary chart, so it will not export device values, and ChromIQ refused
+  every such file. Underneath that was something worse: the pairing matched
+  readings by their sample number, which in an i1Profiler file is the order they
+  were read and in a chart is the order they were designed. Had the file simply
+  been accepted, every reading would have been filed against the wrong patch in
+  silence. A file with no device values is now paired by the patch's own
+  location label, which is what is printed beside each square and what you aim
+  the instrument at, and the chart supplies the device values to ChromIQ's own
+  copy. Your file is never touched. A measurement of a different chart, a short
+  one, and one with a location used twice are each still refused, and ChromIQ
+  says plainly what it cannot check.
+
+- **A complete measurement of a sheet was called a different chart.** A printed
+  sheet is filled to the end of its last strip, so a 408-colour chart has 420
+  squares on paper. Measuring all 420 was compared against the 408 and refused.
+  Fewer than the design is a partial measurement, more than the printed sheet is
+  a different chart, and anything between is complete.
+
+- **The output pane no longer drags you back to the bottom while a profile
+  builds.** It follows the tail only while you are already at the bottom. Nine
+  panes had it, not one.
+
+- **A profile built from an i1Profiler export carrying XYZ recorded its paper
+  white as near black,** lightness 8 where it should read 95, because that
+  export writes those numbers on a different scale from the one ArgyllCMS uses.
+  Relative colorimetric hides it; absolute colorimetric, paper simulation and
+  every figure in the Measurement Report were wrong in silence. Corrected on the
+  way in. **A measurement imported before this build still carries it**, and
+  Build Profile now says so on its line, so a profile rebuilt from an old file
+  must have the measurement imported again first. How the scale is judged was
+  narrowed twice over: by size alone it would have destroyed a correct
+  measurement of a chart made only of dark patches, and the obvious better test
+  would have been wrong too, so it now asks the file for proof.
+
+### Knut's rulings, built
+
+- **Text that will not fit keeps the text distance from the edge and grows
+  inward over the patches instead, with a warning.** Building it found that the
+  text was previously being cut off with nothing said, that "Flip 180" decided
+  which end of a block overflowed, and that the obvious way to let text over the
+  patch area would have erased the patches to paper white. What overlapping
+  costs is now measured and said: at a narrow band the worst patch can carry a
+  fifth of its area in ink, which is a lightness error of up to nine.
+
+- **Clip-border text that runs into the row indicator labels is caught and
+  named separately from a collision with the patches,** because the harm is
+  different: a patch carrying ink returns a wrong number into the profile, a
+  label carrying ink is merely harder to read.
+
+- **Automatic shrinking stops at 7 pt** wherever a size control offers Auto, and
+  a size you type is printed as typed, below 7 pt included. The help text at
+  each such control says so.
+
+- **The reading square on a honeycomb is offered at most 55 per cent.** At 64
+  there was a tenth of a millimetre of paper between the square's corner and the
+  patch next door even when the placement was perfect.
+
+- **Auto align places its best attempt and tells you to check it** rather than
+  leaving your corners where they were.
+
+- **A warning about a scan names the sheet it came from,** and lists each sheet
+  separately.
+
+- **The note that the row indicators widened your left margin is printed in
+  red** under the margin numbers, as well as on the information icon.
+
+### The Measurement Report
+
+- **The Report limits window remembers which columns you hid.** It did not,
+  because hiding a column was treated as a change of limit set: it raised the
+  window asking whether to recalculate a saved report, and answering no undid
+  the column choice. On a run with no limits stored yet, the same click bound
+  them.
+
+- **Changing the limit set no longer changes which document a saved report is.**
+  One change turned a colour summary, a full check and a printing record into
+  three colour summaries.
+
+- **The five verdict words are five bullets**, the report explains what bound
+  and locked mean, and it no longer ends by saying what it does not claim.
+
+- **The two Custom ISO columns can be set for every metric ChromIQ can
+  measure.** Their values are ChromIQ's own placeholders for exercising the
+  metrics, not either standard's published tolerances, which ChromIQ has no
+  permission to include.
+
+- **The demo package covers every built report type, every limit set and every
+  metric limit it can reach,** with the dates that cross and recover named, and
+  the rows nothing can measure listed with the reason rather than filled in with
+  invented data.
+
+- The one-page summary's suggested file name matches the page it saves.
+
+### Also
+
+- Some charts showed no margin verdict at all, neither the green line nor a
+  warning. Of 154 built-in presets, 23 were silent; the panel suppressed the
+  green line while a notice was live and then printed nothing in its place.
+  Eight are fixed by the red row-indicator line above. The other 15, whose strip
+  is longer than the instrument's ruler, are unchanged and reported.
+
+
 ## v4.3.0-beta.4
 
 **The Measurement Report becomes six reports behind one pulldown, and four of
