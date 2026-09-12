@@ -4595,7 +4595,7 @@ class TabChart(QWidget):
                                         QSizePolicy.Policy.Fixed)
         stamp_row.addWidget(_stamp_lbl_spacer)
         self._manual_stamp_cmd_check = QCheckBox(
-            tr("Stamp settings used on the chart"), self._manual_stamp_cmd_row
+            tr("Stamp settings down the right edge"), self._manual_stamp_cmd_row
         )
         self._manual_stamp_cmd_check.setChecked(True)
         # §2.2, as for the notes above: the stamp choice is recorded in the
@@ -5908,7 +5908,7 @@ class TabChart(QWidget):
             # cut off mid-word (Basti, beta.143). Which tool made the layout is
             # in the ⓘ beside it, where there is room to say it properly.
             self._manual_stamp_cmd_check.setText(
-                tr("Stamp settings used on the chart"))
+                tr("Stamp settings down the right edge"))
             # THE STATE IS RECORDED HERE, THE DEFAULT IS APPLIED AT THE
             # TOGGLE. Stamping-off-with-the-engine is a sensible first-time
             # default, but this refresh runs from anything that touches the
@@ -19046,6 +19046,68 @@ class TabChart(QWidget):
         # would look the delegate up on the stand-in and not find it.
         return TabChart._engine_text_notes(self)[0]
 
+    #: What `raster.render_pages` draws the bottom line in when the recipe has
+    #: no font of its own. Named here so the panel's prediction and the sheet
+    #: use the same face; an empty family gets PIL's fallback, which is a
+    #: different width.
+    _DEFAULT_SHEET_TEXT_FONT = "Inter"
+
+    @staticmethod
+    def _sheet_text_width_mm(r) -> float:
+        """How wide the widest bottom-of-sheet line prints, in millimetres.
+
+        Measured with the FONT the sheet is drawn in, at the size it will end
+        up at, by the same `raster._font` the renderer uses: a character count
+        is not a width, and the difference between "Inter" and a monospace face
+        at the same size is several centimetres on a long line.
+
+        The size is the one the renderer will settle on: a typed Size is used
+        as typed, and "auto" is allowed to shrink to
+        `text_edge_fit.AUTO_SHRINK_FLOOR_PT` before the warning fires, so the
+        panel never warns about a line the renderer is about to make fit.
+
+        **ONLY THE CUSTOM TEXT, DELIBERATELY.** The other line the bottom can
+        carry is the layout stamp, and its text is assembled at build time from
+        the final patch count and the random seed
+        (`layout_engine.chart.build_chart`), neither of which exists while the
+        panel is being typed into. Guessing them would put a made-up
+        millimetre figure in a warning, which is worse than the warning being
+        one line short: the stamp's own width is checked when the chart is
+        built, and the height check above already covers both lines.
+
+        **IT ASKS THE RENDERER'S OWN FUNCTION**, `raster.sheet_text_width_mm`,
+        rather than measuring a font here. The first version of this measured
+        its own and was wrong by 84 %: it took the family from
+        ``r.chart_text_font``, which is empty on a recipe that has never had a
+        font chosen, so PIL handed back a fallback face and the panel predicted
+        378 mm for a line that printed 206.
+
+        Returns 0.0 if the fonts cannot be asked, which suppresses the warning
+        rather than inventing one: a prediction is never a blocker.
+        """
+        lines = [t for t in (r.chart_text or "",) if t]
+        if not lines:
+            return 0.0
+        try:
+            # `text_edge_fit` is imported INSIDE `_engine_text_notes`, not at
+            # module scope, so it is not a global here. Reaching for it as one
+            # raised NameError, the bare `except` below swallowed it, and this
+            # returned 0.0 for every chart whose Size is "auto" — which is the
+            # default, so the width warning never fired at all.
+            from workflow import text_edge_fit as _tef
+            from workflow.layout_engine import raster as _raster
+            typed = float(getattr(r, "chart_text_size_mm", 0.0) or 0.0)
+            size_mm = typed or _tef.pt_to_mm(_tef.AUTO_SHRINK_FLOOR_PT)
+            font = (str(getattr(r, "chart_text_font", "") or "")
+                    or TabChart._DEFAULT_SHEET_TEXT_FONT)
+            return _raster.sheet_text_width_mm(
+                lines, size_mm, font,
+                bool(getattr(r, "chart_text_bold", False)),
+                bool(getattr(r, "chart_text_italic", False)),
+                float(getattr(r, "dpi", 300) or 300))
+        except Exception:      # noqa: BLE001 — a prediction is never fatal
+            return 0.0
+
     def _engine_text_notes(self, report=None) -> "tuple[list[str], list[str]]":
         """``(every notice, the overlap notices)`` for the chart on screen.
 
@@ -19702,8 +19764,21 @@ class TabChart(QWidget):
                 # is that the distance from the paper edge the user asked for
                 # is not the distance they get, which is what the help for
                 # "Show strip letters" has always said would happen.
+                #
+                # THE DISTANCE ASKED FOR IS THE RESERVE, NOT "T" (#182). With
+                # the ruler helper markers on for top and bottom the letters
+                # are held at the larger of "T" and the markers' own distance,
+                # so asking about "T" alone under-reported the squeeze by up to
+                # that reserve and stayed silent on sheets where the letters
+                # had already been pushed off it.
+                _t_reserve = text_edge_fit.edge_reserve_mm(
+                    r.text_edge_top_mm,
+                    bool(getattr(r, "helper_markers", False)),
+                    float(getattr(r, "helper_marker_edge_mm", 0.0) or 0.0),
+                    float(getattr(r, "helper_marker_len_mm", 0.0) or 0.0),
+                    bool(getattr(r, "helper_markers_top_bottom", True)))
                 _sq = text_edge_fit.strip_label_squeeze(
-                    r.margin_top, r.text_edge_top_mm, lab,
+                    r.margin_top, _t_reserve, lab,
                     float(getattr(r, "strip_label_offset_mm", 0.0) or 0.0))
                 if _sq is not None and _sq.off_the_sheet:
                     over.append(tr(
@@ -19818,8 +19893,18 @@ class TabChart(QWidget):
                     float(getattr(r, "dpi", 300) or 300))
             except Exception:      # noqa: BLE001 — a number, never a blocker
                 _line_mm = text_edge_fit.SHEET_TEXT_LINE_MM
+            # THE RESERVE, NOT "B" ALONE. With the ruler helper markers on for
+            # top and bottom, the block is anchored at the larger of "B" and
+            # the markers' own distance (#182), so asking about "B" understated
+            # the room the text takes by up to the marker reserve.
+            _b_edge = text_edge_fit.sheet_text_bottom_mm(
+                r.text_edge_mm,
+                bool(getattr(r, "helper_markers", False)),
+                float(getattr(r, "helper_marker_edge_mm", 0.0) or 0.0),
+                float(getattr(r, "helper_marker_len_mm", 0.0) or 0.0),
+                bool(getattr(r, "helper_markers_top_bottom", True)))
             _o = text_edge_fit.sheet_text_overlap(
-                r.margin_bottom, r.text_edge_mm, nlines, _line_mm)
+                r.margin_bottom, _b_edge, nlines, _line_mm)
             if _o is not None:
                 # ONE LINE OR TWO, SAID AS ONE OR TWO. "(s)" is banned in this
                 # project's user-facing text, and the two cases really do have
@@ -19839,8 +19924,53 @@ class TabChart(QWidget):
                     "“Margins (mm)” by about {short:.1f} mm, lower “B” under "
                     "“Text distance from edge (mm)”, or switch one of the two "
                     "lines off.")).format(
-                        edge=r.text_edge_mm, need=_o.needed_mm,
+                        edge=_b_edge, need=_o.needed_mm,
                         avail=max(0.0, _o.available_mm), short=_o.overlap_mm))
+            # …AND THE SAME BLOCK HAS A WIDTH, WHICH NOTHING ASKED ABOUT.
+            # Knut, #182, "Bottom page edge": *"The width of the defined text
+            # … should also be checked against the available space, taking
+            # into account selected paper width, "Clip" in "Text distance from
+            # edge" (for both sides) and if helper marker is ON."* A typed Size
+            # never shrinks, so on A4 a long custom line at 4.5 mm was cut off
+            # by the paper edge with nothing said; "auto" now shrinks to the
+            # 7 pt floor first and only warns if it still will not fit.
+            if r.chart_text:
+                _w = self._sheet_text_width_mm(r)
+                # THE PAPER'S OWN WIDTH, NOT THE REPORT'S. `_engine_text_notes`
+                # is called with no report from the ⓘ and from a driver, and
+                # `getattr(None, "page_w_mm", 0.0)` is 0, which made the
+                # message say "the sheet leaves 0 mm" on a perfectly ordinary
+                # A4. The recipe always knows its paper.
+                try:
+                    from workflow.layout_engine import papers as _papers
+                    _pw = float(_papers.dimensions_mm(r.paper)[0])
+                except Exception:      # noqa: BLE001 — never block on this
+                    _pw = float(getattr(report, "page_w_mm", 0.0) or 0.0)
+                _wo = text_edge_fit.bottom_text_overflow(
+                    _pw, r.text_edge_clip_mm, _w,
+                    bool(getattr(r, "helper_markers", False)),
+                    float(getattr(r, "helper_marker_edge_mm", 0.0) or 0.0),
+                    float(getattr(r, "helper_marker_len_mm", 0.0) or 0.0),
+                    bool(getattr(r, "helper_markers_sides", True)))
+                if _wo is not None:
+                    _auto = not float(getattr(r, "chart_text_size_mm", 0.0) or 0.0)
+                    over.append((tr(
+                        "⚠ The sheet text along the bottom is too wide for the "
+                        "paper. It needs {need:.0f} mm of line and the sheet "
+                        "leaves {avail:.0f} mm between the distances you set "
+                        "for the two side edges, so {short:.0f} mm of it runs "
+                        "off. It is already at its smallest, 7 pt. Shorten the "
+                        "text, or lower “Clip” under “Text distance from edge "
+                        "(mm)”.") if _auto else tr(
+                        "⚠ The sheet text along the bottom is too wide for the "
+                        "paper. It needs {need:.0f} mm of line and the sheet "
+                        "leaves {avail:.0f} mm between the distances you set "
+                        "for the two side edges, so {short:.0f} mm of it runs "
+                        "off. Set Size to “auto” under “Sheet text” and it "
+                        "shrinks to fit, shorten the text, or lower “Clip” "
+                        "under “Text distance from edge (mm)”.")).format(
+                            need=_wo.needed_mm, avail=max(0.0, _wo.available_mm),
+                            short=_wo.overlap_mm))
         except Exception:  # noqa: BLE001 — never block the inspector on this
             pass
         # THE ⓘ GETS EVERYTHING, THE MESSAGE FIELD ONLY THE OVERLAPS. The rest

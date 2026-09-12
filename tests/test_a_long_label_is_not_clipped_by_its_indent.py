@@ -33,6 +33,17 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 #: never caught it.
 _LANGS = ["ru", "de", "nl", "fr", "it", "pt", "pl", "es", "sv", "no", "en"]
 
+#: The language whose version of THIS label is widest, measured against the
+#: pinned indent row. It changes when the label's English text changes, so the
+#: control below refuses a shortfall too small to be a real margin rather than
+#: passing on a tie. See `test_this_file_can_see_the_bug_it_guards`.
+_WIDEST_LANG = "it"
+
+#: How many pixels of shortfall the control needs before it counts. A tie
+#: (0 px) is what the 2026-09-06 round found German sitting at, and a control
+#: that passes on `208 < 208` proves nothing about the layout it guards.
+_CLIP_MARGIN_PX = 8
+
 
 @pytest.fixture(scope="module")
 def qapp():
@@ -141,10 +152,25 @@ def test_this_file_can_see_the_bug_it_guards(qapp, tmp_path):
     runs in the language it was always describing. German is left to the
     parametrised assertions above, where it belongs: at 208/208 the shipped
     layout gives that label exactly what it needs and not a pixel more.
+
+    **AND THEN THE LABEL WAS RENAMED AND RUSSIAN STOPPED BEING THE WIDEST.**
+    #182, 2026-09-12: the box became "Stamp settings down the right edge" so
+    its name says which page edge it prints on, and Russian's version of that
+    is shorter than the one it replaced. Re-measured, every language, pinned
+    row against the label's own minimum:
+
+        it 256 / 289  -33      es 245 / 272  -27      pt 250 / 274  -24
+        sv 275 / 279   -4      nl 285 / 287   -2      ru 280 / 280    0
+
+    Russian became an exact tie, which is the failure mode this docstring was
+    already written about, one language over. **Italian is the widest now, and
+    the number below is a MEASUREMENT that has to be taken again whenever this
+    label's text changes.** `_CLIP_MARGIN_PX` refuses a tie outright so the
+    next rename fails here loudly instead of quietly disarming the control.
     """
     from PyQt6.QtWidgets import QLabel
 
-    tab, cb = _stamp_check(qapp, "ru", tmp_path)
+    tab, cb = _stamp_check(qapp, _WIDEST_LANG, tmp_path)
     try:
         row = tab._manual_stamp_cmd_row
         spacer = row.layout().itemAt(0).widget()
@@ -154,10 +180,14 @@ def test_this_file_can_see_the_bug_it_guards(qapp, tmp_path):
         spacer.setFixedWidth(spacer.maximumWidth())     # the old, unyielding form
         row.layout().activate()
         qapp.processEvents()
-        assert cb.width() < cb.minimumSizeHint().width(), (
-            f"pinning the indent back did NOT clip the Russian label "
-            f"({cb.width()} px given, {cb.minimumSizeHint().width()} px "
-            f"needed), so the assertions above are not measuring the indent")
+        short = cb.minimumSizeHint().width() - cb.width()
+        assert short >= _CLIP_MARGIN_PX, (
+            f"pinning the indent back clipped the {_WIDEST_LANG} label by only "
+            f"{short} px ({cb.width()} px given, {cb.minimumSizeHint().width()} "
+            f"px needed), which is under the {_CLIP_MARGIN_PX} px this control "
+            "needs to mean anything. Re-measure every language against the "
+            "pinned row and set _WIDEST_LANG to the one with the biggest "
+            "shortfall; the label's text has changed since it was chosen.")
     finally:
         # Deliberately NOT deleted — see _KEEP_ALIVE.
         qapp.processEvents()

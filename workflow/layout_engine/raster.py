@@ -362,7 +362,17 @@ def _furniture_reserves_mm(geom, kw: dict) -> tuple[float, float, float]:
     # render_pages); the inset keeps the text clear of a printer's unprintable
     # edge (#93, Knut's "distance from page edge to text").
     nlines = (1 if kw.get("chart_text") else 0) + (1 if kw.get("stamp_command") else 0)
-    _edge = float(kw.get("text_edge") or TEXT_EDGE_MARGIN_MM)
+    # THE SAME RESERVE THE RENDERER USES, or the capacity estimate reserves a
+    # band the text is no longer drawn in. `render_pages` anchors the block at
+    # `text_edge_fit.sheet_text_bottom_mm`, the larger of "B" and the helper
+    # markers' own distance (#182).
+    from workflow import text_edge_fit as _tef
+    _edge = _tef.sheet_text_bottom_mm(
+        float(kw.get("text_edge") or TEXT_EDGE_MARGIN_MM),
+        bool(kw.get("helper_markers")),
+        float(kw.get("helper_marker_edge") or 0.0),
+        float(kw.get("helper_marker_len") or 0.0),
+        bool(kw.get("helper_markers_top_bottom", True)))
     bottom = (_edge + 4.2 * nlines) if nlines else 0.0
     return label_band, bottom, ink_bottom
 
@@ -427,6 +437,37 @@ def sheet_text_line_mm(size_mm: float, font_family: str = "",
     except Exception:                # noqa: BLE001 — a prediction is never fatal
         ink_px = max(1, int(round(size * d / 25.4)))
     return max(floor_px, ink_px) * 25.4 / d
+
+
+def sheet_text_width_mm(lines, size_mm: float, font_family: str = "",
+                        bold: bool = False, italic: bool = False,
+                        dpi: float = 300.0) -> float:
+    """How wide the widest of *lines* prints, across the sheet, in millimetres.
+
+    The companion to :func:`sheet_text_line_mm` on the other axis, and it lives
+    here for the same reason: the "Measured from Preview" panel has to predict
+    the width the renderer will draw, and a second copy of the rule in the
+    panel drifts from this one. It did, immediately: the panel's own version
+    asked for the font by a family string the recipe had left empty, got a
+    fallback face, and predicted **378 mm** for a line that printed **206**.
+
+    *size_mm* is the size to measure AT, not the Size box: "auto" has to be
+    resolved by the caller, because the panel wants the floor (the smallest the
+    renderer may shrink to, so it warns only about a line that will not fit
+    even then) while the renderer wants whatever it is currently trying.
+    """
+    texts = [t for t in (lines or ()) if t]
+    if not texts:
+        return 0.0
+    try:
+        d = float(dpi)
+        if d <= 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        d = 300.0
+    px = max(1, int(round(float(size_mm or 0.0) * d / 25.4)))
+    f = _font(px, font_family, bold, italic)
+    return max(float(f.getlength(t)) for t in texts) * 25.4 / d
 
 
 def effective_row_label_size_mm(geom, dpi: int, font: str,
@@ -532,7 +573,7 @@ def apply_row_label_geometry(geom, kw: dict):
     # is exactly what it was.
     from workflow import text_edge_fit as _tef
     _marker_floor = (
-        _tef.helper_marker_reserve_mm(kw.get("helper_marker_edge") or 0.0,
+        _tef.helper_marker_ink_reach_mm(kw.get("helper_marker_edge") or 0.0,
                                       kw.get("helper_marker_len") or 0.0)
         if (bool(kw.get("helper_markers"))
             and bool(kw.get("helper_markers_sides", True))) else 0.0)
@@ -1849,7 +1890,38 @@ def render_pages(
         # drawn in the bottom margin (clear of the patches).
         _btxt = [t for t in (_chart_text, stamp_text) if t]
         if _btxt:
-            _sfont_px = px(chart_text_size_mm or 3.2)
+            from workflow import text_edge_fit as _tef
+            # THE LINE STARTS AT THE SIDE RESERVE, NOT AT THE LEFT MARGIN, and
+            # it is checked against the paper it really has. Knut, #182,
+            # "Bottom page edge": *"The width of the defined text … should also
+            # be checked against the available space, taking into account
+            # selected paper width, "Clip" in "Text distance from edge" (for
+            # both sides) and if helper marker is ON."* Measured before this:
+            # a 108-character custom line at Size 4.5 mm on A4 ran to 210.06 mm
+            # on a 210 mm sheet and was cut by the paper edge, with nothing
+            # said anywhere.
+            _side = _tef.edge_reserve_mm(
+                float(getattr(geom, "text_edge_clip_mm", 0.0) or 0.0),
+                helper_markers,
+                helper_marker_edge_mm, helper_marker_len_mm,
+                helper_markers_sides)
+            _x0 = max(px(_side), 0)
+            _sfont_px = px(chart_text_size_mm or _tef.SHEET_TEXT_DEFAULT_MM)
+            # SIZE "auto" SHRINKS, AND STOPS AT 7 pt. Knut, same section:
+            # *"Size=auto allows the text to be shrunk down to 7pt, and then
+            # stops shrinking. Manually defined size value does not shrink."*
+            # A typed size is drawn at exactly that size and the warning takes
+            # the place of the shrink, which is the rule the other two shrinking
+            # boxes already follow (`text_edge_fit.text_floor_pt`).
+            if not (chart_text_size_mm or 0.0):
+                _floor_px = max(1, px(_tef.pt_to_mm(_tef.AUTO_SHRINK_FLOOR_PT)))
+                _room_mm = paper_w_mm - 2.0 * _side
+                while _sfont_px > _floor_px:
+                    if sheet_text_width_mm(_btxt, _sfont_px * 25.4 / dpi,
+                                           chart_text_font, chart_text_bold,
+                                           chart_text_italic, dpi) <= _room_mm:
+                        break
+                    _sfont_px -= 1
             sfont = _font(_sfont_px, chart_text_font,
                           chart_text_bold, chart_text_italic)
             _sfile, _svar = _font_file_and_variation(
@@ -1867,11 +1939,20 @@ def render_pages(
             line_h = px(sheet_text_line_mm(chart_text_size_mm, chart_text_font,
                                            chart_text_bold, chart_text_italic,
                                            dpi))
-            yy = H - px(text_edge_mm) - line_h * len(_btxt)
+            # THE BOTTOM RESERVE IS THE LARGER OF "B" AND THE MARKERS' OWN, the
+            # same two-way rule the other three edges keep (#182). Measured
+            # before this: with the markers at 4 mm + 2 mm and "B" at 4 mm the
+            # line's ink ran from 289.56 to 293.12 mm on A4, straight through
+            # the 291 to 293 mm dash band; Knut reported exactly that.
+            _bot = _tef.sheet_text_bottom_mm(text_edge_mm, helper_markers,
+                                             helper_marker_edge_mm,
+                                             helper_marker_len_mm,
+                                             helper_markers_top_bottom)
+            yy = H - px(_bot) - line_h * len(_btxt)
             for ln in _btxt:
-                draw.text((px(geom.margin_l), yy), ln, font=sfont, fill=(0, 0, 0))
+                draw.text((_x0, yy), ln, font=sfont, fill=(0, 0, 0))
                 if collect_device_geom and _sfile:
-                    _geom_rows.append(("text", px(geom.margin_l), yy + _sasc, ln,
+                    _geom_rows.append(("text", _x0, yy + _sasc, ln,
                                        _sfile, _sfont_px, 0, 0, (0, 0, 0), _svar))
                 yy += line_h
         # Ruler helper markers (#152, Knut). Drawn LAST so nothing already on

@@ -155,7 +155,7 @@ def test_the_clip_text_held_out_by_the_helper_markers_is_reported(app):
     p = _panel(app, clip=4.0, content="text", markers=(6.0, 3.0))
     g = _geom(p)
     assert g is not None, "the premise failed: no clip geometry"
-    reserve = tef.helper_marker_reserve_mm(6.0, 3.0)
+    reserve = tef.helper_marker_ink_reach_mm(6.0, 3.0)
     assert reserve > 4.05, "the premise failed: the markers do not reach past Clip"
     # The GEOMETRY really holds the text out there, not just the message.
     x, _y, w, _h = geometry.clip_area_mm(g, 297.0, 210.0)

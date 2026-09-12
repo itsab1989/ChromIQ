@@ -193,6 +193,151 @@ NOTE_MIN_STRIP_MM = note_min_width_mm()
 NOTE_MIN_STRIP_PX = NOTE_PATCH_GAP_PX + int(round(AUTO_SHRINK_FLOOR_PT * 200.0 / 72.0))
 
 
+# ---------------------------------------------------------------------------
+# THE RULER HELPER MARKERS ARE A SECOND RESERVE, AND THE TEXT KEEPS OFF BOTH.
+# ---------------------------------------------------------------------------
+#: The clear millimetre Knut puts between a helper marker's inner tip and the
+#: nearest text, on every edge that carries markers. #182, 2026-09-12:
+#:
+#:     *"IF "Print helper markers" and "Sides" checkboxes are both ON, under
+#:     "Ruler helper markers" frame: "Distance from page edge" + "Marker
+#:     length" + 1.0mm."*
+#:
+#: He writes the same sum four times, once per edge, and his own worked A4
+#: example (4.0 + 2.0 + 1.0 = 7.0 mm) is the arithmetic below. The width and
+#: height allowances in the same post are the same number doubled: his
+#: ``"Distance from page edge" x2 + "Marker length" x2 + 2.0mm`` is
+#: ``2 * (edge + length + 1.0)``, so there is one constant here and not two.
+
+
+def helper_marker_reserve_mm(markers_on: bool, edge_mm: float,
+                             length_mm: float,
+                             this_edge_marked: bool = True) -> float:
+    """How far in from a page edge that carries markers the text must start.
+
+    0 when the markers are off, or when this edge is not one of the two sets
+    the "Top/bottom" and "Sides" checkboxes switch on: the reserve exists
+    because a dash is drawn there, so an edge with no dash on it costs nothing.
+
+    **THIS IS A DIFFERENT QUESTION FROM WHETHER OVERLAP IS ALLOWED, AND THE
+    OLDER ANSWER WAS THE OTHER ONE.** `geometry.helper_marker_lines_mm` still
+    records Knut's #152 ruling that *"overlapping is acceptable. User must
+    adapt settings for the markers, margins and clip-border text etc. to look
+    as desired."* That was about the MARKERS: a dash is never suppressed to
+    protect something the user placed, because a hole in the rhythm is worse
+    than a crossing. #182 changes the other half of it: the TEXT now gets out
+    of the dashes' way by itself, so the two no longer collide in the ordinary
+    case and the user is not asked to adapt anything. Nothing here suppresses a
+    dash.
+    """
+    if not (markers_on and this_edge_marked):
+        return 0.0
+    # ONE COPY OF THE ARITHMETIC, AND ONE CONSTANT. This added the
+    # distance, the length and a gap of its own, beside a second function
+    # doing the identical sum with a second constant of the same value.
+    # That is how the two came to share a name and break the merge. The
+    # fact lives in one place; this function's whole job is the gate.
+    return helper_marker_ink_reach_mm(edge_mm, length_mm)
+
+
+def edge_reserve_mm(text_edge_mm: float, markers_on: bool = False,
+                    marker_edge_mm: float = 0.0, marker_len_mm: float = 0.0,
+                    this_edge_marked: bool = True) -> float:
+    """The distance from ONE page edge that the text on it must respect.
+
+    *"whichever go furthest in from the page edge"* (Knut, four times in the
+    same post): the "Text distance from edge" box for this side, or the helper
+    markers' own reserve, and it is a MAX and not a sum. His A4 example: with
+    "Clip" at 4.0 mm and markers at 4.0 + 2.0, the answer is 7.0 mm.
+    """
+    return max(max(0.0, float(text_edge_mm or 0.0)),
+               helper_marker_reserve_mm(markers_on, marker_edge_mm,
+                                        marker_len_mm, this_edge_marked))
+
+
+def strip_label_top_mm(text_edge_top_mm: float, label_offset_mm: float = 0.0,
+                       markers_on: bool = False, marker_edge_mm: float = 0.0,
+                       marker_len_mm: float = 0.0,
+                       markers_top_bottom: bool = True) -> float:
+    """Where the TOP side of the strip letters belongs, from the page's top.
+
+    Knut, #182, 2026-09-12, "Top page edge":
+
+        *"When helper markers OFF: The top-side of the strip labels should be
+        placed the following distance from the page top edge: The defined "T"
+        in "Text distance from edge" + "Label offset" under "Strip letters
+        only" frame. When helper markers ON: […] or the defined "Distance from
+        page edge" + "Marker length" + 1.0mm + "Label offset" […], whichever is
+        largest of the two."*
+
+    So the offset rides on TOP of whichever reserve wins; it is not one of the
+    two candidates. A negative offset is honoured as typed, because it is the
+    user asking for it, and it is the only way the letters ever come closer to
+    the paper edge than the reserve.
+    """
+    return (edge_reserve_mm(text_edge_top_mm, markers_on, marker_edge_mm,
+                            marker_len_mm, markers_top_bottom)
+            + float(label_offset_mm or 0.0))
+
+
+def sheet_text_bottom_mm(text_edge_mm: float, markers_on: bool = False,
+                         marker_edge_mm: float = 0.0,
+                         marker_len_mm: float = 0.0,
+                         markers_top_bottom: bool = True) -> float:
+    """Where the BOTTOM side of the sheet text belongs, from the page's bottom.
+
+    Knut's "Bottom page edge" section, the same two-way rule as the top with no
+    offset control on this edge. There is no "Label offset" for the sheet text,
+    so this is the reserve alone.
+    """
+    return edge_reserve_mm(text_edge_mm, markers_on, marker_edge_mm,
+                           marker_len_mm, markers_top_bottom)
+
+
+def bottom_text_room_mm(paper_w_mm: float, text_edge_clip_mm: float,
+                        markers_on: bool = False, marker_edge_mm: float = 0.0,
+                        marker_len_mm: float = 0.0,
+                        markers_sides: bool = True) -> float:
+    """How wide the bottom-of-sheet text may be before it crosses a reserve.
+
+    Knut's worked A4 example, from the "Bottom page edge" section:
+
+        *"1. Helper markers ON: 210mm (A4) - ("Distance from page edge" x2 +
+        "Marker length" x2 + 2.0mm) = 210 - (4x2 + 2x2 +2) = 210mm - 14mm =
+        196mm. 2. Helper markers OFF: 210mm (A4) - "Clip"x2 = 210 - 4x2 =
+        210mm - 8mm = 202mm."*
+
+    Both are the paper less TWICE the side reserve, because the line runs from
+    one side of the sheet to the other and each end has a reserve to keep off.
+    Written that way there is one rule and the two cases are the two values
+    :func:`edge_reserve_mm` can take. **His two examples are not a choice
+    between the numbers: 196 is smaller than 202, and with the markers on both
+    reserves apply**, so the wider of the two per side is the one that binds,
+    exactly as it does on the other three edges.
+    """
+    reserve = edge_reserve_mm(text_edge_clip_mm, markers_on, marker_edge_mm,
+                              marker_len_mm, markers_sides)
+    return max(0.0, float(paper_w_mm or 0.0) - 2.0 * reserve)
+
+
+def bottom_text_overflow(paper_w_mm: float, text_edge_clip_mm: float,
+                         needed_w_mm: float, markers_on: bool = False,
+                         marker_edge_mm: float = 0.0,
+                         marker_len_mm: float = 0.0,
+                         markers_sides: bool = True) -> "Overlap | None":
+    """The bottom line's WIDTH against the paper it has, or None when it fits.
+
+    The fourth side's version of the check the other three already make. Named
+    an :class:`Overlap` on side ``"bottom"`` like the height one, because the
+    panel reports both the same way and the remedy differs only in wording.
+    """
+    return _overlap("bottom",
+                    bottom_text_room_mm(paper_w_mm, text_edge_clip_mm,
+                                        markers_on, marker_edge_mm,
+                                        marker_len_mm, markers_sides),
+                    max(0.0, float(needed_w_mm or 0.0)))
+
+
 @dataclass(frozen=True)
 class Overlap:
     """One side's text and the patch area want the same paper.
@@ -249,6 +394,91 @@ class Squeeze:
     @property
     def off_the_sheet(self) -> bool:
         return self.band_mm > self.margin_mm + EPS_MM
+
+
+@dataclass(frozen=True)
+class LabelOverlap:
+    """The strip letters and the patch area want the same paper at the top.
+
+    *reserve_mm* is the distance from the page's top edge the letters' band
+    starts at, *from_markers* says which of the two candidates won it (so the
+    message can name the control that is actually binding), *offset_mm* is the
+    user's "Label offset", *band_mm* how tall the band is and *margin_mm* the
+    top margin.
+    """
+
+    reserve_mm: float
+    from_markers: bool
+    offset_mm: float
+    band_mm: float
+    margin_mm: float
+
+    @property
+    def reaches_mm(self) -> float:
+        """How far down the page the letters' band ends."""
+        return self.reserve_mm + self.offset_mm + self.band_mm
+
+    @property
+    def overlap_mm(self) -> float:
+        return max(0.0, self.reaches_mm - self.margin_mm)
+
+
+def strip_label_overlap(margin_top_mm: float, text_edge_top_mm: float,
+                        band_mm: float, label_offset_mm: float = 0.0,
+                        markers_on: bool = False, marker_edge_mm: float = 0.0,
+                        marker_len_mm: float = 0.0,
+                        markers_top_bottom: bool = True,
+                        ) -> "LabelOverlap | None":
+    """The strip letters against the patch area's top edge, or None if clear.
+
+    Knut, #182, 2026-09-12, "Top page edge", names three ways this happens:
+
+        *"1. If helper markers OFF: defined "T" … + "Label offset" … is so
+        large that strip labels are placed overlapping with top margin. 2. If
+        helper markers ON: a. … or b. … Whichever is the largest value of the
+        two … 3. defined top margin is so small that patch area top edge
+        overlaps with placed strip labels."*
+
+    All three are the one inequality ``reserve + offset + band > top margin``,
+    reached by moving a different term, so what a message can honestly do is
+    name **which term is binding** and offer the lever for each. That is what
+    *from_markers* is for: it separates his case 1 from his case 2, and case 3
+    is the top margin, which the caller offers as the alternative remedy in
+    both. Nothing here guesses which of the three the user "meant".
+
+    ⚠ **NOTHING CALLS THIS YET, AND THAT IS DELIBERATE.** It is the arithmetic
+    for a renderer that does NOT slide the letters, and `geometry.placement`
+    still does: it clamps them at ``margin_t - band``, so they move toward the
+    paper edge rather than over the patches, and `strip_label_squeeze` is what
+    the panel reports.
+
+    Removing that clamp is what this post asks for, and it collides with an
+    earlier ruling of his that came from a real printed sheet, so it is his
+    call and not ours (`CLAUDE.md`, "The design specifications are binding").
+    Measured with the clamp removed, on the SHIPPED CR30 A4 default (top margin
+    6.0 mm, a 7.0 mm label band): the label band's bottom moves from 83 px to
+    130 px at 300 dpi while the first patch box starts at 91 px, so every strip
+    letter is printed over the first row of hexagons, 14 px of ink where a
+    roomy sheet draws 61. `tests/test_the_honeycomb_can_be_turned.py` pins that
+    guarantee, and it is the one he reported the fault for in the first place.
+
+    So this function is written, tested and parked. The day the clamp goes, the
+    panel calls it instead of `strip_label_squeeze` and the two messages in
+    `ui/tabs/tab_chart.py` change with it.
+    """
+    band = float(band_mm or 0.0)
+    if band <= 0.0:
+        return None
+    reserve = edge_reserve_mm(text_edge_top_mm, markers_on, marker_edge_mm,
+                              marker_len_mm, markers_top_bottom)
+    marker_reserve = helper_marker_reserve_mm(markers_on, marker_edge_mm,
+                                              marker_len_mm,
+                                              markers_top_bottom)
+    hit = LabelOverlap(reserve,
+                       marker_reserve > float(text_edge_top_mm or 0.0),
+                       float(label_offset_mm or 0.0), band,
+                       float(margin_top_mm or 0.0))
+    return hit if hit.overlap_mm > EPS_MM else None
 
 
 def strip_label_squeeze(margin_top_mm: float, text_edge_top_mm: float,
@@ -375,6 +605,8 @@ def chart_note_overlap(side: str, margin_mm: float, text_edge_clip_mm: float,
 #: Clear paper between a ruler helper marker's inner tip and any text on that
 #: edge. Knut, #182, 2026-09-12: the text-box sits at *"'Distance from page
 #: edge' + 'Marker length' + 1.0mm"* when the markers are on for that edge.
+#: The clear paper Knut asks for between a marker's inner tip and any
+#: text. There were briefly two constants of this value under two names.
 HELPER_MARKER_TEXT_GAP_MM = 1.0
 
 #: The renderer's own line spacing for clip text (`raster._vtext`: ``size *
@@ -382,9 +614,19 @@ HELPER_MARKER_TEXT_GAP_MM = 1.0
 CLIP_LINE_SPACING = 1.2
 
 
-def helper_marker_reserve_mm(marker_edge_mm: float,
-                             marker_len_mm: float) -> float:
+def helper_marker_ink_reach_mm(marker_edge_mm: float,
+                               marker_len_mm: float) -> float:
     """How far in from a page edge a helper marker's ink reaches, plus the gap.
+
+    **TWO QUESTIONS, AND FOR ONE MERGE THEY SHARED A NAME.** The two halves of
+    this round each wrote a `helper_marker_reserve_mm`, one taking the marker
+    sizes and one taking the switches as well, in the same module. Python keeps
+    the last definition, so every four-argument caller raised TypeError and
+    twenty-two geometry tests failed on the merge while both halves were green
+    alone. They are different questions and now have different names: this one
+    is the unconditional GEOMETRIC FACT about where the ink reaches, and
+    :func:`helper_marker_reserve_mm` is what a given edge must actually keep
+    clear, which is zero when the markers are off or that edge carries none.
 
     ``"Distance from page edge" + "Marker length" + 1.0 mm`` (Knut, #182). The
     dashes start *marker_edge_mm* in from the paper and point inward for
@@ -427,7 +669,7 @@ def side_text_edge_mm(text_edge_clip_mm: float, *,
     base = max(0.0, float(text_edge_clip_mm or 0.0))
     if not (helper_markers and marker_sides):
         return base
-    return max(base, helper_marker_reserve_mm(marker_edge_mm, marker_len_mm))
+    return max(base, helper_marker_ink_reach_mm(marker_edge_mm, marker_len_mm))
 
 
 def page_text_height_mm(paper_h_mm: float, text_edge_top_mm: float,
@@ -453,7 +695,7 @@ def page_text_height_mm(paper_h_mm: float, text_edge_top_mm: float,
         - max(0.0, float(text_edge_bottom_mm or 0.0))
     if not (helper_markers and marker_top_bottom):
         return max(0.0, by_text)
-    by_marker = h - 2.0 * helper_marker_reserve_mm(marker_edge_mm,
+    by_marker = h - 2.0 * helper_marker_ink_reach_mm(marker_edge_mm,
                                                    marker_len_mm)
     return max(0.0, min(by_text, by_marker))
 

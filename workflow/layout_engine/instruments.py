@@ -174,19 +174,27 @@ class Geom:
     # page less T and less B, so the geometry that lays the side band out has
     # to know both. It changes no patch geometry.
     text_edge_bottom_mm: float = 4.0
-    # THE RULER HELPER MARKERS, CARRIED HERE BECAUSE THE TEXT HAS TO KEEP OFF
-    # THEM (#182, Knut, 2026-09-12). They are drawn from render kwargs and were
-    # not part of any text placement, which is the collision he reports as a
-    # consequence of aligning the side text to the paper edge: *"this has
-    # another new consequence, that the text crashes with the position of the
-    # helper makers defined on the page. This must now be also considered when
-    # placing the text towards any of the 4 page edges."*
+    # THE RULER HELPER MARKERS ARE THE SECOND RESERVE ON EVERY EDGE (#182,
+    # Knut, 2026-09-12), and they were render-only kwargs, so no text placement
+    # could see them. Measured on A4 with the markers at 4 mm + 2 mm: the strip
+    # letters' ink began at 3.98 mm, inside the 4.0 to 6.0 mm marker band, and
+    # the bottom line printed straight through the dashes at 3.89 mm.
     #
-    # `geometry.clip_area_mm` and the panel both need the answer and neither is
-    # handed the recipe, so the four fields ride on the geometry and
-    # `text_edge_fit.geom_side_text_edge_mm` is the one place that combines
-    # them. `geom_from_build_kwargs` fills them in; a bare `build()` Geom keeps
-    # the defaults and behaves exactly as before, markers off.
+    # He reports it as a consequence of our own change: *"this has another new
+    # consequence, that the text crashes with the position of the helper makers
+    # defined on the page. This must now be also considered when placing the
+    # text towards any of the 4 page edges."*
+    #
+    # ONE RULE, FOUR EDGES. Two halves of this round arrived at these same five
+    # fields independently, one for the sides and one for the top and bottom,
+    # which is the clearest argument there is that they belong on the geometry
+    # rather than in either caller. `geom_from_build_kwargs` fills them in; a
+    # bare `build()` Geom keeps the defaults below and behaves exactly as
+    # before, markers off.
+    #
+    # The sizes default to ZERO rather than to a plausible 2 mm, so a caller
+    # that turns the markers on without saying how big they are reserves
+    # nothing instead of inventing a reserve nobody asked for.
     helper_markers: bool = False
     helper_marker_edge_mm: float = 0.0
     helper_marker_len_mm: float = 0.0
@@ -344,6 +352,11 @@ def build(
     cm_stagger: bool = False,
     text_edge_top: float = 4.0,
     text_edge_clip: float = 4.0,
+    helper_markers: bool = False,
+    helper_marker_edge: float = 2.0,
+    helper_marker_len: float = 2.0,
+    helper_markers_top_bottom: bool = True,
+    helper_markers_sides: bool = True,
     margins_are_law: bool = False,
     fill_beyond_ruler: bool = False,
 ) -> Geom:
@@ -513,6 +526,11 @@ def build(
                    clip_side=clip_side or "left",
                    text_edge_top_mm=float(text_edge_top or 4.0),
                    text_edge_clip_mm=float(text_edge_clip or 4.0),
+                   helper_markers=bool(helper_markers),
+                   helper_marker_edge_mm=float(helper_marker_edge or 0.0),
+                   helper_marker_len_mm=float(helper_marker_len or 0.0),
+                   helper_markers_top_bottom=bool(helper_markers_top_bottom),
+                   helper_markers_sides=bool(helper_markers_sides),
                    margins_are_law=bool(margins_are_law),
                    fill_beyond_ruler=bool(fill_beyond_ruler))
 
@@ -530,6 +548,11 @@ GEOM_BUILD_KEYS = (
     "nolpcbord", "nolimit",
     "clip_border_width", "clip_band", "edge_spacers", "patch_area_align",
     "clip_side", "cm_stagger", "text_edge_top", "text_edge_clip",
+    # #182: the markers are a text reserve, so they are geometry now and not
+    # only paint. Without them here the strip letters are placed before anyone
+    # knows a dash is going to be drawn where they land.
+    "helper_markers", "helper_marker_edge", "helper_marker_len",
+    "helper_markers_top_bottom", "helper_markers_sides",
 )
 
 

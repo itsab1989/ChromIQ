@@ -1990,7 +1990,7 @@ class LayoutOptionsPanel(QWidget):
         self.ct_bold.toggled.connect(self._emit)
         self.ct_italic = WrappingCheckBox(tr("Italic"), self)
         self.ct_italic.toggled.connect(self._emit)
-        self.stamp_command = WrappingCheckBox(tr("Stamp layout summary on the sheet"), self)
+        self.stamp_command = WrappingCheckBox(tr("Stamp layout summary along the bottom"), self)
         self.stamp_command.toggled.connect(self._emit)
         add_row(stg, 0, tr("Custom text:"),
                 cell_fill(self.chart_text, self.insert_token_btn),
@@ -2013,7 +2013,7 @@ class LayoutOptionsPanel(QWidget):
                                    "out for fonts that don't offer them.\n\n"
                                    "THEY ALSO GOVERN THE TEXT DOWN THE RIGHT "
                                    "EDGE: the run's Chart Notes and “Stamp "
-                                   "settings used on the chart”, both on the "
+                                   "settings down the right edge”, both on the "
                                    "Create Chart tab, are printed in this font "
                                    "and this size.\n\n"
                                    "Size “auto” lets that text shrink to fit the "
@@ -3726,7 +3726,7 @@ class LayoutOptionsPanel(QWidget):
             from workflow import text_edge_fit as _tef
             if (bool(getattr(geom, "helper_markers", False))
                     and bool(getattr(geom, "helper_markers_sides", True))):
-                reserve = _tef.helper_marker_reserve_mm(
+                reserve = _tef.helper_marker_ink_reach_mm(
                     getattr(geom, "helper_marker_edge_mm", 0.0),
                     getattr(geom, "helper_marker_len_mm", 0.0))
                 if reserve > typed + 0.05:
