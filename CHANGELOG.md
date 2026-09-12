@@ -14,21 +14,16 @@ still building.
   the app had the old behaviour, not one: Create Chart, Measure, Build Profile,
   Check and Refine, the spot-read window and the tool windows.
 
-  The Create Chart tab needed a second fix for the same complaint. It collapses
-  the patch-arranging output into one live percentage line, rewriting that line
-  in place rather than appending, and that path asked the "are you at the
-  bottom?" question at the wrong moment: it reused the answer from the last line
-  that was appended. A reader who scrolled up after the percentage started
-  ticking was thrown back to the bottom on every tick.
-
-  Two further doors into the same panes are fixed with it. The Create Chart tab
-  collapses the patch-arranging output into one live percentage line and
-  rewrites that line in place, which reused the answer from the last appended
-  line. And the line naming your instrument is replaced by removing it and
+  Two further doors into the same panes needed their own fixes. The Create Chart
+  tab collapses the patch-arranging output into one live percentage line and
+  rewrites that line in place rather than appending, so it asked the "are you at
+  the bottom?" question using the answer left by the last appended line: a reader
+  who scrolled up after the percentage started ticking was thrown back down on
+  every tick. And the line naming your instrument is replaced by removing it and
   adding the new one, so the question was asked of a log one line shorter than
-  the one you were reading: a reader one line from the bottom was pulled down,
-  and a reader at the bottom was thrown to the very top of the log. That last
-  one has been there as long as the line has, on Build Profile and on Check and
+  the one you were reading. A reader one line from the bottom was pulled down,
+  and a reader at the bottom was thrown to the very top of the log. That last one
+  has been there as long as the line has, on Build Profile and on Check and
   Refine, and nobody had reported it.
 
 ## v4.2.6
