@@ -429,6 +429,54 @@ def _say_the_open_failed(parent, root, already_filed, reason: str) -> None:
     _cannot_file(parent, reason, project=str(root))
 
 
+def only_you_can_confirm_the_chart(parent, verdict, chart: "Path | None") -> bool:
+    """Ask M-IMPORT-DEVICE-FROM-CHART. True = go ahead, False = do not file.
+
+    **THE MEASURE TAB ASKED THIS AND THE FILING DOORS DID NOT.** A measurement
+    with no device values of its own takes them from the chart, and the check
+    that would say whether it really is a measurement of THAT chart compares
+    device values, which this file has none of. The name check is as far as
+    names can go: another chart laid out the same way carries the same names.
+    So `ui/tabs/tab_measure.py` puts the question to the person before it lets
+    the chart supply anything, and says why in a comment: *"this is the one
+    thing ChromIQ genuinely cannot check … Only the person who printed the
+    sheet knows."*
+
+    The filing doors reach the identical act through `say_what_was_filed` and
+    asked nothing. Driven on screen (adversarial round four, 2026-09-12): an
+    i1Profiler-shaped export with SAMPLE_LOC, XYZ and not one device column was
+    handed to `file_into_project` on a project whose run held a chart with the
+    same 30 patch names. The only window that appeared was "Where should the
+    measurement go?"; the copy landed in run2 carrying
+    ``CHROMIQ_DEVICE_FROM_CHART "PairProbe.ti2"`` and the chart's RGB columns,
+    and nobody was ever asked whether the sheet had been printed from it.
+
+    Asked HERE, before the first byte moves, so "Cancel changes nothing" is
+    true. The message and both button words are the ones the Measure tab
+    already uses, so this adds no string to any catalogue.
+    """
+    if not (getattr(verdict, "ok", False)
+            and getattr(verdict, "device_from_chart", False)):
+        return True
+    from PyQt6.QtWidgets import QMessageBox
+
+    from workflow import measurement_messages as M
+    title, body = M.M_IMPORT_DEVICE_FROM_CHART.render(
+        count=int(getattr(verdict, "n_measured", 0) or 0),
+        chart=Path(chart).name if chart else "")
+    box = QMessageBox(parent)
+    box.setIcon(QMessageBox.Icon.NoIcon)
+    box.setWindowTitle(title)
+    box.setText(title)
+    box.setInformativeText(body)
+    go = box.addButton(tr("Import it"), QMessageBox.ButtonRole.AcceptRole)
+    cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+    box.setDefaultButton(cancel)
+    fit_message_box_buttons(box)
+    box.exec()
+    return box.clickedButton() is go
+
+
 def chart_the_copy_will_be_judged_against(filed: Path) -> "Path | None":
     """The chart in the run *filed* has just landed in, or None.
 
@@ -624,9 +672,16 @@ def make_new_project_and_file(parent, name: str, measurement: Path, fm, ctl,
     # different answers. No sibling means no chart, `assess` says so itself,
     # and a bare measurement is imported as it always was.
     from workflow.measurement_import import assess
-    _verdict = assess(measurement, chart_beside(measurement))
+    _chart_beside = chart_beside(measurement)
+    _verdict = assess(measurement, _chart_beside)
     if not _verdict.ok:
         refuse_it_does_not_belong(parent, _verdict.reason)
+        return True
+    # THE SAME QUESTION THE OTHER DOOR NOW ASKS, at the same moment: before
+    # anything is created. A sibling `.ti2` is where the file was found, not
+    # a statement that the sheet was printed from it, and the check that
+    # would settle it compares device values this file does not have.
+    if not only_you_can_confirm_the_chart(parent, _verdict, _chart_beside):
         return True
     try:
         filed = resolve_ti3(parent, measurement, settings, name=name)
@@ -1002,6 +1057,12 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
         # own is how the two would say different things about the same file
         # again (round 2, T1-G).
         refuse_it_does_not_belong(parent, verdict.reason)
+        return True
+    # …AND THE ONE QUESTION THE NAME CHECK CANNOT ANSWER, before the copy.
+    # See `only_you_can_confirm_the_chart`: this door reached
+    # `complete_from_chart` through `say_what_was_filed` and never asked it.
+    if not only_you_can_confirm_the_chart(parent, verdict, run.chart_ti2):
+        _undo_the_run(proj, made_here, was_current)
         return True
     import shutil
     try:
