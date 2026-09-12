@@ -991,3 +991,35 @@ band runs to 10 mm, because `apply_row_label_geometry` reads `lbord` and
 ("Nothing moves the patches or the clip-border content out of the labels'
 way"), and this is that case reached by a different route. Nothing about it is
 changed here.
+
+---
+
+## 2i. ⏳ Awaiting confirmation — the demo pack Knut asked for, and NOT yet built
+
+**Confirmed by:** *nobody yet.*
+
+Knut answered the outstanding half of his own batch on 2026-09-11T22:04:19Z:
+
+> *"Your question: 'Would you like the demo packs rebuilt so they look like a
+> real scan and go all the way through, or should one of them keep tripping the
+> end-of-scale warning deliberately, so you can see it happen?' My answer: Make
+> both examples as part of the ChromIQ-CR30-hex-demo pack."*
+
+**This is recorded and is NOT in v4.3.0-beta.5.** No pack of that name exists in
+the repository, and the two examples he is asking for do not exist in any pack.
+What the ruling asks for, in his terms:
+
+1. a scan that looks like a real one and carries all the way through the
+   alignment, the read and the report;
+2. a second one, alongside it and inside the same pack, that keeps tripping the
+   end-of-scale warning on purpose, so the warning can be seen happening.
+
+Both belong to `ChromIQ-CR30-hex-demo`, which therefore has to be created as
+well. `scripts/make_scan_align_demos*.py` builds the auto-align CHALLENGE set,
+which is a different artefact: every case there exists to expose a shortcoming
+and none of them is meant to go all the way through.
+
+It is written down here rather than half-built, because a demo pack that
+demonstrates the wrong thing is worse than no demo pack, and because the last
+time a ruling of his was carried in somebody's memory rather than in this file
+it was implemented from a stale reading a week later.
