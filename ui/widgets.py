@@ -763,6 +763,45 @@ class TailFollowLog(QPlainTextEdit):
         self._following_tail = True
         super().setPlainText(text)
 
+    # -- text that is rewritten rather than appended -----------------------
+    def replace_last_line(self, text: str) -> None:
+        """Rewrite the document's last line in place, under the same rule.
+
+        **THE FLAG IS ONLY EVER REFRESHED AT AN APPEND DOOR, AND ONE PANE DOES
+        NOT USE THOSE.** The Create Chart tab collapses targen's "Added N/M"
+        seeding spam into one live "Arranging colour patches: N%" line, which it
+        rewrites through a ``QTextCursor``: select the last line, remove it,
+        insert the new text, hand the cursor back. None of that passes through
+        ``appendPlainText``, so ``_following_tail`` kept whatever the LAST
+        append left in it, and the guards on ``setTextCursor`` and
+        ``ensureCursorVisible`` were then answering a question about a moment
+        that had passed.
+
+        Driven on screen in the real window, 2026-09-12: 200 lines of output
+        with the reader at the tail (following), the first percentage line
+        appended, the reader scrolls to the TOP, and the next tick threw them
+        from 0 to 192 of 193. That is word for word the complaint this class was
+        written for, at the one door it did not cover, and the test that covers
+        this door could not see it because it scrolled up BEFORE the append
+        rather than after it.
+
+        The question is therefore asked here, of the document as it stands
+        before the rewrite, and the answer is STORED before the cursor is handed
+        back, because :meth:`setTextCursor` is what actually holds the view and
+        it reads the flag. No pin is added afterwards: unlike
+        :meth:`_append_through`, this door ends on ``setTextCursor``, which
+        already scrolls to the end when following and puts the reader back where
+        they were when not. A mutation pair proved the extra line killed
+        nothing, and a line no test can reach is decoration.
+        """
+        self._following_tail = self.is_at_bottom()
+        cur = self.textCursor()
+        cur.movePosition(QTextCursor.MoveOperation.End)
+        cur.select(QTextCursor.SelectionType.LineUnderCursor)
+        cur.removeSelectedText()
+        cur.insertText(text)
+        self.setTextCursor(cur)
+
     # -- the two ways the view gets moved for you -------------------------
     def ensureCursorVisible(self) -> None:                 # noqa: N802
         if self._following_tail:
