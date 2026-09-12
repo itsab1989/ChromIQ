@@ -433,28 +433,39 @@ def _fill_fraction(g, before, after) -> float:
     return worst
 
 
-def test_the_clip_that_clears_the_labels_uses_THIS_chart_s_gap():
-    """Not the 1 mm §R2 reserves, which overshoots by the band's over-allowance.
+def test_the_clip_that_clears_the_labels_uses_the_FLOOR_TO_INK_offset():
+    """THIS TEST USED TO PIN THE WRONG DISTANCE, and pass while doing it.
 
-    The mutation this catches is `reach - 1` instead of `reach - gap`: it still
-    clears the labels, so "does it clear them" cannot see it. What it costs is
-    left margin the user does not have to spend, so the test is that the answer
-    tracks the gap.
+    It asserted that the answer tracked ``area[1] - area[0]``, the WIDTH of
+    the row number, and that the 1 mm answer "really is bigger, which is what
+    makes it wrong". Both quantities come out of one call to
+    `row_label_area_mm` and both are millimetres from the page edge, which is
+    how the wrong one was picked; and on the ColorMunki chart this file uses
+    they are 4.22 mm and 5.22 mm apart, so either answer clears the labels and
+    nothing could tell them apart.
+
+    What "Clip" actually moves is the labels' FLOOR. What rides along with it
+    is the paper between that floor and the leftmost ink, so that offset is
+    the distance to subtract. Measured on an i1 chart with a 16 mm band and
+    eight lines, where the reservation barely exceeds the number: the width is
+    5.89 mm and the offset 1.00 mm, the message named 21.0 mm, and at 21.0 mm
+    4.80 mm of the text is still printed over the row numbers.
     """
     r = _recipe(12.0, lines=_LINES_ON_BOTH)
     g = _geom(r)
     area = _area(r)
-    gap = area[1] - area[0]
-    assert gap > 2.0, (
-        f"this chart's label gap is {gap:.2f} mm, so a 1 mm assumption would "
-        f"not be visibly wrong and this test proves nothing")
+    floor = float(getattr(g, "row_label_floor", 0.0) or 0.0)
+    offset = area[0] - floor
+    assert offset > 0.0, "the labels sit on their own floor; nothing to carry"
     reach = tef.clip_text_reach_mm(g.lbord + g.border, r.text_edge_clip_mm,
                                    _LINES_ON_BOTH, 0.0)
-    assert tef.clip_edge_to_clear_labels_mm(reach, gap) == pytest.approx(
-        reach - gap, abs=1e-9)
-    # …and the 1 mm answer really is bigger, which is what makes it wrong.
-    assert tef.clip_edge_to_clear_labels_mm(reach, 1.0) > \
-        tef.clip_edge_to_clear_labels_mm(reach, gap) + 1.0
+    assert tef.clip_edge_to_clear_labels_mm(reach, offset) == pytest.approx(
+        reach - offset, abs=1e-9)
+    # …and it is not the label's own width, which is the distance it was given.
+    width = area[1] - area[0]
+    assert abs(width - offset) > 0.5, (
+        f"on this chart the width ({width:.2f} mm) and the offset "
+        f"({offset:.2f} mm) agree, so this test cannot tell them apart")
 
 
 def test_the_patch_clamp_on_the_label_band_cannot_bind_on_a_real_chart():

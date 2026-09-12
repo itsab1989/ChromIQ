@@ -223,8 +223,17 @@ def main() -> int:
 
     # The bottom margin that HAS room for an auto line and not for a big one.
     # 12 mm of margin less the 4 mm "B" leaves 8.0 mm: an auto line takes 4.2
-    # and a typed 28 pt takes 9.88. Before the fix the panel said 4.2 mm for
-    # both and stayed silent on both.
+    # and a typed 28 pt takes 9.88.
+    #
+    # THIS COMMENT USED TO SAY "before the fix", AND THERE WAS NO FIX. The audit
+    # that wrote this driver built one, measured it, found it would have warned
+    # about a collision that RECEDES as the size grows, and reverted it, which
+    # was right. What it left behind was a sentence in the past tense about a
+    # change that never landed. The real fault was in the renderer as well as
+    # the prediction: lines were stacked at a fixed pitch and anchored by their
+    # ascender, so a big face went on down as far as it took, off the paper. An
+    # adversarial round fixed both ends afterwards, and at the auto size the
+    # sheet is bit-identical, so nothing already drawn moved.
     for pt in (0.0, 12.0, 18.0, 28.0):
         apply(margin_bottom=12.0,
               chart_text="ChromIQ symmetry audit sheet text",
