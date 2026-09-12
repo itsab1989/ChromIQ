@@ -117,18 +117,21 @@ def _clip_line(r, **kw) -> str:
 
 
 #: Four lines at the auto floor take ``4 x 1.2 x pt_to_mm(floor)`` across the
-#: band. Knut's ruling of 2026-09-11 lets the band spend its page-edge reserve
-#: on them, so there are now two bands worth naming and both are DERIVED from
-#: the floor rather than typed: one where the reserve rescues the text (the
-#: push) and one where even the whole band cannot (the squeeze). Typing 16.0
-#: and 11.0 here is what made this file go quiet the moment the floor moved
-#: from 8 pt to 7.
+#: band, and the page-edge reserve is a LIMIT that is never spent on them
+#: (Knut, 2026-09-12), so a band narrower than the text plus that reserve puts
+#: the rest over the patches. Both bands are DERIVED from the floor rather than
+#: typed: writing 16.0 and 11.0 here is what made this file go quiet the moment
+#: the floor moved from 8 pt to 7.
 _FOUR_LINES_MM = tef.clip_text_needed_mm(4)
-#: Wide enough to hold the lines only once "Clip" is given up: the reserve is a
-#: fifth of the band, so the text fits the band and not the band less a fifth.
-_PUSHED_BAND = round(_FOUR_LINES_MM + 0.2, 1)
-#: Too narrow for them however the reserve is spent.
-_TOO_NARROW_BAND = round(_FOUR_LINES_MM - 0.9, 1)
+#: Narrow enough that the lines do not fit inside the reserve, so some of the
+#: text is printed over the patch area.
+_TOO_NARROW_BAND = round(_FOUR_LINES_MM, 1)
+#: Wide enough for the lines AND the reserve, so nothing reaches the patches.
+_ROOMY_BAND = round(tef.clip_band_needed_mm(4.0, 4) + 0.5, 1)
+#: Overflowing, but with enough band left that lowering "Clip" alone can fix
+#: it. `_TOO_NARROW_BAND` is exactly the width of the text, so there the
+#: reserve cannot be traded away far enough and the remedy is not offered.
+_CLIP_CAN_HELP_BAND = round(_FOUR_LINES_MM + 1.0, 1)
 
 
 # ----------------------------------------------------- K4(b): the false claim
@@ -182,7 +185,7 @@ def test_every_message_names_the_frame_the_clip_box_lives_in():
                                    margin_r=6.0)),
                 _clip_line(_recipe(band=_TOO_NARROW_BAND,
                                    clip_text="a\nb\nc\nd")),
-                _clip_line(_recipe(band=_PUSHED_BAND,
+                _clip_line(_recipe(band=_CLIP_CAN_HELP_BAND,
                                    clip_text="a\nb\nc\nd"))):
         if "“Clip”" in msg:
             assert "Text distance from edge" in msg, (
@@ -229,61 +232,112 @@ def test_one_line_is_singular_and_two_are_not():
     assert "One line" in one and "lines" not in one, one
     many = _clip_line(_recipe(band=_TOO_NARROW_BAND, clip_text="a\nb\nc\nd"))
     assert "Its 4 lines" in many, many
-    pushed_one = _clip_line(_recipe(band=6.0, clip=4.0, clip_text="x",
-                                    clip_size_mm=17.0 * 25.4 / 72.0))
-    assert "One line" in pushed_one and "lines" not in pushed_one, pushed_one
-    pushed_many = _clip_line(_recipe(band=_PUSHED_BAND,
-                                     clip_text="a\nb\nc\nd"))
-    assert "Its 4 lines" in pushed_many, pushed_many
+    over_one = _clip_line(_recipe(band=6.0, clip=4.0, clip_text="x",
+                                  clip_size_mm=17.0 * 25.4 / 72.0))
+    assert "One line" in over_one and "lines" not in over_one, over_one
 
 
-# ------------------------ Knut's ruling of 2026-09-11: the push, and its words
-def test_the_clip_text_may_pass_the_page_edge_distance_and_is_told_so():
-    """*"Yes, allow to print closer to the paper edge than 'Text distance from
-    edge' asks, but warn about it."*
+# --------------- Knut's ruling of 2026-09-12: the overflow goes INWARD
+#: THE MARGIN HAS TO BE AT THE BAND for the overflow to reach the patches at
+#: all. `instruments.geom_from_build_kwargs` raises the clip-side margin to the
+#: band and never above it, so margin == band is the ordinary clip chart, and a
+#: wider margin leaves clear paper between the band and the first patch column.
+#: The default `_recipe` margin is 24 mm, which is that second case.
+def _overflow(**kw):
+    return _recipe(band=_TOO_NARROW_BAND, margin_r=_TOO_NARROW_BAND,
+                   clip_text="a\nb\nc\nd", **kw)
 
-    The band is too narrow for the lines inside "Clip" and wide enough for them
-    outside it, which is the state his ruling created. Nothing is cut, and the
-    message says the distance was crossed.
-    """
-    r = _recipe(band=_PUSHED_BAND, clip_text="a\nb\nc\nd")
-    msg = _clip_line(r)
-    assert "closer to the paper edge than you asked" in msg, msg
-    assert "does not fit its band" not in msg, (
-        "the push must not be reported as text that had to be cut:\n" + msg)
+
+def test_the_clip_text_overflows_over_the_patches_and_is_told_so():
+    """*"The text on each of the 4 sides shall NOT cross the text-edge distance
+    limit on every side … the text shall overlap in the other direction,
+    inward and over the edges of the patch area instead."*"""
+    msg = _clip_line(_overflow())
+    assert "printed inward, past the band" in msg, msg
+    assert "lands on the patch area" in msg, msg
+    assert "closer to the paper edge than you asked" not in msg, (
+        "the outward push is being reported again:\n" + msg)
+    assert "is a limit and is never crossed" in msg, msg
     assert "Text distance from edge" in msg, msg
     assert "Clip border width" in msg, msg
     assert "Clip-border content" in msg, msg
 
 
-def test_the_push_is_only_as_far_as_the_text_needs():
-    """A band that fits its text keeps every millimetre of "Clip"."""
-    assert tef.clip_text_push(60.0, 4.0, 4) is None
-    p = tef.clip_text_push(_PUSHED_BAND, 4.0, 4)
-    assert p is not None
-    assert 0.0 < p.pushed_mm <= p.asked_inset_mm + 1e-9
-    assert p.short_mm == 0.0, (
-        "the whole reserve was spent on text that did not need it")
-    assert p.used_inset_mm == p.asked_inset_mm - p.pushed_mm
+def test_the_warning_says_what_the_overlap_costs():
+    """A user who leaves the text there is putting ink on measured patches.
+
+    That is the part of this worth more than the geometry, so it is checked
+    rather than left to the reader of the code.
+    """
+    msg = _clip_line(_overflow())
+    assert "measured with the ink on them" in msg, msg
+    assert "the patch and the text together" in msg, msg
 
 
-def test_the_widening_reaches_the_geometry_and_not_only_the_message():
-    """The band the sheet gets must be the band the warning describes."""
-    from workflow.layout_engine import geometry
-    r = _recipe(band=_PUSHED_BAND, clip_text="a\nb\nc\nd")
-    g = instruments.geom_from_build_kwargs(r.build_kwargs())
-    plain = geometry.clip_area_mm(g, 297.0, 210.0)
-    pushed = geometry.clip_area_mm(g, 297.0, 210.0, 4, 0.0)
-    assert plain is not None and pushed is not None
-    assert pushed[2] > plain[2] + 0.05, (
-        f"the band did not widen for its text: {plain[2]:.2f} -> {pushed[2]:.2f}")
-    zone = g.lbord + g.border
-    assert pushed[2] <= zone + 0.001, "the content ran off the paper edge"
-    # …and it widens OUTWARD: the rectangle's inner edge cannot move, because
-    # that is where the first patch column begins.
-    assert abs(pushed[0] + pushed[2] - (plain[0] + plain[2])) < 0.001 or \
-        abs(pushed[0] - plain[0]) < 0.001, (
-            "the band moved at the patch side instead of the paper side")
+def test_it_does_not_claim_the_patches_are_inked_when_they_are_not():
+    """THE SAME BAND, a wider margin, and the text lands on clear paper.
+
+    Measured on Knut's own run 1 with a 12 mm band and a 32 mm right margin:
+    2.3 mm of text past the band, 17.7 mm of clear paper beyond it, and not one
+    patch inked. A message that said otherwise would be asserting something the
+    sheet does not show, which is the fault section 2c records twice.
+    """
+    msg = _clip_line(_recipe(band=_TOO_NARROW_BAND, margin_r=40.0,
+                             clip_text="a\nb\nc\nd"))
+    assert "printed inward, past the band" in msg, msg
+    assert "reaches clear paper, not the patches" in msg, msg
+    assert "lands on the patch area" not in msg, msg
+    assert "measured with the ink on them" not in msg, msg
+
+
+def test_it_names_the_millimetres_that_go_over_the_patches():
+    r = _overflow()
+    want = tef.clip_text_overhang_mm(_TOO_NARROW_BAND, r.text_edge_clip_mm, 4)
+    assert want > 0.05
+    msg = _clip_line(r)
+    assert f"The remaining {want:.1f} mm" in msg, (
+        f"the message does not name the {want:.1f} mm that overflow:\n  {msg}")
+    # …and how much of that reaches the patches, which on this chart is all of
+    # it because the margin sits at the band.
+    assert f"{want:.1f} mm of it lands on the patch area" in msg, msg
+
+
+def test_lowering_clip_is_offered_only_when_it_can_finish_the_job():
+    """It buys back at most the reserve, so on a band narrower than the text
+    needs it moves the overlap without removing it."""
+    can = _recipe(band=_CLIP_CAN_HELP_BAND, clip_text="a\nb\nc\nd")
+    assert "Lowering “Clip”" in _clip_line(can), _clip_line(can)
+    cannot = _recipe(band=_TOO_NARROW_BAND, clip_text="a\nb\nc\nd",
+                     clip_size_mm=40.0 * 25.4 / 72.0)
+    msg = _clip_line(cannot)
+    assert "Lowering “Clip”" not in msg, (
+        "a remedy that cannot remedy is offered:\n" + msg)
+
+
+def test_the_number_it_asks_for_really_silences_it():
+    """Set the band to the width the message names, and the warning must go.
+
+    IT IS NOT THE BAND PLUS THE SHORTFALL, which is what the first version of
+    the message said: the page-edge reserve is a fifth of the band, so widening
+    the band widens the reserve and gives part of it straight back. Measured
+    here rather than reasoned about, because that arithmetic shipped once.
+    """
+    r = _recipe(band=_TOO_NARROW_BAND, clip_text="a\nb\nc\nd")
+    msg = _clip_line(r)
+    m = re.search(r"Widen “Clip border width” to about ([0-9.]+) mm", msg)
+    assert m, f"the message names no target width:\n  {msg}"
+    want = float(m.group(1))
+    assert want > _TOO_NARROW_BAND, (want, _TOO_NARROW_BAND)
+    wider = _recipe(band=round(want + 0.05, 2), clip_text="a\nb\nc\nd")
+    assert not [w for w in _over(wider) if "clip border text" in w], (
+        f"the message asked for {want} mm and the warning survives there")
+    # …and the naive answer really does NOT silence it, which is why the
+    # message stopped giving it.
+    over = tef.clip_text_overhang_mm(_TOO_NARROW_BAND, r.text_edge_clip_mm, 4)
+    naive = _recipe(band=round(_TOO_NARROW_BAND + over, 2),
+                    clip_text="a\nb\nc\nd")
+    assert [w for w in _over(naive) if "clip border text" in w], (
+        "band plus the shortfall now works, so this file is guarding nothing")
 
 
 def test_a_roomy_band_says_nothing_about_its_text():

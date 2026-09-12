@@ -3709,36 +3709,21 @@ class LayoutOptionsPanel(QWidget):
                     "above {border:.1f} mm.").format(
                         floor=floor, typed=typed, border=border_w))
 
-        # 2. The clip-border content is capped at a fifth of the band, and
-        #    since Knut's ruling of 2026-09-11 it is also SURRENDERED when the
-        #    text at its floor will not fit any other way. Two different
-        #    reasons for one number, so the note has to say which one happened.
+        # 2. The clip-border content is capped at a fifth of the band. It is
+        #    NOT surrendered to text that will not fit: that text goes over the
+        #    patches instead, which is a different note and a red one.
         if geom is not None and self._clip_content_printed():
             zone = float(getattr(geom, "lbord", 0.0) or 0.0) + \
                 float(getattr(geom, "border", 0.0) or 0.0)
             area = None
-            _lines_n, _size_pt = self._clip_text_fit_inputs()
             try:
                 from workflow.layout_engine import geometry as _geometry
-                area = _geometry.clip_area_mm(geom, gh[1], gh[2],
-                                              _lines_n, _size_pt)
+                area = _geometry.clip_area_mm(geom, gh[1], gh[2])
             except Exception:      # noqa: BLE001 — a note is never fatal
                 area = None
             if area is not None and zone > 0:
-                from workflow import text_edge_fit as _tef
                 run_up = zone - float(area[2])
-                asked = _tef.clip_inset_asked_mm(zone, typed)
-                if run_up + 0.05 < asked:
-                    lines.append(tr(
-                        "The clip border's text is printed closer to the paper "
-                        "edge than the {typed:.1f} mm you asked for: it is "
-                        "kept clear by {run_up:.1f} mm instead. It no longer "
-                        "fits the {zone:.1f} mm band at its smallest size, so "
-                        "it takes the clearance rather than being cut. Widen "
-                        "“Clip border width”, or set a smaller Size under "
-                        "“Clip-border content”, to get the distance back."
-                    ).format(run_up=run_up, typed=typed, zone=zone))
-                elif run_up + 0.05 < typed:
+                if run_up + 0.05 < typed:
                     lines.append(tr(
                         "The clip border's text is kept clear of the paper "
                         "edge by {run_up:.1f} mm, not by the {typed:.1f} mm "
@@ -3761,10 +3746,11 @@ class LayoutOptionsPanel(QWidget):
     def _clip_text_fit_inputs(self) -> tuple[int, float]:
         """``(lines, size_pt)`` for the clip band's own text, or ``(0, 0.0)``.
 
-        What `workflow/text_edge_fit.py` needs to say whether the band has to
-        widen outward for its text (Knut, 2026-09-11). Only the plain-text
-        content mode has lines to measure: an image or the branding scales to
-        whatever band it is handed, so it has no floor to be pushed past.
+        What `workflow/text_edge_fit.py` needs to say how far the band's text
+        reaches INWARD over the patch area (Knut, 2026-09-12). Only the
+        plain-text content mode has lines to measure: an image or the branding
+        scales to whatever band it is handed, so it has no floor to overflow
+        from.
         """
         cm = getattr(self, "clip_content_mode", None)
         if cm is None or cm.currentData() != "text":
@@ -3902,11 +3888,12 @@ class LayoutOptionsPanel(QWidget):
         # and `clip_area_mm` cannot place it without knowing how wide the sheet
         # is — and the ColorMunki family's own default puts the clip on the right.
         #
-        # THE PREVIEW SHOWS THE BAND THE SHEET WILL HAVE, including the widening
-        # outward that text too thick for its band is now allowed (Knut,
-        # 2026-09-11). Without these two arguments the strip on screen would be
-        # narrower than the one on paper and the Size box would again look like
-        # it does nothing, which is how #163's shrunken branding went unnoticed.
+        # THE PREVIEW SHOWS THE BAND THE SHEET WILL HAVE, including the part
+        # that reaches inward over the patch area when the text will not fit
+        # (Knut, 2026-09-12). Without these two arguments the strip on screen
+        # would be narrower than the one on paper and the Size box would again
+        # look like it does nothing, which is how #163's shrunken branding went
+        # unnoticed.
         area = (geometry.clip_area_mm(gh[0], gh[1], gh[2],
                                       *self._clip_text_fit_inputs())
                 if gh else None)
@@ -3960,7 +3947,7 @@ class LayoutOptionsPanel(QWidget):
         from PyQt6.QtWidgets import QMessageBox
         from workflow.layout_engine import geometry, raster
         gh = self._clip_geom_and_height()
-        # The template is the band the sheet gets, push included.
+        # The template is the band the sheet gets, overhang included.
         area = (geometry.clip_area_mm(gh[0], gh[1], gh[2],
                                       *self._clip_text_fit_inputs())
                 if gh else None)

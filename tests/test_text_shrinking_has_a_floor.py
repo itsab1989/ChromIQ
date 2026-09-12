@@ -313,20 +313,23 @@ def test_the_clip_inset_is_the_one_the_geometry_applies():
     TYPED value off BOTH sides, which on Knut's 16 mm band with Clip at 4 mm
     predicted 8.0 mm where the renderer gives 12.8.
     """
-    assert tef.clip_inset_asked_mm(16.0, 4.0) == pytest.approx(3.2), (
+    assert tef.clip_content_inset_mm(16.0, 4.0) == pytest.approx(3.2), (
         "the fifth-of-the-band cap is not applied")
-    assert tef.clip_inset_asked_mm(26.0, 4.0) == pytest.approx(4.0), (
+    assert tef.clip_content_inset_mm(26.0, 4.0) == pytest.approx(4.0), (
         "a roomy band should use the typed value")
-    # Described no content, nothing is surrendered: this is what every caller
-    # that only wants the band's placement gets.
-    assert tef.clip_content_inset_mm(16.0, 4.0) == pytest.approx(3.2)
-    assert tef.clip_content_inset_mm(26.0, 4.0) == pytest.approx(4.0)
-    # Four lines at the floor take 11.85 mm and 16.0 less 3.2 is 12.8, so the
-    # reserve survives whole and the band's room is what the renderer gives it.
+    # AND IT IS A LIMIT: no argument makes it give any of that up. It took
+    # `lines` and `size_pt` for one evening and surrendered the reserve to text
+    # that would not fit, which Knut corrected on 2026-09-12.
+    import inspect
+    assert list(inspect.signature(tef.clip_content_inset_mm).parameters) == \
+        ["band_mm", "text_edge_clip_mm"], (
+            "clip_content_inset_mm takes the content again, so the page-edge "
+            "reserve can be spent again")
+    # Four lines at the floor take 11.85 mm and 16.0 less 3.2 is 12.8, so they
+    # fit inside the reserve and nothing reaches over the patches.
     assert tef.clip_text_needed_mm(4) == pytest.approx(
         4 * 1.2 * tef.pt_to_mm(tef.AUTO_SHRINK_FLOOR_PT))
-    assert tef.clip_content_inset_mm(16.0, 4.0, 4) == pytest.approx(3.2)
-    assert tef.clip_text_push(16.0, 4.0, 4) is None
+    assert tef.clip_text_overhang_mm(16.0, 4.0, 4) == 0.0
     assert tef.clip_text_squeeze(16.0, 4.0, 4) is None
 
 
@@ -354,18 +357,19 @@ def test_the_clip_squeeze_predicate_agrees_with_the_geometry_module():
 def test_the_clip_squeeze_predicate_matches_the_renderer():
     """It fires only when the WHOLE band is too narrow.
 
-    Since Knut's ruling of 2026-09-11 the band may take the page-edge reserve
-    for text it cannot otherwise hold, so "does not fit" means "does not fit
-    even then". Four lines at the 7 pt floor take 11.85 mm: an 11.0 mm band is
-    too small however the reserve is spent, and a 12.0 mm one is not.
+    Four lines at the 7 pt floor take 11.85 mm and a 12 mm band keeps 2.4 mm of
+    it for the page edge, so 9.6 mm are left and 2.25 mm of text go over the
+    patches. Knut, 2026-09-12: the page-edge distance is a limit and the
+    overflow goes the other way.
     """
-    o = tef.clip_text_squeeze(11.0, 4.0, 4, 0.0, "right")
-    assert o is not None, "an 11 mm band with four lines at the floor is silent"
-    assert o.available_mm == pytest.approx(11.0), (
-        "the whole band must be offered before this warns")
-    assert o.needed_mm > 11.0
-    assert tef.clip_text_squeeze(12.0, 4.0, 4, 0.0, "right") is None, (
-        "a 12 mm band holds four lines once the reserve is given up")
+    o = tef.clip_text_squeeze(12.0, 4.0, 4, 0.0, "right")
+    assert o is not None, "a 12 mm band with four lines at the floor is silent"
+    assert o.available_mm == pytest.approx(12.0 - 2.4), (
+        "the page-edge reserve must be kept back, not offered to the text")
+    assert o.needed_mm > o.available_mm
+    assert tef.clip_text_overhang_mm(12.0, 4.0, 4) == pytest.approx(
+        o.needed_mm - o.available_mm), (
+            "the overhang and the squeeze are the same fact and disagree")
     # Knut's own ColorMunki preset, 24 mm with the same four lines, is SILENT,
     # which is what he reports: at 24 mm the clip-border text is fine.
     assert tef.clip_text_squeeze(24.0, 4.0, 4, 0.0, "right") is None

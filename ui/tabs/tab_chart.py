@@ -19431,88 +19431,102 @@ class TabChart(QWidget):
                     from workflow.layout_engine.raster import clip_text_lines
                     _clip_lines = len(clip_text_lines(
                         getattr(r, "clip_text", "") or ""))
-                # TWO STATES SINCE KNUT'S RULING OF 2026-09-11, AND THEY NEED
-                # DIFFERENT SENTENCES.
+                # THE TEXT-EDGE DISTANCE IS A LIMIT, AND THE OVERFLOW GOES
+                # THE OTHER WAY. Knut, 2026-09-12, correcting the answer he
+                # gave the evening before:
                 #
-                # *"Yes, allow to print closer to the paper edge than 'Text
-                # distance from edge' asks, but warn about it, just as
-                # previously defined, so that user knows to change margin,
-                # clip-border width or the 'Text distance from edge'
-                # Clip-parameter, to fit text correctly against limits without
-                # getting a warning."*
+                #   "I was confused about the question, when you already know
+                #    the text-edge distance is a limit on every side. The text
+                #    on each of the 4 sides shall NOT cross the text-edge
+                #    distance limit on every side. If the patch area with its
+                #    margins are pushing against these limits, the text shall
+                #    overlap in the other direction, inward and over the edges
+                #    of the patch area instead. When this happens the warning
+                #    texts shall appear, informing the user, as described and
+                #    defined earlier."
                 #
-                # So the band now widens outward for text it cannot otherwise
-                # hold (`text_edge_fit.clip_content_inset_mm`), and the two
-                # things that can go wrong are no longer the same thing: the
-                # text may cross the page-edge distance, or it may not fit even
-                # with the whole of that distance given up. The second is the
-                # worse one, so it is the one that is said.
-                _push = text_edge_fit.clip_text_push(
-                    _clip_zone, r.text_edge_clip_mm, _clip_lines, _clip_size_pt)
+                # So there is ONE state again, not two: the lines either fit
+                # inside the band's own room or they are printed over the patch
+                # area, and `clip_text_squeeze` fires exactly when
+                # `clip_text_overhang_mm` is non-zero.
                 _cs = text_edge_fit.clip_text_squeeze(
                     _clip_zone, r.text_edge_clip_mm, _clip_lines,
                     _clip_size_pt, _side)
                 if _cs is not None:
+                    _over_mm = text_edge_fit.clip_text_overhang_mm(
+                        _clip_zone, r.text_edge_clip_mm, _clip_lines,
+                        _clip_size_pt)
+                    # WIDEN BY THE SHORTFALL IS THE WRONG NUMBER, because the
+                    # page-edge reserve is capped at a fifth of the band and so
+                    # grows with it: measured on four lines at the floor with
+                    # "Clip" at 4 mm, widening an 11.9 mm band by the 2.3 mm
+                    # that overhang leaves it 0.4 mm short. The message names
+                    # the width that actually works.
+                    _want_band = text_edge_fit.clip_band_needed_mm(
+                        r.text_edge_clip_mm, _clip_lines, _clip_size_pt)
+                    # AND WHETHER IT REACHES THE PATCHES AT ALL IS A SEPARATE
+                    # QUESTION. The text grows inward from the band's inner
+                    # edge into whatever paper is there, and the patch area
+                    # begins at the clip-side MARGIN, which
+                    # `instruments.geom_from_build_kwargs` raises to the band
+                    # but which the user may set far wider. Measured on Knut's
+                    # own run 1 with a 12 mm band and a 32 mm right margin:
+                    # 2.3 mm of text past the band, 17.7 mm of clear paper
+                    # beyond it, and not one patch inked. Saying "those patches
+                    # are measured with that ink on them" there would be the
+                    # message asserting something the sheet does not show.
+                    _clip_margin = float(geom.margin_r if _clip_on_right
+                                         else geom.margin_l)
+                    _into_patches = max(0.0, _clip_zone + _over_mm
+                                        - _clip_margin)
                     _fmt = dict(lines=_clip_lines, size=_clip_floor_pt,
                                 need=_cs.needed_mm,
                                 avail=max(0.0, _cs.available_mm),
-                                short=_cs.overlap_mm, band=_clip_zone)
-                    over.append((tr(
+                                over=_over_mm, band=_clip_zone,
+                                into=_into_patches, want=_want_band)
+                    _msg = (tr(
                         "⚠ The clip border text does not fit its band. One line "
                         "at {size:.0f} pt needs {need:.1f} mm across the band, "
-                        "and the {band:.1f} mm band leaves {avail:.1f} mm even "
-                        "with the whole “Clip” distance under “Text distance "
-                        "from edge (mm)” given up to it. It is printed at "
-                        "{size:.0f} pt anyway so you can see this. Widen “Clip "
-                        "border width” by about {short:.1f} mm, or set a "
-                        "smaller Size under “Clip-border content”.")
+                        "and the {band:.1f} mm band leaves {avail:.1f} mm "
+                        "inside the “Clip” distance under “Text distance from "
+                        "edge (mm)”, which is a limit and is never crossed. "
+                        "The remaining {over:.1f} mm is printed inward, past "
+                        "the band.")
                         if _clip_lines == 1 else tr(
                         "⚠ The clip border text does not fit its band. Its "
                         "{lines} lines at {size:.0f} pt need {need:.1f} mm "
                         "across the band, and the {band:.1f} mm band leaves "
-                        "{avail:.1f} mm even with the whole “Clip” distance "
-                        "under “Text distance from edge (mm)” given up to "
-                        "them. They are printed at {size:.0f} pt anyway so you "
-                        "can see this. Widen “Clip border width” by about "
-                        "{short:.1f} mm, or set a smaller Size under "
-                        "“Clip-border content”.")).format(**_fmt))
-                elif _push is not None:
-                    # THE THREE LEVERS HE NAMED ARE NOT ALL LEVERS HERE, and
-                    # naming one that moves nothing is the fault section 2c of
-                    # `docs/design/issue_182_answers.md` records being caught
-                    # out by once already. The clip-side margin is RAISED to
-                    # the band by `instruments.geom_from_build_kwargs`
-                    # (`mr = max(mr, clip_w)`) and never decides how wide the
-                    # band is, so typing more of it cannot free a millimetre
-                    # for this text. The two that do are named, plus the Size
-                    # box, and the margin is asked about in the report.
-                    _wider = max(0.0, _push.needed_mm + _push.asked_inset_mm
-                                 - _push.band_mm)
-                    _fmt = dict(lines=_clip_lines, size=_clip_floor_pt,
-                                need=_push.needed_mm, band=_push.band_mm,
-                                asked=_push.asked_inset_mm,
-                                used=_push.used_inset_mm,
-                                pushed=_push.pushed_mm, wider=_wider)
-                    over.append((tr(
-                        "⚠ The clip border text is printed closer to the paper "
-                        "edge than you asked. One line at {size:.0f} pt needs "
-                        "{need:.1f} mm across the {band:.1f} mm band, so it "
-                        "takes {pushed:.1f} mm of the {asked:.1f} mm “Clip” "
-                        "under “Text distance from edge (mm)” keeps clear and "
-                        "is printed {used:.1f} mm from the paper edge. Widen "
-                        "“Clip border width” by about {wider:.1f} mm, lower "
-                        "“Clip” to {used:.1f} mm, or set a smaller Size under "
-                        "“Clip-border content”.")
-                        if _clip_lines == 1 else tr(
-                        "⚠ The clip border text is printed closer to the paper "
-                        "edge than you asked. Its {lines} lines at {size:.0f} "
-                        "pt need {need:.1f} mm across the {band:.1f} mm band, "
-                        "so they take {pushed:.1f} mm of the {asked:.1f} mm "
-                        "“Clip” under “Text distance from edge (mm)” keeps "
-                        "clear and are printed {used:.1f} mm from the paper "
-                        "edge. Widen “Clip border width” by about {wider:.1f} "
-                        "mm, lower “Clip” to {used:.1f} mm, or set a smaller "
-                        "Size under “Clip-border content”.")).format(**_fmt))
+                        "{avail:.1f} mm inside the “Clip” distance under “Text "
+                        "distance from edge (mm)”, which is a limit and is "
+                        "never crossed. The remaining {over:.1f} mm is printed "
+                        "inward, past the band.")).format(**_fmt)
+                    if _into_patches > 0.05:
+                        _msg += " " + tr(
+                            "{into:.1f} mm of it lands on the patch area, and "
+                            "those patches are measured with the ink on them, "
+                            "so what the instrument reads there is the patch "
+                            "and the text together.").format(**_fmt)
+                    else:
+                        _msg += " " + tr(
+                            "It reaches clear paper, not the patches, because "
+                            "the margin on that side is wider than the band.")
+                    _msg += " " + tr(
+                        "Widen “Clip border width” to about {want:.1f} mm, or "
+                        "set a smaller Size under “Clip-border content”."
+                    ).format(**_fmt)
+                    # LOWERING "Clip" IS A LEVER ONLY WHILE IT CAN FINISH THE
+                    # JOB. It buys back at most the whole reserve, so on a band
+                    # narrower than the text needs it moves the overlap without
+                    # removing it, and a remedy that does not remedy is the
+                    # fault section 2c of `docs/design/issue_182_answers.md`
+                    # records being caught out by once already.
+                    _clip_target = _clip_zone - _cs.needed_mm
+                    if _clip_target > 0.05:
+                        _msg += " " + tr(
+                            "Lowering “Clip” to {target:.1f} mm would also do "
+                            "it, at the cost of printing that much closer to "
+                            "the paper edge.").format(target=_clip_target)
+                    over.append(_msg)
             # The text-overflow warning only applies in "margins are law" mode,
             # which is now AREA-FIRST (Knut #93): there the label/text lives inside
             # the margin, so a too-small margin overflows toward the page edge. In
