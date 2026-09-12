@@ -1,5 +1,26 @@
 # Changelog
 
+## v4.2.7
+
+**The output pane stops dragging you back to the bottom.** One fix, reported by
+a user who was trying to read what had already scrolled past while a profile was
+still building.
+
+### Fixed
+
+- **A log pane follows the tail only while you are already at the bottom.** Scroll
+  up to read something and the next line of output no longer throws you back
+  down; scroll to the bottom again and it resumes following. Nine panes across
+  the app had the old behaviour, not one: Create Chart, Measure, Build Profile,
+  Check and Refine, the spot-read window and the tool windows.
+
+  The Create Chart tab needed a second fix for the same complaint. It collapses
+  the patch-arranging output into one live percentage line, rewriting that line
+  in place rather than appending, and that path asked the "are you at the
+  bottom?" question at the wrong moment: it reused the answer from the last line
+  that was appended. A reader who scrolled up after the percentage started
+  ticking was thrown back to the bottom on every tick.
+
 ## v4.2.6
 
 **A profile built from an i1Profiler measurement could record its paper white as
