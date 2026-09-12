@@ -1073,3 +1073,36 @@ different runs from that selection, the Print tab taking the manifest's current
 run and the Measure tab taking the run the loaded chart lives in, but with no
 chart loaded the group is hidden and the answer is correct anyway. Recorded as a
 latent hole with a dead guard beside it, not as a live fault.
+
+---
+
+## 2k. The same false sentence, in four places, corrected three times
+
+**Confirmed by:** *nobody yet.* Written down because the PATTERN is the lesson,
+not any one of the sentences.
+
+A sentence about what a column named after a standard contains was wrong, was
+corrected, and the correction was wrong in a new direction. Twice. The sixth
+adversarial round then found two more copies of the original that neither
+correction had reached.
+
+| where | what it said | why it was false |
+|---|---|---|
+| the report's guide, v1 | "The columns named after a standard hold that standard's published tolerance values" | false of the two Custom columns: they start from ChromIQ's own numbers |
+| the report's guide, v2 | "A read-only column named after a standard holds that standard's published tolerance values" | false of the read-only ones as ChromIQ ships: the data file is empty by design, 30 rows and 0 numbers |
+| the report's guide, v3 | "those columns are empty, and cannot be chosen unless you hold the standard and supply its figures yourself" | false in the one state v2 was rewritten to cover. With figures supplied the columns carried 7 and 5 numbers and both appeared in the pulldown, while this paragraph, which is the same bytes in every state, still called them empty. And a run BOUND to an ISO set carries that choice to a machine holding no figures, where the set stays selectable |
+| the Custom columns' blurb | "The starting numbers are ChromIQ's own, not ISO 12647-7:2016's" and "The two editable columns start from the same numbers" | true only while the file is empty. `factory_limits` takes ChromIQ's placeholders **only where the file supplied no number**, so with figures supplied custom-7 starts from the 12647-7 block and custom-8 from the 12647-8 block |
+| `M_THRESHOLDS_NOT_CERTIFICATION` | the v1 sentence, verbatim | never touched by either correction, and `_notes_text` prints it two lines below its own correct sentence, so one panel said both things at once |
+| the Report limits window's note | "the two Custom sets that start from them are empty" | true until 2026-09-12, when the Custom sets took a value on every measurable row. Its guard is "neither ISO set is selectable", so it was shown ONLY in the state where it had become false |
+
+**The rule this produces, and it is general.** A sentence about what ChromIQ
+holds must be true in the state ChromIQ ships AND in the state a licence holder
+creates, because none of these strings is state-aware and none of them is going
+to become so. Every one of them is now phrased as a condition rather than as a
+state. `tests/test_a_custom_column_is_not_a_standards_column.py` drives both
+states: it supplies figures through `CHROMIQ_COMPLIANCE_ISO_FILE` and requires
+the Custom column to start from them, so the clause that says so cannot rot.
+
+**And the second rule, which is the one that cost three attempts.** When a
+sentence is found false, grep for its words before rewriting it. Two of the six
+rows above are copies nobody looked for.

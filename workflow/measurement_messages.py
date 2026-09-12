@@ -2385,12 +2385,23 @@ M_REPORT_CHART_MISMATCH = _m(
 M_THRESHOLDS_NOT_CERTIFICATION = _m(
     "M-THRESHOLDS-NOT-CERTIFICATION",
     "ChromIQ measures against published values; it does not certify",
-    "The columns named after a standard hold that standard's published "
-    "tolerance values, applied to the chart you printed. They are not a test "
-    "of the standard's own control strip and chart, so a report can never say "
-    "that a print conforms to a standard. What ChromIQ does is measure as many "
-    "of the standard's values as your chart allows, say which it checked and "
-    "which it did not, and let you follow them over time.\n\n"
+    # THE THIRD COPY OF A SENTENCE CORRECTED TWICE ELSEWHERE, and the one in
+    # the window that actually draws the columns. It read "The columns named
+    # after a standard hold that standard's published tolerance values", which
+    # is false of the two Custom columns (they start from ChromIQ's own numbers
+    # where nobody has supplied a standard's) and false of the two read-only
+    # ones as ChromIQ ships (the data file is empty by design). The report's
+    # guide was corrected for each half in turn; this copy was corrected
+    # neither time, and `_notes_text` prints it two lines below its own correct
+    # sentence, so one panel said both things at once.
+    "A column named after a standard is judged against that standard's "
+    "published tolerance values where a licence holder has supplied them, and "
+    "against ChromIQ's own numbers where nobody has. Either way the values are "
+    "applied to the chart you printed and not to that standard's own control "
+    "strip and chart, so a report can never say that a print conforms to a "
+    "standard. What ChromIQ does is measure as many of the standard's values "
+    "as your chart allows, say which it checked and which it did not, and let "
+    "you follow them over time.\n\n"
     "Rows marked ✕ are requirements ChromIQ cannot measure at all; they stay in "
     "the table so you can see what the standard asks: {rows}",
     approved=False)

@@ -43,29 +43,80 @@ def _guide(tmp_path):
 def test_the_guide_separates_a_published_column_from_a_custom_one(tmp_path,
                                                                   qapp):
     g = _guide(tmp_path)
-    assert "read-only column named after a standard is where that standard's " \
-           "own published tolerance values go" in g
-    assert "An editable column named after a standard starts from " \
-           "ChromIQ's own numbers, not that standard's" in g
+    assert "read-only column named after a standard holds that standard's " \
+           "published tolerance values and nothing else" in g
+    assert "An editable column named after a standard starts from those " \
+           "supplied figures where there are any and from ChromIQ's own " \
+           "numbers where there are none" in g
 
 
-def test_the_guide_does_not_say_the_read_only_columns_hold_anything(tmp_path,
-                                                                    qapp):
-    """THE CORRECTION ABOVE WAS WRONG IN THE OTHER DIRECTION FOR ONE MORNING.
+def test_every_clause_of_the_guide_survives_a_licence_holder(tmp_path, qapp):
+    """THIS PARAGRAPH HAS BEEN WRONG THREE TIMES, EACH TIME IN A NEW DIRECTION.
 
-    Separating the two kinds of column left the sentence "A read-only column
-    named after a standard holds that standard's published tolerance values",
-    and that is false in every build ChromIQ distributes:
-    `data/compliance_sets/iso12647.json` ships empty by design, so those two
-    columns carry thirty rows and not one number. The fifth adversarial round
-    drove the report and the limits window side by side and measured it.
+    1. "The columns named after a standard hold that standard's published
+       tolerance values": false of the two Custom columns.
+    2. "A read-only column named after a standard holds that standard's
+       published tolerance values": false of the read-only ones as ChromIQ
+       ships, because the data file is empty by design.
+    3. "those columns are empty, and cannot be chosen unless you hold the
+       standard and supply its figures yourself": false in the one state the
+       second correction was written to cover. The sixth adversarial round set
+       `CHROMIQ_COMPLIANCE_ISO_FILE` and measured the two columns carrying 7
+       and 5 numbers, both offered in the pulldown, with the guide inside that
+       very report still calling them empty. The paragraph is the same bytes in
+       every state, because `_how_to_read_html` never asks what the file holds.
+       The second clause had an exception of its own: a run BOUND to an ISO set
+       carries that choice to a machine holding no figures at all.
 
-    Fixing one half of a false sentence by writing the same falsehood onto the
-    other half is worth a test of its own.
+    So the paragraph may not assert emptiness or selectability outright. What
+    it says now is conditional, and this test pins the condition rather than
+    the sentence.
     """
     g = _guide(tmp_path)
-    assert "named after a standard holds that standard's" not in g
-    assert "ships none of them" in g
+    # The two absolute claims, by their own words.
+    assert "those columns are empty" not in g
+    assert "cannot be chosen" not in g
+    # What replaced them: a condition, not a state.
+    assert "such a column is empty unless a licence holder has supplied its " \
+           "figures" in g
+
+
+def test_the_guide_is_true_whether_or_not_the_figures_are_supplied(tmp_path,
+                                                                   qapp,
+                                                                   monkeypatch):
+    """The paragraph is state-independent, so it has to be true in both states.
+
+    Driven here by actually supplying figures the way a licence holder does,
+    and checking that what the guide claims still holds.
+    """
+    import json
+
+    import workflow.compliance_sets as C
+    supplied = tmp_path / "iso.json"
+    supplied.write_text(json.dumps({
+        "iso_12647_7": {"all_de00_avg": 2.5, "substrate_de00_max": 3.0},
+        "iso_12647_8": {"all_de00_avg": 4.0},
+    }), encoding="utf-8")
+    monkeypatch.setenv("CHROMIQ_COMPLIANCE_ISO_FILE", str(supplied))
+    monkeypatch.setattr(C, "_iso_cache", None, raising=False)
+    monkeypatch.setattr(C, "_iso_problems", [], raising=False)
+    try:
+        ro = C.effective_limits("iso_12647_7", None)
+        assert [r for r in ro.values() if r.is_numeric], (
+            "the premise: supplying figures fills the read-only column")
+        # "An editable column ... starts from those supplied figures where
+        # there are any": the Custom column must take the SUPPLIED number.
+        cu = C.factory_limits("custom_iso_12647_7")
+        assert cu["all_de00_avg"].is_numeric
+        assert abs(cu["all_de00_avg"].number - 2.5) < 1e-9, (
+            "the Custom column did not start from the supplied figure, so the "
+            "guide's clause about it is false")
+        # "...and from ChromIQ's own numbers where there are none": a row the
+        # file said nothing about still carries a placeholder.
+        assert cu["all_de00_max"].is_numeric
+    finally:
+        C._iso_cache = None
+        C._iso_problems = []
 
 
 def test_the_two_read_only_columns_really_do_ship_empty(tmp_path, qapp):
@@ -109,13 +160,25 @@ def test_both_kinds_still_count_as_applying_a_standard():
     assert not applies_a_standard("chromiq_default")
 
 
-def test_the_custom_blurbs_say_whose_numbers_they_start_from():
+def test_the_custom_blurbs_name_both_places_the_numbers_come_from():
+    """The blurb said "The starting numbers are ChromIQ's own, not ISO
+    12647-7:2016's" and "The two editable columns start from the same
+    numbers". Both are true only while the data file is empty.
+    `factory_limits` takes ChromIQ's placeholders only where the file supplied
+    no number, so with figures supplied custom-7 starts from the 12647-7 block
+    and custom-8 from the 12647-8 block, and the two are not the same numbers.
+    """
     from workflow.compliance_sets import SET_BY_ID
     for sid, std in (("custom_iso_12647_7", "ISO 12647-7:2016"),
                      ("custom_iso_12647_8", "ISO 12647-8:2021")):
         blurb = SET_BY_ID[sid].blurb
-        assert f"not {std}'s" in blurb, sid
+        assert f"published figures of {std}" in blurb, sid
+        assert "where a licence holder has supplied them" in blurb, sid
+        assert "ChromIQ's own numbers where nobody has" in blurb, sid
         assert "yours to change" in blurb, sid
+        # the two claims that were false in the supplied state
+        assert "not " + std + "'s" not in blurb, sid
+        assert "start from the same numbers" not in blurb, sid
 
 
 def test_the_custom_blurbs_claim_nothing_about_which_rows_a_standard_limits():
@@ -136,14 +199,11 @@ def test_the_custom_blurbs_claim_nothing_about_which_rows_a_standard_limits():
         assert "The rows ISO" not in blurb, sid
 
 
-def test_the_two_custom_columns_really_do_start_identical():
-    """The blurb says so, so it has to be true. If the two ever start from
-    different numbers this test fails and the sentence is the thing to fix."""
+def test_the_two_custom_columns_start_identical_only_while_the_file_is_empty():
+    """They do, as ChromIQ ships, and the blurb no longer says so BECAUSE that
+    stops being true the moment a licence holder supplies figures. Pinned here
+    as the fact it is, not as a promise the text makes."""
     from workflow.compliance_sets import effective_limits, limit_bearing
     a = limit_bearing(effective_limits("custom_iso_12647_7", None))
     b = limit_bearing(effective_limits("custom_iso_12647_8", None))
     assert set(a) == set(b)
-    assert {k: (v.lo, v.hi) if hasattr(v, "lo") else str(v)
-            for k, v in a.items()} == {
-           k: (v.lo, v.hi) if hasattr(v, "lo") else str(v)
-           for k, v in b.items()}

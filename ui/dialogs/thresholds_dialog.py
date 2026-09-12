@@ -241,13 +241,20 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
             "statistic ChromIQ computes and a standard also limits is one row.")
         if not any(sid in set(selectable_set_ids(self._overrides))
                    for sid in ("iso_12647_7", "iso_12647_8")):
+            # …AND IT NO LONGER SAYS THE CUSTOM SETS ARE EMPTY, because as of
+            # 2026-09-12 they are not. Knut asked for a value on every metric
+            # ChromIQ can measure, `_CUSTOM_PLACEHOLDER` supplies eleven, and
+            # both Custom sets became selectable the same day. This sentence's
+            # own guard is "neither ISO set is selectable", so it was shown
+            # ONLY in the state where its second clause had become false, with
+            # the two enabled radio buttons three rows above it.
             sub_text += " " + tr(
-                "The ISO value sets are not yet available in this version, and "
-                "the two Custom sets that start from them are empty: whether a "
-                "standard's numbers may ship inside ChromIQ is still being "
-                "decided. A cell reading ? is a limit the standard defines and "
-                "ChromIQ does not show yet; you may type your own number into a "
-                "Custom column from your own copy of the standard.")
+                "The ISO value sets are not yet available in this version: "
+                "whether a standard's numbers may ship inside ChromIQ is still "
+                "being decided. A cell reading ? is a limit the standard "
+                "defines and ChromIQ does not show yet; you may type your own "
+                "number into a Custom column from your own copy of the "
+                "standard.")
         sub = QLabel(sub_text, self)
         sub.setWordWrap(True)
         inner.addWidget(sub)

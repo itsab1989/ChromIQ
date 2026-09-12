@@ -375,24 +375,35 @@ SETS: "tuple[SetDef, ...]" = (
     #
     # Attributing coverage to a standard that does not have it is the same
     # class of claim as denying coverage it does, and neither is ChromIQ's to
-    # make. The blurb now says what the column IS, and says nothing about which
+    # make. The blurb says what the column IS, and says nothing about which
     # rows any standard limits.
+    #
+    # AND THE THIRD VERSION WAS FALSE IN THE STATE NOBODY HERE RUNS IN. It read
+    # "The starting numbers are ChromIQ's own, not ISO 12647-7:2016's" and "the
+    # two editable columns start from the same numbers". Both are true only
+    # while the data file is empty. `factory_limits` takes the placeholders
+    # "only where the data file supplied no real number, so a licence holder
+    # who points ChromIQ at their own file still starts from theirs" -- so with
+    # figures supplied, custom-7 starts from the 12647-7 block and custom-8
+    # from the 12647-8 block, and the two are not the same numbers at all. The
+    # sixth adversarial round drove both states and measured 7 and 5 supplied
+    # figures respectively. It is worded for both states now.
     SetDef("custom_iso_12647_7", "Custom ISO 12647-7", "custom", True,
            parent="iso_12647_7",
            blurb="Every metric ChromIQ can measure, for judging against "
-                 "figures you set yourself. The starting numbers are "
-                 "ChromIQ's own, not ISO 12647-7:2016's, and every limit is "
-                 "yours to change, the rows that start empty included. The "
-                 "two editable columns start from the same numbers, so it is "
-                 "your edits that tell them apart."),
+                 "figures you set yourself. It starts from the published "
+                 "figures of ISO 12647-7:2016 where a licence holder has "
+                 "supplied them, and from ChromIQ's own numbers where "
+                 "nobody has, and every limit in it is yours to change, "
+                 "the rows that start empty included."),
     SetDef("custom_iso_12647_8", "Custom ISO 12647-8", "custom", True,
            parent="iso_12647_8",
            blurb="Every metric ChromIQ can measure, for judging against "
-                 "figures you set yourself. The starting numbers are "
-                 "ChromIQ's own, not ISO 12647-8:2021's, and every limit is "
-                 "yours to change, the rows that start empty included. The "
-                 "two editable columns start from the same numbers, so it is "
-                 "your edits that tell them apart."),
+                 "figures you set yourself. It starts from the published "
+                 "figures of ISO 12647-8:2021 where a licence holder has "
+                 "supplied them, and from ChromIQ's own numbers where "
+                 "nobody has, and every limit in it is yours to change, "
+                 "the rows that start empty included."),
 )
 SET_BY_ID: "dict[str, SetDef]" = {s.id: s for s in SETS}
 

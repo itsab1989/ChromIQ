@@ -153,11 +153,16 @@ that led to them.
   the same kind of statement as denying coverage it does, and ChromIQ makes
   neither. It now says what the column is.
 
-  And the report's guide no longer says that the two read-only columns named
-  after a standard hold that standard's published values. They hold none:
-  ChromIQ has no permission to include those figures, so both columns ship
-  empty and cannot be chosen unless you own the standard and enter its numbers
-  yourself. The guide says that instead, which is true whether or not you have.
+  And four sentences about what those columns contain are now true in both of
+  the states ChromIQ can be in. ChromIQ has no permission to include either
+  standard's published figures, so the two read-only columns ship empty, and a
+  licence holder who supplies their own file fills them and the two editable
+  columns with them. Every sentence about this said something true of one state
+  and false of the other: the report's guide twice over, the editable columns'
+  own description, the note at the foot of the Report limits window, and the
+  paragraph in that window which still carried the original wording two lines
+  below its own correction. They are phrased as conditions now, and a test
+  supplies figures and checks the result rather than trusting the words.
 
 - **And the guide no longer says those columns hold the standard's published
   figures.** One sentence covered all four columns whose name carries a
