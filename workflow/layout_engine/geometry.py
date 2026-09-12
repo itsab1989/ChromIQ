@@ -659,7 +659,21 @@ def clip_area_mm(geom: Geom, paper_h_mm: float, paper_w_mm: float | None = None,
     inset = _tef.clip_content_inset_mm(clip_w, _edge)
     over = _tef.clip_text_overhang_mm(clip_w, _edge, content_lines,
                                       content_size_pt)
-    width = max(0.0, clip_w - inset + over)
+    # THE BAND'S OWN ROOM CANNOT BE NEGATIVE, AND WRITING IT AS A SUBTRACTION
+    # MADE IT SO. This read `clip_w - inset + over`, which is the same number
+    # while the reserve fits inside the band and is SHORT BY `inset - clip_w`
+    # once it does not. The overhang is measured from a room of
+    # `max(0, clip_w - inset)`, so the rectangle has to be built from the same
+    # floored figure or it is narrower than the text it was sized for and
+    # `_vtext` drops the lines that fall off its canvas.
+    #
+    # Reachable two ways, both measured on screen: "Clip" is a 0 to 30 mm box,
+    # so 30 mm on Knut's own 24 mm band leaves a 5.85 mm rectangle for text
+    # needing 11.85 and prints 2 of its 4 lines; and with the side helper
+    # markers on, any band under their 7 mm reserve loses that difference.
+    # Cutting clip text with nothing said is the fault
+    # `text_edge_fit.clip_text_overhang_mm` records being fixed.
+    width = max(0.0, clip_w - inset) + over
     # THE HEIGHT IS T AND B, NOT THE SIDE RESERVE, AND NOT THE HELPER MARKERS'
     # ROOM WHEN THAT IS TIGHTER (#182, Knut, 2026-09-12):
     #
@@ -690,7 +704,14 @@ def clip_area_mm(geom: Geom, paper_h_mm: float, paper_w_mm: float | None = None,
     # its left on a right-hand band, its right on a left-hand one. Growing the
     # other way is the thing his ruling forbids.
     if getattr(geom, "clip_side", "left") == "right" and paper_w_mm:
-        x = paper_w_mm - clip_w - over
+        # ANCHORED BY THE RESERVE, WHICH IS WHAT THE RULE IS ABOUT. Written as
+        # `paper_w - clip_w - over` this happens to be right whenever the
+        # reserve fits inside the band and slides the box 'inset - clip_w'
+        # toward the paper edge when it does not, which is the mirror of the
+        # width fault above. The left band already reads `x = inset`; this is
+        # the same sentence measured from the other edge, and it agrees with
+        # the old expression everywhere the old one was right.
+        x = paper_w_mm - inset - width
     else:
         x = inset
     return (x, v_inset, width, height)
