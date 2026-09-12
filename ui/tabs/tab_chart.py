@@ -70,7 +70,7 @@ from ui.tab_header import TabHeader
 from ui.builtin_preset_popup import BuiltinPresetButton, BuiltinPresetPopup
 from ui.tiff_preview import TiffPreview
 from ui.tooltip_button import InfoDialog, TooltipButton
-from ui.widgets import add_log_row, fit_log_height, CollapsibleGroupBox, NoScrollComboBox, NoScrollSpinBox, PatchGridButton, PrefixLockedLineEdit, icc_profile_paths, load_magenta_folder_icon, make_browse_button, open_file_dialog, reapply_ink, set_folder_icon, set_ink, set_preset_icon
+from ui.widgets import TailFollowLog, add_log_row, fit_log_height, CollapsibleGroupBox, NoScrollComboBox, NoScrollSpinBox, PatchGridButton, PrefixLockedLineEdit, icc_profile_paths, load_magenta_folder_icon, make_browse_button, open_file_dialog, reapply_ink, set_folder_icon, set_ink, set_preset_icon
 from ui.warning_sign import inform, set_information_icon, set_question_icon
 from core.i18n import count_phrase, tr
 from core.text_io import read_text
@@ -3709,7 +3709,7 @@ class TabChart(QWidget):
 
         # Log output
         from PyQt6.QtWidgets import QPlainTextEdit
-        self._log = QPlainTextEdit(self)
+        self._log = TailFollowLog(self)
         self._log.setObjectName("log")
         self._log.setReadOnly(True)
         # Nine lines of the font this really gets, measured after polish

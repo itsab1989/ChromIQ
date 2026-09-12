@@ -60,7 +60,7 @@ from ui.theme import (
 from ui.tab_header import dialog_masthead
 from ui.tooltip_button import TooltipButton
 from ui.widgets import (
-    confirm, make_browse_button, NoScrollComboBox, NoScrollSpinBox,
+    confirm, make_browse_button, NoScrollComboBox, NoScrollSpinBox, TailFollowLog,
     open_dir_dialog, open_file_dialog, open_files_dialog, WorkAreaClamped,
 )
 
@@ -393,7 +393,7 @@ class _ToolDialogBase(WorkAreaClamped, QDialog):
         self._busy_tick.timeout.connect(self._update_busy_label)
 
         # Log / status area
-        self._log = QPlainTextEdit(self)
+        self._log = TailFollowLog(self)
         self._log.setReadOnly(True)
         self._log.setMaximumBlockCount(2000)
         self._log.setFixedHeight(120)

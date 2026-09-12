@@ -59,7 +59,7 @@ from ui.cr30_calibration import Cr30CalibrationMixin
 from ui.fade_scroll import FadeScrollArea
 from ui.tab_header import TabHeader
 from ui.tooltip_button import TooltipButton
-from ui.widgets import ElidingComboBox, ElidingLabel, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, info_box_qss, make_browse_button, open_file_dialog, set_accent_html, set_ink, set_folder_icon, set_preset_icon, spectrum_cell, tint_dialog_primary
+from ui.widgets import TailFollowLog, ElidingComboBox, ElidingLabel, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, info_box_qss, make_browse_button, open_file_dialog, set_accent_html, set_ink, set_folder_icon, set_preset_icon, spectrum_cell, tint_dialog_primary
 
 _TAB_COLOR = "#56d6a5"  # Measure tab accent
 from ui.styles import SPEC_GREEN, TAB_COLORS
@@ -2079,7 +2079,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # on 13. Elsewhere the gap is *above* the log and the 2 px has to move
         # the other way, into the wrapper: see ui.widgets.add_log_row.
         lo_layout.setContentsMargins(16, 0, 16, 10)
-        self._log = QPlainTextEdit(log_outer)
+        self._log = TailFollowLog(log_outer)
         self._log.setObjectName("log")
         self._log.setReadOnly(True)
         # Height in LINES, not pixels (Knut, beta.120: "only 6 lines of text
