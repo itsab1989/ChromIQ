@@ -171,6 +171,21 @@ def attach_device_values_from_chart(ti3_path: "str | Path",
     names do not match (call :func:`match_by_name` first and say why), when the
     measurement already carries device values, or when the chart's device
     columns cannot be read.
+
+    **THE SAMPLE_ID IS THE CHART'S OWN WHERE THE CHART HAS ONE.** It used to be
+    written as the chart's ROW INDEX, ``ci + 1``, which is the same number only
+    while a ``.ti2``'s ``SAMPLE_ID`` column runs 1..N in file order. That is
+    true of every chart ChromIQ generates and is not guaranteed of one imported
+    from somewhere else, so on such a chart the sentence above named a column
+    the file did not get. It is taken from the chart now, and the index is the
+    fallback for a chart that has no ``SAMPLE_ID`` at all.
+
+    The index also remains the fallback when the chart's own ids are not unique
+    across the chart, because an id is what a later reader uses to name a row
+    and two rows that answer to one name are worse than a renumbering. The
+    index is not renumbered to close the gaps a partial measurement leaves: the
+    ids then run with holes, and a hole is the truth about which of the chart's
+    patches were measured.
     """
     ti3_path, ti2_path = Path(ti3_path), Path(ti2_path)
     try:
@@ -192,6 +207,17 @@ def attach_device_values_from_chart(ti3_path: "str | Path",
     if not dev_cols:
         return 0
     dev_names = [cfields[i] for i in dev_cols]
+    # The chart's own ids, when it has a column of them and they name one row
+    # each. `None` means "use the row index", which is what this always did.
+    csid_i = cfields.index("SAMPLE_ID") if "SAMPLE_ID" in cfields else None
+    chart_ids: "list[str] | None" = None
+    if csid_i is not None:
+        try:
+            ids = [r.split()[csid_i].strip('"') for r in crows]
+        except IndexError:
+            ids = []
+        if ids and len(set(ids)) == len(ids) and all(ids):
+            chart_ids = ids
     clocs = _locs(cfields, crows)
     mlocs = _locs(mfields, mrows)
     if not clocs or not mlocs:
@@ -216,7 +242,8 @@ def attach_device_values_from_chart(ti3_path: "str | Path",
         mparts = mrows[mi].split()
         cparts = crows[ci].split()
         dev = [cparts[i] for i in dev_cols]
-        out_rows.append(" ".join([str(ci + 1), f'"{loc}"', *dev,
+        sid = chart_ids[ci] if chart_ids is not None else str(ci + 1)
+        out_rows.append(" ".join([sid, f'"{loc}"', *dev,
                                   *(mparts[i] for i in keep)]))
         written += 1
     if not written:

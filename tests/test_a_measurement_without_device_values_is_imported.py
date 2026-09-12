@@ -481,3 +481,74 @@ def test_the_asking_window_comes_from_the_catalogue():
     assert "{" not in body and "{" not in title
     one_title, one_body = msg.render(count=1, chart="verify.ti2")
     assert "All 420 readings" in body and "Its one reading" in one_body
+
+
+# --- the SAMPLE_ID the paired file gets -------------------------------------
+
+def _chart_with_ids(path, ids, locs):
+    rows = "\n".join(f'{i} "{loc}" 50 50 50'
+                      for i, loc in zip(ids, locs))
+    path.write_text(
+        "CTI2\n\nBEGIN_DATA_FORMAT\nSAMPLE_ID SAMPLE_LOC RGB_R RGB_G RGB_B\n"
+        "END_DATA_FORMAT\n\n"
+        f"NUMBER_OF_SETS {len(ids)}\n\nBEGIN_DATA\n{rows}\nEND_DATA\n",
+        encoding="utf-8")
+
+
+def _sid_measurement(path, locs):
+    rows = "\n".join(f'{i + 1} "{loc}" 40 42 44'
+                      for i, loc in enumerate(locs))
+    path.write_text(
+        "CTI3\n\nBEGIN_DATA_FORMAT\nSAMPLE_ID SAMPLE_LOC XYZ_X XYZ_Y XYZ_Z\n"
+        "END_DATA_FORMAT\n\n"
+        f"NUMBER_OF_SETS {len(locs)}\n\nBEGIN_DATA\n{rows}\nEND_DATA\n",
+        encoding="utf-8")
+
+
+def _ids_written(ti3):
+    import re
+    body = ti3.read_text(encoding="utf-8").split("BEGIN_DATA")[-1]
+    return [ln.split()[0] for ln in body.splitlines()
+            if ln.strip() and not ln.startswith("END_DATA")]
+
+
+def test_the_paired_file_carries_the_chart_s_own_sample_ids(tmp_path):
+    """A chart whose SAMPLE_ID column does not run 1..N in file order.
+
+    ChromIQ's own charts always do, so the row index and the chart's id were
+    the same number and the difference never showed. An imported chart is not
+    obliged to, and the docstring promises the chart's own id.
+    """
+    from workflow.measurement_pairing import attach_device_values_from_chart
+    locs = ["A1", "A2", "A3", "A4"]
+    ti2 = tmp_path / "c.ti2"
+    ti3 = tmp_path / "m.ti3"
+    _chart_with_ids(ti2, ["101", "102", "103", "104"], locs)
+    _sid_measurement(ti3, locs)
+    assert attach_device_values_from_chart(ti3, ti2) == 4
+    assert _ids_written(ti3) == ["101", "102", "103", "104"]
+
+
+def test_a_chart_with_repeated_ids_falls_back_to_the_row_index(tmp_path):
+    """An id is what a later reader uses to name a row, so two rows answering
+    to one name is worse than a renumbering."""
+    from workflow.measurement_pairing import attach_device_values_from_chart
+    locs = ["A1", "A2", "A3"]
+    ti2 = tmp_path / "c.ti2"
+    ti3 = tmp_path / "m.ti3"
+    _chart_with_ids(ti2, ["7", "7", "9"], locs)
+    _sid_measurement(ti3, locs)
+    assert attach_device_values_from_chart(ti3, ti2) == 3
+    assert _ids_written(ti3) == ["1", "2", "3"]
+
+
+def test_a_partial_measurement_leaves_the_hole_in_the_ids(tmp_path):
+    """A patch nobody measured is not renumbered away: the gap says which of
+    the chart's patches the measurement covers."""
+    from workflow.measurement_pairing import attach_device_values_from_chart
+    ti2 = tmp_path / "c.ti2"
+    ti3 = tmp_path / "m.ti3"
+    _chart_with_ids(ti2, ["1", "2", "3", "4"], ["A1", "A2", "A3", "A4"])
+    _sid_measurement(ti3, ["A1", "A2", "A4"])
+    assert attach_device_values_from_chart(ti3, ti2) == 3
+    assert _ids_written(ti3) == ["1", "2", "4"]
