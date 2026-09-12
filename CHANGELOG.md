@@ -106,6 +106,14 @@ that led to them.
   metrics, not either standard's published tolerances, which ChromIQ has no
   permission to include.
 
+- **And the guide no longer says those columns hold the standard's published
+  figures.** One sentence covered all four columns whose name carries a
+  standard, and it was true of the two read-only ones and false of the two
+  Custom ones. A reader holding a report headed "Custom ISO 12647-7" was being
+  told the numbers behind it came from ISO. What caps both at COND is unchanged,
+  because that is about what the numbers are applied to rather than where they
+  came from.
+
 - **The demo package covers every built report type, every limit set and every
   metric limit it can reach,** with the dates that cross and recover named, and
   the rows nothing can measure listed with the reason rather than filled in with

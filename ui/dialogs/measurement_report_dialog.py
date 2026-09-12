@@ -4638,11 +4638,27 @@ class MeasurementReportDialog(QDialog):
                 "A column read as a drift check shows the word “drift” in "
                 "every cell instead: it compares one measurement with another "
                 "rather than with a limit. A column's Overall word is PASS "
-                "only when every row the set requires was checked and passed. "
-                "The columns named after a standard hold that standard's "
-                "published tolerance values applied to the chart you printed, "
-                "rather than to that standard's own chart and control strip, "
-                "so their Overall reads COND at best.")) + "</p>"
+                "only when every row the set requires was checked and "
+                "passed.")) + "</p>"
+            # A COLUMN'S NAME IS NOT ITS CONTENTS. The sentence this replaces
+            # read "The columns named after a standard hold that standard's
+            # published tolerance values", and for the two Custom columns that
+            # is false: those start from ChromIQ's own numbers, because the
+            # published ones are not ChromIQ's to ship, and every cell in them
+            # is the user's to change. A reader holding a report headed "Custom
+            # ISO 12647-7" was being told the figures behind it were ISO's. The
+            # caveat that caps both at COND is the same for both and is stated
+            # once, because it is about what the numbers are applied TO rather
+            # than where they came from.
+            "<p>" + html.escape(tr(
+                "Two kinds of column carry a standard's name. A read-only "
+                "column named after a standard holds that standard's published "
+                "tolerance values. An editable column named after a standard "
+                "starts from ChromIQ's own numbers, not that standard's, and "
+                "every limit in it is yours to change. Either way the values "
+                "are applied to the chart you printed rather than to that "
+                "standard's own chart and control strip, so their Overall "
+                "reads COND at best.")) + "</p>"
             # BOUND AND LOCKED, in the report that uses both words. Knut,
             # 2026-09-11: *"what is the difference between bound and locked? Be
             # specific in the explanation, so that user understands that chosen
