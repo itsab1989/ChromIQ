@@ -158,9 +158,16 @@ def note_min_strip_px(dpi: float, size_pt: float = 0.0) -> int:
         d = 300.0
     return max(1, int(round(note_min_width_mm(d, size_pt) * d / 25.4)))
 
-#: Height of one line of bottom-of-sheet text, in mm. The renderer's own
-#: ``line_h = px(4.2)`` (`workflow/layout_engine/raster.py`).
+#: Line PITCH of the bottom-of-sheet text, in mm. The renderer's own
+#: ``line_h`` floor (`workflow/layout_engine/raster.py`).
 SHEET_TEXT_LINE_MM = 4.2
+
+#: The size the Sheet text frame's "auto" prints the BOTTOM line at. It does
+#: not shrink and it does not grow: `raster.render_page` reads
+#: ``px(chart_text_size_mm or 3.2)``, so "auto" here means this number and not
+#: :data:`AUTO_SHRINK_FLOOR_PT`, which is the floor of the two boxes that DO
+#: shrink (the side note and the clip band).
+SHEET_TEXT_DEFAULT_MM = 3.2
 
 
 def note_min_width_mm(_dpi: float = 0.0, size_pt: float = 0.0) -> float:
@@ -281,16 +288,42 @@ def strip_label_squeeze(margin_top_mm: float, text_edge_top_mm: float,
 
 
 def sheet_text_overlap(margin_bottom_mm: float, text_edge_mm: float,
-                       lines: int) -> "Overlap | None":
+                       lines: int,
+                       line_mm: float = SHEET_TEXT_LINE_MM) -> "Overlap | None":
     """The sheet text along the bottom against the bottom margin.
 
     *lines* counts the custom sheet text and the settings stamp separately,
     because the renderer draws one line for each.
+
+    **4.2 mm IS A PITCH, NOT A TYPE HEIGHT, AND THIS USED TO BE THE ONLY
+    NUMBER IT KNEW.** `raster.render_page` stacked the lines at a fixed
+    ``px(4.2)`` whatever Size the Sheet text frame was set to, and anchored
+    each line by its ASCENDER, so the ink went on down as far as the face
+    takes it. Measured on screen, A4 at 200 dpi, bottom margin 12 mm with "B"
+    at 4 mm and one line of sheet text, the ink's own distance from the bottom
+    of the paper:
+
+    | Size | ink to the paper edge | what the panel said |
+    |---|---|---|
+    | auto | 4.32 mm | nothing |
+    | 12 pt | 3.17 mm | nothing |
+    | 18 pt | 0.64 mm | nothing |
+    | 28 pt | **0.00 mm, cut by the paper edge** | nothing |
+
+    So the "B" reserve was crossed from about 12 pt up and the line fell off
+    the sheet at 28, on a chart the panel called fine; and with the settings
+    stamp switched on as well, the second line was printed on top of the
+    first. *line_mm* is the line's real box now (`raster.sheet_text_line_mm`,
+    the larger of the pitch and the face's own ascent plus descent), so the
+    reserve is a limit on this edge as it is on the other three, the overflow
+    goes inward over the patches where Knut's ruling of 2026-09-12 puts it,
+    and this sentence's ``need`` is what the block really takes.
     """
     n = max(0, int(lines or 0))
+    line = max(0.0, float(line_mm or 0.0)) or SHEET_TEXT_LINE_MM
     return _overlap("bottom",
                     float(margin_bottom_mm or 0.0) - float(text_edge_mm or 0.0),
-                    n * SHEET_TEXT_LINE_MM)
+                    n * line)
 
 
 def chart_note_overlap(side: str, margin_mm: float, text_edge_clip_mm: float,
@@ -500,21 +533,38 @@ def clip_text_collision(band_mm: float, text_edge_clip_mm: float, lines: int,
 
 
 def clip_edge_to_clear_labels_mm(reach_mm: float,
-                                 label_gap_mm: float = 1.0) -> float:
+                                 label_offset_mm: float = 1.0) -> float:
     """The "Clip" distance that moves the row labels clear of the text.
 
-    *label_gap_mm* is the paper between the leftmost label ink and the band's
-    inner edge, which `geometry.row_label_area_mm` returns as the width of its
-    own answer. Raising "Clip" above the band's width moves the labels' FLOOR
-    one for one, and the gap rides along unchanged, so the smallest distance
-    that clears the text is ``reach - gap``.
+    *label_offset_mm* is the paper between the labels' FLOOR and their leftmost
+    INK, which is what rides along when "Clip" raises that floor. "Clip" above
+    the band's width moves the floor one for one and the offset is carried with
+    it, so the smallest distance that clears the text is ``reach - offset``.
 
-    THE GAP IS NOT 1 mm, and this used to assume it was, from §R2's
-    ``label x = floor + 1``. That is the RESERVED band's left edge; the label
-    ink sits further in by however much `rlwi` over-allows, which on the chart
-    measured is 5.2 mm. Asking for 1 mm instead of 5.2 mm of gap overshot by
-    4.2 mm of left margin, and the message would have been demanding paper it
-    did not need.
+    **IT WAS GIVEN THE LABEL'S OWN WIDTH INSTEAD, AND THAT IS A DIFFERENT
+    DISTANCE IN THE SAME FRAME.** `geometry.row_label_area_mm` answers
+    ``(where the ink starts, where the band ends)``, so ``[1] - [0]`` is the
+    width of the number; the offset this needs is ``[0] - floor``. Both are
+    millimetres from the page edge's own frame and both come out of the one
+    call, which is how the wrong one was picked. Measured on screen, an i1/A4
+    area-first chart with a 16 mm left clip band, eight lines of clip text at
+    the 7 pt floor and the row indicators on: the text reaches 26.91 mm, the
+    leftmost label ink is at 17.00 mm, the labels' floor at 16.00 mm.
+
+    * the width of the number is **6.10 mm**, so the message told the user to
+      raise "Clip" to **20.8 mm**. Driven, at 20.8 mm **5.10 mm of the text is
+      still printed over the row numbers** and the red warning stays;
+    * the paper between the floor and the ink is **1.00 mm**, which gives
+      **25.9 mm**, and at 25.9 mm the overlap is 0.00 mm.
+
+    So the user paid 4.8 mm of extra left margin, twice over, for a sentence
+    that named a number 5.1 mm short of the one that works.
+
+    THE FUNCTION'S OWN ARITHMETIC NEVER CHANGED, and that is the point: a test
+    that pins ``reach - x`` cannot catch this, because the fault is WHICH x.
+    `tests/test_the_clip_text_meets_the_row_labels.py` asks the geometry
+    instead, setting the "Clip" the message names and requiring the labels to
+    come out clear.
 
     **AND IT IS THE ONLY REMEDY THAT MOVES THE LABELS THE RIGHT WAY.** Measured
     over the whole range of every neighbouring control, on a 12 mm left band
@@ -539,7 +589,8 @@ def clip_edge_to_clear_labels_mm(reach_mm: float,
     measured. `geometry.row_label_area_mm` measures the label when it is given
     the build kwargs, and the sweep above is that version.
     """
-    return max(0.0, float(reach_mm or 0.0) - max(0.0, float(label_gap_mm or 0.0)))
+    return max(0.0, float(reach_mm or 0.0)
+               - max(0.0, float(label_offset_mm or 0.0)))
 
 
 def clip_band_needed_mm(text_edge_clip_mm: float, lines: int,

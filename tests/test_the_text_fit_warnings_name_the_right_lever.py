@@ -572,6 +572,77 @@ def test_the_raise_clip_remedy_is_offered_and_is_the_smallest_that_works():
         f"left margin it does not have to spend")
 
 
+def _i1_left(band: float, lines: int, clip: float = 4.0) -> LayoutRecipe:
+    """An i1 left band, where the label RESERVATION barely exceeds the number.
+
+    The ColorMunki chart `_left` builds over-allows by about 5 mm, so the
+    label's own width and the paper between its floor and its ink come out
+    within a millimetre of each other and either one clears the labels. Here
+    they are 5.89 mm and 1.00 mm apart, which is what makes the difference
+    visible at all.
+    """
+    r = _recipe(band=band, side="left", clip=clip,
+                clip_text="\n".join(f"clip line {i}" for i in range(1, lines + 1)))
+    r.instrument = "i1"
+    r.show_row_indicators = True
+    r.margin_left = band
+    return r
+
+
+def test_the_raise_clip_answer_is_the_floor_to_ink_offset_not_the_label_width():
+    """The remedy named 21.0 mm and 25.9 mm was the number that works.
+
+    `geometry.row_label_area_mm` answers ``(where the ink starts, where the
+    band ends)``. The panel was subtracting ``[1] - [0]``, the WIDTH of the row
+    number; what "Clip" carries when it raises the labels' floor is
+    ``[0] - floor``. Two distances in one frame out of one call, which is how
+    the wrong one was picked, and the function's own arithmetic is the same
+    either way, so only a test that APPLIES the answer can see it.
+
+    Driven on screen (`scripts/adv1_remedies_attack.py`): told to raise "Clip"
+    to 20.8 mm on an i1 chart with a 16 mm band and eight lines, the user got
+    the same red warning back with 5.1 mm of the text still on the numbers.
+    """
+    from workflow.layout_engine import geometry as gm
+    r = _i1_left(16.0, 8)
+    kw = r.build_kwargs()
+    g = instruments.geom_from_build_kwargs(kw)
+    area = gm.row_label_area_mm(g, kw)
+    floor = float(getattr(g, "row_label_floor", 0.0) or 0.0)
+    width, offset = area[1] - area[0], area[0] - floor
+    assert width > offset + 2.0, (
+        f"on this chart the label width ({width:.2f} mm) and the floor-to-ink "
+        f"offset ({offset:.2f} mm) are too close to tell apart")
+
+    msg = _clip_line(r)
+    assert "crosses the row indicator labels" in msg, msg
+    m = re.search(r"Raising “Clip” to ([0-9.]+) mm", msg)
+    assert m, f"no raise-Clip remedy offered:\n  {msg}"
+    told = float(m.group(1))
+
+    def _still_over(clip_mm: float) -> float:
+        r2 = _i1_left(16.0, 8, clip=round(clip_mm, 2))
+        kw2 = r2.build_kwargs()
+        g2 = instruments.geom_from_build_kwargs(kw2)
+        a2 = gm.row_label_area_mm(g2, kw2)
+        return tef.clip_text_collision(
+            g2.lbord + g2.border, r2.text_edge_clip_mm, 8, 0.0,
+            a2[0], float(g2.margin_l)).over_labels_mm
+
+    assert _still_over(told + 0.1) == 0.0, (
+        f"the message says to raise “Clip” to {told:.1f} mm and "
+        f"{_still_over(told + 0.1):.2f} mm of the text is still printed over "
+        f"the row numbers there")
+    # …and the distance it used to name does NOT work, so this is not a test
+    # that would pass with the fix taken out again.
+    reach = tef.clip_text_reach_mm(g.lbord + g.border, r.text_edge_clip_mm, 8,
+                                   0.0)
+    old = tef.clip_edge_to_clear_labels_mm(reach, width)
+    assert _still_over(old + 0.1) > 1.0, (
+        f"the label-width answer ({old:.1f} mm) clears the labels on this "
+        f"chart too, so it cannot tell the two distances apart")
+
+
 def test_a_clip_border_no_wider_than_the_patch_border_says_nothing():
     """There is no band at all, so there is no clip text to warn about.
 

@@ -386,6 +386,49 @@ _DEFAULT_TEXT_EDGE_CLIP_MM = 4.0
 ROW_LABEL_PITCH_FRAC = 0.85
 
 
+def sheet_text_line_mm(size_mm: float, font_family: str = "",
+                       bold: bool = False, italic: bool = False,
+                       dpi: float = 300.0) -> float:
+    """How much paper ONE line of bottom-of-sheet text takes, across the margin.
+
+    The larger of the renderer's line PITCH
+    (:data:`text_edge_fit.SHEET_TEXT_LINE_MM`, 4.2 mm) and the face's own
+    ascent plus descent at this Size, which is how far the ink really reaches
+    below the point the line is anchored at.
+
+    **THE PITCH WAS THE ONLY NUMBER, AND A PITCH IS NOT A TYPE HEIGHT.** The
+    block was stacked at a fixed 4.2 mm however big the type was, so at a
+    typed Size above about 12 pt the last line's descenders crossed the "B"
+    reserve toward the paper edge, at 28 pt on A4 the line was cut off by the
+    paper edge altogether, and two lines (sheet text plus the settings stamp)
+    were printed on top of each other. `workflow/text_edge_fit.py` says what
+    was measured.
+
+    It lives here, beside :func:`effective_row_label_size_mm` and for the same
+    reason: the fonts are here, and the "Measured from Preview" panel has to
+    predict what this function returns rather than keep a second copy of the
+    rule. Rounded through whole pixels at *dpi*, so the panel's millimetres
+    and the renderer's pixels are the same number.
+    """
+    from workflow import text_edge_fit as _tef
+    try:
+        d = float(dpi)
+        if d <= 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        d = 300.0
+    floor_px = max(1, int(round(_tef.SHEET_TEXT_LINE_MM * d / 25.4)))
+    size = float(size_mm or 0.0) or _tef.SHEET_TEXT_DEFAULT_MM
+    try:
+        f = _font(max(1, int(round(size * d / 25.4))), font_family,
+                  bold, italic)
+        asc, desc = f.getmetrics()
+        ink_px = int(asc) + int(desc)
+    except Exception:                # noqa: BLE001 — a prediction is never fatal
+        ink_px = max(1, int(round(size * d / 25.4)))
+    return max(floor_px, ink_px) * 25.4 / d
+
+
 def effective_row_label_size_mm(geom, dpi: int, font: str,
                                 size_mm: float) -> float:
     """The size for the labels down the LEFT, which is not the size for the
@@ -1799,7 +1842,15 @@ def render_pages(
                 _sasc = sfont.getmetrics()[0]
             except Exception:
                 _sasc = _sfont_px
-            line_h = px(4.2)
+            # ONE LINE'S BOX IS THE LARGER OF THE PITCH AND THE TYPE, and this
+            # was the pitch alone: at a typed Size above about 12 pt the ink
+            # crossed the "B" reserve on its way to the paper edge, at 28 pt on
+            # A4 it was cut off by that edge, and the settings stamp was printed
+            # on top of the sheet text. The panel reads the same function, so
+            # what it warns about is what is drawn.
+            line_h = px(sheet_text_line_mm(chart_text_size_mm, chart_text_font,
+                                           chart_text_bold, chart_text_italic,
+                                           dpi))
             yy = H - px(text_edge_mm) - line_h * len(_btxt)
             for ln in _btxt:
                 draw.text((px(geom.margin_l), yy), ln, font=sfont, fill=(0, 0, 0))

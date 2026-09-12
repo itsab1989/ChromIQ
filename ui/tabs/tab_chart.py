@@ -19613,14 +19613,20 @@ class TabChart(QWidget):
                         # offered: it would make the collision worse, and a
                         # bigger one buys clearance with left margin to fix a
                         # problem in the clip text.
-                        # THE GAP THIS CHART HAS, not the 1 mm §R2 reserves:
-                        # `row_label_area_mm` answers with the label's own
-                        # edges, and the paper between them and the band's
-                        # inner edge rides along when "Clip" moves the floor.
-                        _gap = (max(0.0, float(_rl[1]) - float(_rl[0]))
-                                if _rl is not None else 1.0)
+                        # THE PAPER BETWEEN THE LABELS' FLOOR AND THEIR INK,
+                        # which is the distance that rides along when "Clip"
+                        # raises the floor. This passed `_rl[1] - _rl[0]`, the
+                        # WIDTH OF THE NUMBER, and the two are different
+                        # distances in the same frame out of the same call.
+                        # Driven on screen with a 16 mm left band and eight
+                        # lines: the width is 6.1 mm, so the message named
+                        # 20.8 mm, and at 20.8 mm 5.1 mm of the text was still
+                        # printed over the row numbers. The offset is 1.0 mm,
+                        # which gives 25.9 mm, and there the overlap is zero.
+                        _offset = (max(0.0, float(_rl[0]) - _floor_l)
+                                   if _rl is not None else 1.0)
                         _clear = text_edge_fit.clip_edge_to_clear_labels_mm(
-                            _hit.reach_mm, _gap)
+                            _hit.reach_mm, _offset)
                         if _clear > float(r.text_edge_clip_mm or 0.0) + 0.05:
                             _msg += " " + tr(
                                 "Raising “Clip” to {clear:.1f} mm instead moves "
@@ -19750,8 +19756,25 @@ class TabChart(QWidget):
                     "Switch to “Prioritise patch size, then fit to page” to "
                     "get them back, or put the clip border on the right."))
             nlines = (1 if r.chart_text else 0) + (1 if r.stamp_command else 0)
+            # THE LINE'S OWN BOX, NOT THE 4.2 mm PITCH. This asked for 4.2 mm a
+            # line whatever Size the Sheet text frame was set to, so a chart
+            # whose bottom line is set in 18 or 28 pt type was called fine
+            # while its ink crossed the "B" reserve and, at 28 pt on A4, ran
+            # off the paper. `raster.sheet_text_line_mm` is the renderer's own
+            # answer, read here so the two cannot differ.
+            _line_mm = text_edge_fit.SHEET_TEXT_LINE_MM
+            try:
+                from workflow.layout_engine.raster import sheet_text_line_mm
+                _line_mm = sheet_text_line_mm(
+                    float(getattr(r, "chart_text_size_mm", 0.0) or 0.0),
+                    str(getattr(r, "chart_text_font", "") or ""),
+                    bool(getattr(r, "chart_text_bold", False)),
+                    bool(getattr(r, "chart_text_italic", False)),
+                    float(getattr(r, "dpi", 300) or 300))
+            except Exception:      # noqa: BLE001 — a number, never a blocker
+                _line_mm = text_edge_fit.SHEET_TEXT_LINE_MM
             _o = text_edge_fit.sheet_text_overlap(
-                r.margin_bottom, r.text_edge_mm, nlines)
+                r.margin_bottom, r.text_edge_mm, nlines, _line_mm)
             if _o is not None:
                 # ONE LINE OR TWO, SAID AS ONE OR TWO. "(s)" is banned in this
                 # project's user-facing text, and the two cases really do have
