@@ -110,8 +110,36 @@ class Ti3Data:
     def has_spectral(self) -> bool:
         return self.spectral is not None
 
+    @property
+    def has_device(self) -> bool:
+        """Whether the file carries the device values its patches were printed
+        with. False for an i1Profiler export of a chart i1Profiler did not
+        generate: it measures colour and has no colour space to name the device
+        values in, so it writes none. The chart it was a print OF still knows
+        them (:mod:`workflow.measurement_pairing`)."""
+        return bool(len(self.rgb))
+
 
 _KW_RE = re.compile(r'^([A-Z][A-Z0-9_]*)\s+"?(.*?)"?\s*$')
+
+#: Columns that are never a device colorant channel. Same rule as
+#: :func:`workflow.layout_engine.ti1_reader._is_device_field`, which is what
+#: writes the ``.ti2`` these are read back against.
+_NOT_DEVICE_NAMES = {"SAMPLE_ID", "SAMPLE_LOC", "SAMPLE_NAME", "INDEX"}
+_NOT_DEVICE_PREFIXES = ("XYZ_", "LAB_", "SPEC_", "STDEV_", "D_")
+
+
+def _has_device_columns(fields: "list[str]") -> bool:
+    """Whether *fields* declares any device colorant channel at all.
+
+    The distinction this draws is the whole reason it exists: a CMYK or
+    n-colour measurement HAS device columns and ChromIQ cannot use it, while a
+    measurement with none is not a wrong measurement, only an incomplete one
+    the chart can complete.
+    """
+    return any(f not in _NOT_DEVICE_NAMES
+               and not f.startswith(_NOT_DEVICE_PREFIXES)
+               for f in fields)
 
 
 def parse_ti3(path: str | Path) -> Ti3Data:
@@ -155,13 +183,38 @@ def parse_ti3(path: str | Path) -> Ti3Data:
     rgb_i = [col(f"RGB_{c}") for c in "RGB"]
     xyz_i = [col(f"XYZ_{c}") for c in "XYZ"]
     lab_i = [col(f"LAB_{c}") for c in ("L", "A", "B")]
-    if any(i is None for i in rgb_i):
-        raise Ti3ParseError("No device RGB columns — only RGB charts are supported.")
 
     def grab(idx: list[int]) -> np.ndarray:
         return np.array([[float(r[i]) for i in idx] for r in rows], dtype=float)
 
-    rgb = grab(rgb_i)
+    if all(i is not None for i in rgb_i):
+        rgb = grab(rgb_i)
+    elif _has_device_columns(fields):
+        # Device columns that are NOT RGB — a CMYK or n-colour measurement.
+        # ChromIQ's analysis, report and grey-balance maths are RGB, so this is
+        # still the honest refusal it always was.
+        raise Ti3ParseError("No device RGB columns — only RGB charts are supported.")
+    else:
+        # NO DEVICE COLUMNS AT ALL, which is a different thing and not a fault.
+        # An i1Profiler CGATS export of a chart it did not generate carries
+        # SAMPLE_ID, SAMPLE_NAME and the spectral curve, and nothing else: the
+        # measure tool has no colour space to name, so it cannot write device
+        # values and it will not let you ask for them. `txt2ti3` converts such a
+        # file without complaint ("No device values found - hope that's OK!")
+        # and the result is a complete measurement of colour.
+        #
+        # WHAT THE PATCH IS remains knowable, because the chart knows it: the
+        # `.ti2` holds the device value of every patch and the name it printed
+        # beside it, and the export carries those names. See
+        # `workflow.measurement_pairing`. This reached a user on 2026-09-11 as
+        # "This file does not match the verification chart ... No device RGB
+        # columns", about a file that matched it exactly.
+        #
+        # `rgb` is EMPTY rather than zeros or NaN, so every caller that asks
+        # `len(data.rgb)` before using it — the report's identity check, the
+        # scan checks, the scanner dialog — keeps behaving as it did, and one
+        # that forgets gets an error instead of an answer made of zeros.
+        rgb = np.empty((0, 3), dtype=float)
 
     spectral = wavelengths = None
     spec_i = [i for i, f in enumerate(fields) if f.startswith("SPEC_")]
@@ -333,7 +386,13 @@ def analyse_ti3(data: Ti3Data) -> Ti3Analysis:
 
     # --- grey balance: neutral (R≈G≈B) patches -----------------------------
     rgb = data.rgb
-    spread = rgb.max(axis=1) - rgb.min(axis=1)
+    # A measurement with no device columns cannot say which patches were ASKED
+    # to be neutral, so none of them are: an empty mask, not an exception and
+    # not a guess from the measured colour (a colour cast is exactly what this
+    # section is looking for, so reading neutrality off the result would find
+    # zero cast on every file).
+    spread = (rgb.max(axis=1) - rgb.min(axis=1)) if data.has_device \
+        else np.full(len(xyz), np.inf)
     neutral = spread <= 0.5
     chroma = np.hypot(lab[:, 1], lab[:, 2])
     if neutral.any():
@@ -408,6 +467,10 @@ def _detect_rolloff(rgb: np.ndarray, chroma: np.ndarray) -> bool:
     primaries notably *less* saturated than mid-tone ones — a hint the driver
     applied colour management despite a 'No Correction' setting. Conservative;
     False when nothing stands out."""
+    if len(rgb) != len(chroma):
+        # No device columns: "full ink" is a statement about what was SENT, and
+        # a file that carries no device values cannot make it.
+        return False
     hi = rgb.max(axis=1)
     lo = rgb.min(axis=1)
     full = (hi > 95) & (lo < 5) & (chroma > 5)        # full-ink primaries
@@ -599,7 +662,10 @@ def _build_accuracy(data: Ti3Data, de_by_id: dict[str, float], source: str,
         return None
     lab = np.array([xyz_to_lab((x / 100.0, y / 100.0, z / 100.0))
                     for x, y, z in data.xyz])
-    spread = data.rgb.max(axis=1) - data.rgb.min(axis=1)
+    # As in `analyse_ti3`: with no device columns nothing is known to have been
+    # asked for neutral, so every patch falls to its measured hue sector.
+    spread = (data.rgb.max(axis=1) - data.rgb.min(axis=1)) if data.has_device \
+        else np.full(len(data.xyz), np.inf)
     by_bucket: dict[str, list[float]] = {k: [] for k in ("neutral", *_HUE_SECTORS)}
     des: list[tuple[float, int]] = []
     for i, pid in enumerate(ids):

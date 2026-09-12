@@ -463,11 +463,18 @@ def say_what_was_filed(parent, filed: Path) -> None:
     written, where a rollback is still possible, and it does — see
     `refuse_it_does_not_belong`, which both doors call before they copy.
     """
-    from workflow.measurement_import import assess
+    from workflow.measurement_import import assess, complete_from_chart
     chart = chart_the_copy_will_be_judged_against(filed)
     if chart is None:
         return                       # a bare measurement: nothing to judge it by
     verdict = assess(Path(filed), chart)
+    if verdict.ok and verdict.device_from_chart:
+        # The COPY takes the chart's device values and the chart's row order.
+        # Filed without them it is paired by whatever order the measuring tool
+        # happened to write, and the report then compares every patch against a
+        # real patch that is not the right one, saying nothing is wrong. Done
+        # here because this is the one place every filing door ends on.
+        complete_from_chart(Path(filed), chart)
     if verdict.ok and verdict.partial:
         InfoDialog(
             tr("Filed — and it is a partial measurement"),

@@ -828,18 +828,38 @@ _IDENTICAL_TO_KEY = {
     #
     # Every number below is this tree's actual count, not the old number plus
     # nine: a ceiling above the truth admits the next regression for free.
+    #
+    # RE-MEASURED 2026-09-12, the verification-import round. An i1Profiler
+    # export of a chart i1Profiler did not generate carries no device values at
+    # all, so the import now pairs it with the chart by patch NAME, asks the
+    # person the one thing it cannot check, and states the counts against the
+    # SHEET as well as the design. **18 keys in, 3 stale out**, counted with
+    # `set(after) - set(before)` and `set(before) - set(after)` on each
+    # catalogue and not from memory. The eighteen: the asking window's
+    # headline, its "Import it" button, its two bodies (singular and plural),
+    # the cancelled-import log line, the two "the chart supplied the device
+    # values" log lines, eleven refusal reasons, and the rewritten import-panel
+    # sentence that now names the designed count AND the printed one. The three
+    # that went stale are the patch-identity INFO line the tab no longer writes
+    # and the two count sentences that stopped being true; all three were
+    # translated in every one of the twelve, so they were never in these counts.
+    #
+    # German is translated, so **de does not move at all (124)**; the eleven
+    # others carry the English under the beta rule and each rises by exactly
+    # 18. Counted on the catalogues this commit leaves behind, with the same
+    # expression the test below uses, never adjusted upward.
     "de": 124,
-    "es": 321,
-    "fr": 343,
-    "it": 332,
-    "ja": 307,
-    "nl": 348,
-    "no": 333,
-    "pl": 325,
-    "pt": 323,
-    "ru": 296,
-    "sv": 334,
-    "zh_CN": 301,
+    "es": 339,
+    "fr": 361,
+    "it": 350,
+    "ja": 325,
+    "nl": 366,
+    "no": 351,
+    "pl": 343,
+    "pt": 341,
+    "ru": 314,
+    "sv": 352,
+    "zh_CN": 319,
 }
 
 
