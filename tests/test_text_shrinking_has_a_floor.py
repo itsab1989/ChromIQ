@@ -213,7 +213,8 @@ def test_the_builder_hands_the_stamper_the_sheet_text_font_and_size(
     seen: list[tuple] = []
     monkeypatch.setattr(
         tm, "stamp_chart_metadata",
-        lambda tiffs, lines, edge=0.0, band=0.0, family="", size_pt=0.0:
+        lambda tiffs, lines, edge=0.0, band=0.0, family="", size_pt=0.0,
+        reach=-1.0, gap=0.0:
             seen.append((family, size_pt)))
 
     rec = LayoutRecipe()
@@ -306,17 +307,27 @@ def test_auto_clip_text_still_fits_a_roomy_band(monkeypatch):
 
 
 def test_the_clip_inset_is_the_one_the_geometry_applies():
-    """"Clip" is capped at a fifth of the band, and taken off ONE side.
+    """"Clip" is what was typed, and it is taken off ONE side.
 
-    `geometry.clip_area_mm`: ``inset = min(text_edge_clip, clip_w * 0.2)``, and
-    ``width = clip_w - inset``. The first version of the predicate took the
-    TYPED value off BOTH sides, which on Knut's 16 mm band with Clip at 4 mm
-    predicted 8.0 mm where the renderer gives 12.8.
+    `geometry.clip_area_mm`: ``width = clip_w - inset``, where the inset is the
+    page-edge reserve. The first version of the predicate took the TYPED value
+    off BOTH sides, which on Knut's 16 mm band with Clip at 4 mm predicted
+    8.0 mm where the renderer gives 12.8.
+
+    **THE FIFTH-OF-THE-BAND CAP IS GONE**, and this test asserted it. It was
+    the fault Knut reported on 2026-09-12: on his 24 mm band it froze the
+    reserve at 4.8 mm, so every "Clip" above 5 mm moved the text not at all.
+    A test that pins a cap is a test guarding the bug, so it now pins that the
+    typed value is honoured at every band width.
     """
-    assert tef.clip_content_inset_mm(16.0, 4.0) == pytest.approx(3.2), (
-        "the fifth-of-the-band cap is not applied")
+    assert tef.clip_content_inset_mm(16.0, 4.0) == pytest.approx(4.0), (
+        "a narrow band no longer caps the typed value")
     assert tef.clip_content_inset_mm(26.0, 4.0) == pytest.approx(4.0), (
         "a roomy band should use the typed value")
+    # THE FAULT ITSELF, PINNED: Knut's own band, and every step must move.
+    seen = [tef.clip_content_inset_mm(24.0, c) for c in (4.0, 5.0, 6.0, 8.0)]
+    assert seen == pytest.approx([4.0, 5.0, 6.0, 8.0]), (
+        "the reserve stopped tracking 'Clip', which is the 2026-09-12 fault")
     # AND IT IS A LIMIT: no argument makes it give any of that up. It took
     # `lines` and `size_pt` for one evening and surrendered the reserve to text
     # that would not fit, which Knut corrected on 2026-09-12.
@@ -325,8 +336,8 @@ def test_the_clip_inset_is_the_one_the_geometry_applies():
         ["band_mm", "text_edge_clip_mm"], (
             "clip_content_inset_mm takes the content again, so the page-edge "
             "reserve can be spent again")
-    # Four lines at the floor take 11.85 mm and 16.0 less 3.2 is 12.8, so they
-    # fit inside the reserve and nothing reaches over the patches.
+    # Four lines at the floor take 11.85 mm and 16.0 less 4.0 is 12.0, so they
+    # still fit inside the reserve and nothing reaches over the patches.
     assert tef.clip_text_needed_mm(4) == pytest.approx(
         4 * 1.2 * tef.pt_to_mm(tef.AUTO_SHRINK_FLOOR_PT))
     assert tef.clip_text_overhang_mm(16.0, 4.0, 4) == 0.0
@@ -357,14 +368,17 @@ def test_the_clip_squeeze_predicate_agrees_with_the_geometry_module():
 def test_the_clip_squeeze_predicate_matches_the_renderer():
     """It fires only when the WHOLE band is too narrow.
 
-    Four lines at the 7 pt floor take 11.85 mm and a 12 mm band keeps 2.4 mm of
-    it for the page edge, so 9.6 mm are left and 2.25 mm of text go over the
-    patches. Knut, 2026-09-12: the page-edge distance is a limit and the
-    overflow goes the other way.
+    Four lines at the 7 pt floor take 11.85 mm and a 12 mm band keeps the 4.0 mm
+    "Clip" asks for at the page edge, so 8.0 mm are left and 3.85 mm of text go
+    over the patches. Knut, 2026-09-12: the page-edge distance is a limit and
+    the overflow goes the other way.
+
+    The reserve used to be 2.4 mm here, a fifth of the band, and that cap is
+    the fault he reported the same day.
     """
     o = tef.clip_text_squeeze(12.0, 4.0, 4, 0.0, "right")
     assert o is not None, "a 12 mm band with four lines at the floor is silent"
-    assert o.available_mm == pytest.approx(12.0 - 2.4), (
+    assert o.available_mm == pytest.approx(12.0 - 4.0), (
         "the page-edge reserve must be kept back, not offered to the text")
     assert o.needed_mm > o.available_mm
     assert tef.clip_text_overhang_mm(12.0, 4.0, 4) == pytest.approx(

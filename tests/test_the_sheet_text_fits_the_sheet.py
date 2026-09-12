@@ -203,9 +203,11 @@ def test_the_page_edge_distance_is_a_limit_and_is_never_spent():
     assert list(inspect.signature(tef.clip_content_inset_mm).parameters) == \
         ["band_mm", "text_edge_clip_mm"]
     need4 = tef.clip_text_needed_mm(4)
+    # THE RESERVE IS THE TYPED VALUE AT EVERY BAND WIDTH. It used to be capped
+    # at a fifth of the band, which is the fault Knut reported on 2026-09-12,
+    # and this loop asserted the cap.
     for band in (need4 - 3.0, need4, need4 + 0.2, need4 * 3):
-        asked = min(4.0, band * tef.CLIP_INSET_MAX_FRAC)
-        assert tef.clip_content_inset_mm(band, 4.0) == pytest.approx(asked), (
+        assert tef.clip_content_inset_mm(band, 4.0) == pytest.approx(4.0), (
             f"the reserve moved on a {band:.2f} mm band")
 
 

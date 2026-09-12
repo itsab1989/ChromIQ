@@ -1787,6 +1787,20 @@ class ChartCreator:
                                       or 0.0)
                     except (TypeError, ValueError):
                         _edge = self.default_text_edge_clip_mm()
+                    # …AND THE RULER HELPER MARKERS PUSH IT FURTHER IN (#182).
+                    # The note is text against a side page edge like any other,
+                    # so it takes whichever of the two goes furthest in; without
+                    # this it is stamped straight through the side dashes.
+                    from workflow import text_edge_fit as _tef_edge
+                    _edge = _tef_edge.side_text_edge_mm(
+                        _edge,
+                        helper_markers=bool(getattr(_rec, "helper_markers", False)),
+                        marker_edge_mm=float(
+                            getattr(_rec, "helper_marker_edge_mm", 0.0) or 0.0),
+                        marker_len_mm=float(
+                            getattr(_rec, "helper_marker_len_mm", 0.0) or 0.0),
+                        marker_sides=bool(
+                            getattr(_rec, "helper_markers_sides", True)))
                 elif self._should_use_engine(params):
                     # GUIDED CARRIES NO RECIPE, AND THAT IS WHY THE FIX MISSED
                     # THE MODE IT WAS REPORTED IN. `_collect_manual` attaches
@@ -1838,8 +1852,41 @@ class ChartCreator:
                                          or 0.0) * 72.0 / 25.4
                     except (TypeError, ValueError):
                         _size_pt = 0.0
+                # WHERE THE CLIP CONTENT'S OWN TEXT REALLY ENDS, and the gap
+                # the note keeps from it (#182, Knut, 2026-09-12). The note
+                # belongs beside that text, not outside the whole band: on the
+                # ColorMunki A4-306p preset the band is 24.0 mm and its four
+                # lines reach 18.99 mm, so 5.01 mm of it was blank paper the
+                # note was never allowed to use.
+                #
+                # The gap is "the normal distance between two lines of text for
+                # the largest font size specified among the text fields that
+                # are part of the text-box content", so both sizes are asked
+                # and the larger wins. Only the clip content's own text counts
+                # as a reach: an image or the notes design is drawn to the
+                # band, and the band is then the right answer.
+                _reach = -1.0
+                _gap = 0.0
+                if _rec is not None and _band > 0.0:
+                    from workflow import text_edge_fit as _tef
+                    from workflow.layout_engine.raster import clip_text_lines
+                    _lines = (clip_text_lines(getattr(_rec, "clip_text", ""))
+                              if str(getattr(_rec, "clip_content_mode", "")) == "text"
+                              else [])
+                    _clip_pt = 0.0
+                    try:
+                        _clip_pt = float(getattr(_rec, "clip_text_size_mm", 0.0)
+                                         or 0.0) * 72.0 / 25.4
+                    except (TypeError, ValueError):
+                        _clip_pt = 0.0
+                    if _lines:
+                        _reach = _tef.clip_text_reach_mm(
+                            _band, _edge, len(_lines), _clip_pt)
+                        _gap = (_tef.CLIP_LINE_SPACING * _tef.pt_to_mm(
+                            max(_tef.text_floor_pt(_clip_pt),
+                                _tef.text_floor_pt(_size_pt))))
                 stamp_chart_metadata(tiffs, cmd_lines, _edge, _band,
-                                     _font_family, _size_pt)
+                                     _font_family, _size_pt, _reach, _gap)
         else:
             # ChromIQ-style: shift the patch block right by ~28 mm so the left
             # side becomes a fresh white strip ready for the left-clip stamp.

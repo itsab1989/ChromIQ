@@ -82,8 +82,23 @@ class _Tab:
         return self._recipe
 
 
+def _fills(band_mm: float) -> str:
+    """Clip text with enough lines to reach the far side of *band_mm*.
+
+    **THE NOTE'S COMPETITOR IS THE CLIP CONTENT'S TEXT, NOT THE BAND** (Knut,
+    #182, 2026-09-12: *"the text must be placed … to the left of the defined
+    "Clip-border content" Text itself"*). These tests are about a note with no
+    room on a shared edge, and with one line of clip text in a 24 mm band there
+    are 16.7 mm of real paper, so the premise had to be made true rather than
+    assumed: the band is now actually full.
+    """
+    line = tef.clip_text_needed_mm(1)
+    n = max(1, int(band_mm / line) + 1) if line > 0 else 1
+    return "\n".join(f"line {i}" for i in range(1, n + 1))
+
+
 def _recipe(*, margin_r=24.0, clip=4.0, band=24.0, side="right",
-            content="text", clip_text="one line", note_size_mm=0.0,
+            content="text", clip_text=None, note_size_mm=0.0,
             clip_size_mm=0.0):
     r = LayoutRecipe()
     r.instrument, r.paper, r.layout_mode = "CM", "A4", "area_first"
@@ -92,7 +107,7 @@ def _recipe(*, margin_r=24.0, clip=4.0, band=24.0, side="right",
     r.clip_border_width_mm = band
     r.clip_side = side
     r.clip_content_mode = content
-    r.clip_text = clip_text
+    r.clip_text = _fills(band) if clip_text is None else clip_text
     r.clip_text_size_mm = clip_size_mm
     r.text_edge_clip_mm = clip
     r.chart_text_size_mm = note_size_mm
@@ -170,8 +185,16 @@ def test_raising_the_right_margin_past_the_band_really_does_free_room():
 
 
 def test_the_margin_it_asks_for_is_the_arithmetic_and_not_a_guess():
+    """…and what the note keeps off is the clip TEXT'S REACH, not the band.
+
+    Knut, #182, 2026-09-12. The band is 24.0 mm here and its lines reach past
+    it, so the reach is what the note has to clear; passing the band would name
+    a margin that leaves the note still overlapping.
+    """
     r = _recipe(margin_r=24.0)
-    o = tef.chart_note_overlap("right", 24.0, 4.0, r.dpi, 24.0, 0.0)
+    lines = len(r.clip_text.split("\n"))
+    reach = tef.clip_text_reach_mm(24.0, 4.0, lines, 0.0)
+    o = tef.chart_note_overlap("right", 24.0, 4.0, r.dpi, reach, 0.0)
     assert o is not None
     msg = _note_line(r)
     want = 24.0 + o.overlap_mm
@@ -264,15 +287,14 @@ def test_the_clip_text_overflows_over_the_patches_and_is_told_so():
     assert "lands on the patch area" in msg, msg
     assert "closer to the paper edge than you asked" not in msg, (
         "the outward push is being reported again:\n" + msg)
-    # AND IT DOES NOT CLAIM THE PAGE-EDGE DISTANCE IS NEVER CROSSED, because
-    # it is: `clip_content_inset_mm` caps the reserve at a fifth of the band,
-    # so on Knut's own 12 mm band at Clip 4 mm the ink prints 2.79 mm from the
-    # paper edge, 1.2 mm inside the distance the box asks for. The message
-    # names the reserve actually kept instead (the four-side audit,
-    # 2026-09-12).
+    # AND IT NAMES THE RESERVE ACTUALLY KEPT. The fifth-of-the-band cap that
+    # used to make this differ from the typed "Clip" is gone (Knut's fault
+    # report of 2026-09-12), but the two still differ whenever the ruler helper
+    # markers reach further in than "Clip" does, so the sentence names both.
     assert "is a limit and is never crossed" not in msg, msg
     assert "kept clear at the paper edge" in msg, msg
-    assert "or a fifth of the band where that is less" in msg, msg
+    assert "whichever reaches further in" in msg, msg
+    assert "ruler helper markers" in msg, msg
     assert "Text distance from edge" in msg, msg
     assert "Clip border width" in msg, msg
     assert "Clip-border content" in msg, msg
@@ -333,10 +355,13 @@ def test_lowering_clip_is_offered_only_when_it_can_finish_the_job():
 def test_the_number_it_asks_for_really_silences_it():
     """Set the band to the width the message names, and the warning must go.
 
-    IT IS NOT THE BAND PLUS THE SHORTFALL, which is what the first version of
-    the message said: the page-edge reserve is a fifth of the band, so widening
-    the band widens the reserve and gives part of it straight back. Measured
-    here rather than reasoned about, because that arithmetic shipped once.
+    THE BAND PLUS THE SHORTFALL IS THE RIGHT ANSWER AGAIN, and it was wrong
+    for exactly as long as the page-edge reserve was capped at a fifth of the
+    band: widening the band widened the reserve and gave part of it straight
+    back, so the message had to name a larger width. The cap is the fault Knut
+    reported on 2026-09-12; with it gone the reserve no longer moves when the
+    band does and the obvious arithmetic is the true one. Measured here rather
+    than reasoned about, because the other arithmetic shipped once.
     """
     r = _recipe(band=_TOO_NARROW_BAND, clip_text="a\nb\nc\nd")
     msg = _clip_line(r)
@@ -347,13 +372,13 @@ def test_the_number_it_asks_for_really_silences_it():
     wider = _recipe(band=round(want + 0.05, 2), clip_text="a\nb\nc\nd")
     assert not [w for w in _over(wider) if "clip border text" in w], (
         f"the message asked for {want} mm and the warning survives there")
-    # …and the naive answer really does NOT silence it, which is why the
-    # message stopped giving it.
+    # …and the width it names IS the band plus the shortfall, now that nothing
+    # is given back. Pinned as arithmetic so that reintroducing any cap on the
+    # page-edge reserve turns this red rather than quietly shrinking the text.
     over = tef.clip_text_overhang_mm(_TOO_NARROW_BAND, r.text_edge_clip_mm, 4)
-    naive = _recipe(band=round(_TOO_NARROW_BAND + over, 2),
-                    clip_text="a\nb\nc\nd")
-    assert [w for w in _over(naive) if "clip border text" in w], (
-        "band plus the shortfall now works, so this file is guarding nothing")
+    assert want == pytest.approx(_TOO_NARROW_BAND + over, abs=0.1), (
+        f"the message names {want} mm where the band plus the shortfall is "
+        f"{_TOO_NARROW_BAND + over:.2f} mm")
 
 
 def test_a_roomy_band_says_nothing_about_its_text():
@@ -541,35 +566,19 @@ def test_a_RIGHT_hand_band_never_mentions_the_row_labels():
     assert "row indicator labels" not in msg, msg
 
 
-def test_the_raise_clip_remedy_is_offered_and_is_the_smallest_that_works():
-    from workflow.layout_engine import geometry as gm
-    r = _left(12.0, _LEFT_ON_BOTH)
-    msg = _clip_line(r)
-    m = re.search(r"Raising “Clip” to ([0-9.]+) mm", msg)
-    assert m, f"no raise-Clip remedy offered:\n  {msg}"
-    want = float(m.group(1))
+def test_the_panel_no_longer_offers_raising_clip_to_clear_the_labels():
+    """The remedy is gone, because after the cap was removed it was false.
 
-    def _over(clip_mm):
-        r2 = _left(12.0, _LEFT_ON_BOTH, clip=clip_mm)
-        kw = r2.build_kwargs()
-        g2 = instruments.geom_from_build_kwargs(kw)
-        area = gm.row_label_area_mm(g2, kw)
-        return tef.clip_text_collision(
-            g2.lbord + g2.border, r2.text_edge_clip_mm, _LEFT_ON_BOTH, 0.0,
-            area[0], float(g2.margin_l)).over_labels_mm
-
-    assert _over(want + 0.1) == 0.0, (
-        f"raising Clip to {want} mm does not clear the labels")
-    # AND IT IS NOT WILDLY MORE THAN IS NEEDED. Not exact, and it cannot be:
-    # the gap between the label ink and the band's inner edge comes from
-    # `rlwi`, which `raster.row_label_band_mm` measures on the PROVISIONAL
-    # geometry, so moving "Clip" moves the margin and re-solves it. Measured on
-    # this chart: the gap is 5.21 mm at Clip 4 and 4.22 mm at Clip 24, so the
-    # answer is about a millimetre conservative, which is the safe direction
-    # for a message that says "to about".
-    assert _over(want - 1.5) > 0.0, (
-        f"{want} mm is far more than is needed, so the message is asking for "
-        f"left margin it does not have to spend")
+    Raising "Clip" opened a gap between the clip text and the row labels only
+    while `clip_content_inset_mm` capped the TEXT's reserve at a fifth of the
+    band and `raster.apply_row_label_geometry` floored the LABELS at
+    ``max(band, Clip)`` uncapped. Removing that cap is Knut's fault report of
+    2026-09-12; with it gone the two share an anchor and move together, so the
+    sentence would send the user to spend left margin for no change at all.
+    """
+    msg = _clip_line(_left(12.0, _LEFT_ON_BOTH))
+    assert "Raising “Clip”" not in msg, (
+        "the panel still offers a remedy that cannot move the labels:\n" + msg)
 
 
 def _i1_left(band: float, lines: int, clip: float = 4.0) -> LayoutRecipe:
@@ -589,22 +598,21 @@ def _i1_left(band: float, lines: int, clip: float = 4.0) -> LayoutRecipe:
     return r
 
 
-def test_the_raise_clip_answer_is_the_floor_to_ink_offset_not_the_label_width():
-    """The remedy named 21.0 mm and 25.9 mm was the number that works.
+def test_the_clear_labels_ceiling_uses_the_floor_to_ink_offset():
+    """The distance "Clip" carries is the paper between the labels' FLOOR and
+    their leftmost INK, not the width of the row number.
 
     `geometry.row_label_area_mm` answers ``(where the ink starts, where the
-    band ends)``. The panel was subtracting ``[1] - [0]``, the WIDTH of the row
-    number; what "Clip" carries when it raises the labels' floor is
-    ``[0] - floor``. Two distances in one frame out of one call, which is how
-    the wrong one was picked, and the function's own arithmetic is the same
-    either way, so only a test that APPLIES the answer can see it.
-
-    Driven on screen (`scripts/adv1_remedies_attack.py`): told to raise "Clip"
-    to 20.8 mm on an i1 chart with a 16 mm band and eight lines, the user got
-    the same red warning back with 5.1 mm of the text still on the numbers.
+    band ends)``, so ``[1] - [0]`` is the number's width and ``[0] - floor`` is
+    the offset. Two distances in one frame out of one call, which is how the
+    wrong one was picked once. The remedy's DIRECTION changed when the
+    fifth-of-the-band cap was removed (it is a ceiling on "Clip" now, not a
+    floor), and the offset is still the quantity it is built from.
     """
     from workflow.layout_engine import geometry as gm
-    r = _i1_left(16.0, 8)
+    # A band with room to spare, so the ceiling is a real number rather than
+    # "no Clip can do it" for both offsets, which tells them apart.
+    r = _i1_left(26.0, 6)
     kw = r.build_kwargs()
     g = instruments.geom_from_build_kwargs(kw)
     area = gm.row_label_area_mm(g, kw)
@@ -613,34 +621,14 @@ def test_the_raise_clip_answer_is_the_floor_to_ink_offset_not_the_label_width():
     assert width > offset + 2.0, (
         f"on this chart the label width ({width:.2f} mm) and the floor-to-ink "
         f"offset ({offset:.2f} mm) are too close to tell apart")
-
-    msg = _clip_line(r)
-    assert "crosses the row indicator labels" in msg, msg
-    m = re.search(r"Raising “Clip” to ([0-9.]+) mm", msg)
-    assert m, f"no raise-Clip remedy offered:\n  {msg}"
-    told = float(m.group(1))
-
-    def _still_over(clip_mm: float) -> float:
-        r2 = _i1_left(16.0, 8, clip=round(clip_mm, 2))
-        kw2 = r2.build_kwargs()
-        g2 = instruments.geom_from_build_kwargs(kw2)
-        a2 = gm.row_label_area_mm(g2, kw2)
-        return tef.clip_text_collision(
-            g2.lbord + g2.border, r2.text_edge_clip_mm, 8, 0.0,
-            a2[0], float(g2.margin_l)).over_labels_mm
-
-    assert _still_over(told + 0.1) == 0.0, (
-        f"the message says to raise “Clip” to {told:.1f} mm and "
-        f"{_still_over(told + 0.1):.2f} mm of the text is still printed over "
-        f"the row numbers there")
-    # …and the distance it used to name does NOT work, so this is not a test
-    # that would pass with the fix taken out again.
-    reach = tef.clip_text_reach_mm(g.lbord + g.border, r.text_edge_clip_mm, 8,
-                                   0.0)
-    old = tef.clip_edge_to_clear_labels_mm(reach, width)
-    assert _still_over(old + 0.1) > 1.0, (
-        f"the label-width answer ({old:.1f} mm) clears the labels on this "
-        f"chart too, so it cannot tell the two distances apart")
+    zone = g.lbord + g.border
+    needed = tef.clip_text_needed_mm(6, 0.0)
+    by_offset = tef.clip_edge_that_clears_labels_mm(zone, needed, offset)
+    by_width = tef.clip_edge_that_clears_labels_mm(zone, needed, width)
+    assert by_offset != by_width, (
+        "the two answers agree, so this test cannot tell them apart")
+    if by_offset is not None:
+        assert by_offset == pytest.approx(zone + offset - needed, abs=1e-9)
 
 
 def test_a_clip_border_no_wider_than_the_patch_border_says_nothing():
@@ -661,20 +649,27 @@ def test_a_clip_border_no_wider_than_the_patch_border_says_nothing():
 
 # ------------------------- the four-side audit's two findings, 2026-09-12
 def test_the_message_names_the_reserve_actually_kept_not_the_typed_one():
-    """"Clip" is capped at a fifth of the band, so the two differ on a narrow
-    band and the message has to print the one that decides.
+    """The reserve and the typed "Clip" still differ, and now it is the markers.
 
-    Measured on Knut's run 2 at Clip 4.0 mm, the outermost ink from the paper
-    edge: a 40 mm band prints at 5.33, 26 mm at 5.08, 16 mm at 3.81 and 12 mm
-    at 2.79. From about a 20 mm band down the ink is closer to the edge than
-    the box asks, so a message quoting the box would be describing a distance
-    the sheet does not keep.
+    The fifth-of-the-band cap that used to separate them is gone (Knut's fault
+    report of 2026-09-12). What separates them now is his new rule for the same
+    edge: the text-box sits at whichever of "Clip" and
+    ``"Distance from page edge" + "Marker length" + 1.0mm`` goes further in, so
+    with the ruler helper markers on the sheet keeps more than the box asks and
+    the message has to print the one that decides.
     """
     r = _overflow()
-    kept = tef.clip_content_inset_mm(_TOO_NARROW_BAND, r.text_edge_clip_mm)
-    assert kept < r.text_edge_clip_mm - 0.05, (
-        f"the cap does not bite at {_TOO_NARROW_BAND} mm, so this test is "
-        f"not measuring the case it describes")
+    r.helper_markers = True
+    r.helper_marker_edge_mm = 6.0
+    r.helper_marker_len_mm = 3.0
+    r.helper_markers_sides = True
+    eff = tef.side_text_edge_mm(
+        r.text_edge_clip_mm, helper_markers=True, marker_edge_mm=6.0,
+        marker_len_mm=3.0, marker_sides=True)
+    assert eff > r.text_edge_clip_mm + 0.05, (
+        "the markers do not reach past Clip, so this test is not measuring "
+        "the case it describes")
+    kept = tef.clip_content_inset_mm(_TOO_NARROW_BAND, eff)
     msg = _clip_line(r)
     assert f"{kept:.1f} mm is kept clear" in msg, (
         f"the message does not name the {kept:.1f} mm actually kept:\n  {msg}")
@@ -782,54 +777,63 @@ def test_the_raise_clip_remedy_is_only_offered_when_it_really_clears(
         f"of the text is still printed over the row numbers there")
 
 
-def test_the_answer_below_the_cap_is_computed_from_the_CAPPED_reach():
-    """The one state the sentence made worse, and the arithmetic that did it.
+def test_no_cap_is_reintroduced_on_the_page_edge_reserve():
+    """The fault Knut reported on 2026-09-12, pinned so it cannot come back.
 
-    A 26 mm band with "Clip" at 1.0 mm: a fifth of the band is 5.2 mm, so the
-    reserve is the typed 1.0 and the text reaches 27.67 mm. Take that reach as
-    a constant and the answer is 26.67 mm; set it and the reserve jumps to the
-    5.2 mm cap, the text reaches 31.87 mm, and 4.10 mm of it lands on the row
-    numbers — six times the 0.67 mm the warning was about.
+    `clip_content_inset_mm` used to return ``min(Clip, band * 0.2)``. On his
+    "ColorMunki-A4-306p-1page-Portrait" preset, whose band is 24.0 mm, that
+    froze the reserve at 4.8 mm:
+
+        "Changing from 4 to 5mm moves the text 1 mm more away from the right
+        border, but any higher settings than 5.0mm does not move the text at
+        all, even though there is free space between the patch area right side
+        and the clip-border text."
+
+    Measured in ink on the rendered sheet at 200 dpi with the markers off, so
+    the ink measured is the text: Clip 4.0 put it 4.13 mm from the paper's
+    right edge, Clip 5.0 put it at 4.90, and 5.5, 6, 7, 8, 10 and 15 all put it
+    at 4.90 as well. The reserve must now track "Clip" at every band width.
     """
+    for band in (10.0, 12.0, 16.0, 24.0, 40.0):
+        seen = [tef.clip_content_inset_mm(band, c)
+                for c in (2.0, 4.0, 5.0, 6.0, 8.0, 12.0)]
+        assert seen == pytest.approx([2.0, 4.0, 5.0, 6.0, 8.0, 12.0]), (
+            f"a {band:.0f} mm band caps the reserve again: {seen}")
+    # …and the geometry moves the band's content with it, which is the thing
+    # the user sees. Knut's own preset, and every step must move.
     from workflow.layout_engine import geometry as gm
-    band, lines, clip = 26.0, 9, 1.0
-    r = _i1_left(band, lines, clip=clip)
-    kw = r.build_kwargs()
-    g = instruments.geom_from_build_kwargs(kw)
-    zone = g.lbord + g.border
-    floor = float(getattr(g, "row_label_floor", 0.0) or 0.0)
-    offset = gm.row_label_area_mm(g, kw)[0] - floor
-    needed = tef.clip_text_needed_mm(lines, 0.0)
-    reach = tef.clip_text_reach_mm(zone, r.text_edge_clip_mm, lines, 0.0)
-    assert clip < zone * tef.CLIP_INSET_MAX_FRAC, (
-        "pick a state where the cap is not already binding")
-
-    old = tef.clip_edge_to_clear_labels_mm(reach, offset)
-    new = tef.clip_edge_to_clear_labels_mm(reach, offset, zone, needed)
-    assert new > old + 1.0, (
-        f"the two answers agree ({old:.2f} vs {new:.2f}), so this proves "
-        f"nothing")
-    assert _labels_still_covered_mm(band, lines, old + 0.1) > 1.0, (
-        "the reach-as-a-constant answer clears the labels on this chart, so "
-        "the state is the wrong one to test with")
-    assert _labels_still_covered_mm(band, lines, new + 0.1) == 0.0, (
-        f"the capped-reach answer ({new:.2f} mm) does not clear them either")
+    seen = []
+    for clip in (4.0, 5.0, 6.0, 8.0, 12.0):
+        r = _recipe(band=24.0, margin_r=24.0, clip=clip)
+        g = instruments.geom_from_build_kwargs(r.build_kwargs())
+        area = gm.clip_area_mm(g, 297.0, 210.0)
+        seen.append(round(210.0 - (area[0] + area[2]), 2))
+    assert seen == pytest.approx([4.0, 5.0, 6.0, 8.0, 12.0]), (
+        f"the clip band's content stopped tracking 'Clip': {seen}")
 
 
-def test_the_capped_reach_answer_never_moves_the_control_backwards():
-    """Above the cap the two answers must be the same number.
+def test_the_side_text_edge_takes_whichever_reaches_further_in():
+    """Knut's new distance rule for the left and right edges, #182.
 
-    The whole correction is about the region below the cap; a version that
-    also changed the answer where the old one was right would be a second
-    fault dressed as a fix.
+        "1. "Clip" in "Text distance from edge" parameter. Example: 4.0mm. OR,
+         2. IF "Print helper markers" and "Sides" checkboxes are both ON […]:
+         "Distance from page edge" + "Marker length" + 1.0mm. Example:
+         4.0mm + 2.0mm + 1.0mm = 7.0mm."
+
+    His worked example is the first case below.
     """
-    band, lines, clip = 16.0, 8, 4.0
-    r = _i1_left(band, lines, clip=clip)
-    g = instruments.geom_from_build_kwargs(r.build_kwargs())
-    zone = g.lbord + g.border
-    assert clip > zone * tef.CLIP_INSET_MAX_FRAC, "the cap must already bind"
-    needed = tef.clip_text_needed_mm(lines, 0.0)
-    reach = tef.clip_text_reach_mm(zone, clip, lines, 0.0)
-    assert (tef.clip_edge_to_clear_labels_mm(reach, 1.0, zone, needed)
-            == pytest.approx(tef.clip_edge_to_clear_labels_mm(reach, 1.0),
-                             abs=0.001))
+    assert tef.side_text_edge_mm(
+        4.0, helper_markers=True, marker_edge_mm=4.0, marker_len_mm=2.0,
+        marker_sides=True) == pytest.approx(7.0)
+    # "Clip" wins when it is the one that reaches further in.
+    assert tef.side_text_edge_mm(
+        12.0, helper_markers=True, marker_edge_mm=4.0, marker_len_mm=2.0,
+        marker_sides=True) == pytest.approx(12.0)
+    # The markers reserve nothing on this pair of edges when "Sides" is off,
+    # and nothing at all when the markers are off.
+    assert tef.side_text_edge_mm(
+        4.0, helper_markers=True, marker_edge_mm=4.0, marker_len_mm=2.0,
+        marker_sides=False) == pytest.approx(4.0)
+    assert tef.side_text_edge_mm(
+        4.0, helper_markers=False, marker_edge_mm=4.0,
+        marker_len_mm=2.0) == pytest.approx(4.0)

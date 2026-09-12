@@ -61,7 +61,7 @@ def _content(p, mode: str) -> None:
 
 def _panel(app, *, clip: float, border: float = 26.0, rows: bool = True,
            content: str = "notes", side: str = "left", mode: str = "clip",
-           instrument: str = "i1"):
+           instrument: str = "i1", markers: tuple[float, float] | None = None):
     """Knut's chart, built through the real panel and its real widgets."""
     p = LayoutOptionsPanel(None, with_selectors=True)
     _select(p, instrument, "A4", mode)
@@ -79,6 +79,14 @@ def _panel(app, *, clip: float, border: float = 26.0, rows: bool = True,
     if bool(p.show_row_indicators.isChecked()) != rows:
         p.show_row_indicators.click()
     assert p.show_row_indicators.isChecked() is rows
+    if markers is not None:
+        edge_mm, len_mm = markers
+        if not p.helper_markers_cb.isChecked():
+            p.helper_markers_cb.click()
+        if not p.helper_markers_sides.isChecked():
+            p.helper_markers_sides.click()
+        p.helper_marker_edge.setValue(edge_mm)
+        p.helper_marker_len.setValue(len_mm)
     p.text_edge_clip.setValue(clip)
     return p
 
@@ -132,19 +140,39 @@ def test_the_number_it_gives_follows_the_border_width(app):
         assert f"{width:.1f} mm" in _note(p), (width, _note(p))
 
 
-def test_the_clip_border_text_being_capped_is_reported(app):
-    """The second override, and it runs the other way: a CAP, not a floor."""
-    p = _panel(app, clip=10.0)
+def test_the_clip_text_held_out_by_the_helper_markers_is_reported(app):
+    """The second override, and #182 turned it the other way round.
+
+    It used to be a CAP: the content was inset by
+    ``min(Clip, a fifth of the band)``, so the text was kept NEARER the paper
+    edge than the box asked. That cap is the fault Knut reported on
+    2026-09-12 (a 24 mm band froze it at 4.8 mm and every "Clip" above 5 mm
+    moved nothing) and it is gone. What overrides "Clip" now is his new rule
+    for the same edge: the ruler helper markers hold the text FURTHER in, at
+    "Distance from page edge" + "Marker length" + 1.0 mm.
+    """
+    from workflow import text_edge_fit as tef
+    p = _panel(app, clip=4.0, content="text", markers=(6.0, 3.0))
     g = _geom(p)
-    zone = g.lbord + g.border
+    assert g is not None, "the premise failed: no clip geometry"
+    reserve = tef.helper_marker_reserve_mm(6.0, 3.0)
+    assert reserve > 4.05, "the premise failed: the markers do not reach past Clip"
+    # The GEOMETRY really holds the text out there, not just the message.
     x, _y, w, _h = geometry.clip_area_mm(g, 297.0, 210.0)
-    run_up = zone - w
-    assert run_up + 0.05 < 10.0, (
-        f"the premise failed: the clip text starts at {run_up:.2f} mm, which "
-        f"IS the 10 mm asked for")
+    zone = g.lbord + g.border
+    assert zone - w == pytest.approx(reserve, abs=0.05), (
+        f"the clip text starts at {zone - w:.2f} mm, not the {reserve:.2f} mm "
+        f"the markers ask for")
     txt = _note(p)
-    assert "clip border" in txt and f"{run_up:.1f} mm" in txt, txt
-    assert "10.0 mm" in txt, txt
+    assert "helper markers" in txt, txt
+    assert f"{reserve:.1f} mm" in txt, txt
+    assert "4.0 mm" in txt, txt
+
+
+def test_nothing_is_said_about_markers_that_do_not_reach_past_clip(app):
+    """The other half: markers inside "Clip" override nothing and stay quiet."""
+    p = _panel(app, clip=20.0, content="text", markers=(2.0, 2.0))
+    assert "helper markers" not in _note(p), _note(p)
 
 
 def test_an_empty_box_says_what_it_is_really_read_as(app):
@@ -222,7 +250,10 @@ def test_a_border_on_the_far_side_leaves_the_row_labels_alone(app):
 # ------------------------------------------------------------- counts ------
 def test_the_count_is_singular_and_plural_and_never_bracket_s(app):
     one = _note(_panel(app, clip=4.0))
-    two = _note(_panel(app, clip=10.0))
+    # TWO overrides at once: the row labels floored at the 26 mm border, and
+    # the clip text held out by the side helper markers (20 + 3 + 1 = 24 mm).
+    # The second used to be the fifth-of-the-band cap, which no longer exists.
+    two = _note(_panel(app, clip=10.0, content="text", markers=(20.0, 3.0)))
     assert "one thing" in one and "not placed at that distance" in one, one
     assert "2 things" in two, two
     for txt in (one, two):

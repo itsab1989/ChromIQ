@@ -521,9 +521,25 @@ def apply_row_label_geometry(geom, kw: dict):
     # sheet, for something the labels never had to clear.
     _left_furniture = (float(getattr(geom, "lbord", 0.0) or 0.0)
                        if on_left else 0.0)
+    # …AND THE RULER HELPER MARKERS, which are the fourth thing the labels must
+    # clear (#182, Knut, 2026-09-12). His left-edge table crosses the row
+    # indicators with the markers and gives the floor for each of the four
+    # cases: *"the left edge of the row indicators will be aligned against the
+    # clip-border width, or "Clip" in "Text distance from edge", or the defined
+    # "Distance from page edge" + "Marker length" + 1.0mm, whichever is
+    # largest."* Only the SIDE dashes are down this edge, so the "Sides"
+    # checkbox gates it; with the markers off this adds nothing and the floor
+    # is exactly what it was.
+    from workflow import text_edge_fit as _tef
+    _marker_floor = (
+        _tef.helper_marker_reserve_mm(kw.get("helper_marker_edge") or 0.0,
+                                      kw.get("helper_marker_len") or 0.0)
+        if (bool(kw.get("helper_markers"))
+            and bool(kw.get("helper_markers_sides", True))) else 0.0)
     floor = max(_left_furniture,
                 float(_DEFAULT_TEXT_EDGE_CLIP_MM if _edge is None else (_edge or 0.0)),
-                float(kw.get("clip_border_width") or 0.0) if has_border else 0.0)
+                float(kw.get("clip_border_width") or 0.0) if has_border else 0.0,
+                _marker_floor)
     needed = floor + measured + 1.0
     margin_l = max(float(getattr(geom, "margin_l", 0.0) or 0.0), needed)
     return replace(geom, rlwi=measured, margin_l=margin_l,
