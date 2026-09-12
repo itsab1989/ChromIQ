@@ -709,3 +709,127 @@ def test_only_plain_text_is_told_it_overflows(mode):
     text = _recipe(band=_TOO_NARROW_BAND, margin_r=_TOO_NARROW_BAND,
                    content="text", clip_text="a\nb\nc\nd")
     assert _clip_line(text)
+
+
+# ------------------------------------------------------------------------
+# ADVERSARY THREE — the raise-"Clip" remedy where the page-edge cap is not
+# yet binding, which is where the reach it is computed from is not a constant
+# ------------------------------------------------------------------------
+#: ``(band, lines, "Clip")`` states in which the clip text overflows its band
+#: and reaches the row labels. The first three have "Clip" BELOW a fifth of
+#: the band, which is where `clip_content_inset_mm` still returns the typed
+#: value: raising "Clip" there pushes the text inward one for one until the
+#: cap catches it, so an answer taken from the reach the text has today is
+#: short by exactly ``cap - Clip``.
+_RAISE_CLIP_STATES = [
+    (26.0, 9, 1.0),      # a fifth is 5.2 mm; the sentence named 26.7 mm
+    (26.0, 9, 4.0),      # a fifth is 5.2 mm
+    (24.0, 9, 4.0),      # a fifth is 4.8 mm
+    (30.0, 12, 4.0),     # a fifth is 6.0 mm, and the answer left the box's range
+    (16.0, 8, 4.0),      # a fifth is 3.2 mm: the cap IS binding, and it works
+    (16.0, 9, 4.0),      # the same, one line deeper
+]
+
+#: The maximum the "Clip" spin box will take
+#: (`ui/dialogs/layout_options_panel.py`: ``small_mm(top=30.0)``). A remedy
+#: above it is not a remedy: the value clamps and the overlap is left standing.
+_CLIP_BOX_MAX_MM = 30.0
+
+
+def _labels_still_covered_mm(band: float, lines: int, clip_mm: float) -> float:
+    """How much clip text is printed over the row numbers at that "Clip"."""
+    from workflow.layout_engine import geometry as gm
+    r = _i1_left(band, lines, clip=round(clip_mm, 2))
+    kw = r.build_kwargs()
+    g = instruments.geom_from_build_kwargs(kw)
+    area = gm.row_label_area_mm(g, kw)
+    return tef.clip_text_collision(
+        g.lbord + g.border, r.text_edge_clip_mm, lines, 0.0,
+        area[0], float(g.margin_l)).over_labels_mm
+
+
+@pytest.mark.parametrize("band,lines,clip", _RAISE_CLIP_STATES)
+def test_the_raise_clip_remedy_is_only_offered_when_it_really_clears(
+        band, lines, clip):
+    """Do what it says and the row numbers must come out clear.
+
+    THE REACH IS NOT A CONSTANT, WHICH IS WHY THIS IS PARAMETRISED OVER STATES
+    RATHER THAN OVER NUMBERS. `clip_content_inset_mm` caps the page-edge
+    reserve at a fifth of the band; below that cap the reserve is the typed
+    "Clip" itself, so raising "Clip" moves the TEXT as well as the labels.
+    Driven through the real window on a rendered A4 sheet at 200 dpi, a 26 mm
+    left band with "Clip" at 1.0 mm and nine lines: the clip text's ink ended
+    27.05 mm from the page edge and the leftmost row-label ink at 27.43, so
+    the two did not touch; the panel offered "Raising “Clip” to 26.7 mm …
+    without moving the text", and at 26.7 mm the ink ended at 31.24 mm with
+    3.05 mm of it printed over the numbers.
+    """
+    r = _i1_left(band, lines, clip=clip)
+    msg = _clip_line(r)
+    assert _labels_still_covered_mm(band, lines, clip) > 0.05, (
+        "this state does not put the text on the labels, so it proves nothing")
+    assert "crosses the row indicator labels" in msg, msg
+    m = re.search(r"Raising “Clip” to ([0-9.]+) mm", msg)
+    if m is None:
+        return                    # not offered at all: nothing to be wrong
+    told = float(m.group(1))
+    assert told <= _CLIP_BOX_MAX_MM + 0.05, (
+        f"the message says to raise “Clip” to {told:.1f} mm and the box stops "
+        f"at {_CLIP_BOX_MAX_MM:.1f}; the value clamps and the overlap stays")
+    left = _labels_still_covered_mm(band, lines, told + 0.1)
+    assert left == 0.0, (
+        f"the message says to raise “Clip” to {told:.1f} mm and {left:.2f} mm "
+        f"of the text is still printed over the row numbers there")
+
+
+def test_the_answer_below_the_cap_is_computed_from_the_CAPPED_reach():
+    """The one state the sentence made worse, and the arithmetic that did it.
+
+    A 26 mm band with "Clip" at 1.0 mm: a fifth of the band is 5.2 mm, so the
+    reserve is the typed 1.0 and the text reaches 27.67 mm. Take that reach as
+    a constant and the answer is 26.67 mm; set it and the reserve jumps to the
+    5.2 mm cap, the text reaches 31.87 mm, and 4.10 mm of it lands on the row
+    numbers — six times the 0.67 mm the warning was about.
+    """
+    from workflow.layout_engine import geometry as gm
+    band, lines, clip = 26.0, 9, 1.0
+    r = _i1_left(band, lines, clip=clip)
+    kw = r.build_kwargs()
+    g = instruments.geom_from_build_kwargs(kw)
+    zone = g.lbord + g.border
+    floor = float(getattr(g, "row_label_floor", 0.0) or 0.0)
+    offset = gm.row_label_area_mm(g, kw)[0] - floor
+    needed = tef.clip_text_needed_mm(lines, 0.0)
+    reach = tef.clip_text_reach_mm(zone, r.text_edge_clip_mm, lines, 0.0)
+    assert clip < zone * tef.CLIP_INSET_MAX_FRAC, (
+        "pick a state where the cap is not already binding")
+
+    old = tef.clip_edge_to_clear_labels_mm(reach, offset)
+    new = tef.clip_edge_to_clear_labels_mm(reach, offset, zone, needed)
+    assert new > old + 1.0, (
+        f"the two answers agree ({old:.2f} vs {new:.2f}), so this proves "
+        f"nothing")
+    assert _labels_still_covered_mm(band, lines, old + 0.1) > 1.0, (
+        "the reach-as-a-constant answer clears the labels on this chart, so "
+        "the state is the wrong one to test with")
+    assert _labels_still_covered_mm(band, lines, new + 0.1) == 0.0, (
+        f"the capped-reach answer ({new:.2f} mm) does not clear them either")
+
+
+def test_the_capped_reach_answer_never_moves_the_control_backwards():
+    """Above the cap the two answers must be the same number.
+
+    The whole correction is about the region below the cap; a version that
+    also changed the answer where the old one was right would be a second
+    fault dressed as a fix.
+    """
+    band, lines, clip = 16.0, 8, 4.0
+    r = _i1_left(band, lines, clip=clip)
+    g = instruments.geom_from_build_kwargs(r.build_kwargs())
+    zone = g.lbord + g.border
+    assert clip > zone * tef.CLIP_INSET_MAX_FRAC, "the cap must already bind"
+    needed = tef.clip_text_needed_mm(lines, 0.0)
+    reach = tef.clip_text_reach_mm(zone, clip, lines, 0.0)
+    assert (tef.clip_edge_to_clear_labels_mm(reach, 1.0, zone, needed)
+            == pytest.approx(tef.clip_edge_to_clear_labels_mm(reach, 1.0),
+                             abs=0.001))

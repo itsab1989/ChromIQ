@@ -19627,9 +19627,37 @@ class TabChart(QWidget):
                         # which gives 25.9 mm, and there the overlap is zero.
                         _offset = (max(0.0, float(_rl[0]) - _floor_l)
                                    if _rl is not None else 1.0)
+                        # …AND THE BAND AND THE BLOCK, BECAUSE THE REACH IS NOT
+                        # A CONSTANT. `clip_content_inset_mm` caps the
+                        # page-edge reserve at a fifth of the band, so while
+                        # "Clip" is UNDER that cap the reserve is "Clip" itself
+                        # and raising it pushes the text inward one for one
+                        # until the cap catches it. Measured on a rendered A4
+                        # sheet, a 26 mm band with "Clip" at 1.0 mm and nine
+                        # lines: the text's ink ended 27.05 mm in and the row
+                        # labels' at 27.43, so nothing was touching; this
+                        # sentence named 26.7 mm, and at 26.7 the text ended at
+                        # 31.24 mm with 3.05 mm of it printed over the numbers.
+                        # The remedy made the collision it describes.
                         _clear = text_edge_fit.clip_edge_to_clear_labels_mm(
-                            _hit.reach_mm, _offset)
-                        if _clear > float(r.text_edge_clip_mm or 0.0) + 0.05:
+                            _hit.reach_mm, _offset, _clip_zone, _cs.needed_mm)
+                        # AND A DISTANCE THE BOX CANNOT HOLD IS NOT A REMEDY.
+                        # The "Clip" spin box stops at 30.0 mm, and on a 30 mm
+                        # band with twelve lines this named 38.6: the value
+                        # clamped to 30 and the overlap grew from 8.56 mm to
+                        # 10.56. What the control can actually take is asked of
+                        # the control.
+                        _clip_max = 30.0
+                        _lp = getattr(self, "_manual_layout_panel", None)
+                        _box = getattr(_lp, "text_edge_clip", None)
+                        if _box is not None:
+                            try:
+                                _clip_max = float(_box.maximum())
+                            except (TypeError, ValueError):
+                                _clip_max = 30.0
+                        if (_clear <= _clip_max + 0.05
+                                and _clear > float(r.text_edge_clip_mm or 0.0)
+                                + 0.05):
                             _msg += " " + tr(
                                 "Raising “Clip” to {clear:.1f} mm instead moves "
                                 "the row indicator labels in out of the way "
