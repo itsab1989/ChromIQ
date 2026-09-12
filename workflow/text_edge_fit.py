@@ -533,13 +533,48 @@ def clip_text_collision(band_mm: float, text_edge_clip_mm: float, lines: int,
 
 
 def clip_edge_to_clear_labels_mm(reach_mm: float,
-                                 label_offset_mm: float = 1.0) -> float:
+                                 label_offset_mm: float = 1.0,
+                                 band_mm: float = 0.0,
+                                 needed_mm: float = 0.0) -> float:
     """The "Clip" distance that moves the row labels clear of the text.
 
     *label_offset_mm* is the paper between the labels' FLOOR and their leftmost
     INK, which is what rides along when "Clip" raises that floor. "Clip" above
     the band's width moves the floor one for one and the offset is carried with
     it, so the smallest distance that clears the text is ``reach - offset``.
+
+    **…AND THE TEXT MOVES TOO, WHILE "Clip" IS UNDER A FIFTH OF THE BAND. THAT
+    IS THE SAME FAULT ONE LEVEL DOWN, AND THE THIRD ADVERSARIAL ROUND MEASURED
+    IT ON A SHEET.** ``reach`` is not a constant: it is
+    ``clip_content_inset_mm(band, clip) + needed``, and that inset is
+    ``min(clip, band * CLIP_INSET_MAX_FRAC)``. Below the cap the reserve IS the
+    typed "Clip", so raising "Clip" pushes the text inward one for one until
+    the cap catches it, and an answer computed from the reach the text has
+    TODAY is short by exactly ``cap - clip``.
+
+    Pass *band_mm* and *needed_mm* and the answer is computed against the reach
+    the text will have once "Clip" is at or above the cap, which is where every
+    answer this function gives lands, and floored at the band's own width
+    because below that the labels' floor is the band and "Clip" moves nothing:
+
+        max(band, band * CLIP_INSET_MAX_FRAC + needed - offset)
+
+    Driven through the real window on an A4 i1 area-first chart at 200 dpi with
+    a 26 mm left clip band, "Clip" at 1.0 mm and nine lines of clip text at the
+    7 pt floor, measuring the ink on the page the renderer produced:
+
+    * before, the clip text's ink ends **27.05 mm** from the page edge and the
+      leftmost row-label ink is at **27.43 mm**: they do not touch;
+    * the panel offered *"Raising “Clip” to 26.7 mm instead moves the row
+      indicator labels in out of the way without moving the text"*;
+    * at 26.7 mm the text's ink ends at **31.24 mm** — it moved 4.19 mm inward,
+      which the sentence says it will not — and **3.05 mm of it is printed over
+      the row numbers**, where none was before.
+
+    With a 30 mm band and twelve lines the same sentence named 38.6 mm, which
+    the "Clip" box cannot hold (its maximum is 30.0 mm): the value clamped and
+    the overlap went from 8.56 mm to 10.56 mm. The caller therefore also
+    refuses to offer a distance the box cannot take.
 
     **IT WAS GIVEN THE LABEL'S OWN WIDTH INSTEAD, AND THAT IS A DIFFERENT
     DISTANCE IN THE SAME FRAME.** `geometry.row_label_area_mm` answers
@@ -589,8 +624,13 @@ def clip_edge_to_clear_labels_mm(reach_mm: float,
     measured. `geometry.row_label_area_mm` measures the label when it is given
     the build kwargs, and the sweep above is that version.
     """
-    return max(0.0, float(reach_mm or 0.0)
-               - max(0.0, float(label_offset_mm or 0.0)))
+    band = max(0.0, float(band_mm or 0.0))
+    needed = max(0.0, float(needed_mm or 0.0))
+    reach = float(reach_mm or 0.0)
+    if band > 0.0 and needed > 0.0:
+        reach = max(reach, band * CLIP_INSET_MAX_FRAC + needed)
+    out = max(0.0, reach - max(0.0, float(label_offset_mm or 0.0)))
+    return max(band, out) if (band > 0.0 and needed > 0.0) else out
 
 
 def clip_band_needed_mm(text_edge_clip_mm: float, lines: int,
