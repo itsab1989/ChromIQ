@@ -472,6 +472,90 @@ def realized_margins_mm(geom: Geom, paper_w_mm: float, paper_h_mm: float,
 CLIP_CONTENT_INSET_MM = 4.0
 
 
+def row_label_area_mm(geom: Geom, kw: dict | None = None
+                      ) -> tuple[float, float] | None:
+    """``(where the leftmost row-label ink starts, where the band ends)`` in mm
+    from the LEFT page edge, or ``None`` when this chart has no row labels.
+
+    `docs/design/row_label_geometry.md` §R2's last two lines, and the renderer
+    draws from the same two:
+
+        band right = min(floor + band, patch x0 - 1 mm)
+        label x    = max(floor, band right - label width)
+
+    **`rlwi` IS THE RESERVATION, NOT THE LABEL, and the two are far apart.**
+    `raster.row_label_band_mm` sizes the band from the widest label 1 to 99 at
+    the PROVISIONAL geometry's indicator size, deliberately: in area-first the
+    patch size is derived from the usable width, which the band has just
+    changed, so it allows for the worst case. Measured on a ColorMunki A4 chart
+    with a 16 mm left band: the reservation is 9.43 mm and the widest number
+    actually printed is 3.17 mm, so `band_right - (rlwi - 1)` puts the labels
+    at 17.0 mm and the ink is at 21.7. Predicting from the reservation would
+    make a collision warning fire about 4.7 mm of blank paper.
+
+    So pass *kw*, the build kwargs, and the label is MEASURED exactly as the
+    renderer measures it: the last row a full page holds, at
+    `effective_row_label_size_mm`, in the chosen face. Without *kw* the band's
+    own left edge is returned, which is the conservative end and is all a
+    caller that just wants the reservation needs.
+
+    **This exists because something else now has to know where the labels
+    are.** The clip band's text may reach inward past its band (Knut,
+    2026-09-12), and the row labels are the first thing it meets. Repeating
+    §R2's arithmetic in the panel would be a second copy of a rule the
+    renderer owns, which is the drift this module's neighbours keep being
+    caught by. `tests/test_the_clip_text_meets_the_row_labels.py` renders a
+    page and compares this function against the ink on it.
+    """
+    band = float(getattr(geom, "rlwi", 0.0) or 0.0)
+    if band <= 0:
+        return None
+    floor = float(getattr(geom, "row_label_floor", 0.0) or 0.0)
+    margin_l = float(getattr(geom, "margin_l", 0.0) or 0.0)
+    # A geometry that never went through `raster.apply_row_label_geometry`
+    # carries no floor, and the renderer then keeps its own older placement
+    # (`_band_right = _rx`). Mirror that rather than inventing a floor of 0,
+    # which would report the labels against the paper edge.
+    band_right = (min(floor + band, margin_l - 1.0) if floor > 0
+                  else margin_l - 1.0)
+    widest = max(0.0, band - 1.0)
+    if kw is not None:
+        measured = _widest_row_label_mm(geom, kw)
+        if measured is not None:
+            widest = measured
+    return (max(floor, band_right - widest), band_right)
+
+
+def _widest_row_label_mm(geom: Geom, kw: dict) -> float | None:
+    """The widest row number the renderer will actually draw, in mm.
+
+    The same three things `raster` uses at draw time: the last row a full page
+    holds (`_rows_that_fit`), the size that row's label resolves to
+    (`effective_row_label_size_mm`, which is capped at the row pitch), and the
+    face. Lives beside `clip_area_mm` rather than in `raster` only because this
+    module is the one asked; it reaches into `raster` for the fonts exactly as
+    `apply_row_label_geometry` does in the other direction.
+    """
+    try:
+        from PIL import Image, ImageDraw
+        from . import permutation, raster
+        rows = raster._rows_that_fit(geom, kw)
+        if rows <= 0:
+            return None
+        dpi = int(kw.get("dpi") or 300)
+        fam = kw.get("indicator_font") or raster.DEFAULT_INDICATOR_FONT
+        size_mm = raster.effective_row_label_size_mm(
+            geom, dpi, fam, float(kw.get("indicator_size_mm") or 0.0))
+        size_px = max(1, int(round(size_mm * dpi / 25.4)))
+        font = raster._font(size_px, fam, bool(kw.get("indicator_bold")),
+                            bool(kw.get("indicator_italic")))
+        label = permutation.make_labeller(kw.get("patch_pattern") or "")
+        draw = ImageDraw.Draw(Image.new("L", (8, 8)))
+        return float(draw.textlength(label(rows), font=font)) * 25.4 / dpi
+    except Exception:              # noqa: BLE001 — a prediction is never fatal
+        return None
+
+
 def clip_area_mm(geom: Geom, paper_h_mm: float, paper_w_mm: float | None = None,
                  content_lines: int = 0, content_size_pt: float = 0.0,
                  ) -> tuple[float, float, float, float] | None:

@@ -19386,7 +19386,20 @@ class TabChart(QWidget):
             # silent. It is asked anyway: a geometry that stops raising the
             # margin is precisely the day the user needs to be told, and the
             # ruling names this side.
-            if _clip_zone > 0 and str(getattr(r, "clip_content_mode", "off")) != "off":
+            # AND THE BAND HAS TO EXIST. `_clip_zone` is `lbord + border`, so
+            # it is the ORDINARY patch border on a chart whose clip-border
+            # width does not exceed it: `instruments` stores
+            # `lbord = clip_border_width - border`, and
+            # `geometry.clip_area_mm` returns None when `lbord <= 0`, so
+            # NOTHING IS DRAWN. Measured on Knut's run 2, whose border is
+            # 10 mm, with the clip-border width set to 10: no clip content on
+            # the sheet at all, and this panel warned in red that its eight
+            # lines were printed 15.7 mm over the patches. The chart-note block
+            # above already asks `lbord > 0` for exactly this reason and this
+            # block was not given the same gate.
+            _clip_band_exists = float(getattr(geom, "lbord", 0.0) or 0.0) > 0
+            if (_clip_zone > 0 and _clip_band_exists
+                    and str(getattr(r, "clip_content_mode", "off")) != "off"):
                 _side = "right" if _clip_on_right else "left"
                 _o = text_edge_fit.clip_content_overlap(
                     _side,
@@ -19425,9 +19438,18 @@ class TabChart(QWidget):
                 except (TypeError, ValueError):
                     _clip_size_pt = 0.0
                 _clip_floor_pt = text_edge_fit.text_floor_pt(_clip_size_pt)
+                # ONLY PLAIN TEXT OVERFLOWS, and this counted the lines for
+                # the image and branding modes too. Those scale whatever they
+                # are given, so they have no floor to overflow from, and
+                # `raster.render_page` asks the same question the other way
+                # round: `len(clip_text_lines(...)) if clip_content_mode ==
+                # "text" else 0`. Measured on Knut's run 2 at a 12 mm band with
+                # four lines: the text really does reach 13.46 mm, past the
+                # band, and branding reaches 11.18 mm and never leaves it,
+                # while the panel told both of them that 2.3 mm was printed
+                # past the band. (Found by the four-side audit, 2026-09-12.)
                 _clip_lines = 0
-                if str(getattr(r, "clip_content_mode", "off")) in (
-                        "text", "image", "branding"):
+                if str(getattr(r, "clip_content_mode", "off")) == "text":
                     from workflow.layout_engine.raster import clip_text_lines
                     _clip_lines = len(clip_text_lines(
                         getattr(r, "clip_text", "") or ""))
@@ -19464,52 +19486,105 @@ class TabChart(QWidget):
                     # the width that actually works.
                     _want_band = text_edge_fit.clip_band_needed_mm(
                         r.text_edge_clip_mm, _clip_lines, _clip_size_pt)
-                    # AND WHETHER IT REACHES THE PATCHES AT ALL IS A SEPARATE
-                    # QUESTION. The text grows inward from the band's inner
-                    # edge into whatever paper is there, and the patch area
-                    # begins at the clip-side MARGIN, which
-                    # `instruments.geom_from_build_kwargs` raises to the band
-                    # but which the user may set far wider. Measured on Knut's
-                    # own run 1 with a 12 mm band and a 32 mm right margin:
-                    # 2.3 mm of text past the band, 17.7 mm of clear paper
-                    # beyond it, and not one patch inked. Saying "those patches
-                    # are measured with that ink on them" there would be the
-                    # message asserting something the sheet does not show.
+                    # AND WHAT IT REACHES IS A SEPARATE QUESTION, with THREE
+                    # answers, not two. The text grows inward from the band's
+                    # inner edge into whatever paper is there. On the LEFT the
+                    # first thing it meets is the row indicator labels, not the
+                    # patch area, which is the case Knut added on 2026-09-12:
+                    #
+                    #   "If clip-border text starts overlapping with the row
+                    #    labels (if enabled), the warning shall occur too,
+                    #    because the row labels are left of the patch area
+                    #    edges … This situation must be caught."
+                    #
+                    # Measured on his own run 2: with a 12 mm left band the
+                    # labels begin at 13.0 mm and the patch area at 20.25, so a
+                    # 2.25 mm overhang crosses the labels and never comes near
+                    # a patch. And with a 32 mm right margin and the same band,
+                    # 17.7 mm of clear paper lie beyond it and nothing is hit
+                    # at all. Saying "those patches are measured with the ink
+                    # on them" in either case would be the message asserting
+                    # something the sheet does not show.
                     _clip_margin = float(geom.margin_r if _clip_on_right
                                          else geom.margin_l)
-                    _into_patches = max(0.0, _clip_zone + _over_mm
-                                        - _clip_margin)
+                    # WHERE THE LABELS ARE COMES FROM THE GEOMETRY THAT DRAWS
+                    # THEM (`row_label_area_mm`), never from §R2's arithmetic
+                    # repeated here. They are down the LEFT, so only a
+                    # left-hand band can reach them.
+                    _label_start = None
+                    if not _clip_on_right:
+                        try:
+                            from workflow.layout_engine import geometry as _gm
+                            # WITH THE BUILD KWARGS, so the label is MEASURED
+                            # rather than taken from `rlwi`, which is the
+                            # reserved band and on the chart measured is
+                            # 9.43 mm against 3.17 mm of actual ink. Predicting
+                            # from the reservation put the labels 4.7 mm too
+                            # far out and would have warned about blank paper.
+                            _rl = _gm.row_label_area_mm(geom, r.build_kwargs())
+                            _label_start = None if _rl is None else float(_rl[0])
+                        except Exception:      # noqa: BLE001 — never fatal
+                            _label_start = None
+                    _hit = text_edge_fit.clip_text_collision(
+                        _clip_zone, r.text_edge_clip_mm, _clip_lines,
+                        _clip_size_pt, _label_start, _clip_margin)
+                    # THE RESERVE ACTUALLY KEPT, WHICH IS NOT ALWAYS "Clip".
+                    # `clip_content_inset_mm` caps it at a fifth of the band so
+                    # a narrow band is not eaten whole, and on a narrow band
+                    # that cap is what decides. Measured on Knut's run 2 at
+                    # Clip 4.0 mm, the outermost ink from the paper edge: a
+                    # 40 mm band prints at 5.33, 26 mm at 5.08, 16 mm at 3.81
+                    # and 12 mm at 2.79. So from about 20 mm down the ink is
+                    # closer to the edge than the box asks, and this message
+                    # used to say the distance "is a limit and is never
+                    # crossed". It is crossed, by the cap, on every band width
+                    # Knut tests with. (Found by the four-side audit,
+                    # 2026-09-12; whether the CAP is right is his to rule and
+                    # has been asked. The sentence is ours either way.)
+                    _kept = text_edge_fit.clip_content_inset_mm(
+                        _clip_zone, r.text_edge_clip_mm)
                     _fmt = dict(lines=_clip_lines, size=_clip_floor_pt,
                                 need=_cs.needed_mm,
                                 avail=max(0.0, _cs.available_mm),
-                                over=_over_mm, band=_clip_zone,
-                                into=_into_patches, want=_want_band)
+                                over=_over_mm, band=_clip_zone, edge=_kept,
+                                labels=_hit.over_labels_mm,
+                                into=_hit.over_patches_mm, want=_want_band)
                     _msg = (tr(
                         "⚠ The clip border text does not fit its band. One line "
                         "at {size:.0f} pt needs {need:.1f} mm across the band, "
-                        "and the {band:.1f} mm band leaves {avail:.1f} mm "
-                        "inside the “Clip” distance under “Text distance from "
-                        "edge (mm)”, which is a limit and is never crossed. "
-                        "The remaining {over:.1f} mm is printed inward, past "
-                        "the band.")
+                        "and the {band:.1f} mm band leaves {avail:.1f} mm once "
+                        "{edge:.1f} mm is kept clear at the paper edge. That "
+                        "is “Clip” under “Text distance from edge (mm)”, or a "
+                        "fifth of the band where that is less. The remaining "
+                        "{over:.1f} mm is printed inward, past the band.")
                         if _clip_lines == 1 else tr(
                         "⚠ The clip border text does not fit its band. Its "
                         "{lines} lines at {size:.0f} pt need {need:.1f} mm "
                         "across the band, and the {band:.1f} mm band leaves "
-                        "{avail:.1f} mm inside the “Clip” distance under “Text "
-                        "distance from edge (mm)”, which is a limit and is "
-                        "never crossed. The remaining {over:.1f} mm is printed "
-                        "inward, past the band.")).format(**_fmt)
-                    if _into_patches > 0.05:
+                        "{avail:.1f} mm once {edge:.1f} mm is kept clear at "
+                        "the paper edge. That is “Clip” under “Text distance "
+                        "from edge (mm)”, or a fifth of the band where that is "
+                        "less. The remaining {over:.1f} mm is printed inward, "
+                        "past the band.")).format(**_fmt)
+                    # TWO KINDS OF HARM, AND THEY ARE NOT THE SAME KIND. Ink on
+                    # a patch is measured and goes into the profile; ink on a
+                    # row label is read by a person who then cannot find their
+                    # row. Both sentences appear when a deep overflow does both.
+                    if _hit.over_labels_mm > 0.05:
+                        _msg += " " + tr(
+                            "{labels:.1f} mm of it crosses the row indicator "
+                            "labels down that edge, printing over the numbers "
+                            "you read to find your place on the sheet."
+                        ).format(**_fmt)
+                    if _hit.over_patches_mm > 0.05:
                         _msg += " " + tr(
                             "{into:.1f} mm of it lands on the patch area, and "
                             "those patches are measured with the ink on them, "
                             "so what the instrument reads there is the patch "
                             "and the text together.").format(**_fmt)
-                    else:
+                    if not _hit.hits_anything:
                         _msg += " " + tr(
-                            "It reaches clear paper, not the patches, because "
-                            "the margin on that side is wider than the band.")
+                            "It reaches clear paper, so it lands on nothing.")
                     _msg += " " + tr(
                         "Widen “Clip border width” to about {want:.1f} mm, or "
                         "set a smaller Size under “Clip-border content”."
@@ -19526,6 +19601,32 @@ class TabChart(QWidget):
                             "Lowering “Clip” to {target:.1f} mm would also do "
                             "it, at the cost of printing that much closer to "
                             "the paper edge.").format(target=_clip_target)
+                    elif _hit.over_labels_mm > 0.05:
+                        # THE OTHER DIRECTION, AND IT IS THE ONE REMEDY THAT
+                        # MOVES THE LABELS AWAY. Measured over the whole range
+                        # of every neighbouring control on a 12 mm left band: a
+                        # left margin from 12 mm to 45 mm leaves the leftmost
+                        # label ink at 17.22 mm, the band's width and "Clip"
+                        # move it one for one, and the row-indicator Size moves
+                        # it THE WRONG WAY (4 pt puts it at 13.86 mm, 28 pt at
+                        # 18.94). So a smaller row-indicator size is not
+                        # offered: it would make the collision worse, and a
+                        # bigger one buys clearance with left margin to fix a
+                        # problem in the clip text.
+                        # THE GAP THIS CHART HAS, not the 1 mm §R2 reserves:
+                        # `row_label_area_mm` answers with the label's own
+                        # edges, and the paper between them and the band's
+                        # inner edge rides along when "Clip" moves the floor.
+                        _gap = (max(0.0, float(_rl[1]) - float(_rl[0]))
+                                if _rl is not None else 1.0)
+                        _clear = text_edge_fit.clip_edge_to_clear_labels_mm(
+                            _hit.reach_mm, _gap)
+                        if _clear > float(r.text_edge_clip_mm or 0.0) + 0.05:
+                            _msg += " " + tr(
+                                "Raising “Clip” to {clear:.1f} mm instead moves "
+                                "the row indicator labels in out of the way "
+                                "without moving the text, at the cost of that "
+                                "much more left margin.").format(clear=_clear)
                     over.append(_msg)
             # The text-overflow warning only applies in "margins are law" mode,
             # which is now AREA-FIRST (Knut #93): there the label/text lives inside

@@ -39,7 +39,7 @@ Nothing in this file is implemented yet unless it says so. It is a record, so
 that a month from now nobody has to reconstruct what was decided from a chat
 thread.
 
-Last updated 2026-09-12 (sections 2e, 2f and 2g; 2f rewritten after Knut withdrew the answer it was built on).
+Last updated 2026-09-12 (sections 2e to 2h; 2f rewritten after Knut withdrew the answer it was built on, 2h added from his edit of the same post).
 
 ---
 
@@ -667,9 +667,27 @@ that was genuinely open.
 
 ### The rule as built
 
-1. **The page-edge distance is a limit and is never spent on text.**
+1. **The page-edge distance is never spent on text by a CALLER.**
    `workflow/text_edge_fit.py::clip_content_inset_mm` takes the band and the
-   distance and nothing else, so no caller can trade it away.
+   distance and nothing else, so nothing outside it can trade it away.
+
+   > **AND IT IS NOT ABSOLUTE, WHICH THIS RULE SAID IT WAS.** The four-side
+   > audit of 2026-09-12 measured the outermost clip ink at Clip 4.0 mm: a
+   > 40 mm band prints it 5.33 mm from the paper edge, 26 mm at 5.08, **16 mm
+   > at 3.81 and 12 mm at 2.79**. From about a 20 mm band down the ink is
+   > closer to the edge than the box asks, because the function itself caps
+   > the reserve at a fifth of the band (`CLIP_INSET_MAX_FRAC`) so a narrow
+   > band is not eaten whole. Every band width Knut tests with, 8 to 16 mm, is
+   > inside that range. Reproduced here on his own run 2.
+   >
+   > **Whether the CAP should stay is Knut's to rule and has been asked**: a
+   > narrow band that keeps the full distance has almost nothing left for its
+   > own text and would overhang inward a great deal further. **The MESSAGE was
+   > not his to rule**, and it said the distance "is a limit and is never
+   > crossed". It now names the reserve actually kept and where it came from:
+   > *"the 12.0 mm band leaves 9.6 mm once 2.4 mm is kept clear at the paper
+   > edge. That is “Clip” under “Text distance from edge (mm)”, or a fifth of
+   > the band where that is less."*
 2. **Text that will not fit inside it grows INWARD**, past the band and over
    the patch area, by exactly the shortfall:
    `text_edge_fit.clip_text_overhang_mm`, applied by
@@ -765,6 +783,17 @@ clip-border text is too wide for its band and prints over the edge of the patch
 area, should ChromIQ let the chart be built at all, or should it refuse until
 the band is wide enough? Today it builds it and says what is happening.
 
+### A second audit finding: three content modes were told they overflow
+
+The panel counted the clip text's lines for the **image** and **branding**
+content modes as well as plain text, while `raster.render_page` produces an
+overhang only for `"text"`: the other two scale to whatever band they are
+given, so they have no floor to overflow from. Measured at a 12 mm band with
+four lines: the text really does reach 13.46 mm, past the band, and branding
+reaches 11.18 mm and never leaves it, and the panel told both of them that
+2.3 mm was printed past the band. The predicate now asks the same question the
+renderer asks. (Found by the four-side audit, 2026-09-12.)
+
 ### The levers the warning names
 
 * **"Clip border width"**, set to the width that actually works. NOT the band
@@ -837,3 +866,128 @@ at 24.0. It now says they start where the band ends. The same message offered
 *"lower 'Clip'"* as one of three remedies, and while the band is the larger of
 the two reserves that moves no ink; it is gone, and the two levers that do work
 remain.
+
+---
+
+## 2h. ⏳ Awaiting confirmation — on the LEFT the text meets the ROW LABELS first
+
+**Confirmed by:** *nobody yet.*
+
+Knut added this to the post of 2026-09-12 after it was first answered, so §2f
+was built without it:
+
+> *"If clip-border text starts overlapping with the row labels (if enabled),
+> the warning shall occur too, because the row labels are left of the patch
+> area edges and any clip-border text that does not have space enough to fit
+> between the clip text-edge distance setting and the patch area left edge or
+> the row labels to its left, will overflow and overlap towards the row label
+> or the left edge of the patch area (left margin). This situation must be
+> caught."*
+
+> *"When this is done correctly, I hope the behaviour and handling of text on
+> all 4 sides is the ruled by same type of rules."*
+
+### What is to the left, and in what order
+
+Measured on his own run 2 through the real window
+(`scripts/drive_182_sheet_text_fit.py`, step F5), a 12 mm left band with the
+row indicators on:
+
+| | mm from the page edge | what sets it, and what moves it |
+|---|---|---|
+| the clip content starts | 2.40 | `min(Clip, a fifth of the band)`. A LIMIT: nothing crosses it |
+| the band's inner edge | 12.00 | "Clip border width" |
+| the clip text reaches | 14.25 | the reserve plus what the lines take at their floor |
+| the row labels' floor | 12.00 | `max(Clip, the band, the instrument's furniture)` |
+| the label band's left edge | 13.00 | `floor + 1`, the RESERVATION |
+| **the leftmost label INK** | **17.22** | the band's right edge less the widest number actually drawn |
+| the label band ends | 22.43 | `floor + rlwi` |
+| the patch area starts | 22.43 | the left margin, RAISED to hold the labels |
+
+So it is a three-way squeeze and the labels come first: the patch area is
+beyond them, and it is the left margin, which
+`raster.apply_row_label_geometry` raises to `floor + band + 1` whatever the
+user typed.
+
+**WHICH CONTROL MOVES WHICH BOUNDARY**, measured over the whole range of each:
+
+| control | the clip text's reach | the label ink |
+|---|---|---|
+| "Clip border width" | shortens the overflow | moves it one for one |
+| Size under "Clip-border content" | shortens it | no effect |
+| "Clip", below the band's width | shortens it | no effect |
+| "Clip", above the band's width | no effect | moves it one for one |
+| **left margin**, 12 to 45 mm | no effect | **no effect**: it is spent between the labels and the patches |
+| **row-indicator Size**, 4 to 28 pt | no effect | moves it, **the wrong way**: 4 pt puts the ink at 13.86 mm and 28 pt at 18.94, so a SMALLER label sits CLOSER to the band |
+
+**The last row is why the warning does not offer a smaller row-indicator
+size.** It reads like a way to make room and it is the opposite; a user
+following it would make the collision worse. A bigger one does clear the
+labels, but it buys that with left margin to fix a problem in the clip text,
+so the message offers "Clip" instead, which does the same thing directly.
+
+### The rule as built
+
+1. **The clip band's text is measured against whichever comes first**, the row
+   labels or the patch area, both taken from the geometry that draws them
+   (`geometry.row_label_area_mm`, `geom.margin_l`), never from arithmetic
+   repeated in the panel.
+2. **Both are reported when a deep overflow crosses both**, because they are
+   different kinds of damage.
+3. **Only a LEFT-hand band can reach the labels.** They are down the left; a
+   right-hand band's text never mentions them.
+4. **The remedies named are the ones that move ink**: the band's width, the
+   Size under "Clip-border content", and "Clip" — lowered when that can remove
+   the overflow outright, or RAISED above the band's width when the collision
+   is with the labels, which moves them out of the way without moving the text.
+
+### What it costs, and it is a different cost
+
+Measured on the sheets the app wrote, the control being the same chart with
+the clip text blanked:
+
+| overlap | patches inked | label ink erased | the clip text fills, of the white inside a label's own box |
+|---|---|---|---|
+| 1.25 mm (12 mm band, 4 lines) | none | 0.00 % | **4.1 %** |
+| 9.91 mm (16 mm band, 8 lines) | 2.96 mm of the patch area | 0.02 % | **21.7 %** |
+
+**Nothing is erased**, which is the compositing §2f added doing its job: the row
+labels are drawn onto the page BEFORE the clip strip is pasted, so an unmasked
+paste would have rubbed them out.
+
+**And the harm is legibility, not measurement.** A patch with ink on it is
+still measured and returns a wrong number that reaches the profile; a row label
+with ink on it is read by a person who then cannot find their row. At the
+shallow overlap the numbers are still clear. At the deep one a fifth of the
+space between the strokes carries another text. The warning says which kind it
+is, in those terms, rather than reusing the patch wording.
+
+**The question, in what a user sees:** when the clip-border text runs over the
+row numbers, is a warning enough, or would you rather ChromIQ refused to build
+until the band is wide enough? It builds it today and says what is happening.
+
+### A fault found on the way: the panel warned about a band that is not drawn
+
+`instruments` stores `lbord = clip_border_width - border`, and
+`geometry.clip_area_mm` returns None when `lbord <= 0`, so **no clip content is
+drawn at all** when the clip-border width does not exceed the patch border.
+Measured on Knut's run 2, whose border is 10 mm, with the width set to 10: an
+empty band on the sheet and a red warning saying its eight lines were printed
+15.7 mm over the patches. The chart-note block already asked `lbord > 0` for
+exactly this reason; the clip-content block did not, and now does.
+
+**Flagged rather than changed:** whether a clip-border width equal to the patch
+border SHOULD draw nothing is a separate question, and it is not ours. Today
+the band collapses silently, and the only thing corrected here is the panel
+claiming otherwise.
+
+### One more thing the sheet shows, and it is not this round's to fix
+
+On that same chart the row labels' floor comes out at 4.0 mm while the clip
+band runs to 10 mm, because `apply_row_label_geometry` reads `lbord` and
+`has_clip_border` rather than the typed width, and both say "no border" when
+`lbord` is 0. So the labels are placed INSIDE a band that is not drawn.
+`docs/design/row_label_geometry.md` §R2 already records the general case
+("Nothing moves the patches or the clip-border content out of the labels'
+way"), and this is that case reached by a different route. Nothing about it is
+changed here.

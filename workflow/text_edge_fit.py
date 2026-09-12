@@ -419,6 +419,129 @@ def clip_text_overhang_mm(band_mm: float, text_edge_clip_mm: float, lines: int,
     return max(0.0, needed - room)
 
 
+def clip_text_reach_mm(band_mm: float, text_edge_clip_mm: float, lines: int,
+                       size_pt: float = 0.0) -> float:
+    """How far in from the PAGE EDGE the clip band's text ends up, in mm.
+
+    It starts at the page-edge reserve, which is a limit
+    (:func:`clip_content_inset_mm`), and grows inward, so this is simply the
+    reserve plus what the lines take. Equal to ``band + overhang`` by
+    construction, and stated as its own function because what the text COLLIDES
+    with is measured from the page edge too.
+    """
+    if int(lines or 0) <= 0:
+        return 0.0
+    return (clip_content_inset_mm(band_mm, text_edge_clip_mm)
+            + clip_text_needed_mm(lines, size_pt))
+
+
+@dataclass(frozen=True)
+class ClipCollision:
+    """What the clip band's text is printed on top of, and by how much.
+
+    All four distances are measured from the page edge on the band's own side,
+    which is the only frame in which they can be compared.
+
+    *label_start_mm* is where the leftmost row-label ink begins, or ``None``
+    when there are no row labels on this edge. *patch_start_mm* is the patch
+    area's edge, which is the clip-side margin.
+    """
+
+    reach_mm: float
+    label_start_mm: "float | None"
+    patch_start_mm: float
+
+    @property
+    def over_labels_mm(self) -> float:
+        if self.label_start_mm is None:
+            return 0.0
+        return max(0.0, self.reach_mm - float(self.label_start_mm))
+
+    @property
+    def over_patches_mm(self) -> float:
+        return max(0.0, self.reach_mm - float(self.patch_start_mm))
+
+    @property
+    def hits_anything(self) -> bool:
+        return (self.over_labels_mm > EPS_MM
+                or self.over_patches_mm > EPS_MM)
+
+
+def clip_text_collision(band_mm: float, text_edge_clip_mm: float, lines: int,
+                        size_pt: float = 0.0,
+                        label_start_mm: "float | None" = None,
+                        patch_start_mm: float = 0.0) -> "ClipCollision":
+    """What the clip band's text runs into on its way inward.
+
+    **THE ROW LABELS ARE THE FIRST THING IT MEETS, NOT THE PATCHES.** Knut,
+    #182, 2026-09-12, in the edited post:
+
+        "If clip-border text starts overlapping with the row labels (if
+        enabled), the warning shall occur too, because the row labels are left
+        of the patch area edges and any clip-border text that does not have
+        space enough to fit between the clip text-edge distance setting and the
+        patch area left edge or the row labels to its left, will overflow and
+        overlap towards the row label or the left edge of the patch area (left
+        margin). This situation must be caught."
+
+    Measured on his own run 2 through the real window: with the labels on, they
+    begin ONE MILLIMETRE inside the clip band, because
+    `raster.apply_row_label_geometry` floors them at the band's own width and
+    `docs/design/row_label_geometry.md` §R2 then puts the band's 1 mm gap on
+    the page-edge side of the number. So a 12 mm band whose text overhangs by
+    2.25 mm crosses 1.25 mm of label while the patch area, at 20.25 mm, is
+    still six millimetres away.
+
+    Both distances are reported, because a deep overflow crosses the labels AND
+    reaches the patches, and the two do different damage.
+    """
+    reach = clip_text_reach_mm(band_mm, text_edge_clip_mm, lines, size_pt)
+    return ClipCollision(reach, label_start_mm, float(patch_start_mm or 0.0))
+
+
+def clip_edge_to_clear_labels_mm(reach_mm: float,
+                                 label_gap_mm: float = 1.0) -> float:
+    """The "Clip" distance that moves the row labels clear of the text.
+
+    *label_gap_mm* is the paper between the leftmost label ink and the band's
+    inner edge, which `geometry.row_label_area_mm` returns as the width of its
+    own answer. Raising "Clip" above the band's width moves the labels' FLOOR
+    one for one, and the gap rides along unchanged, so the smallest distance
+    that clears the text is ``reach - gap``.
+
+    THE GAP IS NOT 1 mm, and this used to assume it was, from §R2's
+    ``label x = floor + 1``. That is the RESERVED band's left edge; the label
+    ink sits further in by however much `rlwi` over-allows, which on the chart
+    measured is 5.2 mm. Asking for 1 mm instead of 5.2 mm of gap overshot by
+    4.2 mm of left margin, and the message would have been demanding paper it
+    did not need.
+
+    **AND IT IS THE ONLY REMEDY THAT MOVES THE LABELS THE RIGHT WAY.** Measured
+    over the whole range of every neighbouring control, on a 12 mm left band
+    with the label width taken from what the renderer actually draws:
+
+    * a wider **left margin**, 12 mm to 45 mm, leaves the leftmost label ink at
+      17.22 mm in every case. It is spent between the labels and the patches;
+    * the **clip-border width** moves it one for one, because the labels are
+      floored at the band, and it shortens the overflow as well;
+    * **"Clip"** moves it one for one ABOVE the band's width and not at all
+      below it, because the floor is the larger of the two;
+    * the row-indicator **Size** moves it too, and **the wrong way round**:
+      4 pt puts the ink at 13.86 mm and 28 pt at 18.94 mm, so a SMALLER label
+      sits CLOSER to the clip band and collides sooner. It is not offered as a
+      remedy: "make your row numbers bigger" costs left margin to fix a text
+      problem, and a user reading "set a smaller Size" would make it worse.
+
+    **THE FIRST VERSION OF THIS SAID THE SIZE MOVED NOTHING**, having predicted
+    the label from `rlwi`, the RESERVED band. That band is sized for the widest
+    label 1 to 99 at the provisional geometry's size, so it is far wider than
+    the number printed: 9.43 mm reserved against 3.17 mm of ink on the chart
+    measured. `geometry.row_label_area_mm` measures the label when it is given
+    the build kwargs, and the sweep above is that version.
+    """
+    return max(0.0, float(reach_mm or 0.0) - max(0.0, float(label_gap_mm or 0.0)))
+
+
 def clip_band_needed_mm(text_edge_clip_mm: float, lines: int,
                         size_pt: float = 0.0) -> float:
     """The narrowest "Clip border width" that holds *lines* clear of the patches.
