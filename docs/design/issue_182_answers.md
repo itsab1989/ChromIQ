@@ -994,7 +994,7 @@ changed here.
 
 ---
 
-## 2i. ⏳ Awaiting confirmation — the demo pack Knut asked for, and NOT yet built
+## 2i. ⏳ Awaiting confirmation — the ChromIQ-CR30-hex-demo pack, now built
 
 **Confirmed by:** *nobody yet.*
 
@@ -1005,24 +1005,91 @@ Knut answered the outstanding half of his own batch on 2026-09-11T22:04:19Z:
 > end-of-scale warning deliberately, so you can see it happen?' My answer: Make
 > both examples as part of the ChromIQ-CR30-hex-demo pack."*
 
-**This is recorded and is NOT in v4.3.0-beta.5.** No pack of that name exists in
-the repository, and the two examples he is asking for do not exist in any pack.
-What the ruling asks for, in his terms:
+What the ruling asks for, in the same terms:
 
 1. a scan that looks like a real one and carries all the way through the
    alignment, the read and the report;
 2. a second one, alongside it and inside the same pack, that keeps tripping the
    end-of-scale warning on purpose, so the warning can be seen happening.
 
-Both belong to `ChromIQ-CR30-hex-demo`, which therefore has to be created as
-well. `scripts/make_scan_align_demos*.py` builds the auto-align CHALLENGE set,
-which is a different artefact: every case there exists to expose a shortcoming
-and none of them is meant to go all the way through.
+`scripts/make_scan_align_demos*.py` builds the auto-align CHALLENGE set, which
+is a different artefact: every case there exists to expose a shortcoming and
+none of them is meant to go all the way through.
 
-It is written down here rather than half-built, because a demo pack that
-demonstrates the wrong thing is worse than no demo pack, and because the last
-time a ruling of his was carried in somebody's memory rather than in this file
-it was implemented from a stale reading a week later.
+### Built, 2026-09-12, by `scripts/make_cr30_hex_demo.py`
+
+One chart and two scans of it, in `ChromIQ-CR30-hex-demo`:
+
+    chart/CR30HexDemo.*                        396 patches, flat-top CR30
+                                               honeycomb, A4, one sheet full
+    scan/CR30HexDemo-scan-1-in-range.tif       the sheet on a scanner with the
+                                               automatic brightness OFF
+    scan/CR30HexDemo-scan-2-out-of-scale.tif   the same sheet with it ON
+
+396 is not typed: it is the one-page capacity the layout engine returns for a
+CR30 honeycomb on A4 at the instrument's own 12 mm patch and its 5 mm margin.
+The chart itself is a real `targen` design laid out by ChromIQ's own engine.
+The two scans are renderings of ONE simulated printed sheet, identical in
+geometry, patch values, rotation, softening and speckle; the only difference is
+that the second has had the sheet's own white lifted to 255, which is what a
+scanner's automatic brightness does, taking every patch printed at the top of a
+channel over the rail with it.
+
+The generator measures its own two claims with the app's own code, from the
+real `.ti3` a real `scanin` writes through the real per-page `.cht` the scanner
+window prepares, and **refuses to write the pack** if they do not hold. At the
+window's own 49 % sample area for this honeycomb:
+
+| scan | patches on a rail | `scanner_max_clipped` |
+|---|---|---|
+| in range | **0.0 %** | 15 % |
+| out of scale | **28.8 %** | 15 % |
+
+Driven on screen, both files, in the real window, 2026-09-12: the chart loads
+as "396 patches", the sample area caps itself at 49 %, Auto align seats the
+grid on the honeycomb (placement agreement worst 99.86 %), and Check alignment
+answers "the current grid position keeps all sample boxes within their chart
+patches" for the first scan and "Part of this scan has no colour left in it"
+for the second. The first also builds a printer profile end to end.
+
+### The finding the pack turned up, which is NOT fixed here
+
+**On the "Profile my printer from this scan" path, the end-of-scale check does
+not look at the scan.** That path runs `scanin -c`, whose `.ti3` carries the
+CHART's printer device values in `RGB_*` and the measurement in `XYZ_*`, and
+`scan_read_check.inspect_read` counts a patch as clipped from `RGB_*`. So the
+figure is a property of the chart's patch list and does not move with the scan
+at all.
+
+Measured on this pack, same chart, same corners, same window, one checkbox
+apart:
+
+| | Check alignment, box unticked | Check alignment, box ticked |
+|---|---|---|
+| in-range scan | no warning | ⚠ "Part of this scan has no colour left in it", 28 % |
+| out-of-scale scan | ⚠ same warning | ⚠ same warning, 28 % |
+
+The two figures on the ticked path are identical because 27.8 % of this chart's
+patches ask for 0 % or 100 % of a channel. `M_SCAN_DARK` is computed from the
+same field and is equally blind there; `M_SCAN_FIT_UNSUPPORTED` reads `XYZ_*`
+and is unaffected.
+
+This also explains a report from the field on 2026-09-11, that 25 % of a page
+full of patches "read at a rail" and that every one of them was a patch the
+chart itself asks for at 0 % or 100 % of a channel. That was written down as an
+observation about the scan. It is an observation about the check.
+
+**Not fixed, deliberately.** The honest repair is a choice between spending a
+second full `scanin` per page to read the scan properly on that path and simply
+withholding the two scale findings there, which would drop a real guard for
+genuinely blown-out scans. That is a change to shipped behaviour with a
+trade-off in it, and it is not this pack's call to make. The pack is the
+reproduction: two files that differ only in their scale, on which that path
+reports the same number twice.
+
+The pack's README says all of this in the reader's terms, and says it from the
+numbers the build measured rather than from typed ones, so it corrects itself
+if the app changes.
 
 ---
 
