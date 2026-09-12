@@ -127,7 +127,30 @@ def assess(ti3: Path, chart_ti2: "Path | None") -> ImportVerdict:
     else:
         partial = False
 
-    if not measured.has_device and chart_ti2 is not None:
+    if not measured.has_device:
+        if chart_ti2 is None:
+            # …AND WITH NO CHART BESIDE IT, NOTHING WILL EVER SUPPLY THEM.
+            #
+            # `parse_ti3` used to refuse a file with no device columns outright,
+            # so BOTH profile-build doors refused this before the pairing work.
+            # Teaching the parser to read such a file opened it at every door at
+            # once, and only the doors that HAVE a chart were given the
+            # completion step: `say_what_was_filed` returns before it, with the
+            # comment "a bare measurement: nothing to judge it by", so a
+            # spectral-only export dropped into "New project from a
+            # measurement" was copied in, announced as filed, and left with no
+            # device values at all. `colprof` cannot build from it, the grey
+            # ramp cannot be found in it, and no later action supplies what is
+            # missing, because the completion only ever runs at import.
+            #
+            # A file that cannot be completed and cannot be used is refused at
+            # the only moment where nothing has been changed yet, which is what
+            # it was before and what §I.9 asks for.
+            return ImportVerdict(False, tr(
+                "this file carries no device values, and there is no chart "
+                "file beside it to supply them, so nothing in it says which "
+                "colour each reading was printed with"),
+                n_chart=n_chart or 0, n_measured=n_got)
         # NO DEVICE VALUES, SO THE CHECK IS THE NAME. An i1Profiler export of a
         # chart i1Profiler did not generate carries the patch NAME and the
         # spectral curve and nothing else — it has no colour space to write

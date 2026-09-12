@@ -294,6 +294,39 @@ def test_the_identity_check_cannot_validate_its_own_repair(tmp_path, chart):
         "if this ever fails, the trap this test names has changed shape"
 
 
+# --- 6b. …and with NO chart there is nothing to complete it from ----------
+def test_a_device_less_measurement_with_no_chart_beside_it_is_refused(tmp_path):
+    """The door that has no chart is the one that was left open.
+
+    `parse_ti3` used to refuse a file with no device columns outright, so BOTH
+    profile-build doors refused this. Teaching the parser to read it opened
+    every door at once, and only the doors that HAVE a chart were given the
+    completion step: `ui.measurement_filing.say_what_was_filed` returns before
+    it when `chart_the_copy_will_be_judged_against` is None. A spectral-only
+    export dropped on "New project from a measurement" was therefore copied in,
+    announced as filed, and left with no device values for ever, because the
+    completion only ever runs at import. `colprof` cannot build from such a
+    file and the report can compute no grey ramp in it.
+
+    MUTATION: put `and chart_ti2 is not None` back on the `has_device` test in
+    `assess` and this goes red, because the file comes back ok.
+    """
+    m = _measurement(tmp_path / "loose.ti3", ["A1", "A2", "A3"])
+    v = assess(m, None)
+    assert not v.ok, (
+        "a measurement with no device values and no chart to supply them was "
+        "accepted; nothing downstream can ever give it any")
+    assert not v.device_from_chart
+    assert "no device values" in v.reason and "no chart file" in v.reason
+
+
+def test_a_device_less_measurement_with_a_chart_is_still_taken(tmp_path, chart):
+    """The refusal above may not close the door round 4 opened."""
+    m = _measurement(tmp_path / "m.ti3", _reading_order())
+    v = assess(m, chart)
+    assert v.ok and v.device_from_chart, v.reason
+
+
 # --- 7. ONE RULE, and the Measure tab's door reaches it -------------------
 def test_the_verification_door_judges_through_the_shared_rule():
     """The tab had its own copy of the count-and-identity rule, and the copy

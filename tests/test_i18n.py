@@ -848,18 +848,25 @@ _IDENTICAL_TO_KEY = {
     # others carry the English under the beta rule and each rises by exactly
     # 18. Counted on the catalogues this commit leaves behind, with the same
     # expression the test below uses, never adjusted upward.
+    #
+    # RE-MEASURED 2026-09-12 AGAIN, the adversarial round after it. A
+    # measurement with no device values and NO chart beside it had nothing to
+    # complete it from and was being filed anyway, so `assess` refuses it with
+    # one new reason sentence. **1 key in, 0 stale out**, counted the same way.
+    # German is translated, so **de does not move (124)**; the eleven others
+    # carry the English under the beta rule and each rises by exactly 1.
     "de": 124,
-    "es": 339,
-    "fr": 361,
-    "it": 350,
-    "ja": 325,
-    "nl": 366,
-    "no": 351,
-    "pl": 343,
-    "pt": 341,
-    "ru": 314,
-    "sv": 352,
-    "zh_CN": 319,
+    "es": 340,
+    "fr": 362,
+    "it": 351,
+    "ja": 326,
+    "nl": 367,
+    "no": 352,
+    "pl": 344,
+    "pt": 342,
+    "ru": 315,
+    "sv": 353,
+    "zh_CN": 320,
 }
 
 

@@ -14601,16 +14601,18 @@ class TabChart(QWidget):
     def _set_progress_line(self, text: str) -> None:
         """Show ``text`` as the log's last line, replacing it in place if the
         previous line was already a progress line (so the percentage ticks up
-        without scrolling hundreds of lines past)."""
-        from PyQt6.QtGui import QTextCursor
+        without scrolling hundreds of lines past).
 
+        THE REWRITE GOES THROUGH THE PANE, NOT ROUND IT. This did the cursor
+        work here, which touches none of `TailFollowLog`'s doors, so the pane's
+        "am I following the tail?" answer was the one left by the last APPEND.
+        A reader who scrolled up after the percentage line appeared was thrown
+        back to the bottom on every tick, which is the complaint the class was
+        written for. `TailFollowLog.replace_last_line` does the same edit and
+        asks the question at the moment of the edit.
+        """
         if self._progress_line_active:
-            cur = self._log.textCursor()
-            cur.movePosition(QTextCursor.MoveOperation.End)
-            cur.select(QTextCursor.SelectionType.LineUnderCursor)
-            cur.removeSelectedText()
-            cur.insertText(text)
-            self._log.setTextCursor(cur)
+            self._log.replace_last_line(text)
         else:
             self._log.appendPlainText(text)
             self._progress_line_active = True

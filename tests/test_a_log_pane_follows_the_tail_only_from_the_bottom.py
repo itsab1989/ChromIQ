@@ -272,6 +272,102 @@ def test_a_cursor_handed_to_the_pane_does_not_drag_the_view(pane, qapp):
         f"{sb.value()}")
 
 
+def test_a_progress_line_rewritten_in_place_leaves_a_reader_who_scrolled_up_later(
+        pane, qapp):
+    """THE ORDER OF THE TWO STEPS IS THE WHOLE TEST, and the sibling above has
+    it the other way round.
+
+    `test_a_cursor_handed_to_the_pane_does_not_drag_the_view` scrolls to the top
+    BEFORE the progress line is appended, so that append answers "not at the
+    bottom" and stores it; the cursor guard then has the right answer to work
+    from and the test passes with the fault in place.
+
+    The reporter's own order is the opposite one: the percentage line is already
+    ticking (so the last append happened while she was at the tail, and the flag
+    says "following"), and THEN she scrolls up. Nothing between then and the next
+    tick goes through an append door, so the flag is stale and the guards on
+    `setTextCursor` and `ensureCursorVisible` were answering about a moment that
+    had passed.
+
+    Driven in the real window before the fix: parked at 0, the very next tick
+    put the view at 192 of 193 (`proof_adv2/onscreen/before-log-tail.json`).
+
+    MUTATION: give `TailFollowLog.replace_last_line` the old body (the cursor
+    work without `self._following_tail = follow` and without the final
+    `sb.setValue`) and this goes red at 192 of 193.
+    """
+    sb = pane.verticalScrollBar()
+    sb.setValue(sb.maximum())
+    qapp.processEvents()
+    pane.appendPlainText("Arranging colour patches: 1%")
+    qapp.processEvents()
+    assert pane.is_following_tail() is True
+
+    sb.setValue(0)                      # she scrolls up to read something
+    qapp.processEvents()
+
+    for pct in (20, 30, 40):
+        pane.replace_last_line(f"Arranging colour patches: {pct}%")
+        pane.ensureCursorVisible()      # the call site, faithfully
+        qapp.processEvents()
+
+    assert sb.value() == 0, (
+        f"the percentage tick dragged the reader from 0 to {sb.value()} of "
+        f"{sb.maximum()}")
+    assert pane.toPlainText().rsplit("\n", 1)[-1] == \
+        "Arranging colour patches: 40%", "the line was not rewritten in place"
+
+
+def test_a_progress_line_rewritten_in_place_still_follows_a_reader_at_the_tail(
+        pane, qapp):
+    """The other half, because a guard that never follows is not a fix.
+
+    No mutation of the fix kills this one, and that is stated rather than
+    dressed up: it is a regression guard for the direction the fix must NOT
+    break, the way `test_a_pane_at_the_bottom_keeps_following` is for the append
+    door. It does its job by going red if `replace_last_line` ever starts
+    holding the view unconditionally.
+    """
+    sb = pane.verticalScrollBar()
+    sb.setValue(sb.maximum())
+    qapp.processEvents()
+    pane.appendPlainText("Arranging colour patches: 1%")
+    qapp.processEvents()
+
+    for pct in (20, 30, 40):
+        pane.replace_last_line(f"Arranging colour patches: {pct}%")
+        pane.ensureCursorVisible()
+        qapp.processEvents()
+
+    assert sb.value() == sb.maximum(), (
+        f"the reader was at the tail and the pane stopped following: "
+        f"{sb.value()} of {sb.maximum()}")
+    assert pane.is_following_tail() is True
+
+
+def test_the_chart_tabs_progress_line_goes_through_the_pane(qapp):
+    """The Create Chart tab may not do the cursor work itself again.
+
+    `TailFollowLog` owns the "am I at the bottom?" question; a tab that edits
+    the document round the side reopens exactly this door. Read from the source
+    rather than from behaviour, because the behaviour test above can only see
+    the door that exists today.
+
+    MUTATION: put the four `QTextCursor` lines back into
+    `TabChart._set_progress_line` and this goes red.
+    """
+    import inspect
+
+    from ui.tabs.tab_chart import TabChart
+    src = inspect.getsource(TabChart._set_progress_line)
+    assert "replace_last_line" in src, (
+        "TabChart._set_progress_line no longer rewrites its line through the "
+        "pane; the pane's follow flag is refreshed nowhere else on this path")
+    assert "removeSelectedText" not in src and "setTextCursor" not in src, (
+        "TabChart._set_progress_line is editing the document round the side of "
+        "TailFollowLog again")
+
+
 def test_a_short_document_that_cannot_scroll_still_follows(qapp):
     """maximum == 0 means every position is the bottom, and must read as one."""
     from ui.widgets import TailFollowLog

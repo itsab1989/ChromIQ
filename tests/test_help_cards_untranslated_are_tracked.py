@@ -500,19 +500,25 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # eighteen and does not move; the eleven others each rise by exactly 17.
 # RE-MEASURED with this file's own `_english_echoes` on the catalogues
 # this change leaves behind, key by key, never adjusted upward.
+# 2026-09-12, the adversarial round after it. A measurement with no device
+# values and NO chart beside it had nothing to complete it from and was being
+# filed anyway, so `assess` refuses it with ONE new reason sentence, long enough
+# to count here. German is translated and does not move; the eleven others each
+# rise by exactly 1. RE-MEASURED with this file's own `_english_echoes` on the
+# catalogues this change leaves behind, never adjusted upward.
 _BUDGET = {
     "de": 4,
-    "es": 177,
-    "fr": 178,
-    "it": 177,
-    "ja": 177,
-    "nl": 177,
-    "no": 177,
-    "pl": 177,
-    "pt": 177,
-    "ru": 176,
-    "sv": 177,
-    "zh_CN": 176,
+    "es": 178,
+    "fr": 179,
+    "it": 178,
+    "ja": 178,
+    "nl": 178,
+    "no": 178,
+    "pl": 178,
+    "pt": 178,
+    "ru": 177,
+    "sv": 178,
+    "zh_CN": 177,
 }
 
 

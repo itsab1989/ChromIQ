@@ -394,13 +394,26 @@ def test_no_placeholder_is_anybody_elses_published_figure():
     relevant for testing the metrics)"*. Pinning the SOURCE of every number,
     rather than the numbers themselves, is what stops one drifting toward a
     real tolerance later because it "looks more realistic".
+
+    **AND THE ALLOWLIST HAD TO BE THE ONE THE RULE NAMES.** It was built from
+    ALL THREE ChromIQ tables, so it admitted 1.0, 4.0, 6.0 and 7.0 as well: seven
+    numbers where the rule beside `_CUSTOM_PLACEHOLDER` says *"Only ChromIQ
+    default's own three numbers are used: 1.5, 2.0 and 3.0"*. A placeholder
+    could be moved from 3.0 to 1.0 or from 2.0 to 4.0 and this test would not
+    notice, which is precisely the drift it exists to stop, and the grip was
+    loose in the direction that matters: a number nobody can trace back to a
+    ChromIQ figure is a number somebody has to argue is not a standard's.
+    Tight and Quick are HALF and DOUBLE of default, derived from it and not
+    limits anybody would reach for on another row.
+
+    MUTATION: set `cmy_solids_dhab_max` to 4.0 (a Quick check number) or
+    `substrate_de00_max` to 1.0 (a tight one) and this goes red. Both passed
+    before, against the old allowlist.
     """
-    allowed = set()
-    for table in cs._CHROMIQ_FACTORY.values():
-        for lim in table.values():
-            if lim.is_numeric:
-                allowed.add(round(float(lim.number), 6))
-    assert allowed, "ChromIQ's own factory numbers could not be read"
+    allowed = {round(float(lim.number), 6)
+               for lim in cs._CHROMIQ_FACTORY["chromiq_default"].values()
+               if lim.is_numeric}
+    assert allowed, "ChromIQ default's own factory numbers could not be read"
     for rid, lim in cs._CUSTOM_PLACEHOLDER.items():
         assert lim.is_numeric, rid
         assert round(float(lim.number), 6) in allowed, (
