@@ -282,6 +282,89 @@ def patches_under_the_text(baseline: Path, after: Path, recipe) -> dict:
     }
 
 
+def left_side_map(recipe) -> dict:
+    """Every boundary on the LEFT of the sheet, in order, from the GEOMETRY.
+
+    Knut, #182, 2026-09-12 (the edited post): *"If clip-border text starts
+    overlapping with the row labels (if enabled), the warning shall occur too,
+    because the row labels are left of the patch area edges …"*
+
+    So the left is a three-way squeeze, and every boundary is taken from the
+    engine that draws it rather than from ink detection: where the clip content
+    starts, where its band ends, how far its text reaches past that, the row
+    labels' floor and band, where the label ink actually starts, and the patch
+    area's left edge.
+    """
+    from workflow import text_edge_fit as _tef
+    from workflow.layout_engine import instruments as _inst
+    from workflow.layout_engine.raster import clip_text_lines
+    g = _inst.geom_from_build_kwargs(recipe.build_kwargs())
+    clip_w = float(g.lbord) + float(g.border)
+    inset = _tef.clip_content_inset_mm(clip_w, g.text_edge_clip_mm)
+    lines = len(clip_text_lines(getattr(recipe, "clip_text", "") or ""))
+    size_pt = float(getattr(recipe, "clip_text_size_mm", 0.0) or 0.0) * 72.0 / 25.4
+    over = _tef.clip_text_overhang_mm(clip_w, g.text_edge_clip_mm, lines, size_pt)
+    floor = float(getattr(g, "row_label_floor", 0.0) or 0.0)
+    band = float(getattr(g, "rlwi", 0.0) or 0.0)
+    margin_l = float(g.margin_l)
+    band_right = min(floor + band, margin_l - 1.0) if floor > 0 else margin_l - 1.0
+    label_x = max(floor, band_right - max(0.0, band - 1.0))
+    return {
+        "clip_side": recipe.clip_side,
+        "row_indicators": bool(recipe.show_row_indicators),
+        "clip_content_starts_mm": round(inset, 2),
+        "clip_band_inner_edge_mm": round(clip_w, 2),
+        "clip_text_lines": lines,
+        "clip_text_overhang_mm": round(over, 2),
+        "clip_text_reaches_mm": round(clip_w + over, 2),
+        "row_label_floor_mm": round(floor, 2),
+        "row_label_band_mm": round(band, 2),
+        "row_label_ink_starts_mm": round(label_x, 2),
+        "row_label_band_right_mm": round(band_right, 2),
+        "patch_area_left_edge_mm": round(margin_l, 2),
+        "hits_row_labels_by_mm": round(max(0.0, clip_w + over - label_x), 2),
+        "hits_patch_area_by_mm": round(max(0.0, clip_w + over - margin_l), 2),
+    }
+
+
+def left_ink(before: Path, after: Path, recipe) -> dict:
+    """What the clip text's ink lands on down the LEFT of the sheet.
+
+    The control is the same chart with the clip TEXT blanked, so the geometry
+    is identical and every changed pixel is that text's own ink.
+    """
+    import numpy as np
+    a, dpi = _read_gray(before)
+    b, _ = _read_gray(after)
+    if a.shape != b.shape:
+        return {"error": f"shape {a.shape} vs {b.shape}"}
+    geo = left_side_map(recipe)
+    mm = 25.4 / dpi
+    changed = (a.astype(int) != b.astype(int))
+    cols = np.flatnonzero(changed.any(axis=0))
+    if not len(cols):
+        return {**geo, "changed": False}
+    lo_mm, hi_mm = float(cols.min()) * mm, float(cols.max()) * mm
+    lx = int(round(geo["row_label_ink_starts_mm"] / mm))
+    rx = int(round(geo["row_label_band_right_mm"] / mm))
+    full = 65535 if a.dtype.itemsize == 2 else 255
+    cut = int(0.6 * full)
+    label_before = int((a[:, lx:rx] < cut).sum()) if rx > lx else 0
+    label_after = int((b[:, lx:rx] < cut).sum()) if rx > lx else 0
+    return {
+        **geo,
+        "changed": True,
+        "clip_ink_from_paper_edge_mm": [round(lo_mm, 2), round(hi_mm, 2)],
+        "row_label_window_px": [lx, rx],
+        "label_ink_px_before": label_before,
+        "label_ink_px_after": label_after,
+        "label_ink_kept_frac": (round(label_after / label_before, 4)
+                                if label_before else None),
+        "clip_ink_in_label_window_px": (int(changed[:, lx:rx].sum())
+                                        if rx > lx else 0),
+    }
+
+
 def main() -> int:
     out = Path(sys.argv[sys.argv.index("--out") + 1]) if "--out" in sys.argv \
         else Path("/tmp/chromiq-sheettext-proof/onscreen")
@@ -376,7 +459,8 @@ def main() -> int:
         return okb, sorted(dst.rglob("*.tif"))
 
     def snapshot(name: str, comment: str, generate: bool = False,
-                 measure_note: bool = False, measure_clip: bool = False) -> dict:
+                 measure_note: bool = False, measure_clip: bool = False,
+                 measure_left: bool = False) -> dict:
         pump(app, 700)
         st: dict = {"step": name, "comment": comment}
         r = panel.get_recipe()
@@ -440,6 +524,11 @@ def main() -> int:
                 if baseline is not None and measure_clip:
                     st["patches"] = patches_under_the_text(
                         baseline, tifs[0], panel.get_recipe())
+                if measure_left:
+                    st["left"] = (left_ink(baseline, tifs[0],
+                                           panel.get_recipe())
+                                  if baseline is not None
+                                  else left_side_map(panel.get_recipe()))
         ok, why = capture_window(win, out / f"{tag}_{name}.png")
         st["shot"] = f"{tag}_{name}.png" if ok else ""
         st["shot_refused"] = why
@@ -450,6 +539,8 @@ def main() -> int:
             print("     RED: " + line.replace("\n", " "))
         if st.get("note"):
             print("     NOTE INK: " + json.dumps(st["note"]))
+        if st.get("left"):
+            print("     LEFT SIDE: " + json.dumps(st["left"]))
         if st.get("patches"):
             print("     PATCHES UNDER THE TEXT: " + json.dumps(st["patches"]))
         if st.get("right_side"):
@@ -537,6 +628,75 @@ def main() -> int:
             snapshot(f"f4_band{int(band)}_margin{int(margin)}{tag2}",
                      f"F4: clip band {band} mm, right margin {margin} mm",
                      generate=True, measure_clip=True)
+
+    # ---- F5: the LEFT side, where the row labels are (Knut, 2026-09-12). ---
+    #
+    # *"If clip-border text starts overlapping with the row labels (if
+    # enabled), the warning shall occur too, because the row labels are left of
+    # the patch area edges and any clip-border text that does not have space
+    # enough to fit between the clip text-edge distance setting and the patch
+    # area left edge or the row labels to its left, will overflow and overlap
+    # towards the row label or the left edge of the patch area (left margin).
+    # This situation must be caught."*
+    #
+    # Run 2's recipe already puts the band on the LEFT. The row indicators are
+    # switched on, and the band is narrowed until its text runs past it.
+    if want("f5"):
+        state["notes"] = ""
+        tab._manual_chart_notes_edit.setText("")
+        tab._manual_stamp_cmd_check.setChecked(False)
+        pump(app, 500)
+        _clip4 = "\n".join("clip text line %d" % i for i in range(1, 5))
+        _clip8 = "\n".join("clip text line %d" % i for i in range(1, 9))
+        # THE BAND MUST BE WIDER THAN THE PATCH BORDER or there is no band at
+        # all: `instruments` stores `lbord = clip_border_width - border`, and
+        # `geometry.clip_area_mm` returns None when `lbord <= 0`, so nothing is
+        # drawn. Run 2's border is 10 mm, which is why the 10 mm case below
+        # renders no clip text whatever and is kept: the panel warns about it
+        # in red anyway.
+        for band, rows, txt, tag2 in (
+                (26.0, True, _clip4, "_fits"),
+                (12.0, True, _clip4, "_rows_on"),
+                (12.0, False, _clip4, "_rows_off"),
+                (16.0, True, _clip8, "_deep"),
+                (10.0, True, _clip8, "_noband")):
+            apply(rec2, clip_side="left", clip_content_mode="text",
+                  clip_text=txt, clip_border_width_mm=band,
+                  clip_text_size_mm=0.0, show_row_indicators=rows,
+                  margin_left=band)
+            snapshot(f"f5_band{int(band)}{tag2}",
+                     f"F5: LEFT band {band} mm, row indicators {rows}",
+                     generate=True, measure_clip=True, measure_left=True)
+
+    # ---- F6: the audit's two findings, on this edge. ---------------------
+    #
+    # 1. "Clip" is capped at a fifth of the band, so on a narrow band the ink
+    #    comes closer to the paper edge than the box asks, while the message
+    #    says the distance "is a limit and is never crossed".
+    # 2. The panel predicts an overhang for the image and branding content
+    #    modes; the renderer only produces one for plain text.
+    if want("f6"):
+        state["notes"] = ""
+        tab._manual_chart_notes_edit.setText("")
+        tab._manual_stamp_cmd_check.setChecked(False)
+        pump(app, 500)
+        _c4 = "\n".join("clip text line %d" % i for i in range(1, 5))
+        for band in (40.0, 26.0, 16.0, 12.0):
+            apply(rec2, clip_side="left", clip_content_mode="text",
+                  clip_text=_c4, clip_border_width_mm=band,
+                  clip_text_size_mm=0.0, show_row_indicators=False,
+                  margin_left=band, text_edge_clip_mm=4.0)
+            snapshot(f"f6_clipcap_band{int(band)}",
+                     f"F6: Clip 4 mm on a {band} mm band, where does the ink go",
+                     generate=True, measure_clip=True, measure_left=True)
+        for mode in ("branding", "image"):
+            apply(rec2, clip_side="left", clip_content_mode=mode,
+                  clip_text=_c4, clip_border_width_mm=12.0,
+                  clip_text_size_mm=0.0, show_row_indicators=False,
+                  margin_left=12.0, text_edge_clip_mm=4.0)
+            snapshot(f"f6_mode_{mode}",
+                     f"F6: content mode {mode} on a 12 mm band",
+                     generate=True, measure_clip=True, measure_left=True)
 
     res["steps"] = steps
     (out / f"{tag}_result.json").write_text(json.dumps(res, indent=1),

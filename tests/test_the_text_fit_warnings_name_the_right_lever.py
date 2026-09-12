@@ -36,6 +36,8 @@ from __future__ import annotations
 import os
 import re
 
+import pytest
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from ui.tabs.tab_chart import TabChart                    # noqa: E402
@@ -232,8 +234,13 @@ def test_one_line_is_singular_and_two_are_not():
     assert "One line" in one and "lines" not in one, one
     many = _clip_line(_recipe(band=_TOO_NARROW_BAND, clip_text="a\nb\nc\nd"))
     assert "Its 4 lines" in many, many
-    over_one = _clip_line(_recipe(band=6.0, clip=4.0, clip_text="x",
-                                  clip_size_mm=17.0 * 25.4 / 72.0))
+    # THE BAND MUST BE WIDER THAN THE PATCH BORDER, or there is no band:
+    # `instruments` stores `lbord = clip_border_width - border` and the panel
+    # is silent when `lbord` is 0, because `geometry.clip_area_mm` draws
+    # nothing there. A 6 mm band on a CM chart, whose border is 6 mm, is that
+    # case, and it is what this line used to ask for.
+    over_one = _clip_line(_recipe(band=12.0, clip=4.0, clip_text="x",
+                                  clip_size_mm=40.0 * 25.4 / 72.0))
     assert "One line" in over_one and "lines" not in over_one, over_one
 
 
@@ -257,7 +264,15 @@ def test_the_clip_text_overflows_over_the_patches_and_is_told_so():
     assert "lands on the patch area" in msg, msg
     assert "closer to the paper edge than you asked" not in msg, (
         "the outward push is being reported again:\n" + msg)
-    assert "is a limit and is never crossed" in msg, msg
+    # AND IT DOES NOT CLAIM THE PAGE-EDGE DISTANCE IS NEVER CROSSED, because
+    # it is: `clip_content_inset_mm` caps the reserve at a fifth of the band,
+    # so on Knut's own 12 mm band at Clip 4 mm the ink prints 2.79 mm from the
+    # paper edge, 1.2 mm inside the distance the box asks for. The message
+    # names the reserve actually kept instead (the four-side audit,
+    # 2026-09-12).
+    assert "is a limit and is never crossed" not in msg, msg
+    assert "kept clear at the paper edge" in msg, msg
+    assert "or a fifth of the band where that is less" in msg, msg
     assert "Text distance from edge" in msg, msg
     assert "Clip border width" in msg, msg
     assert "Clip-border content" in msg, msg
@@ -285,9 +300,10 @@ def test_it_does_not_claim_the_patches_are_inked_when_they_are_not():
     msg = _clip_line(_recipe(band=_TOO_NARROW_BAND, margin_r=40.0,
                              clip_text="a\nb\nc\nd"))
     assert "printed inward, past the band" in msg, msg
-    assert "reaches clear paper, not the patches" in msg, msg
+    assert "reaches clear paper, so it lands on nothing" in msg, msg
     assert "lands on the patch area" not in msg, msg
     assert "measured with the ink on them" not in msg, msg
+    assert "row indicator labels" not in msg, msg
 
 
 def test_it_names_the_millimetres_that_go_over_the_patches():
@@ -443,3 +459,182 @@ def test_a_chart_with_no_clip_border_is_not_told_it_has_one():
     assert "clip border" not in msg, msg
     # …and the honest message is still raised, with the levers that do exist.
     assert "Margins (mm)" in msg and "Text distance from edge" in msg, msg
+
+
+# ------------- Knut's edited post of 2026-09-12: the ROW LABELS on the left
+def _left(band: float, lines: int, rows: bool = True, clip: float = 4.0):
+    """A LEFT-hand band with row indicators, which is the only arrangement in
+    which the clip text can reach the labels: they are down the left."""
+    r = _recipe(band=band, side="left", clip=clip,
+                clip_text="\n".join(f"l{i}" for i in range(1, lines + 1)))
+    r.show_row_indicators = rows
+    r.margin_left = band
+    return r
+
+
+#: Enough lines to reach the labels on that geometry, and enough to reach past
+#: them to the patches. Named rather than typed into each test.
+_LEFT_ON_LABELS = 6
+_LEFT_ON_BOTH = 10
+
+
+def test_a_left_band_that_reaches_the_labels_says_so():
+    msg = _clip_line(_left(12.0, _LEFT_ON_LABELS))
+    assert "crosses the row indicator labels" in msg, msg
+    assert "find your place on the sheet" in msg, msg
+
+
+def test_it_names_the_millimetres_that_cross_the_labels():
+    from workflow.layout_engine import geometry as gm
+    r = _left(12.0, _LEFT_ON_LABELS)
+    kw = r.build_kwargs()
+    g = instruments.geom_from_build_kwargs(kw)
+    area = gm.row_label_area_mm(g, kw)
+    hit = tef.clip_text_collision(g.lbord + g.border, r.text_edge_clip_mm,
+                                  _LEFT_ON_LABELS, 0.0, area[0],
+                                  float(g.margin_l))
+    assert hit.over_labels_mm > 0.05
+    assert f"{hit.over_labels_mm:.1f} mm of it crosses" in _clip_line(r), (
+        f"the message does not name {hit.over_labels_mm:.1f} mm:\n"
+        + _clip_line(r))
+
+
+def test_the_panel_measures_the_label_and_does_not_use_the_reservation():
+    """`rlwi` is sized for the worst case and sits several millimetres out from
+    the ink. A panel that asked for it would warn about blank paper, so the
+    number it prints must be the measured one."""
+    from workflow.layout_engine import geometry as gm
+    r = _left(12.0, _LEFT_ON_LABELS)
+    kw = r.build_kwargs()
+    g = instruments.geom_from_build_kwargs(kw)
+    reserved = gm.row_label_area_mm(g)[0]
+    measured = gm.row_label_area_mm(g, kw)[0]
+    assert measured > reserved + 2.0, "the two agree, so this proves nothing"
+    reach = tef.clip_text_reach_mm(g.lbord + g.border, r.text_edge_clip_mm,
+                                   _LEFT_ON_LABELS, 0.0)
+    msg = _clip_line(r)
+    assert f"{reach - measured:.1f} mm of it crosses" in msg, msg
+    assert f"{reach - reserved:.1f} mm of it crosses" not in msg, (
+        "the panel is predicting from the reserved band:\n" + msg)
+
+
+def test_a_deep_left_overflow_names_the_labels_AND_the_patches():
+    msg = _clip_line(_left(12.0, _LEFT_ON_BOTH))
+    assert "crosses the row indicator labels" in msg, msg
+    assert "lands on the patch area" in msg, msg
+    assert "measured with the ink on them" in msg, msg
+
+
+def test_a_left_band_with_the_row_labels_OFF_never_mentions_them():
+    msg = _clip_line(_left(12.0, _LEFT_ON_LABELS, rows=False))
+    assert "row indicator labels" not in msg, msg
+    assert "lands on the patch area" in msg, msg
+
+
+def test_a_RIGHT_hand_band_never_mentions_the_row_labels():
+    """They are down the LEFT, so a right-hand band cannot reach them however
+    far its text runs."""
+    r = _recipe(band=_TOO_NARROW_BAND, margin_r=_TOO_NARROW_BAND,
+                clip_text="a\nb\nc\nd")
+    r.show_row_indicators = True
+    msg = _clip_line(r)
+    assert "row indicator labels" not in msg, msg
+
+
+def test_the_raise_clip_remedy_is_offered_and_is_the_smallest_that_works():
+    from workflow.layout_engine import geometry as gm
+    r = _left(12.0, _LEFT_ON_BOTH)
+    msg = _clip_line(r)
+    m = re.search(r"Raising “Clip” to ([0-9.]+) mm", msg)
+    assert m, f"no raise-Clip remedy offered:\n  {msg}"
+    want = float(m.group(1))
+
+    def _over(clip_mm):
+        r2 = _left(12.0, _LEFT_ON_BOTH, clip=clip_mm)
+        kw = r2.build_kwargs()
+        g2 = instruments.geom_from_build_kwargs(kw)
+        area = gm.row_label_area_mm(g2, kw)
+        return tef.clip_text_collision(
+            g2.lbord + g2.border, r2.text_edge_clip_mm, _LEFT_ON_BOTH, 0.0,
+            area[0], float(g2.margin_l)).over_labels_mm
+
+    assert _over(want + 0.1) == 0.0, (
+        f"raising Clip to {want} mm does not clear the labels")
+    # AND IT IS NOT WILDLY MORE THAN IS NEEDED. Not exact, and it cannot be:
+    # the gap between the label ink and the band's inner edge comes from
+    # `rlwi`, which `raster.row_label_band_mm` measures on the PROVISIONAL
+    # geometry, so moving "Clip" moves the margin and re-solves it. Measured on
+    # this chart: the gap is 5.21 mm at Clip 4 and 4.22 mm at Clip 24, so the
+    # answer is about a millimetre conservative, which is the safe direction
+    # for a message that says "to about".
+    assert _over(want - 1.5) > 0.0, (
+        f"{want} mm is far more than is needed, so the message is asking for "
+        f"left margin it does not have to spend")
+
+
+def test_a_clip_border_no_wider_than_the_patch_border_says_nothing():
+    """There is no band at all, so there is no clip text to warn about.
+
+    `instruments` stores `lbord = clip_border_width - border` and
+    `geometry.clip_area_mm` returns None at `lbord <= 0`, so the renderer draws
+    nothing. Measured on Knut's run 2, whose border is 10 mm, with the width
+    set to 10: no clip content on the sheet and a red warning about eight lines
+    printed 15.7 mm over the patches.
+    """
+    r = _recipe(band=6.0, clip_text="a\nb\nc\nd")   # CM's border is 6 mm
+    g = instruments.geom_from_build_kwargs(r.build_kwargs())
+    assert float(g.lbord) <= 0, "pick a width that really collapses the band"
+    assert not [w for w in _over(r) if "clip border text" in w], (
+        "the panel warns about a clip band that is never drawn")
+
+
+# ------------------------- the four-side audit's two findings, 2026-09-12
+def test_the_message_names_the_reserve_actually_kept_not_the_typed_one():
+    """"Clip" is capped at a fifth of the band, so the two differ on a narrow
+    band and the message has to print the one that decides.
+
+    Measured on Knut's run 2 at Clip 4.0 mm, the outermost ink from the paper
+    edge: a 40 mm band prints at 5.33, 26 mm at 5.08, 16 mm at 3.81 and 12 mm
+    at 2.79. From about a 20 mm band down the ink is closer to the edge than
+    the box asks, so a message quoting the box would be describing a distance
+    the sheet does not keep.
+    """
+    r = _overflow()
+    kept = tef.clip_content_inset_mm(_TOO_NARROW_BAND, r.text_edge_clip_mm)
+    assert kept < r.text_edge_clip_mm - 0.05, (
+        f"the cap does not bite at {_TOO_NARROW_BAND} mm, so this test is "
+        f"not measuring the case it describes")
+    msg = _clip_line(r)
+    assert f"{kept:.1f} mm is kept clear" in msg, (
+        f"the message does not name the {kept:.1f} mm actually kept:\n  {msg}")
+    assert f"{r.text_edge_clip_mm:.1f} mm is kept clear" not in msg, (
+        "the message quotes the typed Clip, which is not what is kept:\n"
+        + msg)
+
+
+def test_a_band_wide_enough_keeps_the_typed_clip_and_says_so():
+    """The other half: where the cap does not bite, the two agree."""
+    wide = 40.0
+    r = _recipe(band=wide, margin_r=wide, clip=4.0,
+                clip_text="\n".join(f"l{i}" for i in range(1, 15)))
+    kept = tef.clip_content_inset_mm(wide, r.text_edge_clip_mm)
+    assert kept == pytest.approx(r.text_edge_clip_mm, abs=0.01)
+    assert f"{kept:.1f} mm is kept clear" in _clip_line(r)
+
+
+@pytest.mark.parametrize("mode", ["image", "branding", "notes"])
+def test_only_plain_text_is_told_it_overflows(mode):
+    """The image and branding modes scale to whatever band they are given.
+
+    Measured at a 12 mm band with four lines: the text really does reach
+    13.46 mm, past the band, and branding reaches 11.18 mm and never leaves
+    it, while the panel told both that 2.3 mm was printed past the band.
+    """
+    r = _recipe(band=_TOO_NARROW_BAND, margin_r=_TOO_NARROW_BAND,
+                content=mode, clip_text="a\nb\nc\nd")
+    assert not [w for w in _over(r) if "clip border text" in w], (
+        f"content mode {mode!r} is warned about as if it were text")
+    # …and the same chart in TEXT mode still is, so the gate is not simply off.
+    text = _recipe(band=_TOO_NARROW_BAND, margin_r=_TOO_NARROW_BAND,
+                   content="text", clip_text="a\nb\nc\nd")
+    assert _clip_line(text)
