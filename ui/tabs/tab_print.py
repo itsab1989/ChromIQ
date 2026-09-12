@@ -312,6 +312,36 @@ _CM_NOTICE_NO_PROFILE = (
     "option will be waiting for you."
 )
 
+#: S7b — A4 when the PROJECT has a profile, just not in the run the bar points
+#: at. The message above sends the user off to build a profile; if they already
+#: built one in another run, that is an instruction to redo finished work. A
+#: user reported exactly this: run 1 held the profile, the bar was on run 2, and
+#: the option stayed greyed while the app said there was nothing to print
+#: through. Singular and plural are separate strings, never "run(s)".
+_CM_NOTICE_PROFILE_IN_ONE_OTHER_RUN = (
+    "<b>The run chosen under “Profile run” has no finished profile</b>, so "
+    "there is nothing for ChromIQ to print through while the bar points at "
+    "it. {run} of this project has one.<br><br>"
+    "Set <b>Profile run</b> at the top of the window to {run} and this option "
+    "comes back. A verification is kept inside the run whose profile it "
+    "judges, so the sheet has to be printed through that run's profile.<br><br>"
+    "You can still print this sheet raw and measure it, but the result would "
+    "describe your printer rather than a profile."
+)
+
+#: S7c — the same, with more than one other run holding a profile.
+_CM_NOTICE_PROFILE_IN_OTHER_RUNS = (
+    "<b>The run chosen under “Profile run” has no finished profile</b>, so "
+    "there is nothing for ChromIQ to print through while the bar points at "
+    "it. These runs of this project have one: {runs}.<br><br>"
+    "Set <b>Profile run</b> at the top of the window to the run whose profile "
+    "you are verifying and this option comes back. A verification is kept "
+    "inside the run whose profile it judges, so the sheet has to be printed "
+    "through that run's profile.<br><br>"
+    "You can still print this sheet raw and measure it, but the result would "
+    "describe your printer rather than a profile."
+)
+
 #: §3.1a — the notice for a chart that was converted when it was made.
 _CM_NOTICE_ALREADY_CONVERTED = (
     "<b>This chart already has your profile applied, so it prints exactly "
@@ -887,7 +917,7 @@ class TabPrint(QWidget):
                 self._cm_raw_rb.setChecked(True)
                 self._cm_through_rb.setEnabled(False)
                 self._cm_intent_combo.setEnabled(False)
-                self._cm_notice.setText(tr(_CM_NOTICE_NO_PROFILE))
+                self._cm_notice.setText(self._no_profile_notice(run))
             else:
                 # A3 / A5 — both options live; the user's choice rules.
                 self._cm_raw_rb.setText(tr("Raw — no profile"))
@@ -905,6 +935,47 @@ class TabPrint(QWidget):
                     else tr(_CM_NOTICE_RAW_CHOSEN))
         finally:
             self._updating_cm = False
+
+    def _profiles_in_other_runs(self, run) -> list[str]:
+        """Ids of the project's OTHER runs that hold a built profile.
+
+        Answers the question the A4 notice needs and no other: not "does this
+        project have a profile" and not "does this run have one", but "is the
+        thing the user is being told to build already sitting one click away".
+        The selected run is excluded by id, because it is the run that has just
+        been found to have none and naming it back to the user would be absurd.
+
+        A question must never raise. With no controller, no project, or a
+        manifest that cannot be read, the answer is "none known", which falls
+        back to the notice ChromIQ has always shown.
+        """
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None:
+            return []
+        try:
+            project = ctl.project_or_none()
+            if project is None:
+                return []
+            here = getattr(run, "id", None)
+            return [other.id for other in project.all_runs()
+                    if other.id != here and other.built_profile_icc().exists()]
+        except Exception:      # noqa: BLE001 — a question must never raise
+            return []
+
+    def _no_profile_notice(self, run) -> str:
+        """A4's notice, which depends on whether the profile exists elsewhere."""
+        from ui.measurement_target_bar import MeasurementTargetBar
+        others = self._profiles_in_other_runs(run)
+        if not others:
+            return tr(_CM_NOTICE_NO_PROFILE)
+        # One formatter for the run name, borrowed from the bar the user is
+        # being sent to, so the message cannot name a run differently from the
+        # dropdown it is pointing at.
+        pretty = [MeasurementTargetBar._pretty_run(rid) for rid in others]
+        if len(pretty) == 1:
+            return tr(_CM_NOTICE_PROFILE_IN_ONE_OTHER_RUN).format(run=pretty[0])
+        return tr(_CM_NOTICE_PROFILE_IN_OTHER_RUNS).format(
+            runs=", ".join(pretty))
 
     def _cm_selected_colour(self) -> str:
         """The colour route a print started now would actually take.

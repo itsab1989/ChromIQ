@@ -33,6 +33,15 @@ that led to them.
   builds.** It follows the tail only while you are already at the bottom. Nine
   panes had it, not one.
 
+- **"Through the profile" told you to build a profile you had already built.**
+  A verification lives inside the profiling run it judges, so the option asks
+  whether THAT run holds a profile, not whether the project does. With the
+  profile in run 1 and the bar on run 2 the option was greyed, and the message
+  under it sent you off to set Run type to Profiling and build one from the
+  beginning. It now names the run that has one and points at the Profile run
+  dropdown instead. A project with no profile anywhere still gets the old
+  words, because there they are the right ones.
+
 - **A profile built from an i1Profiler export carrying XYZ recorded its paper
   white as near black,** lightness 8 where it should read 95, because that
   export writes those numbers on a different scale from the one ArgyllCMS uses.
