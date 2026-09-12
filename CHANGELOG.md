@@ -33,6 +33,15 @@ that led to them.
   builds.** It follows the tail only while you are already at the bottom. Nine
   panes had it, not one.
 
+  Two more doors into the same panes were found afterwards and are fixed here.
+  The Create Chart tab rewrites its patch-arranging percentage in place rather
+  than appending, and asked whether you were at the bottom using the answer
+  left by the last appended line. And the line that names your instrument is
+  replaced by removing it and adding the new one, so the question was asked of
+  a document one line shorter than the one you were reading: a reader one line
+  from the bottom was pulled down, and a reader at the bottom was thrown to the
+  top of the log.
+
 - **"Through the profile" told you to build a profile you had already built.**
   A verification lives inside the profiling run it judges, so the option asks
   whether THAT run holds a profile, not whether the project does. With the
@@ -105,6 +114,13 @@ that led to them.
   measure.** Their values are ChromIQ's own placeholders for exercising the
   metrics, not either standard's published tolerances, which ChromIQ has no
   permission to include.
+
+  Their description no longer says which rows a standard writes a limit over,
+  because it had that wrong in both directions: four of the eleven rows that
+  carry a number are rows the named standard does not limit, and fifteen of the
+  rows it does limit are empty. Claiming coverage a standard does not have is
+  the same kind of statement as denying coverage it does, and ChromIQ makes
+  neither. It now says what the column is.
 
 - **And the guide no longer says those columns hold the standard's published
   figures.** One sentence covered all four columns whose name carries a

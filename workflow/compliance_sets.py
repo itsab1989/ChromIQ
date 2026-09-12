@@ -357,22 +357,42 @@ SETS: "tuple[SetDef, ...]" = (
            blurb="The published tolerance values of ISO 12647-8:2021 "
                  "(validation prints), applied to the chart you printed. "
                  "Read-only."),
-    # THE BLURBS SAY WHAT THE COLUMN REALLY HOLDS. They used to read "Starts
-    # from the ISO 12647-7:2016 values", which was true of the structure and
-    # not of the numbers: the data file ships empty, so every cell read ? or –
-    # and the column judged nothing. It now starts from ChromIQ's own numbers
-    # on every row ChromIQ can measure, and a reader has to be told that before
-    # they trust a verdict from a column with a standard's name on it.
+    # THE BLURBS SAY WHAT THE COLUMN REALLY HOLDS, AND TWICE THEY HAVE NOT.
+    #
+    # They first read "Starts from the ISO 12647-7:2016 values", which was true
+    # of the structure and not of the numbers: the data file ships empty, so
+    # every cell read ? or – and the column judged nothing.
+    #
+    # They were then rewritten to "The rows ISO 12647-7:2016 writes a limit
+    # over, starting from ChromIQ's own numbers rather than that standard's",
+    # and the third adversarial round measured that and found it false in both
+    # directions. Four of the eleven rows carrying a number are rows that
+    # standard writes no limit over (one of them belongs to the OTHER
+    # standard's structure), and fifteen of the twenty-two rows it does write a
+    # limit over are empty. Both Custom columns hold the same eleven rows with
+    # the same numbers, so the sentence also described two different row sets
+    # that are in fact one.
+    #
+    # Attributing coverage to a standard that does not have it is the same
+    # class of claim as denying coverage it does, and neither is ChromIQ's to
+    # make. The blurb now says what the column IS, and says nothing about which
+    # rows any standard limits.
     SetDef("custom_iso_12647_7", "Custom ISO 12647-7", "custom", True,
            parent="iso_12647_7",
-           blurb="The rows ISO 12647-7:2016 writes a limit over, starting "
-                 "from ChromIQ's own numbers rather than that standard's. "
-                 "Every limit is yours to change."),
+           blurb="Every metric ChromIQ can measure, for judging against "
+                 "figures you set yourself. The starting numbers are "
+                 "ChromIQ's own, not ISO 12647-7:2016's, and every limit is "
+                 "yours to change, the rows that start empty included. The "
+                 "two editable columns start from the same numbers, so it is "
+                 "your edits that tell them apart."),
     SetDef("custom_iso_12647_8", "Custom ISO 12647-8", "custom", True,
            parent="iso_12647_8",
-           blurb="The rows ISO 12647-8:2021 writes a limit over, starting "
-                 "from ChromIQ's own numbers rather than that standard's. "
-                 "Every limit is yours to change."),
+           blurb="Every metric ChromIQ can measure, for judging against "
+                 "figures you set yourself. The starting numbers are "
+                 "ChromIQ's own, not ISO 12647-8:2021's, and every limit is "
+                 "yours to change, the rows that start empty included. The "
+                 "two editable columns start from the same numbers, so it is "
+                 "your edits that tell them apart."),
 )
 SET_BY_ID: "dict[str, SetDef]" = {s.id: s for s in SETS}
 

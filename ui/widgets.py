@@ -763,6 +763,37 @@ class TailFollowLog(QPlainTextEdit):
         self._following_tail = True
         super().setPlainText(text)
 
+    # -- an append after SOMETHING ELSE changed the document ----------------
+    def append_knowing(self, text: str, following: bool) -> None:
+        """Append *text* using an answer taken before the document changed.
+
+        **A DOCUMENT THAT SHRANK ANSWERS THE QUESTION WRONG.**
+        :func:`replace_log_line` removes a tracked line and then appends the new
+        one, and it removes it with a ``QTextCursor`` of its own, so the append
+        that follows asks "is the reader at the bottom?" of a document one line
+        SHORTER than the one the reader was looking at. A reader parked at
+        ``maximum - 1`` is at ``maximum`` by the time the question is asked, and
+        gets dragged down by one line.
+
+        Driven in a real window, 201 lines in a 420x90 pane, before this
+        existed::
+
+            parked at 195 of 196  ->  196 of 196   PULLED
+            parked at 194 of 196  ->  194 of 196   left alone
+            parked at   0 of 196  ->    0 of 196   left alone
+
+        One line, once, on a notice that recurs when a file is reloaded rather
+        than on a stream of percentage ticks. It is fixed anyway, because the
+        class docstring above states in terms that a slack of a single line is
+        "the bug in a smaller font", and a class that contradicts what it says
+        about itself is worse than the line it costs.
+        """
+        super().appendPlainText(text)
+        self._following_tail = following
+        sb = self.verticalScrollBar()
+        if following:
+            sb.setValue(sb.maximum())
+
     # -- text that is rewritten rather than appended -----------------------
     def replace_last_line(self, text: str) -> None:
         """Rewrite the document's last line in place, under the same rule.
@@ -4573,6 +4604,8 @@ def replace_log_line(
     Lets a tab show only the most recent of a recurring notice (e.g. the detected
     instrument) instead of stacking identical lines as files are reloaded.
     """
+    # ASK BEFORE THE DOCUMENT SHRINKS — see `TailFollowLog.append_knowing`.
+    following = log.is_at_bottom() if isinstance(log, TailFollowLog) else None
     if prev_text:
         found = log.document().find(prev_text)
         if not found.isNull():
@@ -4590,8 +4623,26 @@ def replace_log_line(
                 cursor.setPosition(len(block.text()), keep)
             cursor.removeSelectedText()
     if new_text:
-        log.appendPlainText(new_text)
-        log.ensureCursorVisible()
+        if following is not None:
+            # The reader's line, as it stands after the removal, so that
+            # putting them back does not have to guess how the removal moved
+            # the view. Read after the removal and before the append.
+            sb = log.verticalScrollBar()
+            keep = sb.value()
+            log.append_knowing(new_text, following)
+            if not following:
+                sb.setValue(min(keep, sb.maximum()))
+            # AND NO `ensureCursorVisible` HERE, WHICH USED TO THROW A READER
+            # AT THE BOTTOM TO THE TOP. That call scrolls to the widget's TEXT
+            # CURSOR, and nothing in this function or in `appendPlainText`
+            # moves it: on a pane filled by `setPlainText` and appends it sits
+            # at position 0. Measured on a real `TailFollowLog`, 201 lines in a
+            # 420x90 pane, parked at 196 of 196: after the replacement the
+            # value was 0. `append_knowing` has already put the view where it
+            # belongs, by the scroll bar rather than by the cursor.
+        else:
+            log.appendPlainText(new_text)
+            log.ensureCursorVisible()
         return new_text
     return None
 

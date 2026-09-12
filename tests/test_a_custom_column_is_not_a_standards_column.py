@@ -80,7 +80,39 @@ def test_both_kinds_still_count_as_applying_a_standard():
 
 def test_the_custom_blurbs_say_whose_numbers_they_start_from():
     from workflow.compliance_sets import SET_BY_ID
+    for sid, std in (("custom_iso_12647_7", "ISO 12647-7:2016"),
+                     ("custom_iso_12647_8", "ISO 12647-8:2021")):
+        blurb = SET_BY_ID[sid].blurb
+        assert f"not {std}'s" in blurb, sid
+        assert "yours to change" in blurb, sid
+
+
+def test_the_custom_blurbs_claim_nothing_about_which_rows_a_standard_limits():
+    """The blurb said "The rows ISO 12647-7:2016 writes a limit over", and
+    that was false in both directions.
+
+    Measured on the shipped data: four of the eleven rows that carry a number
+    are rows that standard writes no limit over, one of them belonging to the
+    other standard's structure, and fifteen of the twenty-two it does write a
+    limit over are empty. Attributing coverage to a standard it does not have
+    is the same class of claim as denying coverage it does, and the app's own
+    rule is that ChromIQ makes neither.
+    """
+    from workflow.compliance_sets import SET_BY_ID
     for sid in ("custom_iso_12647_7", "custom_iso_12647_8"):
         blurb = SET_BY_ID[sid].blurb
-        assert "ChromIQ's own numbers" in blurb, sid
-        assert "yours to change" in blurb, sid
+        assert "writes a limit over" not in blurb, sid
+        assert "The rows ISO" not in blurb, sid
+
+
+def test_the_two_custom_columns_really_do_start_identical():
+    """The blurb says so, so it has to be true. If the two ever start from
+    different numbers this test fails and the sentence is the thing to fix."""
+    from workflow.compliance_sets import effective_limits, limit_bearing
+    a = limit_bearing(effective_limits("custom_iso_12647_7", None))
+    b = limit_bearing(effective_limits("custom_iso_12647_8", None))
+    assert set(a) == set(b)
+    assert {k: (v.lo, v.hi) if hasattr(v, "lo") else str(v)
+            for k, v in a.items()} == {
+           k: (v.lo, v.hi) if hasattr(v, "lo") else str(v)
+           for k, v in b.items()}
