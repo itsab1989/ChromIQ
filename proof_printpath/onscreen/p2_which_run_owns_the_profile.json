@@ -1,0 +1,29 @@
+{
+  "screen_locked": true,
+  "runs": [
+    {
+      "Profile run selected in the bar": "run1",
+      "this run has a built profile": true,
+      "the project has a profile somewhere": true,
+      "'Through the profile' enabled": true,
+      "what a print would do": "through-profile",
+      "the notice": "ChromIQ will work out the ink amounts your profile predicts for every patch and print exactly those, so the sheet is your profile’s own prediction made real. The printer’s own colour adjustment stays switched off, so nothing between here and the paper changes the colours.You do not need to change any colour setting in the print dialog. The finished sheets are kept in the cache folder beside the chart, which is always",
+      "capture": {
+        "ok": false,
+        "why_not": "the login session's screen is LOCKED, so the window server hands every capture the desktop picture instead of the window; unlock the screen and run this again"
+      }
+    },
+    {
+      "Profile run selected in the bar": "run2",
+      "this run has a built profile": false,
+      "the project has a profile somewhere": true,
+      "'Through the profile' enabled": false,
+      "what a print would do": "raw",
+      "the notice": "There is no finished profile in this run yet, so there is nothing for ChromIQ to print through. You can still print this sheet raw and measure it — but the result would describe your printer, not a profile, so it cannot tell you how accurate a profile is.To get there: set Run type to Profiling, then create, print and measure the profiling chart as usual, and build the profile on the Build Profile tab. Come back here ",
+      "capture": {
+        "ok": false,
+        "why_not": "the login session's screen is LOCKED, so the window server hands every capture the desktop picture instead of the window; unlock the screen and run this again"
+      }
+    }
+  ]
+}

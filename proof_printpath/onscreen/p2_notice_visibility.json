@@ -1,0 +1,111 @@
+{
+  "screen_locked": true,
+  "measurements": {
+    "the window at its default size": {
+      "window": [
+        1620,
+        1049
+      ],
+      "the greyed radio": {
+        "widget": "QRadioButton",
+        "visible_to_the_window": true,
+        "x": 169,
+        "y": 407,
+        "w": 140,
+        "h": 16,
+        "bottom_y": 423,
+        "window_height": 1049,
+        "inside_the_window": true,
+        "painted_area_px": 2240,
+        "painted_region_is_empty": false,
+        "own_area_px": 2240
+      },
+      "the notice that explains it": {
+        "widget": "QLabel",
+        "visible_to_the_window": true,
+        "x": 16,
+        "y": 523,
+        "w": 540,
+        "h": 126,
+        "bottom_y": 649,
+        "window_height": 1049,
+        "inside_the_window": true,
+        "painted_area_px": 68040,
+        "painted_region_is_empty": false,
+        "own_area_px": 68040
+      }
+    },
+    "a 1620x1060 window": {
+      "window": [
+        1620,
+        1051
+      ],
+      "the greyed radio": {
+        "widget": "QRadioButton",
+        "visible_to_the_window": true,
+        "x": 169,
+        "y": 407,
+        "w": 140,
+        "h": 16,
+        "bottom_y": 423,
+        "window_height": 1051,
+        "inside_the_window": true,
+        "painted_area_px": 2240,
+        "painted_region_is_empty": false,
+        "own_area_px": 2240
+      },
+      "the notice that explains it": {
+        "widget": "QLabel",
+        "visible_to_the_window": true,
+        "x": 16,
+        "y": 523,
+        "w": 540,
+        "h": 126,
+        "bottom_y": 649,
+        "window_height": 1051,
+        "inside_the_window": true,
+        "painted_area_px": 68040,
+        "painted_region_is_empty": false,
+        "own_area_px": 68040
+      }
+    },
+    "a small 1280x800 window": {
+      "window": [
+        1280,
+        800
+      ],
+      "the greyed radio": {
+        "widget": "QRadioButton",
+        "visible_to_the_window": true,
+        "x": 169,
+        "y": 407,
+        "w": 140,
+        "h": 16,
+        "bottom_y": 423,
+        "window_height": 800,
+        "inside_the_window": true,
+        "painted_area_px": 2240,
+        "painted_region_is_empty": false,
+        "own_area_px": 2240
+      },
+      "the notice that explains it": {
+        "widget": "QLabel",
+        "visible_to_the_window": true,
+        "x": 16,
+        "y": 523,
+        "w": 540,
+        "h": 126,
+        "bottom_y": 649,
+        "window_height": 800,
+        "inside_the_window": true,
+        "painted_area_px": 54000,
+        "painted_region_is_empty": false,
+        "own_area_px": 68040
+      }
+    }
+  },
+  "capture": {
+    "ok": false,
+    "why_not": "the login session's screen is LOCKED, so the window server hands every capture the desktop picture instead of the window; unlock the screen and run this again"
+  }
+}

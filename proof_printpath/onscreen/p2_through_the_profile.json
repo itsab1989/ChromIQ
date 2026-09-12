@@ -1,0 +1,92 @@
+{
+  "screen_locked": true,
+  "modals": [],
+  "states": [
+    {
+      "state": "S1",
+      "what the user has done": "opened a chart on a PROFILING run",
+      "the group 'How this chart is printed' is on screen": true,
+      "the Colour row is on screen": false,
+      "'Through the profile' enabled": true,
+      "'Through the profile' selected": true,
+      "the other option reads": "Raw — no profile",
+      "the other option is selected": false,
+      "rendering intent enabled": true,
+      "what a print would actually do": "raw",
+      "the radio's own tooltip": "",
+      "the notice under the group": ""
+    },
+    {
+      "state": "S2",
+      "what the user has done": "switched Run type to Verification, but this run has never built a profile",
+      "the group 'How this chart is printed' is on screen": true,
+      "the Colour row is on screen": true,
+      "'Through the profile' enabled": false,
+      "'Through the profile' selected": false,
+      "the other option reads": "Raw — no profile",
+      "the other option is selected": true,
+      "rendering intent enabled": false,
+      "what a print would actually do": "raw",
+      "the radio's own tooltip": "",
+      "the notice under the group": "There is no finished profile in this run yet, so there is nothing for ChromIQ to print through. You can still print this sheet raw and measure it — but the result would describe your printer, not a profile, so it cannot tell you how accurate a profile is.To get there: set Run type to Profiling, then create, print and measure the profiling chart as usual, and build the profile on the Build Profile tab. Come back here afterwards and this option will be waiting for you."
+    },
+    {
+      "state": "S3",
+      "what the user has done": "built a profile in this run (a .icc now sits in the run folder)",
+      "the group 'How this chart is printed' is on screen": true,
+      "the Colour row is on screen": true,
+      "'Through the profile' enabled": true,
+      "'Through the profile' selected": true,
+      "the other option reads": "Raw — no profile",
+      "the other option is selected": false,
+      "rendering intent enabled": true,
+      "what a print would actually do": "through-profile",
+      "the radio's own tooltip": "",
+      "the notice under the group": "ChromIQ will work out the ink amounts your profile predicts for every patch and print exactly those, so the sheet is your profile’s own prediction made real. The printer’s own colour adjustment stays switched off, so nothing between here and the paper changes the colours.You do not need to change any colour setting in the print dialog. The finished sheets are kept in the cache folder beside the chart, which is always safe to delete."
+    },
+    {
+      "state": "S4",
+      "what the user has done": "loaded a chart built by the From Profile Gamut module, whose colours already went through the profile",
+      "the group 'How this chart is printed' is on screen": true,
+      "the Colour row is on screen": true,
+      "'Through the profile' enabled": false,
+      "'Through the profile' selected": false,
+      "the other option reads": "Raw — already converted",
+      "the other option is selected": true,
+      "rendering intent enabled": false,
+      "what a print would actually do": "raw",
+      "the radio's own tooltip": "",
+      "the notice under the group": "This chart already has your profile applied, so it prints exactly as it is.When you created it, ChromIQ asked your profile which ink amounts would produce each of the colours being tested, and stored the answer in the chart itself. The sheet is your profile’s prediction already — there is nothing left to convert.That is why “Through the profile” is switched off here. Applying the profile a second time would print different colours from the ones being tested, your measurement would faithfully describe those different colours, and nothing afterwards could tell that it had happened.You do not need to change anything. Print as usual — and if you print from another application, simply make sure it does not convert the colours either."
+    },
+    {
+      "state": "S5",
+      "what the user has done": "a verification run with no chart generated yet",
+      "the group 'How this chart is printed' is on screen": false,
+      "the Colour row is on screen": false,
+      "'Through the profile' enabled": true,
+      "'Through the profile' selected": true,
+      "the other option reads": "Raw — no profile",
+      "the other option is selected": false,
+      "rendering intent enabled": true,
+      "what a print would actually do": "raw",
+      "the radio's own tooltip": "",
+      "the notice under the group": "ChromIQ will work out the ink amounts your profile predicts for every patch and print exactly those, so the sheet is your profile’s own prediction made real. The printer’s own colour adjustment stays switched off, so nothing between here and the paper changes the colours.You do not need to change any colour setting in the print dialog. The finished sheets are kept in the cache folder beside the chart, which is always safe to delete."
+    }
+  ],
+  "chart_ti2": "/tmp/chromiq-printpath-p2-work/Verify-Demo/runs/run1/verifications/Verify-Demo-verify.ti2",
+  "chart_page": "/tmp/chromiq-printpath-p2-work/Verify-Demo/runs/run1/verifications/Verify-Demo-verify_01.tif",
+  "run_profile_path": "/tmp/chromiq-printpath-p2-work/Verify-Demo/runs/run1/Verify-Demo.icc",
+  "run_profile_exists_in_S2": false,
+  "capture_S2": {
+    "ok": false,
+    "why_not": "the login session's screen is LOCKED, so the window server hands every capture the desktop picture instead of the window; unlock the screen and run this again"
+  },
+  "capture_S3": {
+    "ok": false,
+    "why_not": "the login session's screen is LOCKED, so the window server hands every capture the desktop picture instead of the window; unlock the screen and run this again"
+  },
+  "capture_S4": {
+    "ok": false,
+    "why_not": "the login session's screen is LOCKED, so the window server hands every capture the desktop picture instead of the window; unlock the screen and run this again"
+  }
+}

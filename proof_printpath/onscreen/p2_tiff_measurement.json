@@ -1,0 +1,88 @@
+{
+  "printtarg": {
+    "cmd": "/Applications/Argyll/bin/printtarg -v -iCM -h -pA4 -t300 verify",
+    "returncode": 0,
+    "stderr_tail": ""
+  },
+  "pages_written": [
+    "verify.tif"
+  ],
+  "raw_sheet": {
+    "patches_in_ti2": 99,
+    "big_colours_in_tiff": 118,
+    "ti2_values_found_verbatim_in_the_tiff": 99,
+    "share_of_patches_found": 1.0,
+    "bytes": 372027
+  },
+  "source_profile": "/Applications/Argyll/ref/sRGB.icm",
+  "run_profile": "/Users/Basti/develop/ChromIQ/.claude/worktrees/agent-a65353f0bd24c0e28/demo-projects/Demo-Report-Matrix/runs/run1/Demo-Report-Matrix.icc",
+  "cctiff": {
+    "cmd": "/Applications/Argyll/bin/cctiff -v -p -f T -i r /Applications/Argyll/ref/sRGB.icm -i r /Users/Basti/develop/ChromIQ/.claude/worktrees/agent-a65353f0bd24c0e28/demo-projects/Demo-Report-Matrix/runs/run1/Demo-Report-Matrix.icc proof_printpath/onscreen/tiff_measurement/verify.tif proof_printpath/onscreen/tiff_measurement/cache/verify.tif",
+    "returncode": 0,
+    "stderr_tail": ""
+  },
+  "converted_sheet": {
+    "patches_in_ti2": 99,
+    "big_colours_in_tiff": 118,
+    "ti2_values_found_verbatim_in_the_tiff": 9,
+    "share_of_patches_found": 0.0909,
+    "bytes": 372036
+  },
+  "sheets_are_byte_identical": false,
+  "worked_examples": [
+    {
+      "ti2_device_value": [
+        0,
+        0,
+        0
+      ],
+      "painted_in_the_raw_sheet": true,
+      "still_painted_after_conversion": true
+    },
+    {
+      "ti2_device_value": [
+        0,
+        0,
+        127
+      ],
+      "painted_in_the_raw_sheet": true,
+      "still_painted_after_conversion": false
+    },
+    {
+      "ti2_device_value": [
+        0,
+        0,
+        255
+      ],
+      "painted_in_the_raw_sheet": true,
+      "still_painted_after_conversion": true
+    },
+    {
+      "ti2_device_value": [
+        0,
+        51,
+        77
+      ],
+      "painted_in_the_raw_sheet": true,
+      "still_painted_after_conversion": false
+    },
+    {
+      "ti2_device_value": [
+        0,
+        54,
+        184
+      ],
+      "painted_in_the_raw_sheet": true,
+      "still_painted_after_conversion": false
+    },
+    {
+      "ti2_device_value": [
+        0,
+        79,
+        0
+      ],
+      "painted_in_the_raw_sheet": true,
+      "still_painted_after_conversion": true
+    }
+  ]
+}

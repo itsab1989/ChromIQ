@@ -1,0 +1,702 @@
+diff --git a/ui/dialogs/spot_read_dialog.py b/ui/dialogs/spot_read_dialog.py
+index 2737d86d..bb3c528d 100644
+--- a/ui/dialogs/spot_read_dialog.py
++++ b/ui/dialogs/spot_read_dialog.py
+@@ -47,7 +47,7 @@ from ui.dialogs.tools_dialogs import _indicator_color, neutral_controls_qss
+ from ui.styles import SPEC_GREEN
+ from ui.tab_header import dialog_masthead
+ from ui.warning_sign import inform, set_warning_icon, warn
+-from ui.widgets import NoScrollComboBox, set_ink, tint_dialog_primary
++from ui.widgets import NoScrollComboBox, TailFollowLog, set_ink, tint_dialog_primary
+ from workflow.spot_read_io import SpotReading, average_readings, write_csv, write_ti3
+ from workflow.spot_read_manager import SpotReadManager, SpotReadParams
+ 
+@@ -445,7 +445,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
+         # window it was. The CR30's calibration writes the notes that matter —
+         # which way it connected, what the dark reference read back at — and
+         # they have to be readable somewhere.
+-        self._log = QPlainTextEdit(self)
++        self._log = TailFollowLog(self)
+         self._log.setReadOnly(True)
+         self._log.setMaximumBlockCount(2000)
+         self._log.setFixedHeight(120)
+@@ -1125,6 +1125,12 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
+         )
+ 
+     def _append_row(self, r: SpotReading) -> None:
++        # Follow the newest reading only while the reader is already looking at
++        # it — the same rule as the log panes (`ui.widgets.TailFollowLog`), and
++        # asked BEFORE the row exists, because a row added first makes the
++        # maximum grow and a reader who has not moved look as if they had.
++        sb = self._table.verticalScrollBar()
++        at_bottom = sb.value() >= sb.maximum()
+         self._table.blockSignals(True)
+         row = self._table.rowCount()
+         self._table.insertRow(row)
+@@ -1147,7 +1153,8 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
+         self._table.setItem(row, 7, swatch)
+ 
+         self._table.blockSignals(False)
+-        self._table.scrollToBottom()
++        if at_bottom:
++            self._table.scrollToBottom()
+ 
+     def _on_item_changed(self, item: QTableWidgetItem) -> None:
+         if item.column() != 0:
+diff --git a/ui/dialogs/tools_dialogs.py b/ui/dialogs/tools_dialogs.py
+index 823c8a19..0f9b278b 100644
+--- a/ui/dialogs/tools_dialogs.py
++++ b/ui/dialogs/tools_dialogs.py
+@@ -60,7 +60,7 @@ from ui.theme import (
+ from ui.tab_header import dialog_masthead
+ from ui.tooltip_button import TooltipButton
+ from ui.widgets import (
+-    confirm, make_browse_button, NoScrollComboBox, NoScrollSpinBox,
++    confirm, make_browse_button, NoScrollComboBox, NoScrollSpinBox, TailFollowLog,
+     open_dir_dialog, open_file_dialog, open_files_dialog, WorkAreaClamped,
+ )
+ 
+@@ -393,7 +393,7 @@ class _ToolDialogBase(WorkAreaClamped, QDialog):
+         self._busy_tick.timeout.connect(self._update_busy_label)
+ 
+         # Log / status area
+-        self._log = QPlainTextEdit(self)
++        self._log = TailFollowLog(self)
+         self._log.setReadOnly(True)
+         self._log.setMaximumBlockCount(2000)
+         self._log.setFixedHeight(120)
+diff --git a/ui/tabs/tab_chart.py b/ui/tabs/tab_chart.py
+index d01a2994..d3abeabb 100644
+--- a/ui/tabs/tab_chart.py
++++ b/ui/tabs/tab_chart.py
+@@ -71,7 +71,7 @@ from ui.tab_header import TabHeader
+ from ui.builtin_preset_popup import BuiltinPresetButton, BuiltinPresetPopup
+ from ui.tiff_preview import TiffPreview
+ from ui.tooltip_button import InfoDialog, TooltipButton
+-from ui.widgets import add_log_row, fit_log_height, CollapsibleGroupBox, NoScrollComboBox, NoScrollSpinBox, PatchGridButton, PrefixLockedLineEdit, icc_profile_paths, load_magenta_folder_icon, make_browse_button, open_file_dialog, reapply_ink, set_folder_icon, set_ink, set_preset_icon
++from ui.widgets import TailFollowLog, add_log_row, fit_log_height, CollapsibleGroupBox, NoScrollComboBox, NoScrollSpinBox, PatchGridButton, PrefixLockedLineEdit, icc_profile_paths, load_magenta_folder_icon, make_browse_button, open_file_dialog, reapply_ink, set_folder_icon, set_ink, set_preset_icon
+ from ui.warning_sign import inform, set_information_icon, set_question_icon
+ from core.i18n import count_phrase, tr
+ from core.text_io import read_text
+@@ -3733,7 +3733,7 @@ class TabChart(QWidget):
+ 
+         # Log output
+         from PyQt6.QtWidgets import QPlainTextEdit
+-        self._log = QPlainTextEdit(self)
++        self._log = TailFollowLog(self)
+         self._log.setObjectName("log")
+         self._log.setReadOnly(True)
+         # Nine lines of the font this really gets, measured after polish
+diff --git a/ui/tabs/tab_check_refine.py b/ui/tabs/tab_check_refine.py
+index 72308580..831570b8 100644
+--- a/ui/tabs/tab_check_refine.py
++++ b/ui/tabs/tab_check_refine.py
+@@ -44,7 +44,7 @@ from ui.fade_scroll import FadeScrollArea
+ from ui.gamut_panel import GamutPanel
+ from ui.tab_header import TabHeader
+ from ui.tooltip_button import InfoDialog, TooltipButton
+-from ui.widgets import add_log_row, fit_log_height, GatedOption, NoScrollComboBox, NoScrollDoubleSpinBox, make_browse_button, open_file_dialog, replace_log_line, set_accent_html, set_folder_icon, set_preset_icon, spectrum_cell, tint_dialog_primary
++from ui.widgets import TailFollowLog, add_log_row, fit_log_height, GatedOption, NoScrollComboBox, NoScrollDoubleSpinBox, make_browse_button, open_file_dialog, replace_log_line, set_accent_html, set_folder_icon, set_preset_icon, spectrum_cell, tint_dialog_primary
+ from ui.ti2_loader import (has_spectral_data, instrument_label, is_colormunki,
+                           read_target_instrument, spectral_options_unavailable)
+ 
+@@ -466,7 +466,7 @@ class TabCheckRefine(QWidget):
+         left_layout.addLayout(btn_row)
+ 
+         # ── Log (outside stack) ────────────────────────────────────────
+-        self._log = QPlainTextEdit(self)
++        self._log = TailFollowLog(self)
+         self._log.setObjectName("log")
+         self._log.setReadOnly(True)
+         # Sized like every other log panel, and resizable with them (Basti:
+diff --git a/ui/tabs/tab_measure.py b/ui/tabs/tab_measure.py
+index a126f05d..f9e3e433 100644
+--- a/ui/tabs/tab_measure.py
++++ b/ui/tabs/tab_measure.py
+@@ -59,7 +59,7 @@ from ui.cr30_calibration import Cr30CalibrationMixin
+ from ui.fade_scroll import FadeScrollArea
+ from ui.tab_header import TabHeader
+ from ui.tooltip_button import TooltipButton
+-from ui.widgets import ElidingComboBox, ElidingLabel, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, info_box_qss, make_browse_button, open_file_dialog, set_accent_html, set_ink, set_folder_icon, set_preset_icon, spectrum_cell, tint_dialog_primary
++from ui.widgets import TailFollowLog, ElidingComboBox, ElidingLabel, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, info_box_qss, make_browse_button, open_file_dialog, set_accent_html, set_ink, set_folder_icon, set_preset_icon, spectrum_cell, tint_dialog_primary
+ 
+ _TAB_COLOR = "#56d6a5"  # Measure tab accent
+ from ui.styles import SPEC_GREEN, TAB_COLORS
+@@ -2079,7 +2079,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
+         # on 13. Elsewhere the gap is *above* the log and the 2 px has to move
+         # the other way, into the wrapper: see ui.widgets.add_log_row.
+         lo_layout.setContentsMargins(16, 0, 16, 10)
+-        self._log = QPlainTextEdit(log_outer)
++        self._log = TailFollowLog(log_outer)
+         self._log.setObjectName("log")
+         self._log.setReadOnly(True)
+         # Height in LINES, not pixels (Knut, beta.120: "only 6 lines of text
+diff --git a/ui/tabs/tab_profile.py b/ui/tabs/tab_profile.py
+index 39925e5f..b563c4f3 100644
+--- a/ui/tabs/tab_profile.py
++++ b/ui/tabs/tab_profile.py
+@@ -44,7 +44,7 @@ from core.resource_path import resource_path
+ from ui.fade_scroll import FadeScrollArea
+ from ui.tab_header import TabHeader
+ from ui.tooltip_button import InfoDialog, TooltipButton
+-from ui.widgets import add_log_row, fit_button_width, fit_log_height, fit_message_box_buttons, spread_message_box_buttons, GatedOption, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, make_browse_button, open_file_dialog, replace_log_line, set_accent_html, set_ink, set_folder_icon, set_preset_icon, spectrum_cell, tint_dialog_primary
++from ui.widgets import TailFollowLog, add_log_row, fit_button_width, fit_log_height, fit_message_box_buttons, spread_message_box_buttons, GatedOption, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, make_browse_button, open_file_dialog, replace_log_line, set_accent_html, set_ink, set_folder_icon, set_preset_icon, spectrum_cell, tint_dialog_primary
+ from ui.ti2_loader import (has_spectral_data, instrument_label, is_colormunki,
+                           read_target_instrument, spectral_options_unavailable)
+ from ui.spectrum_progress import SpectrumSegmentsBar
+@@ -553,7 +553,7 @@ class TabProfile(QWidget):
+ 
+         cc.addLayout(btn_row)
+ 
+-        self._log = QPlainTextEdit(colprof_container)
++        self._log = TailFollowLog(colprof_container)
+         self._log.setObjectName("log")
+         self._log.setReadOnly(True)
+         # Nine lines of the font this really gets, measured after polish
+@@ -1085,7 +1085,7 @@ class TabProfile(QWidget):
+         cc.addLayout(btn_row)
+ 
+         # ---- Log (outside scroll area) ----
+-        self._pc_log = QPlainTextEdit(container)
++        self._pc_log = TailFollowLog(container)
+         self._pc_log.setObjectName("log")
+         self._pc_log.setReadOnly(True)
+         # Nine lines of the font this really gets, measured after polish
+@@ -1537,7 +1537,7 @@ class TabProfile(QWidget):
+         cc.addLayout(btn_row)
+ 
+         # ---- Log (outside groupbox) ----
+-        self._ac_log = QPlainTextEdit(container)
++        self._ac_log = TailFollowLog(container)
+         self._ac_log.setObjectName("log")
+         self._ac_log.setReadOnly(True)
+         # Nine lines of the font this really gets, measured after polish
+diff --git a/ui/widgets.py b/ui/widgets.py
+index a66978d5..408efc05 100644
+--- a/ui/widgets.py
++++ b/ui/widgets.py
+@@ -652,6 +652,132 @@ def set_log_visible_lines(n: int, *, save: bool = True) -> int:
+     return n
+ 
+ 
++class TailFollowLog(QPlainTextEdit):
++    """A log panel that follows its tail only while the reader is at the bottom.
++
++    A user verifying a profile, 2026-09-11: *"if you scroll up the output pane
++    while its calculating, it forces it back down to the bottom every time the
++    % goes up. Often programs fix this by only auto-scrolling if the scroll bar
++    is already at the bottom."* She is describing the standard behaviour, and
++    this is it: the view follows the newest line while it is already showing
++    the newest line, and stops the moment the reader scrolls away from it. Scroll
++    back down to the bottom and the next line starts it following again.
++
++    **QPLAINTEXTEDIT ALREADY DOES THIS, AND WE WERE OVERRULING IT.** Measured
++    on a plain, unmodified ``QPlainTextEdit`` (200 lines, a 60 px viewport):
++
++        parked at the bottom, one-line append          value 198 == maximum 198
++        parked at the bottom, two-block append         value 200 == maximum 200
++        parked ONE line up, a 4000-char wrapped append value stays at 196,
++                                                       maximum grows to 288
++
++    So the base class holds the bottom when it is at the bottom and leaves the
++    reader alone when it is not. The whole of her complaint is the 89 explicit
++    ``ensureCursorVisible()`` calls this app makes after those appends, which
++    overrule that judgement unconditionally. Making that ONE call conditional is
++    the fix; everything else here keeps the condition honest.
++
++    **THE THIRD MEASUREMENT IS WHY THERE IS NO TOLERANCE.** A reader parked at
++    ``maximum - 1`` is a reader who has scrolled up, and Qt treats them as one.
++    A slack of even a single line would have read them as "at the bottom" and
++    dragged them down on the next line, which is the bug in a smaller font.
++    ``is_at_bottom`` is therefore exact, and it can afford to be: a followed
++    append lands on ``value == maximum`` precisely, and so does
++    ``ensureCursorVisible()`` (measured, same run).
++
++    **WHERE THE DECISION IS TAKEN.** "Am I at the bottom?" is asked of the
++    document as it stands BEFORE the new text. For ``appendPlainText`` the two
++    moments happen to agree, because Qt has already moved the value along with
++    the maximum. For ``insertPlainText`` they do NOT: inserting four lines at
++    the top of a document parked at the bottom leaves ``value 197`` against
++    ``maximum 201``, so the same question asked afterwards says the reader has
++    scrolled up when the reader has not moved. Asking first, and pinning the
++    bottom afterwards, is what makes the answer mean the same thing at every
++    door.
++
++    ``ensureCursorVisible()`` is then the same question again: obeyed while
++    following, ignored while not, so the 89 call sites need no changes at all.
++    ``setTextCursor()`` is overridden for the same reason and is not
++    hypothetical: the Create Chart tab rewrites its "Arranging colour patches:
++    N%" line in place through the cursor, and handing Qt a cursor at the end of
++    the document scrolls a reader parked at 0 all the way down (measured: 0 to
++    197 in one call).
++
++    No signal is connected to the scroll bar. That is deliberate and not just
++    economy: ``ui/fade_scroll.py`` cost this project a shipped SIGSEGV by
++    connecting ``rangeChanged`` to a lambda that captured ``self``, and
++    ``tests/test_a_scrollbar_signal_never_takes_a_lambda.py`` exists because of
++    it. Nothing here needs to hear from the scroll bar; it only ever asks.
++    """
++
++    def __init__(self, parent=None) -> None:
++        super().__init__(parent)
++        self._following_tail = True
++
++    # -- the question -----------------------------------------------------
++    def is_at_bottom(self) -> bool:
++        """Whether the view is showing the end of the document right now.
++
++        Exact, with no tolerance: see the class docstring for the measurement
++        that rules one out.
++        """
++        sb = self.verticalScrollBar()
++        return sb.value() >= sb.maximum()
++
++    def is_following_tail(self) -> bool:
++        """Whether the next line will scroll the view, or be left below it."""
++        return self._following_tail
++
++    def _append_through(self, call, *args) -> None:
++        """Ask first, add the text, then pin the bottom when it was the bottom.
++
++        The pin is redundant for ``appendPlainText``, where Qt has already done
++        it, and is not for ``insertPlainText``, where Qt has not. Doing it once
++        here makes the invariant this class's own rather than an undocumented
++        behaviour of the base class, so the next append's question is answered
++        by a document in a state this class put it in.
++        """
++        follow = self.is_at_bottom()
++        call(*args)
++        self._following_tail = follow
++        if follow:
++            sb = self.verticalScrollBar()
++            sb.setValue(sb.maximum())
++
++    # -- the ways text arrives --------------------------------------------
++    def appendPlainText(self, text: str) -> None:          # noqa: N802
++        self._append_through(super().appendPlainText, text)
++
++    def appendHtml(self, html: str) -> None:               # noqa: N802
++        self._append_through(super().appendHtml, html)
++
++    def insertPlainText(self, text: str) -> None:          # noqa: N802
++        self._append_through(super().insertPlainText, text)
++
++    # -- a fresh document starts at the top, which is also its bottom ------
++    def clear(self) -> None:
++        self._following_tail = True
++        super().clear()
++
++    def setPlainText(self, text: str) -> None:             # noqa: N802
++        self._following_tail = True
++        super().setPlainText(text)
++
++    # -- the two ways the view gets moved for you -------------------------
++    def ensureCursorVisible(self) -> None:                 # noqa: N802
++        if self._following_tail:
++            super().ensureCursorVisible()
++
++    def setTextCursor(self, cursor) -> None:               # noqa: N802
++        if self._following_tail:
++            super().setTextCursor(cursor)
++            return
++        sb = self.verticalScrollBar()
++        where = sb.value()
++        super().setTextCursor(cursor)
++        sb.setValue(where)
++
++
+ #: The gap above a log panel, in pixels, and how much of it survives the log
+ #: being hidden. Both halves are needed: see ``add_log_row``.
+ LOG_GAP_TOTAL = 5
+diff --git a/tests/test_a_log_pane_follows_the_tail_only_from_the_bottom.py b/tests/test_a_log_pane_follows_the_tail_only_from_the_bottom.py
+new file mode 100644
+index 00000000..f5834f6e
+--- /dev/null
++++ b/tests/test_a_log_pane_follows_the_tail_only_from_the_bottom.py
+@@ -0,0 +1,386 @@
++"""A log pane follows its newest line only while the reader is at the bottom.
++
++WHAT THIS GUARDS
++----------------
++A user verifying a profile, on 4.3.0-beta.4, 2026-09-11:
++
++    "if you scroll up the output pane while its calculating, it forces it back
++     down to the bottom every time the % goes up. Not a big deal at all, just a
++     minor annoyance. Often programs fix this by only auto-scrolling if the
++     scroll bar is already at the bottom."
++
++REPRODUCED ON SCREEN, on a real ``colprof`` build in a real window
++(``proof_printpath/drive_p1_output_pane_scroll.py``, Build Profile tab,
++210-patch measurement, ArgyllCMS 3.5.0):
++
++    before   parked the view at the TOP mid-build; one ``processEvents`` later
++             it was back at value 20 of a maximum of 21, and it stayed pinned:
++             1837 of 1840 samples sat at the bottom across 71 appends, ending
++             at value 244 == maximum 244.
++    after    parked at the top: value 0 of 22, and it STAYED at 0 through 81
++             appends while the maximum grew to 256. Nought of 2222 samples sat
++             at the bottom.
++    both     with the view left at the bottom, the pane still followed every
++             line: value == maximum at the end of the build.
++
++WHAT A PLAIN QPlainTextEdit DOES ON ITS OWN, MEASURED
++----------------------------------------------------
++Because it turned out to matter, and because two of the first mutations run
++against this file did not land until it was measured:
++
++    parked at the bottom, one-line append           value 198 == maximum 198
++    parked at the bottom, two-block append          value 200 == maximum 200
++    parked ONE line up, a 4000-char wrapped append  value stays 196, max -> 288
++    parked at the bottom, insertPlainText at pos 0  value 197, maximum 201
++    append + ensureCursorVisible                    lands exactly on maximum
++
++So the base class already follows the tail only from the bottom, for appends.
++Three things follow, and they are what these tests pin:
++
++* the bug was ours, in the 89 unconditional ``ensureCursorVisible()`` calls;
++* "at the bottom" gets NO tolerance, because a reader at ``maximum - 1`` is a
++  reader Qt itself leaves alone (``test_a_reader_one_line_up_is_not_at_the
++  _bottom``);
++* "am I at the bottom?" must still be asked BEFORE the text arrives, because
++  ``insertPlainText`` is a door where the two moments give opposite answers
++  (``test_an_insert_at_the_top_keeps_the_reader_at_the_bottom``).
++
++The other trap is the guard-on-one-door one. There are EIGHT log panes in this
++app, not one, and 89 ``ensureCursorVisible()`` calls between them —
++``test_no_log_pane_is_a_bare_QPlainTextEdit`` refuses a ninth built the old way.
++"""
++from __future__ import annotations
++
++import ast
++import re
++from pathlib import Path
++
++import pytest
++
++ROOT = Path(__file__).resolve().parents[1]
++
++
++@pytest.fixture(scope="module")
++def qapp():
++    from PyQt6.QtWidgets import QApplication
++    return QApplication.instance() or QApplication([])
++
++
++@pytest.fixture()
++def pane(qapp):
++    """A real pane, sized so a handful of lines overflows it."""
++    from ui.widgets import TailFollowLog
++    w = TailFollowLog()
++    w.setReadOnly(True)
++    w.resize(320, 60)
++    w.show()
++    for i in range(200):
++        w.appendPlainText(f"line {i}")
++    qapp.processEvents()
++    assert w.verticalScrollBar().maximum() > 10, \
++        "the fixture must produce a pane that can actually be scrolled"
++    yield w
++    w.close()
++
++
++# ---------------------------------------------------------------------------
++# The behaviour she asked for
++# ---------------------------------------------------------------------------
++
++def test_a_pane_the_reader_scrolled_up_is_left_alone(pane, qapp):
++    sb = pane.verticalScrollBar()
++    sb.setValue(0)
++    qapp.processEvents()
++    before_max = sb.maximum()
++
++    for i in range(20):
++        pane.appendPlainText(f"progress {i} %")
++        pane.ensureCursorVisible()          # the 89 call sites, faithfully
++    qapp.processEvents()
++
++    assert sb.maximum() > before_max, "the document did not actually grow"
++    assert sb.value() == 0, (
++        f"the view was dragged from 0 to {sb.value()} while the reader was "
++        f"reading further up")
++    assert pane.is_following_tail() is False
++
++
++def test_a_pane_at_the_bottom_keeps_following(pane, qapp):
++    sb = pane.verticalScrollBar()
++    sb.setValue(sb.maximum())
++    qapp.processEvents()
++
++    for i in range(20):
++        pane.appendPlainText(f"progress {i} %")
++        pane.ensureCursorVisible()
++    qapp.processEvents()
++
++    assert pane.is_following_tail() is True
++    assert sb.value() == sb.maximum(), (
++        f"the pane stopped following its own tail: value {sb.value()} of "
++        f"maximum {sb.maximum()}")
++
++
++def test_an_append_with_no_ensure_cursor_visible_still_holds_the_bottom(pane,
++                                                                       qapp):
++    """Not every call site remembers the tail call, and it must not matter.
++
++    If the bottom were held only by ``ensureCursorVisible()``, one append that
++    skipped it would leave the view a line short, and the NEXT append would read
++    that as the reader having scrolled away — latching the following off for
++    good, with nobody having touched anything.
++    """
++    sb = pane.verticalScrollBar()
++    sb.setValue(sb.maximum())
++    qapp.processEvents()
++
++    pane.appendPlainText("a line whose call site forgot the tail call")
++    qapp.processEvents()
++    assert sb.value() == sb.maximum()
++
++    pane.appendPlainText("and the line after it")
++    pane.ensureCursorVisible()
++    qapp.processEvents()
++    assert pane.is_following_tail() is True
++    assert sb.value() == sb.maximum()
++
++
++def test_a_reader_one_line_up_is_not_at_the_bottom(pane, qapp):
++    """No tolerance, and the measurement that rules one out.
++
++    A plain ``QPlainTextEdit`` parked at ``maximum - 1`` and handed a
++    4000-character append does not move: Qt reads that reader as having
++    scrolled up. A slack of even a single line here would read them as being at
++    the bottom and drag them down, which is her complaint again in a smaller
++    font.
++    """
++    sb = pane.verticalScrollBar()
++    sb.setValue(sb.maximum() - 1)
++    qapp.processEvents()
++    parked = sb.value()
++
++    assert pane.is_at_bottom() is False
++    pane.appendPlainText("a" * 4000)
++    pane.ensureCursorVisible()
++    qapp.processEvents()
++
++    assert sb.value() == parked, (
++        f"a reader one line off the bottom was dragged from {parked} to "
++        f"{sb.value()}")
++
++
++def test_an_insert_at_the_top_keeps_the_reader_at_the_bottom(pane, qapp):
++    """The door where "before" and "after" give OPPOSITE answers.
++
++    Measured on a plain ``QPlainTextEdit``: parked at the bottom of a 200-line
++    document, ``insertPlainText`` of four lines at position 0 leaves the value
++    at 197 while the maximum becomes 201. Qt does not hold the bottom here, so
++    a pane that asked the question after the text arrived would conclude the
++    reader had scrolled up — about a reader who had not moved — and stop
++    following.
++    """
++    from PyQt6.QtGui import QTextCursor
++    sb = pane.verticalScrollBar()
++    cur = pane.textCursor()
++    cur.setPosition(0)
++    pane.setTextCursor(cur)
++    sb.setValue(sb.maximum())
++    qapp.processEvents()
++    assert pane.is_at_bottom() is True
++
++    pane.insertPlainText("inserted\nat\nthe\ntop\n")
++    qapp.processEvents()
++
++    assert pane.is_following_tail() is True, (
++        "the pane read a reader who had not moved as having scrolled up")
++    assert sb.value() == sb.maximum(), (
++        f"the reader was left at {sb.value()} of {sb.maximum()} after text "
++        f"appeared above them")
++
++
++def test_scrolling_back_to_the_bottom_resumes_following(pane, qapp):
++    sb = pane.verticalScrollBar()
++    sb.setValue(0)
++    qapp.processEvents()
++    pane.appendPlainText("while away")
++    qapp.processEvents()
++    assert sb.value() == 0
++
++    sb.setValue(sb.maximum())               # the reader scrolls back down
++    qapp.processEvents()
++    pane.appendPlainText("back at the bottom")
++    qapp.processEvents()
++
++    assert pane.is_following_tail() is True
++    assert sb.value() == sb.maximum()
++
++
++def test_clearing_the_pane_starts_following_again(pane, qapp):
++    sb = pane.verticalScrollBar()
++    sb.setValue(0)
++    qapp.processEvents()
++    pane.appendPlainText("x")
++    assert pane.is_following_tail() is False
++
++    pane.clear()                            # a new run begins
++    qapp.processEvents()
++    assert pane.is_following_tail() is True
++    for i in range(200):
++        pane.appendPlainText(f"fresh {i}")
++    qapp.processEvents()
++    assert sb.value() == sb.maximum()
++
++
++def test_set_plain_text_starts_following_again(pane, qapp):
++    sb = pane.verticalScrollBar()
++    sb.setValue(0)
++    qapp.processEvents()
++    pane.appendPlainText("x")
++    assert pane.is_following_tail() is False
++
++    pane.setPlainText("[ERROR] No input .ti3 file selected.")
++    qapp.processEvents()
++    assert pane.is_following_tail() is True
++
++
++def test_a_cursor_handed_to_the_pane_does_not_drag_the_view(pane, qapp):
++    """Create Chart rewrites its progress line in place through the cursor.
++
++    ``TabChart._set_progress_line`` selects the last line, replaces it and calls
++    ``setTextCursor`` — and Qt scrolls to a cursor it is handed. That is a
++    second door onto the same room.
++    """
++    from PyQt6.QtGui import QTextCursor
++    sb = pane.verticalScrollBar()
++    sb.setValue(0)
++    qapp.processEvents()
++    pane.appendPlainText("Arranging colour patches: 10%")
++    qapp.processEvents()
++    assert sb.value() == 0
++
++    cur = pane.textCursor()
++    cur.movePosition(QTextCursor.MoveOperation.End)
++    cur.select(QTextCursor.SelectionType.LineUnderCursor)
++    cur.removeSelectedText()
++    cur.insertText("Arranging colour patches: 40%")
++    pane.setTextCursor(cur)
++    pane.ensureCursorVisible()
++    qapp.processEvents()
++
++    assert sb.value() == 0, (
++        f"handing the pane a cursor at the end dragged the view to "
++        f"{sb.value()}")
++
++
++def test_a_short_document_that_cannot_scroll_still_follows(qapp):
++    """maximum == 0 means every position is the bottom, and must read as one."""
++    from ui.widgets import TailFollowLog
++    w = TailFollowLog()
++    w.resize(400, 300)
++    w.show()
++    w.appendPlainText("one line")
++    qapp.processEvents()
++    assert w.verticalScrollBar().maximum() == 0
++    assert w.is_at_bottom() is True
++    assert w.is_following_tail() is True
++    w.close()
++
++
++# ---------------------------------------------------------------------------
++# Every door, not one of them
++# ---------------------------------------------------------------------------
++
++#: Every log pane in the app, as (module path, attribute). Eight panes: the
++#: five tab panes, the two extra Build Profile modules, the shared Tools-dialog
++#: status pane (ten dialog classes inherit it) and the Spot Read notes.
++LOG_PANES = [
++    ("ui/tabs/tab_chart.py", "_log"),
++    ("ui/tabs/tab_measure.py", "_log"),
++    ("ui/tabs/tab_profile.py", "_log"),
++    ("ui/tabs/tab_profile.py", "_pc_log"),
++    ("ui/tabs/tab_profile.py", "_ac_log"),
++    ("ui/tabs/tab_check_refine.py", "_log"),
++    ("ui/dialogs/tools_dialogs.py", "_log"),
++    ("ui/dialogs/spot_read_dialog.py", "_log"),
++]
++
++
++def _log_pane_constructions(path: Path) -> "list[tuple[str, str, int]]":
++    """Every ``self.<something-log> = <Class>(...)`` in *path*."""
++    tree = ast.parse(path.read_text(encoding="utf-8"))
++    out: list[tuple[str, str, int]] = []
++    for node in ast.walk(tree):
++        if not isinstance(node, ast.Assign) or not isinstance(node.value,
++                                                              ast.Call):
++            continue
++        func = node.value.func
++        cls = func.id if isinstance(func, ast.Name) else (
++            func.attr if isinstance(func, ast.Attribute) else "")
++        for tgt in node.targets:
++            if (isinstance(tgt, ast.Attribute)
++                    and isinstance(tgt.value, ast.Name)
++                    and tgt.value.id == "self"
++                    and tgt.attr.endswith("log")):
++                out.append((tgt.attr, cls, node.lineno))
++    return out
++
++
++@pytest.mark.parametrize("rel,attr", LOG_PANES)
++def test_every_named_log_pane_is_a_tail_follow_log(rel, attr):
++    hits = [(a, c, ln) for a, c, ln in _log_pane_constructions(ROOT / rel)
++            if a == attr]
++    assert hits, f"{rel} no longer builds self.{attr}"
++    for a, cls, ln in hits:
++        assert cls == "TailFollowLog", (
++            f"{rel}:{ln} builds self.{a} as {cls}, which does not know whether "
++            f"the reader is at the bottom")
++
++
++def test_no_log_pane_is_a_bare_QPlainTextEdit():
++    """A ninth pane must not arrive built the old way.
++
++    ``ui/dialogs/scanin_dialog.py`` is exempt by inheritance, not by exception:
++    ``ScannerProfileDialog`` extends ``_ToolDialogBase`` and writes into the
++    pane built there.
++    """
++    offenders: list[str] = []
++    for path in sorted((ROOT / "ui").rglob("*.py")):
++        for attr, cls, ln in _log_pane_constructions(path):
++            if cls == "QPlainTextEdit":
++                offenders.append(
++                    f"{path.relative_to(ROOT)}:{ln} self.{attr} = {cls}(...)")
++    assert not offenders, (
++        "these log panes drag the reader back to the bottom on every line; "
++        "build them with ui.widgets.TailFollowLog instead:\n  "
++        + "\n  ".join(offenders))
++
++
++def test_the_tail_follow_pane_connects_nothing_to_a_scroll_bar_signal():
++    """The fade-scroll SIGSEGV, in the one class most tempted to repeat it.
++
++    ``CLAUDE.md`` records the crash: a scroll bar's ``rangeChanged`` connected
++    to a lambda capturing ``self``. The obvious way to write this class is to
++    listen to ``valueChanged``. It does not, and must not start.
++    """
++    src = (ROOT / "ui" / "widgets.py").read_text(encoding="utf-8")
++    start = src.index("class TailFollowLog")
++    end = src.index("\nLOG_GAP_TOTAL", start)
++    body = src[start:end]
++    assert ".connect(" not in body, (
++        "TailFollowLog connected something to a signal; it is supposed to ASK "
++        "the scroll bar, never to subscribe to it")
++
++
++def test_the_spot_read_results_table_follows_the_same_rule():
++    """The one non-text tail-follower in the app, and the same annoyance."""
++    src = (ROOT / "ui" / "dialogs" / "spot_read_dialog.py").read_text(
++        encoding="utf-8")
++    fn = src[src.index("def _append_row"):]
++    fn = fn[:fn.index("\n    def ")]
++    assert "scrollToBottom()" in fn
++    assert re.search(r"at_bottom\s*=.*sb\.value\(\)\s*>=\s*sb\.maximum\(\)", fn), \
++        "the table no longer asks whether the reader is at the bottom"
++    assert fn.index("at_bottom =") < fn.index("insertRow"), (
++        "the table asks AFTER inserting the row, which makes the maximum grow "
++        "and a reader who has not moved look as though they had")
++    assert "if at_bottom:" in fn

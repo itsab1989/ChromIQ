@@ -1,0 +1,118 @@
+[
+  {
+    "mutation": "BASELINE (no mutation)",
+    "exit": 0,
+    "summary": "21 passed in 1.96s",
+    "landed": true
+  },
+  {
+    "mutation": "M1 the bottom is sampled AFTER the text arrives, not before",
+    "file": "ui/widgets.py",
+    "test": "test_an_insert_at_the_top_keeps_the_reader_at_the_bottom",
+    "exit": 1,
+    "summary": "1 failed, 20 deselected in 0.69s",
+    "landed": true
+  },
+  {
+    "mutation": "M2 ensureCursorVisible obeys everyone again",
+    "file": "ui/widgets.py",
+    "test": "test_a_pane_the_reader_scrolled_up_is_left_alone",
+    "exit": 1,
+    "summary": "1 failed, 20 deselected in 0.68s",
+    "landed": true
+  },
+  {
+    "mutation": "M3 the append stops pinning the bottom itself",
+    "file": "ui/widgets.py",
+    "test": "test_an_insert_at_the_top_keeps_the_reader_at_the_bottom",
+    "exit": 1,
+    "summary": "1 failed, 20 deselected in 0.67s",
+    "landed": true
+  },
+  {
+    "mutation": "M4 clear() no longer starts following again",
+    "file": "ui/widgets.py",
+    "test": "test_clearing_the_pane_starts_following_again",
+    "exit": 1,
+    "summary": "1 failed, 20 deselected in 0.70s",
+    "landed": true
+  },
+  {
+    "mutation": "M5 setPlainText() no longer starts following again",
+    "file": "ui/widgets.py",
+    "test": "test_set_plain_text_starts_following_again",
+    "exit": 1,
+    "summary": "1 failed, 20 deselected in 0.72s",
+    "landed": true
+  },
+  {
+    "mutation": "M6 a cursor handed in scrolls the view again",
+    "file": "ui/widgets.py",
+    "test": "test_a_cursor_handed_to_the_pane_does_not_drag_the_view",
+    "exit": 1,
+    "summary": "1 failed, 20 deselected in 0.71s",
+    "landed": true
+  },
+  {
+    "mutation": "M7 'at the bottom' grows a one-line tolerance",
+    "file": "ui/widgets.py",
+    "test": "test_a_reader_one_line_up_is_not_at_the_bottom",
+    "exit": 1,
+    "summary": "1 failed, 20 deselected in 0.76s",
+    "landed": true
+  },
+  {
+    "mutation": "M7b 'at the bottom' swallows the whole document",
+    "file": "ui/widgets.py",
+    "test": "test_a_pane_the_reader_scrolled_up_is_left_alone",
+    "exit": 1,
+    "summary": "1 failed, 20 deselected in 0.70s",
+    "landed": true
+  },
+  {
+    "mutation": "M8 'at the bottom' stops including the bottom itself",
+    "file": "ui/widgets.py",
+    "test": "test_a_short_document_that_cannot_scroll_still_follows",
+    "exit": 1,
+    "summary": "1 failed, 20 deselected in 0.72s",
+    "landed": true
+  },
+  {
+    "mutation": "M9 TailFollowLog subscribes to the scroll bar",
+    "file": "ui/widgets.py",
+    "test": "test_the_tail_follow_pane_connects_nothing_to_a_scroll_bar_signal",
+    "exit": 1,
+    "summary": "1 failed, 20 deselected in 0.51s",
+    "landed": true
+  },
+  {
+    "mutation": "M10 the Create Chart pane goes back to a bare QPlainTextEdit",
+    "file": "ui/tabs/tab_chart.py",
+    "test": "test_no_log_pane_is_a_bare_QPlainTextEdit",
+    "exit": 1,
+    "summary": "1 failed, 20 deselected in 1.37s",
+    "landed": true
+  },
+  {
+    "mutation": "M11 the spot-read table asks after inserting the row",
+    "file": "ui/dialogs/spot_read_dialog.py",
+    "test": "test_the_spot_read_results_table_follows_the_same_rule",
+    "exit": 1,
+    "summary": "1 failed, 20 deselected in 0.52s",
+    "landed": true
+  },
+  {
+    "mutation": "M12 the spot-read table scrolls unconditionally again",
+    "file": "ui/dialogs/spot_read_dialog.py",
+    "test": "test_the_spot_read_results_table_follows_the_same_rule",
+    "exit": 1,
+    "summary": "1 failed, 20 deselected in 0.50s",
+    "landed": true
+  },
+  {
+    "mutation": "RESTORED (tree back as committed)",
+    "exit": 0,
+    "summary": "21 passed in 2.01s",
+    "landed": true
+  }
+]
