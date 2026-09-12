@@ -20,21 +20,38 @@ every gate on every machine. Nothing here touches it.
 
 What is built
 -------------
-Three projects, eleven profile runs, thirty-one dated verifications::
+**The counts live in `PROJECTS` and are not written down here.** This
+paragraph used to name the number of projects, of profile runs and of dated
+verifications, and by the time an adversarial round read it (2026-09-12) all
+three were wrong and the list below named half the projects. `readme()` has
+been forbidden to type a count it can compute since the round before that, by
+`tests/test_the_demo_pack_covers_every_report_type.py`; the ban now covers this
+docstring too, because a stale number is stale wherever it is written, and the
+door that was guarded was not the one that went wrong.
+
+Read `PROJECTS` for the current shape. In outline, what each project is for:
 
     Report-Limits-Threshold-Series   the dated series: each judged row crosses
                                      its limit on one date and recovers on the
                                      next. run1 has ELEVEN dated verifications,
                                      run3 has exactly ONE, so its
                                      limit set can still be chosen.
-    Report-Limits-Isolated-Rows      four rows that cannot cross alone under
-                                     any shipped limit set, isolated by giving
-                                     the run its own edited column. One of the
-                                     four is judged by no shipped set at all.
-                                     run3 has TWO dated verifications with the
-                                     lock lifted by hand.
+    Report-Limits-Isolated-Rows      rows that cannot cross alone under any
+                                     shipped limit set, isolated by giving the
+                                     run its own edited column. One of them is
+                                     judged by no shipped set at all. run3 has
+                                     TWO dated verifications with the lock
+                                     lifted by hand.
     Report-Limits-Set-Compare        the same measurement, three times, judged
                                      by ChromIQ default / tight / Quick check.
+    Report-Limits-Report-Types       one run per document type, and one run
+                                     holding reports of three types at once,
+                                     so the "Already generated for this run"
+                                     line has something to count.
+    Report-Limits-Custom-Columns     the two Custom columns, with numbers.
+    Report-Limits-Border-Conditions  the edges: a chart with no grey ramp, a
+                                     raw sheet, a sheet with no printing
+                                     record.
 
 How the measurements are made
 -----------------------------

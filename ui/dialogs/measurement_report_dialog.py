@@ -4141,6 +4141,9 @@ class MeasurementReportDialog(QDialog):
         no_write: list[str] = []      # archived, and not one file was written
         part_written: list[str] = []  # some of this date's files were rewritten
         unreadable: list[str] = []    # a file that could not be parsed at all
+        # THE DATED FOLDERS OF **THIS** RUN, asked of the run rather than
+        # matched out of a string. See the loop at the foot of this method.
+        mine = {str(v.dir) for v in ctx.run.verifications()}
         QApplication.setOverrideCursor(QCursor(Qt.CursorShape.WaitCursor))
         try:
             for v in ctx.run.verifications():
@@ -4219,11 +4222,32 @@ class MeasurementReportDialog(QDialog):
             # other, and showing the OLD word matches the file that could not
             # be written. The message below says exactly that rather than
             # letting the window imply the whole date moved.
+            # A PREFIX OF A PATH IS NOT A PARENT OF IT, AND THE NEXT RUN ALONG
+            # PAID FOR THAT. This asked `origin.startswith(str(ctx.run.dir))`,
+            # and `…/runs/run10` starts with `…/runs/run1`, so a project with
+            # ten runs had run10's column re-judged by run1's choice. Driven on
+            # screen, a project with run1 (ChromIQ default), run2 (ChromIQ
+            # tight) and run10 (Quick check), all six columns shown: choosing
+            # "ChromIQ tight" for run1 left run2's column alone, as it must,
+            # and turned run10's from "Quick check" to "ChromIQ tight" in the
+            # rendered document, while run10's file on disk still said
+            # `chromiq_quick`. Nothing was written; the window simply told the
+            # user a column had been judged by a set it is not bound to.
+            #
+            # …AND IT REACHED WIDER THAN THE WRITE ABOVE IN A SECOND WAY. The
+            # disk pass walks `ctx.run.verifications()`, which is what §5 of
+            # `docs/design/measurement_report_limits.md` specifies ("each dated
+            # report"); this loop reached the run's own `reports/` as well, so
+            # on the same drive run1's run-level report read "ChromIQ tight" on
+            # screen and `chromiq_default` on disk, with no question asked,
+            # because `_saved_report_count` counts dated folders and had
+            # counted none. A baseline refreshed wider than the write that
+            # earned it is the shape this window keeps producing; the cure is
+            # to refresh exactly the folders the write above covered.
             _held = set(no_archive) | set(no_write) | set(part_written)
             for r in self._history:
                 origin = str(r.get("_origin_dir", ""))
-                if origin.startswith(str(ctx.run.dir)) \
-                        and Path(origin).name not in _held:
+                if origin in mine and Path(origin).name not in _held:
                     stamp_verdict(r, lim.limits, set_id=lim.set_id,
                                   set_label=lim.label_en, edited=lim.edited)
         finally:

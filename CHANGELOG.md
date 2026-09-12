@@ -121,6 +121,23 @@ that led to them.
   One change turned a colour summary, a full check and a printing record into
   three colour summaries.
 
+- **Recalculating run 1 re-judged run 10 on screen.** The window decided which
+  saved reports belonged to a run by asking whether each report's folder starts
+  with the run's, and a path for run 10 starts with the path for run 1. Nothing
+  was written: the column simply said it had been judged by a set it is not
+  bound to, while the file on disk said otherwise. It asks the run which dated
+  folders are its own now. The same loop also reached the run's own report
+  folder, which the write beside it does not cover, so one report read the new
+  set on screen and the old one on disk with no question asked at all.
+
+- **Every door that lets a chart supply a measurement's device values now asks
+  first.** A measurement with no device values of its own takes them from the
+  chart, and whether it really is a measurement of THAT chart is the one thing
+  ChromIQ cannot check: another chart laid out the same way carries the same
+  patch names. The Measure tab has always put that to you before letting it
+  happen. The Build Profile and Check and Refine filing doors reached the same
+  act and asked nothing. They ask now, before the first byte moves.
+
 - **The five verdict words are five bullets**, the report explains what bound
   and locked mean, and it no longer ends by saying what it does not claim.
 

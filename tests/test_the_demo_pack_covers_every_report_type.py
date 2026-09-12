@@ -259,6 +259,41 @@ def test_the_readme_never_types_a_count_it_can_compute(gen):
                 f"readme() types {what}: {text!r}. Compute it.")
 
 
+def test_the_generator_does_not_type_a_count_in_its_own_DOCSTRING_either(gen):
+    """THE SAME CLAIM, ONE FUNCTION OVER, AND THIS TEST WALKED PAST IT.
+
+    The test above scans `readme()`'s string literals and nothing else. The
+    module's own docstring opened with the number of projects, of profile runs
+    and of dated verifications, and an adversarial round measured all three
+    against `PROJECTS` on 2026-09-12: it said three projects, eleven runs and
+    thirty-one dated verifications where the file builds six, twenty-three and
+    fifty-five, and its "What is built" list named three of the six. A guard on
+    one door and not the identical door beside it, in the guard itself.
+
+    MUTATION: put "Three projects, eleven profile runs, thirty-one dated
+    verifications" back at the top of `make_report_limit_demos.py` and this
+    goes red. Watched, 2026-09-12.
+    """
+    doc = gen.__doc__ or ""
+    banned = [
+        (r"(one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s+"
+         r"projects\b", "a project count"),
+        (r"\b(eleven|twelve|thirteen|twenty[- ]three|\d+)\s+profile runs\b",
+         "a profile-run count"),
+        (r"\bdated verifications::", "a heading that carried the counts"),
+    ]
+    for pattern, what in banned:
+        assert not re.search(pattern, doc, re.I), (
+            f"the module docstring types {what}. It goes stale the next time "
+            f"a project is added; `PROJECTS` is the answer.")
+
+    # …AND THE OUTLINE HAS TO NAME EVERY PROJECT, which is the half a count
+    # ban cannot express: three of the six were simply missing.
+    for name, _plans in gen.PROJECTS:
+        assert name in doc, (
+            f"{name} is built and the docstring's outline does not mention it")
+
+
 def test_the_readme_prints_no_build_time(gen):
     """A measured build time is stale the moment a run is added, AND it makes
     every rebuild differ from the archive somebody is comparing against. Two
