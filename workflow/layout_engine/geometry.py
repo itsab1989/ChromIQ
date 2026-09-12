@@ -58,6 +58,29 @@ def _turned_hex(g) -> bool:
 
 
 
+def strip_label_reserve_mm(g) -> float:
+    """How far in from the page's TOP edge the strip letters' band may start.
+
+    The larger of "T" under "Text distance from edge" and the ruler helper
+    markers' own reserve on that edge (Knut, #182, 2026-09-12: *"whichever is
+    largest of the two"*). One function so the geometry that PLACES the band
+    and the panel that WARNS about it cannot answer differently; the arithmetic
+    itself is `workflow.text_edge_fit.edge_reserve_mm`, which the other three
+    edges use as well.
+
+    The user's "Label offset" is deliberately NOT included: it rides on top of
+    this in the renderer (`raster._lbl_top`), which is where it has always been
+    added, and it may be negative.
+    """
+    from workflow import text_edge_fit as _tef
+    return _tef.edge_reserve_mm(
+        float(getattr(g, "text_edge_top_mm", 0.0) or 0.0),
+        bool(getattr(g, "helper_markers", False)),
+        float(getattr(g, "helper_marker_edge_mm", 0.0) or 0.0),
+        float(getattr(g, "helper_marker_len_mm", 0.0) or 0.0),
+        bool(getattr(g, "helper_markers_top_bottom", True)))
+
+
 def _top_reserve_for_a_turned_hex(g, mints: float, txhi: float,
                                   *, margins_are_law: bool) -> float:
     """`mints`, raised if the strip letters would otherwise be drawn on the ink.
@@ -81,10 +104,12 @@ def _top_reserve_for_a_turned_hex(g, mints: float, txhi: float,
     if ink <= 0.0:                       # indicators off, or nothing rendered yet
         return mints
     if margins_are_law:
-        # Mirrors `placement`'s own clamp: the band hangs at the text-edge
-        # distance from the PAGE EDGE, sliding up when the top margin cannot
-        # hold it, and never below the page edge.
-        leader_top = max(0.0, min(g.text_edge_top_mm + g.strip_indicator_gap,
+        # Mirrors `placement`'s own clamp: the band hangs at whichever of "T"
+        # and the ruler helper markers' reserve goes furthest in (#182),
+        # sliding up when the top margin cannot hold it, and never above the
+        # page edge.
+        leader_top = max(0.0, min(strip_label_reserve_mm(g)
+                                  + g.strip_indicator_gap,
                                   g.margin_t - txhi))
     else:
         leader_top = g.margin_t
@@ -396,7 +421,36 @@ def placement(geom: Geom, paper_w_mm: float, paper_h_mm: float, layout: Layout) 
         # the patch block — clamped at the page edge. A too-small margin still
         # raises a warning in the inspector (#93, Knut).
         _lab_h = g.label_band_mm if g.label_band_mm >= 0 else g.txhisl
-        _ideal_top = g.text_edge_top_mm + g.strip_indicator_gap
+        # THE RESERVE IS THE LARGER OF "T" AND THE HELPER MARKERS' OWN (#182),
+        # and it is still CLAMPED so the letters never land on the patches.
+        #
+        # The reserve used to be `g.text_edge_top_mm` alone, which is the fault
+        # Knut reported: with the ruler markers at 4 mm + 2 mm and "T" at 4 mm,
+        # the letters' ink began 3.98 mm down and the dashes occupy 4.0 to
+        # 6.0 mm, so the two were printed through each other. Measured on A4;
+        # they now begin at 8.38 mm.
+        #
+        # **THE CLAMP ITSELF IS DELIBERATELY LEFT IN, AND HIS POST ASKS FOR IT
+        # TO GO.** His "Top page edge" section places the letters at the
+        # reserve full stop and lists, as case 3, *"defined top margin is so
+        # small that patch area top edge overlaps with placed strip labels"* as
+        # a thing to WARN about rather than to design away. Removing the clamp
+        # does exactly that, and it also breaks a guarantee he gave earlier
+        # from a real sheet, which `tests/test_the_honeycomb_can_be_turned.py`
+        # pins: a strip letter is never printed on a patch. Measured with the
+        # clamp removed, on the SHIPPED CR30 A4 default (top margin 6.0 mm, a
+        # 7.0 mm label band): the band's bottom moves from 83 px to 130 px at
+        # 300 dpi while the first patch box starts at 91 px, so every strip
+        # letter is printed over the first row of hexagons and the letters
+        # measure 14 px of ink where a roomy sheet draws 61.
+        #
+        # Two of his rulings therefore disagree on this one chart, and
+        # `CLAUDE.md` is explicit that a collision like that is reported and
+        # reviewed rather than resolved here. So the marker reserve lands and
+        # the clamp stays until he says which one wins.
+        # `text_edge_fit.strip_label_overlap` is the arithmetic for the day he
+        # says the clamp goes; it is written and tested and not yet wired.
+        _ideal_top = strip_label_reserve_mm(g) + g.strip_indicator_gap
         _leader_top = max(0.0, min(_ideal_top, g.margin_t - _lab_h)) + g.offset_y
     else:
         _leader_top = g.margin_t + g.offset_y   # default: flush under the margin

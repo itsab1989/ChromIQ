@@ -169,6 +169,20 @@ class Geom:
     # for the text it overflows toward this line and a violation is flagged.
     text_edge_top_mm: float = 4.0
     text_edge_clip_mm: float = 4.0
+    # THE RULER HELPER MARKERS ARE THE SECOND RESERVE ON THE SAME EDGES (#182,
+    # Knut, 2026-09-12). They were render-only kwargs, so the geometry that
+    # places the strip letters could not see them and put the letters straight
+    # through the dashes: measured on A4 with the markers at 4 mm + 2 mm, the
+    # letters' ink began at 3.98 mm, inside the 4.0 to 6.0 mm marker band.
+    # `text_edge_fit.edge_reserve_mm` takes the larger of this and the "Text
+    # distance from edge" box for that side. Carried for BOTH axes even though
+    # only the top/bottom pair is read here, so the side edges can ask the same
+    # question of the same fields.
+    helper_markers: bool = False
+    helper_marker_edge_mm: float = 2.0
+    helper_marker_len_mm: float = 2.0
+    helper_markers_top_bottom: bool = True
+    helper_markers_sides: bool = True
     # "Margins are the law" mode (Knut): the patch area is exactly the margin box
     # (no hidden leader/trailer; strip labels live inside the top margin, anchored
     # at the text-edge from the page edge). ON for area-first ("Prioritise chart
@@ -321,6 +335,11 @@ def build(
     cm_stagger: bool = False,
     text_edge_top: float = 4.0,
     text_edge_clip: float = 4.0,
+    helper_markers: bool = False,
+    helper_marker_edge: float = 2.0,
+    helper_marker_len: float = 2.0,
+    helper_markers_top_bottom: bool = True,
+    helper_markers_sides: bool = True,
     margins_are_law: bool = False,
     fill_beyond_ruler: bool = False,
 ) -> Geom:
@@ -490,6 +509,11 @@ def build(
                    clip_side=clip_side or "left",
                    text_edge_top_mm=float(text_edge_top or 4.0),
                    text_edge_clip_mm=float(text_edge_clip or 4.0),
+                   helper_markers=bool(helper_markers),
+                   helper_marker_edge_mm=float(helper_marker_edge or 0.0),
+                   helper_marker_len_mm=float(helper_marker_len or 0.0),
+                   helper_markers_top_bottom=bool(helper_markers_top_bottom),
+                   helper_markers_sides=bool(helper_markers_sides),
                    margins_are_law=bool(margins_are_law),
                    fill_beyond_ruler=bool(fill_beyond_ruler))
 
@@ -507,6 +531,11 @@ GEOM_BUILD_KEYS = (
     "nolpcbord", "nolimit",
     "clip_border_width", "clip_band", "edge_spacers", "patch_area_align",
     "clip_side", "cm_stagger", "text_edge_top", "text_edge_clip",
+    # #182: the markers are a text reserve, so they are geometry now and not
+    # only paint. Without them here the strip letters are placed before anyone
+    # knows a dash is going to be drawn where they land.
+    "helper_markers", "helper_marker_edge", "helper_marker_len",
+    "helper_markers_top_bottom", "helper_markers_sides",
 )
 
 

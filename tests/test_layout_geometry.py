@@ -655,7 +655,16 @@ def test_margins_are_law_label_slides_to_edge_not_behind_patches():
     """In law mode a too-small top margin must push the strip label TOWARD the page
     edge (out of the patch block), never behind the patches (Knut #93). The label
     bottom stays at/above the patch-area top; a big margin still anchors at the
-    text-edge distance."""
+    text-edge distance.
+
+    #182 asks for the slide to stop and the letters to overlap the patches with
+    a warning instead. It is not done here, because it also breaks the
+    real-sheet guarantee `tests/test_the_honeycomb_can_be_turned.py` pins;
+    `workflow/text_edge_fit.py::strip_label_overlap` records the collision and
+    the measurement, and it is Knut's to settle. What #182 DID change is which
+    distance the label anchors at when there is room: the larger of "T" and the
+    ruler helper markers' reserve, pinned below.
+    """
     from workflow.layout_engine.presets import LayoutRecipe
     w, h = geometry_papers("A4R")
     # Tight 7 mm top margin, label band ~7 mm → label must slide up to the edge.
@@ -676,6 +685,16 @@ def test_margins_are_law_label_slides_to_edge_not_behind_patches():
     w2, h2 = A4
     lay2 = geometry.compute(roomy, w2, h2, 200)
     assert abs(geometry.placement(roomy, w2, h2, lay2).leader_top - 4.0) < 1e-9
+    # …and the ruler helper markers raise that anchor when they reach further
+    # in: 4.0 + 2.0 + 1.0 = 7.0 mm beats the 4 mm "T" (#182).
+    marked = instruments.geom_from_build_kwargs(
+        LayoutRecipe(instrument="i1", paper="A4", layout_mode="area_first",
+                     area_method="by_width", area_min_patch_mm=8.0,
+                     margin_top=38.0, text_edge_top_mm=4.0,
+                     helper_markers=True, helper_marker_edge_mm=4.0,
+                     helper_marker_len_mm=2.0).build_kwargs())
+    lay3 = geometry.compute(marked, w2, h2, 200)
+    assert abs(geometry.placement(marked, w2, h2, lay3).leader_top - 7.0) < 1e-9
 
 
 def test_margins_are_law_furniture_does_not_reduce_capacity():
