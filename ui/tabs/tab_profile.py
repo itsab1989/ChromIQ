@@ -44,7 +44,7 @@ from core.resource_path import resource_path
 from ui.fade_scroll import FadeScrollArea
 from ui.tab_header import TabHeader
 from ui.tooltip_button import InfoDialog, TooltipButton
-from ui.widgets import add_log_row, fit_button_width, fit_log_height, fit_message_box_buttons, spread_message_box_buttons, GatedOption, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, make_browse_button, open_file_dialog, replace_log_line, set_accent_html, set_ink, set_folder_icon, set_preset_icon, spectrum_cell, tint_dialog_primary
+from ui.widgets import TailFollowLog, add_log_row, fit_button_width, fit_log_height, fit_message_box_buttons, spread_message_box_buttons, GatedOption, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, make_browse_button, open_file_dialog, replace_log_line, set_accent_html, set_ink, set_folder_icon, set_preset_icon, spectrum_cell, tint_dialog_primary
 from ui.ti2_loader import (has_spectral_data, instrument_label, is_colormunki,
                           read_target_instrument, spectral_options_unavailable)
 from ui.spectrum_progress import SpectrumSegmentsBar
@@ -553,7 +553,7 @@ class TabProfile(QWidget):
 
         cc.addLayout(btn_row)
 
-        self._log = QPlainTextEdit(colprof_container)
+        self._log = TailFollowLog(colprof_container)
         self._log.setObjectName("log")
         self._log.setReadOnly(True)
         # Nine lines of the font this really gets, measured after polish
@@ -1085,7 +1085,7 @@ class TabProfile(QWidget):
         cc.addLayout(btn_row)
 
         # ---- Log (outside scroll area) ----
-        self._pc_log = QPlainTextEdit(container)
+        self._pc_log = TailFollowLog(container)
         self._pc_log.setObjectName("log")
         self._pc_log.setReadOnly(True)
         # Nine lines of the font this really gets, measured after polish
@@ -1537,7 +1537,7 @@ class TabProfile(QWidget):
         cc.addLayout(btn_row)
 
         # ---- Log (outside groupbox) ----
-        self._ac_log = QPlainTextEdit(container)
+        self._ac_log = TailFollowLog(container)
         self._ac_log.setObjectName("log")
         self._ac_log.setReadOnly(True)
         # Nine lines of the font this really gets, measured after polish

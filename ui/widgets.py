@@ -652,6 +652,132 @@ def set_log_visible_lines(n: int, *, save: bool = True) -> int:
     return n
 
 
+class TailFollowLog(QPlainTextEdit):
+    """A log panel that follows its tail only while the reader is at the bottom.
+
+    A user verifying a profile, 2026-09-11: *"if you scroll up the output pane
+    while its calculating, it forces it back down to the bottom every time the
+    % goes up. Often programs fix this by only auto-scrolling if the scroll bar
+    is already at the bottom."* She is describing the standard behaviour, and
+    this is it: the view follows the newest line while it is already showing
+    the newest line, and stops the moment the reader scrolls away from it. Scroll
+    back down to the bottom and the next line starts it following again.
+
+    **QPLAINTEXTEDIT ALREADY DOES THIS, AND WE WERE OVERRULING IT.** Measured
+    on a plain, unmodified ``QPlainTextEdit`` (200 lines, a 60 px viewport):
+
+        parked at the bottom, one-line append          value 198 == maximum 198
+        parked at the bottom, two-block append         value 200 == maximum 200
+        parked ONE line up, a 4000-char wrapped append value stays at 196,
+                                                       maximum grows to 288
+
+    So the base class holds the bottom when it is at the bottom and leaves the
+    reader alone when it is not. The whole of her complaint is the 89 explicit
+    ``ensureCursorVisible()`` calls this app makes after those appends, which
+    overrule that judgement unconditionally. Making that ONE call conditional is
+    the fix; everything else here keeps the condition honest.
+
+    **THE THIRD MEASUREMENT IS WHY THERE IS NO TOLERANCE.** A reader parked at
+    ``maximum - 1`` is a reader who has scrolled up, and Qt treats them as one.
+    A slack of even a single line would have read them as "at the bottom" and
+    dragged them down on the next line, which is the bug in a smaller font.
+    ``is_at_bottom`` is therefore exact, and it can afford to be: a followed
+    append lands on ``value == maximum`` precisely, and so does
+    ``ensureCursorVisible()`` (measured, same run).
+
+    **WHERE THE DECISION IS TAKEN.** "Am I at the bottom?" is asked of the
+    document as it stands BEFORE the new text. For ``appendPlainText`` the two
+    moments happen to agree, because Qt has already moved the value along with
+    the maximum. For ``insertPlainText`` they do NOT: inserting four lines at
+    the top of a document parked at the bottom leaves ``value 197`` against
+    ``maximum 201``, so the same question asked afterwards says the reader has
+    scrolled up when the reader has not moved. Asking first, and pinning the
+    bottom afterwards, is what makes the answer mean the same thing at every
+    door.
+
+    ``ensureCursorVisible()`` is then the same question again: obeyed while
+    following, ignored while not, so the 89 call sites need no changes at all.
+    ``setTextCursor()`` is overridden for the same reason and is not
+    hypothetical: the Create Chart tab rewrites its "Arranging colour patches:
+    N%" line in place through the cursor, and handing Qt a cursor at the end of
+    the document scrolls a reader parked at 0 all the way down (measured: 0 to
+    197 in one call).
+
+    No signal is connected to the scroll bar. That is deliberate and not just
+    economy: ``ui/fade_scroll.py`` cost this project a shipped SIGSEGV by
+    connecting ``rangeChanged`` to a lambda that captured ``self``, and
+    ``tests/test_a_scrollbar_signal_never_takes_a_lambda.py`` exists because of
+    it. Nothing here needs to hear from the scroll bar; it only ever asks.
+    """
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self._following_tail = True
+
+    # -- the question -----------------------------------------------------
+    def is_at_bottom(self) -> bool:
+        """Whether the view is showing the end of the document right now.
+
+        Exact, with no tolerance: see the class docstring for the measurement
+        that rules one out.
+        """
+        sb = self.verticalScrollBar()
+        return sb.value() >= sb.maximum()
+
+    def is_following_tail(self) -> bool:
+        """Whether the next line will scroll the view, or be left below it."""
+        return self._following_tail
+
+    def _append_through(self, call, *args) -> None:
+        """Ask first, add the text, then pin the bottom when it was the bottom.
+
+        The pin is redundant for ``appendPlainText``, where Qt has already done
+        it, and is not for ``insertPlainText``, where Qt has not. Doing it once
+        here makes the invariant this class's own rather than an undocumented
+        behaviour of the base class, so the next append's question is answered
+        by a document in a state this class put it in.
+        """
+        follow = self.is_at_bottom()
+        call(*args)
+        self._following_tail = follow
+        if follow:
+            sb = self.verticalScrollBar()
+            sb.setValue(sb.maximum())
+
+    # -- the ways text arrives --------------------------------------------
+    def appendPlainText(self, text: str) -> None:          # noqa: N802
+        self._append_through(super().appendPlainText, text)
+
+    def appendHtml(self, html: str) -> None:               # noqa: N802
+        self._append_through(super().appendHtml, html)
+
+    def insertPlainText(self, text: str) -> None:          # noqa: N802
+        self._append_through(super().insertPlainText, text)
+
+    # -- a fresh document starts at the top, which is also its bottom ------
+    def clear(self) -> None:
+        self._following_tail = True
+        super().clear()
+
+    def setPlainText(self, text: str) -> None:             # noqa: N802
+        self._following_tail = True
+        super().setPlainText(text)
+
+    # -- the two ways the view gets moved for you -------------------------
+    def ensureCursorVisible(self) -> None:                 # noqa: N802
+        if self._following_tail:
+            super().ensureCursorVisible()
+
+    def setTextCursor(self, cursor) -> None:               # noqa: N802
+        if self._following_tail:
+            super().setTextCursor(cursor)
+            return
+        sb = self.verticalScrollBar()
+        where = sb.value()
+        super().setTextCursor(cursor)
+        sb.setValue(where)
+
+
 #: The gap above a log panel, in pixels, and how much of it survives the log
 #: being hidden. Both halves are needed: see ``add_log_row``.
 LOG_GAP_TOTAL = 5
