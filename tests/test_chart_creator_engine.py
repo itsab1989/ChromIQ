@@ -172,7 +172,16 @@ def test_guided_and_manual_colormunki_extra_high_same_patch_geometry(tmp_path: P
     # Guided here uses user margins while the Manual default recipe has "Use
     # instrument margins" on, so those two flags legitimately differ — exclude them
     # and assert the patch geometry proper is identical (Knut instrument-margins fix).
-    _BOX_FLAGS = {"margins_are_law", "fill_beyond_ruler"}
+    # …and neither are the TEXT-PLACEMENT reservations (#182). "B" and the
+    # ruler helper markers reserve paper for TEXT against the page edges; they
+    # move no patch and change no patch size, and Guided has no controls for
+    # them, so it carries the defaults while a Manual recipe carries whatever
+    # the panel is set to. Excluded for the same reason as the box flags above:
+    # this assertion is about the patch geometry proper.
+    _BOX_FLAGS = {"margins_are_law", "fill_beyond_ruler",
+                  "text_edge_bottom_mm", "helper_markers",
+                  "helper_marker_edge_mm", "helper_marker_len_mm",
+                  "helper_markers_sides", "helper_markers_top_bottom"}
     diffs = [f.name for f in dataclasses.fields(instruments.Geom)
              if f.name not in _BOX_FLAGS
              and getattr(gg, f.name) != getattr(gm_pf, f.name)]

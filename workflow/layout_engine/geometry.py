@@ -590,15 +590,46 @@ def clip_area_mm(geom: Geom, paper_h_mm: float, paper_w_mm: float | None = None,
     # Clip content sits this far in from the page edge (the clip-side text-edge
     # distance, default 4 mm; Knut #93), capped so it never eats the whole band.
     from workflow import text_edge_fit as _tef
-    _edge = getattr(geom, "text_edge_clip_mm", CLIP_CONTENT_INSET_MM)
+    # WHICHEVER GOES FURTHEST IN FROM THE PAGE EDGE, "Clip" or the ruler helper
+    # markers' own reserve (#182, Knut, 2026-09-12). The markers used to be
+    # invisible to this: measured on his "ColorMunki-A4-306p-1page-Portrait"
+    # preset, whose side dashes' ink runs 4.01 mm to 6.0 mm in from the right
+    # page edge, the clip text was placed at 4.13 mm and printed straight
+    # through them. `geom_side_text_edge_mm` puts it at 4.0 + 2.0 + 1.0 = 7.0.
+    _edge = _tef.side_text_edge_mm(
+        getattr(geom, "text_edge_clip_mm", CLIP_CONTENT_INSET_MM),
+        helper_markers=bool(getattr(geom, "helper_markers", False)),
+        marker_edge_mm=float(getattr(geom, "helper_marker_edge_mm", 0.0) or 0.0),
+        marker_len_mm=float(getattr(geom, "helper_marker_len_mm", 0.0) or 0.0),
+        marker_sides=bool(getattr(geom, "helper_markers_sides", True)))
     inset = _tef.clip_content_inset_mm(clip_w, _edge)
     over = _tef.clip_text_overhang_mm(clip_w, _edge, content_lines,
                                       content_size_pt)
     width = max(0.0, clip_w - inset + over)
-    # Full page height less the printer-safe inset top and bottom (Knut): the
-    # clip content is no longer bounded by the patch top/bottom margins.
-    v_inset = min(inset, paper_h_mm * 0.1)
-    height = max(0.0, paper_h_mm - 2.0 * v_inset)
+    # THE HEIGHT IS T AND B, NOT THE SIDE RESERVE, AND NOT THE HELPER MARKERS'
+    # ROOM WHEN THAT IS TIGHTER (#182, Knut, 2026-09-12):
+    #
+    #   "1. Page hight (defined by selected paper) minus T and minus B
+    #    parameters in "Text distance from edge" […] OR, 2. IF "Print helper
+    #    markers" and "Top/bottom" checkboxs are both ON […]: Page hight minus
+    #    ("Distance from page edge" x 2 + "Marker length" x 2 + 2.0mm) […]
+    #    whichever is smallest".
+    #
+    # This used to spend the SIDE reserve vertically — `min(inset, 10 % of the
+    # page)` off the top and bottom — which is a distance belonging to the
+    # other pair of edges and answered neither of his two questions. On his own
+    # A4 preset at T = 8.0, B = 4.0 with the markers at 4.0 + 2.0 it gave
+    # 297 - 2x4.0 = 289.0 mm where the rule asks for 283.0, so the band ran six
+    # millimetres into the marker combs at both ends.
+    height = _tef.page_text_height_mm(
+        paper_h_mm,
+        getattr(geom, "text_edge_top_mm", CLIP_CONTENT_INSET_MM),
+        getattr(geom, "text_edge_bottom_mm", CLIP_CONTENT_INSET_MM),
+        helper_markers=bool(getattr(geom, "helper_markers", False)),
+        marker_edge_mm=float(getattr(geom, "helper_marker_edge_mm", 0.0) or 0.0),
+        marker_len_mm=float(getattr(geom, "helper_marker_len_mm", 0.0) or 0.0),
+        marker_top_bottom=bool(getattr(geom, "helper_markers_top_bottom", True)))
+    v_inset = max(0.0, (paper_h_mm - height) / 2.0)
     # Right-side band: mirror to the far edge (needs the paper width) (#93).
     #
     # THE OVERHANG IS ON THE PATCH SIDE, which is the rectangle's INNER end:

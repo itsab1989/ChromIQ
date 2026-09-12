@@ -303,8 +303,21 @@ def test_the_reach_is_the_reserve_plus_the_text_and_agrees_with_the_overhang():
                 assert reach <= band + tef.EPS_MM
 
 
-def test_the_clip_distance_that_clears_the_labels_really_clears_them():
-    """The remedy the warning offers for the label collision, exercised."""
+def test_raising_clip_no_longer_clears_the_labels_because_both_move():
+    """The old remedy, exercised and shown to be arithmetic that no longer holds.
+
+    Raising "Clip" used to open a gap between the clip text and the row labels
+    ONLY because `clip_content_inset_mm` capped the TEXT's page-edge reserve at
+    a fifth of the band while `raster.apply_row_label_geometry` floors the
+    LABELS at ``max(band, Clip)`` uncapped. The text stopped at the cap and the
+    labels kept going.
+
+    Removing that cap is Knut's fault report of 2026-09-12. With it gone the
+    two are anchored to the same line, so above the band's width they move
+    together one for one and the gap between them does not change. This pins
+    that, because the panel used to offer "raise Clip" as the remedy and it
+    would now be false on every chart.
+    """
     r = _recipe(12.0, lines=_LINES_ON_LABELS)
     g = _geom(r)
     zone = g.lbord + g.border
@@ -312,17 +325,54 @@ def test_the_clip_distance_that_clears_the_labels_really_clears_them():
     hit = tef.clip_text_collision(zone, r.text_edge_clip_mm,
                                   _LINES_ON_LABELS, 0.0,
                                   area[0], float(g.margin_l))
-    assert hit.over_labels_mm > 0.05
-    clear = tef.clip_edge_to_clear_labels_mm(hit.reach_mm)
-    assert clear > r.text_edge_clip_mm
-    r2 = _recipe(12.0, lines=_LINES_ON_LABELS, clip_mm=round(clear + 0.05, 2))
+    assert hit.over_labels_mm > 0.05, "this chart must start out colliding"
+
+    def _overlap_at(clip):
+        r2 = _recipe(12.0, lines=_LINES_ON_LABELS, clip_mm=round(clip, 2))
+        g2 = _geom(r2)
+        area2 = _area(r2)
+        return tef.clip_text_collision(
+            g2.lbord + g2.border, r2.text_edge_clip_mm, _LINES_ON_LABELS,
+            0.0, area2[0], float(g2.margin_l)).over_labels_mm
+
+    # ABOVE the band's width the labels' floor IS "Clip", so both move one for
+    # one and the overlap does not change by a hair. Measured on this chart:
+    # 12.56 mm at every one of them.
+    above = [_overlap_at(zone + d) for d in (2.0, 6.0, 12.0)]
+    assert above[0] == pytest.approx(above[1], abs=0.05) and \
+        above[1] == pytest.approx(above[2], abs=0.05), (
+            f"raising Clip past the band changed the overlap: {above}; the "
+            f"text and the labels are no longer anchored to the same line")
+    # …and it is not that nothing moves: BELOW the band the labels are floored
+    # at the band and only the text moves, so LOWERING "Clip" is the lever.
+    below = [_overlap_at(c) for c in (2.0, 6.0, 10.0)]
+    assert below[0] < below[1] < below[2], (
+        f"below the band, lowering Clip must shrink the overlap: {below}")
+
+
+def test_the_ceiling_that_clears_the_labels_really_clears_them():
+    """LOWERING "Clip" is the lever now, and the function names the ceiling."""
+    r = _recipe(12.0, lines=_LINES_ON_LABELS)
+    g = _geom(r)
+    zone = g.lbord + g.border
+    area = _area(r)
+    floor = float(getattr(g, "row_label_floor", 0.0) or 0.0)
+    offset = max(0.0, float(area[0]) - floor)
+    needed = tef.clip_text_needed_mm(_LINES_ON_LABELS, 0.0)
+    clear = tef.clip_edge_that_clears_labels_mm(zone, needed, offset)
+    if clear is None:
+        # No "Clip" can do it on this chart, and the function says so rather
+        # than naming a number that does not work.
+        assert zone + offset < needed
+        return
+    r2 = _recipe(12.0, lines=_LINES_ON_LABELS, clip_mm=round(clear, 2))
     g2 = _geom(r2)
     area2 = _area(r2)
     hit2 = tef.clip_text_collision(g2.lbord + g2.border, r2.text_edge_clip_mm,
                                    _LINES_ON_LABELS, 0.0, area2[0],
                                    float(g2.margin_l))
-    assert hit2.over_labels_mm == 0.0, (
-        f"raising Clip to {clear:.1f} mm left {hit2.over_labels_mm:.2f} mm of "
+    assert hit2.over_labels_mm <= 0.05, (
+        f"lowering Clip to {clear:.2f} mm left {hit2.over_labels_mm:.2f} mm of "
         f"the text still on the labels")
 
 
@@ -457,10 +507,17 @@ def test_the_clip_that_clears_the_labels_uses_the_FLOOR_TO_INK_offset():
     floor = float(getattr(g, "row_label_floor", 0.0) or 0.0)
     offset = area[0] - floor
     assert offset > 0.0, "the labels sit on their own floor; nothing to carry"
-    reach = tef.clip_text_reach_mm(g.lbord + g.border, r.text_edge_clip_mm,
-                                   _LINES_ON_BOTH, 0.0)
-    assert tef.clip_edge_to_clear_labels_mm(reach, offset) == pytest.approx(
-        reach - offset, abs=1e-9)
+    zone = g.lbord + g.border
+    needed = tef.clip_text_needed_mm(_LINES_ON_BOTH, 0.0)
+    # THE CEILING CARRIES THE FLOOR-TO-INK OFFSET, not the label's own width.
+    # It is the same distinction as before; only the direction of the remedy
+    # changed when the fifth-of-the-band cap was removed.
+    got = tef.clip_edge_that_clears_labels_mm(zone, needed, offset)
+    want = zone + offset - needed
+    if want > 0.0:
+        assert got == pytest.approx(want, abs=1e-9)
+    else:
+        assert got is None
     # …and it is not the label's own width, which is the distance it was given.
     width = area[1] - area[0]
     assert abs(width - offset) > 0.5, (

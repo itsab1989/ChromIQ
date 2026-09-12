@@ -170,7 +170,15 @@ def test_knuts_journey_the_built_chart_no_longer_shrinks(panel):
         {**r.build_kwargs(), "instrument": "CR30", "paper": "A4"})
     assert geometry.compute(g, w, h, 84).patches_per_page == 84, \
         "the sheet was re-laid out to 266 hand-aimed patches"
-    assert _patch_mm(r, "CR30") == (24.51, 19.11), \
+    # 24.08, NOT THE 24.51 THIS ASSERTED BEFORE #182, and the 0.43 mm is
+    # bought deliberately. This preset draws ruler helper markers on the sides
+    # (4.0 mm in, 2.0 mm long), and Knut's left-edge rule of 2026-09-12 makes
+    # the row indicators clear them: their floor rises from 4.0 mm to
+    # 4.0 + 2.0 + 1.0 = 7.0, §R1.5 raises the left margin to hold them
+    # (14.38 mm to 17.38), and the patch area pays the 3 mm, which over 17
+    # columns is 0.43 mm a patch. The point of the assertion is unchanged: the
+    # patches are the preset's own, not the CR30's ruled 12.0 mm.
+    assert _patch_mm(r, "CR30") == (24.08, 19.11), \
         "the preset's patches were shrunk to the CR30's ruled 12.0 mm"
 
 

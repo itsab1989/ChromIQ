@@ -169,6 +169,29 @@ class Geom:
     # for the text it overflows toward this line and a violation is flagged.
     text_edge_top_mm: float = 4.0
     text_edge_clip_mm: float = 4.0
+    # "B" — the bottom-edge text distance. Carried for the same reason as the
+    # helper markers below: #182 judges a SIDE text-box's height against the
+    # page less T and less B, so the geometry that lays the side band out has
+    # to know both. It changes no patch geometry.
+    text_edge_bottom_mm: float = 4.0
+    # THE RULER HELPER MARKERS, CARRIED HERE BECAUSE THE TEXT HAS TO KEEP OFF
+    # THEM (#182, Knut, 2026-09-12). They are drawn from render kwargs and were
+    # not part of any text placement, which is the collision he reports as a
+    # consequence of aligning the side text to the paper edge: *"this has
+    # another new consequence, that the text crashes with the position of the
+    # helper makers defined on the page. This must now be also considered when
+    # placing the text towards any of the 4 page edges."*
+    #
+    # `geometry.clip_area_mm` and the panel both need the answer and neither is
+    # handed the recipe, so the four fields ride on the geometry and
+    # `text_edge_fit.geom_side_text_edge_mm` is the one place that combines
+    # them. `geom_from_build_kwargs` fills them in; a bare `build()` Geom keeps
+    # the defaults and behaves exactly as before, markers off.
+    helper_markers: bool = False
+    helper_marker_edge_mm: float = 0.0
+    helper_marker_len_mm: float = 0.0
+    helper_markers_sides: bool = True
+    helper_markers_top_bottom: bool = True
     # "Margins are the law" mode (Knut): the patch area is exactly the margin box
     # (no hidden leader/trailer; strip labels live inside the top margin, anchored
     # at the text-edge from the page edge). ON for area-first ("Prioritise chart
@@ -560,6 +583,21 @@ def geom_from_build_kwargs(kw: dict, thresholds: dict | None = None) -> Geom:
     law = area_first or bool(kw.get("use_instrument_margins"))
     geom = build(kw["instrument"], margins_are_law=law, fill_beyond_ruler=area_first,
                  **{k: v for k, v in kw.items() if k in GEOM_BUILD_KEYS})
+    # THE HELPER MARKERS RIDE ALONG, so that anything holding a geometry can
+    # ask how far in from a page edge its text must start (#182 — see the
+    # fields on `Geom`). Applied with `replace` rather than through
+    # `GEOM_BUILD_KEYS` because they change no patch geometry at all: they
+    # reserve paper for TEXT, and routing them through `build()` would put five
+    # more arguments on every instrument constructor for nothing.
+    geom = replace(
+        geom,
+        helper_markers=bool(kw.get("helper_markers", False)),
+        helper_marker_edge_mm=float(kw.get("helper_marker_edge") or 0.0),
+        helper_marker_len_mm=float(kw.get("helper_marker_len") or 0.0),
+        helper_markers_sides=bool(kw.get("helper_markers_sides", True)),
+        helper_markers_top_bottom=bool(kw.get("helper_markers_top_bottom", True)),
+        text_edge_bottom_mm=float(kw.get("text_edge") or 0.0),
+    )
     from . import raster   # lazy: raster imports this module
     return raster.apply_furniture_reserves(geom, kw)
 

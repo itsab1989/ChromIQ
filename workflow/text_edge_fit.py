@@ -372,14 +372,108 @@ def chart_note_overlap(side: str, margin_mm: float, text_edge_clip_mm: float,
     return _overlap(side, avail, note_min_width_mm(dpi, size_pt))
 
 
-#: The share of a clip band that "Clip" may never eat, so a narrow band still
-#: has room for content. `geometry.clip_area_mm`: ``inset = min(text_edge_clip,
-#: clip_w * 0.2)``, repeated as a number for the same reason `SAFETY_PAD_MM` is.
-CLIP_INSET_MAX_FRAC = 0.2
+#: Clear paper between a ruler helper marker's inner tip and any text on that
+#: edge. Knut, #182, 2026-09-12: the text-box sits at *"'Distance from page
+#: edge' + 'Marker length' + 1.0mm"* when the markers are on for that edge.
+HELPER_MARKER_TEXT_GAP_MM = 1.0
 
 #: The renderer's own line spacing for clip text (`raster._vtext`: ``size *
 #: 1.2``).
 CLIP_LINE_SPACING = 1.2
+
+
+def helper_marker_reserve_mm(marker_edge_mm: float,
+                             marker_len_mm: float) -> float:
+    """How far in from a page edge a helper marker's ink reaches, plus the gap.
+
+    ``"Distance from page edge" + "Marker length" + 1.0 mm`` (Knut, #182). The
+    dashes start *marker_edge_mm* in from the paper and point inward for
+    *marker_len_mm*, so their inner tip is the sum of the two; the last
+    millimetre is the clear paper he asks for between that tip and any text.
+    """
+    return (max(0.0, float(marker_edge_mm or 0.0))
+            + max(0.0, float(marker_len_mm or 0.0))
+            + HELPER_MARKER_TEXT_GAP_MM)
+
+
+def side_text_edge_mm(text_edge_clip_mm: float, *,
+                      helper_markers: bool = False,
+                      marker_edge_mm: float = 0.0,
+                      marker_len_mm: float = 0.0,
+                      marker_sides: bool = True) -> float:
+    """How far in from the LEFT or RIGHT page edge that side's text-box starts.
+
+    Knut's rule, #182, 2026-09-12, worded for both side edges at once:
+
+        "The defined text-box-edge […] must be placed with its right
+        text-box-edge against the right page edge, in a distance from the page
+        edge defined by one of the following settings, whichever go furthest in
+        from the page edge: 1. "Clip" in "Text distance from edge" parameter
+        […] OR, 2. IF "Print helper markers" and "Sides" checkboxes are both
+        ON […]: "Distance from page edge" + "Marker length" + 1.0mm."
+
+    **THE HELPER MARKERS WERE NOT PART OF THIS CALCULATION AT ALL**, which is
+    the collision he reports as a consequence of the change that aligned the
+    text to the paper edge rather than to the patch area. Measured on his own
+    "ColorMunki-A4-306p-1page-Portrait" preset, whose markers are ON at 4.0 mm
+    with a 2.0 mm dash: the side dashes' ink runs from 4.01 mm to 6.0 mm in
+    from the right page edge, and the clip-border text was placed at 4.13 mm,
+    straight through them. This rule puts it at 7.0 mm instead.
+
+    Both halves are consulted only when the markers are drawn on THIS pair of
+    edges: *marker_sides* is the "Sides" checkbox, and with it off the dashes
+    are not on the left or right edges at all, so they reserve nothing there.
+    """
+    base = max(0.0, float(text_edge_clip_mm or 0.0))
+    if not (helper_markers and marker_sides):
+        return base
+    return max(base, helper_marker_reserve_mm(marker_edge_mm, marker_len_mm))
+
+
+def page_text_height_mm(paper_h_mm: float, text_edge_top_mm: float,
+                        text_edge_bottom_mm: float, *,
+                        helper_markers: bool = False,
+                        marker_edge_mm: float = 0.0,
+                        marker_len_mm: float = 0.0,
+                        marker_top_bottom: bool = True) -> float:
+    """The height a side text-box is judged against, in mm. Knut, #182:
+
+        "1. Page hight (defined by selected paper) minus T and minus B
+        parameters in "Text distance from edge" […] OR, 2. IF "Print helper
+        markers" and "Top/bottom" checkboxs are both ON […]: Page hight minus
+        ("Distance from page edge" x 2 + "Marker length" x 2 + 2.0mm) […]
+        whichever is smallest".
+
+    His own worked example, which this reproduces exactly: A4 at T = B = 4.0
+    gives 289 mm, and the markers at 4.0 + 2.0 give 297 - 14 = 283 mm, so 283
+    is the height to judge against.
+    """
+    h = max(0.0, float(paper_h_mm or 0.0))
+    by_text = h - max(0.0, float(text_edge_top_mm or 0.0)) \
+        - max(0.0, float(text_edge_bottom_mm or 0.0))
+    if not (helper_markers and marker_top_bottom):
+        return max(0.0, by_text)
+    by_marker = h - 2.0 * helper_marker_reserve_mm(marker_edge_mm,
+                                                   marker_len_mm)
+    return max(0.0, min(by_text, by_marker))
+
+
+def geom_side_text_edge_mm(geom) -> float:
+    """:func:`side_text_edge_mm` for a built :class:`Geom`.
+
+    The geometry carries the helper-marker settings (`instruments.Geom`) so
+    that every place which already has a geometry, and there are several,
+    asks this one question rather than re-assembling the four fields and
+    drifting apart. Duck-typed on purpose: this module is imported BY the
+    layout engine and must not import it back.
+    """
+    return side_text_edge_mm(
+        float(getattr(geom, "text_edge_clip_mm", 0.0) or 0.0),
+        helper_markers=bool(getattr(geom, "helper_markers", False)),
+        marker_edge_mm=float(getattr(geom, "helper_marker_edge_mm", 0.0) or 0.0),
+        marker_len_mm=float(getattr(geom, "helper_marker_len_mm", 0.0) or 0.0),
+        marker_sides=bool(getattr(geom, "helper_markers_sides", True)),
+    )
 
 
 def clip_text_needed_mm(lines: int, size_pt: float = 0.0) -> float:
@@ -393,10 +487,37 @@ def clip_text_needed_mm(lines: int, size_pt: float = 0.0) -> float:
 def clip_content_inset_mm(band_mm: float, text_edge_clip_mm: float) -> float:
     """How far in from the PAGE EDGE the clip content starts, and it is a LIMIT.
 
-    "Clip" is a request, not a result: `geometry.clip_area_mm` caps it at a
-    fifth of the band so a narrow band is not eaten whole, and applies it to
-    the page-edge side ONLY: the band's inner edge is where the first patch
-    column begins and needs no reserve of its own.
+    It is applied to the page-edge side ONLY: the band's inner edge is where
+    the first patch column begins and needs no reserve of its own.
+
+    **"CLIP" USED TO BE CAPPED AT A FIFTH OF THE BAND, AND THAT CAP IS THE
+    FAULT KNUT REPORTED ON 2026-09-12.** It read
+    ``min(text_edge_clip, band * 0.2)``, so on the
+    "ColorMunki-A4-306p-1page-Portrait" preset, whose band is 24.0 mm, the
+    reserve stopped growing at 4.8 mm and every "Clip" above 5 mm was
+    discarded:
+
+        "Changing from 4 to 5mm moves the text 1 mm more away from the right
+        border, but any higher settings than 5.0mm does not move the text at
+        all, even though there is free space between the patch area right side
+        and the clip-border text."
+
+    Measured in ink on the rendered sheet before the change, with the markers
+    off so the ink measured is the text: Clip 4.0 put it 4.13 mm from the
+    paper's right edge, Clip 5.0 put it at 4.90, and 5.5, 6, 7, 8, 10 and 15
+    all put it at 4.90 as well. His "1 mm" is the 0.77 mm step from 4.13 to
+    4.90 and the cap is the wall after it.
+
+    The cap existed so a narrow band would not be eaten whole by a large
+    "Clip", but that is no longer a thing to protect against: text which does
+    not fit inside the reserve keeps the reserve and grows INWARD over the
+    patch area, with a warning (:func:`clip_text_overhang_mm`, Knut's ruling of
+    the same day). So the reserve is simply what was asked for.
+
+    *band_mm* is kept in the signature although it no longer decides anything,
+    because every caller has it and passing it says which band this reserve
+    belongs to. `tests/test_the_sheet_text_fits_the_sheet.py` pins the
+    signature for a different reason, below.
 
     THE FIRST VERSION OF THIS TOOK IT OFF BOTH SIDES AND USED THE TYPED VALUE.
     On Knut's 16 mm band with Clip at 4 mm that predicted 8.0 mm of room where
@@ -421,9 +542,7 @@ def clip_content_inset_mm(band_mm: float, text_edge_clip_mm: float) -> float:
     wrong, and the direction of the overflow is what was in question:
     :func:`clip_text_overhang_mm` is where it goes instead.
     """
-    band = max(0.0, float(band_mm or 0.0))
-    return min(max(0.0, float(text_edge_clip_mm or 0.0)),
-               band * CLIP_INSET_MAX_FRAC)
+    return max(0.0, float(text_edge_clip_mm or 0.0))
 
 
 def clip_text_overhang_mm(band_mm: float, text_edge_clip_mm: float, lines: int,
@@ -532,133 +651,61 @@ def clip_text_collision(band_mm: float, text_edge_clip_mm: float, lines: int,
     return ClipCollision(reach, label_start_mm, float(patch_start_mm or 0.0))
 
 
-def clip_edge_to_clear_labels_mm(reach_mm: float,
-                                 label_offset_mm: float = 1.0,
-                                 band_mm: float = 0.0,
-                                 needed_mm: float = 0.0) -> float:
-    """The "Clip" distance that moves the row labels clear of the text.
+def clip_edge_that_clears_labels_mm(band_mm: float, needed_mm: float,
+                                    label_offset_mm: float = 1.0,
+                                    ) -> "float | None":
+    """The LARGEST "Clip" that keeps the clip text off the row labels, or None.
 
-    *label_offset_mm* is the paper between the labels' FLOOR and their leftmost
-    INK, which is what rides along when "Clip" raises that floor. "Clip" above
-    the band's width moves the floor one for one and the offset is carried with
-    it, so the smallest distance that clears the text is ``reach - offset``.
+    **RAISING "Clip" USED TO BE THE REMEDY HERE, AND AFTER THE CAP WAS REMOVED
+    IT CANNOT BE.** The function this replaces answered "raise Clip to X and
+    the labels move out of the way", which was true only because
+    :func:`clip_content_inset_mm` capped the text's reserve at a fifth of the
+    band while `raster.apply_row_label_geometry` floors the LABELS at
+    ``max(band, Clip)`` uncapped. The text stopped moving at the cap and the
+    labels kept going, so the gap opened. With the cap gone (Knut's fault
+    report of 2026-09-12) both are anchored to the same line and move together
+    one for one, so above the band's width raising "Clip" changes the gap by
+    exactly nothing, and the old sentence would have been false on every chart.
 
-    **…AND THE TEXT MOVES TOO, WHILE "Clip" IS UNDER A FIFTH OF THE BAND. THAT
-    IS THE SAME FAULT ONE LEVEL DOWN, AND THE THIRD ADVERSARIAL ROUND MEASURED
-    IT ON A SHEET.** ``reach`` is not a constant: it is
-    ``clip_content_inset_mm(band, clip) + needed``, and that inset is
-    ``min(clip, band * CLIP_INSET_MAX_FRAC)``. Below the cap the reserve IS the
-    typed "Clip", so raising "Clip" pushes the text inward one for one until
-    the cap catches it, and an answer computed from the reach the text has
-    TODAY is short by exactly ``cap - clip``.
+    What is left is a ceiling, not a floor. The labels' leftmost ink is at
+    ``max(band, clip) + offset`` and the text reaches ``clip + needed``, so
+    they are clear while::
 
-    Pass *band_mm* and *needed_mm* and the answer is computed against the reach
-    the text will have once "Clip" is at or above the cap, which is where every
-    answer this function gives lands, and floored at the band's own width
-    because below that the labels' floor is the band and "Clip" moves nothing:
+        clip <= band + offset - needed
 
-        max(band, band * CLIP_INSET_MAX_FRAC + needed - offset)
-
-    Driven through the real window on an A4 i1 area-first chart at 200 dpi with
-    a 26 mm left clip band, "Clip" at 1.0 mm and nine lines of clip text at the
-    7 pt floor, measuring the ink on the page the renderer produced:
-
-    * before, the clip text's ink ends **27.05 mm** from the page edge and the
-      leftmost row-label ink is at **27.43 mm**: they do not touch;
-    * the panel offered *"Raising “Clip” to 26.7 mm instead moves the row
-      indicator labels in out of the way without moving the text"*;
-    * at 26.7 mm the text's ink ends at **31.24 mm** — it moved 4.19 mm inward,
-      which the sentence says it will not — and **3.05 mm of it is printed over
-      the row numbers**, where none was before.
-
-    With a 30 mm band and twelve lines the same sentence named 38.6 mm, which
-    the "Clip" box cannot hold (its maximum is 30.0 mm): the value clamped and
-    the overlap went from 8.56 mm to 10.56 mm. The caller therefore also
-    refuses to offer a distance the box cannot take.
-
-    **IT WAS GIVEN THE LABEL'S OWN WIDTH INSTEAD, AND THAT IS A DIFFERENT
-    DISTANCE IN THE SAME FRAME.** `geometry.row_label_area_mm` answers
-    ``(where the ink starts, where the band ends)``, so ``[1] - [0]`` is the
-    width of the number; the offset this needs is ``[0] - floor``. Both are
-    millimetres from the page edge's own frame and both come out of the one
-    call, which is how the wrong one was picked. Measured on screen, an i1/A4
-    area-first chart with a 16 mm left clip band, eight lines of clip text at
-    the 7 pt floor and the row indicators on: the text reaches 26.91 mm, the
-    leftmost label ink is at 17.00 mm, the labels' floor at 16.00 mm.
-
-    * the width of the number is **6.10 mm**, so the message told the user to
-      raise "Clip" to **20.8 mm**. Driven, at 20.8 mm **5.10 mm of the text is
-      still printed over the row numbers** and the red warning stays;
-    * the paper between the floor and the ink is **1.00 mm**, which gives
-      **25.9 mm**, and at 25.9 mm the overlap is 0.00 mm.
-
-    So the user paid 4.8 mm of extra left margin, twice over, for a sentence
-    that named a number 5.1 mm short of the one that works.
-
-    THE FUNCTION'S OWN ARITHMETIC NEVER CHANGED, and that is the point: a test
-    that pins ``reach - x`` cannot catch this, because the fault is WHICH x.
-    `tests/test_the_clip_text_meets_the_row_labels.py` asks the geometry
-    instead, setting the "Clip" the message names and requiring the labels to
-    come out clear.
-
-    **AND IT IS THE ONLY REMEDY THAT MOVES THE LABELS THE RIGHT WAY.** Measured
-    over the whole range of every neighbouring control, on a 12 mm left band
-    with the label width taken from what the renderer actually draws:
-
-    * a wider **left margin**, 12 mm to 45 mm, leaves the leftmost label ink at
-      17.22 mm in every case. It is spent between the labels and the patches;
-    * the **clip-border width** moves it one for one, because the labels are
-      floored at the band, and it shortens the overflow as well;
-    * **"Clip"** moves it one for one ABOVE the band's width and not at all
-      below it, because the floor is the larger of the two;
-    * the row-indicator **Size** moves it too, and **the wrong way round**:
-      4 pt puts the ink at 13.86 mm and 28 pt at 18.94 mm, so a SMALLER label
-      sits CLOSER to the clip band and collides sooner. It is not offered as a
-      remedy: "make your row numbers bigger" costs left margin to fix a text
-      problem, and a user reading "set a smaller Size" would make it worse.
-
-    **THE FIRST VERSION OF THIS SAID THE SIZE MOVED NOTHING**, having predicted
-    the label from `rlwi`, the RESERVED band. That band is sized for the widest
-    label 1 to 99 at the provisional geometry's size, so it is far wider than
-    the number printed: 9.43 mm reserved against 3.17 mm of ink on the chart
-    measured. `geometry.row_label_area_mm` measures the label when it is given
-    the build kwargs, and the sweep above is that version.
+    which is only reachable below the band's own width. None when even a
+    "Clip" of zero cannot buy the room, and the caller must then name the band
+    width or the text size instead, which are the levers Knut names.
     """
     band = max(0.0, float(band_mm or 0.0))
     needed = max(0.0, float(needed_mm or 0.0))
-    reach = float(reach_mm or 0.0)
-    if band > 0.0 and needed > 0.0:
-        reach = max(reach, band * CLIP_INSET_MAX_FRAC + needed)
-    out = max(0.0, reach - max(0.0, float(label_offset_mm or 0.0)))
-    return max(band, out) if (band > 0.0 and needed > 0.0) else out
+    offset = max(0.0, float(label_offset_mm or 0.0))
+    out = band + offset - needed
+    return out if out > 0.0 else None
 
 
 def clip_band_needed_mm(text_edge_clip_mm: float, lines: int,
                         size_pt: float = 0.0) -> float:
     """The narrowest "Clip border width" that holds *lines* clear of the patches.
 
-    NOT the band plus the shortfall, which is the answer that looks obvious and
-    is wrong: the page-edge reserve is capped at
-    :data:`CLIP_INSET_MAX_FRAC` of the band, so widening the band widens the
-    reserve too and eats part of what was just bought. Measured on Knut's own
-    four lines at the 7 pt floor with "Clip" at 4 mm: they need 11.85 mm, an
-    11.9 mm band overhangs by 2.3, and a 14.2 mm band is still 0.4 mm short.
-    14.82 mm is the first one that works.
+    The band holds the text once it is the reserve plus what the lines take,
+    so this is simply ``needed + clip``.
 
-    Two candidates, and exactly one of them is feasible:
+    **IT USED TO BE A TWO-CASE ANSWER, AND THAT WAS THE CAP'S DOING.** While
+    the page-edge reserve was capped at a fifth of the band, widening the band
+    widened the reserve too and ate part of what had just been bought, so the
+    honest answer was sometimes ``needed / (1 - frac)`` instead. The cap is
+    gone (:func:`clip_content_inset_mm`, Knut's fault report of 2026-09-12),
+    the reserve no longer moves when the band does, and one case is left.
 
-    * the reserve is the typed value, so ``band = needed + clip`` -- only while
-      that band is wide enough for the cap to allow the typed value;
-    * the reserve is the cap, so ``band * (1 - frac) = needed``.
+    *text_edge_clip_mm* is the effective page-edge reserve, so a caller whose
+    helper markers push it further in passes THAT (:func:`side_text_edge_mm`)
+    and gets a band wide enough for where the text really starts.
     """
     needed = clip_text_needed_mm(lines, size_pt)
     if needed <= 0.0:
         return 0.0
-    clip = max(0.0, float(text_edge_clip_mm or 0.0))
-    typed = needed + clip
-    if typed * CLIP_INSET_MAX_FRAC >= clip:          # the cap allows the value
-        return typed
-    return needed / (1.0 - CLIP_INSET_MAX_FRAC)
+    return needed + max(0.0, float(text_edge_clip_mm or 0.0))
 
 
 def clip_text_squeeze(band_mm: float, text_edge_clip_mm: float, lines: int,

@@ -114,6 +114,8 @@ def stamp_chart_metadata(
     clip_band_mm: float = 0.0,
     font_family: str = "",
     size_pt: float = 0.0,
+    clip_reach_mm: float = -1.0,
+    gap_mm: float = 0.0,
 ) -> None:
     """Stamp `lines` joined into a single rotated text line on each TIFF's right margin.
 
@@ -127,6 +129,12 @@ def stamp_chart_metadata(
     checkbox, so that the text is controllable."* A size of 0 is the box's
     "auto", which lets the line shrink to fit, down to
     :data:`text_edge_fit.AUTO_SHRINK_FLOOR_PT` and no further.
+
+    *clip_reach_mm* is how far in from the page edge the clip border's OWN
+    content text actually reaches, which is not the same as the band's width
+    and is the distance this note has to keep off. Negative means "not
+    supplied", and the band's width is used, which is what every caller did
+    before #182. See :func:`_stamp_one` for why the difference matters.
     """
     pieces = [s.strip() for s in lines if s and s.strip()]
     if not pieces:
@@ -135,7 +143,7 @@ def stamp_chart_metadata(
     for path in tiff_paths:
         try:
             _stamp_one(Path(path), text, text_edge_mm, clip_band_mm,
-                       font_family, size_pt)
+                       font_family, size_pt, clip_reach_mm, gap_mm)
         except Exception as exc:
             log.warning("Right-edge stamp failed for %s: %s", path, exc)
 
@@ -307,7 +315,8 @@ def stamp_left_clip_info(
 
 def _stamp_one(path: Path, text: str, text_edge_mm: float = 0.0,
                clip_band_mm: float = 0.0, font_family: str = "",
-               size_pt: float = 0.0) -> None:
+               size_pt: float = 0.0, clip_reach_mm: float = -1.0,
+               gap_mm: float = 0.0) -> None:
     with tifffile.TiffFile(str(path)) as tf:
         page = tf.pages[0]
         # Device-native (separated) CMYK / CMYK+N charts: skip the post-render
@@ -332,8 +341,30 @@ def _stamp_one(path: Path, text: str, text_edge_mm: float = 0.0,
 
     H, W, C = arr.shape
     _dpi = _dpi_from_state(state)
+    # THE NOTE BELONGS BESIDE THE CLIP TEXT, NOT OUTSIDE THE WHOLE BAND. Knut,
+    # #182, 2026-09-12:
+    #
+    #   "Currently, when Run's Chart Notes and/or "Stamp settings used on the
+    #    chart" are used, the text is always placed outside (to the left of)
+    #    the Clip-border width, even if that width is large enough to show free
+    #    space between the patch area right margin and the defined
+    #    "Clip-border content" Text. This is wrong, and the text must be placed
+    #    as described above, to the left of the defined "Clip-border content"
+    #    Text itself."
+    #
+    # Measured on his own "ColorMunki-A4-306p-1page-Portrait" preset before the
+    # change: the band is 24.0 mm, its four lines of text reach only 18.99 mm
+    # in from the paper's right edge, so 5.01 mm of the band is blank paper,
+    # and the note was stamped at 24.20 mm to 26.36 mm, entirely outside the
+    # band and hard against the patch block, with that 5 mm never used.
+    #
+    # So what the note keeps off is the clip content's REACH, and the band's
+    # width is only the fallback for a caller that cannot measure the reach.
+    _keep_out_mm = (float(clip_reach_mm) if clip_reach_mm is not None
+                    and float(clip_reach_mm) >= 0.0
+                    else float(clip_band_mm or 0.0))
     band = _detect_writable_band(
-        arr, keep_out_px=int(round((clip_band_mm or 0.0) * _dpi / 25.4)),
+        arr, keep_out_px=int(round(_keep_out_mm * _dpi / 25.4)),
         pad_px=_safety_pad_px(_dpi))
     if band is None:
         # NO WHITE BAND IS NOT A REASON TO DROP THE NOTE EITHER. This was the
@@ -403,9 +434,37 @@ def _stamp_one(path: Path, text: str, text_edge_mm: float = 0.0,
     # the band keeps it (it is already the keep-out `_detect_writable_band` is
     # given) and the note moves INWARD, over the patches, where the ruling
     # allows it to go and where the panel then says so in red.
-    _right_limit = W - max(_pad, int(round((clip_band_mm or 0.0) * _dpi / 25.4)))
-    x0 = band_left
-    strip_w = min(40, band_right - band_left, _right_limit - x0)
+    _right_limit = W - max(_pad, int(round(_keep_out_mm * _dpi / 25.4)))
+    strip_w = min(40, band_right - band_left, _right_limit - band_left)
+    # ONE BOX, PACKED TOWARD THE PAGE EDGE. Knut's #182 text-box: everything on
+    # this edge is one box whose RIGHT edge sits at the page-edge reserve, so
+    # the note is anchored against the clip content's text (or the reserve when
+    # there is no clip content) and grows inward from there, rather than being
+    # left-anchored against the patch block with the freed paper stranded
+    # between the two. *"The distance between "Run's Chart Notes" / "Stamp
+    # settings used on the chart" and the text in "Clip-border content" Text
+    # shall be equal to the normal distance between two lines of text for the
+    # largest font size specified among the text fields that are part of the
+    # text-box content."* -- that distance is `gap_mm`, computed by the caller
+    # because only it knows both font sizes.
+    #
+    # **AND IT IS DONE ONLY WHERE THERE IS CLIP CONTENT TO PACK AGAINST,
+    # BECAUSE THE TWO RULINGS CONFLICT AND THIS ONE IS NOT OURS TO SETTLE.**
+    # Knut, 2026-09-10, on a chart with no clip band, asked for the opposite
+    # arrangement by name: *"should the text move closer to the patch area edge
+    # but still leave 2 pixels space/gap, so that it is not going towards the
+    # edge?"* His #182 text-box rule reads the other way for that same chart:
+    # the box's right edge goes at the page-edge reserve, which is where the
+    # note sat when he objected. So the note packs against the clip content
+    # when there IS clip content -- the case his fault report is about, and
+    # where the freed paper is his whole point -- and a chart with none keeps
+    # the placement he asked for. `clip_reach_mm` is supplied only when the
+    # caller found clip text on this edge, so it is exactly that switch.
+    # Reported for his ruling rather than decided here.
+    _pack = (clip_reach_mm is not None and float(clip_reach_mm) >= 0.0)
+    _gap_px = max(0, int(round(max(0.0, float(gap_mm or 0.0)) * _dpi / 25.4)))
+    x0 = max(band_left, _right_limit - _gap_px - strip_w) if _pack else band_left
+    strip_w = min(strip_w, _right_limit - x0)
     # TEXT ON ANY SIDE IS NEVER DROPPED. Knut's ruling, 2026-09-10, reversing
     # what 4.2.3 shipped:
     #

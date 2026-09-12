@@ -19205,6 +19205,24 @@ class TabChart(QWidget):
             _clip_band_mm = float(geom.lbord or 0.0)
             _clip_on_right = ((getattr(geom, "clip_side", "left") or "left")
                               == "right" and _clip_band_mm > 0)
+            # THE PAGE-EDGE RESERVE THIS EDGE REALLY KEEPS, which is not
+            # always "Clip". Knut, #182, 2026-09-12: the text-box sits at
+            # whichever of "Clip" and the ruler helper markers' own
+            # ("Distance from page edge" + "Marker length" + 1.0 mm) goes
+            # furthest in from the paper. Asked once here so every warning
+            # below measures from the line the renderer actually uses;
+            # before this the panel measured from "Clip" while the sheet
+            # kept the markers clear, and the two disagreed by 3 mm on the
+            # ColorMunki family, whose markers are on by default.
+            _eff_edge = text_edge_fit.side_text_edge_mm(
+                float(getattr(r, "text_edge_clip_mm", 0.0) or 0.0),
+                helper_markers=bool(getattr(r, "helper_markers", False)),
+                marker_edge_mm=float(
+                    getattr(r, "helper_marker_edge_mm", 0.0) or 0.0),
+                marker_len_mm=float(
+                    getattr(r, "helper_marker_len_mm", 0.0) or 0.0),
+                marker_sides=bool(
+                    getattr(r, "helper_markers_sides", True)))
             _note_side = "right"
             # THE MEASURED RIGHT MARGIN, NOT THE ONE THAT WAS TYPED, and the
             # difference is a warning that cries wolf on most charts. The typed
@@ -19238,10 +19256,33 @@ class TabChart(QWidget):
                 _note_size_pt = 0.0
             _note_floor_pt = text_edge_fit.text_floor_pt(_note_size_pt)
             if _notes_text or _stamp_on:
+                # WHAT THE NOTE KEEPS OFF IS THE CLIP CONTENT'S TEXT, NOT
+                # THE WHOLE BAND (#182, Knut, 2026-09-12: *"the text must be
+                # placed … to the left of the defined "Clip-border content"
+                # Text itself"*). On the ColorMunki A4-306p preset the band is
+                # 24.0 mm and its four lines reach 20.94, so passing the band
+                # told the user 3.06 mm of paper was spoken for that the sheet
+                # leaves free, and the stamper now puts the note in it.
+                _note_keep_out = 0.0
+                if _clip_on_right:
+                    _note_keep_out = _clip_zone
+                    _cl = 0
+                    if str(getattr(r, "clip_content_mode", "off")) == "text":
+                        from workflow.layout_engine.raster import clip_text_lines
+                        _cl = len(clip_text_lines(getattr(r, "clip_text", "") or ""))
+                    if _cl:
+                        _cpt = 0.0
+                        try:
+                            _cpt = float(getattr(r, "clip_text_size_mm", 0.0)
+                                         or 0.0) * 72.0 / 25.4
+                        except (TypeError, ValueError):
+                            _cpt = 0.0
+                        _note_keep_out = text_edge_fit.clip_text_reach_mm(
+                            _clip_zone, _eff_edge, _cl, _cpt)
                 _o = text_edge_fit.chart_note_overlap(
-                    _note_side, _note_margin, r.text_edge_clip_mm,
+                    _note_side, _note_margin, _eff_edge,
                     float(getattr(r, "dpi", 300) or 300),
-                    _clip_zone if _clip_on_right else 0.0,
+                    _note_keep_out,
                     _note_size_pt)
                 if _o is not None:
                     # THREE WORDINGS, BECAUSE THE LEVER IS DIFFERENT IN EACH.
@@ -19474,11 +19515,11 @@ class TabChart(QWidget):
                 # area, and `clip_text_squeeze` fires exactly when
                 # `clip_text_overhang_mm` is non-zero.
                 _cs = text_edge_fit.clip_text_squeeze(
-                    _clip_zone, r.text_edge_clip_mm, _clip_lines,
+                    _clip_zone, _eff_edge, _clip_lines,
                     _clip_size_pt, _side)
                 if _cs is not None:
                     _over_mm = text_edge_fit.clip_text_overhang_mm(
-                        _clip_zone, r.text_edge_clip_mm, _clip_lines,
+                        _clip_zone, _eff_edge, _clip_lines,
                         _clip_size_pt)
                     # WIDEN BY THE SHORTFALL IS THE WRONG NUMBER, because the
                     # page-edge reserve is capped at a fifth of the band and so
@@ -19487,7 +19528,7 @@ class TabChart(QWidget):
                     # that overhang leaves it 0.4 mm short. The message names
                     # the width that actually works.
                     _want_band = text_edge_fit.clip_band_needed_mm(
-                        r.text_edge_clip_mm, _clip_lines, _clip_size_pt)
+                        _eff_edge, _clip_lines, _clip_size_pt)
                     # AND WHAT IT REACHES IS A SEPARATE QUESTION, with THREE
                     # answers, not two. The text grows inward from the band's
                     # inner edge into whatever paper is there. On the LEFT the
@@ -19514,6 +19555,9 @@ class TabChart(QWidget):
                     # repeated here. They are down the LEFT, so only a
                     # left-hand band can reach them.
                     _label_start = None
+                    # BOUND BEFORE THE BRANCH, because the remedy below reads
+                    # it and a right-hand band never enters the branch.
+                    _rl = None
                     if not _clip_on_right:
                         try:
                             from workflow.layout_engine import geometry as _gm
@@ -19528,7 +19572,7 @@ class TabChart(QWidget):
                         except Exception:      # noqa: BLE001 — never fatal
                             _label_start = None
                     _hit = text_edge_fit.clip_text_collision(
-                        _clip_zone, r.text_edge_clip_mm, _clip_lines,
+                        _clip_zone, _eff_edge, _clip_lines,
                         _clip_size_pt, _label_start, _clip_margin)
                     # THE RESERVE ACTUALLY KEPT, WHICH IS NOT ALWAYS "Clip".
                     # `clip_content_inset_mm` caps it at a fifth of the band so
@@ -19544,7 +19588,7 @@ class TabChart(QWidget):
                     # 2026-09-12; whether the CAP is right is his to rule and
                     # has been asked. The sentence is ours either way.)
                     _kept = text_edge_fit.clip_content_inset_mm(
-                        _clip_zone, r.text_edge_clip_mm)
+                        _clip_zone, _eff_edge)
                     _fmt = dict(lines=_clip_lines, size=_clip_floor_pt,
                                 need=_cs.needed_mm,
                                 avail=max(0.0, _cs.available_mm),
@@ -19556,18 +19600,19 @@ class TabChart(QWidget):
                         "at {size:.0f} pt needs {need:.1f} mm across the band, "
                         "and the {band:.1f} mm band leaves {avail:.1f} mm once "
                         "{edge:.1f} mm is kept clear at the paper edge. That "
-                        "is “Clip” under “Text distance from edge (mm)”, or a "
-                        "fifth of the band where that is less. The remaining "
-                        "{over:.1f} mm is printed inward, past the band.")
+                        "is “Clip” under “Text distance from edge (mm)”, or "
+                        "the room the ruler helper markers need, whichever "
+                        "reaches further in. The remaining {over:.1f} mm is "
+                        "printed inward, past the band.")
                         if _clip_lines == 1 else tr(
                         "⚠ The clip border text does not fit its band. Its "
                         "{lines} lines at {size:.0f} pt need {need:.1f} mm "
                         "across the band, and the {band:.1f} mm band leaves "
                         "{avail:.1f} mm once {edge:.1f} mm is kept clear at "
                         "the paper edge. That is “Clip” under “Text distance "
-                        "from edge (mm)”, or a fifth of the band where that is "
-                        "less. The remaining {over:.1f} mm is printed inward, "
-                        "past the band.")).format(**_fmt)
+                        "from edge (mm)”, or the room the ruler helper markers "
+                        "need, whichever reaches further in. The remaining "
+                        "{over:.1f} mm is printed inward, past the band.")).format(**_fmt)
                     # TWO KINDS OF HARM, AND THEY ARE NOT THE SAME KIND. Ink on
                     # a patch is measured and goes into the profile; ink on a
                     # row label is read by a person who then cannot find their
@@ -19604,65 +19649,35 @@ class TabChart(QWidget):
                             "it, at the cost of printing that much closer to "
                             "the paper edge.").format(target=_clip_target)
                     elif _hit.over_labels_mm > 0.05:
-                        # THE OTHER DIRECTION, AND IT IS THE ONE REMEDY THAT
-                        # MOVES THE LABELS AWAY. Measured over the whole range
-                        # of every neighbouring control on a 12 mm left band: a
-                        # left margin from 12 mm to 45 mm leaves the leftmost
-                        # label ink at 17.22 mm, the band's width and "Clip"
-                        # move it one for one, and the row-indicator Size moves
-                        # it THE WRONG WAY (4 pt puts it at 13.86 mm, 28 pt at
-                        # 18.94). So a smaller row-indicator size is not
-                        # offered: it would make the collision worse, and a
-                        # bigger one buys clearance with left margin to fix a
-                        # problem in the clip text.
-                        # THE PAPER BETWEEN THE LABELS' FLOOR AND THEIR INK,
-                        # which is the distance that rides along when "Clip"
-                        # raises the floor. This passed `_rl[1] - _rl[0]`, the
-                        # WIDTH OF THE NUMBER, and the two are different
-                        # distances in the same frame out of the same call.
-                        # Driven on screen with a 16 mm left band and eight
-                        # lines: the width is 6.1 mm, so the message named
-                        # 20.8 mm, and at 20.8 mm 5.1 mm of the text was still
-                        # printed over the row numbers. The offset is 1.0 mm,
-                        # which gives 25.9 mm, and there the overlap is zero.
-                        _offset = (max(0.0, float(_rl[0]) - _floor_l)
-                                   if _rl is not None else 1.0)
-                        # …AND THE BAND AND THE BLOCK, BECAUSE THE REACH IS NOT
-                        # A CONSTANT. `clip_content_inset_mm` caps the
-                        # page-edge reserve at a fifth of the band, so while
-                        # "Clip" is UNDER that cap the reserve is "Clip" itself
-                        # and raising it pushes the text inward one for one
-                        # until the cap catches it. Measured on a rendered A4
-                        # sheet, a 26 mm band with "Clip" at 1.0 mm and nine
-                        # lines: the text's ink ended 27.05 mm in and the row
-                        # labels' at 27.43, so nothing was touching; this
-                        # sentence named 26.7 mm, and at 26.7 the text ended at
-                        # 31.24 mm with 3.05 mm of it printed over the numbers.
-                        # The remedy made the collision it describes.
-                        _clear = text_edge_fit.clip_edge_to_clear_labels_mm(
-                            _hit.reach_mm, _offset, _clip_zone, _cs.needed_mm)
-                        # AND A DISTANCE THE BOX CANNOT HOLD IS NOT A REMEDY.
-                        # The "Clip" spin box stops at 30.0 mm, and on a 30 mm
-                        # band with twelve lines this named 38.6: the value
-                        # clamped to 30 and the overlap grew from 8.56 mm to
-                        # 10.56. What the control can actually take is asked of
-                        # the control.
-                        _clip_max = 30.0
-                        _lp = getattr(self, "_manual_layout_panel", None)
-                        _box = getattr(_lp, "text_edge_clip", None)
-                        if _box is not None:
-                            try:
-                                _clip_max = float(_box.maximum())
-                            except (TypeError, ValueError):
-                                _clip_max = 30.0
-                        if (_clear <= _clip_max + 0.05
-                                and _clear > float(r.text_edge_clip_mm or 0.0)
-                                + 0.05):
+                        # RAISING "Clip" USED TO BE OFFERED HERE AND IS NOW
+                        # ARITHMETICALLY IMPOSSIBLE. It worked only because
+                        # `clip_content_inset_mm` capped the TEXT's page-edge
+                        # reserve at a fifth of the band while
+                        # `raster.apply_row_label_geometry` floors the LABELS at
+                        # max(band, Clip) uncapped: the text stopped at the cap,
+                        # the labels kept going, and a gap opened. Removing that
+                        # cap is Knut's fault report of 2026-09-12, and with it
+                        # gone the two are anchored to the same line and move
+                        # together one for one, so above the band's width
+                        # raising "Clip" changes this gap by exactly nothing.
+                        #
+                        # What is left is a ceiling, and it is the branch above:
+                        # LOWERING "Clip" is what buys room. When even that
+                        # cannot finish the job the honest levers are the band's
+                        # width and the text size, which the message has already
+                        # named, so nothing is added here rather than offering a
+                        # remedy that does not remedy.
+                        _clear = text_edge_fit.clip_edge_that_clears_labels_mm(
+                            _clip_zone, _cs.needed_mm,
+                            max(0.0, float(_rl[0]) - _floor_l)
+                            if _rl is not None else 1.0)
+                        if _clear is not None and _clear > 0.05:
                             _msg += " " + tr(
-                                "Raising “Clip” to {clear:.1f} mm instead moves "
-                                "the row indicator labels in out of the way "
-                                "without moving the text, at the cost of that "
-                                "much more left margin.").format(clear=_clear)
+                                "Lowering “Clip” under “Text distance from "
+                                "edge (mm)” to {clear:.1f} mm would clear the "
+                                "row indicator labels, at the cost of printing "
+                                "that much closer to the paper "
+                                "edge.").format(clear=_clear)
                     over.append(_msg)
             # The text-overflow warning only applies in "margins are law" mode,
             # which is now AREA-FIRST (Knut #93): there the label/text lives inside

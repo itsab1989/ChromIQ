@@ -3660,10 +3660,11 @@ class LayoutOptionsPanel(QWidget):
           `max(Clip, the clip border's width, the furniture on that edge)`, so
           Knut's `i1Pro-A4-162p-1page-Portrait-w7.5mm` (a 26 mm clip border)
           holds them at 26.0 mm while the box reads 4.0.
-        * **The clip-border text is capped nearer the edge.**
-          `geometry.clip_area_mm` insets the content by
-          `min(Clip, a fifth of the clip band)`, so on that same 26 mm band
-          the text stops at 5.2 mm however high "Clip" goes.
+        * **The clip-border text is held further in by the ruler helper
+          markers.** `geometry.clip_area_mm` insets the content by whichever of
+          "Clip" and `"Distance from page edge" + "Marker length" + 1.0 mm`
+          reaches further in (#182), so a chart whose side markers sit 4 mm in
+          with a 2 mm dash keeps 7.0 mm while the box reads 4.0.
         * **A typed 0 mm is read as 4 mm** (`LayoutRecipe.build_kwargs`).
 
         Numbers come from the geometry the renderer itself builds, never from a
@@ -3709,30 +3710,38 @@ class LayoutOptionsPanel(QWidget):
                     "above {border:.1f} mm.").format(
                         floor=floor, typed=typed, border=border_w))
 
-        # 2. The clip-border content is capped at a fifth of the band. It is
-        #    NOT surrendered to text that will not fit: that text goes over the
-        #    patches instead, which is a different note and a red one.
+        # 2. The ruler helper markers hold the clip content FURTHER IN than
+        #    "Clip" asks. Knut, #182, 2026-09-12: the text-box sits at
+        #    whichever of "Clip" and "Distance from page edge" + "Marker
+        #    length" + 1.0 mm goes further in from the paper.
+        #
+        #    THIS USED TO REPORT A CAP THAT NO LONGER EXISTS. The content was
+        #    inset by `min(Clip, a fifth of the band)`, so the note said the
+        #    text was kept NEARER the edge than asked and told the user to
+        #    widen the band. That cap is the fault he reported the same day
+        #    (a 24 mm band froze the text at 4.8 mm and every "Clip" above
+        #    5 mm moved nothing), and with it removed the override on this
+        #    setting runs the other way.
         if geom is not None and self._clip_content_printed():
-            zone = float(getattr(geom, "lbord", 0.0) or 0.0) + \
-                float(getattr(geom, "border", 0.0) or 0.0)
-            area = None
-            try:
-                from workflow.layout_engine import geometry as _geometry
-                area = _geometry.clip_area_mm(geom, gh[1], gh[2])
-            except Exception:      # noqa: BLE001 — a note is never fatal
-                area = None
-            if area is not None and zone > 0:
-                run_up = zone - float(area[2])
-                if run_up + 0.05 < typed:
+            from workflow import text_edge_fit as _tef
+            if (bool(getattr(geom, "helper_markers", False))
+                    and bool(getattr(geom, "helper_markers_sides", True))):
+                reserve = _tef.helper_marker_reserve_mm(
+                    getattr(geom, "helper_marker_edge_mm", 0.0),
+                    getattr(geom, "helper_marker_len_mm", 0.0))
+                if reserve > typed + 0.05:
                     lines.append(tr(
-                        "The clip border's text is kept clear of the paper "
-                        "edge by {run_up:.1f} mm, not by the {typed:.1f} mm "
-                        "you asked for. The text has to stay inside the clip "
-                        "band, which is {zone:.1f} mm wide on this chart, and "
-                        "at most a fifth of that width may be given over to "
-                        "that clearance. Widen “Clip border width” if you "
-                        "want the text further in.").format(
-                            run_up=run_up, typed=typed, zone=zone))
+                        "The clip border's text is kept {reserve:.1f} mm in "
+                        "from the paper edge, not the {typed:.1f} mm you asked "
+                        "for. The ruler helper markers are printed down that "
+                        "edge, {edge:.1f} mm in and {length:.1f} mm long, and "
+                        "the text stays a millimetre clear of their tips so it "
+                        "does not print over them. Raise “Clip” above "
+                        "{reserve:.1f} mm to move the text further in, or turn "
+                        "off “Sides” under “Ruler helper markers”.").format(
+                            reserve=reserve, typed=typed,
+                            edge=float(getattr(geom, "helper_marker_edge_mm", 0.0) or 0.0),
+                            length=float(getattr(geom, "helper_marker_len_mm", 0.0) or 0.0)))
 
         # 3. An empty box is read as 4 mm.
         if typed <= 0.001 and (geom is not None or self._row_indicators_wanted()):
