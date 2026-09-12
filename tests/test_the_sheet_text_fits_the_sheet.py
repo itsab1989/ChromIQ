@@ -186,60 +186,192 @@ def test_the_predictor_asks_the_fitter_itself():
 
 
 # ------------------------------------------------------------------ F3
-def test_the_clip_band_gives_up_its_page_edge_reserve_before_cutting():
-    """Knut, 2026-09-11: *"Yes, allow to print closer to the paper edge than
-    'Text distance from edge' asks, but warn about it."*"""
+def test_the_page_edge_distance_is_a_limit_and_is_never_spent():
+    """Knut, 2026-09-12, correcting himself the morning after:
+
+        "I was confused about the question, when you already know the
+         text-edge distance is a limit on every side. The text on each of the
+         4 sides shall NOT cross the text-edge distance limit on every side.
+         If the patch area with its margins are pushing against these limits,
+         the text shall overlap in the other direction, inward and over the
+         edges of the patch area instead."
+
+    For one evening `clip_content_inset_mm` took the content and surrendered
+    the reserve to it. It takes two arguments again, and no call can spend it.
+    """
+    import inspect
+    assert list(inspect.signature(tef.clip_content_inset_mm).parameters) == \
+        ["band_mm", "text_edge_clip_mm"]
     need4 = tef.clip_text_needed_mm(4)
-    band = need4 + 0.2                     # fits the band, not band less Clip
-    asked = tef.clip_inset_asked_mm(band, 4.0)
-    assert asked > 0.0
-    used = tef.clip_content_inset_mm(band, 4.0, 4)
-    assert used < asked, "the reserve is still held against text that needs it"
-    assert band - used + tef.EPS_MM >= need4, "the push did not go far enough"
-    assert used >= 0.0, "the content was pushed off the paper"
+    for band in (need4 - 3.0, need4, need4 + 0.2, need4 * 3):
+        asked = min(4.0, band * tef.CLIP_INSET_MAX_FRAC)
+        assert tef.clip_content_inset_mm(band, 4.0) == pytest.approx(asked), (
+            f"the reserve moved on a {band:.2f} mm band")
 
 
-def test_the_push_takes_no_more_than_it_needs():
-    """A band with room to spare keeps every millimetre of "Clip"."""
+def test_text_that_will_not_fit_reaches_over_the_patches_by_the_shortfall():
+    need4 = tef.clip_text_needed_mm(4)
+    band = need4                      # the whole band, reserve and all
+    inset = tef.clip_content_inset_mm(band, 4.0)
+    over = tef.clip_text_overhang_mm(band, 4.0, 4)
+    assert over == pytest.approx(inset), (
+        "a band exactly as wide as the text must overhang by its reserve")
+    # …and the room inside the band plus the overhang is exactly what the text
+    # needs: not a millimetre is lost and not a millimetre is invented.
+    assert (band - inset) + over == pytest.approx(need4)
+
+
+def test_a_band_with_room_reaches_over_nothing():
     need1 = tef.clip_text_needed_mm(1)
-    roomy = need1 * 4.0
-    assert tef.clip_content_inset_mm(roomy, 4.0, 1) == pytest.approx(
-        tef.clip_inset_asked_mm(roomy, 4.0))
-    assert tef.clip_text_push(roomy, 4.0, 1) is None
-    # A band one hair too small gives up one hair.
-    tight = tef.clip_inset_asked_mm(need1 * 1.2, 4.0)
-    band = need1 + tight - 0.05
-    p = tef.clip_text_push(band, 4.0, 1)
-    assert p is not None
-    assert 0.0 < p.pushed_mm < tef.clip_inset_asked_mm(band, 4.0) + 1e-9
+    assert tef.clip_text_overhang_mm(need1 * 4.0, 4.0, 1) == 0.0
+    assert tef.clip_text_squeeze(need1 * 4.0, 4.0, 1) is None
 
 
-def test_nothing_is_pushed_for_content_that_has_no_lines():
-    assert tef.clip_content_inset_mm(10.0, 4.0, 0) == pytest.approx(
-        tef.clip_inset_asked_mm(10.0, 4.0))
-    assert tef.clip_text_push(10.0, 4.0, 0) is None
+def test_nothing_reaches_over_for_content_that_has_no_lines():
+    assert tef.clip_text_overhang_mm(10.0, 4.0, 0) == 0.0
+    assert tef.clip_text_squeeze(10.0, 4.0, 0) is None
 
 
-def test_the_renderer_is_handed_the_pushed_band():
-    """The geometry, not only the arithmetic."""
+def test_the_overhang_and_the_squeeze_are_one_fact():
+    """A predicate and a distance that can disagree is two rules."""
+    for band in (8.0, 10.0, 12.0, 16.0, 24.0, 60.0):
+        for n in (1, 2, 4, 8):
+            o = tef.clip_text_squeeze(band, 4.0, n)
+            over = tef.clip_text_overhang_mm(band, 4.0, n)
+            assert (o is not None) == (over > tef.EPS_MM), (band, n, o, over)
+            if o is not None:
+                assert over == pytest.approx(o.overlap_mm, abs=1e-9)
+
+
+def test_the_renderer_is_handed_the_band_plus_the_overhang_on_the_patch_side():
+    """The geometry, not only the arithmetic, and on the correct side."""
     from workflow.layout_engine import geometry, instruments
     from workflow.layout_engine.presets import LayoutRecipe
     need4 = tef.clip_text_needed_mm(4)
+    for side in ("right", "left"):
+        r = LayoutRecipe()
+        r.instrument, r.paper, r.layout_mode = "CM", "A4", "area_first"
+        r.clip_border, r.clip_border_width_mm = True, round(need4, 1)
+        r.clip_side, r.clip_content_mode = side, "text"
+        r.text_edge_clip_mm = 4.0
+        r.margin_right = r.margin_left = 40.0
+        g = instruments.geom_from_build_kwargs(r.build_kwargs())
+        plain = geometry.clip_area_mm(g, 297.0, 210.0)
+        over_rect = geometry.clip_area_mm(g, 297.0, 210.0, 4, 0.0)
+        assert plain is not None and over_rect is not None
+        zone = g.lbord + g.border
+        over = tef.clip_text_overhang_mm(zone, 4.0, 4)
+        assert over > 0.05, "pick a band that actually overflows"
+        assert over_rect[2] == pytest.approx(plain[2] + over, abs=0.001)
+        if side == "right":
+            # grows LEFT, toward the patches; the page-edge end cannot move
+            assert over_rect[0] == pytest.approx(plain[0] - over, abs=0.001)
+            assert over_rect[0] + over_rect[2] == pytest.approx(
+                plain[0] + plain[2], abs=0.001)
+        else:
+            # grows RIGHT, toward the patches; the page-edge end cannot move
+            assert over_rect[0] == pytest.approx(plain[0], abs=0.001)
+        # The top and bottom reserve is untouched: the overflow is across only.
+        assert over_rect[1] == pytest.approx(plain[1], abs=0.001)
+        assert over_rect[3] == pytest.approx(plain[3], abs=0.001)
+
+
+def test_the_overhang_never_crosses_the_page_edge_distance():
+    """The whole point: the rectangle's page-edge end is where it always was."""
+    from workflow.layout_engine import geometry, instruments
+    from workflow.layout_engine.presets import LayoutRecipe
+    for band in (10.0, 12.0, 16.0, 24.0):
+        r = LayoutRecipe()
+        r.instrument, r.paper, r.layout_mode = "CM", "A4", "area_first"
+        r.clip_border, r.clip_border_width_mm = True, band
+        r.clip_side, r.clip_content_mode = "right", "text"
+        r.text_edge_clip_mm = 4.0
+        r.margin_right = 40.0
+        g = instruments.geom_from_build_kwargs(r.build_kwargs())
+        zone = g.lbord + g.border
+        inset = tef.clip_content_inset_mm(zone, 4.0)
+        for n in (1, 2, 4, 8, 16):
+            a = geometry.clip_area_mm(g, 297.0, 210.0, n, 0.0)
+            assert a is not None
+            # the far side of the rectangle, measured from the paper's edge
+            edge_gap = 210.0 - (a[0] + a[2])
+            assert edge_gap == pytest.approx(inset, abs=0.001), (
+                f"band {band}, {n} lines: the text is {edge_gap:.2f} mm from "
+                f"the paper edge and “Clip” asks for {inset:.2f}")
+
+
+def test_the_band_the_renderer_paints_is_the_band_the_panel_predicts():
+    """Screen, sheet and template export read one function or they drift."""
+    from workflow.layout_engine import geometry, instruments, raster
+    from workflow.layout_engine.presets import LayoutRecipe
     r = LayoutRecipe()
     r.instrument, r.paper, r.layout_mode = "CM", "A4", "area_first"
-    r.clip_border, r.clip_border_width_mm = True, round(need4 + 0.2, 1)
+    r.clip_border, r.clip_border_width_mm = True, 12.0
     r.clip_side, r.clip_content_mode = "right", "text"
     r.text_edge_clip_mm = 4.0
     r.margin_right = 40.0
     g = instruments.geom_from_build_kwargs(r.build_kwargs())
-    plain = geometry.clip_area_mm(g, 297.0, 210.0)
-    pushed = geometry.clip_area_mm(g, 297.0, 210.0, 4, 0.0)
-    assert plain is not None and pushed is not None
-    assert pushed[2] > plain[2], (
-        f"the band did not widen: {plain[2]:.2f} -> {pushed[2]:.2f} mm")
-    # It widens toward the PAGE EDGE, so on a right-side band the rectangle's
-    # left edge (the patch side) does not move.
-    assert pushed[0] == pytest.approx(plain[0], abs=0.001)
-    # And the top/bottom reserve is untouched: the push is across, not along.
-    assert pushed[1] == pytest.approx(plain[1], abs=0.001)
-    assert pushed[3] == pytest.approx(plain[3], abs=0.001)
+    lines = ["a", "b", "c", "d"]
+    area = geometry.clip_area_px(g, 297.0, 200, 210.0, len(lines), 0.0)
+    assert area is not None
+    strip = raster.render_clip_strip("text", width_px=area[2],
+                                     height_px=area[3], dpi=200,
+                                     text="\n".join(lines),
+                                     font_family="Inter")
+    assert strip.width == area[2] and strip.height == area[3]
+
+
+def test_the_block_is_anchored_at_the_page_edge_end_whichever_way_it_reads():
+    """"Flip 180" turns the content over; it must not choose which end
+    overflows.
+
+    THE BLOCK, NOT LINE 1. Turning the content over necessarily reverses the
+    reading order within the block, so where line 1 sits is not the question;
+    where the BLOCK sits is. It is measured as the span of inked columns across
+    the band, which is exactly "which end it is anchored to" and is not
+    disturbed by a glyph's ascent padding swapping ends with its descent. Three
+    earlier probes compared blank margins at the two ends and were defeated by
+    precisely that.
+
+    Measured before this was built: with "Flip 180" on, a right-hand band put
+    the block against the PATCHES and grew it toward the paper edge, which is
+    the direction Knut's ruling of 2026-09-12 forbids.
+    """
+    import numpy as np
+    from workflow.layout_engine import raster
+    dashes = "\u2014" * 60
+    text = "\n".join([dashes, "second line", "third line", "fourth line"])
+    W, H = 200, 2100                      # slack: a typed size cannot fill this
+    size_mm = 7.0 * 25.4 / 72.0
+
+    def _block(flip, compensate):
+        strip = raster.render_clip_strip(
+            "text", width_px=W, height_px=H, dpi=200, text=text,
+            font_family="Inter", text_size_mm=size_mm,
+            anchor_far=(flip and compensate))
+        if flip:
+            strip = strip.rotate(180, expand=True)
+        cols = np.flatnonzero(
+            (np.asarray(strip.convert("L")) < 200).any(axis=0))
+        assert len(cols), "the clip strip printed nothing"
+        return int(cols[0]), int(cols[-1])
+
+    # HALF A LINE is the tolerance, because the two states do not ink their
+    # line boxes identically: the block is the same 4 lines either way, but
+    # which line lands at which end changes, and a line's ascent padding is not
+    # its descent padding. Anything that moves the block by a whole line or
+    # more has moved which END it is anchored to, which is the fault.
+    half_line = 0.5 * tef.CLIP_LINE_SPACING * tef.pt_to_px(7.0, 200)
+    plain, flipped = _block(False, True), _block(True, True)
+    assert abs(plain[0] - flipped[0]) <= half_line and \
+        abs(plain[1] - flipped[1]) <= half_line, (
+            f"the flip moved the block from columns {plain} to {flipped}, so "
+            f"it can still grow toward the paper edge")
+    assert plain[0] < W * 0.25, (
+        f"the block does not start at the page-edge end: columns {plain}")
+    # …and without the compensation it DOES move, which is what makes this
+    # test worth having: the mutation it guards is a real one.
+    naive = _block(True, False)
+    assert naive[0] - plain[0] > 4 * half_line, (
+        f"turning the strip over no longer moves the block ({plain} vs "
+        f"{naive}), so anchor_far is guarding nothing")

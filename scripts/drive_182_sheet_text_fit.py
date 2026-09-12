@@ -224,6 +224,64 @@ def note_diff(before: Path, after: Path) -> dict:
     }
 
 
+#: A patch counts as touched when this share of its pixels changed between the
+#: sheet with the clip content off and the sheet with it on. One pixel of a
+#: 200 dpi patch is 0.016 mm2, and a stray antialiasing pixel is not a fault;
+#: anything a measuring instrument can see is far above this.
+TOUCHED_FRAC = 0.0005
+
+
+def patches_under_the_text(baseline: Path, after: Path, recipe) -> dict:
+    """Which PATCHES the clip band's text is printed on top of, and how hard.
+
+    The two sheets differ only in the clip content, so every changed pixel is
+    the band's own ink. The patch rectangles come from the engine that drew
+    them (`geometry.patch_rects_px`), not from image detection, so a patch that
+    is covered is named exactly.
+
+    **This is the question underneath Knut's ruling**, not a detail of it: a
+    patch with ink on it is still measured, and what the instrument reads is
+    the patch and the ink together.
+    """
+    import numpy as np
+    from workflow.layout_engine import geometry as _geom
+    from workflow.layout_engine import instruments as _inst
+    from workflow.layout_engine import papers as _papers
+    a, dpi = _read_gray(baseline)
+    b, _ = _read_gray(after)
+    if a.shape != b.shape:
+        return {"error": f"shape {a.shape} vs {b.shape}"}
+    changed = (a.astype(int) != b.astype(int))
+    kw = recipe.build_kwargs()
+    g = _inst.geom_from_build_kwargs(kw)
+    pw, ph = _papers.dimensions_mm(str(recipe.paper))
+    npat = int(kw.get("npat") or 0) or int(
+        (recipe.area_cols or 0) * (recipe.area_rows or 0)) or 600
+    lay = _geom.compute(g, pw, ph, npat)
+    rects = _geom.patch_rects_px(g, pw, ph, lay, int(recipe.dpi))
+    H, W = a.shape[:2]
+    hit = []
+    for r in rects:
+        x0, y0 = max(0, int(r["x"])), max(0, int(r["y"]))
+        x1, y1 = min(W, x0 + int(r["w"])), min(H, y0 + int(r["h"]))
+        if x1 <= x0 or y1 <= y0:
+            continue
+        sub = changed[y0:y1, x0:x1]
+        n = int(sub.sum())
+        area = sub.size
+        if area and n / area > TOUCHED_FRAC:
+            hit.append({"loc": r.get("loc"), "covered_frac": round(n / area, 4),
+                        "covered_px": n, "patch_px": int(area)})
+    hit.sort(key=lambda d: -d["covered_frac"])
+    return {
+        "dpi": round(dpi, 2),
+        "patches_total": len(rects),
+        "patches_touched": len(hit),
+        "worst": hit[:12],
+        "max_covered_frac": (hit[0]["covered_frac"] if hit else 0.0),
+    }
+
+
 def main() -> int:
     out = Path(sys.argv[sys.argv.index("--out") + 1]) if "--out" in sys.argv \
         else Path("/tmp/chromiq-sheettext-proof/onscreen")
@@ -318,7 +376,7 @@ def main() -> int:
         return okb, sorted(dst.rglob("*.tif"))
 
     def snapshot(name: str, comment: str, generate: bool = False,
-                 measure_note: bool = False) -> dict:
+                 measure_note: bool = False, measure_clip: bool = False) -> dict:
         pump(app, 700)
         st: dict = {"step": name, "comment": comment}
         r = panel.get_recipe()
@@ -351,13 +409,37 @@ def main() -> int:
                     shutil.copy(tifs0[0], baseline)
                 tab._manual_chart_notes_edit.setText(state["notes"])
                 pump(app, 600)
+            if measure_clip:
+                # The SAME chart with the clip band's TEXT blanked, so every
+                # pixel the two differ by is that text's own ink and can be
+                # asked which patch it landed on.
+                #
+                # NOT `clip_content_mode: "off"`, which was the first control
+                # and was wrong: a ColorMunki has no native clip border, so its
+                # notes band exists only while clip content is ON. Switching
+                # the mode off removed the band, the patch block slid 1 px, and
+                # the diff then reported 346 of 374 patches "touched" by a
+                # one-pixel edge. Blanking the text leaves the geometry alone.
+                cur = panel.get_recipe().to_dict()
+                panel.set_recipe(LayoutRecipe.from_dict(
+                    {**cur, "clip_text": ""}))
+                pump(app, 800)
+                _ok0, tifs0 = build()
+                if tifs0:
+                    baseline = out / f"{tag}_{name}__baseline.tif"
+                    shutil.copy(tifs0[0], baseline)
+                panel.set_recipe(LayoutRecipe.from_dict(cur))
+                pump(app, 800)
             st["build_finished"], tifs = build()
             st["tifs"] = [t.name for t in tifs]
             if tifs:
                 shutil.copy(tifs[0], out / f"{tag}_{name}__sheet.tif")
                 st["right_side"] = right_side_map(tifs[0])
-                if baseline is not None:
+                if baseline is not None and measure_note:
                     st["note"] = note_diff(baseline, tifs[0])
+                if baseline is not None and measure_clip:
+                    st["patches"] = patches_under_the_text(
+                        baseline, tifs[0], panel.get_recipe())
         ok, why = capture_window(win, out / f"{tag}_{name}.png")
         st["shot"] = f"{tag}_{name}.png" if ok else ""
         st["shot_refused"] = why
@@ -368,6 +450,8 @@ def main() -> int:
             print("     RED: " + line.replace("\n", " "))
         if st.get("note"):
             print("     NOTE INK: " + json.dumps(st["note"]))
+        if st.get("patches"):
+            print("     PATCHES UNDER THE TEXT: " + json.dumps(st["patches"]))
         if st.get("right_side"):
             print("     RIGHT OF PATCHES: "
                   + json.dumps(st["right_side"]["ink_right_of_patches"]))
@@ -416,6 +500,43 @@ def main() -> int:
             snapshot(f"f3_band{int(band)}",
                      f"F3: clip band {band} mm, clip text size auto",
                      generate=True)
+
+    # ---- F4: what the clip text does to the PATCHES it is printed over. ---
+    #
+    # Knut, 2026-09-12, correcting himself: *"The text on each of the 4 sides
+    # shall NOT cross the text-edge distance limit on every side. If the patch
+    # area with its margins are pushing against these limits, the text shall
+    # overlap in the other direction, inward and over the edges of the patch
+    # area instead."* So the band that cannot hold its lines prints them ON the
+    # patches, and a patch with ink on it is still measured. This step names
+    # which patches, and how much of each is covered.
+    if want("f4"):
+        state["notes"] = ""
+        tab._manual_chart_notes_edit.setText("")
+        tab._manual_stamp_cmd_check.setChecked(False)
+        pump(app, 500)
+        # THE MARGIN HAS TO BE AT THE BAND, or the overflow lands on clear
+        # paper and no patch is touched. `instruments.geom_from_build_kwargs`
+        # raises the clip-side margin to the band and never above it, so
+        # margin == band is the ordinary clip chart; Knut's own run 1 has a
+        # 24 mm band and a 24 mm right margin. A first pass ran these with the
+        # margin at 32 mm and measured zero patches inked, which was true of
+        # that sheet and not of the case his ruling is about.
+        _long = "\n".join(["a line of clip text %d" % i for i in range(1, 9)])
+        for band, margin, txt, tag2 in (
+                (12.0, 12.0, None, ""), (16.0, 16.0, None, ""),
+                (12.0, 32.0, None, ""),
+                # The worst case the spin boxes allow: the narrowest band
+                # (10 mm), the margin against it, and eight lines.
+                (10.0, 10.0, _long, "_8lines")):
+            _over = dict(clip_border_width_mm=band, margin_right=margin,
+                         clip_text_size_mm=0.0)
+            if txt is not None:
+                _over["clip_text"] = txt
+            apply(rec1, **_over)
+            snapshot(f"f4_band{int(band)}_margin{int(margin)}{tag2}",
+                     f"F4: clip band {band} mm, right margin {margin} mm",
+                     generate=True, measure_clip=True)
 
     res["steps"] = steps
     (out / f"{tag}_result.json").write_text(json.dumps(res, indent=1),

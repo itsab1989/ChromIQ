@@ -357,12 +357,12 @@ def clip_text_needed_mm(lines: int, size_pt: float = 0.0) -> float:
     return n * CLIP_LINE_SPACING * pt_to_mm(text_floor_pt(size_pt))
 
 
-def clip_inset_asked_mm(band_mm: float, text_edge_clip_mm: float) -> float:
-    """The reserve "Clip" asks for on the page-edge side, as capped.
+def clip_content_inset_mm(band_mm: float, text_edge_clip_mm: float) -> float:
+    """How far in from the PAGE EDGE the clip content starts, and it is a LIMIT.
 
     "Clip" is a request, not a result: `geometry.clip_area_mm` caps it at a
     fifth of the band so a narrow band is not eaten whole, and applies it to
-    the page-edge side ONLY — the band's inner edge is where the first patch
+    the page-edge side ONLY: the band's inner edge is where the first patch
     column begins and needs no reserve of its own.
 
     THE FIRST VERSION OF THIS TOOK IT OFF BOTH SIDES AND USED THE TYPED VALUE.
@@ -370,83 +370,81 @@ def clip_inset_asked_mm(band_mm: float, text_edge_clip_mm: float) -> float:
     the renderer gives 12.8, so the warning fired about 4.8 mm that exist. A
     prediction is only worth something while it reads its numbers from the same
     place as the thing it predicts.
+
+    **AND FOR ONE EVENING THIS SURRENDERED THE RESERVE TO TEXT THAT WOULD NOT
+    FIT. It does not, and it never should have.** The question put to Knut on
+    2026-09-11 was worded so that he read it as being about something else, and
+    he corrected it the next morning:
+
+        "I was confused about the question, when you already know the
+        text-edge distance is a limit on every side. The text on each of the 4
+        sides shall NOT cross the text-edge distance limit on every side. If
+        the patch area with its margins are pushing against these limits, the
+        text shall overlap in the other direction, inward and over the edges
+        of the patch area instead. When this happens the warning texts shall
+        appear, informing the user, as described and defined earlier."
+
+    So rule 1 of section 2c of `docs/design/issue_182_answers.md` was never
+    wrong, and the direction of the overflow is what was in question:
+    :func:`clip_text_overhang_mm` is where it goes instead.
     """
     band = max(0.0, float(band_mm or 0.0))
     return min(max(0.0, float(text_edge_clip_mm or 0.0)),
                band * CLIP_INSET_MAX_FRAC)
 
 
-def clip_content_inset_mm(band_mm: float, text_edge_clip_mm: float,
-                          lines: int = 0, size_pt: float = 0.0) -> float:
-    """How far in from the PAGE EDGE the clip content actually starts.
+def clip_text_overhang_mm(band_mm: float, text_edge_clip_mm: float, lines: int,
+                          size_pt: float = 0.0) -> float:
+    """How far the clip text reaches INWARD, past the band and over the patches.
 
-    **AND THE RESERVE IS GIVEN UP WHEN THE TEXT CANNOT OTHERWISE FIT.** Knut,
-    2026-09-11, answering the question §2d of `docs/design/issue_182_answers.md`
-    put to him and reversing what was held back there: *"Yes, allow to print
-    closer to the paper edge than 'Text distance from edge' asks, but warn about
-    it, just as previously defined, so that user knows to change margin,
-    clip-border width or the 'Text distance from edge' Clip-parameter, to fit
-    text correctly against limits without getting a warning."*
+    0 when it fits the band inside the page-edge reserve, which is the ordinary
+    case. Otherwise it is the shortfall exactly: the text keeps the distance
+    from the paper edge that "Clip" asks for, stops shrinking at
+    :data:`AUTO_SHRINK_FLOOR_PT`, and what will not fit goes over the patch
+    area, where the panel says so in red (Knut, 2026-09-12).
 
-    So the reserve is surrendered by exactly as much as the text needs and
-    never by more: a band that fits its text keeps every millimetre of "Clip",
-    and a band that does not gives up only the shortfall. The push is capped at
-    the reserve itself, so the content can reach the page edge but never leave
-    the paper. Pass *lines* and *size_pt* to get the pushed answer;
-    :func:`clip_inset_asked_mm` is the unpushed one, and the difference is what
-    the panel warns about.
-    """
-    asked = clip_inset_asked_mm(band_mm, text_edge_clip_mm)
-    needed = clip_text_needed_mm(lines, size_pt)
-    if needed <= 0.0 or asked <= 0.0:
-        return asked
-    band = max(0.0, float(band_mm or 0.0))
-    if needed <= band - asked + EPS_MM:
-        return asked                      # it fits without giving anything up
-    return max(0.0, min(asked, band - needed))
-
-
-@dataclass(frozen=True)
-class ClipPush:
-    """The clip-border text is printed closer to the paper edge than asked.
-
-    *asked_inset_mm* is the reserve "Clip" wants on the page-edge side (capped
-    at a fifth of the band); *used_inset_mm* is what is left of it once the
-    text has taken what it needs; *needed_mm* is what the lines take across the
-    band at their floor.
-    """
-
-    band_mm: float
-    asked_inset_mm: float
-    used_inset_mm: float
-    needed_mm: float
-
-    @property
-    def pushed_mm(self) -> float:
-        """How far past "Text distance from edge" the text is printed."""
-        return max(0.0, self.asked_inset_mm - self.used_inset_mm)
-
-    @property
-    def short_mm(self) -> float:
-        """What is still missing once the whole reserve has been given up."""
-        return max(0.0, self.needed_mm - (self.band_mm - self.used_inset_mm))
-
-
-def clip_text_push(band_mm: float, text_edge_clip_mm: float, lines: int,
-                   size_pt: float = 0.0) -> "ClipPush | None":
-    """Whether the clip text crosses its page-edge reserve, and by how much.
-
-    ``None`` when it does not: the common case, and a note nobody has to read.
+    **This is where the text used to be CUT.** `raster._vtext` draws into a
+    canvas the width of the band's content rectangle and stacks the lines from
+    one end at their natural spacing, so a block taller than that rectangle
+    simply had its last lines fall outside the canvas and vanish. Measured on
+    Knut's own run 1 at a 12 mm band: four lines need 11.9 mm, the rectangle
+    gave them 9.6, and the fourth line was not printed anywhere, with nothing
+    in the log and nothing on screen.
     """
     needed = clip_text_needed_mm(lines, size_pt)
     if needed <= 0.0:
-        return None
-    asked = clip_inset_asked_mm(band_mm, text_edge_clip_mm)
-    used = clip_content_inset_mm(band_mm, text_edge_clip_mm, lines, size_pt)
-    p = ClipPush(float(band_mm or 0.0), asked, used, needed)
-    if p.pushed_mm <= EPS_MM and p.short_mm <= EPS_MM:
-        return None
-    return p
+        return 0.0
+    room = max(0.0, float(band_mm or 0.0)
+               - clip_content_inset_mm(band_mm, text_edge_clip_mm))
+    return max(0.0, needed - room)
+
+
+def clip_band_needed_mm(text_edge_clip_mm: float, lines: int,
+                        size_pt: float = 0.0) -> float:
+    """The narrowest "Clip border width" that holds *lines* clear of the patches.
+
+    NOT the band plus the shortfall, which is the answer that looks obvious and
+    is wrong: the page-edge reserve is capped at
+    :data:`CLIP_INSET_MAX_FRAC` of the band, so widening the band widens the
+    reserve too and eats part of what was just bought. Measured on Knut's own
+    four lines at the 7 pt floor with "Clip" at 4 mm: they need 11.85 mm, an
+    11.9 mm band overhangs by 2.3, and a 14.2 mm band is still 0.4 mm short.
+    14.82 mm is the first one that works.
+
+    Two candidates, and exactly one of them is feasible:
+
+    * the reserve is the typed value, so ``band = needed + clip`` -- only while
+      that band is wide enough for the cap to allow the typed value;
+    * the reserve is the cap, so ``band * (1 - frac) = needed``.
+    """
+    needed = clip_text_needed_mm(lines, size_pt)
+    if needed <= 0.0:
+        return 0.0
+    clip = max(0.0, float(text_edge_clip_mm or 0.0))
+    typed = needed + clip
+    if typed * CLIP_INSET_MAX_FRAC >= clip:          # the cap allows the value
+        return typed
+    return needed / (1.0 - CLIP_INSET_MAX_FRAC)
 
 
 def clip_text_squeeze(band_mm: float, text_edge_clip_mm: float, lines: int,
@@ -462,17 +460,17 @@ def clip_text_squeeze(band_mm: float, text_edge_clip_mm: float, lines: int,
     should be a font size minimum limit before the clip-border text stops
     shrinking."*
 
-    **It is asked of the band the text ACTUALLY gets**, which since his ruling
-    of the same evening includes the page-edge reserve it is allowed to take
-    (:func:`clip_content_inset_mm`). So it stays silent while the outward push
-    is enough and fires only when even the whole band is too narrow;
-    :func:`clip_text_push` is what reports the push itself.
+    **It is asked of the band INSIDE the page-edge reserve**, because that
+    reserve is a limit and is not spent on text (Knut, 2026-09-12). So this
+    fires exactly when :func:`clip_text_overhang_mm` is non-zero: the two are
+    the same fact, one as a predicate and one as a distance, and the warning
+    the panel raises names both.
     """
     n = max(0, int(lines or 0))
     if n <= 0:
         return None
     avail = (float(band_mm or 0.0)
-             - clip_content_inset_mm(band_mm, text_edge_clip_mm, n, size_pt))
+             - clip_content_inset_mm(band_mm, text_edge_clip_mm))
     return _overlap(side, avail, clip_text_needed_mm(n, size_pt))
 
 

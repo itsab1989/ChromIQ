@@ -17,7 +17,7 @@ from core.stem_paths import artefact
 
 import numpy as np
 import tifffile
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from core.logger import get_logger
 from core.resource_path import resource_path
@@ -559,7 +559,8 @@ def render_clip_strip(mode: str, *, width_px: int, height_px: int, dpi: int,
                       image_offset_x_mm: float = 0.0,
                       image_offset_y_mm: float = 0.0,
                       image_obj: "Image.Image | None" = None,
-                      text_size_mm: float = 0.0) -> Image.Image:
+                      text_size_mm: float = 0.0,
+                      anchor_far: bool = False) -> Image.Image:
     """Render the left clip-strip content as a ``width_px × height_px`` image.
 
     The strip is tall and narrow, so text/branding are drawn on a landscape
@@ -636,7 +637,7 @@ def render_clip_strip(mode: str, *, width_px: int, height_px: int, dpi: int,
         return strip
     overlay = _vtext("\n".join(lines), font_family, width_px, height_px,
                      size_px=(text_size_mm * mm2px) if text_size_mm else 0.0,
-                     dpi=dpi)
+                     dpi=dpi, anchor_far=anchor_far)
     strip.paste(overlay, (0, 0), overlay)
     return strip
 
@@ -852,7 +853,8 @@ def _vwordmark(extra_lines: list[str], width_px: int, height_px: int,
 
 def _vtext(text: str, font_family: str, width_px: int, height_px: int,
            *, valign: str = "center", bold: bool = False,
-           size_px: float = 0.0, dpi: float = 200.0) -> Image.Image:
+           size_px: float = 0.0, dpi: float = 200.0,
+           anchor_far: bool = False) -> Image.Image:
     """A transparent ``width_px × height_px`` overlay with *text* read up the strip.
 
     ``size_px`` (>0) fixes the font size the user chose instead of auto-fitting
@@ -929,7 +931,18 @@ def _vtext(text: str, font_family: str, width_px: int, height_px: int,
     line_h = size * 1.2
     block_h = line_h * n
     # The template caption keeps its centred block; clip text hugs the outer edge.
+    #
+    # *anchor_far* PUTS LINE 1 AT THE OTHER END, and it exists because the
+    # 180 degree turn the caller may apply moves the anchor with the glyphs.
+    # Measured with the dash rule that begins Knut's own clip text: with
+    # "Flip 180" on, line 1 ended up against the PATCH side and the block grew
+    # toward the paper edge, across the "Text distance from edge" limit his
+    # ruling of 2026-09-12 says nothing may cross. The caller passes the flip
+    # here, so the block is anchored at the page-edge end either way and can
+    # only ever grow inward.
     start = (width_px - block_h) / 2 if valign == "top" else 0.0
+    if anchor_far and valign != "top":
+        start = max(0.0, width_px - block_h)
     ys = [start + line_h * (i + 0.5) for i in range(n)]
     cx = (height_px * 0.04 if valign == "top" else height_px / 2)
     anchor = "lm" if valign == "top" else "mm"
@@ -1702,17 +1715,23 @@ def render_pages(
         # Left clip-strip content (i1/p3): rendered natively into the reserved
         # lbord band, since the engine knows its exact geometry.
         if clip_content_mode != "off":
-            # THE BAND WIDENS OUTWARD FOR TEXT THAT WILL NOT OTHERWISE FIT
-            # (Knut, 2026-09-11). Only plain text is measured: the other content
-            # modes scale to whatever band they are given, so they have no
-            # floor to be pushed past and nothing to warn about.
+            # TEXT THAT WILL NOT FIT THE BAND GROWS INWARD, OVER THE PATCHES
+            # (Knut, 2026-09-12). Only plain text is measured: the other content
+            # modes scale to whatever band they are given, so they have no floor
+            # to overflow from and nothing to warn about.
             _clip_lines = (len(clip_text_lines(_clip_text))
                            if clip_content_mode == "text" else 0)
+            _clip_size_pt = float(clip_text_size_mm or 0.0) * 72.0 / 25.4
             _area = geometry.clip_area_px(
-                geom, paper_h_mm, dpi, paper_w_mm, _clip_lines,
-                float(clip_text_size_mm or 0.0) * 72.0 / 25.4)
+                geom, paper_h_mm, dpi, paper_w_mm, _clip_lines, _clip_size_pt)
             if _area is not None and _area[2] > 0 and _area[3] > 0:
                 _ax, _ay, _aw, _ah = _area
+                _right_band = getattr(geom, "clip_side", "left") == "right"
+                from workflow import text_edge_fit as _tef
+                _over_px = int(round(_tef.clip_text_overhang_mm(
+                    geom.lbord + geom.border,
+                    getattr(geom, "text_edge_clip_mm", 4.0),
+                    _clip_lines, _clip_size_pt) * dpi / 25.4))
                 _notes_ctx = dict(_pctx)
                 _notes_ctx["count"] = str(layout.total_patches)
                 _notes_ctx["strips"] = str(n_passes)
@@ -1724,19 +1743,48 @@ def render_pages(
                     image_rotation=clip_image_rotation,
                     image_scale=clip_image_scale,
                     image_offset_x_mm=clip_image_offset_x_mm,
-                    image_offset_y_mm=clip_image_offset_y_mm)
+                    image_offset_y_mm=clip_image_offset_y_mm,
+                    # THE BLOCK IS ANCHORED AT THE PAGE-EDGE END WHATEVER THE
+                    # FLIP DOES, so it can only ever grow toward the patches.
+                    # Measured with the dash rule that begins Knut's own clip
+                    # text: turning the strip over also moved the anchor, so on
+                    # his run 1 (a right-hand band with "Flip 180" on) line 1
+                    # sat against the PATCHES and the block grew toward the
+                    # paper edge, which is the direction his ruling forbids.
+                    anchor_far=bool(clip_flip_180))
                 # On the right edge the band sits on the far side of the sheet, so
                 # turn the content 180° to keep it the right way up for the reader
                 # (Knut, #93). The user can override with clip_flip_180 (XOR), e.g.
                 # to make a right-side clip read the same direction as the bottom
                 # stamp. Left clips are upright by default; flip turns them over.
-                _flip = (getattr(geom, "clip_side", "left") == "right") ^ bool(clip_flip_180)
+                _flip = _right_band ^ bool(clip_flip_180)
                 if _flip:
                     _clip = _clip.rotate(180, expand=True)
-                img.paste(_clip, (_ax, _ay))
+                # THE OVERHANG IS COMPOSITED, NOT PASTED. The strip has an
+                # OPAQUE WHITE background, so pasting it whole over the patch
+                # area would not print the text on the patches, it would ERASE
+                # them, and a patch wiped to paper white reads as paper and is
+                # then built into the profile. Only the ink goes over the
+                # patches; the band's own footprint is pasted exactly as before.
+                _mask = None
+                if _over_px > 0:
+                    _ink = ImageOps.invert(_clip.convert("L"))
+                    _mask = Image.new("L", _clip.size, 255)
+                    _bx = 0 if _right_band else max(0, _clip.width - _over_px)
+                    _bw = min(_over_px, _clip.width)
+                    _box = (_bx, 0, min(_clip.width, _bx + _bw), _clip.height)
+                    _mask.paste(_ink.crop(_box), (_box[0], _box[1]))
+                img.paste(_clip, (_ax, _ay), _mask)
                 if collect_device_geom:      # colour the notes strip in device ink
+                    # READ BACK WHAT WAS ACTUALLY PAINTED, so the vector PDF
+                    # carries the composite and not the white strip: handing it
+                    # `_clip` would put the erased version on paper by the other
+                    # route, which is the fault `helper_marker_lines_mm` below
+                    # records for the dashes.
+                    _pasted = img.crop((_ax, _ay, _ax + _clip.width,
+                                        _ay + _clip.height))
                     _geom_rows.append(
-                        ("clip", (_ax, _ay), np.asarray(_clip.convert("RGB"))))
+                        ("clip", (_ax, _ay), np.asarray(_pasted.convert("RGB"))))
 
         # Bottom-of-sheet text: custom chart text + optional command stamp,
         # drawn in the bottom margin (clear of the patches).

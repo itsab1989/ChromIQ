@@ -490,39 +490,38 @@ def clip_area_mm(geom: Geom, paper_h_mm: float, paper_w_mm: float | None = None,
     being boxed in by the top/bottom patch margins (Knut), so the notes box / logo
     can use the whole strip; only the printer-safe inset keeps it off the edges.
 
-    **THE PAGE-EDGE RESERVE IS GIVEN UP WHEN THE TEXT CANNOT OTHERWISE FIT**
-    (Knut, 2026-09-11). Pass *content_lines* and *content_size_pt* and the band
-    widens outward, toward the paper edge, by as much of "Clip" as the lines
-    actually need at their floor and no more. The rule itself is one function in
-    `workflow/text_edge_fit.py`, because the panel warns about the same push it
-    has to predict. With no content described the reserve is kept whole, which
-    is what every caller that only wants the band's placement gets.
+    **TEXT THAT WILL NOT FIT GROWS INWARD, OVER THE PATCH AREA** (Knut,
+    2026-09-12). Pass *content_lines* and *content_size_pt* and the rectangle is
+    extended past the band, toward the patches, by exactly the shortfall. The
+    page-edge reserve is NOT touched: it is a limit on all four sides, and for
+    one evening this function spent it instead, which he corrected. The rule
+    itself is one function in `workflow/text_edge_fit.py`, because the panel has
+    to warn about the same overlap it predicts. With no content described the
+    rectangle is the band's own, which is what every caller that only wants the
+    band's placement gets.
     """
     if geom.lbord <= 0:
         return None
     clip_w = geom.lbord + geom.border          # full reserved zone from the edge
     # Clip content sits this far in from the page edge (the clip-side text-edge
-    # distance, default 4 mm; Knut #93), capped so it never eats the whole band,
-    # and surrendered as far as the text needs (Knut, 2026-09-11).
+    # distance, default 4 mm; Knut #93), capped so it never eats the whole band.
     from workflow import text_edge_fit as _tef
-    inset = _tef.clip_content_inset_mm(
-        clip_w, getattr(geom, "text_edge_clip_mm", CLIP_CONTENT_INSET_MM),
-        content_lines, content_size_pt)
-    width = max(0.0, clip_w - inset)
+    _edge = getattr(geom, "text_edge_clip_mm", CLIP_CONTENT_INSET_MM)
+    inset = _tef.clip_content_inset_mm(clip_w, _edge)
+    over = _tef.clip_text_overhang_mm(clip_w, _edge, content_lines,
+                                      content_size_pt)
+    width = max(0.0, clip_w - inset + over)
     # Full page height less the printer-safe inset top and bottom (Knut): the
     # clip content is no longer bounded by the patch top/bottom margins.
-    #
-    # THE PUSH IS ACROSS THE BAND ONLY. His ruling is about the text passing
-    # "Text distance from edge" on the side it is too thick for; the top and
-    # bottom of the sheet are a different edge with a different complaint, and
-    # quietly buying length here as well would move ink nobody asked to move.
-    v_inset = min(_tef.clip_inset_asked_mm(
-        clip_w, getattr(geom, "text_edge_clip_mm", CLIP_CONTENT_INSET_MM)),
-        paper_h_mm * 0.1)
+    v_inset = min(inset, paper_h_mm * 0.1)
     height = max(0.0, paper_h_mm - 2.0 * v_inset)
     # Right-side band: mirror to the far edge (needs the paper width) (#93).
+    #
+    # THE OVERHANG IS ON THE PATCH SIDE, which is the rectangle's INNER end:
+    # its left on a right-hand band, its right on a left-hand one. Growing the
+    # other way is the thing his ruling forbids.
     if getattr(geom, "clip_side", "left") == "right" and paper_w_mm:
-        x = paper_w_mm - clip_w
+        x = paper_w_mm - clip_w - over
     else:
         x = inset
     return (x, v_inset, width, height)

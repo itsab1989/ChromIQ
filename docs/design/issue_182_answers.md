@@ -39,7 +39,7 @@ Nothing in this file is implemented yet unless it says so. It is a record, so
 that a month from now nobody has to reconstruct what was decided from a chat
 thread.
 
-Last updated 2026-09-11 (sections 2e, 2f and 2g).
+Last updated 2026-09-12 (sections 2e, 2f and 2g; 2f rewritten after Knut withdrew the answer it was built on).
 
 ---
 
@@ -525,7 +525,7 @@ against Knut's own `testHex` at his own numbers (right margin 6.0 mm, Clip
   6.0 mm"* and was advised to move a band that does not exist. The predicate now
   asks `lbord > 0`.
 
-### ~~🔴 ONE PART IS NOT BUILT~~ ANSWERED 2026-09-11, AND THE SPECIFICATION IS WHAT CHANGED
+### ~~🔴 ONE PART IS NOT BUILT~~ ASKED, ANSWERED, AND THE ANSWER WITHDRAWN
 
 Knut also asked, for the clip-border text at its floor, that it be
 
@@ -545,11 +545,23 @@ he answered it (#182, 2026-09-11T21:23:10Z):
 > Clip-parameter, to fit text correctly against limits without getting a
 > warning."*
 
-**So rule 1 of section 2c is amended for the clip band's own text, by the person
-whose rule it is.** The distance remains a limit everywhere else: the strip
-letters, the bottom sheet text and the right-edge chart note are untouched, and
-only the band that carries the user's own lines may spend its page-edge reserve
-on them. What is built is in section 2f.
+That answer was built the same evening, and **he withdrew it the next morning**
+(#182, 2026-09-12), having read the commit note that said it reversed his own
+rule:
+
+> *"I was confused about the question, when you already know the text-edge
+> distance is a limit on every side. The text on each of the 4 sides shall NOT
+> cross the text-edge distance limit on every side. If the patch area with its
+> margins are pushing against these limits, the text shall overlap in the other
+> direction, inward and over the edges of the patch area instead. When this
+> happens the warning texts shall appear, informing the user, as described and
+> defined earlier."*
+
+**So rule 1 of section 2c was never wrong and is not amended.** The question
+asked him about a DIRECTION and he read it as being about whether to warn at
+all. What was really open was where the text goes when it cannot fit, and the
+answer is: inward, over the patch area. Section 2f records what is built; the
+outward push existed for one evening and one commit (`0ca96864`) and is gone.
 
 ---
 
@@ -631,56 +643,146 @@ itself rather than repeating its rule).
 
 ---
 
-## 2f. ⏳ Awaiting confirmation — the clip band may cross its page-edge distance
+## 2f. ⏳ Awaiting confirmation — text that will not fit goes INWARD, over the patches
 
 **Confirmed by:** *nobody yet.*
 
-This is what section 2d's open question became once Knut answered it. His words
-are quoted there.
+**This section replaces one that said the opposite, and the rule never changed;
+the answer to a badly-worded question did.** Section 2d asked Knut whether the
+clip-border text should be allowed to print closer to the paper edge than "Text
+distance from edge" asks. On 2026-09-11T21:23:10Z he said yes, that was built,
+and on 2026-09-12 he read the commit note and withdrew it:
+
+> *"I was confused about the question, when you already know the text-edge
+> distance is a limit on every side. The text on each of the 4 sides shall NOT
+> cross the text-edge distance limit on every side. If the patch area with its
+> margins are pushing against these limits, the text shall overlap in the other
+> direction, inward and over the edges of the patch area instead. When this
+> happens the warning texts shall appear, informing the user, as described and
+> defined earlier."*
+
+So **rule 1 of section 2c stands exactly as approved**, on all four sides, and
+what this section records is the DIRECTION of the overflow, which is the thing
+that was genuinely open.
 
 ### The rule as built
 
-1. **The clip band's TEXT may be printed closer to the paper edge than "Text
-   distance from edge" → Clip asks**, and only that text: the strip letters, the
-   bottom sheet text and the right-edge chart note keep the distance as a limit.
-2. **It takes only what it needs.** A band that holds its lines inside the
-   reserve keeps every millimetre of it; a band that does not gives up exactly
-   the shortfall and no more, and never more than the whole reserve, so the
-   content can reach the paper edge but never leave the paper.
-   `workflow/text_edge_fit.py::clip_content_inset_mm`, read by
-   `layout_engine/geometry.py::clip_area_mm`, by the renderer through it, and by
-   the panel's live clip preview, so what is on screen is what is on the sheet.
-3. **The push is ACROSS the band only.** The top and bottom of the sheet are a
-   different edge with a different complaint and are untouched.
-4. **It is warned about, in red, in the "Measured from Preview" message field**,
-   naming how far past the distance the text went, where it now starts, and what
-   to change.
-5. **When even the whole band is too narrow**, the older "does not fit its band"
-   warning is what is shown instead: the worse fact, not both.
+1. **The page-edge distance is a limit and is never spent on text.**
+   `workflow/text_edge_fit.py::clip_content_inset_mm` takes the band and the
+   distance and nothing else, so no caller can trade it away.
+2. **Text that will not fit inside it grows INWARD**, past the band and over
+   the patch area, by exactly the shortfall:
+   `text_edge_fit.clip_text_overhang_mm`, applied by
+   `layout_engine/geometry.py::clip_area_mm`, which extends the content
+   rectangle at its patch-side end only. The rectangle's page-edge end cannot
+   move.
+3. **The overflow is ACROSS the band only.** The top and bottom of the sheet
+   are a different edge with a different complaint and are untouched.
+4. **The block is anchored at the page-edge end whichever way the content
+   reads.** See the finding below: "Flip 180°" used to move the anchor as well
+   as the glyphs, so on a flipped band the text grew toward the paper edge.
+5. **Nothing is cut any more.** See the second finding.
+6. **The ink is composited, not pasted.** See the third finding, which is the
+   one that would have done real damage.
+7. **It is warned about, in red, in the "Measured from Preview" message field**,
+   and the warning says whether the text actually reaches the patches.
 
-### The levers the warning names, and the one it does not
+### Three faults found while building it, all of them silent
 
-He asked for three: *"change margin, clip-border width or the 'Text distance
-from edge' Clip-parameter"*. Two of them move this text and one does not, so
-the message names the two that work plus the Size box:
+**The clip text was CUT, with nothing said anywhere.** `raster._vtext` draws
+into a canvas the width of the band's content rectangle and stacks the lines
+from one end at their natural spacing, so a block taller than that rectangle had
+its last lines fall outside the canvas and vanish. Measured on Knut's run 1 with
+a 12 mm band: four lines need 11.9 mm, the rectangle gave them 9.6, and the
+fourth line was printed nowhere, with nothing in the log and nothing on screen.
+Growing the rectangle inward is also what fixes that.
 
-* **"Clip border width"**, which decides the band, so it decides everything here.
-* **"Clip" under "Text distance from edge (mm)"**: lowering it to where the
-  text already is removes the warning without moving a pixel, which is what he
-  asked for, *"to fit text correctly against limits without getting a warning"*.
-* **Size under "Clip-border content"**: a smaller typed size fits.
-* **the clip-side MARGIN is not a lever for this text.**
-  `instruments.geom_from_build_kwargs` RAISES that margin to the band
-  (`mr = max(mr, clip_w)`); the band's width never depends on it, so typing a
-  larger margin frees nothing here. Naming it would repeat the fault section 2c
-  records being caught out by once already, where a message offered a lever
-  that moved no ink.
+**"Flip 180°" decided which end the text overflowed from.** `_vtext` stacks from
+canvas zero and the caller turns the finished strip over, so the turn moved the
+anchor with the glyphs. Of the four combinations of side and flip, **two grew
+the block toward the paper edge**, and one of those two is Knut's own run 1 (a
+right-hand band with "Flip 180" on). The flip now turns the content over without
+choosing which end overflows (`render_clip_strip(anchor_far=...)`).
 
-**The question for Knut, in what a user sees:** when the clip border's text is
-printed closer to the paper edge than you asked, is making the margin on that
-side wider something you would expect to help? It does not today: the margin
-follows the clip-border width rather than deciding it, so only the width, the
-"Clip" distance and the text size change anything.
+*What that costs, measured:* on a band where "auto" fills the width, nothing
+moves at all. Driven on screen against his run 1 at its own 24 mm band, the ink
+occupies columns 12 to 156 of the 157-pixel rectangle both before and after.
+The change is visible only where there is slack, which means a band with a
+**typed** clip-text size, and there the block moves to the other end of the
+band. That is the behaviour his ruling asks for and it is a real change on those
+charts.
+
+**And pasting the overflow would have ERASED the patches, not printed on them.**
+`render_clip_strip` returns an image with an OPAQUE WHITE background, and
+`render_page` pasted it whole. Extending that rectangle over the patch area
+without changing anything else would have wiped every patch under the band to
+paper white, and a patch that reads as paper is built into the profile as paper.
+The overhang is composited through an ink mask now, so only the glyphs land on
+the patches and the colour shows through everywhere else.
+
+### What the overlap costs a reading, measured and calculated
+
+Driven on screen by `scripts/drive_182_sheet_text_fit.py` (step F4) against his
+own run 1, with the clip content blanked as the control so every changed pixel
+is the band's own ink, and the patch rectangles taken from
+`geometry.patch_rects_px` rather than from ink detection:
+
+| band | right margin | lines | patches inked | worst patch |
+|---|---|---|---|---|
+| 16 mm | 16 mm | 4 | 0 | fits, nothing warned |
+| 12 mm | 32 mm | 4 | **0** | overflows the band onto clear paper |
+| 12 mm | 12 mm | 4 | **17 of 374** | **2.4 %** covered |
+| 10 mm | 10 mm | 8 | 6 of 374 | **22.0 %** covered |
+
+The middle row is why the warning does not simply assert that patches are inked:
+the text grows inward from the band's inner edge into whatever paper is there,
+and the patch area begins at the clip-side margin. With a 12 mm band and a 32 mm
+margin there are 17.7 mm of clear paper in between and not one patch is touched.
+
+**What ink on a patch does to the reading taken from it.** A
+spectrophotometer integrates over its aperture, so a patch of which a fraction
+*f* is covered reads as the area mix of patch and ink. Taking black ink at 0 %
+of paper luminance (the upper bound) and at 4 % (realistic for inkjet black on
+photo paper), and ignoring optical dot gain, which makes the real error larger:
+
+| coverage | paper white | mid grey | near black |
+|---|---|---|---|
+| 2.4 % (his 12 mm band) | ΔL\* 0.9 | ΔL\* 0.5 | ΔL\* 0.3 |
+| 22 % (the worst the boxes allow) | **ΔL\* 8.9** | ΔL\* 5.4 | ΔL\* 2.5 |
+
+ΔL\* is a lower bound on ΔE: the ink also pulls a\* and b\* toward neutral.
+
+**And ChromIQ cannot tell.** `chartread` records what the instrument read;
+`colprof` builds from that; nothing marks a contaminated patch, in the `.ti3` or
+anywhere else. So a user who leaves the text over the patch area is choosing to
+put ink on patches that will be measured and built into a profile, and the
+warning says so in those words: *"those patches are measured with the ink on
+them, so what the instrument reads there is the patch and the text together."*
+
+Whether that is acceptable at 2.4 % and unacceptable at 22 % is a judgement for
+Knut or Sebastian, not for us. **The question, in what a user sees:** when the
+clip-border text is too wide for its band and prints over the edge of the patch
+area, should ChromIQ let the chart be built at all, or should it refuse until
+the band is wide enough? Today it builds it and says what is happening.
+
+### The levers the warning names
+
+* **"Clip border width"**, set to the width that actually works. NOT the band
+  plus the shortfall, which is the answer that looks obvious: the page-edge
+  reserve is capped at a fifth of the band, so widening the band widens the
+  reserve and gives part of it back. Measured on four lines at the floor with
+  "Clip" at 4 mm, an 11.9 mm band overhangs by 2.3 and a 14.2 mm band is still
+  0.4 mm short; 14.8 mm is the first that works
+  (`text_edge_fit.clip_band_needed_mm`).
+* **Size under "Clip-border content"**.
+* **"Clip" under "Text distance from edge (mm)"**, offered ONLY when lowering it
+  can finish the job. It buys back at most the whole reserve, so on a band
+  narrower than the text needs it moves the overlap without removing it.
+* **the clip-side MARGIN is not a lever.**
+  `instruments.geom_from_build_kwargs` raises that margin to the band
+  (`mr = max(mr, clip_w)`); the band's width never depends on it. It does
+  decide whether the overflow reaches the patches, which the warning reports,
+  but it cannot stop the overflow.
 
 ---
 
