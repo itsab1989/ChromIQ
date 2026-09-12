@@ -1828,9 +1828,24 @@ def render_pages(
                 _ax, _ay, _aw, _ah = _area
                 _right_band = getattr(geom, "clip_side", "left") == "right"
                 from workflow import text_edge_fit as _tef
+                # THE SAME PAGE-EDGE RESERVE `clip_area_px` JUST USED, and for
+                # one round it was not. That call takes whichever of "Clip" and
+                # the ruler helper markers' reserve goes furthest in (#182);
+                # this one re-read the raw "Clip" and so computed a SMALLER
+                # overhang. The difference is not cosmetic: `_over_px` is the
+                # width of the ink-only compositing mask below, and everything
+                # outside it is pasted as the strip's OPAQUE WHITE background.
+                # Measured on screen, a 12 mm left band with "Clip" at 0.5 mm
+                # and the side markers at 4 + 2: the geometry drew 24.63 mm of
+                # overhang, the mask protected 18.13, and the 6.5 mm between
+                # them wiped 94,011 pixels of the patch block to bare paper --
+                # patches that read as paper and go into the profile, which is
+                # the exact harm the mask below exists to prevent.
+                # `geom_side_text_edge_mm` is the one place that answers this,
+                # and until now nothing called it.
                 _over_px = int(round(_tef.clip_text_overhang_mm(
                     geom.lbord + geom.border,
-                    getattr(geom, "text_edge_clip_mm", 4.0),
+                    _tef.geom_side_text_edge_mm(geom),
                     _clip_lines, _clip_size_pt) * dpi / 25.4))
                 _notes_ctx = dict(_pctx)
                 _notes_ctx["count"] = str(layout.total_patches)

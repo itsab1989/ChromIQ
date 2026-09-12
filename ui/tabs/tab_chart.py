@@ -19705,7 +19705,24 @@ class TabChart(QWidget):
                     # fault section 2c of `docs/design/issue_182_answers.md`
                     # records being caught out by once already.
                     _clip_target = _clip_zone - _cs.needed_mm
-                    if _clip_target > 0.05:
+                    # …AND IT IS A LEVER ONLY WHILE "Clip" IS WHAT IS BINDING.
+                    # The reserve is the LARGER of "Clip" and the ruler helper
+                    # markers' own room (#182), so once the markers win,
+                    # winding "Clip" down changes the reserve by nothing at
+                    # all. Measured on screen, a 12 mm left band with the side
+                    # markers at 4 + 2: this sentence offered "lower Clip to
+                    # 0.1 mm", and at 4.0, 2.0, 0.5 and 0.0 mm the clip text's
+                    # ink stayed at exactly 7.37 mm from the paper edge, the
+                    # overhang stayed at 6.85 mm, and nothing moved. That is
+                    # the same "remedy that does not remedy" this round
+                    # deleted one branch further down, arriving by the other
+                    # door.
+                    _marker_floor_mm = text_edge_fit.helper_marker_reserve_mm(
+                        bool(getattr(r, "helper_markers", False)),
+                        float(getattr(r, "helper_marker_edge_mm", 0.0) or 0.0),
+                        float(getattr(r, "helper_marker_len_mm", 0.0) or 0.0),
+                        bool(getattr(r, "helper_markers_sides", True)))
+                    if _clip_target > 0.05 and _clip_target + 0.05 >= _marker_floor_mm:
                         _msg += " " + tr(
                             "Lowering “Clip” to {target:.1f} mm would also do "
                             "it, at the cost of printing that much closer to "
@@ -19733,7 +19750,10 @@ class TabChart(QWidget):
                             _clip_zone, _cs.needed_mm,
                             max(0.0, float(_rl[0]) - _floor_l)
                             if _rl is not None else 1.0)
-                        if _clear is not None and _clear > 0.05:
+                        # The same gate: below the markers' reserve, lowering
+                        # "Clip" moves no ink, so the ceiling is not reachable.
+                        if (_clear is not None and _clear > 0.05
+                                and _clear + 0.05 >= _marker_floor_mm):
                             _msg += " " + tr(
                                 "Lowering “Clip” under “Text distance from "
                                 "edge (mm)” to {clear:.1f} mm would clear the "
