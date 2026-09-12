@@ -78,6 +78,20 @@ that led to them.
   different: a patch carrying ink returns a wrong number into the profile, a
   label carrying ink is merely harder to read.
 
+  Its suggested remedy was then wrong twice over, and both were found by
+  attacking the fix rather than by using it. It first named a distance five
+  millimetres short, having used the width of the row label where the paper
+  between the label's ink and the band was meant. Corrected, it named a
+  distance that made the collision it was describing: raising "Clip" also
+  pushes the text inward, one millimetre for one, until a cap catches it, so
+  the answer was computed from where the text stood rather than where it would
+  stand. On a 26 mm band with nine lines, nothing was touching, the panel
+  offered 26.7 mm, and at 26.7 mm three millimetres of the text printed over
+  the row numbers. It is computed against the capped position now. On a wide
+  band the distance that works is usually more than the "Clip" box can hold, so
+  there the panel names widening the clip border, which does work, and says
+  nothing about a number nobody can type.
+
 - **Automatic shrinking stops at 7 pt** wherever a size control offers Auto, and
   a size you type is printed as typed, below 7 pt included. The help text at
   each such control says so.
