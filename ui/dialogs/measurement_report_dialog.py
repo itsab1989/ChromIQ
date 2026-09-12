@@ -4674,15 +4674,33 @@ class MeasurementReportDialog(QDialog):
             # caveat that caps both at COND is the same for both and is stated
             # once, because it is about what the numbers are applied TO rather
             # than where they came from.
+            # AND THE READ-ONLY HALF WAS WRONG IN THE OTHER DIRECTION, which
+            # the fifth adversarial round caught within hours. The correction
+            # above separated the Custom columns, which do NOT hold a
+            # standard's numbers, from the read-only ones, which it then said
+            # do. They do not either: `data/compliance_sets/iso12647.json`
+            # ships empty by design, so in every build ChromIQ distributes
+            # those two columns carry zero published values, and the guide said
+            # in ChromIQ's own voice that they carry that standard's. Measured:
+            # 30 rows each, 0 of them numeric. The same file already records
+            # this exact trap for the Custom blurbs, and the fix for one half
+            # wrote the identical claim onto the other.
+            #
+            # What is true in BOTH states is said instead: it is where those
+            # values go, ChromIQ ships none, and a licence holder who supplies
+            # them makes the column usable.
             "<p>" + html.escape(tr(
                 "Two kinds of column carry a standard's name. A read-only "
-                "column named after a standard holds that standard's published "
-                "tolerance values. An editable column named after a standard "
-                "starts from ChromIQ's own numbers, not that standard's, and "
-                "every limit in it is yours to change. Either way the values "
-                "are applied to the chart you printed rather than to that "
-                "standard's own chart and control strip, so their Overall "
-                "reads COND at best.")) + "</p>"
+                "column named after a standard is where that standard's own "
+                "published tolerance values go, and ChromIQ ships none of "
+                "them, because it has no permission to include them: those "
+                "columns are empty, and cannot be chosen unless you hold the "
+                "standard and supply its figures yourself. An editable column "
+                "named after a standard starts from ChromIQ's own numbers, "
+                "not that standard's, and every limit in it is yours to "
+                "change. Either way the values are applied to the chart you "
+                "printed rather than to that standard's own chart and control "
+                "strip, so their Overall reads COND at best.")) + "</p>"
             # BOUND AND LOCKED, in the report that uses both words. Knut,
             # 2026-09-11: *"what is the difference between bound and locked? Be
             # specific in the explanation, so that user understands that chosen

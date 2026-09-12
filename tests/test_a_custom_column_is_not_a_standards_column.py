@@ -43,10 +43,41 @@ def _guide(tmp_path):
 def test_the_guide_separates_a_published_column_from_a_custom_one(tmp_path,
                                                                   qapp):
     g = _guide(tmp_path)
-    assert "read-only column named after a standard holds that standard's " \
-           "published tolerance values" in g
+    assert "read-only column named after a standard is where that standard's " \
+           "own published tolerance values go" in g
     assert "An editable column named after a standard starts from " \
            "ChromIQ's own numbers, not that standard's" in g
+
+
+def test_the_guide_does_not_say_the_read_only_columns_hold_anything(tmp_path,
+                                                                    qapp):
+    """THE CORRECTION ABOVE WAS WRONG IN THE OTHER DIRECTION FOR ONE MORNING.
+
+    Separating the two kinds of column left the sentence "A read-only column
+    named after a standard holds that standard's published tolerance values",
+    and that is false in every build ChromIQ distributes:
+    `data/compliance_sets/iso12647.json` ships empty by design, so those two
+    columns carry thirty rows and not one number. The fifth adversarial round
+    drove the report and the limits window side by side and measured it.
+
+    Fixing one half of a false sentence by writing the same falsehood onto the
+    other half is worth a test of its own.
+    """
+    g = _guide(tmp_path)
+    assert "named after a standard holds that standard's" not in g
+    assert "ships none of them" in g
+
+
+def test_the_two_read_only_columns_really_do_ship_empty(tmp_path, qapp):
+    """The sentence above is only true while this is. If ChromIQ ever ships
+    those numbers, this fails and the sentence is the thing to rewrite."""
+    from workflow.compliance_sets import effective_limits
+    for sid in ("iso_12647_7", "iso_12647_8"):
+        lims = effective_limits(sid, None)
+        assert lims, sid
+        assert not [l for l in lims.values() if l.is_numeric], (
+            f"{sid} now carries published numbers, so the report's guide must "
+            "stop saying ChromIQ ships none of them")
 
 
 def test_the_guide_never_says_a_custom_column_holds_published_values(tmp_path,

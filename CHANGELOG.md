@@ -153,6 +153,12 @@ that led to them.
   the same kind of statement as denying coverage it does, and ChromIQ makes
   neither. It now says what the column is.
 
+  And the report's guide no longer says that the two read-only columns named
+  after a standard hold that standard's published values. They hold none:
+  ChromIQ has no permission to include those figures, so both columns ship
+  empty and cannot be chosen unless you own the standard and enter its numbers
+  yourself. The guide says that instead, which is true whether or not you have.
+
 - **And the guide no longer says those columns hold the standard's published
   figures.** One sentence covered all four columns whose name carries a
   standard, and it was true of the two read-only ones and false of the two

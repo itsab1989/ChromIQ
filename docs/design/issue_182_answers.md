@@ -1023,3 +1023,53 @@ It is written down here rather than half-built, because a demo pack that
 demonstrates the wrong thing is worse than no demo pack, and because the last
 time a ruling of his was carried in somebody's memory rather than in this file
 it was implemented from a stale reading a week later.
+
+---
+
+## 2j. Reported, not built — three findings of the fifth adversarial round
+
+**Confirmed by:** *nobody yet.* Recorded so they are not re-found.
+
+### The guide said the read-only ISO columns hold published values. They hold none.
+
+Fixed the same hour and recorded here because of HOW it happened. The morning's
+correction separated the two Custom columns, which do not hold a standard's
+numbers, from the two read-only ones, and then said the read-only ones do. They
+do not: `data/compliance_sets/iso12647.json` ships empty by design, pending the
+licensing answer, so in every build ChromIQ distributes those two columns carry
+**30 rows and not one number**. The fix for one half of a false sentence wrote
+the identical falsehood onto the other half.
+
+The guide now says what is true in both states: that is where those values go,
+ChromIQ ships none of them, and the column cannot be chosen unless a licence
+holder supplies them.
+
+### The in-memory refresh is now NARROWER than the write beside it, on one field
+
+`measurement_report_dialog._recalculate_run` stamps `report_type` onto a report
+that has none while rewriting it on disk, and the in-memory refresh calls only
+`stamp_verdict`. Driven: both dates' files read `t2_full_colour_check` while the
+window's own records still read `None`. **No user-visible consequence was
+found**, because `_report_type_now` asks the run and `generated_report_types`
+re-reads disk. It is the same shape as the fault round four fixed, mirrored, and
+the honest fix touches §10's open ruling about untyped reports, so nothing is
+changed.
+
+### A guard that is built and called by nobody
+
+`core/measurement_target.verification_blocked_reason` returns `BLOCK_NEW_RUN`,
+`BLOCK_NO_PROFILE` and `BLOCK_NO_CHART`. Every use of the function and of all
+three constants outside its own module is a TEST. The Measure tab wrote its own
+guard instead, which covers two of the three and not the new-run case, and the
+Print tab asks nothing. So the state §3.1 of
+`verification_printing_and_target.md` names in terms, *"'New run' selected: no
+run, no profile, nothing to print"*, is enforced nowhere.
+
+**It was not reachable through the window.** Switching the Profile-run box to
+"New run" clears the Print tab: its pages go from two to none, the loaded chart
+to none, and the colour route back to raw, because `_resolve_target_chart`
+refuses to load a chart for a run that does not exist. The two tabs DO resolve
+different runs from that selection, the Print tab taking the manifest's current
+run and the Measure tab taking the run the loaded chart lives in, but with no
+chart loaded the group is hidden and the answer is correct anyway. Recorded as a
+latent hole with a dead guard beside it, not as a live fault.
