@@ -1,0 +1,43 @@
+{
+  "tag": "after",
+  "screen_locked": true,
+  "mode": "on screen (cocoa), real MainWindow",
+  "filled": {
+    "value": 192,
+    "maximum": 192,
+    "following": true
+  },
+  "after_first_percentage": {
+    "value": 193,
+    "maximum": 193,
+    "following": true,
+    "last_line": "Arranging colour patches: 1%"
+  },
+  "reader_scrolled_up": {
+    "value": 0,
+    "maximum": 193,
+    "following": true
+  },
+  "shots": {
+    "01-reader-at-top": "REFUSED: the login session's screen is LOCKED, so the window server hands every capture the desktop picture instead of the window; unlock the screen and run this again",
+    "02-after-ticks": "REFUSED: the login session's screen is LOCKED, so the window server hands every capture the desktop picture instead of the window; unlock the screen and run this again"
+  },
+  "percentage_ticks": [
+    {
+      "pct": 20,
+      "value": 0,
+      "maximum": 193
+    },
+    {
+      "pct": 30,
+      "value": 0,
+      "maximum": 193
+    },
+    {
+      "pct": 40,
+      "value": 0,
+      "maximum": 193
+    }
+  ],
+  "verdict": "the reader stayed where they were parked"
+}

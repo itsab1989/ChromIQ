@@ -116,18 +116,40 @@ def test_every_block_in_the_list_really_is_always_built(tmp_path):
     """And the list must name blocks the builder ACTUALLY always writes.
 
     A name in this tuple that the builder only sometimes writes would make
-    every such report stale for ever and re-read on every open. Checked against
-    the builder's own source rather than against a memory of it.
-    """
-    import inspect
+    every such report stale for ever and re-read on every open.
 
+    **THIS TEST USED TO GREP THE BUILDER'S SOURCE FOR `report["<key>"]`, AND
+    THAT IS TRUE OF EVERY KEY THE BUILDER EVER WRITES.** `report["gamut_split"]`
+    is written inside two nested `if`s and a `try`; `report["printing"]` and
+    `report["colorimetric"]` are conditional too, and all three would have
+    satisfied it. So the one thing it was written to stop, a CONDITIONAL block
+    being added to the tuple, was the one thing it could not see: it asked "is
+    this key mentioned?" under the name of "is this key always written?".
+
+    It runs the builder now, on a real measurement with a real design
+    reference, and looks at what came out. That is the only form of the
+    question that has an answer.
+
+    MUTATION: add "gamut_split" to ALWAYS_BUILT_BLOCKS and this goes red. The
+    grep version passed that mutation, which is how it was found.
+    """
     from ui.dialogs.measurement_report_dialog import ALWAYS_BUILT_BLOCKS
     from workflow import measurement_report as mr
-    src = inspect.getsource(mr.build_report)
+    from tests.test_report_judging import _colours, _ramp, _write_ti3
+
+    p = tmp_path / "m.ti3"
+    _write_ti3(p, _ramp(16) + _colours(), verification=False)
+    rep = mr.build_report(p)          # no argyll_bin: the optional blocks stay out
+    assert (rep.get("de00") or {}).get("avg_all") is not None, \
+        "the fixture produced no statistics, so this proves nothing"
     for key in ALWAYS_BUILT_BLOCKS:
-        assert f'report["{key}"]' in src, (
-            f"{key!r} is in ALWAYS_BUILT_BLOCKS but build_report never "
-            f"writes it, so every saved report would be stale for ever")
+        assert key in rep, (
+            f"{key!r} is in ALWAYS_BUILT_BLOCKS but the builder did not write "
+            f"it on an ordinary measurement, so every report of that kind "
+            f"would be stale for ever and re-read on every window open")
+    assert not _stale(rep), (
+        "a report the builder has just written is already stale, which is a "
+        "rebuild on every open of the window")
 
 
 def test_a_current_report_is_left_alone():

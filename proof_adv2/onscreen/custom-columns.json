@@ -1,0 +1,201 @@
+{
+  "screen_locked": true,
+  "mode": "on screen (cocoa), real Report limits window",
+  "shot": "REFUSED: the login session's screen is LOCKED, so the window server hands every capture the desktop picture instead of the window; unlock the screen and run this again",
+  "cells": {
+    "substrate_de00_max": {
+      "status": "ref",
+      "custom_iso_12647_7": "spin 3.0",
+      "custom_iso_12647_8": "spin 3.0"
+    },
+    "substrate_overprinted_de00_max": {
+      "status": "unmeasurable",
+      "custom_iso_12647_7": "\u2715",
+      "custom_iso_12647_8": "\u2013"
+    },
+    "substrate_gloss_class": {
+      "status": "unmeasurable",
+      "custom_iso_12647_7": "\u2715",
+      "custom_iso_12647_8": "\u2715"
+    },
+    "substrate_fluorescence_class": {
+      "status": "unmeasurable",
+      "custom_iso_12647_7": "\u2715",
+      "custom_iso_12647_8": "\u2715"
+    },
+    "solids_de00_max": {
+      "status": "ref",
+      "custom_iso_12647_7": "spin 3.0",
+      "custom_iso_12647_8": "spin 3.0"
+    },
+    "cmy_solids_dhab_max": {
+      "status": "ref",
+      "custom_iso_12647_7": "spin 2.0",
+      "custom_iso_12647_8": "spin 2.0"
+    },
+    "spot_solids_de00_max": {
+      "status": "unmeasurable",
+      "custom_iso_12647_7": "\u2715",
+      "custom_iso_12647_8": "\u2715"
+    },
+    "control_strip_de00_avg": {
+      "status": "unknown",
+      "custom_iso_12647_7": "?",
+      "custom_iso_12647_8": "?"
+    },
+    "control_strip_de00_max": {
+      "status": "unknown",
+      "custom_iso_12647_7": "?",
+      "custom_iso_12647_8": "\u2013"
+    },
+    "control_strip_de00_p95": {
+      "status": "unknown",
+      "custom_iso_12647_7": "\u2013",
+      "custom_iso_12647_8": "?"
+    },
+    "grey_balance_neutral_ramp_avg": {
+      "status": "build",
+      "custom_iso_12647_7": "spin 1.5",
+      "custom_iso_12647_8": "spin 1.5"
+    },
+    "grey_balance_neutral_ramp_max": {
+      "status": "build",
+      "custom_iso_12647_7": "spin 3.0",
+      "custom_iso_12647_8": "spin 3.0"
+    },
+    "all_de00_avg": {
+      "status": "now",
+      "custom_iso_12647_7": "spin 2.0",
+      "custom_iso_12647_8": "spin 2.0"
+    },
+    "best95_de00_avg": {
+      "status": "now",
+      "custom_iso_12647_7": "spin 2.0",
+      "custom_iso_12647_8": "spin 2.0"
+    },
+    "worst5_de00_avg": {
+      "status": "now",
+      "custom_iso_12647_7": "spin 2.0",
+      "custom_iso_12647_8": "spin 2.0"
+    },
+    "all_de00_max": {
+      "status": "now",
+      "custom_iso_12647_7": "spin 3.0",
+      "custom_iso_12647_8": "spin 3.0"
+    },
+    "all_de00_p95": {
+      "status": "now",
+      "custom_iso_12647_7": "spin 3.0",
+      "custom_iso_12647_8": "spin 3.0"
+    },
+    "outer_gamut_226_de00_avg": {
+      "status": "unknown",
+      "custom_iso_12647_7": "?",
+      "custom_iso_12647_8": "\u2013"
+    },
+    "surface_gamut_de00_avg": {
+      "status": "unknown",
+      "custom_iso_12647_7": "\u2013",
+      "custom_iso_12647_8": "?"
+    },
+    "ramps_30_70_dl_max": {
+      "status": "build",
+      "custom_iso_12647_7": "spin 2.0",
+      "custom_iso_12647_8": "spin 2.0"
+    },
+    "uniformity_sd": {
+      "status": "unmeasurable",
+      "custom_iso_12647_7": "\u2715",
+      "custom_iso_12647_8": "\u2715"
+    },
+    "uniformity_de00_max_from_mean": {
+      "status": "unmeasurable",
+      "custom_iso_12647_7": "\u2715",
+      "custom_iso_12647_8": "\u2715"
+    },
+    "macro_uniformity_score": {
+      "status": "unmeasurable",
+      "custom_iso_12647_7": "\u2013",
+      "custom_iso_12647_8": "\u2715"
+    },
+    "repeatability_de00_max": {
+      "status": "unmeasurable",
+      "custom_iso_12647_7": "\u2715",
+      "custom_iso_12647_8": "\u2715"
+    },
+    "permanence_de00_max": {
+      "status": "unmeasurable",
+      "custom_iso_12647_7": "\u2715",
+      "custom_iso_12647_8": "\u2715"
+    },
+    "fading_24h_de00_max": {
+      "status": "unmeasurable",
+      "custom_iso_12647_7": "\u2013",
+      "custom_iso_12647_8": "\u2715"
+    },
+    "light_fastness": {
+      "status": "unmeasurable",
+      "custom_iso_12647_7": "\u2715",
+      "custom_iso_12647_8": "\u2715"
+    },
+    "stabilization_minutes_max": {
+      "status": "unmeasurable",
+      "custom_iso_12647_7": "\u2715",
+      "custom_iso_12647_8": "\u2715"
+    },
+    "tone_value_limits": {
+      "status": "unmeasurable",
+      "custom_iso_12647_7": "\u2715",
+      "custom_iso_12647_8": "\u2715"
+    },
+    "measurement_condition": {
+      "status": "unmeasurable",
+      "custom_iso_12647_7": "\u2715",
+      "custom_iso_12647_8": "\u2715"
+    }
+  },
+  "identical": false,
+  "numeric_rows": {
+    "custom_iso_12647_7": [
+      "all_de00_avg",
+      "all_de00_max",
+      "all_de00_p95",
+      "best95_de00_avg",
+      "cmy_solids_dhab_max",
+      "grey_balance_neutral_ramp_avg",
+      "grey_balance_neutral_ramp_max",
+      "ramps_30_70_dl_max",
+      "solids_de00_max",
+      "substrate_de00_max",
+      "worst5_de00_avg"
+    ],
+    "custom_iso_12647_8": [
+      "all_de00_avg",
+      "all_de00_max",
+      "all_de00_p95",
+      "best95_de00_avg",
+      "cmy_solids_dhab_max",
+      "grey_balance_neutral_ramp_avg",
+      "grey_balance_neutral_ramp_max",
+      "ramps_30_70_dl_max",
+      "solids_de00_max",
+      "substrate_de00_max",
+      "worst5_de00_avg"
+    ]
+  },
+  "outside_the_parents_row_list": {
+    "custom_iso_12647_7": [
+      "all_de00_max",
+      "best95_de00_avg",
+      "ramps_30_70_dl_max",
+      "worst5_de00_avg"
+    ],
+    "custom_iso_12647_8": [
+      "all_de00_max",
+      "best95_de00_avg",
+      "cmy_solids_dhab_max",
+      "solids_de00_max",
+      "worst5_de00_avg"
+    ]
+  }
+}

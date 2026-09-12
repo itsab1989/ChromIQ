@@ -1,0 +1,585 @@
+diff --git a/data/i18n/de.json b/data/i18n/de.json
+index 4aafe81c..95326668 100644
+--- a/data/i18n/de.json
++++ b/data/i18n/de.json
+@@ -5418,5 +5418,6 @@
+   "{count} patches in this file ({names}) are not on this chart, so it is a measurement of a different chart": "{count} Messfelder in dieser Datei ({names}) kommen auf diesem Chart nicht vor, es ist also die Messung eines anderen Charts",
+   "This file holds the colour of every patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. All {count} readings name a patch of {chart}, and the chart knows what was printed at each of those names, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The names all belong to this chart, which is as far as names can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.": "Diese Datei enthält die Farbe jedes Messfelds, aber keinen Hinweis auf die Tinte, die sie erzeugt hat. i1Profiler schreibt sie so, wenn es ein Chart misst, das es nicht selbst erzeugt hat: Es gibt keinen Farbraum, in dem es Gerätewerte ablegen könnte, also legt es keine ab.\n\nChromIQ kann sie trotzdem ablegen. Alle {count} Messwerte benennen ein Messfeld von {chart}, und das Chart weiß, was an jedem dieser Namen gedruckt wurde. Also liefert das Chart die Gerätewerte, genau wie bei einer hier gemachten Messung.\n\nWas ChromIQ nicht tun kann, ist die Datei gegen das Chart zu prüfen. Diese Prüfung vergleicht die Gerätewerte der Messung mit denen des Charts, und diese Datei hat keine. Die Namen gehören alle zu diesem Chart, und weiter tragen Namen nicht: Ein anderes Chart mit demselben Layout trägt dieselben Namen.\n\nImportiere sie nur, wenn dies die Messung des Bogens ist, der aus {chart} gedruckt wurde. Abbrechen ändert nichts.",
+   "This file holds the colour of its patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. Its one reading names a patch of {chart}, and the chart knows what was printed at that name, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The name belongs to this chart, which is as far as a name can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.": "Diese Datei enthält die Farbe ihres Messfelds, aber keinen Hinweis auf die Tinte, die sie erzeugt hat. i1Profiler schreibt sie so, wenn es ein Chart misst, das es nicht selbst erzeugt hat: Es gibt keinen Farbraum, in dem es Gerätewerte ablegen könnte, also legt es keine ab.\n\nChromIQ kann sie trotzdem ablegen. Ihr einer Messwert benennt ein Messfeld von {chart}, und das Chart weiß, was an diesem Namen gedruckt wurde. Also liefert das Chart die Gerätewerte, genau wie bei einer hier gemachten Messung.\n\nWas ChromIQ nicht tun kann, ist die Datei gegen das Chart zu prüfen. Diese Prüfung vergleicht die Gerätewerte der Messung mit denen des Charts, und diese Datei hat keine. Der Name gehört zu diesem Chart, und weiter trägt ein Name nicht: Ein anderes Chart mit demselben Layout trägt dieselben Namen.\n\nImportiere sie nur, wenn dies die Messung des Bogens ist, der aus {chart} gedruckt wurde. Abbrechen ändert nichts.",
+-  "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.": "Bevor irgendetwas abgelegt wird, wird die Messung Messfeld für Messfeld gegen das Verifizierungs-Chart dieser Ausführung geprüft ({name}). Es wurde mit {n} Messfeldern entworfen und druckt {sheet} Felder, weil sein letzter Streifen aufgefüllt wird. Eine Messung des ganzen Bogens enthält also {sheet}. Eine Datei, die nicht passt, wird abgelehnt, und es ändert sich nichts."
++  "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.": "Bevor irgendetwas abgelegt wird, wird die Messung Messfeld für Messfeld gegen das Verifizierungs-Chart dieser Ausführung geprüft ({name}). Es wurde mit {n} Messfeldern entworfen und druckt {sheet} Felder, weil sein letzter Streifen aufgefüllt wird. Eine Messung des ganzen Bogens enthält also {sheet}. Eine Datei, die nicht passt, wird abgelehnt, und es ändert sich nichts.",
++  "this file carries no device values, and there is no chart file beside it to supply them, so nothing in it says which colour each reading was printed with": "diese Datei enthält keine Gerätewerte, und es liegt keine Chart-Datei daneben, die sie liefern könnte, also sagt nichts darin, mit welcher Farbe jeder Messwert gedruckt wurde"
+ }
+diff --git a/data/i18n/es.json b/data/i18n/es.json
+index 2a1e1cb4..1d71273c 100644
+--- a/data/i18n/es.json
++++ b/data/i18n/es.json
+@@ -5418,5 +5418,6 @@
+   "{count} patches in this file ({names}) are not on this chart, so it is a measurement of a different chart": "{count} patches in this file ({names}) are not on this chart, so it is a measurement of a different chart",
+   "This file holds the colour of every patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. All {count} readings name a patch of {chart}, and the chart knows what was printed at each of those names, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The names all belong to this chart, which is as far as names can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.": "This file holds the colour of every patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. All {count} readings name a patch of {chart}, and the chart knows what was printed at each of those names, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The names all belong to this chart, which is as far as names can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.",
+   "This file holds the colour of its patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. Its one reading names a patch of {chart}, and the chart knows what was printed at that name, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The name belongs to this chart, which is as far as a name can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.": "This file holds the colour of its patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. Its one reading names a patch of {chart}, and the chart knows what was printed at that name, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The name belongs to this chart, which is as far as a name can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.",
+-  "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.": "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes."
++  "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.": "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.",
++  "this file carries no device values, and there is no chart file beside it to supply them, so nothing in it says which colour each reading was printed with": "this file carries no device values, and there is no chart file beside it to supply them, so nothing in it says which colour each reading was printed with"
+ }
+diff --git a/data/i18n/fr.json b/data/i18n/fr.json
+index 9e153318..5142da63 100644
+--- a/data/i18n/fr.json
++++ b/data/i18n/fr.json
+@@ -5418,5 +5418,6 @@
+   "{count} patches in this file ({names}) are not on this chart, so it is a measurement of a different chart": "{count} patches in this file ({names}) are not on this chart, so it is a measurement of a different chart",
+   "This file holds the colour of every patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. All {count} readings name a patch of {chart}, and the chart knows what was printed at each of those names, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The names all belong to this chart, which is as far as names can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.": "This file holds the colour of every patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. All {count} readings name a patch of {chart}, and the chart knows what was printed at each of those names, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The names all belong to this chart, which is as far as names can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.",
+   "This file holds the colour of its patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. Its one reading names a patch of {chart}, and the chart knows what was printed at that name, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The name belongs to this chart, which is as far as a name can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.": "This file holds the colour of its patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. Its one reading names a patch of {chart}, and the chart knows what was printed at that name, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The name belongs to this chart, which is as far as a name can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.",
+-  "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.": "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes."
++  "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.": "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.",
++  "this file carries no device values, and there is no chart file beside it to supply them, so nothing in it says which colour each reading was printed with": "this file carries no device values, and there is no chart file beside it to supply them, so nothing in it says which colour each reading was printed with"
+ }
+diff --git a/data/i18n/it.json b/data/i18n/it.json
+index 7422595d..ae711ac5 100644
+--- a/data/i18n/it.json
++++ b/data/i18n/it.json
+@@ -5418,5 +5418,6 @@
+   "{count} patches in this file ({names}) are not on this chart, so it is a measurement of a different chart": "{count} patches in this file ({names}) are not on this chart, so it is a measurement of a different chart",
+   "This file holds the colour of every patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. All {count} readings name a patch of {chart}, and the chart knows what was printed at each of those names, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The names all belong to this chart, which is as far as names can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.": "This file holds the colour of every patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. All {count} readings name a patch of {chart}, and the chart knows what was printed at each of those names, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The names all belong to this chart, which is as far as names can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.",
+   "This file holds the colour of its patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. Its one reading names a patch of {chart}, and the chart knows what was printed at that name, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The name belongs to this chart, which is as far as a name can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.": "This file holds the colour of its patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. Its one reading names a patch of {chart}, and the chart knows what was printed at that name, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The name belongs to this chart, which is as far as a name can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.",
+-  "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.": "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes."
++  "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.": "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.",
++  "this file carries no device values, and there is no chart file beside it to supply them, so nothing in it says which colour each reading was printed with": "this file carries no device values, and there is no chart file beside it to supply them, so nothing in it says which colour each reading was printed with"
+ }
+diff --git a/data/i18n/ja.json b/data/i18n/ja.json
+index 5fd903fe..9d8c257e 100644
+--- a/data/i18n/ja.json
++++ b/data/i18n/ja.json
+@@ -5418,5 +5418,6 @@
+   "{count} patches in this file ({names}) are not on this chart, so it is a measurement of a different chart": "{count} patches in this file ({names}) are not on this chart, so it is a measurement of a different chart",
+   "This file holds the colour of every patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. All {count} readings name a patch of {chart}, and the chart knows what was printed at each of those names, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The names all belong to this chart, which is as far as names can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.": "This file holds the colour of every patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. All {count} readings name a patch of {chart}, and the chart knows what was printed at each of those names, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The names all belong to this chart, which is as far as names can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.",
+   "This file holds the colour of its patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. Its one reading names a patch of {chart}, and the chart knows what was printed at that name, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The name belongs to this chart, which is as far as a name can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.": "This file holds the colour of its patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. Its one reading names a patch of {chart}, and the chart knows what was printed at that name, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The name belongs to this chart, which is as far as a name can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.",
+-  "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.": "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes."
++  "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.": "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.",
++  "this file carries no device values, and there is no chart file beside it to supply them, so nothing in it says which colour each reading was printed with": "this file carries no device values, and there is no chart file beside it to supply them, so nothing in it says which colour each reading was printed with"
+ }
+diff --git a/data/i18n/nl.json b/data/i18n/nl.json
+index b6492a9d..1dabbc1c 100644
+--- a/data/i18n/nl.json
++++ b/data/i18n/nl.json
+@@ -5418,5 +5418,6 @@
+   "{count} patches in this file ({names}) are not on this chart, so it is a measurement of a different chart": "{count} patches in this file ({names}) are not on this chart, so it is a measurement of a different chart",
+   "This file holds the colour of every patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. All {count} readings name a patch of {chart}, and the chart knows what was printed at each of those names, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The names all belong to this chart, which is as far as names can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.": "This file holds the colour of every patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. All {count} readings name a patch of {chart}, and the chart knows what was printed at each of those names, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The names all belong to this chart, which is as far as names can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.",
+   "This file holds the colour of its patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. Its one reading names a patch of {chart}, and the chart knows what was printed at that name, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The name belongs to this chart, which is as far as a name can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.": "This file holds the colour of its patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. Its one reading names a patch of {chart}, and the chart knows what was printed at that name, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The name belongs to this chart, which is as far as a name can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.",
+-  "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.": "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes."
++  "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.": "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.",
++  "this file carries no device values, and there is no chart file beside it to supply them, so nothing in it says which colour each reading was printed with": "this file carries no device values, and there is no chart file beside it to supply them, so nothing in it says which colour each reading was printed with"
+ }
+diff --git a/data/i18n/no.json b/data/i18n/no.json
+index 6fd93478..6d1c4232 100644
+--- a/data/i18n/no.json
++++ b/data/i18n/no.json
+@@ -5418,5 +5418,6 @@
+   "{count} patches in this file ({names}) are not on this chart, so it is a measurement of a different chart": "{count} patches in this file ({names}) are not on this chart, so it is a measurement of a different chart",
+   "This file holds the colour of every patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. All {count} readings name a patch of {chart}, and the chart knows what was printed at each of those names, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The names all belong to this chart, which is as far as names can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.": "This file holds the colour of every patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. All {count} readings name a patch of {chart}, and the chart knows what was printed at each of those names, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The names all belong to this chart, which is as far as names can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.",
+   "This file holds the colour of its patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. Its one reading names a patch of {chart}, and the chart knows what was printed at that name, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The name belongs to this chart, which is as far as a name can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.": "This file holds the colour of its patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. Its one reading names a patch of {chart}, and the chart knows what was printed at that name, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The name belongs to this chart, which is as far as a name can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.",
+-  "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.": "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes."
++  "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.": "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.",
++  "this file carries no device values, and there is no chart file beside it to supply them, so nothing in it says which colour each reading was printed with": "this file carries no device values, and there is no chart file beside it to supply them, so nothing in it says which colour each reading was printed with"
+ }
+diff --git a/data/i18n/pl.json b/data/i18n/pl.json
+index 7d066980..bf32b911 100644
+--- a/data/i18n/pl.json
++++ b/data/i18n/pl.json
+@@ -5418,5 +5418,6 @@
+   "{count} patches in this file ({names}) are not on this chart, so it is a measurement of a different chart": "{count} patches in this file ({names}) are not on this chart, so it is a measurement of a different chart",
+   "This file holds the colour of every patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. All {count} readings name a patch of {chart}, and the chart knows what was printed at each of those names, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The names all belong to this chart, which is as far as names can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.": "This file holds the colour of every patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. All {count} readings name a patch of {chart}, and the chart knows what was printed at each of those names, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The names all belong to this chart, which is as far as names can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.",
+   "This file holds the colour of its patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. Its one reading names a patch of {chart}, and the chart knows what was printed at that name, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The name belongs to this chart, which is as far as a name can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.": "This file holds the colour of its patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. Its one reading names a patch of {chart}, and the chart knows what was printed at that name, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The name belongs to this chart, which is as far as a name can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.",
+-  "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.": "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes."
++  "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.": "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.",
++  "this file carries no device values, and there is no chart file beside it to supply them, so nothing in it says which colour each reading was printed with": "this file carries no device values, and there is no chart file beside it to supply them, so nothing in it says which colour each reading was printed with"
+ }
+diff --git a/data/i18n/pt.json b/data/i18n/pt.json
+index f0c92d13..8ba37775 100644
+--- a/data/i18n/pt.json
++++ b/data/i18n/pt.json
+@@ -5418,5 +5418,6 @@
+   "{count} patches in this file ({names}) are not on this chart, so it is a measurement of a different chart": "{count} patches in this file ({names}) are not on this chart, so it is a measurement of a different chart",
+   "This file holds the colour of every patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. All {count} readings name a patch of {chart}, and the chart knows what was printed at each of those names, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The names all belong to this chart, which is as far as names can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.": "This file holds the colour of every patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. All {count} readings name a patch of {chart}, and the chart knows what was printed at each of those names, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The names all belong to this chart, which is as far as names can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.",
+   "This file holds the colour of its patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. Its one reading names a patch of {chart}, and the chart knows what was printed at that name, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The name belongs to this chart, which is as far as a name can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.": "This file holds the colour of its patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. Its one reading names a patch of {chart}, and the chart knows what was printed at that name, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The name belongs to this chart, which is as far as a name can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.",
+-  "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.": "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes."
++  "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.": "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.",
++  "this file carries no device values, and there is no chart file beside it to supply them, so nothing in it says which colour each reading was printed with": "this file carries no device values, and there is no chart file beside it to supply them, so nothing in it says which colour each reading was printed with"
+ }
+diff --git a/data/i18n/ru.json b/data/i18n/ru.json
+index 2faa7fbf..c2f65b5a 100644
+--- a/data/i18n/ru.json
++++ b/data/i18n/ru.json
+@@ -5418,5 +5418,6 @@
+   "{count} patches in this file ({names}) are not on this chart, so it is a measurement of a different chart": "{count} patches in this file ({names}) are not on this chart, so it is a measurement of a different chart",
+   "This file holds the colour of every patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. All {count} readings name a patch of {chart}, and the chart knows what was printed at each of those names, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The names all belong to this chart, which is as far as names can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.": "This file holds the colour of every patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. All {count} readings name a patch of {chart}, and the chart knows what was printed at each of those names, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The names all belong to this chart, which is as far as names can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.",
+   "This file holds the colour of its patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. Its one reading names a patch of {chart}, and the chart knows what was printed at that name, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The name belongs to this chart, which is as far as a name can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.": "This file holds the colour of its patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. Its one reading names a patch of {chart}, and the chart knows what was printed at that name, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The name belongs to this chart, which is as far as a name can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.",
+-  "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.": "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes."
++  "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.": "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.",
++  "this file carries no device values, and there is no chart file beside it to supply them, so nothing in it says which colour each reading was printed with": "this file carries no device values, and there is no chart file beside it to supply them, so nothing in it says which colour each reading was printed with"
+ }
+diff --git a/data/i18n/sv.json b/data/i18n/sv.json
+index 91bb43b8..58c9c579 100644
+--- a/data/i18n/sv.json
++++ b/data/i18n/sv.json
+@@ -5418,5 +5418,6 @@
+   "{count} patches in this file ({names}) are not on this chart, so it is a measurement of a different chart": "{count} patches in this file ({names}) are not on this chart, so it is a measurement of a different chart",
+   "This file holds the colour of every patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. All {count} readings name a patch of {chart}, and the chart knows what was printed at each of those names, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The names all belong to this chart, which is as far as names can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.": "This file holds the colour of every patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. All {count} readings name a patch of {chart}, and the chart knows what was printed at each of those names, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The names all belong to this chart, which is as far as names can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.",
+   "This file holds the colour of its patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. Its one reading names a patch of {chart}, and the chart knows what was printed at that name, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The name belongs to this chart, which is as far as a name can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.": "This file holds the colour of its patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. Its one reading names a patch of {chart}, and the chart knows what was printed at that name, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The name belongs to this chart, which is as far as a name can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.",
+-  "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.": "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes."
++  "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.": "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.",
++  "this file carries no device values, and there is no chart file beside it to supply them, so nothing in it says which colour each reading was printed with": "this file carries no device values, and there is no chart file beside it to supply them, so nothing in it says which colour each reading was printed with"
+ }
+diff --git a/data/i18n/zh_CN.json b/data/i18n/zh_CN.json
+index 2118f3e4..539e83d7 100644
+--- a/data/i18n/zh_CN.json
++++ b/data/i18n/zh_CN.json
+@@ -5418,5 +5418,6 @@
+   "{count} patches in this file ({names}) are not on this chart, so it is a measurement of a different chart": "{count} patches in this file ({names}) are not on this chart, so it is a measurement of a different chart",
+   "This file holds the colour of every patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. All {count} readings name a patch of {chart}, and the chart knows what was printed at each of those names, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The names all belong to this chart, which is as far as names can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.": "This file holds the colour of every patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. All {count} readings name a patch of {chart}, and the chart knows what was printed at each of those names, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The names all belong to this chart, which is as far as names can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.",
+   "This file holds the colour of its patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. Its one reading names a patch of {chart}, and the chart knows what was printed at that name, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The name belongs to this chart, which is as far as a name can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.": "This file holds the colour of its patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.\n\nChromIQ can still file it. Its one reading names a patch of {chart}, and the chart knows what was printed at that name, so the chart supplies the device values, exactly as it does for a measurement made here.\n\nWhat ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The name belongs to this chart, which is as far as a name can go: another chart laid out the same way carries the same names.\n\nImport it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.",
+-  "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.": "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes."
++  "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.": "Before anything is filed, the measurement is checked patch for patch against this run's verification chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.",
++  "this file carries no device values, and there is no chart file beside it to supply them, so nothing in it says which colour each reading was printed with": "this file carries no device values, and there is no chart file beside it to supply them, so nothing in it says which colour each reading was printed with"
+ }
+diff --git a/tests/test_a_log_pane_follows_the_tail_only_from_the_bottom.py b/tests/test_a_log_pane_follows_the_tail_only_from_the_bottom.py
+index f5834f6e..ebb49f10 100644
+--- a/tests/test_a_log_pane_follows_the_tail_only_from_the_bottom.py
++++ b/tests/test_a_log_pane_follows_the_tail_only_from_the_bottom.py
+@@ -272,6 +272,102 @@ def test_a_cursor_handed_to_the_pane_does_not_drag_the_view(pane, qapp):
+         f"{sb.value()}")
+ 
+ 
++def test_a_progress_line_rewritten_in_place_leaves_a_reader_who_scrolled_up_later(
++        pane, qapp):
++    """THE ORDER OF THE TWO STEPS IS THE WHOLE TEST, and the sibling above has
++    it the other way round.
++
++    `test_a_cursor_handed_to_the_pane_does_not_drag_the_view` scrolls to the top
++    BEFORE the progress line is appended, so that append answers "not at the
++    bottom" and stores it; the cursor guard then has the right answer to work
++    from and the test passes with the fault in place.
++
++    The reporter's own order is the opposite one: the percentage line is already
++    ticking (so the last append happened while she was at the tail, and the flag
++    says "following"), and THEN she scrolls up. Nothing between then and the next
++    tick goes through an append door, so the flag is stale and the guards on
++    `setTextCursor` and `ensureCursorVisible` were answering about a moment that
++    had passed.
++
++    Driven in the real window before the fix: parked at 0, the very next tick
++    put the view at 192 of 193 (`proof_adv2/onscreen/before-log-tail.json`).
++
++    MUTATION: give `TailFollowLog.replace_last_line` the old body (the cursor
++    work without `self._following_tail = follow` and without the final
++    `sb.setValue`) and this goes red at 192 of 193.
++    """
++    sb = pane.verticalScrollBar()
++    sb.setValue(sb.maximum())
++    qapp.processEvents()
++    pane.appendPlainText("Arranging colour patches: 1%")
++    qapp.processEvents()
++    assert pane.is_following_tail() is True
++
++    sb.setValue(0)                      # she scrolls up to read something
++    qapp.processEvents()
++
++    for pct in (20, 30, 40):
++        pane.replace_last_line(f"Arranging colour patches: {pct}%")
++        pane.ensureCursorVisible()      # the call site, faithfully
++        qapp.processEvents()
++
++    assert sb.value() == 0, (
++        f"the percentage tick dragged the reader from 0 to {sb.value()} of "
++        f"{sb.maximum()}")
++    assert pane.toPlainText().rsplit("\n", 1)[-1] == \
++        "Arranging colour patches: 40%", "the line was not rewritten in place"
++
++
++def test_a_progress_line_rewritten_in_place_still_follows_a_reader_at_the_tail(
++        pane, qapp):
++    """The other half, because a guard that never follows is not a fix.
++
++    No mutation of the fix kills this one, and that is stated rather than
++    dressed up: it is a regression guard for the direction the fix must NOT
++    break, the way `test_a_pane_at_the_bottom_keeps_following` is for the append
++    door. It does its job by going red if `replace_last_line` ever starts
++    holding the view unconditionally.
++    """
++    sb = pane.verticalScrollBar()
++    sb.setValue(sb.maximum())
++    qapp.processEvents()
++    pane.appendPlainText("Arranging colour patches: 1%")
++    qapp.processEvents()
++
++    for pct in (20, 30, 40):
++        pane.replace_last_line(f"Arranging colour patches: {pct}%")
++        pane.ensureCursorVisible()
++        qapp.processEvents()
++
++    assert sb.value() == sb.maximum(), (
++        f"the reader was at the tail and the pane stopped following: "
++        f"{sb.value()} of {sb.maximum()}")
++    assert pane.is_following_tail() is True
++
++
++def test_the_chart_tabs_progress_line_goes_through_the_pane(qapp):
++    """The Create Chart tab may not do the cursor work itself again.
++
++    `TailFollowLog` owns the "am I at the bottom?" question; a tab that edits
++    the document round the side reopens exactly this door. Read from the source
++    rather than from behaviour, because the behaviour test above can only see
++    the door that exists today.
++
++    MUTATION: put the four `QTextCursor` lines back into
++    `TabChart._set_progress_line` and this goes red.
++    """
++    import inspect
++
++    from ui.tabs.tab_chart import TabChart
++    src = inspect.getsource(TabChart._set_progress_line)
++    assert "replace_last_line" in src, (
++        "TabChart._set_progress_line no longer rewrites its line through the "
++        "pane; the pane's follow flag is refreshed nowhere else on this path")
++    assert "removeSelectedText" not in src and "setTextCursor" not in src, (
++        "TabChart._set_progress_line is editing the document round the side of "
++        "TailFollowLog again")
++
++
+ def test_a_short_document_that_cannot_scroll_still_follows(qapp):
+     """maximum == 0 means every position is the bottom, and must read as one."""
+     from ui.widgets import TailFollowLog
+diff --git a/tests/test_a_measurement_without_device_values_is_imported.py b/tests/test_a_measurement_without_device_values_is_imported.py
+index 898674e0..968bb724 100644
+--- a/tests/test_a_measurement_without_device_values_is_imported.py
++++ b/tests/test_a_measurement_without_device_values_is_imported.py
+@@ -294,6 +294,39 @@ def test_the_identity_check_cannot_validate_its_own_repair(tmp_path, chart):
+         "if this ever fails, the trap this test names has changed shape"
+ 
+ 
++# --- 6b. …and with NO chart there is nothing to complete it from ----------
++def test_a_device_less_measurement_with_no_chart_beside_it_is_refused(tmp_path):
++    """The door that has no chart is the one that was left open.
++
++    `parse_ti3` used to refuse a file with no device columns outright, so BOTH
++    profile-build doors refused this. Teaching the parser to read it opened
++    every door at once, and only the doors that HAVE a chart were given the
++    completion step: `ui.measurement_filing.say_what_was_filed` returns before
++    it when `chart_the_copy_will_be_judged_against` is None. A spectral-only
++    export dropped on "New project from a measurement" was therefore copied in,
++    announced as filed, and left with no device values for ever, because the
++    completion only ever runs at import. `colprof` cannot build from such a
++    file and the report can compute no grey ramp in it.
++
++    MUTATION: put `and chart_ti2 is not None` back on the `has_device` test in
++    `assess` and this goes red, because the file comes back ok.
++    """
++    m = _measurement(tmp_path / "loose.ti3", ["A1", "A2", "A3"])
++    v = assess(m, None)
++    assert not v.ok, (
++        "a measurement with no device values and no chart to supply them was "
++        "accepted; nothing downstream can ever give it any")
++    assert not v.device_from_chart
++    assert "no device values" in v.reason and "no chart file" in v.reason
++
++
++def test_a_device_less_measurement_with_a_chart_is_still_taken(tmp_path, chart):
++    """The refusal above may not close the door round 4 opened."""
++    m = _measurement(tmp_path / "m.ti3", _reading_order())
++    v = assess(m, chart)
++    assert v.ok and v.device_from_chart, v.reason
++
++
+ # --- 7. ONE RULE, and the Measure tab's door reaches it -------------------
+ def test_the_verification_door_judges_through_the_shared_rule():
+     """The tab had its own copy of the count-and-identity rule, and the copy
+diff --git a/tests/test_a_row_that_was_never_computed_is_rebuilt.py b/tests/test_a_row_that_was_never_computed_is_rebuilt.py
+index 0dea253d..02d7b366 100644
+--- a/tests/test_a_row_that_was_never_computed_is_rebuilt.py
++++ b/tests/test_a_row_that_was_never_computed_is_rebuilt.py
+@@ -116,18 +116,40 @@ def test_every_block_in_the_list_really_is_always_built(tmp_path):
+     """And the list must name blocks the builder ACTUALLY always writes.
+ 
+     A name in this tuple that the builder only sometimes writes would make
+-    every such report stale for ever and re-read on every open. Checked against
+-    the builder's own source rather than against a memory of it.
++    every such report stale for ever and re-read on every open.
++
++    **THIS TEST USED TO GREP THE BUILDER'S SOURCE FOR `report["<key>"]`, AND
++    THAT IS TRUE OF EVERY KEY THE BUILDER EVER WRITES.** `report["gamut_split"]`
++    is written inside two nested `if`s and a `try`; `report["printing"]` and
++    `report["colorimetric"]` are conditional too, and all three would have
++    satisfied it. So the one thing it was written to stop, a CONDITIONAL block
++    being added to the tuple, was the one thing it could not see: it asked "is
++    this key mentioned?" under the name of "is this key always written?".
++
++    It runs the builder now, on a real measurement with a real design
++    reference, and looks at what came out. That is the only form of the
++    question that has an answer.
++
++    MUTATION: add "gamut_split" to ALWAYS_BUILT_BLOCKS and this goes red. The
++    grep version passed that mutation, which is how it was found.
+     """
+-    import inspect
+-
+     from ui.dialogs.measurement_report_dialog import ALWAYS_BUILT_BLOCKS
+     from workflow import measurement_report as mr
+-    src = inspect.getsource(mr.build_report)
++    from tests.test_report_judging import _colours, _ramp, _write_ti3
++
++    p = tmp_path / "m.ti3"
++    _write_ti3(p, _ramp(16) + _colours(), verification=False)
++    rep = mr.build_report(p)          # no argyll_bin: the optional blocks stay out
++    assert (rep.get("de00") or {}).get("avg_all") is not None, \
++        "the fixture produced no statistics, so this proves nothing"
+     for key in ALWAYS_BUILT_BLOCKS:
+-        assert f'report["{key}"]' in src, (
+-            f"{key!r} is in ALWAYS_BUILT_BLOCKS but build_report never "
+-            f"writes it, so every saved report would be stale for ever")
++        assert key in rep, (
++            f"{key!r} is in ALWAYS_BUILT_BLOCKS but the builder did not write "
++            f"it on an ordinary measurement, so every report of that kind "
++            f"would be stale for ever and re-read on every window open")
++    assert not _stale(rep), (
++        "a report the builder has just written is already stale, which is a "
++        "rebuild on every open of the window")
+ 
+ 
+ def test_a_current_report_is_left_alone():
+diff --git a/tests/test_compliance_sets.py b/tests/test_compliance_sets.py
+index 1d065bce..590e1f49 100644
+--- a/tests/test_compliance_sets.py
++++ b/tests/test_compliance_sets.py
+@@ -394,13 +394,26 @@ def test_no_placeholder_is_anybody_elses_published_figure():
+     relevant for testing the metrics)"*. Pinning the SOURCE of every number,
+     rather than the numbers themselves, is what stops one drifting toward a
+     real tolerance later because it "looks more realistic".
++
++    **AND THE ALLOWLIST HAD TO BE THE ONE THE RULE NAMES.** It was built from
++    ALL THREE ChromIQ tables, so it admitted 1.0, 4.0, 6.0 and 7.0 as well: seven
++    numbers where the rule beside `_CUSTOM_PLACEHOLDER` says *"Only ChromIQ
++    default's own three numbers are used: 1.5, 2.0 and 3.0"*. A placeholder
++    could be moved from 3.0 to 1.0 or from 2.0 to 4.0 and this test would not
++    notice, which is precisely the drift it exists to stop, and the grip was
++    loose in the direction that matters: a number nobody can trace back to a
++    ChromIQ figure is a number somebody has to argue is not a standard's.
++    Tight and Quick are HALF and DOUBLE of default, derived from it and not
++    limits anybody would reach for on another row.
++
++    MUTATION: set `cmy_solids_dhab_max` to 4.0 (a Quick check number) or
++    `substrate_de00_max` to 1.0 (a tight one) and this goes red. Both passed
++    before, against the old allowlist.
+     """
+-    allowed = set()
+-    for table in cs._CHROMIQ_FACTORY.values():
+-        for lim in table.values():
+-            if lim.is_numeric:
+-                allowed.add(round(float(lim.number), 6))
+-    assert allowed, "ChromIQ's own factory numbers could not be read"
++    allowed = {round(float(lim.number), 6)
++               for lim in cs._CHROMIQ_FACTORY["chromiq_default"].values()
++               if lim.is_numeric}
++    assert allowed, "ChromIQ default's own factory numbers could not be read"
+     for rid, lim in cs._CUSTOM_PLACEHOLDER.items():
+         assert lim.is_numeric, rid
+         assert round(float(lim.number), 6) in allowed, (
+diff --git a/tests/test_help_cards_untranslated_are_tracked.py b/tests/test_help_cards_untranslated_are_tracked.py
+index 27af78e1..e0d9fecd 100644
+--- a/tests/test_help_cards_untranslated_are_tracked.py
++++ b/tests/test_help_cards_untranslated_are_tracked.py
+@@ -500,19 +500,25 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
+ # eighteen and does not move; the eleven others each rise by exactly 17.
+ # RE-MEASURED with this file's own `_english_echoes` on the catalogues
+ # this change leaves behind, key by key, never adjusted upward.
++# 2026-09-12, the adversarial round after it. A measurement with no device
++# values and NO chart beside it had nothing to complete it from and was being
++# filed anyway, so `assess` refuses it with ONE new reason sentence, long enough
++# to count here. German is translated and does not move; the eleven others each
++# rise by exactly 1. RE-MEASURED with this file's own `_english_echoes` on the
++# catalogues this change leaves behind, never adjusted upward.
+ _BUDGET = {
+     "de": 4,
+-    "es": 177,
+-    "fr": 178,
+-    "it": 177,
+-    "ja": 177,
+-    "nl": 177,
+-    "no": 177,
+-    "pl": 177,
+-    "pt": 177,
+-    "ru": 176,
+-    "sv": 177,
+-    "zh_CN": 176,
++    "es": 178,
++    "fr": 179,
++    "it": 178,
++    "ja": 178,
++    "nl": 178,
++    "no": 178,
++    "pl": 178,
++    "pt": 178,
++    "ru": 177,
++    "sv": 178,
++    "zh_CN": 177,
+ }
+ 
+ 
+diff --git a/tests/test_i18n.py b/tests/test_i18n.py
+index 7c8fc33b..7c6f63f0 100644
+--- a/tests/test_i18n.py
++++ b/tests/test_i18n.py
+@@ -848,18 +848,25 @@ _IDENTICAL_TO_KEY = {
+     # others carry the English under the beta rule and each rises by exactly
+     # 18. Counted on the catalogues this commit leaves behind, with the same
+     # expression the test below uses, never adjusted upward.
++    #
++    # RE-MEASURED 2026-09-12 AGAIN, the adversarial round after it. A
++    # measurement with no device values and NO chart beside it had nothing to
++    # complete it from and was being filed anyway, so `assess` refuses it with
++    # one new reason sentence. **1 key in, 0 stale out**, counted the same way.
++    # German is translated, so **de does not move (124)**; the eleven others
++    # carry the English under the beta rule and each rises by exactly 1.
+     "de": 124,
+-    "es": 339,
+-    "fr": 361,
+-    "it": 350,
+-    "ja": 325,
+-    "nl": 366,
+-    "no": 351,
+-    "pl": 343,
+-    "pt": 341,
+-    "ru": 314,
+-    "sv": 352,
+-    "zh_CN": 319,
++    "es": 340,
++    "fr": 362,
++    "it": 351,
++    "ja": 326,
++    "nl": 367,
++    "no": 352,
++    "pl": 344,
++    "pt": 342,
++    "ru": 315,
++    "sv": 353,
++    "zh_CN": 320,
+ }
+ 
+ 
+diff --git a/ui/tabs/tab_chart.py b/ui/tabs/tab_chart.py
+index 3d724a0f..d2968955 100644
+--- a/ui/tabs/tab_chart.py
++++ b/ui/tabs/tab_chart.py
+@@ -14601,16 +14601,18 @@ class TabChart(QWidget):
+     def _set_progress_line(self, text: str) -> None:
+         """Show ``text`` as the log's last line, replacing it in place if the
+         previous line was already a progress line (so the percentage ticks up
+-        without scrolling hundreds of lines past)."""
+-        from PyQt6.QtGui import QTextCursor
+-
++        without scrolling hundreds of lines past).
++
++        THE REWRITE GOES THROUGH THE PANE, NOT ROUND IT. This did the cursor
++        work here, which touches none of `TailFollowLog`'s doors, so the pane's
++        "am I following the tail?" answer was the one left by the last APPEND.
++        A reader who scrolled up after the percentage line appeared was thrown
++        back to the bottom on every tick, which is the complaint the class was
++        written for. `TailFollowLog.replace_last_line` does the same edit and
++        asks the question at the moment of the edit.
++        """
+         if self._progress_line_active:
+-            cur = self._log.textCursor()
+-            cur.movePosition(QTextCursor.MoveOperation.End)
+-            cur.select(QTextCursor.SelectionType.LineUnderCursor)
+-            cur.removeSelectedText()
+-            cur.insertText(text)
+-            self._log.setTextCursor(cur)
++            self._log.replace_last_line(text)
+         else:
+             self._log.appendPlainText(text)
+             self._progress_line_active = True
+diff --git a/ui/widgets.py b/ui/widgets.py
+index 408efc05..ea02be80 100644
+--- a/ui/widgets.py
++++ b/ui/widgets.py
+@@ -763,6 +763,45 @@ class TailFollowLog(QPlainTextEdit):
+         self._following_tail = True
+         super().setPlainText(text)
+ 
++    # -- text that is rewritten rather than appended -----------------------
++    def replace_last_line(self, text: str) -> None:
++        """Rewrite the document's last line in place, under the same rule.
++
++        **THE FLAG IS ONLY EVER REFRESHED AT AN APPEND DOOR, AND ONE PANE DOES
++        NOT USE THOSE.** The Create Chart tab collapses targen's "Added N/M"
++        seeding spam into one live "Arranging colour patches: N%" line, which it
++        rewrites through a ``QTextCursor``: select the last line, remove it,
++        insert the new text, hand the cursor back. None of that passes through
++        ``appendPlainText``, so ``_following_tail`` kept whatever the LAST
++        append left in it, and the guards on ``setTextCursor`` and
++        ``ensureCursorVisible`` were then answering a question about a moment
++        that had passed.
++
++        Driven on screen in the real window, 2026-09-12: 200 lines of output
++        with the reader at the tail (following), the first percentage line
++        appended, the reader scrolls to the TOP, and the next tick threw them
++        from 0 to 192 of 193. That is word for word the complaint this class was
++        written for, at the one door it did not cover, and the test that covers
++        this door could not see it because it scrolled up BEFORE the append
++        rather than after it.
++
++        The question is therefore asked here, of the document as it stands
++        before the rewrite, and the answer is STORED before the cursor is handed
++        back, because :meth:`setTextCursor` is what actually holds the view and
++        it reads the flag. No pin is added afterwards: unlike
++        :meth:`_append_through`, this door ends on ``setTextCursor``, which
++        already scrolls to the end when following and puts the reader back where
++        they were when not. A mutation pair proved the extra line killed
++        nothing, and a line no test can reach is decoration.
++        """
++        self._following_tail = self.is_at_bottom()
++        cur = self.textCursor()
++        cur.movePosition(QTextCursor.MoveOperation.End)
++        cur.select(QTextCursor.SelectionType.LineUnderCursor)
++        cur.removeSelectedText()
++        cur.insertText(text)
++        self.setTextCursor(cur)
++
+     # -- the two ways the view gets moved for you -------------------------
+     def ensureCursorVisible(self) -> None:                 # noqa: N802
+         if self._following_tail:
+diff --git a/workflow/measurement_import.py b/workflow/measurement_import.py
+index ce6a740b..db9ccc72 100644
+--- a/workflow/measurement_import.py
++++ b/workflow/measurement_import.py
+@@ -127,7 +127,30 @@ def assess(ti3: Path, chart_ti2: "Path | None") -> ImportVerdict:
+     else:
+         partial = False
+ 
+-    if not measured.has_device and chart_ti2 is not None:
++    if not measured.has_device:
++        if chart_ti2 is None:
++            # …AND WITH NO CHART BESIDE IT, NOTHING WILL EVER SUPPLY THEM.
++            #
++            # `parse_ti3` used to refuse a file with no device columns outright,
++            # so BOTH profile-build doors refused this before the pairing work.
++            # Teaching the parser to read such a file opened it at every door at
++            # once, and only the doors that HAVE a chart were given the
++            # completion step: `say_what_was_filed` returns before it, with the
++            # comment "a bare measurement: nothing to judge it by", so a
++            # spectral-only export dropped into "New project from a
++            # measurement" was copied in, announced as filed, and left with no
++            # device values at all. `colprof` cannot build from it, the grey
++            # ramp cannot be found in it, and no later action supplies what is
++            # missing, because the completion only ever runs at import.
++            #
++            # A file that cannot be completed and cannot be used is refused at
++            # the only moment where nothing has been changed yet, which is what
++            # it was before and what §I.9 asks for.
++            return ImportVerdict(False, tr(
++                "this file carries no device values, and there is no chart "
++                "file beside it to supply them, so nothing in it says which "
++                "colour each reading was printed with"),
++                n_chart=n_chart or 0, n_measured=n_got)
+         # NO DEVICE VALUES, SO THE CHECK IS THE NAME. An i1Profiler export of a
+         # chart i1Profiler did not generate carries the patch NAME and the
+         # spectral curve and nothing else — it has no colour space to write

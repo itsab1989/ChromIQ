@@ -1,0 +1,91 @@
+{
+  "mutation": "F1-flag-not-refreshed",
+  "file": "ui/widgets.py",
+  "target": "tests/test_a_log_pane_follows_the_tail_only_from_the_bottom.py",
+  "exit": 1,
+  "tail": [
+    "DEBUG    core.settings:settings.py:1347 settings.set update_check_blocked_until = 0",
+    "=========================== short test summary info ============================",
+    "FAILED tests/test_a_log_pane_follows_the_tail_only_from_the_bottom.py::test_a_progress_line_rewritten_in_place_leaves_a_reader_who_scrolled_up_later",
+    "1 failed, 23 passed in 1.49s"
+  ],
+  "landed": true
+}
+{
+  "mutation": "F1-cursor-guard-removed",
+  "file": "ui/widgets.py",
+  "target": "tests/test_a_log_pane_follows_the_tail_only_from_the_bottom.py",
+  "exit": 1,
+  "tail": [
+    "=========================== short test summary info ============================",
+    "FAILED tests/test_a_log_pane_follows_the_tail_only_from_the_bottom.py::test_a_cursor_handed_to_the_pane_does_not_drag_the_view",
+    "FAILED tests/test_a_log_pane_follows_the_tail_only_from_the_bottom.py::test_a_progress_line_rewritten_in_place_leaves_a_reader_who_scrolled_up_later",
+    "2 failed, 22 passed in 1.47s"
+  ],
+  "landed": true
+}
+{
+  "mutation": "F1-tab-does-the-cursor-work-again",
+  "file": "ui/tabs/tab_chart.py",
+  "target": "tests/test_a_log_pane_follows_the_tail_only_from_the_bottom.py",
+  "exit": 1,
+  "tail": [
+    "DEBUG    core.settings:settings.py:1347 settings.set update_check_blocked_until = 0",
+    "=========================== short test summary info ============================",
+    "FAILED tests/test_a_log_pane_follows_the_tail_only_from_the_bottom.py::test_the_chart_tabs_progress_line_goes_through_the_pane",
+    "1 failed, 23 passed in 1.58s"
+  ],
+  "landed": true
+}
+{
+  "mutation": "F2-placeholder-takes-a-quick-check-number",
+  "file": "workflow/compliance_sets.py",
+  "target": "tests/test_compliance_sets.py",
+  "exit": 1,
+  "tail": [
+    "DEBUG    core.settings:settings.py:1347 settings.set update_check_blocked_until = 0",
+    "=========================== short test summary info ============================",
+    "FAILED tests/test_compliance_sets.py::test_no_placeholder_is_anybody_elses_published_figure",
+    "1 failed, 41 passed in 0.33s"
+  ],
+  "landed": true
+}
+{
+  "mutation": "F2-placeholder-takes-a-tight-number",
+  "file": "workflow/compliance_sets.py",
+  "target": "tests/test_compliance_sets.py",
+  "exit": 1,
+  "tail": [
+    "DEBUG    core.settings:settings.py:1347 settings.set update_check_blocked_until = 0",
+    "=========================== short test summary info ============================",
+    "FAILED tests/test_compliance_sets.py::test_no_placeholder_is_anybody_elses_published_figure",
+    "1 failed, 41 passed in 0.32s"
+  ],
+  "landed": true
+}
+{
+  "mutation": "F3-no-chart-is-accepted-again",
+  "file": "workflow/measurement_import.py",
+  "target": "tests/test_a_measurement_without_device_values_is_imported.py",
+  "exit": 1,
+  "tail": [
+    "DEBUG    core.settings:settings.py:1347 settings.set update_check_blocked_until = 0",
+    "=========================== short test summary info ============================",
+    "FAILED tests/test_a_measurement_without_device_values_is_imported.py::test_a_device_less_measurement_with_no_chart_beside_it_is_refused",
+    "1 failed, 21 passed in 0.55s"
+  ],
+  "landed": true
+}
+{
+  "mutation": "F4-a-developer-adds-a-conditional-block-properly",
+  "file": "ui/dialogs/measurement_report_dialog.py",
+  "target": "tests/test_a_row_that_was_never_computed_is_rebuilt.py::test_every_block_in_the_list_really_is_always_built",
+  "exit": 1,
+  "tail": [
+    "DEBUG    core.settings:settings.py:1347 settings.set update_check_blocked_until = 0",
+    "=========================== short test summary info ============================",
+    "FAILED tests/test_a_row_that_was_never_computed_is_rebuilt.py::test_every_block_in_the_list_really_is_always_built",
+    "1 failed in 0.28s"
+  ],
+  "landed": true
+}

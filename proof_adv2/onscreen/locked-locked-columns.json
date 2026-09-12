@@ -1,0 +1,67 @@
+{
+  "tag": "locked",
+  "screen_locked": true,
+  "mode": "on screen (cocoa), real MainWindow + real windows",
+  "modals": [],
+  "run": {
+    "dir": "/tmp/chromiq-adv2-work/Adv2-Locked/runs/run1",
+    "bound": true,
+    "locked": true,
+    "dates": 2
+  },
+  "shots": {
+    "10-report": "REFUSED: the login session's screen is LOCKED, so the window server hands every capture the desktop picture instead of the window; unlock the screen and run this again",
+    "11-limits": "REFUSED: the login session's screen is LOCKED, so the window server hands every capture the desktop picture instead of the window; unlock the screen and run this again",
+    "12-after-untick": "REFUSED: the login session's screen is LOCKED, so the window server hands every capture the desktop picture instead of the window; unlock the screen and run this again",
+    "13-reopened": "REFUSED: the login session's screen is LOCKED, so the window server hands every capture the desktop picture instead of the window; unlock the screen and run this again"
+  },
+  "limits_button": "Show limits\u2026",
+  "run_editable_passed": false,
+  "column_boxes_before": {
+    "chromiq_default": [
+      true,
+      true
+    ],
+    "chromiq_tight": [
+      true,
+      true
+    ],
+    "chromiq_quick": [
+      true,
+      true
+    ],
+    "iso_12647_7": [
+      true,
+      true
+    ],
+    "iso_12647_8": [
+      true,
+      true
+    ],
+    "custom_iso_12647_7": [
+      true,
+      true
+    ],
+    "custom_iso_12647_8": [
+      true,
+      true
+    ]
+  },
+  "untick": {
+    "set": "chromiq_tight",
+    "checked_now": false,
+    "column_hidden_in_window": null,
+    "meta_before": [],
+    "meta_after": []
+  },
+  "column_boxes_on_reopen": {
+    "chromiq_default": true,
+    "chromiq_tight": true,
+    "chromiq_quick": true,
+    "iso_12647_7": true,
+    "iso_12647_8": true,
+    "custom_iso_12647_7": true,
+    "custom_iso_12647_8": true
+  },
+  "verdict": "THE HIDDEN COLUMN IS NOT REMEMBERED on a locked run: the box came back ticked and nothing was written to the run"
+}
