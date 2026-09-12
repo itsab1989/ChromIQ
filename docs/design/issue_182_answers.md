@@ -1016,24 +1016,102 @@ What the ruling asks for, in the same terms:
 is a different artefact: every case there exists to expose a shortcoming and
 none of them is meant to go all the way through.
 
+### CORRECTION, 2026-09-12 evening: this section described the pack as new, and it was not
+
+**A pack of that name had already shipped, on v4.3.0-beta.3.** This section was
+written after searching the repository, where no such generator existed, and
+the releases were not searched. The conclusion drawn from that, that the pack
+was being built for the first time, was wrong, and everything downstream of it
+was written on a false premise.
+
+What the beta.3 pack held, fetched from the release and read:
+
+    chart/testHex.ti1 / .ti2 / .channels.json    648 patches, CR30 honeycomb,
+                                                 A4, TWO pages
+    chart/testHex.ti3                            a measurement, beside the chart
+    chart/testHex_01.tif / _02.tif               both pages
+    measurements/testHex.ti3                     the same measurement
+    measurements/read2-noisy.ti3                 and with instrument noise
+    measurements/read3-noisier.ti3               and with more, for averaging
+    scan/testHex_01-simulated-scan.tif           one scan per page
+    scan/testHex_02-simulated-scan.tif
+    README.txt
+
+So the build recorded below was not an addition. It was a **replacement that
+lost four `.ti3` files, the second page of the chart, and the averaging demo**,
+and it was reported as such the same day:
+
+> *"the latest version of ChromIQ-CR30-hex-demo did not have all files as
+> before. It is missing ti3 measurements, so I cannot use it to test the
+> creation of CHT files, or use them in the scanner function. Add the files
+> that previously was included, with real measurements etc."*
+
+Both losses are structural rather than cosmetic. **Create scanner or camera
+target** takes a chart's `.ti3` and nothing else will do
+(`ui/dialogs/scanin_target_dialog.py`), so with none in the pack that window
+cannot be driven at all and no `.cht` can be created from it. And a one-page
+chart writes a single `.cht`, where two pages write one per page against a
+single `.cie`, which is the branch worth testing.
+
+**The lesson, which is the reason this correction is kept rather than the
+section simply rewritten: a search of the repository is not a search of what
+has shipped.** A generator that is not in the tree does not mean a pack that
+has never existed, and a demo pack is a released artefact before it is a
+script.
+
 ### Built, 2026-09-12, by `scripts/make_cr30_hex_demo.py`
 
-One chart and two scans of it, in `ChromIQ-CR30-hex-demo`:
+The first build of the day, described below, was the regression. What the
+generator builds now is the beta.3 pack rebuilt plus the two brightness states
+the ruling asked for, so nothing from either pack is dropped:
 
-    chart/CR30HexDemo.*                        396 patches, flat-top CR30
-                                               honeycomb, A4, one sheet full
-    scan/CR30HexDemo-scan-1-in-range.tif       the sheet on a scanner with the
-                                               automatic brightness OFF
-    scan/CR30HexDemo-scan-2-out-of-scale.tif   the same sheet with it ON
+    chart/testHex.ti1 / .ti2 / .channels.json    648 patches, flat-top CR30
+                                                 honeycomb, A4, two pages
+                                                 (396 and 252)
+    chart/testHex_01.tif / _02.tif               both pages
+    chart/testHex.ti3                            the clean measurement, filed
+                                                 beside the chart, which is
+                                                 where the scanner tools look
+    measurements/read1-clean.ti3                 the same measurement
+    measurements/read2-noisy.ti3                 the sheet read again with more
+    measurements/read3-noisier.ti3               scanner speckle, for averaging
+    scan/testHex_01-scan.tif / _02-scan.tif      the sheet, brightness OFF
+    scan/testHex_01-scan-out-of-scale.tif        page 1 with it ON
 
-396 is not typed: it is the one-page capacity the layout engine returns for a
-CR30 honeycomb on A4 at the instrument's own 12 mm patch and its 5 mm margin.
+The measurements are the part that changed in kind. The beta.3 files came from
+`fakeread`, which restates the chart's own aim values through a reference
+profile, so nothing that happens to a sheet or a scan can appear in them. Every
+`.ti3` here is read off an actual image by an actual `scanin -c`, page 1 and
+then page 2 accumulated onto it with `-ca`, so the turn, the optics, the
+speckle and the sampling square averaging over a hexagon are all in the
+numbers. The sheet is still a simulation and the pack's README says so.
+
+`scanin -c` does not write `SAMPLE_LOC`, and the scanner-target window refuses
+a measurement without it by name. The generator restores that column from the
+chart's own `.ti2`, which is a fact about the chart rather than about the
+measurement, and proves the join landed: every row's device values must still
+equal the `.ti2`'s for the same `SAMPLE_ID`.
+
 The chart itself is a real `targen` design laid out by ChromIQ's own engine.
-The two scans are renderings of ONE simulated printed sheet, identical in
-geometry, patch values, rotation, softening and speckle; the only difference is
-that the second has had the sheet's own white lifted to 255, which is what a
+The two page-1 scans are renderings of ONE simulated printed sheet, identical
+in geometry, patch values, rotation, softening and speckle; the only difference
+is that the second has had the sheet's own white lifted to 255, which is what a
 scanner's automatic brightness does, taking every patch printed at the top of a
 channel over the rail with it.
+
+The generator refuses to write a pack whose three reads are not really a ladder
+of noise. Measured against an independent rendering of the same sheet at the
+same speckle: 0.0388, 0.1344, 0.2629. The obvious yardstick, a speckle-free
+rendering, does NOT work and the first build proved it: a read at speckle 1.6
+sits 0.240 from one and a read at 8.0 sits 0.282, so five times the speckle
+moved the number by a sixth, because almost all of it is a fixed difference
+between a rendering that was speckled and one that was not.
+
+It also refuses a pack whose own `.ti3` will not drive the two windows. Both
+are walked at build time, on the files about to be shipped: **Create scanner or
+camera target** must write one `.cht` per page and a `.cie` covering all 648
+patches, and the scanner path must then read every patch of both pages back
+through them.
 
 The generator measures its own two claims with the app's own code, from the
 real `.ti3` a real `scanin` writes through the real per-page `.cht` the scanner
@@ -1043,14 +1121,29 @@ window's own 49 % sample area for this honeycomb:
 | scan | patches on a rail | `scanner_max_clipped` |
 |---|---|---|
 | in range | **0.0 %** | 15 % |
-| out of scale | **28.8 %** | 15 % |
+| out of scale | **37.9 %** | 15 % |
 
-Driven on screen, both files, in the real window, 2026-09-12: the chart loads
-as "396 patches", the sample area caps itself at 49 %, Auto align seats the
-grid on the honeycomb (placement agreement worst 99.86 %), and Check alignment
-answers "the current grid position keeps all sample boxes within their chart
-patches" for the first scan and "Part of this scan has no colour left in it"
-for the second. The first also builds a printer profile end to end.
+Driven on screen, 2026-09-12 evening, on the rebuilt pack copied into an empty
+folder with nothing else on disk. The login session's screen was LOCKED all
+evening, so `scripts/onscreen_capture.py` refused a photograph rather than
+saving wallpaper; the windows were opened by the real window server all the
+same (platform plugin `cocoa`, no `QT_QPA_PLATFORM` override) and what is
+recorded is the text they showed.
+
+**Create scanner or camera target**, 640x630 on screen: the run button starts
+disabled, picking `chart/testHex.ti3` turns the note to "Ready, recognition
+files will be written as testHex.cht / .cie" and enables it, and pressing it
+logs
+
+    [OK] Wrote .../chart/testHex_01.cht
+    [OK] Wrote .../chart/testHex_02.cht
+    [OK] Wrote .../chart/testHex.cie
+    Recognition files for 648 patches on 2 pages saved next to your chart.
+
+**Build profile with scanner or camera**, 1240x928 on screen, offering all
+three scenarios. Reading the pack's own scans back through the files the first
+window had just written: page 1 gives 396 patches, page 2 gives 252, both at
+`scanin` exit 0, at the window's own 49 % sample area for this honeycomb.
 
 ### The finding the pack turned up, which is NOT fixed here
 
@@ -1066,11 +1159,11 @@ apart:
 
 | | Check alignment, box unticked | Check alignment, box ticked |
 |---|---|---|
-| in-range scan | no warning | ⚠ "Part of this scan has no colour left in it", 28 % |
-| out-of-scale scan | ⚠ same warning | ⚠ same warning, 28 % |
+| in-range scan | no warning | ⚠ "Part of this scan has no colour left in it", 23 % |
+| out-of-scale scan | ⚠ same warning, 38 % | ⚠ same warning, 23 % |
 
-The two figures on the ticked path are identical because 27.8 % of this chart's
-patches ask for 0 % or 100 % of a channel. `M_SCAN_DARK` is computed from the
+The two figures on the ticked path are identical because 23.3 % of the
+648-patch chart's patches ask for 0 % or 100 % of a channel. `M_SCAN_DARK` is computed from the
 same field and is equally blind there; `M_SCAN_FIT_UNSUPPORTED` reads `XYZ_*`
 and is unaffected.
 

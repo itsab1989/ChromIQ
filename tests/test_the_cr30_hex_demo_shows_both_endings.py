@@ -1,16 +1,26 @@
-"""The CR30 honeycomb demo pack must show BOTH endings, and prove it did.
+"""The CR30 honeycomb demo pack must carry its measurements and show BOTH
+endings, and prove it did.
 
-``scripts/make_cr30_hex_demo.py`` builds one CR30 honeycomb and two scans of
-it: one that goes all the way through, and one that keeps tripping "Part of
-this scan has no colour left in it". Those two sentences are the whole pack.
-A reader opens it having been told what they are about to see, so a pack that
-has quietly stopped showing it is worse than no pack at all: it teaches them
-that the warning is noise.
+``scripts/make_cr30_hex_demo.py`` builds a two-page CR30 honeycomb, scans of
+both pages, three measurements read off those scans, and a second rendering of
+page 1 that keeps tripping "Part of this scan has no colour left in it".
+
+The pack has already been shipped once WITHOUT the measurements, and that broke
+it for the two things it is mainly used for: **Create scanner or camera target**
+takes a chart's ``.ti3`` and nothing else will do, and a one-page chart writes a
+single ``.cht`` and never exercises the per-page naming. Both are guarded here
+so the pack cannot lose them a second time.
 
 What is guarded here:
 
 * the generator REFUSES a pack whose scans do not straddle
   ``scanner_max_clipped`` with room to spare, rather than writing it anyway;
+* it refuses one whose three reads are not really a ladder of noise, because
+  three equally noisy files give averaging nothing to remove;
+* it refuses to put a chart's patch positions on a measurement of a DIFFERENT
+  chart, which is the one way restoring that column could go wrong quietly;
+* the pack it does write carries every file the pack shipped on v4.3.0-beta.3
+  carried, and its ``.ti3`` really does drive the scanner-target window;
 * the sheet the two scans are rendered from leaves headroom at both ends, and
   the automatic-brightness stretch takes the top one away and leaves the
   bottom alone, so the pair differs in one property and one only;
@@ -54,6 +64,31 @@ needs_argyll = pytest.mark.skipif(
 
 CAP = 0.15
 
+#: EVERY FILE THE PACK SHIPPED ON v4.3.0-beta.3 CARRIED, plus what the newer
+#: one added. The list is written out rather than globbed, because the fault
+#: this pack was reported for was a build that quietly stopped writing three of
+#: them and a glob would have been just as happy.
+#:
+#: The beta.3 pack held: the chart's .ti1/.ti2/.channels.json, both page TIFFs,
+#: a .ti3 beside the chart, three measurements for averaging, and one scan per
+#: page. Nothing in that list may go missing again.
+EXPECTED_FILES = (
+    "chart/testHex.ti1",
+    "chart/testHex.ti2",
+    "chart/testHex.channels.json",
+    "chart/testHex_01.tif",
+    "chart/testHex_02.tif",
+    "chart/testHex.ti3",
+    "measurements/read1-clean.ti3",
+    "measurements/read2-noisy.ti3",
+    "measurements/read3-noisier.ti3",
+    "scan/testHex_01-scan.tif",
+    "scan/testHex_02-scan.tif",
+    "scan/testHex_01-scan-out-of-scale.tif",
+    "README.md",
+    "measured.json",
+)
+
 
 # --------------------------------------------------- the refusal, on its own
 def test_a_pack_whose_good_scan_would_be_stopped_is_refused():
@@ -85,6 +120,102 @@ def test_the_pair_this_pack_actually_builds_is_accepted():
     """The guard has to let the real thing through, or it is only a way of
     never shipping."""
     assert gen.clipping_faults(good=0.0, bad=0.288, cap=CAP) == []
+
+
+# ------------------------------------------------- the noise ladder, refused
+def _ladder(a, b, c):
+    return {name: v for (name, _sd, _seed), v in zip(gen.READS, (a, b, c))}
+
+
+def test_three_equally_noisy_reads_are_refused():
+    """The averaging demo's whole claim. Three files that measure the same
+    thing leave averaging with nothing to remove."""
+    faults = gen.noise_faults(_ladder(0.04, 0.04, 0.04))
+    assert len(faults) == 2, faults
+    assert "read2-noisy" in faults[0] and "read3-noisier" in faults[1]
+
+
+def test_a_ladder_that_goes_the_wrong_way_is_refused():
+    assert gen.noise_faults(_ladder(0.26, 0.13, 0.04))
+
+
+def test_a_ladder_that_barely_rises_is_refused():
+    """Room to spare, not a whisker. A pack whose steps sit inside the
+    measurement's own scatter stops demonstrating anything the next time the
+    renderer changes."""
+    step = gen.NOISE_RATIO - 0.05
+    assert gen.noise_faults(_ladder(0.04, 0.04 * step, 0.04 * step * step))
+
+
+def test_the_ladder_this_pack_actually_builds_is_accepted():
+    """The guard has to let the real thing through, or it is only a way of
+    never shipping. These are the numbers the pack measured."""
+    assert gen.noise_faults(_ladder(0.0388, 0.1344, 0.2629)) == []
+
+
+# --------------------------------------- putting the patch positions back on
+def _cgats(path, fields, rows):
+    path.write_text(
+        "CTI3\n\nDESCRIPTOR \"t\"\n\n"
+        f"NUMBER_OF_FIELDS {len(fields)}\nBEGIN_DATA_FORMAT\n"
+        + " ".join(fields) + "\nEND_DATA_FORMAT\n\n"
+        f"NUMBER_OF_SETS {len(rows)}\nBEGIN_DATA\n"
+        + "\n".join(" ".join(str(c) for c in r) for r in rows)
+        + "\nEND_DATA\n", encoding="utf-8")
+    return path
+
+
+_XYZ = ("XYZ_X", "XYZ_Y", "XYZ_Z")
+_RGB = ("RGB_R", "RGB_G", "RGB_B")
+
+
+def test_the_chart_s_patch_positions_are_put_back_on_the_measurement(tmp_path):
+    ti2 = _cgats(tmp_path / "c.ti2", ("SAMPLE_ID", "SAMPLE_LOC") + _RGB + _XYZ,
+                 [(1, '"A1"', 100.0, 100.0, 100.0, 95.0, 100.0, 108.0),
+                  (2, '"B7"', 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)])
+    ti3 = _cgats(tmp_path / "c.ti3", ("SAMPLE_ID",) + _RGB + _XYZ,
+                 [(1, 100.0, 100.0, 100.0, 87.1, 91.7, 99.9),
+                  (2, 0.0, 0.0, 0.0, 0.7, 0.8, 0.8)])
+    gen.add_sample_loc(ti3, ti2)
+    _lines, fields, _slice, rows = gen._table(ti3)
+    assert fields[:2] == ["SAMPLE_ID", "SAMPLE_LOC"], fields
+    assert [r[1] for r in rows] == ['"A1"', '"B7"']
+    # and the colour is untouched: only the position column was added
+    assert [r[-3:] for r in rows] == [["87.1", "91.7", "99.9"],
+                                      ["0.7", "0.8", "0.8"]]
+
+
+def test_positions_from_a_different_chart_are_refused_rather_than_pasted_on(tmp_path):
+    """The one way this could go wrong quietly. Pairing by SAMPLE_ID onto the
+    wrong chart would put a real position on the wrong patch and every file
+    downstream would look fine."""
+    ti2 = _cgats(tmp_path / "c.ti2", ("SAMPLE_ID", "SAMPLE_LOC") + _RGB + _XYZ,
+                 [(1, '"A1"', 100.0, 100.0, 100.0, 95.0, 100.0, 108.0)])
+    ti3 = _cgats(tmp_path / "c.ti3", ("SAMPLE_ID",) + _RGB + _XYZ,
+                 [(1, 50.0, 25.0, 75.0, 40.0, 30.0, 50.0)])
+    with pytest.raises(SystemExit) as exc:
+        gen.add_sample_loc(ti3, ti2)
+    assert "not the same chart" in str(exc.value) or "wrong patch" in str(exc.value)
+
+
+def test_a_measurement_holding_a_patch_the_chart_lacks_is_refused(tmp_path):
+    ti2 = _cgats(tmp_path / "c.ti2", ("SAMPLE_ID", "SAMPLE_LOC") + _RGB + _XYZ,
+                 [(1, '"A1"', 100.0, 100.0, 100.0, 95.0, 100.0, 108.0)])
+    ti3 = _cgats(tmp_path / "c.ti3", ("SAMPLE_ID",) + _RGB + _XYZ,
+                 [(1, 100.0, 100.0, 100.0, 87.0, 91.0, 99.0),
+                  (9, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)])
+    with pytest.raises(SystemExit):
+        gen.add_sample_loc(ti3, ti2)
+
+
+def test_a_measurement_that_already_names_its_positions_is_left_alone(tmp_path):
+    ti2 = _cgats(tmp_path / "c.ti2", ("SAMPLE_ID", "SAMPLE_LOC") + _RGB + _XYZ,
+                 [(1, '"A1"', 100.0, 100.0, 100.0, 95.0, 100.0, 108.0)])
+    ti3 = _cgats(tmp_path / "c.ti3", ("SAMPLE_ID", "SAMPLE_LOC") + _RGB + _XYZ,
+                 [(1, '"Z9"', 100.0, 100.0, 100.0, 87.0, 91.0, 99.0)])
+    before = ti3.read_text(encoding="utf-8")
+    gen.add_sample_loc(ti3, ti2)
+    assert ti3.read_text(encoding="utf-8") == before
 
 
 # ------------------------------------------------- the sheet and the stretch
@@ -231,10 +362,7 @@ def test_the_pack_builds_and_both_claims_hold(built):
         f"the out-of-scale scan reads "
         f"{measured['out_of_scale_clipped'] * 100:.1f} % clipped against a "
         f"{cap * 100:.0f} % limit")
-    for name in ("chart/CR30HexDemo.tif", "chart/CR30HexDemo.ti1",
-                 "chart/CR30HexDemo.ti2", "chart/CR30HexDemo.channels.json",
-                 "scan/CR30HexDemo-scan-1-in-range.tif",
-                 "scan/CR30HexDemo-scan-2-out-of-scale.tif", "README.md"):
+    for name in EXPECTED_FILES:
         assert (pack / name).is_file(), f"the pack has no {name}"
     assert not list(tmp_path.glob("_*build*")), (
         "the generator left its working folder behind")
@@ -307,18 +435,79 @@ def test_the_two_paths_do_not_agree_about_this_pack(built):
 
 
 @needs_argyll
-def test_the_chart_is_a_one_page_cr30_honeycomb(built):
+def test_the_chart_is_a_two_page_cr30_honeycomb(built):
     """What the pack is FOR. A demo built for another instrument, another
-    paper, or a grid of squares would not be the thing that was asked for."""
+    paper, or a grid of squares would not be the thing that was asked for, and
+    a ONE-page one writes a single ``.cht`` and never shows the per-page
+    naming, which is half of what the pack was reported for."""
     pack = built / gen.PACK
-    doc = json.loads((pack / "chart" / "CR30HexDemo.channels.json")
+    doc = json.loads((pack / "chart" / "testHex.channels.json")
                      .read_text(encoding="utf-8"))
     layout = doc["layout"]
     recipe = layout["recipe"]
     assert recipe["instrument"] == "CR30", recipe["instrument"]
     assert recipe["paper"] == "A4", recipe["paper"]
     assert recipe["hflag"] and recipe["hex_flat_top"], recipe
-    assert {int(p.get("page", 0)) for p in layout["patches"]} == {0}, (
-        "the chart spilled onto a second sheet")
-    assert len(layout["patches"]) == gen.one_page_capacity(), (
-        "the chart does not fill the sheet")
+    assert {int(p.get("page", 0)) for p in layout["patches"]} == {0, 1}, (
+        "the chart is not on two pages, so it writes one .cht and the "
+        "per-page naming goes untested")
+    assert len(layout["patches"]) == gen.PATCHES
+
+
+@needs_argyll
+def test_the_shipped_measurement_drives_the_scanner_target_window(built):
+    """The fault Knut reported, guarded end to end.
+
+    "Create scanner or camera target" takes a chart's ``.ti3`` and nothing else
+    will do. The pack shipped without one, so the window could not be driven at
+    all. This runs the window's own worker on the pack's own files and requires
+    one ``.cht`` per page and a ``.cie`` covering every patch.
+    """
+    import shutil
+    from workflow.scanin_target import build_scanin_target_from_paths
+    pack = built / gen.PACK
+    cold = built / "cold"
+    cold.mkdir(exist_ok=True)
+    for name in ("testHex.ti3", "testHex.channels.json", "testHex.ti2"):
+        shutil.copy2(pack / "chart" / name, cold / name)
+    res = build_scanin_target_from_paths(cold / "testHex.channels.json",
+                                         cold / "testHex.ti3", cold / "testHex")
+    assert len(res.cht_paths) == gen.EXPECT_PAGES, (
+        f"the window wrote {len(res.cht_paths)} .cht file(s) for a "
+        f"{gen.EXPECT_PAGES}-page chart")
+    assert [p.name for p in res.cht_paths] == ["testHex_01.cht",
+                                               "testHex_02.cht"]
+    assert res.n_patches == gen.PATCHES
+    assert res.cie_path.is_file()
+
+
+@needs_argyll
+def test_the_shipped_measurement_names_its_patch_positions(built):
+    """Not merely present: usable. ``scanin -c`` writes a ``.ti3`` that numbers
+    its patches 1, 2, 3 and the scanner-target window refuses one of those by
+    name. The generator puts the chart's own ``SAMPLE_LOC`` column back, and a
+    pack that stopped doing it would ship a measurement the window turns away.
+    """
+    text = ((built / gen.PACK / "chart" / "testHex.ti3")
+            .read_text(encoding="utf-8"))
+    fmt = [l for l in text.splitlines() if l.startswith("SAMPLE_ID")]
+    assert fmt and "SAMPLE_LOC" in fmt[0], (
+        f"the shipped measurement's fields are {fmt}, with no SAMPLE_LOC, so "
+        f"Create scanner or camera target will refuse it")
+
+
+@needs_argyll
+def test_the_three_reads_really_are_a_ladder_of_noise(built):
+    """Three measurements that do not differ give averaging nothing to remove,
+    and a reader who follows the README watches a feature appear to do
+    nothing."""
+    measured = json.loads((built / gen.PACK / "measured.json")
+                          .read_text(encoding="utf-8"))
+    noise = measured["noise"]
+    names = [n for n, _sd, _seed in gen.READS]
+    values = [noise[n] for n in names]
+    assert values == sorted(values), (
+        f"the three reads carry {values} of noise, which is not a ladder")
+    for lo, hi in zip(values, values[1:]):
+        assert hi > lo * measured["noise_ratio"], (
+            f"{hi:.4f} is not {measured['noise_ratio']:g} times {lo:.4f}")

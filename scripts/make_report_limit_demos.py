@@ -1748,8 +1748,15 @@ PROJECTS = [
                 edited_limits={"all_de00_avg": 6.0, "worst5_de00_avg": 8.0,
                                "best95_de00_avg": 2.0, "all_de00_max": 9.0,
                                "all_de00_p95": 9.0}),
-        RunPlan("95th percentile isolated by this run's own edited column.",
-                CHART_WIDE, CHART_MEDIUM, "chromiq_default", SERIES_P95,
+        # The one LARGE verification sheet in the package. The 95th percentile
+        # is the row whose meaning depends most on how many patches there are
+        # (the nearest-rank split moves a whole patch at a time on a small
+        # chart and hardly at all on a big one), so the biggest chart is the
+        # right one to judge it on, and it puts a fifth size under the
+        # supported/not-supported table below.
+        RunPlan("95th percentile isolated by this run's own edited column, "
+                "on the package's largest verification sheet.",
+                CHART_WIDE, CHART_LARGE, "chromiq_default", SERIES_P95,
                 edited_limits={"all_de00_avg": 9.0, "worst5_de00_avg": 9.0,
                                "best95_de00_avg": 9.0, "all_de00_max": 9.0,
                                "all_de00_p95": 3.0}),
@@ -1977,6 +1984,26 @@ def main(argv=None) -> int:
         print(f"  MISMATCH {r['project']}/{r['run']}/{r['date']}: "
               f"intended {r['intended']} actual {r['actual']}")
 
+    # AND THE COVERAGE CLAIM, which is the one the package was reported for.
+    # Matching a design says every date crossed the row it meant to; it says
+    # nothing about whether a metric was ever exercised, or whether the report
+    # was ever seen to say that a chart cannot support one.
+    print(f"\nverification chart sizes: "
+          f"{', '.join(str(s) for s in cov['verify_chart_sizes'])} patches, "
+          f"over {cov['support_reports']} saved reports")
+    for r in cov["support_rows"]:
+        state = ("supported and, on another chart, not"
+                 if r["value"] and r["na"] else
+                 "supported everywhere; no chart can withhold it"
+                 if r["value"] and r["cannot_unsupport"] else
+                 "supported nowhere" if not r["value"] else
+                 "never seen unsupported")
+        print(f"  {r['id']:34} value on {r['value']:>3}, N-A on {r['na']:>3}"
+              f"  ({state})")
+    sfaults = support_faults(cov)
+    for f in sfaults:
+        print(f"  COVERAGE: {f}")
+
     if args.zip:
         archive = dest.parent / f"{dest.name}"
         made = shutil.make_archive(str(archive), "zip", root_dir=str(dest.parent),
@@ -1984,7 +2011,7 @@ def main(argv=None) -> int:
         size = Path(made).stat().st_size
         print(f"archive: {made}  ({size / 1e6:.1f} MB)")
     print(f"written to {dest}")
-    return 1 if bad else 0
+    return 1 if (bad or sfaults) else 0
 
 
 def _selectable() -> "set[str]":
@@ -2221,6 +2248,7 @@ def coverage(dest: Path, results: list) -> dict:
     out.update(type_set_coverage(dest))
     out.update(message_coverage(dest))
     out.update(metric_coverage(dest, results))
+    out.update(support_coverage(dest))
     out.update(custom_column_facts())
     return out
 
@@ -2435,6 +2463,155 @@ def metric_coverage(dest: Path, results: list) -> dict:
             "why_not": "" if tested else UNCOVERABLE_ROW_STATUS.get(row.status, ""),
         })
     return {"metric_rows": rows}
+
+
+#: Rows the report fills from a single judged patch, so NO verification chart
+#: can fail to support them and a demo claiming to show one would be inventing
+#: a state the app cannot reach. Each entry says WHY, from the code:
+#: `measurement_report.row_values` puts a number on every row with a
+#: `metric_key` as soon as `graded_de00` has a block to read, and
+#: `de00_stats` computes the all-patch and best-95 % figures for any n >= 1.
+#: The one exception is the worst 5 %, whose set is EMPTY below twenty patches,
+#: and that one IS demonstrated.
+NO_CHART_CAN_UNSUPPORT = {
+    "all_de00_avg":
+        "the average over every judged patch, which exists as soon as one "
+        "patch is judged. A chart cannot withhold it; only a sheet with no "
+        "reference at all can, and that is a property of the measurement, not "
+        "of the chart.",
+    "best95_de00_avg":
+        "the average over the best 95 %, which `de00_stats` takes as the whole "
+        "chart when the worst-5 % set is empty, so it too exists for any chart "
+        "with a judged patch.",
+    "all_de00_max":
+        "the largest error on the sheet, which exists whenever any patch is "
+        "judged.",
+    "all_de00_p95":
+        "the largest of the best 95 %, which falls back to the largest of all "
+        "patches on a small chart rather than becoming unavailable.",
+}
+
+
+def _chart_patches(report_path: Path) -> "int | None":
+    """How many patches the verification chart behind a saved report has.
+
+    Read off the sheet's own measurement rather than looked up in a plan, so
+    the number in the table is the one the report was actually computed from.
+    """
+    vdir = report_path.parent.parent
+    for cand in sorted(vdir.glob("*.ti3")) + sorted(vdir.glob("*.ti2")):
+        try:
+            for line in cand.read_text(encoding="utf-8",
+                                       errors="replace").splitlines():
+                if line.startswith("NUMBER_OF_SETS"):
+                    return int(line.split()[1])
+        except (OSError, ValueError):
+            continue
+    return None
+
+
+def support_coverage(dest: Path) -> dict:
+    """Per computable row, the two states the report can be in about it, and
+    which chart sizes produced each.
+
+    Knut, 2026-09-12: *"The demo project pack should use various sizes of test
+    charts for verification, so that all conditions and metrics are checked,
+    and to test and verify that the measurement report feature can detect if
+    each metric is supported or not supported by a given chart used for
+    verification."*
+
+    `metric_coverage` above answers a different question and hides this one: it
+    ORs the whole package together, so a row that one chart in fifty-seven can
+    fill reads as covered while fifty-six sheets show N-A and nobody has looked
+    at what they show. This asks the question per report instead, which is the
+    unit the reader sees.
+
+    A row is properly demonstrated only when the package holds BOTH a report
+    where a chart supplies it and a report where a chart cannot, because the
+    second is the case Knut asked to be able to watch the report detect. The
+    rows for which the second state does not exist are named in
+    :data:`NO_CHART_CAN_UNSUPPORT` with the reason, and are not counted against
+    the package.
+    """
+    from workflow.compliance_sets import ROWS
+    from workflow.measurement_report import row_values
+
+    computable = [r for r in ROWS if r.status in ("build", "now")]
+    rows: list = []
+    seen: "dict[str, dict]" = {
+        r.id: {"value_on": set(), "na_on": set(), "value": 0, "na": 0,
+               "reasons": set()} for r in computable}
+    n_reports = 0
+    sizes: set = set()
+    for rep in sorted(dest.rglob("report_*.json")):
+        if "old" in rep.parts:
+            continue
+        try:
+            doc = json.loads(rep.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        rv = row_values(doc) or {}
+        if not rv:
+            continue
+        n_reports += 1
+        n = _chart_patches(rep)
+        if n:
+            sizes.add(n)
+        for r in computable:
+            info = rv.get(r.id) or {}
+            d = seen[r.id]
+            if info.get("value") is not None:
+                d["value"] += 1
+                d["value_on"].add(n)
+            else:
+                d["na"] += 1
+                d["na_on"].add(n)
+                if info.get("reason"):
+                    d["reasons"].add(str(info["reason"]))
+
+    for r in computable:
+        d = seen[r.id]
+        rows.append({
+            "id": r.id, "label": r.label,
+            "value": d["value"], "na": d["na"],
+            "value_on": sorted(x for x in d["value_on"] if x),
+            "na_on": sorted(x for x in d["na_on"] if x),
+            "reasons": sorted(d["reasons"]),
+            "cannot_unsupport": NO_CHART_CAN_UNSUPPORT.get(r.id, ""),
+        })
+    return {"support_rows": rows, "support_reports": n_reports,
+            "verify_chart_sizes": sorted(sizes)}
+
+
+def support_faults(cov: dict) -> list:
+    """Why this package may not claim to check every metric on every condition.
+
+    The generator has always refused to ship a pack whose dated verifications
+    miss their design. This is the same refusal applied to the coverage claim,
+    which is the claim Knut's report was about: a row nothing fills, or a row
+    no chart is ever seen to withhold, is a row the package has not tested
+    whatever its README says.
+    """
+    faults = []
+    for r in cov["support_rows"]:
+        if not r["value"]:
+            faults.append(
+                f"no verification in this package puts a number on "
+                f"{r['id']}: the row is computable and nothing exercises it")
+        if not r["na"] and not r["cannot_unsupport"]:
+            faults.append(
+                f"no verification in this package shows {r['id']} reading N-A, "
+                f"so the package never demonstrates the report detecting a "
+                f"chart that cannot support the row, which is the half Knut "
+                f"asked for")
+    if len(cov["verify_chart_sizes"]) < 4:
+        faults.append(
+            f"the verification sheets use only "
+            f"{len(cov['verify_chart_sizes'])} chart size(s) "
+            f"({', '.join(str(s) for s in cov['verify_chart_sizes'])}); the "
+            f"package is supposed to vary them so a row's availability can be "
+            f"seen to follow the chart")
+    return faults
 
 
 def message_coverage(dest: Path) -> dict:
@@ -3002,6 +3179,38 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
                  "package can fill it)" if _r["limited_here"] else ""))
         for chunk in _wrap(_why, 66):
             a(f"      {chunk}")
+        a("")
+    a("IS EACH METRIC SUPPORTED BY THE CHART, AND CAN THE REPORT SAY SO")
+    a("----------------------------------------------------------------")
+    a("")
+    a("The table above answers \"does this package test the row anywhere\".")
+    a("This one answers the question the reader actually has in front of a")
+    a("sheet: does THIS chart supply the row, and when it cannot, does the")
+    a("report say so rather than go quiet.")
+    a("")
+    _srows = _cov.get("support_rows", [])
+    _sizes = _cov.get("verify_chart_sizes", [])
+    a(f"  verification charts in this package: "
+      f"{', '.join(str(s) for s in _sizes)} patches")
+    a(f"  saved reports read for this table  : {_cov.get('support_reports', 0)}")
+    a("")
+    for _r in _srows:
+        a(f"  {_r['label']}")
+        a(f"      a value on {_r['value']} report(s)"
+          + (f", from charts of {', '.join(str(x) for x in _r['value_on'])} "
+             f"patches" if _r["value_on"] else ""))
+        if _r["na"]:
+            a(f"      N-A on {_r['na']} report(s)"
+              + (f", from charts of {', '.join(str(x) for x in _r['na_on'])} "
+                 f"patches" if _r["na_on"] else "")
+              + (f"; the report gives the reason as "
+                 f"{', '.join(_r['reasons'])}" if _r["reasons"] else ""))
+        elif _r["cannot_unsupport"]:
+            a("      never N-A, and no chart can make it so:")
+            for chunk in _wrap(_r["cannot_unsupport"], 62):
+                a(f"          {chunk}")
+        else:
+            a("      NEVER SEEN N-A, and this package should have shown it")
         a("")
     a("EVERY FAULT MESSAGE AND BORDER CONDITION, AND WHERE TO SEE IT")
     a("-------------------------------------------------------------")
