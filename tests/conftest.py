@@ -635,6 +635,61 @@ def _force_writable(func, path, _exc) -> None:
         pass
 
 
+#: Suffixes only ChromIQ and ArgyllCMS write. A bare ``tmp*`` folder holding one
+#: of these, in the system temp folder, came from this suite: no other program on
+#: the machine writes a `.ti3` into `/var/folders`.
+_CHROMIQ_TEMP_MARKERS = (".ti1", ".ti2", ".ti3", ".cht", ".cie", ".icc", ".cal")
+
+#: The other shape the leak takes, and the one the suffixes above miss. The
+#: chart-geometry probes name a folder per combination of instrument, paper,
+#: resolution and a flag: `41A4150False`, `CMLetter300True`, `CR30A3600False`.
+#: Nothing but this suite writes a directory called that into the system temp
+#: folder, and those folders hold TIFFs, whose suffix is far too common to be a
+#: marker on its own.
+_CHROMIQ_PROBE_DIR = __import__("re").compile(
+    r"^[A-Za-z0-9]{2,6}(A3|A4|A5|Letter|Legal|Tabloid)\d{2,4}(True|False)$")
+
+
+def _is_chromiq_temp(entry: pathlib.Path, _depth: int = 2,
+                     _budget: int = 60) -> bool:
+    """Whether an unprefixed temp folder is one of this suite's.
+
+    Shallow and cheap on purpose: the sweep runs at the start of every session
+    and there can be tens of thousands of these. It looks no deeper than
+    *_depth* and at no more than *_budget* entries, and answers False the moment
+    it runs out of either. A false negative costs nothing; the folder is swept
+    on some later run or by the operating system. A false POSITIVE would delete
+    another application's data, so the test is the presence of a file only this
+    suite writes, never the name of the folder.
+    """
+    stack = [(entry, 0)]
+    seen = 0
+    while stack:
+        here, level = stack.pop()
+        try:
+            children = list(os.scandir(here))
+        except OSError:
+            continue
+        for child in children:
+            seen += 1
+            if seen > _budget:
+                return False
+            try:
+                if child.is_file(follow_symlinks=False):
+                    if child.name.lower().endswith(_CHROMIQ_TEMP_MARKERS):
+                        return True
+                    if child.name in ("project.json", "meta.json"):
+                        return True
+                elif child.is_dir(follow_symlinks=False):
+                    if _CHROMIQ_PROBE_DIR.match(child.name):
+                        return True
+                    if level < _depth:
+                        stack.append((pathlib.Path(child.path), level + 1))
+            except OSError:
+                continue
+    return False
+
+
 def _sweep_stale_temp_dirs() -> "tuple[int, int]":
     """Delete what earlier test runs left in the system temp folder.
 
@@ -645,8 +700,26 @@ def _sweep_stale_temp_dirs() -> "tuple[int, int]":
 
     The leak was ``tempfile.mkdtemp()``, which nothing ever removes — unlike
     pytest's own ``tmp_path``, which is cleaned up whether a test passes or
-    fails and keeps only the last few runs. Those call sites now use
+    fails and keeps only the last few runs. Those call sites were moved to
     ``tmp_path``; this sweeps the history, and catches any that come back.
+
+    **THEY CAME BACK, AND THIS SWEEP COULD NOT SEE THEM: 62,548 FOLDERS AND
+    198 GB.** Measured 2026-09-12, after a day of gate runs took the disk from
+    700 GB free to 430. This function globbed ``chromiq[-_]*`` and pytest's own
+    trees, so it swept every temp folder created WITH A PREFIX and none created
+    without one. `tempfile.mkdtemp()` with no ``prefix=`` produces ``tmpXXXXXXXX``,
+    twenty-five test files still call it, and each of those folders holds a
+    chart build: the largest single one measured 16 GB of TIFFs. Every gate run
+    printed "[cleanup] removed this run's temp files" and left them.
+
+    A guard on one door and not the identical door beside it, which is the shape
+    this project keeps producing, and the docstring above asserted the door was
+    already shut.
+
+    Bare ``tmp*`` belongs to every application on the machine, so it is swept
+    only where the folder can be shown to be ChromIQ's own: see
+    :func:`_is_chromiq_temp`. That plus the one-hour staleness cutoff is what
+    makes this safe to run against the shared system temp folder.
     """
     import time
 
@@ -668,6 +741,11 @@ def _sweep_stale_temp_dirs() -> "tuple[int, int]":
     for base in root.glob("pytest-of-*"):
         if base.is_dir():
             candidates += [d for d in base.glob("pytest-*") if d.is_dir()]
+    # …AND THE ONES WITH NO PREFIX AT ALL, which is where the 198 GB was.
+    # Filtered by content, never by name alone, because `tmp*` is what every
+    # application's `tempfile.mkdtemp()` produces.
+    candidates += [d for d in root.glob("tmp*")
+                   if d.is_dir() and not d.is_symlink() and _is_chromiq_temp(d)]
 
     for entry in candidates:
         if entry.name in keep or not entry.is_dir():
