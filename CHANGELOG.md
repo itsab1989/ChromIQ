@@ -21,6 +21,16 @@ still building.
   that was appended. A reader who scrolled up after the percentage started
   ticking was thrown back to the bottom on every tick.
 
+  Two further doors into the same panes are fixed with it. The Create Chart tab
+  collapses the patch-arranging output into one live percentage line and
+  rewrites that line in place, which reused the answer from the last appended
+  line. And the line naming your instrument is replaced by removing it and
+  adding the new one, so the question was asked of a log one line shorter than
+  the one you were reading: a reader one line from the bottom was pulled down,
+  and a reader at the bottom was thrown to the very top of the log. That last
+  one has been there as long as the line has, on Build Profile and on Check and
+  Refine, and nobody had reported it.
+
 ## v4.2.6
 
 **A profile built from an i1Profiler measurement could record its paper white as

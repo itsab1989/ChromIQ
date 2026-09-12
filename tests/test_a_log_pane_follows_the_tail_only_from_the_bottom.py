@@ -480,3 +480,115 @@ def test_the_spot_read_results_table_follows_the_same_rule():
         "the table asks AFTER inserting the row, which makes the maximum grow "
         "and a reader who has not moved look as though they had")
     assert "if at_bottom:" in fn
+
+
+# --- the door that removes a line before it appends one ---------------------
+
+def test_replace_log_line_does_not_drag_a_reader_parked_one_line_up(qapp):
+    """`replace_log_line` removes the tracked line and then appends the new
+    one, so the append's question is asked of a document ONE LINE SHORTER.
+
+    A reader parked at `maximum - 1` is at `maximum` by then, and was dragged
+    down. The class docstring calls a slack of one line "the bug in a smaller
+    font", so this is the class contradicting itself at a door it does not own.
+    """
+    from ui.widgets import TailFollowLog, replace_log_line
+    log = TailFollowLog()
+    log.resize(420, 90)
+    log.show()
+    qapp.processEvents()
+    log.setPlainText("\n".join(f"line {i}" for i in range(200)))
+    log.appendPlainText("Instrument detected: i1Pro")
+    qapp.processEvents()
+    sb = log.verticalScrollBar()
+    assert sb.maximum() > 5, "the pane must actually scroll for this to mean anything"
+
+    for parked in (sb.maximum() - 1, sb.maximum() - 2, 0):
+        sb.setValue(parked)
+        qapp.processEvents()
+        before = sb.value()
+        replace_log_line(log, "Instrument detected: i1Pro",
+                         "Instrument detected: i1Pro (again)")
+        qapp.processEvents()
+        assert sb.value() == before, (
+            f"a reader parked at {before} of {sb.maximum()} was moved to "
+            f"{sb.value()}")
+        replace_log_line(log, "Instrument detected: i1Pro (again)",
+                         "Instrument detected: i1Pro")
+        qapp.processEvents()
+    log.deleteLater()
+
+
+def test_replace_log_line_still_follows_a_reader_who_is_at_the_bottom(qapp):
+    from ui.widgets import TailFollowLog, replace_log_line
+    log = TailFollowLog()
+    log.resize(420, 90)
+    log.show()
+    qapp.processEvents()
+    log.setPlainText("\n".join(f"line {i}" for i in range(200)))
+    log.appendPlainText("Instrument detected: i1Pro")
+    qapp.processEvents()
+    sb = log.verticalScrollBar()
+    # The pane is not laid out until the events are pumped, and before that
+    # `maximum` is 0, so a setValue taken from it parks the reader at the top.
+    for _ in range(5):
+        qapp.processEvents()
+    assert sb.maximum() > 5
+    sb.setValue(sb.maximum())
+    qapp.processEvents()
+    assert log.is_at_bottom(), "the premise of this test"
+    replace_log_line(log, "Instrument detected: i1Pro",
+                     "Instrument detected: i1Pro (again)")
+    qapp.processEvents()
+    assert sb.value() == sb.maximum()
+    assert log.is_following_tail()
+    log.deleteLater()
+
+
+def test_replace_log_line_still_works_on_a_plain_edit(qapp):
+    """It takes a `QPlainTextEdit`, and most callers hand it one."""
+    from PyQt6.QtWidgets import QPlainTextEdit
+    from ui.widgets import replace_log_line
+    log = QPlainTextEdit()
+    log.appendPlainText("first")
+    log.appendPlainText("tracked")
+    assert replace_log_line(log, "tracked", "replaced") == "replaced"
+    assert "tracked" not in log.toPlainText()
+    assert "replaced" in log.toPlainText()
+    assert "first" in log.toPlainText()
+    assert replace_log_line(log, "replaced", None) is None
+    assert "replaced" not in log.toPlainText()
+    log.deleteLater()
+
+
+def test_replace_log_line_never_throws_a_following_reader_to_the_top(qapp):
+    """The older half of the same fault, and the larger one.
+
+    `replace_log_line` ended on `ensureCursorVisible()`, which scrolls to the
+    widget's TEXT CURSOR. Nothing in that function or in `appendPlainText`
+    moves that cursor, so on a pane filled by `setPlainText` and appends it
+    sits at position 0. Measured on a real `TailFollowLog`, 201 lines in a
+    420x90 pane: a reader parked at 196 of 196 came out at 0 of 196.
+    """
+    from ui.widgets import TailFollowLog, replace_log_line
+    log = TailFollowLog()
+    log.resize(420, 90)
+    log.show()
+    for _ in range(5):
+        qapp.processEvents()
+    log.setPlainText("\n".join(f"line {i}" for i in range(200)))
+    log.appendPlainText("Instrument detected: i1Pro")
+    for _ in range(5):
+        qapp.processEvents()
+    sb = log.verticalScrollBar()
+    assert sb.maximum() > 5
+    assert log.textCursor().position() == 0, (
+        "the premise: the text cursor is where nobody put it")
+    sb.setValue(sb.maximum())
+    qapp.processEvents()
+    replace_log_line(log, "Instrument detected: i1Pro",
+                     "Instrument detected: i1Pro (again)")
+    qapp.processEvents()
+    assert sb.value() == sb.maximum(), (
+        f"a reader at the bottom came out at {sb.value()} of {sb.maximum()}")
+    log.deleteLater()
