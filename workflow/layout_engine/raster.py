@@ -1403,6 +1403,22 @@ def render_pages(
         instead of exact. Measured by `tests/test_layout_raster.py::
         test_underline_modes`, which asks for the accent RGB values by value
         and found none of them.
+
+        **NOTHING PARTLY TRANSPARENT MAY BE `paste`d ONTO THIS SURFACE, AND A
+        ROTATED STRIP LABEL IS EXACTLY THAT.** `Image.paste(src, box, mask)`
+        lerps ALL FOUR channels, which is the wrong operator for a
+        non-premultiplied ground: it mixes an antialiased glyph's black toward
+        the ground's white in the RGB channels, and the end-of-page composite
+        below then blends that lightened grey over the page a SECOND time. The
+        upright labels are safe because `ImageDraw.text` composites correctly;
+        the turned ones are pasted tiles and were not. Measured on the shipped
+        CR30 A4 preset with the label turned 90 degrees: 1,122 pixels of the
+        label band differed by up to 98 levels of 255, always lighter, and a
+        turned letter printed 85 % of the ink of the same letter upright. So a
+        tile goes on with `Image.alpha_composite`, which is the "over" operator
+        this surface actually wants and which also cannot erase a neighbour the
+        way a verbatim copy would. `tests/test_a_turned_strip_letter_keeps_all_
+        its_ink.py` holds it there.
         """
         if _lbl_layer[0] is None:
             _lbl_layer[0] = Image.new("RGBA", (W, H), (255, 255, 255, 0))
@@ -1582,8 +1598,19 @@ def render_pages(
                         _off = _extra if _rot == 90 else 0
                     else:                             # right: reading-end anchored
                         _off = 0 if _rot == 90 else _extra
-                    _lbl_surface()[0].paste(
-                        _tile, (_cx - _tile.width // 2, _y + _off), _tile)
+                    # COMPOSITED, NOT PASTED. `paste` with the tile as its own
+                    # mask lerps the colour channels too, so on this surface it
+                    # washes the glyph's antialiased edge out toward the
+                    # ground, and the end-of-page composite blends the result
+                    # again. `alpha_composite` is the "over" operator, and it
+                    # reproduces the pre-overlay `img.paste(tile, ..., tile)`
+                    # exactly. Done on the tile's own rectangle, so it costs a
+                    # tile and not a page. See `_lbl_surface`.
+                    _ov = _lbl_surface()[0]
+                    _bx = (_cx - _tile.width // 2, _y + _off)
+                    _reg = (_bx[0], _bx[1],
+                            _bx[0] + _tile.width, _bx[1] + _tile.height)
+                    _ov.paste(Image.alpha_composite(_ov.crop(_reg), _tile), _bx)
                     _collect_rotated_label(_cx, _y, _off, _lbl, _tile,
                                            indicator_rotation)
                 if underline_on and underline_mode == "cycle":   # one accent / strip
@@ -1868,11 +1895,29 @@ def render_pages(
         # See `_lbl_surface` above for why it waits: the strip's own patches
         # are painted after its label, and since Knut's ruling let the band
         # cross the top margin, painting first meant painting under. The mask
-        # is the overlay's own darkness, so the paper between the letters is
-        # not pasted and nothing already on the page is erased.
+        # is the overlay's own alpha, so the paper between the letters is not
+        # pasted and nothing already on the page is erased.
+        #
+        # AN RGBA IMAGE IS ITS OWN MASK, which is not a tidy-up: `.convert
+        # ("RGB")` and `.split()[3]` each allocate ANOTHER full page, on top of
+        # the overlay, on top of the page. Handing PIL the overlay itself takes
+        # its RGB bands and its alpha and allocates neither, and the pixels are
+        # the same. Measured through `chart.build_chart` on the CR30 A4 preset,
+        # peak RSS added by the render (`ru_maxrss`, one fresh process each):
+        #
+        #     A4 at 300 dpi     letters off  96.9 MB   <- the render alone
+        #                       before     194.7 MB    <- the overlay DOUBLED it
+        #                       after      128.8 MB
+        #     A2 at 1200 dpi    letters off  10,252 MB
+        #     (2 pages, the     before       11,165 MB
+        #      largest sheet    after        11,058 MB
+        #      ChromIQ offers)
+        #
+        # so two thirds of the overlay's cost on A4 was the two temporaries,
+        # and `build_chart` runs on the GUI THREAD (chart_creator says so in
+        # its own log line), which is why it is worth the one-line change.
         if _lbl_layer[0] is not None:
-            img.paste(_lbl_layer[0].convert("RGB"), (0, 0),
-                      _lbl_layer[0].split()[3])
+            img.paste(_lbl_layer[0], (0, 0), _lbl_layer[0])
             if collect_device_geom:
                 _geom_rows.extend(_lbl_geom)
 

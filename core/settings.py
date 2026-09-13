@@ -351,6 +351,14 @@ DEFAULTS: dict[str, Any] = {
     "margin_inspector_show":     True,    # show the "Measured from Preview" frame
     "layout_info_show":          True,    # show the "Chart layout information" panel
     "margin_violation_notify":   True,    # warn when a measured margin < threshold
+    # Whether the red warning paragraph in "Measured from Preview" is open.
+    # Basti, 2026-09-13: *"the red warning text in the measured from preview
+    # section can become quite a lot in some instances. can this be made
+    # collapsible and the app remembers the state it was in so it does not
+    # always take up this much space?"* Open by default, because a warning
+    # nobody has hidden yet is one nobody has read yet; once it is shut it
+    # stays shut, across charts and across restarts.
+    "margin_warnings_expanded":  True,
     "margin_guides_show":        False,   # dotted threshold guide lines on preview
     "margin_measured_guides_show": False,  # long dotted lines at the measured margins
     "margin_coords_show":         False,   # cross-hair + paper-mm/inch readout on pointer (#29)

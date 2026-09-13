@@ -67,9 +67,22 @@ class MarginInspectorPanel(QGroupBox):
     coords_toggled = pyqtSignal(bool)
     #: (on, distance from edge mm, marker length mm) — #152
 
+    #: Emitted when the user folds or unfolds the warning paragraph, so the
+    #: owning tab can persist it. The panel does not reach for `AppSettings`
+    #: itself: `ui/widgets.py` holding the settings in a module global across a
+    #: QApplication teardown is the leak `tests/conftest.py` had to be rewritten
+    #: for (CLAUDE.md), and a display panel has no business owning that.
+    warnings_expanded_changed = pyqtSignal(bool)
+
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(tr("Measured from Preview"), parent)
         self._mode = "dark"
+        #: Whether the red warning paragraph is unfolded. The owner restores
+        #: the remembered answer with :meth:`set_warnings_expanded`.
+        self._warnings_expanded = True
+        #: How many NOTICES the paragraph is currently carrying. 0 means there
+        #: is nothing to fold, and the header does not appear at all.
+        self._warning_count = 0
         #: The last verdict `_update_status` was given, so `set_appearance`
         #: can repaint it in a new appearance. None until one arrives.
         self._last_status: "tuple[list, dict] | None" = None
@@ -204,6 +217,32 @@ class MarginInspectorPanel(QGroupBox):
         grid.addWidget(self._panel_tip, 0, 4,
                        Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         v.addWidget(self._table)
+
+        # THE WARNINGS FOLD AWAY, AND THE APP REMEMBERS. Basti, 2026-09-13:
+        # *"the red warning text in the measured from preview section can
+        # become quite a lot in some instances. can this be made collapsible
+        # and the app remembers the state it was in so it does not always take
+        # up this much space?"* Measured on his own CR30 A4 preset: three
+        # notices at once run to fourteen wrapped lines and take more vertical
+        # room than the whole table above them.
+        #
+        # THIS IS NOT THE BOX HE RULED OUT IN 2026-09-04, and the difference is
+        # the reason it is allowed to exist. That one was a FRAMED collapsible
+        # section holding standing INFO text inside a section, and his words
+        # were *"i want that gone. You can fit it inside of a tooltip where it
+        # fits but not directly inside a section"*. This is one clickable line
+        # in front of a WARNING about the chart in the preview, which Knut
+        # required to be visible without a hover, so it cannot go in a tooltip:
+        # the notices are what he asked to be able to shut, not to move.
+        #
+        # Only a warning gets the header. "Margins: OK" is one short line, and
+        # a fold on a line that short is furniture, not a saving.
+        self._warn_toggle = QLabel("", self)
+        self._warn_toggle.setWordWrap(True)
+        self._warn_toggle.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._warn_toggle.setVisible(False)
+        self._warn_toggle.mousePressEvent = self._on_warn_toggle_clicked
+        v.addWidget(self._warn_toggle)
 
         # Large pass/fail status, one or more lines.
         self._status = QLabel("", self)
@@ -554,9 +593,15 @@ class MarginInspectorPanel(QGroupBox):
                               "overlap_warnings": list(overlap_warnings or [])})
         if not notify:
             self._status.setVisible(False)
+            self._warning_count = 0
+            self._apply_warning_fold()
             self._show_text_notes([])
             return
         self._status.setVisible(True)
+        # NO HEADER UNTIL A WARNING IS ACTUALLY SET, and every branch below
+        # either sets one or leaves this at zero. Starting from zero here is
+        # what stops a stale header surviving a chart that fixed its own fault.
+        self._warning_count = 0
         text_warnings = list(text_warnings or [])
         overlap_warnings = list(overlap_warnings or [])
         # The text notices go to the panel's ⓘ, in front of its standing help.
@@ -609,6 +654,7 @@ class MarginInspectorPanel(QGroupBox):
         # shown, violations first, rather than the first one winning.
         if margin_lines or overlap_warnings:
             self._status.setText("\n".join(margin_lines + overlap_warnings))
+            self._warning_count = len(margin_lines) + len(overlap_warnings)
             # A VERDICT IS CENTRED; A PARAGRAPH IS NOT. A margin violation is
             # one short line and reads well centred, which is why it is. An
             # overlap notice has to say what is wrong AND which two boxes fix
@@ -622,7 +668,14 @@ class MarginInspectorPanel(QGroupBox):
             else:
                 set_ink(self._status, "#e0564b",
                         " font-size: 14px; font-weight: 700;", level="main")
+            # LAST, so it hides a paragraph that has already been filled in and
+            # styled. Called after `setVisible(True)` above, which is why the
+            # fold survives a fresh chart rather than springing open on every
+            # rebuild: `_apply_warning_fold` is the only thing that decides the
+            # paragraph's visibility once there is a warning in it.
+            self._apply_warning_fold()
             return
+        self._apply_warning_fold()          # nothing to fold: header off
         if text_warnings:
             # NO GREEN "Margins: OK" WHILE A TEXT NOTICE IS LIVE. The margins
             # really are within their thresholds, so the verdict would not be
@@ -658,3 +711,58 @@ class MarginInspectorPanel(QGroupBox):
         """Left-align the message field for a paragraph, centre it for a verdict."""
         self._status.setAlignment(
             Qt.AlignmentFlag.AlignLeft if on else Qt.AlignmentFlag.AlignHCenter)
+
+    # ------------------------------------------------------------------
+    # The warning fold (Basti, 2026-09-13)
+    # ------------------------------------------------------------------
+
+    def warnings_expanded(self) -> bool:
+        """Whether the red warning paragraph is currently unfolded."""
+        return bool(self._warnings_expanded)
+
+    def set_warnings_expanded(self, expanded: bool, *, emit: bool = False) -> None:
+        """Fold or unfold the warning paragraph.
+
+        The owner calls this once with the remembered answer, WITHOUT emitting,
+        so restoring a stored state cannot be mistaken for the user changing
+        it and written straight back.
+        """
+        expanded = bool(expanded)
+        changed = expanded != self._warnings_expanded
+        self._warnings_expanded = expanded
+        self._apply_warning_fold()
+        if emit and changed:
+            self.warnings_expanded_changed.emit(expanded)
+
+    def _on_warn_toggle_clicked(self, event) -> None:      # noqa: ANN001 (Qt)
+        self.set_warnings_expanded(not self._warnings_expanded, emit=True)
+
+    def _warning_header_text(self) -> str:
+        """``▼  3 warnings`` / ``▶  3 warnings``, counting the NOTICES.
+
+        Counted on the notices, not on the wrapped lines: a notice is what the
+        user acts on, and the line count changes with the window's width.
+        """
+        n = self._warning_count
+        arrow = "▼" if self._warnings_expanded else "▶"
+        if n == 1:
+            # An explicit singular and plural, never "(s)" (CLAUDE.md, i18n).
+            body = tr("1 warning")
+        else:
+            body = tr("{n} warnings").format(n=n)
+        if self._warnings_expanded:
+            return f"{arrow}  {body}"
+        # Folded, the header is the only thing left, so it says how to get the
+        # text back rather than leaving a bare count to be guessed at.
+        return f"{arrow}  {body} " + tr("(click to show)")
+
+    def _apply_warning_fold(self) -> None:
+        """Show the header and the paragraph according to the fold."""
+        has = self._warning_count > 0
+        self._warn_toggle.setVisible(has)
+        if not has:
+            return
+        self._warn_toggle.setText(self._warning_header_text())
+        set_ink(self._warn_toggle, "#e0564b",
+                " font-size: 12px; font-weight: 700;", level="main")
+        self._status.setVisible(self._warnings_expanded)
