@@ -1242,10 +1242,11 @@ BORDER_SMALL_SAMPLE: "list[Date]" = [
 #: a different sentence from the one for a chart that could not supply a row.
 BORDER_UNRECORDED: "list[Date]" = [
     _d("2026-12-02_100000", "2026-12-02T10:00:00",
-       "A sheet nobody recorded the printing of",
-       "The same kind of measurement as the other projects, with no record of "
-       "how it was printed. The grey rows keep their numbers and lose their "
-       "verdicts; the colour rows are judged as usual.",
+       "A sheet whose printing condition nobody wrote down",
+       "The same kind of measurement as the other projects, printed and "
+       "measured like all of them, but with no record of the paper, ink and "
+       "driver settings it was printed WITH. The grey rows keep their numbers "
+       "and lose their verdicts; the colour rows are judged as usual.",
        Design(bulk=0.80, shoulder=1.40, peak=2.20, tail=1.60, grey_dch=1.90),
        []),
     _d("2026-12-16_100000", "2026-12-16T10:00:00",
@@ -1861,8 +1862,16 @@ PROJECTS = [
         # supply nothing: "none of the values was graded" against "the chart
         # supplied none of the values". Under Full colour check the same run
         # shows its colour rows judged as usual, which the table below prints.
-        RunPlan("A sheet nobody recorded the printing of, so the grey rows "
-                "keep their numbers and are shown for information.",
+        # THE NAME SAYS "CONDITION", BECAUSE THE FIRST ONE DID NOT AND WAS
+        # READ THE OTHER WAY. Knut, 2026-09-13, reading it on this very run:
+        # *"Why 'A sheet nobody recorded the printing of'? Is that relevant? A
+        # measurement performed on a verification chart was obviously
+        # printed."* He is right about the sheet and right about the sentence:
+        # what is missing is the RECORD OF HOW it was printed, not the
+        # printing. The app's own reason line always said so ("how this sheet
+        # was printed is not recorded"); this pack's run title did not.
+        RunPlan("A sheet whose printing condition nobody wrote down, so the "
+                "grey rows keep their numbers and are shown for information.",
                 CHART_SMALL, CHART_MEDIUM, "chromiq_quick",
                 BORDER_UNRECORDED, unlocked=True, lock="unlocked",
                 report_type=REPORT_TYPE_GREY,

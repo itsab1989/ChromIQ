@@ -1695,3 +1695,41 @@ line at about 43 pt reaching 22.57 mm. The keep-out under-predicts by 15.6 mm.
 Getting it right means asking the renderer what size it actually chose, which is
 a structural change to `render_clip_strip`, and it decides where printed ink
 lands, so it is a round of its own.
+
+## 2r. ⏳ Awaiting confirmation — 2026-09-13: "nobody recorded the printing" was read the other way, and CH-17 is his to confirm
+
+**Knut**, loading `ChromIQ-Report-Limit-Demos`, project
+`Report-Limits-Border-Conditions`:
+
+> *"Why 'A sheet nobody recorded the printing of, so the grey rows keep their
+> numbers and are shown for information'? Is that relevant? A measurement
+> performed on a verification chart was obviously printed. This is a demo, so
+> this might be wrong information. The Gray test thresholds exist, so they
+> should not be INFO if the test can be performed."*
+
+Two separate things, and only the first is ours.
+
+### The sentence, which was ambiguous and is fixed
+
+What is missing on that run is the RECORD OF HOW the sheet was printed, the
+paper, ink and driver settings, not the fact of its printing. **The app's own
+reason line has always said so**: *"how this sheet was printed is not recorded,
+so this value is shown for information only"*. The DEMO PACK's run title did
+not, and that is what he read. It now says *"A sheet whose printing condition
+nobody wrote down"*, and the run's description spells out that it was printed
+and measured like all the others.
+
+### The rule, which is his
+
+CH-17 makes the two grey-balance rows INFO when no printing condition is
+recorded AND the reference is the chart's own design. The reasoning behind it:
+graded in absolute Lab against a design aim, the PAPER'S OWN TINT lands in the
+grey row, so a perfectly good print on a warm paper fails a row about the
+printer. With a printing condition recorded there is a reference that already
+carries the paper, and the row means what it says.
+
+He is asking for the opposite: *"The Gray test thresholds exist, so they should
+not be INFO if the test can be performed."* That is a real choice with a real
+cost either way, and CH-17 lives in `measurement_report_limits.md`, which is a
+DRAFT with every section awaiting confirmation, so it is his call and it has
+been put to him. **Nothing about the rule was changed.**
