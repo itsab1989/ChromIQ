@@ -298,6 +298,31 @@ it again. It applies to this file's reader and to every agent briefed from it.
   create image from window"* and `-R` returned wallpaper, and one round kept
   three wallpaper files named `BLOCKED-CAPTURE-*` rather than pass them off as
   evidence. That was the right call and it is no longer necessary.
+* **A LOCKED SCREEN IS NOT A BLOCKER ON THIS MACHINE. WAKE IT.** Basti,
+  2026-09-13: *"my screen never needs a password to be unlocked"*, asked after
+  a round spent a morning writing "the screen is locked, so there are no
+  photographs". `CGSSessionScreenIsLocked` really was 1, and the round was
+  still wrong: on a session with no password on the lock, asserting user
+  activity clears it. `scripts/onscreen_capture.py::wake_the_screen` does that
+  (`caffeinate -u`, then re-ask), and `capture_window` now calls it before
+  refusing anything. Proved by putting the machine back into that exact state
+  with `pmset displaysleepnow`, watching the flag go to 1, and watching the
+  helper clear it unaided. **Only report a lock as a blocker after the wake has
+  failed**, which means a password really is wanted.
+  * This is also the honest answer to "why can you unlock it sometimes and not
+    others": nobody ever unlocked anything. Earlier rounds woke a display that
+    happened to be asleep and it looked like an unlock. The variable was the
+    agent's behaviour, not the machine's.
+* **A WINDOW DOES NOT HAVE TO BE IN FRONT TO BE PHOTOGRAPHED.** `screencapture
+  -R` copies a RECTANGLE of the screen, so whatever is stacked above the window
+  is what comes out, and `win.raise_()` cannot fix it: a process macOS never
+  activated cannot bring itself to the front. Measured the same day, with the
+  screen unlocked: every capture came back 0 % different from the same
+  rectangle with the window hidden, because the app sat behind the terminal
+  that launched it. `capture_window` now finds the window's CGWindowID
+  (`window_id_for`, via pyobjc) and uses `screencapture -l`, which copies the
+  window's own buffer and does not care about stacking. The rectangle route
+  stays as the fallback, still with its hide/show proof.
 
 The sandbox rules in the next section are how you do this SAFELY. They are not
 an alternative to doing it.
