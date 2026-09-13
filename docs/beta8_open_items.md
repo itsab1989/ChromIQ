@@ -4894,3 +4894,36 @@ only a triple that DIFFERS from the rule's answer would stop it.
   The patch-width fix was mutation-proved: with the flat-top branch deleted and
   `__pycache__` purged, the first two of those fail with "reported 9.398 mm; the
   patch measures 10.922 mm across its flats" and the other two stay green.
+
+### B8-104 · The chart's PDF export lost the strip-label underline entirely at a thin setting
+- blocks release: no
+- status: FIXED
+- found by: this session, 2026-09-13, while answering Knut's question *"Which
+  PDF export is this? from the Measurement Report? or any other export? If the
+  Measurement Report, I say we keep as is."* It is not the report: it is Create
+  Chart's "Also export a PDF", the chart itself, so his keep-as-is does not
+  apply and the sheet a RIP may print was missing a rule the TIFF has.
+- detail: one display list feeds the TIFF and the vector PDF, so they are the
+  same chart in two forms. A `vrect` row is HALF-OPEN, like a Python slice, and
+  the PDF writer takes `x1 - x0` by `y1 - y0` as the size. The helper markers
+  emit half-open rows; the three strip-label underlines wrote Pillow's
+  INCLUSIVE box straight in, so every rule came out one pixel short in both
+  dimensions. Two emitters, two conventions, one consumer that cannot be right
+  for both.
+
+  Measured on a real export at 200 dpi with the rule at 0.10 mm: **1**
+  zero-height rectangle in `black` mode, **5** in `segments`, **18** in
+  `cycle` — the rule is in the TIFF and absent from the PDF. At 0.50 mm nothing
+  vanished and every rule was a quarter thin instead, 1.08 pt against the
+  TIFF's 1.44. After the fix: 0 dead rectangles in all three modes, and
+  0.36 pt / 1.44 pt, which is exactly 1 px and 4 px at that resolution.
+
+  `raster._ul_geom_rect` is now the only place that converts, and a test reads
+  `render_pages`'s source to keep a fourth emitter from picking the other
+  convention.
+- evidence: test_no_rule_in_the_pdf_has_no_size,
+  test_the_pdf_rule_is_exactly_as_thick_as_the_ink_on_the_tiff,
+  test_the_converter_is_the_only_place_that_knows_the_convention.
+
+  Mutation-proved: with the converter returning the inclusive box again and
+  `__pycache__` purged, six of the ten fail with the counts above.

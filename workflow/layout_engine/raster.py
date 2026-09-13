@@ -1253,6 +1253,29 @@ def _fill_rect(draw: "ImageDraw.ImageDraw", box, fill) -> bool:
     return True
 
 
+def _ul_geom_rect(x0: int, y0: int, x1: int, y1: int
+                  ) -> tuple[int, int, int, int]:
+    """A ``vrect`` display-list row for the box Pillow was just given.
+
+    THE DISPLAY LIST IS HALF-OPEN AND PILLOW IS NOT, and until 2026-09-13 the
+    three strip-label underlines wrote Pillow's inclusive box straight into it.
+    The PDF writer takes ``x1 - x0`` and ``y1 - y0`` as the size, so every rule
+    came out one pixel short in BOTH dimensions -- and at any thickness that
+    rounds to a single pixel (0.10 mm at 300 dpi, up to 0.21 at 150) that is a
+    height of zero: the rule is in the TIFF and simply absent from the PDF of
+    the same chart. Measured on a real "Also export a PDF" run at 200 dpi with
+    a 0.10 mm rule: 1 zero-height rectangle in `black` mode, 5 in `segments`,
+    18 in `cycle`, and none of the three at 0.50 mm, where the rules were
+    instead a quarter thin (1.08 pt against the TIFF's 1.44).
+
+    The helper markers already emit half-open rows (they add the +1 inline), so
+    the consumer was right and the emitters disagreed with each other. This is
+    the one place that converts, so a fourth caller cannot pick the other
+    convention by accident.
+    """
+    return (x0, y0, x1 + 1, y1 + 1)
+
+
 def render_pages(
     target: ColorTarget,
     layout: Layout,
@@ -1622,8 +1645,11 @@ def render_pages(
                     if _fill_rect(_lbl_surface()[1],
                                   [x0, _ly, xR - 1, _ly + ul_th - 1], _acc) \
                             and collect_device_geom:
+                        # HALF-OPEN FOR THE DISPLAY LIST, INCLUSIVE FOR PILLOW.
+                        # See `_ul_geom_rect`.
                         _lbl_geom.append(
-                            ("vrect", (x0, _ly, xR - 1, _ly + ul_th - 1), _acc))
+                            ("vrect", _ul_geom_rect(x0, _ly, xR - 1,
+                                                    _ly + ul_th - 1), _acc))
                 # SpectroScan labels the grid 2-D: column letters on top (above)
                 # plus row NUMBERS down the side, in the reserved rlwi band to the
                 # left of the patches. Drawn once, against the leftmost strip (#93,
@@ -1877,8 +1903,9 @@ def render_pages(
                 if _fill_rect(_lbl_surface()[1],
                               [x_left, _ly, x_right, _yb], (0, 0, 0)) \
                         and collect_device_geom:
-                    _lbl_geom.append(("vrect", (x_left, _ly, x_right, _yb),
-                                      (0, 0, 0)))
+                    _lbl_geom.append(
+                        ("vrect", _ul_geom_rect(x_left, _ly, x_right, _yb),
+                         (0, 0, 0)))
             else:                                     # 5 equal segments full-width
                 _span = x_right - x_left + 1
                 _n = len(ACCENT_RGB)
@@ -1889,7 +1916,8 @@ def render_pages(
                                   [_sx0, _ly, _sx1, _yb], ACCENT_RGB[_k]) \
                             and collect_device_geom:
                         _lbl_geom.append(
-                            ("vrect", (_sx0, _ly, _sx1, _yb), ACCENT_RGB[_k]))
+                            ("vrect", _ul_geom_rect(_sx0, _ly, _sx1, _yb),
+                             ACCENT_RGB[_k]))
 
         # THE LABEL BAND GOES ON NOW, INK ONLY, OVER EVERY PATCH THAT IS DRAWN.
         # See `_lbl_surface` above for why it waits: the strip's own patches
