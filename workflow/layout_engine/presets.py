@@ -23,6 +23,12 @@ from . import permutation
 
 SUPPORTED_INSTRUMENTS = ("i1", "p3", "CM", "41", "51", "SS", "CR30")
 
+#: What an empty (0.0 mm) "Text distance from edge" box resolves to. Written
+#: once, and read through the three `effective_text_edge_*` properties below —
+#: it was `or 4.0` spelled out three times in `build_kwargs()`, and the paths
+#: that did not go through `build_kwargs()` never got it.
+TEXT_EDGE_DEFAULT_MM = 4.0
+
 
 @dataclass
 class LayoutRecipe:
@@ -400,6 +406,43 @@ class LayoutRecipe:
             r.seed = lay["seed"]
         return r
 
+    # ---- "Text distance from edge": what a typed 0 really means --------
+    #
+    # A TYPED ZERO IS NOT ZERO, AND THE SUBSTITUTION HAS TO BE ASKED FOR RATHER
+    # THAN COPIED. `build_kwargs()` writes `self.text_edge_clip_mm or 4.0`, so
+    # a 0 in any of the three boxes becomes 4.0 for everything the layout
+    # engine draws, and the panel promises exactly that in black under the
+    # boxes: *"A distance of 0.0 mm is not used. ChromIQ prints at 4.0 mm
+    # instead, so no text is set hard against the paper edge."*
+    #
+    # `chart_creator._stamp_tiff_metadata` read the three fields RAW off the
+    # recipe and got 0.0 where the sheet had 4.0, so the run's chart note was
+    # the one piece of text that DID go hard against the paper edge. Measured
+    # on screen, ColorMunki / A4 / 200 dpi, the note isolated against a control
+    # sheet with it switched off: with the boxes at 4.0 its ink ran from
+    # 4.83 mm of the top and 4.70 mm of the bottom; with all three typed to 0
+    # the same note ran from 1.40 mm and 1.14 mm, while the clip band's text
+    # (4.19 mm), the strip letters (5.97 mm) and the bottom sheet text
+    # (4.32 mm) did not move by a pixel. On a right-hand band, where the
+    # stamper packs the note against the reserve, its right-hand end moved
+    # from 20.70 mm to 17.14 mm as well.
+    #
+    # These three are that one rule, in one place, for every caller.
+    @property
+    def effective_text_edge_mm(self) -> float:
+        """"B", the bottom sheet text's distance, as the engine will read it."""
+        return float(self.text_edge_mm or TEXT_EDGE_DEFAULT_MM)
+
+    @property
+    def effective_text_edge_top_mm(self) -> float:
+        """"T", the strip letters' distance, as the engine will read it."""
+        return float(self.text_edge_top_mm or TEXT_EDGE_DEFAULT_MM)
+
+    @property
+    def effective_text_edge_clip_mm(self) -> float:
+        """"Clip", the side text distance, as the engine will read it."""
+        return float(self.text_edge_clip_mm or TEXT_EDGE_DEFAULT_MM)
+
     # ---- mapping to the engine build kwargs ----------------------------
     def build_kwargs(self) -> dict:
         """Kwargs for :func:`workflow.layout_engine.chart.build_chart`."""
@@ -496,9 +539,9 @@ class LayoutRecipe:
             "helper_marker_per_patch": self.helper_marker_per_patch or 3,
             "helper_markers_top_bottom": bool(self.helper_markers_top_bottom),
             "helper_markers_sides": bool(self.helper_markers_sides),
-            "text_edge": self.text_edge_mm or 4.0,
-            "text_edge_top": self.text_edge_top_mm or 4.0,
-            "text_edge_clip": self.text_edge_clip_mm or 4.0,
+            "text_edge": self.effective_text_edge_mm,
+            "text_edge_top": self.effective_text_edge_top_mm,
+            "text_edge_clip": self.effective_text_edge_clip_mm,
             # Drives "margins are the law" mode in the engine (Knut): only when on
             # are the margins exact (no leader/trailer). Off = printtarg-style.
             "use_instrument_margins": self.use_instrument_margins,

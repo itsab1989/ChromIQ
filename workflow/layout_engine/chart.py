@@ -226,6 +226,44 @@ def build_chart(
         "clip_border_width": clip_border_width, "clip_side": clip_side,
         "clip_content_mode": clip_content_mode,
         "text_edge_top": text_edge_top, "text_edge_clip": text_edge_clip,
+        # THE RULER HELPER MARKERS ARE GEOMETRY, AND THIS DICT LEFT THEM OUT.
+        #
+        # `instruments.GEOM_BUILD_KEYS` lists them, `build()` takes them and
+        # `geom_from_build_kwargs` copies them onto the `Geom` — but only from
+        # the dict it is handed, and this one is assembled by hand. Every key
+        # missing here reads as its default, so the geometry that lays out the
+        # REAL sheet was built with `helper_markers=False`, a 0.0 mm distance
+        # and a 0.0 mm dash, while the same markers were passed to
+        # `render_pages` below and drawn. The whole of #182's marker reserve
+        # therefore reached the panel, the capacity estimate and the note
+        # stamper (they all start from `LayoutRecipe.build_kwargs()`, which
+        # carries the keys) and reached the sheet nowhere.
+        #
+        # Measured on screen, ColorMunki / A4 / 200 dpi, markers at 4.0 mm with
+        # a 2.0 mm dash and "Clip" / "T" at 4.0, each element isolated against
+        # a control sheet with only that element switched off:
+        #
+        # * the clip band's text was printed at 4.70 mm from the paper edge,
+        #   bit-identical to the same sheet with the markers OFF, with 917
+        #   pixels of it inside the 4.0 to 6.0 mm dash band — the collision
+        #   Knut reported, whose fix in `geometry.clip_area_mm` could not act
+        #   because `geom.helper_markers` was False;
+        # * the strip letters' ink began 5.97 mm down with the markers on and
+        #   5.97 mm down with them off, while `geometry.strip_label_reserve_mm`
+        #   answers 7.0 mm for that recipe;
+        # * the row indicator labels' leftmost ink was 9.65 mm in with the
+        #   markers on and 9.65 mm with them off, while the panel quoted a
+        #   7.0 mm floor and a 17.38 mm left margin against the 4.0 / 14.38 the
+        #   sheet used.
+        #
+        # `_engine_total_patches` builds its geometry straight from
+        # `build_kwargs()`, so the patch-count estimate reserved the marker
+        # room this build did not, which is the same disagreement one level up.
+        "helper_markers": helper_markers,
+        "helper_marker_edge": helper_marker_edge,
+        "helper_marker_len": helper_marker_len,
+        "helper_markers_top_bottom": helper_markers_top_bottom,
+        "helper_markers_sides": helper_markers_sides,
         "use_instrument_margins": use_instrument_margins,
         "edge_spacers": edge_spacers,
         "patch_area_align": patch_area_align, "layout_mode": layout_mode,
