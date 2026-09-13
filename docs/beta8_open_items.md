@@ -5444,3 +5444,89 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   The context builder cannot raise now, the stand-in tab borrows the real
   methods instead of re-implementing a subset, and a test feeds it a recipe
   that answers badly to everything.
+
+### B8-115 · Knut's beta 9 batch: one warning, five things wrong in it
+- blocks release: no
+- status: FIXED
+- found by: Knut, 2026-09-13, testing beta 9 with a ColorMunki preset, a 24 mm
+  clip border and a 31.5 mm right margin.
+- evidence:
+  test_the_margin_binds_the_side_the_clip_border_is_on,
+  test_it_applies_whichever_side_the_border_is_on,
+  test_a_narrower_margin_changes_nothing,
+  test_his_own_worked_example_still_gives_202_mm,
+  test_the_room_and_the_overflow_both_take_the_margins,
+  test_the_renderer_centres_between_the_same_bounds,
+  test_a_typed_size_is_not_described_as_a_shrink_that_stopped,
+  test_no_message_still_claims_a_typed_size_stopped_shrinking,
+  test_the_auto_case_still_says_where_shrinking_stops,
+  test_a_chart_layout_name_replaces_the_targen_line,
+  test_the_prediction_sets_the_layout_name_the_build_sets.
+  Three mutations, each proved to land. Driven on screen with
+  `scripts/drive_182_knut_beta9_case.py`, and the notes' ink measured on a
+  sheet stamped by the real stamper.
+- detail: he read one warning and answered it in five parts, and every part
+  was right.
+
+  **F1 and F2 are one fault: the panel measured a line the sheet does not
+  print.** Measured before anything was touched, by rendering his sheet and
+  running `stamp_chart_metadata` on it: the notes' ink ran **24.51 mm to
+  276.61 mm** on a 297.05 mm page, so 24.5 mm of clear paper above it and
+  20.4 below (his 1), and all **127 characters** were drawn with no ellipsis
+  at any strip width the stamper could have used (his 2).
+
+  The cause is one missing line. `_generate_from_ti1` sets
+  `params.chart_layout_name`; `_collect_manual()` does not. With a patch set
+  armed targen is never run, so `stamp_lines` prints "Chart layout <name> |"
+  and the panel predicted "targen -d2 -f612 -e1 -B1 -G test". On his preset
+  that is 143 characters predicted against 187 built. The prediction asks
+  `_active_layout_name()` now, the same method the build asks, and driven on
+  screen the two lines came out identical.
+
+  **F3 and F4 are one fault too: the bottom line was bounded by the border and
+  not by the margin.** His words: *"When right margin is larger than
+  clip-border width: the largest value of them should define the
+  side-positions that are used for centring the bottom text."* Measured on his
+  sheet: bounds of (7.0, 186.0) from the border alone, a right margin whose
+  own text column starts at 178.5, and a 172.9 mm line centred between them
+  running to 182.95, so 4.45 mm of it printed inside the column the right-edge
+  notes live in. He read the warning as being about the notes, which is what
+  it said, and it was the bottom line that had moved.
+
+  **THE READING IS THE CONSERVATIVE ONE AND HE IS ASKED TO CONFIRM IT.**
+  *"This should apply for both left or right side clip-border"* can mean "on
+  both sides" or "whichever side the border is on". Applied to both sides it
+  contradicts his own already-confirmed A4 example, *"210 - Clip x2 = 202mm"*,
+  which has margins and ignores them: driven that way, six tests pinning 202
+  went red. So the margin joins the border's side only, and the question goes
+  back to him.
+
+  **F5: a typed size never shrank.** *"Shrinking stops at 7 pt, but only in
+  size=auto. When size is manually set to 13, it is not a shrinking."*
+  `text_floor_pt` answers "a typed size is its own floor", which is true, and
+  the message printed it back as *"the text has stopped shrinking at 13 pt"*,
+  his own number described as a limit the text ran into. The clause is out of
+  both messages and the two cases carry their own sentence: `_auto_floor_note`
+  as before, and a new `_typed_size_note` saying the size is printed exactly
+  as typed and what "auto" would do instead.
+
+  **AND ONE I WALKED INTO WHILE FIXING F5.** `_typed_size_note` reached for
+  `text_edge_fit` as a global, and it is imported inside `_engine_text_notes`,
+  which swallows every exception: two warnings became zero, silently, on his
+  own case. That is the hazard B8-114 recorded two hours earlier, arriving by
+  a new door. It imports locally now.
+
+### B8-116 · The layout-name stamp prints a doubled separator
+- blocks release: no
+- status: OPEN
+- found by: reading the stamped line while measuring B8-115; NOT reported by
+  anyone and NOT changed.
+- detail: `stamp_lines` appends `f"Chart layout {name} |"` with a trailing
+  bar, and `tiff_metadata._JOIN` then adds `"    |    "`, so a preset chart
+  stamps `... w10.0mm |    |    ChromIQ layout engine`. Cosmetic, visible on
+  every chart built from an armed patch set, and pinned as-is by
+  `test_chart_creator.py` (`"Chart layout TC9.18 |"`).
+
+  Left alone deliberately: it changes what is printed on every preset sheet,
+  nobody asked for it, and it landed in the middle of a release. Raised with
+  Knut instead.

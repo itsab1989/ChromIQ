@@ -299,7 +299,9 @@ def bottom_text_bounds_mm(paper_w_mm: float, text_edge_clip_mm: float,
                           marker_len_mm: float = 0.0,
                           markers_sides: bool = True, *,
                           clip_border_mm: float = 0.0,
-                          clip_side: str = "left") -> tuple[float, float]:
+                          clip_side: str = "left",
+                          margin_left_mm: float = 0.0,
+                          margin_right_mm: float = 0.0) -> tuple[float, float]:
     """The two page-edge distances the bottom line is centred BETWEEN, in mm.
 
     Knut, #182, comment 5651269930 (an edit of 5649955254, and the edit is the
@@ -342,6 +344,32 @@ def bottom_text_bounds_mm(paper_w_mm: float, text_edge_clip_mm: float,
     reserve that is a limit on all four sides everywhere else in this module.
     The bound is therefore ``max(border, reserve)`` on the border's side, which
     is exactly his table wherever his table speaks. Reported for his ruling.
+
+    **AND THE MARGIN IS THE FOURTH THING THAT BINDS IT.** Knut, 2026-09-13,
+    testing beta 9 with a 24 mm clip border and a 31.5 mm right margin:
+
+        When right margin is larger than clip-border width: the largest value
+        of them should define the side-positions that are used for centring the
+        bottom text, not only clip-border width. This should apply for both
+        left or right side clip-border.
+
+    Measured on that sheet: the bounds came out ``(7.0, 186.0)`` from the
+    border alone, while the right margin's own text column starts at 178.5, so
+    a 172.9 mm line centred between them ran to 182.95 and crossed 4.45 mm into
+    the column the right-edge notes are printed in. He read the resulting
+    warning as being about the notes, which is what it said, and it was the
+    bottom line that had moved.
+
+    **ON THE BORDER'S SIDE ONLY, AND THAT IS THE CONSERVATIVE READING.** His
+    sentence is *"when right margin is larger than clip-border width"*, and
+    *"both left or right side clip-border"* says the rule holds whichever side
+    the border is on, not that a margin binds a side with no border. Applied to
+    both sides it would contradict his own worked example two paragraphs down
+    in `bottom_text_room_mm`, *"210 - Clip x2 = 202mm"*, which has margins and
+    ignores them, and which he has already confirmed. Measured: driven with the
+    margin binding both sides, six tests pinning that 202 mm went red. So the
+    margin joins the border's side and the other side keeps ``max(Clip, R)``.
+    Reported to him with the ambiguity named rather than settled here.
     """
     reserve = edge_reserve_mm(text_edge_clip_mm, markers_on, marker_edge_mm,
                               marker_len_mm, markers_sides)
@@ -350,9 +378,11 @@ def bottom_text_bounds_mm(paper_w_mm: float, text_edge_clip_mm: float,
     left = right_in = reserve
     if border > 0.0:
         if str(clip_side or "left").strip().lower() == "right":
-            right_in = max(reserve, border)
+            right_in = max(reserve, border,
+                           max(0.0, float(margin_right_mm or 0.0)))
         else:
-            left = max(reserve, border)
+            left = max(reserve, border,
+                       max(0.0, float(margin_left_mm or 0.0)))
     right = w - right_in
     if right < left:                      # a pathological sheet: no room at all
         left = right = w / 2.0
@@ -364,7 +394,9 @@ def bottom_text_room_mm(paper_w_mm: float, text_edge_clip_mm: float,
                         marker_len_mm: float = 0.0,
                         markers_sides: bool = True, *,
                         clip_border_mm: float = 0.0,
-                        clip_side: str = "left") -> float:
+                        clip_side: str = "left",
+                        margin_left_mm: float = 0.0,
+                        margin_right_mm: float = 0.0) -> float:
     """How wide the bottom-of-sheet text may be before it crosses a reserve.
 
     Knut's worked A4 example, from the "Bottom page edge" section:
@@ -392,7 +424,9 @@ def bottom_text_room_mm(paper_w_mm: float, text_edge_clip_mm: float,
                                         markers_on, marker_edge_mm,
                                         marker_len_mm, markers_sides,
                                         clip_border_mm=clip_border_mm,
-                                        clip_side=clip_side)
+                                        clip_side=clip_side,
+                                        margin_left_mm=margin_left_mm,
+                                        margin_right_mm=margin_right_mm)
     return max(0.0, right - left)
 
 
@@ -441,7 +475,9 @@ def bottom_text_overflow(paper_w_mm: float, text_edge_clip_mm: float,
                          marker_len_mm: float = 0.0,
                          markers_sides: bool = True, *,
                          clip_border_mm: float = 0.0,
-                         clip_side: str = "left") -> "Overlap | None":
+                         clip_side: str = "left",
+                         margin_left_mm: float = 0.0,
+                         margin_right_mm: float = 0.0) -> "Overlap | None":
     """The bottom line's WIDTH against the paper it has, or None when it fits.
 
     The fourth side's version of the check the other three already make. Named
@@ -457,7 +493,9 @@ def bottom_text_overflow(paper_w_mm: float, text_edge_clip_mm: float,
                                         markers_on, marker_edge_mm,
                                         marker_len_mm, markers_sides,
                                         clip_border_mm=clip_border_mm,
-                                        clip_side=clip_side),
+                                        clip_side=clip_side,
+                                        margin_left_mm=margin_left_mm,
+                                        margin_right_mm=margin_right_mm),
                     max(0.0, float(needed_w_mm or 0.0)))
 
 

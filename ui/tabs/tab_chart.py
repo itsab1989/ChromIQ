@@ -2614,6 +2614,36 @@ def _auto_floor_note(size_pt: float, floor_pt: float,
     ).format(size=floor_pt)
 
 
+def _typed_size_note(size_pt: float, floor_pt: float) -> str:
+    """The sentence that says a TYPED size did not shrink, or "".
+
+    The mirror of :func:`_auto_floor_note`, and it exists because the messages
+    it accompanies used to assert the opposite. Knut, 2026-09-13, on a note set
+    to a typed 13 pt::
+
+        Shrinking stops at 7 pt, but only in size=auto. When size is manually
+        set to 13, it is not a shrinking. Text is wrong.
+
+    He is right. `text_edge_fit.text_floor_pt` answers "a typed size is its own
+    floor", which is true and is what the message then printed back at him as
+    *"the text has stopped shrinking at 13 pt"* -- his own number, described as
+    a limit the text ran into. Nothing shrank; the size was simply the size.
+    """
+    if float(size_pt or 0.0) <= 0:
+        return ""            # "auto": `_auto_floor_note` has this case
+    # IMPORTED HERE, NOT REACHED FOR AS A GLOBAL. `text_edge_fit` is imported
+    # inside `_engine_text_notes` and is not a module-level name in this file,
+    # and that method swallows every exception, so a NameError does not lose
+    # one sentence, it loses EVERY warning on the panel. Driven on Knut's own
+    # case with the global: two warnings became zero, silently.
+    from workflow import text_edge_fit as _tef
+    return " " + tr(
+        "Size is set to {size:.0f} pt under “Sheet text” and a typed size is "
+        "printed exactly as typed, so it never shrinks to fit. On “auto” it "
+        "would shrink down to {floor:.0f} pt."
+    ).format(size=size_pt, floor=_tef.AUTO_SHRINK_FLOOR_PT)
+
+
 def _recipe_display_key(p: "_Ti1Preset") -> str:
     """The name a preset's recipe is filed under in a shared recipes.json, and
     shown in the New-chart window's preset list — the SHORT device token (or
@@ -19942,6 +19972,20 @@ class TabChart(QWidget):
                             _pm = self._collect_manual()
                             _pm.chart_notes = _notes_text
                             _pm.stamp_commands = True
+                            # WHICH SECOND LINE THE STAMP WILL CARRY. With a
+                            # patch set already armed, targen is not run and
+                            # `stamp_lines` prints "Chart layout <name> |"
+                            # instead of the targen command; `_collect_manual`
+                            # does not set the name, only `_generate_from_ti1`
+                            # did, so the panel predicted a targen line the
+                            # sheet never prints. Knut, 2026-09-13, on a
+                            # ColorMunki preset: the panel said five characters
+                            # were cut and replaced by an ellipsis, and the
+                            # rendered sheet carried all 127 with no ellipsis
+                            # anywhere. Measured: the predicted line was 143
+                            # characters, "targen -d2 -f612 -e1 -B1 -G test"
+                            # where the sheet stamps "Chart layout test |".
+                            _pm.chart_layout_name = self._active_layout_name()
                             # THE COUNT THE STAMPED LINE WILL CARRY. `-f<N>` is
                             # in the targen line, so the wrong N is the wrong
                             # LENGTH: `params.patches` is 0 on a chart built
@@ -19985,24 +20029,28 @@ class TabChart(QWidget):
                     "Switching “Stamp settings down the right edge” off frees "
                     "the room its own line takes.")) if _stamp_on else ""
                 if _lost == 1:
+                    # NO "STOPPED SHRINKING" IN THE SENTENCE ITSELF. It was
+                    # true on "auto" and false on a typed size, and the two
+                    # cases now carry their own sentence after it. See
+                    # `_typed_size_note`.
                     over.append(tr(
                         "⚠ The chart notes down the right edge are too long for "
                         "the sheet. The last character is cut off and replaced "
-                        "by “…”, because the text has stopped shrinking at "
-                        "{size:.0f} pt. Shorten the notes, set a smaller Size "
-                        "under “Sheet text”, or use a taller paper."
-                    ).format(size=_note_floor_pt) + _off_stamp
-                        + _auto_floor_note(_note_size_pt, _note_floor_pt))
+                        "by “…”. Shorten the notes, set a smaller Size under "
+                        "“Sheet text”, or use a taller paper."
+                    ) + _off_stamp
+                        + _auto_floor_note(_note_size_pt, _note_floor_pt)
+                        + _typed_size_note(_note_size_pt, _note_floor_pt))
                 elif _lost > 1:
                     over.append(tr(
                         "⚠ The chart notes down the right edge are too long for "
                         "the sheet. The last {lost} characters are cut off and "
-                        "replaced by “…”, because the text has stopped "
-                        "shrinking at {size:.0f} pt. Shorten the notes, set a "
-                        "smaller Size under “Sheet text”, or use a taller "
-                        "paper.").format(lost=_lost, size=_note_floor_pt)
+                        "replaced by “…”. Shorten the notes, set a smaller Size "
+                        "under “Sheet text”, or use a taller paper."
+                    ).format(lost=_lost)
                         + _off_stamp
-                        + _auto_floor_note(_note_size_pt, _note_floor_pt))
+                        + _auto_floor_note(_note_size_pt, _note_floor_pt)
+                        + _typed_size_note(_note_size_pt, _note_floor_pt))
             # THE CLIP BORDER'S CONTENT, on whichever edge it sits.
             # `instruments.geom_from_build_kwargs` raises that edge's margin to
             # the clip zone, so on every chart the app builds today the band
@@ -20711,7 +20759,20 @@ class TabChart(QWidget):
                     float(getattr(r, "helper_marker_len_mm", 0.0) or 0.0),
                     bool(getattr(r, "helper_markers_sides", True)),
                     clip_border_mm=_cb_mm,
-                    clip_side=str(getattr(r, "clip_side", "left") or "left"))
+                    clip_side=str(getattr(r, "clip_side", "left") or "left"),
+                    # …AND THE MARGINS, off `geom` rather than off the recipe,
+                    # because `geom` carries the margins the sheet is really
+                    # laid out with (the row-indicator raise included) and it
+                    # is the same object `render_pages` reads. Knut,
+                    # 2026-09-13: *"When right margin is larger than
+                    # clip-border width: the largest value of them should
+                    # define the side-positions that are used for centring the
+                    # bottom text."* Measured on his sheet: bounds of
+                    # (7.0, 186.0) from the border alone, a right margin whose
+                    # text column starts at 178.5, and 4.45 mm of the bottom
+                    # line printed inside it.
+                    margin_left_mm=float(getattr(geom, "margin_l", 0.0) or 0.0),
+                    margin_right_mm=float(getattr(geom, "margin_r", 0.0) or 0.0))
                 if _wo is not None:
                     _auto = not float(getattr(r, "chart_text_size_mm", 0.0) or 0.0)
                     # WHOSE LINE IS IT. Both sentences below offer "Shorten the

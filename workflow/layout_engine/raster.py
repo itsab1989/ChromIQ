@@ -2088,7 +2088,15 @@ def render_pages(
                 helper_markers, helper_marker_edge_mm, helper_marker_len_mm,
                 helper_markers_sides,
                 clip_border_mm=_clip_w_mm,
-                clip_side=str(getattr(geom, "clip_side", "left") or "left"))
+                clip_side=str(getattr(geom, "clip_side", "left") or "left"),
+                # AND THE MARGINS, which are the fourth thing that keeps text
+                # off a side edge. Knut, 2026-09-13, with a 24 mm border and a
+                # 31.5 mm right margin: the line ran 4.45 mm into the column
+                # the right-edge notes print in. `geom` carries the margins the
+                # sheet was actually laid out with, raised ones included, so
+                # the line is bounded by what is really there.
+                margin_left_mm=float(getattr(geom, "margin_l", 0.0) or 0.0),
+                margin_right_mm=float(getattr(geom, "margin_r", 0.0) or 0.0))
             _sfont_px = px(chart_text_size_mm or _tef.SHEET_TEXT_DEFAULT_MM)
             # SIZE "auto" SHRINKS, AND STOPS AT 7 pt. Knut, same section:
             # *"Size=auto allows the text to be shrunk down to 7pt, and then
