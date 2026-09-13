@@ -351,6 +351,11 @@ def main() -> int:
                  "build_kwargs_text_edge":
                      float(rec.build_kwargs().get("text_edge")),
                  "panel_clip_notes": panel._text_edge_clip_note_lines()}
+            try:
+                _w, _o = type(tab)._engine_text_notes(tab)
+                e["panel_notices"] = _w
+            except Exception as exc:                               # noqa: BLE001
+                e["panel_notices"] = f"<raised {exc!r}>"
             set_notes(True)
             full = build(f"{tag}__all-on")
             ctrls = {}
