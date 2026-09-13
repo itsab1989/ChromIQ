@@ -1488,7 +1488,11 @@ apart:
 
 The panel understated a 10.9 mm patch by 14 per cent on charts whose own names
 say 11 mm, on the one readout that says whether a CR30's round head fits inside
-a patch. The report now carries the across-flats measure in both orientations:
+a patch. Measured against the INK rather than the arithmetic, by rendering the
+A4 450p chart at 600 dpi and flood-filling four separate hexagons out of the
+page: every one is **12.573 mm across the points and 10.880 to 10.922 across the
+flats**, against a slot width of 9.398. The number the panel used to print is
+not a dimension of the patch at all. The report now carries the across-flats measure in both orientations:
 it is the inscribed circle, the only span worth a single number, and nothing
 upright moves. The "Chart layout information" panel beside the preview had it
 right all along and separately, listing "Patch size (mm) 12.53x10.92" beside
