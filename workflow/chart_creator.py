@@ -1696,6 +1696,57 @@ class ChartCreator:
         except OSError as exc:
             log.error("Could not patch ti2 %s: %s", ti2, exc)
 
+    def stamp_lines(self, params: "ChartParams",
+                    patch_count: int = 0) -> list[str]:
+        """Every line that goes down the right edge of the sheet, in order.
+
+        **PUBLIC BECAUSE THE PANEL HAS TO ASK THE SAME QUESTION.** Create
+        Chart's "Measured from Preview" warns when the note is too long for the
+        sheet, and it measured the notes box alone while the stamper printed
+        this whole list joined together. Knut, 2026-09-13:
+
+            "If 'Stamp settings down the right edge' is ON and a chart notes
+             text is added, where the two together become too long for the page
+             height and set limits, then the ending is replaced by '...' but
+             there is no warning at all"
+
+        Measured on his own testHex chart: a 177-character note with the stamp
+        on makes a 285-character line, 37 characters of which are cut, and what
+        is lost is `"t engine    |    ChromIQ 4.3.0-beta.7"` -- the ChromIQ
+        version, which is one of the two things the stamp exists to record. The
+        panel said nothing, because 177 characters do fit on their own.
+
+        A second copy of this list in the panel would have drifted the way the
+        margin inspector's copy did, so there is one list and two callers.
+        """
+        from core.version import APP_VERSION
+        lines: list[str] = []
+        if params.chart_notes:
+            lines.append(params.chart_notes)
+        if params.stamp_commands:
+            # Display-only shortening of long target names / -c profile paths /
+            # -K calibration paths. The argv actually handed to ArgyllRunner
+            # stays full-length; this only rewrites the string that gets
+            # rendered onto the TIFF. " ".join (not shlex.join) so the "(…)"
+            # marker doesn't trigger shell quoting in the rendered line.
+            if params.chart_layout_name:
+                # Built from an existing patch set — targen wasn't run, so name
+                # the chart layout instead of stamping a misleading targen line.
+                lines.append(f"Chart layout {params.chart_layout_name} |")
+            else:
+                lines.append("targen " + " ".join(
+                    _shorten_argv_for_stamp(
+                        self._build_targen_args(params, patch_count))))
+            if self._should_use_engine(params):
+                # The ChromIQ layout engine replaces printtarg, so stamping a
+                # printtarg command would be a lie — name the engine instead.
+                lines.append("ChromIQ layout engine")
+            else:
+                lines.append("printtarg " + " ".join(
+                    _shorten_argv_for_stamp(self._build_printtarg_args(params))))
+            lines.append(f"ChromIQ {APP_VERSION}")
+        return lines
+
     def _stamp_tiff_metadata(self, tiffs: list[Path], params: "ChartParams") -> None:
         """Stamp the actual targen/printtarg commands (and optional notes) into each TIFF."""
         try:
@@ -1730,32 +1781,7 @@ class ChartCreator:
 
         # Build the command/notes lines once. They go to the right margin in
         # normal mode, or into a clip-border column under ChromIQ-style.
-        cmd_lines: list[str] = []
-        if params.chart_notes:
-            cmd_lines.append(params.chart_notes)
-        if params.stamp_commands:
-            # Display-only shortening of long target names / -c profile paths /
-            # -K calibration paths. The argv actually handed to ArgyllRunner
-            # stays full-length; this only rewrites the string that gets
-            # rendered onto the TIFF. " ".join (not shlex.join) so the "(…)"
-            # marker doesn't trigger shell quoting in the rendered line.
-            if params.chart_layout_name:
-                # Built from an existing patch set — targen wasn't run, so name
-                # the chart layout instead of stamping a misleading targen line.
-                cmd_lines.append(f"Chart layout {params.chart_layout_name} |")
-            else:
-                cmd_lines.append("targen " + " ".join(
-                    _shorten_argv_for_stamp(self._build_targen_args(params, patch_count))
-                ))
-            if self._should_use_engine(params):
-                # The ChromIQ layout engine replaces printtarg, so stamping a
-                # printtarg command would be a lie — name the engine instead.
-                cmd_lines.append("ChromIQ layout engine")
-            else:
-                cmd_lines.append("printtarg " + " ".join(
-                    _shorten_argv_for_stamp(self._build_printtarg_args(params))
-                ))
-            cmd_lines.append(f"ChromIQ {APP_VERSION}")
+        cmd_lines = self.stamp_lines(params, patch_count)
 
         if not chromiq_clip:
             # Normal mode: commands/notes go to the right margin.

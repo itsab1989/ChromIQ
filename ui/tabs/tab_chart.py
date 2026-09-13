@@ -19612,13 +19612,32 @@ class TabChart(QWidget):
                 # `tiff_metadata.note_characters_lost` asks the FITTER, not a
                 # copy of its rule, so this cannot drift from what is printed.
                 #
-                # ONLY THE USER'S OWN NOTES ARE MEASURED. "Stamp settings used
-                # on the chart" adds a second line that `chart_creator` builds
-                # at build time from the finished command, so the panel cannot
-                # know its text; with the stamp on, the real line is LONGER
-                # than what is checked here and this can only under-report,
-                # never cry wolf.
+                # THE WHOLE LINE, NOT THE NOTES BOX. This used to measure
+                # `_notes_text` alone and say so: *"with the stamp on, the real
+                # line is LONGER than what is checked here and this can only
+                # under-report, never cry wolf."* That was right about the
+                # direction and wrong about the consequence, because
+                # under-reporting to ZERO is silence. Knut, 2026-09-13:
+                #
+                #   "If 'Stamp settings down the right edge' is ON and a chart
+                #    notes text is added, where the two together become too
+                #    long for the page height and set limits, then the ending
+                #    is replaced by '...' but there is no warning at all"
+                #
+                # Measured on his testHex chart: a 177-character note with the
+                # stamp on is a 285-character line, 37 characters are cut, and
+                # what goes is "t engine | ChromIQ 4.3.0-beta.7" -- the version,
+                # which is one of the two things the stamp exists to record.
+                # And with a 376-character note the panel DID warn and said 128
+                # where the truth was 236, which is the worse half: a wrong
+                # number in a message that looks handled.
+                #
+                # `ChartCreator.stamp_lines` is the list the stamper itself
+                # joins, asked rather than copied. Measured: 0.12 ms for
+                # `_collect_manual` plus 0.11 for the targen args, against this
+                # method's own 17.2 ms, so the keystroke cost is 1.3 per cent.
                 _lost = 0
+                _stamped_line = _notes_text
                 try:
                     from workflow import tiff_metadata as _tmeta
                     from workflow.layout_engine import papers as _papers
@@ -19638,8 +19657,38 @@ class TabChart(QWidget):
                            bool(getattr(r, "helper_markers_top_bottom", True)))
                     _note_top = text_edge_fit.edge_reserve_mm(_top_edge, *_mk)
                     _note_bot = text_edge_fit.edge_reserve_mm(_bot_edge, *_mk)
+                    if _stamp_on:
+                        _cre = getattr(self, "_creator", None)
+                        if _cre is not None:
+                            _pm = self._collect_manual()
+                            _pm.chart_notes = _notes_text
+                            _pm.stamp_commands = True
+                            # THE COUNT THE STAMPED LINE WILL CARRY. `-f<N>` is
+                            # in the targen line, so the wrong N is the wrong
+                            # LENGTH: `params.patches` is 0 on a chart built
+                            # from a .ti1, which printed "-f0" and made this
+                            # prediction two characters short. The stamper
+                            # takes the count from the built .ti1, which does
+                            # not exist yet here, so the panel asks the same
+                            # question Generate asks.
+                            _np = self._estimate_patch_total() or int(
+                                getattr(_pm, "patches", 0) or 0)
+                            _stamped_line = _tmeta._JOIN.join(
+                                _cre.stamp_lines(_pm, int(_np)))
+                            # HOW CLOSE THIS IS, MEASURED RATHER THAN CLAIMED.
+                            # On a chart built straight from targen the panel's
+                            # params ARE the build's, so the line is the same
+                            # string and the count is exact. On a chart laid out
+                            # from an armed .ti1 the build takes targen's own
+                            # switches from that file while these widgets keep
+                            # their own: on Knut's testHex the sheet stamps
+                            # "-e3 -B3 ... -g24" and this builds "-e4 -B4 ...
+                            # -g8", one character shorter over 285, so the
+                            # message says 36 where the sheet cuts 37. It said
+                            # NOTHING before, so the residual is one character
+                            # against thirty-seven.
                     _lost = _tmeta.note_characters_lost(
-                        _notes_text, _ph, _eff_edge,
+                        _stamped_line, _ph, _eff_edge,
                         max(0.0, _note_margin - max(_eff_edge,
                                                     _clip_zone if _clip_on_right
                                                     else 0.0)),
@@ -19649,6 +19698,13 @@ class TabChart(QWidget):
                         _note_top, _note_bot)
                 except Exception:          # noqa: BLE001 — a note is never fatal
                     _lost = 0
+                # AND THE STAMP IS A LEVER WHENEVER IT IS ON, usually the
+                # cheapest one: on Knut's own case switching it off gives back
+                # 108 of the 236 lost characters at a stroke. Named only when
+                # it is on, so it is never a remedy that does nothing.
+                _off_stamp = (" " + tr(
+                    "Switching “Stamp settings down the right edge” off frees "
+                    "the room its own line takes.")) if _stamp_on else ""
                 if _lost == 1:
                     over.append(tr(
                         "⚠ The chart notes down the right edge are too long for "
@@ -19656,7 +19712,7 @@ class TabChart(QWidget):
                         "by “…”, because the text has stopped shrinking at "
                         "{size:.0f} pt. Shorten the notes, set a smaller Size "
                         "under “Sheet text”, or use a taller paper."
-                    ).format(size=_note_floor_pt))
+                    ).format(size=_note_floor_pt) + _off_stamp)
                 elif _lost > 1:
                     over.append(tr(
                         "⚠ The chart notes down the right edge are too long for "
@@ -19664,7 +19720,8 @@ class TabChart(QWidget):
                         "replaced by “…”, because the text has stopped "
                         "shrinking at {size:.0f} pt. Shorten the notes, set a "
                         "smaller Size under “Sheet text”, or use a taller "
-                        "paper.").format(lost=_lost, size=_note_floor_pt))
+                        "paper.").format(lost=_lost, size=_note_floor_pt)
+                        + _off_stamp)
             # THE CLIP BORDER'S CONTENT, on whichever edge it sits.
             # `instruments.geom_from_build_kwargs` raises that edge's margin to
             # the clip zone, so on every chart the app builds today the band

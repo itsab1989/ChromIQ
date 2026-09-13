@@ -489,6 +489,21 @@ def main() -> int:
             "band_thickness_mm": (None if area is None else round(area[2], 2)),
         }
 
+    def _panel_joined(tab, notes: str, stamp: bool) -> str:
+        """Exactly what `_engine_text_notes` now measures, so the two can be
+        compared character for character rather than by their answers."""
+        if not stamp:
+            return notes
+        try:
+            pm = tab._collect_manual()
+            pm.chart_notes = notes
+            pm.stamp_commands = True
+            n = tab._estimate_patch_total() or int(getattr(pm, "patches", 0) or 0)
+            from workflow import tiff_metadata as _t
+            return _t._JOIN.join(tab._creator.stamp_lines(pm, int(n)))
+        except Exception as exc:                                   # noqa: BLE001
+            return f"<raised {exc!r}>"
+
     def predict_note(tab, r, notes: str, stamp: bool) -> dict:
         """What `_stamp_one` prints, asked of the shipped fitter."""
         from workflow import tiff_metadata as tm
@@ -548,6 +563,7 @@ def main() -> int:
             "strip_h_px": strip_h, "strip_w_px": strip_w,
             "the_line_the_stamper_gets": fit(joined),
             "the_line_the_panel_measures": fit(notes_only),
+            "the_line_the_panel_now_builds": _panel_joined(tab, notes, stamp),
             "panel_note_characters_lost": tm.note_characters_lost(
                 notes_only, ph, eff,
                 max(0.0, float(r.margin_right) - eff), dpi, size_pt,
