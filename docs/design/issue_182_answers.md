@@ -287,7 +287,13 @@ that had to happen; it is not the answer.
 
 ---
 
-## 2b. Open, and needing Knut's ruling: the top labels do the OPPOSITE
+## 2b. ~~Open, and needing Knut's ruling~~ SETTLED 2026-09-13: the top labels do the OPPOSITE
+
+> **ANSWERED. See §2m-1.** Knut ruled on 2026-09-13, in comment 5649810914,
+> that the strip labels hold their distance from the page edge and overlap the
+> patch area where the top margin cannot hold them. The clamp described below
+> is gone. This section is kept as the record of the question and of what the
+> code did before, because the reversal is only readable next to it.
 
 **He cited the top strip labels as the behaviour to copy, and they do not behave
 that way.** The specification and the code agree with each other and both
@@ -321,14 +327,19 @@ show, as he has just described? That is a change to shipped behaviour he is
 recorded as having asked for, on a chart that prints correctly today, so it is
 not being made on our own judgement.
 
-> **STILL OPEN AFTER THE 2026-09-10 RULING, and deliberately so.** Section 2c
-> settles that text is never DROPPED and that all four sides WARN the same way,
-> and both halves are now built for all four. It does not settle this, and his
-> wording suggests he believes the strip labels already overlap the patch area
-> (*"if the text is overlapping with the patch area due to the margins"*) when
-> in fact they slide toward the page edge instead. Changing the clamp at
-> `geometry.py:400` would move ink on every area-first chart, including every
-> shipped preset, so it is left exactly as it is and asked again.
+> **~~STILL OPEN AFTER THE 2026-09-10 RULING, and deliberately so.~~** Section
+> 2c settles that text is never DROPPED and that all four sides WARN the same
+> way, and both halves are now built for all four. It did not settle this, and
+> his wording suggested he believed the strip labels already overlap the patch
+> area (*"if the text is overlapping with the patch area due to the margins"*)
+> when in fact they slid toward the page edge instead. Changing the clamp would
+> move ink on every area-first chart, including every shipped preset, so it was
+> left exactly as it was and asked again.
+>
+> **He answered on 2026-09-13 and his belief was his intention.** The clamp is
+> removed, the ink did move on every area-first chart, and §2m-1 carries the
+> measurement, the second fault it exposed (the patches were painting the
+> letters out) and the price it leaves on the sheet.
 
 ---
 
@@ -1266,3 +1277,167 @@ the Custom column to start from them, so the clause that says so cannot rot.
 **And the second rule, which is the one that cost three attempts.** When a
 sentence is found false, grep for its words before rewriting it. Two of the six
 rows above are copies nobody looked for.
+
+---
+
+## 2m. ⏳ Awaiting confirmation — 2026-09-13: the three layout rulings, and the clamp is gone
+
+**Confirmed by:** *nobody yet.*
+
+Three answers arrived on 2026-09-13 and they settle §2b, which had been open
+since 2026-09-10 and asked twice. They are quoted here from the comments
+themselves, not from a summary, because Knut edits his posts and two of these
+three are edits.
+
+### 2m-1. The strip labels: the distance from the page edge is a LIMIT on this edge too
+
+> **Comment 5649810914.** *"Regarding your question: "Which of the two do you
+> want on a sheet where the top margin is too small?" Answer: I want the
+> function that I specified, where the strip labels do not cross the "Text
+> distance from edge" value (or the defined "Distance from page edge" +
+> "Marker length" + 1.0mm, whichever is largest (if helper markers are
+> enabled)), and then the text overlaps on top of the patch area top edge
+> (according to top margin). This principle, which I specified to be the same
+> for all sides (in their own direction overlapping towards the patch area edge
+> for each side)"*
+
+So all four sides now keep one law: the reserve is held, the patch area is
+allowed to meet the text, and the collision is warned about rather than
+designed away. The top was the last side that did the opposite.
+
+**What was removed.** `workflow/layout_engine/geometry.py::placement` computed
+`_leader_top = max(0.0, min(_ideal_top, g.margin_t - _lab_h))`. The `min` is
+gone; the reserve is what is used.
+
+**What it costs, measured on the SHIPPED CR30 A4 default and put in front of
+him before he ruled.** Read back off the app's own `*.strips.json` sidecar, A4,
+300 dpi, 345 patches: the label band's bottom moves from **83 px to 130 px**
+while the first patch box starts at **91 px**, so every strip letter is printed
+over the first row of hexagons. `tests/test_the_honeycomb_can_be_turned.py::
+test_the_shipped_default_now_prints_the_letters_on_the_hexagons` pins that, and
+the test that used to pin the opposite has been rewritten rather than deleted,
+so the reversal is on the record.
+
+**A second fault the ruling exposed, and it had to be fixed for the ruling to
+mean anything.** The strip's own patches are painted AFTER its label, so the
+moment the band was allowed to cross the margin the patches ERASED it: measured
+on the same sheet, 39 px of every letter, a little under half of it, painted
+out, and on a dark patch the letter would be gone altogether. That is the
+silent drop his 2026-09-10 ruling forbids by name. `raster.render_pages` now
+draws the letters and their underline onto a white overlay and composites the
+INK alone at the end of the page, exactly as the clip strip and
+`tiff_metadata`'s right-edge note already do, and appends their display-list
+rows at the same point so the vector PDF paints them in the same order.
+Measured after: the shortest letter is 55 px on the tight sheet and 55 px on a
+roomy one, so nothing is lost.
+
+**The one place the clamp deliberately stays**, and it is not the letters:
+`geometry._top_reserve_for_a_turned_hex` moves the PATCH AREA down so a turned
+honeycomb's raised strips do not climb into the label band on a sheet that has
+the room. Carrying the unclamped reserve into it would push the patch block
+down by the very amount his ruling says should show as an overlap, costing the
+sheet patches at a margin the user set. Its comment says so.
+
+### 2m-2. The clip band is vertically centred, and each end reads its own box
+
+> **Comment 5649955254.** *"the clip band should be vertically centred between
+> the T and B. So with T at 12 and B at 4 and A4 page hight, the band is
+> centred between (0+T) and (297 - B) , which means between 12mm an 293mm.
+> This is if helper markers are off. If helper makers are ON (with top/bottom
+> ON), and if either helper markers are further in on the page than T or B,
+> then "Distance from page edge" + "Marker length" + 1.0mm will be used for the
+> text distance from edge parameter that is smaller."*
+>
+> *"The same vertical centring should be done for the right clip-border text
+> (and the chart note and the third type of text too "Stamp settings used on
+> the chart")"*
+
+His four rows reduce to one rule per edge, `max(that edge's box, the markers'
+reach)`, which is `text_edge_fit.edge_reserve_mm` and is what the other three
+elements on those edges already use. `text_edge_fit.side_text_band_mm` is the
+table; `geometry.clip_area_mm` uses it.
+
+**This CORRECTS his earlier rule, and the correction is his own.** The rule it
+replaces was *"page height minus T and minus B, OR page height minus (distance
+x2 + length x2 + 2.0mm), whichever is smallest"*, applied as a SYMMETRIC inset.
+That is right whenever T and B fall on the same side of the reserve and wrong
+in the two mixed rows he has now written out. On his own example (A4, T = 12,
+B = 4, markers at 4.0 + 2.0) the old rule gave a 281.0 mm band starting 8.0 mm
+down; his rows ask for a 278.0 mm band starting 12.0 mm down. The height moved
+by three millimetres and the anchor by four, and the anchor is the half a
+reader could see: the band was centred on the middle of the sheet whatever T
+and B said.
+
+**The chart note and the settings stamp already comply**, and this was checked
+rather than assumed. `tiff_metadata._stamp_one` places its strip at
+`y0 = _pad_t` with `strip_h = H - _pad_t - _pad_b`, both supplied by
+`chart_creator` from `text_edge_fit.edge_reserve_mm` for the top and bottom
+edges, and `_render_rotated_line` centres the line along that strip. Those are
+Knut's two bounds and his centring, built on 2026-09-12 for a different report
+of his. Nothing was changed for them.
+
+### 2m-3. The bottom line is horizontally centred, and the clip border is one of its bounds
+
+> **Comment 5651269930, which is an EDIT of 5649955254 and supersedes its
+> looser wording.** *"So the bottom text ("Stamp layout summary on the sheet")
+> is horizontally centred between following (example uses A4 paper size,
+> Portrait): Helper markers are off and Clip-border off: (0+Clip) and (210 -
+> Clip); Helper markers are off and Clip-border ON (side=left) (also applies
+> for Helper markers are on when Clip is larger than helper marker): (0+Clip-
+> border width) and (210 - Clip); … Helper markers are on for sides and
+> Clip-border ON (side=right): Clip is smaller than helper marker:
+> (0+("Distance from page edge" + "Marker length" + 1.0mm)) and (210 -
+> Clip-border width)"*
+
+and his reason, from the post the edit replaced:
+
+> *"the text added for the bottom line must be centred according to page width
+> (or the side reserve width), so that text can equally expand to both sides if
+> the text string length is increased."*
+
+Six rows, two rules, and they are written once in
+`text_edge_fit.bottom_text_bounds_mm`:
+
+* the side with no clip border keeps `max(Clip, the markers' reach)`, which is
+  his "whichever is larger" proviso in every row;
+* the side with the clip border keeps the border's own width, because the band
+  and the line share that strip of paper: since 2m-2 the band runs from the "T"
+  bound to the "B" bound, so it reaches down across the bottom line's own row.
+
+`raster.render_pages` centres EACH LINE on the midpoint of those two bounds
+(the custom text and the settings stamp are different lengths, so centring the
+pair as a block would leave the shorter one off centre), and the same figure is
+what the "auto" size shrinks against and what the panel's width warning
+reports.
+
+### The one clause that is genuinely ambiguous, resolved conservatively and reported
+
+Every row of his bottom-line table has the clip border WIDER than the reserve,
+so the two readings agree. A border NARROWER than the reserve is a case he does
+not cover, and taking his words literally there would let the line into a
+reserve that is a limit on all four sides everywhere else. The bound is
+therefore `max(border width, reserve)` on the border's side, which is exactly
+his table wherever his table speaks. **If he means the border width to win even
+when it is smaller than the reserve, this is the one line to change**
+(`text_edge_fit.bottom_text_bounds_mm`).
+
+### The messages that changed
+
+The two "the strip letters are printed closer to the paper edge than you asked"
+and "they do not fit above the patches" notices described the clamp and are
+gone. In their place are two that describe the overlap and name whichever
+reserve is actually binding, so the box the message offers is the box that
+moves the ink. The panel now measures the DRAWN ink
+(`Geom.label_ink_bottom_mm`, the renderer's own figure) rather than the
+reserved band, which is 7.0 mm against 4.826 mm on a stock i1Pro A4 chart: at a
+9 mm top margin the ink ends 8.83 mm down and clears the patches, and warning
+there would have been the same cry-wolf message in a third costume.
+
+**A wiring fault found while building it.** The panel handed
+`strip_label_overlap` the already-maxed reserve where the function wants the
+raw "T", because it computes the reserve itself in order to say WHICH of the
+two won. That made `from_markers` compare `7.0 > 7.0`, so a sheet held by the
+markers was blamed on "T" and the remedy offered would have moved no ink. The
+function that came before it took the reserve, so the call site was right for
+the old callee and wrong for the new one.
+

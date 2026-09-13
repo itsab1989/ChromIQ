@@ -1371,6 +1371,44 @@ def render_pages(
     except Exception:
         _ind_ascent, _ind_descent = ind_px, ind_px // 4
 
+    # THE STRIP LETTERS ARE PAINTED LAST, OVER THE PATCHES, AND THEY USED TO BE
+    # PAINTED FIRST, UNDER THEM. Knut's ruling of 2026-09-13 (comment
+    # 5649810914) lets the band run past a top margin that cannot hold it and
+    # onto the patch area, and the moment it does, the order decides whether
+    # the user sees a letter or nothing at all: the strip's own patches are
+    # drawn after its label, so an overlapping letter was simply erased.
+    # Measured on the shipped CR30 A4 default at 300 dpi: the band ends at
+    # 130 px and the first patch box starts at 91, so 39 px of every letter, a
+    # little under half of it, was painted out. On pale patches that reads as a
+    # beheaded letter; on dark ones the letter is gone, which is the silent
+    # drop his 2026-09-10 ruling forbids by name.
+    #
+    # So the letters and their underline go onto a white overlay and the ink
+    # alone is composited at the end of the page. Same technique, and same
+    # reason, as the clip strip below and `tiff_metadata`'s right-edge note:
+    # pasting the surface whole would erase the patches instead, and a patch
+    # wiped to paper white reads as paper and goes into the profile.
+    #
+    # `_lbl_surface` is a one-slot cache so a chart with the letters switched
+    # off never allocates a second full-page image (26 MB on A4 at 300 dpi, and
+    # four times that on A3 at 600).
+    _lbl_layer: list = [None, None]
+
+    def _lbl_surface():
+        """``(image, draw)`` of the page's strip-label overlay, made on demand.
+
+        RGBA, and the alpha is the whole point: a white RGB overlay composited
+        through its own darkness is fine for black letters and WRONG for the
+        five-segment accent rule, whose colours came out blended with the paper
+        instead of exact. Measured by `tests/test_layout_raster.py::
+        test_underline_modes`, which asks for the accent RGB values by value
+        and found none of them.
+        """
+        if _lbl_layer[0] is None:
+            _lbl_layer[0] = Image.new("RGBA", (W, H), (255, 255, 255, 0))
+            _lbl_layer[1] = ImageDraw.Draw(_lbl_layer[0])
+        return _lbl_layer[0], _lbl_layer[1]
+
     def _collect_rotated_label(cx: int, y_top: int, off: int, text: str,
                                tile: "Image.Image", degrees: int) -> None:
         """Collect a rotated strip label as a rotated vector run. The engine lays
@@ -1392,9 +1430,13 @@ def render_pages(
             adx, ady = wc - 1 - ax, hc - 1 - ay
         px_paste = cx - tile.width // 2
         py_paste = y_top + off
-        _geom_rows.append(("text", px_paste + adx, py_paste + ady, text,
-                           _ind_font_file, ind_px, _spc if len(text) > 1 else 0,
-                           d, (0, 0, 0), _ind_var))
+        # ...AND THE VECTOR PDF GETS THE SAME ORDER. `vector_pdf._page_content`
+        # paints the display list front to back, so a label row appended here
+        # would be under the hexagons on paper even though the TIFF has it on
+        # top. Deferred with the ink.
+        _lbl_geom.append(("text", px_paste + adx, py_paste + ady, text,
+                          _ind_font_file, ind_px, _spc if len(text) > 1 else 0,
+                          d, (0, 0, 0), _ind_var))
 
     def _collect_label(cx: int, top: int, text: str) -> None:
         """Collect a centred strip label as a vector text run at the exact left/
@@ -1407,9 +1449,9 @@ def render_pages(
         else:
             total = widths[0] if widths else 0.0
         left = cx - total / 2.0
-        _geom_rows.append(("text", left, top + _ind_ascent, text, _ind_font_file,
-                           ind_px, _spc if len(text) > 1 else 0, 0, (0, 0, 0),
-                           _ind_var))
+        _lbl_geom.append(("text", left, top + _ind_ascent, text, _ind_font_file,
+                          ind_px, _spc if len(text) > 1 else 0, 0, (0, 0, 0),
+                          _ind_var))
     if underline_mode == "colored":          # legacy alias → 5-segment bar
         underline_mode = "segments"
     underline_on = draw_indicators and underline_mode in ("segments", "cycle", "black")
@@ -1452,6 +1494,8 @@ def render_pages(
         img = Image.new("RGB", (W, H), (255, 255, 255))
         draw = ImageDraw.Draw(img)
         _geom_rows: list[tuple] = []
+        _lbl_layer = [None, None]          # this page's strip-label overlay
+        _lbl_geom: list[tuple] = []        # ...and its display-list rows
         # Per-page placeholder context: {page} = "page X/Y", plus the chart-wide
         # {project}/{paper}/… from text_ctx. Used for chart text + clip text.
         _pctx = dict(text_ctx or {})
@@ -1521,7 +1565,7 @@ def render_pages(
                 _cx = x0 + strip_w // 2          # centre over the strip
                 _y = _lbl_top
                 if _rot == 0:
-                    _draw_indicator(draw, _cx, _y, _lbl, font, _spc)
+                    _draw_indicator(_lbl_surface()[1], _cx, _y, _lbl, font, _spc)
                     _collect_label(_cx, _y, _lbl)
                 else:                            # rotated label → tile + paste
                     _tile = _indicator_tile(_lbl, font, _spc, indicator_rotation)
@@ -1538,15 +1582,20 @@ def render_pages(
                         _off = _extra if _rot == 90 else 0
                     else:                             # right: reading-end anchored
                         _off = 0 if _rot == 90 else _extra
-                    img.paste(_tile, (_cx - _tile.width // 2, _y + _off), _tile)
+                    _lbl_surface()[0].paste(
+                        _tile, (_cx - _tile.width // 2, _y + _off), _tile)
                     _collect_rotated_label(_cx, _y, _off, _lbl, _tile,
                                            indicator_rotation)
                 if underline_on and underline_mode == "cycle":   # one accent / strip
                     _ly = _y + label_band_h + ul_gap
                     _acc = ACCENT_RGB[global_strip % len(ACCENT_RGB)]
-                    if _fill_rect(draw, [x0, _ly, xR - 1, _ly + ul_th - 1], _acc) \
+                    # The rule belongs to the label band, so it rides with the
+                    # letters: it sits BELOW them and is the first thing a
+                    # too-small top margin pushes onto the patches.
+                    if _fill_rect(_lbl_surface()[1],
+                                  [x0, _ly, xR - 1, _ly + ul_th - 1], _acc) \
                             and collect_device_geom:
-                        _geom_rows.append(
+                        _lbl_geom.append(
                             ("vrect", (x0, _ly, xR - 1, _ly + ul_th - 1), _acc))
                 # SpectroScan labels the grid 2-D: column letters on top (above)
                 # plus row NUMBERS down the side, in the reserved rlwi band to the
@@ -1798,19 +1847,34 @@ def render_pages(
             x_left = px(place.x_of(0))
             x_right = px(place.x_of(n_passes - 1) + place.pwid) - 1
             if underline_mode == "black":
-                if _fill_rect(draw, [x_left, _ly, x_right, _yb], (0, 0, 0)) \
+                if _fill_rect(_lbl_surface()[1],
+                              [x_left, _ly, x_right, _yb], (0, 0, 0)) \
                         and collect_device_geom:
-                    _geom_rows.append(("vrect", (x_left, _ly, x_right, _yb), (0, 0, 0)))
+                    _lbl_geom.append(("vrect", (x_left, _ly, x_right, _yb),
+                                      (0, 0, 0)))
             else:                                     # 5 equal segments full-width
                 _span = x_right - x_left + 1
                 _n = len(ACCENT_RGB)
                 for _k in range(_n):
                     _sx0 = x_left + round(_span * _k / _n)
                     _sx1 = x_left + round(_span * (_k + 1) / _n) - 1
-                    if _fill_rect(draw, [_sx0, _ly, _sx1, _yb], ACCENT_RGB[_k]) \
+                    if _fill_rect(_lbl_surface()[1],
+                                  [_sx0, _ly, _sx1, _yb], ACCENT_RGB[_k]) \
                             and collect_device_geom:
-                        _geom_rows.append(
+                        _lbl_geom.append(
                             ("vrect", (_sx0, _ly, _sx1, _yb), ACCENT_RGB[_k]))
+
+        # THE LABEL BAND GOES ON NOW, INK ONLY, OVER EVERY PATCH THAT IS DRAWN.
+        # See `_lbl_surface` above for why it waits: the strip's own patches
+        # are painted after its label, and since Knut's ruling let the band
+        # cross the top margin, painting first meant painting under. The mask
+        # is the overlay's own darkness, so the paper between the letters is
+        # not pasted and nothing already on the page is erased.
+        if _lbl_layer[0] is not None:
+            img.paste(_lbl_layer[0].convert("RGB"), (0, 0),
+                      _lbl_layer[0].split()[3])
+            if collect_device_geom:
+                _geom_rows.extend(_lbl_geom)
 
         # Left clip-strip content (i1/p3): rendered natively into the reserved
         # lbord band, since the engine knows its exact geometry.
@@ -1906,21 +1970,41 @@ def render_pages(
         _btxt = [t for t in (_chart_text, stamp_text) if t]
         if _btxt:
             from workflow import text_edge_fit as _tef
-            # THE LINE STARTS AT THE SIDE RESERVE, NOT AT THE LEFT MARGIN, and
-            # it is checked against the paper it really has. Knut, #182,
-            # "Bottom page edge": *"The width of the defined text … should also
-            # be checked against the available space, taking into account
-            # selected paper width, "Clip" in "Text distance from edge" (for
-            # both sides) and if helper marker is ON."* Measured before this:
-            # a 108-character custom line at Size 4.5 mm on A4 ran to 210.06 mm
+            # THE LINE IS CENTRED BETWEEN THE TWO SIDE BOUNDS, NOT STARTED AT
+            # THE LEFT ONE. Knut, #182, comment 5651269930, which is an EDIT of
+            # his first answer and supersedes it:
+            #
+            #   "the bottom text ("Stamp layout summary on the sheet") is
+            #    horizontally centred between following (example uses A4 paper
+            #    size, Portrait): Helper markers are off and Clip-border off:
+            #    (0+Clip) and (210 - Clip) […] Helper markers are off and
+            #    Clip-border ON (side=left) […]: (0+Clip-border width) and
+            #    (210 - Clip) […]"
+            #
+            # His reason is in the post it replaced: *"so that text can equally
+            # expand to both sides if the text string length is increased."*
+            # `text_edge_fit.bottom_text_bounds_mm` is his whole case table,
+            # and the clip border is the part the older left-anchored line knew
+            # nothing about: the band now runs from the "T" bound to the "B"
+            # bound, so it reaches down across the bottom line's own row and
+            # the line has to be bounded by the border's width on that side.
+            #
+            # The reserve half of it is unchanged and still a limit: *"The
+            # width of the defined text … should also be checked against the
+            # available space, taking into account selected paper width,
+            # "Clip" in "Text distance from edge" (for both sides) and if
+            # helper marker is ON."* Measured before that was read at all: a
+            # 108-character custom line at Size 4.5 mm on A4 ran to 210.06 mm
             # on a 210 mm sheet and was cut by the paper edge, with nothing
             # said anywhere.
-            _side = _tef.edge_reserve_mm(
+            _clip_w_mm = float(geom.lbord + geom.border) if geom.lbord > 0 else 0.0
+            _l_mm, _r_mm = _tef.bottom_text_bounds_mm(
+                paper_w_mm,
                 float(getattr(geom, "text_edge_clip_mm", 0.0) or 0.0),
-                helper_markers,
-                helper_marker_edge_mm, helper_marker_len_mm,
-                helper_markers_sides)
-            _x0 = max(px(_side), 0)
+                helper_markers, helper_marker_edge_mm, helper_marker_len_mm,
+                helper_markers_sides,
+                clip_border_mm=_clip_w_mm,
+                clip_side=str(getattr(geom, "clip_side", "left") or "left"))
             _sfont_px = px(chart_text_size_mm or _tef.SHEET_TEXT_DEFAULT_MM)
             # SIZE "auto" SHRINKS, AND STOPS AT 7 pt. Knut, same section:
             # *"Size=auto allows the text to be shrunk down to 7pt, and then
@@ -1930,7 +2014,12 @@ def render_pages(
             # boxes already follow (`text_edge_fit.text_floor_pt`).
             if not (chart_text_size_mm or 0.0):
                 _floor_px = max(1, px(_tef.pt_to_mm(_tef.AUTO_SHRINK_FLOOR_PT)))
-                _room_mm = paper_w_mm - 2.0 * _side
+                # THE ROOM IS THE DISTANCE BETWEEN THE TWO BOUNDS the line is
+                # centred between, which is the same figure the panel's width
+                # warning uses. Written as `paper_w - 2 x reserve` it ignored
+                # the clip border, so on a chart with a band the shrink stopped
+                # while the line still ran under it.
+                _room_mm = max(0.0, _r_mm - _l_mm)
                 while _sfont_px > _floor_px:
                     if sheet_text_width_mm(_btxt, _sfont_px * 25.4 / dpi,
                                            chart_text_font, chart_text_bold,
@@ -1964,7 +2053,29 @@ def render_pages(
                                              helper_marker_len_mm,
                                              helper_markers_top_bottom)
             yy = H - px(_bot) - line_h * len(_btxt)
+            # EACH LINE IS CENTRED ON ITS OWN, which is what "text can equally
+            # expand to both sides" asks for: with the custom text and the
+            # settings stamp both switched on they are different lengths, and
+            # centring the pair as a block would leave the shorter one off
+            # centre. The centre itself is the midpoint of his two bounds.
+            _mid_px = px((_l_mm + _r_mm) / 2.0)
+            _lo_px, _hi_px = px(_l_mm), px(_r_mm)
             for ln in _btxt:
+                try:
+                    _bb = draw.textbbox((0, 0), ln, font=sfont)
+                    _lw = _bb[2] - _bb[0]
+                    _bx = _bb[0]
+                except Exception:      # noqa: BLE001 - a width, never a blocker
+                    _lw, _bx = int(draw.textlength(ln, font=sfont)), 0
+                # A LINE TOO WIDE FOR THE BOUNDS STAYS ANCHORED AT THE LEFT ONE
+                # rather than being centred out over both. Centring an
+                # over-long line spends half the overflow on the clip band or
+                # the marker comb at the left, where his rule says the text
+                # starts; the panel already warns that the rest runs off.
+                _x0 = _mid_px - _lw // 2 - _bx
+                if _lw >= (_hi_px - _lo_px):
+                    _x0 = _lo_px - _bx
+                _x0 = max(0, _x0)
                 draw.text((_x0, yy), ln, font=sfont, fill=(0, 0, 0))
                 if collect_device_geom and _sfile:
                     _geom_rows.append(("text", _x0, yy + _sasc, ln,

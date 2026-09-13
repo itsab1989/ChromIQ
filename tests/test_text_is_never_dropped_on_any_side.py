@@ -349,48 +349,66 @@ def test_the_stamp_settings_tick_box_is_enough_on_its_own(qapp):
     assert len(over) == 1 and "chart notes down the right edge" in over[0]
 
 
-def test_the_top_says_the_letters_move_toward_the_edge_not_into_the_patches(qapp):
-    """THIS TEST ASSERTED THAT A FALSE MESSAGE FIRED.
+def test_the_top_is_silent_while_the_letters_ink_still_clears_the_patches(qapp):
+    """THIS TEST ONCE ASSERTED THAT A FALSE MESSAGE FIRED, TWICE OVER.
 
-    It checked that a notice appeared and that it contained the phrase "strip
-    letters across the top", and never that the letters were where the notice
-    said. A challenge round measured five sheets: at every top margin from 1 mm
-    to 8 mm the letters printed ABOVE the patch block with clear paper between,
-    while the message said in red that they ran into it, and its own remedy
-    silenced it without moving a pixel.
+    Its first version checked for the phrase "strip letters across the top" and
+    never that the letters were where the notice said; a challenge round
+    measured five sheets and found clear paper between the letters and the
+    patch block on every one. Its second version described the slide toward the
+    page edge, which was true then and is not now: Knut removed the clamp
+    (comment 5649810914) and the letters hold their distance.
 
-    `geometry.py` slides them UP toward the page edge, clamped there. So the
-    message says that, and this test refuses the old claim by name.
-
-    A 9 mm top margin is the state this describes: the 7 mm band fits, so the
-    letters are on the sheet whole, but 9 less 7 leaves 2 mm where the setting
-    asks for 4, so they sit 2 mm from the edge instead of 4.
+    So what the top edge has to get right is the SILENCE, and the number that
+    decides it is the ink, not the reserve. On this i1Pro A4 chart the band is
+    reserved at 7.0 mm and the letters' ink is 4.826 mm tall
+    (`Geom.label_ink_bottom_mm`, the renderer's own figure), so at a 9 mm top
+    margin the ink ends 8.83 mm down and clears the patches with room to spare.
+    Warning there would be the same cry-wolf message in a third costume.
     """
     r = replace(_roomy(), margin_top=9.0)
     _all, over = _notes(r, report=_Report(25.0))
-    assert len(over) == 1, f"expected one notice, got {over}"
-    assert "closer to the paper edge than you asked" in over[0], over[0]
-    assert "run into the patches" not in over[0], (
-        "the notice still claims the strip letters run into the patches, which "
-        f"the renderer never does: {over[0]!r}")
-    assert "never move down over the patches" in over[0], over[0]
-    assert "“Top” under “Margins (mm)”" in over[0]
+    assert over == [], (
+        "the top edge warned on a sheet where the letters' ink ends 8.83 mm "
+        f"down and the patch area starts at 9.0 mm: {over}")
 
 
-def test_a_band_taller_than_the_margin_says_the_letters_are_cut_off(qapp):
-    """The worse case, and the one that breaks "text is never dropped".
+def test_the_top_says_the_letters_are_printed_over_the_patches(qapp):
+    """Knut's ruling, on the panel. Comment 5649810914:
 
-    When the band is taller than the whole top margin the renderer clamps it at
-    the paper edge, so the top of every letter is lost. Measured by the round at
-    a 1 mm top margin: no letters on the sheet at all, and at 3 mm their tops
-    cut off by the paper edge. The user must be told that, not told they run
-    into the patches.
+        "the strip labels do not cross the "Text distance from edge" value […]
+         and then the text overlaps on top of the patch area top edge
+         (according to top margin)."
+
+    At a 6 mm top margin the ink runs from 4.0 to 8.83 mm and the patch area
+    starts at 6.0, so 2.83 mm of every letter is on the first row of patches.
+    The message says exactly that, names the reserve that is holding them and
+    offers the two boxes that move either side of the collision.
     """
     r = replace(_roomy(), margin_top=6.0)
     _all, over = _notes(r, report=_Report(25.0))
     assert len(over) == 1, f"expected one notice, got {over}"
-    assert "do not fit above the patches" in over[0], over[0]
-    assert "top of every letter is lost" in over[0], over[0]
+    assert "strip letters are printed over the patches" in over[0], over[0]
+    assert "“T” under “Text distance from edge (mm)”" in over[0], over[0]
+    assert "“Top” under “Margins (mm)”" in over[0], over[0]
+    # ...and it must NOT go back to saying they slide toward the paper edge.
+    assert "closer to the paper edge" not in over[0], over[0]
+    assert "never move down over the patches" not in over[0], over[0]
+
+
+def test_the_top_names_the_helper_markers_when_they_are_what_holds_the_band(qapp):
+    """The reserve is the larger of "T" and the markers' own room (#182), and a
+    message that names the wrong one sends the user to a box that moves no ink.
+    With "T" at 1 mm and the markers at 4.0 + 2.0 the binding figure is 7.0."""
+    r = replace(_roomy(), margin_top=6.0, text_edge_top_mm=1.0,
+                helper_markers=True, helper_marker_edge_mm=4.0,
+                helper_marker_len_mm=2.0)
+    _all, over = _notes(r, report=_Report(25.0))
+    assert any("ruler helper markers" in o for o in over), over
+    assert not any("“T” under “Text distance from edge (mm)”" in o
+                   for o in over), (
+        'the message blamed "T" while the markers are what hold the band: '
+        f"{over}")
 
 
 def test_the_label_offset_moves_the_letters_and_the_warning_follows(qapp):
@@ -450,9 +468,11 @@ def test_all_four_sides_can_be_wrong_at_once(qapp):
     joined = " ".join(over)
     assert len(over) == 3, f"expected three notices, got {over}"
     for phrase in ("chart notes down the right edge",
-                   # NOT "across the top": the top notice no longer claims the
-                   # letters run into the patches, because they never do.
-                   "strip letters do not fit above the patches",
+                   # The top notice claims an overlap again, and since Knut
+                   # removed the clamp (comment 5649810914) it is true: the
+                   # letters hold their distance and the patches come up to
+                   # meet them.
+                   "strip letters are printed over the patches",
                    "sheet text along the bottom"):
         assert phrase in joined, f"{phrase!r} missing from {over}"
 

@@ -195,13 +195,32 @@ def test_the_text_ink_really_clears_the_marker_ink() -> None:
 
 
 # -------------------------------------------------------- the height rule ---
-def test_the_height_is_judged_against_t_and_b_or_the_marker_reserve() -> None:
-    """Knut's second worked example, and the smaller of the two wins.
+def test_the_band_runs_between_the_top_and_bottom_reserves_one_edge_at_a_time(
+) -> None:
+    """Knut's case table, and the two mixed rows are the ones that changed.
 
-    A4 at T = 8.0 and B = 4.0 gives 297 - 12 = 285 mm; the markers at 4.0 + 2.0
-    give 297 - (4x2 + 2x2 + 2) = 283 mm. This used to spend the SIDE reserve
-    vertically instead, which is a distance belonging to the other pair of
-    edges and answered neither question.
+    Comment 5649955254, #182, 2026-09-13, in full::
+
+        helper markers off:                     (0+T)  and  (297 - B)
+        markers on for top/bottom:
+            T smaller than the marker reserve:  (0+R)  and  (297 - B)
+            B smaller:                          (0+T)  and  (297 - R)
+            both smaller:                       (0+R)  and  (297 - R)
+
+    So each edge takes the larger of its own box and the markers' reach, which
+    is `edge_reserve_mm`, the same rule the strip letters and the sheet text
+    already keep.
+
+    **THIS SUPERSEDES THE RULE THIS TEST USED TO PIN**, which was his earlier
+    "page height minus T and minus B, OR page height minus twice the markers'
+    reach, whichever is smallest". That is right when T and B fall on the same
+    side of the reserve and wrong in his two mixed rows. A4 at T = 8.0, B = 4.0
+    with the markers at 4.0 + 2.0 (R = 7.0) is one of them: the old rule gave
+    min(285, 283) = 283 mm inset symmetrically 7.0 mm from each edge, and his
+    row gives 8.0 mm down to 290.0 mm, a 282 mm band. The height moved by one
+    millimetre and the ANCHOR moved by one as well, which is the half a reader
+    could see: the band was centred on the middle of the sheet whatever T and B
+    said.
     """
     r = _recipe(text_edge_top_mm=8.0, text_edge_mm=4.0)
     off = geometry.clip_area_mm(_geom(presets.LayoutRecipe(**{
@@ -209,12 +228,26 @@ def test_the_height_is_judged_against_t_and_b_or_the_marker_reserve() -> None:
         "helper_markers": False})), _PAPER_H, _PAPER_W)
     assert off[3] == pytest.approx(285.0, abs=0.01), (
         "with the markers off the height is the page less T and less B")
+    assert off[1] == pytest.approx(8.0, abs=0.01), (
+        "with the markers off the band starts at T, not at half the slack")
     on = geometry.clip_area_mm(_geom(r), _PAPER_H, _PAPER_W)
-    assert on[3] == pytest.approx(283.0, abs=0.01), (
-        "with the markers on the shorter of the two must win")
+    assert on[1] == pytest.approx(8.0, abs=0.01), (
+        'T is 8.0 and the markers reach 7.0, so "T" is what holds the top end')
+    assert on[3] == pytest.approx(282.0, abs=0.01), (
+        "B is 4.0 and the markers reach 7.0, so the markers hold the bottom "
+        "end: 297 - 8 - 7 = 282")
+    assert tef.side_text_band_mm(
+        297.0, 12.0, 4.0) == pytest.approx((12.0, 281.0)), (
+        "his own worked example, markers off: centred between 12 and 293")
+    assert tef.side_text_band_mm(
+        297.0, 12.0, 4.0, helper_markers=True, marker_edge_mm=4.0,
+        marker_len_mm=2.0) == pytest.approx((12.0, 278.0)), (
+        "the same example with the markers on: between 12 and 290")
+    # The symmetric case is unchanged, which is why the old rule survived so
+    # long: T = B = 4.0 under a 7.0 mm reserve is still 283.
     assert tef.page_text_height_mm(
         297.0, 4.0, 4.0, helper_markers=True, marker_edge_mm=4.0,
-        marker_len_mm=2.0) == pytest.approx(283.0), "his own example"
+        marker_len_mm=2.0) == pytest.approx(283.0), "his first example"
 
 
 def test_the_top_bottom_checkbox_is_what_gates_the_height() -> None:
@@ -222,6 +255,8 @@ def test_the_top_bottom_checkbox_is_what_gates_the_height() -> None:
                 helper_markers_top_bottom=False)
     a = geometry.clip_area_mm(_geom(r), _PAPER_H, _PAPER_W)
     assert a[3] == pytest.approx(285.0, abs=0.01)
+    assert a[1] == pytest.approx(8.0, abs=0.01), (
+        "with the checkbox off both ends fall back to T and B alone")
 
 
 # ------------------------------------------- the left edge's row indicators -

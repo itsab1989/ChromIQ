@@ -104,10 +104,23 @@ def _top_reserve_for_a_turned_hex(g, mints: float, txhi: float,
     if ink <= 0.0:                       # indicators off, or nothing rendered yet
         return mints
     if margins_are_law:
-        # Mirrors `placement`'s own clamp: the band hangs at whichever of "T"
-        # and the ruler helper markers' reserve goes furthest in (#182),
-        # sliding up when the top margin cannot hold it, and never above the
-        # page edge.
+        # **THIS IS NO LONGER A MIRROR OF `placement`, AND THE DIFFERENCE IS
+        # DELIBERATE.** `placement` stopped clamping when Knut ruled that the
+        # letters hold their distance from the page edge and overlap the patch
+        # area where the top margin cannot hold them (comment 5649810914).
+        # This function does the opposite thing: it moves the PATCH AREA, and
+        # carrying the unclamped reserve into it would push the patch block
+        # down by the very amount his ruling says should show as an overlap,
+        # silently costing the sheet patches at a margin the user set.
+        #
+        # So what is reserved here is the room the sheet actually has: the band
+        # as it can hang inside the top margin. Above that margin the letters
+        # go where his rule puts them, the first row of hexagons is under them,
+        # and the panel says so in red. Below it, this keeps doing its original
+        # job, which is a different fault entirely and not one he has reversed:
+        # a flat-top honeycomb puts ink at the very top of the patch area even
+        # on a roomy sheet, so a chart with plenty of margin still needs the
+        # block to start below the band.
         leader_top = max(0.0, min(strip_label_reserve_mm(g)
                                   + g.strip_indicator_gap,
                                   g.margin_t - txhi))
@@ -414,44 +427,46 @@ def placement(geom: Geom, paper_w_mm: float, paper_h_mm: float, layout: Layout) 
     _y0 = amints + _lead + _hex_shift + g.offset_y
     if g.margins_are_law:
         # Strip labels live in the top margin at the text-edge distance from the
-        # PAGE EDGE (Knut: 4 mm), but they must NEVER sit behind the patches. So
-        # anchor the label's BOTTOM at the patch-area top (margin_t): when the top
-        # margin is too small for the label, the label slides UP toward the page
-        # edge (encroaching the 4 mm text-edge if it must) instead of overlapping
-        # the patch block — clamped at the page edge. A too-small margin still
-        # raises a warning in the inspector (#93, Knut).
-        _lab_h = g.label_band_mm if g.label_band_mm >= 0 else g.txhisl
+        # PAGE EDGE (Knut: 4 mm). They used to be held off the patches by
+        # anchoring the band's BOTTOM at the patch-area top, so a top margin
+        # too small for the band slid it UP toward the page edge; the paragraph
+        # below is Knut ending that.
+        #
         # THE RESERVE IS THE LARGER OF "T" AND THE HELPER MARKERS' OWN (#182),
-        # and it is still CLAMPED so the letters never land on the patches.
+        # AND IT IS NO LONGER CLAMPED. Knut, comment 5649810914, answering the
+        # question this line was parked on:
+        #
+        #   "I want the function that I specified, where the strip labels do
+        #    not cross the "Text distance from edge" value (or the defined
+        #    "Distance from page edge" + "Marker length" + 1.0mm, whichever is
+        #    largest (if helper markers are enabled)), and then the text
+        #    overlaps on top of the patch area top edge (according to top
+        #    margin). This principle, which I specified to be the same for all
+        #    sides (in their own direction overlapping towards the patch area
+        #    edge for each side)"
+        #
+        # So the distance from the page edge is a LIMIT on this edge too, the
+        # same as it already is on the other three, and a top margin that
+        # cannot hold the band is a thing to SHOW and warn about rather than to
+        # design away by sliding the letters up.
+        #
+        # `min(_ideal_top, g.margin_t - _lab_h)` is what used to stand here. It
+        # cost exactly what was measured and reported to him before he ruled:
+        # on the SHIPPED CR30 A4 default (top margin 6.0 mm, a 7.0 mm label
+        # band) the band's bottom moves from 83 px to 130 px at 300 dpi while
+        # the first patch box starts at 91 px, so every strip letter is now
+        # printed over the first row of hexagons. That is his explicit choice,
+        # taken with the cost in front of him, and the warning it raises is
+        # `text_edge_fit.strip_label_overlap` in the "Measured from Preview"
+        # frame.
         #
         # The reserve used to be `g.text_edge_top_mm` alone, which is the fault
-        # Knut reported: with the ruler markers at 4 mm + 2 mm and "T" at 4 mm,
-        # the letters' ink began 3.98 mm down and the dashes occupy 4.0 to
-        # 6.0 mm, so the two were printed through each other. Measured on A4;
-        # they now begin at 8.38 mm.
-        #
-        # **THE CLAMP ITSELF IS DELIBERATELY LEFT IN, AND HIS POST ASKS FOR IT
-        # TO GO.** His "Top page edge" section places the letters at the
-        # reserve full stop and lists, as case 3, *"defined top margin is so
-        # small that patch area top edge overlaps with placed strip labels"* as
-        # a thing to WARN about rather than to design away. Removing the clamp
-        # does exactly that, and it also breaks a guarantee he gave earlier
-        # from a real sheet, which `tests/test_the_honeycomb_can_be_turned.py`
-        # pins: a strip letter is never printed on a patch. Measured with the
-        # clamp removed, on the SHIPPED CR30 A4 default (top margin 6.0 mm, a
-        # 7.0 mm label band): the band's bottom moves from 83 px to 130 px at
-        # 300 dpi while the first patch box starts at 91 px, so every strip
-        # letter is printed over the first row of hexagons and the letters
-        # measure 14 px of ink where a roomy sheet draws 61.
-        #
-        # Two of his rulings therefore disagree on this one chart, and
-        # `CLAUDE.md` is explicit that a collision like that is reported and
-        # reviewed rather than resolved here. So the marker reserve lands and
-        # the clamp stays until he says which one wins.
-        # `text_edge_fit.strip_label_overlap` is the arithmetic for the day he
-        # says the clamp goes; it is written and tested and not yet wired.
+        # Knut reported earlier: with the ruler markers at 4 mm + 2 mm and "T"
+        # at 4 mm, the letters' ink began 3.98 mm down and the dashes occupy
+        # 4.0 to 6.0 mm, so the two were printed through each other. Measured
+        # on A4; they now begin at 8.38 mm.
         _ideal_top = strip_label_reserve_mm(g) + g.strip_indicator_gap
-        _leader_top = max(0.0, min(_ideal_top, g.margin_t - _lab_h)) + g.offset_y
+        _leader_top = max(0.0, _ideal_top) + g.offset_y
     else:
         _leader_top = g.margin_t + g.offset_y   # default: flush under the margin
     # A right-side clip: the patches must butt against the clip zone (the
@@ -674,22 +689,30 @@ def clip_area_mm(geom: Geom, paper_h_mm: float, paper_w_mm: float | None = None,
     # Cutting clip text with nothing said is the fault
     # `text_edge_fit.clip_text_overhang_mm` records being fixed.
     width = max(0.0, clip_w - inset) + over
-    # THE HEIGHT IS T AND B, NOT THE SIDE RESERVE, AND NOT THE HELPER MARKERS'
-    # ROOM WHEN THAT IS TIGHTER (#182, Knut, 2026-09-12):
+    # THE BAND IS VERTICALLY CENTRED BETWEEN THE TOP AND BOTTOM RESERVES, AND
+    # THEY ARE READ ONE EDGE AT A TIME. Knut, #182, comment 5649955254:
     #
-    #   "1. Page hight (defined by selected paper) minus T and minus B
-    #    parameters in "Text distance from edge" […] OR, 2. IF "Print helper
-    #    markers" and "Top/bottom" checkboxs are both ON […]: Page hight minus
-    #    ("Distance from page edge" x 2 + "Marker length" x 2 + 2.0mm) […]
-    #    whichever is smallest".
+    #   "the clip band should be vertically centred between the T and B. So
+    #    with T at 12 and B at 4 and A4 page hight, the band is centred between
+    #    (0+T) and (297 - B) […] If helper makers are ON (with top/bottom ON),
+    #    and if either helper markers are further in on the page than T or B,
+    #    then "Distance from page edge" + "Marker length" + 1.0mm will be used
+    #    for the text distance from edge parameter that is smaller."
     #
-    # This used to spend the SIDE reserve vertically — `min(inset, 10 % of the
-    # page)` off the top and bottom — which is a distance belonging to the
-    # other pair of edges and answered neither of his two questions. On his own
-    # A4 preset at T = 8.0, B = 4.0 with the markers at 4.0 + 2.0 it gave
-    # 297 - 2x4.0 = 289.0 mm where the rule asks for 283.0, so the band ran six
-    # millimetres into the marker combs at both ends.
-    height = _tef.page_text_height_mm(
+    # `text_edge_fit.side_text_band_mm` is that table, and it CORRECTS the rule
+    # this line used to carry. That one took the smaller of "page minus T minus
+    # B" and "page minus twice the markers' reach" and then inset it
+    # SYMMETRICALLY, so the band sat centred on the middle of the sheet
+    # whatever T and B said. On his own example (A4, T = 12, B = 4, markers at
+    # 4.0 + 2.0) it put a 281.0 mm band 8.0 mm down; his rows ask for a
+    # 278.0 mm band 12.0 mm down. Both ends were wrong, and the anchor was the
+    # half a reader could see.
+    #
+    # Before either rule, this spent the SIDE reserve vertically, which is a
+    # distance belonging to the other pair of edges: on his A4 preset at
+    # T = 8.0, B = 4.0 with the markers at 4.0 + 2.0 it gave 289.0 mm where the
+    # band ran six millimetres into the marker combs at both ends.
+    v_inset, height = _tef.side_text_band_mm(
         paper_h_mm,
         getattr(geom, "text_edge_top_mm", CLIP_CONTENT_INSET_MM),
         getattr(geom, "text_edge_bottom_mm", CLIP_CONTENT_INSET_MM),
@@ -697,7 +720,6 @@ def clip_area_mm(geom: Geom, paper_h_mm: float, paper_w_mm: float | None = None,
         marker_edge_mm=float(getattr(geom, "helper_marker_edge_mm", 0.0) or 0.0),
         marker_len_mm=float(getattr(geom, "helper_marker_len_mm", 0.0) or 0.0),
         marker_top_bottom=bool(getattr(geom, "helper_markers_top_bottom", True)))
-    v_inset = max(0.0, (paper_h_mm - height) / 2.0)
     # Right-side band: mirror to the far edge (needs the paper width) (#93).
     #
     # THE OVERHANG IS ON THE PATCH SIDE, which is the rectangle's INNER end:

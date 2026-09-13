@@ -115,7 +115,23 @@ def test_hex_strip_count_matches_columns_not_interlock(tmp_path):
 def test_saved_tiff_colours_match_ti2_at_every_location(tmp_path):
     """The chartread-critical property end to end: every patch in the SAVED .tif
     must show the exact device colour the .ti2 records at that SAMPLE_LOC — so
-    what gets printed is what chartread expects, for a *randomised* chart (#93)."""
+    what gets printed is what chartread expects, for a *randomised* chart (#93).
+
+    **A TOP MARGIN THAT CAN HOLD THE STRIP-LABEL BAND, AND THAT IS NOT A
+    CONVENIENCE.** Knut's ruling of 2026-09-13 (comment 5649810914) stops the
+    letters sliding up out of the way, so on a sheet whose top margin cannot
+    hold the band they are printed ON the first patches, and they are printed
+    on TOP of them because his 2026-09-10 ruling forbids text being silently
+    painted out. Ink on a patch is ink chartread will read. Measured on the
+    stock i1Pro A4 recipe this test used to use (a 6.0 mm top margin, letters
+    whose ink ends 10.99 mm down, 1.0 mm patches starting at 7.0 mm): one of
+    426 patch centres, A2, came back (0, 0, 0) instead of its device colour.
+    That is not a bug in this property, it is the price of the ruling, and it
+    is pinned by `test_a_strip_letter_that_lands_on_a_patch_really_changes_it`
+    below and warned about in red by
+    `ui/tabs/tab_chart.py::_engine_text_notes`. Here the sheet is given the
+    room, so what is measured is the property this test is for.
+    """
     import random
     from PIL import Image
     from workflow.layout_engine import chart as le_chart, papers
@@ -127,6 +143,7 @@ def test_saved_tiff_colours_match_ti2_at_every_location(tmp_path):
             for _ in range(300)]
     R.write_ti1(R.ChartSpec.new("i1", "A4"), prog, tmp_path / "s.ti1")
     rec = default_recipe("i1", "A4"); rec.randomize = True; rec.seed = 777
+    rec.margin_top = 16.0
     kw = rec.build_kwargs(); kw["dpi"] = 200
     res = le_chart.build_chart(str(tmp_path / "s.ti1"), tmp_path / "chart", **kw)
 
@@ -155,6 +172,67 @@ def test_saved_tiff_colours_match_ti2_at_every_location(tmp_path):
             f"{d['loc']}: tif {got} != ti2 {to_display_rgb(dev, spec.color_rep)}"
         checked += 1
     assert checked >= 300
+
+
+def test_a_strip_letter_that_lands_on_a_patch_really_changes_it(tmp_path):
+    """The price of Knut's 2026-09-13 ruling, kept where it can be read.
+
+    The test above proves that a sheet with room prints every patch in its own
+    colour. This one proves the other half, because a guarantee that quietly
+    stopped applying would look exactly like a guarantee: on the stock i1Pro A4
+    recipe, whose 6.0 mm top margin cannot hold the label band, a strip letter
+    is printed over the first patches of its own strip and the ink is THERE, in
+    the saved TIFF, at the patch's own centre.
+
+    It is on top rather than under because his 2026-09-10 ruling says text on
+    any side is never silently dropped, and the renderer composites the letters
+    last for that reason (`raster._lbl_surface`). The user is told, in red, in
+    the "Measured from Preview" frame, that those patches will not measure
+    correctly.
+
+    If this test ever goes green, either the clamp is back or the letters are
+    being painted out again, and both are reversals of a ruling.
+    """
+    import random
+    from PIL import Image
+    from workflow.layout_engine import chart as le_chart, papers
+    from workflow.layout_engine.colorants import to_display_rgb
+    from workflow.layout_engine.presets import default_recipe
+    import workflow.ti2_relayout as R
+
+    random.seed(11)
+    prog = [(random.random() * 100, random.random() * 100, random.random() * 100)
+            for _ in range(300)]
+    R.write_ti1(R.ChartSpec.new("i1", "A4"), prog, tmp_path / "s.ti1")
+    rec = default_recipe("i1", "A4"); rec.randomize = True; rec.seed = 777
+    kw = rec.build_kwargs(); kw["dpi"] = 200
+    res = le_chart.build_chart(str(tmp_path / "s.ti1"), tmp_path / "chart", **kw)
+    spec = R.ChartSpec.from_ti2(tmp_path / "chart.ti2")
+    loc_dev = {p.loc: p.dev for p in spec.patches if p.loc}
+    kw["area_target_count"] = len(spec.patches)
+    geom = instruments.geom_from_build_kwargs(kw)
+    w, h = papers.dimensions_mm("A4")
+    place = geometry.placement(geom, w, h, res.layout)
+    assert place.leader_top + geom.label_ink_bottom_mm > geom.margin_t, (
+        "the label band no longer crosses the top margin on the stock i1Pro A4 "
+        "recipe, so this test has nothing to measure")
+    rects = geometry.patch_rects_px(geom, w, h, res.layout, kw["dpi"],
+                                    rec.strip_pattern, rec.patch_pattern)
+    imgs = [np.asarray(Image.open(p).convert("RGB")) for p in res.tiff_paths]
+    inked = []
+    for d in rects:
+        dev = loc_dev.get(d["loc"])
+        if dev is None:
+            continue
+        cx, cy = d["x"] + d["w"] // 2, d["y"] + d["h"] // 2
+        got = tuple(int(v) for v in imgs[d["page"]][cy, cx])
+        if got != tuple(to_display_rgb(dev, spec.color_rep)):
+            inked.append((d["loc"], got))
+    assert inked, (
+        "no patch centre carries letter ink, so either the letters are being "
+        "painted out by the patches again or the clamp is back")
+    assert all(g == (0, 0, 0) for _loc, g in inked), (
+        f"the ink over a patch is not the letters' black: {inked}")
 
 
 def test_raster_matches_ti2_slot_assignment():

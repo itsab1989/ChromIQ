@@ -294,10 +294,77 @@ def sheet_text_bottom_mm(text_edge_mm: float, markers_on: bool = False,
                            marker_len_mm, markers_top_bottom)
 
 
+def bottom_text_bounds_mm(paper_w_mm: float, text_edge_clip_mm: float,
+                          markers_on: bool = False, marker_edge_mm: float = 0.0,
+                          marker_len_mm: float = 0.0,
+                          markers_sides: bool = True, *,
+                          clip_border_mm: float = 0.0,
+                          clip_side: str = "left") -> tuple[float, float]:
+    """The two page-edge distances the bottom line is centred BETWEEN, in mm.
+
+    Knut, #182, comment 5651269930 (an edit of 5649955254, and the edit is the
+    one that counts: his first wording said only "centred according to page
+    width" and he came back to give the case table). Returned as
+    ``(left_mm, right_mm)`` measured from the LEFT page edge, so the centre of
+    the line is ``(left + right) / 2``.
+
+    His table, in his own units, for A4 Portrait::
+
+        Helper markers off, Clip-border off:
+            (0+Clip)                and (210 - Clip)
+        Clip-border ON (side=left)  [also markers on when Clip is the larger]:
+            (0+Clip-border width)   and (210 - Clip)
+        Clip-border ON (side=right) [same proviso]:
+            (0+Clip)                and (210 - Clip-border width)
+        Markers on for sides, Clip smaller than the marker reserve, no border:
+            (0+R)                   and (210 - R)
+        Markers on for sides, border on the left, Clip smaller:
+            (0+Clip-border width)   and (210 - R)
+        Markers on for sides, border on the right, Clip smaller:
+            (0+R)                   and (210 - Clip-border width)
+
+    where ``R`` is *"Distance from page edge" + "Marker length" + 1.0mm*. Two
+    rules cover all six rows, which is why they are written once here:
+
+    * the side with NO clip border on it keeps ``max(Clip, R)``, which is
+      :func:`edge_reserve_mm` and is what his "whichever is larger" proviso
+      says in every row;
+    * the side WITH the clip border keeps the border's own width, because the
+      band and the line share this strip of paper: the band now runs from the
+      "T" bound to the "B" bound (:func:`side_text_band_mm`), so it reaches
+      down past the bottom line's own row and the line has to start clear of
+      it.
+
+    **ONE CLAUSE HE DID NOT TABULATE, AND IT IS RESOLVED CONSERVATIVELY.**
+    Every row of his table has the border wider than the reserve, so the two
+    readings agree; a border NARROWER than the reserve is a case he does not
+    cover, and taking his words literally there would let the line into a
+    reserve that is a limit on all four sides everywhere else in this module.
+    The bound is therefore ``max(border, reserve)`` on the border's side, which
+    is exactly his table wherever his table speaks. Reported for his ruling.
+    """
+    reserve = edge_reserve_mm(text_edge_clip_mm, markers_on, marker_edge_mm,
+                              marker_len_mm, markers_sides)
+    w = max(0.0, float(paper_w_mm or 0.0))
+    border = max(0.0, float(clip_border_mm or 0.0))
+    left = right_in = reserve
+    if border > 0.0:
+        if str(clip_side or "left").strip().lower() == "right":
+            right_in = max(reserve, border)
+        else:
+            left = max(reserve, border)
+    right = w - right_in
+    if right < left:                      # a pathological sheet: no room at all
+        left = right = w / 2.0
+    return (left, right)
+
+
 def bottom_text_room_mm(paper_w_mm: float, text_edge_clip_mm: float,
                         markers_on: bool = False, marker_edge_mm: float = 0.0,
                         marker_len_mm: float = 0.0,
-                        markers_sides: bool = True) -> float:
+                        markers_sides: bool = True, *,
+                        clip_border_mm: float = 0.0,
+                        clip_side: str = "left") -> float:
     """How wide the bottom-of-sheet text may be before it crosses a reserve.
 
     Knut's worked A4 example, from the "Bottom page edge" section:
@@ -314,27 +381,44 @@ def bottom_text_room_mm(paper_w_mm: float, text_edge_clip_mm: float,
     between the numbers: 196 is smaller than 202, and with the markers on both
     reserves apply**, so the wider of the two per side is the one that binds,
     exactly as it does on the other three edges.
+
+    **AND THE CLIP BORDER IS THE THIRD THING THAT CAN BIND IT** (comment
+    5651269930): the room is the distance between the two bounds the line is
+    centred between, so a clip border on one side takes its width out of the
+    line's room rather than the reserve. With no border described this is his
+    two-reserve figure exactly, which is what every caller got before.
     """
-    reserve = edge_reserve_mm(text_edge_clip_mm, markers_on, marker_edge_mm,
-                              marker_len_mm, markers_sides)
-    return max(0.0, float(paper_w_mm or 0.0) - 2.0 * reserve)
+    left, right = bottom_text_bounds_mm(paper_w_mm, text_edge_clip_mm,
+                                        markers_on, marker_edge_mm,
+                                        marker_len_mm, markers_sides,
+                                        clip_border_mm=clip_border_mm,
+                                        clip_side=clip_side)
+    return max(0.0, right - left)
 
 
 def bottom_text_overflow(paper_w_mm: float, text_edge_clip_mm: float,
                          needed_w_mm: float, markers_on: bool = False,
                          marker_edge_mm: float = 0.0,
                          marker_len_mm: float = 0.0,
-                         markers_sides: bool = True) -> "Overlap | None":
+                         markers_sides: bool = True, *,
+                         clip_border_mm: float = 0.0,
+                         clip_side: str = "left") -> "Overlap | None":
     """The bottom line's WIDTH against the paper it has, or None when it fits.
 
     The fourth side's version of the check the other three already make. Named
     an :class:`Overlap` on side ``"bottom"`` like the height one, because the
     panel reports both the same way and the remedy differs only in wording.
+
+    *clip_border_mm* and *clip_side* describe a clip border, which bounds the
+    line on its own side (comment 5651269930). Keyword-only, so every call
+    written before it still asks the question it asked.
     """
     return _overlap("bottom",
                     bottom_text_room_mm(paper_w_mm, text_edge_clip_mm,
                                         markers_on, marker_edge_mm,
-                                        marker_len_mm, markers_sides),
+                                        marker_len_mm, markers_sides,
+                                        clip_border_mm=clip_border_mm,
+                                        clip_side=clip_side),
                     max(0.0, float(needed_w_mm or 0.0)))
 
 
@@ -412,11 +496,12 @@ class LabelOverlap:
     offset_mm: float
     band_mm: float
     margin_mm: float
+    gap_mm: float = 0.0
 
     @property
     def reaches_mm(self) -> float:
         """How far down the page the letters' band ends."""
-        return self.reserve_mm + self.offset_mm + self.band_mm
+        return self.reserve_mm + self.gap_mm + self.offset_mm + self.band_mm
 
     @property
     def overlap_mm(self) -> float:
@@ -427,7 +512,8 @@ def strip_label_overlap(margin_top_mm: float, text_edge_top_mm: float,
                         band_mm: float, label_offset_mm: float = 0.0,
                         markers_on: bool = False, marker_edge_mm: float = 0.0,
                         marker_len_mm: float = 0.0,
-                        markers_top_bottom: bool = True,
+                        markers_top_bottom: bool = True, *,
+                        gap_mm: float = 0.0,
                         ) -> "LabelOverlap | None":
     """The strip letters against the patch area's top edge, or None if clear.
 
@@ -446,25 +532,28 @@ def strip_label_overlap(margin_top_mm: float, text_edge_top_mm: float,
     is the top margin, which the caller offers as the alternative remedy in
     both. Nothing here guesses which of the three the user "meant".
 
-    ⚠ **NOTHING CALLS THIS YET, AND THAT IS DELIBERATE.** It is the arithmetic
-    for a renderer that does NOT slide the letters, and `geometry.placement`
-    still does: it clamps them at ``margin_t - band``, so they move toward the
-    paper edge rather than over the patches, and `strip_label_squeeze` is what
-    the panel reports.
+    **THE CLAMP IS GONE AND THIS IS NOW THE LIVE PREDICATE.** It was written,
+    tested and parked for a day, because removing the clamp collided with an
+    earlier ruling of his that came from a real printed sheet, and
+    `CLAUDE.md` is explicit that a collision like that is his call. He made it
+    in comment 5649810914: *"the strip labels do not cross the "Text distance
+    from edge" value […] and then the text overlaps on top of the patch area
+    top edge (according to top margin)."*
 
-    Removing that clamp is what this post asks for, and it collides with an
-    earlier ruling of his that came from a real printed sheet, so it is his
-    call and not ours (`CLAUDE.md`, "The design specifications are binding").
-    Measured with the clamp removed, on the SHIPPED CR30 A4 default (top margin
-    6.0 mm, a 7.0 mm label band): the label band's bottom moves from 83 px to
-    130 px at 300 dpi while the first patch box starts at 91 px, so every strip
-    letter is printed over the first row of hexagons, 14 px of ink where a
-    roomy sheet draws 61. `tests/test_the_honeycomb_can_be_turned.py` pins that
-    guarantee, and it is the one he reported the fault for in the first place.
+    What it costs is not a surprise to anyone. Measured on the SHIPPED CR30 A4
+    default (top margin 6.0 mm, a 7.0 mm label band): the label band's bottom
+    moves from 83 px to 130 px at 300 dpi while the first patch box starts at
+    91 px, so every strip letter is printed over the first row of hexagons,
+    14 px of ink where a roomy sheet draws 61. That is the sheet he ruled on,
+    and this function is what puts the warning on the panel for it.
 
-    So this function is written, tested and parked. The day the clamp goes, the
-    panel calls it instead of `strip_label_squeeze` and the two messages in
-    `ui/tabs/tab_chart.py` change with it.
+    **AND THE ARITHMETIC WAS SHORT BY ONE TERM WHILE IT WAS PARKED.** The
+    renderer's band bottom is ``leader_top + label_ink_bottom_mm``, and
+    `geometry.placement` builds ``leader_top`` as *reserve + the layout's own
+    ``strip_indicator_gap``*. That gap was not in this sum, so on any recipe
+    that sets one, this said the letters clear the patches by exactly the gap
+    when they do not. *gap_mm* is keyword-only so the calls written against the
+    parked signature still mean what they meant.
     """
     band = float(band_mm or 0.0)
     if band <= 0.0:
@@ -477,7 +566,8 @@ def strip_label_overlap(margin_top_mm: float, text_edge_top_mm: float,
     hit = LabelOverlap(reserve,
                        marker_reserve > float(text_edge_top_mm or 0.0),
                        float(label_offset_mm or 0.0), band,
-                       float(margin_top_mm or 0.0))
+                       float(margin_top_mm or 0.0),
+                       max(0.0, float(gap_mm or 0.0)))
     return hit if hit.overlap_mm > EPS_MM else None
 
 
@@ -690,14 +780,61 @@ def page_text_height_mm(paper_h_mm: float, text_edge_top_mm: float,
     gives 289 mm, and the markers at 4.0 + 2.0 give 297 - 14 = 283 mm, so 283
     is the height to judge against.
     """
+    return side_text_band_mm(
+        paper_h_mm, text_edge_top_mm, text_edge_bottom_mm,
+        helper_markers=helper_markers, marker_edge_mm=marker_edge_mm,
+        marker_len_mm=marker_len_mm, marker_top_bottom=marker_top_bottom)[1]
+
+
+def side_text_band_mm(paper_h_mm: float, text_edge_top_mm: float,
+                      text_edge_bottom_mm: float, *,
+                      helper_markers: bool = False,
+                      marker_edge_mm: float = 0.0,
+                      marker_len_mm: float = 0.0,
+                      marker_top_bottom: bool = True) -> tuple[float, float]:
+    """``(top_mm, height_mm)`` of the band a side text is centred in.
+
+    Knut, #182, comment 5649955254, giving the bounds one case at a time for an
+    A4 sheet at T = 12 and B = 4::
+
+        helper markers off:
+            (0+T)  and  (297 - B)
+        helper markers on for top/bottom:
+            T smaller than the marker reserve:  (0+R)  and  (297 - B)
+            B smaller:                          (0+T)  and  (297 - R)
+            both smaller:                       (0+R)  and  (297 - R)
+
+    where ``R`` is *"Distance from page edge" + "Marker length" + 1.0mm*. All
+    four rows are ONE rule per edge: the bound is ``max(that edge's box, R)``,
+    which is :func:`edge_reserve_mm`, the same function the other elements on
+    the same edges already use. He asks for the band to be *"vertically
+    centred"* between them, and a band that spans them exactly is centred in
+    them, so the rectangle is returned rather than a rule for sliding a shorter
+    one about.
+
+    **THIS CORRECTS THE HEIGHT AS WELL AS THE PLACEMENT, AND THE CORRECTION IS
+    HIS.** The rule this replaces came from his earlier post and read *"page
+    height minus T and minus B, OR page height minus (distance x2 + length x2 +
+    2.0mm), whichever is smallest"* -- one symmetric figure for both ends. That
+    is right whenever T and B fall on the same side of R, and wrong in the two
+    mixed rows he has now written out. On his own example, A4 at T = 12, B = 4
+    with the markers at 4.0 + 2.0 (R = 7.0), the old rule gives
+    ``min(281, 283) = 281`` mm starting 8.0 mm down; his rows give 12.0 mm down
+    to 290.0 mm, a 278.0 mm band. Three millimetres and a different anchor, and
+    the anchor is the half that showed: the band was symmetric about the middle
+    of the sheet whatever T and B said.
+
+    ``height_mm`` is floored at zero, and the top bound is pulled back with it
+    on a sheet whose two reserves overlap, so the rectangle is never inverted.
+    """
     h = max(0.0, float(paper_h_mm or 0.0))
-    by_text = h - max(0.0, float(text_edge_top_mm or 0.0)) \
-        - max(0.0, float(text_edge_bottom_mm or 0.0))
-    if not (helper_markers and marker_top_bottom):
-        return max(0.0, by_text)
-    by_marker = h - 2.0 * helper_marker_ink_reach_mm(marker_edge_mm,
-                                                   marker_len_mm)
-    return max(0.0, min(by_text, by_marker))
+    top = edge_reserve_mm(text_edge_top_mm, helper_markers, marker_edge_mm,
+                          marker_len_mm, marker_top_bottom)
+    bot = edge_reserve_mm(text_edge_bottom_mm, helper_markers, marker_edge_mm,
+                          marker_len_mm, marker_top_bottom)
+    if top + bot >= h:                    # a pathological pair on a small sheet
+        return (min(top, h) if h > 0 else 0.0, 0.0)
+    return (top, h - top - bot)
 
 
 def geom_side_text_edge_mm(geom) -> float:

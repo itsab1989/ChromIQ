@@ -210,16 +210,17 @@ def test_the_sheet_text_moves_with_b(b_mm):
         "the paper, inside the reserve")
 
 
-@pytest.mark.parametrize("t_mm", [4.0, 6.0, 8.0])
-def test_the_strip_letters_move_with_t_while_the_margin_can_hold_them(t_mm):
-    """"T" moves them, up to the point the clamp takes over.
+@pytest.mark.parametrize("t_mm", [4.0, 6.0, 8.0, 12.0, 20.0])
+def test_the_strip_letters_move_with_t(t_mm):
+    """"T" moves them, all the way, with nothing clamping it any more.
 
-    The clamp is `geometry.placement`'s ``min(reserve, margin_t - band)``, and
-    it is still there ON PURPOSE: see :func:`text_edge_fit.strip_label_overlap`
-    for why removing it is Knut's call. With a 15 mm top margin and a 7 mm band
-    it bites at 8 mm, so this sweep stays below that and
-    :func:`test_the_clamp_still_holds_the_letters_off_the_patches` pins the
-    other side of it.
+    The clamp was `geometry.placement`'s ``min(reserve, margin_t - band)``, and
+    Knut removed it in comment 5649810914: the letters hold their distance from
+    the page edge and overlap the patch area where the top margin cannot hold
+    them. With a 15 mm top margin and a 7 mm band the old clamp bit at 8 mm, so
+    the last two values here are past it and would have been silently pinned to
+    the margin before. `test_the_letters_hold_their_distance_and_overlap_the_
+    patches` pins what happens on the other side of the same line.
     """
     r = _recipe(text_edge_top_mm=t_mm)
     band = _moved(_render(r)[0], _render(r, draw_indicators=False)[0])
@@ -229,33 +230,81 @@ def test_the_strip_letters_move_with_t_while_the_margin_can_hold_them(t_mm):
         "paper edge, inside the distance that was asked for")
 
 
-def test_the_clamp_still_holds_the_letters_off_the_patches():
-    """A too-small top margin slides them UP, and no letter lands on a patch.
+def test_the_letters_hold_their_distance_and_overlap_the_patches():
+    """A too-small top margin no longer slides them up. Knut, 5649810914:
 
-    This is the behaviour Knut's #182 post asks to change and an earlier
-    ruling of his, taken from a real printed sheet, requires. Both are pinned
-    here so a change to either is a deliberate one: the letters end above the
-    patch area, and they do it by giving up the distance from the paper edge.
+        "I want the function that I specified, where the strip labels do not
+         cross the "Text distance from edge" value […] and then the text
+         overlaps on top of the patch area top edge (according to top margin)."
+
+    This test is the reverse of the one it replaces, and deliberately so: that
+    one pinned the clamp, with a note saying the post asked for it to go and
+    that only he could say so. He has. So the two facts to hold are that the
+    reserve is KEPT (it is a limit on this edge like the other three) and that
+    the band is allowed to run past the margin onto the patches.
     """
     r = _recipe(margin_top=6.0)
     band = _moved(_render(r)[0], _render(r, draw_indicators=False)[0])
     assert band is not None
-    assert band[0] < 4.0, (
-        f"the letters begin {band[0]:.2f} mm from the paper edge; with the "
-        "clamp in place a 6 mm margin must push them inside the 4 mm reserve")
-    assert band[1] <= 6.0 + 0.3, (
-        f"the letters end {band[1]:.2f} mm down, past the 6 mm top margin, so "
-        "they are printed on the patches")
+    assert band[0] >= 4.0 - 0.2, (
+        f"the letters begin {band[0]:.2f} mm from the paper edge, inside the "
+        '4 mm "T" reserve; the reserve is a limit and the clamp is back')
+    assert band[1] > 6.0, (
+        f"the letters end {band[1]:.2f} mm down, still inside the 6 mm top "
+        "margin, so something is still holding them off the patches")
 
 
-def test_the_bottom_line_starts_at_the_side_reserve_not_the_left_margin():
-    """Knut measures the width against "Clip", so the line must start there."""
+def test_the_bottom_line_is_centred_between_the_two_side_bounds():
+    """Knut, comment 5651269930 (an EDIT of his first, looser answer):
+
+        "the bottom text ("Stamp layout summary on the sheet") is horizontally
+         centred between following (example uses A4 paper size, Portrait):
+         Helper markers are off and Clip-border off: (0+Clip) and (210 - Clip)"
+
+    and his reason, from the post that edit replaced: *"so that text can
+    equally expand to both sides if the text string length is increased."*
+
+    A4 at "Clip" 4.0 with no border and no markers puts the bounds at 4.0 and
+    206.0, so the centre is 105.0 mm. The line used to START at 4.0.
+    """
+    lo, hi = tef.bottom_text_bounds_mm(210.0, 4.0)
+    assert (lo, hi) == pytest.approx((4.0, 206.0))
     r = _recipe(chart_text="IIIIIIIIII")
     band = _moved(_render(r)[0], _render(r, chart_text="")[0])
     assert band is not None
-    assert band[2] < 8.0, (
-        f"the line starts {band[2]:.2f} mm in, which is the 12 mm left margin "
-        'and not the 4 mm "Clip" reserve')
+    mid = (band[2] + band[3]) / 2.0
+    assert abs(mid - (lo + hi) / 2.0) < 1.0, (
+        f"the line runs {band[2]:.2f} to {band[3]:.2f} mm, centred on "
+        f"{mid:.2f} mm, and the two bounds put the centre at "
+        f"{(lo + hi) / 2.0:.2f} mm")
+    assert band[2] > 8.0, (
+        f"the line still starts {band[2]:.2f} mm in, at the reserve; it is "
+        "left-anchored, not centred")
+
+
+def test_a_longer_bottom_line_grows_the_same_amount_at_both_ends():
+    """His reason, measured rather than restated.
+
+    A left-anchored line grows only to the right, so the two ends move by very
+    different amounts; a centred one splits the growth. Ten characters against
+    thirty, at a TYPED size so nothing shrinks and the comparison is about
+    placement alone.
+    """
+    short = _moved(_render(_recipe(chart_text="I" * 10,
+                                   chart_text_size_mm=3.2))[0],
+                   _render(_recipe(chart_text="", chart_text_size_mm=3.2))[0])
+    longer = _moved(_render(_recipe(chart_text="I" * 30,
+                                    chart_text_size_mm=3.2))[0],
+                    _render(_recipe(chart_text="", chart_text_size_mm=3.2))[0])
+    assert short is not None and longer is not None
+    grew_left = short[2] - longer[2]
+    grew_right = longer[3] - short[3]
+    assert grew_left > 1.0 and grew_right > 1.0, (
+        f"the line grew {grew_left:.2f} mm to the left and {grew_right:.2f} mm "
+        "to the right; a centred line grows at both ends")
+    assert abs(grew_left - grew_right) < 1.0, (
+        f"it grew {grew_left:.2f} mm left and {grew_right:.2f} mm right, which "
+        "is not equal expansion")
 
 
 def test_the_long_line_really_does_not_fit_at_the_starting_size():
