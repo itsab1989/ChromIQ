@@ -1,5 +1,69 @@
 # Changelog
 
+## v4.3.0-beta.7
+
+**A second pass over the text rules, and two faults underneath them that had
+nothing to do with text.** Most of this is a tester's rulings on where text sits
+on a sheet, built and then attacked; the two that matter most were found while
+building them.
+
+### Fixed
+
+- **The patches were painting the strip letters out.** A strip's patches are
+  drawn after its own label, so on the shipped CR30 A4 default 39 pixels of
+  every letter, a little under half of it, was erased. On a pale patch that is
+  a beheaded letter; on a dark one the letter is simply gone. The letters and
+  their underline now go onto their own layer and only their ink is laid down,
+  at the end of the page, the way the clip-border strip is already handled.
+
+- **A chart built from your profile was aimed with the wrong arithmetic.** To
+  find the ink amounts for a wanted colour, ChromIQ read the profile's built-in
+  reverse table, which is a fast approximation. It inverts the profile's own
+  forward table numerically now. Over the eleven reference sets ChromIQ bundles,
+  792 patches: the aim was missed by 0.366 on average and is now missed by
+  0.052, with 770 of 792 patches inside 0.5 instead of 659. Those values are
+  printed and then measured against the same aims, so the difference was going
+  into your verification as error that belonged to nothing on the sheet.
+
+### Text on the sheet
+
+- **Strip letters keep the text distance from the edge and overlap the patch
+  area** when the top margin cannot hold them, rather than being pushed to the
+  paper edge. Where a letter lands on a patch, the warning now says that patch
+  will not measure correctly, because the letter's ink is ink the instrument
+  reads.
+
+- **The bottom line is centred across the sheet**, between the reserves that
+  actually apply, so a longer line grows evenly to both sides instead of
+  running off one end.
+
+- **The clip-border text is centred down its band**, between the top and bottom
+  text distances, with the ruler markers' reserve substituted for whichever of
+  the two they reach past. The chart note and the stamped settings follow the
+  same bounds.
+
+- Five hexagonal presets warned about a sheet that was fine, because on a turned
+  honeycomb the patch block sits below the top margin and the check compared
+  against the margin rather than against where the patches really start.
+
+### Also
+
+- Of the 154 built-in presets, 143 were driven end to end against the new rules:
+  140 are clean, three overlap and say so, and none overlaps in silence.
+
+- **The red margin warnings fold away.** They grew a lot with the rules above,
+  so the panel now carries one clickable line that shows or hides them, and it
+  remembers what you left it on. A green "Margins: OK" is never hidden by a fold
+  you set earlier.
+
+- A strip letter turned 90, 180 or 270 degrees printed about a seventh lighter
+  than an upright one, because a turned label is a pre-rendered tile and was
+  being blended twice. Rotation 0 was never affected.
+
+- Building a chart uses less memory: the page's label layer was allocating two
+  more full-page images than it needed, which on A4 at 300 dpi was a third of
+  the render's peak.
+
 ## v4.3.0-beta.6
 
 **Text on all four edges of the sheet, to a specification written from the
