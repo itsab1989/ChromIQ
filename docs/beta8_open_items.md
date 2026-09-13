@@ -5493,6 +5493,14 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   notes live in. He read the warning as being about the notes, which is what
   it said, and it was the bottom line that had moved.
 
+  **AND IT REGRESSES NO SHIPPED CHART.** The new bound only bites where a
+  margin is wider than the clip border on the border's own side, which is a
+  hand-edited state: checked over all **143 recipes shipped in `assets/charts`,
+  zero** have their bottom-line room narrowed by one hundredth of a millimetre.
+  So no built-in preset starts warning, and no built-in sheet moves its bottom
+  line. Measured rather than assumed, because widening a bound is exactly the
+  kind of change that quietly turns a fleet of charts red.
+
   **THE READING IS THE CONSERVATIVE ONE AND HE IS ASKED TO CONFIRM IT.**
   *"This should apply for both left or right side clip-border"* can mean "on
   both sides" or "whichever side the border is on". Applied to both sides it
