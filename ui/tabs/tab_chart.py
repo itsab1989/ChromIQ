@@ -19418,7 +19418,23 @@ class TabChart(QWidget):
                                 avail=max(0.0, _o.available_mm),
                                 short=_o.overlap_mm))
                     else:
-                        over.append(tr(
+                        # THE DISTANCE IT NAMES IS THE ONE THE SHEET USES, and
+                        # this sentence read the raw "Clip" box while the
+                        # overlap two lines above was already measured from
+                        # `_eff_edge`. Measured on screen with the side markers
+                        # at 4.0 + 2.0 and "Clip" at 4.0: the note's ink ends
+                        # 6.99 mm from the paper's right edge and this said
+                        # "printed 4.0 mm in from the paper edge".
+                        #
+                        # AND "LOWER CLIP" IS A LEVER ONLY WHILE "Clip" IS WHAT
+                        # IS BINDING. Once the ruler markers are the larger of
+                        # the two, winding it down moves no ink, which is the
+                        # remedy-that-does-not-remedy this round's predecessor
+                        # deleted twice in the block below.
+                        _clip_binds = (_eff_edge
+                                       <= float(r.text_edge_clip_mm or 0.0)
+                                       + 0.05)
+                        over.append((tr(
                             "⚠ The chart notes down the right edge run over the "
                             "patches. They are printed {edge:.1f} mm in from "
                             "the paper edge, need {need:.1f} mm at {size:.0f} "
@@ -19426,8 +19442,20 @@ class TabChart(QWidget):
                             "They are printed anyway so you can see this. Raise "
                             "“Right” under “Margins (mm)” by about {short:.1f} "
                             "mm, or lower “Clip” under “Text distance from edge "
-                            "(mm)”, which is the box this edge uses.").format(
-                                edge=r.text_edge_clip_mm, need=_o.needed_mm,
+                            "(mm)”, which is the box this edge uses.")
+                            if _clip_binds else tr(
+                            "⚠ The chart notes down the right edge run over the "
+                            "patches. They are printed {edge:.1f} mm in from "
+                            "the paper edge, need {need:.1f} mm at {size:.0f} "
+                            "pt, and the right margin leaves {avail:.1f} mm. "
+                            "They are printed anyway so you can see this. Raise "
+                            "“Right” under “Margins (mm)” by about {short:.1f} "
+                            "mm. Lowering “Clip” does not move them: the ruler "
+                            "helper markers down that edge hold the text "
+                            "{edge:.1f} mm in, further than “Clip” asks for. "
+                            "Turn off “Sides” under “Ruler helper markers” to "
+                            "give that room back.")).format(
+                                edge=_eff_edge, need=_o.needed_mm,
                                 size=_note_floor_pt,
                                 avail=max(0.0, _o.available_mm),
                                 short=_o.overlap_mm))
@@ -19457,15 +19485,32 @@ class TabChart(QWidget):
                     from workflow import tiff_metadata as _tmeta
                     from workflow.layout_engine import papers as _papers
                     _pw, _ph = _papers.dimensions_mm(str(r.paper))
+                    # THE RESERVE THE STAMPER USES, ON ALL THREE EDGES, and
+                    # this asked the raw "Clip" box for every one of them.
+                    # `_eff_edge` is the side reserve the sheet really keeps
+                    # (bound above for exactly this), and the line's two ENDS
+                    # take the top and bottom reserves, which is what
+                    # `_stamp_one` was corrected to use. Reading "Clip" here
+                    # gave the prediction a strip up to 2 x 3 mm longer than
+                    # the one the note is drawn into, so it under-reported the
+                    # characters that are cut off.
+                    _mk = (bool(getattr(r, "helper_markers", False)),
+                           float(getattr(r, "helper_marker_edge_mm", 0.0) or 0.0),
+                           float(getattr(r, "helper_marker_len_mm", 0.0) or 0.0),
+                           bool(getattr(r, "helper_markers_top_bottom", True)))
+                    _note_top = text_edge_fit.edge_reserve_mm(
+                        float(getattr(r, "text_edge_top_mm", 0.0) or 0.0), *_mk)
+                    _note_bot = text_edge_fit.edge_reserve_mm(
+                        float(getattr(r, "text_edge_mm", 0.0) or 0.0), *_mk)
                     _lost = _tmeta.note_characters_lost(
-                        _notes_text, _ph, r.text_edge_clip_mm,
-                        max(0.0, _note_margin - max(float(r.text_edge_clip_mm
-                                                          or 0.0),
+                        _notes_text, _ph, _eff_edge,
+                        max(0.0, _note_margin - max(_eff_edge,
                                                     _clip_zone if _clip_on_right
                                                     else 0.0)),
                         float(getattr(r, "dpi", 300) or 300),
                         _note_size_pt,
-                        str(getattr(r, "chart_text_font", "") or ""))
+                        str(getattr(r, "chart_text_font", "") or ""),
+                        _note_top, _note_bot)
                 except Exception:          # noqa: BLE001 — a note is never fatal
                     _lost = 0
                 if _lost == 1:

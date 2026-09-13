@@ -837,3 +837,75 @@ def test_the_side_text_edge_takes_whichever_reaches_further_in():
     assert tef.side_text_edge_mm(
         4.0, helper_markers=False, marker_edge_mm=4.0,
         marker_len_mm=2.0) == pytest.approx(4.0)
+
+
+# ---------------------------------------------------------------------------
+# THE NOTE'S OWN SENTENCE NAMES THE DISTANCE THE SHEET REALLY KEEPS.
+#
+# Second challenge round, 2026-09-13. The overlap two lines above this sentence
+# has been measured from `_eff_edge` since `9243cc5a` -- "Clip" or the ruler
+# helper markers' room, whichever goes further in -- and the sentence went on
+# reading the raw "Clip" box. Measured on screen with the side markers at
+# 4.0 + 2.0 mm and "Clip" at 4.0: the note's ink ends 6.99 mm from the paper's
+# right edge and the message said "printed 4.0 mm in from the paper edge",
+# then advised lowering a box that moves no ink at all while the markers bind.
+# ---------------------------------------------------------------------------
+
+def _marked(r):
+    r.helper_markers = True
+    r.helper_marker_edge_mm = 4.0
+    r.helper_marker_len_mm = 2.0
+    r.helper_markers_sides = True
+    r.helper_markers_top_bottom = True
+    return r
+
+
+def test_the_note_message_names_the_reserve_the_markers_impose():
+    msg = _note_line(_marked(_recipe(side="left", margin_r=6.0)))
+    reserve = tef.side_text_edge_mm(4.0, helper_markers=True,
+                                    marker_edge_mm=4.0, marker_len_mm=2.0)
+    assert reserve == pytest.approx(7.0)
+    assert f"printed {reserve:.1f} mm in from the paper edge" in msg, msg
+    assert "printed 4.0 mm in from the paper edge" not in msg, msg
+
+
+def test_lowering_clip_is_not_offered_while_the_markers_are_what_bind():
+    msg = _note_line(_marked(_recipe(side="left", margin_r=6.0)))
+    assert "Lowering “Clip” does not move them" in msg, msg
+    assert "Sides" in msg, msg
+
+
+def test_lowering_clip_is_offered_when_clip_is_what_binds():
+    """With the markers off, "Clip" is the reserve and lowering it works."""
+    msg = _note_line(_recipe(side="left", margin_r=6.0))
+    assert "printed 4.0 mm in from the paper edge" in msg, msg
+    assert "lower “Clip” under “Text distance from edge (mm)”" in msg, msg
+    assert "does not move them" not in msg, msg
+
+
+def test_the_cut_prediction_measures_the_strip_the_stamper_uses(monkeypatch):
+    """`note_characters_lost` gets the reserves the sheet keeps, all three.
+
+    It was handed the raw "Clip" for the side AND for both ends, so with the
+    markers on it predicted from a strip up to 2 x 3 mm longer and 3 mm wider
+    than the one the note is drawn into, and under-reported the cut.
+    """
+    from workflow import tiff_metadata as tm
+    seen = {}
+
+    def spy(text, paper_h_mm, text_edge_mm, avail_mm, dpi, size_pt=0.0,
+            font_family="", text_edge_top_mm=-1.0, text_edge_bottom_mm=-1.0):
+        seen.update(side=text_edge_mm, top=text_edge_top_mm,
+                    bottom=text_edge_bottom_mm)
+        return 0
+
+    monkeypatch.setattr(tm, "note_characters_lost", spy)
+    r = _marked(_recipe(side="left", margin_r=24.0))
+    r.text_edge_top_mm = 4.0
+    r.text_edge_mm = 4.0
+    _over(r, notes="a note", stamp=False)
+    assert seen, "the panel never asked what the note loses"
+    # 4.0 + 2.0 + 1.0 on every edge the markers are drawn on.
+    assert seen["side"] == pytest.approx(7.0), seen
+    assert seen["top"] == pytest.approx(7.0), seen
+    assert seen["bottom"] == pytest.approx(7.0), seen

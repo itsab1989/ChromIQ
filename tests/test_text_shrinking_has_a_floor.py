@@ -214,7 +214,7 @@ def test_the_builder_hands_the_stamper_the_sheet_text_font_and_size(
     monkeypatch.setattr(
         tm, "stamp_chart_metadata",
         lambda tiffs, lines, edge=0.0, band=0.0, family="", size_pt=0.0,
-        reach=-1.0, gap=0.0:
+        reach=-1.0, gap=0.0, *a, **_:
             seen.append((family, size_pt)))
 
     rec = LayoutRecipe()
