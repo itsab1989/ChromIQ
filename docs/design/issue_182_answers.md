@@ -1498,6 +1498,17 @@ right all along and separately, listing "Patch size (mm) 12.53x10.92" beside
 the app's own control ("Straight strips (turn the honeycomb 30 degrees)"). One
 word to put back if he wants his spelling.
 
+**One thing left open for Knut, and it is the label rather than the number.**
+The row is called "Patch width (in strip reading direction)". Strips run down
+the page, so read literally that is the patch's VERTICAL extent, and the row has
+always carried a horizontal one on an upright chart. The number is now the
+across-flats measure in both orientations, which is the inscribed circle and the
+only span of a hexagon worth a single figure, but the label still says something
+slightly different from what it shows. The "Chart layout information" panel
+beside the preview avoids the question by printing both, "Patch size (mm)
+12.53x10.92". Two ways out, and it is his call: rename the row, or print both
+dimensions there too. Nothing was changed on the strength of a guess.
+
 ## 2o. ⏳ Awaiting confirmation — 2026-09-13: which PDF the strip-label rule was missing from
 
 **Knut asked:** *"Which PDF export is this? from the Measurement Report? or any
