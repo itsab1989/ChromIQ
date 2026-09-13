@@ -373,16 +373,32 @@ def main() -> int:                                            # noqa: C901
         p = tab._margin_panel
         return {"status": p.status_message(), "notes": p.text_notes()}
 
+    def shoot(name: str) -> "str | None":
+        """Photograph the REAL window, or say why not.
+
+        One per case rather than one at the end: the thing worth seeing is the
+        red message in "Measured from Preview" for THAT recipe, and by the end
+        of the run it has been replaced eleven times.
+        """
+        f = out / f"window-{name}.png"
+        ok, why = capture_window(win, f)
+        if not ok:
+            print(f"    !! capture refused: {why}", flush=True)
+            return None
+        return f.name
+
     def case(name: str, comment: str, control_over: dict, **over) -> dict:
         """One ruling, one sheet, one control sheet, one measurement."""
         r, drift = apply(**over)
         v = build(f"{name}")
         says = panel_says()
+        shot = shoot(name)
         r2, drift2 = apply(**{**over, **control_over})
         c = build(f"{name}-control")
         row = {"case": name, "comment": comment,
                "recipe_drift": drift, "control_drift": drift2,
                "panel": says,
+               "photograph": shot,
                "sheet": v.name if v else None,
                "control_sheet": c.name if c else None}
         if v and c:
@@ -485,6 +501,7 @@ def main() -> int:                                            # noqa: C901
         pump(app, 700)
         _v = build("r2c-right-edge-note")
         _says = panel_says()
+        _shot = shoot("r2c-right-edge-note")
         _notes_edit.setText("")
         pump(app, 700)
         _r2, _drift2 = apply(**_over)
@@ -493,6 +510,7 @@ def main() -> int:                                            # noqa: C901
                 "comment": "the note's two ends against T=12 and B=4",
                 "recipe_drift": _drift, "control_drift": _drift2,
                 "panel": _says,
+                "photograph": _shot,
                 "sheet": _v.name if _v else None,
                 "control_sheet": _c.name if _c else None}
         if _v and _c:

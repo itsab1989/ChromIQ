@@ -298,6 +298,44 @@ it again. It applies to this file's reader and to every agent briefed from it.
   create image from window"* and `-R` returned wallpaper, and one round kept
   three wallpaper files named `BLOCKED-CAPTURE-*` rather than pass them off as
   evidence. That was the right call and it is no longer necessary.
+* **A LOCKED SCREEN IS NOT A BLOCKER ON THIS MACHINE. WAKE IT.** Basti,
+  2026-09-13: *"my screen never needs a password to be unlocked"*, asked after
+  a round spent a morning writing "the screen is locked, so there are no
+  photographs". `CGSSessionScreenIsLocked` really was 1, and the round was
+  still wrong: on a session with no password on the lock, asserting user
+  activity clears it. `scripts/onscreen_capture.py::wake_the_screen` does that
+  (`caffeinate -u`, then re-ask), and `capture_window` now calls it before
+  refusing anything. Proved by putting the machine back into that exact state
+  with `pmset displaysleepnow`, watching the flag go to 1, and watching the
+  helper clear it unaided. **Only report a lock as a blocker after the wake has
+  failed**, which means a password really is wanted.
+  * This is also the honest answer to "why can you unlock it sometimes and not
+    others": nobody ever unlocked anything. Earlier rounds woke a display that
+    happened to be asleep and it looked like an unlock. The variable was the
+    agent's behaviour, not the machine's.
+* **A WINDOW DOES NOT HAVE TO BE IN FRONT TO BE PHOTOGRAPHED.** `screencapture
+  -R` copies a RECTANGLE of the screen, so whatever is stacked above the window
+  is what comes out, and `win.raise_()` cannot fix it: a process macOS never
+  activated cannot bring itself to the front. Measured the same day, with the
+  screen unlocked: every capture came back 0 % different from the same
+  rectangle with the window hidden, because the app sat behind the terminal
+  that launched it. `NSRunningApplication.activateWithOptions_` does not help
+  either: it returns True and `isActive` stays False, because macOS 15 does not
+  let a process take focus.
+  * **AND `screencapture -l` DOES NOT WORK EITHER, WHILE THE API BEHIND IT
+    DOES.** The CLI exits 1 with *"could not create image from window"*, which
+    is the same string the bullet above blames on the missing permission grant
+    and which survives the grant, so that attribution was wrong.
+    `CGWindowListCreateImage(..., kCGWindowListOptionIncludingWindow, wid, ...)`
+    returns the window's own buffer: measured 2026-09-13, a 700x528 picture
+    with the title bar in it, taken while the window was on another Space and
+    while the CLI refused. `capture_window` uses that first
+    (`window_id_for` finds the id via pyobjc) and keeps the rectangle, with its
+    hide/show proof, as the fallback.
+  * `tests/test_a_driver_photographs_the_window_not_the_screen.py` is what
+    makes this stick: a driver that aims `screencapture -R` or `-l` at a window
+    itself fails the suite, and so does a helper that reaches for the screen
+    before the window or reports a lock before waking it.
 
 The sandbox rules in the next section are how you do this SAFELY. They are not
 an alternative to doing it.
