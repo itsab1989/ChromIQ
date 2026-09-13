@@ -2574,6 +2574,34 @@ KNUT_PRESET_KEYS = frozenset(KNUT_PRESETS_BY_KEY)
 # folder, can carry one; the Full-layout-setup family uses these), then an
 # optional shared ``recipes.json`` keyed by the preset's display name (a legacy
 # fallback; no shipped family relies on it any more).
+def _auto_floor_note(size_pt: float, floor_pt: float) -> str:
+    """The sentence that says the 7 pt floor belongs to "auto", or "".
+
+    Knut, 2026-09-13: *"All warning messages where the 7 pt size limit is
+    reached should also explain that this minimum applies for the auto setting,
+    and text size can be made smaller if manually set. The warning for too long
+    text in the Chart Notes text for right margin already does this fine."*
+
+    It is ONE sentence appended to the messages rather than a clause edited into
+    each of them, for two reasons. It is only true on "auto" (a typed size is
+    its own floor, so on a typed 9 pt "9 pt is where auto stops shrinking" is
+    simply false), and appending leaves five long, fully translated strings
+    alone: one new key in thirteen languages instead of five.
+
+    The number is a placeholder, never typed into the text. The message Knut
+    screenshotted had "7" written into the English, which is a value that has
+    already moved once (it was 8 until 2026-09-11) and would then have to be
+    chased through thirteen catalogues.
+    """
+    if float(size_pt or 0.0) > 0:
+        return ""            # a typed size IS the floor; nothing to explain
+    return " " + tr(
+        "{size:.0f} pt is where “auto” stops shrinking. A Size typed under "
+        "“Sheet text” is printed exactly as typed, below {size:.0f} pt "
+        "included, so a smaller one frees room here too."
+    ).format(size=floor_pt)
+
+
 def _recipe_display_key(p: "_Ti1Preset") -> str:
     """The name a preset's recipe is filed under in a shared recipes.json, and
     shown in the New-chart window's preset list — the SHORT device token (or
@@ -4653,7 +4681,7 @@ class TabChart(QWidget):
             "right of the patches is stamped.\n\n"
             "IT IS PRINTED IN THE “SHEET TEXT” FONT AND SIZE, under Expert "
             "Options, so you control how it looks. With Size on “auto” it "
-            "shrinks to fit the right margin and stops at 8 pt; with a size "
+            "shrinks to fit the right margin and stops at 7 pt; with a size "
             "set it is printed at exactly that size and never shrinks. Either "
             "way, if the margin is too narrow for it the note is still printed, "
             "over the patches if it must be, and the message under the measured "
@@ -4708,7 +4736,7 @@ class TabChart(QWidget):
             "leave the sheet completely unmarked.\n\n"
             "IT IS PRINTED IN THE “SHEET TEXT” FONT AND SIZE, under Expert "
             "Options, on the same line as your chart notes. With Size on "
-            "“auto” it shrinks to fit the right margin and stops at 8 pt; with "
+            "“auto” it shrinks to fit the right margin and stops at 7 pt; with "
             "a size set it is printed at exactly that size and never shrinks."),
             self._manual_stamp_cmd_row,
             min_width=540,
@@ -19411,8 +19439,10 @@ class TabChart(QWidget):
                 _stamp_on = bool(_cb.isChecked())
             # THE SIZE THE NOTE IS ACTUALLY PRINTED AT decides how much paper it
             # needs, so the Sheet text frame's Size is part of the question
-            # (Knut, 2026-09-11). 0 is the box's "auto", which shrinks to 8 pt
-            # and no further; a typed size is used as typed and never shrinks.
+            # (Knut, 2026-09-11). 0 is the box's "auto", which shrinks to
+            # `text_edge_fit.AUTO_SHRINK_FLOOR_PT` (7 pt since that same
+            # ruling) and no further; a typed size is used as typed and never
+            # shrinks.
             _note_size_pt = 0.0
             try:
                 _note_size_pt = float(getattr(r, "chart_text_size_mm", 0.0)
@@ -19487,11 +19517,11 @@ class TabChart(QWidget):
                             "to about {need_margin:.1f} mm, which is past the "
                             "clip border, or set a narrower “Clip border "
                             "width”, or put the clip border on the LEFT. They "
-                            "need {need:.1f} mm at {size:.0f} pt, which is the "
-                            "Size set under “Sheet text”.").format(
+                            "need {need:.1f} mm at {size:.0f} pt.").format(
                                 band=_clip_zone, margin=_note_margin,
                                 need_margin=_need_margin, need=_o.needed_mm,
-                                size=_note_floor_pt))
+                                size=_note_floor_pt)
+                            + _auto_floor_note(_note_size_pt, _note_floor_pt))
                     elif _clip_on_right:
                         # "PRINTED {Clip} mm IN FROM THE PAPER EDGE" WAS FALSE
                         # WITH A BAND ON THIS EDGE, and it was false by the
@@ -19519,7 +19549,8 @@ class TabChart(QWidget):
                                 band=_clip_zone,
                                 need=_o.needed_mm, size=_note_floor_pt,
                                 avail=max(0.0, _o.available_mm),
-                                short=_o.overlap_mm))
+                                short=_o.overlap_mm)
+                            + _auto_floor_note(_note_size_pt, _note_floor_pt))
                     else:
                         # THE DISTANCE IT NAMES IS THE ONE THE SHEET USES, and
                         # this sentence read the raw "Clip" box while the
@@ -19564,7 +19595,8 @@ class TabChart(QWidget):
                                 edge=_eff_edge, need=_o.needed_mm,
                                 size=_note_floor_pt,
                                 avail=max(0.0, _o.available_mm),
-                                short=_o.overlap_mm))
+                                short=_o.overlap_mm)
+                            + _auto_floor_note(_note_size_pt, _note_floor_pt))
                 # THE OTHER AXIS, AND IT WAS SILENT. Everything above is about
                 # how THICK the line is, which is the axis that runs across the
                 # margin. A note also has a LENGTH, and it runs down the sheet:
@@ -20184,14 +20216,18 @@ class TabChart(QWidget):
                     clip_side=str(getattr(r, "clip_side", "left") or "left"))
                 if _wo is not None:
                     _auto = not float(getattr(r, "chart_text_size_mm", 0.0) or 0.0)
+                    # THE FLOOR IS NOT WRITTEN INTO THIS SENTENCE ANY MORE.
+                    # "It is already at its smallest, 7 pt" typed the value into
+                    # thirteen catalogues and offered two remedies, neither of
+                    # them the Size box, which is the one Knut asked for. The
+                    # shared sentence says both, from the constant.
                     over.append((tr(
                         "⚠ The sheet text along the bottom is too wide for the "
                         "paper. It needs {need:.0f} mm of line and the sheet "
                         "leaves {avail:.0f} mm between the distances you set "
                         "for the two side edges, so {short:.0f} mm of it runs "
-                        "off. It is already at its smallest, 7 pt. Shorten the "
-                        "text, or lower “Clip” under “Text distance from edge "
-                        "(mm)”.") if _auto else tr(
+                        "off. Shorten the text, or lower “Clip” under “Text "
+                        "distance from edge (mm)”.") if _auto else tr(
                         "⚠ The sheet text along the bottom is too wide for the "
                         "paper. It needs {need:.0f} mm of line and the sheet "
                         "leaves {avail:.0f} mm between the distances you set "
@@ -20200,7 +20236,11 @@ class TabChart(QWidget):
                         "shrinks to fit, shorten the text, or lower “Clip” "
                         "under “Text distance from edge (mm)”.")).format(
                             need=_wo.needed_mm, avail=max(0.0, _wo.available_mm),
-                            short=_wo.overlap_mm))
+                            short=_wo.overlap_mm)
+                        + _auto_floor_note(
+                            float(getattr(r, "chart_text_size_mm", 0.0) or 0.0)
+                            * 72.0 / 25.4,
+                            text_edge_fit.AUTO_SHRINK_FLOOR_PT))
         except Exception:  # noqa: BLE001 — never block the inspector on this
             pass
         # THE ⓘ GETS EVERYTHING, THE MESSAGE FIELD ONLY THE OVERLAPS. The rest

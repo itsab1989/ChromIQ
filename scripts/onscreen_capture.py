@@ -121,12 +121,25 @@ def window_id_for(win) -> "int | None":
     try:
         title = win.windowTitle()
         pid = _os.getpid()
-        infos = Quartz.CGWindowListCopyWindowInfo(
-            Quartz.kCGWindowListOptionOnScreenOnly
-            | Quartz.kCGWindowListExcludeDesktopElements,
-            Quartz.kCGNullWindowID) or []
-        cands = [w for w in infos
-                 if int(w.get("kCGWindowOwnerPID", -1)) == pid]
+
+        def _own(option) -> list:
+            infos = Quartz.CGWindowListCopyWindowInfo(
+                option | Quartz.kCGWindowListExcludeDesktopElements,
+                Quartz.kCGNullWindowID) or []
+            return [w for w in infos
+                    if int(w.get("kCGWindowOwnerPID", -1)) == pid]
+
+        # ON SCREEN FIRST, THEN ALL, AND THE SECOND HALF IS NOT OPTIONAL.
+        # `kCGWindowListOptionOnScreenOnly` lists what the window server is
+        # currently compositing, so a window on another Space, or one the
+        # display dropped while it slept, is simply absent and this returned
+        # None. The caller then fell through to the rectangle route, which
+        # cannot photograph an unfocused window and correctly refused: measured
+        # 2026-09-13, two of five captures in one run were lost that way, the
+        # same two on a re-run. `CGWindowListCreateImage` does not need the
+        # window to be composited, so the id is worth having either way.
+        cands = _own(Quartz.kCGWindowListOptionOnScreenOnly) \
+            or _own(Quartz.kCGWindowListOptionAll)
         if not cands:
             return None
         # The biggest window this process owns, preferring an exact title
@@ -276,16 +289,32 @@ def capture_window(win, path: Path, settle: float = 0.6,
     # the desktop. The size is checked instead, because a minimised or
     # zero-sized window would give a picture of nothing.
     wid = window_id_for(win)
-    if wid is not None and _grab_window_id(wid, path):
+    if wid is not None:
+        # THREE TRIES, BECAUSE AN EMPTY BUFFER IS OFTEN JUST AN EARLY ONE.
+        # Measured 2026-09-13: on a run that began with the screen locked, two
+        # of five captures came back as one flat colour and both succeeded on
+        # the next attempt a moment later. The window server has the window;
+        # it has not finished painting into the buffer this call reads. So the
+        # flat-colour refusal below is a LAST word, not a first one.
         from PyQt6.QtGui import QImage
-        im = QImage(str(path))
-        big = not im.isNull() and im.width() > 200 and im.height() > 200
-        # ...AND IT HAS TO HAVE SOMETHING IN IT. See `_is_one_flat_colour`: a
-        # plausible size is not a picture, and an empty buffer of the right
-        # size was filed as evidence once.
-        if big and not _is_one_flat_colour(path):
-            return True, ""
-        path.unlink(missing_ok=True)
+        for attempt in range(3):
+            if attempt:
+                QApplication.processEvents()
+                time.sleep(0.5)
+                # ASK AGAIN WHICH WINDOW IT IS. A native window can be
+                # recreated under the same QWidget, and an id that was right
+                # a second ago photographs nothing.
+                wid = window_id_for(win) or wid
+            if not _grab_window_id(wid, path):
+                continue
+            im = QImage(str(path))
+            big = not im.isNull() and im.width() > 200 and im.height() > 200
+            # ...AND IT HAS TO HAVE SOMETHING IN IT. See `_is_one_flat_colour`:
+            # a plausible size is not a picture, and an empty buffer of the
+            # right size was filed as evidence once.
+            if big and not _is_one_flat_colour(path):
+                return True, ""
+            path.unlink(missing_ok=True)
 
     g = win.frameGeometry()
     rect = f"{g.x()},{g.y()},{g.width()},{g.height()}"
