@@ -165,7 +165,8 @@ def main() -> int:
         print(f"[{i}/{len(cases)}] {name}: {len(tifs)} page(s) "
               f"{rows[name]['secs']}s", flush=True)
         shutil.rmtree(outdir, ignore_errors=True)
-    Path(a.out).write_text(json.dumps(rows, indent=1, sort_keys=True))
+    Path(a.out).write_text(json.dumps(rows, indent=1, sort_keys=True),
+                           encoding="utf-8")
     shutil.rmtree(tmp, ignore_errors=True)
     print("wrote", a.out)
     return 0

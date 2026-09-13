@@ -94,7 +94,7 @@ def main() -> int:
              "s = inspect.getsource(raster.render_pages);"
              "print('ALPHA_COMPOSITE' if 'alpha_composite' in s else 'NO_ALPHA_COMPOSITE');"
              "print('CONVERT_RGB' if '.convert(\"RGB\"), (0, 0)' in s else 'NO_CONVERT_RGB')"],
-            capture_output=True, text=True, cwd=str(ROOT))
+            capture_output=True, encoding="utf-8", cwd=str(ROOT))
         print("imported module says:", check.stdout.strip().replace("\n", " / "),
               flush=True)
         r = subprocess.run(cmd, cwd=str(ROOT))

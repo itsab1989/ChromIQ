@@ -365,7 +365,8 @@ def run(app, phase: int, out: Path) -> int:
               f"a second process on the same .ini opened with "
               f"warnings_expanded={panel.warnings_expanded()} "
               f"(stored={stored_before}, value={value_before})")
-        keys = json.loads((out / "phase1-keys.json").read_text())
+        keys = json.loads(
+            (out / "phase1-keys.json").read_text(encoding="utf-8"))
         pnl = tab._manual_layout_panel
         if tab._manual_target_name_edit is not None:
             tab._manual_target_name_edit.setText("C2FoldRestart")
@@ -572,7 +573,7 @@ def run(app, phase: int, out: Path) -> int:
         win.close()
         return 1
     (out / "phase1-keys.json").write_text(
-        json.dumps({"base": base_key, "made": made}))
+        json.dumps({"base": base_key, "made": made}), encoding="utf-8")
 
     # 1. open, with two or more warnings
     set_margins(*made["many"], "many", longtext=made.get("many_longtext", False))
@@ -718,7 +719,7 @@ def main() -> int:
     rc = run(app, a.phase, out)
     res = out / f"phase{a.phase}-claims.json"
     res.write_text(json.dumps({"claims": CLAIMS, "shots": SHOTS}, indent=1,
-                              ensure_ascii=False))
+                              ensure_ascii=False), encoding="utf-8")
     bad = [c for c in CLAIMS if not c["ok"]]
     print(f"\n    {len(CLAIMS) - len(bad)}/{len(CLAIMS)} claims held; "
           f"{len(bad)} did not", flush=True)

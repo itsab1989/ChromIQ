@@ -164,7 +164,8 @@ def main() -> int:
         flag = "" if not any(b.startswith(name + " ") for b in bad) else "  <-- DIFFERS"
         print(f"{name}: band_rows={band} pages={len(base)}{flag}", flush=True)
     Path(a.out).write_text(json.dumps({"cases": out, "mismatches": bad},
-                                      indent=1, sort_keys=True))
+                                      indent=1, sort_keys=True),
+                           encoding="utf-8")
     print(f"\n{len(bad)} band-ink mismatches")
     for b in bad:
         print("  " + b)
