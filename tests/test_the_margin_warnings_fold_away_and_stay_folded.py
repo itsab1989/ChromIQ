@@ -230,6 +230,13 @@ def test_only_a_LEFT_click_folds_the_paragraph(qapp):
         "called for every button, so the handler has to check which one.")
     press(p._warn_toggle, Qt.MouseButton.MiddleButton)
     assert p.warnings_expanded(), "a MIDDLE click folded the paragraph away"
+    # A press carrying NO button, which no mouse sends and Qt does: the check
+    # is `!= LeftButton`, so it has to refuse this one too rather than fall
+    # through. Driven on screen as well, challenge round 3,
+    # `scripts/drive_182_c3_fold_buttons.py`.
+    press(p._warn_toggle, Qt.MouseButton.NoButton)
+    assert p.warnings_expanded(), (
+        "a press carrying NO button folded the paragraph away")
     assert changes == [], (
         "a non-left click emitted a change and would have been written to the "
         f"settings: {changes}")

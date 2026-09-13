@@ -34,15 +34,11 @@ ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = ROOT / "scripts"
 HELPER = SCRIPTS / "onscreen_capture.py"
 
-#: `screencapture` with no window in it is fine: a WHOLE SCREEN is a legitimate
-#: thing to photograph (a driver showing a modal over the desktop, say), and it
-#: is not what this guard is about. What is banned is aiming it at a window.
-_WINDOW_FLAGS = re.compile(r"screencapture[^\n]*\s-(?:l|R)\b")
-
-
 def _driver_files() -> list[Path]:
+    # Excluded by PATH, not by basename: `scripts/anything/onscreen_capture.py`
+    # is a different file and gets no exemption from the one shared helper.
     return [p for p in sorted(SCRIPTS.rglob("*.py"))
-            if p.name != HELPER.name and "__pycache__" not in p.parts]
+            if p != HELPER and "__pycache__" not in p.parts]
 
 
 #: A string literal that IS the program, rather than prose mentioning it.
@@ -110,19 +106,70 @@ def _window_captures(src: str) -> list[tuple[int, str]]:
     that runs where it is written. A ``Try`` was the one shape that already
     worked, because its call sits in the body as a statement of its own.
 
-    KNOWN GAPS, WRITTEN DOWN RATHER THAN IMPLIED. A whole command assembled
-    into ONE string literal and handed to ``os.system`` or to ``shell=True`` is
-    not caught, whether it is an f-string or not, because the only thing that
-    separates it from prose is what the words mean; ``'screencapture -R'
-    .split()`` is the same literal wearing a method call. Neither is a flag
-    built at runtime (``'-' + 'R'``), nor a list grown across several
-    statements. All of them are things nobody writes by accident, which is what
-    this guard is for; `scripts/onscreen_capture.py` and CLAUDE.md are what
-    cover someone who is trying.
+    **AND VERSION FIVE WAS WRONG IN BOTH DIRECTIONS AGAIN, WHICH IS WHY IT NOW
+    LOOKS FOR AN ARGV AND NOT FOR TWO WORDS IN A STATEMENT.** Measured
+    2026-09-13, third challenge round, by
+    `scripts/probe_182_c3_capture_guard.py`.
+
+    Version four said its only remaining misses were "the class it already
+    names", one whole command in one string literal. That was not true. It
+    followed a name bound by ``NAME = 'screencapture'`` and by nothing else, so
+    every other ordinary way of holding the program lost it::
+
+        prog = shutil.which('screencapture')            # missed
+        prog = Path('/usr/sbin/screencapture')          # missed
+        prog = os.path.join('/usr/sbin', 'screencapture')   # missed
+        prog = 'screencapture' if plain else '/usr/sbin/screencapture'  # missed
+        def shot(rect, out, prog='screencapture'): ...  # missed
+        TOOLS = {'shot': 'screencapture'}               # missed
+        class Shot: PROG = 'screencapture'              # missed
+        PROG = SCREENCAP                                # missed (alias of alias)
+
+    The literal is right there in every one of them, which is exactly what the
+    guard says it follows. So a name is now an alias when ANY binding of it
+    carries the marker ANYWHERE in the value: an assignment (including a tuple
+    unpack and an attribute target), or a parameter default. It runs to a fixed
+    point, so an alias of an alias resolves.
+
+    And it refused six legitimate lines, not the one it admitted to, because it
+    paired a program word with a flag word ANYWHERE IN THE SAME STATEMENT::
+
+        subprocess.run(['ls', '-l', '/usr/sbin/screencapture'])     # refused
+        subprocess.run(['chmod', '-R', '755', BIN_DIR])             # refused
+        OPTS = {'tool': 'screencapture', 'rsync': '-R'}             # refused
+        CMDS = {'shot': [...'-x'...], 'copy': ['cp', '-R', ...]}    # refused
+        for cmd in (['screencapture', '-x', out], ['ls', '-l', o]): # refused
+        run(['screencapture', '-x', o]) and run(['cp', '-R', o, d]) # refused
+
+    Two words in one statement is not a command. An ARGV is: one SEQUENCE in
+    which the program comes BEFORE a window flag. That is the shape of
+    ``['screencapture', '-R', rect]`` and it is not the shape of ``['ls', '-l',
+    '/usr/sbin/screencapture']``, where the binary is the ARGUMENT of another
+    command and sits after the flag. Elements are judged without descending
+    into a nested sequence, so a table or a loop over two unrelated commands is
+    two argvs and never one. Lists joined with ``+`` are flattened, because
+    ``['screencapture'] + ['-R', rect]`` is one command written in two pieces;
+    a ``+`` of two strings is not, and is left alone.
+
+    KNOWN GAPS, WRITTEN DOWN RATHER THAN IMPLIED, AND EVERY ONE OF THEM PINNED
+    BY A TEST BELOW. A whole command assembled into ONE string literal and
+    handed to ``os.system`` or to ``shell=True`` is not caught, whether it is
+    an f-string or not, because the only thing that separates it from prose is
+    what the words mean; ``'screencapture -R'.split()`` is the same literal
+    wearing a method call. Neither is a flag built at runtime (``'-' + 'R'``),
+    nor a program name built the same way (``'screen' + 'capture'``), nor a
+    list grown across several statements with ``append``, nor a program that
+    never appears as a literal at all (``prog = which_tool()``), which no rule
+    over the syntax could see. Nor a program and its flags passed as separate
+    POSITIONAL ARGUMENTS to a call rather than in a list (``os.execlp('screen
+    capture', 'screencapture', '-R', rect)``), because that shape is also
+    ``print('screencapture', '-R')``. All of them are things nobody writes by
+    accident, which is what this guard is for; `scripts/onscreen_capture.py`
+    and CLAUDE.md are what cover someone who is trying.
 
     AND ONE FALSE POSITIVE IS KEPT ON PURPOSE, because removing it would take
     the guard's whole point with it: ``banned = ['screencapture', '-R']``, a
-    list of forbidden words, is the SAME TREE as ``cmd = ['screencapture',
+    list of forbidden words, is the SAME ARGV as ``cmd = ['screencapture',
     '-R', rect]``, the case version three had to be rewritten to catch. Nothing
     but the meaning of the words separates them. A driver that needs to write
     one down should put it in prose, or in a comment, which this never reads.
@@ -135,19 +182,109 @@ def _window_captures(src: str) -> list[tuple[int, str]]:
     except SyntaxError:
         return []
 
+    #: A literal sequence. An element that IS one is not part of the enclosing
+    #: command, it is a command of its own, and is judged on its own turn.
+    sequences = (ast.List, ast.Tuple, ast.Set, ast.Dict)
+
     prog_aliases: set[str] = set()
     flag_aliases: set[str] = set()
+
+    def _marks(node, *, shallow: bool = False) -> tuple[bool, bool]:
+        """``(carries the program, carries a window flag)`` for a subtree.
+
+        With *shallow*, a nested sequence is not entered.
+        """
+        prog = flag = False
+        stack = [node]
+        while stack:
+            n = stack.pop()
+            if isinstance(n, ast.Constant) and isinstance(n.value, str):
+                s = n.value.strip()
+                prog = prog or bool(_PROGRAM.match(s))
+                flag = flag or bool(_WINDOW_FLAG.match(s))
+            elif isinstance(n, ast.Name):
+                prog = prog or n.id in prog_aliases
+                flag = flag or n.id in flag_aliases
+            elif isinstance(n, ast.Attribute):
+                # `Shot.PROG`, where the class body bound PROG.
+                prog = prog or n.attr in prog_aliases
+                flag = flag or n.attr in flag_aliases
+            for child in ast.iter_child_nodes(n):
+                if shallow and isinstance(child, sequences):
+                    continue
+                stack.append(child)
+        return prog, flag
+
+    # -- 1. which NAMES stand for the program, and which for a window flag ---
+    bindings: list[tuple[set[str], ast.AST]] = []
     for node in ast.walk(tree):
-        if isinstance(node, (ast.Assign, ast.AnnAssign)):
-            val = node.value
-            if isinstance(val, ast.Constant) and isinstance(val.value, str):
-                targets = (node.targets if isinstance(node, ast.Assign)
-                           else [node.target])
-                names = {t.id for t in targets if isinstance(t, ast.Name)}
-                if _PROGRAM.match(val.value.strip()):
-                    prog_aliases |= names
-                elif _WINDOW_FLAG.match(val.value.strip()):
-                    flag_aliases |= names
+        if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+            targets = (node.targets if isinstance(node, ast.Assign)
+                       else [node.target])
+            names = set()
+            for t in targets:
+                for n in ast.walk(t):
+                    if isinstance(n, ast.Name):
+                        names.add(n.id)
+                    elif isinstance(n, ast.Attribute):
+                        names.add(n.attr)
+            if node.value is not None and names:
+                bindings.append((names, node.value))
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
+                               ast.Lambda)):
+            a = node.args
+            positional = list(a.posonlyargs) + list(a.args)
+            if a.defaults:
+                for arg, default in zip(positional[-len(a.defaults):],
+                                        a.defaults):
+                    bindings.append(({arg.arg}, default))
+            for arg, default in zip(a.kwonlyargs, a.kw_defaults):
+                if default is not None:
+                    bindings.append(({arg.arg}, default))
+
+    # A binding can be written after the one it depends on, and an alias can
+    # stand for another alias, so this settles rather than running once.
+    for _ in range(len(bindings) + 1):
+        before = (len(prog_aliases), len(flag_aliases))
+        for names, value in bindings:
+            prog, flag = _marks(value)
+            if prog:
+                prog_aliases |= names
+            if flag:
+                flag_aliases |= names
+        if (len(prog_aliases), len(flag_aliases)) == before:
+            break
+
+    # -- 2. which SEQUENCES read as an argv ---------------------------------
+    def _joined(node) -> bool:
+        """A literal sequence, or literal sequences joined with ``+``."""
+        if isinstance(node, (ast.List, ast.Tuple)):
+            return True
+        return (isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add)
+                and (_joined(node.left) or _joined(node.right)))
+
+    def _elements(node):
+        if isinstance(node, (ast.List, ast.Tuple)):
+            yield from node.elts
+        elif isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+            yield from _elements(node.left)
+            yield from _elements(node.right)
+        else:
+            yield node
+
+    def _is_argv(node) -> bool:
+        """The program, and then a window flag AFTER it, in one sequence."""
+        if not _joined(node):
+            return False
+        seen_program = False
+        for elt in _elements(node):
+            if isinstance(elt, sequences):
+                continue        # a command of its own, judged on its own turn
+            prog, flag = _marks(elt, shallow=True)
+            if flag and seen_program:
+                return True
+            seen_program = seen_program or prog
+        return False
 
     #: The fields of a statement that hold OTHER statements. A compound
     #: statement is judged on everything except these, so its header is seen
@@ -163,32 +300,19 @@ def _window_captures(src: str) -> list[tuple[int, str]]:
                 if isinstance(v, ast.AST):
                     yield from ast.walk(v)
 
-    def _literals(stmt) -> tuple[bool, bool]:
-        """``(names the program, carries a window flag)`` for one statement."""
-        prog = flag = False
-        for n in _own(stmt):
-            if isinstance(n, ast.Constant) and isinstance(n.value, str):
-                s = n.value.strip()
-                prog = prog or bool(_PROGRAM.match(s))
-                flag = flag or bool(_WINDOW_FLAG.match(s))
-            elif isinstance(n, ast.Name):
-                prog = prog or n.id in prog_aliases
-                flag = flag or n.id in flag_aliases
-        return prog, flag
-
     out: list[tuple[int, str]] = []
     for stmt in ast.walk(tree):
         if not isinstance(stmt, ast.stmt):
             continue
-        prog, flag = _literals(stmt)
-        if prog and flag:
-            seg = ast.get_source_segment(src, stmt) or ""
-            # A compound statement's segment carries its whole body, and the
-            # offence is in the header, so only the header line is reported.
-            # A simple statement is flattened whole, the way it always was.
-            if any(getattr(stmt, f, None) for f in body_fields):
-                seg = seg.split("\n")[0]
-            out.append((stmt.lineno, " ".join(seg.split())[:120]))
+        if not any(_is_argv(n) for n in _own(stmt)):
+            continue
+        seg = ast.get_source_segment(src, stmt) or ""
+        # A compound statement's segment carries its whole body, and the
+        # offence is in the header, so only the header line is reported.
+        # A simple statement is flattened whole, the way it always was.
+        if any(getattr(stmt, f, None) for f in body_fields):
+            seg = seg.split("\n")[0]
+        out.append((stmt.lineno, " ".join(seg.split())[:120]))
     return out
 
 
@@ -252,6 +376,48 @@ _MUST_CATCH = {
         "import subprocess\n"
         "RECT = '-R'\n"
         "subprocess.run(['screencapture', RECT, rect, 'x.png'])\n",
+    # 11 to 20 are the THIRD challenge round's, 2026-09-13. Every one of them
+    # holds the program in a name, which is what version four said it follows
+    # and did not: it followed `NAME = 'screencapture'` and nothing else.
+    "the binary found with shutil.which":
+        "import shutil, subprocess\n"
+        "prog = shutil.which('screencapture')\n"
+        "subprocess.run([prog, '-R', rect, out])\n",
+    "the binary wrapped in a Path":
+        "import subprocess\nfrom pathlib import Path\n"
+        "prog = Path('/usr/sbin/screencapture')\n"
+        "subprocess.run([str(prog), '-l', str(wid), out])\n",
+    "the binary assembled with os.path.join":
+        "import os, subprocess\n"
+        "prog = os.path.join('/usr/sbin', 'screencapture')\n"
+        "subprocess.run([prog, '-R', rect, out])\n",
+    "a conditional picking between two spellings of the binary":
+        "import subprocess\n"
+        "prog = 'screencapture' if plain else '/usr/sbin/screencapture'\n"
+        "subprocess.run([prog, '-R', rect, out])\n",
+    "the program as a function default":
+        "import subprocess\n"
+        "def shot(rect, out, prog='screencapture'):\n"
+        "    subprocess.run([prog, '-R', rect, out])\n",
+    "the FLAG as a function default":
+        "import subprocess\n"
+        "def shot(rect, out, flag='-R'):\n"
+        "    subprocess.run(['screencapture', flag, rect, out])\n",
+    "an alias of an alias":
+        "import subprocess\n"
+        "SCREENCAP = 'screencapture'\nPROG = SCREENCAP\n"
+        "subprocess.run([PROG, '-R', rect, out])\n",
+    "the program looked up out of a dict":
+        "import subprocess\n"
+        "TOOLS = {'shot': 'screencapture'}\n"
+        "subprocess.run([TOOLS['shot'], '-R', rect, out])\n",
+    "the program as a class attribute":
+        "import subprocess\n"
+        "class Shot:\n    PROG = 'screencapture'\n"
+        "subprocess.run([Shot.PROG, '-R', rect, out])\n",
+    "one command written as two lists joined with +":
+        "import subprocess\n"
+        "subprocess.run(['screencapture'] + ['-R', rect, out])\n",
 }
 
 #: Real window captures this guard CANNOT see, named here so the gap is a
@@ -273,6 +439,18 @@ _KNOWN_BLIND = {
     "a list grown across several statements":
         "import subprocess\n"
         "cmd = ['screencapture']\ncmd += ['-R', rect]\nsubprocess.run(cmd)\n",
+    # The third challenge round's two, 2026-09-13. Both are outside what a
+    # rule over the syntax can reach at all, rather than merely unimplemented.
+    "the program name built at runtime, like the flag above":
+        "import subprocess\n"
+        "prog = 'screen'\nprog += 'capture'\n"
+        "subprocess.run([prog, '-R', rect, out])\n",
+    "the program never written as a literal anywhere":
+        "import subprocess\nprog = which_tool()\n"
+        "subprocess.run([prog, '-R', rect, out])\n",
+    "the program and its flags as separate positional arguments":
+        "import os\n"
+        "os.execlp('screencapture', 'screencapture', '-R', rect, out)\n",
 }
 
 #: Legitimate lines. Every one of these must be allowed. All five were REFUSED
@@ -311,6 +489,31 @@ _MUST_ALLOW = {
         "import subprocess\n"
         "with open('log', 'w') as f:\n"
         "    subprocess.run(['screencapture', '-x', 'x.png'], stdout=f)\n",
+    # The third challenge round's six, 2026-09-13. Every one was REFUSED by
+    # version four, which paired a program word with a flag word anywhere in
+    # one statement. In all six the binary is the ARGUMENT of another command,
+    # or the two words are in different commands entirely.
+    "listing the binary with `ls -l`":
+        "import subprocess\n"
+        "subprocess.run(['ls', '-l', '/usr/sbin/screencapture'])\n",
+    "a recursive chmod that reaches the binary":
+        "import subprocess\n"
+        "subprocess.run(['chmod', '-R', '755', '/usr/sbin/screencapture'])\n",
+    "a table of commands, one of them a full screen":
+        "CMDS = {\n"
+        "    'shot': ['screencapture', '-x', 'out.png'],\n"
+        "    'copy': ['cp', '-R', 'a', 'b'],\n"
+        "}\n",
+    "a loop over two unrelated commands":
+        "import subprocess\n"
+        "for cmd in (['screencapture', '-x', out], ['ls', '-l', out]):\n"
+        "    subprocess.run(cmd)\n",
+    "a settings dict holding a tool name and an rsync flag":
+        "OPTS = {'tool': 'screencapture', 'rsync': '-R'}\n",
+    "a full-screen capture and a recursive copy in one statement":
+        "import subprocess\n"
+        "subprocess.run(['screencapture', '-x', out], check=True) and \\\n"
+        "    subprocess.run(['cp', '-R', out, dst])\n",
 }
 
 
