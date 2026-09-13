@@ -87,15 +87,45 @@ def _window_captures(src: str) -> list[tuple[int, str]]:
     a window flag. Prose fails the first test: ``'screencapture -R returns the
     desktop'`` is one literal and it is not the program's name. A comment is
     not in the tree at all. A module-level ``NAME = 'screencapture'`` is
-    followed, because hiding the program in a constant is not a defence.
+    followed, because hiding the program in a constant is not a defence, and so
+    is ``FLAG = '-R'``: the same trick on the other half of the pair.
+
+    **AND VERSION FOUR WAS BLIND TO A `with` AND AN `if`, WHICH IS WHERE
+    ANYBODY PUTS A SUBPROCESS.** Measured 2026-09-13, second challenge round.
+    It walked the tree for statements and then skipped every compound one
+    outright, on the sound reasoning that a ``With`` node's source contains its
+    whole body. But a compound statement's HEADER runs a command all by
+    itself, and skipping the node threw the header away with the body::
+
+        with subprocess.Popen(['screencapture', '-R', rect, out]) as p:  # missed
+        if subprocess.run(['screencapture', '-R', rect, out]).returncode:  # missed
+        for line in subprocess.check_output(['screencapture', '-l', wid]):  # missed
+        while subprocess.call(['screencapture', '-l%d' % wid, out]):        # missed
+
+    Five of the seven the round found were that one mistake; the sixth was the
+    flag in a constant, and the seventh was ``'screencapture -R'.split()``,
+    which is the "one literal, and only the words tell you" case below. So a
+    compound statement is no longer skipped: it is examined WITHOUT its body
+    (``body``/``orelse``/``finalbody``/``handlers``), which is exactly the part
+    that runs where it is written. A ``Try`` was the one shape that already
+    worked, because its call sits in the body as a statement of its own.
 
     KNOWN GAPS, WRITTEN DOWN RATHER THAN IMPLIED. A whole command assembled
-    into one f-string and handed to ``os.system`` is not caught, because the
-    only thing that separates it from prose is what the words mean. Neither is
-    a flag built at runtime (``'-' + 'R'``), nor a list grown across several
-    statements. All three are things nobody writes by accident, which is what
+    into ONE string literal and handed to ``os.system`` or to ``shell=True`` is
+    not caught, whether it is an f-string or not, because the only thing that
+    separates it from prose is what the words mean; ``'screencapture -R'
+    .split()`` is the same literal wearing a method call. Neither is a flag
+    built at runtime (``'-' + 'R'``), nor a list grown across several
+    statements. All of them are things nobody writes by accident, which is what
     this guard is for; `scripts/onscreen_capture.py` and CLAUDE.md are what
     cover someone who is trying.
+
+    AND ONE FALSE POSITIVE IS KEPT ON PURPOSE, because removing it would take
+    the guard's whole point with it: ``banned = ['screencapture', '-R']``, a
+    list of forbidden words, is the SAME TREE as ``cmd = ['screencapture',
+    '-R', rect]``, the case version three had to be rewritten to catch. Nothing
+    but the meaning of the words separates them. A driver that needs to write
+    one down should put it in prose, or in a comment, which this never reads.
 
     A plain full-screen ``screencapture -x out.png`` is untouched: photographing
     a whole screen is legitimate, and it is not what this guard is about.
@@ -105,38 +135,59 @@ def _window_captures(src: str) -> list[tuple[int, str]]:
     except SyntaxError:
         return []
 
-    aliases: set[str] = set()
+    prog_aliases: set[str] = set()
+    flag_aliases: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, (ast.Assign, ast.AnnAssign)):
             val = node.value
-            if (isinstance(val, ast.Constant) and isinstance(val.value, str)
-                    and _PROGRAM.match(val.value.strip())):
+            if isinstance(val, ast.Constant) and isinstance(val.value, str):
                 targets = (node.targets if isinstance(node, ast.Assign)
                            else [node.target])
-                aliases.update(t.id for t in targets if isinstance(t, ast.Name))
+                names = {t.id for t in targets if isinstance(t, ast.Name)}
+                if _PROGRAM.match(val.value.strip()):
+                    prog_aliases |= names
+                elif _WINDOW_FLAG.match(val.value.strip()):
+                    flag_aliases |= names
+
+    #: The fields of a statement that hold OTHER statements. A compound
+    #: statement is judged on everything except these, so its header is seen
+    #: and its body is left to be judged as the statements it contains.
+    body_fields = ("body", "orelse", "finalbody", "handlers")
+
+    def _own(stmt):
+        """Every node of *stmt* that runs where *stmt* is written."""
+        for field, value in ast.iter_fields(stmt):
+            if field in body_fields:
+                continue
+            for v in (value if isinstance(value, list) else [value]):
+                if isinstance(v, ast.AST):
+                    yield from ast.walk(v)
 
     def _literals(stmt) -> tuple[bool, bool]:
         """``(names the program, carries a window flag)`` for one statement."""
         prog = flag = False
-        for n in ast.walk(stmt):
+        for n in _own(stmt):
             if isinstance(n, ast.Constant) and isinstance(n.value, str):
                 s = n.value.strip()
                 prog = prog or bool(_PROGRAM.match(s))
                 flag = flag or bool(_WINDOW_FLAG.match(s))
-            elif isinstance(n, ast.Name) and n.id in aliases:
-                prog = True
+            elif isinstance(n, ast.Name):
+                prog = prog or n.id in prog_aliases
+                flag = flag or n.id in flag_aliases
         return prog, flag
 
     out: list[tuple[int, str]] = []
     for stmt in ast.walk(tree):
-        if not isinstance(stmt, ast.stmt) or isinstance(
-                stmt, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef,
-                       ast.ClassDef, ast.If, ast.For, ast.While, ast.With,
-                       ast.AsyncWith, ast.Try)):
-            continue          # compound headers would swallow their whole body
+        if not isinstance(stmt, ast.stmt):
+            continue
         prog, flag = _literals(stmt)
         if prog and flag:
             seg = ast.get_source_segment(src, stmt) or ""
+            # A compound statement's segment carries its whole body, and the
+            # offence is in the header, so only the header line is reported.
+            # A simple statement is flattened whole, the way it always was.
+            if any(getattr(stmt, f, None) for f in body_fields):
+                seg = seg.split("\n")[0]
             out.append((stmt.lineno, " ".join(seg.split())[:120]))
     return out
 
@@ -178,6 +229,50 @@ _MUST_CATCH = {
     "an absolute path to the binary":
         "import subprocess\n"
         "subprocess.run(['/usr/sbin/screencapture', '-l', str(wid), 'x.png'])\n",
+    # 6 to 10 are the second challenge round's, 2026-09-13. Five of them are
+    # one mistake: a compound statement's HEADER was thrown away with its body.
+    "a Popen in a `with` header":
+        "import subprocess\n"
+        "with subprocess.Popen(['screencapture', '-R', rect, 'x.png']) as p:\n"
+        "    p.wait()\n",
+    "a run inside an `if` test":
+        "import subprocess\n"
+        "if subprocess.run(['screencapture', '-R', rect, 'x.png']).returncode:\n"
+        "    raise SystemExit(1)\n",
+    "the output consumed by a `for` header":
+        "import subprocess\n"
+        "for line in subprocess.check_output(\n"
+        "        ['screencapture', '-l', str(wid)]).splitlines():\n"
+        "    print(line)\n",
+    "retried in a `while` test":
+        "import subprocess\n"
+        "while subprocess.call(['screencapture', '-l%d' % wid, 'x.png']):\n"
+        "    pass\n",
+    "the FLAG hidden in a module constant":
+        "import subprocess\n"
+        "RECT = '-R'\n"
+        "subprocess.run(['screencapture', RECT, rect, 'x.png'])\n",
+}
+
+#: Real window captures this guard CANNOT see, named here so the gap is a
+#: measured fact rather than a hope. Each is one string literal that only means
+#: something because of the words inside it, which is the one thing an AST
+#: cannot tell from prose. See `_window_captures`'s "KNOWN GAPS".
+_KNOWN_BLIND = {
+    "a whole command in one f-string, through os.system":
+        "import os\nos.system(f'screencapture -R {rect} {path}')\n",
+    "a whole command in one plain string, through shell=True":
+        "import subprocess\n"
+        "subprocess.run('screencapture -R 1,1,9,9 x.png', shell=True)\n",
+    "one literal split into a list at runtime":
+        "import subprocess\n"
+        "subprocess.run('screencapture -R'.split() + [rect, 'x.png'])\n",
+    "a flag built at runtime":
+        "import subprocess\n"
+        "subprocess.run(['screencapture', '-' + 'R', rect, 'x.png'])\n",
+    "a list grown across several statements":
+        "import subprocess\n"
+        "cmd = ['screencapture']\ncmd += ['-R', rect]\nsubprocess.run(cmd)\n",
 }
 
 #: Legitimate lines. Every one of these must be allowed. All five were REFUSED
@@ -200,6 +295,22 @@ _MUST_ALLOW = {
         "parser.add_argument('--shot', help='avoids screencapture -R entirely')\n",
     "a raise that names both dead ends":
         "raise SystemExit('screencapture -l and -R are both dead ends here')\n",
+    # The second challenge round's additions: the shapes a compound header
+    # could plausibly carry once headers stopped being skipped.
+    "a `with` whose header only opens a file":
+        "with open('shot.png', 'wb') as f:  # not screencapture -R\n"
+        "    f.write(b'')\n",
+    "an `if` that explains the rule in its message":
+        "if bad:\n"
+        "    raise SystemExit('screencapture -R returned the desktop')\n",
+    "a `for` over prose about both flags":
+        "for note in ('screencapture -R is a rectangle',\n"
+        "             'screencapture -l does not work here'):\n"
+        "    print(note)\n",
+    "a full-screen capture inside a `with`":
+        "import subprocess\n"
+        "with open('log', 'w') as f:\n"
+        "    subprocess.run(['screencapture', '-x', 'x.png'], stdout=f)\n",
 }
 
 
@@ -224,6 +335,37 @@ def test_the_guard_above_leaves_a_legitimate_line_alone(what):
     assert not hits, (
         f"{what!r} is refused, and it is not a window capture: {hits}\n"
         + _MUST_ALLOW[what])
+
+
+@pytest.mark.parametrize("what", sorted(_KNOWN_BLIND))
+def test_the_gaps_this_guard_admits_to_are_the_ones_it_actually_has(what):
+    """A gap that is written down but no longer real makes the note a lie, and
+    a gap that is real but not written down is the next round's surprise.
+
+    So the admitted blind spots are asserted to be blind. If one of these
+    starts being caught, DELETE it from `_KNOWN_BLIND` and from the docstring's
+    "KNOWN GAPS", and move it to `_MUST_CATCH`. This assertion failing is good
+    news, not a regression.
+    """
+    assert not _window_captures(_KNOWN_BLIND[what]), (
+        f"{what!r} is now caught, which the guard's docstring says it is not. "
+        "Move it to `_MUST_CATCH` and delete it from the KNOWN GAPS note:\n"
+        + _KNOWN_BLIND[what])
+
+
+def test_the_false_positive_that_is_kept_on_purpose_is_still_the_only_one():
+    """``banned = ['screencapture', '-R']`` is refused, and it must be.
+
+    It is the same tree as ``cmd = ['screencapture', '-R', rect]``, which is
+    the case version three of this guard had to be rewritten to catch, so no
+    rule written over the syntax can allow one and refuse the other. Pinning it
+    here stops the next reader "fixing" it and reopening the hole.
+    """
+    assert _window_captures("banned = ['screencapture', '-R']\n"), (
+        "a list of the banned words is no longer refused. If that was done by "
+        "letting a bare list assignment through, `cmd = ['screencapture', "
+        "'-R', rect]` is through with it, and that is the whole fault this "
+        "guard exists to catch")
 
 
 def test_the_helper_tries_the_windows_own_buffer_before_the_screen():

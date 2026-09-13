@@ -735,6 +735,21 @@ class MarginInspectorPanel(QGroupBox):
             self.warnings_expanded_changed.emit(expanded)
 
     def _on_warn_toggle_clicked(self, event) -> None:      # noqa: ANN001 (Qt)
+        """Fold on a LEFT click, and on nothing else.
+
+        The handler is installed by assigning over the label's own
+        `mousePressEvent`, and Qt calls that for EVERY button. Measured on
+        screen, 2026-09-13: a right click on "▼ 2 warnings" shut the paragraph
+        and wrote `margin_warnings_expanded` False, and so did a middle click.
+        Nothing else in this app hides a section on a right click, and the
+        right button is where a context menu is expected, so the paragraph
+        vanished for a reason the user did not ask for and could not see.
+        """
+        if event is not None and event.button() != Qt.MouseButton.LeftButton:
+            # Not ours. Hand it back to QLabel, which is where a future
+            # context menu on this line would come from.
+            QLabel.mousePressEvent(self._warn_toggle, event)
+            return
         self.set_warnings_expanded(not self._warnings_expanded, emit=True)
 
     def _warning_header_text(self) -> str:
