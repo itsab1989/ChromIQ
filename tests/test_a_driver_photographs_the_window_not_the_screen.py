@@ -615,3 +615,72 @@ def test_the_helper_still_offers_what_the_drivers_import(name):
     tree = ast.parse(HELPER.read_text(encoding="utf-8"))
     got = {n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)}
     assert name in got, f"{name} is gone from scripts/onscreen_capture.py"
+
+
+def test_a_flat_colour_capture_is_refused_however_plausible_its_size():
+    """An empty buffer of the right size is not a photograph.
+
+    2026-09-13: `CGWindowListCreateImage` handed back a 960x717 image of pure
+    black for a real, visible, correctly sized dialog. `capture_window` checked
+    only that the picture was bigger than 200x200, so it returned OK, and the
+    round that took it compared the black rectangle against a good capture, got
+    "34.75 % of pixels differ", and filed the pair as proof that two scans
+    behaved differently. The blank one showed nothing at all.
+
+    The region route has guarded its own version of this since the wallpaper
+    incident (it hides the window and refuses a picture that did not change).
+    The window-id route skipped that check, reasonably, because a window id
+    cannot return the desktop. Nothing was checking what it COULD return.
+    """
+    import tempfile
+    from pathlib import Path
+
+    from PyQt6.QtGui import QColor, QImage
+
+    from scripts.onscreen_capture import _is_one_flat_colour
+
+    with tempfile.TemporaryDirectory() as td:
+        blank = Path(td) / "blank.png"
+        im = QImage(960, 717, QImage.Format.Format_RGB32)
+        im.fill(QColor(0, 0, 0))
+        assert im.save(str(blank))
+        assert _is_one_flat_colour(blank), "an all-black buffer must be refused"
+
+        # ...and a picture with anything in it must not be.
+        real = Path(td) / "real.png"
+        im2 = QImage(960, 717, QImage.Format.Format_RGB32)
+        im2.fill(QColor(230, 230, 230))
+        for x in range(100, 200):
+            for y in range(100, 140):
+                im2.setPixelColor(x, y, QColor(20, 20, 20))
+        assert im2.save(str(real))
+        assert not _is_one_flat_colour(real), (
+            "a picture with a dark band in it is not one flat colour")
+
+        missing = Path(td) / "not-written.png"
+        assert _is_one_flat_colour(missing), "a file that is not there is not proof"
+
+
+def test_the_window_route_asks_whether_the_picture_has_anything_in_it():
+    """The guard has to be CALLED, not merely mentioned.
+
+    This test was written as a substring search first, and the mutation that
+    deletes the call left it green: the comment above the call says "See
+    `_is_one_flat_colour`", and a comment is text in the source too. It reads
+    the syntax tree now, which is the same lesson the sibling guards in this
+    file each had to learn.
+    """
+    import ast
+    import inspect
+    import textwrap
+
+    from scripts import onscreen_capture
+
+    src = textwrap.dedent(inspect.getsource(onscreen_capture.capture_window))
+    tree = ast.parse(src)
+    called = {n.func.id for n in ast.walk(tree)
+              if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
+    assert "_grab_window_id" in called, "the window-id route is gone"
+    assert "_is_one_flat_colour" in called, (
+        "the window-id route returns OK without asking whether the buffer has "
+        "anything in it")

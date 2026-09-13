@@ -201,6 +201,34 @@ def _grab_region(rect: str, path: Path) -> bool:
     return path.exists() and path.stat().st_size > 0
 
 
+def _is_one_flat_colour(path: Path) -> bool:
+    """True when every sampled pixel of *path* is the same colour.
+
+    **A WINDOW IS NEVER ONE COLOUR, AND A FAILED BUFFER OFTEN IS.** Measured
+    2026-09-13: `CGWindowListCreateImage` returned a 960x717 image of pure
+    black (mean 0.0) for a real, visible, correctly sized dialog, and the size
+    check below waved it through because 960x717 is a plausible window. The
+    round that produced it then compared that black rectangle against a good
+    capture, got "34.75 % of pixels differ", and filed the pair as proof that
+    two scans behaved differently. They did, but not one pixel of that picture
+    showed it.
+
+    The same shape as the wallpaper trap the region route already guards, and
+    it needs its own guard because the window-id route skips that one: a window
+    id cannot return the desktop, so nothing was checking what it DID return.
+    """
+    from PyQt6.QtGui import QImage
+    im = QImage(str(path))
+    if im.isNull():
+        return True
+    first = im.pixel(0, 0)
+    for y in range(0, im.height(), 7):
+        for x in range(0, im.width(), 7):
+            if im.pixel(x, y) != first:
+                return False
+    return True
+
+
 def _difference(a: Path, b: Path) -> float:
     """Share of sampled pixels that differ between two captures, 0..1."""
     from PyQt6.QtGui import QImage
@@ -251,7 +279,11 @@ def capture_window(win, path: Path, settle: float = 0.6,
     if wid is not None and _grab_window_id(wid, path):
         from PyQt6.QtGui import QImage
         im = QImage(str(path))
-        if not im.isNull() and im.width() > 200 and im.height() > 200:
+        big = not im.isNull() and im.width() > 200 and im.height() > 200
+        # ...AND IT HAS TO HAVE SOMETHING IN IT. See `_is_one_flat_colour`: a
+        # plausible size is not a picture, and an empty buffer of the right
+        # size was filed as evidence once.
+        if big and not _is_one_flat_colour(path):
             return True, ""
         path.unlink(missing_ok=True)
 
