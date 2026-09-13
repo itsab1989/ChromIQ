@@ -5385,8 +5385,11 @@ class SettingsDialog(QDialog):
         # layout_options_panel.PT_PER_MM (Knut).
         self._isty_size = NoScrollDoubleSpinBox(self)
         self._isty_size.setRange(0.0, 72.0)
-        self._isty_size.setDecimals(0)
-        self._isty_size.setSingleStep(1)
+        # HALF A POINT AT A TIME, like every other size box (Knut,
+        # 2026-09-13). This is Preferences → Chart Layout; the three in the
+        # Create Chart panel come from `layout_options_panel.small_pt`.
+        self._isty_size.setDecimals(1)
+        self._isty_size.setSingleStep(0.5)
         self._isty_size.setSuffix(" pt")
         self._isty_size.setSpecialValueText(tr("auto"))
         # Clean 4-column grid (label | control | label | control) with both

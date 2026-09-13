@@ -2596,6 +2596,12 @@ def _auto_floor_note(size_pt: float, floor_pt: float,
     """
     if float(size_pt or 0.0) > 0:
         return ""            # a typed size IS the floor; nothing to explain
+    # IMPORTED HERE. `text_edge_fit` is imported inside `_engine_text_notes`
+    # and is not a module-level name in this file, and that method swallows
+    # every exception, so reaching for it as a global from a helper it calls
+    # loses EVERY warning on the panel rather than one sentence. That happened
+    # once already today, to `_typed_size_note`, which now does the same.
+    from workflow import text_edge_fit
     # TWO SENTENCES, BECAUSE THE BOX IS IN TWO DIFFERENT FRAMES. The clip
     # band's own text is sized under "Clip-border content", and sending a
     # reader of that message to "Sheet text" is a remedy that does not remedy.
@@ -2603,15 +2609,15 @@ def _auto_floor_note(size_pt: float, floor_pt: float,
     # the_control_the_reader_has.py` reads the quoted name out of the string.
     if frame == "clip":
         return " " + tr(
-            "{size:.0f} pt is where “auto” stops shrinking. A Size typed under "
+            "{size} pt is where “auto” stops shrinking. A Size typed under "
             "“Clip-border content” is printed exactly as typed, below "
-            "{size:.0f} pt included, so a smaller one frees room here too."
-        ).format(size=floor_pt)
+            "{size} pt included, so a smaller one frees room here too."
+        ).format(size=text_edge_fit.format_pt(floor_pt))
     return " " + tr(
-        "{size:.0f} pt is where “auto” stops shrinking. A Size typed under "
-        "“Sheet text” is printed exactly as typed, below {size:.0f} pt "
+        "{size} pt is where “auto” stops shrinking. A Size typed under "
+        "“Sheet text” is printed exactly as typed, below {size} pt "
         "included, so a smaller one frees room here too."
-    ).format(size=floor_pt)
+    ).format(size=text_edge_fit.format_pt(floor_pt))
 
 
 def _typed_size_note(size_pt: float, floor_pt: float) -> str:
@@ -2638,10 +2644,11 @@ def _typed_size_note(size_pt: float, floor_pt: float) -> str:
     # case with the global: two warnings became zero, silently.
     from workflow import text_edge_fit as _tef
     return " " + tr(
-        "Size is set to {size:.0f} pt under “Sheet text” and a typed size is "
+        "Size is set to {size} pt under “Sheet text” and a typed size is "
         "printed exactly as typed, so it never shrinks to fit. On “auto” it "
-        "would shrink down to {floor:.0f} pt."
-    ).format(size=size_pt, floor=_tef.AUTO_SHRINK_FLOOR_PT)
+        "would shrink down to {floor} pt."
+    ).format(size=_tef.format_pt(size_pt),
+             floor=_tef.format_pt(_tef.AUTO_SHRINK_FLOOR_PT))
 
 
 def _recipe_display_key(p: "_Ti1Preset") -> str:
@@ -19577,7 +19584,7 @@ class TabChart(QWidget):
                     "fit them. The labels start {floor:.1f} mm in from the "
                     "page edge (the larger of “Clip” under “Text distance from "
                     "edge” and the width of the clip border) and their text "
-                    "needs {band:.1f} mm at {size:.0f} pt. Three things "
+                    "needs {band:.1f} mm at {size} pt. Three things "
                     "balance this and any of them stops the warning: raise "
                     "“Left” under “Margins (mm)” to {got:.1f} mm so you are "
                     "asking for what the chart uses, set a smaller Size under "
@@ -19586,14 +19593,14 @@ class TabChart(QWidget):
                     "gives the paper back "
                     "altogether.").format(
                         asked=_asked_l, got=_got_l, floor=_floor_l,
-                        band=geom.rlwi, size=_lbl_pt))
+                        band=geom.rlwi, size=text_edge_fit.format_pt(_lbl_pt)))
             elif _raised_l:
                 over.append(tr(
                     "⚠ The left margin is below what the row indicators need, "
                     "so it was widened from {asked:.1f} mm to {got:.1f} mm to "
                     "fit them. The labels start {floor:.1f} mm in from the "
                     "page edge and their text needs {band:.1f} mm at "
-                    "{size:.0f} pt. “Clip” under “Text distance from edge "
+                    "{size} pt. “Clip” under “Text distance from edge "
                     "(mm)” is set to {clip:.1f} mm and is not what is holding "
                     "them out there, so lowering it moves nothing; the note "
                     "under that box names what is. Raise “Left” under "
@@ -19602,7 +19609,8 @@ class TabChart(QWidget):
                     "indicators”. Switching “Show row indicators” off gives "
                     "the paper back altogether.").format(
                         asked=_asked_l, got=_got_l, floor=_floor_l,
-                        band=geom.rlwi, clip=_clip_l, size=_lbl_pt))
+                        band=geom.rlwi, clip=_clip_l,
+                        size=text_edge_fit.format_pt(_lbl_pt)))
             # ---- THE SIDE MARGINS, IN BOTH LAYOUT MODES ---------------------
             #
             # The chart note is not laid out by the engine at all: it is stamped
@@ -19776,7 +19784,7 @@ class TabChart(QWidget):
                     # break.
                     over.append(tr(
                         "⚠ The settings stamp down the right edge runs over the "
-                        "patches. It needs {need:.1f} mm at {size:.0f} pt and "
+                        "patches. It needs {need:.1f} mm at {size} pt and "
                         "the right margin leaves {avail:.1f} mm, so it is "
                         "printed over them. Nothing you typed is on that edge: "
                         "the line is the targen command and the ChromIQ "
@@ -19784,7 +19792,8 @@ class TabChart(QWidget):
                         "edge” off removes it altogether. Raising “Right” under "
                         "“Margins (mm)” by about {short:.1f} mm makes room for "
                         "it instead.").format(
-                            need=_o.needed_mm, size=_note_floor_pt,
+                            need=_o.needed_mm,
+                            size=text_edge_fit.format_pt(_note_floor_pt),
                             avail=max(0.0, _o.available_mm),
                             short=_o.overlap_mm)
                         + _auto_floor_note(_note_size_pt, _note_floor_pt))
@@ -19826,10 +19835,10 @@ class TabChart(QWidget):
                             "to about {need_margin:.1f} mm, which is past the "
                             "clip border, or set a narrower “Clip border "
                             "width”, or put the clip border on the LEFT. They "
-                            "need {need:.1f} mm at {size:.0f} pt.").format(
+                            "need {need:.1f} mm at {size} pt.").format(
                                 band=_clip_zone, margin=_note_margin,
                                 need_margin=_need_margin, need=_o.needed_mm,
-                                size=_note_floor_pt)
+                                size=text_edge_fit.format_pt(_note_floor_pt))
                             + _auto_floor_note(_note_size_pt, _note_floor_pt))
                     elif _clip_on_right:
                         # "PRINTED {Clip} mm IN FROM THE PAPER EDGE" WAS FALSE
@@ -19850,13 +19859,14 @@ class TabChart(QWidget):
                             "patches. They start where the {band:.1f} mm clip "
                             "border on that edge ends, so they are printed "
                             "{band:.1f} mm in from the paper edge, need "
-                            "{need:.1f} mm at {size:.0f} pt and have "
+                            "{need:.1f} mm at {size} pt and have "
                             "{avail:.1f} mm. They are "
                             "printed anyway so you can see this. Raise “Right” "
                             "under “Margins (mm)” by about {short:.1f} mm, or "
                             "set a narrower “Clip border width”.").format(
                                 band=_clip_zone,
-                                need=_o.needed_mm, size=_note_floor_pt,
+                                need=_o.needed_mm,
+                            size=text_edge_fit.format_pt(_note_floor_pt),
                                 avail=max(0.0, _o.available_mm),
                                 short=_o.overlap_mm)
                             + _auto_floor_note(_note_size_pt, _note_floor_pt))
@@ -19883,7 +19893,7 @@ class TabChart(QWidget):
                         over.append((tr(
                             "⚠ The chart notes down the right edge run over the "
                             "patches. They are printed {edge:.1f} mm in from "
-                            "the paper edge, need {need:.1f} mm at {size:.0f} "
+                            "the paper edge, need {need:.1f} mm at {size} "
                             "pt, and the right margin leaves {avail:.1f} mm. "
                             "They are printed anyway so you can see this. Raise "
                             "“Right” under “Margins (mm)” by about {short:.1f} "
@@ -19892,7 +19902,7 @@ class TabChart(QWidget):
                             if _clip_binds else tr(
                             "⚠ The chart notes down the right edge run over the "
                             "patches. They are printed {edge:.1f} mm in from "
-                            "the paper edge, need {need:.1f} mm at {size:.0f} "
+                            "the paper edge, need {need:.1f} mm at {size} "
                             "pt, and the right margin leaves {avail:.1f} mm. "
                             "They are printed anyway so you can see this. Raise "
                             "“Right” under “Margins (mm)” by about {short:.1f} "
@@ -19902,7 +19912,7 @@ class TabChart(QWidget):
                             "Turn off “Sides” under “Ruler helper markers” to "
                             "give that room back.")).format(
                                 edge=_eff_edge, need=_o.needed_mm,
-                                size=_note_floor_pt,
+                                size=text_edge_fit.format_pt(_note_floor_pt),
                                 avail=max(0.0, _o.available_mm),
                                 short=_o.overlap_mm)
                             + _auto_floor_note(_note_size_pt, _note_floor_pt))
@@ -20276,7 +20286,8 @@ class TabChart(QWidget):
                     # has been asked. The sentence is ours either way.)
                     _kept = text_edge_fit.clip_content_inset_mm(
                         _clip_zone, _eff_edge)
-                    _fmt = dict(lines=_clip_lines, size=_clip_floor_pt,
+                    _fmt = dict(lines=_clip_lines,
+                                size=text_edge_fit.format_pt(_clip_floor_pt),
                                 need=_cs.needed_mm,
                                 avail=max(0.0, _cs.available_mm),
                                 over=_over_mm, band=_clip_zone, edge=_kept,
@@ -20284,7 +20295,7 @@ class TabChart(QWidget):
                                 into=_hit.over_patches_mm, want=_want_band)
                     _msg = (tr(
                         "⚠ The clip border text does not fit its band. One line "
-                        "at {size:.0f} pt needs {need:.1f} mm across the band, "
+                        "at {size} pt needs {need:.1f} mm across the band, "
                         "and the {band:.1f} mm band leaves {avail:.1f} mm once "
                         "{edge:.1f} mm is kept clear at the paper edge. That "
                         "is “Clip” under “Text distance from edge (mm)”, or "
@@ -20293,7 +20304,7 @@ class TabChart(QWidget):
                         "printed inward, past the band.")
                         if _clip_lines == 1 else tr(
                         "⚠ The clip border text does not fit its band. Its "
-                        "{lines} lines at {size:.0f} pt need {need:.1f} mm "
+                        "{lines} lines at {size} pt need {need:.1f} mm "
                         "across the band, and the {band:.1f} mm band leaves "
                         "{avail:.1f} mm once {edge:.1f} mm is kept clear at "
                         "the paper edge. That is “Clip” under “Text distance "

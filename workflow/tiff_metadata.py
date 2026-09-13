@@ -1117,6 +1117,25 @@ def _render_fitted_rotated_line(
                                 channels, anchor_px=anchor_px)
 
 
+def _one_step_smaller_pt(size_pt: float, floor_pt: float) -> float:
+    """One half-point down from *size_pt*, never past *floor_pt*.
+
+    **THIS USED TO BE `int(font_px * 0.9)`, AND TEN PER CENT IS NOT A SIZE.**
+    Measured at 300 dpi from 12 pt it walked 12 -> 10.8 -> 9.6 -> 8.64 -> 7.68
+    -> 6.96, stepping straight over 9.5 and landing below its own 7 pt floor on
+    the way out. Knut, 2026-09-13: *"the shrinking mechanism ... should be able
+    to find a better fit when a text length is too long for 10 pt and far
+    within the boundaries for 9 pt, and a 9,5 pt fits better."* His example is
+    this loop.
+
+    The grid is `text_edge_fit.next_size_down_pt`, the same 0.5 the Size boxes
+    step by, so what the shrink settles on is a value the user could have
+    typed. Always strictly smaller than its input, or the loop would not end.
+    """
+    return max(float(floor_pt),
+               text_edge_fit.next_size_down_pt(size_pt))
+
+
 def fit_rotated_line(
     text: str,
     strip_h: int,
@@ -1148,10 +1167,21 @@ def fit_rotated_line(
         font_px = max(floor_px, min(28, strip_w - 8 if anchor_px is None
                                     else strip_w - _gap))
 
+    # THE SIZE IS CARRIED IN POINTS, NOT PIXELS. The loop used to hold an
+    # integer pixel count and step it, and at 300 dpi one pixel is 0.24 pt, so
+    # a half-point grid could not be represented at all: every candidate
+    # rounded back onto a neighbouring pixel and the pixel did the stepping.
+    # Points are the unit the user types and the unit Knut asked the shrink to
+    # settle on, so they are the unit the loop counts in; pixels are derived
+    # for the draw.
+    floor_pt = text_edge_fit.px_to_pt(floor_px, dpi)
+    size_now_pt = text_edge_fit.px_to_pt(font_px, dpi)
+
     probe = Image.new("L", (10, 10), 255)
     draw = ImageDraw.Draw(probe)
     shown = text
     while True:
+        font_px = max(1, text_edge_fit.pt_to_px(size_now_pt, dpi))
         font = _pick_font(font_px, font_family)
         bbox = _text_bbox(draw, shown, font)
         text_w = bbox[2] - bbox[0]
@@ -1163,13 +1193,13 @@ def fit_rotated_line(
         # at the floor let the strip's own edges crop it, which is safe because
         # those edges are inside the page-edge reserve the caller measured.
         if anchor_px is not None and text_h > available_text_h \
-                and font_px > floor_px:
-            font_px = max(floor_px, int(font_px * 0.9))
+                and size_now_pt > floor_pt + 1e-9:
+            size_now_pt = _one_step_smaller_pt(size_now_pt, floor_pt)
             continue
         if text_w <= available_text_w:
             return shown, font
-        if font_px > floor_px:
-            font_px = max(floor_px, int(font_px * 0.9))
+        if size_now_pt > floor_pt + 1e-9:
+            size_now_pt = _one_step_smaller_pt(size_now_pt, floor_pt)
             continue
         # AT THE FLOOR, SHORTEN THE TEXT RATHER THAN LOSE ITS END IN SILENCE.
         #

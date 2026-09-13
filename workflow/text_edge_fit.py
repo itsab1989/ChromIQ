@@ -44,6 +44,7 @@ library, so the law can be tested on its own.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 #: Millimetres of slop before a touch counts as an overlap. Two floats that
@@ -107,6 +108,52 @@ AUTO_SHRINK_FLOOR_PT = 7.0
 def pt_to_mm(size_pt: float) -> float:
     """Points (1/72 inch) to millimetres."""
     return float(size_pt or 0.0) * 25.4 / 72.0
+
+
+#: The grid every automatic shrink steps down, in points. Knut, 2026-09-13:
+#: *"the shrinking mechanism that shrinks text size should be able to find a
+#: better fit when a text length is too long for 10 pt and far within the
+#: boundaries for 9 pt, and a 9,5 pt fits better across the whole length within
+#: boundaries set."* The same 0.5 the Size boxes step by, so what a shrink
+#: settles on is a value the user could have typed.
+AUTO_SHRINK_STEP_PT = 0.5
+
+
+def format_pt(size_pt: float) -> str:
+    """A point size as a warning should print it: "9.5", "13", "7".
+
+    Knut, 2026-09-13: *"All warning text that refers to text size should also
+    show the correct decimal used."* Sizes step by half a point now, and every
+    message printed them through `{size:.0f}`, which ROUNDS: a 9.5 pt line was
+    described to the reader as 10 pt, and 8.5 as 8, because Python rounds half
+    to even. Neither number was on the sheet.
+
+    A whole size keeps its clean "13" rather than becoming "13.0": the decimal
+    is shown where it is used, which is what he asked for, and nowhere else.
+
+    **THE FORMATTING LIVES HERE AND NOT IN THE MESSAGES.** The old `{size:.0f}`
+    put a format spec inside a translated string, so changing how a number
+    prints meant reissuing every key in twelve catalogues. The messages take
+    `{size}` and are handed the finished text.
+    """
+    v = float(size_pt or 0.0)
+    r = round(v * 2.0) / 2.0                # the grid these sizes live on
+    return f"{r:.1f}".rstrip("0").rstrip(".") if r % 1 else f"{int(r)}"
+
+
+def next_size_down_pt(size_pt: float) -> float:
+    """The next size below *size_pt* on the half-point grid.
+
+    Always STRICTLY smaller, and always on the grid: 10.3 gives 10.0 (snap
+    first), 10.0 gives 9.5, 9.5 gives 9.0. A shrink loop that could return its
+    own input would not terminate, so that is the property to hold on to.
+    """
+    step = AUTO_SHRINK_STEP_PT
+    s = float(size_pt or 0.0)
+    stepped = math.floor(s / step - 1e-9) * step
+    if stepped >= s:                       # already sitting exactly on a step
+        stepped = s - step
+    return max(0.0, round(stepped, 6))
 
 
 def pt_to_px(size_pt: float, dpi: float) -> int:

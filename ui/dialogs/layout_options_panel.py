@@ -737,7 +737,19 @@ class LayoutOptionsPanel(QWidget):
             engine stores and renders these sizes in mm, so the value is
             converted at the recipe boundary (see PT_PER_MM). 0 = "auto"."""
             sb = NoScrollDoubleSpinBox(self)
-            sb.setRange(0, top_pt); sb.setDecimals(0); sb.setSingleStep(1)
+            # HALF A POINT AT A TIME, AND ONE DECIMAL. Knut, 2026-09-13:
+            # *"All the places where font size is defined, the side pt number
+            # should have one decimal and jump half a point at a time when
+            # scrolling on the input box (increments of 0,5 pt). The 1 pt
+            # resolution is too course, so a 5,5 pt, of 7,5 pt might some times
+            # be needed."* One helper builds the Sheet text, Clip-border
+            # content and Strip & row label boxes, so all three move together;
+            # Preferences → Chart Layout has its own and is changed with it.
+            #
+            # The box does not need widening by hand: `_fit_spin_widths` asks
+            # the box what its longest string is (`textFromValue(maximum())`),
+            # which is now "72.0" rather than "72".
+            sb.setRange(0, top_pt); sb.setDecimals(1); sb.setSingleStep(0.5)
             # Provisional only — settled in `_fit_spin_widths()` once the style
             # has been polished, for the same reason as `small_mm` above: 84/96
             # is the English width this was measured at, and these boxes carry
