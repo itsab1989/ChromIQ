@@ -197,21 +197,47 @@ def backward_device(
     intent: str = "r",
     k_rule: str | None = "r",
     ink_limit: float | None = None,
+    numeric_inverse: bool = False,
     runner: Callable[..., subprocess.CompletedProcess] = subprocess.run,
 ) -> list[tuple[float, ...]]:
     """Lab targets → device values (0..100).
 
-    Uses ``-fb`` (fast Lut backward) normally, but switches to ``-fif``
-    (numeric inverse-forward) when ``ink_limit`` is given — only that path
-    actually *enforces* ``-l``; on ``-fb`` the baked B2A table ignores it and
-    the TAC pair is merely informational (verified live, ArgyllCMS 3.5.0).
+    Uses ``-fb`` (fast Lut backward) normally, and ``-fif`` (numeric
+    inverse-forward) when *numeric_inverse* is asked for OR an ``ink_limit`` is
+    given: only that path actually *enforces* ``-l``, because on ``-fb`` the
+    baked B2A table ignores it and the TAC pair is merely informational
+    (verified live, ArgyllCMS 3.5.0).
+
+    **AND THE ACCURATE PATH WAS REACHABLE ONLY THROUGH A CMYK ARGUMENT.** The
+    switch used to be the ink limit alone. An ink limit is meaningless on an RGB
+    output profile, so every RGB caller silently took the baked table, which is
+    a fast approximation of an inverse rather than an inverse. Measured over the
+    app's eleven bundled reference sets, 792 patches, round-tripped back through
+    the same profile:
+
+    ==================================  ==============  ==============
+    how the Lab aim was inverted         mean dE00       within 0.5 dE00
+    ==================================  ==============  ==============
+    ``-fb``, the baked B2A table         0.366           659 of 792
+    ``-fif``, the numeric inverse        **0.052**       **770 of 792**
+    ==================================  ==============  ==============
+
+    Reproduced with a direct ``-fif`` and no limit, so it is the inverse that
+    matters here and not the limit. The cost is time and it is small: 1,617
+    patches in 0.17 s.
+
+    The flag is explicit rather than automatic. A caller that is placing ink on
+    paper wants the accurate inverse; one that is only asking roughly where a
+    colour lands can still have the fast table, and neither should change
+    silently because somebody changed a default.
 
     ``k_rule`` is xicclu's ``-k`` black-generation rule (#72 decision: ``"r"``
     for v1, no UI knobs); it only applies to profiles with a K channel — pass
     ``None`` to omit. Trailing ``TAC``/``(clip)`` annotations are stripped
     from the parsed values.
     """
-    args = ["-fif" if ink_limit is not None else "-fb", f"-i{intent}", "-pl"]
+    args = ["-fif" if (numeric_inverse or ink_limit is not None) else "-fb",
+            f"-i{intent}", "-pl"]
     if k_rule:
         args.append(f"-k{k_rule}")
     if ink_limit is not None:
