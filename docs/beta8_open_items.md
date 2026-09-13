@@ -5029,3 +5029,32 @@ only a triple that DIFFERS from the rule's answer would stop it.
   against 4,309). The census exists because the wall-clock test was written
   first and the mutation walked straight through it: forty halvings is 1.66 s
   and the bound was 4 s.
+
+### B8-107 · Something writes a 100 MB chart TIFF into a bare temp folder and nothing sweeps it
+- blocks release: no
+- status: OPEN
+- found by: this session, 2026-09-13, checking the disk after a day of gates and
+  drivers: **680 folders under the system temp directory, each holding exactly
+  one file called `s.tif` and nothing else, 33.6 GB in total**, all written
+  today.
+- detail: one was opened before anything was deleted. It is a 4961 x 7016 RGB
+  TIFF at exactly 600 dpi, written by `tifffile` with the default
+  `ImageDescription` of `{"shape": [...]}`, which is an A4 ChromIQ chart render
+  and nothing else. The 680 were removed by a rule that matched only that exact
+  shape (one file, named `s.tif`, alone in the folder).
+
+  **The sweeper cannot see them, and the reason is honest.**
+  `tests/conftest.py::_is_chromiq_temp` recognises a folder by a file only this
+  suite writes: a `.ti1`, `.ti2`, `.ti3`, `.cht`, `.cie`, `.icc`, `.cal`, a
+  `project.json` or a `meta.json`, or a chart-probe folder NAME. A folder
+  holding one `.tif` matches nothing, and `.tif` is far too common a suffix to
+  add: a false positive deletes another application's data.
+
+  **The writer was not found.** `tempfile.mkdtemp()` with no prefix appears in
+  eight test files, and every one of them also writes a `.ti1` beside the TIFF,
+  so the sweeper already sees those. The tests that do write an `s.tif`
+  (`test_scanner_multidpi.py`, `test_scanner_synthetic_e2e.py`) use `tmp_path`,
+  which pytest cleans, and write a `.cht` and a `.cie` beside it. So the source
+  is something else, and looking for it is the next step rather than widening
+  the sweeper's marker list.
+- who: nobody yet. Basti or whoever picks up the next round.
