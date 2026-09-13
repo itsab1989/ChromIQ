@@ -4973,3 +4973,59 @@ only a triple that DIFFERS from the rule's answer would stop it.
   the K2 message read off the panel, the K3 combinations (37 and 236 characters
   cut where the panel had said nothing and 128), and the K4 pair (331 mm needed
   against 288, and a line that fits saying nothing).
+
+### B8-106 · Selecting a scanner preset took eleven and a half seconds, and it was arithmetic
+- blocks release: no
+- status: FIXED
+- found by: Knut, 2026-09-13: *"all the scanner presets are very very slow to
+  load (probably due to the number of patches) and every single click of
+  change, like altering a margin number, takes a long time. I think this was
+  not a problem some time ago... The sluggishness does not happen to other
+  large charts, like the red river charts or other charts with more than 3000
+  patches."*
+- detail: he is right that it is not the patch count. Profiled, seeding one
+  built-in in a real tab:
+
+        Scanner A4-3430p     11,723 ms    17,794 calls to `strips()`
+        Red River A4-2052p      190 ms       369
+        CR30 A4-1350p           262 ms       369
+
+  The scanner family is the only one laid out `by_width` with no column count,
+  so `area_fit.derive_area_patch_size` tries every column count a 4 mm minimum
+  allows, about sixty-five of them, and each try binary-searches the patch width
+  over a real provisional geometry. Three things were wrong with that, and none
+  of them is the search:
+
+  1. **the same answer eight times for one click.** Selecting a preset refreshes
+     the command preview and the layout estimate several times over and each
+     refresh asks again. The function is pure in its kwargs, so the repeats are
+     free to remove. The key is the whole of the kwargs, and a kwargs dict that
+     will not serialise is simply not cached rather than guessed at;
+  2. **every column candidate started its own search on the same interval**, so
+     the probes repeated. One memo now spans the derivation;
+  3. **a fixed FORTY halvings**, which on a 300 mm interval resolves the patch
+     width to 3e-10 mm. One pixel at 1200 dpi is 0.021 mm. It stops at
+     `_FIT_RESOLUTION_MM` = 1e-4 mm instead, which is 0.005 px at 1200 dpi.
+
+  **No arithmetic changed.** Checked over all 147 recipe-carrying built-ins: the
+  derived `(patch_w, patch_h)` is IDENTICAL, and the sweep took 4.6 s instead of
+  9.6.
+
+  Measured after: the scanner preset seeds in **544 ms** against 11,723, the
+  Red River one in 27 ms against 190, the CR30 one in 32 ms against 262. Driven
+  on screen, all six scanner built-ins loaded and measured: **32 s against
+  2 m 35 s**, all six still "Margins: OK". The everyday tier itself went from
+  174 s to 119 s.
+- evidence: test_the_resolution_is_far_finer_than_the_pixel_it_becomes,
+  test_stopping_early_gives_the_same_answer_as_grinding_on,
+  test_the_answer_is_remembered_and_is_the_same_answer,
+  test_the_memory_cannot_hand_one_chart_another_chart_s_size,
+  test_a_recipe_the_key_cannot_describe_is_simply_not_cached,
+  test_the_search_does_not_grind_past_the_resolution,
+  test_the_slow_family_is_no_longer_slow.
+
+  Two mutations, each proved to land: deleting the memo fails the remembering
+  test, and deleting the early stop fails the geometry census (2,235 builds
+  against 4,309). The census exists because the wall-clock test was written
+  first and the mutation walked straight through it: forty halvings is 1.66 s
+  and the bound was 4 s.

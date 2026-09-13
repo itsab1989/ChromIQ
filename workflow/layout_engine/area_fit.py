@@ -19,6 +19,9 @@ import math
 from . import geometry, instruments, papers
 
 _MIN_PATCH_MM = 1.0       # floor so a too-dense grid can't go degenerate
+#: How finely `_fit_columns` resolves a patch width before it stops. See the
+#: note there: 0.005 px at 1200 dpi, and it changed no built-in's answer.
+_FIT_RESOLUTION_MM = 1e-4
 
 
 def _usable(geom, w_mm: float, h_mm: float) -> tuple[float, float]:
@@ -45,15 +48,29 @@ def _usable(geom, w_mm: float, h_mm: float) -> tuple[float, float]:
     return max(0.0, avail_w), max(0.0, arowl)
 
 
-def _fit_columns(base: dict, w_mm: float, h_mm: float, cols: int,
-                 max_pw: float) -> float | None:
-    """Largest patch width (mm) at which exactly *cols* strips still fit across
-    the page — so the strips span the usable width. Binary search over the real
-    geometry (pitch / cut-line / clip-border overhead make a closed form
-    instrument-specific)."""
+def _strips_memo(base: dict, w_mm: float, h_mm: float,
+                 memo: "dict | None" = None):
+    """``strips(pw)``: how many columns a chart with that patch width lays out.
+
+    **SHARED ACROSS THE COLUMN SEARCH, BECAUSE THE PROBES REPEAT.**
+    `derive_area_patch_size`'s by_width branch runs one 40-step binary search
+    per candidate column count, and every one of those searches starts on the
+    same interval, so they all probe the same first midpoints and `strips` is a
+    step function with only as many distinct answers as there are columns.
+    Measured on Knut's scanner A4-3430p preset, which is the chart he reported
+    as *"very very slow to load"*: 2,665 calls collapse to 138 distinct widths.
+
+    The memo is per derivation and is passed in, never module-level: `base`
+    carries the whole recipe and a stale entry would hand one chart another
+    chart's column count.
+    """
     def strips(pw: float) -> int:
         # Columns across the page = passes = patches_per_page / steps_in_pass
         # (strips_per_page is 1 for the single-strip instruments).
+        if memo is not None:
+            hit = memo.get(pw)
+            if hit is not None:
+                return hit
         try:
             # …under the area-first law, like every other geometry derived
             # from `base` — see `_as_area_first`. Without this the binary
@@ -62,15 +79,47 @@ def _fit_columns(base: dict, w_mm: float, h_mm: float, cols: int,
             g = _as_area_first(
                 instruments.geom_from_build_kwargs({**base, "patch_w": pw}))
             lay = geometry.compute(g, w_mm, h_mm, 100_000)
-            return (lay.patches_per_page // lay.steps_in_pass
-                    if lay.steps_in_pass else 0)
+            out = (lay.patches_per_page // lay.steps_in_pass
+                   if lay.steps_in_pass else 0)
         except geometry.LayoutError:
-            return 0
+            out = 0
+        if memo is not None:
+            memo[pw] = out
+        return out
+    return strips
+
+
+def _fit_columns(base: dict, w_mm: float, h_mm: float, cols: int,
+                 max_pw: float, memo: "dict | None" = None) -> float | None:
+    """Largest patch width (mm) at which exactly *cols* strips still fit across
+    the page — so the strips span the usable width. Binary search over the real
+    geometry (pitch / cut-line / clip-border overhead make a closed form
+    instrument-specific)."""
+    strips = _strips_memo(base, w_mm, h_mm, memo)
 
     if strips(_MIN_PATCH_MM) < cols:
         return None                       # can't fit that many even at the floor
+    # STOP AT A RESOLUTION, NOT AT A COUNT. This ran a fixed forty halvings,
+    # which on a 300 mm interval resolves the patch width to 3e-10 mm: nine
+    # orders of magnitude finer than the pixel it is about to be rounded to
+    # (0.021 mm at 1200 dpi), and every one of those halvings is a full
+    # provisional geometry plus a `geometry.compute`. Knut, 2026-09-13, on the
+    # scanner presets: *"very very slow to load ... every single click of
+    # change, like altering a margin number, takes a long time."* His scanner
+    # chart is the one family laid out `by_width` with no column count, so the
+    # caller runs one of these searches per candidate column count, about
+    # sixty-five of them.
+    #
+    # `_FIT_RESOLUTION_MM` is 1e-4, which is 0.005 px at 1200 dpi and 0.0008 at
+    # 200. Checked rather than argued: over all 147 recipe-carrying built-ins
+    # the derived `(patch_w, patch_h)` is IDENTICAL to what forty halvings gave,
+    # and the sweep took 4.6 s instead of 9.6.
+    #
+    # The count stays as a hard ceiling so a pathological interval cannot spin.
     lo, hi = _MIN_PATCH_MM, max(_MIN_PATCH_MM, max_pw)
     for _ in range(40):
+        if hi - lo <= _FIT_RESOLUTION_MM:
+            break
         mid = (lo + hi) / 2.0
         if strips(mid) >= cols:
             lo = mid                      # still fits → patches can grow
@@ -95,10 +144,70 @@ def _as_area_first(geom):
         return geom
 
 
+#: Answers already worked out, keyed by the build-kwargs that produced them.
+#:
+#: **ELEVEN AND A HALF SECONDS TO SELECT A PRESET, AND IT WAS THE SAME ANSWER
+#: EIGHT TIMES.** Knut, 2026-09-13: *"all the scanner presets are very very slow
+#: to load ... and every single click of change, like altering a margin number,
+#: takes a long time. I think this was not a problem some time ago. ... The
+#: sluggishness does not happen to other large charts, like the red river charts
+#: or other charts with more than 3000 patches."*
+#:
+#: He is right that it is not the patch count. Profiled, seeding one built-in:
+#:
+#:     Scanner A4-3430p       11,723 ms    17,794 calls to `strips()`
+#:     Red River A4-2052p        190 ms       369
+#:     CR30 A4-1350p             262 ms       369
+#:
+#: The scanner family is the only one laid out `by_width` with no column count,
+#: so :func:`derive_area_patch_size` has to try every column count that a 4 mm
+#: minimum allows, and each try is a 40-step binary search over a real
+#: provisional geometry: about 54 x 41 calls where a `by_grid` chart makes 41.
+#: That is the honest cost of the search. What was not honest is doing it EIGHT
+#: TIMES for one click, because selecting a preset refreshes the command preview
+#: and the layout estimate several times over and each refresh asks again.
+#:
+#: This function is pure in `kw`, so the repeats are free to remove. The
+#: arithmetic is untouched: the second and later callers get the answer the
+#: first one computed.
+_CACHE: "dict[str, tuple[float, float] | None]" = {}
+_CACHE_MAX = 64
+
+
+def _cache_key(kw: dict) -> "str | None":
+    """A stable key for *kw*, or None when it holds something unhashable.
+
+    Never guesses: a kwargs dict this cannot serialise is simply not cached,
+    so a new field can never be silently dropped from the identity and hand
+    back another chart's patch size.
+    """
+    import json
+    try:
+        return json.dumps(kw, sort_keys=True, default=None)
+    except (TypeError, ValueError):
+        return None
+
+
 def derive_area_patch_size(kw: dict) -> tuple[float, float] | None:
     """``(patch_w_mm, patch_h_mm)`` for an area-first recipe, or None when it
     doesn't apply (patch-first, or no target given). The caller sets these into
-    the build-kwargs and runs the normal patch-first pipeline."""
+    the build-kwargs and runs the normal patch-first pipeline.
+
+    Memoised on the whole of *kw*; see :data:`_CACHE`.
+    """
+    _key = _cache_key(kw)
+    if _key is not None and _key in _CACHE:
+        return _CACHE[_key]
+    _out = _derive_area_patch_size(kw)
+    if _key is not None:
+        if len(_CACHE) >= _CACHE_MAX:
+            _CACHE.clear()
+        _CACHE[_key] = _out
+    return _out
+
+
+def _derive_area_patch_size(kw: dict) -> tuple[float, float] | None:
+    """The real derivation. See :func:`derive_area_patch_size`."""
     if kw.get("layout_mode") != "area_first":
         return None
     cols = int(kw.get("area_cols") or 0)
@@ -216,16 +325,10 @@ def derive_area_patch_size(kw: dict) -> tuple[float, float] | None:
             h -= 0.01
         return h
 
-    def _cols_at(width: float) -> int:
-        # Columns a chart with this patch width would lay out across the page.
-        try:
-            g = _as_area_first(
-                instruments.geom_from_build_kwargs({**base, "patch_w": width}))
-            lay = geometry.compute(g, w_mm, h_mm, 100_000)
-            return (lay.patches_per_page // lay.steps_in_pass
-                    if lay.steps_in_pass else 0)
-        except geometry.LayoutError:
-            return 0
+    # ONE MEMO FOR THE WHOLE DERIVATION. See `_strips_memo`: every column
+    # candidate binary-searches the same interval, so the probes repeat.
+    _memo: dict = {}
+    _cols_at = _strips_memo(base, w_mm, h_mm, _memo)
 
     # Resolve a column target (pinned, or the most that fit at the minimum width)
     # and a row target (pinned, or the most that fit at the minimum height), then
@@ -247,7 +350,7 @@ def derive_area_patch_size(kw: dict) -> tuple[float, float] | None:
         # keeps the requested patch aspect.
         c = _cols_at(min_w)
         if c > 0:
-            pw = _fit_columns(base, w_mm, h_mm, c, max_pw=avail_w)
+            pw = _fit_columns(base, w_mm, h_mm, c, max_pw=avail_w, memo=_memo)
         h_min = (pw * ratio) if (pw is not None and ratio > 0) else (
             (min_w * ratio) if ratio > 0 else (pw or min_w))
         ph = max(_MIN_PATCH_MM, _rows_filling_fit(_max_rows_at(h_min)))
@@ -283,7 +386,8 @@ def derive_area_patch_size(kw: dict) -> tuple[float, float] | None:
             for cols in range(cmax, 0, -1):
                 if cols > target:                      # no empty trailing columns
                     continue
-                _pw = _fit_columns(base, w_mm, h_mm, cols, max_pw=avail_w)
+                _pw = _fit_columns(base, w_mm, h_mm, cols, max_pw=avail_w,
+                                   memo=_memo)
                 if not _pw:
                     continue
                 rows_need = max(1, math.ceil(target / cols))
@@ -313,12 +417,13 @@ def derive_area_patch_size(kw: dict) -> tuple[float, float] | None:
         if rows > 0:
             ph = max(_MIN_PATCH_MM, _rows_filling_fit(rows))
         if cols > 0:
-            pw = _fit_columns(base, w_mm, h_mm, cols, max_pw=avail_w)
+            pw = _fit_columns(base, w_mm, h_mm, cols, max_pw=avail_w,
+                              memo=_memo)
         if cols <= 0:                               # columns auto → fill the width
             target_w = (ph / ratio) if (ph is not None and ratio > 0) else default_w
             c = _cols_at(target_w)
             if c > 0:
-                pw = _fit_columns(base, w_mm, h_mm, c, max_pw=avail_w)
+                pw = _fit_columns(base, w_mm, h_mm, c, max_pw=avail_w, memo=_memo)
         if rows <= 0:                               # rows auto → fill the height
             target_h = (pw * ratio) if (pw is not None and ratio > 0) else default_h
             ph = max(_MIN_PATCH_MM, _rows_filling_fit(_max_rows_at(target_h)))
