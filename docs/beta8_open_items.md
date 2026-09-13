@@ -5547,3 +5547,81 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   sure only one 'bar' is used to separate the layout-name and other text-fields
   coming after."* The trailing bar is gone, and the test that pinned it now
   pins the opposite, on the joined line the reader actually sees.
+
+### B8-117 · Font sizes moved a whole point at a time, and one shrink moved a tenth
+- blocks release: no
+- status: FIXED
+- found by: Knut, 2026-09-13, after beta 11.
+- evidence:
+  test_the_step_is_half_a_point,
+  test_the_next_size_down_lands_on_the_grid,
+  test_it_is_always_strictly_smaller,
+  test_the_notes_shrink_walks_half_points,
+  test_the_shrink_never_goes_under_its_floor,
+  test_the_finer_shrinks_are_left_alone,
+  test_a_size_prints_its_decimal_only_when_it_has_one,
+  test_the_old_spec_rounded_a_half_away,
+  test_no_message_rounds_a_size_any_more,
+  test_no_catalogue_still_carries_the_old_spec.
+  Driven on screen with `scripts/drive_182_half_point_sizes.py`.
+- detail: *"All the places where font size is defined, the side pt number
+  should have one decimal and jump half a point at a time … The 1 pt resolution
+  is too course, so a 5,5 pt, of 7,5 pt might some times be needed."*
+
+  **THE FOUR SIZE-CHOOSING PATHS WERE MEASURED BEFORE ANY WERE CHANGED**,
+  because "make the shrink finer" is only right where it IS coarse. At 300 dpi
+  they could land on:
+
+  | path | before |
+  |---|---|
+  | bottom sheet text | 12, 11.76, 11.52, 11.28 … (one PIXEL, 0.24 pt) |
+  | clip text | computed straight to the fit, continuous |
+  | right-edge notes | **12, 10.8, 9.6, 8.64, 7.68, 6.96** |
+  | the Size boxes | whole points only |
+
+  So his example is `fit_rotated_line` and nothing else: a ten per cent
+  geometric step that never offers 9.5 and whose last step lands BELOW its own
+  7 pt floor. The two already finer than half a point are deliberately
+  untouched, and `test_the_finer_shrinks_are_left_alone` says so, because
+  coarsening them to a 0.5 grid would lose fit.
+
+  **THE SHRINK COUNTS IN POINTS NOW.** The first fix stepped in pixels and the
+  pixel rounding swallowed the grid: at 300 dpi it produced 12, 11.52, 11.28,
+  11.04 instead of 12, 11.5, 11.0, because half a point rounds onto a
+  neighbouring pixel and the pixel did the stepping.
+
+  **AND THE WARNINGS ROUNDED.** `{size:.0f}` rounds half to even, so a 9.5 pt
+  line was described as 10 pt and 8.5 as 8. `text_edge_fit.format_pt` prints
+  "9.5" and plain "13"; twelve messages take a finished string and all twelve
+  catalogues were migrated with their keys, 144 entries, nothing retyped.
+
+  Four boxes, one helper for three of them plus Preferences. No hand-widening:
+  `_fit_spin_widths` asks each box for its own longest string, now "72.0".
+
+### B8-118 · Two fields that could be present but empty
+- blocks release: no
+- status: FIXED
+- found by: Knut's follow-up on B8-116, 2026-09-13: *"Also make sure that the
+  empty space between two bars is not due to a missing parameter, or a setting
+  that is empty etc. If that would be the case, double bars would only be
+  replaced by one bar IF they are empty in between."*
+- evidence:
+  test_no_missing_field_ever_leaves_a_doubled_bar,
+  test_no_field_is_blank_before_it_is_joined,
+  test_a_blank_layout_name_is_not_a_layout_name,
+  test_a_padded_layout_name_is_trimmed,
+  test_every_joiner_drops_its_empty_pieces.
+  Mutation: restoring the trailing bar turns five red.
+- detail: the right question, because collapsing "|    |" into "|" would HIDE a
+  field that came out empty and the empty field would be the fault.
+
+  **IT WAS NOT A MISSING VALUE.** All five `_JOIN` sites filter first (`if s and
+  s.strip()`), the four columns of the left clip strip and the right-margin
+  stamp, so an absent field removes itself and takes its separator with it.
+  Driven over six ways a field can go missing: no doubled bar in any of them.
+
+  **HIS SHAPE DID EXIST FROM THE OTHER SIDE, TWICE.** A layout name that was
+  PRESENT but blank stamped the bare label "Chart layout" with nothing after
+  it; chart notes of nothing but spaces were appended and dropped again by the
+  stamper's filter, a safety net doing the design's job. Both are stripped at
+  the source. The second was found by the test written for the first.
