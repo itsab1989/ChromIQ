@@ -685,3 +685,20 @@ chart's own design in absolute Lab, that the paper's own tint is inside that
 measurement, and that a good print on a warm or tinted paper therefore reads
 higher than the profile deserves. That is Knut's own example, *"regarding the
 tint of a paper and profile combination"*.
+
+**CH-34. A report that was never saved is not a report that lost its verdict.**
+Two different absences, and until 2026-09-13 the window printed the second
+sentence for both. A column built live from a measurement with no report beside
+it is worked out now, against the run's current set, and says so; a report
+found on disk with no `verdict` block was saved by a ChromIQ that did not keep
+one, and says that instead. Knut, reading the wrong one of the two on a run's
+own profiling measurement: *"The statemend 'It was saved by a version of
+ChromIQ that did not yet keep the verdict together with the measurements' seems
+wrong."* It was. See B8-110.
+
+The distinction is not cosmetic. The first sentence tells a reader nothing is
+missing and offers the Preferences tick that would save one next time; the
+second tells them their file is old and their data was discarded. ChromIQ saves
+a report under a dated verification and not under the sheet a profile was built
+from, so the first case is the everyday one and it was the one being described
+as damage.

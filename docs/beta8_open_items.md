@@ -5145,3 +5145,139 @@ only a triple that DIFFERS from the rule's answer would stop it.
   Four mutations, each proved to land: narrowing the length check back to
   "text" only, deleting the empty-notes branch, deleting the refresh, and
   sending the floor sentence to a typed size.
+
+### B8-110 · The report window told a user their verdict had been lost, on a file that never had one
+
+Knut, 2026-09-13, on `Report-Limits-Custom-Columns` from the beta 8 demo pack:
+
+> The statemend "It was saved by a version of ChromIQ that did not yet keep the
+> verdict together with the measurements, so no PASS or FAIL of its own was
+> stored for it." seems wrong.
+
+It was. Reproduced on screen before anything was touched, in a real 1152x977
+window: the column read `recorded=False`, "Judged against: not recorded", and
+the sentence he quoted, on a measurement with **no saved report on disk at
+all**.
+
+**The sheet he opened is the run's own profiling chart**, not one of the pack's
+dated verifications. His column header gave it away: 2026-09-13, the day he
+unpacked the zip, where every verification in that project is dated 2027.
+ChromIQ saves a report under a dated verification folder, and the demo pack
+saved none beside the sheet a profile was built from, so `_load_runs` fell
+through to its last resort, which builds the report there and then.
+
+Of the three branches that can produce a column, only that one did not set
+`_fresh`. And `_recorded(r) is None and not r.get("_fresh")` is precisely the
+state the window reads as "an older ChromIQ saved this and stripped the
+verdict". Nothing had been saved, so nothing could have been lost.
+
+Both halves are pinned: a live-built column must be marked fresh, and a report
+that really was saved without a verdict block, which is what a pre-#182
+ChromIQ wrote, must still be named as one. A fix that silenced both would have
+been a second fault wearing the first one's clothes.
+
+`tests/test_a_report_never_saved_is_not_blamed_on_an_older_chromiq.py`, four
+tests. Mutation: remove the `_fresh = True` and three of them go red while the
+fourth, the old-report one, stays green.
+
+### B8-111 · The demo package shipped 25 measurements with no verdict beside any of them
+
+Knut, same comment:
+
+> Make sure all verdicts exist in the demo package.
+> Why is the verdict and measurements not kept as part of the demo data
+> created, so that it is a real test?
+
+`tab_measure._maybe_save_measurement_report` runs after EVERY measurement the
+app makes, the profiling read included, so a project built with "Save a
+measurement report after each measurement" ticked holds a report beside the
+sheet the profile was built from. The generator saved one only under each
+dated verification. Across six projects that is 25 runs with nothing beside
+their own measurement, which is what put him on B8-110's path in the first
+place.
+
+The profiling measurement is now dated seven days before its first
+verification, which is the order the two really happen in, and carries a
+stamped verdict against the run's own limit set. Undated, its column was
+headed with whatever day the package was unpacked.
+
+**AND THE CHECK IS ON THE ARTEFACT, NOT ON THE GENERATOR.** `verify_pack`
+gained `_verdicts_missing`, which walks the built pack (folder or `.zip`) and
+requires a saved report carrying the block `recorded_verdict` reads beside
+every measurement, skipping only the role-named intermediates that never go on
+paper. Run against the pack that shipped, it named all 25 gaps by path; against
+the rebuilt one it reports complete, folder and zip. A check that read the code
+that built the pack would be the baseline-against-itself fault this project has
+already paid for twice.
+
+### B8-112 · The layout stamp is a bottom line and nothing measured its width
+
+Knut, 2026-09-13, testing beta 8:
+
+> When using "Stamp layout information along the bottom" (and no custom text)
+> with font size 13 or 14 makes text that cross into the right clip-border
+> text, but no warning is given. This happens regardless of the clip-border is
+> on left of right side.
+
+The bottom of a sheet carries up to two lines: the custom "Sheet text" and the
+layout summary. `raster.render_pages` builds them as one list and shrinks the
+PAIR against the room between the two side bounds. The panel's HEIGHT check
+counts both and always did. Its WIDTH check asked `if r.chart_text:` and
+measured that string alone, so with the stamp on and the text box empty the
+check never ran, and with both on it under-measured whenever the stamp was the
+longer line.
+
+**A guard on one door and not the identical door beside it, thirty lines
+apart.**
+
+The stamp's text is predicted from `chart.stamp_summary_line`, lifted out of
+`build_chart` so the panel asks the shipped function rather than carrying a
+second copy of the f-string. Two of its values are not known while the panel is
+being typed into: the patch count, which `_estimate_patch_total` answers with
+the same question Generate asks, and the seed, drawn at build time and stood in
+for by the widest one `pick_seed` can return.
+
+Measured on screen, on the ColorMunki `A4-84p-1page-Portrait-w26.0mm` engine
+preset, clip border on each side:
+
+| Size | line | room | overflow | panel |
+|---|---|---|---|---|
+| 12 pt | 166.9 mm | 179 mm | none | quiet |
+| 13 pt | 182.1 mm | 179 mm | 3.13 mm | warns |
+| 14 pt | 197.3 mm | 179 mm | 18.32 mm | warns |
+
+His 13 and 14, his both-sides, and his 12 as the control. And the message names
+the tick rather than offering to shorten text nobody typed: *"The widest line
+down there is the layout summary, not text you typed. Switching “Stamp layout
+summary along the bottom” off removes it."*
+
+**THE DRIVER WAS WRONG FOUR TIMES BEFORE IT WAS RIGHT**, and each way of being
+wrong measured something other than the case: it never set a project name, so
+the preset asked for one and the blanket QMessageBox stub answered no; it
+waited for the `.ti2` and not the TIFFs, so the patch count was unknown and the
+stamp line was four characters short; it took the FIRST ColorMunki preset in
+the dropdown, which is a printtarg one, where `_engine_text_notes` returns at
+its first line and the panel is silent for a reason that has nothing to do with
+this fault; and it pushed the recipe with `set_recipe`, which is the app
+filling the panel and deliberately does not set off a keystroke's refresh, so
+the numbers said the message was there and the photograph showed the panel on
+the previous state.
+
+### B8-113 · A question with one OK button
+
+Knut, same comment:
+
+> for Clip-border content frame, if I choose Custom text example option in
+> Content input box, then a window appears saying "Replace the current
+> clip-border text with the example table?", but the window has only OK button,
+> so I am not given the choice to NOT replace the text.
+
+`warning_sign.ask` took its button set from `_boxed`, which it shares with
+`warn` and `inform`, and their default is a single OK. Worse than either
+outcome: the caller compares the answer against `Yes`, and OK is not Yes, so
+the only button on screen fell through to the branch that replaces the text.
+The user's record went whichever way they answered a question with one answer.
+
+Yes and No now, with **No as the default button**, so a stray Return keeps what
+was typed. Both halves are tested, because a fix to either alone leaves the
+fault reachable: `ask` must OFFER both, and the call site must ACT on No.

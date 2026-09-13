@@ -1782,3 +1782,69 @@ INFO, which is the rule that a run keeps its verdicts working as written.
 The pack's own description of that run said the grey rows "keep their numbers
 and are shown for information", which the ruling made false; it now says they
 are judged with a numbered note against them.
+
+## 2t. ⏳ Awaiting confirmation — 2026-09-13: the note marker is `1)`, and one question back about the profiling sheet
+
+Knut, 2026-09-13, 17:20:
+
+> The notes should also be numbered in the report, and the verdict line in a
+> table which applies to a note should snow a number as a reference to the note
+> that applies to it, f.ex. a note as a raised number, ex. "1)" "2)" or "a)"
+> "b)"
+
+Built. The first pass printed a bare superscript digit beside the verdict and a
+bold `1.` at the head of the list item, which is two notations for one
+cross-reference and neither of them the one he named.
+`measurement_report.note_label` is now the single formatter and both renderers
+ask it, so the marker and the list cannot come apart. Photographed on screen:
+the two grey rows read **PASS** with a raised **1)**, and the list under the
+table opens **1)** with the same number.
+
+> A test that asked `note_label` the same question the renderer does PASSED
+> under a mutation that put the notation back to a bare digit: both moved
+> together. The notation is a literal in the test now. That is the third time
+> this project has caught a check re-deriving the value it is checking.
+
+### The question back, which is his to answer
+
+The rest of his comment is about a column where every row reads INFO:
+
+> Why are most of them INFO, when the thresholds are set and can be tested.
+> Verdict should be given when report is calculated.
+> Make sure all verdicts exist in the demo package, and only those tests that
+> genuinly cannot be tested should state this in their notes.
+
+The missing verdicts in the package are B8-111 and are fixed. The INFO rows are
+a different thing, and they are **his own ruling**, recorded in §4 of
+`measurement_report_limits.md` as his 12b of 2026-09-09:
+
+> since the measurements are not a verification run and will most often not
+> fall within set accuracy threshold values. In this case the report output
+> must explain this.
+
+The sheet in his screenshot is the run's own **profiling** chart, printed raw
+by definition, and the document does carry the explanation his condition asks
+for, immediately under the table:
+
+> This sheet is not graded, so its numbers are shown for information only. It
+> was measured to build a profile rather than to check one, and a profiling
+> measurement is expected to fall outside the accuracy limits. That is normal
+> here, and it is not a fault.
+
+Read in the rendered document, not in the source. What he pasted was a
+fragment that stops before it.
+
+So the question is whether 12b still stands now that he has seen it in
+practice. His new sentence, *"only those tests that genuinely cannot be tested
+should state this in their notes"*, would grade the profiling sheet too: the
+numbers are all there, and what is withheld is a judgement about whether they
+mean anything, not a measurement nobody could make. That is exactly the
+argument he used this morning to overturn CH-17 for the grey rows, and the
+remedy he chose there was a verdict plus a numbered note.
+
+**Nothing has been changed either way.** Overturning 12b is his call and not
+ours, and the same is true of the second, quieter consequence: a profiling
+sheet's ΔE against the chart's design is the printer's own error before any
+profile exists, so on any ordinary limit set it would read FAIL on nearly every
+row, on nearly every printer, by design. A column of red that is expected to be
+red teaches a reader to ignore red.
