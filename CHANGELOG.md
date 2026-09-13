@@ -1,5 +1,37 @@
 # Changelog
 
+## v4.3.0-beta.12
+
+**Half a point at a time.** Whole points turned out to be a coarse grid for
+text that has to fit a measured space: sometimes 9 wastes room and 10 will not
+fit. Every Size box now steps by half a point and shows the decimal, the
+automatic shrink can settle on one, and the warnings say which half you are on.
+
+### Changed
+
+- **Every font Size box steps 0.5 pt and shows one decimal**, in Sheet text,
+  Clip-border content, Strip & row labels, and Preferences → Chart Layout.
+
+- **The right-edge note shrinks by half a point.** It stepped down in tenths of
+  its own size, which from 12 pt walked 12, 10.8, 9.6, 8.64 and never offered
+  9.5 at all, then finished a hair below its own floor. It walks the same half
+  points the box does now, so what it settles on is a size you could have
+  typed. The bottom sheet text and the clip text already chose more finely than
+  half a point and are untouched.
+
+- **Warnings print the half.** A size was rounded to a whole number on its way
+  into a message, so a 9.5 pt line was described as 10 pt and an 8.5 pt line as
+  8. Neither number was on the sheet.
+
+### Fixed
+
+- **A doubled separator in the stamp down the right edge**, on any chart built
+  from a patch set you already have. While checking that no missing value could
+  cause one, two fields that could be present but empty were closed off: a
+  blank layout name stamped a bare "Chart layout" label, and notes of nothing
+  but spaces were carried as a field.
+
+
 ## v4.3.0-beta.11
 
 **One line on the sheet, one separator too many.** A chart built from a patch
