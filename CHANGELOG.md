@@ -1,5 +1,79 @@
 # Changelog
 
+## v4.3.0-beta.6
+
+**Text on all four edges of the sheet, to a specification written from the
+outside.** A tester wrote out, edge by edge, where text should sit and what
+should move it, and this is that built and then attacked four times. The last
+of those rounds found that the central rule had never reached the paper at all.
+
+### Fixed
+
+- **The ruler helper markers were invisible to every text placement.** Text on
+  any edge now keeps clear of the dashes: it sits at whichever reaches further
+  in, your "Text distance from edge" for that side or the markers' own distance
+  plus their length plus a millimetre. That rule did not exist anywhere before.
+
+  **And for most of its first day it did not reach the paper.** The layout
+  geometry is built from a dictionary assembled by hand, and that dictionary
+  was missing all five marker settings, so every sheet was laid out with the
+  markers switched off while the same markers were drawn from a separate
+  argument. The panel showed the right numbers throughout; the sheet did not.
+  Measured on ColorMunki A4: the clip text sat 4.70 mm from the page edge with
+  917 of its pixels inside the dash band, and now sits at 7.62 with none.
+
+- **Raising "Clip" above a fifth of the clip-border width did nothing.** The
+  page-edge reserve was capped there, so on a 24 mm band every value above
+  4.8 mm moved the text not at all while paper sat visibly free. Reported from
+  a real chart. Measured after: 4.13, 5.15, 6.04, 8.20, 12.13 and 15.18 mm for
+  Clip at 4, 5, 6, 8, 10 and 15.
+
+- **The clip strip pasted opaque white over patches.** Its compositing mask was
+  worked out from a different distance than the strip itself, so on a narrow
+  band with the side markers on, 94,011 patch pixels were wiped to bare paper.
+  A patch that reads as paper is built into the profile as paper. With the row
+  indicators on it wiped row-number ink instead.
+
+- **A typed 0 in a text-distance box reached one piece of text as 0.** Every
+  box turns 0 into 4 mm, and the panel says so in black, but the chart note
+  read the box raw and printed 1.40 mm from the paper edge where everything
+  else sat at 4.83.
+
+- **"T" and "B" moved the chart note by nothing**, because one number drove all
+  three of its edges. At 20 mm the note sat 14.54 mm inside its own reserve.
+  With the markers on, a checkbox about the left and right dashes was the only
+  thing keeping the note off the top ones.
+
+- **The bottom line had no width check at all**, so a long line at a typed size
+  was cut off by the paper edge in silence. It is measured against the paper
+  less the reserves now.
+
+- **The bottom line never shrank** with its size on auto, and now does, down to
+  the same 7 pt floor as everywhere else.
+
+- **Several warnings named a distance the sheet does not use**, and one offered
+  to lower a control that cannot move the text while the markers bind. Every
+  notice now measures from the line the renderer actually uses.
+
+- Chart Notes and the stamped settings sit beside the clip-border text inside
+  the band, rather than always outside its whole width.
+
+- Both "Stamp ..." boxes say which edge they print on.
+
+### The demo packages
+
+- **The CR30 honeycomb pack is whole again.** The build before this dropped the
+  chart's own measurement, the second page and the three noisy reads for
+  averaging, which made it impossible to create recognition files or use the
+  pack in the scanner window. Everything is back, and the measurements are read
+  off real images rather than restated from the chart's aim values.
+
+- **The report-limit pack now shows a metric it cannot measure.** Across the
+  previous pack's saved reports, no metric was ever once shown unsupported, so
+  the one thing it was meant to demonstrate could not be seen. A larger chart
+  joins the set, and the generator refuses to write a pack that leaves a
+  computable row untested or never once unsupported.
+
 ## v4.3.0-beta.5
 
 **Knut's three nights of testing, and a user who could not import her
