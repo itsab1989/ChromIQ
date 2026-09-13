@@ -59,10 +59,12 @@ def _sheet(tmp_path: Path):
 
 def _edge_passed(creator, tiff, params, monkeypatch) -> float:
     seen: list[float] = []
+    # `**_` because the note now carries the reserves for its two ENDS as well
+    # as the side one, and this spy is only asked about the side.
     monkeypatch.setattr(
         tm, "stamp_chart_metadata",
         lambda tiffs, lines, edge=0.0, band=0.0, family="", size_pt=0.0,
-        reach=-1.0, gap=0.0:
+        reach=-1.0, gap=0.0, *a, **_:
             seen.append(float(edge)))
     creator._stamp_tiff_metadata([tiff], params)
     assert seen, "the stamper was never called"

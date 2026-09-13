@@ -1885,8 +1885,39 @@ class ChartCreator:
                         _gap = (_tef.CLIP_LINE_SPACING * _tef.pt_to_mm(
                             max(_tef.text_floor_pt(_clip_pt),
                                 _tef.text_floor_pt(_size_pt))))
+                # THE NOTE'S TWO ENDS RUN INTO THE TOP AND THE BOTTOM, so they
+                # take those edges' reserves and not the side one (#182,
+                # Knut, 2026-09-12: the reserve on each edge is that edge's
+                # "Text distance from edge" box or the ruler helper markers'
+                # own room, whichever goes furthest in). Measured before this,
+                # on screen: "T" and "B" moved the note by nothing at all, and
+                # with the markers on for "Top/bottom" only its ink landed
+                # inside both dash bands. `_stamp_one` carries the numbers.
+                #
+                # A path with no layout recipe has no boxes of its own, so it
+                # takes the DEFAULT of the setting, exactly as `_edge` does
+                # above, and it has no markers either.
+                from workflow import text_edge_fit as _tef_ends
+                _edge_t = _edge_b = self.default_text_edge_clip_mm()
+                if _rec is not None:
+                    _m_on = bool(getattr(_rec, "helper_markers", False))
+                    _m_e = float(getattr(_rec, "helper_marker_edge_mm", 0.0) or 0.0)
+                    _m_l = float(getattr(_rec, "helper_marker_len_mm", 0.0) or 0.0)
+                    _m_tb = bool(getattr(_rec, "helper_markers_top_bottom", True))
+                    _edge_t = _tef_ends.edge_reserve_mm(
+                        float(getattr(_rec, "text_edge_top_mm", 0.0) or 0.0),
+                        _m_on, _m_e, _m_l, _m_tb)
+                    # "B" IS `text_edge_mm` ON THE RECIPE. There is no
+                    # `text_edge_bottom_mm` field: the bottom sheet text's own
+                    # distance is the bottom edge's reserve, which is what
+                    # `instruments.geom_from_build_kwargs` copies into
+                    # `Geom.text_edge_bottom_mm` for the same reason.
+                    _edge_b = _tef_ends.edge_reserve_mm(
+                        float(getattr(_rec, "text_edge_mm", 0.0) or 0.0),
+                        _m_on, _m_e, _m_l, _m_tb)
                 stamp_chart_metadata(tiffs, cmd_lines, _edge, _band,
-                                     _font_family, _size_pt, _reach, _gap)
+                                     _font_family, _size_pt, _reach, _gap,
+                                     _edge_t, _edge_b)
         else:
             # ChromIQ-style: shift the patch block right by ~28 mm so the left
             # side becomes a fresh white strip ready for the left-clip stamp.

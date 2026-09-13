@@ -116,12 +116,21 @@ def stamp_chart_metadata(
     size_pt: float = 0.0,
     clip_reach_mm: float = -1.0,
     gap_mm: float = 0.0,
+    text_edge_top_mm: float = -1.0,
+    text_edge_bottom_mm: float = -1.0,
 ) -> None:
     """Stamp `lines` joined into a single rotated text line on each TIFF's right margin.
 
     *text_edge_mm* is the user's "Text distance from edge" setting. It was not
     passed at all, so the note started 0.5 mm from the paper edge whatever the
     box said. Zero keeps the old floor, which is what an unset value means.
+
+    **THE NOTE HAS THREE EDGES, NOT ONE, AND ALL THREE READ THE SIDE BOX.**
+    *text_edge_top_mm* and *text_edge_bottom_mm* are the reserves for the edges
+    the note's two ENDS approach: "T", "B", or the ruler helper markers' own
+    room on those edges, whichever goes furthest in. See :func:`_stamp_one`.
+    Negative means "not supplied", and *text_edge_mm* is then used for all
+    three, which is what every caller did before.
 
     *font_family* and *size_pt* are the **Sheet text frame's** Font and Size.
     Knut, 2026-09-11: *"The Sheet text frame Font and Size should be used for
@@ -143,7 +152,8 @@ def stamp_chart_metadata(
     for path in tiff_paths:
         try:
             _stamp_one(Path(path), text, text_edge_mm, clip_band_mm,
-                       font_family, size_pt, clip_reach_mm, gap_mm)
+                       font_family, size_pt, clip_reach_mm, gap_mm,
+                       text_edge_top_mm, text_edge_bottom_mm)
         except Exception as exc:
             log.warning("Right-edge stamp failed for %s: %s", path, exc)
 
@@ -316,7 +326,8 @@ def stamp_left_clip_info(
 def _stamp_one(path: Path, text: str, text_edge_mm: float = 0.0,
                clip_band_mm: float = 0.0, font_family: str = "",
                size_pt: float = 0.0, clip_reach_mm: float = -1.0,
-               gap_mm: float = 0.0) -> None:
+               gap_mm: float = 0.0, text_edge_top_mm: float = -1.0,
+               text_edge_bottom_mm: float = -1.0) -> None:
     with tifffile.TiffFile(str(path)) as tf:
         page = tf.pages[0]
         # Device-native (separated) CMYK / CMYK+N charts: skip the post-render
@@ -397,9 +408,46 @@ def _stamp_one(path: Path, text: str, text_edge_mm: float = 0.0,
     # measurement with a different meaning, and it is not a distance from an
     # edge, so the ruling does not reach it.
     _pad = int(round((text_edge_mm or 0.0) * _dpi / 25.4))
-    if 2 * _pad >= H:                       # a pathological setting on a tiny sheet
+    # THE TWO ENDS OF THE NOTE ARE NOT ON THE EDGE THE SIDE BOX IS ABOUT, AND
+    # THEY WERE MEASURED WITH IT ANYWAY. `_pad` is the reserve for the RIGHT
+    # page edge, which is the edge the line's thickness runs into; its two ENDS
+    # run into the TOP and the BOTTOM, whose reserves are "T", "B", and the
+    # ruler helper markers' room on THOSE edges. Taking the side figure for all
+    # three made the note the only text on the sheet whose vertical placement
+    # is decided by a box about the other axis, and it put the note's ink
+    # inside the top and bottom dash bands.
+    #
+    # Measured on screen at 200 dpi, an A4 ColorMunki sheet driven through the
+    # real panel, the note isolated against a control sheet with it switched
+    # off:
+    #
+    # * "T" and "B" moved it by NOTHING. At T = B = 4.0 and at T = B = 20.0 the
+    #   same 10,917 pixels of note ink ran from 5.46 mm to 5.08 mm of the two
+    #   ends, so at 20.0 the note crossed the reserve by 14.54 mm;
+    # * with the markers ON, "Top/bottom" on and "Sides" OFF, the reserve fell
+    #   back to "Clip" at 4.0 and the ink landed at 5.46 mm, INSIDE the 4.0 to
+    #   6.0 mm dash band, 9 pixels of it in the top comb and 41 in the bottom.
+    #   Turning "Sides" back on moved it to 8.00 mm, so a checkbox about the
+    #   left and right dashes was what kept the note off the top ones;
+    # * and on one A4 sheet at T 20 / B 4 with both marker sets on, the strip
+    #   letters kept 20.0 mm, the bottom line kept 7.0 mm, the clip band's
+    #   rectangle sat at 12.0 mm and the note kept 7.0 mm. Four elements, three
+    #   answers, one page.
+    #
+    # `text_edge_fit.edge_reserve_mm` is the one function that answers this for
+    # an edge, and the caller passes what it says. Negative means a caller that
+    # does not know, and then the old behaviour stands rather than a guess.
+    def _end_pad(v: float) -> int:
+        if v is None or float(v) < 0.0:
+            return _pad
+        return int(round(max(0.0, float(v)) * _dpi / 25.4))
+    _pad_t = _end_pad(text_edge_top_mm)
+    _pad_b = _end_pad(text_edge_bottom_mm)
+    if _pad_t + _pad_b >= H:                # a pathological setting on a tiny sheet
+        _pad_t = _pad_b = 0
+    if 2 * _pad >= H:
         _pad = 0
-    strip_h = H - 2 * _pad
+    strip_h = H - _pad_t - _pad_b
     if strip_h < 100:
         log.info("Right-edge stamp skipped (image too short) for %s", path)
         return
@@ -545,7 +593,7 @@ def _stamp_one(path: Path, text: str, text_edge_mm: float = 0.0,
             x0 = band_left
         if x0 + strip_w > band_right:
             x0 = band_right - strip_w
-    y0 = _pad
+    y0 = _pad_t
     # WRITE THE INK, NOT THE PAPER. This pasted an opaque white strip over the
     # whole band, AFTER the renderer had drawn the page, so every ruler dash the
     # band crossed was deleted. Measured against a control with the note off:
@@ -1149,7 +1197,9 @@ NOTE_STRIP_MAX_PX = 40
 
 def note_characters_lost(text: str, paper_h_mm: float, text_edge_mm: float,
                          avail_mm: float, dpi: float, size_pt: float = 0.0,
-                         font_family: str = "") -> int:
+                         font_family: str = "",
+                         text_edge_top_mm: float = -1.0,
+                         text_edge_bottom_mm: float = -1.0) -> int:
     """How many characters the chart note loses off the END of the sheet.
 
     0 when the whole note is printed, which is the ordinary case.
@@ -1168,6 +1218,11 @@ def note_characters_lost(text: str, paper_h_mm: float, text_edge_mm: float,
     The answer comes from the fitter itself rather than from a second copy of
     its rule, because the panel's job here is to predict what the stamper does
     and the two have drifted apart once already.
+
+    *text_edge_top_mm* / *text_edge_bottom_mm* are the reserves for the two
+    edges the line's ENDS run into, exactly as in :func:`_stamp_one`, and this
+    has to take the same pair or it measures a strip the stamper does not use.
+    Negative means "not supplied" and *text_edge_mm* stands for all three.
     """
     body = str(text or "")
     if not body:
@@ -1181,9 +1236,15 @@ def note_characters_lost(text: str, paper_h_mm: float, text_edge_mm: float,
     mm2px = d / 25.4
     pad = int(round(max(0.0, float(text_edge_mm or 0.0)) * mm2px))
     H = int(round(max(0.0, float(paper_h_mm or 0.0)) * mm2px))
-    if 2 * pad >= H:
-        pad = 0
-    strip_h = H - 2 * pad
+
+    def _end_pad(v: float) -> int:
+        if v is None or float(v) < 0.0:
+            return pad
+        return int(round(max(0.0, float(v)) * mm2px))
+    pad_t, pad_b = _end_pad(text_edge_top_mm), _end_pad(text_edge_bottom_mm)
+    if pad_t + pad_b >= H:
+        pad_t = pad_b = 0
+    strip_h = H - pad_t - pad_b
     if strip_h < 100:
         return 0
     floor_px = text_edge_fit.note_min_strip_px(d, size_pt)
