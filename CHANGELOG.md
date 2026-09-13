@@ -1,5 +1,18 @@
 # Changelog
 
+## v4.3.0-beta.11
+
+**One line on the sheet, one separator too many.** A chart built from a patch
+set you already have stamps the layout's name down the right edge, and it
+carried a separator of its own on top of the one between every pair of fields.
+
+### Fixed
+
+- **A doubled bar in the stamp down the right edge.** A chart built from a
+  loaded patch set stamped "Chart layout <name> |    |    ChromIQ layout
+  engine". One separator now, as with every other pair of fields on that line.
+
+
 ## v4.3.0-beta.10
 
 **One warning, and five things wrong in it.** A tester set a chart going with a
