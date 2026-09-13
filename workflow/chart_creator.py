@@ -1721,15 +1721,29 @@ class ChartCreator:
         """
         from core.version import APP_VERSION
         lines: list[str] = []
-        if params.chart_notes:
-            lines.append(params.chart_notes)
+        # STRIPPED, LIKE THE LAYOUT NAME BELOW. A notes box holding only spaces
+        # is not a note: it used to be appended and then dropped again by the
+        # stamper's own filter, which is a safety net doing the design's job.
+        # Knut, 2026-09-13: *"make sure that the empty space between two bars
+        # is not due to a missing parameter, or a setting that is empty."*
+        # Nothing should hand the joiner a field with nothing in it.
+        if (params.chart_notes or "").strip():
+            lines.append(params.chart_notes.strip())
         if params.stamp_commands:
             # Display-only shortening of long target names / -c profile paths /
             # -K calibration paths. The argv actually handed to ArgyllRunner
             # stays full-length; this only rewrites the string that gets
             # rendered onto the TIFF. " ".join (not shlex.join) so the "(…)"
             # marker doesn't trigger shell quoting in the rendered line.
-            if params.chart_layout_name:
+            # STRIPPED, so a name that is only whitespace is no name. Knut,
+            # 2026-09-13, on the doubled bar: *"Also make sure that the empty
+            # space between two bars is not due to a missing parameter, or a
+            # setting that is empty etc."* It was not, every `_JOIN` site drops
+            # empty pieces, but a blank-but-present name did stamp the bare
+            # label "Chart layout" with nothing after it. A field with no value
+            # is not a field: targen names the chart instead, as it does when
+            # there is no name at all.
+            if (params.chart_layout_name or "").strip():
                 # Built from an existing patch set — targen wasn't run, so name
                 # the chart layout instead of stamping a misleading targen line.
                 # NO TRAILING BAR OF ITS OWN. `tiff_metadata._JOIN` already
@@ -1740,7 +1754,7 @@ class ChartCreator:
                 # changed unasked, and approved: *"Yes, make sure only one
                 # 'bar' is used to separate the layout-name and other
                 # text-fields coming after."* (2026-09-13)
-                lines.append(f"Chart layout {params.chart_layout_name}")
+                lines.append(f"Chart layout {params.chart_layout_name.strip()}")
             else:
                 lines.append("targen " + " ".join(
                     _shorten_argv_for_stamp(
