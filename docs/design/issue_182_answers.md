@@ -1733,3 +1733,30 @@ not be INFO if the test can be performed."* That is a real choice with a real
 cost either way, and CH-17 lives in `measurement_report_limits.md`, which is a
 DRAFT with every section awaiting confirmation, so it is his call and it has
 been put to him. **Nothing about the rule was changed.**
+
+## 2s. Knut's ruling of 2026-09-13, 16:38: the grey rows ARE graded, and a numbered note carries the caveat
+
+He was asked, in §2r, which he would rather have on a sheet with no printing
+condition recorded: the grey numbers with no verdict, as CH-17 has it, or a
+verdict that includes the paper's own tint. His answer:
+
+> *"the grey metric tests is not about the printer, it is about verifying that
+> the profile created for a specific paper or process condition measures within
+> set acceptable thresholds. The verdicts should be given, but a note can be
+> given in a numbered list of notes, where a verdict is commented, for example
+> regarding the tint of a paper and profile combination."*
+
+**So CH-17 is overruled, and the shape of the replacement is his too.** The rows
+are graded like every other row. Where the grading carries a caveat, the caveat
+goes into a NUMBERED LIST OF NOTES beside the report, keyed to the verdict it
+comments on, rather than being expressed by withholding the verdict.
+
+That second half is a report feature that does not exist yet: there is no
+numbered note list, and no mechanism for a row's verdict to carry a note
+reference. It is a bigger change than deleting the CH-17 branch, and deleting
+that branch WITHOUT the notes would leave a grey verdict on a warm paper with
+nothing to explain it, which is the state he is trying to avoid.
+
+**Not built. Awaiting implementation**, and it needs the note list designed
+first. `measurement_report_limits.md` records CH-17 and must be updated in the
+same change, not before it.
