@@ -19,17 +19,23 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from core.proc_text import run_text          # noqa: E402
+
 STATE_DIR = ROOT / ".claude" / "issue-watermarks"
 
 
 def _gh(path: str) -> list:
-    out = subprocess.run(["gh", "api", path, "--paginate"],
-                         capture_output=True, text=True, timeout=120)
+    # UTF-8, named. GitHub serves JSON as UTF-8 and Knut writes Norwegian in
+    # it; `text=True` alone would let the platform choose the codec, which is
+    # US-ASCII under a POSIX locale. See `core/proc_text.py`.
+    out = run_text(["gh", "api", path, "--paginate"],
+                   capture_output=True, timeout=120)
     if out.returncode != 0:
         print(out.stderr.strip(), file=sys.stderr)
         raise SystemExit(2)
