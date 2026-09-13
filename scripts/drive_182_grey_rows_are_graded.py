@@ -163,7 +163,13 @@ def main() -> int:
                     from PyQt6.QtGui import QTextCursor
                     view = dlg._view
                     view.moveCursor(QTextCursor.MoveOperation.Start)
-                    for probe in ("Notes on the verdicts above",
+                    # THE MARKED ROW FIRST, THEN THE NOTE. Knut asked for the
+                    # marker AND the list, so a picture of the list alone
+                    # answers half of it: scrolled to the note heading, the
+                    # grey rows carrying the raised "1)" were above the
+                    # viewport in every shot.
+                    for probe in ("Grey balance of the grey ramp, average",
+                                  "Notes on the verdicts above",
                                   "Grey balance", "Report Results"):
                         if view.find(probe):
                             break
