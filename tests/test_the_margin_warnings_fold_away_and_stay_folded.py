@@ -193,3 +193,50 @@ def test_the_tab_remembers_the_fold_across_a_rebuild(qapp, tmp_path):
     assert not tab2._margin_panel.warnings_expanded(), (
         "a new tab did not restore the remembered fold")
     tab2.deleteLater()
+
+
+def test_only_a_LEFT_click_folds_the_paragraph(qapp):
+    """A right click is where a context menu lives, not where a section hides.
+
+    The handler is installed by assigning over the label's own
+    `mousePressEvent`, and Qt calls that for EVERY button. Measured on screen
+    in the real window, 2026-09-13 (challenge round 2,
+    `scripts/drive_182_c2_margin_fold.py --phase 4`): a right click on
+    "▼ 2 warnings" shut the paragraph and wrote `margin_warnings_expanded`
+    False, and a middle click did the same. Nothing else in this app hides a
+    section on a right click.
+
+    The events go through `QApplication.sendEvent`, so this exercises Qt's own
+    delivery into the installed handler rather than calling it directly.
+    """
+    from PyQt6.QtCore import QEvent, QPointF, Qt
+    from PyQt6.QtGui import QMouseEvent
+
+    def press(widget, button):
+        ev = QMouseEvent(QEvent.Type.MouseButtonPress,
+                         QPointF(4.0, 4.0), QPointF(4.0, 4.0), button, button,
+                         Qt.KeyboardModifier.NoModifier)
+        QApplication.sendEvent(widget, ev)
+
+    p = _panel()
+    _warn(p)
+    changes: list = []
+    p.warnings_expanded_changed.connect(changes.append)
+    assert p.warnings_expanded()
+
+    press(p._warn_toggle, Qt.MouseButton.RightButton)
+    assert p.warnings_expanded(), (
+        "a RIGHT click folded the warning paragraph away. `mousePressEvent` is "
+        "called for every button, so the handler has to check which one.")
+    press(p._warn_toggle, Qt.MouseButton.MiddleButton)
+    assert p.warnings_expanded(), "a MIDDLE click folded the paragraph away"
+    assert changes == [], (
+        "a non-left click emitted a change and would have been written to the "
+        f"settings: {changes}")
+
+    press(p._warn_toggle, Qt.MouseButton.LeftButton)
+    assert not p.warnings_expanded(), (
+        "a LEFT click no longer folds the paragraph, so the guard above has "
+        "gone too far and the header does nothing at all")
+    assert changes == [False]
+    p.deleteLater()
