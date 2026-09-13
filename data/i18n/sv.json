@@ -5437,5 +5437,6 @@
   "⤢ Dock back": "⤢ Docka tillbaka",
   "⤢ Pop out": "⤢ Lossa",
   "＋ Add another scan to average": "＋ Lägg till ännu ett skann att medelvärdesbilda",
-  "The widest line down there is the layout summary, not text you typed. Switching “Stamp layout summary along the bottom” off removes it.": "Den bredaste raden där nere är layoutsammanfattningen, inte text du har skrivit. Stänger du av ”Stämpla layoutsammanfattning längs nederkanten” försvinner den."
+  "The widest line down there is the layout summary, not text you typed. Switching “Stamp layout summary along the bottom” off removes it.": "Den bredaste raden där nere är layoutsammanfattningen, inte text du har skrivit. Stänger du av ”Stämpla layoutsammanfattning längs nederkanten” försvinner den.",
+  "This measurement is not in a project, so it has no saved report and no run of its own. Its words are worked out now against the limit set {label} chosen in this window.": "Den här mätningen hör inte till något projekt, så den har varken en sparad rapport eller en egen körning. Omdömena räknas ut nu mot gränsuppsättningen {label} som valts i det här fönstret."
 }

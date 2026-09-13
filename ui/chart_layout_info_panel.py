@@ -238,6 +238,20 @@ class ChartLayoutInfoPanel(QGroupBox):
                                        page_patches, fillup, row_pitch)
         self._render()
 
+    def predicted(self) -> "dict | None":
+        """The estimate this panel is showing, or None when it has none.
+
+        READ BY THE TEXT-WIDTH PREDICTION, which needs the patch count and the
+        page count the sheet will actually carry. With "Auto patch count"
+        ticked, which is how a fresh Manual panel opens, `_estimate_patch_total`
+        answers None because there is no fixed set and no `-f` value, and the
+        layout stamp was then predicted as "0 patches" while the sheet stamps
+        the real figure. On a 918-patch chart that is 4.6 mm of line, and about
+        7 on a 2,052-patch one, all of it invisible to the width check. This
+        panel has already computed the number for its own column.
+        """
+        return dict(self._estimate) if self._estimate else None
+
     def clear_estimate(self) -> None:
         self._forget_pitch_axis("estimate")
         self._estimate = None

@@ -5437,5 +5437,6 @@
   "⤢ Dock back": "⤢ 收回停靠",
   "⤢ Pop out": "⤢ 弹出",
   "＋ Add another scan to average": "＋ 添加另一次扫描以求平均",
-  "The widest line down there is the layout summary, not text you typed. Switching “Stamp layout summary along the bottom” off removes it.": "下方最宽的一行是布局摘要，而不是你输入的文字。取消勾选“在下边缘标注布局摘要”即可移除。"
+  "The widest line down there is the layout summary, not text you typed. Switching “Stamp layout summary along the bottom” off removes it.": "下方最宽的一行是布局摘要，而不是你输入的文字。取消勾选“在下边缘标注布局摘要”即可移除。",
+  "This measurement is not in a project, so it has no saved report and no run of its own. Its words are worked out now against the limit set {label} chosen in this window.": "此测量不属于任何项目，因此既没有已保存的报告，也没有自己的运行。它的判定现在按本窗口中选择的限值集 {label} 计算。"
 }

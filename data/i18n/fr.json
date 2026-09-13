@@ -5437,5 +5437,6 @@
   "⤢ Dock back": "⤢ Réintégrer",
   "⤢ Pop out": "⤢ Détacher",
   "＋ Add another scan to average": "＋ Ajouter une numérisation à moyenner",
-  "The widest line down there is the layout summary, not text you typed. Switching “Stamp layout summary along the bottom” off removes it.": "La ligne la plus large en bas est le résumé de mise en page, pas un texte que vous avez saisi. Décocher « Estamper le résumé de mise en page sur le bord inférieur » la supprime."
+  "The widest line down there is the layout summary, not text you typed. Switching “Stamp layout summary along the bottom” off removes it.": "La ligne la plus large en bas est le résumé de mise en page, pas un texte que vous avez saisi. Décocher « Estamper le résumé de mise en page sur le bord inférieur » la supprime.",
+  "This measurement is not in a project, so it has no saved report and no run of its own. Its words are worked out now against the limit set {label} chosen in this window.": "Cette mesure n'appartient à aucun projet, elle n'a donc ni rapport enregistré ni passage propre. Ses verdicts sont calculés maintenant avec le jeu de limites {label} choisi dans cette fenêtre."
 }

@@ -74,6 +74,47 @@ def test_an_explicit_button_set_is_still_honoured(qapp, monkeypatch):
     assert seen["buttons"] == want
 
 
+def test_the_real_ask_returns_no_when_no_is_clicked(qapp, monkeypatch):
+    """THE WHOLE CHAIN, WITH NOTHING STUBBED OUT IN THE MIDDLE.
+
+    An adversary round found that every test above and below stubs either
+    `_boxed` or `ask`, so nothing exercised
+    `ask` -> `_boxed` -> `standardButton(clickedButton())` -> `!= Yes`. It
+    proved the gap by mutating `_boxed` to return an int, which is the exact
+    trap `measurement_report_dialog.py` documents by name, and the whole suite
+    produced no semantic failure. The shipped code is right; nothing was
+    watching it.
+
+    Only `QMessageBox.exec` is replaced here, and only to click a button
+    instead of blocking, which is what a person does. Everything either side of
+    it is the real thing.
+    """
+    from PyQt6.QtWidgets import QMessageBox
+    from ui.warning_sign import ask
+    clicked: dict = {}
+
+    def _click(self):
+        # The button the DEFAULT is on, which is the one a stray Return hits.
+        btn = self.defaultButton() or self.button(QMessageBox.StandardButton.No)
+        clicked["text"] = btn.text() if btn is not None else None
+        self.setResult(0)
+        # Qt reports the clicked button through `clickedButton()`, which is
+        # only set by an actual click, so it is set the way a click sets it.
+        self._chromiq_clicked = btn
+        return 0
+
+    monkeypatch.setattr(QMessageBox, "exec", _click, raising=False)
+    monkeypatch.setattr(
+        QMessageBox, "clickedButton",
+        lambda self: getattr(self, "_chromiq_clicked", None), raising=False)
+    answer = ask(None, "Replace?", "Replace the text?")
+    assert answer == QMessageBox.StandardButton.No, (
+        f"the real chain answered {answer!r}, not No; the default button was "
+        f"{clicked.get('text')!r}")
+    assert answer != QMessageBox.StandardButton.Yes, (
+        "the caller tests for Yes, and this answer would pass that test")
+
+
 # ------------------------------------------------------- the one call site
 def _panel(qapp):
     from ui.dialogs.layout_options_panel import LayoutOptionsPanel

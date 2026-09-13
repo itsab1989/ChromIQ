@@ -396,6 +396,21 @@ _DEFAULT_TEXT_EDGE_CLIP_MM = 4.0
 ROW_LABEL_PITCH_FRAC = 0.85
 
 
+def resolve_placeholders(t: str, ctx: dict) -> str:
+    """`{project}` and friends filled in, unknown placeholders left literal.
+
+    MODULE LEVEL SO THE PANEL CAN ASK IT. This was a closure inside
+    `render_pages`, and the Create Chart panel therefore measured the raw
+    string while the sheet printed the resolved one, which is a difference of
+    up to 23 mm on a single token. `chart.text_placeholder_context` builds the
+    dict; this fills the text.
+    """
+    try:
+        return t.format(**ctx) if t else ""
+    except (KeyError, IndexError, ValueError):
+        return t                           # leave unknown placeholders literal
+
+
 def sheet_text_line_mm(size_mm: float, font_family: str = "",
                        bold: bool = False, italic: bool = False,
                        dpi: float = 300.0) -> float:
@@ -1521,11 +1536,7 @@ def render_pages(
         _band_bottom = _lbl_top + label_band_h + \
             ((ul_gap + ul_th) if underline_on else 0)
 
-    def _resolve_with(t: str, ctx: dict) -> str:
-        try:
-            return t.format(**ctx) if t else ""
-        except (KeyError, IndexError, ValueError):
-            return t                       # leave unknown placeholders literal
+    _resolve_with = resolve_placeholders
 
     images: list[Image.Image] = []
     page_geoms: list[list[tuple]] = []

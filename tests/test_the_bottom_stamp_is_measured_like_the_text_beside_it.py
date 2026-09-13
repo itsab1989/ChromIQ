@@ -80,17 +80,58 @@ def _recipe(**kw) -> LayoutRecipe:
 
 
 # --------------------------------------------------------------- the line
-def test_the_panel_and_the_build_word_the_stamp_the_same():
-    """ONE f-string. A re-implementation that drifts from the shipped function
-    is how a prediction comes to warn about a sheet nobody prints."""
-    from workflow.layout_engine.chart import (friendly_instrument,
-                                              stamp_summary_line)
-    from workflow.layout_engine import papers
-    line = stamp_summary_line("CM", "A4", 300, 918, 42)
-    assert line == (f"ChromIQ engine · {friendly_instrument('CM')} · "
-                    f"{papers.friendly_label('A4')} · 300 dpi · "
-                    f"918 patches · seed 42")
-    assert "ColorMunki" in line, "the instrument is printed by its key, not its name"
+def test_the_stamp_line_reads_exactly_as_it_always_did():
+    """The string, spelled out.
+
+    **NOT RE-DERIVED FROM `friendly_instrument` AND `papers.friendly_label`.**
+    Written that way it asked the implementation the same question the
+    implementation asks itself, so the instrument and paper halves validated
+    nothing: an adversary round named it. Every character is a literal here,
+    which is also what makes it a drift check against the f-string that lived
+    inside `build_chart` before it was lifted out.
+    """
+    from workflow.layout_engine.chart import stamp_summary_line
+    assert stamp_summary_line("CM", "A4", 300, 918, 42) == (
+        "ChromIQ engine \u00b7 ColorMunki \u00b7 A4 portrait \u00b7 300 dpi \u00b7 "
+        "918 patches \u00b7 seed 42")
+    assert stamp_summary_line("i1", "A3", 200, 1617, 0) == (
+        "ChromIQ engine \u00b7 i1Pro \u00b7 A3 portrait \u00b7 200 dpi \u00b7 "
+        "1617 patches \u00b7 seed 0")
+    # An instrument the table does not know prints its own key, unchanged.
+    assert stamp_summary_line("ZZ", "A4", 300, 1, 1).startswith(
+        "ChromIQ engine \u00b7 ZZ \u00b7 ")
+
+
+def test_the_build_stamps_that_exact_line_and_not_another():
+    """AND THE BUILD REALLY CALLS IT.
+
+    The test above pins the string; this pins that `build_chart` is where it
+    comes from. An adversary round proved the first version of this file never
+    reached `build_chart` at all: a plugin that mangled `stamp_text` on its way
+    into `render_pages` fired ZERO times across the whole file, so "one
+    f-string" was asserted about a function nobody had run.
+
+    Read off the syntax tree rather than the text, because a mention of the
+    name inside a comment or a docstring is not a call, and that is exactly how
+    a wiring test of this shape was defeated earlier the same day.
+    """
+    import ast
+    import inspect
+    import textwrap
+    from workflow.layout_engine import chart as le_chart
+
+    src = inspect.getsource(le_chart.build_chart)
+    tree = ast.parse(textwrap.dedent(src))
+    calls = [n for n in ast.walk(tree)
+             if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+             and n.func.id == "stamp_summary_line"]
+    assert len(calls) == 1, (
+        f"build_chart calls stamp_summary_line {len(calls)} times; a second "
+        f"copy of the stamp's wording is exactly what lifting it out prevents")
+    # …and no literal "ChromIQ engine" is left behind in the builder, which is
+    # what a re-implementation would look like.
+    assert "ChromIQ engine" not in src, (
+        "build_chart still spells the stamp out for itself")
 
 
 def test_the_bottom_lines_include_the_stamp(tab):
@@ -216,11 +257,13 @@ def test_the_remedy_names_the_tick_and_not_the_empty_text_box(tab):
         tab._manual_auto_patches_check.setChecked(False)
     if tab._manual_f_pw is not None:
         tab._manual_f_pw._control.setValue(_PATCHES)
-    assert tab._stamp_is_the_widest_bottom_line(_recipe()) is True
-    long_r = _recipe(chart_text="X" * 400)
-    assert tab._stamp_is_the_widest_bottom_line(long_r) is False
-    assert tab._stamp_is_the_widest_bottom_line(
-        _recipe(stamp_command=False, chart_text="X" * 400)) is False
+    # With no custom text at all, removing the stamp always fixes it.
+    assert tab._stamp_is_the_line_to_remove(_recipe(), 0.0) is True
+    # And with the stamp off there is nothing to offer. The room-aware half of
+    # this rule, which is what an adversary round found missing, lives in
+    # test_a_placeholder_is_measured_as_it_prints.
+    assert tab._stamp_is_the_line_to_remove(
+        _recipe(stamp_command=False, chart_text="X" * 400), 1000.0) is False
 
 
 def test_the_predicted_width_is_the_one_the_renderer_draws(tab):

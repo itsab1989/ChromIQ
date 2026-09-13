@@ -83,6 +83,7 @@ import argparse
 import json
 import math
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -2046,63 +2047,108 @@ def _verdicts_missing(path: Path) -> "list[str]":
 
     Checked on the ARTEFACT, not on the generator: the pack is what ships, and
     a check that reads the code that built it is the baseline-against-itself
-    fault this function's own docstring is about. A `.zip` is read from its
-    name list; a folder from disk.
+    fault this function's own docstring is about.
+
+    **ONE LIST OF MEASUREMENTS, WHATEVER THE PACK IS PACKED IN.** The first
+    version walked a folder and a `.zip` down two different code paths, and
+    they were not the same check: the folder branch skipped the role-named
+    intermediates and the zip branch skipped nothing, so any pack holding a
+    run that used measurement averaging passed as a folder and failed as a
+    zip. A `.ti3` at the root of a zip could not find a report at all, because
+    its "folder" came out as its own file name. Found by an adversary round
+    that built a synthetic pack rather than trusting the two to agree, and the
+    commit that claimed "complete, folder and zip" was only true because
+    today's generator happens to produce neither `reads/` nor `cal/`.
     """
-    import json
-    import zipfile
-    gaps: "list[str]" = []
-    if path.suffix.lower() == ".zip":
-        if not path.is_file():
-            return []
-        with zipfile.ZipFile(path) as zf:
-            names = [n for n in zf.namelist() if not n.endswith("/")]
-            for n in names:
-                if not n.endswith(".ti3"):
-                    continue
-                home = n.rsplit("/", 1)[0]
-                reps = [m for m in names
-                        if m.startswith(f"{home}/reports/report_")
-                        and m.endswith(".json")]
-                if not reps:
-                    gaps.append(f"no saved report beside {n}")
-                    continue
-                if not any(_has_verdict(zf.read(m)) for m in reps):
-                    gaps.append(f"no verdict in any report beside {n}")
-        return gaps
-    if not path.is_dir():
+    files = _pack_listing(path)
+    if files is None:
         return []
-    for ti3 in sorted(path.rglob("*.ti3")):
-        # Only a measurement a report can be built from: the role-named
-        # intermediates (reads/readN.ti3, preconditioning, merged) are inputs
-        # to a build, not sheets anybody judges.
-        if ti3.parent.name in ("reads", "cache", "old", "_work"):
+    reports = {n for n in files if _REPORT_RE.search(n)}
+    gaps: "list[str]" = []
+    for name in sorted(files):
+        if not name.endswith(".ti3") or _is_intermediate(name):
             continue
-        if ti3.stem in ("preconditioning", "merged"):
-            continue
-        reps = sorted((ti3.parent / "reports").glob("report_*.json")) \
-            if (ti3.parent / "reports").is_dir() else []
-        rel = ti3.relative_to(path)
-        if not reps:
-            gaps.append(f"no saved report beside {rel}")
-            continue
-        if not any(_has_verdict(r.read_bytes()) for r in reps):
-            gaps.append(f"no verdict in any report beside {rel}")
+        home = name.rsplit("/", 1)[0] if "/" in name else ""
+        want = f"{home}/reports/report_" if home else "reports/report_"
+        beside = [m for m in reports if m.startswith(want)]
+        if not beside:
+            gaps.append(f"no saved report beside {name}")
+        elif not any(_has_verdict(_pack_read(path, m)) for m in beside):
+            gaps.append(f"no verdict in any report beside {name}")
     return gaps
 
 
-def _has_verdict(raw: bytes) -> bool:
-    """Whether a saved report carries the block `recorded_verdict` reads.
+#: A saved report, by the name `save_report` gives it.
+_REPORT_RE = re.compile(r"(?:^|/)reports/report_[^/]*\.json$")
 
-    Asked of the same shape the window asks for, so "the pack has verdicts"
-    and "the window finds them" cannot come apart.
+#: Folders and stems that hold a measurement nobody judges: the reads that
+#: feed an average, a build's own inputs and outputs, the tool scratch, and
+#: the archive of superseded reports. `cal/` is NOT here: a calibration
+#: measurement is a measurement, and if a pack ever ships one it should carry
+#: its verdict like the rest.
+_NOT_A_JUDGED_SHEET = ("reads", "cache", "old", "_work")
+_NOT_A_JUDGED_STEM = ("preconditioning", "merged")
+
+
+def _is_intermediate(name: str) -> bool:
+    parts = name.split("/")
+    stem = parts[-1].rsplit(".", 1)[0]
+    return (any(d in _NOT_A_JUDGED_SHEET for d in parts[:-1])
+            or stem in _NOT_A_JUDGED_STEM)
+
+
+def _pack_listing(path: Path) -> "list[str] | None":
+    """Every file in the pack, as "/"-joined paths relative to its root.
+
+    One listing for a folder and for a `.zip`, so the two cannot become two
+    different checks again. A zip's own top-level folder is stripped, so the
+    names line up with the folder form.
+    """
+    import zipfile
+    if path.suffix.lower() == ".zip":
+        if not path.is_file():
+            return None
+        with zipfile.ZipFile(path) as zf:
+            names = [n for n in zf.namelist() if not n.endswith("/")]
+        roots = {n.split("/")[0] for n in names if "/" in n}
+        if len(roots) == 1:
+            cut = len(next(iter(roots))) + 1
+            names = [n[cut:] for n in names if n.startswith(next(iter(roots)) + "/")]
+        return names
+    if not path.is_dir():
+        return None
+    return [str(f.relative_to(path)).replace(os.sep, "/")
+            for f in path.rglob("*") if f.is_file()]
+
+
+def _pack_read(path: Path, name: str) -> bytes:
+    """One file out of the pack, by the name `_pack_listing` gave it."""
+    import zipfile
+    if path.suffix.lower() == ".zip":
+        with zipfile.ZipFile(path) as zf:
+            roots = {n.split("/")[0] for n in zf.namelist() if "/" in n}
+            prefix = f"{next(iter(roots))}/" if len(roots) == 1 else ""
+            return zf.read(prefix + name)
+    return (path / name).read_bytes()
+
+
+def _has_verdict(raw: bytes) -> bool:
+    """Whether a saved report carries a verdict with rows in it.
+
+    Asked of the same function the window asks, so "the pack has verdicts" and
+    "the window finds them" cannot come apart. **AND THE ROWS MUST NOT BE
+    EMPTY**: `recorded_verdict` requires only that `rows` is a list, so a
+    report holding `{"verdict": {"rows": []}}` satisfied it and a pack whose
+    every verdict was hollow was reported complete. Found by an adversary round
+    feeding exactly that.
     """
     import json
     from workflow.measurement_report import recorded_verdict
     try:
-        return recorded_verdict(json.loads(raw.decode("utf-8"))) is not None
+        rec = recorded_verdict(json.loads(raw.decode("utf-8")))
     except Exception:                                          # noqa: BLE001
         return False
+    return bool(rec and rec.get("rows"))
 
 
 def main(argv=None) -> int:
@@ -3459,7 +3505,10 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("here instead of in the tables above:")
     a("")
     a("  the run's own profiling measurement, which is never graded: open the")
-    a("      .ti3 sitting directly in any runs/runN/ folder")
+    a("      .ti3 sitting directly in any runs/runN/ folder. It carries a")
+    a("      SAVED report of its own, like every other measurement in here,")
+    a("      so its column shows the verdict it was given rather than one")
+    a("      worked out when you open it")
     a("  a sheet printed raw and read as a drift check, whose column says")
     a("      'drift' and carries no verdict at all: Border-Conditions, run3")
     a("")

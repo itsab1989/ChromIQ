@@ -5437,5 +5437,6 @@
   "⤢ Dock back": "⤢ Terugkoppelen",
   "⤢ Pop out": "⤢ Losmaken",
   "＋ Add another scan to average": "＋ Nog een scan om te middelen toevoegen",
-  "The widest line down there is the layout summary, not text you typed. Switching “Stamp layout summary along the bottom” off removes it.": "De breedste regel onderaan is de indelingssamenvatting, geen tekst die je hebt getypt. Zet „Indelingssamenvatting langs de onderrand stempelen” uit om hem te verwijderen."
+  "The widest line down there is the layout summary, not text you typed. Switching “Stamp layout summary along the bottom” off removes it.": "De breedste regel onderaan is de indelingssamenvatting, geen tekst die je hebt getypt. Zet „Indelingssamenvatting langs de onderrand stempelen” uit om hem te verwijderen.",
+  "This measurement is not in a project, so it has no saved report and no run of its own. Its words are worked out now against the limit set {label} chosen in this window.": "Deze meting hoort bij geen enkel project, dus er is geen opgeslagen rapport en geen eigen run. De uitspraken worden nu bepaald tegen de limietenset {label} die in dit venster is gekozen."
 }

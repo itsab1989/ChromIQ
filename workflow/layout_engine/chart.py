@@ -103,6 +103,42 @@ def friendly_instrument(instrument: str) -> str:
     return _INSTR_FRIENDLY.get(instrument, instrument)
 
 
+def text_placeholder_context(*, project: str = "", rundescription: str = "",
+                             instrument: str = "", paper: str = "",
+                             dpi: int = 300, patches: int = 0, pages: int = 1,
+                             seed: int = 0, chart_date: str = "") -> dict:
+    """The values `{project}`, `{paper}`, `{seed}` and the rest resolve to.
+
+    LIFTED OUT OF `build_chart` FOR THE SAME REASON `stamp_summary_line` WAS.
+    The Create Chart panel warns about a line that is too long, and it measured
+    the string with the braces still in it while the sheet prints the resolved
+    one. On Knut's own example line, `{project}-{rundescription}-{page}-{paper}-
+    {date}-{pages}-{patchcount}-{dpi}-{seed}` at 12 pt, the panel measured
+    172.3 mm and the sheet prints 184.8: it is two characters longer and
+    12.6 mm wider, because digits and capitals are wider than braces and
+    lowercase. The error goes both ways, `{seed}` alone is 23.3 mm wider
+    resolved and a long chain of token names is 11.3 mm narrower, so the panel
+    could equally miss a real overflow or warn about a sheet that comes out
+    clean.
+
+    `{page}` is NOT here. It needs the page index and `render_pages` adds it
+    per page, which is the one placeholder a prediction cannot know; the panel
+    supplies its own first-page stand-in.
+    """
+    import time as _time
+    return {
+        "project": project,
+        "rundescription": rundescription,
+        "instrument": friendly_instrument(instrument),
+        "paper": papers.friendly_label(paper) if paper else "",
+        "dpi": f"{dpi} dpi",
+        "patchcount": f"{patches} patches",
+        "pages": str(pages),
+        "date": chart_date or _time.strftime("%Y-%m-%d"),
+        "seed": f"seed {seed}",
+    }
+
+
 def stamp_summary_line(instrument: str, paper: str, dpi: int, patches: int,
                        seed: int) -> str:
     """The one line "Stamp layout summary along the bottom" prints.
@@ -357,21 +393,14 @@ def build_chart(
         with open(ti2_path, "a", encoding="utf-8") as fh:
             fh.write("\n" + calibration.cal_table_text(cal))
 
-    import time as _time
     # Human-friendly placeholder values for {project}/{instrument}/{paper}/… in
     # chart text, clip text and the stamp. {page} is resolved per page inside
     # render_pages (it needs the page index), so it's not in this dict. (#93)
-    _ctx = {
-        "project": project or Path(out_base).name,
-        "rundescription": rundescription,
-        "instrument": friendly_instrument(instrument),
-        "paper": papers.friendly_label(paper),          # "A4 landscape"
-        "dpi": f"{dpi} dpi",
-        "patchcount": f"{layout.total_patches} patches",
-        "pages": str(layout.pages),                     # total; {page} = "page X/Y"
-        "date": chart_date or _time.strftime("%Y-%m-%d"),
-        "seed": f"seed {seed}",
-    }
+    _ctx = text_placeholder_context(
+        project=project or Path(out_base).name,
+        rundescription=rundescription, instrument=instrument, paper=paper,
+        dpi=dpi, patches=layout.total_patches, pages=layout.pages, seed=seed,
+        chart_date=chart_date)
     stamp_text = (stamp_summary_line(instrument, paper, dpi,
                                      layout.total_patches, seed)
                   if stamp_command else "")

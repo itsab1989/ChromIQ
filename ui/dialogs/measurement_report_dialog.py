@@ -2889,7 +2889,7 @@ class MeasurementReportDialog(QDialog):
                            ungraded_reason=(SUMMARY_REASONS["record_type"]
                                             if _by_type and graded else ""))
 
-    def _judged_label_for(self, r: dict) -> str:
+    def _judged_label_for(self, r: dict, *, mark_unsaved: bool = True) -> str:
         """What a column was judged against, for the grid and the provenance."""
         from workflow.measurement_report import (recorded_compliance,
                                                  recorded_thresholds)
@@ -2910,14 +2910,33 @@ class MeasurementReportDialog(QDialog):
                 avg=f"{thr[0]:.1f}", max=f"{thr[1]:.1f}")
         lim = self._limits_for(r)
         label = lim.set_label + (" " + tr("(edited)") if lim.edited else "")
-        if r.get("_fresh"):
+        # "(not saved)" IS A CELL MARKER, NOT PART OF THE SET'S NAME. In the
+        # Report Results table it qualifies the column; interpolated into a
+        # sentence whose subject is the limit set it says the wrong thing
+        # entirely, and an adversary round read it back off the screen Knut had
+        # been looking at: *"worked out now against this run's limit set
+        # ChromIQ default (recommended) (not saved)"*. Marking a live column
+        # `_fresh` is what made that branch reachable for a profiling sheet, so
+        # the double negative is new the same day as the fix that caused it.
+        if r.get("_fresh") and mark_unsaved:
             return label + " " + tr("(not saved)")
         return label
+
+    def _is_in_a_run(self, r: dict) -> bool:
+        """Whether this measurement belongs to a ChromIQ run at all."""
+        from workflow.run_compliance import run_context_for
+        origin, ti3 = r.get("_origin_dir"), r.get("ti3")
+        if not (origin and ti3):
+            return False
+        try:
+            return run_context_for(Path(origin) / str(ti3)) is not None
+        except Exception:      # noqa: BLE001 — a sentence is never a blocker
+            return False
 
     def _verdict_provenance(self, r: dict, recorded: bool) -> str:
         """The sentence under one run's accuracy table saying where its words
         came from: the saved record, or this run's limit set, now."""
-        label = self._judged_label_for(r)
+        label = self._judged_label_for(r, mark_unsaved=False)
         if recorded:
             return tr(
                 "This verdict was recorded when the report was saved, against "
@@ -2926,6 +2945,16 @@ class MeasurementReportDialog(QDialog):
                 "change it. Only unlocking the run's limits recalculates it."
             ).format(label=label)
         if r.get("_fresh"):
+            # A MEASUREMENT IN NO RUN HAS NO "THIS RUN". An i1Profiler export or
+            # a bare file opened from Downloads is judged against the window's
+            # set, and the same adversary round found it being told about "this
+            # run's limit set" for a file that belongs to no run at all.
+            if not self._is_in_a_run(r):
+                return tr(
+                    "This measurement is not in a project, so it has no saved "
+                    "report and no run of its own. Its words are worked out now "
+                    "against the limit set {label} chosen in this window."
+                ).format(label=label)
             return tr(
                 "This date has no saved report of its own, so its words are "
                 "worked out now against this run's limit set {label}. A report "

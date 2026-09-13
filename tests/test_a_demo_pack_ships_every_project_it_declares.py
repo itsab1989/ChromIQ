@@ -115,3 +115,113 @@ def test_the_project_list_is_what_decides(tmp_path):
     import inspect
     src = inspect.getsource(_gen().verify_pack)
     assert "PROJECTS" in src, "the verifier has its own idea of what a pack holds"
+
+
+# ---------------------------------------------------------------------------
+# …AND EVERY MEASUREMENT IN IT CARRIES ITS VERDICT
+#
+# Knut, same comment: *"Make sure all verdicts exist in the demo package"* and
+# *"Why is the verdict and measurements not kept as part of the demo data
+# created, so that it is a real test?"*. The pack saved a report under each
+# dated verification and none beside the sheet a profile was built from, so
+# opening a run's own measurement reached the report window's last-resort
+# branch and the page told the reader the verdict had been lost.
+#
+# The two tests below are an adversary round's reproductions, kept because both
+# passed a pack that was broken.
+# ---------------------------------------------------------------------------
+import json                                                    # noqa: E402
+
+
+_MADE = [0]
+
+
+def _run_with(tmp_path: Path, verdict, *, extra=()) -> Path:
+    """A pack-shaped folder with one project, one run, one measurement and one
+    saved report carrying *verdict*. *extra* names further files to drop in.
+
+    Each call gets its OWN folder: two calls in one test shared `tmp_path/pack`
+    and the second raised FileExistsError, which is a fixture bug pretending to
+    be a finding.
+    """
+    _MADE[0] += 1
+    root = tmp_path / f"pack{_MADE[0]}"
+    run = root / "Proj" / "runs" / "run1"
+    (run / "reports").mkdir(parents=True)
+    (run / "Proj.ti3").write_text("x", encoding="utf-8")
+    (run / "reports" / "report_2026-01-01_00-00-00.json").write_text(
+        json.dumps({"verdict": verdict} if verdict is not None else {}),
+        encoding="utf-8")
+    for rel in extra:
+        f = root / rel
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text("x", encoding="utf-8")
+    return root
+
+
+def _zip_of(folder: Path) -> Path:
+    z = folder.parent / f"{folder.name}.zip"
+    with zipfile.ZipFile(z, "w") as zf:
+        for f in folder.rglob("*"):
+            if f.is_file():
+                zf.write(f, str(Path(folder.name) / f.relative_to(folder)))
+    return z
+
+
+_ROWS = [{"row_id": "all_de00_avg", "word": "PASS"}]
+
+
+def test_a_pack_with_no_verdict_beside_a_measurement_is_incomplete(tmp_path):
+    """The fault Knut hit: a measurement with no saved report at all."""
+    g = _gen()
+    root = tmp_path / "pack"
+    run = root / "Proj" / "runs" / "run1"
+    run.mkdir(parents=True)
+    (run / "Proj.ti3").write_text("x", encoding="utf-8")
+    gaps = g._verdicts_missing(root)
+    assert gaps and "Proj/runs/run1/Proj.ti3" in gaps[0], gaps
+
+
+def test_a_verdict_with_no_rows_in_it_does_not_count(tmp_path):
+    """ADVERSARY REPRODUCTION. `recorded_verdict` requires only that `rows` is
+    a list, so `{"verdict": {"rows": []}}` satisfied it and a pack whose every
+    verdict was hollow was reported complete."""
+    g = _gen()
+    assert g._verdicts_missing(_run_with(tmp_path, {"rows": []})), (
+        "an empty verdict block counts as a verdict")
+    assert g._verdicts_missing(_run_with(tmp_path, {"rows": _ROWS})) == []
+
+
+def test_the_zip_and_the_folder_are_the_same_check(tmp_path):
+    """ADVERSARY REPRODUCTION. The folder branch skipped the role-named
+    intermediates and the zip branch skipped nothing, so any pack holding a run
+    that used measurement averaging passed as a folder and failed as a zip."""
+    g = _gen()
+    folder = _run_with(tmp_path, {"rows": _ROWS},
+                       extra=("Proj/runs/run1/reads/read1.ti3",
+                              "Proj/runs/run1/cache/scratch.ti3",
+                              "Proj/runs/run1/merged.ti3"))
+    assert g._verdicts_missing(folder) == [], "the intermediates are judged"
+    assert g._verdicts_missing(_zip_of(folder)) == g._verdicts_missing(folder)
+
+
+def test_the_zip_and_the_folder_agree_when_something_really_is_missing(tmp_path):
+    """The control: if both branches were simply returning [] the test above
+    would pass with the check deleted."""
+    g = _gen()
+    folder = _run_with(tmp_path, None)          # a report with no verdict key
+    gaps = g._verdicts_missing(folder)
+    assert gaps, "a report with no verdict block was accepted"
+    assert g._verdicts_missing(_zip_of(folder)) == gaps
+
+
+def test_a_calibration_measurement_is_judged_like_any_other(tmp_path):
+    """`cal/` is deliberately NOT on the skip list. A calibration measurement
+    is a measurement, and a pack that ships one should carry its verdict."""
+    g = _gen()
+    root = _run_with(tmp_path, {"rows": _ROWS})
+    cal = root / "Proj" / "cal"
+    cal.mkdir(parents=True)
+    (cal / "Proj-cal.ti3").write_text("x", encoding="utf-8")
+    assert any("cal" in g_ for g_ in g._verdicts_missing(root)), (
+        "a calibration measurement with no verdict passed unnoticed")

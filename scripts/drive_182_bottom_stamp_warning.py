@@ -14,8 +14,16 @@ recording for every combination:
 
 * the panel's red message field, verbatim;
 * the predicted width of the widest bottom line and the room it has;
-* whether `text_edge_fit` says the line overflows, asked independently, so a
-  warning and a real overflow can be told apart rather than assumed to agree.
+* **where the ink actually lands**, by rendering the sheet twice, with the
+  bottom text on and off, and differencing the two rasters.
+
+**THE INK, NOT THE PREDICTION.** The first version of this driver fed
+`tab._sheet_text_width_mm(r)` into `text_edge_fit.bottom_text_overflow` and
+called that an independent check. It is not independent: it is the panel's own
+prediction asked a second time, so the two could only ever agree, and the run
+reported the case clean while an adversary round found the panel warning about
+a sheet with 10.61 mm to spare. A prediction can only be checked against a
+rendered page.
 
 It photographs the window on the combinations that overflow.
 
@@ -53,6 +61,62 @@ from onscreen_capture import capture_window, session_is_locked   # noqa: E402
 #: here as the control: a warning at every size would prove nothing.
 SIZES_PT = (12, 13, 14)
 SIDES = ("left", "right")
+
+
+def stamp_ink_mm(recipe, ti1: Path, tag: str) -> "dict | None":
+    """Where the bottom text's ink really lands, in millimetres from the left.
+
+    **TWO RENDERS WITH THE GEOMETRY PINNED, AND THE TEXT'S OWN BAND.** Two
+    earlier probes were wrong, each in a way that produced confident numbers:
+
+    * differencing a stamp-ON render against a stamp-OFF one moves the whole
+      chart. `nlines` going from 1 to 0 takes the bottom reserve with it, so
+      `area_fit` re-sizes the patches and every one of them lands in the
+      difference. It reported the "text" starting at 15.49 mm at every size,
+      which no centred line does;
+    * measuring one render and cropping the clip border's columns away hides
+      the answer, because running INTO those columns is the whole fault. The
+      figure saturated at the crop edge, 186.06 mm, at two different sizes.
+
+    So the off-render keeps `chart_text` at a single SPACE. That is truthy, so
+    `nlines` stays 1 and the reserve, the patch sizes and the whole layout are
+    identical; a space draws nothing. The difference is then the line's own ink
+    and nothing else, anywhere on the page, border columns included.
+    """
+    import tempfile
+    from dataclasses import replace
+
+    import numpy as np
+    from PIL import Image
+
+    from workflow.layout_engine.chart import build_from_recipe
+
+    def _render(r, suffix):
+        base = Path(tempfile.mkdtemp(prefix=f"stampink-{tag}-{suffix}-"))
+        res, used = build_from_recipe(str(ti1), str(base / "s"), r)
+        page = sorted(base.glob("s*.tif"))[0]
+        return np.asarray(Image.open(page).convert("L")).astype(np.int16), res, used
+
+    on, res, used = _render(
+        replace(recipe, stamp_command=True, chart_text=""), "on")
+    off, _r2, _u2 = _render(
+        replace(recipe, stamp_command=False, chart_text=" "), "off")
+    if on.shape != off.shape:
+        return None                    # the geometry moved after all: say so
+    diff = np.abs(on - off) > 30
+    cols = np.where(diff.any(axis=0))[0]
+    rows = np.where(diff.any(axis=1))[0]
+    if cols.size == 0:
+        return None
+    dpi = float(getattr(recipe, "dpi", 300) or 300)
+    mm = lambda px: round(float(px) * 25.4 / dpi, 2)            # noqa: E731
+    return {"ink_left_mm": mm(int(cols[0])),
+            "ink_right_mm": mm(int(cols[-1]) + 1),
+            "ink_width_mm": mm(int(cols[-1]) + 1 - int(cols[0])),
+            "ink_top_mm": mm(int(rows[0])),
+            "ink_bottom_mm": mm(int(rows[-1]) + 1),
+            "paper_w_mm": mm(on.shape[1]),
+            "patches": res.layout.total_patches, "seed": used.seed}
 
 
 def pump(app, ms: int = 300) -> None:
@@ -150,6 +214,21 @@ def main() -> int:
     assert pick, ("no ColorMunki preset in the dropdown uses the layout "
                   "engine, so this case cannot be driven from one")
     print(f"    preset: {pick[0]}", flush=True)
+    # THE .ti1 THE SHEET IS BUILT FROM, so the render below lays out the same
+    # patches the panel is predicting for. Whichever slot the preset armed.
+    ti1_path = None
+    for _attr in ("_preset_ti1_path", "_builtin_ti1_path"):
+        _v = getattr(tab, _attr, None)
+        if _v and Path(_v).is_file():
+            ti1_path = Path(_v)
+            break
+    if ti1_path is None:
+        _ti2 = getattr(tab, "_margin_ti2", None)
+        _cand = Path(str(_ti2)).with_suffix(".ti1") if _ti2 else None
+        if _cand is not None and _cand.is_file():
+            ti1_path = _cand
+    assert ti1_path is not None, "no .ti1 to render the sheet from"
+    print(f"    ti1: {ti1_path}", flush=True)
     # WAIT FOR THE TIFFS, NOT JUST THE .ti2. `_onscreen_patch_total` needs
     # both, and the first run of this driver waited for one of them, read the
     # panel while the preset had not landed, and reported "0 patches" on a
@@ -214,11 +293,45 @@ def main() -> int:
             _all_over = TabChart._engine_text_notes(tab)[1]
             said = [m for m in _all_over
                     if "along the bottom is too wide" in m]
+            # THE SHEET ITSELF. Rendered from the recipe the panel is holding,
+            # with the seed it is holding, so the ink measured is the ink the
+            # panel just predicted.
+            ink = None
+            try:
+                # THE SEED THE PANEL PREDICTED WITH, pinned onto the render.
+                # Left free, `build_from_recipe` draws a fresh one of its own
+                # and the ink then measures a different string from the one the
+                # prediction was about: the two would differ by up to nine
+                # characters for reasons that have nothing to do with the fault.
+                from dataclasses import replace as _replace
+                ink = stamp_ink_mm(
+                    _replace(r, seed=tab._seed_for_prediction(r)),
+                    ti1_path, f"{side}-{pt}")
+            except Exception as exc:                        # noqa: BLE001
+                print(f"        could not render the sheet: {exc!r}", flush=True)
             # THE PANEL'S OWN CLIP FIGURE, which is the effective one and not
             # the typed one. When the panel and this driver disagree about
             # whether the line overflows, the disagreement is in here.
             _eff_clip = float(getattr(r, "effective_text_edge_clip_mm",
                                       getattr(r, "text_edge_clip_mm", 0.0)) or 0.0)
+            # THE TWO BOUNDS, ASKED OF THE FUNCTION THAT PLACES THE LINE.
+            # This driver computed the right bound as `room + clip`, which is
+            # only true when the clip border is on the RIGHT: with it on the
+            # left the bounds are (border, paper - clip) and the right one is
+            # twenty millimetres further over. Every left-side row was then
+            # judged against a bound that does not exist, and the driver
+            # reported the panel silent on an overflow that was not one. Read
+            # off `bottom_text_bounds_mm`, which is what `render_pages` centres
+            # between.
+            _l_bound, _r_bound = tef.bottom_text_bounds_mm(
+                pw, _eff_clip,
+                bool(getattr(r, "helper_markers", False)),
+                float(getattr(r, "helper_marker_edge_mm", 0.0) or 0.0),
+                float(getattr(r, "helper_marker_len_mm", 0.0) or 0.0),
+                bool(getattr(r, "helper_markers_sides", True)),
+                clip_border_mm=(float(getattr(r, "clip_border_width_mm", 0.0) or 0.0)
+                                if getattr(r, "clip_border", False) else 0.0),
+                clip_side=side)
             _panel_room = tef.bottom_text_room_mm(
                 pw, _eff_clip,
                 bool(getattr(r, "helper_markers", False)),
@@ -230,6 +343,7 @@ def main() -> int:
                 clip_side=side)
             rec = {
                 "side": side, "size_pt": pt, "paper": r.paper,
+                "ink": ink,
                 "clip_border_mm": float(getattr(r, "clip_border_width_mm", 0.0) or 0.0),
                 "clip_mm": float(getattr(r, "text_edge_clip_mm", 0.0) or 0.0),
                 "bottom_lines": lines,
@@ -240,32 +354,107 @@ def main() -> int:
                 "all_overlap_warnings": _all_over,
                 "effective_clip_mm": round(_eff_clip, 2),
                 "panel_room_mm": round(float(_panel_room), 2),
+                "left_bound_mm": round(float(_l_bound), 2),
                 "clip_content_mode": str(getattr(r, "clip_content_mode", "")),
             }
-            # THE ONE THING WORTH PHOTOGRAPHING is a real overflow, because a
-            # picture of a quiet panel proves only that it is quiet.
-            verdict = ("SILENT ON A REAL OVERFLOW" if (wo is not None and not said)
-                       else "warned" if said
-                       else "fits, quiet")
-            if wo is not None:
+            # THE VERDICT IS THE INK'S, NOT THE PREDICTION'S. `_panel_room`
+            # is where the sheet's right bound is, and `ink_right_mm` is where
+            # the ink stopped. A warning is right only if the ink crossed it.
+            _bound = round(float(_r_bound), 2)
+            _really = None
+            rec_over = None
+            if ink is not None:
+                # Either end counts: the line is centred, so it leaves the
+                # band on both sides at once.
+                _over_r = ink["ink_right_mm"] - _bound
+                _over_l = float(_l_bound) - ink["ink_left_mm"]
+                rec_over = round(max(_over_r, _over_l), 2)
+                _really = rec_over > 0.05
+            verdict = ("COULD NOT RENDER" if ink is None else
+                       "FALSE WARNING" if (said and not _really) else
+                       "SILENT ON A REAL OVERFLOW" if (_really and not said) else
+                       "warned, and the ink agrees" if said else
+                       "fits, quiet, and the ink agrees")
+            if said or _really:
                 shot = out / f"{side}-{pt}pt.png"
                 ok, why = capture_window(win, shot)
                 rec["photo"] = shot.name if ok else f"REFUSED: {why}"
             rec["verdict"] = verdict
+            rec["right_bound_mm"] = _bound
+            rec["ink_past_the_bound_mm"] = rec_over
             rows.append(rec)
-            print(f"    [{side:5s} {pt}pt] width={width:6.1f} mm  "
-                  f"overflow={rec['overflow_mm']}  {verdict}", flush=True)
+            _ink_s = "n/a" if ink is None else f"{ink['ink_right_mm']:6.2f}"
+            print(f"    [{side:5s} {pt}pt] predicted={width:6.1f} mm  "
+                  f"ink_right={_ink_s}  bound={_bound}  {verdict}", flush=True)
             if said:
                 print(f"        {said[0][:150]}", flush=True)
 
-    bad = [r for r in rows if r["verdict"] == "SILENT ON A REAL OVERFLOW"]
+    # ---------------------------------------------------------------- seed 0
+    # THE ADVERSARY ROUND'S HEADLINE CASE. `getattr(r, "seed", None) or
+    # _WIDEST_SEED` treated 0 as "no seed" and predicted ten digits where the
+    # sheet prints one, so the panel warned about a sheet with room to spare.
+    # Reachable by ticking "Use a fixed seed" and not pressing "New seed".
+    for pt in (13, 14):
+        panel.chart_text.setText("")
+        panel.stamp_command.setChecked(True)
+        panel.chart_text_size.setValue(float(pt))
+        _i = panel.clip_side.findData("right")
+        if _i >= 0:
+            panel.clip_side.setCurrentIndex(_i)
+        pump(app, 700)
+        r = panel.get_recipe()
+        r.seed, r.seed_fixed = 0, True
+        panel.set_recipe(r)
+        pump(app, 500)
+        tab._update_margin_inspector()
+        pump(app, 700)
+        r = panel.get_recipe()
+        said = [m for m in TabChart._engine_text_notes(tab)[1]
+                if "along the bottom is too wide" in m]
+        try:
+            ink = stamp_ink_mm(r, ti1_path, f"seed0-{pt}")
+        except Exception as exc:                            # noqa: BLE001
+            print(f"    [seed 0 {pt}pt] could not render: {exc!r}", flush=True)
+            continue
+        from workflow import text_edge_fit as tef2
+        from workflow.layout_engine import papers as papers2
+        pw2 = float(papers2.dimensions_mm(r.paper)[0])
+        l2, r2 = tef2.bottom_text_bounds_mm(
+            pw2, float(getattr(r, "text_edge_clip_mm", 0.0) or 0.0),
+            bool(getattr(r, "helper_markers", False)),
+            float(getattr(r, "helper_marker_edge_mm", 0.0) or 0.0),
+            float(getattr(r, "helper_marker_len_mm", 0.0) or 0.0),
+            bool(getattr(r, "helper_markers_sides", True)),
+            clip_border_mm=(float(getattr(r, "clip_border_width_mm", 0.0) or 0.0)
+                            if getattr(r, "clip_border", False) else 0.0),
+            clip_side="right")
+        really = ink is not None and (ink["ink_right_mm"] > r2 + 0.05
+                                      or ink["ink_left_mm"] < l2 - 0.05)
+        verdict = ("COULD NOT RENDER" if ink is None else
+                   "FALSE WARNING" if (said and not really) else
+                   "SILENT ON A REAL OVERFLOW" if (really and not said) else
+                   "warned, and the ink agrees" if said else
+                   "fits, quiet, and the ink agrees")
+        rows.append({"side": "right", "size_pt": pt, "seed": 0,
+                     "bottom_lines": tab._bottom_sheet_text_lines(r),
+                     "predicted_width_mm": round(tab._sheet_text_width_mm(r), 2),
+                     "ink": ink, "right_bound_mm": round(float(r2), 2),
+                     "panel_said": said, "verdict": verdict})
+        print(f"    [seed0 {pt}pt] predicted="
+              f"{rows[-1]['predicted_width_mm']:6.1f} mm  ink_right="
+              f"{'n/a' if ink is None else ink['ink_right_mm']}  "
+              f"bound={round(float(r2), 2)}  {verdict}", flush=True)
+
+    bad = [r for r in rows if r["verdict"] in ("SILENT ON A REAL OVERFLOW",
+                                              "FALSE WARNING",
+                                              "COULD NOT RENDER")]
     (out / "bottom-stamp.json").write_text(
         json.dumps({"screen_locked": session_is_locked(),
                     "qt_qpa_platform": os.environ.get("QT_QPA_PLATFORM", "<unset>"),
                     "preset": pick[0], "silent_on_overflow": len(bad),
                     "rows": rows}, indent=2, ensure_ascii=False),
         encoding="utf-8")
-    print(f"\n    {len(bad)} combination(s) still silent on a real overflow",
+    print(f"\n    {len(bad)} combination(s) where the panel and the ink disagree",
           flush=True)
     print(f"    written {out / 'bottom-stamp.json'}", flush=True)
     win.close()

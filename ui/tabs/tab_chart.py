@@ -19179,13 +19179,121 @@ class TabChart(QWidget):
     #: different width.
     _DEFAULT_SHEET_TEXT_FONT = "Inter"
 
-    #: The widest seed `permutation.pick_seed` can draw, used to predict the
-    #: layout stamp's width before a seed exists. `randint(0, 2_147_483_647)`
-    #: is ten digits about half the time and nine the rest, so the worst case
-    #: is one character wide of the common one: a prediction that is a
-    #: character generous is the right way round, because the fault being
-    #: fixed here is a warning that never came at all.
-    _WIDEST_SEED = 2_147_483_647
+    #: The seed to predict the layout stamp's width with when the recipe does
+    #: not carry one yet.
+    #:
+    #: **THE FIRST VERSION OF THIS USED THE WIDEST SEED, AND THAT WAS A FALSE
+    #: WARNING WAITING TO HAPPEN.** An adversary round rendered the sheet and
+    #: measured the stamp's own ink: at 13 pt the panel said 3 mm ran off and
+    #: the ink stopped 10.61 mm INSIDE the bound, and at 14 pt it said 18 mm
+    #: where the sheet had 4.14 mm to spare. A warning that is wrong about a
+    #: sheet the user is looking at is worse than no warning, because it
+    #: teaches them to ignore the next one.
+    #:
+    #: `pick_seed` draws `randint(0, 2_147_483_647)`, which is nine digits or
+    #: fewer 46.6 % of the time and ten the rest, and nothing narrower than
+    #: eight digits happens once in two hundred runs. Nine digits is therefore
+    #: the value that is either exact or ONE CHARACTER SHORT, never long: the
+    #: prediction can now miss an overflow by a character (2.71 mm at 13 pt on
+    #: Inter) and can no longer invent one. That is the right way round for a
+    #: figure nobody can control, and it is only reached before the first
+    #: build; afterwards `build_chart` writes the real seed back onto the
+    #: recipe and it is used exactly.
+    _TYPICAL_SEED = 123_456_789
+
+    def _seed_for_prediction(self, r) -> int:
+        """The seed the stamp and `{seed}` are predicted with.
+
+        **A SEED OF ZERO IS A SEED.** This was `getattr(r, "seed", None) or
+        _WIDEST_SEED`, and 0 is falsy, so a recipe carrying seed 0 was
+        predicted as ten digits where the sheet prints one. It is reachable
+        without trying: the seed box ranges from 0 and `apply_to_recipe` writes
+        whatever it holds the moment "Use a fixed seed" is ticked, so ticking
+        the box without pressing "New seed" gives exactly that. Found by an
+        adversary round that rendered the sheet and measured the ink.
+        """
+        seed = getattr(r, "seed", None)
+        try:
+            return int(seed) if seed is not None else self._TYPICAL_SEED
+        except (TypeError, ValueError):
+            return self._TYPICAL_SEED
+
+    def _predicted_totals(self) -> "tuple[int, int]":
+        """``(patches, pages)`` the next Generate would produce.
+
+        `_estimate_patch_total` answers "what pressing Generate now would
+        produce" and returns None whenever the count is a CAPACITY FILL, which
+        is what "Auto patch count" means and how a fresh Manual panel opens.
+        The stamp was then predicted as "0 patches" while the sheet stamps the
+        real figure: 4.6 mm of line on a 918-patch chart, about 7 on a 2,052
+        patch one, and every millimetre of it invisible to the width check.
+        Found by an adversary round driving the out-of-the-box panel.
+
+        The Chart-layout-information panel has already worked the number out
+        for its own "estimate" column, so it is asked rather than recomputed.
+        """
+        try:
+            n = self._estimate_patch_total()
+        except Exception:      # noqa: BLE001 — a prediction is never fatal
+            n = None
+        pages = 1
+        try:
+            got = self._layout_info_panel.predicted()
+        except Exception:      # noqa: BLE001 — a prediction is never fatal
+            got = None
+        if got:
+            pages = max(1, int(got.get("pages") or 1))
+            if not n:
+                n = int(got.get("total") or 0) or None
+        return int(n or 0), pages
+
+    def _text_placeholder_context(self, r) -> dict:
+        """What `{project}`, `{paper}`, `{seed}` and the rest will resolve to.
+
+        THE PANEL MEASURED THE BRACES AND THE SHEET PRINTS THE ANSWER, which is
+        a difference of 12.6 mm on the very line Knut used to report the
+        neighbouring fault, and 23.3 mm on `{seed}` alone. It goes both ways:
+        a long chain of token names is 11.3 mm NARROWER once resolved, so the
+        panel could equally miss a real overflow and warn about a sheet that
+        comes out clean.
+
+        Built from `chart.text_placeholder_context`, the function the build
+        itself calls, so the two cannot fill a token differently. Three values
+        are not knowable while the panel is being typed into and are stood in
+        for, each the same way the stamp's own prediction stands them in:
+        the patch count from `_estimate_patch_total`, the seed by the widest
+        one `pick_seed` can draw, and the page count by the chart on screen or
+        one. `{page}` is added here because `render_pages` adds it per page and
+        a prediction only ever has a first page to offer.
+        """
+        # NOTHING IN HERE MAY RAISE. `_engine_text_notes` wraps its whole body
+        # in one `except Exception: pass`, so a lookup that throws does not lose
+        # the placeholder, it loses EVERY warning on the panel. Found when this
+        # method reached for widgets a stand-in tab does not have and 37 tests
+        # went red reporting "no clip-text warning at all" for a chart that has
+        # one; the same shape is reachable in the app whenever this is called
+        # before a widget exists.
+        from workflow.layout_engine.chart import text_placeholder_context
+        try:
+            patches, pages = self._predicted_totals()
+        except Exception:      # noqa: BLE001 — a prediction is never fatal
+            patches, pages = 0, 1
+        _name = getattr(self, "_manual_target_name_edit", None)
+        try:
+            _desc = self._current_run_description()
+        except Exception:      # noqa: BLE001
+            _desc = ""
+        ctx = text_placeholder_context(
+            project=(_name.text().strip() if _name is not None else ""),
+            rundescription=_desc,
+            instrument=str(getattr(r, "instrument", "") or ""),
+            paper=str(getattr(r, "paper", "") or ""),
+            dpi=int(getattr(r, "dpi", 300) or 300),
+            patches=patches,
+            pages=pages,
+            seed=self._seed_for_prediction(r))
+        ctx["page"] = f"page 1/{pages}"
+        return ctx
 
     def _bottom_sheet_text_lines(self, r) -> "list[str]":
         """Every line the bottom of the sheet will carry, in drawing order.
@@ -19212,7 +19320,10 @@ class TabChart(QWidget):
         question Generate asks, and the seed, which is drawn at build time and
         is stood in for by the widest one it can be.
         """
-        lines = [t for t in (r.chart_text or "",) if t]
+        from workflow.layout_engine.raster import resolve_placeholders
+        _ctx = self._text_placeholder_context(r)
+        lines = [resolve_placeholders(t, _ctx)
+                 for t in (r.chart_text or "",) if t]
         if getattr(r, "stamp_command", False):
             try:
                 from workflow.layout_engine.chart import stamp_summary_line
@@ -19221,7 +19332,7 @@ class TabChart(QWidget):
                     str(getattr(r, "paper", "") or ""),
                     int(getattr(r, "dpi", 300) or 300),
                     int(self._estimate_patch_total() or 0),
-                    int(getattr(r, "seed", None) or self._WIDEST_SEED)))
+                    self._seed_for_prediction(r)))
             except Exception:      # noqa: BLE001 — a prediction is never fatal
                 pass
         return lines
@@ -19277,21 +19388,8 @@ class TabChart(QWidget):
         except Exception:      # noqa: BLE001 — a prediction is never fatal
             return 0.0
 
-    def _stamp_is_the_widest_bottom_line(self, r) -> bool:
-        """Whether the line that overflows is the layout stamp.
-
-        WHICH DECIDES WHAT THE USER IS TOLD TO DO. The bottom-width message
-        offers "Shorten the text", and on Knut's case there is no text to
-        shorten: the box is empty and the line on the sheet is the layout
-        summary, which no amount of editing reaches. A remedy the reader cannot
-        carry out is worse than none, because it says the tool has understood
-        the situation.
-        """
-        if not getattr(r, "stamp_command", False):
-            return False
-        lines = self._bottom_sheet_text_lines(r)
-        if len(lines) < 2:
-            return bool(lines)          # the stamp is the only line there is
+    def _bottom_line_widths_mm(self, r) -> "list[float]":
+        """Each bottom line's own width, in drawing order, the stamp last."""
         try:
             from workflow import text_edge_fit as _tef
             from workflow.layout_engine import raster as _raster
@@ -19299,15 +19397,43 @@ class TabChart(QWidget):
             size_mm = typed or _tef.pt_to_mm(_tef.AUTO_SHRINK_FLOOR_PT)
             font = (str(getattr(r, "chart_text_font", "") or "")
                     or TabChart._DEFAULT_SHEET_TEXT_FONT)
-            widths = [_raster.sheet_text_width_mm(
+            return [_raster.sheet_text_width_mm(
                 [ln], size_mm, font,
                 bool(getattr(r, "chart_text_bold", False)),
                 bool(getattr(r, "chart_text_italic", False)),
-                float(getattr(r, "dpi", 300) or 300)) for ln in lines]
+                float(getattr(r, "dpi", 300) or 300))
+                for ln in self._bottom_sheet_text_lines(r)]
         except Exception:      # noqa: BLE001 — a prediction is never fatal
+            return []
+
+    def _stamp_is_the_line_to_remove(self, r, room_mm: float) -> bool:
+        """Whether switching the layout stamp off would ACTUALLY make it fit.
+
+        WHICH DECIDES WHAT THE USER IS TOLD TO DO. The bottom-width message
+        offers "Shorten the text", and on Knut's case there is no text to
+        shorten: the box is empty and the line on the sheet is the layout
+        summary, which no amount of editing reaches.
+
+        **AND THE FIRST VERSION ASKED THE WRONG QUESTION.** It asked only which
+        line was widest, so with a long custom line AND the stamp on it could
+        name the stamp and be right about that and still be useless: an
+        adversary round rendered both, and doing exactly what the message said
+        left the sheet 19.61 mm over at 13 pt and 23.93 at 14, unchanged. A
+        remedy that changes nothing is worse than none, because it says the
+        tool has understood the situation. It also compared the RAW custom text
+        against the fully formed stamp, so a line of placeholders always lost.
+
+        The question is now the one the reader cares about: with the stamp
+        gone, does what is left fit? Both lines are resolved first, so the
+        comparison is between the two strings the sheet prints.
+        """
+        if not getattr(r, "stamp_command", False):
             return False
-        # The stamp is appended last by `_bottom_sheet_text_lines`.
-        return widths[-1] >= max(widths)
+        widths = self._bottom_line_widths_mm(r)
+        if not widths:
+            return False
+        rest = widths[:-1]              # the stamp is appended last
+        return (max(rest) if rest else 0.0) <= float(room_mm)
 
     def _engine_text_notes(self, report=None) -> "tuple[list[str], list[str]]":
         """``(every notice, the overlap notices)`` for the chart on screen.
@@ -19567,8 +19693,11 @@ class TabChart(QWidget):
                     _note_keep_out = _clip_zone
                     _cl = 0
                     if str(getattr(r, "clip_content_mode", "off")) == "text":
-                        from workflow.layout_engine.raster import clip_text_lines
-                        _cl = len(clip_text_lines(getattr(r, "clip_text", "") or ""))
+                        from workflow.layout_engine.raster import (
+                            clip_text_lines, resolve_placeholders)
+                        _cl = len(clip_text_lines(resolve_placeholders(
+                            getattr(r, "clip_text", "") or "",
+                            self._text_placeholder_context(r))))
                     if _cl:
                         _cpt = 0.0
                         try:
@@ -19945,9 +20074,19 @@ class TabChart(QWidget):
                 # past the band. (Found by the four-side audit, 2026-09-12.)
                 _clip_lines = 0
                 if str(getattr(r, "clip_content_mode", "off")) == "text":
-                    from workflow.layout_engine.raster import clip_text_lines
-                    _clip_lines = len(clip_text_lines(
-                        getattr(r, "clip_text", "") or ""))
+                    # RESOLVED HERE TOO. THIS ONE COUNTS LINES rather than
+                    # measuring them, and a placeholder resolves to a value
+                    # with no newline in it, so the count does not change
+                    # today. It is done anyway because "resolve before you
+                    # measure" is one rule or it is none: the third call site
+                    # of `clip_text_lines` was found only because a test went
+                    # looking for the first, and a rule with an exception in it
+                    # is the fault shape this file keeps paying for.
+                    from workflow.layout_engine.raster import (
+                        clip_text_lines, resolve_placeholders)
+                    _clip_lines = len(clip_text_lines(resolve_placeholders(
+                        getattr(r, "clip_text", "") or "",
+                        self._text_placeholder_context(r))))
                 # A SECOND COUNT, FOR THE OTHER AXIS. `_clip_lines` is what the
                 # ACROSS-the-band arithmetic uses, and it is 0 in image mode on
                 # purpose: `raster.render_clip_strip` stacks a caption over the
@@ -19958,9 +20097,16 @@ class TabChart(QWidget):
                 _clip_len_lines: "list[str]" = []
                 if str(getattr(r, "clip_content_mode", "off")) in ("text",
                                                                    "image"):
-                    from workflow.layout_engine.raster import clip_text_lines
-                    _clip_len_lines = clip_text_lines(
-                        getattr(r, "clip_text", "") or "")
+                    # RESOLVED FIRST, THE SAME DOOR AS THE BOTTOM LINE. The
+                    # clip text takes the same placeholders and is drawn by the
+                    # same renderer through the same `resolve_placeholders`, so
+                    # measuring the braces here was the identical fault one
+                    # frame over: `{seed}` alone is 23 mm wider once filled in.
+                    from workflow.layout_engine.raster import (
+                        clip_text_lines, resolve_placeholders)
+                    _clip_len_lines = clip_text_lines(resolve_placeholders(
+                        getattr(r, "clip_text", "") or "",
+                        self._text_placeholder_context(r)))
                 # THE TEXT-EDGE DISTANCE IS A LIMIT, AND THE OVERFLOW GOES
                 # THE OTHER WAY. Knut, 2026-09-12, correcting the answer he
                 # gave the evening before:
@@ -20580,7 +20726,8 @@ class TabChart(QWidget):
                         "The widest line down there is the layout summary, not "
                         "text you typed. Switching “Stamp layout summary along "
                         "the bottom” off removes it.")
-                        if self._stamp_is_the_widest_bottom_line(r) else "")
+                        if self._stamp_is_the_line_to_remove(
+                            r, _wo.available_mm) else "")
                     # THE FLOOR IS NOT WRITTEN INTO THIS SENTENCE ANY MORE.
                     # "It is already at its smallest, 7 pt" typed the value into
                     # thirteen catalogues and offered two remedies, neither of

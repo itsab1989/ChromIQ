@@ -5147,6 +5147,25 @@ only a triple that DIFFERS from the rule's answer would stop it.
   sending the floor sentence to a typed size.
 
 ### B8-110 · The report window told a user their verdict had been lost, on a file that never had one
+- blocks release: no
+- status: FIXED
+- found by: Knut, 2026-09-13, on the beta 8 demo pack.
+- evidence:
+  test_the_column_is_marked_fresh,
+  test_the_page_does_not_say_an_old_version_lost_the_verdict,
+  test_the_judged_against_cell_does_not_read_not_recorded;
+  and the other half, which must stay green when the three above go red,
+  test_a_report_that_really_is_old_is_still_named_as_one.
+  Mutation: remove the `_fresh` marker from `_load_runs`'s last resort.
+  Driven on screen with `scripts/drive_182_profiling_sheet_verdict.py`.
+- evidence: `test_a_report_never_saved_is_not_blamed_on_an_older_chromiq.py`,
+  four tests. `test_the_column_is_marked_fresh`,
+  `test_the_page_does_not_say_an_old_version_lost_the_verdict` and
+  `test_the_judged_against_cell_does_not_read_not_recorded` go red when the
+  `_fresh` marker is removed;
+  `test_a_report_that_really_is_old_is_still_named_as_one` stays green, which
+  is what stops the fix silencing both cases. Driven on screen with
+  `scripts/drive_182_profiling_sheet_verdict.py`.
 
 Knut, 2026-09-13, on `Report-Limits-Custom-Columns` from the beta 8 demo pack:
 
@@ -5180,7 +5199,22 @@ been a second fault wearing the first one's clothes.
 tests. Mutation: remove the `_fresh = True` and three of them go red while the
 fourth, the old-report one, stays green.
 
-### B8-111 · The demo package shipped 25 measurements with no verdict beside any of them
+### B8-111 · The demo package shipped 23 measurements with no verdict beside any of them
+- blocks release: no
+- status: FIXED
+- found by: Knut, 2026-09-13, in the same comment as B8-110.
+- evidence:
+  test_the_exact_pack_that_shipped_is_caught,
+  test_the_project_list_is_what_decides,
+  test_a_pack_with_no_verdict_beside_a_measurement_is_incomplete,
+  test_the_zip_and_the_folder_are_the_same_check;
+  plus `python scripts/make_report_limit_demos.py --verify <pack>` run on the
+  artefact itself, which names the shipped pack incomplete and the rebuilt one
+  complete, as a folder and as a zip.
+- evidence: `test_a_demo_pack_ships_every_project_it_declares.py`, plus
+  `python scripts/make_report_limit_demos.py --verify <pack>` run on the
+  artefact: the pack that shipped is named incomplete and the rebuilt one
+  complete, as a folder and as a zip.
 
 Knut, same comment:
 
@@ -5192,7 +5226,7 @@ Knut, same comment:
 app makes, the profiling read included, so a project built with "Save a
 measurement report after each measurement" ticked holds a report beside the
 sheet the profile was built from. The generator saved one only under each
-dated verification. Across six projects that is 25 runs with nothing beside
+dated verification. Across six projects that is 23 runs with nothing beside
 their own measurement, which is what put him on B8-110's path in the first
 place.
 
@@ -5205,12 +5239,36 @@ headed with whatever day the package was unpacked.
 gained `_verdicts_missing`, which walks the built pack (folder or `.zip`) and
 requires a saved report carrying the block `recorded_verdict` reads beside
 every measurement, skipping only the role-named intermediates that never go on
-paper. Run against the pack that shipped, it named all 25 gaps by path; against
+paper. Run against the pack that shipped, it named all 23 gaps by path; against
 the rebuilt one it reports complete, folder and zip. A check that read the code
 that built the pack would be the baseline-against-itself fault this project has
 already paid for twice.
 
 ### B8-112 · The layout stamp is a bottom line and nothing measured its width
+- blocks release: no
+- status: FIXED
+- found by: Knut, 2026-09-13, testing beta 8.
+- evidence:
+  test_the_bottom_lines_include_the_stamp,
+  test_the_stamp_alone_is_given_a_width,
+  test_the_overflowing_stamp_is_reported,
+  test_it_does_not_matter_which_side_the_border_is_on,
+  test_the_message_names_the_tick_and_not_the_empty_text_box,
+  test_a_long_custom_line_is_still_blamed_on_the_text,
+  test_nothing_is_said_when_both_lines_are_off;
+  and for the placeholders, test_the_bottom_line_is_measured_resolved,
+  test_every_clip_text_call_site_resolves_first,
+  test_a_seed_of_zero_is_a_seed.
+  Mutation: put the gate back to `if r.chart_text:`.
+  Driven on screen with `scripts/drive_182_bottom_stamp_warning.py`, which
+  renders the sheet and measures the stamp's own ink rather than trusting the
+  panel's prediction.
+- evidence: `test_the_bottom_stamp_is_measured_like_the_text_beside_it.py` and
+  `test_a_placeholder_is_measured_as_it_prints.py`. Mutation: putting the
+  gate back to `if r.chart_text:` turns the four warning tests red.
+  Driven on screen with `scripts/drive_182_bottom_stamp_warning.py`, which
+  renders the sheet and measures the stamp's own ink rather than trusting
+  the panel's prediction.
 
 Knut, 2026-09-13, testing beta 8:
 
@@ -5264,6 +5322,20 @@ the numbers said the message was there and the photograph showed the panel on
 the previous state.
 
 ### B8-113 · A question with one OK button
+- blocks release: no
+- status: FIXED
+- found by: Knut, 2026-09-13, testing beta 8.
+- evidence:
+  test_ask_offers_yes_and_no_and_defaults_to_no,
+  test_an_explicit_button_set_is_still_honoured,
+  test_the_real_ask_returns_no_when_no_is_clicked,
+  test_declining_keeps_the_text_the_user_typed,
+  test_accepting_really_does_load_the_example,
+  test_an_empty_box_is_not_asked_about.
+  Mutation: drop `ask`'s button default.
+- evidence: `test_a_question_offers_a_way_to_say_no.py`, five tests, including
+  one that drives the real `ask` through the real `_boxed` rather than a
+  stub. Mutation: dropping `ask`'s button default turns it red.
 
 Knut, same comment:
 

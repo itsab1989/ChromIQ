@@ -68,10 +68,29 @@ class _Settings:
 
 
 class _Tab:
-    """Just enough TabChart for the real method to run."""
+    """Just enough TabChart for the real method to run.
+
+    **AND EVERY OTHER METHOD IT CALLS, BORROWED FROM THE REAL CLASS.** A fake
+    that re-implements only the attributes today's code happens to touch breaks
+    the moment the code grows a helper, and it breaks in the worst possible
+    way: `_engine_text_notes` wraps its whole body in one `except Exception:
+    pass`, so an AttributeError does not fail loudly, it silently returns an
+    empty warning list. Thirty-seven tests in this file then reported "no
+    clip-text warning at all" for a chart that has one, and the code they were
+    accusing was correct. `__getattr__` binds anything missing to the real
+    `TabChart` implementation, so the fake supplies the STATE and the class
+    supplies the BEHAVIOUR.
+    """
     _manual_btn = _Btn()
     _manual_layout_panel = object()
     _settings = _Settings()
+    # Widgets the borrowed helpers reach for; None is the "not built yet"
+    # state they are all written to tolerate.
+    _manual_target_name_edit = None
+    _manual_auto_patches_check = None
+    _manual_f_pw = None
+    _layout_info_panel = None
+    _preset_ti1_path = None
 
     def __init__(self, recipe, notes="a note about this chart", stamp=True):
         self._recipe = recipe
@@ -80,6 +99,16 @@ class _Tab:
 
     def _current_layout_recipe(self):
         return self._recipe
+
+    def __getattr__(self, name):
+        from ui.tabs.tab_chart import TabChart
+        _missing = object()
+        attr = getattr(TabChart, name, _missing)
+        if attr is _missing:
+            raise AttributeError(name)
+        # Methods are bound to this stand-in; class CONSTANTS come across as
+        # they are, which is what `_TYPICAL_SEED` and friends need.
+        return attr.__get__(self, type(self)) if callable(attr) else attr
 
 
 def _fills(band_mm: float) -> str:
