@@ -1732,7 +1732,15 @@ class ChartCreator:
             if params.chart_layout_name:
                 # Built from an existing patch set — targen wasn't run, so name
                 # the chart layout instead of stamping a misleading targen line.
-                lines.append(f"Chart layout {params.chart_layout_name} |")
+                # NO TRAILING BAR OF ITS OWN. `tiff_metadata._JOIN` already
+                # puts "    |    " between every line, so the extra one here
+                # stamped "... w10.0mm |    |    ChromIQ layout engine" on
+                # every chart built from an armed patch set. Found while
+                # measuring Knut's beta 9 batch, raised with him rather than
+                # changed unasked, and approved: *"Yes, make sure only one
+                # 'bar' is used to separate the layout-name and other
+                # text-fields coming after."* (2026-09-13)
+                lines.append(f"Chart layout {params.chart_layout_name}")
             else:
                 lines.append("targen " + " ".join(
                     _shorten_argv_for_stamp(

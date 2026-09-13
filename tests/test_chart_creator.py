@@ -634,8 +634,16 @@ def test_import_external_preconditioning_noop_for_local_pick(tmp_path: Path) -> 
 
 def test_stamp_uses_chart_layout_line_for_ti1_origin(tmp_path: Path, monkeypatch) -> None:
     """#70: a chart built from an existing patch set (chart_layout_name set) must
-    stamp "Chart layout <name> |" in place of the (never-run) targen command,
-    while still stamping the printtarg command."""
+    stamp "Chart layout <name>" in place of the (never-run) targen command,
+    while still stamping the printtarg command.
+
+    **AND WITHOUT A BAR OF ITS OWN.** `tiff_metadata._JOIN` already separates
+    every line with "    |    ", so the trailing one this used to pin stamped
+    "... TC9.18 |    |    printtarg ..." on every chart built from an armed
+    patch set. Knut approved removing it, 2026-09-13: *"Yes, make sure only one
+    'bar' is used to separate the layout-name and other text-fields coming
+    after."*
+    """
     import workflow.tiff_metadata as tm
     creator, work_dir = _make_creator(tmp_path)
     run = creator._file_mgr.project().current_run()
@@ -657,9 +665,16 @@ def test_stamp_uses_chart_layout_line_for_ti1_origin(tmp_path: Path, monkeypatch
     )
     assert captured, "stamp_chart_metadata should have been called"
     lines = captured[0]
-    assert any(l == "Chart layout TC9.18 |" for l in lines)
+    assert any(l == "Chart layout TC9.18" for l in lines), lines
+    assert not any(l.endswith("|") for l in lines), (
+        "a stamped line carries a separator of its own, so the joiner's own "
+        f"bar doubles it: {lines}")
     assert not any(l.startswith("targen ") for l in lines)
     assert any(l.startswith("printtarg ") for l in lines)
+    # …and what the sheet finally carries has exactly one bar between each
+    # pair, which is the thing Knut actually reads.
+    joined = tm._JOIN.join(lines)
+    assert "|    |" not in joined, joined
 
 
 def test_stamp_uses_targen_line_for_fresh_chart(tmp_path: Path, monkeypatch) -> None:

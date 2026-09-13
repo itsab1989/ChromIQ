@@ -5501,13 +5501,16 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   line. Measured rather than assumed, because widening a bound is exactly the
   kind of change that quietly turns a fleet of charts red.
 
-  **THE READING IS THE CONSERVATIVE ONE AND HE IS ASKED TO CONFIRM IT.**
-  *"This should apply for both left or right side clip-border"* can mean "on
+  **THE READING WAS THE CONSERVATIVE ONE AND HE HAS NOW CONFIRMED IT.**
+  *"This should apply for both left or right side clip-border"* could mean "on
   both sides" or "whichever side the border is on". Applied to both sides it
   contradicts his own already-confirmed A4 example, *"210 - Clip x2 = 202mm"*,
   which has margins and ignores them: driven that way, six tests pinning 202
-  went red. So the margin joins the border's side only, and the question goes
-  back to him.
+  went red. So the margin joined the border's side only and the question went
+  back to him. **Confirmed by: Knut, 2026-09-13**, who restated the rule in
+  full for both sides, both clauses opening "If clip-border ON": that is what
+  beta 10 already shipped, checked afterwards against his prose over nine
+  crossings of the four terms, zero mismatches.
 
   **F5: a typed size never shrank.** *"Shrinking stops at 7 pt, but only in
   size=auto. When size is manually set to 13, it is not a shrinking."*
@@ -5526,15 +5529,21 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
 
 ### B8-116 · The layout-name stamp prints a doubled separator
 - blocks release: no
-- status: OPEN
+- status: FIXED
 - found by: reading the stamped line while measuring B8-115; NOT reported by
-  anyone and NOT changed.
+  anyone, raised with Knut, and changed only once he approved it.
+- evidence: test_stamp_uses_chart_layout_line_for_ti1_origin, which pinned the
+  trailing bar and now refuses it, and refuses "|    |" in the joined line the
+  reader actually sees.
 - detail: `stamp_lines` appends `f"Chart layout {name} |"` with a trailing
   bar, and `tiff_metadata._JOIN` then adds `"    |    "`, so a preset chart
   stamps `... w10.0mm |    |    ChromIQ layout engine`. Cosmetic, visible on
   every chart built from an armed patch set, and pinned as-is by
   `test_chart_creator.py` (`"Chart layout TC9.18 |"`).
 
-  Left alone deliberately: it changes what is printed on every preset sheet,
-  nobody asked for it, and it landed in the middle of a release. Raised with
-  Knut instead.
+  Left alone at first, deliberately: it changes what is printed on every preset
+  sheet, nobody had asked for it, and it landed in the middle of a release. It
+  was raised with Knut instead, and he answered the same evening: *"Yes, make
+  sure only one 'bar' is used to separate the layout-name and other text-fields
+  coming after."* The trailing bar is gone, and the test that pinned it now
+  pins the opposite, on the joined line the reader actually sees.

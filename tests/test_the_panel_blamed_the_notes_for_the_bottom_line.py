@@ -235,3 +235,57 @@ def test_the_prediction_sets_the_layout_name_the_build_sets():
             and call.func.attr == "_active_layout_name"), (
         "the prediction invents a layout name instead of asking the same "
         "method `_generate_from_ti1` asks")
+
+
+# --------------------------------------------------- his rule, in his words
+def _his_rule(paper_w, clip, border, side, m_left, m_right,
+              markers=False, m_edge=0.0, m_len=0.0, m_sides=True):
+    """Knut's answer of 2026-09-13, comment 5656432962, transcribed::
+
+        If clip-border ON has Side= left, then the highest value of clip-border
+        width and left margin is used as the left-side limit for the bottom
+        text. If Clip in "Text distance from edge" or the sum of ("Distance
+        from page edge" + "Marker length" + 1.0mm) (if helper markers are on
+        for the sides) are larger than both clip-border width and left margin,
+        then the largest value wins and is used.
+        [and the same sentence again for Side= right]
+
+    Both clauses open with "If clip-border ON", so with the border OFF he
+    states no rule and his earlier confirmed example stands: 210 - Clip x2.
+
+    WRITTEN OUT LONGHAND ON PURPOSE. Calling `bottom_text_bounds_mm` to check
+    `bottom_text_bounds_mm` is the self-validating shape this project keeps
+    finding; this is his prose turned into arithmetic and nothing else.
+    """
+    reserve = (max(clip, m_edge + m_len + 1.0) if (markers and m_sides) else clip)
+    left = right_in = reserve
+    if border > 0.0:
+        if side == "left":
+            left = max(border, m_left, reserve)
+        else:
+            right_in = max(border, m_right, reserve)
+    return (left, paper_w - right_in)
+
+
+@pytest.mark.parametrize(
+    "pw,clip,border,side,mL,mR,mk,me,ml",
+    [
+        (210.0, 4.0, 24.0, "right", 14.0, 31.5, False, 0.0, 0.0),   # his sheet
+        (210.0, 4.0, 24.0, "left", 31.5, 14.0, False, 0.0, 0.0),    # mirrored
+        (210.0, 4.0, 24.0, "right", 14.0, 10.0, False, 0.0, 0.0),   # margin < border
+        (210.0, 40.0, 24.0, "right", 14.0, 31.5, False, 0.0, 0.0),  # Clip wins
+        (210.0, 4.0, 24.0, "right", 14.0, 31.5, True, 4.0, 2.0),    # markers on
+        (210.0, 4.0, 24.0, "right", 14.0, 31.5, True, 40.0, 2.0),   # markers win
+        (210.0, 4.0, 0.0, "right", 14.0, 31.5, False, 0.0, 0.0),    # no border
+        (210.0, 4.0, 0.0, "left", 31.5, 14.0, True, 4.0, 2.0),      # no border
+        (297.0, 6.0, 26.0, "left", 12.0, 12.0, False, 0.0, 0.0),    # A3
+    ],
+)
+def test_the_bounds_are_what_he_wrote(pw, clip, border, side, mL, mR, mk, me, ml):
+    """Confirmed by Knut, 2026-09-13. Nine crossings of his four terms."""
+    want = _his_rule(pw, clip, border, side, mL, mR, mk, me, ml)
+    got = tef.bottom_text_bounds_mm(pw, clip, mk, me, ml, True,
+                                    clip_border_mm=border, clip_side=side,
+                                    margin_left_mm=mL, margin_right_mm=mR)
+    assert got[0] == pytest.approx(want[0]), (side, "left bound", got, want)
+    assert got[1] == pytest.approx(want[1]), (side, "right bound", got, want)

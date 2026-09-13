@@ -360,16 +360,25 @@ def bottom_text_bounds_mm(paper_w_mm: float, text_edge_clip_mm: float,
     warning as being about the notes, which is what it said, and it was the
     bottom line that had moved.
 
-    **ON THE BORDER'S SIDE ONLY, AND THAT IS THE CONSERVATIVE READING.** His
-    sentence is *"when right margin is larger than clip-border width"*, and
-    *"both left or right side clip-border"* says the rule holds whichever side
-    the border is on, not that a margin binds a side with no border. Applied to
-    both sides it would contradict his own worked example two paragraphs down
-    in `bottom_text_room_mm`, *"210 - Clip x2 = 202mm"*, which has margins and
-    ignores them, and which he has already confirmed. Measured: driven with the
-    margin binding both sides, six tests pinning that 202 mm went red. So the
-    margin joins the border's side and the other side keeps ``max(Clip, R)``.
-    Reported to him with the ambiguity named rather than settled here.
+    **ON THE BORDER'S SIDE ONLY. Confirmed by: Knut, 2026-09-13.** His first
+    sentence read two ways, so it was shipped the conservative way and the
+    ambiguity was put back to him; his answer settles it word for word::
+
+        If clip-border ON has Side= left, then the highest value of clip-border
+        width and left margin is used as the left-side limit for the bottom
+        text. If Clip in "Text distance from edge" or the sum of ("Distance
+        from page edge" + "Marker length" + 1.0mm) (if helper markers are on
+        for the sides) are larger than both clip-border width and left margin,
+        then the largest value wins and is used.
+
+    and the same again for Side= right. Both clauses open with "If clip-border
+    ON", so a side with no border keeps ``max(Clip, R)`` and his earlier
+    confirmed example, *"210 - Clip x2 = 202mm"*, stands. The other reading was
+    built first and turned six tests pinning that 202 red.
+
+    `tests/test_the_panel_blamed_the_notes_for_the_bottom_line.py` transcribes
+    his prose into arithmetic of its own and crosses the four terms nine ways
+    against this function, rather than asking this function to check itself.
     """
     reserve = edge_reserve_mm(text_edge_clip_mm, markers_on, marker_edge_mm,
                               marker_len_mm, markers_sides)
