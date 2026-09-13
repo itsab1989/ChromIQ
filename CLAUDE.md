@@ -319,10 +319,23 @@ it again. It applies to this file's reader and to every agent briefed from it.
   activated cannot bring itself to the front. Measured the same day, with the
   screen unlocked: every capture came back 0 % different from the same
   rectangle with the window hidden, because the app sat behind the terminal
-  that launched it. `capture_window` now finds the window's CGWindowID
-  (`window_id_for`, via pyobjc) and uses `screencapture -l`, which copies the
-  window's own buffer and does not care about stacking. The rectangle route
-  stays as the fallback, still with its hide/show proof.
+  that launched it. `NSRunningApplication.activateWithOptions_` does not help
+  either: it returns True and `isActive` stays False, because macOS 15 does not
+  let a process take focus.
+  * **AND `screencapture -l` DOES NOT WORK EITHER, WHILE THE API BEHIND IT
+    DOES.** The CLI exits 1 with *"could not create image from window"*, which
+    is the same string the bullet above blames on the missing permission grant
+    and which survives the grant, so that attribution was wrong.
+    `CGWindowListCreateImage(..., kCGWindowListOptionIncludingWindow, wid, ...)`
+    returns the window's own buffer: measured 2026-09-13, a 700x528 picture
+    with the title bar in it, taken while the window was on another Space and
+    while the CLI refused. `capture_window` uses that first
+    (`window_id_for` finds the id via pyobjc) and keeps the rectangle, with its
+    hide/show proof, as the fallback.
+  * `tests/test_a_driver_photographs_the_window_not_the_screen.py` is what
+    makes this stick: a driver that aims `screencapture -R` or `-l` at a window
+    itself fails the suite, and so does a helper that reaches for the screen
+    before the window or reports a lock before waking it.
 
 The sandbox rules in the next section are how you do this SAFELY. They are not
 an alternative to doing it.

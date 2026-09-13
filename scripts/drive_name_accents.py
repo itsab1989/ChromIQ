@@ -101,12 +101,35 @@ def tree_hash(root: Path) -> "dict[str, str]":
 
 
 def shoot(app, widget, name: str) -> Path:
-    """Qt grabbing — `screencapture` returns the wallpaper in this environment."""
+    """Photograph the real window, and fall back to a Qt grab only if refused.
+
+    **THE OLD COMMENT HERE WAS "`screencapture` RETURNS THE WALLPAPER IN THIS
+    ENVIRONMENT", AND IT WAS A TRUE OBSERVATION WITH THE WRONG CONCLUSION.**
+    `screencapture -R` copies a RECTANGLE of the screen, so it returns whatever
+    is composited there, and a window this process opened without stealing
+    focus is not. Measured 2026-09-13: the window's OWN buffer, addressed by
+    CGWindowID through `CGWindowListCreateImage`, photographs perfectly in the
+    same state. `scripts/onscreen_capture.py::capture_window` does that now, so
+    this can stop settling for a `widget.grab()`, which CLAUDE.md rules out as
+    evidence because it cannot show compositing, a popup or a native dialog.
+
+    The grab stays as a LAST resort, renamed on disk so a reader can never
+    mistake one for the other.
+    """
+    import sys as _sys
+    _sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from onscreen_capture import capture_window
+
     pump(app, 250)
     path = SHOTS / name
-    widget.grab().save(str(path))
-    print(f"      shot: {path}")
-    return path
+    ok, why = capture_window(widget, path)
+    if ok:
+        print(f"      shot: {path}")
+        return path
+    grab = SHOTS / f"NOT-A-PHOTOGRAPH-{name}"
+    widget.grab().save(str(grab))
+    print(f"      photograph refused ({why}); Qt grab at {grab}")
+    return grab
 
 
 def main() -> int:
