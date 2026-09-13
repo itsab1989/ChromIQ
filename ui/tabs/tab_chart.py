@@ -3885,6 +3885,17 @@ class TabChart(QWidget):
             self._on_margin_measured_guides_toggled)
         self._margin_panel.coords_toggled.connect(self._on_margin_coords_toggled)
 
+        # THE WARNING FOLD IS REMEMBERED. Basti, 2026-09-13: *"the red warning
+        # text in the measured from preview section can become quite a lot in
+        # some instances. can this be made collapsible and the app remembers
+        # the state it was in so it does not always take up this much space?"*
+        # Restored WITHOUT emitting, so putting the stored answer back is not
+        # mistaken for the user changing it and written straight out again.
+        self._margin_panel.set_warnings_expanded(
+            bool(self._settings.get("margin_warnings_expanded", True)))
+        self._margin_panel.warnings_expanded_changed.connect(
+            self._on_margin_warnings_expanded)
+
         # Restore the coordinate readout state on the preview (dpi = render res).
         if self._margin_panel.coords_enabled():
             self._preview.set_coord_readout(
@@ -20501,6 +20512,12 @@ class TabChart(QWidget):
         self._settings.set("margin_coords_show", bool(on))
         self._preview.set_coord_readout(
             bool(on), float(self._settings.get("printtarg_dpi", 300) or 300))
+
+    def _on_margin_warnings_expanded(self, expanded: bool) -> None:
+        """Remember whether the red warning paragraph is folded (Basti,
+        2026-09-13). Written on the user's click only; restoring the stored
+        answer at build time does not emit."""
+        self._settings.set("margin_warnings_expanded", bool(expanded))
 
     def _chart_own_margins(self) -> "dict | None":
         """The margins this chart was laid out to, when it declined the

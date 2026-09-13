@@ -45,37 +45,99 @@ def _driver_files() -> list[Path]:
             if p.name != HELPER.name and "__pycache__" not in p.parts]
 
 
+#: A string literal that IS the program, rather than prose mentioning it.
+_PROGRAM = re.compile(r"^(?:.*/)?screencapture$")
+
+#: A string literal that IS a window flag: `-R`, `-l`, or `-l` with the id
+#: glued on (`-l42`, `-l%d`), which `screencapture` also accepts.
+_WINDOW_FLAG = re.compile(r"^-(?:R|l)(?:\b|\d|$)")
+
+
 def _window_captures(src: str) -> list[tuple[int, str]]:
-    """Every CALL that runs `screencapture` with `-l` or `-R`.
+    """Every STATEMENT that runs `screencapture` with `-l` or `-R`.
 
-    **SCANNING LINES DOES NOT WORK, IN BOTH DIRECTIONS, AND THIS GUARD GOT IT
-    WRONG BOTH WAYS BEFORE IT WORKED.**
+    **THIS GUARD HAS NOW BEEN WRONG THREE TIMES, IN BOTH DIRECTIONS, AND THE
+    THIRD IS WHY IT NO LONGER READS SOURCE TEXT AT ALL.**
 
-    * Its first version read raw lines and failed on a DOCSTRING that explains
-      the rule. Prose about `screencapture -R` is the fix being written down,
-      not the fault being committed.
-    * Its second version skipped every line covered by a string literal, and
-      then missed a real call: ``subprocess.run(['screencapture', '-R', ...])``
-      IS string literals, which is what a call looks like. A deliberate mutant
-      of exactly that shape went straight through.
+    * Version one read raw lines and failed on a DOCSTRING explaining the rule.
+      Prose about `screencapture -R` is the fix written down, not the fault.
+    * Version two skipped every line covered by a string literal and then let a
+      real ``subprocess.run(['screencapture', '-R', ...])`` through, because a
+      call like that IS string literals.
+    * Version three asked the tree for CALLS and then grepped their source
+      text, which brought both failures back at once. Measured 2026-09-13:
 
-    So this asks the syntax tree for calls, and only then reads their source.
-    A plain full-screen `screencapture -x out.png` is untouched: photographing
+      - it MISSED the most ordinary way of writing the call, and three more::
+
+            cmd = ['screencapture', '-R', rect, str(path)]   # one statement
+            subprocess.run(cmd)                              # the next
+
+        The call node's source is ``subprocess.run(cmd)``, which says nothing
+        about screencapture. Putting the program in a constant
+        (``SCREENCAP = 'screencapture'``) hid it the same way.
+      - and it REFUSED five legitimate lines, every one of them a driver
+        explaining the rule inside a call: a ``print``, a ``log.info``, an
+        argparse ``help=``, a ``raise SystemExit``, and a comment sitting
+        inside the parentheses of the `capture_window` call that replaced it.
+        `ast.get_source_segment` hands back the comment along with the code.
+
+    So this looks at STRING LITERALS in the tree, never at source text. A
+    statement is an offence when it contains a literal that IS the program
+    (``screencapture``, or a path ending in it) together with a literal that IS
+    a window flag. Prose fails the first test: ``'screencapture -R returns the
+    desktop'`` is one literal and it is not the program's name. A comment is
+    not in the tree at all. A module-level ``NAME = 'screencapture'`` is
+    followed, because hiding the program in a constant is not a defence.
+
+    KNOWN GAPS, WRITTEN DOWN RATHER THAN IMPLIED. A whole command assembled
+    into one f-string and handed to ``os.system`` is not caught, because the
+    only thing that separates it from prose is what the words mean. Neither is
+    a flag built at runtime (``'-' + 'R'``), nor a list grown across several
+    statements. All three are things nobody writes by accident, which is what
+    this guard is for; `scripts/onscreen_capture.py` and CLAUDE.md are what
+    cover someone who is trying.
+
+    A plain full-screen ``screencapture -x out.png`` is untouched: photographing
     a whole screen is legitimate, and it is not what this guard is about.
     """
     try:
         tree = ast.parse(src)
     except SyntaxError:
         return []
-    out: list[tuple[int, str]] = []
+
+    aliases: set[str] = set()
     for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
-        seg = ast.get_source_segment(src, node) or ""
-        if "screencapture" not in seg:
-            continue
-        if re.search(r"-(?:l|R)\b", seg):
-            out.append((node.lineno, " ".join(seg.split())[:120]))
+        if isinstance(node, (ast.Assign, ast.AnnAssign)):
+            val = node.value
+            if (isinstance(val, ast.Constant) and isinstance(val.value, str)
+                    and _PROGRAM.match(val.value.strip())):
+                targets = (node.targets if isinstance(node, ast.Assign)
+                           else [node.target])
+                aliases.update(t.id for t in targets if isinstance(t, ast.Name))
+
+    def _literals(stmt) -> tuple[bool, bool]:
+        """``(names the program, carries a window flag)`` for one statement."""
+        prog = flag = False
+        for n in ast.walk(stmt):
+            if isinstance(n, ast.Constant) and isinstance(n.value, str):
+                s = n.value.strip()
+                prog = prog or bool(_PROGRAM.match(s))
+                flag = flag or bool(_WINDOW_FLAG.match(s))
+            elif isinstance(n, ast.Name) and n.id in aliases:
+                prog = True
+        return prog, flag
+
+    out: list[tuple[int, str]] = []
+    for stmt in ast.walk(tree):
+        if not isinstance(stmt, ast.stmt) or isinstance(
+                stmt, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef,
+                       ast.ClassDef, ast.If, ast.For, ast.While, ast.With,
+                       ast.AsyncWith, ast.Try)):
+            continue          # compound headers would swallow their whole body
+        prog, flag = _literals(stmt)
+        if prog and flag:
+            seg = ast.get_source_segment(src, stmt) or ""
+            out.append((stmt.lineno, " ".join(seg.split())[:120]))
     return out
 
 
@@ -95,16 +157,73 @@ def test_only_the_shared_helper_aims_screencapture_at_a_window():
         "hide/show proof:\n  " + "\n  ".join(offenders))
 
 
-def test_the_guard_above_can_actually_see_a_call():
-    """The negative half. A guard that cannot fire is not a guard, and this one
-    silently could not: see `_window_captures` for the two ways it failed."""
-    bad = "import subprocess\nsubprocess.run(['screencapture', '-R', '1,1,9,9', 'x.png'])\n"
-    assert _window_captures(bad), "a real call is not detected"
-    prose = '"""A note about `screencapture -R` and why it is wrong."""\n'
-    assert not _window_captures(prose), "a docstring is read as a call"
-    whole = "import subprocess\nsubprocess.run(['screencapture', '-x', 'x.png'])\n"
-    assert not _window_captures(whole), (
-        "a full-screen capture is flagged; only window captures are banned")
+#: Real window captures. Every one of these must be refused. The first is the
+#: shape the guard always caught; 2 to 5 are the ones it let straight through
+#: until 2026-09-13, and 2 is the most ordinary way anybody would write it.
+_MUST_CATCH = {
+    "the literal list, inline in the call":
+        "import subprocess\n"
+        "subprocess.run(['screencapture', '-R', '1,1,9,9', 'x.png'])\n",
+    "the list in a variable, run on the next line":
+        "import subprocess\n"
+        "cmd = ['screencapture', '-R', rect, str(path)]\n"
+        "subprocess.run(cmd, check=True)\n",
+    "the program name hidden in a module constant":
+        "import subprocess\n"
+        "SCREENCAP = 'screencapture'\n"
+        "subprocess.run([SCREENCAP, '-R', rect, str(path)], check=True)\n",
+    "the window id glued to the flag":
+        "import subprocess\n"
+        "subprocess.run(['screencapture', '-l%d' % wid, str(path)])\n",
+    "an absolute path to the binary":
+        "import subprocess\n"
+        "subprocess.run(['/usr/sbin/screencapture', '-l', str(wid), 'x.png'])\n",
+}
+
+#: Legitimate lines. Every one of these must be allowed. All five were REFUSED
+#: by the version of this guard that grepped a call's source text, and all five
+#: are things this repository writes constantly: a driver saying WHY it does
+#: not roll its own capture.
+_MUST_ALLOW = {
+    "a module docstring explaining the rule":
+        '"""A note about `screencapture -R` and why it is wrong."""\n',
+    "a full-screen capture, which is legitimate":
+        "import subprocess\nsubprocess.run(['screencapture', '-x', 'x.png'])\n",
+    "the rule explained in a printed line":
+        "print('screencapture -R returns the desktop; use capture_window')\n",
+    "the rule explained in a log call":
+        "log.info('not screencapture -R: that is a rectangle of the screen')\n",
+    "a comment inside the call that replaced it":
+        "capture_window(  # not screencapture -R, which hands back wallpaper\n"
+        "    win, path)\n",
+    "an argparse help string":
+        "parser.add_argument('--shot', help='avoids screencapture -R entirely')\n",
+    "a raise that names both dead ends":
+        "raise SystemExit('screencapture -l and -R are both dead ends here')\n",
+}
+
+
+@pytest.mark.parametrize("what", sorted(_MUST_CATCH))
+def test_the_guard_above_can_actually_see_a_window_capture(what):
+    """A guard that cannot fire is not a guard, and this one silently could
+    not: see `_window_captures` for the three ways it failed."""
+    assert _window_captures(_MUST_CATCH[what]), (
+        f"a real window capture written as {what!r} is not detected:\n"
+        + _MUST_CATCH[what])
+
+
+@pytest.mark.parametrize("what", sorted(_MUST_ALLOW))
+def test_the_guard_above_leaves_a_legitimate_line_alone(what):
+    """The other half, and the one that turns a gate red on innocent code.
+
+    Explaining the rule is not breaking it. A guard that refuses the sentence
+    "do not use screencapture -R" makes the next driver's author delete the
+    explanation rather than the fault.
+    """
+    hits = _window_captures(_MUST_ALLOW[what])
+    assert not hits, (
+        f"{what!r} is refused, and it is not a window capture: {hits}\n"
+        + _MUST_ALLOW[what])
 
 
 def test_the_helper_tries_the_windows_own_buffer_before_the_screen():
