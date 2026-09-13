@@ -4927,3 +4927,49 @@ only a triple that DIFFERS from the rule's answer would stop it.
 
   Mutation-proved: with the converter returning the inclusive box again and
   `__pycache__` purged, six of the ten fail with the counts above.
+
+### B8-105 · Knut's text-and-margin batch of 2026-09-13: four built, one measured and held
+- blocks release: no
+- status: FIXED
+- found by: Knut, 2026-09-13, testing beta 7. Five faults in one post, plus two
+  more in the two posts after it.
+- detail: K1 the clip-text warning fired when nothing was hit; K2 the messages
+  that name the 7 pt floor did not say it belongs to "auto"; K3 the note-length
+  warning measured the notes box while the sheet printed the joined line; K4 a
+  clip line too long for the page was cut at both ends in silence; K5 the gap
+  between the note and the clip text is not one line's leading. K6 (the six
+  scanner presets warning about their own margin) is in the same batch and is
+  fixed; K7 (their sluggishness) is open.
+
+  **K5 IS MEASURED AND NOT BUILT, and the reason is worth the paragraph.**
+  Fixing its first part alone was tried and measured: the note is then sized
+  correctly, 3.429 mm of ink instead of 2.286, which is 10 pt instead of 7, and
+  the white gap becomes **0.254 mm**, worse than the 2.286 it replaced, because
+  the packing path is wrong too. Half of it would make the gap he reported
+  narrower, so it is held whole. Everything measured for it, and the three
+  parts it needs, is in §2q of `docs/design/issue_182_answers.md`.
+- evidence:
+  K1: test_a_wider_margin_than_the_band_says_nothing_at_all,
+  test_it_still_warns_when_the_text_really_does_reach_the_patches;
+  K2: test_auto_gets_the_sentence_and_a_typed_size_does_not,
+  test_the_floor_is_read_from_the_constant_and_never_typed_into_the_text,
+  test_every_message_that_prints_the_floor_appends_the_sentence,
+  test_no_shipped_message_still_says_it_is_already_at_its_smallest,
+  test_the_two_tooltips_name_the_floor_that_is_actually_in_force;
+  K3: test_the_stamper_and_the_panel_ask_the_same_function,
+  test_the_stamp_turns_a_silent_truncation_into_a_warning,
+  test_the_count_it_names_is_within_a_character_of_the_sheet,
+  test_the_patch_count_reaches_the_targen_line,
+  test_the_stamp_is_offered_as_a_lever_only_while_it_is_on;
+  K4: test_a_long_line_at_the_auto_floor_is_reported,
+  test_a_typed_size_never_shrinks_so_it_loses_more,
+  test_a_line_that_fits_says_nothing,
+  test_the_predicate_allows_exactly_what_the_renderer_allows;
+  K6: test_no_builtin_preset_breaks_its_own_declared_margins.
+
+  Every one mutation-proved, and each fix driven on screen in a real window
+  before and after: the K1 matrix (five combinations, two flipped and three
+  unchanged), Knut's own A3-900p at clip 18 now reading "Margins: OK" in green,
+  the K2 message read off the panel, the K3 combinations (37 and 236 characters
+  cut where the panel had said nothing and 128), and the K4 pair (331 mm needed
+  against 288, and a line that fits saying nothing).

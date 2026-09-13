@@ -1605,3 +1605,93 @@ the band. That cap was removed from `clip_content_inset_mm` on 2026-09-12 on
 Knut's own report, and the measurements above are consistent with no cap
 ("Clip" 4.0 with side markers gives a 7.0 mm reserve exactly). Those two
 paragraphs are stale on that point.
+
+## 2q. Reported and NOT built — 2026-09-13: the gap between the chart note and the clip text (K5)
+
+**Knut:** *"When chart notes are printed on right side and/or 'Stamp settings
+down the right edge' is ON, and the clip-border is on with defined custom text,
+the gap between the chart notes text line and the beginning of the clip-border
+text is a little too narrow, and not exactly the normal distance two text lines
+would have for the set font size. It needs maybe a 1 pt gap more, or maybe 1mm."*
+
+**He is right, it is measured, and it is NOT in this build.** The whole of it is
+recorded here because the measuring is done and only the building is left.
+
+### The leading is computed correctly and then discarded
+
+`chart_creator.py` hands `_stamp_one` a `gap_mm` of `CLIP_LINE_SPACING x
+pt_to_mm(max(clip floor, note floor))`, which is 4.236 mm at a 10 pt clip text.
+Measured on the sheets the app wrote, in mm from the right page edge:
+
+| clip size / note Size | leading passed in | note ink | white gap to the clip ink |
+|---|---|---|---|
+| 10 pt / auto | 4.236 | 24.003 to 26.289 | 2.286 |
+| 14 pt / auto | 5.928 | 30.734 to 33.020 | 3.048 |
+| 7 pt / auto | 2.964 | 18.796 to 21.082 | 1.778 |
+| 10 pt / typed 12 pt | 5.076 | 24.130 to 28.067 | 2.413 |
+
+In every case the note's ink starts within 0.06 mm of the clip content's reach:
+the leading is not applied at all. What is missing is exactly
+`(leading - the note's own ink thickness) / 2`, because the ink is butted
+against the reach instead of centred in a line's slot: 0.95, 1.84, 0.32 and
+0.57 mm predicted against 0.92, 1.80, 0.40 and 0.38 measured.
+
+**So it is not "add 1 mm" and not "add 1 pt": it is "give the note the block's
+next line slot".** Knut's "maybe 1 pt more, or maybe 1 mm" is the 0.92 mm this
+comes to at his own 10 pt clip text.
+
+### Underneath it, a second fault with the same cause
+
+`_detect_writable_band` looks for the patch block by column ink density over the
+whole page width, and a clip-border line passes the 0.30 threshold: on this
+sheet the rightmost column at or over 0.30 is 7.62 mm from the paper edge,
+inside the clip text, and the band's rule line runs at 0.86. So the search
+window shrank to the 7.6 mm sliver outboard of the clip text, `strip_w` went
+negative, and the re-placement branch put the note flush against the reach at
+the 7 pt legibility floor with the gap never used. Two more consequences,
+measured: **the note is printed at 7 pt on every one of these charts even where
+there is room** (its ink 2.29 mm thick where 3.43 was free), and the log says
+*"Right-edge stamp overlaps the patch block"* on sheets where it does not.
+
+### Why it is not in this build
+
+The three parts have to land together. Fixing the detector alone was tried and
+measured here: the note is then sized correctly (3.429 mm of ink instead of
+2.286, which is 10 pt instead of 7) and the white gap becomes **0.254 mm**,
+worse than the 2.286 mm it replaced, because the intended packing path is wrong
+too. `x0 = _right_limit - _gap_px - strip_w` measures the gap to the strip's
+page-edge edge while `_render_rotated_line(anchor_px=...)` draws the ink at the
+strip's patch side, so the realised white gap is `gap + (strip_w - anchor - ink)`
+and can never be one leading.
+
+Shipping half of it would make the gap he reported narrower, so the change is
+held whole. The three parts, with the analyst's line numbers:
+
+1. `tiff_metadata._detect_writable_band`, the `patch_cols` scan: look for the
+   patch block inside `keep_out_px` only, on both sides.
+2. `tiff_metadata._stamp_one`, the placement and the `_overlaps` re-placement:
+   put the note in the slot `[_right_limit - _gap_px, _right_limit]`, centred in
+   it, so a note on "auto" is sized to the leading and matches the clip text
+   instead of shrinking to the floor.
+3. `ui/tabs/tab_chart.py`'s `_note_keep_out`, which is
+   `clip_text_reach_mm(...)` and would have to become `reach + gap`, or the red
+   overlap warning goes quiet exactly when the note starts landing on patches.
+
+**No specification covers this.** The rule exists only as Knut's sentence quoted
+inside `_stamp_one` and `chart_creator`; nothing in `docs/design/` carries it,
+so building it contradicts nothing and it should be written into §2 once the
+placement is confirmed.
+
+### And a third fault found in the same place, also not built
+
+On a chart with the note, the stamp and a right-hand clip band, the note is
+printed **on top of** the clip band's text. Measured, from the right page edge:
+clip-border text ink 7.33 to 22.57 mm (about 43 pt of line), chart-note ink 6.98
+to 9.52, **overlap 2.19 mm**. The cause is one function:
+`text_edge_fit.clip_text_reach_mm` computes the keep-out from
+`text_floor_pt(size_pt)`, which on "auto" is 7 pt and gives a reach of 6.96 mm,
+while `raster._vtext` on "auto" GROWS the font to fill the band and drew that
+line at about 43 pt reaching 22.57 mm. The keep-out under-predicts by 15.6 mm.
+Getting it right means asking the renderer what size it actually chose, which is
+a structural change to `render_clip_strip`, and it decides where printed ink
+lands, so it is a round of its own.
