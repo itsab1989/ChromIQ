@@ -19831,59 +19831,109 @@ class TabChart(QWidget):
                 return warns + over, over
             lab = geom.label_band_mm if geom.label_band_mm >= 0 else geom.txhisl
             if r.show_strip_indicators and lab > 0:
-                # THIS SAID THE LETTERS RUN INTO THE PATCHES AND THEY NEVER DO.
-                # A challenge round measured five sheets at top margins from
-                # 1 mm to 8 mm: on every one the letters were printed ABOVE the
-                # patch block with clear paper between them, while this line
-                # said in red that they ran into it. Its remedy was worse than
-                # useless, because lowering "T" as it advised silenced the
-                # warning without moving one pixel of ink. The wording it
-                # replaced was true.
+                # THE LETTERS NOW HOLD THEIR DISTANCE AND OVERLAP THE PATCHES,
+                # so this reports an overlap again, and this time it is true.
+                # Knut, #182, comment 5649810914: *"the strip labels do not
+                # cross the "Text distance from edge" value (or the defined
+                # "Distance from page edge" + "Marker length" + 1.0mm,
+                # whichever is largest (if helper markers are enabled)), and
+                # then the text overlaps on top of the patch area top edge
+                # (according to top margin)."*
                 #
-                # `geometry.py` anchors the label's BOTTOM at the top of the
-                # patch area and slides it UP toward the page edge when the
-                # margin is tight, clamped at the edge. So the fact to report
-                # is that the distance from the paper edge the user asked for
-                # is not the distance they get, which is what the help for
-                # "Show strip letters" has always said would happen.
+                # It said that once before and was wrong, which is why the
+                # wording here is careful. `geometry.placement` used to slide
+                # the band UP toward the page edge when the top margin was
+                # tight, so a challenge round measured five sheets at margins
+                # from 1 mm to 8 mm and found clear paper between the letters
+                # and the patch block on every one while this line said in red
+                # that they collided. The clamp that made that true is gone
+                # (his ruling above), so the same sentence is now a fact about
+                # the sheet, and `text_edge_fit.strip_label_overlap` is the one
+                # place the arithmetic lives.
                 #
-                # THE DISTANCE ASKED FOR IS THE RESERVE, NOT "T" (#182). With
-                # the ruler helper markers on for top and bottom the letters
-                # are held at the larger of "T" and the markers' own distance,
-                # so asking about "T" alone under-reported the squeeze by up to
-                # that reserve and stayed silent on sheets where the letters
-                # had already been pushed off it.
-                _t_reserve = text_edge_fit.edge_reserve_mm(
-                    _top_edge,
+                # THE DISTANCE IS THE RESERVE, NOT "T" (#182). With the ruler
+                # helper markers on for top and bottom the letters are held at
+                # the larger of "T" and the markers' own distance, and the
+                # message names whichever one is actually binding so the user
+                # reaches for the control that moves the ink.
+                # **AND IT IS THE RAW "T" THAT GOES IN, NOT THE RESERVE.**
+                # `strip_label_overlap` takes the box's own value and works the
+                # reserve out itself, because it also has to say WHICH of the
+                # two won: `from_markers` is `marker_reserve > text_edge_top`.
+                # Handing it the already-maxed figure makes that comparison
+                # `7.0 > 7.0`, so a sheet held by the markers was blamed on
+                # "T", and lowering "T" as the message then advised would have
+                # moved no ink at all. That is the exact class of fault the
+                # message this one replaces was written for. The function that
+                # came before it, `strip_label_squeeze`, took the reserve, so
+                # the old call site was right for the old callee.
+                # WHAT IS DRAWN, NOT WHAT IS RESERVED. `label_ink_bottom_mm` is
+                # the renderer's own answer (the font's full pixel size, the
+                # underline and the user's Label offset) and it is up to
+                # 1.44 mm taller than the reserved band at an explicit size.
+                # It already carries the offset, so the offset is subtracted
+                # back out here and handed over separately, which is what lets
+                # the message name it as a lever.
+                _off = float(getattr(r, "strip_label_offset_mm", 0.0) or 0.0)
+                _ink = float(getattr(geom, "label_ink_bottom_mm", 0.0) or 0.0)
+                _drawn = (_ink - _off) if _ink > 0.0 else lab
+                # WHERE THE PATCHES ACTUALLY START, NOT WHERE THE BOX SAYS.
+                # On a TURNED honeycomb `geometry._top_reserve_for_a_turned_hex`
+                # pushes the patch block down so the raised strips do not climb
+                # into the label band, so the patch area begins well below
+                # "Top". Measured by the preset sweep on his own
+                # `CR30-A4-153p-1page-Portrait-w18.0mm-Hexagonal`: the letters
+                # end 13.98 mm down and the patches start at 17.09 mm, three
+                # millimetres of clear paper, and this warned in red that 1.0 mm
+                # of every letter was on them. Four more of his hexagonal
+                # presets said the same. A warning that fires while the user is
+                # looking at the thing working is how people learn to ignore
+                # warnings, and this project has shipped that twice.
+                #
+                # `report.top_mm` is the realised top margin measured off the
+                # preview raster by `workflow/margin_inspector.py`, to the patch
+                # INK, apex correction included. With no report (the ⓘ, and a
+                # driver) there is nothing better than the box, which is what
+                # every non-hex chart resolves to anyway.
+                _patch_top = getattr(report, "top_mm", None)
+                _patch_top = (float(_patch_top) if _patch_top is not None
+                              else float(r.margin_top))
+                _ov = text_edge_fit.strip_label_overlap(
+                    _patch_top, _top_edge, max(0.0, _drawn), _off,
                     bool(getattr(r, "helper_markers", False)),
                     float(getattr(r, "helper_marker_edge_mm", 0.0) or 0.0),
                     float(getattr(r, "helper_marker_len_mm", 0.0) or 0.0),
-                    bool(getattr(r, "helper_markers_top_bottom", True)))
-                _sq = text_edge_fit.strip_label_squeeze(
-                    r.margin_top, _t_reserve, lab,
-                    float(getattr(r, "strip_label_offset_mm", 0.0) or 0.0))
-                if _sq is not None and _sq.off_the_sheet:
+                    bool(getattr(r, "helper_markers_top_bottom", True)),
+                    gap_mm=float(getattr(geom, "strip_indicator_gap", 0.0) or 0.0))
+                if _ov is not None and _ov.from_markers:
                     over.append(tr(
-                        "⚠ The strip letters do not fit above the patches. "
-                        "They are {need:.1f} mm tall and the top margin is "
-                        "{margin:.1f} mm, so they are printed hard against the "
-                        "paper edge and the top of every letter is lost. Raise "
-                        "“Top” under “Margins (mm)” by at least {short:.1f} mm, "
-                        "or use a smaller label size in Preferences.").format(
-                            need=_sq.band_mm, margin=_sq.margin_mm,
-                            short=_sq.short_mm))
-                elif _sq is not None:
+                        "⚠ The strip letters are printed over the patches. "
+                        "They are held {reserve:.1f} mm from the paper edge by "
+                        "the ruler helper markers, they reach {reach:.1f} mm "
+                        "down the page, and the patch area starts at "
+                        "{margin:.1f} mm, so {over:.1f} mm of every letter is "
+                        "on the first row of patches. Those patches carry "
+                        "letter ink and will not measure correctly. Raise "
+                        "“Top” under “Margins (mm)” by about {over:.1f} mm, "
+                        "lower “Distance from page edge” or “Marker length” "
+                        "under “Print helper markers”, or use a smaller label "
+                        "size.").format(
+                            reserve=_ov.reserve_mm, reach=_ov.reaches_mm,
+                            margin=_ov.margin_mm, over=_ov.overlap_mm))
+                elif _ov is not None:
                     over.append(tr(
-                        "⚠ The strip letters are printed closer to the paper "
-                        "edge than you asked. They are {act:.1f} mm from it "
-                        "rather than {asked:.1f} mm, because they are "
-                        "{need:.1f} mm tall and the top margin is {margin:.1f} "
-                        "mm. They never move down over the patches. Raise "
-                        "“Top” under “Margins (mm)” by about {short:.1f} mm to "
-                        "get the distance you set.").format(
-                            act=_sq.actual_mm, asked=_sq.asked_mm,
-                            need=_sq.band_mm, margin=_sq.margin_mm,
-                            short=_sq.short_mm))
+                        "⚠ The strip letters are printed over the patches. "
+                        "They are held {reserve:.1f} mm from the paper edge by "
+                        "“T” under “Text distance from edge (mm)”, they reach "
+                        "{reach:.1f} mm down the page, and the patch area "
+                        "starts at {margin:.1f} mm, so {over:.1f} mm of every "
+                        "letter is on the first row of patches. Those patches "
+                        "carry letter ink and will not measure correctly. "
+                        "Raise “Top” under “Margins (mm)” by about "
+                        "{over:.1f} mm, lower “T”, or use a smaller label "
+                        "size.").format(
+                            reserve=_ov.reserve_mm, reach=_ov.reaches_mm,
+                            margin=_ov.margin_mm, over=_ov.overlap_mm))
             # …AND THE ROW NUMBERS DOWN THE LEFT, the same rule one edge over.
             # Area-first no longer reserves their 7.5 mm band outside the margin
             # (that was the fault Basti reported: a 1 mm margin put the first
@@ -20028,12 +20078,23 @@ class TabChart(QWidget):
                     _pw = float(_papers.dimensions_mm(r.paper)[0])
                 except Exception:      # noqa: BLE001 — never block on this
                     _pw = float(getattr(report, "page_w_mm", 0.0) or 0.0)
+                # AND THE CLIP BORDER IS THE THIRD THING THAT BOUNDS IT
+                # (Knut, comment 5651269930). The line is centred between his
+                # two bounds, and on the border's side the bound is the
+                # border's own width, so the room is not `paper - 2 x reserve`
+                # on a chart that has a band. `raster.render_pages` shrinks
+                # against the same figure, so what the panel warns about is
+                # what the sheet does.
+                _cb_mm = (float(getattr(r, "clip_border_width_mm", 0.0) or 0.0)
+                          if getattr(r, "clip_border", False) else 0.0)
                 _wo = text_edge_fit.bottom_text_overflow(
                     _pw, _clip_edge, _w,
                     bool(getattr(r, "helper_markers", False)),
                     float(getattr(r, "helper_marker_edge_mm", 0.0) or 0.0),
                     float(getattr(r, "helper_marker_len_mm", 0.0) or 0.0),
-                    bool(getattr(r, "helper_markers_sides", True)))
+                    bool(getattr(r, "helper_markers_sides", True)),
+                    clip_border_mm=_cb_mm,
+                    clip_side=str(getattr(r, "clip_side", "left") or "left"))
                 if _wo is not None:
                     _auto = not float(getattr(r, "chart_text_size_mm", 0.0) or 0.0)
                     over.append((tr(

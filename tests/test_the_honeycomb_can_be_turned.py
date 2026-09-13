@@ -1201,6 +1201,77 @@ def _letter_heights(tmp_path, *, turned, n=345, paper="A4", **over):
     return heights
 
 
+#: A top margin that can hold the whole strip-label band on the CR30 A4
+#: default (a 7.0 mm band at a 4.0 mm reserve needs 11.0). The SHIPPED default
+#: is 6.0, which cannot, and since Knut's ruling of 2026-09-13 that is a sheet
+#: where the letters are printed over the first row of hexagons on purpose. So
+#: every "the letters are whole" check in this file is now explicitly about a
+#: sheet with the room, and the shipped one has a test of its own below.
+MARGIN_THAT_HOLDS_THE_BAND_MM = 14.0
+
+
+def _dark_on_the_patches(tmp_path, *, turned, n=345, paper="A4", **over):
+    """Dark pixels BELOW the patch-area top, with the letters on and off.
+
+    Returns ``(with the letters, without them)``. On a chart of pale patches
+    the only thing that can be dark down there is letter ink, so the pair says
+    whether the letters are printed ON the patches or not at all.
+    `_letter_heights` cannot answer that: it compares a sheet against another
+    sheet drawn the same way, so a change that removes the letters from BOTH
+    looks identical, and a mutation that never composited the label overlay
+    passed it.
+
+    **THE GEOMETRY IS THE SAME ON BOTH SHEETS, AND THAT IS THE WHOLE POINT.**
+    Switching "Show strip letters" off in the RECIPE reclaims the label band,
+    so area-first resizes every patch and the patch area starts somewhere else;
+    the difference between those two sheets is the chart, not the letters. The
+    first version of this helper did exactly that and reported 26,542 dark
+    pixels of "letter ink" on a sheet whose letters were not being drawn at
+    all. So the geometry is built once, from the recipe with the letters ON,
+    and only the renderer's own `draw_indicators` argument changes. This is the
+    same trick, for the same reason, as
+    `tests/test_the_top_and_bottom_edges_keep_off_the_helper_markers._render`.
+    """
+    from dataclasses import replace
+
+    import numpy as np
+
+    from workflow.layout_engine import (
+        geometry as _geometry, instruments as _instruments, papers as _papers,
+        raster as _raster)
+    from workflow.layout_engine.presets import default_recipe
+    from workflow.layout_engine.ti1_reader import ColorTarget
+
+    r = replace(default_recipe("CR30", paper), hflag=True,
+                hex_flat_top=turned, randomize=False, spacer_mode="none",
+                spacer_on=False, **over)
+    kw = r.build_kwargs()
+    kw["area_target_count"] = n
+    geom = _raster.apply_furniture_reserves(
+        _instruments.geom_from_build_kwargs(kw), kw)
+    w_mm, h_mm = _papers.dimensions_mm(paper)
+    target = ColorTarget(
+        color_rep="iRGB", device_fields=["RGB_R", "RGB_G", "RGB_B"],
+        patches=[((88.0 + i % 5, 90.0 + i % 4, 92.0 + i % 3),
+                  (80.0, 85.0, 90.0)) for i in range(n)])
+    lay = _geometry.compute(geom, w_mm, h_mm, n)
+    place = _geometry.placement(geom, w_mm, h_mm, lay)
+    dpi = int(kw.get("dpi") or 300)
+    top = int(round(place.y_of(0) * dpi / 25.4))
+    counts = []
+    for indicators in (True, False):
+        img = _raster.render_pages(
+            target, lay, geom, seed=7, randomize=False,
+            paper_w_mm=w_mm, paper_h_mm=h_mm, dpi=dpi,
+            draw_indicators=indicators,
+            indicator_size_mm=kw.get("indicator_size_mm", 0.0),
+            strip_label_offset_mm=kw.get("strip_label_offset_mm", 0.0),
+        ).images[0]
+        g = np.asarray(img.convert("L"))
+        counts.append(int((g[top:, :] < 120).sum()))
+    return counts[0], counts[1]
+
+
 def _letters_are_whole(tmp_path, *, turned, label, **over):
     """Assert no strip letter is shorter than on a sheet with room to spare.
 
@@ -1209,7 +1280,12 @@ def _letters_are_whole(tmp_path, *, turned, label, **over):
     sides of the comparison share no arithmetic.
     """
     real = _letter_heights(tmp_path, turned=turned, **over)
-    roomy = _letter_heights(tmp_path, turned=turned, margin_top=30.0, **over)
+    # THE CONTROL OWNS THE TOP MARGIN. Callers now name one of their own (a
+    # sheet whose margin can hold the band), and passing both put two
+    # `margin_top` keywords into the same call.
+    _roomy_over = {k: v for k, v in over.items() if k != "margin_top"}
+    roomy = _letter_heights(tmp_path, turned=turned, margin_top=30.0,
+                            **_roomy_over)
     assert real and roomy, "no strip letters were drawn at all"
     assert min(real) >= min(roomy) - 2, (
         f"{label}: the shortest strip letter is {min(real)} px where the same "
@@ -1218,7 +1294,8 @@ def _letters_are_whole(tmp_path, *, turned, label, **over):
     )
 
 
-def test_a_turned_honeycomb_never_prints_a_strip_letter_on_a_patch(tmp_path):
+def test_a_turned_honeycomb_keeps_its_letters_whole_when_the_margin_holds_them(
+        tmp_path):
     """The raised strips of a turned honeycomb climbed into the label band.
 
     The block is shifted down by `hxeh` so a hexagon's apex clears the top
@@ -1230,39 +1307,121 @@ def test_a_turned_honeycomb_never_prints_a_strip_letter_on_a_patch(tmp_path):
     a real sheet and reproduced from the app's own record: label band bottom 74
     px, topmost patch box 71 px, at 150, 345 and 690 patches alike.
 
+    **THIS TEST USED TO SAY "NEVER", AND KNUT HAS SINCE RULED THAT IT MAY.**
+    Comment 5649810914, 2026-09-13: the strip letters hold their distance from
+    the page edge and *"the text overlaps on top of the patch area top edge
+    (according to top margin)"*. So the guarantee that survives is the one this
+    fault was really about, and it is a guarantee about the TURN and not about
+    a tight margin: on a sheet whose top margin can hold the band, a turned
+    honeycomb's raised strips must not reach the letters where a pointy one's
+    do not. The shipped default cannot hold the band, and what happens there is
+    pinned by `test_the_shipped_default_now_prints_the_letters_on_the_hexagons`
+    below.
+
     Read off the sidecar the renderer writes, with the pointy sheet as the
     control, because an absolute clearance says nothing on its own.
     """
+    m = MARGIN_THAT_HOLDS_THE_BAND_MM
     for n in (150, 345, 690):
         for name, turned in (("turned", True), ("pointy", False)):
             # The measurement that matters: the letters themselves.
             _letters_are_whole(tmp_path, turned=turned,
-                               label=f"{name} chart of {n} patches", n=n)
+                               label=f"{name} chart of {n} patches", n=n,
+                               margin_top=m)
             # ...and the recorded geometry, as a second leg. On its own this is
             # circular -- see `_letter_heights` -- but it names the millimetre.
-            side = _turned_chart_sidecar(tmp_path, turned=turned, n=n)
+            side = _turned_chart_sidecar(tmp_path, turned=turned, n=n,
+                                         margin_top=m)
             band = side["label_band_bottom_px"]
             top = min(p["y"] for p in side["patches"] if p["page"] == 0)
             mm = 25.4 / side["dpi"]
             assert top >= band, (
-                f"{name} chart of {n} patches: the strip letters end at "
-                f"{band} px and the first patch box starts at {top} px, so "
-                f"{(band - top) * mm:.2f} mm of letter is printed on the ink"
+                f"{name} chart of {n} patches at a {m} mm top margin: the "
+                f"strip letters end at {band} px and the first patch box "
+                f"starts at {top} px, so {(band - top) * mm:.2f} mm of letter "
+                "is printed on the ink"
             )
+
+
+def test_the_shipped_default_now_prints_the_letters_on_the_hexagons(tmp_path):
+    """Knut's ruling, with its price on the record rather than in a comment.
+
+    Comment 5649810914, #182, 2026-09-13, answering the question this project
+    parked for a day:
+
+        "I want the function that I specified, where the strip labels do not
+         cross the "Text distance from edge" value (or the defined "Distance
+         from page edge" + "Marker length" + 1.0mm, whichever is largest (if
+         helper markers are enabled)), and then the text overlaps on top of the
+         patch area top edge (according to top margin)."
+
+    The cost was measured and put in front of him before he ruled, and this is
+    that measurement, read back off the app's own sidecar so it cannot drift:
+    on the SHIPPED CR30 A4 default the label band's bottom lands BELOW the top
+    of the first patch box, so every strip letter is printed over the first row
+    of hexagons. It is not a regression and it is not to be "fixed"; the panel
+    warns about it, which is the part of the ruling the user sees
+    (`workflow/text_edge_fit.py::strip_label_overlap`).
+    """
+    side = _turned_chart_sidecar(tmp_path, turned=True, n=345)
+    band = side["label_band_bottom_px"]
+    top = min(p["y"] for p in side["patches"] if p["page"] == 0)
+    mm = 25.4 / side["dpi"]
+    assert band > top, (
+        "the strip letters clear the first patch row on the shipped CR30 A4 "
+        f"default (band {band} px, patch top {top} px). Knut's ruling puts "
+        "them ON it; a clamp has come back"
+    )
+    # ...AND THE LETTERS ARE STILL WHOLE, which is the other half of the
+    # ruling and the half that is easy to lose. The strip's own patches are
+    # drawn after its label, so before `raster._lbl_surface` deferred the band
+    # this overlap ERASED it: measured here, the shortest letter came out the
+    # same length as on a roomy sheet only once the ink was composited on top.
+    # A letter painted out is a letter silently dropped, which his 2026-09-10
+    # ruling forbids by name.
+    real = _letter_heights(tmp_path, turned=True, n=345)
+    roomy = _letter_heights(tmp_path, turned=True, n=345, margin_top=30.0)
+    assert min(real) >= min(roomy), (
+        f"the shortest letter is {min(real)} px where a roomy sheet draws "
+        f"{min(roomy)} px, so a patch was printed over it. "
+        f"{(band - top) * mm:.2f} mm of band is below the patch top and it "
+        "must go ON the hexagons, not under them"
+    )
+    # ...AND THE INK IS REALLY DOWN THERE. The comparison above is between two
+    # sheets drawn the same way, so a change that removes the letters from BOTH
+    # satisfies it; a mutation that never composited the label overlay did
+    # exactly that and passed. On a chart of pale patches the only dark thing
+    # below the patch-area top is letter ink, so switching the letters off is
+    # the control that cannot be fooled.
+    on, off = _dark_on_the_patches(tmp_path, turned=True, n=345)
+    assert on > off + 500, (
+        f"{on} dark pixels below the patch-area top with the strip letters on "
+        f"and {off} with them off. The letters are not being printed over the "
+        "hexagons at all, so either the clamp is back or the overlay is no "
+        "longer composited"
+    )
 
 
 def test_the_turn_does_not_move_a_pointy_honeycomb(tmp_path):
     """The reserve above is for the turn ALONE.
 
-    A pointy honeycomb is shipped behaviour and its sheets must come out where
+    A pointy honeycomb is shipped behaviour and its PATCHES must come out where
     they always did, so the guard is keyed on the orientation and this pins that
-    the control sheet's own numbers are untouched: patch-area top 91 px and band
-    bottom 83 px at 300 dpi on A4, which is what the tree produced before the
-    reserve existed.
+    the control sheet's own numbers are untouched: patch-area top 91 px at
+    300 dpi on A4, and 27 patches to a strip, which is what the tree produced
+    before the reserve existed.
+
+    **THE BAND'S OWN BOTTOM HAS MOVED, AND THAT IS KNUT'S RULING, NOT THE
+    RESERVE.** It was 83 px while `geometry.placement` slid the letters up
+    toward the page edge to keep them off the patches; comment 5649810914 stops
+    that, so on the shipped 6.0 mm top margin the band now hangs at the 4.0 mm
+    reserve and ends at 130 px. The patch top is still 91, which is the thing
+    this test is for: the turn's reserve has not reached a chart that is not
+    turned.
     """
     side = _turned_chart_sidecar(tmp_path, turned=False, n=345)
     assert side["dpi"] == 300
-    assert side["label_band_bottom_px"] == 83, side["label_band_bottom_px"]
+    assert side["label_band_bottom_px"] == 130, side["label_band_bottom_px"]
     top = min(p["y"] for p in side["patches"] if p["page"] == 0)
     assert top == 91, (
         f"the pointy patch area starts at {top} px where it has always started "
@@ -1333,6 +1492,12 @@ def test_the_letters_clear_the_ink_however_they_are_styled(tmp_path, label, over
     renderer can say. Each row here is one of those settings, and each is read
     off the sidecar rather than recomputed.
     """
+    # ON A SHEET WITH THE ROOM. Knut's 2026-09-13 ruling puts the letters over
+    # the patches whenever the top margin cannot hold the band, so the shipped
+    # 6.0 mm default is no longer the right sheet to ask this question on: it
+    # would answer "yes, cut" for every row and say nothing about the reserve
+    # these rows exist to check.
+    over = dict(over, margin_top=MARGIN_THAT_HOLDS_THE_BAND_MM)
     _letters_are_whole(tmp_path, turned=True, label=f"with {label}", **over)
     scale = over.pop("pscale", 1.0)
     side = _turned_chart_sidecar(tmp_path, turned=True, n=345, scale=scale,
