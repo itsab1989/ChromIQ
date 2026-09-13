@@ -77,9 +77,19 @@ WORK = Path("/tmp/chromiq-sweep-work")
 #: Knut's own exclusion, matched on the dropdown label the user reads.
 EXCLUDE = "by pharmacist"
 
-#: The one element this sweep's geometry analyser cannot see. See the note at
-#: the verdict below.
-_NOTE_PHRASE = "chart notes down the right edge"
+#: The two elements this sweep's geometry analyser cannot see, matched on the
+#: phrase the panel actually prints. See the note at the verdict below.
+#:
+#: * the right-edge chart note is stamped by `workflow/tiff_metadata.py` over a
+#:   FINISHED raster, into a white band it finds in the pixels, so no figure in
+#:   `geometry` predicts it;
+#: * the row indicators' message is not an overlap at all. It says ChromIQ
+#:   WIDENED the left margin to fit them, which is advice about a margin that
+#:   was moved for the user, and the panel puts it in the red overlap field
+#:   anyway. Reported rather than scored, and reported rather than changed:
+#:   which field it belongs in is Knut's call.
+_NOT_COVERED = ("chart notes down the right edge",
+                "what the row indicators need")
 
 modals: list[dict] = []
 _timers: list = []
@@ -416,9 +426,11 @@ def main() -> int:                                             # noqa: C901
         # is no figure in `geometry` that predicts it, so the only honest way
         # to measure it is to render the page, which this sweep does not do.
         # It is reported in its own column instead of being scored.
-        row["panel_note_warnings"] = [w for w in allw if _NOTE_PHRASE in w]
-        row["panel_says_overlap"] = bool([w for w in allw
-                                          if _NOTE_PHRASE not in w])
+        def _covered(w: str) -> bool:
+            return not any(ph in w for ph in _NOT_COVERED)
+
+        row["panel_uncovered_warnings"] = [w for w in allw if not _covered(w)]
+        row["panel_says_overlap"] = bool([w for w in allw if _covered(w)])
 
         try:
             params = tab._collect_manual()             # the app's own params
@@ -487,13 +499,13 @@ def main() -> int:                                             # noqa: C901
 
     # A plain-text table, because that is what the report carries.
     lines = ["| # | preset | paper | patches | text over the patch area, "
-             "the markers or the clip border | the panel | the right-edge "
-             "note |",
+             "the markers or the clip border | the panel | the note or the "
+             "row indicators |",
              "|---|---|---|---|---|---|---|"]
     for r in rows:
         what = "; ".join(r.get("hit_names") or []) or "none"
         says = ("yes" if r.get("panel_says_overlap") else "silent")
-        note = ("warned" if r.get("panel_note_warnings") else "-")
+        note = ("warned" if r.get("panel_uncovered_warnings") else "-")
         lines.append(f"| {r['n']} | {r['preset']} | {r.get('paper','')} | "
                      f"{r.get('patches','')} | {what} | {says} | {note} |")
     (out / "preset-text-overlap-sweep.md").write_text(

@@ -458,13 +458,50 @@ def main() -> int:                                            # noqa: C901
 
     # ---------------------------------------------------------- ruling 2c --
     # The chart note and the settings stamp, on the same vertical bounds.
-    tab._manual_target_name_edit.setText(PROJECT)
-    pump(app, 400)
-    case("r2c-note-and-stamp",
-         "the right-edge note: T=12, B=4 must bound it too",
+    #
+    # THE BOTTOM LINE COMES WITH THE STAMP, so this one is measured first and
+    # on its own: ticking "Stamp settings used on the chart" puts a line along
+    # the BOTTOM as well as feeding the right-edge note, and a control with the
+    # tick off cannot separate them.
+    case("r2c-stamp-bottom-line",
+         "the stamp's BOTTOM line, with the notes box empty",
          {"stamp_command": False},
          stamp_command=True, text_edge_top_mm=12.0, text_edge_mm=4.0,
          margin_top=15.0, margin_right=25.0)
+
+    # ...and now the RIGHT-EDGE note, isolated against a sheet that has the
+    # same stamp and an EMPTY notes box. The difference is then the note alone.
+    # `chart_creator` assembles the note from the run's Chart Notes plus the
+    # stamp lines, so the box on the tab is what puts it on the sheet, and the
+    # first run of this driver found nothing down the right edge because the
+    # box was empty.
+    _notes_edit = getattr(tab, "_manual_chart_notes_edit", None)
+    if _notes_edit is not None:
+        _over = dict(stamp_command=True, text_edge_top_mm=12.0,
+                     text_edge_mm=4.0, margin_top=15.0, margin_right=25.0)
+        _r, _drift = apply(**_over)
+        _notes_edit.setText(
+            "Canon PRO-300 on Photo Rag, colour management off in the driver")
+        pump(app, 700)
+        _v = build("r2c-right-edge-note")
+        _says = panel_says()
+        _notes_edit.setText("")
+        pump(app, 700)
+        _r2, _drift2 = apply(**_over)
+        _c = build("r2c-right-edge-note-control")
+        _row = {"case": "r2c-right-edge-note",
+                "comment": "the note's two ends against T=12 and B=4",
+                "recipe_drift": _drift, "control_drift": _drift2,
+                "panel": _says,
+                "sheet": _v.name if _v else None,
+                "control_sheet": _c.name if _c else None}
+        if _v and _c:
+            _row["measured"] = isolate(_v, _c)
+        res["steps"].append(_row)
+        print(f"  [r2c-right-edge-note] "
+              f"{json.dumps(_row.get('measured', {}).get('ink'))}", flush=True)
+        (out / "rulings.json").write_text(
+            json.dumps(res, indent=1, ensure_ascii=False), encoding="utf-8")
 
     # One photograph of the real window, if the screen allows it.
     ok, why = capture_window(win, out / "window.png")

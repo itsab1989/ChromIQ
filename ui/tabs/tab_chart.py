@@ -19877,8 +19877,29 @@ class TabChart(QWidget):
                 _off = float(getattr(r, "strip_label_offset_mm", 0.0) or 0.0)
                 _ink = float(getattr(geom, "label_ink_bottom_mm", 0.0) or 0.0)
                 _drawn = (_ink - _off) if _ink > 0.0 else lab
+                # WHERE THE PATCHES ACTUALLY START, NOT WHERE THE BOX SAYS.
+                # On a TURNED honeycomb `geometry._top_reserve_for_a_turned_hex`
+                # pushes the patch block down so the raised strips do not climb
+                # into the label band, so the patch area begins well below
+                # "Top". Measured by the preset sweep on his own
+                # `CR30-A4-153p-1page-Portrait-w18.0mm-Hexagonal`: the letters
+                # end 13.98 mm down and the patches start at 17.09 mm, three
+                # millimetres of clear paper, and this warned in red that 1.0 mm
+                # of every letter was on them. Four more of his hexagonal
+                # presets said the same. A warning that fires while the user is
+                # looking at the thing working is how people learn to ignore
+                # warnings, and this project has shipped that twice.
+                #
+                # `report.top_mm` is the realised top margin measured off the
+                # preview raster by `workflow/margin_inspector.py`, to the patch
+                # INK, apex correction included. With no report (the ⓘ, and a
+                # driver) there is nothing better than the box, which is what
+                # every non-hex chart resolves to anyway.
+                _patch_top = getattr(report, "top_mm", None)
+                _patch_top = (float(_patch_top) if _patch_top is not None
+                              else float(r.margin_top))
                 _ov = text_edge_fit.strip_label_overlap(
-                    r.margin_top, _top_edge, max(0.0, _drawn), _off,
+                    _patch_top, _top_edge, max(0.0, _drawn), _off,
                     bool(getattr(r, "helper_markers", False)),
                     float(getattr(r, "helper_marker_edge_mm", 0.0) or 0.0),
                     float(getattr(r, "helper_marker_len_mm", 0.0) or 0.0),
