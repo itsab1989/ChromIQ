@@ -989,6 +989,19 @@ class ArgyllRunner(QObject):
     # Path resolution
     # ------------------------------------------------------------------
 
+    def resolve_tool(self, tool: str) -> Path:
+        """Where this runner would find *tool*, without running it.
+
+        The public face of :meth:`_resolve`, for the one caller that has to
+        drive an Argyll binary itself instead of through the QProcess queue:
+        :mod:`workflow.scan_device_values`, whose values pass is a short
+        synchronous read that must not take the singleton's ``is_running``
+        guard from the build it is checking. Resolving through the same method
+        keeps that call on the user's configured Argyll, not on whatever is
+        first on ``PATH``.
+        """
+        return self._resolve(tool)
+
     def _resolve(self, tool: str) -> Path:
         # Bundled helpers (chromiq-chartread) pass their absolute path —
         # they don't live in the Argyll bin dir.

@@ -75,6 +75,35 @@ What each MISSES matters as much, and is the reason there are three:
 * fit support misses a reference with plenty of distinct colours and the wrong
   ones — that is agreement's job.
 
+**THE DEVICE COLUMN IS NOT ALWAYS THE SCAN, AND TWO OF THESE FIVE READ IT.**
+#182, 2026-09-13. Everything above assumes the ``.ti3``'s ``RGB_*`` is what the
+scanner saw, which is true on the scanner-profile path and false on the other
+one. With *"Profile my printer from this scan"* ticked, ``scanin -c`` writes a
+``.ti3`` whose ``RGB_*`` are **the CHART's printer device values** and whose
+``XYZ_*`` are the scan converted through a scanner profile, so **clipping** and
+the **highlight level** were both measuring the chart:
+
+* the clipped share counted the chart's own solids and paper, which every
+  profiling chart is full of by design. Measured straight out of ``targen``:
+  61.0 % at 210 patches, 49.2 at 396, 40.4 at 800, 32.8 at 1500, against a 15 %
+  limit. So the warning fired on every scan on that path and its advice, rescan
+  with the automatic brightness off, could never move the number;
+* the highlight level read 100.0 every time, because a chart's paper patch is
+  device 100 by construction, and the under-exposure warning could never fire
+  at all. That is the one that matters: a dark scan builds a bad printer
+  profile in silence.
+
+:func:`inspect_read` therefore takes an optional *scan*, and the window hands it
+one on that path only: the scan's own device values, read back by a second
+``scanin -o`` pass (:mod:`workflow.scan_device_values`). The two exposure
+figures are then answered from the scan and the highlight's "which patches are
+white" comes from the chart's device values rather than a reference file
+(:func:`highlight_level_by_device`); everything else is a property of the
+``.ti3`` on both paths and is unchanged. With *scan* left ``None`` — the scanner
+path, and any printer-path page whose values pass could not run — nothing about
+the scanner path's behaviour differs by a single number, and an unmeasured page
+reports its two exposure figures as ``None``, never as the chart's.
+
 Pure functions, no Qt, no ArgyllCMS — the window supplies the paths and the
 thresholds, and decides what to say.
 """
@@ -215,9 +244,17 @@ class ReadInspection:
     rows: int
     #: rank agreement with the reference; ``None`` when it cannot be computed
     agreement: "float | None"
-    #: share of patches sitting at the top / bottom of the device scale
-    clipped_high: float
-    clipped_low: float
+    #: Share of patches sitting at the top / bottom of the device scale, or
+    #: ``None`` when the scan's device values could not be obtained at all.
+    #:
+    #: ``None`` is a real state and not a tidy default. On the printer-from-scan
+    #: path the device column of the ``.ti3`` belongs to the CHART, so if the
+    #: values pass (:mod:`workflow.scan_device_values`) does not run there is
+    #: nothing here that is about the scan. Reporting the chart's own clipped
+    #: share instead is precisely the fault this was built to remove, so the
+    #: measurement is marked absent and :meth:`over_clipped` declines.
+    clipped_high: "float | None"
+    clipped_low: "float | None"
 
     #: device level (0-100) of the chart's own near-white patches, or ``None``
     #: when the reference names nothing near white — see :func:`highlight_level`
@@ -243,14 +280,37 @@ class ReadInspection:
         self-check to mean anything."""
         return 0 < self.support < floor
 
+    def over_clipped(self, limit: float) -> bool:
+        """True when too much of the scan sits at an end of the device scale.
+
+        ``None`` is not an accusation, for the same reason as
+        :meth:`underexposed` and :meth:`disagrees`: it means the scan's own
+        device values could not be measured, and a check that cannot see must
+        not accuse. Callers must ask through this rather than comparing
+        :attr:`clipped` themselves, so that an unmeasured page cannot be read as
+        a clean one *or* raise on a ``None``."""
+        c = self.clipped
+        return c is not None and c > limit
+
     @property
-    def clipped(self) -> float:
+    def measured_exposure(self) -> bool:
+        """Whether the two exposure checks had the scan's device values to work
+        from. False means they were not asked, not that they passed."""
+        return self.clipped_high is not None and self.clipped_low is not None
+
+    @property
+    def clipped(self) -> "float | None":
         """The worse of the two rails, because the message names which rail it
-        is separately and a scan that clips both is not twice as wrong."""
+        is separately and a scan that clips both is not twice as wrong.
+        ``None`` when the share was not measured."""
+        if self.clipped_high is None or self.clipped_low is None:
+            return None
         return max(self.clipped_high, self.clipped_low)
 
     @property
     def clipped_at_top(self) -> bool:
+        if self.clipped_high is None or self.clipped_low is None:
+            return False
         return self.clipped_high >= self.clipped_low
 
 
@@ -368,6 +428,74 @@ def highlight_level(rgb, xyz) -> "float | None":
     return float(np.median(rgb[sel].max(axis=1)))
 
 
+#: A chart patch counts as "paper" when its WEAKEST device channel is within
+#: this much of the whitest patch the chart holds. Used only on the
+#: printer-from-scan path, where the thing that says which patches should come
+#: back brightest is the chart, not a reference file.
+#:
+#: The weakest channel, and not the strongest, is the whole point. On a printer
+#: chart the paper patch is the one with no ink in ANY channel: the CR30 demo's
+#: A1 is (100, 100, 100) and its A9 is (90.9, 100, 100), a cyan tint whose
+#: STRONGEST channel is also 100. Selecting on the max would have taken every
+#: patch that is saturated in one channel — 100 of the demo's 396 on page 1 —
+#: and called them white.
+NEAR_PAPER = 0.95
+
+#: The chart must actually hold a near-paper patch before
+#: :func:`highlight_level_by_device` says anything, on the same principle as
+#: :data:`HIGHLIGHT_REFERENCE_MIN_Y`: a chart of nothing but dark patches gives
+#: no exposure to judge against. Device values are 0-100 and every chart
+#: ``targen`` writes carries the paper patch at 100 in all three channels, so
+#: this declines only for a target deliberately built without one.
+HIGHLIGHT_CHART_MIN_DEVICE = 95.0
+
+
+def highlight_level_by_device(scan_rgb, chart_rgb) -> "float | None":
+    """:func:`highlight_level`, asked of a chart instead of a reference file.
+
+    Same measure and same meaning — *where the chart's own white landed on the
+    device scale, 0-100* — and the same answer on the same scan. What differs is
+    only the question "which patches are the white ones", because the two paths
+    hold different things:
+
+    * the scanner path has a reference file stating each patch's true colour, so
+      near-white is ``Y >= 0.95 * Ymax`` (:func:`highlight_level`);
+    * the printer path has the chart's own device values, so near-white is the
+      patch the printer was asked to leave unprinted — the weakest channel
+      within :data:`NEAR_PAPER` of the whitest patch there is.
+
+    The reference cannot be used for this on the printer path even though the
+    ``.ti3`` has an ``XYZ_*`` column, and the reason is worth stating because it
+    looks like the obvious route: on that path ``XYZ_*`` IS the scan, converted
+    through a scanner profile. Selecting near-white by it would darken the
+    selector in step with the scan, and
+    :data:`HIGHLIGHT_REFERENCE_MIN_Y` would then decline exactly when the scan
+    is worst — the check would go quiet at ×0.45 and stay quiet below it. The
+    chart's device values do not move when the exposure does, which is the only
+    property this selector needs.
+
+    ``None`` when either side is missing or the chart holds no near-paper patch.
+    """
+    import numpy as np
+    if scan_rgb is None or chart_rgb is None:
+        return None
+    scan = np.asarray(scan_rgb, dtype=float)
+    chart = np.asarray(chart_rgb, dtype=float)
+    if (scan.ndim != 2 or scan.shape[0] == 0 or chart.shape != scan.shape):
+        return None
+    good = np.isfinite(scan).all(axis=1) & np.isfinite(chart).all(axis=1)
+    if not good.any():
+        return None
+    weakest = np.where(good, chart.min(axis=1), -np.inf)
+    dmax = float(weakest.max())
+    if not np.isfinite(dmax) or dmax < HIGHLIGHT_CHART_MIN_DEVICE:
+        return None
+    sel = good & (weakest >= NEAR_PAPER * dmax)
+    if not sel.any():
+        return None
+    return float(np.median(scan[sel].max(axis=1)))
+
+
 def fit_support(xyz) -> int:
     """How many DISTINCT colours the reference gives the fit.
 
@@ -391,10 +519,28 @@ def fit_support(xyz) -> int:
 
 
 def inspect_read(ti3: Path,
-                 agreement: "float | None") -> "ReadInspection | None":
+                 agreement: "float | None",
+                 scan: "object | None" = None) -> "ReadInspection | None":
     """Measure one page's read. *agreement* is passed in rather than recomputed
     because the window already has it — this module does not import Qt, and the
     correlation lives beside the code that uses it for the alignment ladder.
+
+    *scan* is a :class:`workflow.scan_device_values.ScanDeviceValues` and is
+    given **only on the printer-from-scan path**, where the ``.ti3``'s device
+    column belongs to the chart rather than to the scan. It carries the scan's
+    own device values from a second ``scanin`` pass, and the two exposure checks
+    — the clipped share and the highlight level — are answered from it instead.
+    Everything else (the row count, the agreement, the fit support) is a
+    property of the ``.ti3`` on both paths and is read from there either way.
+
+    With *scan* left ``None`` this behaves exactly as it always has, which is
+    what the scanner path passes: that mode's ``.ti3`` already holds the scan's
+    device values, and none of its numbers move.
+
+    On the printer path with *scan* ``None`` — the values pass could not run —
+    the two exposure figures come back ``None``, i.e. **not measured**. They are
+    deliberately not filled in from the ``.ti3``: that would be the original
+    fault, a number about the chart presented as a number about the scan.
 
     ``None`` when the ``.ti3`` cannot be parsed. Nothing here raises: a sanity
     check that can stop a build is worse than no sanity check.
@@ -407,9 +553,24 @@ def inspect_read(ti3: Path,
     if t.rgb is None or len(t.rgb) == 0:
         return None
     n = len(t.rgb)
-    hi = int((t.rgb.max(axis=1) >= CLIP_HIGH).sum())
-    lo = int((t.rgb.min(axis=1) <= CLIP_LOW).sum())
-    return ReadInspection(rows=n, agreement=agreement,
-                          clipped_high=hi / n, clipped_low=lo / n,
-                          highlight=highlight_level(t.rgb, t.xyz),
-                          support=fit_support(t.xyz))
+    if scan is None:
+        return ReadInspection(
+            rows=n, agreement=agreement,
+            clipped_high=float((t.rgb.max(axis=1) >= CLIP_HIGH).sum()) / n,
+            clipped_low=float((t.rgb.min(axis=1) <= CLIP_LOW).sum()) / n,
+            highlight=highlight_level(t.rgb, t.xyz),
+            support=fit_support(t.xyz))
+
+    import numpy as np
+    dev = np.asarray(getattr(scan, "scan_rgb", ()), dtype=float)
+    if dev.ndim != 2 or dev.shape[0] == 0 or dev.shape[1] != 3:
+        return ReadInspection(rows=n, agreement=agreement,
+                              clipped_high=None, clipped_low=None,
+                              highlight=None, support=fit_support(t.xyz))
+    m = dev.shape[0]
+    return ReadInspection(
+        rows=n, agreement=agreement,
+        clipped_high=float((dev.max(axis=1) >= CLIP_HIGH).sum()) / m,
+        clipped_low=float((dev.min(axis=1) <= CLIP_LOW).sum()) / m,
+        highlight=highlight_level_by_device(dev, getattr(scan, "chart_rgb", None)),
+        support=fit_support(t.xyz))

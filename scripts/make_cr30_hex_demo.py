@@ -621,23 +621,46 @@ def read_scan_as_a_printer_measurement(work: Path, base: Path, scan: Path,
     "Profile my printer from this scan" runs ``scanin -c``, which writes a
     ``.ti3`` whose ``RGB_*`` are the CHART's printer device values and whose
     ``XYZ_*`` are what the scan measured. That is the right shape for building
-    a printer profile and the wrong shape for the read check, which counts a
-    patch as clipped from ``RGB_*``: on that path the count is a property of
-    the chart and moves not at all with the scan.
+    a printer profile and the wrong shape for the two checks that ask about the
+    scan's exposure, which read ``RGB_*``: on that path they were answering
+    about the chart, so the clipped share did not move with the scan at all and
+    the too-dark check could never fire.
+
+    The window now does what this does: a second ``scanin -o`` pass over the
+    same image, at the same corners and with the same prepared ``.cht``, which
+    reports the scan's own device values (:mod:`workflow.scan_device_values`).
+    Both figures then come off the scan, and the two brightness states below
+    stop reading the same.
 
     This is measured rather than asserted, because the README says what the
     reader will see and the reader will see whatever the app does. Returns
     ``None`` when there is no scanner ICC to convert through, since the path
     cannot be walked at all without one.
     """
+    from workflow.scan_device_values import measure_scan_device_values
     from workflow.scan_read_check import inspect_read
     if not SRGB.is_file():
         return None
     ti3 = measure_sheet(work, base, {page: scan}, frac, f"printerpath-{tag}")
-    got = inspect_read(ti3, None)
+    room = work / f"printervals-{tag}"
+    if room.exists():
+        shutil.rmtree(room)
+    room.mkdir(parents=True)
+    cht = base.parent / f"{base.name}_{page:02d}.cht"
+    prepared = prepared_cht(cht, frac, room, f"page{page}.cht")
+    values = measure_scan_device_values(
+        ARGYLL / "scanin", scan, prepared, room / "vals",
+        corners=corners_for_page(cht, page_tif(base, page)),
+        ti2=base.with_suffix(".ti2"))
+    if values is None:
+        raise SystemExit(f"{tag}: the values pass produced nothing to check")
+    got = inspect_read(ti3, None, scan=values)
     if got is None:
         raise SystemExit(f"{tag}: scanin -c wrote a .ti3 this cannot read")
+    if got.clipped is None:
+        raise SystemExit(f"{tag}: the printer path could not measure the scan")
     print(f"  {tag} as a printer measurement: {got.rows} patches, "
+          f"{len(values)} read off the scan, "
           f"{got.clipped * 100:.1f} % at an end of the scale")
     return got.clipped
 

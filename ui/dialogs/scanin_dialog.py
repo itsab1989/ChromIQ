@@ -5792,6 +5792,52 @@ class ScannerProfileDialog(_ToolDialogBase):
             log.warning("misalignment check failed", exc_info=True)
         self._check_read_is_this_chart(job)
 
+    def _scan_device_values(self, params):
+        """The scan's own device values for this page, or ``None``.
+
+        Only the printer-from-scan path needs this, and only because the ``.ti3``
+        ``scanin -c`` writes carries the CHART's device values in ``RGB_*``: the
+        clipped share and the highlight level are about the SCAN, and on that
+        path there was nothing of the scan for them to read. A second
+        ``scanin -o`` pass over the same image, at the same corners and with the
+        same prepared ``.cht``, supplies it — 0.27 s per page, measured.
+
+        Returns ``None`` on the scanner path, where the ``.ti3`` already holds
+        the scan's device values and nothing needs re-reading, and ``None`` on
+        any failure of the pass, which the caller reports as *not measured*
+        rather than falling back on the chart's own numbers.
+        """
+        if not getattr(params, "is_printer", False):
+            return None
+        import tempfile
+
+        from workflow.scan_device_values import measure_scan_device_values
+        ti2 = artefact(params.pbase, ".ti2") if params.pbase else None
+        with tempfile.TemporaryDirectory(prefix="chromiq-scanvalues-") as td:
+            return measure_scan_device_values(
+                self._runner.resolve_tool("scanin"),
+                params.scan_tif, params.cht, Path(td),
+                corners=params.corners, perspective=params.perspective,
+                ti2=ti2 if ti2 and ti2.exists() else None)
+
+    def _say_exposure_not_measured(self, got, params) -> None:
+        """Tell the user the two exposure checks did not run, when they did not.
+
+        The requirement this serves is that a second pass which cannot run must
+        not double a failure: the build carries on, nothing is blocked, and no
+        number is invented. What must not happen is silence — the user would
+        otherwise read a page with no clipping warning as a page that was
+        checked and passed.
+        """
+        if got is None or got.measured_exposure:
+            return
+        if not getattr(params, "is_printer", False):
+            return
+        self._log_line(tr(
+            "Could not measure this scan's own brightness, so the "
+            "out-of-scale and too-dark checks were skipped for this sheet. "
+            "Everything else was checked as usual."))
+
     def _read_verdicts(self, params, rho) -> list[str]:
         """The build gate's three questions, phrased for the Check-alignment
         window.
@@ -5812,9 +5858,11 @@ class ScannerProfileDialog(_ToolDialogBase):
         from workflow import measurement_messages as M
         out: list[str] = []
         try:
-            got = inspect_read(params.out_ti3, rho)
+            got = inspect_read(params.out_ti3, rho,
+                               scan=self._scan_device_values(params))
             if got is None:
                 return out
+            self._say_exposure_not_measured(got, params)
             cov = self._reference_shortfall()
             if cov is not None:
                 out.append("⚠ " + self._short_reference_message(cov)[0])
@@ -5823,8 +5871,8 @@ class ScannerProfileDialog(_ToolDialogBase):
                 out.append("⚠ " + M.M_SCAN_REF_DISAGREES.render(
                     rho=f"{got.agreement:.2f}",
                     ref_row=self._align_reference_row())[0])
-            if got.clipped > float(self._settings.get(
-                    "scanner_max_clipped", 0.15)):
+            if got.over_clipped(float(self._settings.get(
+                    "scanner_max_clipped", 0.15))):
                 out.append("⚠ " + M.M_SCAN_CLIPPED.render(
                     pct=f"{got.clipped * 100:.0f} %")[0])
             if got.underexposed(float(self._settings.get(
@@ -5876,9 +5924,10 @@ class ScannerProfileDialog(_ToolDialogBase):
                        ti3, artefact(p.pbase, ".ti2"),
                        ids=page_ids_from_cht(p.cht)) if p.is_printer
                    else scan_reference_correlation(ti3))
-            got = inspect_read(ti3, rho)
+            got = inspect_read(ti3, rho, scan=self._scan_device_values(p))
             if got is None:
                 return
+            self._say_exposure_not_measured(got, p)
             # THE SHEET IS PART OF THE KEY. Two sheets of one chart produce
             # the same titles with different numbers, and a title-only key
             # threw the second sheet's numbers away.
@@ -5923,7 +5972,7 @@ class ScannerProfileDialog(_ToolDialogBase):
             # 39 %-clipped scan still ranks at +0.943, because clipping shifts
             # values without reordering them.
             cap = float(self._settings.get("scanner_max_clipped", 0.15))
-            if got.clipped > cap:
+            if got.over_clipped(cap):
                 t, b = M.M_SCAN_CLIPPED.render(
                     pct=f"{got.clipped * 100:.0f} %")
                 if (page, t) not in seen:
