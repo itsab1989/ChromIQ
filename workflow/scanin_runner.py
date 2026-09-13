@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
 from core.stem_paths import artefact
+from core.text_io import read_text
 
 if TYPE_CHECKING:
     from core.argyll_runner import ArgyllRunner
@@ -464,6 +465,110 @@ def scanin_args(scan_tif: Path, cht: Path, cie: Path,
     if diag is not None:
         args.append(str(diag))
     return args
+
+
+#: Full scale of the device values in a ``scanin -o`` ``.val`` file.
+#:
+#: Measured 2026-09-13 rather than assumed, because it is the one number that
+#: could quietly halve or double every reading this feeds. scanin writes raster
+#: values on a fixed **0-255** scale whatever the image's bit depth: the same
+#: scan as an 8-bit TIFF and as a 16-bit TIFF (every sample multiplied by 257)
+#: produced byte-identical ``.val`` files, ratio 1.00000 over all 1,188 numbers.
+#: A ``.ti3`` states the same values as a percentage, so the conversion here is
+#: exact rather than approximate: over 396 patches of the CR30 demo scan,
+#: ``val * 100 / 255`` reproduced the scanner path's own ``.ti3`` ``RGB_*`` to a
+#: maximum of **0.000024**, which is the rounding in scanin's own text output.
+VAL_FULL_SCALE = 255.0
+
+
+def scanin_values_args(scan_tif: Path, cht: Path, out_name: str,
+                       corners: list[tuple[float, float]] | None = None,
+                       perspective: bool = True,
+                       verbose: bool = False) -> list[str]:
+    """Build the ``scanin -o`` argument list: **the scan's own device values**.
+
+    ``scanin -o [opts] input.tif recog.cht`` samples every patch box and writes
+    ``SAMPLE_ID RGB_R RGB_G RGB_B`` to a ``.val`` file. It reads no reference
+    and writes no ``.ti3``, so it cannot disturb a measurement that already
+    exists; the only artefact it leaves is the ``.val`` named by ``-O``.
+
+    **Why this exists.** On the printer-from-scan path (:func:`scanin_printer_args`)
+    the ``.ti3`` scanin writes carries the CHART's device values in ``RGB_*`` and
+    the scan only in ``XYZ_*``, so the two checks that ask about the scan's
+    exposure — the clipped share and the highlight level — had nothing of the
+    scan to read and answered about the chart instead. This second pass over the
+    same image, at the same corners and the same ``.cht``, gives them the scan.
+
+    ``-O`` is passed always. Without it scanin writes ``<input>.val`` **beside
+    the input image**, which on this path is the user's own scan folder;
+    measured 2026-09-13, that is exactly where the first attempt put it.
+
+    Note that ``-o`` and ``-c`` are mutually exclusive modes and the LAST one on
+    the command line wins (measured: ``-c -o`` wrote only the ``.val``, ``-o -c``
+    only the ``.ti3``), so the two cannot be combined into a single invocation
+    and this really is a second pass.
+    """
+    args: list[str] = []
+    if verbose:
+        args.append("-v")
+    args.append("-o")
+    if corners is not None:
+        args += ["-F", _fmt_corners(corners)]
+    # Same rule as the two paths below/above: -p is dead work under -F and can
+    # abort a honeycomb read outright. See the long note in `scanin_args`.
+    if perspective and corners is None:
+        args.append("-p")
+    args += ["-O", out_name, str(scan_tif), str(cht)]
+    return args
+
+
+def parse_val(path: Path) -> "dict[str, tuple[float, float, float]] | None":
+    """A ``scanin -o`` ``.val`` file -> ``{patch id: (R, G, B)}`` on **0-100**.
+
+    The ids are normalised the way :func:`workflow.scan_read_check._plain_id`
+    normalises them (``H01`` -> ``H1``), so they pair with a ``.ti2``'s
+    ``SAMPLE_LOC`` without either side having to know how the other pads.
+
+    ``None`` when the file cannot be read or holds no usable row. **None means
+    "do not judge"**, never "everything is zero": a pass that did not produce
+    numbers must leave the checks silent rather than hand them a fiction.
+    """
+    try:
+        text = read_text(path, lenient=True)
+    except OSError:
+        return None
+    lines = text.splitlines()
+    try:
+        fs = next(i for i, l in enumerate(lines)
+                  if l.strip().upper() == "BEGIN_DATA_FORMAT")
+        fields = [f.upper() for f in lines[fs + 1].split()]
+        ds = next(i for i, l in enumerate(lines)
+                  if l.strip().upper() == "BEGIN_DATA")
+        de = next(i for i, l in enumerate(lines[ds:], ds)
+                  if l.strip().upper() == "END_DATA")
+        cid = fields.index("SAMPLE_ID")
+        crgb = [fields.index(c) for c in ("RGB_R", "RGB_G", "RGB_B")]
+    except (StopIteration, IndexError, ValueError):
+        return None
+    out: dict[str, tuple[float, float, float]] = {}
+    for line in lines[ds + 1:de]:
+        row = line.split()
+        if len(row) <= max(cid, *crgb):
+            continue
+        try:
+            rgb = tuple(float(row[c]) * 100.0 / VAL_FULL_SCALE for c in crgb)
+        except ValueError:
+            continue
+        out[_plain_val_id(row[cid].strip('"'))] = rgb  # type: ignore[assignment]
+    return out or None
+
+
+def _plain_val_id(sid: str) -> str:
+    """``H01`` -> ``H1``. Kept in step with
+    :func:`workflow.scan_read_check._plain_id` deliberately — see the note
+    there; two different normalisations would mispair every padded id."""
+    m = re.match(r"([A-Za-z]+)0*(\d+)$", sid)
+    return (m.group(1) + m.group(2)) if m else sid
 
 
 def scanin_printer_args(scan_tif: Path, cht: Path, scan_profile: Path, pbase: Path,

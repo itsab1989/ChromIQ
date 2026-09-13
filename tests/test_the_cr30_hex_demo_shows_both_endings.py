@@ -391,10 +391,12 @@ def test_the_readme_describes_the_printer_path_it_measured(built):
 
     On the "Profile my printer from this scan" path the window reads through
     `scanin -c`, whose `.ti3` carries the CHART's device values where the
-    scan's own would be, so the end-of-scale figure is a property of the chart
-    and is the same for both files. That is true of the app as it stands and
-    may not always be; the README is generated from the measurement either way,
-    so it cannot go on describing an app that has changed.
+    scan's own would be. It used to count the end-of-scale share off that
+    column, so the figure was a property of the chart and came out the same for
+    both files; the window now reads the scan's own values back with a second
+    `scanin -o` pass, and the two files separate. The README is generated from
+    whichever of those the measurement shows, so it cannot go on describing an
+    app that has changed -- which is what this test checks, in both directions.
     """
     pack = built / gen.PACK
     measured = json.loads((pack / "measured.json").read_text(encoding="utf-8"))
@@ -411,27 +413,53 @@ def test_the_readme_describes_the_printer_path_it_measured(built):
 
 
 @needs_argyll
-def test_the_two_paths_do_not_agree_about_this_pack(built):
-    """The finding the pack exists to reproduce, pinned so it cannot quietly
-    change without somebody reading this file.
+def test_both_paths_agree_about_this_pack(built):
+    """The finding the pack was built to reproduce, now pinned FIXED.
 
-    The scan-reading path separates the two scans; the printer path does not.
-    If this ever goes red because the printer path has learned to look at the
-    scan, that is good news and the README's paragraph will already have
-    rewritten itself. Read the message, then delete this test.
+    This test used to be its opposite, ``test_the_two_paths_do_not_agree_about
+    _this_pack``, and it said: *"if this ever goes red because the printer path
+    has learned to look at the scan, that is good news [...] read the message,
+    then delete this test."* It has, so it was. What replaces it is the same
+    question asked the other way round, because the property is worth keeping.
+
+    Both ways into the scanner window must tell these two scans apart, and they
+    must agree, because it is one image either way. Ticking *"Profile my printer
+    from this scan"* changes what the ``.ti3`` holds, not what the scanner did:
+    the window now reads the scan's own device values back with a second
+    ``scanin -o`` pass (:mod:`workflow.scan_device_values`) instead of counting
+    the chart's solids and calling them the scan's.
+
+    Measured 2026-09-13 on this pack, page 1: the in-range scan reads 0.0 % at
+    an end of the scale on both paths and the out-of-scale one 37.9 % on both,
+    against **23.3 % for both scans** on the printer path before the fix.
     """
     measured = json.loads((built / gen.PACK / "measured.json")
                           .read_text(encoding="utf-8"))
-    if measured["in_range_clipped_printer_path"] is None:
+    good_p = measured["in_range_clipped_printer_path"]
+    bad_p = measured["out_of_scale_clipped_printer_path"]
+    if good_p is None:
         pytest.skip("no scanner ICC to walk the printer path with")
-    assert measured["in_range_clipped"] != measured["out_of_scale_clipped"], (
+    good_s = measured["in_range_clipped"]
+    bad_s = measured["out_of_scale_clipped"]
+    assert good_s != bad_s, (
         "the read-the-scan path no longer tells the two scans apart, which is "
         "the whole pack")
-    assert (abs(measured["in_range_clipped_printer_path"]
-                - measured["out_of_scale_clipped_printer_path"]) < 0.005), (
-        "the printer path now tells the two scans apart. That is the fault in "
-        "`scan_read_check` being fixed. Re-read the pack's README paragraph "
-        "and this file's docstring, then remove this test.")
+    assert abs(good_p - bad_p) >= 0.005, (
+        f"the printer path reports {good_p * 100:.1f} % for the in-range scan "
+        f"and {bad_p * 100:.1f} % for the out-of-scale one, which is the same "
+        f"figure for both. That is the fault this pack was built to show: the "
+        f"clipped share is being counted off the CHART's device values instead "
+        f"of the scan's. See workflow/scan_device_values.py.")
+    # And they agree, patch for patch, because the two passes read the same
+    # boxes of the same image: `val * 100 / 255` reproduces the scanner path's
+    # own `.ti3` RGB to 2.4e-5, so anything beyond rounding here means the
+    # values pass ran over different corners or a different `.cht`.
+    for tag, printer, scanner in (("in-range", good_p, good_s),
+                                  ("out-of-scale", bad_p, bad_s)):
+        assert abs(printer - scanner) < 0.005, (
+            f"the {tag} scan reads {printer * 100:.1f} % clipped with the "
+            f"printer box ticked and {scanner * 100:.1f} % with it unticked. "
+            f"It is one image; the two passes must agree.")
 
 
 @needs_argyll
