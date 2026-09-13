@@ -2285,18 +2285,27 @@ KNUT_PRESETS: list[_Ti1Preset] = [
     _cr30_preset("cr30_a4_420p_1page_portrait_w11_0mm_hexagonal",
                  "A4-420p-1page-Portrait-w11.0mm-Hexagonal",
                  "A4", 15, 28, 420, 1, 2, 2, hexagonal=True),
+    _cr30_preset("cr30_a4_450p_1page_portrait_w11_0mm_hexagonal_straight",
+                 "A4-450p-1page-Portrait-w11.0mm-Hexagonal-Straight",
+                 "A4", 18, 28, 450, 1, 1, 1, straight=True),
     _cr30_preset("cr30_a4_720p_2pages_portrait_w11_0mm",
                  "A4-720p-2pages-Portrait-w11.0mm",
                  "A4", 15, 24, 720, 2, 2, 2),
     _cr30_preset("cr30_a4_840p_2pages_portrait_w11_0mm_hexagonal",
                  "A4-840p-2pages-Portrait-w11.0mm-Hexagonal",
                  "A4", 15, 28, 840, 2, 2, 2, hexagonal=True),
+    _cr30_preset("cr30_a4_900p_2pages_portrait_w11_0mm_hexagonal_straight",
+                 "A4-900p-2pages-Portrait-w11.0mm-Hexagonal-Straight",
+                 "A4", 18, 28, 900, 2, 3, 3, straight=True),
     _cr30_preset("cr30_a4_1080p_3pages_portrait_w11_0mm",
                  "A4-1080p-3pages-Portrait-w11.0mm",
                  "A4", 15, 24, 1080, 3, 2, 2),
     _cr30_preset("cr30_a4_1260p_3pages_portrait_w11_0mm_hexagonal",
                  "A4-1260p-3pages-Portrait-w11.0mm-Hexagonal",
                  "A4", 15, 28, 1260, 3, 1, 1, hexagonal=True, area_min_patch_mm=10.5),
+    _cr30_preset("cr30_a4_1350p_3pages_portrait_w11_0mm_hexagonal_straight",
+                 "A4-1350p-3pages-Portrait-w11.0mm-Hexagonal-Straight",
+                 "A4", 18, 28, 1350, 3, 2, 2, straight=True),
     _cr30_preset("cr30_letter_88p_1page_portrait_w22_0mm",
                  "Letter-88p-1page-Portrait-w22.0mm",
                  "Letter", 8, 11, 88, 1, 1, 1),
@@ -2316,6 +2325,9 @@ KNUT_PRESETS: list[_Ti1Preset] = [
                  "Letter-390p-1page-Portrait-w11.0mm-Hexagonal",
                  "Letter", 15, 26, 390, 1, 2, 2, hexagonal=True,
                  margin_top=11.0, margin_bottom=9.0, area_min_patch_mm=16.5),
+    _cr30_preset("cr30_letter_396p_1page_portrait_w11_0mm_hexagonal_straight",
+                 "Letter-396p-1page-Portrait-w11.0mm-Hexagonal-Straight",
+                 "Letter", 18, 28, 396, 1, 1, 1, straight=True),
     _cr30_preset("cr30_letter_736p_2pages_portrait_w11_0mm",
                  "Letter-736p-2pages-Portrait-w11.0mm",
                  "Letter", 16, 23, 736, 2, 2, 2),
@@ -2323,6 +2335,9 @@ KNUT_PRESETS: list[_Ti1Preset] = [
                  "Letter-780p-2pages-Portrait-w11.0mm-Hexagonal",
                  "Letter", 15, 26, 780, 2, 2, 2, hexagonal=True,
                  margin_top=11.0, margin_bottom=9.0, area_min_patch_mm=16.5),
+    _cr30_preset("cr30_letter_792p_2pages_portrait_w11_0mm_hexagonal_straight",
+                 "Letter-792p-2pages-Portrait-w11.0mm-Hexagonal-Straight",
+                 "Letter", 18, 28, 792, 2, 2, 2, straight=True),
     _cr30_preset("cr30_letter_1104p_3pages_portrait_w11_0mm",
                  "Letter-1104p-3pages-Portrait-w11.0mm",
                  "Letter", 16, 23, 1104, 3, 2, 2),
@@ -2330,34 +2345,30 @@ KNUT_PRESETS: list[_Ti1Preset] = [
                  "Letter-1170p-3pages-Portrait-w11.0mm-Hexagonal",
                  "Letter", 15, 26, 1170, 3, 2, 2, hexagonal=True,
                  margin_top=11.0, margin_bottom=9.0, area_min_patch_mm=16.5),
+    _cr30_preset("cr30_letter_1188p_3pages_portrait_w11_0mm_hexagonal_straight",
+                 "Letter-1188p-3pages-Portrait-w11.0mm-Hexagonal-Straight",
+                 "Letter", 18, 28, 1188, 3, 2, 2, straight=True),
 
-    # THE STRAIGHT-STRIPS CUT IS BUILT AND HELD, and this is why rather than a
-    # silence. Six charts of his arrived on 2026-09-12: the honeycomb turned 30
-    # degrees, so a strip runs straight down the page instead of zig-zagging
-    # under the hand. The `.ti1` files are in `assets/charts/knut/rgb/cr30/…
-    # _hexagonal_straight/`, `_CR30_STRAIGHT` above is the cut, and the six rows
-    # are one paste away.
+    # THE STRAIGHT-STRIPS CUT WAS HELD FOR A DAY BY A TEST THAT MEASURED THE
+    # WRONG AXIS, and that stays written down because the shape of the mistake
+    # is worth more than the six rows above.
     #
-    # THE THREE LETTER CHARTS ARE CLEAN. Eighteen columns put 22 rows on the
-    # sheet and the ink lands at 13.864 mm from the top and 8.403 from the
-    # bottom, against the 11.0 and 6.0 his recipe declares.
+    # The three A4 charts were reported at Top 10.499 / Bottom 5.112 against the
+    # 11.0 / 6.0 their own recipe declares, so they appeared to accuse
+    # themselves the moment they were loaded, and were commented out.
+    # `test_no_builtin_preset_breaks_its_own_declared_margins` was reading those
+    # numbers out of a re-implementation of
+    # `margin_inspector.measure_from_engine` that had drifted from it: the
+    # shipped function asks which way the hexagons point, the copy always took
+    # the vertical apex. A turned honeycomb's apexes point sideways, so the copy
+    # moved 1.82 mm off the top and bottom and left 1.59 mm on the left and
+    # right that the ink does not have.
     #
-    # THE THREE A4 CHARTS ACCUSE THEMSELVES. The same eighteen columns put 25
-    # rows on A4, and the ink lands at 10.499 and 5.112 against the same 11.0
-    # and 6.0: half a millimetre and nine tenths INSIDE the margins the chart
-    # itself asks for, so the margin panel goes red the moment it is loaded.
-    # `test_no_builtin_preset_breaks_its_own_declared_margins` refuses that, and
-    # rightly: no other built-in does it.
-    #
-    # AND THE MARGINS CANNOT BE CHASED. Lowering them to 10.0 and 5.0 fixed the
-    # top and moved the fault to the bottom, 4.604 against 5.0, because the
-    # layout is area-first: shrinking the box grows the patches to fill it, so
-    # the block keeps pace with every millimetre given away. Twenty-five rows of
-    # turned hexagons want more of an A4 sheet than his margins leave. The ways
-    # out are his design decisions, not ours: fewer rows on A4 (24, so 432 a
-    # page instead of 450), or a pinned patch size the way
-    # `cr30_a4_1260p_3pages_portrait_w11_0mm_hexagonal` uses
-    # `area_min_patch_mm`. He has the numbers and the question.
+    # The app was right all along. Knut tested the same six as user presets on
+    # beta 7: *"show top=12.3mm and bottom = 6.9mm in Measured from Preview. All
+    # ok. Ship the presets."* The shipped inspector, fed the engine's own
+    # geometry, answers 12.319 and 6.932. The test helper now CALLS it.
+
 
     # Scanner family (#100) — Knut's flatbed-scanner printer-profiling charts.
     # Engine-built (the layout_recipe drives the ChromIQ layout engine, not

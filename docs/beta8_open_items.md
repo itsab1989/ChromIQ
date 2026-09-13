@@ -4570,7 +4570,7 @@ only a triple that DIFFERS from the rule's answer would stop it.
      the filename already carries paper, count, pages, orientation and width.
 - evidence: all of them live in one new file, `tests/…cr30_builtin_presets.py`
   (93 tests, everyday tier, four seconds):
-  test_twenty_charts_registered,
+  test_twenty_six_charts_registered,
   test_the_cr30_group_comes_before_the_scanner_section,
   test_the_family_has_its_own_group_named_as_the_instrument_field_names_it,
   test_every_chart_reaches_the_dropdown_and_the_overlay_smallest_sheet_first,
@@ -4837,3 +4837,60 @@ only a triple that DIFFERS from the rule's answer would stop it.
   test_the_glosses_are_one_line_with_the_detail_behind_the_info_button,
   test_the_worst_languages_fit_a_1280_screen,
   test_every_language_fits_a_1280_screen
+
+### B8-103 · Knut's six straight-strip CR30 charts, and the test that held them for a day by measuring the wrong axis
+- blocks release: no
+- status: FIXED
+- found by: Knut, 2026-09-12, attaching `New presets CR30-streight.zip` to
+  issue #182: *"I made 6 new presets for CR30, to be added in the same way as
+  the other built-in presets"*. Confirmed on beta 7 the next day: *"all 6
+  profiles give no warnings at all... show top=12.3mm and bottom = 6.9mm in
+  Measured from Preview. All ok. Ship the presets."*
+- detail: three things, and the middle one is the reason this entry is long.
+
+  1. **The charts.** The same 11 mm honeycomb as his hexagonal CR30 cut, turned
+     30 degrees, so a strip runs straight down the sheet instead of zig-zagging
+     under the hand. Six exports, three on A4 (450 / 900 / 1350 patches) and
+     three on US Letter (396 / 792 / 1188), all on one 18-column grid. Against
+     the hexagonal cut they move seven fields and nothing else, so they are a
+     CUT (`_CR30_STRAIGHT`, `straight=True`) rather than six charts, and
+     `scripts/import_knut_presets.py` learned a second overlay so the rows are
+     still generated and validated rather than typed.
+
+  2. **They were built on 2026-09-13 and commented straight back out**, because
+     `test_no_builtin_preset_breaks_its_own_declared_margins` reported the three
+     A4 charts at Top 10.499 / Bottom 5.112 against the 11.0 / 6.0 their own
+     recipe declares. Knut, on the same charts on beta 7, read 12.3 and 6.9 with
+     no warning. Both numbers were produced honestly and only one of them came
+     from the app: the test file re-implemented
+     `margin_inspector.measure_from_engine` in a local helper, and the copy had
+     drifted. The shipped function asks `recipe_is_flat_top` which way the
+     hexagons point; the copy always took the vertical apex. A turned
+     honeycomb's apexes point sideways, so the copy moved 1.82 mm off the top
+     and bottom and left 1.59 mm on the left and right that the ink does not
+     have. Fed the engine's own geometry, the shipped function answers 12.319
+     and 6.932 — Knut's reading to the tenth. The helper now CALLS it, so the
+     copy cannot drift again.
+
+  3. **And measuring them turned up a real one.** "Patch width (in strip
+     reading direction)" came off the slot rect's `w`. On an upright honeycomb
+     that is the patch: the flats are its left and right sides. On a turned one
+     `w` is the COLUMN PITCH, and the patch is 4/3 of it across the points and
+     `h` across the flats. The panel showed 9.4 mm for a 10.9 mm patch on charts
+     whose own names say 11 mm — 14 % short, on the one readout that tells a
+     CR30 owner whether its round head fits inside a patch. The report now
+     carries the across-flats measure in both orientations, which is the
+     inscribed circle and the only span worth one number. Nothing upright moves.
+- evidence: test_twenty_six_charts_registered,
+  test_the_straight_cut_is_the_hexagonal_one_turned_and_six_numbers,
+  test_name_matches_the_bundled_patch_set_and_the_grid,
+  test_chart_builds_with_the_pages_and_patches_its_name_promises,
+  test_no_builtin_preset_breaks_its_own_declared_margins,
+  test_a_turned_hexagon_reports_the_distance_between_its_flats,
+  test_the_reported_width_is_the_biggest_circle_that_fits_the_drawn_patch,
+  test_an_upright_honeycomb_still_reports_what_it_always_did,
+  test_a_rectangular_chart_is_untouched.
+
+  The patch-width fix was mutation-proved: with the flat-top branch deleted and
+  `__pycache__` purged, the first two of those fail with "reported 9.398 mm; the
+  patch measures 10.922 mm across its flats" and the other two stay green.

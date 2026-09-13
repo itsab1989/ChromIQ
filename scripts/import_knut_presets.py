@@ -92,7 +92,12 @@ class Family:
     dest: Path               # where the bundled assets land
     varying: frozenset       # recipe fields ONE chart may set for itself
     helper: str              # the tab_chart.py helper the rows call
-    overlay: "Overlay | None" = None   # optional named cut (see Overlay)
+    #: Named CUTS of the family, in the order they are applied. A chart
+    #: whose recipe answers to more than one discriminator takes them all,
+    #: and the row says only the LAST one: a later cut in this tuple is a
+    #: refinement of an earlier one, exactly as `_cr30_preset` spells it
+    #: out (`straight=True` applies `_CR30_HEX` and then `_CR30_STRAIGHT`).
+    overlays: tuple["Overlay", ...] = ()
     #: Fields every row spells out, even where it agrees with the batch base.
     #:
     #: The emitter's normal rule — say a field only where it differs from the
@@ -215,13 +220,25 @@ FAMILIES: dict[str, Family] = {
         key="cr30", label="CR30", prefix="CR30-", slug_prefix="cr30_",
         instrument="CR30", dest=ASSETS / "cr30",
         varying=frozenset({"paper", "area_cols", "area_rows",
-                           "area_min_patch_mm", "hflag", "margin_top",
-                           "margin_bottom", "margin_left", "text_edge_top_mm"}),
+                           "area_min_patch_mm", "hflag", "hex_flat_top",
+                           "margin_top", "margin_bottom", "margin_left",
+                           "text_edge_top_mm", "indicator_size_mm"}),
         helper="_cr30_preset",
-        overlay=Overlay("hexagonal", "hflag", {
-            "hflag": True, "margin_left": 13.0, "margin_top": 13.0,
-            "margin_bottom": 13.0, "text_edge_top_mm": 4.0,
-        }),
+        overlays=(
+            Overlay("hexagonal", "hflag", {
+                "hflag": True, "margin_left": 13.0, "margin_top": 13.0,
+                "margin_bottom": 13.0, "text_edge_top_mm": 4.0,
+            }),
+            # THE STRAIGHT-STRIPS CUT (2026-09-12): the same honeycomb turned
+            # 30 degrees. It is a refinement of the hexagonal cut, not an
+            # alternative to it -- every one of his six carries `hflag` too --
+            # so it sits after it here and the row says `straight=True` alone.
+            Overlay("straight", "hex_flat_top", {
+                "hflag": True, "hex_flat_top": True,
+                "margin_left": 11.0, "margin_top": 11.0, "margin_bottom": 6.0,
+                "text_edge_top_mm": 7.0, "indicator_size_mm": 3.88,
+            }),
+        ),
     ),
 }
 
@@ -474,15 +491,19 @@ def emit_rows(rows: list[dict], fam: Family, base: dict) -> str:
         recipe = r["layout_recipe"]
         effective = dict(base)
         extra = ""
-        ov = fam.overlay
-        if ov is not None and recipe.get(ov.discriminator):
-            # A named cut of the family: say its name, then diff what is left
-            # against what the cut already implies.
-            extra += f", {ov.keyword}=True"
+        # A named cut of the family: say its name, then diff what is left
+        # against what the cut already implies. Where two cuts both answer,
+        # each one's fields are applied in turn and only the LAST is named --
+        # the later cut refines the earlier and its keyword implies it.
+        taken = [ov for ov in fam.overlays if recipe.get(ov.discriminator)]
+        for ov in taken:
             effective.update(ov.delta)
+        if taken:
+            extra += f", {taken[-1].keyword}=True"
         for field in ("margin_left", "margin_top", "margin_right",
                       "margin_bottom", "clip_border_width_mm",
-                      "text_edge_top_mm", "area_min_patch_mm", "hflag"):
+                      "text_edge_top_mm", "area_min_patch_mm", "hflag",
+                      "hex_flat_top", "indicator_size_mm"):
             if field not in fam.varying or field in positional:
                 continue
             # `always` fields are stated on every row — see Family.always.

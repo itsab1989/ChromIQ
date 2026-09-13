@@ -311,7 +311,24 @@ def measure_from_engine(
     # it again here double-counted it by w/4: 3.0 mm at a 12 mm hexagon, 5.0 mm
     # at 20 mm, reported as margin that does not exist. The hexagon's flat sides
     # span exactly the staggered slot, so no horizontal expansion is right.
+
+    # ACROSS THE FLATS, IN EITHER ORIENTATION. "Patch width" is the width of
+    # one patch, and for a hexagon the honest single number is the distance
+    # between its two parallel flats: that is the biggest circle that fits
+    # inside it, which is what a round instrument head has to land in.
+    #
+    # On a POINTY-top honeycomb that is the slot's width, so `rects[0]["w"]`
+    # has always been right and nothing here changes. On a FLAT-top one --
+    # #159's "Straight strips" tick -- the hexagon is the same shape turned 30
+    # degrees: the flats move to the top and bottom, the slot's width becomes
+    # the COLUMN PITCH, and the patch is 4/3 of it across the points and `h`
+    # across the flats. Reporting the pitch there under the name "patch width"
+    # understated Knut's six straight-strip CR30 charts by 14 %: 9.4 mm on
+    # screen for a 10.9 mm patch, on charts whose own names say 11 mm.
     from workflow.hex_support import recipe_is_flat_top, recipe_is_hexagonal
+    patch_w_px = rects[0]["w"]
+    if recipe_is_hexagonal(rec) and recipe_is_flat_top(rec):
+        patch_w_px = rects[0]["h"]
     if recipe_is_hexagonal(rec):
         # RESOLVED, never the raw flag: a recipe can carry a tick made on a
         # CR30 long after the user has moved to another instrument.
@@ -337,7 +354,7 @@ def measure_from_engine(
         right_mm=max(0.0, paper_w_mm - x1 * px2mm),
         top_mm=max(0.0, y0 * px2mm),
         bottom_mm=max(0.0, paper_h_mm - y1 * px2mm),
-        strip_width_mm=rects[0]["w"] * px2mm,        # exact patch width (pwid)
+        strip_width_mm=patch_w_px * px2mm,           # exact patch width (pwid)
         page_w_mm=paper_w_mm, page_h_mm=paper_h_mm,
         strip_length_mm=(y1 - y0) * px2mm,
         dpi=dpi,

@@ -1,18 +1,29 @@
-"""Knut's CR30 built-in presets (2026-09-06), curated to twenty by Basti.
+"""Knut's CR30 built-in presets: twenty of 2026-09-06, six more of 2026-09-12.
 
-Ten charts on A4 and ten on US Letter, portrait, one to three sheets, patches
-11 mm to 24 mm wide, each size offered in a rectangular and (mostly) a
-hexagonal cut. Laid out by the ChromIQ layout engine, which for a CR30 is not a
-choice: Argyll has no layout for the instrument, so
+Thirteen charts on A4 and thirteen on US Letter, portrait, one to three sheets,
+patches 11 mm to 24 mm wide, each size offered in a rectangular and (mostly) a
+hexagonal cut, and six of the 11 mm hexagonal ones offered a second time with
+the honeycomb turned 30 degrees so a strip runs straight down the sheet
+(#159's "Straight strips"). Laid out by the ChromIQ layout engine, which for a
+CR30 is not a choice: Argyll has no layout for the instrument, so
 ``chart_creator._should_use_engine`` forces the engine on and printtarg never
 sees one of these.
 
-WHAT THESE TESTS ARE FOR. Twenty rows share one base recipe, so editing
-``_CR30_BASE`` changes twenty charts at once and silently. The base is therefore
-pinned against exactly the fields a chart may own, the hexagonal cut is pinned
-as a named block rather than four numbers loose on eight rows, and **every one
-of the twenty is actually built and counted** against the name it carries. A
-preset that does not deliver what its name says is worse than no preset.
+WHAT THESE TESTS ARE FOR. Twenty-six rows share one base recipe, so editing
+``_CR30_BASE`` changes twenty-six charts at once and silently. The base is
+therefore pinned against exactly the fields a chart may own, each cut is pinned
+as a named block rather than a handful of numbers loose on a dozen rows, and
+**every one of the twenty-six is actually built and counted** against the name
+it carries. A preset that does not deliver what its name says is worse than no
+preset.
+
+ACROSS THE FLATS IS THE PATCH. A hexagon has two spans, and only one of them is
+the number a name like "w11.0mm" is promising: the distance between the two
+parallel flats, which is the biggest circle that fits inside and so what a
+CR30's round head has to land in. On an upright honeycomb that is the slot
+rect's width; on a turned one the slot's width is the COLUMN PITCH and the
+flats are its height. Measuring ``w`` in both would have read Knut's six turned
+charts at 9.4 mm and called their own names wrong by 1.6 mm.
 
 WHAT SETS A PATCH'S WIDTH HERE, measured rather than assumed, because two
 mutations that looked like they should have moved it did not. The chart area is
@@ -45,10 +56,21 @@ pytest.importorskip("PyQt6")
 from core.resource_path import resource_path  # noqa: E402
 from data.patch_db import INSTRUMENT_LABELS  # noqa: E402
 from ui.tabs.tab_chart import (  # noqa: E402
-    _CR30_BASE, _CR30_GROUP, _CR30_HEX,
+    _CR30_BASE, _CR30_GROUP, _CR30_HEX, _CR30_STRAIGHT,
     BUILTIN_PRESET_GROUPS, BUILTIN_PRESET_KEYS, BUILTIN_PRESET_LABELS,
     KNUT_PRESETS, TabChart,
 )
+
+
+def _across_the_flats_mm(rect: dict, dpi: float, flat_top: bool) -> float:
+    """The patch's own width, in either orientation. See the module docstring.
+
+    The slot rect is ``(column pitch, row pitch)``. An upright hexagon's flats
+    are its left and right sides, so the column pitch IS the patch; a turned
+    one's flats are its top and bottom, and the pitch is 3/4 of the patch's
+    other span.
+    """
+    return (rect["h"] if flat_top else rect["w"]) * 25.4 / dpi
 
 CR30 = [p for p in KNUT_PRESETS if p.slug.startswith("cr30_")]
 
@@ -57,35 +79,51 @@ CR30 = [p for p in KNUT_PRESETS if p.slug.startswith("cr30_")]
 OWN_FIELDS = {"paper", "area_cols", "area_rows",
               "margin_top", "margin_bottom", "area_min_patch_mm"}
 
+#: Keys a recipe may carry that the base does not. Only the turned cut adds
+#: one: ``hex_flat_top`` is the 30-degree turn itself, and no upright chart
+#: writes it at all.
+EXTRA_KEYS = {"hex_flat_top"}
+
 _NAME_RE = re.compile(
     r"^(?P<sheet>A4|Letter)-(?P<patches>\d+)p-(?P<pages>\d+)pages?-"
     r"(?P<orientation>Portrait|Landscape)-w(?P<width>[\d.]+)mm"
-    r"(?P<hex>-Hexagonal)?$")
+    r"(?P<hex>-Hexagonal)?(?P<straight>-Straight)?$")
 
-#: What each name promises, transcribed from the twenty filenames Basti curated.
-#: Written out rather than derived from the rows, so a row that drifts from its
-#: own name cannot drift past this table too.
+#: What each name promises: sheet, patches, pages, patch width across the
+#: flats, hexagonal, turned. Transcribed from the filenames Basti curated (the
+#: twenty of 2026-09-06) and from Knut's own six exports of 2026-09-12, whose
+#: files spell it "Streight" and whose presets do not: the app's own control
+#: says "Straight strips (turn the honeycomb 30 degrees)" and the names follow
+#: the control. Written out rather than derived from the rows, so a row that
+#: drifts from its own name cannot drift past this table too.
 PROMISED = {
-    "A4-77p-1page-Portrait-w24.0mm": ("A4", 77, 1, 24.0, False),
-    "A4-153p-1page-Portrait-w18.0mm-Hexagonal": ("A4", 153, 1, 18.0, True),
-    "A4-160p-1page-Portrait-w17.0mm": ("A4", 160, 1, 17.0, False),
-    "A4-192p-1page-Portrait-w11.0mm": ("A4", 192, 1, 11.0, False),
-    "A4-360p-1page-Portrait-w11.0mm": ("A4", 360, 1, 11.0, False),
-    "A4-420p-1page-Portrait-w11.0mm-Hexagonal": ("A4", 420, 1, 11.0, True),
-    "A4-720p-2pages-Portrait-w11.0mm": ("A4", 720, 2, 11.0, False),
-    "A4-840p-2pages-Portrait-w11.0mm-Hexagonal": ("A4", 840, 2, 11.0, True),
-    "A4-1080p-3pages-Portrait-w11.0mm": ("A4", 1080, 3, 11.0, False),
-    "A4-1260p-3pages-Portrait-w11.0mm-Hexagonal": ("A4", 1260, 3, 11.0, True),
-    "Letter-88p-1page-Portrait-w22.0mm": ("Letter", 88, 1, 22.0, False),
-    "Letter-150p-1page-Portrait-w17.0mm": ("Letter", 150, 1, 17.0, False),
-    "Letter-170p-1page-Portrait-w16.0mm-Hexagonal": ("Letter", 170, 1, 16.0, True),
-    "Letter-184p-1page-Portrait-w11.0mm": ("Letter", 184, 1, 11.0, False),
-    "Letter-368p-1page-Portrait-w11.0mm": ("Letter", 368, 1, 11.0, False),
-    "Letter-390p-1page-Portrait-w11.0mm-Hexagonal": ("Letter", 390, 1, 11.0, True),
-    "Letter-736p-2pages-Portrait-w11.0mm": ("Letter", 736, 2, 11.0, False),
-    "Letter-780p-2pages-Portrait-w11.0mm-Hexagonal": ("Letter", 780, 2, 11.0, True),
-    "Letter-1104p-3pages-Portrait-w11.0mm": ("Letter", 1104, 3, 11.0, False),
-    "Letter-1170p-3pages-Portrait-w11.0mm-Hexagonal": ("Letter", 1170, 3, 11.0, True),
+    "A4-77p-1page-Portrait-w24.0mm": ("A4", 77, 1, 24.0, False, False),
+    "A4-153p-1page-Portrait-w18.0mm-Hexagonal": ("A4", 153, 1, 18.0, True, False),
+    "A4-160p-1page-Portrait-w17.0mm": ("A4", 160, 1, 17.0, False, False),
+    "A4-192p-1page-Portrait-w11.0mm": ("A4", 192, 1, 11.0, False, False),
+    "A4-360p-1page-Portrait-w11.0mm": ("A4", 360, 1, 11.0, False, False),
+    "A4-420p-1page-Portrait-w11.0mm-Hexagonal": ("A4", 420, 1, 11.0, True, False),
+    "A4-720p-2pages-Portrait-w11.0mm": ("A4", 720, 2, 11.0, False, False),
+    "A4-840p-2pages-Portrait-w11.0mm-Hexagonal": ("A4", 840, 2, 11.0, True, False),
+    "A4-1080p-3pages-Portrait-w11.0mm": ("A4", 1080, 3, 11.0, False, False),
+    "A4-1260p-3pages-Portrait-w11.0mm-Hexagonal": ("A4", 1260, 3, 11.0, True, False),
+    "Letter-88p-1page-Portrait-w22.0mm": ("Letter", 88, 1, 22.0, False, False),
+    "Letter-150p-1page-Portrait-w17.0mm": ("Letter", 150, 1, 17.0, False, False),
+    "Letter-170p-1page-Portrait-w16.0mm-Hexagonal": ("Letter", 170, 1, 16.0, True, False),
+    "Letter-184p-1page-Portrait-w11.0mm": ("Letter", 184, 1, 11.0, False, False),
+    "Letter-368p-1page-Portrait-w11.0mm": ("Letter", 368, 1, 11.0, False, False),
+    "Letter-390p-1page-Portrait-w11.0mm-Hexagonal": ("Letter", 390, 1, 11.0, True, False),
+    "Letter-736p-2pages-Portrait-w11.0mm": ("Letter", 736, 2, 11.0, False, False),
+    "Letter-780p-2pages-Portrait-w11.0mm-Hexagonal": ("Letter", 780, 2, 11.0, True, False),
+    "Letter-1104p-3pages-Portrait-w11.0mm": ("Letter", 1104, 3, 11.0, False, False),
+    "Letter-1170p-3pages-Portrait-w11.0mm-Hexagonal": ("Letter", 1170, 3, 11.0, True, False),
+    # The turned cut (2026-09-12). Same 11 mm hexagon, 30 degrees round.
+    "A4-450p-1page-Portrait-w11.0mm-Hexagonal-Straight": ("A4", 450, 1, 11.0, True, True),
+    "A4-900p-2pages-Portrait-w11.0mm-Hexagonal-Straight": ("A4", 900, 2, 11.0, True, True),
+    "A4-1350p-3pages-Portrait-w11.0mm-Hexagonal-Straight": ("A4", 1350, 3, 11.0, True, True),
+    "Letter-396p-1page-Portrait-w11.0mm-Hexagonal-Straight": ("Letter", 396, 1, 11.0, True, True),
+    "Letter-792p-2pages-Portrait-w11.0mm-Hexagonal-Straight": ("Letter", 792, 2, 11.0, True, True),
+    "Letter-1188p-3pages-Portrait-w11.0mm-Hexagonal-Straight": ("Letter", 1188, 3, 11.0, True, True),
 }
 
 #: The two charts whose printed patch width is more than 0.5 mm from the width
@@ -101,10 +139,10 @@ WIDTH_EXCEPTIONS = {
 # The family is registered, and it is its own group
 # ---------------------------------------------------------------------------
 
-def test_twenty_charts_registered():
-    assert len(CR30) == 20
-    assert len({p.slug for p in CR30}) == 20         # slugs are the identity
-    assert len({p.name for p in CR30}) == 20
+def test_twenty_six_charts_registered():
+    assert len(CR30) == 26
+    assert len({p.slug for p in CR30}) == 26         # slugs are the identity
+    assert len({p.name for p in CR30}) == 26
     assert all(p.key in BUILTIN_PRESET_KEYS for p in CR30)
     assert all(p.combo_label in BUILTIN_PRESET_LABELS for p in CR30)
     assert {p.name for p in CR30} == set(PROMISED)
@@ -175,21 +213,28 @@ def test_every_row_carries_the_full_layout_setup_marker():
 def test_recipe_differs_from_the_base_only_where_allowed(preset):
     rec = preset.layout_recipe
     assert rec is not None, "the family is engine-built, not printtarg"
-    assert set(rec) == set(_CR30_BASE) | {"paper", "area_cols", "area_rows"}
+    allowed = set(_CR30_BASE) | {"paper", "area_cols", "area_rows"}
+    assert set(rec) - allowed <= EXTRA_KEYS, "a key no cut of this family adds"
+    assert allowed - set(rec) == set(), "a base field the row dropped"
     hexed = "Hexagonal" in preset.name
     expected = dict(_CR30_BASE)
     if hexed:
         expected.update(_CR30_HEX)
+    if "-Straight" in preset.name:
+        # The turned cut is a REFINEMENT of the hexagonal one, applied after
+        # it, exactly as `_cr30_preset(straight=True)` applies them.
+        expected.update(_CR30_STRAIGHT)
     for field in set(_CR30_BASE) - OWN_FIELDS:
         assert rec[field] == expected[field], (
             f"{preset.slug} changes {field}, which its cut of the family shares")
 
 
 def test_the_hexagonal_cut_is_exactly_these_four_fields_and_no_others():
-    """Eight of the twenty take the hex cut. What ``hexagonal=True`` buys is
-    written once, here and in ``_CR30_HEX``, instead of five keyword arguments
-    on eight rows where a fifth could hide."""
-    hexes = [p for p in CR30 if "Hexagonal" in p.name]
+    """Eight of the twenty-six take the upright hex cut and nothing further.
+    What ``hexagonal=True`` buys is written once, here and in ``_CR30_HEX``,
+    instead of five keyword arguments on eight rows where a fifth could hide."""
+    hexes = [p for p in CR30
+             if "Hexagonal" in p.name and "-Straight" not in p.name]
     rects = [p for p in CR30 if "Hexagonal" not in p.name]
     assert (len(hexes), len(rects)) == (8, 12)
     assert set(_CR30_HEX) == {"hflag", "margin_left", "margin_top",
@@ -198,6 +243,8 @@ def test_the_hexagonal_cut_is_exactly_these_four_fields_and_no_others():
         assert p.layout_recipe["hflag"] is True
         assert p.layout_recipe["margin_left"] == 13.0
         assert p.layout_recipe["text_edge_top_mm"] == 4.0
+        assert p.layout_recipe.get("hex_flat_top") is None, (
+            "an upright chart must not carry the turn at all")
     for p in rects:
         assert p.layout_recipe["hflag"] is False
         assert p.layout_recipe["margin_left"] == 15.0
@@ -206,12 +253,38 @@ def test_the_hexagonal_cut_is_exactly_these_four_fields_and_no_others():
         assert p.layout_recipe["margin_bottom"] == 12.0
 
 
+def test_the_straight_cut_is_the_hexagonal_one_turned_and_six_numbers():
+    """Six of the twenty-six take it, and it is applied ON TOP of the hex cut.
+
+    Knut's six exports of 2026-09-12 differ from the hexagonal charts they were
+    cut from in exactly these fields, so ``straight=True`` says all of it and no
+    row of the six spells anything else out. The turn implies the hexagon: asked
+    for alone it would be a flat-top nothing.
+    """
+    straight = [p for p in CR30 if "-Straight" in p.name]
+    assert len(straight) == 6
+    assert set(_CR30_STRAIGHT) == {"hflag", "hex_flat_top", "margin_left",
+                                   "margin_top", "margin_bottom",
+                                   "text_edge_top_mm", "indicator_size_mm"}
+    for p in straight:
+        r = p.layout_recipe
+        assert "Hexagonal" in p.name, "the turn is a cut of the hexagonal one"
+        assert r["hflag"] is True and r["hex_flat_top"] is True
+        assert (r["margin_left"], r["margin_top"], r["margin_bottom"]) == (
+            11.0, 11.0, 6.0)
+        assert r["text_edge_top_mm"] == 7.0
+        assert r["indicator_size_mm"] == 3.88
+        # Every one of the six is the same 18-column grid on both sheets.
+        assert (r["area_cols"], r["area_rows"]) == (18, 28)
+
+
 def test_only_the_three_letter_hex_charts_move_a_margin_of_their_own():
     """The rest take the cut's margins untouched, so a stray margin cannot slip
     in unremarked."""
     moved = sorted(p.name for p in CR30
                    if (p.layout_recipe["margin_top"], p.layout_recipe["margin_bottom"])
-                   not in {(17.0, 12.0), (13.0, 13.0)})
+                   # rectangular, hexagonal, turned: the three cuts' own pairs.
+                   not in {(17.0, 12.0), (13.0, 13.0), (11.0, 6.0)})
     assert moved == [
         "Letter-1170p-3pages-Portrait-w11.0mm-Hexagonal",
         "Letter-390p-1page-Portrait-w11.0mm-Hexagonal",
@@ -265,12 +338,14 @@ def test_the_measured_shape_of_the_family():
 def test_name_matches_the_bundled_patch_set_and_the_grid(preset):
     m = _NAME_RE.match(preset.name)
     assert m, f"name does not follow the convention: {preset.name}"
-    sheet, patches, pages, width, hexed = PROMISED[preset.name]
+    sheet, patches, pages, width, hexed, turned = PROMISED[preset.name]
     assert m.group("sheet") == sheet == preset.layout_recipe["paper"]
     assert int(m.group("patches")) == patches == preset.patches
     assert int(m.group("pages")) == pages == preset.pages
     assert float(m.group("width")) == width
     assert bool(m.group("hex")) == hexed == bool(preset.layout_recipe["hflag"])
+    assert bool(m.group("straight")) == turned == bool(
+        preset.layout_recipe.get("hex_flat_top"))
 
     ti1 = resource_path(preset.ti1_asset)
     assert ti1.is_file(), f"missing {preset.ti1_asset}"
@@ -398,7 +473,7 @@ def test_selecting_one_greys_targen_and_leaves_the_layout_editable(tab, monkeypa
 def test_chart_builds_with_the_pages_and_patches_its_name_promises(preset):
     from workflow.layout_engine.chart import build_from_recipe
     from workflow.layout_engine.presets import LayoutRecipe
-    sheet, patches, pages, width, hexed = PROMISED[preset.name]
+    sheet, patches, pages, width, hexed, turned = PROMISED[preset.name]
     rec = LayoutRecipe.from_dict(preset.layout_recipe)
     assert rec.hflag is hexed
     with tempfile.TemporaryDirectory() as td:
@@ -412,10 +487,13 @@ def test_chart_builds_with_the_pages_and_patches_its_name_promises(preset):
         # patches (the rows interlock), so measuring the strip reads a hexagonal
         # chart ~0.13 mm too wide. This is the rect the engine writes into the
         # chart's own `.strips.json`, which the app copies into the run's
-        # `.channels.json` and "Patch size (mm)" then shows on screen.
+        # `.channels.json` and "Patch width" then shows on screen.
+        #
+        # …AND ACROSS THE FLATS, which on a turned honeycomb is the slot's
+        # HEIGHT: see the module docstring.
         blob = json.loads((Path(td) / "chart.strips.json")
                           .read_text(encoding="utf-8"))
-        got = blob["patches"][0]["w"] * 25.4 / blob["dpi"]
+        got = _across_the_flats_mm(blob["patches"][0], blob["dpi"], turned)
     if preset.name in WIDTH_EXCEPTIONS:
         # Knut's own layout rounds these two names down; pinned at what the
         # sheet really prints so a change at either end is caught.

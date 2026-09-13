@@ -228,12 +228,13 @@ def test_builtin_fulllayout_recipes_appear_starred(qapp):
     # #164, and the two A4-924p ones by Knut in 4.1.3-beta.13), the six Scanner
     # charts (#107, #108, #118), Knut's 45 ColorMunki charts (2026-08-16), his
     # 24 i1Pro 3 Plus charts (2026-08-18) and his 19 8 mm i1Pro charts
-    # (#164, 2026-08-23), his 20 CR30 charts (2026-09-06) and his two i1Pro
-    # photo cards (2026-09-09).
-    assert len(starred) == 2 + 6 + 45 + 24 + 19 + 19 + 20 + 2
+    # (#164, 2026-08-23), his 26 CR30 charts (20 of 2026-09-06 plus the six
+    # straight-strip ones of 2026-09-12) and his two i1Pro photo cards
+    # (2026-09-09).
+    assert len(starred) == 2 + 6 + 45 + 24 + 19 + 19 + 26 + 2
     assert sum(1 for n in starred if n.startswith("★ ColorMunki")) == 45
     assert sum(1 for n in starred if n.startswith("★ i1Pro 3 Plus")) == 24
-    assert sum(1 for n in starred if n.startswith("★ CR30 ")) == 20
+    assert sum(1 for n in starred if n.startswith("★ CR30 ")) == 26
     assert sum(1 for n in starred if "Scanner" in n) == 6
 
 

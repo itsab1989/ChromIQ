@@ -28,10 +28,12 @@ def test_the_marker_counts_are_what_the_registry_holds():
     # which carry no recipe.json, so only the prebuilt count moves.
     # 2026-09-09: +2 ENGINE-built photo cards by Knut (10x15 and 13x18, his own
     # margins), each shipping a recipe.json sidecar, so the marked count moves.
-    assert len(tc.BUILTIN_PRESET_KEYS) == 154
+    # 2026-09-12: +6 CR30 straight-strip charts, the honeycomb turned 30
+    # degrees; each ships a recipe.json sidecar, so again only marked moves.
+    assert len(tc.BUILTIN_PRESET_KEYS) == 160
     assert len(tc.PREBUILT_PRESETS) == 11       # the "by Pharmacist" rows
-    assert (len(marked), len(unmarked)) == (137, 6)
-    assert len(marked) + len(unmarked) + len(tc.PREBUILT_PRESETS) == 154
+    assert (len(marked), len(unmarked)) == (143, 6)
+    assert len(marked) + len(unmarked) + len(tc.PREBUILT_PRESETS) == 160
 
 
 def test_no_red_river_row_carries_the_marker():
