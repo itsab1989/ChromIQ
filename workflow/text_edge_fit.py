@@ -396,6 +396,45 @@ def bottom_text_room_mm(paper_w_mm: float, text_edge_clip_mm: float,
     return max(0.0, right - left)
 
 
+#: The hair `raster._vtext` keeps off the ENDS of a clip line so a glyph's
+#: overshoot cannot touch the edge of its canvas. Named here because the panel
+#: has to predict against the same number the renderer draws against, and a
+#: second copy of 0.995 in the panel is a second copy that can drift.
+CLIP_LINE_FILL = 0.995
+
+
+def clip_line_overflow(band_len_mm: float, needed_len_mm: float
+                       ) -> "Overlap | None":
+    """A clip-border line's LENGTH against the page it runs down, or None.
+
+    The other axis from :func:`clip_text_squeeze`, which asks whether the
+    stacked lines fit ACROSS the band. Nothing asked whether one of them fits
+    ALONG it, and Knut found the hole on 2026-09-13:
+
+        "when clip-border is on and a custom text is defined, which is too long
+         for the page hight and available space, no warning is given, and the
+         long text only disappears out of page in both ends."
+
+    Measured on A4 with a 26 mm band and T = B = 4.0: the clip area gives the
+    line 289.0 mm and `_vtext` allows 287.6 of it. A 298-character line at the
+    7 pt floor needs **330.5 mm**, so 42.9 mm is lost, **21.5 at each end**,
+    because `_vtext` centres the line (`cx = height/2`, anchor "mm") and the
+    canvas simply crops it. At a typed 9 pt the same line needs 434.8 mm and
+    loses 73.6 at each end. Neither end carries an ellipsis or any other mark,
+    so a reader cannot tell a cut line from a whole one.
+
+    THE RULE EXISTED AND WAS NEVER WIRED. :func:`page_text_height_mm` is Knut's
+    own *"page height minus T and minus B ... whichever is smallest"*, and a
+    grep over `ui/`, `workflow/` and `tests/` found exactly one caller: its own
+    unit test. This is the predicate that uses it.
+
+    *band_len_mm* is the clip area's height (`geometry.clip_area_mm`'s ``h``),
+    which is where the rule of T and B has already been applied.
+    """
+    room = max(0.0, float(band_len_mm or 0.0)) * CLIP_LINE_FILL
+    return _overlap("left", room, max(0.0, float(needed_len_mm or 0.0)))
+
+
 def bottom_text_overflow(paper_w_mm: float, text_edge_clip_mm: float,
                          needed_w_mm: float, markers_on: bool = False,
                          marker_edge_mm: float = 0.0,

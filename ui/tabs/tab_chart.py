@@ -20042,6 +20042,72 @@ class TabChart(QWidget):
                                 "that much closer to the paper "
                                 "edge.").format(clear=_clear)
                     over.append(_msg)
+
+                # THE OTHER AXIS OF THE SAME BAND, AND NOTHING ASKED ABOUT IT.
+                # Everything above measures the lines ACROSS the band. A clip
+                # line also has a LENGTH, running down the page, and Knut found
+                # the hole on 2026-09-13: *"when clip-border is on and a custom
+                # text is defined, which is too long for the page hight and
+                # available space, no warning is given, and the long text only
+                # disappears out of page in both ends."*
+                #
+                # `raster._vtext` centres the line on its canvas and the canvas
+                # crops it, so what does not fit is lost at BOTH ends with no
+                # ellipsis and nothing in the log. Measured on A4 with a 26 mm
+                # band and T = B = 4.0: a 298-character line at the 7 pt floor
+                # needs 330.5 mm where the band gives 287.6, so 21.5 mm goes
+                # off each end; at a typed 9 pt it needs 434.8 and loses 73.6
+                # at each end.
+                #
+                # THE WIDTH IS MEASURED BY THE RENDERER'S OWN FUNCTION.
+                # `raster.sheet_text_width_mm` is what draws the line, so the
+                # panel cannot predict a face the sheet will not use: a second
+                # copy of that rule in this method once asked for a font by an
+                # empty family string and predicted 378 mm for a line that
+                # printed 206.
+                if (_clip_zone > 0 and _clip_band_exists and _clip_lines
+                        and str(getattr(r, "clip_content_mode", "off")) == "text"):
+                    try:
+                        from workflow.layout_engine import geometry as _gm2
+                        from workflow.layout_engine import raster as _ras
+                        from workflow.layout_engine import papers as _pp
+                        _pw2, _ph2 = _pp.dimensions_mm(str(r.paper))
+                        _area = _gm2.clip_area_mm(geom, _ph2, _pw2,
+                                                  _clip_lines, _clip_size_pt)
+                        if _area is not None:
+                            _lines_txt = _ras.clip_text_lines(
+                                getattr(r, "clip_text", "") or "")
+                            _need_len = _ras.sheet_text_width_mm(
+                                _lines_txt,
+                                _clip_floor_pt * 25.4 / 72.0,
+                                str(getattr(r, "clip_text_font", "") or ""),
+                                dpi=float(getattr(r, "dpi", 300) or 300))
+                            _lo = text_edge_fit.clip_line_overflow(
+                                float(_area[3]), _need_len)
+                            if _lo is not None:
+                                over.append(tr(
+                                    "⚠ The clip border text is too long for the "
+                                    "page. Its longest line needs {need:.0f} mm "
+                                    "along the page and the band has "
+                                    "{avail:.0f} mm between the distances you "
+                                    "set for the top and bottom edges, so "
+                                    "{short:.0f} mm of it runs off, {half:.0f} "
+                                    "mm at each end. The line is centred, so "
+                                    "what does not fit is cut at both ends with "
+                                    "nothing on the sheet to show it. Shorten "
+                                    "the line, set a smaller Size under "
+                                    "“Clip-border content”, or use a taller "
+                                    "paper.").format(
+                                        need=_lo.needed_mm,
+                                        avail=max(0.0, _lo.available_mm),
+                                        short=_lo.overlap_mm,
+                                        half=_lo.overlap_mm / 2.0))
+                                # `_auto_floor_note` is NOT appended here: it
+                                # names “Sheet text”, and this line's size box
+                                # lives under “Clip-border content”, which the
+                                # message has already named.
+                    except Exception:      # noqa: BLE001 — never fatal
+                        pass
             # The text-overflow warning only applies in "margins are law" mode,
             # which is now AREA-FIRST (Knut #93): there the label/text lives inside
             # the margin, so a too-small margin overflows toward the page edge. In
