@@ -1210,6 +1210,68 @@ def _letter_heights(tmp_path, *, turned, n=345, paper="A4", **over):
 MARGIN_THAT_HOLDS_THE_BAND_MM = 14.0
 
 
+def _dark_on_the_patches(tmp_path, *, turned, n=345, paper="A4", **over):
+    """Dark pixels BELOW the patch-area top, with the letters on and off.
+
+    Returns ``(with the letters, without them)``. On a chart of pale patches
+    the only thing that can be dark down there is letter ink, so the pair says
+    whether the letters are printed ON the patches or not at all.
+    `_letter_heights` cannot answer that: it compares a sheet against another
+    sheet drawn the same way, so a change that removes the letters from BOTH
+    looks identical, and a mutation that never composited the label overlay
+    passed it.
+
+    **THE GEOMETRY IS THE SAME ON BOTH SHEETS, AND THAT IS THE WHOLE POINT.**
+    Switching "Show strip letters" off in the RECIPE reclaims the label band,
+    so area-first resizes every patch and the patch area starts somewhere else;
+    the difference between those two sheets is the chart, not the letters. The
+    first version of this helper did exactly that and reported 26,542 dark
+    pixels of "letter ink" on a sheet whose letters were not being drawn at
+    all. So the geometry is built once, from the recipe with the letters ON,
+    and only the renderer's own `draw_indicators` argument changes. This is the
+    same trick, for the same reason, as
+    `tests/test_the_top_and_bottom_edges_keep_off_the_helper_markers._render`.
+    """
+    from dataclasses import replace
+
+    import numpy as np
+
+    from workflow.layout_engine import (
+        geometry as _geometry, instruments as _instruments, papers as _papers,
+        raster as _raster)
+    from workflow.layout_engine.presets import default_recipe
+    from workflow.layout_engine.ti1_reader import ColorTarget
+
+    r = replace(default_recipe("CR30", paper), hflag=True,
+                hex_flat_top=turned, randomize=False, spacer_mode="none",
+                spacer_on=False, **over)
+    kw = r.build_kwargs()
+    kw["area_target_count"] = n
+    geom = _raster.apply_furniture_reserves(
+        _instruments.geom_from_build_kwargs(kw), kw)
+    w_mm, h_mm = _papers.dimensions_mm(paper)
+    target = ColorTarget(
+        color_rep="iRGB", device_fields=["RGB_R", "RGB_G", "RGB_B"],
+        patches=[((88.0 + i % 5, 90.0 + i % 4, 92.0 + i % 3),
+                  (80.0, 85.0, 90.0)) for i in range(n)])
+    lay = _geometry.compute(geom, w_mm, h_mm, n)
+    place = _geometry.placement(geom, w_mm, h_mm, lay)
+    dpi = int(kw.get("dpi") or 300)
+    top = int(round(place.y_of(0) * dpi / 25.4))
+    counts = []
+    for indicators in (True, False):
+        img = _raster.render_pages(
+            target, lay, geom, seed=7, randomize=False,
+            paper_w_mm=w_mm, paper_h_mm=h_mm, dpi=dpi,
+            draw_indicators=indicators,
+            indicator_size_mm=kw.get("indicator_size_mm", 0.0),
+            strip_label_offset_mm=kw.get("strip_label_offset_mm", 0.0),
+        ).images[0]
+        g = np.asarray(img.convert("L"))
+        counts.append(int((g[top:, :] < 120).sum()))
+    return counts[0], counts[1]
+
+
 def _letters_are_whole(tmp_path, *, turned, label, **over):
     """Assert no strip letter is shorter than on a sheet with room to spare.
 
@@ -1324,6 +1386,19 @@ def test_the_shipped_default_now_prints_the_letters_on_the_hexagons(tmp_path):
         f"{min(roomy)} px, so a patch was printed over it. "
         f"{(band - top) * mm:.2f} mm of band is below the patch top and it "
         "must go ON the hexagons, not under them"
+    )
+    # ...AND THE INK IS REALLY DOWN THERE. The comparison above is between two
+    # sheets drawn the same way, so a change that removes the letters from BOTH
+    # satisfies it; a mutation that never composited the label overlay did
+    # exactly that and passed. On a chart of pale patches the only dark thing
+    # below the patch-area top is letter ink, so switching the letters off is
+    # the control that cannot be fooled.
+    on, off = _dark_on_the_patches(tmp_path, turned=True, n=345)
+    assert on > off + 500, (
+        f"{on} dark pixels below the patch-area top with the strip letters on "
+        f"and {off} with them off. The letters are not being printed over the "
+        "hexagons at all, so either the clamp is back or the overlay is no "
+        "longer composited"
     )
 
 

@@ -282,6 +282,61 @@ def test_the_bottom_line_is_centred_between_the_two_side_bounds():
         "left-anchored, not centred")
 
 
+@pytest.mark.parametrize("side,expect_lo,expect_hi", [
+    ("left", 26.0, 206.0),
+    ("right", 4.0, 184.0),
+])
+def test_a_clip_border_bounds_the_bottom_line_on_its_own_side(
+        side, expect_lo, expect_hi):
+    """Two more rows of his table, and the ones only a chart with a band shows.
+
+    Knut, comment 5651269930::
+
+        Clip-border ON (side=left):   (0+Clip-border width) and (210 - Clip)
+        Clip-border ON (side=right):  (0+Clip)              and (210 - Clip-border width)
+
+    The band and the bottom line share that strip of paper: since the clip band
+    now runs from the "T" bound to the "B" bound it reaches down across the
+    line's own row, so the line has to start clear of it. Measured on the
+    app's own sheet by `scripts/drive_182_layout_rulings.py` at a 26 mm border:
+    the centre moves from 105.03 mm to 116.04 with the border on the left and
+    to 94.02 with it on the right, against the 116.00 and 94.00 his rows ask
+    for.
+    """
+    lo, hi = tef.bottom_text_bounds_mm(210.0, 4.0, clip_border_mm=26.0,
+                                       clip_side=side)
+    assert (lo, hi) == pytest.approx((expect_lo, expect_hi))
+    r = _recipe(chart_text="IIIIIIIIII", chart_text_size_mm=3.2,
+                clip_border=True, clip_border_width_mm=26.0, clip_side=side)
+    band = _moved(_render(r)[0],
+                  _render(r, chart_text="")[0])
+    assert band is not None
+    mid = (band[2] + band[3]) / 2.0
+    assert abs(mid - (lo + hi) / 2.0) < 1.5, (
+        f"with the border on the {side} the line is centred on {mid:.2f} mm "
+        f"and his bounds put the centre at {(lo + hi) / 2.0:.2f} mm")
+
+
+def test_a_border_narrower_than_the_reserve_keeps_the_reserve():
+    """The one clause of his table that is genuinely ambiguous.
+
+    Every row he tabulated has the border WIDER than the reserve, so the two
+    readings agree. A border narrower than the reserve is a case he does not
+    cover, and taking his words literally there would let the line into a
+    reserve that is a limit on all four sides everywhere else in this module.
+    ``max(border, reserve)`` is his table wherever his table speaks, and this
+    pins the choice so that changing it is deliberate. **Reported for his
+    ruling; if he wants the border to win even when it is smaller, this is the
+    test to change.**
+    """
+    assert tef.bottom_text_bounds_mm(
+        210.0, 8.0, clip_border_mm=3.0, clip_side="left") \
+        == pytest.approx((8.0, 202.0))
+    assert tef.bottom_text_bounds_mm(
+        210.0, 8.0, clip_border_mm=3.0, clip_side="right") \
+        == pytest.approx((8.0, 202.0))
+
+
 def test_a_longer_bottom_line_grows_the_same_amount_at_both_ends():
     """His reason, measured rather than restated.
 
