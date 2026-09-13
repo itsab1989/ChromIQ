@@ -1783,9 +1783,25 @@ class ChartCreator:
                         # `text_edge_mm` is the distance for the sheet text
                         # along the BOTTOM; the run's notes live in the side
                         # margin, which is what `text_edge_clip_mm` is for.
-                        _edge = float(getattr(_rec, "text_edge_clip_mm", 0.0)
-                                      or 0.0)
-                    except (TypeError, ValueError):
+                        #
+                        # …AND A TYPED 0 IS 4.0, WHICH THIS READ AS 0.0. The
+                        # engine takes the boxes through
+                        # `LayoutRecipe.build_kwargs()`, where an empty box
+                        # becomes `TEXT_EDGE_DEFAULT_MM`; the panel promises it
+                        # in black ("A distance of 0.0 mm is not used. ChromIQ
+                        # prints at 4.0 mm instead, so no text is set hard
+                        # against the paper edge"). Reading the field raw made
+                        # the note the one piece of text on the sheet that DID
+                        # go hard against the edge: measured on screen, with
+                        # all three boxes typed to 0, its ink ran from 1.40 mm
+                        # of the top and 1.14 mm of the bottom while nothing
+                        # else on the page moved. `effective_text_edge_clip_mm`
+                        # is that substitution asked for rather than repeated.
+                        _edge = float(_rec.effective_text_edge_clip_mm)
+                    except (AttributeError, TypeError, ValueError):
+                        # A recipe-shaped object that is not a `LayoutRecipe`
+                        # has no property to ask, so fall back to the setting's
+                        # default rather than to a raw field that may be 0.
                         _edge = self.default_text_edge_clip_mm()
                     # …AND THE RULER HELPER MARKERS PUSH IT FURTHER IN (#182).
                     # The note is text against a side page edge like any other,
@@ -1904,8 +1920,16 @@ class ChartCreator:
                     _m_e = float(getattr(_rec, "helper_marker_edge_mm", 0.0) or 0.0)
                     _m_l = float(getattr(_rec, "helper_marker_len_mm", 0.0) or 0.0)
                     _m_tb = bool(getattr(_rec, "helper_markers_top_bottom", True))
+                    # A TYPED 0 IS 4.0 ON THESE TWO EDGES AS WELL, and reading
+                    # the fields raw put the note's two ends 1.40 mm and
+                    # 1.14 mm from the paper while the strip letters and the
+                    # bottom sheet text kept the 4.0 mm the same boxes gave
+                    # them. Asked through the recipe's own properties, which is
+                    # where `build_kwargs()` gets it.
                     _edge_t = _tef_ends.edge_reserve_mm(
-                        float(getattr(_rec, "text_edge_top_mm", 0.0) or 0.0),
+                        float(getattr(_rec, "effective_text_edge_top_mm",
+                                      getattr(_rec, "text_edge_top_mm", 0.0))
+                              or 0.0),
                         _m_on, _m_e, _m_l, _m_tb)
                     # "B" IS `text_edge_mm` ON THE RECIPE. There is no
                     # `text_edge_bottom_mm` field: the bottom sheet text's own
@@ -1913,7 +1937,9 @@ class ChartCreator:
                     # `instruments.geom_from_build_kwargs` copies into
                     # `Geom.text_edge_bottom_mm` for the same reason.
                     _edge_b = _tef_ends.edge_reserve_mm(
-                        float(getattr(_rec, "text_edge_mm", 0.0) or 0.0),
+                        float(getattr(_rec, "effective_text_edge_mm",
+                                      getattr(_rec, "text_edge_mm", 0.0))
+                              or 0.0),
                         _m_on, _m_e, _m_l, _m_tb)
                 stamp_chart_metadata(tiffs, cmd_lines, _edge, _band,
                                      _font_family, _size_pt, _reach, _gap,

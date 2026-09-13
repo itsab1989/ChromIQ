@@ -3729,7 +3729,24 @@ class LayoutOptionsPanel(QWidget):
                 reserve = _tef.helper_marker_ink_reach_mm(
                     getattr(geom, "helper_marker_edge_mm", 0.0),
                     getattr(geom, "helper_marker_len_mm", 0.0))
-                if reserve > typed + 0.05:
+                # AGAINST THE DISTANCE THE SHEET USES, NOT THE ONE TYPED. This
+                # asked `reserve > typed`, and a typed 0 is not 0: the geometry
+                # already holds `TEXT_EDGE_DEFAULT_MM` for it (note 3 below says
+                # so on the same panel). With "Clip" typed 0 and the markers at
+                # 0.5 + 1.0 mm the reserve is 2.5, the sheet prints the clip
+                # text at 4.0, and this said *"kept 2.5 mm in from the paper
+                # edge, not the 0.0 mm you asked for"* and then advised raising
+                # "Clip" above 2.5 mm "to move the text further in" — which
+                # moves it OUT, toward the edge, from 4.0 to 3.0. Two false
+                # halves and a note contradicting the one under it.
+                #
+                # `geom.text_edge_clip_mm` is the effective figure, because
+                # `geom_from_build_kwargs` is fed by `build_kwargs()`, and
+                # `geom_side_text_edge_mm` is the one place that says which of
+                # the two wins.
+                effective = float(_tef.geom_side_text_edge_mm(geom))
+                held = float(getattr(geom, "text_edge_clip_mm", typed) or typed)
+                if reserve > held + 0.05 and effective > held + 0.05:
                     lines.append(tr(
                         "The clip border's text is kept {reserve:.1f} mm in "
                         "from the paper edge, not the {typed:.1f} mm you asked "

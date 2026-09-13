@@ -19276,8 +19276,24 @@ class TabChart(QWidget):
             # before this the panel measured from "Clip" while the sheet
             # kept the markers clear, and the two disagreed by 3 mm on the
             # ColorMunki family, whose markers are on by default.
+            #
+            # AND A TYPED 0 IS 4 mm, WHICH THE RAW FIELD IS NOT. Every one of
+            # these notices measures against the distance the SHEET uses, and
+            # the sheet gets its boxes through `LayoutRecipe.build_kwargs()`,
+            # where an empty box becomes `TEXT_EDGE_DEFAULT_MM`. Read raw, the
+            # six notices in this method reported a distance 4 mm smaller than
+            # the ink for anyone who typed 0 into a box. Asked through the
+            # recipe's own property, which is where `build_kwargs()` gets it.
+            _clip_edge = float(getattr(r, "effective_text_edge_clip_mm",
+                                       getattr(r, "text_edge_clip_mm", 0.0))
+                               or 0.0)
+            _top_edge = float(getattr(r, "effective_text_edge_top_mm",
+                                      getattr(r, "text_edge_top_mm", 0.0))
+                              or 0.0)
+            _bot_edge = float(getattr(r, "effective_text_edge_mm",
+                                      getattr(r, "text_edge_mm", 0.0)) or 0.0)
             _eff_edge = text_edge_fit.side_text_edge_mm(
-                float(getattr(r, "text_edge_clip_mm", 0.0) or 0.0),
+                _clip_edge,
                 helper_markers=bool(getattr(r, "helper_markers", False)),
                 marker_edge_mm=float(
                     getattr(r, "helper_marker_edge_mm", 0.0) or 0.0),
@@ -19431,9 +19447,12 @@ class TabChart(QWidget):
                         # the two, winding it down moves no ink, which is the
                         # remedy-that-does-not-remedy this round's predecessor
                         # deleted twice in the block below.
-                        _clip_binds = (_eff_edge
-                                       <= float(r.text_edge_clip_mm or 0.0)
-                                       + 0.05)
+                        # AGAINST THE DISTANCE IN FORCE, NOT THE TYPED BOX.
+                        # A typed 0 is 4 mm on the sheet, so reading the raw
+                        # field made this False on a chart with NO markers at
+                        # all and printed the branch that blames the ruler
+                        # dashes for holding text that nothing is holding.
+                        _clip_binds = (_eff_edge <= _clip_edge + 0.05)
                         over.append((tr(
                             "⚠ The chart notes down the right edge run over the "
                             "patches. They are printed {edge:.1f} mm in from "
@@ -19498,10 +19517,8 @@ class TabChart(QWidget):
                            float(getattr(r, "helper_marker_edge_mm", 0.0) or 0.0),
                            float(getattr(r, "helper_marker_len_mm", 0.0) or 0.0),
                            bool(getattr(r, "helper_markers_top_bottom", True)))
-                    _note_top = text_edge_fit.edge_reserve_mm(
-                        float(getattr(r, "text_edge_top_mm", 0.0) or 0.0), *_mk)
-                    _note_bot = text_edge_fit.edge_reserve_mm(
-                        float(getattr(r, "text_edge_mm", 0.0) or 0.0), *_mk)
+                    _note_top = text_edge_fit.edge_reserve_mm(_top_edge, *_mk)
+                    _note_bot = text_edge_fit.edge_reserve_mm(_bot_edge, *_mk)
                     _lost = _tmeta.note_characters_lost(
                         _notes_text, _ph, _eff_edge,
                         max(0.0, _note_margin - max(_eff_edge,
@@ -19837,7 +19854,7 @@ class TabChart(QWidget):
                 # that reserve and stayed silent on sheets where the letters
                 # had already been pushed off it.
                 _t_reserve = text_edge_fit.edge_reserve_mm(
-                    r.text_edge_top_mm,
+                    _top_edge,
                     bool(getattr(r, "helper_markers", False)),
                     float(getattr(r, "helper_marker_edge_mm", 0.0) or 0.0),
                     float(getattr(r, "helper_marker_len_mm", 0.0) or 0.0),
@@ -19963,7 +19980,7 @@ class TabChart(QWidget):
             # the markers' own distance (#182), so asking about "B" understated
             # the room the text takes by up to the marker reserve.
             _b_edge = text_edge_fit.sheet_text_bottom_mm(
-                r.text_edge_mm,
+                _bot_edge,
                 bool(getattr(r, "helper_markers", False)),
                 float(getattr(r, "helper_marker_edge_mm", 0.0) or 0.0),
                 float(getattr(r, "helper_marker_len_mm", 0.0) or 0.0),
@@ -20012,7 +20029,7 @@ class TabChart(QWidget):
                 except Exception:      # noqa: BLE001 — never block on this
                     _pw = float(getattr(report, "page_w_mm", 0.0) or 0.0)
                 _wo = text_edge_fit.bottom_text_overflow(
-                    _pw, r.text_edge_clip_mm, _w,
+                    _pw, _clip_edge, _w,
                     bool(getattr(r, "helper_markers", False)),
                     float(getattr(r, "helper_marker_edge_mm", 0.0) or 0.0),
                     float(getattr(r, "helper_marker_len_mm", 0.0) or 0.0),
