@@ -1,5 +1,96 @@
 # Changelog
 
+## v4.3.0-beta.8
+
+**A tester's batch of nine, built and attacked, and two of them were faults in
+the checking rather than in the chart.** Most of this is the second half of the
+text-and-margin work: warnings that fired when nothing was wrong, warnings that
+stayed silent when something was, and one preset family that took eleven seconds
+to select.
+
+### New
+
+- **Six straight-strip CR30 presets.** The same 11 mm honeycomb as the
+  hexagonal cut, turned 30 degrees, so a strip runs straight down the sheet
+  instead of zig-zagging under the hand: three on A4 (450 / 900 / 1350 patches)
+  and three on US Letter (396 / 792 / 1188). The built-in list is now 160.
+
+### Fixed
+
+- **Selecting a scanner preset took eleven and a half seconds.** It was not the
+  patch count: a Red River chart of 2,052 patches took 190 ms and a CR30 of
+  1,350 took 262. The scanner family is the only one laid out by minimum width
+  with no column count, so the engine tries every column count the 4 mm minimum
+  allows and binary-searches the patch width for each; that search ran forty
+  halvings, resolving the width to a ten-thousandth of a pixel, and the whole
+  answer was computed eight times for one click. It is remembered now, the
+  candidates share their probes, and the search stops when it is finer than
+  a two-hundredth of a pixel. **544 ms**, and no chart's patch size changed:
+  checked over all 147 recipe-carrying built-ins, the derived sizes are
+  identical.
+
+- **"Patch width" on a turned honeycomb was the column pitch.** On an upright
+  honeycomb the two are the same number; turned, they come apart, and the panel
+  showed 9.4 mm for a patch that measures 10.9 across the flats and 12.5 across
+  the points. It is the across-flats measure now, in both orientations, which
+  is the biggest circle that fits inside a patch and so the figure a round
+  instrument head needs.
+
+- **The chart's PDF export lost the strip-label rule.** The vector sheet beside
+  the TIFF drew every furniture rule one pixel short in both dimensions, so at
+  any thickness that rounds to a single pixel the rule was in the TIFF and
+  absent from the PDF. At the default 0.5 mm it was a quarter thin.
+
+- **The six scanner presets warned about their own margins.** Each asked for a
+  4 mm left margin and used 8.9, because the row indicator labels need the
+  room, so the panel said so every time one was loaded. They ask for 9 mm now.
+  Nothing on the sheet moved except the three Letter charts' patch size, which
+  goes back above the 4 mm minimum the recipe itself sets.
+
+- **The clip-border text warned when nothing was wrong.** Narrowing the band
+  below the right margin left the text exactly where it was, on clear paper,
+  and the panel went red about it. It now warns when the text actually reaches
+  something: the row indicator labels on a left-hand band, the patch area on
+  either side. A band too narrow for its text still warns, and so does a text
+  too big for a full band.
+
+- **A chart note cut short by the settings stamp said nothing.** With "Stamp
+  settings down the right edge" on, the sheet prints the note joined to the
+  targen line and the ChromIQ version, and the check measured the notes box
+  alone: 37 characters were cut in silence, including the version. With a longer
+  note it warned and named 128 where 236 were cut.
+
+- **A clip-border line too long for the page was cut at both ends in silence.**
+  The line is centred, so what does not fit disappears off both ends with no
+  ellipsis and nothing in the log. It is reported now, with how much goes off
+  each end.
+
+- **The brightness checks on a scan read the chart, not the scan.** With
+  "Profile my printer from this scan" ticked, the file the two checks read holds
+  the chart's own ink amounts, so the clipping warning fired on every scan ever
+  made on that path and the too-dark check could never fire. A second
+  recognition pass, 0.29 s a sheet, gives the checks the scan's own values. On
+  the demo pack's two scans the two paths now agree to the decimal.
+
+- **Two tooltips named a text-size floor that moved two days ago.** Chart Notes
+  and Stamp Commands both said the automatic size stops at 8 pt. It stops at 7.
+
+### Text on the sheet
+
+- **Every warning that names the 7 pt floor now says the floor belongs to
+  "auto".** A size typed under "Sheet text" is printed exactly as typed, below
+  7 pt included, and that is now offered as a lever wherever it is one.
+
+- **The stamp is named as a lever** when a note is too long and the stamp is on:
+  on a long note it gives back 108 characters at a stroke.
+
+### For the record
+
+- **A demo run's title was read the other way round.** "A sheet nobody recorded
+  the printing of" meant that nobody wrote down the paper, ink and driver
+  settings, not that nobody printed it. It says "A sheet whose printing
+  condition nobody wrote down" now.
+
 ## v4.3.0-beta.7
 
 **A second pass over the text rules, and two faults underneath them that had
