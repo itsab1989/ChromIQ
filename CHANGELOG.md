@@ -1,5 +1,65 @@
 # Changelog
 
+## v4.3.0-beta.9
+
+**A tester's batch of four, and the report window was telling people their data
+had been damaged.** Opening a run's own measurement produced a column that said
+an older ChromIQ had thrown the verdict away. Nothing had been saved, so nothing
+could have been lost, and the demo package that made it easy to hit turns out to
+have been shipping twenty-three measurements with no verdict beside any of them.
+
+### Fixed
+
+- **"It was saved by a version of ChromIQ that did not yet keep the verdict."**
+  Said of a report that was never saved by any version. ChromIQ writes a report
+  into a dated verification folder and not beside the sheet a profile was built
+  from, so opening the latter reached the report window's last resort, which
+  builds one on the spot. Three branches can produce a column and only that one
+  failed to mark it as freshly computed, which is exactly the state the window
+  reads as "an older version saved this and stripped the verdict out". A report
+  that really was saved without one still says so.
+
+- **The demo package shipped no verdict beside any profiling measurement.**
+  ChromIQ saves a report after every measurement, the profiling read included;
+  the package generator saved one only under each dated verification. Twenty
+  three measurements across six projects. They carry a stamped verdict now, and
+  a date of their own instead of the day the zip was opened. The completeness
+  check reads the built package rather than the code that built it, and names
+  anything missing by path.
+
+- **The layout stamp along the bottom could run under the clip border with no
+  warning.** The bottom of a sheet carries up to two lines and the renderer
+  shrinks the pair; the panel's height check counted both and its width check
+  measured only the custom text. With the text box empty and "Stamp layout
+  summary along the bottom" ticked, nothing was measured at all. Measured on an
+  A4 ColorMunki preset: at 13 pt the line runs 3.1 mm off and at 14 pt 18.3 mm,
+  either side of the sheet, and both are reported now. The message names the
+  tick rather than offering to shorten text nobody typed.
+
+- **The bottom line was measured with its placeholders still in it.** A sheet
+  text of `{project} - {date}` is not what the sheet prints, and the difference
+  runs to 23 mm on a single token, so the width warning could both miss a line
+  that runs off and complain about one that fits. The panel now fills the
+  placeholders in the same way the sheet does, for the bottom text and for the
+  clip-border text.
+
+- **A chart with a fixed seed of 0 was warned about for nothing.** Zero was
+  read as "no seed chosen" and stood in for by the widest seed there is, ten
+  digits where the sheet prints one, which is enough to invent an overflow that
+  is not on the paper.
+
+- **A question with only an OK button.** "Replace the current clip-border text
+  with the example table?" offered one answer, and the code compared it against
+  "Yes", so the single button took the branch that replaces the text. It is Yes
+  and No now, with No as the default, so a stray Return keeps what you typed.
+
+### Changed
+
+- **A note on a verdict is numbered "1)", and the verdict carries the number.**
+  The raised marker beside a verdict and the item in the list under the table
+  now read the same string, from one formatter.
+
+
 ## v4.3.0-beta.8
 
 **A tester's batch of nine, built and attacked, and two of them were faults in
