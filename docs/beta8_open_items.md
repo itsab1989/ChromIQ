@@ -5353,3 +5353,94 @@ The user's record went whichever way they answered a question with one answer.
 Yes and No now, with **No as the default button**, so a stray Return keeps what
 was typed. Both halves are tested, because a fix to either alone leaves the
 fault reachable: `ask` must OFFER both, and the call site must ACT on No.
+
+### B8-114 · The adversary round of 2026-09-13 evening, and the two false warnings it found in that afternoon's fix
+- blocks release: no
+- status: FIXED
+- found by: the adversary round run against `e062df83` before tagging beta 9.
+  Four drivers, all on screen in real windows, plus rendered sheets.
+- evidence:
+  test_a_seed_of_zero_is_a_seed,
+  test_an_absent_seed_is_never_predicted_wider_than_it_can_be,
+  test_the_bottom_line_is_measured_resolved,
+  test_every_clip_text_call_site_resolves_first,
+  test_the_remedy_is_only_offered_when_it_works,
+  test_the_placeholder_context_can_never_silence_the_panel,
+  test_a_verdict_with_no_rows_in_it_does_not_count,
+  test_the_zip_and_the_folder_are_the_same_check,
+  test_a_calibration_measurement_is_judged_like_any_other,
+  test_the_real_ask_returns_no_when_no_is_clicked,
+  test_the_build_stamps_that_exact_line_and_not_another.
+- detail: ten findings. **Two of them were regressions introduced by B8-112
+  the same afternoon**, which is the entire reason the round is run.
+
+  **F1 — the register was red.** B8-110 to B8-113 carried no `blocks release`,
+  no `status` and no `evidence`, so `test_beta8_nothing_is_forgotten` failed and
+  the everyday tier with it. The checklist caught the checklist.
+
+  **F2 — a fixed seed of 0 produced a FALSE WARNING.** `getattr(r, "seed",
+  None) or _WIDEST_SEED` treats 0 as "no seed", so a recipe carrying seed 0 was
+  predicted as ten digits where the sheet prints one. Reachable by ticking "Use
+  a fixed seed" and never pressing "New seed". Rendered and measured: at 13 pt
+  the panel said 3 mm ran off and the ink stopped 10.61 mm inside the bound; at
+  14 pt it said 18 mm where the sheet had 4.14 mm to spare.
+
+  **F3 — and the worst-case stand-in was the wrong bias.** `pick_seed` draws ten
+  digits 53 % of the time and nine the rest, so predicting the widest possible
+  seed is one character too wide almost half the time, and one character is
+  2.71 mm at 13 pt on Inter. Nine digits is either exact or one short, never
+  long. A warning that is wrong about the sheet in front of the user is worse
+  than one that arrives a character late.
+
+  **F4 — the panel measured `{tokens}` and the sheet prints the answer.** On
+  Knut's own example line, 12.6 mm at 12 pt; `{seed}` alone is 23.3 mm wider
+  resolved and a long chain of token names 11.3 mm narrower, so the check could
+  miss a real overflow AND invent one. `chart.text_placeholder_context` and
+  `raster.resolve_placeholders` are lifted out and the panel asks them. THREE
+  `clip_text_lines` call sites, not one.
+
+  **F5 — "0 patches" out of the box.** With "Auto patch count" ticked, which is
+  how a fresh Manual panel opens, `_estimate_patch_total` answers None and the
+  stamp was predicted as "0 patches" while the sheet stamps the real figure:
+  4.6 mm of line on a 918-patch chart. The Chart-layout-information panel had
+  already computed it for its own column.
+
+  **F6 — a remedy that changed nothing.** The sentence naming the stamp tick was
+  appended whenever the stamp was the WIDEST line, so with a long custom line as
+  well it could be right about that and useless: rendering with the stamp off
+  left the sheet 19.61 mm over at 13 pt and 23.93 at 14, unchanged. It now asks
+  whether removing the stamp makes what is left fit.
+
+  **F7 — `_verdicts_missing` passed a hollow pack.** `recorded_verdict` requires
+  only that `rows` is a list, so `{"verdict": {"rows": []}}` counted as a
+  verdict.
+
+  **F8 — its folder branch and its zip branch were different checks.** The
+  folder branch skipped the role-named intermediates and the zip branch skipped
+  nothing, so a pack holding a run that used measurement averaging passed as a
+  folder and failed as a zip; a `.ti3` at the root of a zip could never find its
+  report. One listing serves both now, and `cal/` is deliberately not skipped.
+  The count of missing verdicts is **23**, not the 25 written three times.
+
+  **F9 — the driver did not do what its commit message said.** It fed the
+  panel's own prediction into `text_edge_fit` and called that independent.
+  Getting the replacement right took three attempts, all recorded in the
+  driver's own docstring: differencing a stamp-on against a stamp-off render
+  moves the whole chart because `nlines` takes the bottom reserve with it;
+  cropping the clip-border columns away hides the overflow being measured; and
+  the right bound is `room + clip` only with the border on the RIGHT.
+
+  **F10 — two tests guarded nothing.** The stamp-wording test never called
+  `build_chart` and re-derived its expected value from the functions the
+  implementation calls. The `ask` tests stubbed either `_boxed` or `ask` in
+  every case. The round's own mutation for the second could not have been
+  caught either: `StandardButton` is an `IntFlag`, so `int(No) == No`. A
+  mutation that does change behaviour turns it red now.
+
+  **And a hazard the round exposed without naming it.** `_engine_text_notes`
+  wraps its whole body in one `except Exception: pass`, so a lookup that throws
+  loses EVERY warning on the panel, silently. It did: 37 tests reported "no
+  clip-text warning at all" for a chart that has one, accusing correct code.
+  The context builder cannot raise now, the stand-in tab borrows the real
+  methods instead of re-implementing a subset, and a test feeds it a recipe
+  that answers badly to everything.
