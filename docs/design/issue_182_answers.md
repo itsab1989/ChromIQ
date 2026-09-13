@@ -1441,3 +1441,83 @@ markers was blamed on "T" and the remedy offered would have moved no ink. The
 function that came before it took the reserve, so the call site was right for
 the old callee and wrong for the new one.
 
+
+## 2n. ⏳ Awaiting confirmation — 2026-09-13: the six straight-strip presets ship, and the test that held them was wrong
+
+**Knut's ruling, on beta 7:** *"all 6 profiles give no warnings at all. The A4
+chart presets look good and work exactly as desinged. No overlap warnings...
+show top=12.3mm and bottom = 6.9mm in Measured from Preview. All ok. Ship the
+presets."*
+
+They are shipped: six rows, three on A4 (450 / 900 / 1350 patches) and three on
+US Letter (396 / 792 / 1188), all on one 18-column grid, registered as the
+`straight=True` cut of the CR30 family. `KNUT_PRESETS` 143 to 149, built-in keys
+154 to 160.
+
+### The half-millimetre that held them for a day was never on the sheet
+
+The three A4 charts were reported at Top 10.499 / Bottom 5.112 against the
+11.0 / 6.0 their own recipe declares, so they appeared to accuse themselves and
+were commented straight back out. Knut, on the same six as user presets, read
+12.3 and 6.9 with no warning. Both numbers were produced honestly; only one came
+from the app.
+
+`test_no_builtin_preset_breaks_its_own_declared_margins` re-implemented
+`margin_inspector.measure_from_engine` in a local helper, and the copy had
+drifted. The shipped function asks `recipe_is_flat_top` which way the hexagons
+point; the copy always took the vertical apex. A turned honeycomb's apexes point
+sideways, so the copy moved 1.82 mm off the top and bottom and left 1.59 mm on
+the left and right that the ink does not have. Fed the engine's own geometry the
+shipped function answers **12.319 and 6.932**, which is Knut's reading to the
+tenth, on all three. The helper now CALLS it.
+
+Driven on screen, all six built-ins, real window: A4 T=12.319 B=6.932, Letter
+T=15.748 B=10.287, no violations, no text notices, no overlap notices, "Margins:
+OK" in green. Photographs in `~/Desktop/ChromIQ-proof-2026-09-13-straight`.
+
+### And a real fault of the same shape, found by measuring them
+
+"Patch width (in strip reading direction)" came off the slot rect's `w`. On an
+upright honeycomb that IS the patch, because the flats are its left and right
+sides and the column pitch is the same number. On a turned one the three come
+apart:
+
+    column pitch       w          9.398 mm    <- what the panel showed
+    across the flats   h         10.922 mm    <- the patch
+    across the points  w * 4/3   12.531 mm
+
+The panel understated a 10.9 mm patch by 14 per cent on charts whose own names
+say 11 mm, on the one readout that says whether a CR30's round head fits inside
+a patch. The report now carries the across-flats measure in both orientations:
+it is the inscribed circle, the only span worth a single number, and nothing
+upright moves. The "Chart layout information" panel beside the preview had it
+right all along and separately, listing "Patch size (mm) 12.53x10.92" beside
+"Column pitch (mm) 9.4".
+
+**Naming.** His files spell it "Streight". The presets say "Straight", following
+the app's own control ("Straight strips (turn the honeycomb 30 degrees)"). One
+word to put back if he wants his spelling.
+
+## 2o. ⏳ Awaiting confirmation — 2026-09-13: which PDF the strip-label rule was missing from
+
+**Knut asked:** *"Which PDF export is this? from the Measurement Report? or any
+other export? If the Measurement Report, I say we keep as is. Reports are
+properly reviewed at later time and things may change."*
+
+**It is not the report. It is the chart.** Create Chart's "Also export a PDF"
+writes a vector sheet beside the TIFF from one display list, so the two are the
+same chart in two forms, and the PDF is the file that goes to a RIP. His
+keep-as-is therefore does not apply, and it was fixed.
+
+A `vrect` display-list row is half-open, like a Python slice, and the PDF writer
+takes `x1 - x0` by `y1 - y0` as the size. The helper markers emit half-open
+rows. The three strip-label underlines wrote Pillow's inclusive box straight in.
+Two emitters, two conventions, one consumer that cannot be right for both, so
+every rule came out one pixel short in both dimensions.
+
+Measured on a real export at 200 dpi with the rule at 0.10 mm: **1** zero-height
+rectangle in `black` mode, **5** in `segments`, **18** in `cycle`. The rule is in
+the TIFF and absent from the PDF. At 0.50 mm nothing vanished and every rule was
+a quarter thin instead, 1.08 pt against the TIFF's 1.44. After the fix: no dead
+rectangles in any mode, and 0.36 pt / 1.44 pt, exactly 1 px and 4 px at that
+resolution.

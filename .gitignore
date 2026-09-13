@@ -108,3 +108,4 @@ scripts/offscreen_font_probe/_results/
 # 8.5 MB of charts, profiles and measurements that one command rebuilds in 12 s.
 # The zip is shipped as a release asset instead.
 demo-projects/
+.claude/issue-watermarks/
