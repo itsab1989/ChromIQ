@@ -343,10 +343,25 @@ def test_the_right_edge_stays_quiet_when_no_note_is_defined(qapp):
 
 def test_the_stamp_settings_tick_box_is_enough_on_its_own(qapp):
     """Knut names both triggers: *"when Run Chart Notes are defined or 'Stamp
-    settings used on the chart' is selected"*."""
+    settings used on the chart' is selected"*.
+
+    AND IT MUST NOT CALL THE STAMP'S LINE "chart notes", which is what this test
+    used to require. With the notes box empty there are none, and the app ships
+    with the tick ON, so on a fresh install that message was the first thing a
+    user saw on one of Knut's own presets. See
+    `tests/test_a_warning_never_names_text_the_user_did_not_type.py`.
+    """
     r = replace(_roomy(), margin_right=5.0)
     _all, over = _notes(r, notes="", stamp=True, report=_Report(5.0))
-    assert len(over) == 1 and "chart notes down the right edge" in over[0]
+    assert len(over) == 1, over
+    assert "settings stamp down the right edge" in over[0], over[0]
+    assert "chart notes down the right edge" not in over[0], over[0]
+
+    # …and with something typed, the wording that names the user's own text.
+    _all2, over2 = _notes(r, notes="Canon Pro-1000", stamp=True,
+                          report=_Report(5.0))
+    assert len(over2) == 1, over2
+    assert "chart notes down the right edge" in over2[0], over2[0]
 
 
 def test_the_top_is_silent_while_the_letters_ink_still_clears_the_patches(qapp):

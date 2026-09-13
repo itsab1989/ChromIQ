@@ -84,6 +84,18 @@ to select.
 - **The stamp is named as a lever** when a note is too long and the stamp is on:
   on a long note it gives back 108 characters at a stroke.
 
+- **A warning blamed chart notes that nobody had typed.** ChromIQ ships with
+  "Stamp settings down the right edge" on, and no chart preset can clear it, so
+  on a fresh install selecting a CR30 preset printed a red line about chart
+  notes with an empty notes box. The line is really there and really does land
+  on the patches, so the warning was right; it was only wrong about whose text
+  it was. It now says the line is the settings stamp and names the tick that
+  removes it.
+
+- **Typing a chart note, or turning the settings stamp on or off, did not
+  refresh the measured margins.** The warning about a note that is too long
+  arrived a rebuild late, and clearing the note left the red message standing.
+
 ### For the record
 
 - **A demo run's title was read the other way round.** "A sheet nobody recorded

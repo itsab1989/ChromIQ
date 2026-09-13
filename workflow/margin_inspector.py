@@ -403,6 +403,16 @@ def _estimate_patch_width_mm(block_w_mm: float, n_strips: int) -> Optional[float
     page *width* and the patch width is the block width ÷ strip count. This is
     what a ruler measures across a strip and matches the ``.cht`` XLIST pitch
     (verified against ColorMunki double-/triple-density and landscape charts).
+
+    **ON A TURNED HONEYCOMB THIS IS THE COLUMN PITCH, NOT THE PATCH, AND IT
+    CANNOT BE HELPED HERE.** `measure_from_engine` reports the across-flats
+    measure in both orientations (see its own note); this function is the
+    fall-back for a chart with no `channels.json`, so it has no recipe and
+    cannot know which way the hexagons point. Measured 2026-09-13 on one chart
+    through both paths: `measure_from_engine` 10.922 mm, this 9.638 mm. It is a
+    pixel estimate for a chart ChromIQ has no geometry for, and the honest thing
+    is to say so rather than guess an orientation from a bitmap. Registered as
+    B8-108.
     """
     if n_strips < 1:
         return None

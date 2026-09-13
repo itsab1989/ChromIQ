@@ -5058,3 +5058,90 @@ only a triple that DIFFERS from the rule's answer would stop it.
   is something else, and looking for it is the next step rather than widening
   the sweeper's marker list.
 - who: nobody yet. Basti or whoever picks up the next round.
+
+### B8-108 · The IMAGE-detection margin path still reports a turned honeycomb's column pitch
+- blocks release: no
+- status: OPEN
+- found by: the adversary round of 2026-09-13, checking that today's
+  patch-width fix reached everything: same chart, same files,
+  `measure_from_engine` **10.922 mm** and `measure_margins` **9.638 mm**, which
+  is the column pitch.
+- detail: `measure_from_engine` reports the across-flats measure in both
+  orientations now. `measure_margins` is the fall-back for a chart with no
+  `channels.json` (a chart reflected from a `.ti2` alone), so it has no recipe
+  and cannot know which way the hexagons point: it divides the block width by
+  the strip count, which IS the patch on every rectangular chart and on an
+  upright honeycomb, and is the pitch on a turned one.
+
+  Guessing an orientation from the bitmap is exactly the kind of inference this
+  module was rewritten to stop doing (#93: the image detector read the patch
+  width as the strip pitch and a large strip gap corrupted the margins, which
+  is why the engine path exists). The limit is written into
+  `_estimate_patch_width_mm`'s docstring instead; whether the fall-back should
+  learn the orientation from the `.ti2`, or say "estimated" on that row, is a
+  design question.
+- who: nobody yet.
+
+### B8-109 · The adversary round of 2026-09-13, and the two claims it corrected
+- blocks release: no
+- status: FIXED
+- found by: the adversary round run against `9273a91d` before tagging beta 8.
+  Eight drivers, sixty-nine photographs, every one on screen in a real window.
+- detail: five findings, four fixed here and one registered as B8-108.
+
+  **F1 — the new clip-line length check covered one of the two modes that draw
+  a croppable line.** With "Clip-border content" set to *Imported image* and a
+  298-character caption at a typed 9 pt, the renderer drew 434.79 mm of line
+  into a 287.61 mm canvas and cut **147.18 mm, 73.59 at each end**, and the
+  panel said "Margins: OK". The identical text under *Custom text* warned.
+  `render_clip_strip` puts the same `clip_text` through the same `_vtext` in
+  image mode, which is Knut's own #164 ruling. Fixed; "branding" is left out on
+  purpose, because its extra lines go through `_vwordmark`, a different
+  renderer with a different fit.
+
+  **F2 — both "6 GREEN" claims held only on the owner's preferences, and my own
+  commit messages said otherwise.** On a fresh sandbox the six straight presets
+  are 6 RED and the six scanner ones 2 GREEN / 4 RED, every red one a notice
+  about "chart notes" with an empty notes box. The app ships with "Stamp
+  settings down the right edge" ON and no recipe can clear it. The line IS
+  there and it DOES land on the patches, so the warning is right; it was wrong
+  about whose text it was. The empty-box case now has its own message that says
+  the line is the settings stamp and names the tick that removes it.
+
+  Renaming the subject of the four existing messages was tried first and
+  withdrawn: "the chart notes" is plural and carries the agreement of every
+  verb after it, so a one-line substitution produced *"the text ... share that
+  edge ... they are printed ... the notes are printed anyway"*, in thirteen
+  languages at once. A separate branch has no grammar to break.
+
+  **F3 — the two controls the right-edge warnings are about never refreshed the
+  panel.** Counted: toggling the stamp tick, 0 refreshes out of six tries;
+  typing a 336-character note, 0. So the warning arrived a rebuild late and
+  clearing the notes left the red message standing. Both now refresh, guarded
+  on there being a chart to measure.
+
+  **F4 — three messages printed "7 pt" without saying the floor belongs to
+  "auto"**, which is the thing Knut asked for that morning: the note-too-long
+  pair and the clip-band pair. The shared sentence named "Sheet text", so the
+  clip pair needed its own, naming "Clip-border content".
+
+  **What it could NOT break**, re-measured its own way: the PDF rectangles
+  (90 / 94 / 107, 0 dead, and 1 / 5 / 18 dead when it mutated the converter
+  back), the turned hexagon (12.573 across the points, 10.880 across the flats,
+  24 of 24), K3's character counts (0/0, 41/41, 134/134, 242/242 against the
+  fitter wrapped during a real build), K1 on both bands with every lever
+  exercised, all six straight presets built for real, and the scanner-margin
+  fix.
+- evidence: test_an_imported_image_s_caption_is_checked_too,
+  test_the_branding_mode_is_left_alone_on_purpose,
+  test_an_empty_notes_box_is_never_blamed,
+  test_a_typed_note_still_gets_the_per_lever_wording,
+  test_the_stamp_is_on_by_default_and_no_recipe_can_clear_it,
+  test_the_two_controls_the_warnings_are_about_refresh_the_panel,
+  test_it_does_nothing_at_all_when_there_is_no_chart_to_measure,
+  test_every_message_that_prints_the_floor_appends_the_sentence,
+  test_the_stamp_settings_tick_box_is_enough_on_its_own.
+
+  Four mutations, each proved to land: narrowing the length check back to
+  "text" only, deleting the empty-notes branch, deleting the refresh, and
+  sending the floor sentence to a typed size.

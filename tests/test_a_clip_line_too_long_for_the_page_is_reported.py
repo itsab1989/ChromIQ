@@ -169,3 +169,48 @@ def test_a_typed_size_never_shrinks_so_it_loses_more(tab):
 def test_a_line_that_fits_says_nothing(tab):
     assert not _apply(tab, _SHORT), (
         "a clip text that fits is being warned about")
+
+
+def test_an_imported_image_s_caption_is_checked_too(tab):
+    """K4 was wired to one of the two modes that draw a croppable line.
+
+    The adversary round found it on a real build: "Clip-border content" set to
+    **Imported image** with a 298-character caption at a typed 9 pt drew
+    434.79 mm of line into a 287.61 mm canvas and lost **147.18 mm, 73.59 at
+    each end**, the first 50 characters and the last 52, and the panel said
+    "Margins: OK". The identical text under "Custom text" warned.
+
+    `render_clip_strip` puts the same `clip_text` through the same `_vtext` in
+    image mode, which is Knut's own #164 ruling (*"Content option 'imported
+    image' has text field disabled, but should allow adding text"*), and the
+    layout panel keeps the Text field and the Size box live there.
+    """
+    line = _long_enough(tab)
+    for mode in ("text", "image"):
+        panel = tab._manual_layout_panel
+        r = panel.get_recipe()
+        r.clip_border = True
+        r.clip_side = "left"
+        r.clip_content_mode = mode
+        r.clip_text = line
+        r.clip_text_size_mm = 0.0
+        r.clip_border_width_mm = 26.0
+        panel.set_recipe(r)
+        from ui.tabs.tab_chart import TabChart
+        got = [w for w in TabChart._engine_text_notes(tab)[1]
+               if "too long for the page" in w]
+        assert got, f"clip_content_mode={mode!r}: the line is cut and nothing is said"
+
+
+def test_the_branding_mode_is_left_alone_on_purpose(tab):
+    """Its extra lines go through `_vwordmark`, a different renderer with a
+    different fit, so warning about it from this arithmetic would be a guess.
+    Reported for a round of its own rather than silently covered."""
+    from workflow.layout_engine import raster
+    import inspect
+    src = inspect.getsource(raster.render_clip_strip)
+    i = src.find('if mode == "branding"')
+    assert i > 0, "the branding mode is gone"
+    assert "_vwordmark(" in src[i:i + 600], (
+        "branding now draws through the same renderer as the others; the "
+        "length check should cover it")

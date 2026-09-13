@@ -2574,7 +2574,8 @@ KNUT_PRESET_KEYS = frozenset(KNUT_PRESETS_BY_KEY)
 # folder, can carry one; the Full-layout-setup family uses these), then an
 # optional shared ``recipes.json`` keyed by the preset's display name (a legacy
 # fallback; no shipped family relies on it any more).
-def _auto_floor_note(size_pt: float, floor_pt: float) -> str:
+def _auto_floor_note(size_pt: float, floor_pt: float,
+                     frame: str = "sheet") -> str:
     """The sentence that says the 7 pt floor belongs to "auto", or "".
 
     Knut, 2026-09-13: *"All warning messages where the 7 pt size limit is
@@ -2595,6 +2596,17 @@ def _auto_floor_note(size_pt: float, floor_pt: float) -> str:
     """
     if float(size_pt or 0.0) > 0:
         return ""            # a typed size IS the floor; nothing to explain
+    # TWO SENTENCES, BECAUSE THE BOX IS IN TWO DIFFERENT FRAMES. The clip
+    # band's own text is sized under "Clip-border content", and sending a
+    # reader of that message to "Sheet text" is a remedy that does not remedy.
+    # The frame cannot be a placeholder: `tests/test_a_quoted_control_names_
+    # the_control_the_reader_has.py` reads the quoted name out of the string.
+    if frame == "clip":
+        return " " + tr(
+            "{size:.0f} pt is where “auto” stops shrinking. A Size typed under "
+            "“Clip-border content” is printed exactly as typed, below "
+            "{size:.0f} pt included, so a smaller one frees room here too."
+        ).format(size=floor_pt)
     return " " + tr(
         "{size:.0f} pt is where “auto” stops shrinking. A Size typed under "
         "“Sheet text” is printed exactly as typed, below {size:.0f} pt "
@@ -19443,6 +19455,24 @@ class TabChart(QWidget):
             # `text_edge_fit.AUTO_SHRINK_FLOOR_PT` (7 pt since that same
             # ruling) and no further; a typed size is used as typed and never
             # shrinks.
+            # WHOSE TEXT IS IT. Until 2026-09-13 all six of these messages
+            # began "The chart notes down the right edge", and the app ships
+            # with "Stamp settings down the right edge" ON: `chart_stamp_
+            # commands` has no default in the store and the tick is set True
+            # when the row is built, and no layout recipe can clear it, because
+            # the recipe's own `stamp_command` is a different control (the
+            # layout summary along the BOTTOM). So on a fresh install, with an
+            # empty notes box, selecting one of Knut's CR30 presets printed a
+            # red line about chart notes that do not exist. Found by the
+            # adversary round of 2026-09-13, which also showed that the two
+            # "6 GREEN" claims made that morning held only because the owner's
+            # own preferences carry `chart_stamp_commands = 0`.
+            #
+            # The line IS there and it DOES land on the patches, so the warning
+            # is right; it was only wrong about whose text it was. The subject
+            # is now "The text down the right edge", which is true in every
+            # case, and the sentence below names the source when the notes box
+            # is empty.
             _note_size_pt = 0.0
             try:
                 _note_size_pt = float(getattr(r, "chart_text_size_mm", 0.0)
@@ -19479,7 +19509,53 @@ class TabChart(QWidget):
                     float(getattr(r, "dpi", 300) or 300),
                     _note_keep_out,
                     _note_size_pt)
-                if _o is not None:
+                if _o is not None and not _notes_text and _stamp_on:
+                    # NOBODY TYPED ANY NOTES, SO THE MESSAGE MUST NOT SAY THEY
+                    # DID. The app ships with "Stamp settings down the right
+                    # edge" ON: `chart_stamp_commands` has no default in the
+                    # store and the tick is set True when the row is built, and
+                    # no layout recipe can clear it, because the recipe's own
+                    # `stamp_command` is a different control (the layout summary
+                    # along the BOTTOM). So on a fresh install, with an empty
+                    # notes box, selecting one of Knut's CR30 presets printed a
+                    # red line about chart notes that do not exist.
+                    #
+                    # Found by the adversary round of 2026-09-13, which also
+                    # showed that the two "6 GREEN" claims made that morning
+                    # held only because the owner's own preferences carry
+                    # `chart_stamp_commands = 0`. On app defaults the six
+                    # straight presets were 6 RED and the six scanner ones
+                    # 2 GREEN / 4 RED, every red one this message.
+                    #
+                    # The line IS there and it DOES land on the patches, so the
+                    # warning is right; it was only wrong about whose text it
+                    # was. This branch says so and names the lever that always
+                    # works. The three below keep their per-lever wording for
+                    # the case they were written for, which is a user who typed
+                    # something.
+                    #
+                    # RENAMING THE SUBJECT OF THOSE THREE WAS TRIED FIRST AND
+                    # WITHDRAWN: "the chart notes" is plural and carries the
+                    # agreement of every verb after it, so "the text ... share
+                    # that edge ... they are printed ... the notes are printed
+                    # anyway" came out of a one-line substitution, in thirteen
+                    # languages at once. A separate branch has no grammar to
+                    # break.
+                    over.append(tr(
+                        "⚠ The settings stamp down the right edge runs over the "
+                        "patches. It needs {need:.1f} mm at {size:.0f} pt and "
+                        "the right margin leaves {avail:.1f} mm, so it is "
+                        "printed over them. Nothing you typed is on that edge: "
+                        "the line is the targen command and the ChromIQ "
+                        "version, and switching “Stamp settings down the right "
+                        "edge” off removes it altogether. Raising “Right” under "
+                        "“Margins (mm)” by about {short:.1f} mm makes room for "
+                        "it instead.").format(
+                            need=_o.needed_mm, size=_note_floor_pt,
+                            avail=max(0.0, _o.available_mm),
+                            short=_o.overlap_mm)
+                        + _auto_floor_note(_note_size_pt, _note_floor_pt))
+                elif _o is not None:
                     # THREE WORDINGS, BECAUSE THE LEVER IS DIFFERENT IN EACH.
                     #
                     # The version this replaced told the user, with a clip
@@ -19712,7 +19788,8 @@ class TabChart(QWidget):
                         "by “…”, because the text has stopped shrinking at "
                         "{size:.0f} pt. Shorten the notes, set a smaller Size "
                         "under “Sheet text”, or use a taller paper."
-                    ).format(size=_note_floor_pt) + _off_stamp)
+                    ).format(size=_note_floor_pt) + _off_stamp
+                        + _auto_floor_note(_note_size_pt, _note_floor_pt))
                 elif _lost > 1:
                     over.append(tr(
                         "⚠ The chart notes down the right edge are too long for "
@@ -19721,7 +19798,8 @@ class TabChart(QWidget):
                         "shrinking at {size:.0f} pt. Shorten the notes, set a "
                         "smaller Size under “Sheet text”, or use a taller "
                         "paper.").format(lost=_lost, size=_note_floor_pt)
-                        + _off_stamp)
+                        + _off_stamp
+                        + _auto_floor_note(_note_size_pt, _note_floor_pt))
             # THE CLIP BORDER'S CONTENT, on whichever edge it sits.
             # `instruments.geom_from_build_kwargs` raises that edge's margin to
             # the clip zone, so on every chart the app builds today the band
@@ -19796,6 +19874,19 @@ class TabChart(QWidget):
                     from workflow.layout_engine.raster import clip_text_lines
                     _clip_lines = len(clip_text_lines(
                         getattr(r, "clip_text", "") or ""))
+                # A SECOND COUNT, FOR THE OTHER AXIS. `_clip_lines` is what the
+                # ACROSS-the-band arithmetic uses, and it is 0 in image mode on
+                # purpose: `raster.render_clip_strip` stacks a caption over the
+                # image rather than sharing the band's own line slots, so the
+                # squeeze check must not count it. The LENGTH of a line is the
+                # same question in both modes, because both go through the same
+                # `_vtext` and are cropped by the same canvas.
+                _clip_len_lines: "list[str]" = []
+                if str(getattr(r, "clip_content_mode", "off")) in ("text",
+                                                                   "image"):
+                    from workflow.layout_engine.raster import clip_text_lines
+                    _clip_len_lines = clip_text_lines(
+                        getattr(r, "clip_text", "") or "")
                 # THE TEXT-EDGE DISTANCE IS A LIMIT, AND THE OVERFLOW GOES
                 # THE OTHER WAY. Knut, 2026-09-12, correcting the answer he
                 # gave the evening before:
@@ -19941,6 +20032,8 @@ class TabChart(QWidget):
                         "from edge (mm)”, or the room the ruler helper markers "
                         "need, whichever reaches further in. The remaining "
                         "{over:.1f} mm is printed inward, past the band.")).format(**_fmt)
+                    _msg += _auto_floor_note(_clip_size_pt, _clip_floor_pt,
+                                             frame="clip")
                     # TWO KINDS OF HARM, AND THEY ARE NOT THE SAME KIND. Ink on
                     # a patch is measured and goes into the profile; ink on a
                     # row label is read by a person who then cannot find their
@@ -20065,8 +20158,22 @@ class TabChart(QWidget):
                 # copy of that rule in this method once asked for a font by an
                 # empty family string and predicted 378 mm for a line that
                 # printed 206.
-                if (_clip_zone > 0 and _clip_band_exists and _clip_lines
-                        and str(getattr(r, "clip_content_mode", "off")) == "text"):
+                # EVERY MODE THAT PUTS THE USER'S LINE THROUGH `_vtext`, not
+                # just "Custom text". `render_clip_strip` draws the same
+                # `clip_text` over an IMPORTED IMAGE as well, which is Knut's
+                # own #164 ruling (*"Content option 'imported image' has text
+                # field disabled, but should allow adding text"*), and the
+                # layout panel keeps the Text field and the Size box live
+                # there. Measured by the adversary round on a real build: a
+                # 298-character caption at a typed 9 pt drew 434.79 mm into a
+                # 287.61 mm canvas and lost 147.18 mm, 73.59 at each end, and
+                # the panel said "Margins: OK".
+                #
+                # "branding" is deliberately NOT here: its extra lines go
+                # through `_vwordmark`, which is a different renderer with a
+                # different fit, and warning about it from this arithmetic
+                # would be a guess. Reported instead.
+                if _clip_zone > 0 and _clip_band_exists and _clip_len_lines:
                     try:
                         from workflow.layout_engine import geometry as _gm2
                         from workflow.layout_engine import raster as _ras
@@ -20075,10 +20182,8 @@ class TabChart(QWidget):
                         _area = _gm2.clip_area_mm(geom, _ph2, _pw2,
                                                   _clip_lines, _clip_size_pt)
                         if _area is not None:
-                            _lines_txt = _ras.clip_text_lines(
-                                getattr(r, "clip_text", "") or "")
                             _need_len = _ras.sheet_text_width_mm(
-                                _lines_txt,
+                                _clip_len_lines,
                                 _clip_floor_pt * 25.4 / 72.0,
                                 str(getattr(r, "clip_text_font", "") or ""),
                                 dpi=float(getattr(r, "dpi", 300) or 300))
@@ -21230,8 +21335,26 @@ class TabChart(QWidget):
         PyQt6 6.11 (CLAUDE.md;
         ``tests/test_a_scrollbar_signal_never_takes_a_lambda.py``). ``*_a``
         swallows whatever the signal carries.
+
+        **AND IT HAS TO REFRESH THE MARGIN PANEL, WHICH IT DID NOT.** These two
+        controls are exactly the ones the right-edge warnings are about: the
+        note's length is measured from the notes box joined to the stamp's own
+        line. Counted by wrapping ``MarginInspectorPanel.update_report`` during
+        the adversary round of 2026-09-13: toggling the tick, **0 refreshes**,
+        six times out of six; typing a 336-character note, **0 refreshes**. So
+        the warning arrived a rebuild late, and clearing the notes left the red
+        message standing until something else happened to repaint.
+
+        Cheap enough to do on every keystroke: `_engine_text_notes` is 17.2 ms
+        and `_update_margin_inspector` reads a sidecar that is already on disk.
+        It is guarded on there BEING a chart to measure, so typing in the box
+        before anything is built costs nothing.
         """
         self._refresh_unapplied_warning()
+        # `_margin_tiffs` is what the panel needs; `_update_margin_inspector`
+        # shows the placeholder and returns without it, so that is the guard.
+        if getattr(self, "_margin_tiffs", None):
+            self._update_margin_inspector()
 
     def _mark_settings_applied(self) -> None:
         """The panel now describes the chart this target holds, so nothing is

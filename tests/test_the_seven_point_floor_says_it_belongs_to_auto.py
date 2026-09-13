@@ -58,9 +58,14 @@ def test_the_floor_is_read_from_the_constant_and_never_typed_into_the_text():
     note = _note()
     tree = ast.parse(textwrap.dedent(inspect.getsource(note)))
     fn = tree.body[0]
-    literals = [n.value for n in ast.walk(fn)
-                if isinstance(n, ast.Constant) and isinstance(n.value, str)]
-    body = literals[1:]                      # [0] is the docstring
+    doc = ast.get_docstring(fn, clean=False)
+    # THE DOCSTRING BY IDENTITY, NOT BY POSITION. `ast.walk` is not source
+    # order, so "the first literal is the docstring" stopped being true the
+    # moment the function grew a second branch, and this test failed on its own
+    # prose about the number.
+    body = [n.value for n in ast.walk(fn)
+            if isinstance(n, ast.Constant) and isinstance(n.value, str)
+            and n.value != doc]
     assert body, "the sentence is gone"
     for lit in body:
         assert "7 pt" not in lit, (
@@ -104,7 +109,7 @@ def test_every_message_that_prints_the_floor_appends_the_sentence():
                 appends += 1
     assert shows_floor >= 5, (
         f"only {shows_floor} messages format a `size`; the search broke")
-    assert appends >= 4, (
+    assert appends >= 6, (
         f"{shows_floor} messages show the reader the floor and only {appends} "
         "append the sentence that says it belongs to “auto”")
 
