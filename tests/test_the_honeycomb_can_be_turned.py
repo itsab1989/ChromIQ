@@ -729,7 +729,16 @@ def test_no_reader_outside_the_engine_asks_the_flag_raw():
                     # Guided's own two writers, already inside a branch that
                     # names the instrument and the patch shape. Matched
                     # exactly, so this is not a licence for that file.
-                    or 'kw["hex_flat_top"] = bool(kw.get("hflag"))' in line):
+                    or 'kw["hex_flat_top"] = bool(kw.get("hflag"))' in line
+                    # A PRESET RECIPE DECLARING THE SHAPE IS NOT A READER
+                    # EITHER. `_CR30_STRAIGHT` is the straight-strips cut of
+                    # the CR30 family: a literal dict of recipe fields, handed
+                    # whole to `LayoutRecipe` and resolved by the engine like
+                    # any other recipe. It is matched by its exact text beside
+                    # `hflag`, which is the field that makes it a honeycomb at
+                    # all, so a bare read anywhere in that file is still an
+                    # offender.
+                    or '"hflag": True, "hex_flat_top": True,' in line):
                 continue          # the RESOLVED value is fine
             offenders.append(f"{rel}: {line.strip()[:90]}")
     assert not offenders, (

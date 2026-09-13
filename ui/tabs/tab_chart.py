@@ -1313,6 +1313,22 @@ _CR30_HEX: dict = {
     "margin_bottom": 13.0, "text_edge_top_mm": 4.0,
 }
 
+# The STRAIGHT-STRIPS cut of the same family: the honeycomb turned 30 degrees,
+# which is the "Straight strips" checkbox (#159) and the reason a CR30 user can
+# walk a strip down the page without zig-zagging. Six charts of Knut's own,
+# sent 2026-09-12; against the hexagonal cut above they differ in these six
+# fields and in nothing else, which is why they are a cut and not six charts.
+#
+# HIS FILES SPELL IT "Streight". The word is "Straight", and the app's own
+# control already says so: `layout_options_panel.py` labels the checkbox
+# "Straight strips (turn the honeycomb 30°)". The preset names follow the
+# control rather than the file names, and he was told rather than asked.
+_CR30_STRAIGHT: dict = {
+    "hflag": True, "hex_flat_top": True,
+    "margin_left": 11.0, "margin_top": 11.0, "margin_bottom": 6.0,
+    "text_edge_top_mm": 7.0, "indicator_size_mm": 3.88,
+}
+
 
 # Pulls a "-w<number>mm" patch-width token (e.g. "-w11.5mm") out of a name.
 _WIDTH_TOKEN_RE = re.compile(r"-w\d+(?:\.\d+)?mm")
@@ -1797,6 +1813,7 @@ def _p3_preset(slug: str, name: str, paper: str, cols: int, rows: int,
 def _cr30_preset(slug: str, name: str, paper: str, cols: int, rows: int,
                  patches: int, pages: int, white: int, black: int, *,
                  hexagonal: bool = False,
+                 straight: bool = False,
                  margin_top: float | None = None,
                  margin_bottom: float | None = None,
                  area_min_patch_mm: float = 0.0) -> "_Ti1Preset":
@@ -1821,6 +1838,12 @@ def _cr30_preset(slug: str, name: str, paper: str, cols: int, rows: int,
                   area_min_patch_mm=area_min_patch_mm)
     if hexagonal:
         recipe.update(_CR30_HEX)
+    if straight:
+        # The straight cut carries the hexagon too, and overrides the four
+        # margins and sizes it moves. Asked for on its own it would be a
+        # flat-top nothing, so it implies `hexagonal` rather than replacing it.
+        recipe.update(_CR30_HEX)
+        recipe.update(_CR30_STRAIGHT)
     if margin_top is not None:
         recipe["margin_top"] = margin_top
     if margin_bottom is not None:
@@ -2307,6 +2330,34 @@ KNUT_PRESETS: list[_Ti1Preset] = [
                  "Letter-1170p-3pages-Portrait-w11.0mm-Hexagonal",
                  "Letter", 15, 26, 1170, 3, 2, 2, hexagonal=True,
                  margin_top=11.0, margin_bottom=9.0, area_min_patch_mm=16.5),
+
+    # THE STRAIGHT-STRIPS CUT IS BUILT AND HELD, and this is why rather than a
+    # silence. Six charts of his arrived on 2026-09-12: the honeycomb turned 30
+    # degrees, so a strip runs straight down the page instead of zig-zagging
+    # under the hand. The `.ti1` files are in `assets/charts/knut/rgb/cr30/…
+    # _hexagonal_straight/`, `_CR30_STRAIGHT` above is the cut, and the six rows
+    # are one paste away.
+    #
+    # THE THREE LETTER CHARTS ARE CLEAN. Eighteen columns put 22 rows on the
+    # sheet and the ink lands at 13.864 mm from the top and 8.403 from the
+    # bottom, against the 11.0 and 6.0 his recipe declares.
+    #
+    # THE THREE A4 CHARTS ACCUSE THEMSELVES. The same eighteen columns put 25
+    # rows on A4, and the ink lands at 10.499 and 5.112 against the same 11.0
+    # and 6.0: half a millimetre and nine tenths INSIDE the margins the chart
+    # itself asks for, so the margin panel goes red the moment it is loaded.
+    # `test_no_builtin_preset_breaks_its_own_declared_margins` refuses that, and
+    # rightly: no other built-in does it.
+    #
+    # AND THE MARGINS CANNOT BE CHASED. Lowering them to 10.0 and 5.0 fixed the
+    # top and moved the fault to the bottom, 4.604 against 5.0, because the
+    # layout is area-first: shrinking the box grows the patches to fill it, so
+    # the block keeps pace with every millimetre given away. Twenty-five rows of
+    # turned hexagons want more of an A4 sheet than his margins leave. The ways
+    # out are his design decisions, not ours: fewer rows on A4 (24, so 432 a
+    # page instead of 450), or a pinned patch size the way
+    # `cr30_a4_1260p_3pages_portrait_w11_0mm_hexagonal` uses
+    # `area_min_patch_mm`. He has the numbers and the question.
 
     # Scanner family (#100) — Knut's flatbed-scanner printer-profiling charts.
     # Engine-built (the layout_recipe drives the ChromIQ layout engine, not
