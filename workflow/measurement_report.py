@@ -1888,6 +1888,21 @@ def numbered_notes(rows: "list[dict]") -> "list[tuple[int, str, list[str]]]":
     return [(i + 1, code, who[code]) for i, code in enumerate(order)]
 
 
+def note_label(n: int) -> str:
+    """How note *n* is written, both as the raised marker on a verdict and as
+    the item label in the list under the table.
+
+    ONE FUNCTION, because the marker and the list have to read the same. Knut
+    asked for the marker on 2026-09-13: *"the verdict line in a table which
+    applies to a note should snow a number as a reference to the note that
+    applies to it, f.ex. a note as a raised number, ex. '1)' '2)' or 'a)'
+    'b)'"*. The first build printed a bare superscript digit beside the verdict
+    and a "1." in the list, which is two notations for one thing and neither of
+    them the one he named.
+    """
+    return f"{int(n)})"
+
+
 def note_numbers_for(row: dict,
                      numbering: "list[tuple[int, str, list[str]]]") -> "list[int]":
     """The note numbers to print beside one row's verdict, ascending."""

@@ -455,7 +455,33 @@ def test_no_overlap_when_the_margin_holds_the_band():
     assert tef.strip_label_overlap(30.0, 4.0, 7.0) is None
 
 
-def test_the_panel_predicts_the_width_the_renderer_draws():
+@pytest.fixture(scope="module")
+def qapp():
+    from PyQt6.QtWidgets import QApplication
+    return QApplication.instance() or QApplication([])
+
+
+@pytest.fixture
+def tab(qapp, tmp_path):
+    """A real Create Chart tab. `_sheet_text_width_mm` stopped being a
+    `staticmethod` when it learned to predict the layout stamp, which needs the
+    tab's own patch-count estimate."""
+    from PyQt6.QtCore import QSettings
+    from core.argyll_runner import ArgyllRunner
+    from core.file_manager import FileManager
+    from core.settings import AppSettings
+    from ui.tabs.tab_chart import TabChart
+    s = AppSettings()
+    s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    s.set("custom_output_path", str(tmp_path / "projects"))
+    s.set("use_chromiq_layout_engine", True)
+    t = TabChart(ArgyllRunner(s), FileManager(s), s)
+    t._switch_mode("manual")
+    yield t
+    t.deleteLater()
+
+
+def test_the_panel_predicts_the_width_the_renderer_draws(tab):
     """The warning's number and the sheet's ink must come from one function.
 
     Two separate faults lived in the gap between them, and both shipped inside
@@ -475,7 +501,7 @@ def test_the_panel_predicts_the_width_the_renderer_draws():
     from ui.tabs.tab_chart import TabChart
     from workflow.layout_engine.raster import sheet_text_width_mm
     r = _recipe(chart_text=LONG, chart_text_size_mm=3.2)
-    predicted = TabChart._sheet_text_width_mm(r)
+    predicted = tab._sheet_text_width_mm(r)
     drawn = sheet_text_width_mm([LONG], 3.2,
                                 TabChart._DEFAULT_SHEET_TEXT_FONT,
                                 False, False, float(getattr(r, "dpi", 300)))
@@ -485,11 +511,11 @@ def test_the_panel_predicts_the_width_the_renderer_draws():
     assert predicted > 0.0, "the panel predicted nothing at all"
 
 
-def test_an_auto_sized_line_is_predicted_at_its_floor_and_not_at_zero():
+def test_an_auto_sized_line_is_predicted_at_its_floor_and_not_at_zero(tab):
     """"auto" is the default, so a helper that throws there is silent always."""
     from ui.tabs.tab_chart import TabChart
     r = _recipe(chart_text=LONG, chart_text_size_mm=0.0)
-    predicted = TabChart._sheet_text_width_mm(r)
+    predicted = tab._sheet_text_width_mm(r)
     floor_mm = tef.pt_to_mm(tef.AUTO_SHRINK_FLOOR_PT)
     from workflow.layout_engine.raster import sheet_text_width_mm
     assert predicted == pytest.approx(

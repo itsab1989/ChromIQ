@@ -5436,5 +5436,6 @@
   "⟳ Rotate 90°": "⟳ Pivoter de 90°",
   "⤢ Dock back": "⤢ Réintégrer",
   "⤢ Pop out": "⤢ Détacher",
-  "＋ Add another scan to average": "＋ Ajouter une numérisation à moyenner"
+  "＋ Add another scan to average": "＋ Ajouter une numérisation à moyenner",
+  "The widest line down there is the layout summary, not text you typed. Switching “Stamp layout summary along the bottom” off removes it.": "La ligne la plus large en bas est le résumé de mise en page, pas un texte que vous avez saisi. Décocher « Estamper le résumé de mise en page sur le bord inférieur » la supprime."
 }

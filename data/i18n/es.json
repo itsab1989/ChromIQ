@@ -5436,5 +5436,6 @@
   "⟳ Rotate 90°": "⟳ Girar 90°",
   "⤢ Dock back": "⤢ Volver a acoplar",
   "⤢ Pop out": "⤢ Desacoplar",
-  "＋ Add another scan to average": "＋ Añadir otro escaneo para promediar"
+  "＋ Add another scan to average": "＋ Añadir otro escaneo para promediar",
+  "The widest line down there is the layout summary, not text you typed. Switching “Stamp layout summary along the bottom” off removes it.": "La línea más ancha de abajo es el resumen del diseño, no un texto que hayas escrito. Al desmarcar «Estampar el resumen del diseño en el borde inferior» desaparece."
 }

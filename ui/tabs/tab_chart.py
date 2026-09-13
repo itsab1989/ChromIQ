@@ -19179,8 +19179,54 @@ class TabChart(QWidget):
     #: different width.
     _DEFAULT_SHEET_TEXT_FONT = "Inter"
 
-    @staticmethod
-    def _sheet_text_width_mm(r) -> float:
+    #: The widest seed `permutation.pick_seed` can draw, used to predict the
+    #: layout stamp's width before a seed exists. `randint(0, 2_147_483_647)`
+    #: is ten digits about half the time and nine the rest, so the worst case
+    #: is one character wide of the common one: a prediction that is a
+    #: character generous is the right way round, because the fault being
+    #: fixed here is a warning that never came at all.
+    _WIDEST_SEED = 2_147_483_647
+
+    def _bottom_sheet_text_lines(self, r) -> "list[str]":
+        """Every line the bottom of the sheet will carry, in drawing order.
+
+        **BOTH LINES, WHICH IS THE WHOLE POINT.** `raster.render_pages` builds
+        `_btxt = [chart_text, stamp_text]` and shrinks the PAIR against the
+        room between the two side bounds. The panel's width check asked for
+        `r.chart_text` alone, so a chart with the layout stamp on and the
+        custom text box empty had nothing to measure and the check did not run.
+        Knut, 2026-09-13, testing beta 8: *"When using 'Stamp layout
+        information along the bottom' (and no custom text) with font size 13 or
+        14 makes text that cross into the right clip-border text, but no
+        warning is given."*
+
+        That is the fault shape this project keeps finding: a guard on one door
+        and not the identical door beside it. The HEIGHT check three hundred
+        lines below counts `chart_text` and `stamp_command` both, and always
+        did; only the width check was written for one of them.
+
+        The stamp line is asked of `chart.stamp_summary_line`, the function the
+        build itself calls, so the two cannot word it differently. Two of its
+        values are not known while the panel is being typed into: the final
+        patch count, which `_estimate_patch_total` answers with the same
+        question Generate asks, and the seed, which is drawn at build time and
+        is stood in for by the widest one it can be.
+        """
+        lines = [t for t in (r.chart_text or "",) if t]
+        if getattr(r, "stamp_command", False):
+            try:
+                from workflow.layout_engine.chart import stamp_summary_line
+                lines.append(stamp_summary_line(
+                    str(getattr(r, "instrument", "") or ""),
+                    str(getattr(r, "paper", "") or ""),
+                    int(getattr(r, "dpi", 300) or 300),
+                    int(self._estimate_patch_total() or 0),
+                    int(getattr(r, "seed", None) or self._WIDEST_SEED)))
+            except Exception:      # noqa: BLE001 — a prediction is never fatal
+                pass
+        return lines
+
+    def _sheet_text_width_mm(self, r) -> float:
         """How wide the widest bottom-of-sheet line prints, in millimetres.
 
         Measured with the FONT the sheet is drawn in, at the size it will end
@@ -19193,14 +19239,10 @@ class TabChart(QWidget):
         `text_edge_fit.AUTO_SHRINK_FLOOR_PT` before the warning fires, so the
         panel never warns about a line the renderer is about to make fit.
 
-        **ONLY THE CUSTOM TEXT, DELIBERATELY.** The other line the bottom can
-        carry is the layout stamp, and its text is assembled at build time from
-        the final patch count and the random seed
-        (`layout_engine.chart.build_chart`), neither of which exists while the
-        panel is being typed into. Guessing them would put a made-up
-        millimetre figure in a warning, which is worse than the warning being
-        one line short: the stamp's own width is checked when the chart is
-        built, and the height check above already covers both lines.
+        **BOTH BOTTOM LINES**, from `_bottom_sheet_text_lines` — see there for
+        why it used to be one, and what that cost. This used to be a
+        `staticmethod`; it is an instance method because predicting the stamp
+        needs the tab's own patch-count estimate.
 
         **IT ASKS THE RENDERER'S OWN FUNCTION**, `raster.sheet_text_width_mm`,
         rather than measuring a font here. The first version of this measured
@@ -19212,7 +19254,7 @@ class TabChart(QWidget):
         Returns 0.0 if the fonts cannot be asked, which suppresses the warning
         rather than inventing one: a prediction is never a blocker.
         """
-        lines = [t for t in (r.chart_text or "",) if t]
+        lines = self._bottom_sheet_text_lines(r)
         if not lines:
             return 0.0
         try:
@@ -19234,6 +19276,38 @@ class TabChart(QWidget):
                 float(getattr(r, "dpi", 300) or 300))
         except Exception:      # noqa: BLE001 — a prediction is never fatal
             return 0.0
+
+    def _stamp_is_the_widest_bottom_line(self, r) -> bool:
+        """Whether the line that overflows is the layout stamp.
+
+        WHICH DECIDES WHAT THE USER IS TOLD TO DO. The bottom-width message
+        offers "Shorten the text", and on Knut's case there is no text to
+        shorten: the box is empty and the line on the sheet is the layout
+        summary, which no amount of editing reaches. A remedy the reader cannot
+        carry out is worse than none, because it says the tool has understood
+        the situation.
+        """
+        if not getattr(r, "stamp_command", False):
+            return False
+        lines = self._bottom_sheet_text_lines(r)
+        if len(lines) < 2:
+            return bool(lines)          # the stamp is the only line there is
+        try:
+            from workflow import text_edge_fit as _tef
+            from workflow.layout_engine import raster as _raster
+            typed = float(getattr(r, "chart_text_size_mm", 0.0) or 0.0)
+            size_mm = typed or _tef.pt_to_mm(_tef.AUTO_SHRINK_FLOOR_PT)
+            font = (str(getattr(r, "chart_text_font", "") or "")
+                    or TabChart._DEFAULT_SHEET_TEXT_FONT)
+            widths = [_raster.sheet_text_width_mm(
+                [ln], size_mm, font,
+                bool(getattr(r, "chart_text_bold", False)),
+                bool(getattr(r, "chart_text_italic", False)),
+                float(getattr(r, "dpi", 300) or 300)) for ln in lines]
+        except Exception:      # noqa: BLE001 — a prediction is never fatal
+            return False
+        # The stamp is appended last by `_bottom_sheet_text_lines`.
+        return widths[-1] >= max(widths)
 
     def _engine_text_notes(self, report=None) -> "tuple[list[str], list[str]]":
         """``(every notice, the overlap notices)`` for the chart on screen.
@@ -20456,7 +20530,14 @@ class TabChart(QWidget):
             # never shrinks, so on A4 a long custom line at 4.5 mm was cut off
             # by the paper edge with nothing said; "auto" now shrinks to the
             # 7 pt floor first and only warns if it still will not fit.
-            if r.chart_text:
+            #
+            # …AND IT ASKED ONLY WHETHER THERE WAS CUSTOM TEXT, while the block
+            # it is about carries two lines. With "Stamp layout summary along
+            # the bottom" on and the text box empty this whole check was
+            # skipped, so the stamp ran under the clip border in silence
+            # (Knut, 2026-09-13, beta 8, at Size 13 and 14). The height check
+            # above counts both lines; this one now measures both.
+            if self._bottom_sheet_text_lines(r):
                 _w = self._sheet_text_width_mm(r)
                 # THE PAPER'S OWN WIDTH, NOT THE REPORT'S. `_engine_text_notes`
                 # is called with no report from the ⓘ and from a driver, and
@@ -20487,6 +20568,19 @@ class TabChart(QWidget):
                     clip_side=str(getattr(r, "clip_side", "left") or "left"))
                 if _wo is not None:
                     _auto = not float(getattr(r, "chart_text_size_mm", 0.0) or 0.0)
+                    # WHOSE LINE IS IT. Both sentences below offer "Shorten the
+                    # text", which on Knut's case reaches nothing: the box is
+                    # empty and the line is the layout summary. Named as a
+                    # separate sentence rather than by rewriting the two
+                    # subjects, because renaming the subject of a message with
+                    # a trailing clause breaks its grammar in English and in
+                    # twelve translations, which is a fault this file learned
+                    # by shipping it once already today.
+                    _off_bottom = (" " + tr(
+                        "The widest line down there is the layout summary, not "
+                        "text you typed. Switching “Stamp layout summary along "
+                        "the bottom” off removes it.")
+                        if self._stamp_is_the_widest_bottom_line(r) else "")
                     # THE FLOOR IS NOT WRITTEN INTO THIS SENTENCE ANY MORE.
                     # "It is already at its smallest, 7 pt" typed the value into
                     # thirteen catalogues and offered two remedies, neither of
@@ -20508,6 +20602,7 @@ class TabChart(QWidget):
                         "under “Text distance from edge (mm)”.")).format(
                             need=_wo.needed_mm, avail=max(0.0, _wo.available_mm),
                             short=_wo.overlap_mm)
+                        + _off_bottom
                         + _auto_floor_note(
                             float(getattr(r, "chart_text_size_mm", 0.0) or 0.0)
                             * 72.0 / 25.4,

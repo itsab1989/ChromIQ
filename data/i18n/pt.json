@@ -5436,5 +5436,6 @@
   "⟳ Rotate 90°": "⟳ Rodar 90°",
   "⤢ Dock back": "⤢ Encaixar de volta",
   "⤢ Pop out": "⤢ Destacar",
-  "＋ Add another scan to average": "＋ Adicionar outra digitalização para média"
+  "＋ Add another scan to average": "＋ Adicionar outra digitalização para média",
+  "The widest line down there is the layout summary, not text you typed. Switching “Stamp layout summary along the bottom” off removes it.": "A linha mais larga em baixo é o resumo da disposição, não um texto que tenha escrito. Desmarcar «Carimbar o resumo da disposição na margem inferior» remove-a."
 }

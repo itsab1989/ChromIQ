@@ -5436,5 +5436,6 @@
   "⟳ Rotate 90°": "⟳ Roter 90°",
   "⤢ Dock back": "⤢ Dokk tilbake",
   "⤢ Pop out": "⤢ Løsne",
-  "＋ Add another scan to average": "＋ Legg til enda et skann å midle"
+  "＋ Add another scan to average": "＋ Legg til enda et skann å midle",
+  "The widest line down there is the layout summary, not text you typed. Switching “Stamp layout summary along the bottom” off removes it.": "Den bredeste linjen der nede er oppsettssammendraget, ikke tekst du har skrevet. Slår du av «Stemple oppsettssammendrag langs nedre kant», forsvinner den."
 }

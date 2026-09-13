@@ -5436,5 +5436,6 @@
   "⟳ Rotate 90°": "⟳ Повернуть на 90°",
   "⤢ Dock back": "⤢ Вернуть на место",
   "⤢ Pop out": "⤢ Открепить",
-  "＋ Add another scan to average": "＋ Добавить ещё скан для усреднения"
+  "＋ Add another scan to average": "＋ Добавить ещё скан для усреднения",
+  "The widest line down there is the layout summary, not text you typed. Switching “Stamp layout summary along the bottom” off removes it.": "Самая широкая строка внизу, это сводка раскладки, а не введённый вами текст. Снимите флажок «Наносить сводку раскладки вдоль нижнего края», и она исчезнет."
 }

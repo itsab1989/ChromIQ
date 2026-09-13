@@ -5436,5 +5436,6 @@
   "⟳ Rotate 90°": "⟳ 旋转 90°",
   "⤢ Dock back": "⤢ 收回停靠",
   "⤢ Pop out": "⤢ 弹出",
-  "＋ Add another scan to average": "＋ 添加另一次扫描以求平均"
+  "＋ Add another scan to average": "＋ 添加另一次扫描以求平均",
+  "The widest line down there is the layout summary, not text you typed. Switching “Stamp layout summary along the bottom” off removes it.": "下方最宽的一行是布局摘要，而不是你输入的文字。取消勾选“在下边缘标注布局摘要”即可移除。"
 }

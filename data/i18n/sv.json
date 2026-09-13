@@ -5436,5 +5436,6 @@
   "⟳ Rotate 90°": "⟳ Rotera 90°",
   "⤢ Dock back": "⤢ Docka tillbaka",
   "⤢ Pop out": "⤢ Lossa",
-  "＋ Add another scan to average": "＋ Lägg till ännu ett skann att medelvärdesbilda"
+  "＋ Add another scan to average": "＋ Lägg till ännu ett skann att medelvärdesbilda",
+  "The widest line down there is the layout summary, not text you typed. Switching “Stamp layout summary along the bottom” off removes it.": "Den bredaste raden där nere är layoutsammanfattningen, inte text du har skrivit. Stänger du av ”Stämpla layoutsammanfattning längs nederkanten” försvinner den."
 }

@@ -88,6 +88,44 @@ def build_ti2_from_ti1(
 
 
 
+#: Instrument key → the name a person reads, used in the layout stamp and in
+#: the {instrument} placeholder. The CR30's device key IS its friendly name
+#: (#159), so the .get() fallback below would already be right — listed
+#: explicitly so the table is a complete answer to "which instruments does the
+#: engine know", not a coincidence that happens to work.
+_INSTR_FRIENDLY = {"i1": "i1Pro", "p3": "i1Pro3+", "CM": "ColorMunki",
+                   "SS": "SpectroScan", "41": "DTP41", "51": "DTP51",
+                   "CR30": "CR30"}
+
+
+def friendly_instrument(instrument: str) -> str:
+    """The name of *instrument* as the sheet prints it."""
+    return _INSTR_FRIENDLY.get(instrument, instrument)
+
+
+def stamp_summary_line(instrument: str, paper: str, dpi: int, patches: int,
+                       seed: int) -> str:
+    """The one line "Stamp layout summary along the bottom" prints.
+
+    LIFTED OUT OF `build_chart` SO THE PANEL CAN ASK FOR IT. Knut, 2026-09-13,
+    testing beta 8: *"When using 'Stamp layout information along the bottom'
+    (and no custom text) with font size 13 or 14 makes text that cross into the
+    right clip-border text, but no warning is given. This happens regardless of
+    the clip-border is on left of right side."*
+
+    He is right, and the reason is that the panel's width check measured
+    `chart_text` alone while the renderer measures BOTH bottom lines and shrinks
+    the pair (`raster.render_pages`, `_btxt`). With no custom text there was
+    nothing to measure, so the check did not run at all. The panel now predicts
+    this line, and it must be THIS function rather than a second copy of the
+    f-string: a re-implementation that drifts from the shipped one is how a
+    prediction comes to warn about a sheet nobody prints.
+    """
+    return (f"ChromIQ engine · {friendly_instrument(instrument)} · "
+            f"{papers.friendly_label(paper)} · {dpi} dpi · "
+            f"{patches} patches · seed {seed}")
+
+
 def build_chart(
     ti1_path: str | Path,
     out_base: str | Path,
@@ -323,18 +361,10 @@ def build_chart(
     # Human-friendly placeholder values for {project}/{instrument}/{paper}/… in
     # chart text, clip text and the stamp. {page} is resolved per page inside
     # render_pages (it needs the page index), so it's not in this dict. (#93)
-    _instr_friendly = {"i1": "i1Pro", "p3": "i1Pro3+", "CM": "ColorMunki",
-                       "SS": "SpectroScan", "41": "DTP41", "51": "DTP51",
-                       # The CR30's device key IS its friendly name (#159), so
-                       # the .get() fallback below would already be right —
-                       # listed explicitly so the table is a complete answer to
-                       # "which instruments does the engine know", not a
-                       # coincidence that happens to work.
-                       "CR30": "CR30"}
     _ctx = {
         "project": project or Path(out_base).name,
         "rundescription": rundescription,
-        "instrument": _instr_friendly.get(instrument, instrument),
+        "instrument": friendly_instrument(instrument),
         "paper": papers.friendly_label(paper),          # "A4 landscape"
         "dpi": f"{dpi} dpi",
         "patchcount": f"{layout.total_patches} patches",
@@ -342,8 +372,8 @@ def build_chart(
         "date": chart_date or _time.strftime("%Y-%m-%d"),
         "seed": f"seed {seed}",
     }
-    stamp_text = (f"ChromIQ engine · {_ctx['instrument']} · {_ctx['paper']} · "
-                  f"{_ctx['dpi']} · {_ctx['patchcount']} · {_ctx['seed']}"
+    stamp_text = (stamp_summary_line(instrument, paper, dpi,
+                                     layout.total_patches, seed)
                   if stamp_command else "")
     def _to_rgb(c):
         if isinstance(c, str):

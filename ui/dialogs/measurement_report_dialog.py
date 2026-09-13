@@ -1319,8 +1319,22 @@ class MeasurementReportDialog(QDialog):
                     except Exception:  # noqa: BLE001 — one bad date must
                         continue       # not empty the whole history
         if not runs:
+            # THE SAME MARKER THE DATED FALL-BACK ABOVE SETS, AND FOR THE SAME
+            # REASON. This report is being built right now, from a measurement
+            # that never had one saved beside it — the run's own profiling
+            # chart is the everyday case, because ChromIQ saves a report under
+            # a dated verification and not under the sheet a profile was built
+            # from. Without the marker `_recorded` returns None and `_fresh` is
+            # absent, which is the one combination the window reads as "an
+            # older ChromIQ saved this and lost the verdict": it then told the
+            # reader the verdict had been thrown away, when nothing had ever
+            # been saved to throw away. Knut, 2026-09-13, reading exactly this
+            # column: *"The statemend 'It was saved by a version of ChromIQ
+            # that did not yet keep the verdict together with the
+            # measurements' seems wrong."* It was.
             runs = [build_report(ti3, argyll_bin=self._argyll_bin())]
             runs[0]["_origin_dir"] = str(ti3.parent)
+            runs[0]["_fresh"] = True
         runs.sort(key=lambda r: str(r.get("created") or ""))
         from workflow.measurement_report import annotate_raw_drift
         annotate_raw_drift(runs)
@@ -4913,10 +4927,11 @@ class MeasurementReportDialog(QDialog):
             # FORGET. A numbered list nobody is pointed at is a paragraph. The
             # numbers come from the same `numbered_notes` call the list below
             # uses, so the two cannot disagree about which note is note 1.
-            from workflow.measurement_report import note_numbers_for
+            from workflow.measurement_report import (note_label,
+                                                      note_numbers_for)
             marks = note_numbers_for(x, _note_nums)
-            mark = ("<sup style='font-weight:normal'>"
-                    + html.escape(",".join(str(n) for n in marks))
+            mark = ("<sup style='font-weight:normal'>&nbsp;"
+                    + html.escape(" ".join(note_label(n) for n in marks))
                     + "</sup>") if marks else ""
             if marks:
                 seen = [self._note_sentence(c) for (n, c, _w) in _note_nums
@@ -5106,8 +5121,10 @@ class MeasurementReportDialog(QDialog):
         # weighing it. Numbered, because the verdict cell points at the number.
         numbered = self._numbered_notes(runs)
         if numbered:
+            from workflow.measurement_report import note_label
             items = "".join(
-                f"<li style='margin-bottom:2px'><b>{n}.</b> "
+                "<li style='margin-bottom:2px'><b>"
+                + html.escape(note_label(n)) + "</b> "
                 + html.escape(f"{where}: ") + html.escape(sentence) + "</li>"
                 for (n, where, sentence) in numbered)
             notes += (f"<div style='{note_css}'><b>" + html.escape(tr(

@@ -5436,5 +5436,6 @@
   "⟳ Rotate 90°": "⟳ Ruota di 90°",
   "⤢ Dock back": "⤢ Riaggancia",
   "⤢ Pop out": "⤢ Stacca",
-  "＋ Add another scan to average": "＋ Aggiungi un'altra scansione da mediare"
+  "＋ Add another scan to average": "＋ Aggiungi un'altra scansione da mediare",
+  "The widest line down there is the layout summary, not text you typed. Switching “Stamp layout summary along the bottom” off removes it.": "La riga più larga in basso è il riepilogo del layout, non un testo digitato da te. Togliendo la spunta a «Timbra il riepilogo layout lungo il bordo inferiore» sparisce."
 }

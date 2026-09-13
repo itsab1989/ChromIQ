@@ -87,7 +87,7 @@ import shutil
 import subprocess
 import sys
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 _HERE = Path(__file__).resolve().parent
@@ -672,6 +672,27 @@ def _rewrite_xyz(ti3: Path, xyz_by_index: "dict[int, tuple]") -> None:
 def stamp(ti3: Path, when: str) -> None:
     from workflow.ti3_analysis import mark_verification_ti3
     mark_verification_ti3(ti3)
+    lines = ti3.read_text(encoding="utf-8").splitlines()
+    at = next(i for i, l in enumerate(lines) if l.startswith("NUMBER_OF_FIELDS"))
+    lines[at:at] = ['KEYWORD "CHROMIQ_MEASURED"',
+                    f'CHROMIQ_MEASURED "{when}"',
+                    f'TARGET_INSTRUMENT "{INSTRUMENT}"']
+    ti3.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    t = datetime.fromisoformat(when).timestamp()
+    os.utime(ti3, (t, t))
+
+
+def stamp_profiling(ti3: Path, when: str) -> None:
+    """Date the run's OWN measurement, the sheet the profile was built from.
+
+    `stamp` above is for a dated verification and calls `mark_verification_ti3`,
+    which is exactly what this must NOT do: the profiling chart is printed raw
+    by definition and marking it a verification would have the report grade it.
+    Everything else is the same, and it matters for the same reason: without a
+    CHROMIQ_MEASURED keyword the report window heads the column with the day
+    the package happened to be unpacked. Knut's screenshot of 2026-09-13 is a
+    column headed with that day.
+    """
     lines = ti3.read_text(encoding="utf-8").splitlines()
     at = next(i for i, l in enumerate(lines) if l.startswith("NUMBER_OF_FIELDS"))
     lines[at:at] = ['KEYWORD "CHROMIQ_MEASURED"',
@@ -1533,6 +1554,38 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
         set_run_unlocked(run, True)
         limits_rec = run_limits(run, {})
 
+    # THE RUN'S OWN MEASUREMENT GETS A DATE AND A SAVED REPORT, because the
+    # app gives it both. `tab_measure._maybe_save_measurement_report` runs
+    # after EVERY measurement, the profiling read included, so a project built
+    # with "Save a measurement report after each measurement" ticked holds a
+    # report beside the sheet the profile was built from. The package held one
+    # only under each dated verification, so opening a run's own measurement
+    # reached the report window's "nothing saved here" fall-back and the page
+    # told the reader the verdict had been lost. Knut, 2026-09-13: *"Make sure
+    # all verdicts exist in the demo package"* and *"Why is the verdict and
+    # measurements not kept as part of the demo data created, so that it is a
+    # real test?"*
+    #
+    # It is stamped a week before the first verification, because that is the
+    # order the two happen in: you print and measure the profiling chart, build
+    # the profile, and only then verify it. Undated, the column was headed with
+    # whatever day the package was unpacked.
+    prof_when = (datetime.fromisoformat(plan.dates[0].when)
+                 - timedelta(days=7)).isoformat(timespec="seconds")
+    prof_ti3 = run.dir / f"{stem}.ti3"
+    stamp_profiling(prof_ti3, prof_when)
+    prof_rep = build_report(prof_ti3, argyll_bin=ARGYLL)
+    stamp_verdict(prof_rep, limits_rec.limits, set_id=limits_rec.set_id,
+                  set_label=limits_rec.label_en, edited=limits_rec.edited)
+    set_report_type(prof_rep, plan.report_type)
+    save_report(prof_rep, run.dir)
+    for old_rep in sorted(run.reports_dir.glob("report_*.json")):
+        old_rep.unlink()
+    rewrite_report(
+        run.reports_dir /
+        f"report_{datetime.fromisoformat(prof_when):%Y-%m-%d_%H-%M-%S}.json",
+        prof_rep)
+
     vstem = run.verify_stem
     gamut = in_gamut_flags(run.verifications_dir / f"{vstem}.ti2", icc)
     print(f"  {run.id}: {sum(gamut.values())} of {len(gamut)} chart colours are "
@@ -1975,7 +2028,81 @@ def verify_pack(path: "Path") -> "list[str]":
     for name in sorted(extras):
         if name not in present:
             missing.append(f"file missing: {name}")
+    missing += _verdicts_missing(path)
     return missing
+
+
+def _verdicts_missing(path: Path) -> "list[str]":
+    """Every measurement in the pack that ships without a saved verdict.
+
+    Knut, 2026-09-13: *"Make sure all verdicts exist in the demo package"* and
+    *"Why is the verdict and measurements not kept as part of the demo data
+    created, so that it is a real test?"*. The package saved a report under
+    each dated verification and none beside the sheet a profile was built
+    from, although `tab_measure._maybe_save_measurement_report` runs after
+    EVERY measurement the app makes. Opening a run's own measurement therefore
+    reached the report window's last-resort branch, and the page told him the
+    verdict had been lost by an older ChromIQ.
+
+    Checked on the ARTEFACT, not on the generator: the pack is what ships, and
+    a check that reads the code that built it is the baseline-against-itself
+    fault this function's own docstring is about. A `.zip` is read from its
+    name list; a folder from disk.
+    """
+    import json
+    import zipfile
+    gaps: "list[str]" = []
+    if path.suffix.lower() == ".zip":
+        if not path.is_file():
+            return []
+        with zipfile.ZipFile(path) as zf:
+            names = [n for n in zf.namelist() if not n.endswith("/")]
+            for n in names:
+                if not n.endswith(".ti3"):
+                    continue
+                home = n.rsplit("/", 1)[0]
+                reps = [m for m in names
+                        if m.startswith(f"{home}/reports/report_")
+                        and m.endswith(".json")]
+                if not reps:
+                    gaps.append(f"no saved report beside {n}")
+                    continue
+                if not any(_has_verdict(zf.read(m)) for m in reps):
+                    gaps.append(f"no verdict in any report beside {n}")
+        return gaps
+    if not path.is_dir():
+        return []
+    for ti3 in sorted(path.rglob("*.ti3")):
+        # Only a measurement a report can be built from: the role-named
+        # intermediates (reads/readN.ti3, preconditioning, merged) are inputs
+        # to a build, not sheets anybody judges.
+        if ti3.parent.name in ("reads", "cache", "old", "_work"):
+            continue
+        if ti3.stem in ("preconditioning", "merged"):
+            continue
+        reps = sorted((ti3.parent / "reports").glob("report_*.json")) \
+            if (ti3.parent / "reports").is_dir() else []
+        rel = ti3.relative_to(path)
+        if not reps:
+            gaps.append(f"no saved report beside {rel}")
+            continue
+        if not any(_has_verdict(r.read_bytes()) for r in reps):
+            gaps.append(f"no verdict in any report beside {rel}")
+    return gaps
+
+
+def _has_verdict(raw: bytes) -> bool:
+    """Whether a saved report carries the block `recorded_verdict` reads.
+
+    Asked of the same shape the window asks for, so "the pack has verdicts"
+    and "the window finds them" cannot come apart.
+    """
+    import json
+    from workflow.measurement_report import recorded_verdict
+    try:
+        return recorded_verdict(json.loads(raw.decode("utf-8"))) is not None
+    except Exception:                                          # noqa: BLE001
+        return False
 
 
 def main(argv=None) -> int:

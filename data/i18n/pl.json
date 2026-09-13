@@ -5436,5 +5436,6 @@
   "⟳ Rotate 90°": "⟳ Obróć o 90°",
   "⤢ Dock back": "⤢ Zadokuj z powrotem",
   "⤢ Pop out": "⤢ Odłącz",
-  "＋ Add another scan to average": "＋ Dodaj kolejny skan do uśrednienia"
+  "＋ Add another scan to average": "＋ Dodaj kolejny skan do uśrednienia",
+  "The widest line down there is the layout summary, not text you typed. Switching “Stamp layout summary along the bottom” off removes it.": "Najszerszy wiersz na dole to podsumowanie układu, a nie wpisany przez Ciebie tekst. Wyłączenie opcji „Nadrukuj podsumowanie układu przy dolnej krawędzi” usuwa go."
 }
