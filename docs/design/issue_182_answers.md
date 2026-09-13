@@ -1536,3 +1536,72 @@ the TIFF and absent from the PDF. At 0.50 mm nothing vanished and every rule was
 a quarter thin instead, 1.08 pt against the TIFF's 1.44. After the fix: no dead
 rectangles in any mode, and 0.36 pt / 1.44 pt, exactly 1 px and 4 px at that
 resolution.
+
+## 2p. ⏳ Awaiting confirmation — 2026-09-13: the clip-text warning fires on the COLLISION, and §2f rule 7 is amended
+
+**Knut, on beta 7,** testing the built-in ColorMunki A3-900p-2pages-Portrait at
+a 24 mm right margin with the clip band narrowed from 24 mm to 18:
+
+> *"the chart does not change at all and the clip-border text still fits
+> perfectly (it did not move on page or overlap with anything). However, there
+> is a red warning text. ... When there is space for the text due to the right
+> margin being bigger than the clip-border width, should not the test pass
+> without errors? Thus, if either right margin or clip-border width is higher
+> than the needed height, it is ok."*
+
+**He is right, and it is his own draft he is correcting.** §2f rule 7 said the
+warning fires on the band overflow and reports separately whether the text
+reaches the patches. That section is `⏳ Awaiting confirmation` and
+`Confirmed by: nobody yet.`, so the ruling stands over it. **Rule 7 is amended:
+the warning fires when, and only when, the text reaches something** — the row
+indicator labels on a left-hand band, the patch area on either side. Leaving the
+band onto clear paper is not a fault and is no longer reported.
+
+### Measured before the change, on his own preset
+
+One project name, one seed, clip 24.0 against clip 18.0, page 1 of 2:
+
+| | value |
+|---|---|
+| pixels changed, of 7,735,073 | **3,364 (0.043 %)** |
+| where they are, from the right page edge | 6.99 to 21.72 mm, which is the clip band's own text and nothing else |
+| innermost clip ink to the first patch | **2.03 mm of clear paper, at BOTH settings** |
+
+No patch, no margin, no label and no marker moved. The one pixel of difference
+inside the text is the content rectangle being 17.000 mm wide instead of 16.944.
+
+### And it does not silence the guard
+
+Five combinations, each built and each photographed, before and after:
+
+| band / right margin / clip size | before | after | what the sheet shows |
+|---|---|---|---|
+| 24 / 24 / 10 pt | silent | silent | ink ends 21.7, patches at 23.7 |
+| **18 / 24 / 10 pt (his case)** | **warns** | **silent** | identical ink, patches at 23.7 |
+| 12 / 12 / 10 pt | warns | **warns** | three lines printed across patches |
+| 12 / 32 / 10 pt | **warns** | **silent** | 9.4 mm of clear paper beyond the text |
+| 24 / 24 / 14 pt | warns | **warns** | ink runs unbroken into the patch block |
+
+The proposed rule agrees with the ink in all five. A full 24 mm band with a
+14 pt clip text still warns, because the text is too big for the paper it has.
+
+### Two consequences for the wording
+
+*"It reaches clear paper, so it lands on nothing"* is now unreachable and is
+gone: a message that says nothing was hit is a message that should not have been
+printed.
+
+**On a right-hand band the margin is now a third lever**, which is Knut's own
+sentence, so the message offers it: *"Raising “Right” under “Margins (mm)” past
+{want} mm also clears it: the text still leaves the band, but the patches move
+out of its way."* Down the LEFT it is not offered, and must not be: there the
+left margin is raised for the row labels, so moving it moves them too and the
+text meets them just the same (§2h rule 1 is untouched).
+
+### One stale sentence found while reading §2f
+
+§2f rule 1 and §2g still describe the page-edge reserve as capped at a fifth of
+the band. That cap was removed from `clip_content_inset_mm` on 2026-09-12 on
+Knut's own report, and the measurements above are consistent with no cap
+("Clip" 4.0 with side markers gives a 7.0 mm reserve exactly). Those two
+paragraphs are stale on that point.

@@ -117,6 +117,17 @@ def _recipe(*, margin_r=24.0, clip=4.0, band=24.0, side="right",
     return r
 
 
+#: A clip-text fixture that really COLLIDES. Since 2026-09-13 the clip-text
+#: warning fires on the collision, not on the band overflow (Knut: *"if either
+#: right margin or clip-border width is higher than the needed height, it is
+#: ok"*), so a fixture that only overflows a narrow band on a wide margin is
+#: now correctly silent and cannot be used to exercise the message's wording.
+#: Pinning the margin AT the band puts the patch area right where the text
+#: lands, which is the state the warning is for.
+def _hits(*, band, **kw):
+    return _recipe(band=band, margin_r=band, **kw)
+
+
 def _over(r, **kw) -> list[str]:
     return TabChart._engine_text_notes(_Tab(r, **kw))[1]
 
@@ -208,10 +219,10 @@ def test_every_message_names_the_frame_the_clip_box_lives_in():
     for msg in (_note_line(_recipe()),
                 _note_line(_recipe(band=0.0, content="off", side="left",
                                    margin_r=6.0)),
-                _clip_line(_recipe(band=_TOO_NARROW_BAND,
-                                   clip_text="a\nb\nc\nd")),
-                _clip_line(_recipe(band=_CLIP_CAN_HELP_BAND,
-                                   clip_text="a\nb\nc\nd"))):
+                _clip_line(_hits(band=_TOO_NARROW_BAND,
+                                 clip_text="a\nb\nc\nd")),
+                _clip_line(_hits(band=_CLIP_CAN_HELP_BAND,
+                                 clip_text="a\nb\nc\nd"))):
         if "“Clip”" in msg:
             assert "Text distance from edge" in msg, (
                 f"the message says “Clip” without saying which frame:\n  {msg}")
@@ -243,8 +254,8 @@ def test_a_bigger_typed_size_asks_for_a_bigger_margin():
 
 # ------------------------------------------------------ K6: the clip's text
 def test_the_clip_border_text_warns_when_it_no_longer_fits_its_band():
-    msg = _clip_line(_recipe(band=_TOO_NARROW_BAND,
-                             clip_text="one\ntwo\nthree\nfour"))
+    msg = _clip_line(_hits(band=_TOO_NARROW_BAND,
+                           clip_text="one\ntwo\nthree\nfour"))
     assert "4 lines" in msg, msg
     assert f"{tef.AUTO_SHRINK_FLOOR_PT:.0f} pt" in msg, msg
     assert "Clip border width" in msg, msg
@@ -252,18 +263,18 @@ def test_the_clip_border_text_warns_when_it_no_longer_fits_its_band():
 
 
 def test_one_line_is_singular_and_two_are_not():
-    one = _clip_line(_recipe(band=10.0, clip=4.0, clip_text="x",
-                             clip_size_mm=40.0 * 25.4 / 72.0))
+    one = _clip_line(_hits(band=10.0, clip=4.0, clip_text="x",
+                           clip_size_mm=40.0 * 25.4 / 72.0))
     assert "One line" in one and "lines" not in one, one
-    many = _clip_line(_recipe(band=_TOO_NARROW_BAND, clip_text="a\nb\nc\nd"))
+    many = _clip_line(_hits(band=_TOO_NARROW_BAND, clip_text="a\nb\nc\nd"))
     assert "Its 4 lines" in many, many
     # THE BAND MUST BE WIDER THAN THE PATCH BORDER, or there is no band:
     # `instruments` stores `lbord = clip_border_width - border` and the panel
     # is silent when `lbord` is 0, because `geometry.clip_area_mm` draws
     # nothing there. A 6 mm band on a CM chart, whose border is 6 mm, is that
     # case, and it is what this line used to ask for.
-    over_one = _clip_line(_recipe(band=12.0, clip=4.0, clip_text="x",
-                                  clip_size_mm=40.0 * 25.4 / 72.0))
+    over_one = _clip_line(_hits(band=12.0, clip=4.0, clip_text="x",
+                                clip_size_mm=40.0 * 25.4 / 72.0))
     assert "One line" in over_one and "lines" not in over_one, over_one
 
 
@@ -311,21 +322,45 @@ def test_the_warning_says_what_the_overlap_costs():
     assert "the patch and the text together" in msg, msg
 
 
-def test_it_does_not_claim_the_patches_are_inked_when_they_are_not():
+def test_a_wider_margin_than_the_band_says_nothing_at_all():
     """THE SAME BAND, a wider margin, and the text lands on clear paper.
 
-    Measured on Knut's own run 1 with a 12 mm band and a 32 mm right margin:
-    2.3 mm of text past the band, 17.7 mm of clear paper beyond it, and not one
-    patch inked. A message that said otherwise would be asserting something the
-    sheet does not show, which is the fault section 2c records twice.
+    This test used to require the warning HERE, and to check that it said
+    "It reaches clear paper, so it lands on nothing" instead of claiming the
+    patches were inked. Knut, 2026-09-13, on his own ColorMunki A3-900p with a
+    24 mm right margin and an 18 mm band:
+
+        "the chart does not change at all and the clip-border text still fits
+         perfectly (it did not move on page or overlap with anything). However,
+         there is a red warning text. ... When there is space for the text due
+         to the right margin being bigger than the clip-border width, should
+         not the test pass without errors? Thus, if either right margin or
+         clip-border width is higher than the needed height, it is ok."
+
+    Measured on that preset before the change, clip 24 against clip 18 at one
+    seed: 3,364 pixels of 7,735,073 differ, 0.043 %, all of them inside the
+    clip band's own text, and the innermost clip ink stops 2.03 mm short of the
+    first patch at BOTH settings. So the sentence was true and the message
+    should not have been there to carry it.
     """
-    msg = _clip_line(_recipe(band=_TOO_NARROW_BAND, margin_r=40.0,
-                             clip_text="a\nb\nc\nd"))
+    assert not [w for w in _over(_recipe(band=_TOO_NARROW_BAND, margin_r=40.0,
+                                         clip_text="a\nb\nc\nd"))
+                if "clip border text" in w], (
+        "the text leaves the band and lands on clear paper, and the panel "
+        "still goes red about it")
+
+
+def test_it_still_warns_when_the_text_really_does_reach_the_patches():
+    """The other half, so the fix above cannot be "stop checking".
+
+    Same narrow band, the margin back at the band, and the overflow lands on
+    patches. Measured on the matrix: a 12 mm band with a 12 mm margin prints
+    three lines of clip text across the patch block.
+    """
+    msg = _clip_line(_hits(band=_TOO_NARROW_BAND, clip_text="a\nb\nc\nd"))
     assert "printed inward, past the band" in msg, msg
-    assert "reaches clear paper, so it lands on nothing" in msg, msg
-    assert "lands on the patch area" not in msg, msg
-    assert "measured with the ink on them" not in msg, msg
-    assert "row indicator labels" not in msg, msg
+    assert "lands on the patch area" in msg, msg
+    assert "reaches clear paper" not in msg, msg
 
 
 def test_it_names_the_millimetres_that_go_over_the_patches():
@@ -343,10 +378,10 @@ def test_it_names_the_millimetres_that_go_over_the_patches():
 def test_lowering_clip_is_offered_only_when_it_can_finish_the_job():
     """It buys back at most the reserve, so on a band narrower than the text
     needs it moves the overlap without removing it."""
-    can = _recipe(band=_CLIP_CAN_HELP_BAND, clip_text="a\nb\nc\nd")
+    can = _hits(band=_CLIP_CAN_HELP_BAND, clip_text="a\nb\nc\nd")
     assert "Lowering “Clip”" in _clip_line(can), _clip_line(can)
-    cannot = _recipe(band=_TOO_NARROW_BAND, clip_text="a\nb\nc\nd",
-                     clip_size_mm=40.0 * 25.4 / 72.0)
+    cannot = _hits(band=_TOO_NARROW_BAND, clip_text="a\nb\nc\nd",
+                   clip_size_mm=40.0 * 25.4 / 72.0)
     msg = _clip_line(cannot)
     assert "Lowering “Clip”" not in msg, (
         "a remedy that cannot remedy is offered:\n" + msg)
@@ -363,13 +398,14 @@ def test_the_number_it_asks_for_really_silences_it():
     band does and the obvious arithmetic is the true one. Measured here rather
     than reasoned about, because the other arithmetic shipped once.
     """
-    r = _recipe(band=_TOO_NARROW_BAND, clip_text="a\nb\nc\nd")
+    r = _hits(band=_TOO_NARROW_BAND, clip_text="a\nb\nc\nd")
     msg = _clip_line(r)
     m = re.search(r"Widen “Clip border width” to about ([0-9.]+) mm", msg)
     assert m, f"the message names no target width:\n  {msg}"
     want = float(m.group(1))
     assert want > _TOO_NARROW_BAND, (want, _TOO_NARROW_BAND)
-    wider = _recipe(band=round(want + 0.05, 2), clip_text="a\nb\nc\nd")
+    wider = _recipe(band=round(want + 0.05, 2), margin_r=_TOO_NARROW_BAND,
+                    clip_text="a\nb\nc\nd")
     assert not [w for w in _over(wider) if "clip border text" in w], (
         f"the message asked for {want} mm and the warning survives there")
     # …and the width it names IS the band plus the shortfall, now that nothing

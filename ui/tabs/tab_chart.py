@@ -19760,7 +19760,61 @@ class TabChart(QWidget):
                 _cs = text_edge_fit.clip_text_squeeze(
                     _clip_zone, _eff_edge, _clip_lines,
                     _clip_size_pt, _side)
+                # WHAT IT REACHES DECIDES WHETHER THERE IS ANYTHING TO SAY, and
+                # it used only to decide which sentence to add. Knut,
+                # 2026-09-13, on his own ColorMunki A3-900p at a 24 mm right
+                # margin and an 18 mm band: *"the chart does not change at all
+                # and the clip-border text still fits perfectly (it did not
+                # move on page or overlap with anything). However, there is a
+                # red warning text. ... When there is space for the text due to
+                # the right margin being bigger than the clip-border width,
+                # should not the test pass without errors? Thus, if either
+                # right margin or clip-border width is higher than the needed
+                # height, it is ok."*
+                #
+                # He is right, and this is him correcting his own draft: rule 7
+                # of §2f said to warn on the band overflow and report separately
+                # whether the patches were reached. That section is
+                # ⏳ Awaiting confirmation and confirmed by nobody, so the
+                # ruling stands over it.
+                #
+                # MEASURED BEFORE THE CHANGE, on his preset, clip 24 against
+                # clip 18, one seed, page 1: 3,364 pixels of 7,735,073 differ,
+                # 0.043 %, all of them inside the clip band's own text, and the
+                # innermost clip ink stops 2.03 mm short of the first patch at
+                # BOTH settings. Nothing moved and nothing was hit.
+                #
+                # AND IT DOES NOT SILENCE THE GUARD. Five combinations, each
+                # built: a 12 mm band with a 12 mm margin still warns (the text
+                # runs unbroken into the patch block), a full 24 mm band with a
+                # 14 pt text still warns, and the two cases where the paper is
+                # clear go quiet. On the LEFT this has to stay the collision
+                # form rather than "reach against the margin", because there
+                # the left margin is raised for the row labels and it is the
+                # labels the text meets first (§2h).
+                _label_start = None
+                _rl = None
+                if _cs is not None and not _clip_on_right:
+                    try:
+                        from workflow.layout_engine import geometry as _gm
+                        # WITH THE BUILD KWARGS, so the label is MEASURED
+                        # rather than taken from `rlwi`, which is the reserved
+                        # band and on the chart measured is 9.43 mm against
+                        # 3.17 mm of actual ink. Predicting from the
+                        # reservation put the labels 4.7 mm too far out and
+                        # would have warned about blank paper.
+                        _rl = _gm.row_label_area_mm(geom, r.build_kwargs())
+                        _label_start = None if _rl is None else float(_rl[0])
+                    except Exception:      # noqa: BLE001 — never fatal
+                        _label_start = None
+                _hit = None
                 if _cs is not None:
+                    _hit = text_edge_fit.clip_text_collision(
+                        _clip_zone, _eff_edge, _clip_lines, _clip_size_pt,
+                        _label_start,
+                        float(geom.margin_r if _clip_on_right
+                              else geom.margin_l))
+                if _cs is not None and _hit.hits_anything:
                     _over_mm = text_edge_fit.clip_text_overhang_mm(
                         _clip_zone, _eff_edge, _clip_lines,
                         _clip_size_pt)
@@ -19791,32 +19845,6 @@ class TabChart(QWidget):
                     # at all. Saying "those patches are measured with the ink
                     # on them" in either case would be the message asserting
                     # something the sheet does not show.
-                    _clip_margin = float(geom.margin_r if _clip_on_right
-                                         else geom.margin_l)
-                    # WHERE THE LABELS ARE COMES FROM THE GEOMETRY THAT DRAWS
-                    # THEM (`row_label_area_mm`), never from §R2's arithmetic
-                    # repeated here. They are down the LEFT, so only a
-                    # left-hand band can reach them.
-                    _label_start = None
-                    # BOUND BEFORE THE BRANCH, because the remedy below reads
-                    # it and a right-hand band never enters the branch.
-                    _rl = None
-                    if not _clip_on_right:
-                        try:
-                            from workflow.layout_engine import geometry as _gm
-                            # WITH THE BUILD KWARGS, so the label is MEASURED
-                            # rather than taken from `rlwi`, which is the
-                            # reserved band and on the chart measured is
-                            # 9.43 mm against 3.17 mm of actual ink. Predicting
-                            # from the reservation put the labels 4.7 mm too
-                            # far out and would have warned about blank paper.
-                            _rl = _gm.row_label_area_mm(geom, r.build_kwargs())
-                            _label_start = None if _rl is None else float(_rl[0])
-                        except Exception:      # noqa: BLE001 — never fatal
-                            _label_start = None
-                    _hit = text_edge_fit.clip_text_collision(
-                        _clip_zone, _eff_edge, _clip_lines,
-                        _clip_size_pt, _label_start, _clip_margin)
                     # THE RESERVE ACTUALLY KEPT, WHICH IS NOT ALWAYS "Clip".
                     # `clip_content_inset_mm` caps it at a fifth of the band so
                     # a narrow band is not eaten whole, and on a narrow band
@@ -19872,13 +19900,28 @@ class TabChart(QWidget):
                             "those patches are measured with the ink on them, "
                             "so what the instrument reads there is the patch "
                             "and the text together.").format(**_fmt)
-                    if not _hit.hits_anything:
-                        _msg += " " + tr(
-                            "It reaches clear paper, so it lands on nothing.")
+                    # "It reaches clear paper, so it lands on nothing" used to
+                    # live here. It cannot happen any more: a message that says
+                    # nothing was hit is a message that should not have been
+                    # printed, which is exactly what Knut reported.
                     _msg += " " + tr(
                         "Widen “Clip border width” to about {want:.1f} mm, or "
                         "set a smaller Size under “Clip-border content”."
                     ).format(**_fmt)
+                    # AND ON THE RIGHT, THE MARGIN IS A THIRD LEVER, which is
+                    # Knut's own sentence: *"if either right margin or
+                    # clip-border width is higher than the needed height, it is
+                    # ok."* It does not stop the text leaving the band; it
+                    # moves the patch area out of the way, which is what the
+                    # warning is now about. Down the LEFT it is not offered:
+                    # there the margin is raised for the row labels and moving
+                    # it moves them too, so the text meets them just the same.
+                    if _clip_on_right:
+                        _msg += " " + tr(
+                            "Raising “Right” under “Margins (mm)” past "
+                            "{want:.1f} mm also clears it: the text still "
+                            "leaves the band, but the patches move out of its "
+                            "way.").format(**_fmt)
                     # LOWERING "Clip" IS A LEVER ONLY WHILE IT CAN FINISH THE
                     # JOB. It buys back at most the whole reserve, so on a band
                     # narrower than the text needs it moves the overlap without
