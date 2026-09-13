@@ -1757,6 +1757,28 @@ reference. It is a bigger change than deleting the CH-17 branch, and deleting
 that branch WITHOUT the notes would leave a grey verdict on a warm paper with
 nothing to explain it, which is the state he is trying to avoid.
 
-**Not built. Awaiting implementation**, and it needs the note list designed
-first. `measurement_report_limits.md` records CH-17 and must be updated in the
-same change, not before it.
+**BUILT, 2026-09-13, both halves together.** The note list had to come first,
+and it did: `measurement_report_limits.md` gains §12 (CH-30 to CH-33) and CH-17
+is marked withdrawn in the same change.
+
+* `row_values` no longer ungrades anything. The grey rows are judged like every
+  other row and carry a note code instead.
+* A **note** and a **reason** are now different fields with different meanings:
+  a reason explains why a row has no verdict, a note comments a verdict that was
+  given. Merging them is what produced the state Knut objected to.
+* `numbered_notes` numbers them once for the whole document, in row order, one
+  number per distinct note however many rows carry it. The verdict cell and the
+  list ask the same function, so they cannot disagree about which note is
+  note 1.
+* A note dies with its verdict. The Printing record withholds every verdict, so
+  it prints no notes.
+
+Driven on screen on the border-conditions demo project, all three report types:
+the run with a printing record reads COND and PASS with no note, the run without
+one reads **PASS¹ PASS¹** with note 1 naming both rows, and the Printing record
+reads INFO with no note and no heading. A report SAVED under CH-17 keeps its
+INFO, which is the rule that a run keeps its verdicts working as written.
+
+The pack's own description of that run said the grey rows "keep their numbers
+and are shown for information", which the ruling made false; it now says they
+are judged with a numbered note against them.

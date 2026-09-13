@@ -169,17 +169,66 @@ def test_a_profiling_measurement_is_not_graded_a_verification_is(tmp_path):
     assert mr.is_drift_check(ver) and not mr.is_graded_sheet(ver)
 
 
-def test_grey_rows_are_info_until_the_printing_method_is_recorded(tmp_path):
+def test_grey_rows_are_graded_and_carry_a_note_when_the_printing_is_unrecorded(tmp_path):
+    """CH-17 WITHHELD THE VERDICT HERE AND KNUT OVERRULED IT, 2026-09-13.
+
+    This test used to require INFO on the first half. His ruling:
+
+        "the grey metric tests is not about the printer, it is about verifying
+         that the profile created for a specific paper or process condition
+         measures within set acceptable thresholds. The verdicts should be
+         given, but a note can be given in a numbered list of notes, where a
+         verdict is commented, for example regarding the tint of a paper and
+         profile combination."
+
+    So the row is judged either way, and what changes with the printing record
+    is whether the verdict carries the note, not whether there is one.
+    """
     ti3 = _write_ti3(tmp_path / "v.ti3", _ramp(16) + _colours(), cast={8: (5.0, 0.0)})
     rep = mr.build_report(ti3)
     rows = {r["row_id"]: r for r in mr.judge(rep, factory_limits("chromiq_default"))}
-    assert rows["grey_balance_neutral_ramp_max"]["word"] == INFO          # CH-17
-    assert rows["grey_balance_neutral_ramp_max"]["reason"] == mr.REASON_PRINTING_UNRECORDED
+    assert rows["grey_balance_neutral_ramp_max"]["word"] == COND   # 5.0 over a should
+    assert rows["grey_balance_neutral_ramp_max"]["reason"] is None, (
+        "a graded row must not carry a reason; a reason explains an absence")
+    assert rows["grey_balance_neutral_ramp_max"]["notes"] == [
+        mr.NOTE_PRINTING_UNRECORDED]
     assert rows["all_de00_avg"]["word"] == PASS
+
     rep["printing"] = {"colour": "through-profile", "intent": "relative", "route": "chromiq"}
     rows = {r["row_id"]: r for r in mr.judge(rep, factory_limits("chromiq_default"))}
-    assert rows["grey_balance_neutral_ramp_max"]["word"] == COND         # 5.0 > (3.0), a should
+    assert rows["grey_balance_neutral_ramp_max"]["word"] == COND
     assert rows["grey_balance_neutral_ramp_avg"]["word"] == PASS
+    assert rows["grey_balance_neutral_ramp_max"]["notes"] == [], (
+        "with the printing condition recorded there is nothing to caveat")
+
+
+def test_the_note_is_numbered_once_however_many_rows_carry_it(tmp_path):
+    """The numbering is what ties a verdict cell to its comment, so it is
+    shared: one function computes it and the cell and the list both ask."""
+    ti3 = _write_ti3(tmp_path / "v.ti3", _ramp(16) + _colours(), cast={8: (5.0, 0.0)})
+    rep = mr.build_report(ti3)
+    rows = mr.judge(rep, factory_limits("chromiq_default"))
+    numbering = mr.numbered_notes(rows)
+    assert len(numbering) == 1, (
+        f"two grey rows carry one note; got {numbering}")
+    n, code, rids = numbering[0]
+    assert (n, code) == (1, mr.NOTE_PRINTING_UNRECORDED)
+    assert set(rids) == {"grey_balance_neutral_ramp_avg",
+                         "grey_balance_neutral_ramp_max"}
+    marked = {r["row_id"]: mr.note_numbers_for(r, numbering) for r in rows}
+    assert marked["grey_balance_neutral_ramp_avg"] == [1]
+    assert marked["grey_balance_neutral_ramp_max"] == [1]
+    assert marked["all_de00_avg"] == [], "a row with no note carries no marker"
+
+
+def test_a_row_with_no_verdict_never_carries_a_note(tmp_path):
+    """A note comments a verdict. On an absence the field is `reason`, and
+    putting a footnote on a row that reads N-A would say a number was weighed
+    when none was computed."""
+    rep = mr.build_report(_write_ti3(tmp_path / "v.ti3", _colours(12)))
+    for row in mr.judge(rep, factory_limits("chromiq_default")):
+        if row["word"] not in (PASS, FAIL, COND):
+            assert row["notes"] == [], (row["row_id"], row["word"], row["notes"])
 
 
 def test_rows_the_chart_cannot_supply_read_n_a_with_a_reason(tmp_path):

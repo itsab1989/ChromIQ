@@ -161,11 +161,28 @@ cannot supply the row, with the reason beside it.
 > report's own "How to read" paragraph denying, on page 2, the cause it
 > asserted on page 4.
 >
-> **A ROW that cannot be graded, on a sheet that is.** CH-17: the grey-balance
-> rows are shown for information when nobody recorded how the sheet was
-> printed and the reference is the chart's own design, because in absolute Lab
-> the paper's own tint would fail the row. That has shipped since the rows
-> existed; only this sentence was behind.
+> **A ROW that cannot be graded, on a sheet that is. WITHDRAWN 2026-09-13.**
+> CH-17 said the grey-balance rows are shown for information when nobody
+> recorded how the sheet was printed and the reference is the chart's own
+> design, because in absolute Lab the paper's own tint would fail the row. The
+> observation is true and the conclusion was Knut's to draw. He drew the other
+> one:
+>
+> > *"the grey metric tests is not about the printer, it is about verifying
+> > that the profile created for a specific paper or process condition measures
+> > within set acceptable thresholds. The verdicts should be given, but a note
+> > can be given in a numbered list of notes, where a verdict is commented, for
+> > example regarding the tint of a paper and profile combination."*
+>
+> **CH-17a replaces it.** The grey rows are judged like every other row. Where
+> the grading carries a caveat, the caveat is a NOTE: see §12. Nothing in this
+> document ungrades a single row any more; the only things that withhold a
+> verdict are the sheet (§4) and the type (§10).
+>
+> A report SAVED under CH-17 keeps the verdicts it was saved with, per the rule
+> that a run keeps its values and verdicts. So an old dated report shows INFO
+> on the grey rows where a new one shows a word and a note, and that is
+> correct rather than a drift.
 >
 > **A TYPE that judges nothing.** Report type T4, "Printing record (not
 > graded)", withholds every verdict by the user's choice. That gap has since
@@ -620,3 +637,51 @@ for all seven sets.
   be tested against"*). The second was followed, because it is the one that
   makes every metric exercisable in the demo pack. A user can set any of them
   back to `–` with the spin box.
+
+
+---
+
+## 12. Notes on a verdict
+
+**⏳ Awaiting confirmation.** **Confirmed by:** *nobody yet.*
+
+Knut's ruling of 2026-09-13, quoted in full at CH-17a above, asks for two
+things: the verdicts are given, and *"a note can be given in a numbered list of
+notes, where a verdict is commented"*. The second half is a mechanism this
+document did not have, so it is written down here.
+
+**CH-30. A note comments a verdict; a reason explains its absence.** They are
+different fields and they may never be merged.
+
+| | when it appears | what it says |
+|---|---|---|
+| `reason` | the row has NO verdict: it reads N-A, or INFO because nothing could be judged | why the row could not be judged |
+| `notes` | the row HAS a verdict: PASS, FAIL or CONDITIONAL | what a reader should know when weighing the number |
+
+Merging them is what produced a grey row with no verdict on a chart that had
+supplied every value the row needed.
+
+**CH-31. A note lives and dies with the verdict it comments.** If anything later
+withdraws the verdict, the note goes with it. The Printing record (§10, T4)
+withholds every verdict by the user's choice, so it prints no notes: a note
+there would comment a judgement the document does not make, and naming two rows
+of eight would imply the other six had been judged. This is not a property that
+holds once at judging time; it holds after every transformation of the rows.
+
+**CH-32. One numbering for the whole document, in row order, from 1.** One
+number per distinct note however many rows carry it: a note on three rows is one
+note naming three rows, not three notes saying the same thing. A report holding
+several measurements numbers across all of them, because two "note 1" on one
+page is two documents.
+
+**CH-33. The verdict cell carries the number.** A numbered list nobody is
+pointed at is a paragraph. The marker and the list come from one computation, so
+they cannot disagree about which note is note 1.
+
+**The one note that exists so far** is `printing_unrecorded`, on the two
+grey-balance rows, when nobody recorded how the sheet was printed and the
+reference is the chart's own design. It says that the row is judged against the
+chart's own design in absolute Lab, that the paper's own tint is inside that
+measurement, and that a good print on a warm or tinted paper therefore reads
+higher than the profile deserves. That is Knut's own example, *"regarding the
+tint of a paper and profile combination"*.

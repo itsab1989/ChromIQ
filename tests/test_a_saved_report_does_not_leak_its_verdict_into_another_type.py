@@ -295,24 +295,26 @@ def test_a_chart_that_DID_supply_the_values_is_not_told_to_add_them(tmp_path,
     assert mixed.reason == SUMMARY_REASONS["nothing_graded"]
 
 
-def test_a_row_with_a_number_nobody_graded_says_why_on_paper(tmp_path, qapp):
-    """The note under the table listed N-A rows only, so a row that HAS a
-    number and was not judged said why in a tooltip and nowhere else.
+def test_a_graded_row_with_a_note_says_so_on_paper(tmp_path, qapp):
+    """A comment on a verdict must reach the PAGE, not only a tooltip.
 
-    **AND IT MUST NOT SAY IT UNDER THE WRONG HEADING.** The first version of
-    this test asserted the row appeared in `_not_computed` and never read the
-    heading that list is printed under, so it passed green while the page
-    called a computed row "not computed" and told the reader to add patches
-    that are already on the chart. A third adversarial round read the printed
-    page. This test now asks the list that is actually true of these rows, and
-    `test_the_page_does_not_call_a_measured_row_not_computed` guards the
-    heading.
+    THIS TEST USED TO GUARD THE OPPOSITE STATE. Until 2026-09-13 the grey rows
+    on a sheet with no recorded printing condition were shown for information
+    (CH-17) and this asked that the page said why. Knut overruled that: the
+    verdicts are given and the caveat goes into *"a numbered list of notes,
+    where a verdict is commented"*. The fault it was written for is unchanged,
+    so it is retargeted rather than deleted: a thing the reader needs in order
+    to weigh a number must be on the page beside the number.
 
-    MUTATION: fold the two lists back together and this goes red.
+    MUTATION: drop the numbered-notes block from `_report_body_html` and this
+    goes red.
     """
+    import html as _html
+    from core.i18n import tr
     from tests.test_import_measurement_module import _verify_env
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
-    from workflow.compliance_sets import INFO
+    from workflow.compliance_sets import COND, FAIL, PASS, ROW_BY_ID
+    from workflow.run_compliance import set_run_report_type
     s, _fm, _ctl, run = _verify_env(tmp_path)
     v = run.new_verification()
     v.ensure_dir()
@@ -321,33 +323,32 @@ def test_a_row_with_a_number_nobody_graded_says_why_on_paper(tmp_path, qapp):
     dlg.show()
     qapp.processEvents()
     try:
-        from workflow.run_compliance import set_run_report_type
-        # T2, NOT T4. On the Printing record every row is INFO because the type
-        # says so, and the note is deliberately silent there: the summary
-        # already says the document judges nothing, and naming two of eight
-        # rows would imply the other six were graded.
         set_run_report_type(run, REPORT_TYPE_FULL)
         dlg._forget_limits()
         dlg._sync_limit_controls()
         reps = dlg._runs_for_report()
         rows, _rc = dlg._verdict_rows(reps[0])
-        with_reason = [x for x in rows
-                       if x.get("word") == INFO and x.get("reason")]
-        assert with_reason, (
-            "this chart has no ungraded row with a reason, so the case is not "
-            "exercised; `_grey_ramp_ti3` is supposed to produce two")
-        listed = {label for label, _why in dlg._measured_not_graded(reps[0])}
-        assert not dlg._not_computed(reps[0]) or all(
-            lbl not in listed for lbl, _w in dlg._not_computed(reps[0])), \
-            "a row is in both lists at once"
-        from workflow.compliance_sets import ROW_BY_ID
-        for x in with_reason:
-            rid = x.get("row_id") or x.get("key")
+        noted = [x for x in rows if x.get("notes")]
+        assert noted, (
+            "this chart carries no noted row, so the case is not exercised; "
+            "`_grey_ramp_ti3` on a sheet with no printing record is supposed "
+            "to produce two")
+        for x in noted:
+            assert x["word"] in (PASS, FAIL, COND), (
+                f"{x['row_id']} carries a note and has no verdict to comment")
+
+        numbered = dlg._numbered_notes(reps)
+        assert numbered, "the rows carry notes and the page numbers none"
+        body = dlg._report_body_html(reps, for_pdf=True)
+        head = _html.escape(tr("Notes on the verdicts above:"))
+        k = body.find(head)
+        assert k >= 0, "the numbered note list is not printed at all"
+        block = body[k:body.find("</div>", k)]
+        for x in noted:
+            rid = x.get("row_id")
             if rid in ROW_BY_ID:
-                from core.i18n import tr
-                assert tr(ROW_BY_ID[rid].label) in listed, (
-                    f"{rid} has a number nobody graded and the page never "
-                    f"says why")
+                assert _html.escape(tr(ROW_BY_ID[rid].label)) in block, (
+                    f"{rid} carries a note and the list never names it")
     finally:
         dlg.close()
 
@@ -388,23 +389,95 @@ def test_a_recalculation_re_stamps_the_TYPE_as_well_as_the_verdict(tmp_path,
         dlg.close()
 
 
-def test_the_page_does_not_call_a_measured_row_not_computed(tmp_path, qapp):
+def test_the_verdict_cell_carries_the_note_s_number(tmp_path, qapp):
+    """THE NUMBER IS THE HALF OF THE RULING THAT IS EASY TO FORGET.
+
+    Knut asked for *"a numbered list of notes, where a verdict is commented"*.
+    A list nobody is pointed at is a paragraph: what makes it a note on a
+    verdict is that the verdict cell carries the number. Deleting the marker
+    left every other test in this file green, which is why this one exists.
+
+    It reads the marker off the rendered HTML, in the same cell as the word, so
+    a marker printed somewhere else on the page would not satisfy it.
+
+    MUTATION: return an empty list from `note_numbers_for` at the call site and
+    this goes red.
+    """
+    import html as _html
+    import re
+    from core.i18n import tr
+    from tests.test_import_measurement_module import _verify_env
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    from workflow.compliance_sets import ROW_BY_ID
+    from workflow.measurement_report import note_numbers_for
+    from workflow.run_compliance import set_run_report_type
+    s, _fm, _ctl, run = _verify_env(tmp_path)
+    v = run.new_verification()
+    v.ensure_dir()
+    v.measurement_ti3.write_text(_grey_ramp_ti3(), encoding="utf-8")
+    dlg = MeasurementReportDialog(s, None, initial_ti3=v.measurement_ti3)
+    dlg.show()
+    qapp.processEvents()
+    try:
+        set_run_report_type(run, REPORT_TYPE_FULL)
+        dlg._forget_limits()
+        dlg._sync_limit_controls()
+        reps = dlg._runs_for_report()
+        rows, _rc = dlg._verdict_rows(reps[0])
+        numbering = dlg._note_numbering(reps)
+        noted = [x for x in rows if note_numbers_for(x, numbering)]
+        assert noted, "no row carries a note number, so nothing is proved"
+
+        body = dlg._report_body_html(reps, for_pdf=True)
+        for x in noted:
+            rid = x.get("row_id")
+            if rid not in ROW_BY_ID:
+                continue
+            label = _html.escape(tr(ROW_BY_ID[rid].label))
+            i = body.find(label)
+            assert i >= 0, f"{rid} is not on the page at all"
+            # the row's own <tr>, so a number elsewhere cannot stand in
+            tr_end = body.find("</tr>", i)
+            block = body[i:tr_end if tr_end > 0 else i + 1200]
+            want = ",".join(str(n) for n in note_numbers_for(x, numbering))
+            assert f"<sup" in block and want in block, (
+                f"{rid} carries note {want} and its verdict cell shows no "
+                f"marker:\n{block[:400]}")
+
+        # …and a row with no note carries no marker, or the marker means nothing
+        plain = [x for x in rows
+                 if not note_numbers_for(x, numbering)
+                 and (x.get("row_id") in ROW_BY_ID)]
+        assert plain, "every row is noted, so the negative half is not tested"
+        for x in plain[:3]:
+            label = _html.escape(tr(ROW_BY_ID[x["row_id"]].label))
+            i = body.find(label)
+            tr_end = body.find("</tr>", i)
+            block = body[i:tr_end if tr_end > 0 else i + 1200]
+            assert "<sup" not in block, (
+                f"{x['row_id']} has no note and its cell carries a marker")
+    finally:
+        dlg.close()
+
+
+def test_the_page_does_not_call_a_noted_row_not_computed(tmp_path, qapp):
     """THE HEADING IS PART OF THE SENTENCE.
 
     A grey row carrying 1.341, on a chart with a nine-step ramp, was printed
     under "Not computed on this chart:" and followed by "add the missing
     patches to the chart in Create Chart to have it checked". Both halves are
-    false of that row, and the second is the exact advice the round before had
-    removed from the summary above it.
+    false of that row. The row is graded now rather than ungraded, but it is
+    the same row on the same chart and it must still not appear under that
+    heading.
 
-    MUTATION: put the INFO rows back into `_not_computed` and this goes red.
+    MUTATION: put the noted rows into `_not_computed` and this goes red.
     """
     import html as _html
+    from core.i18n import tr
     from tests.test_import_measurement_module import _verify_env
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
-    from workflow.compliance_sets import INFO, ROW_BY_ID
+    from workflow.compliance_sets import ROW_BY_ID
     from workflow.run_compliance import set_run_report_type
-    from core.i18n import tr
     s, _fm, _ctl, run = _verify_env(tmp_path)
     v = run.new_verification()
     v.ensure_dir()
@@ -418,37 +491,27 @@ def test_the_page_does_not_call_a_measured_row_not_computed(tmp_path, qapp):
         dlg._sync_limit_controls()
         reps = dlg._runs_for_report()
         rows, _rc = dlg._verdict_rows(reps[0])
-        # A ROW WITH NO RECORDED REASON IS NOT IN THIS NOTE, AND SHOULD NOT BE.
-        # `ramps_30_70_dl_max` comes out INFO with a real number because the
-        # set puts no limit on it, which is what INFO means and needs no
-        # explaining. The note is for a row that WAS limited and was left
-        # ungraded anyway.
-        measured = [x for x in rows if x.get("word") == INFO
-                    and x.get("value") is not None and x.get("reason")]
-        assert measured, "no measured-but-ungraded row with a reason on this chart"
+        noted = [x for x in rows if x.get("notes") and x.get("value") is not None]
+        assert noted, "no graded, noted row with a number on this chart"
         body = dlg._report_body_html(reps, for_pdf=True)
 
         head = _html.escape(tr("Not computed on this chart:"))
-        i = body.find(head)
-        if i >= 0:
-            block = body[i:body.find("</div>", i)]
-            for x in measured:
+        i2 = body.find(head)
+        if i2 >= 0:
+            block = body[i2:body.find("</div>", i2)]
+            for x in noted:
                 rid = x.get("row_id")
                 if rid in ROW_BY_ID:
                     assert _html.escape(tr(ROW_BY_ID[rid].label)) not in block, (
-                        f"{rid} has a number and is listed as not computed")
+                        f"{rid} has a number and a verdict and is listed as "
+                        "not computed")
 
-        mine = _html.escape(tr("Measured but not graded, on at least one "
-                               "measurement:"))
-        j = body.find(mine)
-        assert j >= 0, "the measured-but-ungraded rows have no note of their own"
-        block2 = body[j:body.find("</div>", j)]
+        mine = _html.escape(tr("Notes on the verdicts above:"))
+        j2 = body.find(mine)
+        assert j2 >= 0, "the noted rows have no list of their own"
+        block2 = body[j2:body.find("</div>", j2)]
         assert "Create Chart" not in block2, \
             "the note tells the reader to add patches that are already there"
-        for x in measured:
-            rid = x.get("row_id")
-            if rid in ROW_BY_ID:
-                assert _html.escape(tr(ROW_BY_ID[rid].label)) in block2, rid
     finally:
         dlg.close()
 
@@ -480,8 +543,12 @@ def test_the_printing_record_does_not_single_out_two_of_eight_rows(tmp_path,
         set_run_report_type(run, REPORT_TYPE_FULL)
         dlg._forget_limits()
         dlg._sync_limit_controls()
-        assert dlg._measured_not_graded(dlg._runs_for_report()[0]), \
-            "the note is empty even on Full colour check, so nothing is proved"
+        # THE CONTROL, AND IT MOVED WITH THE RULING. This used to prove the
+        # case with `_measured_not_graded`, which was fed by CH-17 and is empty
+        # now that the grey rows are graded. The same two rows carry a NOTE
+        # instead, and the note list is what must fall silent on T4.
+        assert dlg._numbered_notes(dlg._runs_for_report()), \
+            "the note list is empty even on Full colour check, so nothing is proved"
 
         set_run_report_type(run, REPORT_TYPE_RECORD)
         dlg._forget_limits()
@@ -491,7 +558,15 @@ def test_the_printing_record_does_not_single_out_two_of_eight_rows(tmp_path,
         assert all(x["word"] == INFO or x["word"] == "N-A" for x in rows)
         assert not dlg._measured_not_graded(reps[0]), \
             "two of eight rows are singled out on a report that judges none"
+        # …AND THE NUMBERED NOTES MUST BE SILENT FOR THE SAME REASON. A note
+        # comments a verdict, and on T4 there are none: every row is INFO
+        # because the type says so. A note here would comment nothing and imply
+        # the other six rows had been judged.
+        assert not dlg._numbered_notes(reps), \
+            "the note list comments verdicts on a report that gives none"
         body = dlg._report_body_html(reps, for_pdf=True)
+        assert _html.escape(tr("Notes on the verdicts above:")) not in body, \
+            "the numbered note list is printed on a report that judges nothing"
         head = _html.escape(tr("Measured but not graded, on at least one "
                                "measurement:"))
         assert head not in body, "the note is printed on a type that judges nothing"

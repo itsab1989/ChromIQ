@@ -1548,9 +1548,34 @@ REASON_NO_REFERENCE = "no_reference"
 REASON_NEEDS_REFERENCE_FILE = "needs_reference_file"
 REASON_NO_RAMP = "no_ramp"
 REASON_SMALL_SAMPLE = "small_sample"
+#: KEPT ONLY TO READ REPORTS SAVED BEFORE 2026-09-13. It was a REASON, which
+#: in this module means "why this row has no verdict", and rows carrying it
+#: were shown for information instead of being graded (CH-17). Knut overruled
+#: that: *"the grey metric tests is not about the printer, it is about
+#: verifying that the profile created for a specific paper or process condition
+#: measures within set acceptable thresholds. The verdicts should be given, but
+#: a note can be given in a numbered list of notes, where a verdict is
+#: commented."* A saved report keeps the verdicts it was saved with, so this
+#: constant still has to be recognised on the way in; nothing writes it any more.
 REASON_PRINTING_UNRECORDED = "printing_unrecorded"
 REASON_NO_CORNERS = "no_corners"
 REASON_NOT_COMPUTED = "not_computed"     # the block is missing from this report
+
+# ---------------------------------------------------------------------------
+# Notes: a comment ON a verdict, which is not a reason for withholding one
+# ---------------------------------------------------------------------------
+#: A NOTE and a REASON answer different questions and must never be merged.
+#:
+#: * a **reason** says why a row has no verdict. The row reads N-A or INFO and
+#:   the reason explains the absence.
+#: * a **note** comments a verdict that WAS given. The row reads PASS, FAIL or
+#:   CONDITIONAL, the number stands, and the note says what a reader should
+#:   know when weighing it.
+#:
+#: They were one thing until Knut's ruling above, and merging them is what
+#: produced a grey row with no verdict on a chart that had supplied every
+#: value it needed.
+NOTE_PRINTING_UNRECORDED = "printing_unrecorded"
 
 
 def _distinct_levels(levels: "list[float]", tol: float = GREY_LEVEL_TOL) -> int:
@@ -1684,19 +1709,27 @@ def _hue_difference_ab(lab_a, lab_b) -> float:
 
 
 def row_values(report: dict) -> "dict[str, dict]":
-    """``{row_id: {"value", "reason", "graded"}}`` for every row ChromIQ can
-    compute from *report*. ``value`` is None with a reason code when the chart
-    or the reference cannot supply the row; ``graded`` is False for a row that
-    is shown for information only on this sheet (CH-17), None to inherit the
-    sheet's own grading.
+    """``{row_id: {"value", "reason", "graded", "notes"}}`` for every row
+    ChromIQ can compute from *report*.
+
+    ``value`` is None with a ``reason`` code when the chart or the reference
+    cannot supply the row. ``graded`` is False for a row that cannot be judged
+    on this sheet at all, None to inherit the sheet's own grading. ``notes`` is
+    a list of note codes commenting a verdict that WAS given: see
+    :data:`NOTE_PRINTING_UNRECORDED` for why the two are not the same thing.
+
+    Nothing sets ``graded`` False here any more. CH-17 did, on the grey rows,
+    and Knut overruled it on 2026-09-13.
     """
     report = report or {}
     de, source = graded_de00(report)
     out: "dict[str, dict]" = {}
 
-    def put(rid, value, reason=None, graded=None):
+    def put(rid, value, reason=None, graded=None, notes=None):
         out[rid] = {"value": (float(value) if value is not None else None),
-                    "reason": reason, "graded": graded}
+                    "reason": reason, "graded": graded,
+                    "notes": ([notes] if isinstance(notes, str)
+                              else list(notes or []))}
 
     # -- the five ΔE00 rows
     from workflow.compliance_sets import ROWS
@@ -1715,24 +1748,31 @@ def row_values(report: dict) -> "dict[str, dict]":
             else:
                 put(r.id, v)
 
-    # -- grey balance (INFO when nobody recorded how the sheet was printed and
-    #    the reference is the chart's design: in absolute Lab the paper's own
-    #    tint would fail the row, CH-17)
+    # -- grey balance. GRADED, WITH A NOTE, since Knut's ruling of 2026-09-13.
+    #
+    # CH-17 withheld the verdict here whenever nobody recorded how the sheet
+    # was printed and the reference was the chart's own design, on the argument
+    # that in absolute Lab the paper's own tint lands in the row. The
+    # observation is true; the conclusion was his to make and he made the other
+    # one: *"The verdicts should be given, but a note can be given in a
+    # numbered list of notes, where a verdict is commented, for example
+    # regarding the tint of a paper and profile combination."*
+    #
+    # So the condition that used to switch grading off now attaches a note, and
+    # the row is judged like every other row.
     gb = report.get("grey_balance") or {}
-    grey_graded = None
+    grey_note = None
     if (not report.get("printing")
             and report.get("reference_source") in ("design", "device")):
-        grey_graded = False
+        grey_note = NOTE_PRINTING_UNRECORDED
     if not gb:
         # an older report, or one whose measurement file could not be read
         # again: the block is absent, which is not the same as "no greys" (N9)
         put("grey_balance_neutral_ramp_avg", None, REASON_NOT_COMPUTED)
         put("grey_balance_neutral_ramp_max", None, REASON_NOT_COMPUTED)
     elif gb.get("eligible") and gb.get("avg") is not None:
-        put("grey_balance_neutral_ramp_avg", gb["avg"],
-            REASON_PRINTING_UNRECORDED if grey_graded is False else None, grey_graded)
-        put("grey_balance_neutral_ramp_max", gb["max"],
-            REASON_PRINTING_UNRECORDED if grey_graded is False else None, grey_graded)
+        put("grey_balance_neutral_ramp_avg", gb["avg"], notes=grey_note)
+        put("grey_balance_neutral_ramp_max", gb["max"], notes=grey_note)
     else:
         put("grey_balance_neutral_ramp_avg", None, gb.get("reason") or REASON_NO_GREYS)
         put("grey_balance_neutral_ramp_max", None, gb.get("reason") or REASON_NO_GREYS)
@@ -1784,7 +1824,7 @@ def judge(report: dict, limits: "dict") -> "list[dict]":
     the row id otherwise; ``pass`` keeps the old True / False / None shape
     (True for PASS, False for FAIL, None for every other word).
     """
-    from workflow.compliance_sets import (FAIL, PASS, ROWS, Limit,
+    from workflow.compliance_sets import (COND, FAIL, PASS, ROWS, Limit,
                                           row_verdict)
     graded_sheet = is_graded_sheet(report)
     values = row_values(report)
@@ -1810,8 +1850,49 @@ def judge(report: dict, limits: "dict") -> "list[dict]":
             "pass": True if word == PASS else (False if word == FAIL else None),
             "word": word,
             "reason": (cell or {}).get("reason"),
+            # A NOTE TRAVELS WITH THE ROW IT COMMENTS, and only where there is
+            # a verdict to comment. A note beside an N-A would be a footnote on
+            # an absence, which is what `reason` is already for.
+            "notes": (list((cell or {}).get("notes") or [])
+                      if word in (PASS, FAIL, COND) else []),
         })
     return rows
+
+
+def numbered_notes(rows: "list[dict]") -> "list[tuple[int, str, list[str]]]":
+    """``[(number, note_code, [row_id, ...])]`` for the notes *rows* carry.
+
+    Knut's ruling of 2026-09-13 asks for *"a numbered list of notes, where a
+    verdict is commented"*, so the number is the thing that ties a verdict cell
+    to its comment and it has to be stable and shared. One function computes it
+    and every renderer asks: a second copy of the numbering in the window and
+    in the PDF is two documents that disagree about which note is note 1.
+
+    Numbered in ROW ORDER, from 1, one number per distinct code however many
+    rows carry it. A code that appears on three rows is one note naming three
+    rows, not three notes saying the same thing.
+
+    Rows are not mutated. The caller asks :func:`note_numbers_for` for a row's
+    markers.
+    """
+    order: "list[str]" = []
+    who: "dict[str, list[str]]" = {}
+    for row in rows or ():
+        rid = row.get("row_id") or row.get("key")
+        for code in (row.get("notes") or ()):
+            if code not in who:
+                order.append(code)
+                who[code] = []
+            if rid not in who[code]:
+                who[code].append(rid)
+    return [(i + 1, code, who[code]) for i, code in enumerate(order)]
+
+
+def note_numbers_for(row: dict,
+                     numbering: "list[tuple[int, str, list[str]]]") -> "list[int]":
+    """The note numbers to print beside one row's verdict, ascending."""
+    want = set(row.get("notes") or ())
+    return sorted(n for (n, code, _rows) in (numbering or ()) if code in want)
 
 
 def summarise(report: dict, limits: "dict", rows: "list[dict]", set_id: str,

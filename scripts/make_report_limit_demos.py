@@ -697,9 +697,11 @@ def write_print_record(chart_dir: Path, stem: str, when: str, profile_name: str,
       verdict (`measurement_report.is_drift_check`): pass/fail against profile
       accuracy would fail a healthy printer for ever.
     * ``none``: no record was written, which is what a sheet printed outside
-      ChromIQ looks like. The grey-balance rows are then shown for information
-      with `printing_unrecorded` beside them (CH-17), because in absolute Lab
-      the paper's own tint would fail the row.
+      ChromIQ looks like. The grey-balance rows are then JUDGED like every
+      other row and carry a numbered note (`printing_unrecorded`) saying that
+      against the chart's own design in absolute Lab the paper's own tint is
+      inside the number. Until 2026-09-13 they were shown for information
+      instead (CH-17); Knut overruled that.
 
     NO ``profile_path`` and no ``profile_mtime``: those two keys are the only
     absolute paths a ChromIQ project would otherwise carry, and an absolute path
@@ -1235,18 +1237,20 @@ BORDER_SMALL_SAMPLE: "list[Date]" = [
 ]
 
 #: NOBODY RECORDED HOW THE SHEET WAS PRINTED, which is what a sheet measured
-#: outside ChromIQ looks like. The grey rows carry real numbers and are shown
-#: for information (CH-17), because against the chart's own design in absolute
-#: Lab the paper's own tint would fail them. On a Grey and tone check that is
-#: every row the document has, so the column says nothing was graded, which is
-#: a different sentence from the one for a chart that could not supply a row.
+#: outside ChromIQ looks like. The grey rows carry real numbers, are JUDGED,
+#: and carry a numbered note saying that against the chart's own design in
+#: absolute Lab the paper's own tint is inside that number. This run therefore
+#: demonstrates the numbered note list, which is the thing no other run in the
+#: pack shows. Until 2026-09-13 it demonstrated the opposite, CH-17's
+#: information-only rows, and Knut overruled that.
 BORDER_UNRECORDED: "list[Date]" = [
     _d("2026-12-02_100000", "2026-12-02T10:00:00",
        "A sheet whose printing condition nobody wrote down",
        "The same kind of measurement as the other projects, printed and "
        "measured like all of them, but with no record of the paper, ink and "
-       "driver settings it was printed WITH. The grey rows keep their numbers "
-       "and lose their verdicts; the colour rows are judged as usual.",
+       "driver settings it was printed WITH. Every row is judged; the two grey "
+       "rows carry a numbered note saying the paper's own tint is inside their "
+       "number.",
        Design(bulk=0.80, shoulder=1.40, peak=2.20, tail=1.60, grey_dch=1.90),
        []),
     _d("2026-12-16_100000", "2026-12-16T10:00:00",
@@ -1438,7 +1442,7 @@ class RunPlan:
     #: How the dated sheets of this run were printed: "through-profile" (the
     #: ordinary verification), "raw" (a drift check, which the report refuses
     #: to grade against profile accuracy), or "none" (nobody recorded it, which
-    #: makes the grey rows informational under CH-17). See `write_print_record`.
+    #: puts a numbered note on the grey rows). See `write_print_record`.
     print_colour: str = "through-profile"
 
     @property
@@ -1870,8 +1874,14 @@ PROJECTS = [
         # what is missing is the RECORD OF HOW it was printed, not the
         # printing. The app's own reason line always said so ("how this sheet
         # was printed is not recorded"); this pack's run title did not.
+        # AND THE SECOND HALF OF THIS SENTENCE WENT STALE THE SAME DAY. It
+        # said the grey rows "keep their numbers and are shown for
+        # information", which was CH-17, which Knut overruled on 2026-09-13:
+        # the verdicts are given and the caveat goes into a numbered note. A
+        # demo pack that describes the behaviour it no longer demonstrates is
+        # worse than no description, so the run says what it now shows.
         RunPlan("A sheet whose printing condition nobody wrote down, so the "
-                "grey rows keep their numbers and are shown for information.",
+                "grey rows are judged with a numbered note against them.",
                 CHART_SMALL, CHART_MEDIUM, "chromiq_quick",
                 BORDER_UNRECORDED, unlocked=True, lock="unlocked",
                 report_type=REPORT_TYPE_GREY,

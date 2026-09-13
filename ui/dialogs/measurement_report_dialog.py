@@ -2548,6 +2548,64 @@ class MeasurementReportDialog(QDialog):
         }
         return texts.get(code or "", "")
 
+    def _note_sentence(self, code: "str | None") -> str:
+        """What one note code says, as a sentence that COMMENTS A VERDICT.
+
+        Not a reason: `_reason_sentence` above explains why a row has no
+        verdict, and these explain what to know about one that has. Knut's
+        ruling of 2026-09-13 made the two different things, and the example he
+        gave is this one, *"regarding the tint of a paper and profile
+        combination"*.
+        """
+        return {
+            "printing_unrecorded": tr(
+                "How this sheet was printed is not recorded, so the grey rows "
+                "are judged against the chart's own design in absolute Lab. "
+                "The paper's own tint is part of that measurement, so a good "
+                "print on a warm or tinted paper reads higher here than the "
+                "profile deserves. Record the printing condition, or read this "
+                "row against the paper you printed on."),
+        }.get(code or "", "")
+
+    def _numbered_notes(self, runs: list) -> "list[tuple[int, str, str]]":
+        """``[(number, rows it comments, the sentence)]`` across every run shown.
+
+        ONE NUMBERING FOR THE WHOLE DOCUMENT, not one per run. A report can
+        hold several measurements and the same note can comment a verdict in
+        each of them; numbering per run would put two different "note 1" on one
+        page. The numbers come from `measurement_report.numbered_notes`, which
+        the verdict cells ask as well, so the marker and the list cannot
+        disagree.
+        """
+        from workflow.compliance_sets import ROW_BY_ID
+        from workflow.measurement_report import numbered_notes
+        merged: list = []
+        for r in runs or ():
+            if _is_raw_drift(r):
+                continue
+            rows, _rec = self._verdict_rows(r)
+            merged.extend(rows)
+        out = []
+        for n, code, rids in numbered_notes(merged):
+            sentence = self._note_sentence(code)
+            if not sentence:
+                continue
+            labels = [tr(ROW_BY_ID[rid].label) if rid in ROW_BY_ID else str(rid)
+                      for rid in rids]
+            out.append((n, ", ".join(labels), sentence))
+        return out
+
+    def _note_numbering(self, runs: list):
+        """The raw numbering the verdict cells mark themselves from."""
+        from workflow.measurement_report import numbered_notes
+        merged: list = []
+        for r in runs or ():
+            if _is_raw_drift(r):
+                continue
+            rows, _rec = self._verdict_rows(r)
+            merged.extend(rows)
+        return numbered_notes(merged)
+
     def _measured_not_graded(self, r: dict) -> "list[tuple[str, str]]":
         """``[(row label, why)]`` for rows that HAVE a number nobody graded.
 
@@ -2703,6 +2761,17 @@ class MeasurementReportDialog(QDialog):
         that reads FAIL in Full colour check reads INFO here and FAIL again the
         moment the type goes back. A row that was never computed keeps N-A,
         because "we could not measure this" is not a judgement being withheld.
+
+        **AND THE NOTES GO WITH THE VERDICT, because a note comments a verdict
+        and there is none here.** Missed on the first pass and caught by
+        `test_the_printing_record_does_not_single_out_two_of_eight_rows`, which
+        had been retargeted onto the new state an hour earlier: `judge` attached
+        the note while the row still had a word, this method took the word away,
+        and the note outlived it. The Printing record then printed a numbered
+        note commenting a verdict it does not give, which is the same fault
+        `_measured_not_graded`'s type guard exists for, arriving by a new door.
+        The invariant is not "notes are set correctly once"; it is that a note
+        and a verdict live and die together, after EVERY transformation.
         """
         if not self._ungraded_by_type():
             return rows
@@ -2710,6 +2779,7 @@ class MeasurementReportDialog(QDialog):
         for row in rows:
             if row.get("word") != N_A:
                 row["word"] = INFO
+            row["notes"] = []
         return rows
 
     def _column_summary(self, r: dict):
@@ -4819,6 +4889,8 @@ class MeasurementReportDialog(QDialog):
         present = [row.id for row in ROWS
                    if any(row.id in verd[id(r)] for r in runs)]
 
+        _note_nums = self._note_numbering(runs)
+
         def cell(r, rid):
             if _is_raw_drift(r):
                 return (f"<td align='center' style='color:{_C['faint']}'>"
@@ -4837,9 +4909,25 @@ class MeasurementReportDialog(QDialog):
                 tip = tr("CONDITIONAL: over a value this limit set recommends "
                          "but does not require. Nothing failed; the exceedance "
                          "is documented.")
+            # THE MARKER, WHICH IS THE HALF OF THE RULING THAT IS EASY TO
+            # FORGET. A numbered list nobody is pointed at is a paragraph. The
+            # numbers come from the same `numbered_notes` call the list below
+            # uses, so the two cannot disagree about which note is note 1.
+            from workflow.measurement_report import note_numbers_for
+            marks = note_numbers_for(x, _note_nums)
+            mark = ("<sup style='font-weight:normal'>"
+                    + html.escape(",".join(str(n) for n in marks))
+                    + "</sup>") if marks else ""
+            if marks:
+                seen = [self._note_sentence(c) for (n, c, _w) in _note_nums
+                        if n in marks]
+                seen = [t for t in seen if t]
+                if seen and not tip:
+                    tip = " ".join(seen)
             title = f" title='{html.escape(tip)}'" if tip else ""
             return (f"<td align='center'{title} style='color:{col};"
-                    f"font-weight:{weight}'>{html.escape(word_label(word))}</td>")
+                    f"font-weight:{weight}'>{html.escape(word_label(word))}"
+                    f"{mark}</td>")
 
         def label_of(rid):
             row = ROW_BY_ID.get(rid)
@@ -5011,6 +5099,21 @@ class MeasurementReportDialog(QDialog):
                     "The measurement is there; it is shown for information "
                     "because the report cannot judge it under these "
                     "conditions.")) + "</div>")
+        # …AND THE NOTES ON VERDICTS THAT WERE GIVEN, which is a different list
+        # again and is the second half of Knut's ruling of 2026-09-13. The two
+        # above are about rows with NO verdict. These comment a verdict that
+        # stands: the number is judged, and the note says what to know when
+        # weighing it. Numbered, because the verdict cell points at the number.
+        numbered = self._numbered_notes(runs)
+        if numbered:
+            items = "".join(
+                f"<li style='margin-bottom:2px'><b>{n}.</b> "
+                + html.escape(f"{where}: ") + html.escape(sentence) + "</li>"
+                for (n, where, sentence) in numbered)
+            notes += (f"<div style='{note_css}'><b>" + html.escape(tr(
+                "Notes on the verdicts above:")) + "</b>"
+                + f"<ol style='margin:2px 0 0 16px;padding:0;"
+                f"list-style:none'>{items}</ol></div>")
         return (_h2(tr("Report Results"), page_break=True) + _gap()
                 + f"<div style='color:{_C['dim']};margin-bottom:4px'>" + html.escape(intro)
                 + "</div>" + _gap()
