@@ -1932,14 +1932,72 @@ def build_project(dest: Path, name: str, plans: "list[RunPlan]",
 # ---------------------------------------------------------------------------
 # main
 # ---------------------------------------------------------------------------
+def verify_pack(path: "Path") -> "list[str]":
+    """What is MISSING from a built pack, as sentences. Empty means complete.
+
+    **A PACK SHIPPED WITH TWO OF ITS SIX PROJECTS MISSING, AND THE CHECK THAT
+    SHOULD HAVE CAUGHT IT COMPARED THE WRONG THING.** Knut, 2026-09-13, on the
+    beta 8 release: *"the last published ChromIQ-Report-Limit-Demos project
+    collection did not contain all projects as previous demo package. The
+    complete package should always be published."*
+
+    He is right. The zip was built by hand-listing four project names, taken
+    from the previous release rather than from `PROJECTS`, and the check run
+    against it compared only the archive's ROOT FOLDER NAME with the previous
+    one. Both matched. That is the same shape as comparing a plist against a
+    backup that already holds the bad value: a baseline is only evidence if
+    something independent says the baseline was right.
+
+    So the pack is checked against `PROJECTS`, which is the one place that
+    knows, and the release step calls this rather than eyeballing a listing.
+    Accepts a directory or a `.zip`.
+    """
+    import zipfile
+    want = [name for name, _plans in PROJECTS]
+    missing: "list[str]" = []
+    path = Path(path)
+    if path.suffix.lower() == ".zip":
+        if not path.is_file():
+            return [f"no such archive: {path}"]
+        with zipfile.ZipFile(path) as zf:
+            names = zf.namelist()
+        present = {n.split("/")[1] for n in names
+                   if "/" in n and len(n.split("/")) > 1}
+        extras = {"README.txt", "intended-vs-actual.json"}
+    else:
+        if not path.is_dir():
+            return [f"no such folder: {path}"]
+        present = {c.name for c in path.iterdir()}
+        extras = {"README.txt", "intended-vs-actual.json"}
+    for name in want:
+        if name not in present:
+            missing.append(f"project missing: {name}")
+    for name in sorted(extras):
+        if name not in present:
+            missing.append(f"file missing: {name}")
+    return missing
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--verify", default="",
+                    help="check a built pack (folder or .zip) for completeness "
+                         "and exit, building nothing")
     ap.add_argument("dest", nargs="?", default=str(_HERE.parent / "demo-projects" / FOLDER))
     ap.add_argument("--zip", action="store_true",
                     help="also write <dest>.zip beside the folder")
     ap.add_argument("--report", default="",
                     help="write the intended/actual table as JSON to this path")
     args = ap.parse_args(argv)
+
+    if args.verify:
+        gaps = verify_pack(Path(args.verify))
+        for g in gaps:
+            print(f"  {g}")
+        n = len(PROJECTS)
+        print(f"{'INCOMPLETE' if gaps else 'complete'}: {args.verify} "
+              f"({n} projects expected)")
+        return 2 if gaps else 0
 
     if not (ARGYLL / "targen").exists() or not SRGB.exists():
         print(f"ArgyllCMS with ref/sRGB.icm is required ({ARGYLL}).")
