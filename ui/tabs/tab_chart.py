@@ -465,6 +465,20 @@ _I1_W8_DIR = "assets/charts/knut/rgb/i1pro"
 # paper differs between the A4 and Letter rows. randomize=False + seed=None keeps
 # the printed layout identical to Knut's originals; patch order doesn't matter
 # for scanin (the .cht fiducials locate every patch).
+#
+# ONE FIELD IS NO LONGER VERBATIM: `margin_left` is 9.0 where his export said
+# 4.0. Knut, 2026-09-13: *"all the scanner built-in presets give a margin
+# warning because it has margin 4.0, while needing 8,9mm, due to the row
+# indicators. Please modify the 3 A4 and the 3 Letter scanner presets to have
+# 9,0mm left margin."* The row-label band was already pushing the patch block to
+# 8.97 mm from the paper edge on every one of the six, so the sheet was never
+# wrong; the chart was asking for 4.0 and using 8.9, and the panel said so every
+# time one was loaded. Measured over all six before and after: the grid
+# (65 x 50 on Letter, 71 x 49 on A4), the patches per page, the page count and
+# the padding are all unchanged, and the block's left edge does not move. The
+# only difference on paper is that the three Letter charts' patch slot grows
+# 3.979 mm to 4.064, which brings it back above the 4.0 mm `area_min_patch_mm`
+# the recipe itself asks for.
 KNUT_SCANNER_SUFFIX = " · Profile printer with scanner"
 _KNUT_SCANNER_DIR = "assets/charts/knut/rgb/scanner"
 _KNUT_SCANNER_RECIPE: dict = {
@@ -475,7 +489,7 @@ _KNUT_SCANNER_RECIPE: dict = {
     "spacer_overrides": {}, "edge_spacers": False,
     "patch_area_align": "top-left", "pscale": 1.0, "sscale": 1.0,
     "border": 6.0, "margin_top": 8.0, "margin_right": 4.0,
-    "margin_bottom": 4.0, "margin_left": 4.0,
+    "margin_bottom": 4.0, "margin_left": 9.0,      # 4.0 in his export; see above
     "use_instrument_margins": False,
     "patch_w_mm": 0.0, "patch_h_mm": 0.0,
     "layout_mode": "area_first", "area_method": "by_width",
