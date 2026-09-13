@@ -1848,3 +1848,18 @@ sheet's ΔE against the chart's design is the printer's own error before any
 profile exists, so on any ordinary limit set it would read FAIL on nearly every
 row, on nearly every printer, by design. A column of red that is expected to be
 red teaches a reader to ignore red.
+
+### ANSWERED: 12b stands. Confirmed by Knut, 2026-09-13
+
+> Anser to "So: does 12b still stand now you have seen it in practice? ": For
+> now, leave it as is.
+
+Nineteen minutes after the question. So the profiling sheet keeps its INFO rows
+and the sentence under the table that explains them, and §4 of
+`measurement_report_limits.md` now carries that confirmation inline against the
+rule itself. No code changed: the answer was to leave it, and it was already
+left.
+
+"For now" is doing work in that sentence and is recorded as written. If he
+comes back to it, the remedy is the one he chose for the grey rows on the same
+day: a verdict plus a numbered note saying what the number is measuring.

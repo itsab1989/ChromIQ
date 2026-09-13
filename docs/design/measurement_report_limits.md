@@ -244,6 +244,19 @@ The sentence it replaced said the sheet was not graded and stopped, which meets
 the letter of INFO and none of his condition: a reader seeing large numbers and
 no verdict cannot tell whether something is wrong.
 
+> **THIS ONE RULE IS CONFIRMED. Confirmed by: Knut, 2026-09-13.** He questioned
+> it on 2026-09-13 having read one of these columns on the demo pack, *"Why are
+> most of them INFO, when the thresholds are set and can be tested. Verdict
+> should be given when report is calculated"*, and the question was put back to
+> him with what overturning it would cost: a profiling sheet's distance from
+> the chart's design IS the printer's own error before any profile exists, so
+> on an ordinary set it reads FAIL on nearly every row, on nearly every
+> printer, every time, by design. His answer, 19:54 the same evening:
+> *"For now, leave it as is."*
+>
+> The confirmation is of **12b and nothing else**. The rest of this section is
+> still ⏳ awaiting confirmation, and the marker above says so.
+
 ## 5. Where the set lives, and when it may change
 
 > **REVISED 2026-09-10 on Knut's report, and it moved for two reasons.** This
