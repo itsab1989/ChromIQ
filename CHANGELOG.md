@@ -1,5 +1,36 @@
 # Changelog
 
+## v4.3.0-beta.10
+
+**One warning, and five things wrong in it.** A tester set a chart going with a
+clip border, a wide right margin, notes down the right edge and a line of
+placeholders along the bottom, and the panel told him his notes were five
+characters too long. They were not: the sheet printed every character, with two
+centimetres of clear paper at each end. What had actually run over was the
+bottom line, into the margin the notes are printed in.
+
+### Fixed
+
+- **The panel measured a line the sheet does not print.** With a patch set
+  already loaded, ChromIQ does not run targen and stamps "Chart layout <name>"
+  where the panel was predicting a targen command. Different text, different
+  length, so a warning about characters being cut when nothing was. The
+  prediction now asks the same question the build asks, and the two lines come
+  out identical.
+
+- **The bottom line could run into a wide side margin.** It was kept clear of
+  the clip border and of the text distances, and not of the margin, so on a
+  24 mm border with a 31.5 mm margin it printed 4.5 mm inside the column the
+  right-edge notes use. The margin is one of the bounds it is centred between
+  now, in the panel and on the sheet alike.
+
+- **"The text has stopped shrinking at 13 pt" when nothing had shrunk.** A size
+  you type is printed exactly as typed, so quoting it back as the point where
+  shrinking stopped was simply untrue. The messages say what actually applies:
+  the 7 pt floor where the size is "auto", and where it is typed, that a typed
+  size does not shrink and what "auto" would do instead.
+
+
 ## v4.3.0-beta.9
 
 **A tester's batch of four, and the report window was telling people their data
